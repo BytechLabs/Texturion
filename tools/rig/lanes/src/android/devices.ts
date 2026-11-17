@@ -35,9 +35,9 @@ export type RigDeviceName = keyof typeof RIG_DEVICES;
 export const RIG_DEVICE_NAMES = Object.keys(RIG_DEVICES) as RigDeviceName[];
 
 /** hostd on the Windows host, tunnelled to this port on the VM's loopback. */
-export const HOSTD_PORT = 15900;
+export const HOSTD_PORT = 15_900;
 /** The rig's own adb server (5137 on the host), tunnelled to this port on the VM's loopback. */
-export const ADB_VM_PORT = 15037;
+export const ADB_VM_PORT = 15_037;
 /** How many emulators the host runs at once, the device lane's included. */
 export const MAX_BOOTED = 3;
 

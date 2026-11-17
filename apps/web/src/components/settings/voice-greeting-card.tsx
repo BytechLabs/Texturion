@@ -80,7 +80,7 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
   // Polled ONLY while a capture call is out. The owner is on the phone and away
   // from this screen; the greeting appearing in the list below is the only
   // confirmation the call could produce, so it has to arrive on its own.
-  const greetings = useVoicemailGreetings(true, capture?.phase === "calling" ? 5_000 : false);
+  const greetings = useVoicemailGreetings(true, capture?.phase === "calling" ? 5000 : false);
   const record = useRecordGreeting();
   const remove = useDeleteGreeting();
   const captureCall = useGreetingCaptureCall();
@@ -102,11 +102,11 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
 
   // The object URL is a handle on browser memory, not a value — drop it when
   // the take is replaced or the card unmounts.
-  useEffect(() => {
-    return () => {
+  useEffect(() => 
+    () => {
       if (take) URL.revokeObjectURL(take.url);
-    };
-  }, [take]);
+    }
+  , [take]);
 
   async function start() {
     setMicError(null);
@@ -158,10 +158,10 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
       discard();
       setName(defaultName);
       toast.success(t("settingsMore.greetingSaved"));
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.saveFailedGeneric"),
       );
     }
@@ -181,10 +181,10 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
     try {
       await remove.mutateAsync(target.id);
       toast.success(t("settingsMore.greetingDeleted"));
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.greetingDeleteFailed"),
       );
     }
@@ -214,10 +214,10 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
     try {
       await captureCall.mutateAsync({ name: capture.name.trim(), to: capture.to });
       setCapture({ ...capture, phase: "calling" });
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.greetingCallFailed"),
       );
     }
@@ -308,7 +308,7 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
                   </Button>
                 </div>
               </>
-            ) : recording ? (
+            ) : (recording ? (
               <div className="flex items-center justify-between gap-3">
                 <span className="text-sm">
                   {t("settingsMore.greetingRecordingNow")}
@@ -328,7 +328,7 @@ export function VoiceGreetingCard({ canEdit }: { canEdit: boolean }) {
                   {t("settingsMore.greetingRecord")}
                 </Button>
               </div>
-            )}
+            ))}
             {micError && (
               <p role="alert" className="text-sm text-destructive">
                 {micError}

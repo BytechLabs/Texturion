@@ -12,25 +12,11 @@
  * Doze entered from its own sensors among it, is residual X6.
  */
 import type { StandingRole } from "@loonext/rig-protocol";
-import { passedMaintenance, type DeviceState } from "@loonext/rig-lanes";
+import { passedMaintenance } from '@loonext/rig-lanes';
+import type { DeviceState } from '@loonext/rig-lanes';
 import type { CallRecord, Detection, Surface } from "@loonext/rig-robot";
-import {
-  audioFault,
-  audioReady,
-  EVENT_INGEST_MS,
-  EVENT_POLL_MS,
-  fail,
-  infra,
-  pass,
-  poll,
-  type AppApi,
-  type AudioLinkApi,
-  type DeviceApi,
-  type LeaseHandle,
-  type ScenarioContext,
-  type ScenarioResult,
-  type ScenarioRunner,
-} from "./context.ts";
+import { audioFault, audioReady, EVENT_INGEST_MS, EVENT_POLL_MS, fail, infra, pass, poll } from './context.ts';
+import type { AppApi, AudioLinkApi, DeviceApi, LeaseHandle, ScenarioContext, ScenarioResult, ScenarioRunner } from './context.ts';
 
 const DAY_MS = 86_400_000;
 const RING_WITHIN_MS = 12_000;
@@ -50,7 +36,7 @@ const DEVICE_CLOCK_MARGIN_MS = 5 * 60_000;
  */
 const RING_ME_SETTLE_MS = 15_000;
 /** How long a ring that was ended is given to leave Telecom. */
-const RING_CLEARED_MS = 5_000;
+const RING_CLEARED_MS = 5000;
 
 /** Where a wake lands: the tenant, the member signed in on the device, the number that rings it and the code it plays. */
 export interface WakeLane {
@@ -422,8 +408,8 @@ export async function ringOnly(
     to: lane.number,
     play: null,
     record: false,
-    hangup_before_answer_ms: waitMs + 3_000,
-    hangup_after_ms: 1_000,
+    hangup_before_answer_ms: waitMs + 3000,
+    hangup_after_ms: 1000,
   });
   if (dialed.state === "failed") return { failure: dialFailure(dialed) };
   const ring = await device.waitForRinging(waitMs);
@@ -799,7 +785,7 @@ async function pushTargetStored(ctx: ScenarioContext, ev: Record<string, unknown
   const count = await poll(ctx, async () => {
     const targets = await ctx.app.pushTargets({ member: PIXEL_LANE.member });
     return targets > 0 ? targets : undefined;
-  }, 60_000, 5_000);
+  }, 60_000, 5000);
   ev[key] = count ?? 0;
   return count ? undefined : fail("push_token_not_stored", `${PIXEL_LANE.member} has no push target a minute after signing in`);
 }
@@ -929,7 +915,7 @@ export const D11: ScenarioRunner = {
     const unbooted: string[] = [];
     for (const api of EMULATOR_APIS) {
       await attempt(`boot emulator-${api}`, () => ctx.devices.bootEmulator(api));
-      const back = await poll(ctx, () => ctx.devices.emulator(api).reachable(), EMULATOR_BACK_MS, 5_000);
+      const back = await poll(ctx, () => ctx.devices.emulator(api).reachable(), EMULATOR_BACK_MS, 5000);
       if (!back) unbooted.push(`emulator-${api}`);
       await attempt(`shut down emulator-${api}`, () => ctx.devices.shutdownEmulator(api));
     }
@@ -940,7 +926,7 @@ export const D11: ScenarioRunner = {
     let failing: string[] = ["no report"];
     let polls = 0;
     for (;;) {
-      polls++;
+      polls += 1;
       try {
         failing = (await ctx.rig.health()).results.filter((r) => !r.pass).map((r) => r.name);
       } catch (error) {

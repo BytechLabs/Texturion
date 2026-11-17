@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { LEASE_SEARCH_SPACING_MS, SEARCH_PER_LEASE } from "../src/limits";
 import { charge, readTier } from "../src/state/ledger";
 import { ORDER_KEYS } from "../src/telnyx/ordering";
-import { EDGE, lease, N, ready, ruleOf, type Harness } from "./support";
+import { EDGE, lease, N, ready, ruleOf } from './support';
+import type { Harness } from './support';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -32,10 +33,10 @@ const searches = (h: Harness) => h.telnyx.requests("GET", "/v2/available_phone_n
 describe("number search", () => {
   it("runs only under a lease for a scenario that may search", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call(SEARCH_PATH))).toBe("provisioning.search_needs_lease");
+    await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_needs_lease");
     for (const scenario of ["S02", "S28"]) {
       const id = await lease(h, scenario, "rig-api");
-      expect(await ruleOf(await h.call(SEARCH_PATH)), scenario).toBe("provisioning.search_needs_lease");
+      await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_needs_lease");
       await h.call(`/lease/${id}`, { method: "DELETE" });
     }
     expect(searches(h)).toBe(0);
@@ -46,15 +47,15 @@ describe("number search", () => {
     await signUpLease(h);
     expect((await h.call(SEARCH_PATH)).status).toBe(200);
     expect(searches(h)).toBe(1);
-    h.advance(2_000);
+    h.advance(2000);
     expect((await h.call(SEARCH_PATH)).status).toBe(200);
-    expect(await ruleOf(await h.call(SEARCH_PATH))).toBe("provisioning.search_rate");
+    await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_rate");
     for (let i = 2; i < SEARCH_PER_LEASE; i++) {
       h.advance(LEASE_SEARCH_SPACING_MS);
       expect((await h.call(SEARCH_PATH)).status, `search ${i + 1}`).toBe(200);
     }
     h.advance(LEASE_SEARCH_SPACING_MS);
-    expect(await ruleOf(await h.call(SEARCH_PATH))).toBe("provisioning.search_cap");
+    await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_cap");
     expect(searches(h)).toBe(SEARCH_PER_LEASE);
   });
 
@@ -65,7 +66,7 @@ describe("number search", () => {
       expect((await h.call(SEARCH_PATH)).status).toBe(200);
       h.advance(LEASE_SEARCH_SPACING_MS);
     }
-    expect(await ruleOf(await h.call(SEARCH_PATH))).toBe("provisioning.search_cap");
+    await expect(ruleOf(await h.call(SEARCH_PATH))).resolves.toBe("provisioning.search_cap");
     await h.call(`/lease/${first}`, { method: "DELETE" });
     await signUpLease(h);
     expect((await h.call(SEARCH_PATH)).status).toBe(200);
@@ -77,13 +78,13 @@ describe("number search", () => {
     await h.call("/partition", { caller: "rig-api" });
     const before = await readTier(h.ctx);
     const lastOrder = await h.store.get(ORDER_KEYS.last);
-    expect(await ruleOf(await order(h))).toBe("provisioning.order_needs_lease");
-    expect(await h.store.get(ORDER_KEYS.last)).toEqual(lastOrder);
+    await expect(ruleOf(await order(h))).resolves.toBe("provisioning.order_needs_lease");
+    await expect(h.store.get(ORDER_KEYS.last)).resolves.toEqual(lastOrder);
     expect((await readTier(h.ctx)).month_to_date_usd).toBe(before.month_to_date_usd);
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "PATCH", body: { customer_reference: "x" } }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "PATCH", body: { customer_reference: "x" } }))).resolves.toBe(
       "provisioning.number_standing",
     );
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "DELETE" }))).toBe("provisioning.number_standing");
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "DELETE" }))).resolves.toBe("provisioning.number_standing");
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
     expect(h.telnyx.writes()).toEqual([]);
   });
@@ -94,7 +95,7 @@ describe("number orders", () => {
     const h = await ready();
     await lease(h, "S28", "rig-api");
     h.production.capabilities = [];
-    expect(await ruleOf(await order(h))).toBe("provisioning.ordering_off");
+    await expect(ruleOf(await order(h))).resolves.toBe("provisioning.ordering_off");
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
   });
 
@@ -102,14 +103,14 @@ describe("number orders", () => {
     for (const env of [{ TELNYX_CONCURRENT_FLOOR: "unknown" }, {}]) {
       const h = await ready({ env, validated: null });
       await lease(h, "S28", "rig-api");
-      expect(await ruleOf(await order(h))).toBe("provisioning.voice_closed");
+      await expect(ruleOf(await order(h))).resolves.toBe("provisioning.voice_closed");
       expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
     }
   });
 
   it("needs the S28 lease", async () => {
     const h = await ready();
-    expect(await ruleOf(await order(h))).toBe("provisioning.order_needs_lease");
+    await expect(ruleOf(await order(h))).resolves.toBe("provisioning.order_needs_lease");
   });
 
   it("orders with the group, a nonprod profile and a nonprod connection, adding the voice app when absent", async () => {
@@ -138,7 +139,7 @@ describe("number orders", () => {
       [{ phone_numbers: [{ phone_number: "+14165550150" }, { phone_number: "+14165550151" }] }, "provisioning.order_one_number"],
       [{ phone_numbers: [] }, "provisioning.order_one_number"],
     ];
-    for (const [body, rule] of cases) expect(await ruleOf(await order(h, body)), JSON.stringify(body)).toBe(rule);
+    for (const [body, rule] of cases) await expect(ruleOf(await order(h, body))).resolves.toBe(rule);
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
   });
 
@@ -148,7 +149,7 @@ describe("number orders", () => {
     expect((await order(h)).status).toBe(200);
     h.advance(20 * 60 * 1000);
     await lease(h, "S28", "rig-api");
-    expect(await ruleOf(await order(h, { phone_numbers: [{ phone_number: "+14165550151" }] }))).toBe(
+    await expect(ruleOf(await order(h, { phone_numbers: [{ phone_number: "+14165550151" }] }))).resolves.toBe(
       "provisioning.order_interval",
     );
   });
@@ -167,7 +168,7 @@ describe("number orders", () => {
     }
     await h.store.delete("partition:owned");
     await lease(h, "S28", "rig-api");
-    expect(await ruleOf(await order(h))).toBe("provisioning.numbers_held");
+    await expect(ruleOf(await order(h))).resolves.toBe("provisioning.numbers_held");
   });
 
   it("counts a standing number Telnyx has not listed yet toward the ten", async () => {
@@ -178,7 +179,7 @@ describe("number orders", () => {
     await h.store.delete("partition:owned");
     await lease(h, "S28", "rig-api");
     await h.store.put("partition:standing", { "DEV-E1": { role: "DEV-E1", phone_number: "+14165550179" } });
-    expect(await ruleOf(await order(h))).toBe("provisioning.numbers_held");
+    await expect(ruleOf(await order(h))).resolves.toBe("provisioning.numbers_held");
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
   });
 
@@ -189,7 +190,7 @@ describe("number orders", () => {
     const before = await readTier(h.ctx);
     await charge(h.ctx, before.usage_budget_usd - before.month_to_date_usd - 0.5);
     expect((await readTier(h.ctx)).tier).not.toBe("red");
-    expect(await ruleOf(await order(h))).toBe("budget.tier_red");
+    await expect(ruleOf(await order(h))).resolves.toBe("budget.tier_red");
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toEqual([]);
   });
 
@@ -207,7 +208,7 @@ describe("number orders", () => {
     h.telnyx.dropGroupOnOrder = true;
     await lease(h, "S28", "rig-api");
     expect((await order(h)).status).toBe(200);
-    expect(await h.store.get(ORDER_KEYS.stopped)).toBeDefined();
+    await expect(h.store.get(ORDER_KEYS.stopped)).resolves.toBeDefined();
     expect(h.telnyx.numbers.some((item) => item.phone_number === "+14165550150")).toBe(true);
     expect(h.telnyx.requests("DELETE")).toEqual([]);
     const event = h.outbound.find((item) => item.url.includes("posthog.com"));
@@ -216,37 +217,37 @@ describe("number orders", () => {
     h.advance(30 * DAY);
     await h.store.put("admission:reserve", { legs: 2, measured_at: h.clock.now });
     await lease(h, "S28", "rig-api");
-    expect(await ruleOf(await order(h, { phone_numbers: [{ phone_number: "+14165550151" }] }))).toBe("startup.unsafe");
+    await expect(ruleOf(await order(h, { phone_numbers: [{ phone_number: "+14165550151" }] }))).resolves.toBe("startup.unsafe");
   });
 
   it("waits for the first order's read-back before ordering again", async () => {
     const h = await ready();
     await h.store.put(ORDER_KEYS.first, { state: "pending", order_id: null, phone_number: "+14165550159", at: h.clock.now });
     await lease(h, "S28", "rig-api");
-    expect(await ruleOf(await order(h))).toBe("provisioning.ordering_off");
+    await expect(ruleOf(await order(h))).resolves.toBe("provisioning.ordering_off");
   });
 });
 
 describe("number changes", () => {
   it("patches and deletes only owned numbers that are not standing", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-prod", { method: "PATCH", body: { customer_reference: "x" } }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-prod", { method: "PATCH", body: { customer_reference: "x" } }))).resolves.toBe(
       "provisioning.number_not_owned",
     );
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "PATCH", body: { customer_reference: "x" } }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "PATCH", body: { customer_reference: "x" } }))).resolves.toBe(
       "provisioning.number_standing",
     );
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "DELETE" }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-devw1", { method: "DELETE" }))).resolves.toBe(
       "provisioning.number_standing",
     );
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-prod", { method: "DELETE" }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-prod", { method: "DELETE" }))).resolves.toBe(
       "provisioning.number_not_owned",
     );
     expect(h.telnyx.writes()).toEqual([]);
 
     expect((await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "PATCH", body: { connection_id: "conn-voice" } })).status).toBe(200);
     await h.store.delete("limit:validation");
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "PATCH", body: { connection_id: "conn-voice" } }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "PATCH", body: { connection_id: "conn-voice" } }))).resolves.toBe(
       "provisioning.voice_closed",
     );
     expect((await h.call("/telnyx/v2/phone_numbers/num-scratch", { method: "PATCH", body: { customer_reference: "x" } })).status).toBe(200);
@@ -256,7 +257,7 @@ describe("number changes", () => {
   it("treats a number with the standing tag as standing even when the store forgot it", async () => {
     const h = await ready();
     await h.store.delete("partition:standing");
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-robot1", { method: "DELETE" }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-robot1", { method: "DELETE" }))).resolves.toBe(
       "provisioning.number_standing",
     );
   });
@@ -272,7 +273,7 @@ describe("number changes", () => {
       { tags: ["rig-standing"] },
       { external_pin: "1234" },
     ]) {
-      expect(await ruleOf(await patch(body)), JSON.stringify(body)).toBe("provisioning.patch_field");
+      await expect(ruleOf(await patch(body))).resolves.toBe("provisioning.patch_field");
     }
   });
 
@@ -280,10 +281,10 @@ describe("number changes", () => {
     const h = await ready();
     const patch = (body: Record<string, unknown>) =>
       h.call("/telnyx/v2/phone_numbers/num-scratch/voice", { method: "PATCH", body });
-    expect(await ruleOf(await patch({ call_forwarding: { call_forwarding_enabled: true, forwards_to: N.notOwned } }))).toBe(
+    await expect(ruleOf(await patch({ call_forwarding: { call_forwarding_enabled: true, forwards_to: N.notOwned } }))).resolves.toBe(
       "provisioning.patch_field",
     );
-    expect(await ruleOf(await patch({ translated_number: N.notOwned }))).toBe("provisioning.patch_field");
+    await expect(ruleOf(await patch({ translated_number: N.notOwned }))).resolves.toBe("provisioning.patch_field");
     expect((await patch({ caller_id_name_enabled: true })).status).toBe(200);
   });
 });
@@ -310,16 +311,16 @@ describe("messaging profiles", () => {
       [{ webhook_url: "https://api.loonext.com/webhooks/telnyx" }, "provisioning.profile_webhook"],
       [{ webhook_failover_url: "https://somewhere.example" }, "provisioning.profile_webhook"],
     ];
-    for (const [body, rule] of cases) expect(await ruleOf(await create(h, body)), JSON.stringify(body)).toBe(rule);
+    for (const [body, rule] of cases) await expect(ruleOf(await create(h, body))).resolves.toBe(rule);
   });
 
   it("holds at most seven nonprod profiles, and counts the new one as nonprod", async () => {
     const h = await ready();
     const first = await create(h, {});
     expect(first.status).toBe(201);
-    const id = ((await first.json()) as { data: { id: string } }).data.id;
-    expect(await h.store.get<string[]>("partition:app-profiles")).toContain(id);
-    expect(await ruleOf(await create(h, { name: "company-y" }))).toBe("provisioning.profile_count");
+    const {id} = ((await first.json()) as { data: { id: string } }).data;
+    await expect(h.store.get<string[]>("partition:app-profiles")).resolves.toContain(id);
+    await expect(ruleOf(await create(h, { name: "company-y" }))).resolves.toBe("provisioning.profile_count");
   });
 
   it("returns the new profile without its v1 secret", async () => {
@@ -334,15 +335,15 @@ describe("messaging profiles", () => {
 describe("telephony credentials", () => {
   it("creates credentials only on the rig's two credential connections", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-prod-webrtc" } }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-prod-webrtc" } }))).resolves.toBe(
       "provisioning.credential_connection",
     );
-    expect(await ruleOf(await h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-voice" } }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-voice" } }))).resolves.toBe(
       "provisioning.credential_connection",
     );
     const created = await h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-webrtc", name: "m1" } });
     expect(created.status).toBe(201);
-    const data = ((await created.json()) as { data: Record<string, unknown> }).data;
+    const {data} = ((await created.json()) as { data: Record<string, unknown> });
     expect(data.sip_username).toMatch(/^gencred/);
     expect(data).not.toHaveProperty("sip_password");
   });
@@ -350,31 +351,31 @@ describe("telephony credentials", () => {
   it("keeps the sentinel to one credential, counting what Telnyx holds", async () => {
     const h = await ready();
     const create = () => h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-sentinel" } });
-    expect(await ruleOf(await create())).toBe("provisioning.sentinel_full");
+    await expect(ruleOf(await create())).resolves.toBe("provisioning.sentinel_full");
     h.telnyx.lists.telephony_credentials = h.telnyx.lists.telephony_credentials.filter((item) => item.id !== "cred-sentinel");
     expect((await create()).status).toBe(201);
-    expect(await ruleOf(await create())).toBe("provisioning.sentinel_full");
+    await expect(ruleOf(await create())).resolves.toBe("provisioning.sentinel_full");
   });
 
   it("caps creations at 50 a day", async () => {
     const h = await ready();
     await h.store.put("count:credentials:2026-11-02", 50);
-    expect(await ruleOf(await h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-webrtc" } }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-webrtc" } }))).resolves.toBe(
       "budget.credentials_day",
     );
   });
 
   it("deletes and mints tokens only for nonprod credentials", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call("/telnyx/v2/telephony_credentials/cred-prod", { method: "DELETE" }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/telephony_credentials/cred-prod", { method: "DELETE" }))).resolves.toBe(
       "provisioning.credential_not_nonprod",
     );
-    expect(await ruleOf(await h.call("/telnyx/v2/telephony_credentials/cred-prod/token", { method: "POST", body: {} }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/telephony_credentials/cred-prod/token", { method: "POST", body: {} }))).resolves.toBe(
       "provisioning.credential_not_nonprod",
     );
     const token = await h.call("/telnyx/v2/telephony_credentials/cred-owner/token", { method: "POST", body: {} });
     expect(token.status).toBe(201);
-    expect(await token.text()).toBe("jwt-token-text");
+    await expect(token.text()).resolves.toBe("jwt-token-text");
   });
 
   it("stops dialling a SIP user once its credential is deleted", async () => {
@@ -388,6 +389,6 @@ describe("telephony credentials", () => {
       });
     expect((await dial()).status).toBe(200);
     expect((await h.call("/telnyx/v2/telephony_credentials/cred-owner", { method: "DELETE" })).status).toBe(200);
-    expect(await ruleOf(await dial())).toBe("dial.to_not_owned");
+    await expect(ruleOf(await dial())).resolves.toBe("dial.to_not_owned");
   });
 });

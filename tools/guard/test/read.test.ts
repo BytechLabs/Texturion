@@ -28,13 +28,13 @@ describe("read class", () => {
 
   it("refuses a single number outside the partition", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-prod"))).toBe("read.not_in_partition");
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-prod"))).resolves.toBe("read.not_in_partition");
     expect((await h.call("/telnyx/v2/phone_numbers/num-devw1")).status).toBe(200);
   });
 
   it("asks nothing of Telnyx for a non-owned number's voice settings", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers/num-prod/voice"))).toBe("read.not_in_partition");
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers/num-prod/voice"))).resolves.toBe("read.not_in_partition");
     expect(h.telnyx.requests("GET", "/v2/phone_numbers/num-prod")).toEqual([]);
     expect((await h.call("/telnyx/v2/phone_numbers/num-devw1/voice")).status).toBe(200);
   });
@@ -42,7 +42,7 @@ describe("read class", () => {
   it("reads a call's status only for a registered leg", async () => {
     const h = await ready();
     h.telnyx.calls.set("ccid-prod", { alive: true });
-    expect(await ruleOf(await h.call("/telnyx/v2/calls/ccid-prod"))).toBe("read.leg_not_registered");
+    await expect(ruleOf(await h.call("/telnyx/v2/calls/ccid-prod"))).resolves.toBe("read.leg_not_registered");
     expect(h.telnyx.requests("GET", "/v2/calls/ccid-prod")).toEqual([]);
 
     h.telnyx.calls.set("ccid-rig", { alive: true });
@@ -56,7 +56,7 @@ describe("read class", () => {
       { id: "rec-rig", call_session_id: "s1", connection_id: "conn-voice", call_control_id: "c1" },
       { id: "rec-prod", call_session_id: "s1", connection_id: "conn-prod-voice", call_control_id: "c2" },
     );
-    expect(await ruleOf(await h.call("/telnyx/v2/recordings"))).toBe("read.filter_required");
+    await expect(ruleOf(await h.call("/telnyx/v2/recordings"))).resolves.toBe("read.filter_required");
     const response = await h.call("/telnyx/v2/recordings?filter[call_session_id]=s1");
     expect(((await response.json()) as Listing).data.map((item) => item.id)).toEqual(["rec-rig"]);
   });
@@ -68,8 +68,8 @@ describe("read class", () => {
       { from: N.robot2, messaging_profile_id: "prof-qa-e" },
       { from: N.notOwned, messaging_profile_id: "prof-prod" },
     );
-    expect(await ruleOf(await h.call("/telnyx/v2/messaging_optouts"))).toBe("read.filter_required");
-    expect(await ruleOf(await h.call("/telnyx/v2/messaging_optouts?filter[messaging_profile_id]=prof-prod"))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/messaging_optouts"))).resolves.toBe("read.filter_required");
+    await expect(ruleOf(await h.call("/telnyx/v2/messaging_optouts?filter[messaging_profile_id]=prof-prod"))).resolves.toBe(
       "read.filter_not_nonprod",
     );
     const response = await h.call("/telnyx/v2/messaging_optouts?filter[messaging_profile_id]=prof-qa-e");
@@ -82,7 +82,7 @@ describe("read class", () => {
       { id: "order-prod", billing_group_id: null },
       { id: "order-rig", billing_group_id: "bg-nonprod" },
     );
-    expect(await ruleOf(await h.call("/telnyx/v2/number_orders/order-prod"))).toBe("read.not_in_partition");
+    await expect(ruleOf(await h.call("/telnyx/v2/number_orders/order-prod"))).resolves.toBe("read.not_in_partition");
     expect((await h.call("/telnyx/v2/number_orders/order-rig")).status).toBe(200);
   });
 
@@ -96,7 +96,7 @@ describe("read class", () => {
       "/v2/managed_accounts",
       "/v2/messaging_hosted_number_orders/h1",
     ]) {
-      expect(await ruleOf(await h.call(`/telnyx${path}`)), path).toBe("read.account_wide");
+      await expect(ruleOf(await h.call(`/telnyx${path}`))).resolves.toBe("read.account_wide");
     }
     expect(h.telnyx.log).toEqual([]);
   });
@@ -104,28 +104,28 @@ describe("read class", () => {
   it("returns the balance as a number and nothing else", async () => {
     const h = await ready();
     const response = await h.call("/telnyx/v2/balance");
-    expect(await response.json()).toEqual({ data: { balance: 500 } });
+    await expect(response.json()).resolves.toEqual({ data: { balance: 500 } });
   });
 
   it("refuses an endpoint the registry does not list", async () => {
     const h = await ready();
     for (const path of ["/v2/call_control_applications", "/v2/connections", "/v2/phone_numbers/num-devw1/messaging"]) {
-      expect(await ruleOf(await h.call(`/telnyx${path}`)), path).toBe("registry.missing");
+      await expect(ruleOf(await h.call(`/telnyx${path}`))).resolves.toBe("registry.missing");
     }
     expect(h.telnyx.log).toEqual([]);
   });
 
   it("refuses registered endpoints of the refused class", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call("/telnyx/v2/documents", { body: {} }))).toBe("refused.documents");
-    expect(await ruleOf(await h.call("/telnyx/v2/documents/d1/download"))).toBe("refused.documents");
-    expect(await ruleOf(await h.call("/telnyx/v2/portability_checks", { body: {} }))).toBe("refused.porting");
+    await expect(ruleOf(await h.call("/telnyx/v2/documents", { body: {} }))).resolves.toBe("refused.documents");
+    await expect(ruleOf(await h.call("/telnyx/v2/documents/d1/download"))).resolves.toBe("refused.documents");
+    await expect(ruleOf(await h.call("/telnyx/v2/portability_checks", { body: {} }))).resolves.toBe("refused.porting");
     expect(h.telnyx.log).toEqual([]);
   });
 
   it("refuses a malformed path before matching it", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call("/telnyx/v2/calls/x%2F..%2Fy/actions/hangup", { body: {} }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/calls/x%2F..%2Fy/actions/hangup", { body: {} }))).resolves.toBe(
       "request.malformed_path",
     );
   });
@@ -148,11 +148,11 @@ describe("the owned set, when Telnyx ignores the group filter", () => {
     const id = await lease(h);
     const dial = (body: Record<string, unknown>) =>
       h.call("/telnyx/v2/calls", { caller: "robot", body: { connection_id: "conn-robot", ...body }, headers: { [HEADER.lease]: id } });
-    expect(await ruleOf(await dial({ from: N.robot1, to: N.production }))).toBe("dial.to_not_owned");
-    expect(await ruleOf(await dial({ from: N.production, to: N.devW1 }))).toBe("dial.from_not_owned");
+    await expect(ruleOf(await dial({ from: N.robot1, to: N.production }))).resolves.toBe("dial.to_not_owned");
+    await expect(ruleOf(await dial({ from: N.production, to: N.devW1 }))).resolves.toBe("dial.from_not_owned");
     const text = (body: Record<string, unknown>) => h.call("/telnyx/v2/messages", { body: { text: "x", ...body } });
-    expect(await ruleOf(await text({ from: N.devW1, to: N.production }))).toBe("message.to_not_owned");
-    expect(await ruleOf(await text({ from: N.production, to: N.devW1 }))).toBe("message.from_not_owned");
+    await expect(ruleOf(await text({ from: N.devW1, to: N.production }))).resolves.toBe("message.to_not_owned");
+    await expect(ruleOf(await text({ from: N.production, to: N.devW1 }))).resolves.toBe("message.from_not_owned");
     expect(h.telnyx.writes()).toEqual([]);
   });
 });

@@ -89,7 +89,7 @@ test("deploy installs no timer, and removes every one an earlier rig installed",
       `${NODE} ${RIGD_CLI} units --install`,
     ]);
     assert.deepEqual(rigdEnv, userManagerEnv());
-    assert.deepEqual(readdirSync(unitDir).sort(), kept);
+    assert.deepEqual(readdirSync(unitDir).toSorted(), kept);
     // Nothing enabled or started that is a timer.
     for (const call of calls) assert.ok(!/^(?:enable|start|restart)\b.*\.timer/.test(call), call);
     assert.match(lines[0], /^timers removed: /);
@@ -152,10 +152,10 @@ test("the tooling checkout ships no timer unit for the rig account", () => {
   const dir = join(TOOLING_ROOT, "tools", "rig", "box", "systemd", "user");
   const files = readdirSync(dir);
   assert.ok(files.includes("loonext-rig-api.service"));
-  assert.deepEqual(files.filter((name) => /\.timer$/.test(name)), []);
+  assert.deepEqual(files.filter((name) => name.endsWith('.timer')), []);
   const bootstrap = readFileSync(join(TOOLING_ROOT, "tools", "rig", "box", "bootstrap.sh"), "utf8");
   assert.ok(!/loonext-rig-[\w@-]*\.timer/.test(bootstrap), "bootstrap.sh enables a rig timer");
-  assert.ok(!/"\$units"\/\*\.timer/.test(bootstrap), "bootstrap.sh copies timer units");
+  assert.ok(!bootstrap.includes('"$units"/*.timer'), "bootstrap.sh copies timer units");
 });
 
 test("a rigd install that fails fails the deploy, after the services restarted, and leaves the hold", () => {
@@ -347,7 +347,7 @@ test("a rigd that cannot build its units refuses the deploy, naming the fix", ()
 
 /** systemctl's unit pattern: `*` is any run of characters, the rest literal. */
 function unitPattern(glob) {
-  return new RegExp(`^${glob.split("*").map((part) => part.replace(/[.\\^$+?()[\]{}|]/g, "\\$&")).join(".*")}$`);
+  return new RegExp(`^${glob.split("*").map((part) => part.replaceAll(/[.\\^$+?()[\]{}|]/g, String.raw`\$&`)).join(".*")}$`);
 }
 
 test("a schema change stops the runs `rig run` and a triage rerun started", async () => {

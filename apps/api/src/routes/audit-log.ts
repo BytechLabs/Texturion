@@ -102,9 +102,9 @@ function csvCell(value: unknown): string {
   const text =
     value === null || value === undefined
       ? ""
-      : typeof value === "object"
+      : (typeof value === "object"
         ? JSON.stringify(value)
-        : String(value);
+        : String(value));
   return csvSafeText(text);
 }
 

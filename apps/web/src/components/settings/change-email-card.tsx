@@ -17,7 +17,8 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { authErrorMessage } from "@/lib/auth/messages";
 import { isApplePrivateRelay } from "@/lib/auth/identities";
 import { isEmailChanged } from "@/lib/auth/reauth";

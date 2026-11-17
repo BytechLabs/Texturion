@@ -4,8 +4,9 @@
  * (components/marketing/hero/p5-lean.ts) the full build's class type.
  */
 declare module "p5/core" {
-  import p5 from "p5";
-  export default p5;
+  export { default } from "p5";
+
+  
 }
 
 declare module "p5/accessibility" {

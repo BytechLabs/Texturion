@@ -5,12 +5,8 @@ import {
   taskViewMatches,
   viewToTaskState,
 } from "./task-saved-views";
-import {
-  parseTaskSearchParams,
-  serializeTaskState,
-  toTaskFilters,
-  type TaskPageState,
-} from "./task-view-url";
+import { parseTaskSearchParams, serializeTaskState, toTaskFilters } from './task-view-url';
+import type { TaskPageState } from './task-view-url';
 
 const ME = "11111111-1111-4111-8111-111111111111";
 const SAM = "22222222-2222-4222-8222-222222222222";
@@ -72,8 +68,8 @@ describe("a task view holds the query", () => {
   it("stores overdue, and a due range as instants", () => {
     expect(taskStateToView(state({ tab: "all", due: "overdue" }), ME).overdue).toBe(true);
     const range = taskStateToView(state({ tab: "all", dueFrom: "2026-11-02", dueTo: "2026-11-08" }), ME);
-    expect(typeof range.due_after).toBe("string");
-    expect(typeof range.due_before).toBe("string");
+    expect(range.due_after).toBeTypeOf("string");
+    expect(range.due_before).toBeTypeOf("string");
   });
 
   it("round-trips every tab and filter", () => {
@@ -103,7 +99,7 @@ describe("a task view holds the query", () => {
   });
 
   it("drops what the allow-list does not know", () => {
-    const next = viewToTaskState({ source: "fax", sort: "random", group: "planet" } as never, ME, state());
+    const next = viewToTaskState({ source: "fax", sort: "random", group: "planet" }, ME, state());
     expect(next.source).toBeUndefined();
     expect(next.sort).toBeUndefined();
     expect(next.group).toBeUndefined();
@@ -131,7 +127,7 @@ describe("the URL carries the new filters", () => {
       group: "assignee",
     });
     const query = serializeTaskState(s);
-    expect(query).toContain("contact=" + CONTACT);
+    expect(query).toContain(`contact=${  CONTACT}`);
     expect(parseTaskSearchParams(new URLSearchParams(query))).toEqual(s);
   });
 
@@ -162,8 +158,8 @@ describe("the URL carries the new filters", () => {
       has_attachments: true,
       has_references: true,
     });
-    expect(new Date(filters.due_before as string).getTime()).toBeGreaterThan(
-      new Date(filters.due_after as string).getTime(),
+    expect(new Date(filters.due_before!).getTime()).toBeGreaterThan(
+      new Date(filters.due_after!).getTime(),
     );
   });
 });

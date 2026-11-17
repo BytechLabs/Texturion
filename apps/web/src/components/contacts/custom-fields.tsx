@@ -3,7 +3,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { contactFieldValueError, type ContactFieldKind } from "@loonext/shared";
+import { contactFieldValueError } from '@loonext/shared';
+import type { ContactFieldKind } from '@loonext/shared';
 
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { Input } from "@/components/ui/input";
@@ -45,7 +46,7 @@ export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
   const fields = useContactFields();
   const update = useUpdateContact(contact.id);
 
-  const stored = (contact.custom_fields ?? {}) as Record<string, string>;
+  const stored = (contact.custom_fields ?? {});
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
 
@@ -81,10 +82,10 @@ export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
         const { [def.key]: _saved, ...rest } = current;
         return rest;
       });
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("contacts.customFieldSaveFailed", { label: def.label }),
       );
     }
@@ -114,13 +115,13 @@ export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
                   {t(
                     value === "yes"
                       ? "contacts.yes"
-                      : value === "no"
+                      : (value === "no"
                         ? "contacts.no"
-                        : "contacts.notAsked",
+                        : "contacts.notAsked"),
                   )}
                 </span>
               </div>
-            ) : def.kind === "select" ? (
+            ) : (def.kind === "select" ? (
               <SimpleSelect
                 id={inputId}
                 value={value === "" ? NOT_SET : value}
@@ -140,7 +141,7 @@ export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
             ) : (
               <Input
                 id={inputId}
-                type={def.kind === "date" ? "date" : def.kind === "number" ? "number" : "text"}
+                type={def.kind === "date" ? "date" : (def.kind === "number" ? "number" : "text")}
                 value={value}
                 aria-invalid={error ? true : undefined}
                 onChange={(event) =>
@@ -151,7 +152,7 @@ export function ContactCustomFields({ contact }: { contact: ContactDetail }) {
                 }
                 onBlur={(event) => void commit(def, event.target.value)}
               />
-            )}
+            ))}
 
             {error && (
               <p role="alert" className="text-[12px] text-destructive">

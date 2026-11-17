@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it, vi } from "vitest";
 import type { RecordingJudgement, Surface } from "@loonext/rig-robot";
-import { D01, D07, D08, D09, D13, D14, d01Answerer, lossOutsideOutage, MAX_LOSS, PLAY_VOICEMAIL, R00 } from "./android-calls.ts";
+import { D01, d01Answerer, D07, D08, D09, D13, D14, lossOutsideOutage, MAX_LOSS, PLAY_VOICEMAIL, R00 } from "./android-calls.ts";
 import type { MemberPageApi } from "./context.ts";
 import { fakeContext } from "./fakes.ts";
 
@@ -17,7 +17,7 @@ describe("R00, rig health", () => {
     const { ctx, devices } = healthWorld();
     const asked: number[] = [];
     ctx.blockedAt = (room) => (asked.push(room), room < 4 ? ["D01"] : []);
-    expect(await R00.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(R00.run(ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(ctx.evidence.room).toBe(4);
     expect(ctx.evidence.blocked_by_room).toEqual([]);
     expect(asked).toEqual([4]);
@@ -52,7 +52,7 @@ describe("R00, rig health", () => {
   it("fails each health check that failed, by name", async () => {
     const world = healthWorld();
     world.rig.report.results.push({ name: "signIn", pass: false, reason: "GET /v1/me answered 401" });
-    expect(await R00.run(world.ctx)).toMatchObject({ outcome: "fail", failure_class: "health_sign_in" });
+    await expect(R00.run(world.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "health_sign_in" });
     expect(world.ctx.evidence.health).toEqual([
       { name: "api", pass: true },
       { name: "signIn", pass: false },
@@ -62,23 +62,23 @@ describe("R00, rig health", () => {
   it("calls a missing store key and an unreadable report the rig's fault", async () => {
     const keyless = healthWorld();
     keyless.rig.report.results.push({ name: "guard", pass: false, reason: "rig secrets: guard-token-rig-api is not in the store (/rig/secrets)" });
-    expect(await R00.run(keyless.ctx)).toMatchObject({ outcome: "infra", component: "store" });
+    await expect(R00.run(keyless.ctx)).resolves.toMatchObject({ outcome: "infra", component: "store" });
 
     const unread = healthWorld();
     unread.rig.health = async () => {
       throw new Error("rig health wrote no state/health.json");
     };
-    expect(await R00.run(unread.ctx)).toMatchObject({ outcome: "infra", component: "rig-health" });
+    await expect(R00.run(unread.ctx)).resolves.toMatchObject({ outcome: "infra", component: "rig-health" });
   });
 
   it("fails a guard that is not ok or under its balance floor, and calls an unsafe partition critical", async () => {
     const down = healthWorld();
     down.guard.healthBody = { ...down.guard.healthBody, ok: false };
-    expect(await R00.run(down.ctx)).toMatchObject({ failure_class: "guard_not_ok" });
+    await expect(R00.run(down.ctx)).resolves.toMatchObject({ failure_class: "guard_not_ok" });
 
     const poor = healthWorld();
     poor.guard.healthBody = { ...poor.guard.healthBody, balance_above_floor: false };
-    expect(await R00.run(poor.ctx)).toMatchObject({ failure_class: "balance_below_floor" });
+    await expect(R00.run(poor.ctx)).resolves.toMatchObject({ failure_class: "balance_below_floor" });
 
     const unsafe = healthWorld();
     unsafe.guard.healthBody = {
@@ -93,13 +93,13 @@ describe("R00, rig health", () => {
 
     const keyless = healthWorld();
     keyless.guard.healthBody = { ...keyless.guard.healthBody, ok: false, telnyx: { key: "absent", safety: { state: "unchecked", reasons: [] } } };
-    expect(await R00.run(keyless.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    await expect(R00.run(keyless.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
 
     const unreachable = healthWorld();
     unreachable.guard.health = async () => {
       throw new Error("fetch failed");
     };
-    expect(await R00.run(unreachable.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    await expect(R00.run(unreachable.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
   });
 
   it("calls a missing or unreachable device lane, or audio EA1 has not proven, infra, never a fail", async () => {
@@ -107,132 +107,132 @@ describe("R00, rig health", () => {
     missing.devices.pixel = () => {
       throw new Error("adb: not a device serial");
     };
-    expect(await R00.run(missing.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(R00.run(missing.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
 
     const away = healthWorld();
     away.devices.pixelDevice.reachableNow = false;
-    expect(await R00.run(away.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(R00.run(away.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
 
     const unproven = healthWorld();
     unproven.devices.audio.provenNow = false;
-    expect(await R00.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    await expect(R00.run(unproven.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
     expect(unproven.ctx.evidence.pixel).toMatchObject({ audio_proven: false, audio_connected: true });
   });
 
   it("reads hostd: WHPX and the tunnel must be up, and a pending reboot is reported, not failed", async () => {
     const pending = healthWorld();
     pending.devices.host = { whpx_usable: true, tunnel_up: true, reboot_pending: true };
-    expect(await R00.run(pending.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(R00.run(pending.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(pending.ctx.evidence.host).toMatchObject({ reboot_pending: true });
 
     const slow = healthWorld();
     slow.devices.host = { whpx_usable: false, tunnel_up: true, reboot_pending: false };
-    expect(await R00.run(slow.ctx)).toMatchObject({ outcome: "fail", failure_class: "whpx_unusable" });
+    await expect(R00.run(slow.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "whpx_unusable" });
 
     const cut = healthWorld();
     cut.devices.host = { whpx_usable: true, tunnel_up: false, reboot_pending: false };
-    expect(await R00.run(cut.ctx)).toMatchObject({ outcome: "fail", failure_class: "hostd_tunnel_down" });
+    await expect(R00.run(cut.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "hostd_tunnel_down" });
 
     const gone = healthWorld();
     gone.devices.hostHealth = async () => {
       throw new Error("hostd: GET /v1/health got no answer (TypeError); is the tunnel up?");
     };
-    expect(await R00.run(gone.ctx)).toMatchObject({ outcome: "infra", component: "hostd" });
+    await expect(R00.run(gone.ctx)).resolves.toMatchObject({ outcome: "infra", component: "hostd" });
   });
 
   it("fails a missing nftables table, as rig health reports it", async () => {
     const world = healthWorld();
     world.rig.report.results.push({ name: "nftables", pass: false, reason: "nft list table inet loonext_rig failed" });
-    expect(await R00.run(world.ctx)).toMatchObject({ outcome: "fail", failure_class: "health_nftables" });
+    await expect(R00.run(world.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "health_nftables" });
   });
 
   it("raises an infra alert when Play services is not the image's pinned version, or the store pins none", async () => {
     const changed = healthWorld();
     changed.devices.pixelDevice.deviceState.play_services_version_name = "25.1.0";
-    expect(await R00.run(changed.ctx)).toMatchObject({ outcome: "infra", component: "play-services-pin", detail: expect.stringContaining("pins 25.0.0") });
+    await expect(R00.run(changed.ctx)).resolves.toMatchObject({ outcome: "infra", component: "play-services-pin", detail: expect.stringContaining("pins 25.0.0") });
 
     const unpinned = healthWorld();
     unpinned.devices.pins = { "emulator-34": "25.0.0" };
-    expect(await R00.run(unpinned.ctx)).toMatchObject({ outcome: "infra", component: "store", detail: expect.stringContaining("pixel") });
+    await expect(R00.run(unpinned.ctx)).resolves.toMatchObject({ outcome: "infra", component: "store", detail: expect.stringContaining("pixel") });
 
     const pinless = healthWorld();
     pinless.devices.pins = undefined;
-    expect(await R00.run(pinless.ctx)).toMatchObject({ outcome: "infra", component: "store", detail: expect.stringContaining("play-services-pins.json") });
+    await expect(R00.run(pinless.ctx)).resolves.toMatchObject({ outcome: "infra", component: "store", detail: expect.stringContaining("play-services-pins.json") });
 
     const unread = healthWorld();
     unread.devices.pixelDevice.deviceState.play_services_version_name = null;
-    expect(await R00.run(unread.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(R00.run(unread.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
   });
 
   it("fails a locked device lane, one with deep Doze off, or one whose audio link is down", async () => {
     const locked = healthWorld();
     locked.devices.pixelDevice.deviceState.locked = true;
-    expect(await R00.run(locked.ctx)).toMatchObject({ failure_class: "pixel_locked" });
+    await expect(R00.run(locked.ctx)).resolves.toMatchObject({ failure_class: "pixel_locked" });
 
     const unreadable = healthWorld();
     unreadable.devices.pixelDevice.deviceState.locked = null;
-    expect(await R00.run(unreadable.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(R00.run(unreadable.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
 
     // A run that holds the device lane while it prepares has it out of rest on purpose.
     const held = healthWorld();
     held.devices.pixelDevice.deviceState.locked = true;
     held.ctx.laneHeldBy = (lane) => (lane === "device" ? "D03" : undefined);
-    expect(await R00.run(held.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(R00.run(held.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(held.ctx.evidence.pixel).toMatchObject({ held_by: "D03" });
     held.devices.pixelDevice.deviceState.deep_idle_enabled = false;
-    expect(await R00.run(held.ctx)).toMatchObject({ failure_class: "pixel_deep_idle_disabled" });
+    await expect(R00.run(held.ctx)).resolves.toMatchObject({ failure_class: "pixel_deep_idle_disabled" });
 
     const dozeless = healthWorld();
     dozeless.devices.pixelDevice.deviceState.deep_idle_enabled = false;
-    expect(await R00.run(dozeless.ctx)).toMatchObject({ outcome: "fail", failure_class: "pixel_deep_idle_disabled" });
+    await expect(R00.run(dozeless.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "pixel_deep_idle_disabled" });
 
     const unknown = healthWorld();
     unknown.devices.pixelDevice.deviceState.deep_idle_enabled = null;
-    expect(await R00.run(unknown.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(R00.run(unknown.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
 
     const silent = healthWorld();
     silent.devices.audio.connectedNow = false;
-    expect(await R00.run(silent.ctx)).toMatchObject({ outcome: "fail", failure_class: "pixel_audio_link_down" });
+    await expect(R00.run(silent.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "pixel_audio_link_down" });
   });
 
   it("compares Play services with the minimum the installed build declares", async () => {
     const old = healthWorld();
     old.devices.pixelDevice.deviceState.play_services_version = 12_000_000;
-    expect(await R00.run(old.ctx)).toMatchObject({ failure_class: "play_services_below_minimum" });
+    await expect(R00.run(old.ctx)).resolves.toMatchObject({ failure_class: "play_services_below_minimum" });
 
     // One version short fails; the minimum itself passes.
     const short = healthWorld();
     short.devices.pixelDevice.deviceState.play_services_version = 12_450_999;
-    expect(await R00.run(short.ctx)).toMatchObject({ failure_class: "play_services_below_minimum" });
+    await expect(R00.run(short.ctx)).resolves.toMatchObject({ failure_class: "play_services_below_minimum" });
     const exact = healthWorld();
     exact.devices.pixelDevice.deviceState.play_services_version = 12_451_000;
-    expect(await R00.run(exact.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(R00.run(exact.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
 
     const unread = healthWorld();
     unread.devices.pixelDevice.playServicesMinimum = async () => {
       throw new Error("adb: com.loonext.android.nonprod is not installed");
     };
-    expect(await R00.run(unread.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(R00.run(unread.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
 
     const undeclared = healthWorld();
     undeclared.devices.pixelDevice.gmsMinimum = null;
-    expect(await R00.run(undeclared.ctx)).toMatchObject({ outcome: "infra", component: "app-build" });
+    await expect(R00.run(undeclared.ctx)).resolves.toMatchObject({ outcome: "infra", component: "app-build" });
   });
 
   it("checks the E01 AVDs that are booted, and leaves one that is down for E01 to boot", async () => {
     const world = healthWorld();
     world.devices.emulators.get(35)!.reachableNow = false;
-    expect(await R00.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(R00.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.ctx.evidence.emulators).toEqual({ 34: true, 35: false, 36: true });
     expect(world.devices.actions).toEqual([]);
 
     const dozeless = healthWorld();
     dozeless.devices.emulators.get(36)!.deviceState.deep_idle_enabled = false;
-    expect(await R00.run(dozeless.ctx)).toMatchObject({ outcome: "fail", failure_class: "emulator_deep_idle_disabled", detail: expect.stringContaining("emulator-36") });
+    await expect(R00.run(dozeless.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "emulator_deep_idle_disabled", detail: expect.stringContaining("emulator-36") });
 
     const repinned = healthWorld();
     repinned.devices.emulators.get(34)!.deviceState.play_services_version_name = "24.9.0";
-    expect(await R00.run(repinned.ctx)).toMatchObject({ outcome: "infra", component: "play-services-pin", detail: expect.stringContaining("emulator-34") });
+    await expect(R00.run(repinned.ctx)).resolves.toMatchObject({ outcome: "infra", component: "play-services-pin", detail: expect.stringContaining("emulator-34") });
   });
 });
 
@@ -258,7 +258,7 @@ function ringWorld(scenario: string) {
   // The row starts with ROBOT-1's call.
   const dial = robot.dial.bind(robot);
   robot.dial = async (plan) => {
-    row.started_at = new Date(time.now + 1_000).toISOString();
+    row.started_at = new Date(time.now + 1000).toISOString();
     row.ended_at = new Date(time.now + 30_000).toISOString();
     return dial(plan);
   };
@@ -266,7 +266,7 @@ function ringWorld(scenario: string) {
   const open = browser.open.bind(browser);
   browser.open = async (member, surface, path) => {
     const opened = await open(member, surface, path);
-    const answer = opened.answer;
+    const {answer} = opened;
     return Object.assign(opened, {
       async answer() {
         await answer();
@@ -330,7 +330,7 @@ describe("D01, every rig surface rings and the answerer rotates", () => {
     expect(browser.actions).toContain("qa-a-dispatcher answer");
     expect(pixel.actions).not.toContain("tap call_answer");
     expect(devices.audio.played).toEqual(["pixel"]);
-    expect(ctx.evidence.ring).toEqual({ page_ms: 1_500, telecom_ms: 2_000, full_screen_ms: 2_500 });
+    expect(ctx.evidence.ring).toEqual({ page_ms: 1500, telecom_ms: 2000, full_screen_ms: 2500 });
     expect(ctx.evidence.other_cleared_ms).toBe(0);
   });
 
@@ -345,43 +345,43 @@ describe("D01, every rig surface rings and the answerer rotates", () => {
 
   it("fails a surface that does not ring within 8 s, and a Pixel without the full-screen ring", async () => {
     const page = d01World("page");
-    page.browser.script.ringsAfterMs = 9_000;
-    expect(await D01.run(page.ctx)).toMatchObject({ failure_class: "page_did_not_ring" });
+    page.browser.script.ringsAfterMs = 9000;
+    await expect(D01.run(page.ctx)).resolves.toMatchObject({ failure_class: "page_did_not_ring" });
 
     const telecom = d01World("page");
-    telecom.pixel.rings = { telecom_ms: 9_000, full_screen_ms: 9_500 };
-    expect(await D01.run(telecom.ctx)).toMatchObject({ failure_class: "pixel_not_ringing" });
+    telecom.pixel.rings = { telecom_ms: 9000, full_screen_ms: 9500 };
+    await expect(D01.run(telecom.ctx)).resolves.toMatchObject({ failure_class: "pixel_not_ringing" });
 
     const screen = d01World("page");
-    screen.pixel.rings = { telecom_ms: 2_000 };
-    expect(await D01.run(screen.ctx)).toMatchObject({ failure_class: "no_full_screen_ring" });
+    screen.pixel.rings = { telecom_ms: 2000 };
+    await expect(D01.run(screen.ctx)).resolves.toMatchObject({ failure_class: "no_full_screen_ring" });
   });
 
   it("fails a Pixel week whose ring offers no answer control", async () => {
     const world = d01World("pixel");
     world.pixel.onScreen.delete("call_answer");
-    expect(await D01.run(world.ctx)).toMatchObject({ failure_class: "pixel_answer_control_missing" });
+    await expect(D01.run(world.ctx)).resolves.toMatchObject({ failure_class: "pixel_answer_control_missing" });
     expect(world.pixel.actions).not.toContain("tap call_answer");
   });
 
   it("fails when the robot hears someone other than the answerer, or both", async () => {
     const world = d01World("pixel");
-    const outcome = world.robot.outcome;
+    const {outcome} = world.robot;
     world.robot.outcome = (plan) => {
       const record = outcome(plan);
       return { ...record, judgement: { ...record.judgement!, pass: false, heard: ["pixel", "qa-a-dispatcher"] } };
     };
-    expect(await D01.run(world.ctx)).toMatchObject({ failure_class: "robot_did_not_hear_answerer" });
+    await expect(D01.run(world.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_answerer" });
   });
 
   it("fails when the surface that did not answer keeps the call past 3 s", async () => {
     const pixelRings = d01World("page");
     pixelRings.page.onAnswer = () => undefined;
-    expect(await D01.run(pixelRings.ctx)).toMatchObject({ failure_class: "other_surface_kept_ringing" });
+    await expect(D01.run(pixelRings.ctx)).resolves.toMatchObject({ failure_class: "other_surface_kept_ringing" });
 
     const pageRings = d01World("pixel");
-    pageRings.page.clearsAfterMs = 3_500;
-    expect(await D01.run(pageRings.ctx)).toMatchObject({ failure_class: "other_surface_kept_ringing" });
+    pageRings.page.clearsAfterMs = 3500;
+    await expect(D01.run(pageRings.ctx)).resolves.toMatchObject({ failure_class: "other_surface_kept_ringing" });
   });
 
   it("fails unless the database has exactly one winner, the answerer", async () => {
@@ -390,29 +390,29 @@ describe("D01, every rig surface rings and the answerer rotates", () => {
       { member: "qa-a-dispatcher", state: "answered", kind: "web" },
       { member: "qa-a-technician", state: "answered", kind: "android" },
     ];
-    expect(await D01.run(two.ctx)).toMatchObject({ failure_class: "not_one_winner" });
+    await expect(D01.run(two.ctx)).resolves.toMatchObject({ failure_class: "not_one_winner" });
 
     const wrong = d01World("page");
     wrong.app.callLegs = async () => [{ member: "qa-a-technician", state: "answered", kind: "android" }];
-    expect(await D01.run(wrong.ctx)).toMatchObject({ failure_class: "wrong_winner" });
+    await expect(D01.run(wrong.ctx)).resolves.toMatchObject({ failure_class: "wrong_winner" });
 
     const rowless = d01World("page");
     rowless.app.callRows = [];
-    expect(await D01.run(rowless.ctx)).toMatchObject({ failure_class: "no_call_row" });
+    await expect(D01.run(rowless.ctx)).resolves.toMatchObject({ failure_class: "no_call_row" });
   });
 
   it("calls an unreachable emulator, its audio link or unproven audio infra, before changing anything", async () => {
     const away = d01World("page");
     away.pixel.reachableNow = false;
-    expect(await D01.run(away.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D01.run(away.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
 
     const silent = d01World("page");
     silent.devices.audio.connectedNow = false;
-    expect(await D01.run(silent.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+    await expect(D01.run(silent.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel-audio" });
 
     const unproven = d01World("page");
     unproven.devices.audio.provenNow = false;
-    expect(await D01.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    await expect(D01.run(unproven.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
 
     for (const world of [away, silent, unproven]) {
       expect(world.robot.plans).toEqual([]);
@@ -424,14 +424,14 @@ describe("D01, every rig surface rings and the answerer rotates", () => {
   it("blames the guard for a refused dial", async () => {
     const world = d01World("page");
     world.robot.dial = async (plan) => ({ plan_id: "plan-0", plan, state: "failed", ids: {}, events: [], dtmf: "", errors: ["guard_refused:dial.window"] });
-    expect(await D01.run(world.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    await expect(D01.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
   });
 });
 
 function d07World() {
   const world = fakeContext("D07");
   world.devices.pixelDevice.onScreen.add("call_hang_up");
-  const outcome = world.robot.outcome;
+  const {outcome} = world.robot;
   world.robot.outcome = (plan) => ({ ...outcome(plan), from_role: "DEV-A1" });
   return world;
 }
@@ -446,7 +446,7 @@ describe("D07, the Android app calls out", () => {
       return expectCall(plan);
     };
     expect((await D07.run(ctx)).outcome).toBe("pass");
-    expect(robot.plans[0]).toMatchObject({ direction: "inbound", role: "ROBOT-1", expect: "pixel", answer_after_ms: 4_000, lease_id: "lease-test" });
+    expect(robot.plans[0]).toMatchObject({ direction: "inbound", role: "ROBOT-1", expect: "pixel", answer_after_ms: 4000, lease_id: "lease-test" });
     expect(undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
     expect(undosAtExpect).toBe(1);
     expect(devices.audio.played).toEqual(["pixel"]);
@@ -463,26 +463,26 @@ describe("D07, the Android app calls out", () => {
 
   it("names a deaf robot, a wrong caller ID, a deaf Pixel and a call that never connected", async () => {
     const deaf = d07World();
-    const outcome = deaf.robot.outcome;
+    const {outcome} = deaf.robot;
     deaf.robot.outcome = (plan) => {
       const record = outcome(plan);
       return { ...record, judgement: { ...record.judgement!, pass: false, heard: [], verdict: "silent", answered: null } };
     };
-    expect(await D07.run(deaf.ctx)).toMatchObject({ failure_class: "robot_did_not_hear_pixel" });
+    await expect(D07.run(deaf.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_pixel" });
 
     const wrong = d07World();
     const right = wrong.robot.outcome;
     wrong.robot.outcome = (plan) => ({ ...right(plan), from_role: "DEV-W1" });
-    expect(await D07.run(wrong.ctx)).toMatchObject({ failure_class: "wrong_caller_id" });
+    await expect(D07.run(wrong.ctx)).resolves.toMatchObject({ failure_class: "wrong_caller_id" });
 
     const muffled = d07World();
     muffled.devices.audio.heard = null;
-    expect(await D07.run(muffled.ctx)).toMatchObject({ failure_class: "pixel_did_not_hear_robot" });
+    await expect(D07.run(muffled.ctx)).resolves.toMatchObject({ failure_class: "pixel_did_not_hear_robot" });
 
     const unanswered = d07World();
     const answered = unanswered.robot.outcome;
     unanswered.robot.outcome = (plan) => ({ ...answered(plan), answered_at: undefined, judgement: undefined });
-    expect(await D07.run(unanswered.ctx)).toMatchObject({ failure_class: "not_answered" });
+    await expect(D07.run(unanswered.ctx)).resolves.toMatchObject({ failure_class: "not_answered" });
   });
 
   it("calls the dialer's missing labels, the audio link and the robot infra", async () => {
@@ -490,11 +490,11 @@ describe("D07, the Android app calls out", () => {
     dialer.devices.pixelDevice.dial = async () => {
       throw new Error("rig: the app's calls screen offered no dialer");
     };
-    expect(await D07.run(dialer.ctx)).toMatchObject({ outcome: "infra", component: "android-dialer" });
+    await expect(D07.run(dialer.ctx)).resolves.toMatchObject({ outcome: "infra", component: "android-dialer" });
 
     const silent = d07World();
     silent.devices.audio.connectedNow = false;
-    expect(await D07.run(silent.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+    await expect(D07.run(silent.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel-audio" });
     expect(silent.undo).toEqual([]);
 
     // Proven when the run began, refused by the time it listened: still never a pass.
@@ -502,11 +502,11 @@ describe("D07, the Android app calls out", () => {
     refused.devices.audio.hear = async () => {
       throw new Error("emulator-audio-unproven");
     };
-    expect(await D07.run(refused.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    await expect(D07.run(refused.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
 
     const robotless = d07World();
     robotless.robot.expect = async (plan) => ({ plan_id: "plan-0", plan, state: "failed", ids: {}, events: [], dtmf: "", errors: ["robot: no connection"] });
-    expect(await D07.run(robotless.ctx)).toMatchObject({ outcome: "infra", component: "robot" });
+    await expect(D07.run(robotless.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot" });
     expect(robotless.devices.pixelDevice.actions).toEqual([]);
   });
 
@@ -514,7 +514,7 @@ describe("D07, the Android app calls out", () => {
     const { ctx, robot, devices } = d07World();
     ctx.slot = { index: 1, label: "speaks only" };
     const listened = vi.spyOn(devices.audio, "hear");
-    expect(await D07.run(ctx)).toEqual({ outcome: "pass", detail: "speaks only: the other half of the audio was not judged" });
+    await expect(D07.run(ctx)).resolves.toEqual({ outcome: "pass", detail: "speaks only: the other half of the audio was not judged" });
     expect(devices.audio.played).toEqual(["pixel"]);
     expect(listened).not.toHaveBeenCalled();
     expect(robot.plans[0]).toMatchObject({ expect: "pixel" });
@@ -524,7 +524,7 @@ describe("D07, the Android app calls out", () => {
   it("opens only streamAudio when the Pixel listens only, and judges the Pixel's ear alone", async () => {
     const { ctx, robot, devices } = d07World();
     ctx.slot = { index: 2, label: "listens only" };
-    expect(await D07.run(ctx)).toEqual({ outcome: "pass", detail: "listens only: the other half of the audio was not judged" });
+    await expect(D07.run(ctx)).resolves.toEqual({ outcome: "pass", detail: "listens only: the other half of the audio was not judged" });
     expect(devices.audio.played).toEqual([]);
     expect(robot.plans[0]).toMatchObject({ record: false });
     expect(robot.plans[0]).not.toHaveProperty("expect");
@@ -533,13 +533,13 @@ describe("D07, the Android app calls out", () => {
     const muffled = d07World();
     muffled.ctx.slot = { index: 2, label: "listens only" };
     muffled.devices.audio.heard = null;
-    expect(await D07.run(muffled.ctx)).toMatchObject({ failure_class: "pixel_did_not_hear_robot" });
+    await expect(D07.run(muffled.ctx)).resolves.toMatchObject({ failure_class: "pixel_did_not_hear_robot" });
 
     const unanswered = d07World();
     unanswered.ctx.slot = { index: 2, label: "listens only" };
     const answered = unanswered.robot.outcome;
     unanswered.robot.outcome = (plan) => ({ ...answered(plan), answered_at: undefined });
-    expect(await D07.run(unanswered.ctx)).toMatchObject({ failure_class: "not_answered" });
+    await expect(D07.run(unanswered.ctx)).resolves.toMatchObject({ failure_class: "not_answered" });
   });
 
   it("puts an emulator that died under the call on the rig, in every variant", async () => {
@@ -548,7 +548,7 @@ describe("D07, the Android app calls out", () => {
       crashedListening.devices.pixelDevice.reachableNow = false;
       throw new Error("streamAudio: 14 UNAVAILABLE");
     };
-    expect(await D07.run(crashedListening.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("stopped answering adb") });
+    await expect(D07.run(crashedListening.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("stopped answering adb") });
     expect(crashedListening.ctx.evidence.emulator_answers_adb).toBe(false);
 
     const crashedSpeaking = d07World();
@@ -559,11 +559,11 @@ describe("D07, the Android app calls out", () => {
       crashedSpeaking.devices.pixelDevice.reachableNow = false;
     };
     // The device was reachable when the run began; it dies once injection starts.
-    expect(await D07.run(crashedSpeaking.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D07.run(crashedSpeaking.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
 
     const unknown = d07World();
     unknown.ctx.slot = { index: 3, label: "sideways" };
-    expect(await D07.run(unknown.ctx)).toMatchObject({ outcome: "infra", component: "runner" });
+    await expect(D07.run(unknown.ctx)).resolves.toMatchObject({ outcome: "infra", component: "runner" });
   });
 });
 
@@ -626,7 +626,7 @@ describe("D08, a background tab and Web Push", () => {
   it("blames the push target when the browser cannot subscribe, as Chromium cannot", async () => {
     const world = d08World();
     world.browser.script.canPush = false;
-    expect(await D08.run(world.ctx)).toMatchObject({ outcome: "infra", component: "push-target" });
+    await expect(D08.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "push-target" });
     expect(world.robot.plans).toEqual([]);
     expect(world.undo).toEqual([]);
   });
@@ -634,41 +634,41 @@ describe("D08, a background tab and Web Push", () => {
   it("fails a subscription the API never kept", async () => {
     const world = d08World();
     world.browser.script.onPush = () => undefined;
-    expect(await D08.run(world.ctx)).toMatchObject({ failure_class: "push_subscription_not_saved" });
+    await expect(D08.run(world.ctx)).resolves.toMatchObject({ failure_class: "push_subscription_not_saved" });
     expect(world.robot.plans).toEqual([]);
   });
 
   it("fails a ring that never shows, not mistaking an earlier call's card for it", async () => {
     const world = d08World();
     world.rings.shows = false;
-    expect(await D08.run(world.ctx)).toMatchObject({ failure_class: "no_ring_notification" });
+    await expect(D08.run(world.ctx)).resolves.toMatchObject({ failure_class: "no_ring_notification" });
 
     // A notification new since the dial that is not a call's, such as a text's, is no ring.
     const texted = d08World();
     texted.rings.shows = false;
-    const dial = texted.robot.dial;
+    const {dial} = texted.robot;
     texted.robot.dial = async (plan) => {
       const record = await dial(plan);
       texted.browser.script.notifications = [...texted.browser.script.notifications!, { title: "New text", body: "Rig caller", tag: "loonext:message:m-1" }];
       return record;
     };
-    expect(await D08.run(texted.ctx)).toMatchObject({ failure_class: "no_ring_notification" });
+    await expect(D08.run(texted.ctx)).resolves.toMatchObject({ failure_class: "no_ring_notification" });
   });
 
   it("fails a ring the outcome does not replace on its own tag", async () => {
     const kept = d08World();
     kept.rings.replaced = false;
-    expect(await D08.run(kept.ctx)).toMatchObject({ failure_class: "ring_not_replaced" });
+    await expect(D08.run(kept.ctx)).resolves.toMatchObject({ failure_class: "ring_not_replaced" });
 
     const beside = d08World();
     beside.rings.replaced = false;
-    const wait = beside.robot.wait;
+    const {wait} = beside.robot;
     beside.robot.wait = async (planId) => {
       const record = await wait(planId);
       beside.browser.script.notifications = [...beside.browser.script.notifications!, { title: "Missed call", body: "Nobody picked up.", tag: "loonext:call:other" }];
       return record;
     };
-    expect(await D08.run(beside.ctx)).toMatchObject({ failure_class: "ring_not_replaced" });
+    await expect(D08.run(beside.ctx)).resolves.toMatchObject({ failure_class: "ring_not_replaced" });
   });
 });
 
@@ -692,7 +692,7 @@ function d09World(winner: "pixel" | "qa-a-dispatcher") {
   const world = ringWorld("D09");
   const { robot, pixel, page } = world;
   const heard = { surfaces: [winner] as Surface[] };
-  const outcome = robot.outcome;
+  const {outcome} = robot;
   robot.outcome = (plan) => ({ ...outcome(plan), judgement: judged(heard.surfaces) });
   page.clearsAfterMs = winner === "pixel" ? 600 : undefined;
   const tap = pixel.tap.bind(pixel);
@@ -727,15 +727,15 @@ describe("D09, the first-answer race", () => {
   it("fails two answers bridged, and a robot that heard nobody or a stranger", async () => {
     const both = d09World("pixel");
     both.heard.surfaces = ["pixel", "qa-a-dispatcher"];
-    expect(await D09.run(both.ctx)).toMatchObject({ failure_class: "both_answered" });
+    await expect(D09.run(both.ctx)).resolves.toMatchObject({ failure_class: "both_answered" });
 
     const nobody = d09World("pixel");
     nobody.heard.surfaces = [];
-    expect(await D09.run(nobody.ctx)).toMatchObject({ failure_class: "robot_heard_nobody" });
+    await expect(D09.run(nobody.ctx)).resolves.toMatchObject({ failure_class: "robot_heard_nobody" });
 
     const stranger = d09World("pixel");
     stranger.heard.surfaces = ["qa-w-owner"];
-    expect(await D09.run(stranger.ctx)).toMatchObject({ failure_class: "robot_heard_wrong_surface" });
+    await expect(D09.run(stranger.ctx)).resolves.toMatchObject({ failure_class: "robot_heard_wrong_surface" });
   });
 
   it("fails unless the database has one winner, the one the robot heard", async () => {
@@ -744,17 +744,17 @@ describe("D09, the first-answer race", () => {
       { member: "qa-a-dispatcher", state: "answered", kind: "web" },
       { member: "qa-a-technician", state: "answered", kind: "android" },
     ];
-    expect(await D09.run(two.ctx)).toMatchObject({ failure_class: "not_one_winner" });
+    await expect(D09.run(two.ctx)).resolves.toMatchObject({ failure_class: "not_one_winner" });
 
     const disagree = d09World("pixel");
     disagree.heard.surfaces = ["qa-a-dispatcher"];
-    expect(await D09.run(disagree.ctx)).toMatchObject({ failure_class: "wrong_winner" });
+    await expect(D09.run(disagree.ctx)).resolves.toMatchObject({ failure_class: "wrong_winner" });
   });
 
   it("fails a loser that still shows the call", async () => {
     const page = d09World("pixel");
     page.page.clearsAfterMs = undefined;
-    expect(await D09.run(page.ctx)).toMatchObject({ failure_class: "loser_kept_call" });
+    await expect(D09.run(page.ctx)).resolves.toMatchObject({ failure_class: "loser_kept_call" });
 
     const pixel = d09World("qa-a-dispatcher");
     pixel.pixel.tap = async (id) => {
@@ -762,50 +762,50 @@ describe("D09, the first-answer race", () => {
       pixel.pixel.call = "active";
       return true;
     };
-    expect(await D09.run(pixel.ctx)).toMatchObject({ failure_class: "loser_kept_call" });
+    await expect(D09.run(pixel.ctx)).resolves.toMatchObject({ failure_class: "loser_kept_call" });
   });
 
   it("calls answers more than 300 ms apart no race, unless something failed anyway", async () => {
     const late = d09World("pixel");
-    const open = late.browser.open;
+    const {open} = late.browser;
     late.browser.open = async (member, surface, path) => {
       const opened = await open(member, surface, path);
-      const answer = opened.answer;
+      const {answer} = opened;
       opened.answer = async () => {
         await answer();
         late.time.now += 400;
       };
       return opened;
     };
-    expect(await D09.run(late.ctx)).toMatchObject({ outcome: "infra", component: "race-timing" });
+    await expect(D09.run(late.ctx)).resolves.toMatchObject({ outcome: "infra", component: "race-timing" });
     expect(late.ctx.evidence.answer_gap_ms).toBe(400);
   });
 
   it("fails a surface that never rang, or a Pixel with no answer control", async () => {
     const page = d09World("pixel");
     page.browser.script.ringsAfterMs = undefined;
-    expect(await D09.run(page.ctx)).toMatchObject({ failure_class: "page_did_not_ring" });
+    await expect(D09.run(page.ctx)).resolves.toMatchObject({ failure_class: "page_did_not_ring" });
 
     const telecom = d09World("pixel");
     telecom.pixel.rings = undefined;
-    expect(await D09.run(telecom.ctx)).toMatchObject({ failure_class: "pixel_not_ringing" });
+    await expect(D09.run(telecom.ctx)).resolves.toMatchObject({ failure_class: "pixel_not_ringing" });
 
     const control = d09World("pixel");
     control.pixel.onScreen.delete("call_answer");
-    expect(await D09.run(control.ctx)).toMatchObject({ failure_class: "pixel_answer_control_missing" });
+    await expect(D09.run(control.ctx)).resolves.toMatchObject({ failure_class: "pixel_answer_control_missing" });
     expect(control.browser.actions).not.toContain("qa-a-dispatcher answer");
 
     // Offered when the race read the screen, gone by the tap.
     const vanished = d09World("qa-a-dispatcher");
     vanished.pixel.tap = async (id) => id !== "call_answer";
-    expect(await D09.run(vanished.ctx)).toMatchObject({ failure_class: "pixel_answer_control_missing" });
+    await expect(D09.run(vanished.ctx)).resolves.toMatchObject({ failure_class: "pixel_answer_control_missing" });
   });
 
   it("blames the robot when it could not delete Telnyx's copy of the race's recording", async () => {
     const kept = d09World("pixel");
-    const outcome = kept.robot.outcome;
+    const {outcome} = kept.robot;
     kept.robot.outcome = (plan) => ({ ...outcome(plan), recording_deleted: false });
-    expect(await D09.run(kept.ctx)).toMatchObject({ outcome: "infra", component: "robot" });
+    await expect(D09.run(kept.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot" });
   });
 
 });
@@ -816,13 +816,13 @@ function d13World(rtp: unknown = { inbound: { packet_count: "1620", skip_packet_
   const world = fakeContext("D13");
   const { robot, time, devices } = world;
   devices.pixelDevice.onScreen.add("call_hang_up");
-  const network = devices.pixelDevice.network;
+  const {network} = devices.pixelDevice;
   const call = { lastsMs: undefined as number | undefined, rtp };
   network.outage = async (ms) => {
     network.outages.push(ms);
     await time.sleep(ms);
   };
-  const outcome = robot.outcome;
+  const {outcome} = robot;
   robot.outcome = (plan) => ({
     ...outcome(plan),
     from_role: "DEV-A1",
@@ -848,22 +848,22 @@ describe("D13, a bad network and a mid-call drop of both paths", () => {
     ]);
     expect(undosAtShape).toBe(2);
     // Delay and speed through the console; no loss, which the emulator cannot make (X27).
-    expect(network.shaped).toEqual({ delayMs: 80, speedKbps: { up: 256, down: 1_024 } });
-    expect(ctx.evidence.impairment).toEqual({ delayMs: 80, speedKbps: { up: 256, down: 1_024 }, loss_controlled: false, loss_residual: "X27" });
-    expect(network.outages).toEqual([3_000]);
+    expect(network.shaped).toEqual({ delayMs: 80, speedKbps: { up: 256, down: 1024 } });
+    expect(ctx.evidence.impairment).toEqual({ delayMs: 80, speedKbps: { up: 256, down: 1024 }, loss_controlled: false, loss_residual: "X27" });
+    expect(network.outages).toEqual([3000]);
     expect(robot.plans[0]).toMatchObject({
       direction: "inbound",
       role: "ROBOT-1",
       expect: "pixel",
       segments: [
-        { name: "before", start_ms: 2_000, end_ms: 12_000 },
+        { name: "before", start_ms: 2000, end_ms: 12_000 },
         { name: "after", start_ms: 23_000, end_ms: 33_000 },
       ],
       hangup_after_ms: 36_000,
     });
     expect(devices.audio.played).toEqual(["pixel"]);
     expect(ctx.evidence.outage).toEqual({ start_ms: 15_000, end_ms: 18_000 });
-    expect(ctx.evidence.robot_loss).toEqual({ received: 1_620, skipped: 180, outage_packets: 150, ratio: 0.0182 });
+    expect(ctx.evidence.robot_loss).toEqual({ received: 1620, skipped: 180, outage_packets: 150, ratio: 0.0182 });
     expect(ctx.evidence.pixel_concealment).toMatchObject({ measured: false });
   });
 
@@ -872,7 +872,7 @@ describe("D13, a bad network and a mid-call drop of both paths", () => {
     world.network.shape = async () => {
       throw new Error("emulator console on 5560 refused the auth token");
     };
-    expect(await D13.run(world.ctx)).toMatchObject({ outcome: "infra", component: "network-shaper", detail: expect.stringContaining("console") });
+    await expect(D13.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "network-shaper", detail: expect.stringContaining("console") });
     expect(world.undo.map((u) => u.kind)).toContain("rig.network-clear");
     expect(world.robot.plans).toEqual([]);
   });
@@ -882,13 +882,13 @@ describe("D13, a bad network and a mid-call drop of both paths", () => {
     world.network.outage = async () => {
       throw new Error("emulator console: could not restore Wi-Fi: adb: device offline");
     };
-    expect(await D13.run(world.ctx)).toMatchObject({ outcome: "infra", component: "network-shaper", detail: expect.stringContaining("outage") });
+    await expect(D13.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "network-shaper", detail: expect.stringContaining("outage") });
   });
 
   it("fails a call that dropped", async () => {
     const world = d13World();
     world.call.lastsMs = 16_000;
-    expect(await D13.run(world.ctx)).toMatchObject({ failure_class: "call_dropped" });
+    await expect(D13.run(world.ctx)).resolves.toMatchObject({ failure_class: "call_dropped" });
   });
 
   it("fails codes missing before the outage, or not back within 5 s of it", async () => {
@@ -898,7 +898,7 @@ describe("D13, a bad network and a mid-call drop of both paths", () => {
       const record = quiet(plan);
       return { ...record, judgement: { ...record.judgement!, segments: [{ name: "before", verdict: "silent", heard: [] }, { name: "after", verdict: "heard", heard: ["pixel"] }] } };
     };
-    expect(await D13.run(before.ctx)).toMatchObject({ failure_class: "no_code_before_outage" });
+    await expect(D13.run(before.ctx)).resolves.toMatchObject({ failure_class: "no_code_before_outage" });
 
     const after = d13World();
     const gone = after.robot.outcome;
@@ -906,35 +906,35 @@ describe("D13, a bad network and a mid-call drop of both paths", () => {
       const record = gone(plan);
       return { ...record, judgement: { ...record.judgement!, segments: [{ name: "before", verdict: "heard", heard: ["pixel"] }, { name: "after", verdict: "faint", heard: [] }] } };
     };
-    expect(await D13.run(after.ctx)).toMatchObject({ failure_class: "codes_did_not_resume" });
+    await expect(D13.run(after.ctx)).resolves.toMatchObject({ failure_class: "codes_did_not_resume" });
   });
 
   it("fails loss outside the outage of 5% or more, and blames the robot for no statistics", async () => {
     const lossy = d13World({ inbound: { packet_count: "1500", skip_packet_count: "300" } });
-    expect(await D13.run(lossy.ctx)).toMatchObject({ failure_class: "loss_over_limit" });
+    await expect(D13.run(lossy.ctx)).resolves.toMatchObject({ failure_class: "loss_over_limit" });
 
     const blind = d13World(null);
-    expect(await D13.run(blind.ctx)).toMatchObject({ outcome: "infra", component: "robot" });
+    await expect(D13.run(blind.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot" });
   });
 
   it("calls an outage that overran into the second window the rig's fault, not the app's", async () => {
     const world = d13World();
     world.network.outage = async (ms) => {
-      await world.time.sleep(ms + 4_000);
+      await world.time.sleep(ms + 4000);
     };
-    expect(await D13.run(world.ctx)).toMatchObject({ outcome: "infra", component: "rig" });
+    await expect(D13.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "rig" });
   });
 });
 
-describe("lossOutsideOutage", () => {
+describe(lossOutsideOutage, () => {
   it("takes the outage's packets out of both counts and reads Telnyx's string counts", () => {
-    expect(lossOutsideOutage({ inbound: { packet_count: "1650", skip_packet_count: "150" } }, 3_000)).toMatchObject({ outage_packets: 150, ratio: 0 });
-    expect(lossOutsideOutage({ inbound: { packet_count: 1_568, skip_packet_count: 232 } }, 3_000)!.ratio).toBeCloseTo(82 / 1_650, 4);
+    expect(lossOutsideOutage({ inbound: { packet_count: "1650", skip_packet_count: "150" } }, 3000)).toMatchObject({ outage_packets: 150, ratio: 0 });
+    expect(lossOutsideOutage({ inbound: { packet_count: 1568, skip_packet_count: 232 } }, 3000)!.ratio).toBeCloseTo(82 / 1650, 4);
     // Exactly the limit is not under it.
-    const atLimit = lossOutsideOutage({ inbound: { packet_count: "950", skip_packet_count: "200" } }, 3_000)!;
+    const atLimit = lossOutsideOutage({ inbound: { packet_count: "950", skip_packet_count: "200" } }, 3000)!;
     expect(atLimit.ratio).toBe(MAX_LOSS);
-    expect(lossOutsideOutage({ inbound: { packet_count: "591" } }, 3_000)).toBeUndefined();
-    expect(lossOutsideOutage(null, 3_000)).toBeUndefined();
+    expect(lossOutsideOutage({ inbound: { packet_count: "591" } }, 3000)).toBeUndefined();
+    expect(lossOutsideOutage(null, 3000)).toBeUndefined();
   });
 });
 
@@ -959,7 +959,7 @@ describe("D14, in-app voicemail playback", () => {
     const copies: number[] = [];
     const copy = app.copyVoicemail.bind(app);
     app.copyVoicemail = async (args) => (copies.push(undo.length), copy(args));
-    expect(await D14.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(D14.run(ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     const sessionId = `rig-d14-${ctx.nonce}`;
     expect([...app.copiedVoicemails]).toEqual([[sessionId, { from: "QA-W", tenant: "QA-A", role: "DEV-A1", callerRole: "ROBOT-1" }]]);
     expect(undo).toEqual([
@@ -975,30 +975,30 @@ describe("D14, in-app voicemail playback", () => {
   it("blames the rig when S04 has left no voicemail to copy, or the emulator or its audio cannot be had", async () => {
     const empty = d14World();
     empty.app.voicemailToCopy = false;
-    expect(await D14.run(empty.ctx)).toMatchObject({ outcome: "infra", component: "s04-voicemail" });
+    await expect(D14.run(empty.ctx)).resolves.toMatchObject({ outcome: "infra", component: "s04-voicemail" });
     expect(empty.pixel.actions).toEqual([]);
 
     const away = d14World();
     away.pixel.reachableNow = false;
-    expect(await D14.run(away.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D14.run(away.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
     expect(away.app.copiedVoicemails.size).toBe(0);
 
     const deaf = d14World();
     deaf.audio.transcribe = async () => {
       throw new Error("whisper.cpp is not installed");
     };
-    expect(await D14.run(deaf.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+    await expect(D14.run(deaf.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel-audio" });
 
     const unproven = d14World();
     unproven.audio.provenNow = false;
-    expect(await D14.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    await expect(D14.run(unproven.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
     expect(unproven.app.copiedVoicemails.size).toBe(0);
   });
 
   it("fails a voicemail the app does not list, playback the rig cannot hear, and words that are not S04's", async () => {
     const unlisted = d14World();
     unlisted.pixel.onScreen.delete(PLAY_VOICEMAIL);
-    expect(await D14.run(unlisted.ctx)).toMatchObject({ failure_class: "voicemail_not_listed", detail: expect.stringContaining("within 15 s") });
+    await expect(D14.run(unlisted.ctx)).resolves.toMatchObject({ failure_class: "voicemail_not_listed", detail: expect.stringContaining("within 15 s") });
     expect(unlisted.pixel.actions).toEqual(["launch /calls"]);
 
     // The calls list loads after the app opens; the player is waited for, not tapped at once.
@@ -1007,17 +1007,17 @@ describe("D14, in-app voicemail playback", () => {
     const started = slow.time.now;
     const showing = slow.pixel.showing.bind(slow.pixel);
     slow.pixel.showing = async (target) => {
-      if (slow.time.now - started >= 5_000) slow.pixel.onScreen.add(PLAY_VOICEMAIL);
+      if (slow.time.now - started >= 5000) slow.pixel.onScreen.add(PLAY_VOICEMAIL);
       return showing(target);
     };
-    expect(await D14.run(slow.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(D14.run(slow.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
 
     const silent = d14World();
     silent.audio.transcript = " ";
-    expect(await D14.run(silent.ctx)).toMatchObject({ failure_class: "playback_silent" });
+    await expect(D14.run(silent.ctx)).resolves.toMatchObject({ failure_class: "playback_silent" });
 
     const garbled = d14World();
     garbled.audio.transcript = "you have reached the rig crew leave a message";
-    expect(await D14.run(garbled.ctx)).toMatchObject({ failure_class: "playback_wer" });
+    await expect(D14.run(garbled.ctx)).resolves.toMatchObject({ failure_class: "playback_wer" });
   });
 });

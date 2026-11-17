@@ -21,7 +21,8 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
 import {
   useCheckPortability,
@@ -42,13 +43,13 @@ import { formatPhone } from "@/lib/format/phone";
 
 /** Normalize any typed phone to +1E.164, or null. */
 function toE164(raw: string): string | null {
-  const digits = raw.replace(/\D/g, "");
+  const digits = raw.replaceAll(/\D/g, "");
   const ten =
     digits.length === 11 && digits.startsWith("1")
       ? digits.slice(1)
-      : digits.length === 10
+      : (digits.length === 10
         ? digits
-        : null;
+        : null);
   if (!ten || !/^[2-9]\d{2}[2-9]\d{6}$/.test(ten)) return null;
   return `+1${ten}`;
 }
@@ -121,10 +122,10 @@ export function StartPortDialog({ country }: { country: Country }) {
     try {
       const result = await check.mutateAsync(e164);
       setChecked(result);
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("settingsMore.startPortCheckFailed"),
       );
     }
@@ -168,10 +169,10 @@ export function StartPortDialog({ country }: { country: Country }) {
       });
       toast.success(t("settingsMore.startPortStarted"));
       onOpenChange(false);
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("settingsMore.startPortFailed"),
       );
     }
@@ -256,7 +257,7 @@ export function StartPortDialog({ country }: { country: Country }) {
                       idKind: ssnSinLabel,
                     })}
                     value={ssnSinLast4}
-                    onChange={(v) => setSsnSinLast4(v.replace(/\D/g, "").slice(0, 4))}
+                    onChange={(v) => setSsnSinLast4(v.replaceAll(/\D/g, "").slice(0, 4))}
                   />
                   <p className="text-[13px] text-muted-foreground sm:col-span-2">
                     {t("settingsMore.startPortWirelessNote", {

@@ -6,20 +6,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { notifyMissedCall } from "../notifications/missed-call";
 import { notificationsRoutes } from "./notifications";
 
@@ -82,9 +72,9 @@ async function subscriptionBody() {
   );
   const b64u = (bytes: Uint8Array) =>
     btoa(String.fromCharCode(...bytes))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
+      .replaceAll('+', "-")
+      .replaceAll('/', "_")
+      .replace(/[=]+$/, "");
   return {
     endpoint: "https://fcm.googleapis.com/fcm/send/device-1",
     keys: {
@@ -112,7 +102,7 @@ describe("GET /v1/notification-prefs", () => {
     expect(res.status).toBe(200);
     // The response also carries the server's VAPID application key (SPEC §8)
     // — the browser's PushManager.subscribe() applicationServerKey source.
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       email_enabled: false,
       push_enabled: true,
       vapid_public_key: env.VAPID_PUBLIC_KEY,
@@ -135,7 +125,7 @@ describe("GET /v1/notification-prefs", () => {
       "/v1/notification-prefs",
       { companyId: COMPANY_ID },
     );
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       email_enabled: true,
       push_enabled: true,
       // #244: no quiet-hours window, which is every existing member. Named
@@ -297,7 +287,7 @@ describe("PUT /v1/notification-prefs", () => {
     // state with this object, so a missing field disappeared from the screen and
     // was then written back as null by the next save — a toggle deleting its
     // neighbour.
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       email_enabled: true,
       push_enabled: false,
       quiet_from: "21:30:00",
@@ -379,7 +369,7 @@ describe("POST /v1/push-subscriptions", () => {
       },
     );
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       id: SUB_ID,
       endpoint: "https://fcm.googleapis.com/fcm/send/device-1",
       created_at: "2026-07-01T12:00:00+00:00",
@@ -608,7 +598,7 @@ describe("GET /v1/notifications", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       data: [NOTIF_A, NOTIF_B],
       next_cursor: null,
     });
@@ -736,7 +726,7 @@ describe("GET /v1/notifications/unread-count", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ count: 4, alert_pause: NOT_PAUSED });
+    await expect(res.json()).resolves.toEqual({ count: 4, alert_pause: NOT_PAUSED });
 
     const rpc = sb.find(
       "POST",
@@ -761,7 +751,7 @@ describe("GET /v1/notifications/unread-count", () => {
       "/v1/notifications/unread-count",
       { companyId: COMPANY_ID },
     );
-    expect(await res.json()).toEqual({ count: 7, alert_pause: NOT_PAUSED });
+    await expect(res.json()).resolves.toEqual({ count: 7, alert_pause: NOT_PAUSED });
   });
 });
 
@@ -783,7 +773,7 @@ describe("POST /v1/notifications/mark-all-read", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       last_seen_at: "2026-07-02T13:00:00+00:00",
     });
 
@@ -814,7 +804,7 @@ describe("POST /v1/notifications/:id/read", () => {
       body: { created_at: NOTIF_A.created_at },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ newly_read: true });
+    await expect(res.json()).resolves.toEqual({ newly_read: true });
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_mark_notification_read")[0];
     expect(rpc.body).toEqual({
@@ -838,7 +828,7 @@ describe("POST /v1/notifications/:id/read", () => {
       body: { created_at: NOTIF_A.created_at },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ newly_read: false });
+    await expect(res.json()).resolves.toEqual({ newly_read: false });
   });
 
   it("404s a malformed notification id before any RPC", async () => {
@@ -901,7 +891,7 @@ describe("POST /v1/notifications/mark-read", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ last_seen_at: NOTIF_A.created_at });
+    await expect(res.json()).resolves.toEqual({ last_seen_at: NOTIF_A.created_at });
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_mark_notifications_read")[0];
     expect(rpc.body).toMatchObject({
@@ -914,7 +904,7 @@ describe("POST /v1/notifications/mark-read", () => {
   it("422s a missing or non-ISO `before`", async () => {
     const sb = memberStub();
     stubFetch(jwksRoute(auth), sb.route);
-    for (const body of [{}, { before: "yesterday" }, { before: 12345 }]) {
+    for (const body of [{}, { before: "yesterday" }, { before: 12_345 }]) {
       const res = await apiRequest(
         app,
         env,
@@ -953,7 +943,7 @@ describe("GET /v1/notifications/unread-count — the pause a member can see (#34
       { companyId: COMPANY_ID },
     );
 
-    expect(await res.json()).toEqual({ count: 2, alert_pause: paused });
+    await expect(res.json()).resolves.toEqual({ count: 2, alert_pause: paused });
   });
 
   it("asks for the badge and the pause in one round trip each, not in series", async () => {
@@ -1003,7 +993,7 @@ describe("#581 the feed is conversation data, not workspace data", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "forbidden", message: expect.any(String) },
     });
     // The RPC is stubbed and deliberately left unused: a gate that refused the

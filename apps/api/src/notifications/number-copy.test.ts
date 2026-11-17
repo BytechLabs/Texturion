@@ -14,7 +14,8 @@
  * count are DATA — a French rendering that drops either leaves a crew an alert
  * that does not say which line, or how long they have.
  */
-import { LOCALES, type Locale } from "@loonext/shared";
+import { LOCALES } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 import { describe, expect, it } from "vitest";
 
 import { NUMBER_NOTICE_COPY } from "./number-copy";
@@ -99,7 +100,7 @@ describe("the number-notice copy", () => {
     // EVERY entry is what makes that a failure rather than a silent no-op, and
     // the count is here so "every entry" is a number rather than an impression
     // of a loop that visited nothing.
-    const en = NUMBER_NOTICE_COPY.en;
+    const {en} = NUMBER_NOTICE_COPY;
     const fr = NUMBER_NOTICE_COPY["fr-CA"];
     const pairs: [string, string, string][] = [
       ["portCompletedTitle", en.portCompletedTitle, fr.portCompletedTitle],

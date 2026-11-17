@@ -29,7 +29,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { CallSessionDO } from "../calls/session-do";
 import type { Env } from "../env";
-import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
+import { TelnyxApiError, telnyxRequest } from "../telnyx/client";
 import { hangupLiveLeg, LOONEXT_SESSION_HEADER } from "./inbound-ring";
 
 /** Transfer target leg: `brt|<session>|<targetUser>|<senderUser>|<hops>|<caller-or-empty>` */
@@ -130,9 +130,9 @@ async function telnyxOnLiveLeg(
   try {
     await telnyxRequest(env, { method: "POST", path, body });
     return true;
-  } catch (cause) {
-    if (cause instanceof TelnyxApiError && cause.status < 500) return false;
-    throw cause;
+  } catch (error) {
+    if (error instanceof TelnyxApiError && error.status < 500) return false;
+    throw error;
   }
 }
 
@@ -172,7 +172,7 @@ export async function liveCallBySession(
     .eq("call_session_id", sessionId)
     .limit(1);
   if (error) throw new Error(`calls read failed: ${error.message}`);
-  return (data?.[0] as LiveCallRow | undefined) ?? null;
+  return (data?.[0]) ?? null;
 }
 
 /**
@@ -572,7 +572,7 @@ export async function consultLegs(
     .eq("call_session_id", sessionId)
     .eq("kind", "consult");
   if (error) throw new Error(`consult legs read failed: ${error.message}`);
-  return (data ?? []) as ConsultLegRow[];
+  return (data ?? []);
 }
 
 /** The journey timeline line (dedupe-scanned per (session, kind, to)). */

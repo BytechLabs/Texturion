@@ -1,12 +1,5 @@
-import {
-  API_KEY_PREFIX,
-  API_KEY_REQUESTS_PER_MINUTE,
-  PUBLIC_API_VERSION,
-  PUBLIC_API_VERSION_HEADER,
-  apiKeyAllows,
-  type ApiKeyScope,
-  type MemberRole,
-} from "@loonext/shared";
+import { API_KEY_PREFIX, API_KEY_REQUESTS_PER_MINUTE, apiKeyAllows, PUBLIC_API_VERSION, PUBLIC_API_VERSION_HEADER } from '@loonext/shared';
+import type { ApiKeyScope, MemberRole } from '@loonext/shared';
 import { createMiddleware } from "hono/factory";
 
 import type { AppEnv } from "../context";
@@ -80,7 +73,7 @@ function presentedToken(header: string | undefined): string | null {
   if (!header) return null;
   const match = /^Bearer\s+(\S+)$/i.exec(header.trim());
   if (!match) return null;
-  const token = match[1]!;
+  const token = match[1];
   if (!token.startsWith(API_KEY_PREFIX)) return null;
   // Long enough to be one of ours, bounded so a megabyte of "Bearer aaaa…"
   // cannot make us hash it.

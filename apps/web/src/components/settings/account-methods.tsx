@@ -2,8 +2,10 @@
 
 import { Check } from "lucide-react";
 
-import { useT, type Translate } from "@/i18n/provider";
-import { signInMethods, type IdentityLike } from "@/lib/auth/identities";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
+import { signInMethods } from '@/lib/auth/identities';
+import type { IdentityLike } from '@/lib/auth/identities';
 
 /** Google and Apple are product names; only the third one is ours to translate. */
 function methodLabels(t: Translate): Record<string, string> {

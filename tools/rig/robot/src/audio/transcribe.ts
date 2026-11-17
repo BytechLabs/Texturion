@@ -23,7 +23,7 @@ const execText: TranscribeExec = (file, args, options) =>
   new Promise((resolve, reject) => {
     execFile(file, [...args], { timeout: options.timeoutMs, maxBuffer: 4 * 1024 * 1024 }, (error, stdout) => {
       if (error) reject(new Error(`whisper: ${file} failed (${error.code ?? error.signal ?? "error"})`));
-      else resolve(String(stdout));
+      else resolve(stdout);
     });
   });
 
@@ -66,7 +66,7 @@ export class WhisperTranscriber implements Transcriber {
         await this.#exec(this.#o.ffmpeg ?? "ffmpeg", ["-v", "error", "-i", input, "-ar", "16000", "-ac", "1", "-c:a", "pcm_s16le", path], { timeoutMs });
       }
       const out = await this.#exec(this.#o.binary, whisperArgs(this.#o, path), { timeoutMs });
-      return out.replace(/\s+/g, " ").trim();
+      return out.replaceAll(/\s+/g, " ").trim();
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

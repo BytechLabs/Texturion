@@ -94,8 +94,8 @@ export const EMPTY_STATUS_FEED: StatusFeed = {
 export function parseIncidentText(raw: string | null | undefined): string | null {
   if (typeof raw !== "string") return null;
   const cleaned = raw
-    .replace(/\p{C}/gu, " ")
-    .replace(/\s+/g, " ")
+    .replaceAll(/\p{C}/gu, " ")
+    .replaceAll(/\s+/g, " ")
     .trim();
   if (cleaned.length === 0) return null;
   return cleaned.length > MAX_INCIDENT_CHARS

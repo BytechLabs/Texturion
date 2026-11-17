@@ -5,22 +5,12 @@
  * diffusion of responsibility, and it only does that if the second person to
  * tap learns a NAME rather than being told they claimed it too.
  */
-import { beforeAll, afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { onCallRoutes } from "./on-call";
 
 const env = completeEnv();

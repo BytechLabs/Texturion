@@ -67,15 +67,13 @@ export function FileField({
           />
         )}
         <span className="min-w-0 flex-1 truncate text-sm">
-          {filename ? (
-            filename
-          ) : uploaded ? (
+          {filename || (uploaded ? (
             t("settingsMore.portDocOnFile")
           ) : (
             <span className="text-muted-foreground">
               {t("settingsMore.portDocNoFile")}
             </span>
-          )}
+          ))}
         </span>
         <Button
           type="button"
@@ -149,10 +147,10 @@ export function PortDocumentsForm({
       setLoa(null);
       setInvoice(null);
       toast.success(t("settingsMore.portDocUploaded"));
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("settingsMore.portDocUploadFailed"),
       );
     }

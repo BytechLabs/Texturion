@@ -16,7 +16,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function look(table: unknown, key: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -28,7 +28,7 @@ const SAM = "user-sam";
 
 const at = (iso: string) => iso;
 
-describe("duplicateReplyWarning", () => {
+describe(duplicateReplyWarning, () => {
   it("warns when a teammate replied while the draft was being written", () => {
     // The case the issue is about: both techs opened the same new lead.
     expect(
@@ -132,7 +132,7 @@ describe("duplicateReplyWarning", () => {
   });
 });
 
-describe("duplicateReplyPrompt", () => {
+describe(duplicateReplyPrompt, () => {
   it("names the person, because that is a fact somebody can act on", () => {
     expect(duplicateReplyPrompt("Sam", 40, sayEn)).toBe("Sam replied just now.");
     expect(duplicateReplyPrompt("Sam", 120, sayEn)).toBe("Sam replied 2 minutes ago.");

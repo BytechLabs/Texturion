@@ -20,7 +20,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function lookUp(table: unknown, key: string, lang: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no ${lang} for ${key}`);
   return value;
 }
 

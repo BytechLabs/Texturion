@@ -16,7 +16,8 @@
  * Server component, pure DOM, no interactivity. Reyes Plumbing seed data.
  */
 
-import { contactsCopy, type ContactsCopy } from "@/i18n/marketing/contacts";
+import { contactsCopy } from '@/i18n/marketing/contacts';
+import type { ContactsCopy } from '@/i18n/marketing/contacts';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { CheckSquare, MessageSquare, Phone, Voicemail } from "lucide-react";
 

@@ -8,10 +8,12 @@ import Stripe from "stripe";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
-import { getEnv, type Bindings } from "../env";
+import { getEnv } from '../env';
+import type { Bindings } from '../env';
 import { app, handler } from "../index";
-import { testExecutionContext, telnyxSigningKeys, signedTelnyxRequest } from "../test/messaging-support";
-import { membershipResponder, supabaseStub, type SupabaseStub } from "../test/routes-harness";
+import { signedTelnyxRequest, telnyxSigningKeys, testExecutionContext } from "../test/messaging-support";
+import { membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
 import {
   OWNED_A,
   OWNED_B,
@@ -21,7 +23,8 @@ import {
   rigEnv,
   STRANGER,
 } from "../test/rig-env";
-import { completeEnv, createTestAuth, jwksRoute, stubFetch, type TestAuth } from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { deliverWebhookBatch } from "../webhooks/outbound-deliver";
 
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
@@ -182,7 +185,7 @@ describe("the inbound gate at the Telnyx webhook", () => {
     stubFetch(sb.route);
     const response = await deliver(text(STRANGER));
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ received: true, ignored: true });
+    await expect(response.json()).resolves.toEqual({ received: true, ignored: true });
     expect(sb.calls.map((call) => call.path)).toEqual([POSTURE]);
   });
 

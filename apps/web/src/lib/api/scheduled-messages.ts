@@ -67,7 +67,7 @@ export function scheduledRecipient(row: ScheduledMessage): string {
 
 /** "(416) 555-0134" for NANP, otherwise the number as stored. */
 function formatE164(e164: string): string {
-  const digits = e164.replace(/\D/g, "");
+  const digits = e164.replaceAll(/\D/g, "");
   if (digits.length === 11 && digits.startsWith("1")) {
     return `(${digits.slice(1, 4)}) ${digits.slice(4, 7)}-${digits.slice(7)}`;
   }

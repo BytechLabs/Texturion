@@ -1,12 +1,8 @@
 "use client";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import {
-  handoverPromptCancelLabel,
-  handoverPromptHeadline,
-  viewerHandoverPrompt,
-  type HandoverPromptKind,
-} from "@loonext/shared";
+import { handoverPromptCancelLabel, handoverPromptHeadline, viewerHandoverPrompt } from '@loonext/shared';
+import type { HandoverPromptKind } from '@loonext/shared';
 import { ShieldAlert } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -16,14 +12,11 @@ import { SettingsCard } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
-import {
-  isGatedOwnershipAction,
-  useOwnership,
-  useOwnershipAction,
-  type Ownership,
-} from "@/lib/api/ownership";
+import { isGatedOwnershipAction, useOwnership, useOwnershipAction } from '@/lib/api/ownership';
+import type { Ownership } from '@/lib/api/ownership';
 
 import { HandoverConfirmDialog } from "@/components/ownership/handover-confirm-dialog";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -312,9 +305,9 @@ function PromptCard({
   const acceptLabel =
     kind === "accept_offer"
       ? t("misc.ownershipAcceptAction")
-      : kind === "complete_claim"
+      : (kind === "complete_claim"
         ? t("misc.ownershipCompleteAction")
-        : null;
+        : null);
 
   return (
     <SettingsCard title={t("misc.ownershipForYou")}>
@@ -372,25 +365,30 @@ function detailFor(
   t: Translate,
   kind?: HandoverPromptKind,
 ): string {
-  const pending = state.pending;
+  const {pending} = state;
   switch (kind) {
-    case "accept_offer":
+    case "accept_offer": {
       return t("misc.ownershipDetailAcceptOffer", {
         when: formatAbsoluteDateTime(pending?.expires_at ?? "", undefined, t.locale),
       });
-    case "complete_claim":
+    }
+    case "complete_claim": {
       return t("misc.ownershipDetailCompleteClaim");
-    case "claim_waiting":
+    }
+    case "claim_waiting": {
       return t("misc.ownershipDetailClaimWaiting", {
         when: formatAbsoluteDateTime(pending?.ripens_at ?? "", undefined, t.locale),
       });
-    case "backup_standing":
+    }
+    case "backup_standing": {
       // Loss aversion, stated once and plainly — the same sentence the owner
       // read when they named this person, so both ends of the arrangement
       // understand it the same way.
       return t("misc.ownershipDetailBackupStanding");
-    default:
+    }
+    default: {
       break;
+    }
   }
   if (!pending) return "";
   if (pending.kind === "offer") {

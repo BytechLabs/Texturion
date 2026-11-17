@@ -27,7 +27,7 @@ export function useOnboardingCompany(companyId: string | null) {
   return useQuery({
     queryKey: keys.company(companyId ?? "none"),
     queryFn: () =>
-      apiFetch<CompanyView>("/v1/company", { companyId: companyId as string }),
+      apiFetch<CompanyView>("/v1/company", { companyId: companyId! }),
     enabled: companyId !== null,
   });
 }
@@ -38,7 +38,7 @@ export function useOnboardingRegistration(companyId: string | null) {
     queryKey: keys.registration(companyId ?? "none"),
     queryFn: () =>
       apiFetch<RegistrationState>("/v1/registration", {
-        companyId: companyId as string,
+        companyId: companyId!,
       }),
     enabled: companyId !== null,
   });
@@ -118,7 +118,7 @@ export function useOnboardingVerifyOtp() {
       }),
     onSuccess: (state, { companyId }) => {
       queryClient.setQueryData(keys.registration(companyId), state);
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
@@ -163,18 +163,18 @@ export function useOnboardingUpdateCompany() {
         companyId,
         body: patch,
       }),
-    onSuccess: (_updated, { companyId }) => {
+    onSuccess: (_updated, { companyId }) => 
       // The wizard summary reads GET /v1/company; the sidebar/name reads /me. A
       // country / US-texting change flips whether US registration is owed, so
       // the wizard must re-route — refetch registration too. RETURN the promise
       // so mutateAsync resolves only after the refetch lands: the number step
       // navigates on Continue, and routing on stale company data would bounce
       // the user through a wrong intermediate page for a round-trip (#79).
-      return Promise.all([
+      Promise.all([
         queryClient.invalidateQueries({ queryKey: keys.company(companyId) }),
         queryClient.invalidateQueries({ queryKey: keys.registration(companyId) }),
         queryClient.invalidateQueries({ queryKey: keys.me }),
-      ]);
-    },
+      ])
+    ,
   });
 }

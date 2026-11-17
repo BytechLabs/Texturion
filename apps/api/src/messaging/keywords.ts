@@ -84,8 +84,8 @@ export function normaliseKeyword(body: string): string {
   return body
     .normalize("NFKC")
     .toUpperCase()
-    .replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")
-    .replace(/\s+/g, " ");
+    .replaceAll(/^[^\p{L}\p{N}]+|[^\p{L}\p{N}]+$/gu, "")
+    .replaceAll(/\s+/g, " ");
 }
 
 /** True when the inbound body is exactly a French request for help. */

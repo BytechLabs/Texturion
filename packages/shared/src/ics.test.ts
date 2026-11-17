@@ -17,22 +17,22 @@ describe("escaping (§3.3.11)", () => {
     // pressure" becomes two values and the calendar shows a truncated title
     // with no hint that anything was cut.
     expect(icsEscape("Replace heater, check pressure")).toBe(
-      "Replace heater\\, check pressure",
+      String.raw`Replace heater\, check pressure`,
     );
-    expect(icsEscape("Unit 4; rear door")).toBe("Unit 4\\; rear door");
+    expect(icsEscape("Unit 4; rear door")).toBe(String.raw`Unit 4\; rear door`);
   });
 
   it("escapes the backslash FIRST, or it escapes its own escapes", () => {
     // The ordering bug: escape the comma first and the backslash pass turns
     // `\,` into `\\,`, which renders as a literal backslash before the comma.
-    expect(icsEscape("a\\b,c")).toBe("a\\\\b\\,c");
+    expect(icsEscape(String.raw`a\b,c`)).toBe(String.raw`a\\b\,c`);
   });
 
   it("folds a newline into the literal the format wants", () => {
     // A raw newline ends the property. Every parser then reads the rest of the
     // description as a malformed property name and usually drops the event.
-    expect(icsEscape("line one\nline two")).toBe("line one\\nline two");
-    expect(icsEscape("crlf\r\nhere")).toBe("crlf\\nhere");
+    expect(icsEscape("line one\nline two")).toBe(String.raw`line one\nline two`);
+    expect(icsEscape("crlf\r\nhere")).toBe(String.raw`crlf\nhere`);
   });
 });
 

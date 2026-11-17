@@ -12,15 +12,8 @@ import { replaceSearch } from "@/lib/url/search-state";
 import { NewTaskButton } from "./new-task";
 import { TaskFilterBar } from "./task-filter-bar";
 import { ExportTasks } from "./export-tasks";
-import {
-  coerceTabForView,
-  parseTaskSearchParams,
-  serializeTaskState,
-  toTaskFilters,
-  TASK_VIEWS,
-  type TaskPageState,
-  type TaskView,
-} from "./task-view-url";
+import { coerceTabForView, parseTaskSearchParams, serializeTaskState, TASK_VIEWS, toTaskFilters } from './task-view-url';
+import type { TaskPageState, TaskView } from './task-view-url';
 import { BoardView } from "./views/board-view";
 import { CalendarView } from "./views/calendar-view";
 import { ListView } from "./views/list-view";
@@ -118,14 +111,18 @@ function ViewSwitcher({
 /** Render the active view. Each reads the shared page state (tab + chips). */
 function ViewBody({ state }: { state: TaskPageState }) {
   switch (state.view) {
-    case "board":
+    case "board": {
       return <BoardView state={state} />;
-    case "calendar":
+    }
+    case "calendar": {
       return <CalendarView state={state} />;
-    case "map":
+    }
+    case "map": {
       return <MapView state={state} />;
-    case "list":
-    default:
+    }
+    
+    default: {
       return <ListView state={state} />;
+    }
   }
 }

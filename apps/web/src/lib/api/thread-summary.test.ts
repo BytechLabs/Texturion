@@ -2,21 +2,14 @@ import {
   THREAD_SUMMARY_IDLE_MIN_MESSAGES,
   THREAD_SUMMARY_IDLE_MS,
   THREAD_SUMMARY_MIN_MESSAGES,
-  THREAD_SUMMARY_SECTIONS,
   THREAD_SUMMARY_SECTION_IDS,
+  THREAD_SUMMARY_SECTIONS,
 } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "./error";
-import {
-  canRetryThreadSummary,
-  groupThreadSummary,
-  offerThreadSummary,
-  threadSummaryFailureMessage,
-  threadSummaryRequestFailure,
-  type ThreadSummaryLine,
-  type ThreadSummaryReason,
-} from "./thread-summary";
+import { canRetryThreadSummary, groupThreadSummary, offerThreadSummary, threadSummaryFailureMessage, threadSummaryRequestFailure } from './thread-summary';
+import type { ThreadSummaryLine, ThreadSummaryReason } from './thread-summary';
 import type { MessageDirection } from "./types";
 
 /**
@@ -125,7 +118,7 @@ describe("groupThreadSummary — the three sections", () => {
 
   it("renders the shared sections in the shared order, whatever order they arrived in", () => {
     const reversed = [...THREAD_SUMMARY_SECTION_IDS]
-      .reverse()
+      .toReversed()
       .map((id, index) => line(id, `line ${index}`, `m${index}`));
 
     expect(groupThreadSummary(reversed).map((group) => group.id)).toEqual([
@@ -235,7 +228,7 @@ describe("canRetryThreadSummary — is a second press worth anything", () => {
 
   it("covers every reason the route can return", () => {
     for (const reason of REASONS) {
-      expect(typeof canRetryThreadSummary(reason), reason).toBe("boolean");
+      expect(canRetryThreadSummary(reason)).toBeTypeOf("boolean");
     }
   });
 });
@@ -336,7 +329,7 @@ describe("threadSummaryRequestFailure — when the ask never landed", () => {
     for (const thrown of [null, undefined, "a string", { code: "forbidden" }]) {
       const failure = threadSummaryRequestFailure(thrown);
       expect(failure.message.length, String(thrown)).toBeGreaterThan(0);
-      expect(typeof failure.retry, String(thrown)).toBe("boolean");
+      expect(failure.retry).toBeTypeOf("boolean");
     }
   });
 });

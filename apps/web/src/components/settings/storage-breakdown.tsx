@@ -1,6 +1,7 @@
 "use client";
 
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import type { UsageStorage } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 

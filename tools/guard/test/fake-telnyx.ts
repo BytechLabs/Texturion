@@ -92,7 +92,7 @@ export class FakeTelnyx {
     const body = text ? (JSON.parse(text) as unknown) : undefined;
     this.log.push({ method, path: url.pathname, query: url.searchParams, body });
     const fail = this.failNext;
-    if (fail && fail.method === method && url.pathname === fail.path && (!fail.whenQuery || url.search.includes(fail.whenQuery))) {
+    if (fail?.method === method && url.pathname === fail.path && (!fail.whenQuery || url.search.includes(fail.whenQuery))) {
       this.failNext = null;
       return reply(fail.body ?? { errors: [{ code: String(fail.status) }] }, fail.status);
     }
@@ -145,7 +145,7 @@ export class FakeTelnyx {
     if (!items) return reply({ errors: [{ detail: "not found" }] }, 404);
     if (method === "GET" && !id) return list(this.filtered(items, url.searchParams));
     if (method === "POST" && !id) {
-      const created: Item = { id: this.nextId(resource), ...(body ?? {}) };
+      const created: Item = { id: this.nextId(resource), ...body };
       if (resource === "telephony_credentials") {
         created.resource_id = `connection:${String(body?.connection_id)}`;
         created.sip_username = `gencred${this.serial}`;
@@ -262,7 +262,7 @@ export class FakeTelnyx {
       return call ? reply({ data: { call_control_id: id, is_alive: call.alive } }) : reply({ errors: [] }, 404);
     }
     if (method === "POST" && sub === "actions") {
-      if (action === "hangup" || action === "reject") this.calls.set(id as string, { alive: false });
+      if (action === "hangup" || action === "reject") this.calls.set(id!, { alive: false });
       return reply({ data: { result: "ok" } });
     }
     return reply({ errors: [] }, 404);
@@ -270,7 +270,7 @@ export class FakeTelnyx {
 }
 
 export function reply(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+  return Response.json(body, { status, headers: { "content-type": "application/json" } });
 }
 
 function list(items: Item[]): Response {

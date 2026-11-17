@@ -60,13 +60,7 @@ export function PermissionCard() {
             <div className="space-y-2 pt-1" aria-label={t("misc.pushCheckingAria")}>
               <Skeleton className="h-4 w-56" />
             </div>
-          ) : !push.supported ? (
-            <p className="text-sm text-muted-foreground">
-              {environment.iosTab
-                ? t("misc.pushIosInstall")
-                : t("misc.pushUnsupported")}
-            </p>
-          ) : blocked ? (
+          ) : push.supported ? blocked ? (
             <p className="text-sm text-muted-foreground">
               {t("misc.pushBlockedInBrowser")}{" "}
               {environment.recovery}
@@ -78,6 +72,12 @@ export function PermissionCard() {
           ) : (
             <p className="text-sm text-muted-foreground">
               {t("misc.pushOfferBody")}
+            </p>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              {environment.iosTab
+                ? t("misc.pushIosInstall")
+                : t("misc.pushUnsupported")}
             </p>
           )}
           {push.error && (
@@ -97,9 +97,9 @@ export function PermissionCard() {
           >
             {push.pending
               ? busyLabel
-              : push.subscribed
+              : (push.subscribed
                 ? t("misc.pushTurnOff")
-                : t("misc.turnOn")}
+                : t("misc.turnOn"))}
           </Button>
         )}
       </div>

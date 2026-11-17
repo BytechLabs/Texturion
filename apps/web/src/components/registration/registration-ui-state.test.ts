@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { HONEST_TIMELINE, REGISTRATION_COPY } from "./copy";
-import {
-  deriveRegistrationUiState,
-  hostedReviewOnly,
-  type RegistrationRowInput,
-  type RegistrationUiInput,
-} from "./registration-ui-state";
+import { deriveRegistrationUiState, hostedReviewOnly } from './registration-ui-state';
+import type { RegistrationRowInput, RegistrationUiInput } from './registration-ui-state';
 
 /**
  * The SPEC §4.4 mapping table: every customer-facing registration state has

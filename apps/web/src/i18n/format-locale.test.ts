@@ -38,7 +38,7 @@ import { sourceFiles, sourceText, stripComments } from "@/test/source-tree";
 const SRC = join(process.cwd(), "src");
 
 const relative = (path: string): string =>
-  path.slice(SRC.length + 1).replace(/\\/g, "/");
+  path.slice(SRC.length + 1).replaceAll('\\', "/");
 
 const files = sourceFiles(SRC, [".ts", ".tsx"])
   .filter((file) => !/\.test\.tsx?$/.test(file))
@@ -95,7 +95,7 @@ const FORMATTERS = calls(
 );
 
 const where = (call: Call): string =>
-  `${call.rel}:${call.line}  ${call.call}${call.list.replace(/\s+/g, " ").slice(0, 60)}`;
+  `${call.rel}:${call.line}  ${call.call}${call.list.replaceAll(/\s+/g, " ").slice(0, 60)}`;
 
 /**
  * Fixed locales that are right, and why. `file` must still contain the call.
@@ -155,15 +155,15 @@ describe("#228 formatting follows the app's language, not the browser's", () => 
     const real = FORMATTERS.filter((call) => {
       const first = firstArgument(call.list);
       if (first !== "" && first !== "undefined") return false;
-      const text = files.find((f) => f.rel === call.rel)!.text;
+      const {text} = files.find((f) => f.rel === call.rel)!;
       const lineText = text.split("\n")[call.line - 1] ?? "";
-      return !/\.resolvedOptions\(\)/.test(lineText);
+      return !lineText.includes('.resolvedOptions()');
     });
     expect(
       real.map(where),
-      "These pass the BROWSER's language to a formatter. Pass the reader's: " +
-        "`t.locale` from useT(), or a `locale` parameter handed down:\n  " +
-        real.map(where).join("\n  "),
+      `These pass the BROWSER's language to a formatter. Pass the reader's: ` +
+        `\`t.locale\` from useT(), or a \`locale\` parameter handed down:\n  ${ 
+        real.map(where).join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -186,9 +186,9 @@ describe("#228 formatting follows the app's language, not the browser's", () => 
     });
     expect(
       bare.map(where),
-      "These format a time in English whatever the reader's language is. " +
-        "Call `formatTimestamp(iso, { style, t })` or `formatAbsoluteDateTime(iso, undefined, t.locale)`:\n  " +
-        bare.map(where).join("\n  "),
+      `These format a time in English whatever the reader's language is. ` +
+        `Call \`formatTimestamp(iso, { style, t })\` or \`formatAbsoluteDateTime(iso, undefined, t.locale)\`:\n  ${ 
+        bare.map(where).join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -199,9 +199,9 @@ describe("#228 formatting follows the app's language, not the browser's", () => 
     );
     expect(
       unlisted.map(where),
-      "A formatter pinned to one language ignores the reader's. Use t.locale, " +
-        "or add the file to FIXED_LOCALE with the reason:\n  " +
-        unlisted.map(where).join("\n  "),
+      `A formatter pinned to one language ignores the reader's. Use t.locale, ` +
+        `or add the file to FIXED_LOCALE with the reason:\n  ${ 
+        unlisted.map(where).join("\n  ")}`,
     ).toEqual([]);
   });
 

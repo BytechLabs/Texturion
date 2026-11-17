@@ -108,8 +108,8 @@ async function postOnce(endpoint: EndpointRow, delivery: ClaimedDelivery): Promi
       status: response.status,
       error: excerpt ? `HTTP ${response.status}: ${excerpt}` : `HTTP ${response.status}`,
     };
-  } catch (cause) {
-    const name = cause instanceof Error ? cause.name : "Error";
+  } catch (error) {
+    const name = error instanceof Error ? error.name : "Error";
     return {
       ok: false,
       status: null,

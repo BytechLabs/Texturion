@@ -50,7 +50,7 @@ export function generateToken(): string {
   crypto.getRandomValues(bytes);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(binary).replaceAll('+', "-").replaceAll('/', "_").replace(/[=]+$/, "");
 }
 
 /** SHA-256 hex. The only form of the token that is ever persisted. */

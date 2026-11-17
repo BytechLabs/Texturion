@@ -1,6 +1,7 @@
 "use client";
 
-import { useQueryClient, type QueryClient } from "@tanstack/react-query";
+import { useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import { useEffect } from "react";
 
 import { hasLiveBrowserCall } from "@/lib/softphone/live-call";

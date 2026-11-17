@@ -45,7 +45,7 @@ export async function syncReferences(
       p_hidden_number_ids: access.hiddenNumberIds,
     });
     if (error) console.error("reference sync failed:", error.message);
-  } catch (cause) {
-    console.error("reference sync failed:", cause);
+  } catch (error) {
+    console.error("reference sync failed:", error);
   }
 }

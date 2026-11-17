@@ -16,7 +16,8 @@ import { toast } from "sonner";
 
 import { usePlaceCall } from "@/components/calls/call-button";
 import { RecordOverflowMenu } from "@/components/ui/record-menu";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
 import { useDeleteCall, useDeleteVoicemail } from "@/lib/api/trash";
 import {
@@ -73,8 +74,8 @@ export function callPrimaryAction(call: {
   const wantsCallBack =
     call.direction !== "outbound" &&
     (call.outcome === "missed" || call.outcome === "voicemail");
-  if (wantsCallBack) return canCallBack ? "call-back" : canMessage ? "message" : null;
-  return canMessage ? "message" : canCallBack ? "call-back" : null;
+  if (wantsCallBack) return canCallBack ? "call-back" : (canMessage ? "message" : null);
+  return canMessage ? "message" : (canCallBack ? "call-back" : null);
 }
 
 export interface CallActionsInput {

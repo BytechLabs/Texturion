@@ -13,12 +13,8 @@ import { describe, expect, it } from "vitest";
 
 import { AUTOMATIC_TEXT_DEFAULTS } from "./automatic-text-settings";
 import { RING_SECONDS_MAX } from "./number-identity";
-import {
-  COMPANY_SETTING_DEFAULTS,
-  NOTIFICATION_SETTING_DEFAULTS,
-  REVENUE_SETTING_KEYS,
-  type SettingDefault,
-} from "./setting-defaults";
+import { COMPANY_SETTING_DEFAULTS, NOTIFICATION_SETTING_DEFAULTS, REVENUE_SETTING_KEYS } from './setting-defaults';
+import type { SettingDefault } from './setting-defaults';
 
 const VECTORS = join(import.meta.dirname, "..", "vectors", "setting-defaults.json");
 const DECISIONS = join(import.meta.dirname, "..", "..", "..", "docs", "DECISIONS.md");
@@ -46,7 +42,7 @@ function documentedReasons(block: string): Map<string, string> {
   const reasons = new Map<string, string>();
   for (const line of block.split("\n")) {
     const row = DOC_ROW.exec(line);
-    if (row) reasons.set(`${row[1]}.${row[2]}`, row[5]!.trim());
+    if (row) reasons.set(`${row[1]}.${row[2]}`, row[5].trim());
   }
   return reasons;
 }
@@ -69,11 +65,11 @@ describe("setting defaults (#749)", () => {
   it("the phones' vectors match the table", () => {
     const body = `${JSON.stringify(vectors(), null, 2)}\n`;
     if (process.env.WRITE_SETTING_VECTORS) writeFileSync(VECTORS, body);
-    expect(readFileSync(VECTORS, "utf8").replace(/\r\n/g, "\n")).toBe(body);
+    expect(readFileSync(VECTORS, "utf8").replaceAll('\r\n', "\n")).toBe(body);
   });
 
   it("docs/DECISIONS.md lists every default with its reason (D162)", () => {
-    const doc = readFileSync(DECISIONS, "utf8").replace(/\r\n/g, "\n");
+    const doc = readFileSync(DECISIONS, "utf8").replaceAll('\r\n', "\n");
     const start = doc.indexOf(DOC_START);
     const end = doc.indexOf(DOC_END);
     expect(start).toBeGreaterThan(0);
@@ -81,7 +77,7 @@ describe("setting defaults (#749)", () => {
     const expected =
       `${doc.slice(0, start + DOC_START.length)}\n${decisionRows(reasons)}\n${doc.slice(end)}`;
     if (process.env.WRITE_SETTING_VECTORS) writeFileSync(DECISIONS, expected);
-    expect(readFileSync(DECISIONS, "utf8").replace(/\r\n/g, "\n")).toBe(expected);
+    expect(readFileSync(DECISIONS, "utf8").replaceAll('\r\n', "\n")).toBe(expected);
 
     const silent = vectors()
       .map(({ table, key }) => `${table}.${key}`)

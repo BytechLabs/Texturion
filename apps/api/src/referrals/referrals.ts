@@ -1,11 +1,5 @@
-import {
-  decideReferral,
-  isReferralCode,
-  mintReferralCode,
-  normalizeReferralCode,
-  type ReferralClaim,
-  type ReferralDecision,
-} from "@loonext/shared";
+import { decideReferral, isReferralCode, mintReferralCode, normalizeReferralCode } from '@loonext/shared';
+import type { ReferralClaim, ReferralDecision } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { isPauseLicensedPrice } from "../billing/plans";
@@ -90,7 +84,7 @@ export async function ensureReferralCode(
         .select("referral_code")
         .eq("id", companyId)
         .limit(1);
-      const won = (raced?.[0] as { referral_code: string | null } | undefined)
+      const won = (raced?.[0])
         ?.referral_code;
       if (won) return won;
     }
@@ -142,7 +136,7 @@ export async function attributeReferral(
   const claim: ReferralClaim = {
     referrerCompanyId: facts?.referrer_company_id ?? null,
     referrerOwnerUserId: facts?.referrer_owner_user_id ?? null,
-    referrerRewardsThisYear: Number(facts?.referrer_rewards_this_year ?? 0),
+    referrerRewardsThisYear: (facts?.referrer_rewards_this_year ?? 0),
     refereeAlreadyReferred: facts?.referee_already_referred ?? false,
   };
   const decision = decideReferral(claim, args.refereeOwnerUserId);
@@ -202,8 +196,8 @@ export async function qualifyReferralForSender(
       });
     }
     return { qualified: true, referrerCompanyId: row.referrer_company_id };
-  } catch (cause) {
-    console.error(`qualify_referral threw: ${String(cause)}`);
+  } catch (error) {
+    console.error(`qualify_referral threw: ${String(error)}`);
     return { qualified: false };
   }
 }
@@ -269,8 +263,8 @@ async function rewardSide(
       (item) => item.price && isPauseLicensedPrice(env, item.price.id),
     );
     console.log(
-      `referral reward (${args.side}) held for ${args.companyId}: ` +
-        (paused ? "workspace paused, pays on resume" : "no plan licensed item"),
+      `referral reward (${args.side}) held for ${args.companyId}: ${ 
+        paused ? "workspace paused, pays on resume" : "no plan licensed item"}`,
     );
     return false;
   }
@@ -346,8 +340,8 @@ export async function rewardQualifiedReferral(
   ] as const) {
     try {
       await rewardSide(env, db, { referralId: args.referralId, companyId, side });
-    } catch (cause) {
-      console.error(`referral reward (${side}) failed: ${String(cause)}`);
+    } catch (error) {
+      console.error(`referral reward (${side}) failed: ${String(error)}`);
     }
   }
 }
@@ -428,13 +422,13 @@ export async function payPendingReferralRewards(
           // late is recoverable, a month silently consumed is not.
           break;
         }
-      } catch (cause) {
-        console.error(`pending referral reward failed: ${String(cause)}`);
+      } catch (error_) {
+        console.error(`pending referral reward failed: ${String(error_)}`);
       }
     }
-  } catch (cause) {
+  } catch (error) {
     console.error(
-      `pending referral rewards failed for ${companyId}: ${String(cause)}`,
+      `pending referral rewards failed for ${companyId}: ${String(error)}`,
     );
   }
   return paid;

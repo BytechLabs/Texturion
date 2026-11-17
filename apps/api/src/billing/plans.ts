@@ -1,4 +1,5 @@
-import { PLAN_PRICE_CENTS, type BillingCurrency } from "@loonext/shared";
+import { PLAN_PRICE_CENTS } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
 import type { Env } from "../env";
 

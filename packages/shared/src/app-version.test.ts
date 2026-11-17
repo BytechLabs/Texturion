@@ -8,12 +8,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  isOlderThan,
-  updateRequirement,
-  versionKey,
-  type AppReleasePolicy,
-} from "./app-version";
+import { isOlderThan, updateRequirement, versionKey } from './app-version';
+import type { AppReleasePolicy } from './app-version';
 
 const policy = (over: Partial<AppReleasePolicy> = {}): AppReleasePolicy => ({
   platform: "ios",
@@ -24,7 +20,7 @@ const policy = (over: Partial<AppReleasePolicy> = {}): AppReleasePolicy => ({
   ...over,
 });
 
-describe("versionKey", () => {
+describe(versionKey, () => {
   it("pads to four segments so 2 and 2.0.0.0 are one build", () => {
     expect(versionKey("2")).toEqual([2, 0, 0, 0]);
     expect(versionKey("2.0.0.0")).toEqual([2, 0, 0, 0]);
@@ -41,7 +37,7 @@ describe("versionKey", () => {
   });
 });
 
-describe("isOlderThan", () => {
+describe(isOlderThan, () => {
   it("orders by segment, not by string", () => {
     // The trap: "1.10.0" < "1.9.0" as strings, which would tell a user on the
     // newest build that they are behind.
@@ -63,7 +59,7 @@ describe("isOlderThan", () => {
   });
 });
 
-describe("updateRequirement", () => {
+describe(updateRequirement, () => {
   it("says nothing when there is no policy", () => {
     expect(updateRequirement("1.0.0", null)).toBe("none");
     expect(updateRequirement("1.0.0", policy())).toBe("none");

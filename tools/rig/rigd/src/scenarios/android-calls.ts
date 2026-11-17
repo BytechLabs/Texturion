@@ -13,21 +13,8 @@ import type { GuardHealth } from "@loonext/rig-protocol";
 import type { DeviceState, HostdHealth, NetworkShape, RigDeviceName } from "@loonext/rig-lanes";
 import type { CallRecord, Detection, Surface } from "@loonext/rig-robot";
 import { MAX_WORD_ERROR, VOICEMAIL_PHRASE } from "./calls.ts";
-import {
-  audioFault,
-  audioReady,
-  fail,
-  infra,
-  pass,
-  poll,
-  wordErrorRate,
-  type AudioLinkApi,
-  type DeviceApi,
-  type RigHealthReport,
-  type ScenarioContext,
-  type ScenarioResult,
-  type ScenarioRunner,
-} from "./context.ts";
+import { audioFault, audioReady, fail, infra, pass, poll, wordErrorRate } from './context.ts';
+import type { AudioLinkApi, DeviceApi, RigHealthReport, ScenarioContext, ScenarioResult, ScenarioRunner } from './context.ts';
 
 const TENANT = "QA-A";
 const NUMBER = "DEV-A1";
@@ -169,7 +156,7 @@ async function setAudience(ctx: ScenarioContext, levels: Partial<Record<Member, 
 /** The record once the robot has answered, or once it gave up. */
 function untilAnswered(ctx: ScenarioContext, planId: string, timeoutMs: number): Promise<CallRecord | undefined> {
   return poll(ctx, async () => {
-    const record = await ctx.robot.wait(planId, 1_000);
+    const record = await ctx.robot.wait(planId, 1000);
     return record.answered_at || record.state === "done" || record.state === "failed" ? record : undefined;
   }, timeoutMs, 500);
 }
@@ -181,7 +168,7 @@ function pixelCleared(ctx: ScenarioContext, device: DeviceApi, from: number, tim
 
 /** The database's one answered leg for ROBOT-1's call, which must be the expected member's. */
 async function oneWinner(ctx: ScenarioContext, since: number, member: string): Promise<ScenarioResult | undefined> {
-  const row = await poll(ctx, async () => (await ctx.app.calls({ tenant: TENANT, callerRole: "ROBOT-1", since })).at(-1), 60_000, 2_000);
+  const row = await poll(ctx, async () => (await ctx.app.calls({ tenant: TENANT, callerRole: "ROBOT-1", since })).at(-1), 60_000, 2000);
   if (!row) return fail("no_call_row", "no call row for ROBOT-1's call to DEV-A1");
   const legs = await ctx.app.callLegs({ tenant: TENANT, callSessionId: row.call_session_id });
   ctx.evidence.legs = legs.map((leg) => ({ member: leg.member, state: leg.state, kind: leg.kind }));
@@ -197,9 +184,9 @@ const EMULATOR_APIS = [34, 35, 36] as const;
 /** One result for the run: a critical failure first, then any failure, then the rig's own faults; the rest are named after it. */
 function firstOf(findings: ScenarioResult[]): ScenarioResult | undefined {
   const rank = (r: ScenarioResult) => (r.outcome === "fail" ? (r.critical ? 0 : 1) : 2);
-  const [first, ...rest] = [...findings].sort((a, b) => rank(a) - rank(b));
+  const [first, ...rest] = [...findings].toSorted((a, b) => rank(a) - rank(b));
   if (!first || rest.length === 0) return first;
-  const also = rest.map((r) => (r.outcome === "fail" ? r.failure_class : r.outcome === "infra" ? `${r.component} (infra)` : r.outcome)).join(", ");
+  const also = rest.map((r) => (r.outcome === "fail" ? r.failure_class : (r.outcome === "infra" ? `${r.component} (infra)` : r.outcome))).join(", ");
   if (first.outcome === "fail") return fail(first.failure_class, `${first.detail}; also ${also}`, { critical: first.critical });
   if (first.outcome === "infra") return infra(first.component, `${first.detail}; also ${also}`);
   return first;
@@ -220,7 +207,7 @@ async function healthFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
     .map((r) => {
       const reason = `${r.name}: ${r.reason ?? "no reason given"}`;
       if (r.reason && MISSING_SECRET.test(r.reason)) return infra("store", reason);
-      return fail(`health_${r.name.replace(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}`, reason);
+      return fail(`health_${r.name.replaceAll(/[A-Z]/g, (c) => `_${c.toLowerCase()}`)}`, reason);
     });
 }
 
@@ -311,11 +298,11 @@ async function pixelFindings(ctx: ScenarioContext): Promise<ScenarioResult[]> {
   found.push(...bootedFindings(ctx, pixel, state, evidence));
   evidence.audio_connected = await pixel.audio.connected();
   evidence.audio_proven = await pixel.audio.proven();
-  if (!evidence.audio_connected) found.push(fail("pixel_audio_link_down", "the device lane's gRPC audio link does not answer getStatus"));
-  else {
+  if (evidence.audio_connected) {
     const unproven = await audioReady(pixel);
     if (unproven) found.push(unproven);
   }
+  else {found.push(fail("pixel_audio_link_down", "the device lane's gRPC audio link does not answer getStatus"));}
   let minimum: number | null;
   try {
     minimum = await pixel.playServicesMinimum();
@@ -360,15 +347,15 @@ export const R00: ScenarioRunner = {
       ...(await emulatorFindings(ctx)),
     ];
     ctx.evidence.findings = findings.map((r) =>
-      r.outcome === "fail" ? { fail: r.failure_class } : r.outcome === "infra" ? { infra: r.component } : { outcome: r.outcome },
+      r.outcome === "fail" ? { fail: r.failure_class } : (r.outcome === "infra" ? { infra: r.component } : { outcome: r.outcome }),
     );
     return firstOf(findings) ?? pass();
   },
 };
 
 const WEEK_MS = 7 * 86_400_000;
-const RING_WITHIN_MS = 8_000;
-const OTHER_CLEARS_MS = 3_000;
+const RING_WITHIN_MS = 8000;
+const OTHER_CLEARS_MS = 3000;
 
 /** Which surface answers D01 this week: they alternate, so each is the answerer every other run. */
 export function d01Answerer(at: number): "page" | "pixel" {
@@ -488,7 +475,7 @@ export const D07: ScenarioRunner = {
       lease_id: ctx.lease.id,
       direction: "inbound",
       role: "ROBOT-1",
-      answer_after_ms: 4_000,
+      answer_after_ms: 4000,
       expect_within_ms: 60_000,
       // An emulator that injects nothing gives the robot no code to judge.
       ...(half.speaks ? { expect: "pixel" as const } : { record: false }),
@@ -587,7 +574,7 @@ export const D08: ScenarioRunner = {
       ctx,
       async () => (await page.notifications()).find((n) => n.tag === ring.tag && (n.title !== ring.title || n.body !== ring.body)),
       OUTCOME_SHOWS_MS,
-      1_000,
+      1000,
     );
     ctx.evidence.outcome = outcome
       ? { tag: outcome.tag, shown_ms: ctx.now() - hungUpAt, title_changed: outcome.title !== ring.title, body_changed: outcome.body !== ring.body }
@@ -599,7 +586,7 @@ export const D08: ScenarioRunner = {
 
 const RACE_RINGS_MS = 15_000;
 const RACE_WITHIN_MS = 300;
-const LOSER_CLEARS_MS = 5_000;
+const LOSER_CLEARS_MS = 5000;
 
 /**
  * D09: the page and the emulator answer the same ring together, and exactly one
@@ -695,7 +682,7 @@ function raceWinner(record: CallRecord): Surface | ScenarioResult {
   const refused = guardRefusal(record);
   if (refused) return refused;
   if (!record.answered_at) return fail("not_answered", `the call never connected (${record.errors.join("; ") || record.state})`);
-  const judgement = record.judgement;
+  const {judgement} = record;
   if (!judgement) return infra("robot", `no verdict on the robot's recording (${record.errors.join("; ") || record.state})`);
   if (judgement.verdict !== "heard" || judgement.heard.length === 0) return fail("robot_heard_nobody", `the robot's recording was ${judgement.verdict}`);
   if (judgement.heard.length > 1) return fail("both_answered", `the robot heard ${judgement.heard.join(" and ")}: more than one answer was bridged`);
@@ -706,17 +693,17 @@ function raceWinner(record: CallRecord): Surface | ScenarioResult {
 }
 
 /** Delay and a narrow link through the emulator's console. It has no loss control, so loss is X27's and not shaped here. */
-const IMPAIRMENT: NetworkShape = { delayMs: 80, speedKbps: { up: 256, down: 1_024 } };
+const IMPAIRMENT: NetworkShape = { delayMs: 80, speedKbps: { up: 256, down: 1024 } };
 const OUTAGE_AT_MS = 15_000;
-const OUTAGE_MS = 3_000;
-const RESUME_WITHIN_MS = 5_000;
+const OUTAGE_MS = 3000;
+const RESUME_WITHIN_MS = 5000;
 /** Tolerated lateness of the outage's end, which shortens the time the codes get to come back by as much. */
-const OUTAGE_SLACK_MS = 1_000;
-const BEFORE = { name: "before", start_ms: 2_000, end_ms: 12_000 };
+const OUTAGE_SLACK_MS = 1000;
+const BEFORE = { name: "before", start_ms: 2000, end_ms: 12_000 };
 const AFTER = { name: "after", start_ms: OUTAGE_AT_MS + OUTAGE_MS + RESUME_WITHIN_MS, end_ms: OUTAGE_AT_MS + OUTAGE_MS + RESUME_WITHIN_MS + 10_000 };
-const D13_HANGUP_MS = AFTER.end_ms + 3_000;
+const D13_HANGUP_MS = AFTER.end_ms + 3000;
 /** A call that ends this much before the robot's own hang-up did not survive. */
-const SURVIVE_SLACK_MS = 2_000;
+const SURVIVE_SLACK_MS = 2000;
 export const MAX_LOSS = 0.05;
 /** RTP's 20 ms packet time: how many packets an outage of a given length takes away. */
 const PACKET_MS = 20;
@@ -733,7 +720,7 @@ export function lossOutsideOutage(
 ): { received: number; skipped: number; outage_packets: number; ratio: number } | undefined {
   const inbound = (rtp as { inbound?: Record<string, unknown> } | null | undefined)?.inbound;
   const count = (value: unknown) =>
-    typeof value === "number" && Number.isFinite(value) ? value : typeof value === "string" && /^\d+$/.test(value) ? Number(value) : undefined;
+    typeof value === "number" && Number.isFinite(value) ? value : (typeof value === "string" && /^\d+$/.test(value) ? Number(value) : undefined);
   const received = count(inbound?.packet_count);
   const skipped = count(inbound?.skip_packet_count);
   if (received === undefined || skipped === undefined) return undefined;
@@ -769,7 +756,7 @@ export const D13: ScenarioRunner = {
       lease_id: ctx.lease.id,
       direction: "inbound",
       role: "ROBOT-1",
-      answer_after_ms: 3_000,
+      answer_after_ms: 3000,
       expect_within_ms: 60_000,
       expect: "pixel",
       segments: [BEFORE, AFTER],
@@ -868,7 +855,7 @@ export const D14: ScenarioRunner = {
       return infra("pixel", `opening the app's calls failed: ${(error as Error).message}`);
     }
     // The newest call is listed first, and the copy is the newest.
-    const listed = await poll(ctx, () => pixel.device.showing({ text: PLAY_VOICEMAIL }), LISTED_WITHIN_MS, 1_000);
+    const listed = await poll(ctx, () => pixel.device.showing({ text: PLAY_VOICEMAIL }), LISTED_WITHIN_MS, 1000);
     if (!listed) return fail("voicemail_not_listed", `the app's calls showed no "${PLAY_VOICEMAIL}" control within ${LISTED_WITHIN_MS / 1000} s`);
     // Recording from before the tap, so the phrase's first word is not lost.
     const recording = pixel.audio.transcribe({ stream: "media", ms: PLAYBACK_MS }).then(

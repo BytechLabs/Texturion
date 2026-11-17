@@ -22,10 +22,10 @@ export const SearchField = forwardRef<
     clearLabel?: string;
     containerClassName?: string;
   }
->(function SearchField(
+>((
   { value, onValueChange, clearLabel, containerClassName, className, ...input },
   forwardedRef,
-) {
+) => {
   const t = useT();
   const ownRef = useRef<HTMLInputElement | null>(null);
   return (

@@ -8,7 +8,8 @@ import { toast } from "sonner";
 import { ModuleCard } from "@/components/billing/module-card";
 import { SettingsCard } from "@/components/settings/section";
 import { useT } from "@/i18n/provider";
-import { type BillingModule, useModules, useSetModule } from "@/lib/api/billing";
+import { useModules, useSetModule } from '@/lib/api/billing';
+import type { BillingModule } from '@/lib/api/billing';
 import { ApiError } from "@/lib/api/error";
 import {
   describeModuleToggle,

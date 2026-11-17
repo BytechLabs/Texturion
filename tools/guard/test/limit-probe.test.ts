@@ -4,8 +4,10 @@ import { CRONS } from "../src/guard";
 import { LIMIT_PROBE_MAX_WRITES, LIMIT_PROBE_PAUSE_MS, LIMIT_PROBE_RETRY_MS } from "../src/limits";
 import { limitProbeDue, runLimitProbe } from "../src/setup/limit-probe";
 import { runSafetyChecks } from "../src/setup/safety";
-import { LIMIT_KEYS, limitInForce, recordCeiling, type ValidationRecord } from "../src/state/concurrency";
-import { KEYS, ready, ruleOf, type Harness } from "./support";
+import { LIMIT_KEYS, limitInForce, recordCeiling } from '../src/state/concurrency';
+import type { ValidationRecord } from '../src/state/concurrency';
+import { KEYS, ready, ruleOf } from './support';
+import type { Harness } from './support';
 
 const DAY = 24 * 60 * 60 * 1000;
 const PROBE = "/v2/outbound_voice_profiles/ovp-probe";
@@ -41,12 +43,12 @@ describe("the validation check", () => {
     // Both ends were written: 4 accepted, 5 refused.
     expect(sent.map((item) => item.value)).toEqual(expect.arrayContaining([4, 5]));
     expect(profile(h, "ovp-probe")?.concurrent_call_limit).toBe(1);
-    expect(await h.store.get<ValidationRecord>(LIMIT_KEYS.validation)).toMatchObject({ result: "exact", value: 4 });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 4, source: "validation" });
+    await expect(h.store.get<ValidationRecord>(LIMIT_KEYS.validation)).resolves.toMatchObject({ result: "exact", value: 4 });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 4, source: "validation" });
   });
 
   it("stays within its write budget wherever the boundary is", async () => {
-    for (const limit of [1, 2, 5, 6, 10, 100, 4_999, 9_998]) {
+    for (const limit of [1, 2, 5, 6, 10, 100, 4999, 9998]) {
       const { h, result } = await probed({ mode: "refuse-above", limit });
       expect(result, String(limit)).toMatchObject({ result: "exact", value: limit });
       expect(writes(h).length, String(limit)).toBeLessThanOrEqual(LIMIT_PROBE_MAX_WRITES);
@@ -59,7 +61,7 @@ describe("the validation check", () => {
     expect(result).toMatchObject({ result: "not_enforced", value: null });
     expect(writes(h).map((item) => item.value)).toEqual([9999, 1]);
     expect(profile(h, "ovp-probe")?.concurrent_call_limit).toBe(1);
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 2, source: "floor" });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 2, source: "floor" });
   });
 
   it("aborts as inconclusive on a 500, still asks for the reset, and says when the reset failed", async () => {
@@ -68,7 +70,7 @@ describe("the validation check", () => {
     expect(writes(h).map((item) => item.value)).toEqual([9999, 1]);
     const alert = h.outbound.find((item) => item.body.includes("telnyx-guard-limit-probe-reset"));
     expect(alert).toBeDefined();
-    expect(await limitInForce(h.ctx)).toMatchObject({ source: "floor" });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ source: "floor" });
   });
 
   it("treats a refusal that does not name the field or a 404 as inconclusive", async () => {
@@ -142,7 +144,7 @@ describe("the validation check", () => {
     const h = await ready({ validated: null });
     const record = await h.store.get<{ outbound_voice_profiles: Record<string, string> }>(KEYS.record);
     await h.store.put(KEYS.record, { ...record, outbound_voice_profiles: { voice: "ovp-probe", robot: "ovp-robot" } });
-    expect(await runLimitProbe(h.ctx)).toMatchObject({ result: "inconclusive", writes: 0 });
+    await expect(runLimitProbe(h.ctx)).resolves.toMatchObject({ result: "inconclusive", writes: 0 });
     expect(h.telnyx.requests("PATCH")).toEqual([]);
   });
 
@@ -165,30 +167,30 @@ describe("the validation check", () => {
     const elsewhere = await ready({ validated: null });
     const found = profile(elsewhere, "ovp-probe");
     if (found) found.billing_group_id = "bg-production";
-    expect(await runLimitProbe(elsewhere.ctx)).toMatchObject({ result: "inconclusive", writes: 0 });
+    await expect(runLimitProbe(elsewhere.ctx)).resolves.toMatchObject({ result: "inconclusive", writes: 0 });
     expect(elsewhere.telnyx.requests("PATCH")).toEqual([]);
 
     const taken = await ready({ validated: null });
     const app = taken.telnyx.lists.call_control_applications.find((item) => item.id === "conn-prod-voice");
     if (app) app.outbound = { outbound_voice_profile_id: "ovp-probe" };
-    expect(await runLimitProbe(taken.ctx)).toMatchObject({ result: "inconclusive", writes: 0 });
+    await expect(runLimitProbe(taken.ctx)).resolves.toMatchObject({ result: "inconclusive", writes: 0 });
     expect(taken.telnyx.requests("PATCH")).toEqual([]);
   });
 
   it("calls a run in which Telnyx refuses even 1 inconclusive, keeps the earlier result and still resets", async () => {
     const h = await ready({ validated: 6 });
     h.telnyx.profileLimit = { mode: "refuse-above", limit: 0 };
-    expect(await runLimitProbe(h.ctx)).toMatchObject({ result: "inconclusive", value: null });
+    await expect(runLimitProbe(h.ctx)).resolves.toMatchObject({ result: "inconclusive", value: null });
     expect(writes(h).map((item) => item.value)).toEqual(expect.arrayContaining([9999, 1]));
     expect(writes(h).at(-1)?.value).toBe(1);
-    expect(await h.store.get<ValidationRecord>(LIMIT_KEYS.validation)).toMatchObject({ result: "exact", value: 6 });
+    await expect(h.store.get<ValidationRecord>(LIMIT_KEYS.validation)).resolves.toMatchObject({ result: "exact", value: 6 });
   });
 
   it("never lets an inconclusive run replace a conclusive result", async () => {
     const h = await ready({ validated: 6 });
     h.telnyx.profileLimit = { mode: "error", limit: 0 };
     await runLimitProbe(h.ctx);
-    expect(await h.store.get<ValidationRecord>(LIMIT_KEYS.validation)).toMatchObject({ result: "exact", value: 6 });
+    await expect(h.store.get<ValidationRecord>(LIMIT_KEYS.validation)).resolves.toMatchObject({ result: "exact", value: 6 });
   });
 });
 
@@ -204,31 +206,31 @@ describe("when the validation check runs", () => {
     h.advance(DAY);
     h.telnyx.profileLimit = { mode: "refuse-above", limit: 4 };
     await h.guard.cron(CRONS.upkeep);
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 4, source: "validation" });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 4, source: "validation" });
   });
 
   it("runs again once a conclusive result is 30 days old", async () => {
     const h = await ready();
-    expect(await limitProbeDue(h.ctx)).toBe(false);
+    await expect(limitProbeDue(h.ctx)).resolves.toBe(false);
     h.advance(29 * DAY);
-    expect(await limitProbeDue(h.ctx)).toBe(false);
+    await expect(limitProbeDue(h.ctx)).resolves.toBe(false);
     h.advance(DAY);
-    expect(await limitProbeDue(h.ctx)).toBe(true);
+    await expect(limitProbeDue(h.ctx)).resolves.toBe(true);
   });
 
   it("runs again once Telnyx has refused for a limit since the result was measured", async () => {
     const h = await ready();
     h.advance(DAY);
-    expect(await limitProbeDue(h.ctx)).toBe(false);
+    await expect(limitProbeDue(h.ctx)).resolves.toBe(false);
     await recordCeiling(h.ctx, { value: null, from: "telnyx-90041" });
-    expect(await limitProbeDue(h.ctx)).toBe(true);
+    await expect(limitProbeDue(h.ctx)).resolves.toBe(true);
   });
 
   it("runs on the admin route, for the admin class only", async () => {
     const h = await ready({ validated: null });
     h.telnyx.profileLimit = { mode: "refuse-above", limit: 4 };
-    expect(await ruleOf(await h.call("/admin/limit-probe", { caller: "robot", method: "POST" }))).toBe("class.not_allowed");
+    await expect(ruleOf(await h.call("/admin/limit-probe", { caller: "robot", method: "POST" }))).resolves.toBe("class.not_allowed");
     const response = await h.call("/admin/limit-probe", { caller: "admin", method: "POST" });
-    expect(await response.json()).toMatchObject({ result: "exact", value: 4 });
+    await expect(response.json()).resolves.toMatchObject({ result: "exact", value: 4 });
   });
 });

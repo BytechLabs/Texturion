@@ -41,12 +41,12 @@ function readAt(fd, position, length) {
 export function readZipEntry(path, name) {
   const fd = openSync(path, "r");
   try {
-    const size = fstatSync(fd).size;
+    const {size} = fstatSync(fd);
     const tailLength = Math.min(size, 65_557);
     const tail = readAt(fd, size - tailLength, tailLength);
     let eocd = -1;
     for (let i = tail.length - 22; i >= 0; i -= 1) {
-      if (tail.readUInt32LE(i) === 0x06054b50) {
+      if (tail.readUInt32LE(i) === 0x06_05_4B_50) {
         eocd = i;
         break;
       }
@@ -58,7 +58,7 @@ export function readZipEntry(path, name) {
     const directory = readAt(fd, directoryOffset, directorySize);
     let at = 0;
     for (let i = 0; i < entries; i += 1) {
-      if (directory.readUInt32LE(at) !== 0x02014b50) throw new Error("rig apk: corrupt central directory");
+      if (directory.readUInt32LE(at) !== 0x02_01_4B_50) throw new Error("rig apk: corrupt central directory");
       const method = directory.readUInt16LE(at + 10);
       const compressedSize = directory.readUInt32LE(at + 20);
       const nameLength = directory.readUInt16LE(at + 28);
@@ -82,9 +82,9 @@ export function readZipEntry(path, name) {
   }
 }
 
-const RES_STRING_POOL = 0x0001;
-const RES_XML_START_ELEMENT = 0x0102;
-const UTF8_FLAG = 0x100;
+const RES_STRING_POOL = 0x00_01;
+const RES_XML_START_ELEMENT = 0x01_02;
+const UTF8_FLAG = 0x1_00;
 
 function poolString(pool, index) {
   const { data, offsets, stringsStart, utf8 } = pool;
@@ -94,14 +94,14 @@ function poolString(pool, index) {
     at += data[at] & 0x80 ? 2 : 1;
     let length = data[at];
     if (length & 0x80) {
-      length = ((length & 0x7f) << 8) | data[at + 1];
+      length = ((length & 0x7F) << 8) | data[at + 1];
       at += 2;
     } else at += 1;
     return data.toString("utf8", at, at + length);
   }
   let length = data.readUInt16LE(at);
-  if (length & 0x8000) {
-    length = ((length & 0x7fff) << 16) | data.readUInt16LE(at + 2);
+  if (length & 0x80_00) {
+    length = ((length & 0x7F_FF) << 16) | data.readUInt16LE(at + 2);
     at += 4;
   } else at += 2;
   return data.toString("utf16le", at, at + length * 2);
@@ -109,7 +109,7 @@ function poolString(pool, index) {
 
 /** The `package` attribute of `<manifest>` in a compiled AndroidManifest.xml. */
 export function manifestPackage(xml) {
-  if (xml.readUInt16LE(0) !== 0x0003) throw new Error("rig apk: the manifest is not compiled XML");
+  if (xml.readUInt16LE(0) !== 0x00_03) throw new Error("rig apk: the manifest is not compiled XML");
   let at = xml.readUInt16LE(2);
   let pool = null;
   while (at < xml.length) {
@@ -388,7 +388,7 @@ export function placeApk({ apk, dir, sha, log }) {
 /** The commit current.apk was built from; a record that cannot be read names none. */
 function placedCommit(record) {
   try {
-    const sha = JSON.parse(readFileSync(record, "utf8")).sha;
+    const {sha} = JSON.parse(readFileSync(record, "utf8"));
     return typeof sha === "string" ? sha : undefined;
   } catch {
     return undefined;

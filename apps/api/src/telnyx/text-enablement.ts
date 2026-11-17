@@ -71,14 +71,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  refuseAccountWide,
-  telnyxRequest,
-  telnyxUrl,
-  TelnyxApiError,
-  TELNYX_TIMEOUT_MS,
-  type TelnyxErrorItem,
-} from "./client";
+import { refuseAccountWide, TELNYX_TIMEOUT_MS, TelnyxApiError, telnyxRequest, telnyxUrl } from './client';
+import type { TelnyxErrorItem } from './client';
 import {
   ensureMessagingProfile,
   fetchProvisioningCompany,
@@ -111,7 +105,7 @@ async function claimTextEnablementLease(
   if (error) {
     throw new Error(`claim_text_enablement_lease failed: ${error.message}`);
   }
-  return (data ?? null) as unknown as TextEnablementOrderRow | null;
+  return data ?? null;
 }
 
 /** Release the lease at end-of-pass; the persisted order id / key guard re-entry. */
@@ -212,31 +206,38 @@ export function mapHostedStatus(
   current: TextEnablementOrderRow["status"],
 ): TextEnablementOrderRow["status"] {
   switch ((raw ?? "").toLowerCase()) {
-    case "successful":
+    case "successful": {
       return "completed";
-    case "pending":
+    }
+    case "pending": {
       return "pending";
+    }
     case "provisioning":
-    case "loa_file_successful":
+    case "loa_file_successful": {
       return "in-progress";
+    }
     case "incomplete_documentation":
     case "loa_file_invalid":
-    case "incorrect_billing_information":
+    case "incorrect_billing_information": {
       return "action-required";
+    }
     case "carrier_rejected":
     case "ineligible_carrier":
     case "compliance_review_failed":
-    case "failed":
+    case "failed": {
       return "failed";
-    case "deleted":
+    }
+    case "deleted": {
       return "cancelled";
-    default:
+    }
+    default: {
       void captureException(
         workerEnv(),
         `unknown Telnyx hosted-order status ${JSON.stringify(raw ?? null)} — keeping '${current}'`,
         { source: "api", level: "warning" },
       );
       return current;
+    }
   }
 }
 
@@ -393,9 +394,9 @@ export async function deleteHostedOrder(
       method: "DELETE",
       path: `/v2/messaging_hosted_number_orders/${telnyxHostedOrderId}`,
     });
-  } catch (cause) {
-    if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
-      throw cause;
+  } catch (error) {
+    if (!(error instanceof TelnyxApiError && error.status === 404)) {
+      throw error;
     }
   }
 }
@@ -734,9 +735,9 @@ export async function resumeTextEnablement(
       patch.completed_at = new Date().toISOString();
     }
     return updateOrderUnlessCancelled(env, db, order.id, patch);
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
-    void captureException(env, cause, { source: "api" });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    void captureException(env, error, { source: "api" });
     const attempts = order.attempts + 1;
     const patch: Record<string, unknown> = {
       last_error: message.slice(0, 2000),

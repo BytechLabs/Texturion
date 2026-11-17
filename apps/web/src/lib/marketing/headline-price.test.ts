@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -46,7 +46,7 @@ function tsxFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const path = join(dir, entry);
     if (statSync(path).isDirectory()) return tsxFiles(path);
-    return /\.tsx$/.test(path) && !/\.test\.tsx$/.test(path) ? [path] : [];
+    return path.endsWith('.tsx') && !path.endsWith('.test.tsx') ? [path] : [];
   });
 }
 
@@ -108,7 +108,7 @@ describe("the headline price carries its crew size", () => {
       .filter(({ tag }) => !tag.includes("HEADLINE_PRICE_SUFFIX"))
       .map(
         ({ file, tag }) =>
-          `${file.replace(process.cwd(), "")}: ${tag.replace(/\s+/g, " ")}`,
+          `${file.replace(process.cwd(), "")}: ${tag.replaceAll(/\s+/g, " ")}`,
       );
     expect(
       offenders,

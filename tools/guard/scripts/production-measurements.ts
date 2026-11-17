@@ -260,12 +260,12 @@ export function readProduction(url: string | undefined, psql: PsqlRunner = realP
   }
   const connection = agentDiagConnection(url.trim()) as { env?: Record<string, string>; error?: string };
   if (!connection.env) return { ok: false, lines: [`::error title=AGENT_DIAG_DATABASE_URL refused::${connection.error ?? "unusable"}`] };
-  const result = psql(sessionSql(PRODUCTION_SQL, connection as { env: Record<string, string> }), connection.env);
+  const result = psql(sessionSql(PRODUCTION_SQL, connection), connection.env);
   if (result.error) {
     return { ok: false, lines: [`::error title=psql did not run::${result.error.code ?? "no psql client on this runner"}`] };
   }
   if (result.status !== 0) {
-    const why = /REFUSED/.test(result.stderr ?? "")
+    const why = (result.stderr ?? "").includes('REFUSED')
       ? "the agent_diag self-check refused this login; see scripts/ops/agent-diag.mjs --self-check"
       : `psql exited ${result.status}`;
     return { ok: false, lines: [`::error title=Production not read::${why}`] };

@@ -29,7 +29,7 @@ interface Offence {
 }
 
 const REPO = join(import.meta.dirname, "..", "..", "..", "..");
-const offences = (files: Array<{ path: string; text: string }>) =>
+const offences = (files: { path: string; text: string }[]) =>
   deployEnvOffences(files) as Offence[];
 
 describe("check-deploy-env-branches refuses every way of reading DEPLOY_ENV", () => {
@@ -148,7 +148,7 @@ describe("check-deploy-env-branches allows what is not a read", () => {
 });
 
 describe("check-deploy-env-branches on the real tree", () => {
-  const files = apiProductionSources(REPO) as Array<{ path: string; text: string }>;
+  const files = apiProductionSources(REPO) as { path: string; text: string }[];
 
   it("can see what it vouches for", () => {
     expect(files.length).toBeGreaterThan(100);
@@ -171,7 +171,7 @@ describe("check-deploy-env-branches on the real tree", () => {
   it("says so when a sanctioned importer no longer imports its name", () => {
     const dropped = files.map((file) =>
       file.path === "apps/api/src/index.ts"
-        ? { ...file, text: file.text.replace(/\bservesRigRoutes\b/g, "somethingElse") }
+        ? { ...file, text: file.text.replaceAll(/\bservesRigRoutes\b/g, "somethingElse") }
         : file,
     );
     expect(coverageProblems(dropped)).toEqual([
@@ -195,7 +195,7 @@ describe("everything that is not production or the rig runs as local", () => {
     expect(harness).toMatch(/TELNYX_API_BASE:\s*telnyx\.origin/);
     const stubbed = { ...completeEnv(), TELNYX_API_BASE: "http://127.0.0.1:8791" };
     expect(deployEnv(getEnv(stubbed))).toBe("local");
-    expect(() => getEnv({ ...stubbed, DEPLOY_ENV: "production" })).toThrowError(
+    expect(() => getEnv({ ...stubbed, DEPLOY_ENV: "production" })).toThrow(
       /TELNYX_API_BASE/,
     );
   });
@@ -210,7 +210,7 @@ describe("everything that is not production or the rig runs as local", () => {
   it("only the production deploy stamps production, beside GIT_SHA", () => {
     const workflows = join(REPO, ".github/workflows");
     const stamping = readdirSync(workflows).filter((name) =>
-      /DEPLOY_ENV:production/.test(readFileSync(join(workflows, name), "utf8")),
+      readFileSync(join(workflows, name), "utf8").includes('DEPLOY_ENV:production'),
     );
     expect(stamping).toEqual(["ship.yml"]);
     const ship = readFileSync(join(workflows, "ship.yml"), "utf8");

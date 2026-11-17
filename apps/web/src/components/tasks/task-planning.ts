@@ -136,8 +136,8 @@ export function draftFromRepeat(repeat: TaskRepeat): RepeatDraft {
     kind: repeat.kind,
     unit: repeat.unit,
     every: repeat.every,
-    weekdays: [...(repeat.weekdays ?? [])].sort((a, b) => a - b),
-    monthly: repeat.nth !== null ? "nth" : "date",
+    weekdays: [...(repeat.weekdays ?? [])].toSorted((a, b) => a - b),
+    monthly: repeat.nth === null ? "date" : "nth",
     endKind: repeat.ends.kind,
     endOn: repeat.ends.on ?? "",
     endAfter: repeat.ends.after ?? 5,
@@ -229,7 +229,7 @@ export function draftToRequest(
     ends: { kind: draft.endKind },
   };
   if (schedule && draft.unit === "week") {
-    const days = [...draft.weekdays].sort((a, b) => a - b);
+    const days = [...draft.weekdays].toSorted((a, b) => a - b);
     if (days.length > 0) body.weekdays = days;
     else if (anchor) body.weekdays = [isoWeekday(anchor)];
   }
@@ -276,16 +276,21 @@ export function weekdayName(isoDay: number, locale: string): string {
 
 function ordinalWord(nth: number | null, t: Translate): string {
   switch (nth) {
-    case 1:
+    case 1: {
       return t("tasks.nthFirst");
-    case 2:
+    }
+    case 2: {
       return t("tasks.nthSecond");
-    case 3:
+    }
+    case 3: {
       return t("tasks.nthThird");
-    case 4:
+    }
+    case 4: {
       return t("tasks.nthFourth");
-    default:
+    }
+    default: {
       return t("tasks.nthLast");
+    }
   }
 }
 
@@ -310,7 +315,7 @@ export function repeatSummary(
   t: Translate,
 ): string {
   const n = Math.max(1, repeat.every);
-  const unit = repeat.unit;
+  const {unit} = repeat;
   let base: string;
   if (repeat.kind === "after_done") {
     base = t("tasks.repeatAfterDone", {
@@ -319,7 +324,7 @@ export function repeatSummary(
     });
   } else {
     const days = [...(repeat.weekdays ?? [])]
-      .sort((a, b) => a - b)
+      .toSorted((a, b) => a - b)
       .map((d) => weekdayName(d, t.locale))
       .join(", ");
     if (unit === "week" && days !== "" && n === 1) {

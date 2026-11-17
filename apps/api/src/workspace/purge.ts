@@ -192,13 +192,13 @@ export async function purgeClosedWorkspaces(
           summary.receiptsSent += 1;
         }
       }
-    } catch (cause) {
+    } catch (error_) {
       // Loud, and never fatal to the rest of the run. A workspace that failed
       // partway is exactly as safe to resume as one that has not started.
       void captureException(
         env,
         `workspace purge failed for ${row.id}: ${
-          cause instanceof Error ? cause.message : String(cause)
+          error_ instanceof Error ? error_.message : String(error_)
         }`,
         { source: "cron" },
       );
@@ -338,11 +338,11 @@ async function deleteStripeCustomer(
   if (!customerId) return;
   try {
     await getStripe(env).customers.del(customerId);
-  } catch (cause) {
+  } catch (error) {
     void captureException(
       env,
       `workspace purge: Stripe customer delete failed for ${companyId}: ${
-        cause instanceof Error ? cause.message : String(cause)
+        error instanceof Error ? error.message : String(error)
       }`,
       { source: "cron" },
     );

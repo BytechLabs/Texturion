@@ -21,18 +21,10 @@ import { Hono } from "hono";
 
 import type { AppEnv } from "../context";
 import { ApiError, errorResponse } from "../http/errors";
-import {
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { stripComments } from "../test/source-tree";
 import { publicApiRoutes } from "./public-api";
 
@@ -213,7 +205,7 @@ describe("the door", () => {
 
     const res = await publicRequest("/public/v1/me");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       company_id: COMPANY_ID,
       key_id: KEY_ID,
       scopes: ["contacts:read", "tasks:write"],
@@ -440,11 +432,7 @@ describe("sending", () => {
       "dispatchOutbound(",
       "applySendMergeFields(",
     ]) {
-      expect(
-        source.includes(piece),
-        `public-api.ts calls ${piece} directly — that is a second copy of the ` +
-          `send order, and the opt-out gate is the part that must never have one.`,
-      ).toBe(false);
+      expect(source).not.toContain(piece);
     }
   });
 });
@@ -580,7 +568,7 @@ describe("writes", () => {
       }),
     });
     expect(res.status).toBe(201);
-    expect(await res.json()).toMatchObject({ source: null, message_id: null });
+    await expect(res.json()).resolves.toMatchObject({ source: null, message_id: null });
     expect(sb.find("POST", "/rest/v1/rpc/create_task")[0].body).toMatchObject({
       p_message_id: null,
       p_title: "Order a filter",

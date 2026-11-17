@@ -17,10 +17,8 @@
  */
 
 
-import {
-  businessNumberCopy,
-  type BusinessNumberCopy,
-} from "@/i18n/marketing/business-number";
+import { businessNumberCopy } from '@/i18n/marketing/business-number';
+import type { BusinessNumberCopy } from '@/i18n/marketing/business-number';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { PanelFrame } from "@/components/marketing/fr";
@@ -43,7 +41,7 @@ import {
   UseCaseSteps,
 } from "@/components/marketing/features/feature-page";
 import { NumberCardsVisual } from "@/components/marketing/features/number-cards-visual";
-import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import { breadcrumbJsonLd } from "@/lib/marketing/seo";
 import { activationClaim } from "@/lib/marketing/activation";
 
 const PATH = "/features/business-number";

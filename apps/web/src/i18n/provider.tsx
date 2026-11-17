@@ -2,13 +2,11 @@
 
 import { createContext, useContext, useEffect, useMemo } from "react";
 
-import {
-  DEFAULT_LOCALE,
-  resolveUiLocale,
-  type Locale,
-} from "@loonext/shared";
+import { DEFAULT_LOCALE, resolveUiLocale } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 
-import { makeTranslate, type Translate } from "./translate";
+import { makeTranslate } from './translate';
+import type { Translate } from './translate';
 
 export {
   forwardTranslate,

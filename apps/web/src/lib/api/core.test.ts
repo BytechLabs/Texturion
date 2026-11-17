@@ -5,7 +5,7 @@ import { createApiClient } from "./core";
 import { ApiError, parseErrorBody } from "./error";
 
 function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status,
     headers: { "Content-Type": "application/json" },
   });
@@ -22,7 +22,7 @@ function makeClient(
   const request = createApiClient({
     baseUrl: "https://api.loonext.test",
     getAccessToken: async () => token,
-    fetch: fetchSpy as unknown as typeof fetch,
+    fetch: fetchSpy,
   });
   return { request, fetchSpy };
 }
@@ -146,7 +146,7 @@ describe("api client request building (G12)", () => {
         getAccessToken: async () => {
           throw error;
         },
-        fetch: fetchSpy as unknown as typeof fetch,
+        fetch: fetchSpy,
       });
       return { request, fetchSpy };
     }
@@ -155,7 +155,7 @@ describe("api client request building (G12)", () => {
       const { request, fetchSpy } = clientThrowing(
         new AuthRetryableFetchError("Failed to fetch", 0),
       );
-      const error = await request("/v1/me").catch((e: unknown) => e);
+      const error = await request("/v1/me").catch((error_: unknown) => error_);
       expect(error).toBeInstanceOf(ApiError);
       expect(error).toMatchObject({ code: "internal_error", status: 0 });
       expect((error as ApiError).retryable).toBe(true);

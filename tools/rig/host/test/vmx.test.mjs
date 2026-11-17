@@ -106,7 +106,7 @@ test("user-data leaves the .vmx and every log that quotes it, whole or cut short
   writeFileSync(join(dir, "vmware.log"), `2026-11-01T10:00:00Z In(05) vmx DICT guestinfo.userdata = "${userdata}"\n`);
   writeFileSync(join(dir, "vmware-1.log"), `2026-11-01T10:00:00Z In(05) vmx guestinfo.userdata = "${userdata.slice(0, 80)}"\n`);
   writeFileSync(join(dir, "vmware-2.log"), "nothing here\n");
-  assert.deepEqual(scrubUserdata(dir, vmxPath, userdata).sort(), ["vmware-1.log", "vmware.log"]);
+  assert.deepEqual(scrubUserdata(dir, vmxPath, userdata).toSorted(), ["vmware-1.log", "vmware.log"]);
   for (const name of ["loonext-rig.vmx", "vmware.log", "vmware-1.log"]) {
     assert.ok(!readFileSync(join(dir, name), "utf8").includes(userdata.slice(0, 64)), name);
   }

@@ -9,7 +9,7 @@
  *   status='failed' + surfaced error on API failure.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { lookupAreaCode } from "@loonext/shared";
+import { classifySendFailure,lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
 import { qualifyReferralForSender } from "../referrals/referrals";
@@ -18,7 +18,6 @@ import { GRACE_PERIOD_DAYS } from "../billing/grace";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { outboundDestinationRefusal } from "../environments/policy";
-import { classifySendFailure } from "@loonext/shared";
 import { isKilled } from "../flags/evaluate";
 import { TELNYX_TIMEOUT_MS, telnyxMediaUrl, telnyxUrl } from "../telnyx/client";
 import { ApiError } from "../http/errors";
@@ -52,11 +51,7 @@ async function offRampAllowed(env: Env, companyId: string): Promise<boolean> {
     .eq("id", companyId)
     .limit(1);
   if (error || !data?.length) return false;
-  const row = data[0] as {
-    offramp_opted_in_at: string | null;
-    offramp_message: string | null;
-    canceled_at: string | null;
-  };
+  const row = data[0];
   if (!row.offramp_opted_in_at || !row.offramp_message?.trim()) return false;
   // No cancellation means the number is not on its way out, so there is
   // nothing to point anybody at — and a workspace that is merely past due must
@@ -391,7 +386,7 @@ export async function gateOutboundSend(
   if (!result || !("message" in result) || !result.message?.id) {
     throw new Error("gate_outbound_send returned no message row");
   }
-  return { message: result.message, existing: result.existing === true };
+  return { message: result.message, existing:  result.existing };
 }
 
 /**
@@ -559,8 +554,8 @@ async function telnyxCreateMessage(
       },
       TELNYX_TIMEOUT_MS,
     );
-  } catch (cause) {
-    const detail = cause instanceof Error ? cause.message : String(cause);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     return { ok: false, errorCode: null, errorDetail: `network error: ${detail}` };
   }
 
@@ -635,10 +630,10 @@ export async function persistSendInterruption(
       error_code: SEND_INTERRUPTED_ERROR_CODE,
       error_detail: detail.slice(0, 2000),
     });
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `send interruption persist failed for message ${message.id}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }
@@ -723,8 +718,8 @@ async function captureSecondMemberSent(
       country: company.country ?? "unknown",
       us_texting_enabled: company.us_texting_enabled === true,
     });
-  } catch (cause) {
-    const detail = cause instanceof Error ? cause.message : String(cause);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     console.error("second_member_sent capture skipped:", detail);
   }
 }
@@ -777,9 +772,9 @@ async function captureFirstOutboundSent(
       // and inventing one would poison the first cohort comparison.
       crew_size: company?.crew_size ?? "not_asked",
     });
-  } catch (cause) {
+  } catch (error) {
     // Analytics never breaks a send that already succeeded.
-    const detail = cause instanceof Error ? cause.message : String(cause);
+    const detail = error instanceof Error ? error.message : String(error);
     console.error("first_outbound_sent capture skipped:", detail);
   }
 }

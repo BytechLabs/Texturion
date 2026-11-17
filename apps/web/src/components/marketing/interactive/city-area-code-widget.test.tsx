@@ -9,7 +9,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { CountryProvider, type Country } from "@/components/marketing/country";
+import { CountryProvider } from '@/components/marketing/country';
+import type { Country } from '@/components/marketing/country';
 
 import { CityAreaCodeWidget } from "./city-area-code-widget";
 import { CityAreaCodeWidgetStatic } from "./city-area-code-widget-static";

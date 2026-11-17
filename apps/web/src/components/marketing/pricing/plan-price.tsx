@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  formatMoney,
-  PLAN_PRICE_CENTS,
-  US_REGISTRATION_FEE_CENTS,
-  type BillingCurrency,
-} from "@loonext/shared";
+import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
 import { useCountry } from "@/components/marketing/country/country-context";
 import type { PlanId } from "@/lib/api/types";

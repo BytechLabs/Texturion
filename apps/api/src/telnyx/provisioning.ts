@@ -1,14 +1,10 @@
 import { NANP_AREA_CODES } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { telnyxRequest, TelnyxApiError } from "./client";
+import { TelnyxApiError, telnyxRequest } from "./client";
 import { provisioningDelayedCopy } from "./emails";
-import {
-  ownsTelnyxNumber,
-  partitionOrderFields,
-  reportOwnershipMismatch,
-  type TelnyxPartitionedNumber,
-} from "./ownership";
+import { ownsTelnyxNumber, partitionOrderFields, reportOwnershipMismatch } from './ownership';
+import type { TelnyxPartitionedNumber } from './ownership';
 // Type-only (erased at runtime): a VALUE import here would close a module
 // cycle with text-enablement.ts (which reuses ensureMessagingProfile /
 // fetchProvisioningCompany from this file) and break module init under
@@ -165,7 +161,7 @@ async function claimProvisioningLease(
   if (error) {
     throw new Error(`claim_provisioning_lease failed: ${error.message}`);
   }
-  return (data ?? null) as unknown as PhoneNumberRow | null;
+  return data ?? null;
 }
 
 /**
@@ -405,8 +401,7 @@ async function searchAvailableNumber(
   }
 
   throw new Error(
-    `no ${country} inventory for area code ${areaCode}` +
-      (region ? `, region ${region}` : ""),
+    `no ${country} inventory for area code ${areaCode}${region ? `, region ${region}` : ""}`,
   );
 }
 
@@ -432,7 +427,7 @@ export async function lookupOwnedNumber(
   const match = response.data?.find(
     (item) => item.phone_number === e164 && item.id,
   );
-  return match ? { id: match.id as string, phone_number: e164 } : null;
+  return match ? { id: match.id!, phone_number: e164 } : null;
 }
 
 /** Mark a row active with its purchased number identifiers. */
@@ -507,7 +502,7 @@ async function recoverFromOrder(
     // it to provision_failed so remediation opens. Anchor on the IMMUTABLE
     // created_at — never updated_at, which the lease claim bumps every cron pass.
     // Unparseable/absent created_at → keep waiting (never a false abandon).
-    const anchor = row.created_at ? Date.parse(row.created_at) : NaN;
+    const anchor = row.created_at ? Date.parse(row.created_at) : Number.NaN;
     if (Number.isFinite(anchor) && now.getTime() - anchor >= STUCK_PENDING_MS) {
       return failStuckPendingOrder(db, row);
     }
@@ -604,7 +599,7 @@ async function adoptOrphanNumber(
       !knownE164.has(item.phone_number),
   );
   if (!orphan) return null;
-  return activateRow(db, row, orphan.phone_number as string, orphan.id as string);
+  return activateRow(db, row, orphan.phone_number!, orphan.id!);
 }
 
 function placeNumberOrder(
@@ -833,8 +828,8 @@ export async function resumeProvisioning(
   try {
     const fromOrder = await recoverFromOrder(env, db, row, now);
     if (fromOrder) return fromOrder;
-  } catch (cause) {
-    if (cause instanceof OrderDeadError) {
+  } catch (error) {
+    if (error instanceof OrderDeadError) {
       // Telnyx AUTHORITATIVELY reported the order dead: clear the id AND its
       // idempotency key so the next retry orders fresh (no live order exists to
       // double-buy against, and the fresh order mints a fresh key).
@@ -842,19 +837,19 @@ export async function resumeProvisioning(
         telnyx_order_id: null,
         telnyx_order_idempotency_key: null,
       });
-      return recordProvisionFailure(env, db, company, cleared, cause);
+      return recordProvisionFailure(env, db, company, cleared, error);
     }
     // Transport/5xx while the order may still be PENDING: keep telnyx_order_id
     // so the next retry re-GETs the SAME order. Clearing it here would strand a
     // possibly-succeeding order and let orderNumberForRow buy a second number.
-    return recordProvisionFailure(env, db, company, row, cause);
+    return recordProvisionFailure(env, db, company, row, error);
   }
   try {
     const adopted = await adoptOrphanNumber(env, db, company, row);
     if (adopted) return adopted;
     return await orderNumberForRow(env, db, company, row);
-  } catch (cause) {
-    return recordProvisionFailure(env, db, company, row, cause);
+  } catch (error) {
+    return recordProvisionFailure(env, db, company, row, error);
   }
 }
 
@@ -1012,7 +1007,7 @@ export async function closeOutDeadProvisioning(
   // this function would otherwise read as "nothing to close out" forever, which
   // is the silent shape of the very defect it exists to end.
   if (typeof row?.eligible !== "boolean" || !Array.isArray(row.closed)) {
-    throw new Error("close_out_dead_provisioning returned an unexpected shape");
+    throw new TypeError("close_out_dead_provisioning returned an unexpected shape");
   }
   return { eligible: row.eligible, closed: row.closed };
 }
@@ -1053,23 +1048,21 @@ export async function closeOutDeadProvisioningBestEffort(
       .map((row) => row.telnyx_order_id)
       .filter((id): id is string => typeof id === "string");
     console.log(
-      `${context}: closed out ${result.closed.length} provisioning row(s) for company ` +
-        `${companyId} that never became a number — they were occupying the plan ` +
-        `allowance a resubscribe settles against (#526)` +
+      `${context}: closed out ${result.closed.length} provisioning row(s) for company ${companyId} that never became a number — they were occupying the plan allowance a resubscribe settles against (#526)${ 
         // An order that might still land is the one part of this that is
         // genuinely open, and it already has an alarm: the reconcile orphan
         // scan pages on a Telnyx number no row claims. Named here so an
         // operator reading that page can find where the row went, not paged
         // again.
-        (orders.length > 0
+        orders.length > 0
           ? `. Order(s) ${orders.join(", ")} may still land; the reconcile orphan net owns those from here.`
-          : "."),
+          : "."}`,
     );
-  } catch (cause) {
-    void captureException(workerEnv(), cause, { source: "api", company_id: companyId });
+  } catch (error) {
+    void captureException(workerEnv(), error, { source: "api", company_id: companyId });
     console.error(
       `${context}: dead-provisioning close-out failed for ${companyId} (retried on the next daily grace pass):`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }
@@ -1163,18 +1156,18 @@ export async function releaseNumberRow(
       // numbers" — the documented cancel; there is no /actions/cancel).
       const path =
         order.status === "completed"
-          ? order.telnyx_hosted_number_id
+          ? (order.telnyx_hosted_number_id
             ? `/v2/messaging_hosted_numbers/${order.telnyx_hosted_number_id}`
-            : null
-          : order.telnyx_hosted_order_id
+            : null)
+          : (order.telnyx_hosted_order_id
             ? `/v2/messaging_hosted_number_orders/${order.telnyx_hosted_order_id}`
-            : null;
+            : null);
       if (path) {
         try {
           await telnyxRequest(env, { method: "DELETE", path });
-        } catch (cause) {
-          if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
-            throw cause;
+        } catch (error_) {
+          if (!(error_ instanceof TelnyxApiError && error_.status === 404)) {
+            throw error_;
           }
         }
       } else if (order.status === "completed") {
@@ -1224,11 +1217,11 @@ export async function releaseNumberRow(
           method: "DELETE",
           path: `/v2/phone_numbers/${row.telnyx_phone_number_id}`,
         });
-      } catch (cause) {
+      } catch (error) {
         // Already released on the Telnyx side → converge; anything else must
         // keep the row un-released so the daily cron retries.
-        if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
-          throw cause;
+        if (!(error instanceof TelnyxApiError && error.status === 404)) {
+          throw error;
         }
       }
     }
@@ -1278,9 +1271,9 @@ async function fetchTelnyxNumber(
       method: "GET",
       path: `/v2/phone_numbers/${telnyxPhoneNumberId}`,
     });
-  } catch (cause) {
-    if (cause instanceof TelnyxApiError && cause.status === 404) return null;
-    throw cause;
+  } catch (error) {
+    if (error instanceof TelnyxApiError && error.status === 404) return null;
+    throw error;
   }
   const data = response?.data;
   if (
@@ -1325,12 +1318,12 @@ export async function releaseCompanyNumbers(
   for (const row of (data ?? []) as unknown as PhoneNumberRow[]) {
     try {
       released.push(await releaseNumberRow(env, row));
-    } catch (cause) {
-      if (cause instanceof TelnyxPartitionRefusal) {
-        console.warn(cause.message);
+    } catch (error_) {
+      if (error_ instanceof TelnyxPartitionRefusal) {
+        console.warn(error_.message);
         continue;
       }
-      failures.push(cause);
+      failures.push(error_);
     }
   }
   if (failures.length > 0) {
@@ -1485,7 +1478,7 @@ export async function reconcileNumbers(
   }
   const portingE164 = new Set(
     (portRows ?? [])
-      .map((item) => (item as { phone_e164: string | null }).phone_e164)
+      .map((item) => (item).phone_e164)
       .filter(Boolean),
   );
 
@@ -1539,11 +1532,11 @@ export async function reconcileNumbers(
             method: "DELETE",
             path: `/v2/phone_numbers/${owned.id}`,
           });
-        } catch (cause) {
+        } catch (error_) {
           // Already gone → done; anything else stays flagged for the next pass.
-          if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
+          if (!(error_ instanceof TelnyxApiError && error_.status === 404)) {
             summary.orphansFlagged += 1;
-            void captureException(env, cause, { source: "cron", job: "job:reconcile-numbers" });
+            void captureException(env, error_, { source: "cron", job: "job:reconcile-numbers" });
             continue;
           }
         }

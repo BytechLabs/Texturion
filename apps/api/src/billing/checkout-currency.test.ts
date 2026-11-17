@@ -32,7 +32,7 @@ function stripeWith(price: Partial<Stripe.Price>): {
   return { stripe: { prices: { retrieve } } as unknown as Stripe, retrieve };
 }
 
-describe("checkoutCurrency", () => {
+describe(checkoutCurrency, () => {
   beforeEach(() => {
     resetCheckoutCurrencyCache();
   });
@@ -40,9 +40,7 @@ describe("checkoutCurrency", () => {
   it("never probes for USD, which every price already carries", async () => {
     const { stripe, retrieve } = stripeWith({ currency: "usd" });
 
-    expect(
-      await checkoutCurrency(stripe, { wanted: "usd", licensedPriceId: PRICE }),
-    ).toBe("usd");
+    await expect(checkoutCurrency(stripe, { wanted: "usd", licensedPriceId: PRICE })).resolves.toBe("usd");
     expect(retrieve).not.toHaveBeenCalled();
   });
 
@@ -53,9 +51,7 @@ describe("checkoutCurrency", () => {
   it("charges USD when the catalog has not gained CAD yet", async () => {
     const { stripe } = stripeWith({ currency: "usd", currency_options: {} });
 
-    expect(
-      await checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE }),
-    ).toBe("usd");
+    await expect(checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE })).resolves.toBe("usd");
   });
 
   it("charges CAD the moment the catalog carries it, with no deploy", async () => {
@@ -66,9 +62,7 @@ describe("checkoutCurrency", () => {
       } as unknown as Stripe.Price["currency_options"],
     });
 
-    expect(
-      await checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE }),
-    ).toBe("cad");
+    await expect(checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE })).resolves.toBe("cad");
   });
 
   it("charges USD when the catalog cannot be read at all", async () => {
@@ -79,9 +73,7 @@ describe("checkoutCurrency", () => {
 
     // A customer billed in the wrong currency can be moved later. One who
     // could not pay at all is gone.
-    expect(
-      await checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE }),
-    ).toBe("usd");
+    await expect(checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE })).resolves.toBe("usd");
   });
 
   it("reads a currency this build does not price as no answer", async () => {
@@ -94,9 +86,7 @@ describe("checkoutCurrency", () => {
 
     // A GBP option says nothing about CAD, and `billingCurrencyOf` folding it
     // to "usd" must not be mistaken for CAD being available.
-    expect(
-      await checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE }),
-    ).toBe("usd");
+    await expect(checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE })).resolves.toBe("usd");
   });
 
   it("reads the catalog once per price, not once per checkout", async () => {
@@ -110,7 +100,7 @@ describe("checkoutCurrency", () => {
     await checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE });
     await checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE });
 
-    expect(retrieve).toHaveBeenCalledTimes(1);
+    expect(retrieve).toHaveBeenCalledOnce();
   });
 
   it("treats a price whose own base currency is CAD as chargeable in CAD", async () => {
@@ -118,20 +108,14 @@ describe("checkoutCurrency", () => {
     // chargeable and reading only `currency_options` would miss it.
     const { stripe } = stripeWith({ currency: "cad" });
 
-    expect(
-      await checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE }),
-    ).toBe("cad");
+    await expect(checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE })).resolves.toBe("cad");
   });
 
   it("falls back to USD for a stored value it does not recognise", async () => {
     const { stripe, retrieve } = stripeWith({ currency: "usd" });
 
-    expect(
-      await checkoutCurrency(stripe, { wanted: null, licensedPriceId: PRICE }),
-    ).toBe("usd");
-    expect(
-      await checkoutCurrency(stripe, { wanted: "gbp", licensedPriceId: PRICE }),
-    ).toBe("usd");
+    await expect(checkoutCurrency(stripe, { wanted: null, licensedPriceId: PRICE })).resolves.toBe("usd");
+    await expect(checkoutCurrency(stripe, { wanted: "gbp", licensedPriceId: PRICE })).resolves.toBe("usd");
     expect(retrieve).not.toHaveBeenCalled();
   });
 });
@@ -145,7 +129,7 @@ describe("checkoutCurrency", () => {
  * currency it has no option for — it bills its base currency silently — so
  * degrading there means quoting CA$390 and collecting US$390.
  */
-describe("canChargeIn", () => {
+describe(canChargeIn, () => {
   beforeEach(() => {
     resetCheckoutCurrencyCache();
   });
@@ -153,7 +137,7 @@ describe("canChargeIn", () => {
   it("says yes to USD without asking the catalog", async () => {
     const { stripe, retrieve } = stripeWith({ currency: "usd" });
 
-    expect(await canChargeIn(stripe, { wanted: "usd", priceId: PRICE })).toBe(true);
+    await expect(canChargeIn(stripe, { wanted: "usd", priceId: PRICE })).resolves.toBe(true);
     expect(retrieve).not.toHaveBeenCalled();
   });
 
@@ -163,10 +147,8 @@ describe("canChargeIn", () => {
     // would leave a reader thinking `checkoutCurrency(...) === wanted` would do.
     const { stripe } = stripeWith({ currency: "usd", currency_options: {} });
 
-    expect(
-      await checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE }),
-    ).toBe("usd");
-    expect(await canChargeIn(stripe, { wanted: "cad", priceId: PRICE })).toBe(false);
+    await expect(checkoutCurrency(stripe, { wanted: "cad", licensedPriceId: PRICE })).resolves.toBe("usd");
+    await expect(canChargeIn(stripe, { wanted: "cad", priceId: PRICE })).resolves.toBe(false);
   });
 
   it("says yes the moment the catalog carries the currency", async () => {
@@ -177,7 +159,7 @@ describe("canChargeIn", () => {
       } as unknown as Stripe.Price["currency_options"],
     });
 
-    expect(await canChargeIn(stripe, { wanted: "cad", priceId: PRICE })).toBe(true);
+    await expect(canChargeIn(stripe, { wanted: "cad", priceId: PRICE })).resolves.toBe(true);
   });
 
   it("says no when the catalog cannot be read at all", async () => {
@@ -188,6 +170,6 @@ describe("canChargeIn", () => {
     });
     const stripe = { prices: { retrieve } } as unknown as Stripe;
 
-    expect(await canChargeIn(stripe, { wanted: "cad", priceId: PRICE })).toBe(false);
+    await expect(canChargeIn(stripe, { wanted: "cad", priceId: PRICE })).resolves.toBe(false);
   });
 });

@@ -67,13 +67,13 @@ describe("#228 the embed widget speaks both languages", () => {
   it("parsed a table with both locales in it", () => {
     // A parse that quietly produced `{}` would make every assertion below
     // vacuously true, which is the failure mode of every source-derived check.
-    expect(Object.keys(copy).sort()).toEqual(["en", "fr-CA"]);
+    expect(Object.keys(copy).toSorted()).toEqual(["en", "fr-CA"]);
     expect(Object.keys(copy.en).length).toBeGreaterThan(10);
   });
 
   it("says the same things in both, with nothing missing either way", () => {
-    const en = Object.keys(copy.en).sort();
-    const fr = Object.keys(copy["fr-CA"]).sort();
+    const en = Object.keys(copy.en).toSorted();
+    const fr = Object.keys(copy["fr-CA"]).toSorted();
     expect(
       fr,
       "the two languages have drifted. A key present in one and not the other " +

@@ -2,7 +2,8 @@ import { AuthError } from "@supabase/supabase-js";
 
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 
 /**
  * Map Supabase Auth failures to G10 microcopy: what happened + what to do,
@@ -30,31 +31,42 @@ export function authErrorMessage(
 ): string {
   if (error instanceof AuthError) {
     switch (error.code) {
-      case "invalid_credentials":
+      case "invalid_credentials": {
         return t("onboarding.authInvalidCredentials");
-      case "email_not_confirmed":
+      }
+      case "email_not_confirmed": {
         return t("onboarding.authEmailNotConfirmed");
+      }
       case "user_already_exists":
-      case "email_exists":
+      case "email_exists": {
         return t("onboarding.authEmailExists");
-      case "weak_password":
+      }
+      case "weak_password": {
         return t("onboarding.authWeakPassword");
-      case "same_password":
+      }
+      case "same_password": {
         return t("onboarding.authSamePassword");
-      case "otp_expired":
+      }
+      case "otp_expired": {
         return t("onboarding.authLinkExpired");
+      }
       case "over_request_rate_limit":
-      case "over_email_send_rate_limit":
+      case "over_email_send_rate_limit": {
         return t("onboarding.authTooManyAttempts");
-      case "user_not_found":
+      }
+      case "user_not_found": {
         return t("onboarding.authUserNotFound");
+      }
       case "session_expired":
-      case "refresh_token_not_found":
+      case "refresh_token_not_found": {
         return t("onboarding.authSessionEnded");
-      case "captcha_failed":
+      }
+      case "captcha_failed": {
         return t("onboarding.authCaptchaFailed");
-      default:
+      }
+      default: {
         break;
+      }
     }
     if (error.message) return error.message;
   }

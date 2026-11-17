@@ -27,8 +27,8 @@ export async function readMailStatus(ctx: Ctx): Promise<MailStatus | null> {
   if (!ctx.edge) return null;
   try {
     return await ctx.edge.mailStatus();
-  } catch (cause) {
-    console.error("guard: edge mailStatus failed:", cause instanceof Error ? cause.message : String(cause));
+  } catch (error) {
+    console.error("guard: edge mailStatus failed:", error instanceof Error ? error.message : String(error));
     return null;
   }
 }

@@ -53,7 +53,7 @@ export function callerIp(c: Context<AppEnv>): string {
 
 /** Cloudflare's country for this request, for enumeration patterns. */
 export function callerCountry(c: Context<AppEnv>): string | null {
-  const cf = (c.req.raw as { cf?: Record<string, unknown> }).cf;
+  const {cf} = (c.req.raw as { cf?: Record<string, unknown> });
   const value = cf?.country;
   return typeof value === "string" && value.length === 2 ? value : null;
 }

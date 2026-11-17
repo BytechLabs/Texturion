@@ -10,7 +10,8 @@
 import { cleanup, render, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { BENTO_GAP, BentoLayout, type BentoCell } from "./bento-layout";
+import { BENTO_GAP, BentoLayout } from './bento-layout';
+import type { BentoCell } from './bento-layout';
 
 const CONTAINER_WIDTH = 1100;
 const THIRD = `calc((100% + ${BENTO_GAP}px) * 1 / 3 - ${BENTO_GAP}px)`;

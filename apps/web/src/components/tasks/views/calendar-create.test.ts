@@ -9,18 +9,20 @@ import { instantFromZonedWallClock } from "@/lib/format/time";
 
 import {
   dayFromKey,
-  dueCell,
   droppedDueAt,
+  dueCell,
   slotDueValue,
   todayInZone,
   windowInstants,
 } from "./calendar-create";
 
-describe("slotDueValue", () => {
+describe(slotDueValue, () => {
   const day = dayFromKey("2026-11-12");
+
   it("month: the clicked day at the morning default", () => {
     expect(slotDueValue(day, null)).toBe("2026-11-12T09:00");
   });
+
   it("week: the clicked day and hour", () => {
     expect(slotDueValue(day, 14)).toBe("2026-11-12T14:00");
     expect(slotDueValue(day, 0)).toBe("2026-11-12T00:00");
@@ -61,16 +63,18 @@ describe("workspace zone, not the device's", () => {
   });
 });
 
-describe("droppedDueAt", () => {
+describe(droppedDueAt, () => {
   it("month: moves the date and keeps the workspace time of day", () => {
     // 09:30 Toronto on the 12th, dropped on the 13th.
     const next = droppedDueAt("2026-11-12T14:30:00Z", dayFromKey("2026-11-13"), null, "America/Toronto");
     expect(next).toBe("2026-11-13T14:30:00.000Z");
   });
+
   it("week: the slot names the hour, minutes stay", () => {
     const next = droppedDueAt("2026-11-12T14:30:00Z", dayFromKey("2026-11-12"), 15, "America/Toronto");
     expect(next).toBe("2026-11-12T20:30:00.000Z");
   });
+
   it("does nothing when the task would not move", () => {
     expect(
       droppedDueAt("2026-11-12T14:30:00Z", dayFromKey("2026-11-12"), null, "America/Toronto"),

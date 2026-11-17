@@ -7,12 +7,10 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
-import {
-  geocodeTasksJob,
-  taskAddressQuery,
-  type Sleeper,
-} from "./geocode-tasks";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
+import { geocodeTasksJob, taskAddressQuery } from './geocode-tasks';
+import type { Sleeper } from './geocode-tasks';
 import { NOMINATIM_BASE } from "./nominatim";
 
 const env = completeEnv();
@@ -80,13 +78,13 @@ const CN_TOWER: TaskRow = {
   addr_country: "Canada",
 };
 
-describe("taskAddressQuery", () => {
+describe(taskAddressQuery, () => {
   it("joins the non-null address columns into one geocodable string", () => {
     expect(taskAddressQuery(CN_TOWER)).toBe("CN Tower, Toronto, ON, Canada");
   });
 });
 
-describe("geocodeTasksJob", () => {
+describe(geocodeTasksJob, () => {
   it("geocodes the task's OWN address and caches lat/lng + status=ok", async () => {
     const { route, captured } = stubWorld([CN_TOWER], () => [
       { lat: "43.6426", lon: "-79.3871" },

@@ -19,7 +19,7 @@ const LATER = new Date(2026, 10, 24, 8, 0);
 const time = (date: Date, locale: string) =>
   date.toLocaleTimeString(locale, { hour: "numeric", minute: "2-digit" });
 
-describe("deferralReturnLabel", () => {
+describe(deferralReturnLabel, () => {
   it.each(["en", "fr-CA"] as const)("says what the browser said, in %s", (locale) => {
     const t = makeTranslate(locale);
     expect(deferralReturnLabel(TODAY.toISOString(), "back", t, NOW)).toBe(

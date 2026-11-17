@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  QUIET_HOURS_END,
-  QUIET_HOURS_START,
   destinationLocalClock,
   destinationLocalTimeLabel,
   formatNanpAsYouType,
   looksLikePhoneInput,
   normalizeNanpInput,
+  QUIET_HOURS_END,
+  QUIET_HOURS_START,
 } from "./e164";
 
-describe("formatNanpAsYouType", () => {
+describe(formatNanpAsYouType, () => {
   it("formats progressively as digits arrive", () => {
     expect(formatNanpAsYouType("")).toBe("");
     expect(formatNanpAsYouType("4")).toBe("(4");
@@ -32,7 +32,7 @@ describe("formatNanpAsYouType", () => {
   });
 });
 
-describe("normalizeNanpInput", () => {
+describe(normalizeNanpInput, () => {
   it("returns strict E.164 for valid US/CA numbers", () => {
     expect(normalizeNanpInput("(416) 555-0182")).toBe("+14165550182");
     expect(normalizeNanpInput("+1 212 555 0100")).toBe("+12125550100");
@@ -50,7 +50,7 @@ describe("normalizeNanpInput", () => {
   });
 });
 
-describe("looksLikePhoneInput", () => {
+describe(looksLikePhoneInput, () => {
   it("distinguishes numbers from name searches", () => {
     expect(looksLikePhoneInput("416")).toBe(true);
     expect(looksLikePhoneInput("(416) 5")).toBe(true);
@@ -66,7 +66,7 @@ describe("looksLikePhoneInput", () => {
  * Boundary table shared with the server's destination-clock.test.ts and the
  * Kotlin/Swift twins: one rule, three hand-ports, asserted rather than assumed.
  */
-describe("destinationLocalClock", () => {
+describe(destinationLocalClock, () => {
   // 2026-07-01T16:00Z is 12:00 in America/Toronto (416) and 09:00 in
   // America/Los_Angeles (415) — a fixed instant, so this cannot drift.
   const MIDDAY_UTC = new Date("2026-07-01T16:00:00.000Z");

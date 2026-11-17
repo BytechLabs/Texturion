@@ -110,20 +110,23 @@ export function recapText(input: {
 
   let arc: string;
   switch (direction) {
-    case "faster":
+    case "faster": {
       arc =
         `That is faster than when you started, which was ` +
         `${formatResponseTime(baselineMedian)}.`;
       break;
-    case "slower":
+    }
+    case "slower": {
       // Said plainly, and without a scold. The owner knows their month was
       // busy; what they need is the number, not our opinion of it.
       arc =
         `That is slower than when you started, which was ` +
         `${formatResponseTime(baselineMedian)}.`;
       break;
-    default:
+    }
+    default: {
       arc = `That is about the same as when you started.`;
+    }
   }
 
   let out = `${companyName} answered a new customer in ${median} on average `;
@@ -142,11 +145,6 @@ export function recapText(input: {
   out += `after hours, on your home screen.\n\n`;
   out += `To stop these, turn email off in Settings → Notifications.`;
   return out;
-}
-
-interface OwnerRow {
-  company_id: string;
-  user_id: string;
 }
 
 /**
@@ -315,7 +313,7 @@ async function ownerEmail(
     .is("deactivated_at", null)
     .limit(1);
   if (error || !members?.length) return null;
-  const owner = members[0] as OwnerRow;
+  const owner = members[0];
 
   const { data: prefs } = await db
     .from("notification_prefs")
@@ -325,7 +323,7 @@ async function ownerEmail(
     .limit(1);
   // Absent prefs mean the default, which is on — the column defaults true and
   // a row is only written when somebody changes something.
-  if (prefs?.length && (prefs[0] as { email_enabled: boolean }).email_enabled === false) {
+  if (prefs?.length && (prefs[0]).email_enabled === false) {
     return null;
   }
 

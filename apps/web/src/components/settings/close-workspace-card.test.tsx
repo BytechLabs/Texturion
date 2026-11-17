@@ -156,7 +156,7 @@ function refuseOnce(errorCode: string) {
  * Record every attempt instead of answering it, so the test decides when — and
  * through WHICH captured handler — the server refuses.
  */
-const attempts: Array<{ code: string | undefined; handlers?: Handlers }> = [];
+const attempts: { code: string | undefined; handlers?: Handlers }[] = [];
 function captureAttempts() {
   attempts.length = 0;
   mutate.mockImplementation((code: string | undefined, handlers?: Handlers) => {
@@ -338,10 +338,10 @@ describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
 
     act(() => {
       attempts[0].handlers?.onError?.(
-        new ApiError("confirmation_code_required" as never, "nope", 403),
+        new ApiError("confirmation_code_required", "nope", 403),
       );
     });
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
 
     await answer("123456");
     expect(attempts[1]?.code).toBe("123456");
@@ -350,7 +350,7 @@ describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
     // the retry, called the way the component calls it.
     act(() => {
       attempts[1].handlers?.onError?.(
-        new ApiError("confirmation_code_required" as never, "nope", 403),
+        new ApiError("confirmation_code_required", "nope", 403),
       );
     });
 
@@ -358,7 +358,7 @@ describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
     // before the copy below because it is the failure a person cannot see: a
     // second email invalidates the first, so the correct digits they are looking
     // at become wrong ones and every attempt after that is refused.
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
     // And it said so. The dialog renders that line at most once by construction,
     // so counting the node proves nothing; what can actually go wrong is silence,
     // which somebody answering a code prompt reads as "nothing happened" and
@@ -376,7 +376,7 @@ describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
     // that cannot help — and the person types six correct ones to no effect.
     mutate.mockImplementation((_code: string | undefined, handlers?: Handlers) => {
       handlers?.onError?.(
-        new ApiError("conflict" as never, "This workspace is already closed.", 409),
+        new ApiError("conflict", "This workspace is already closed.", 409),
       );
     });
     pressClose();

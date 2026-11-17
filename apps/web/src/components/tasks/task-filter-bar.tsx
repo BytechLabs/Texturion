@@ -19,7 +19,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { flattenPages } from "@/lib/api/pagination";
 import { useContact, useContacts } from "@/lib/api/contacts";
 import { useTags } from "@/lib/api/tags";
@@ -30,16 +31,8 @@ import { SearchField } from "@/components/ui/search-field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 
 import { PRIORITY_PICKER, priorityLabelKey } from "./task-planning";
-import {
-  DUE_LABEL_KEYS,
-  TASK_TABS,
-  tabsForView,
-  type DueFilter,
-  type TaskGroup,
-  type TaskPageState,
-  type TaskSort,
-  type TaskSource,
-} from "./task-view-url";
+import { DUE_LABEL_KEYS, tabsForView, TASK_TABS } from './task-view-url';
+import type { DueFilter, TaskGroup, TaskPageState, TaskSort, TaskSource } from './task-view-url';
 
 import {
   suggestTaskViewName,
@@ -331,9 +324,9 @@ function ChipRow({
           label={
             state.dueFrom && state.dueTo
               ? t("tasks.chipDueRange", { from: state.dueFrom, to: state.dueTo })
-              : state.dueFrom
+              : (state.dueFrom
                 ? t("tasks.chipDueFrom", { date: state.dueFrom })
-                : t("tasks.chipDueUntil", { date: state.dueTo ?? "" })
+                : t("tasks.chipDueUntil", { date: state.dueTo ?? "" }))
           }
           onRemove={() => {
             const next = { ...state };

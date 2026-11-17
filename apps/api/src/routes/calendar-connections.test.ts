@@ -6,13 +6,8 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import type { Env } from "../env";
 import { hashToken } from "../public-links/tokens";
 import { sealCalendarCredential } from "../calendar/crypto";
@@ -130,7 +125,7 @@ describe("calendar connection management", () => {
       { companyId: COMPANY_ID },
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       connections: [
         {
           id: CONNECTION_ID,
@@ -184,7 +179,7 @@ describe("calendar connection management", () => {
     );
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       connections: [],
       disclosures: [{
         connection_id: CONNECTION_ID,
@@ -409,7 +404,7 @@ describe("calendar connection management", () => {
     );
 
     expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       error: { code: "conflict" },
     });
   });
@@ -438,7 +433,7 @@ describe("calendar connection management", () => {
     );
 
     expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       error: { code: "conflict" },
     });
   });
@@ -494,7 +489,7 @@ describe("calendar connection management", () => {
     );
     expect(response.status).toBe(200);
     const body = await response.json() as {
-      attention: Array<Record<string, unknown>>;
+      attention: Record<string, unknown>[];
     };
     expect(body.attention).toHaveLength(1);
     expect(body.attention[0]).toMatchObject({
@@ -673,7 +668,7 @@ describe("calendar connection management", () => {
       },
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ outcome: "queued" });
+    await expect(response.json()).resolves.toMatchObject({ outcome: "queued" });
     expect(
       sb.find("POST", "/rest/v1/rpc/api_resolve_calendar_conflict")[0].body,
     ).toEqual({
@@ -728,7 +723,7 @@ describe("calendar connection management", () => {
       );
 
       expect(response.status).toBe(expectedStatus);
-      expect(await response.json()).toHaveProperty("error.code");
+      await expect(response.json()).resolves.toHaveProperty("error.code");
     },
   );
 
@@ -767,7 +762,7 @@ describe("calendar connection management", () => {
       );
 
       expect(response.status).toBe(409);
-      expect(await response.json()).toMatchObject({
+      await expect(response.json()).resolves.toMatchObject({
         error: { code: "conflict", message: expect.stringMatching(/app version/i) },
       });
       expect(sb.find("GET", "/rest/v1/calendar_connections")).toHaveLength(0);
@@ -872,7 +867,7 @@ describe("calendar connection management", () => {
       },
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       outcome: "resolved",
       source: "calendar",
     });
@@ -981,7 +976,7 @@ describe("calendar connection management", () => {
           etag: '"etag-new"',
           summary: "Calendar truth",
           description:
-            condition === "description_too_long" ? "x".repeat(5_001) : "Notes",
+            condition === "description_too_long" ? "x".repeat(5001) : "Notes",
           start:
             condition === "all_day"
               ? { date: "2026-11-03" }
@@ -1014,7 +1009,7 @@ describe("calendar connection management", () => {
       );
 
       expect(response.status).toBe(409);
-      expect(await response.json()).toMatchObject({
+      await expect(response.json()).resolves.toMatchObject({
         error: {
           code: "conflict",
           message: expect.stringMatching(/refresh/i),
@@ -1091,7 +1086,7 @@ describe("calendar connection management", () => {
     );
 
     expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       error: { code: "conflict", message: expect.stringMatching(/refreshing/i) },
     });
     expect(

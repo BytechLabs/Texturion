@@ -28,7 +28,8 @@
  * out cleanly, with the stale module silently dropped.
  */
 
-import { PLAN_MODULE_IDS, type PlanId, type PlanModule } from "@/lib/api/types";
+import { PLAN_MODULE_IDS } from '@/lib/api/types';
+import type { PlanId, PlanModule } from '@/lib/api/types';
 
 /** A validated plan-builder selection. `modules` is deduped and sellable-only. */
 export interface PlanIntent {

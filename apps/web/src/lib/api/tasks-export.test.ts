@@ -38,7 +38,7 @@ describe("fetchTasksExport (#745)", () => {
 
   it("throws the server's error on a refusal", async () => {
     const { deps: d } = deps(
-      new Response(JSON.stringify({ error: { code: "forbidden", message: "No." } }), {
+      Response.json({ error: { code: "forbidden", message: "No." } }, {
         status: 403,
       }),
     );

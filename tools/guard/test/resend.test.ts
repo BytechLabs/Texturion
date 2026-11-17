@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { robotTag } from "../src/vendors/resend";
-import { harness, lease, liveMailbox, ready, ROBOT_MAILBOX, ruleOf, type Harness } from "./support";
+import { harness, lease, liveMailbox, ready, ROBOT_MAILBOX, ruleOf } from './support';
+import type { Harness } from './support';
 
 const MAIL = { from: "Loonext <noreply@loonext.com>", subject: "Invite", html: "<p>hi</p>" };
 
@@ -39,8 +40,8 @@ describe("Resend", () => {
       "Doe, Jane <delivered@resend.dev>",
       "delivered@resend.dev,",
     ]) {
-      expect(await ruleOf(await send(h, to)), JSON.stringify(to)).toBe("resend.recipient_refused");
-      expect(await ruleOf(await send(h, "delivered@resend.dev", { bcc: to })), JSON.stringify(to)).toBe(
+      await expect(ruleOf(await send(h, to))).resolves.toBe("resend.recipient_refused");
+      await expect(ruleOf(await send(h, "delivered@resend.dev", { bcc: to }))).resolves.toBe(
         "resend.recipient_refused",
       );
     }
@@ -59,7 +60,7 @@ describe("Resend", () => {
       { to: [] },
       { to: [42] },
     ]) {
-      expect(await ruleOf(await send(h, extra.to, extra)), JSON.stringify(extra)).toBe("resend.recipient_refused");
+      await expect(ruleOf(await send(h, extra.to, extra))).resolves.toBe("resend.recipient_refused");
     }
     expect(resendCalls(h)).toEqual([]);
   });
@@ -67,14 +68,14 @@ describe("Resend", () => {
   it("sends to the robot mailbox only under the S34 lease, while the edge reports it alive", async () => {
     const h = await ready();
     const robot = "rig-robot+invite@loonext.com";
-    expect(await ruleOf(await send(h, robot))).toBe("resend.robot_needs_lease");
+    await expect(ruleOf(await send(h, robot))).resolves.toBe("resend.robot_needs_lease");
     await lease(h, "S34", "rig-api");
     // The edge unreachable reads as a dead mailbox.
-    expect(await ruleOf(await send(h, robot))).toBe("resend.mail_heartbeat_stale");
+    await expect(ruleOf(await send(h, robot))).resolves.toBe("resend.mail_heartbeat_stale");
     liveMailbox(h);
     h.advance(21 * 60 * 1000);
     await lease(h, "S34", "rig-api");
-    expect(await ruleOf(await send(h, robot))).toBe("resend.mail_heartbeat_stale");
+    await expect(ruleOf(await send(h, robot))).resolves.toBe("resend.mail_heartbeat_stale");
     liveMailbox(h);
     expect((await send(h, robot)).status).toBe(200);
   });
@@ -91,7 +92,7 @@ describe("Resend", () => {
     h.advance(11 * 60 * 1000);
     // b never shows up in the edge's recent mail.
     liveMailbox(h, [{ tag: "a", at: sentA + 30_000 }]);
-    expect(await ruleOf(await send(h, "rig-robot+c@loonext.com"))).toBe("resend.robot_mail_halted");
+    await expect(ruleOf(await send(h, "rig-robot+c@loonext.com"))).resolves.toBe("resend.robot_mail_halted");
     // Test addresses are unaffected; the halt is the mailbox's alone.
     expect((await send(h, "delivered@resend.dev")).status).toBe(200);
     expect((await h.call("/admin/mail/resume", { caller: "admin", method: "POST" })).status).toBe(200);
@@ -105,23 +106,23 @@ describe("Resend", () => {
     expect((await send(h, "rig-robot+invite@loonext.com")).status).toBe(200);
     h.advance(11 * 60 * 1000);
     liveMailbox(h, [{ tag: "invite", at: h.clock.now - 12 * 60 * 1000 }]);
-    expect(await ruleOf(await send(h, "rig-robot+other@loonext.com"))).toBe("resend.robot_mail_halted");
+    await expect(ruleOf(await send(h, "rig-robot+other@loonext.com"))).resolves.toBe("resend.robot_mail_halted");
   });
 
   it("sends at most ten a day", async () => {
     const h = harness();
     for (let i = 0; i < 10; i++) expect((await send(h, "delivered@resend.dev")).status).toBe(200);
-    expect(await ruleOf(await send(h, "delivered@resend.dev"))).toBe("budget.resend_day");
+    await expect(ruleOf(await send(h, "delivered@resend.dev"))).resolves.toBe("budget.resend_day");
     h.advance(24 * 60 * 60 * 1000);
     expect((await send(h, "delivered@resend.dev")).status).toBe(200);
   });
 
   it("fails closed without its key, and on any path but /emails", async () => {
     const h = harness({ env: { RESEND_API_KEY: "" } });
-    expect(await ruleOf(await send(h, "delivered@resend.dev"))).toBe("resend.key_missing");
+    await expect(ruleOf(await send(h, "delivered@resend.dev"))).resolves.toBe("resend.key_missing");
     const keyed = harness();
-    expect(await ruleOf(await keyed.call("/resend/emails/batch", { body: [] }))).toBe("resend.path_refused");
-    expect(await ruleOf(await keyed.call("/resend/domains"))).toBe("resend.path_refused");
+    await expect(ruleOf(await keyed.call("/resend/emails/batch", { body: [] }))).resolves.toBe("resend.path_refused");
+    await expect(ruleOf(await keyed.call("/resend/domains"))).resolves.toBe("resend.path_refused");
   });
 
   it("reads the robot address's tag, and only the robot's", () => {

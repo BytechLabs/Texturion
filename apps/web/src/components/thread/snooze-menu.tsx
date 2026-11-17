@@ -3,15 +3,8 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  DEFAULT_LOCALE,
-  type DeferralKind,
-  followUpPresets,
-  isSnoozeTargetValid,
-  SNOOZE_NOTE_MAX,
-  snoozePresets,
-  snoozeReturnShape,
-} from "@loonext/shared";
+import { DEFAULT_LOCALE, followUpPresets, isSnoozeTargetValid, SNOOZE_NOTE_MAX, snoozePresets, snoozeReturnShape } from '@loonext/shared';
+import type { DeferralKind } from '@loonext/shared';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,7 +16,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { makeTranslate, useT, type Translate } from "@/i18n/provider";
+import { makeTranslate, useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { browserTimezone, formatTimestamp, getFormatter } from "@/lib/format/time";
 
 /** English, for a caller with no provider around it. */
@@ -176,22 +170,26 @@ export function deferralReturnLabel(
   }).format(date);
   const when = ((): string => {
     switch (snoozeReturnShape(date, now)) {
-      case "today":
+      case "today": {
         return t("thread.snoozeWhenAt", { time });
-      case "tomorrow":
+      }
+      case "tomorrow": {
         return t("thread.snoozeWhenTomorrow", { time });
-      case "weekday":
+      }
+      case "weekday": {
         return t("thread.snoozeWhenWeekday", {
           weekday: getFormatter(t.locale, zone, { weekday: "long" }).format(date),
           time,
         });
-      case "date":
+      }
+      case "date": {
         return t("thread.snoozeWhenDate", {
           date: getFormatter(t.locale, zone, {
             day: "numeric",
             month: "short",
           }).format(date),
         });
+      }
     }
   })();
   return t(DEFERRAL_LEAD_KEYS[lead], { when });

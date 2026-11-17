@@ -55,7 +55,7 @@ export function InertWhileAriaHidden() {
       for (const element of document.querySelectorAll("[inert]")) {
         if (
           element instanceof HTMLElement &&
-          element.getAttribute("data-aria-hidden") !== "true"
+          element.dataset.ariaHidden !== "true"
         ) {
           element.inert = false;
         }

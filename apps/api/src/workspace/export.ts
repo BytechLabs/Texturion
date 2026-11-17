@@ -25,18 +25,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
-import {
-  buildConversationHistory,
-  type HistoryFilters,
-} from "./history-export";
-import {
-  buildUsageExport,
-  type UsageExportFilters,
-} from "./usage-export";
-import {
-  buildTaskExport,
-  type TaskExportFilters,
-} from "./tasks-export";
+import { buildConversationHistory } from './history-export';
+import { buildUsageExport } from './usage-export';
+import { buildTaskExport } from './tasks-export';
 import { emailLayout } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
@@ -190,8 +181,8 @@ export async function buildDataExports(
               : await buildOne(env, db, row, now);
       summary.parts += result.parts;
       if (result.completed) summary.completed += 1;
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
+    } catch (error_) {
+      const message = error_ instanceof Error ? error_.message : String(error_);
       // Told, not silently stuck. An export nobody hears about again is worse
       // than one that failed — the customer is waiting on a legal right.
       await db
@@ -222,8 +213,8 @@ async function buildOne(
       .eq("id", row.id);
   }
 
-  const done = new Set(row.completed_tables ?? []);
-  const counts: Record<string, number> = { ...(row.row_counts ?? {}) };
+  const done = new Set(row.completed_tables);
+  const counts: Record<string, number> = { ...row.row_counts };
   let parts = 0;
 
   for (const spec of EXPORT_TABLES) {
@@ -343,7 +334,7 @@ async function buildHistoryExport(
       exportId: row.id,
       companyId: row.company_id,
       requestedBy: row.requested_by,
-      filters: (row.filters ?? {}) as HistoryFilters,
+      filters: (row.filters ?? {}),
       prefix,
       now,
     },
@@ -389,7 +380,7 @@ async function buildUsageSummaryExport(
     {
       exportId: row.id,
       companyId: row.company_id,
-      filters: (row.filters ?? {}) as UsageExportFilters,
+      filters: (row.filters ?? {}),
       prefix,
       now,
     },
@@ -426,7 +417,7 @@ async function buildTasksExport(
     {
       companyId: row.company_id,
       requestedBy: row.requested_by,
-      filters: (row.filters ?? {}) as TaskExportFilters,
+      filters: (row.filters ?? {}),
       prefix,
       now,
     },
@@ -507,13 +498,13 @@ async function notifyReady(
         .update({ notify_email_id: emailId })
         .eq("id", row.id);
     }
-  } catch (cause) {
+  } catch (error) {
     // The export IS ready and visible in settings; a failed email is worth
     // knowing about but must not mark a finished export as failed.
     void captureException(
       env,
       `data export ready-email failed for ${row.id}: ${
-        cause instanceof Error ? cause.message : String(cause)
+        error instanceof Error ? error.message : String(error)
       }`,
       { source: "cron", level: "warning" },
     );
@@ -612,13 +603,13 @@ export async function pruneExpiredExports(
         .is("reaped_at", null);
       if (stampError) throw new Error(stampError.message);
       reaped += 1;
-    } catch (cause) {
+    } catch (error_) {
       // One stuck export must not stop the others, and tomorrow's run retries
       // it: the row is still unstamped and still expired.
       void captureException(
         env,
         `export reap failed for ${row.id}: ${
-          cause instanceof Error ? cause.message : String(cause)
+          error_ instanceof Error ? error_.message : String(error_)
         }`,
         { source: "cron" },
       );

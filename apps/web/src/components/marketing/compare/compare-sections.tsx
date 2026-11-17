@@ -23,10 +23,8 @@ import {
 } from "@/components/marketing/fr";
 import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
-import {
-  TruthStrip,
-  type TruthStripItem,
-} from "@/components/marketing/pricing/truth-strip";
+import { TruthStrip } from '@/components/marketing/pricing/truth-strip';
+import type { TruthStripItem } from '@/components/marketing/pricing/truth-strip';
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { compareUiCopy } from "@/i18n/marketing/compare-ui";
 import type { MarketingLocale } from "@/i18n/marketing/footer";

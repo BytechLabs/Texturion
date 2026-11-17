@@ -7,16 +7,10 @@
  * returned, and a webhook delivery keeps only each attempt's host and status:
  * its URL's path carries the edge's secret segments.
  */
-import {
-  EDGE_PATHS,
-  GUARD_ROUTES,
-  HEADER,
-  type GuardHealth,
-  type GuardRefusal,
-  type LeaseActivity,
-  type Partition,
-} from "@loonext/rig-protocol";
-import { FICTIONAL_E164, type GuardApi, type GuardProbe, type GuardProbeAnswer, type WebhookDelivery } from "./scenarios/context.ts";
+import { EDGE_PATHS, GUARD_ROUTES, HEADER } from '@loonext/rig-protocol';
+import type { GuardHealth, GuardRefusal, LeaseActivity, Partition } from '@loonext/rig-protocol';
+import { FICTIONAL_E164 } from './scenarios/context.ts';
+import type { GuardApi, GuardProbe, GuardProbeAnswer, WebhookDelivery } from './scenarios/context.ts';
 
 export interface GuardClientOptions {
   edgeOrigin: string;
@@ -73,12 +67,12 @@ export class GuardClient implements GuardApi {
     const request =
       kind === "foreign-connection"
         ? { path: "/v2/calls", body: { connection_id: PROBE_FOREIGN_CONNECTION, from: robot.e164, to: devW1.e164, timeout_secs: 30 } }
-        : kind === "dial-to-unowned"
+        : (kind === "dial-to-unowned"
           ? { path: "/v2/calls", body: { connection_id: partition.connection_ids.robot, from: robot.e164, to: first, timeout_secs: 30 } }
           : {
               path: "/v2/messages",
               body: { from: second, to: devW1.e164, text: "Rig G01 probe", messaging_profile_id: robot.messaging_profile_id },
-            };
+            });
     const response = await this.#fetch(this.#url(`${GUARD_ROUTES.telnyx}${request.path}`), {
       method: "POST",
       headers: {

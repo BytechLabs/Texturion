@@ -17,7 +17,7 @@ const { captureSpy, initSpy } = vi.hoisted(() => ({
   captureSpy: vi.fn(),
   initSpy: vi.fn(),
 }));
-vi.mock("@/lib/analytics/posthog", () => ({ initPostHog: initSpy }));
+vi.mock(import("@/lib/analytics/posthog"), () => ({ initPostHog: initSpy }));
 
 async function importBoundary(configured: boolean) {
   vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", VALID_URL);
@@ -49,7 +49,7 @@ describe("reportBoundaryError (PostHog hand-off)", () => {
     const { reportBoundaryError } = await importBoundary(true);
     const error = Object.assign(new Error("boom"), { digest: "d1g3st" });
     await reportBoundaryError(error);
-    expect(captureSpy).toHaveBeenCalledTimes(1);
+    expect(captureSpy).toHaveBeenCalledOnce();
     expect(captureSpy).toHaveBeenCalledWith(error, { digest: "d1g3st" });
   });
 
@@ -61,9 +61,7 @@ describe("reportBoundaryError (PostHog hand-off)", () => {
       throw new Error("sdk exploded");
     });
     const { reportBoundaryError } = await importBoundary(true);
-    await expect(reportBoundaryError(new Error("boom"))).resolves.toBe(
-      undefined,
-    );
+    await expect(reportBoundaryError(new Error("boom"))).resolves.toBeUndefined();
     expect(consoleSpy).toHaveBeenCalled();
   });
 });
@@ -92,8 +90,8 @@ describe("root error page markup", () => {
   });
 
   it("shows the Next.js digest as a support reference when present", async () => {
-    expect(await render("abc123")).toContain("Reference: abc123");
-    expect(await render(undefined)).not.toContain("Reference:");
+    await expect(render("abc123")).resolves.toContain("Reference: abc123");
+    await expect(render(undefined)).resolves.not.toContain("Reference:");
   });
 
   it("inlines the v4 palette and uses no em-dashes", async () => {

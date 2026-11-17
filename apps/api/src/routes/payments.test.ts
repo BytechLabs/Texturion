@@ -16,10 +16,10 @@ import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AppEnv } from "../context";
-import type { Bindings } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { FakeRest } from "../telnyx/test-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { paymentAccountRoutes, paymentRequestRoutes, publicPaymentRoutes } from "./payments";
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
@@ -153,7 +153,7 @@ function buildHarness(options: {
       disabled_reason: null,
       requirements_due: [],
       requirements_deadline: null,
-      ...(options.account ?? {}),
+      ...options.account,
     });
   }
   for (const row of options.requests ?? []) rest.insert("payment_requests", row);
@@ -228,7 +228,7 @@ function buildHarness(options: {
     rest,
     stripeCalls,
     request: (path: string, init?: RequestInit) =>
-      app.request(path, init, env as unknown as Bindings),
+      app.request(path, init, env),
   };
 }
 
@@ -473,7 +473,7 @@ describe("#224 asking for money", () => {
         call.method === "POST" &&
         call.form.get("active") === "false",
     );
-    expect(created.length).toBe(deactivated.length);
+    expect(created).toHaveLength(deactivated.length);
     const rows = harness.rest.rows("payment_requests");
     for (const row of rows) expect(row.status).not.toBe("requested");
   });

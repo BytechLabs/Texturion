@@ -10,7 +10,7 @@ import { completeEnv, stubFetch } from "../test/support";
 import { getEnv } from "../env";
 import { runAupSignalsJob } from "./aup-watch";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -56,7 +56,7 @@ describe("aup signals", () => {
       },
     ]);
 
-    expect(await runAupSignalsJob(getEnv(completeEnv()))).toBe(2);
+    await expect(runAupSignalsJob(getEnv(completeEnv()))).resolves.toBe(2);
 
     expect(asked).toEqual([{ p_baseline_days: 14 }]);
     expect(eventsCaptured("aup_signals")).toEqual([
@@ -88,7 +88,7 @@ describe("aup signals", () => {
 
   it("decides nothing: a quiet day and a blast are the same kind of event", async () => {
     signalsRead([]);
-    expect(await runAupSignalsJob(getEnv(completeEnv()))).toBe(0);
+    await expect(runAupSignalsJob(getEnv(completeEnv()))).resolves.toBe(0);
     expect(captured).toEqual([]);
   });
 

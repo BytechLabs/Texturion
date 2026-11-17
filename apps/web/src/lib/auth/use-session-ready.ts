@@ -43,7 +43,7 @@ export async function whileEndingSessionHere<T>(
  * `getSession()` is normal for a moment. 2.5s covers that beat — the same
  * window the update-password screen already uses for the same question.
  */
-const HYDRATION_GRACE_MS = 2_500;
+const HYDRATION_GRACE_MS = 2500;
 
 /**
  * Resolves the Supabase browser client's session state.

@@ -2,7 +2,8 @@
 
 import type { ReactNode } from "react";
 
-import { canSeeSettingsSection, type SettingsSectionId } from "@loonext/shared";
+import { canSeeSettingsSection } from '@loonext/shared';
+import type { SettingsSectionId } from '@loonext/shared';
 
 import { useActiveCompany } from "@/lib/company/provider";
 

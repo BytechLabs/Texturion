@@ -18,7 +18,8 @@ import { runStarter } from "./daemon.ts";
 import { WindowSource } from "./guard-window.ts";
 import { RpcRouter } from "./rpc.ts";
 import { BUNDLE_KEY_SECRET, deliverSecrets } from "./secrets.ts";
-import { PostHogErrors, reportApiExceptions, seenException, type SeenEvent } from "./posthog-errors.ts";
+import { PostHogErrors, reportApiExceptions, seenException } from './posthog-errors.ts';
+import type { SeenEvent } from './posthog-errors.ts';
 import { fakeFetch, json } from "./test-support.ts";
 import type { RpcFrame } from "./uplink.ts";
 
@@ -124,10 +125,10 @@ describe("rig-secrets.yml's bundle", () => {
     return files
       .map((path) => {
         const text = readFileSync(path, "utf8");
-        if (!/\.(ts|mjs)$/.test(path)) return text.replace(/^\s*#.*$/gm, "");
+        if (!/\.(ts|mjs)$/.test(path)) return text.replaceAll(/^\s*#.*$/gm, "");
         return text
-          .replace(/(^|[(,={]|\breturn\b)([ \t]*)\/\*[\s\S]*?\*\//gm, "$1$2")
-          .replace(/(^|\s)\/\/[^\n]*/g, "$1");
+          .replaceAll(/(^|[(,={]|\breturn\b)([ \t]*)\/\*[\s\S]*?\*\//gm, "$1$2")
+          .replaceAll(/(^|\s)\/\/[^\n]*/g, "$1");
       })
       .join("\n");
   }
@@ -136,8 +137,8 @@ describe("rig-secrets.yml's bundle", () => {
     const files = bundleFiles();
     const code = rigCode();
     expect(files.length).toBeGreaterThan(10);
-    const unread = files.filter((file) => !new RegExp(`["'\`:]${file.replace(/[.]/g, "\\.")}["'\`}]`).test(code));
-    expect(unread.sort()).toEqual(Object.keys(AHEAD_OF_READER).sort());
+    const unread = files.filter((file) => !new RegExp(`["'\`:]${file.replaceAll(/[.]/g, String.raw`\.`)}["'\`}]`).test(code));
+    expect(unread.toSorted()).toEqual(Object.keys(AHEAD_OF_READER).toSorted());
   });
 });
 
@@ -146,11 +147,11 @@ describe("the rpc router at /ctl/rpc", () => {
     const router = new RpcRouter()
       .register("triage.unresolved", () => [], ["triage", "rig"])
       .register("scenario.run", () => "ran");
-    expect(await router.dispatch({ t: "rpc", id: "1", method: "triage.unresolved", params: {}, caller: "triage" })).toEqual([]);
+    await expect(router.dispatch({ t: "rpc", id: "1", method: "triage.unresolved", params: {}, caller: "triage" })).resolves.toEqual([]);
     await expect(router.dispatch({ t: "rpc", id: "2", method: "scenario.run", params: {}, caller: "triage" })).rejects.toThrow(
       /not open to triage/,
     );
-    expect(await router.dispatch({ t: "rpc", id: "3", method: "scenario.run", params: {}, caller: "rig" })).toBe("ran");
+    await expect(router.dispatch({ t: "rpc", id: "3", method: "scenario.run", params: {}, caller: "rig" })).resolves.toBe("ran");
     await expect(router.dispatch({ t: "rpc", id: "4", method: "nope", params: {}, caller: "rig" })).rejects.toThrow(/unknown method/);
   });
 
@@ -198,7 +199,7 @@ describe("the app probe and the seed's tenants", () => {
       guardToken: "t",
       fetch,
     });
-    expect(await probe.sendText({ member: "qa-w-owner", fromRole: "DEV-W1", toRole: "ROBOT-1", body: "hello" })).toEqual({ ok: true, messageId: "m-1" });
+    await expect(probe.sendText({ member: "qa-w-owner", fromRole: "DEV-W1", toRole: "ROBOT-1", body: "hello" })).resolves.toEqual({ ok: true, messageId: "m-1" });
     const send = requests[1]!;
     expect(send.headers.authorization).toBe("Bearer member-jwt");
     expect(send.headers["x-company-id"]).toBe(companyId);
@@ -232,16 +233,16 @@ describe("the app probe and the seed's tenants", () => {
     const since = Date.UTC(2026, 9, 31);
     const { probe, requests } = probeWith({
       "POST https://us.posthog.com/api/environments/7/query/": () =>
-        json({ results: [[since + 1_000, "alert", "web", "accepted", null, "normal", null, USER]] }),
+        json({ results: [[since + 1000, "alert", "web", "accepted", null, "normal", null, USER]] }),
       "GET http://127.0.0.1:54321/rest/v1/push_subscriptions": () => json([{ id: "a" }]),
       "GET http://127.0.0.1:54321/rest/v1/device_push_tokens": () => json([{ id: "b" }, { id: "c" }]),
     });
-    expect(await probe.pushAttempts({ tenant: "QA-W", since, purpose: "alert" })).toEqual([
+    await expect(probe.pushAttempts({ tenant: "QA-W", since, purpose: "alert" })).resolves.toEqual([
       {
         purpose: "alert",
         platform: "web",
         response_class: "accepted",
-        attempted_at: new Date(since + 1_000).toISOString(),
+        attempted_at: new Date(since + 1000).toISOString(),
         priority: "normal",
         call_session_id: null,
         user_id: USER,
@@ -259,7 +260,7 @@ describe("the app probe and the seed's tenants", () => {
       "select toUnixTimestamp64Milli(timestamp), properties.purpose, properties.platform, properties.response_class, " +
         "properties.attempted_at, properties.priority, properties.call_session_id, properties.user_id from events ",
     )).toBe(true);
-    expect(await probe.pushTargets({ member: "qa-w-owner" })).toBe(3);
+    await expect(probe.pushTargets({ member: "qa-w-owner" })).resolves.toBe(3);
     expect(requests.filter((r) => r.url.includes("push_subscriptions") || r.url.includes("device_push_tokens")).map((r) => new URL(r.url).searchParams.get("user_id"))).toEqual([`eq.${USER}`, `eq.${USER}`]);
   });
 
@@ -268,7 +269,7 @@ describe("the app probe and the seed's tenants", () => {
       "GET http://127.0.0.1:54321/rest/v1/calls": () => json([{ call_session_id: "s" }]),
       "GET http://127.0.0.1:54321/rest/v1/outbound_call_authorizations": () => json([]),
     });
-    expect(await probe.outboundTokenUse({ tenant: "QA-W", toRole: "ROBOT-1", since: Date.UTC(2026, 9, 31) })).toEqual({ calls: 1, left: 0 });
+    await expect(probe.outboundTokenUse({ tenant: "QA-W", toRole: "ROBOT-1", since: Date.UTC(2026, 9, 31) })).resolves.toEqual({ calls: 1, left: 0 });
     const calls = new URL(requests.find((r) => r.url.includes("/calls?"))!.url).searchParams;
     expect([calls.get("direction"), calls.get("caller_e164")]).toEqual(["eq.outbound", "eq.+14165550101"]);
   });
@@ -490,10 +491,10 @@ describe("the dial window", () => {
         fetch,
       });
     expect(source().known()).toEqual({ startHour: 4, hours: 6 });
-    expect(await source().current()).toEqual({ startHour: 13, hours: 6 });
+    await expect(source().current()).resolves.toEqual({ startHour: 13, hours: 6 });
     expect(requests[0]).toMatchObject({ url: "https://rig-edge.example.workers.dev/g/health", headers: { authorization: "Bearer robot" } });
     answer = undefined;
-    expect(await source().current()).toEqual({ startHour: 13, hours: 6 });
+    await expect(source().current()).resolves.toEqual({ startHour: 13, hours: 6 });
     const pinned = new WindowSource({
       edgeOrigin: "https://rig-edge.example.workers.dev",
       token: "robot",
@@ -502,6 +503,6 @@ describe("the dial window", () => {
       override: { startHour: 5, hours: 3 },
       fetch,
     });
-    expect(await pinned.current()).toEqual({ startHour: 5, hours: 3 });
+    await expect(pinned.current()).resolves.toEqual({ startHour: 5, hours: 3 });
   });
 });

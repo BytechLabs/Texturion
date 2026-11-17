@@ -6,7 +6,7 @@ import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { OPENSSH_DIR, forwardedPorts } from "./config.mjs";
+import { forwardedPorts, OPENSSH_DIR } from "./config.mjs";
 
 export const SSH = join(OPENSSH_DIR, "ssh.exe");
 export const VM_TOKEN_PATH = '"${RIG_HOME:-/var/lib/loonext-rig}/secrets/hostd-token"';
@@ -101,8 +101,8 @@ export function createTunnel({
   async function once() {
     try {
       if (await syncToken({ contract, paths, run, readFile })) log("tunnel: copied hostd-token to the VM");
-    } catch (cause) {
-      log(`tunnel: ${cause.message}`);
+    } catch (error) {
+      log(`tunnel: ${error.message}`);
       return 0;
     }
     const started = now();

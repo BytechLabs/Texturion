@@ -36,11 +36,8 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  extraNumberBlockedReason,
-  type BillingCurrency,
-  type ExtraNumberKey,
-} from "@loonext/shared";
+import { extraNumberBlockedReason } from '@loonext/shared';
+import type { BillingCurrency, ExtraNumberKey } from '@loonext/shared';
 
 import { EXTRA_NUMBER_REASONS_EN } from "./extra-number-copy";
 
@@ -49,7 +46,8 @@ const englishReason = (key: ExtraNumberKey): string => EXTRA_NUMBER_REASONS_EN[k
 
 import type { Env } from "../env";
 import { idempotencyKey } from "./idempotency";
-import { PLAN_LIMITS, type PlanId } from "./plans";
+import { PLAN_LIMITS } from './plans';
+import type { PlanId } from './plans';
 import type { Stripe } from "./stripe";
 
 /** Monthly price per extra number, in cents (#80: $5 Starter, $4 Pro). */

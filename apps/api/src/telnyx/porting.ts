@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { telnyxRequest, telnyxUpload, TelnyxApiError } from "./client";
+import { TelnyxApiError, telnyxRequest, telnyxUpload } from "./client";
 import {
   portBridgeAfterCancelCopy,
   portBridgeReleaseNudgeCopy,
@@ -10,13 +10,8 @@ import {
   portMessagingExceptionCopy,
   portSubmittedCopy,
 } from "./emails";
-import {
-  ensureMessagingProfile,
-  fetchProvisioningCompany,
-  lookupOwnedNumber,
-  releaseNumberRow,
-  type PhoneNumberRow,
-} from "./provisioning";
+import { ensureMessagingProfile, fetchProvisioningCompany, lookupOwnedNumber, releaseNumberRow } from './provisioning';
+import type { PhoneNumberRow } from './provisioning';
 import { assignNumbersToCampaign, fetchRegistrationRows } from "./registration";
 import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
@@ -561,10 +556,10 @@ export async function sendPortEmail(
   try {
     const to = await billingRecipients(env, companyId, db);
     if (to.length > 0) await sendEmail(env, { to, ...copy });
-  } catch (cause) {
+  } catch (error) {
     // Best-effort side effect of an already-applied transition (like
     // registration.ts) — a Resend outage must not wedge the state machine.
-    void captureException(env, cause, { source: "api" });
+    void captureException(env, error, { source: "api" });
   }
 }
 
@@ -648,8 +643,8 @@ export async function startPortSaga(
 
   try {
     return await runPortSagaSteps(env, db, row);
-  } catch (cause) {
-    return recordPortFailure(env, db, row, cause);
+  } catch (error) {
+    return recordPortFailure(env, db, row, error);
   }
 }
 
@@ -748,9 +743,9 @@ export async function submitPortRequest(
 
   try {
     return await runPortConfirmSteps(env, db, row);
-  } catch (cause) {
-    if (cause instanceof PortDocumentsMissingError) throw cause;
-    return recordPortFailure(env, db, row, cause);
+  } catch (error) {
+    if (error instanceof PortDocumentsMissingError) throw error;
+    return recordPortFailure(env, db, row, error);
   }
 }
 
@@ -795,7 +790,7 @@ async function runPortConfirmSteps(
 
   // P5 — submit/confirm: draft/exception → in-process; stamp submitted_at,
   // count++.
-  await confirmPortingOrder(env, current.telnyx_porting_order_id as string);
+  await confirmPortingOrder(env, current.telnyx_porting_order_id!);
   const submitted = await updatePortRow(db, current.id, {
     status: "in-process",
     submitted_at: current.submitted_at ?? new Date().toISOString(),
@@ -882,9 +877,9 @@ async function runP6Completion(
   if (campaign) {
     try {
       await assignNumbersToCampaign(env, db, campaign);
-    } catch (cause) {
+    } catch (error) {
       // A FAILED assignment is surfaced via the ledger + §9 copy, not here.
-      void captureException(env, cause, { source: "api" });
+      void captureException(env, error, { source: "api" });
     }
   }
 
@@ -935,8 +930,8 @@ async function runP6Completion(
           ),
         );
       }
-    } catch (cause) {
-      void captureException(env, cause, { source: "api" });
+    } catch (error) {
+      void captureException(env, error, { source: "api" });
     }
   }
   return updated;
@@ -1017,8 +1012,8 @@ async function applyStatusTransition(
     if (phone && phone.status !== "released") {
       try {
         await releaseNumberRow(env, phone);
-      } catch (cause) {
-        void captureException(env, cause, { source: "api" });
+      } catch (error) {
+        void captureException(env, error, { source: "api" });
       }
     }
     // #319: and say what happened to the BRIDGE, which the line above does not
@@ -1047,8 +1042,8 @@ async function applyStatusTransition(
             ),
           );
         }
-      } catch (cause) {
-        void captureException(env, cause, { source: "api" });
+      } catch (error) {
+        void captureException(env, error, { source: "api" });
       }
     }
   }
@@ -1145,9 +1140,9 @@ export async function cancelPortRequest(
     // Order exists → Telnyx-driven cancel; the webhook/cron completes it.
     try {
       await cancelPortingOrder(env, row.telnyx_porting_order_id);
-    } catch (cause) {
-      if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
-        throw cause;
+    } catch (error) {
+      if (!(error instanceof TelnyxApiError && error.status === 404)) {
+        throw error;
       }
     }
     return applyStatusTransition(env, db, row, "cancel-pending", {});
@@ -1285,9 +1280,9 @@ export async function handlePortingEvent(
     const text =
       typeof payload.body === "string"
         ? payload.body
-        : typeof payload.comment === "string"
+        : (typeof payload.comment === "string"
           ? payload.comment
-          : null;
+          : null);
     if (text && row.status === "exception") {
       await updatePortRow(db, row.id, {
         rejection_reason: text.slice(0, 2000),
@@ -1467,8 +1462,8 @@ export async function pollPortRequests(
         await runP6Completion(env, db, currentRow);
         summary.messagingTransitioned += 1;
       }
-    } catch (cause) {
-      failures.push(cause);
+    } catch (error_) {
+      failures.push(error_);
     }
   }
 

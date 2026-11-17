@@ -57,12 +57,6 @@ import { runPreSendGates } from "./send";
  */
 export const MAX_OFFRAMP_REPLIES = 500;
 
-interface OffRampSettings {
-  offramp_message: string | null;
-  offramp_opted_in_at: string | null;
-  subscription_status: string;
-}
-
 /**
  * Send the off-ramp reply for one inbound message, if this workspace is
  * departing, opted in, and this contact has not been told yet.
@@ -88,7 +82,7 @@ export async function maybeSendOffRamp(
       .eq("id", args.companyId)
       .limit(1);
     if (error || !rows?.length) return;
-    const settings = rows[0] as OffRampSettings;
+    const settings = rows[0];
 
     // Re-checked here as well as by the caller. The caller skips this function
     // entirely for an active workspace so the hot path costs nothing, and this
@@ -104,7 +98,7 @@ export async function maybeSendOffRamp(
       .select("offramp_sent_at")
       .eq("id", args.conversationId)
       .limit(1);
-    if (conv?.[0] && (conv[0] as { offramp_sent_at: string | null }).offramp_sent_at) {
+    if (conv?.[0] && (conv[0]).offramp_sent_at) {
       return;
     }
 
@@ -139,11 +133,11 @@ export async function maybeSendOffRamp(
       triggerBody: args.triggerBody,
       clearance,
     });
-  } catch (cause) {
+  } catch (error) {
     // Swallowed on purpose — see the docblock. The inbound message is already
     // stored and threaded, and this is a courtesy.
     console.error(
-      `off-ramp reply failed for company ${args.companyId}: ${String(cause)}`,
+      `off-ramp reply failed for company ${args.companyId}: ${String(error)}`,
     );
   }
 }

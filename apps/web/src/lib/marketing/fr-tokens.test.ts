@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -121,8 +121,8 @@ describe("globals.css — the --fr-* system (direction §2)", () => {
       // The comment in the OG image that RECORDS this history is allowed to
       // name them; a line that only mentions them is not a line that paints.
       const painted = body
-        .replace(/\/\/.*/g, "")
-        .replace(/\/\*[\s\S]*?\*\//g, "");
+        .replaceAll(/\/\/.*/g, "")
+        .replaceAll(/\/\*[\s\S]*?\*\//g, "");
       for (const needle of [...dead, ...deadRgb]) {
         if (painted.includes(needle)) {
           offenders.push(`${file.replace(process.cwd(), "")}: ${needle}`);

@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -10,7 +9,7 @@ import { describe, expect, it } from "vitest";
  * would fail; one that went missing would pass by never running.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const WORKFLOW = readFileSync(join(REPO, ".github", "workflows", "checks.yml"), "utf8");
 
 /** Each job's run lines, in order, keyed by job id. */

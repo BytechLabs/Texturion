@@ -84,7 +84,7 @@ describe("#287 the quote strip reads the same on all three clients", () => {
     const missing = missingFrom(quotesEn);
     expect(
       missing,
-      "Missing or reworded #287 sentences:\n  " + missing.join("\n  "),
+      `Missing or reworded #287 sentences:\n  ${  missing.join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -92,7 +92,7 @@ describe("#287 the quote strip reads the same on all three clients", () => {
     const missing = missingFrom(quotesFr);
     expect(
       missing,
-      "Missing or reworded #287 French sentences:\n  " + missing.join("\n  "),
+      `Missing or reworded #287 French sentences:\n  ${  missing.join("\n  ")}`,
     ).toEqual([]);
   });
 

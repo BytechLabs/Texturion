@@ -48,14 +48,18 @@ export function statusMoveAction(
   to: stateMachines.ConversationState,
 ): string {
   switch (to) {
-    case "open":
+    case "open": {
       return from === "closed" ? "reopen" : "mark_open";
-    case "waiting":
+    }
+    case "waiting": {
       return "mark_waiting";
-    case "closed":
+    }
+    case "closed": {
       return "close";
-    case "new":
+    }
+    case "new": {
       return "mark_new";
+    }
   }
 }
 

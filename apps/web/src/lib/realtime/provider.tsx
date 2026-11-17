@@ -1,30 +1,25 @@
 "use client";
 
-import { useQueryClient, type Query } from "@tanstack/react-query";
+import { useQueryClient } from '@tanstack/react-query';
+import type { Query } from '@tanstack/react-query';
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  changesSomething,
-  findListRow,
-  listApplyConversation,
-  listSetUnread,
-  snippetFromMessage,
-  threadPatchMessage,
-  type ThreadData,
-} from "@/lib/api/cache";
+import { changesSomething, findListRow, listApplyConversation, listSetUnread, snippetFromMessage, threadPatchMessage } from '@/lib/api/cache';
+import type { ThreadData } from '@/lib/api/cache';
 import {
   fetchConversationDetail,
   patchConversationLists,
   patchPinnedConversations,
   seedThreadFromDetail,
 } from "@/lib/api/conversations";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { keys } from "@/lib/api/keys";
 import { fetchMessagesPage } from "@/lib/api/messages";
 import { trimToFirstPage } from "@/lib/api/pagination";
-import type { ReadStateEvent } from "./events";
+import type { ConversationUpdatedEvent,MessageCreatedEvent,MessageStatusEvent,PaymentUpdatedEvent,ReadStateEvent,TaskChangedEvent } from "./events";
 import type {
   ConversationDetail,
   ConversationListItem,
@@ -37,14 +32,7 @@ import { useMeCompany } from "@/lib/api/me-company";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 import { applyLiveThreadAppend } from "./apply";
-import {
-  messageStatusPatch,
-  type ConversationUpdatedEvent,
-  type MessageCreatedEvent,
-  type MessageStatusEvent,
-  type PaymentUpdatedEvent,
-  type TaskChangedEvent,
-} from "./events";
+import { messageStatusPatch } from './events';
 import { patchQuietly } from "./for-you-notifications";
 import { activeConversationFromPath } from "./path";
 import { createSequenceTracker } from "./sequence";
@@ -89,7 +77,7 @@ export function resyncPredicate(
 const REFRESH_COALESCE_MS = 400;
 
 /** How long a focus resync waits for a rejoin that would backfill anyway. */
-const RESYNC_DELAY_MS = 3_000;
+const RESYNC_DELAY_MS = 3000;
 
 function threadMessage(
   thread: ThreadData | undefined,
@@ -111,7 +99,7 @@ function timelineFields(
     conversation.assigned_user_id,
     conversation.is_spam,
     conversation.lead_source_id ?? null,
-    conversation.tags.map((tag) => tag.id).sort(),
+    conversation.tags.map((tag) => tag.id).toSorted(),
     // A completed call writes its line and moves this without a message.
     conversation.last_message_at,
   ]);
@@ -166,7 +154,7 @@ function toastSnippet(message: Message | undefined, t: Translate): string {
 export function numberTopicKey(numbers: readonly { id: string }[]): string {
   return numbers
     .map((n) => n.id)
-    .sort()
+    .toSorted()
     .join(",");
 }
 
@@ -215,7 +203,7 @@ export function realtimeTopics(companyId: string, key: string): string[] {
  * Bounded, because a /v1/me still down after seventeen seconds is an outage the
  * reconnect path already heals, not a blip worth polling through.
  */
-const NUMBER_LIST_RETRY_DELAYS_MS = [1_000, 4_000, 12_000];
+const NUMBER_LIST_RETRY_DELAYS_MS = [1000, 4000, 12_000];
 
 /**
  * One Supabase Realtime private Broadcast channel for the company (SPEC §8,
@@ -915,7 +903,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       // Harmless while the company topic still carries everything; the moment
       // that send is removed it is the difference between self-healing and a
       // silently dead subscription.
-      queryClient.invalidateQueries({ queryKey: keys.me });
+      void queryClient.invalidateQueries({ queryKey: keys.me });
     }
 
     const sequence = createSequenceTracker(() => refetchFirstPages());
@@ -966,7 +954,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       }, delay);
     }
     const markAway = () => {
-      if (awaySince === null) awaySince = Date.now();
+      awaySince ??= Date.now();
     };
     const maybeResync = () => {
       const now = Date.now();

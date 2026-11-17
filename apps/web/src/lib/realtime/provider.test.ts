@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import { keys } from "@/lib/api/keys";
 
-import { REALTIME_FED, numberTopicKey, realtimeTopics } from "./provider";
+import { numberTopicKey, REALTIME_FED, realtimeTopics } from "./provider";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
 
@@ -57,7 +57,7 @@ describe("numberTopicKey", () => {
 describe("REALTIME_FED", () => {
   it("holds every key root the provider writes, so a resync refetches what a broadcast feeds", () => {
     // A resync skips a fresh key outside the set, so a dropped frame there would stay wrong for 5 minutes.
-    const source = readFileSync(new URL("./provider.tsx", import.meta.url), "utf8");
+    const source = readFileSync(new URL("provider.tsx", import.meta.url), "utf8");
     const roots = new Set<string>();
     for (const [, path] of source.matchAll(/(?<![\w.])keys((?:\.[A-Za-z]+)+)/g)) {
       const value = path

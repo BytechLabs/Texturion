@@ -133,7 +133,7 @@ export class MemberSessions {
 
   /** Written whole and renamed into place, readable by the rig's account alone: it holds refresh tokens. */
   #write(all) {
-    const file = this.#o.file;
+    const {file} = this.#o;
     mkdirSync(dirname(file), { recursive: true });
     const scratch = `${file}.${process.pid}.tmp`;
     writeFileSync(scratch, `${JSON.stringify(all, null, 2)}\n`, { mode: 0o600 });

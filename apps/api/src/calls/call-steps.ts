@@ -6,7 +6,8 @@
  */
 import type { CallStepKind } from "@loonext/shared";
 
-import { isTerminal, type SessionMachine } from "./transitions";
+import { isTerminal } from './transitions';
+import type { SessionMachine } from './transitions';
 
 export interface CallStep {
   kind: CallStepKind;
@@ -43,14 +44,14 @@ export function callStepsBetween(
 
   // An outbound call's only leg is the placer's own, which is not a ring.
   if (after.direction === "inbound") {
-    const known = new Set((before?.legs ?? []).map((leg) => leg.userId + "|" + leg.dialedAtMs));
-    const fresh = after.legs.filter((leg) => !known.has(leg.userId + "|" + leg.dialedAtMs));
+    const known = new Set((before?.legs ?? []).map((leg) => `${leg.userId  }|${  leg.dialedAtMs}`));
+    const fresh = after.legs.filter((leg) => !known.has(`${leg.userId  }|${  leg.dialedAtMs}`));
     const engine = [...new Set(fresh.filter((l) => l.source === "engine").map((l) => l.userId))];
     const asked = [...new Set(fresh.filter((l) => l.source === "ring_me").map((l) => l.userId))];
     if (engine.length > 0) step("call_rang", { user_ids: engine });
     if (asked.length > 0) step("call_rang", { user_ids: asked, asked: true });
 
-    const declined = new Set(before?.declinedUserIds ?? []);
+    const declined = new Set(before?.declinedUserIds);
     for (const userId of after.declinedUserIds) {
       if (!declined.has(userId)) step("call_declined", {}, userId);
     }

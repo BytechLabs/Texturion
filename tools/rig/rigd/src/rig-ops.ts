@@ -14,21 +14,8 @@
 import { execFile } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import {
-  AndroidDevice,
-  EmulatorAudioLink,
-  EmulatorConsole,
-  MAX_BOOTED,
-  nodeExec,
-  RIG_DEVICE_NAMES,
-  RIG_DEVICES,
-  type AdbServer,
-  type ControllerClient,
-  type Exec,
-  type HostdClient,
-  type PortCheck,
-  type RigDeviceName,
-} from "@loonext/rig-lanes";
+import { AndroidDevice, EmulatorAudioLink, EmulatorConsole, MAX_BOOTED, nodeExec, RIG_DEVICE_NAMES, RIG_DEVICES } from '@loonext/rig-lanes';
+import type { AdbServer, ControllerClient, Exec, HostdClient, PortCheck, RigDeviceName } from '@loonext/rig-lanes';
 import type { NumberBook, Transcriber } from "@loonext/rig-robot";
 import type { Socket } from "node:net";
 import type { PostHogErrors, SeenEvent } from "./posthog-errors.ts";
@@ -68,7 +55,7 @@ export class RigOps implements RigApi {
   }
 
   async apiEvents(since: number): Promise<SeenEvent[]> {
-    return (await this.#o.exceptions.apiExceptions(since)).sort((a, b) => a.at - b.at);
+    return (await this.#o.exceptions.apiExceptions(since)).toSorted((a, b) => a.at - b.at);
   }
 
   async failNextCallEvent(status: 503): Promise<void> {

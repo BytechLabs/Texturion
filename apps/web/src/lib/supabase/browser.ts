@@ -1,8 +1,6 @@
-import { createBrowserClient, type CookieOptions } from "@supabase/ssr";
-import {
-  isAuthRetryableFetchError,
-  type SupabaseClient,
-} from "@supabase/supabase-js";
+import { createBrowserClient } from '@supabase/ssr';
+import { isAuthRetryableFetchError } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import { publicEnv } from "@/env";
 import { SUPABASE_COOKIE_OPTIONS } from "./cookie-options";

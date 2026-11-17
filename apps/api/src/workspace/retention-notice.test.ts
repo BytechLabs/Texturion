@@ -40,7 +40,7 @@ function stub(rows: unknown[], claimed = true) {
   return { db: { rpc, from: () => builder } as never, rpc };
 }
 
-describe("runRetentionNoticeJob", () => {
+describe(runRetentionNoticeJob, () => {
   it("sends nothing when nothing is approaching its window", async () => {
     const sent = vi.fn();
     vi.stubGlobal("fetch", sent);

@@ -7,7 +7,8 @@
  * Hours and days are counted the way the guard counts them: a clock hour and
  * a UTC day, not a sliding 60 minutes.
  */
-import { dialsPerRun, type RegisteredScenario } from "./registry.ts";
+import { dialsPerRun } from './registry.ts';
+import type { RegisteredScenario } from './registry.ts';
 
 /** The guard's lease-log endpoints that place a leg: a dial and a transfer. */
 const DIAL_ENDPOINTS: ReadonlySet<string> = new Set(["POST /v2/calls", "POST /v2/calls/:id/actions/transfer"]);

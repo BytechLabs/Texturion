@@ -46,11 +46,11 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { signedMediaUrls } from "./media";
 import {
-  STUCK_SEND_SECONDS,
   claimMessageRetry,
   dispatchOutbound,
   persistSendInterruption,
   runPreSendGates,
+  STUCK_SEND_SECONDS,
 } from "./send";
 import type { MessageRow } from "./types";
 import { captureException } from "../observability/capture";
@@ -142,10 +142,10 @@ async function retryOne(
     stuckAfterSeconds: STUCK_SEND_SECONDS,
   });
 
-  await dispatchOutbound(env, db, requeued as MessageRow, {
+  await dispatchOutbound(env, db, requeued, {
     from,
     to,
-    text: (requeued as MessageRow).body ?? "",
+    text: (requeued).body ?? "",
     mediaUrls,
     clearance,
   });
@@ -176,13 +176,13 @@ export async function retryInterruptedSends(
   for (const row of rows) {
     try {
       if (await retryOne(env, db, row)) sent += 1;
-    } catch (cause) {
+    } catch (error_) {
       // One workspace's gate refusal — an expired subscription, a customer who
       // texted STOP, a number over its cap — must not stop the rest of the
       // fleet being retried. The row keeps its bumped counter, so it is the
       // fail-out sweeper's next, which is the correct destination for a send
       // that cannot go.
-      const detail = cause instanceof Error ? cause.message : String(cause);
+      const detail = error_ instanceof Error ? error_.message : String(error_);
       console.error(`auto-retry declined for message ${row.id}: ${detail}`);
       await persistSendInterruption(
         db,

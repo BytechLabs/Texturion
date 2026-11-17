@@ -14,10 +14,10 @@ describe("search-state", () => {
   });
 
   it("replaces the search and keeps the path and hash", () => {
-    const length = window.history.length;
+    const {length} = window.history;
     replaceSearch("?view=list&tab=all");
     expect(currentUrl()).toBe("/tasks?view=list&tab=all#top");
-    expect(window.history.length).toBe(length);
+    expect(window.history).toHaveLength(length);
   });
 
   it("pushes a new entry for pushSearch", () => {

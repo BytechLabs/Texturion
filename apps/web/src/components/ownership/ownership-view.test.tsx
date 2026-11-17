@@ -308,7 +308,7 @@ describe("accepting a workspace when the server asks who is asking", () => {
     // Still open, because the next code the app shows will work.
     expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
     // And the action was NOT retried on a proof that never landed.
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
   });
 
   it("refuses a second press while Supabase is still deciding", async () => {
@@ -344,7 +344,7 @@ describe("accepting a workspace when the server asks who is asking", () => {
     ).toBe(true);
 
     await act(async () => settle({ data: {}, error: null }));
-    expect(challengeAndVerify).toHaveBeenCalledTimes(1);
+    expect(challengeAndVerify).toHaveBeenCalledOnce();
     // ONE verify, and then the action was retried — once, carrying nothing. The
     // retry count is what makes the line below mean anything: the second press was
     // refused, not the whole handover.
@@ -360,7 +360,7 @@ describe("accepting a workspace when the server asks who is asking", () => {
     mutate.mockImplementation(
       (_input: unknown, handlers?: { onError?: (error: unknown) => void }) => {
         handlers?.onError?.(
-          new ApiError("conflict" as never, "Somebody else is taking this over.", 409),
+          new ApiError("conflict", "Somebody else is taking this over.", 409),
         );
       },
     );

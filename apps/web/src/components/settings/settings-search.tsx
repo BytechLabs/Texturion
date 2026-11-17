@@ -4,15 +4,12 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  canSeeSettingsSection,
-  searchSettings,
-  settingsGroupOf,
-  type SettingsSearchResult,
-} from "@loonext/shared";
+import { canSeeSettingsSection, searchSettings, settingsGroupOf } from '@loonext/shared';
+import type { SettingsSearchResult } from '@loonext/shared';
 
 import { GROUP_LABELS, settingsSectionOf } from "@/components/settings/settings-nav";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { useActiveCompany } from "@/lib/company/provider";
 import { SearchField } from "@/components/ui/search-field";
 
@@ -200,9 +197,7 @@ export function SettingsSearchPanel({ children }: { children: React.ReactNode })
         autoComplete="off"
       />
 
-      {!searching ? (
-        children
-      ) : hits.length === 0 ? (
+      {searching ? (hits.length === 0 ? (
         <p role="status" className="px-1 text-sm text-muted-foreground">
           {t("settingsMore.settingsSearchNone", { query: query.trim() })}
         </p>
@@ -221,8 +216,8 @@ export function SettingsSearchPanel({ children }: { children: React.ReactNode })
                 }}
                 aria-current={index === active ? "true" : undefined}
                 className={
-                  "block min-h-[44px] px-3 py-2 transition-colors duration-150 ease-out hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
-                  (index === active ? "bg-accent/60" : "")
+                  `block min-h-[44px] px-3 py-2 transition-colors duration-150 ease-out hover:bg-accent/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${ 
+                  index === active ? "bg-accent/60" : ""}`
                 }
               >
                 <span className="block text-sm font-medium">{hit.label}</span>
@@ -236,6 +231,8 @@ export function SettingsSearchPanel({ children }: { children: React.ReactNode })
             </li>
           ))}
         </ul>
+      )) : (
+        children
       )}
     </div>
   );

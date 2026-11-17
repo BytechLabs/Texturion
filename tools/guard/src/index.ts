@@ -3,7 +3,8 @@ import { HEADER } from "@loonext/rig-protocol";
 
 import { parseCaller } from "./caller";
 import type { Ctx } from "./context";
-import { readConfig, type Env } from "./env";
+import { readConfig } from './env';
+import type { Env } from './env';
 import { Guard } from "./guard";
 import { refuse } from "./refusal";
 import { durableStore } from "./store";

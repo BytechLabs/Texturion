@@ -19,14 +19,15 @@ import { billingRoutes } from "./billing";
 import { resetCheckoutCurrencyCache } from "../billing/checkout-currency";
 import type { AppEnv } from "../context";
 import { ApiError, errorResponse } from "../http/errors";
-import { endpoint, makeHarness, type StubEndpoint } from "../test/billing-support";
+import { endpoint, makeHarness } from '../test/billing-support';
+import type { StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
 
 const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
 const USER_ID = "6f0c2f0e-6a5a-4bfa-9b6e-2d6d1a6c9e01";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
-const YEAR_PRICE = env.STRIPE_STARTER_YEAR_PRICE_ID as string;
+const YEAR_PRICE = env.STRIPE_STARTER_YEAR_PRICE_ID!;
 
 function makeApp(): Hono<AppEnv> {
   const app = new Hono<AppEnv>();
@@ -133,7 +134,7 @@ describe("#522 GET /v1/billing/prepay", () => {
     // the USD side produces, so no single hardcode satisfies both.
     expect(body.currency).toBe("cad");
     expect(body.price_cents).toBe(39_000);
-    expect(body.monthly_cents).toBe(3_900);
+    expect(body.monthly_cents).toBe(3900);
   });
 
   /**
@@ -175,7 +176,7 @@ describe("#522 GET /v1/billing/prepay", () => {
       eligible: true,
       currency: "usd",
       price_cents: 29_000,
-      monthly_cents: 2_900,
+      monthly_cents: 2900,
     });
     expect(
       harness.callsTo("GET", new RegExp(`/v1/prices/${YEAR_PRICE}`)),

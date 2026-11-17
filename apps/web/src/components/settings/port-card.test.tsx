@@ -161,7 +161,7 @@ function completed(): PortRequest {
     status: "ported",
     messaging_port_status: "ported",
     rejection_reason: null,
-  } as PortRequest;
+  };
 }
 
 /**
@@ -172,11 +172,11 @@ function completed(): PortRequest {
  */
 function esc(text: string): string {
   return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
+    .replaceAll('&', "&amp;")
+    .replaceAll('<', "&lt;")
+    .replaceAll('>', "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll('\'', "&#x27;");
 }
 
 /** The catalogue entry a reason resolves to, or a hard failure if it does not. */
@@ -446,7 +446,7 @@ describe("PortCard on a held line — #523", () => {
     const cases: [string, string][] = [
       ["arrived", render(completed(), null, { number: delivered("active") })],
       ["arrived, held", render(completed(), { kind: "over_allowance", allowance: 1 }, { number: delivered() })],
-      ["in flight", render({ ...completed(), status: "submitted" } as PortRequest)],
+      ["in flight", render({ ...completed(), status: "submitted" })],
     ];
     for (const [label, html] of cases) {
       const both =

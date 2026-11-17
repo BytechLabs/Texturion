@@ -165,7 +165,7 @@ const DEFAULT_INBOUND_CONNECTION = "fake-inbound-connection";
 
 /** A few bytes that start like an MP3 (ID3 tag), enough for a store-and-forward. */
 const RECORDING_BYTES = new Uint8Array([
-  0x49, 0x44, 0x33, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xff, 0xfb,
+  0x49, 0x44, 0x33, 0x04, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0xFB,
   0x90, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
 ]);
 
@@ -262,7 +262,7 @@ export function createVoiceModel(): VoiceModel {
       direction: leg.direction,
       from: leg.from,
       to: leg.to,
-      ...(leg.clientState !== null ? { client_state: leg.clientState } : {}),
+      ...(leg.clientState === null ? {} : { client_state: leg.clientState }),
     };
   }
 
@@ -369,21 +369,26 @@ export function createVoiceModel(): VoiceModel {
 
   function sipCauseFor(cause: string): string {
     switch (cause) {
-      case "timeout":
+      case "timeout": {
         return "480";
-      case "call_rejected":
+      }
+      case "call_rejected": {
         return "603";
-      case "user_busy":
+      }
+      case "user_busy": {
         return "486";
-      case "originator_cancel":
+      }
+      case "originator_cancel": {
         return "487";
-      default:
+      }
+      default: {
         return "200";
+      }
     }
   }
 
   function saveRecording(leg: FakeLeg): void {
-    const recording = leg.recording;
+    const {recording} = leg;
     if (!recording) return;
     leg.recording = null;
     recordings.set(recording.id, {
@@ -617,9 +622,10 @@ export function createVoiceModel(): VoiceModel {
         saveRecording(leg);
         return ok();
       }
-      default:
+      default: {
         if (clientState !== undefined) leg.clientState = clientState;
         return ok();
+      }
     }
   }
 
@@ -630,8 +636,8 @@ export function createVoiceModel(): VoiceModel {
       respond: (request) => {
         const body = asRecord(request.body);
         const connectionId = body.connection_id;
-        const to = body.to;
-        const from = body.from;
+        const {to} = body;
+        const {from} = body;
         if (
           typeof connectionId !== "string" ||
           typeof to !== "string" ||

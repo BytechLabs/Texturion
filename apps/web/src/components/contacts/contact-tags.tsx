@@ -140,9 +140,9 @@ export function ContactTags({ contact }: { contact: ContactDetail }) {
                             ? "contacts.typeToCreateTag"
                             : "contacts.typeToFindTag",
                         )
-                      : !mayCreate
-                        ? t("contacts.noTagAskAdmin")
-                        : null}
+                      : (mayCreate
+                        ? null
+                        : t("contacts.noTagAskAdmin"))}
                   </CommandEmpty>
                   <CommandGroup>
                     {available.map((tag) => (

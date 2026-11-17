@@ -5,29 +5,18 @@ import { runLimitProbe } from "./setup/limit-probe";
 import { requireSafe, runSafetyChecks } from "./setup/safety";
 import { runSetup } from "./setup/setup";
 import { callerNameNumbers, SPEC } from "./setup/spec";
-import {
-  ADMISSION_KEYS,
-  type AccountRateRecord,
-  type RatiosRecord,
-  type ReserveRecord,
-  type WindowRecord,
-} from "./state/admission";
-import { LIMIT_KEYS, type HistoryRecord } from "./state/concurrency";
+import { ADMISSION_KEYS } from './state/admission';
+import type { AccountRateRecord, RatiosRecord, ReserveRecord, WindowRecord } from './state/admission';
+import { LIMIT_KEYS } from './state/concurrency';
+import type { HistoryRecord } from './state/concurrency';
 import { charge, noteHeld, reconcile } from "./state/ledger";
 import { resumeMail } from "./state/mail";
 import { TelnyxError } from "./telnyx/client";
 import { clearDetached, detachedNumbers, standingBinding } from "./telnyx/detach";
 import { isDefiniteFailure, isOk } from "./telnyx/forward";
 import { noteOrder, requireOrdering, resumeOrdering, verifyFirstOrder } from "./telnyx/ordering";
-import {
-  heldCount,
-  invalidateOwned,
-  KEYS,
-  loadPartition,
-  STANDING_TAG,
-  standingReference,
-  type StandingNumber,
-} from "./telnyx/partition";
+import { heldCount, invalidateOwned, KEYS, loadPartition, STANDING_TAG, standingReference } from './telnyx/partition';
+import type { StandingNumber } from './telnyx/partition';
 import { checkOrderBody, requireSpendable, voiceOpen } from "./telnyx/provisioning";
 
 /**
@@ -115,7 +104,7 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
     for (const entry of Object.values(standing)) {
       const number = view.byE164.get(entry.phone_number);
       const connection = standingBinding(view, entry.role)?.connection_id;
-      if (!number || number.connection_id !== null || !connection || detached.has(number.id)) continue;
+      if (number?.connection_id !== null || !connection || detached.has(number.id)) continue;
       await telnyx.call("PATCH", `/v2/phone_numbers/${encodeURIComponent(number.id)}`, { connection_id: connection });
       boundIds.add(number.id);
       bound += 1;
@@ -246,15 +235,19 @@ export async function handleAdmin(ctx: Ctx, request: Request, path: string): Pro
   const body = await readBody(request);
   const route = `${request.method.toUpperCase()} ${path}`;
   switch (route) {
-    case "POST /setup":
+    case "POST /setup": {
       return json(await runSetup(ctx));
-    case "POST /check":
+    }
+    case "POST /check": {
       if (!ctx.telnyx) throw new Refusal("telnyx.key_missing");
       return json(await runSafetyChecks(ctx));
-    case "POST /numbers/order-standing":
+    }
+    case "POST /numbers/order-standing": {
       return orderStanding(ctx);
-    case "POST /numbers/reattach":
+    }
+    case "POST /numbers/reattach": {
       return reattach(ctx);
+    }
     case "POST /numbers/resume-ordering": {
       const by = typeof body.by === "string" && /^[A-Za-z0-9][A-Za-z0-9-]{0,38}$/.test(body.by) ? body.by : null;
       // The reason lands in a public log, so it carries no run of digits long enough to be a number or an id.
@@ -267,7 +260,7 @@ export async function handleAdmin(ctx: Ctx, request: Request, path: string): Pro
       return json(await resumeOrdering(ctx, by, why));
     }
     case "POST /reserve": {
-      const record: ReserveRecord = { legs: count(body.legs, 1_000), measured_at: measuredAt(ctx, body.measured_at) };
+      const record: ReserveRecord = { legs: count(body.legs, 1000), measured_at: measuredAt(ctx, body.measured_at) };
       await ctx.store.put(ADMISSION_KEYS.reserve, record);
       return json(record);
     }
@@ -298,8 +291,9 @@ export async function handleAdmin(ctx: Ctx, request: Request, path: string): Pro
       await ctx.store.put(ADMISSION_KEYS.accountRate, record);
       return json(record);
     }
-    case "POST /limit-probe":
+    case "POST /limit-probe": {
       return json(await runLimitProbe(ctx));
+    }
     case "POST /window": {
       const record: WindowRecord = { start_hour: count(body.start_hour, 23), measured_at: measuredAt(ctx, body.measured_at) };
       await ctx.store.put(ADMISSION_KEYS.window, record);
@@ -311,10 +305,12 @@ export async function handleAdmin(ctx: Ctx, request: Request, path: string): Pro
       if (!month || usage === null) throw new Refusal("request.body_invalid");
       return json(await reconcile(ctx, month, usage));
     }
-    case "POST /mail/resume":
+    case "POST /mail/resume": {
       await resumeMail(ctx);
       return json({ resumed: true });
-    default:
+    }
+    default: {
       throw new Refusal("route.unknown");
+    }
   }
 }

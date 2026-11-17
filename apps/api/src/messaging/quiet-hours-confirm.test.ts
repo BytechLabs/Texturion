@@ -26,13 +26,12 @@
  */
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import { productionSources as readProductionSources } from "../test/source-tree";
 
-const API_SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+const API_SRC = join(import.meta.dirname, "..");
 
 /**
  * The column name, as it appears in source. Written once so a rename cannot
@@ -125,11 +124,7 @@ describe("#225 — the confirmation setting cannot become an automated-send lice
       "messaging/destination-clock.ts",
     ]) {
       const source = readFileSync(join(API_SRC, file), "utf8");
-      expect(
-        source.includes(COLUMN),
-        `${file} reads ${COLUMN}. That column is a human's confirmation ` +
-          `dialog, not permission to send at 3am — see this file's header`,
-      ).toBe(false);
+      expect(source).not.toContain(COLUMN);
     }
   });
 

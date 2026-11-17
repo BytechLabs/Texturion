@@ -5,17 +5,17 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Env } from "./env";
 import { decodeMedia, parseRigFrame, retryDelay } from "./uplink";
 import {
-  ORIGIN,
-  ROBOT_WEBHOOK_SECRET,
-  TOKENS,
   call,
   connectRig,
   counters,
   edgeEnv,
   fakeGuard,
   messageEvent,
+  ORIGIN,
   resetEdge,
+  ROBOT_WEBHOOK_SECRET,
   telnyxDelivery,
+  TOKENS,
   uplinkStub,
 } from "./test/support";
 
@@ -78,7 +78,7 @@ describe("the queue", () => {
     // No ack. Nothing more is sent until the backoff passes.
     await expect(rig.next((f) => f.t === "webhook", 150)).rejects.toThrow();
     await makeDue();
-    expect(await runDurableObjectAlarm(uplinkStub())).toBe(true);
+    await expect(runDurableObjectAlarm(uplinkStub())).resolves.toBe(true);
     const second = await rig.next((f) => f.t === "webhook");
     expect(second).toMatchObject({ attempt: 2 });
     expect(second.t === "webhook" && first.t === "webhook" && second.id === first.id).toBe(true);
@@ -116,7 +116,7 @@ describe("the queue", () => {
       state.storage.sql.exec("UPDATE queue SET frame = ? WHERE id = ?", JSON.stringify(frame), row.id);
     });
     const rig = await connectRig(env);
-    expect(await rig.next((f) => f.t === "webhook")).toMatchObject({ attempt: 1 });
+    await expect(rig.next((f) => f.t === "webhook")).resolves.toMatchObject({ attempt: 1 });
     expect((await uplinkStub().snapshot()).queueDepth).toBe(0);
     expect((await counters())["queue.signature_lapsed"]).toBe(1);
     rig.close();
@@ -180,7 +180,7 @@ describe("rpc", () => {
     rig.send({ t: "rpc-result", id: frame.t === "rpc" ? frame.id : "", ok: true, result: { failures: [] } });
     const response = await pending;
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ ok: true, result: { failures: [] } });
+    await expect(response.json()).resolves.toEqual({ ok: true, result: { failures: [] } });
     rig.close();
   });
 

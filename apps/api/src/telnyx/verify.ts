@@ -37,11 +37,11 @@ async function importPublicKey(base64Key: string): Promise<CryptoKey | null> {
 
   const raw = decodeBase64(base64Key);
   // Raw Ed25519 public keys are exactly 32 bytes; anything else is misconfig.
-  if (!raw || raw.length !== 32) return null;
+  if (raw?.length !== 32) return null;
   try {
     const key = await crypto.subtle.importKey(
       "raw",
-      raw as unknown as ArrayBuffer,
+      raw,
       { name: "Ed25519" },
       false,
       ["verify"],
@@ -92,8 +92,8 @@ export async function verifyTelnyxWebhook(
     valid = await crypto.subtle.verify(
       { name: "Ed25519" },
       key,
-      signature as unknown as ArrayBuffer,
-      signedPayload as unknown as ArrayBuffer,
+      signature,
+      signedPayload,
     );
   } catch {
     return null;
@@ -103,7 +103,7 @@ export async function verifyTelnyxWebhook(
   try {
     const parsed: unknown = JSON.parse(rawBody);
     if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
-      return parsed as object;
+      return parsed;
     }
     return null;
   } catch {

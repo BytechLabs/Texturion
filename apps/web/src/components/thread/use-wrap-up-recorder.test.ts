@@ -30,7 +30,7 @@ function stubMediaDevices(getUserMedia: () => Promise<MediaStream>): void {
   });
   restores.push(() => {
     if (original) Object.defineProperty(navigator, "mediaDevices", original);
-    else Reflect.deleteProperty(navigator as object, "mediaDevices");
+    else Reflect.deleteProperty(navigator, "mediaDevices");
   });
 }
 
@@ -39,7 +39,7 @@ afterEach(() => {
   while (restores.length > 0) restores.pop()?.();
 });
 
-describe("canRecordAudio", () => {
+describe(canRecordAudio, () => {
   it("is false on a browser with no MediaRecorder at all", () => {
     // happy-dom ships none, which is exactly the shape of an old Safari or a
     // locked-down embedded webview.
@@ -63,7 +63,7 @@ describe("canRecordAudio", () => {
  * remembered Block throws instantly with no prompt, so "try again" is telling
  * somebody to do the one thing that cannot work.
  */
-describe("micFailureMessage", () => {
+describe(micFailureMessage, () => {
   it("sends a blocked permission to the address bar, not to a retry", () => {
     const message = micFailureMessage(
       new DOMException("denied", "NotAllowedError"),
@@ -121,7 +121,7 @@ describe("micFailureMessage", () => {
   });
 });
 
-describe("pickWrapUpMimeType", () => {
+describe(pickWrapUpMimeType, () => {
   it("prefers WebM/Opus where it exists (Chromium, Firefox)", () => {
     expect(pickWrapUpMimeType((type) => type.startsWith("audio/webm"))).toBe(
       "audio/webm;codecs=opus",
@@ -145,7 +145,7 @@ describe("pickWrapUpMimeType", () => {
   });
 });
 
-describe("useWrapUpRecorder", () => {
+describe(useWrapUpRecorder, () => {
   const onAudio = vi.fn();
 
   it("explains an unsupported browser instead of doing nothing", async () => {

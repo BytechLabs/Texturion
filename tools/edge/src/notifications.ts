@@ -1,7 +1,9 @@
-import { type HaltCorroboration, type HaltRequest, HEADER } from "@loonext/rig-protocol";
+import { HEADER } from '@loonext/rig-protocol';
+import type { HaltCorroboration, HaltRequest } from '@loonext/rig-protocol';
 
 import { secretSegmentMatches } from "./auth";
-import { uplink, type Env } from "./env";
+import { uplink } from './env';
+import type { Env } from './env';
 import { guardCall, requestHalt } from "./guard";
 import { boundedText, empty } from "./http";
 import { sendOpsEvent } from "./posthog";
@@ -79,7 +81,7 @@ export async function parseNotice(raw: string): Promise<Notice | null> {
 }
 
 function normalise(name: string): string {
-  return name.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return name.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
 }
 
 /** Whether an event name the account lists is the one a notice names. */
@@ -98,7 +100,7 @@ export function balanceOf(body: unknown): number | null {
     (body as { data?: { balance?: unknown } } | null)?.data?.balance,
   ];
   for (const value of candidates) {
-    const n = typeof value === "number" ? value : typeof value === "string" ? Number(value) : NaN;
+    const n = typeof value === "number" ? value : (typeof value === "string" ? Number(value) : Number.NaN);
     if (Number.isFinite(n)) return n;
   }
   return null;

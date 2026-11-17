@@ -1,4 +1,5 @@
-import { LEG_REGISTRY_TTL_MS, type LegRegistration } from "@loonext/rig-protocol";
+import { LEG_REGISTRY_TTL_MS } from '@loonext/rig-protocol';
+import type { LegRegistration } from '@loonext/rig-protocol';
 
 import type { Ctx } from "../context";
 import { LIVE_LEG_HORIZON_MS } from "../limits";

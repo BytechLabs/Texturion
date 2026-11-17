@@ -6,19 +6,19 @@ import { harness, N, ruleOf } from "./support";
 describe("diag class", () => {
   it("reads only GETs, on the listed production paths", async () => {
     const h = harness();
-    expect(await ruleOf(await h.call("/diag/v2/webhook_deliveries", { caller: "diag", method: "POST", body: {} }))).toBe(
+    await expect(ruleOf(await h.call("/diag/v2/webhook_deliveries", { caller: "diag", method: "POST", body: {} }))).resolves.toBe(
       "diag.method",
     );
     for (const path of ["/v2/phone_numbers", "/v2/messages/m1", "/v2/recordings", "/v2/balance", "/v2/calls/c1"]) {
-      expect(await ruleOf(await h.call(`/diag${path}`, { caller: "diag" })), path).toBe("diag.path_refused");
+      await expect(ruleOf(await h.call(`/diag${path}`, { caller: "diag" }))).resolves.toBe("diag.path_refused");
     }
     expect(h.telnyx.log).toEqual([]);
   });
 
   it("needs a leg filter on call events and a record type on detail records", async () => {
     const h = harness();
-    expect(await ruleOf(await h.call("/diag/v2/call_events", { caller: "diag" }))).toBe("diag.filter_required");
-    expect(await ruleOf(await h.call("/diag/v2/detail_records", { caller: "diag" }))).toBe("diag.filter_required");
+    await expect(ruleOf(await h.call("/diag/v2/call_events", { caller: "diag" }))).resolves.toBe("diag.filter_required");
+    await expect(ruleOf(await h.call("/diag/v2/detail_records", { caller: "diag" }))).resolves.toBe("diag.filter_required");
     expect((await h.call("/diag/v2/call_events?filter[leg_id]=leg-1", { caller: "diag" })).status).toBe(200);
     expect((await h.call("/diag/v2/detail_records?filter[record_type]=call-control", { caller: "diag" })).status).toBe(200);
   });
@@ -52,7 +52,7 @@ describe("diag class", () => {
 
   it("fails closed without the Telnyx key", async () => {
     const h = harness({ env: { TELNYX_API_KEY: "" } });
-    expect(await ruleOf(await h.call("/diag/v2/webhook_deliveries", { caller: "diag" }))).toBe("telnyx.key_missing");
+    await expect(ruleOf(await h.call("/diag/v2/webhook_deliveries", { caller: "diag" }))).resolves.toBe("telnyx.key_missing");
   });
 });
 

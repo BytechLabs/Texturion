@@ -23,7 +23,8 @@ import { ApiError } from "../http/errors";
 import { RATE_LIMITED_SENDS_PER_HOUR, runPreSendGates } from "./send";
 import { endpoint, makeHarness } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
-import { getSendGates, type AupEnforcement } from "../telnyx/registration";
+import { getSendGates } from '../telnyx/registration';
+import type { AupEnforcement } from '../telnyx/registration';
 import { sourceFiles, sourceText, stripComments } from "../test/source-tree";
 
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
@@ -99,10 +100,10 @@ describe("#303 the AUP enforcement ladder", () => {
     // person writes after looking, not in an API error. An error that recited
     // the signals would hand a real abuser a description of the detector; one
     // that said only "forbidden" would read to a crew as a bug in the app.
-    const error = await attempt({ enforcement: "suspended" }).catch((e) => e);
+    const error = await attempt({ enforcement: "suspended" }).catch((error_) => error_);
     expect(error).toBeInstanceOf(ApiError);
 
-    const message = (error as ApiError).message;
+    const {message} = (error as ApiError);
     expect(message).toMatch(/inbox, history and number are unaffected/i);
     expect(message).toMatch(/still\s+arrive/i);
     expect(message).toMatch(/email/i);
@@ -126,7 +127,7 @@ describe("#303 the AUP enforcement ladder", () => {
     const error = await attempt({
       enforcement: "rate_limited",
       sentThisHour: RATE_LIMITED_SENDS_PER_HOUR,
-    }).catch((e) => e);
+    }).catch((error_) => error_);
     expect((error as ApiError).code).toBe("rate_limited");
     expect((error as ApiError).message).toMatch(/resets each hour/i);
   });
@@ -145,8 +146,8 @@ describe("#303 the AUP enforcement ladder", () => {
     // source rather than about one request.
     const offenders: string[] = [];
     for (const path of sourceFiles(join(process.cwd(), "src"), [".ts"])) {
-      if (/\.test\.ts$/.test(path)) continue;
-      const rel = path.replace(/\\/g, "/").split("/src/")[1];
+      if (path.endsWith('.test.ts')) continue;
+      const rel = path.replaceAll('\\', "/").split("/src/")[1];
       if (ALLOWED_TO_ENFORCE.includes(rel)) continue;
 
       const code = stripComments(sourceText(path));
@@ -156,12 +157,12 @@ describe("#303 the AUP enforcement ladder", () => {
 
     expect(
       offenders,
-      "These files write `aup_enforcement`, and they are not the enforcement " +
-        "path. If one of them is a billing or provisioning path, paying an " +
-        "invoice now lifts an abuse suspension — the exact failure " +
-        "docs/AUP-ENFORCEMENT.md warns about. Enforcement needs its own " +
-        "state, written only by the people who took the decision:\n  " +
-        offenders.join("\n  "),
+      `These files write \`aup_enforcement\`, and they are not the enforcement ` +
+        `path. If one of them is a billing or provisioning path, paying an ` +
+        `invoice now lifts an abuse suspension — the exact failure ` +
+        `docs/AUP-ENFORCEMENT.md warns about. Enforcement needs its own ` +
+        `state, written only by the people who took the decision:\n  ${ 
+        offenders.join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -181,10 +182,10 @@ describe("#303 the AUP enforcement ladder", () => {
 
     expect(
       forbidden,
-      "These are on the enforcement allowlist and must never be: an abuse " +
-        "suspension liftable by a payment webhook or a provisioning job is " +
-        "the exact failure docs/AUP-ENFORCEMENT.md warns about:\n  " +
-        forbidden.join("\n  "),
+      `These are on the enforcement allowlist and must never be: an abuse ` +
+        `suspension liftable by a payment webhook or a provisioning job is ` +
+        `the exact failure docs/AUP-ENFORCEMENT.md warns about:\n  ${ 
+        forbidden.join("\n  ")}`,
     ).toEqual([]);
   });
 

@@ -26,11 +26,8 @@
  * agreeing on the rows and disagreeing about nothing at all.
  */
 
-import {
-  roleHasCapability,
-  type Capability,
-  type MemberRole,
-} from "./capabilities";
+import { roleHasCapability } from './capabilities';
+import type { Capability, MemberRole } from './capabilities';
 
 export type { MemberRole };
 

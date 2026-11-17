@@ -35,8 +35,8 @@ export function cutNumber(digits: string): string {
 }
 
 export function redactString(value: string, numberField: boolean): string {
-  const cut = value.replace(E164_ANYWHERE, (match) => cutNumber(match));
-  return numberField ? cut.replace(DIGIT_RUN, (match) => cutNumber(match)) : cut;
+  const cut = value.replaceAll(E164_ANYWHERE, (match) => cutNumber(match));
+  return numberField ? cut.replaceAll(DIGIT_RUN, (match) => cutNumber(match)) : cut;
 }
 
 export function redact(value: unknown, key = ""): unknown {

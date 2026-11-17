@@ -1,11 +1,14 @@
-import { HEADER, type MailStatus } from "@loonext/rig-protocol";
+import { HEADER } from '@loonext/rig-protocol';
+import type { MailStatus } from '@loonext/rig-protocol';
 
 import type { AiRunner, Ctx } from "../src/context";
-import { readConfig, type Env } from "../src/env";
+import { readConfig } from '../src/env';
+import type { Env } from '../src/env';
 import { Guard } from "../src/guard";
 import { runSafetyChecks } from "../src/setup/safety";
 import { ADMISSION_KEYS } from "../src/state/admission";
-import { LIMIT_KEYS, type ValidationRecord } from "../src/state/concurrency";
+import { LIMIT_KEYS } from '../src/state/concurrency';
+import type { ValidationRecord } from '../src/state/concurrency';
 import { MemoryStore } from "../src/store";
 import { telnyxApi } from "../src/telnyx/client";
 import { KEYS } from "../src/telnyx/partition";
@@ -172,7 +175,7 @@ export function harness(options: HarnessOptions = {}): Harness {
         new Request(`https://guard.internal${path}`, {
           method,
           headers,
-          body: call.body === undefined ? undefined : typeof call.body === "string" ? call.body : JSON.stringify(call.body),
+          body: call.body === undefined ? undefined : (typeof call.body === "string" ? call.body : JSON.stringify(call.body)),
         }),
       );
     },
@@ -305,7 +308,7 @@ export async function lease(h: Harness, scenario = "S02", caller = "robot"): Pro
 export function liveMailbox(h: Harness, recent: { tag: string | null; at: number }[] = []): void {
   h.mail.status = {
     heartbeat_at: new Date(h.clock.now).toISOString(),
-    last_received_at: recent.length ? new Date(recent[0].at).toISOString() : null,
+    last_received_at: recent.length > 0 ? new Date(recent[0].at).toISOString() : null,
     received: recent.length,
     stored: recent.length,
     store_failed: 0,

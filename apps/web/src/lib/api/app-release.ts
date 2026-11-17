@@ -10,12 +10,8 @@
  * Every failure path resolves to "no policy", which every consumer treats as
  * "ask nothing". A network blip must never become an update wall.
  */
-import {
-  isOlderThan,
-  updateRequirement,
-  type AppReleasePolicy,
-  type UpdateRequirement,
-} from "@loonext/shared";
+import { isOlderThan, updateRequirement } from '@loonext/shared';
+import type { AppReleasePolicy, UpdateRequirement } from '@loonext/shared';
 import { useQuery } from "@tanstack/react-query";
 
 /** This build, injected from package.json at build time (next.config.ts). */

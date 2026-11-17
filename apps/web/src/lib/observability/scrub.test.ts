@@ -169,7 +169,7 @@ describe("#296 the campaign allow-list is the ONLY thing that survives", () => {
     // The parameter name is allow-listed; the VALUE still has to look like a
     // campaign token, so ?utm_source=<a name> does not smuggle one through.
     expect(stripQueryAndHash("/x?utm_source=Jane%20Doe")).toBe("/x");
-    expect(stripQueryAndHash("/x?utm_campaign=" + "a".repeat(200))).toBe("/x");
+    expect(stripQueryAndHash(`/x?utm_campaign=${  "a".repeat(200)}`)).toBe("/x");
   });
 
   it("drops the fragment even when a campaign key survives", () => {
@@ -269,7 +269,7 @@ describe("#558 the prefix list cannot go stale", () => {
     const found: string[] = [];
     for (const entry of readdirSync(dir, { withFileTypes: true })) {
       if (!entry.isDirectory()) continue;
-      const name = entry.name;
+      const {name} = entry;
       if (name === "[token]") {
         // The segment BEFORE [token] is what identifies the link type.
         const parent = urlPath[urlPath.length - 1];
@@ -318,7 +318,7 @@ describe("#558 the prefix list cannot go stale", () => {
       .toBeNull();
     const workerPrefixes = (declared?.[1] ?? "")
       .split(",")
-      .map((raw) => raw.trim().replace(/^"|"$/g, ""))
+      .map((raw) => raw.trim().replaceAll(/^"|"$/g, ""))
       .filter((raw) => raw !== "");
     expect(workerPrefixes).toEqual([...TOKEN_PATH_PREFIXES]);
     expect(TOKEN_REDACTED).toBe("[token]");

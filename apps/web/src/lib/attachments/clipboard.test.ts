@@ -15,7 +15,7 @@ function clip(types: string[], fileCount: number) {
   return { types, files: { length: fileCount } };
 }
 
-describe("isFilePaste", () => {
+describe(isFilePaste, () => {
   it("is true for a genuine file paste (files, no text/html)", () => {
     // A pasted screenshot: one image file, only the file flavor.
     expect(isFilePaste(clip(["Files"], 1))).toBe(true);

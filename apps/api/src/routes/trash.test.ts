@@ -18,13 +18,8 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { trashRoutes } from "./trash";
 
 const env = completeEnv();
@@ -66,7 +61,7 @@ function world(
   sb.on("DELETE", /^\/storage\/v1\/object\//, (req) => {
     options.onRemove?.(req.path);
     return options.removeFails
-      ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+      ? Response.json({ message: "boom" }, { status: 500 })
       : [];
   });
   return sb;
@@ -182,7 +177,7 @@ describe("#691 delete", () => {
       ids: [CONV_ID, other, CONV_ID],
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ deleted: [CONV_ID, other] });
+    await expect(res.json()).resolves.toEqual({ deleted: [CONV_ID, other] });
     const rpc = sb.find("POST", "/rest/v1/rpc/api_trash_conversations")[0];
     expect((rpc.body as { p_ids: string[] }).p_ids).toEqual([CONV_ID, other]);
     expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(2);
@@ -226,7 +221,7 @@ describe("#691 trash, restore, delete forever", () => {
     const sb = world("admin", { api_list_trash: () => rows });
     const res = await call(sb, "GET", "/trash");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       data: [
         {
           kind: "conversation",

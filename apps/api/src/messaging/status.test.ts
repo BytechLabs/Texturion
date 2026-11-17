@@ -9,19 +9,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../env";
-import {
-  messageReceivedEvent,
-  pgUniqueViolation,
-  restMatch,
-  stubRoute,
-  type Stub,
-} from "../test/messaging-support";
+import { messageReceivedEvent, pgUniqueViolation, restMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
 import { completeEnv, stubFetch } from "../test/support";
 import { captured, eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { handleStatusEvent } from "./status";
 import type { TelnyxEvent } from "./types";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -68,7 +63,7 @@ function finalizedEvent(overrides: {
         errors: overrides.errors ?? [],
       },
     },
-  } as TelnyxEvent;
+  };
 }
 
 function stripeMeterStub(): Stub {
@@ -96,7 +91,7 @@ describe("message.sent", () => {
     });
 
     expect(patch.calls).toHaveLength(1);
-    const url = patch.calls[0].url;
+    const {url} = patch.calls[0];
     expect(url.searchParams.get("telnyx_message_id")).toBe(`eq.${TELNYX_ID}`);
     expect(url.searchParams.get("status")).toBe("eq.queued"); // no regressions
     expect(url.searchParams.get("direction")).toBe("eq.outbound");
@@ -429,7 +424,7 @@ describe("message.finalized", () => {
   it("ignores message.received payloads routed here by mistake", async () => {
     const lookup = stubRoute(restMatch(env, "GET", "messages"), () => []);
     stubFetch(lookup.route);
-    await handleStatusEvent(env, messageReceivedEvent() as TelnyxEvent);
+    await handleStatusEvent(env, messageReceivedEvent());
     // no throw, nothing updated — dispatch guards on event_type anyway
   });
 });

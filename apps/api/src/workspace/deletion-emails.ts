@@ -77,21 +77,21 @@ function build(
   ].join("\n\n");
   const paragraph = (line: string) => `<p>${escapeHtml(line)}</p>`;
   const html = emailLayout(
-    opening.map(paragraph).join("") +
-      `<ul style="padding-left:20px;margin:16px 0;">` +
+    `${opening.map(paragraph).join("") 
+      }<ul style="padding-left:20px;margin:16px 0;">${ 
       bullets
         .map(
           (line) =>
             `<li style="margin-bottom:8px;">${escapeHtml(line)}</li>`,
         )
-        .join("") +
-      `</ul>` +
+        .join("") 
+      }</ul>${ 
       closing
         .map(
           (line) =>
             `<p style="font-size:14px;color:#6E7163;">${escapeHtml(line)}</p>`,
         )
-        .join(""),
+        .join("")}`,
   );
   return { subject, text, html };
 }
@@ -256,11 +256,11 @@ export async function sendDeletionEmail(
       html: email.html,
     });
     return { sent: true, emailId: id };
-  } catch (cause) {
+  } catch (error) {
     void captureException(
       env,
       `deletion receipt not sent (${context}): ${
-        cause instanceof Error ? cause.message : String(cause)
+        error instanceof Error ? error.message : String(error)
       }`,
       { source: "cron" },
     );
@@ -285,11 +285,11 @@ export async function lookupUserEmail(
     // `severAuthIdentity`; mailing one is guaranteed to bounce.
     if (!email || email.endsWith("@account.invalid")) return null;
     return email;
-  } catch (cause) {
+  } catch (error) {
     void captureException(
       workerEnv(),
       `deletion receipt: could not resolve an address for ${userId}: ${
-        cause instanceof Error ? cause.message : String(cause)
+        error instanceof Error ? error.message : String(error)
       }`,
       { source: "cron", level: "warning" },
     );

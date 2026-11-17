@@ -105,7 +105,7 @@ describe("WhileYouWait", () => {
     }
     // Chunking: the brain holds 3–4 items, and a settings tour is not a sense
     // of arriving somewhere.
-    expect((html.match(/<li>/g) ?? []).length).toBe(3);
+    expect((html.match(/<li>/g) ?? [])).toHaveLength(3);
   });
 
   it("never shows the state machine's vocabulary", () => {

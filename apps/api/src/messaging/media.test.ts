@@ -20,18 +20,18 @@ function b64(binary: string): string {
   return btoa(binary);
 }
 
-const JPEG = b64("\xff\xd8\xff\xe0 rest of a jpeg");
-const PNG = b64("\x89PNG\r\n\x1a\n rest of a png");
+const JPEG = b64("\u00FF\u00D8\u00FF\u00E0 rest of a jpeg");
+const PNG = b64("\u0089PNG\r\n\u001A\n rest of a png");
 const GIF = b64("GIF89a rest of a gif");
-const WEBP = b64("RIFF\x24\x00\x00\x00WEBPVP8 rest");
+const WEBP = b64("RIFF\u0024\u0000\u0000\u0000WEBPVP8 rest");
 const PDF = b64("%PDF-1.7 rest of a pdf");
-const MP3_ID3 = b64("ID3\x03\x00 rest of an mp3");
-const MP3_RAW = b64("\xff\xfb\x90\x00 raw mpeg frames");
-const OGG = b64("OggS\x00\x02 rest of an ogg");
-const WAV = b64("RIFF\x24\x00\x00\x00WAVEfmt rest");
+const MP3_ID3 = b64("ID3\u0003\u0000 rest of an mp3");
+const MP3_RAW = b64("\u00FF\u00FB\u0090\u0000 raw mpeg frames");
+const OGG = b64("OggS\u0000\u0002 rest of an ogg");
+const WAV = b64("RIFF\u0024\u0000\u0000\u0000WAVEfmt rest");
 const AMR = b64("#!AMR\n voice frames");
-const FTYP_MP4 = b64("\x00\x00\x00\x18ftypmp42 boxes");
-const FTYP_QT = b64("\x00\x00\x00\x14ftypqt   boxes");
+const FTYP_MP4 = b64("\u0000\u0000\u0000\u0018ftypmp42 boxes");
+const FTYP_QT = b64("\u0000\u0000\u0000\u0014ftypqt   boxes");
 const VCARD = b64("BEGIN:VCARD\nVERSION:3.0\nFN:Sam Rivera\nEND:VCARD");
 const VCAL = b64("BEGIN:VCALENDAR\nVERSION:2.0\nEND:VCALENDAR");
 const PLAIN = b64("Job notes: bring the 3/4 inch fittings.");
@@ -41,9 +41,9 @@ function decodeError(
 ): ApiError {
   try {
     decodeOutboundMedia(items);
-  } catch (cause) {
-    if (cause instanceof ApiError) return cause;
-    throw cause;
+  } catch (error) {
+    if (error instanceof ApiError) return error;
+    throw error;
   }
   throw new Error("decodeOutboundMedia did not throw");
 }
@@ -62,7 +62,7 @@ describe("decodeOutboundMedia — §7 shape rules", () => {
     ]);
     // The decoded bytes round-trip exactly (first item spot-checked).
     expect(Array.from(decoded[0].bytes.slice(0, 3))).toEqual([
-      0xff, 0xd8, 0xff,
+      0xFF, 0xD8, 0xFF,
     ]);
   });
 
@@ -107,7 +107,7 @@ describe("decodeOutboundMedia — §7 shape rules", () => {
     const error = decodeError([
       {
         content_type: "image/jpeg",
-        base64: b64("\xff\xd8\xff" + "x".repeat(MAX_OUTBOUND_MEDIA_BYTES)),
+        base64: b64(`\u00FF\u00D8\u00FF${  "x".repeat(MAX_OUTBOUND_MEDIA_BYTES)}`),
       },
     ]);
     expect(error.code).toBe("validation_failed");
@@ -200,7 +200,7 @@ describe("decodeOutboundMedia — #35/#189 byte sniffing", () => {
   it("rejects a renamed executable (MZ) declared as an image or audio", () => {
     for (const content_type of ["image/png", "audio/mpeg"] as const) {
       const error = decodeError([
-        { content_type, base64: b64("MZ\x90\x00 pe payload") },
+        { content_type, base64: b64("MZ\u0090\u0000 pe payload") },
       ]);
       expect(error.code).toBe("validation_failed");
     }

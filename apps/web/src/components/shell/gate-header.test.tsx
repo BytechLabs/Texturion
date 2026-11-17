@@ -71,7 +71,7 @@ beforeEach(() => {
   vi.mocked(writeCompanyCookie).mockClear();
 });
 
-describe("GateEscape", () => {
+describe(GateEscape, () => {
   it("offers the workspace switcher and sign out to a multi-workspace member", () => {
     state.cookie = "co-b";
     const markup = renderToStaticMarkup(<GateEscape />);
@@ -109,7 +109,7 @@ describe("GateEscape", () => {
   });
 });
 
-describe("switchWorkspaceFromGate", () => {
+describe(switchWorkspaceFromGate, () => {
   it("persists via the in-app switcher's cookie writer and lets CompanyProvider route the landing", () => {
     const push = vi.fn();
     switchWorkspaceFromGate("co-b", "co-a", { push });
@@ -127,7 +127,7 @@ describe("switchWorkspaceFromGate", () => {
   });
 });
 
-describe("GateHeader", () => {
+describe(GateHeader, () => {
   it("is one hairline bar: wordmark plus the escape cluster, no nav", () => {
     state.cookie = "co-a";
     const markup = renderToStaticMarkup(<GateHeader />);

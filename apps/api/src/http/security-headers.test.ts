@@ -77,7 +77,7 @@ describe("what every API response now carries", () => {
 
     expect(hsts).toContain("includeSubDomains");
     expect(Number(/max-age=(\d+)/.exec(hsts ?? "")?.[1] ?? 0)).toBeGreaterThanOrEqual(
-      31536000,
+      31_536_000,
     );
     expect(hsts, "we are not on the preload list; do not assert eligibility").not.toContain(
       "preload",
@@ -152,7 +152,7 @@ describe("the layer is actually mounted", () => {
     const index = readFileSync(
       join(import.meta.dirname, "..", "index.ts"),
       "utf8",
-    ).replace(/\r\n/g, "\n");
+    ).replaceAll('\r\n', "\n");
 
     expect(index).toContain('app.use("*", securityHeaders());');
     // Before the routes, or it wraps nothing that matters.
@@ -172,7 +172,7 @@ describe("the layer is actually mounted", () => {
     const index = readFileSync(
       join(import.meta.dirname, "..", "index.ts"),
       "utf8",
-    ).replace(/\r\n/g, "\n");
+    ).replaceAll('\r\n', "\n");
     const scope = /app\.use\((["'])(.+?)\1,\s*securityHeaders\(\)\)/.exec(index);
     expect(scope?.[2], "a narrower scope leaves /health and /webhooks bare").toBe("*");
   });

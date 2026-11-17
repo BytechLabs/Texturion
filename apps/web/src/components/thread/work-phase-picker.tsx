@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  WORK_PHASES,
-  WORK_PHASE_HINT,
-  WORK_PHASE_LABELS,
-  type WorkPhase,
-} from "@loonext/shared";
+import { WORK_PHASE_HINT, WORK_PHASE_LABELS, WORK_PHASES } from '@loonext/shared';
+import type { WorkPhase } from '@loonext/shared';
 
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";

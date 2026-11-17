@@ -24,7 +24,7 @@ function github() {
     const method = init?.method ?? "GET";
     const auth = new Headers(init?.headers).get("authorization") ?? undefined;
     calls.push({ method, url, auth, body: init?.body ? JSON.parse(String(init.body)) : undefined });
-    const ok = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status });
+    const ok = (value: unknown, status = 200) => Response.json(value, { status });
     if (url.endsWith("/repos/BytechLabs/Texturion/installation")) return ok({ id: 77 });
     if (url.endsWith("/app/installations/77/access_tokens")) return ok({ token: "ghs_installation_token" }, 201);
     return ok({});
@@ -46,7 +46,7 @@ describe("the GitHub App", () => {
 
   it("mints an installation token scoped to the one repository and the permissions asked for", async () => {
     const { fetch, calls } = github();
-    expect(await installationToken(APP, { fetch, permissions: { actions: "read" } })).toBe("ghs_installation_token");
+    await expect(installationToken(APP, { fetch, permissions: { actions: "read" } })).resolves.toBe("ghs_installation_token");
     expect(calls[0]!.auth).toMatch(/^Bearer ey/);
     expect(calls[1]).toMatchObject({ method: "POST", body: { repositories: ["Texturion"], permissions: { actions: "read" } } });
   });
@@ -70,19 +70,19 @@ describe("the triage rpc methods", () => {
 
   it("lists unresolved failures", async () => {
     const { handlers } = methods();
-    expect(await handlers["triage.unresolved"]!({})).toEqual(unresolved);
+    await expect(handlers["triage.unresolved"]!({})).resolves.toEqual(unresolved);
   });
 
   it("re-runs only what the rig itself reports as unresolved", async () => {
     const { handlers, runs } = methods();
     await expect(handlers["triage.rerun"]!({ scenario: "S01" })).rejects.toThrow(/no unresolved failure/);
-    expect(await handlers["triage.rerun"]!({ scenario: "S02" })).toEqual({ started: true, scenario: "S02", run_id: "S02-20261031050000-abc123" });
+    await expect(handlers["triage.rerun"]!({ scenario: "S02" })).resolves.toEqual({ started: true, scenario: "S02", run_id: "S02-20261031050000-abc123" });
     expect(runs).toEqual(["S02"]);
   });
 
   it("validates evidence ids", async () => {
     const { handlers } = methods();
     await expect(handlers["triage.evidence"]!({ run_id: "../../etc" })).rejects.toThrow(/run_id/);
-    expect(await handlers["triage.evidence"]!({ run_id: "S02-20261031-abc" })).toMatchObject({ verdicts: [{ run_id: "S02-20261031-abc" }] });
+    await expect(handlers["triage.evidence"]!({ run_id: "S02-20261031-abc" })).resolves.toMatchObject({ verdicts: [{ run_id: "S02-20261031-abc" }] });
   });
 });

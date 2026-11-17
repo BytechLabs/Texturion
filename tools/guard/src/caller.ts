@@ -1,11 +1,5 @@
-import {
-  CALLER_CLASSES,
-  EDGE_CALLER,
-  EDGE_ONLY_ROUTES,
-  GUARD_ROUTES,
-  type CallerClass,
-  type EdgeCaller,
-} from "@loonext/rig-protocol";
+import { CALLER_CLASSES, EDGE_CALLER, EDGE_ONLY_ROUTES, GUARD_ROUTES } from '@loonext/rig-protocol';
+import type { CallerClass, EdgeCaller } from '@loonext/rig-protocol';
 
 export type GuardCaller = CallerClass | EdgeCaller;
 

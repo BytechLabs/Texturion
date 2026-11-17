@@ -1,6 +1,6 @@
 import type { Env } from "../env";
 
-import { telnyxRequest, TelnyxApiError } from "./client";
+import { TelnyxApiError, telnyxRequest } from "./client";
 
 /**
  * Telnyx available-number inventory search for the customer-facing number

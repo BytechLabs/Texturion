@@ -27,10 +27,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { loadConnectAccountByStripeId, saveConnectMirror } from "../billing/connect";
-import { getStripe, type Stripe } from "../billing/stripe";
+import { getStripe } from '../billing/stripe';
+import type { Stripe } from '../billing/stripe';
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { notifyPayment, type PaymentOutcome } from "../notifications/payment";
+import { notifyPayment } from '../notifications/payment';
+import type { PaymentOutcome } from '../notifications/payment';
 import { insertConversationEvents } from "../routes/core/events";
 
 /**

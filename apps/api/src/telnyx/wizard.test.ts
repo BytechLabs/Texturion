@@ -1,13 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  buildCampaignContent,
-  buildCampaignContentUpdate,
-  buildReviewSample,
-  REVIEW_SAMPLE_LINK,
-  TCR_UPDATE_SAMPLE_MAX_LENGTH,
-  type CampaignDraft,
-} from "./wizard";
+import { buildCampaignContent, buildCampaignContentUpdate, buildReviewSample, REVIEW_SAMPLE_LINK, TCR_UPDATE_SAMPLE_MAX_LENGTH } from './wizard';
+import type { CampaignDraft } from './wizard';
 
 /**
  * The campaign content builders' Telnyx-schema guarantees. The create path
@@ -27,12 +21,12 @@ const DRAFT: CampaignDraft = {
     "Your appointment is confirmed for tomorrow at 9am. Reply STOP to opt out.",
 };
 
-describe("buildReviewSample", () => {
+describe(buildReviewSample, () => {
   it("embeds the business name and the review deep link", () => {
     const sample = buildReviewSample("Acme Plumbing");
     expect(sample).toBe(
-      "Thanks for choosing Acme Plumbing! A quick Google review means a lot: " +
-        REVIEW_SAMPLE_LINK,
+      `Thanks for choosing Acme Plumbing! A quick Google review means a lot: ${ 
+        REVIEW_SAMPLE_LINK}`,
     );
     expect(sample.length).toBeLessThanOrEqual(TCR_UPDATE_SAMPLE_MAX_LENGTH);
   });
@@ -57,7 +51,7 @@ describe("buildCampaignContentUpdate — UpdateCampaignRequest-safe block", () =
       campaign: DRAFT,
       businessName: "Acme Plumbing",
     });
-    expect(Object.keys(body).sort()).toEqual(["sample1", "sample2", "sample3"]);
+    expect(Object.keys(body).toSorted()).toEqual(["sample1", "sample2", "sample3"]);
     expect(body.sample1).toBe(DRAFT.sample1);
     expect(body.sample2).toBe(DRAFT.sample2);
     expect(body.sample3).toBe(buildReviewSample("Acme Plumbing"));
@@ -70,8 +64,8 @@ describe("buildCampaignContentUpdate — UpdateCampaignRequest-safe block", () =
       businessName: "Acme Plumbing",
     }) as Record<string, string>;
     expect(body.sample1).toBe(long.slice(0, TCR_UPDATE_SAMPLE_MAX_LENGTH));
-    expect(body.sample1.length).toBe(TCR_UPDATE_SAMPLE_MAX_LENGTH);
-    expect(body.sample2.length).toBe(TCR_UPDATE_SAMPLE_MAX_LENGTH);
+    expect(body.sample1).toHaveLength(TCR_UPDATE_SAMPLE_MAX_LENGTH);
+    expect(body.sample2).toHaveLength(TCR_UPDATE_SAMPLE_MAX_LENGTH);
     expect(body.sample3.length).toBeLessThanOrEqual(
       TCR_UPDATE_SAMPLE_MAX_LENGTH,
     );

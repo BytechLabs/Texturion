@@ -7,7 +7,8 @@ import { LegalRichText } from "@/components/marketing/legal/legal-rich-text";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { legalDeleteMyDataCopy } from "@/i18n/marketing/legal-delete-my-data";
 import { PRIVACY_EMAIL } from "@/lib/marketing/business";
-import { DELETION_GAPS, type DeletionGap } from "@loonext/shared";
+import { DELETION_GAPS } from '@loonext/shared';
+import type { DeletionGap } from '@loonext/shared';
 
 const EN_PATH = "/legal/delete-my-data";
 const FR_PATH = "/fr/supprimer-mes-donnees";

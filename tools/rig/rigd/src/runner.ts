@@ -10,11 +10,15 @@
  */
 import { randomBytes } from "node:crypto";
 import { LEASE_MAX_MS } from "@loonext/rig-protocol";
-import { GuardRefusedError, type Clock } from "@loonext/rig-robot";
-import { blockedByRoom, clockHourStart, dialsInLog, inWindow, utcDayStart, type DialCaps, type DialWindow } from "./budget.ts";
+import { GuardRefusedError } from '@loonext/rig-robot';
+import type { Clock } from '@loonext/rig-robot';
+import { blockedByRoom, clockHourStart, dialsInLog, inWindow, utcDayStart } from './budget.ts';
+import type { DialCaps, DialWindow } from './budget.ts';
 import { textHash } from "./late.ts";
-import { LeaseBusyError, LeaseReapedError, type Lease, type LeaseClient, type ReleaseResult } from "./lease.ts";
-import { dialsPerRun, type RegisteredScenario, type Registry, type RunSlot } from "./registry.ts";
+import { LeaseBusyError, LeaseReapedError } from './lease.ts';
+import type { Lease, LeaseClient, ReleaseResult } from './lease.ts';
+import { dialsPerRun } from './registry.ts';
+import type { RegisteredScenario, Registry, RunSlot } from './registry.ts';
 import type {
   BrowserApi,
   DevicesApi,
@@ -26,7 +30,8 @@ import type {
   ScenarioResult,
   ScenarioRunner,
 } from "./scenarios/context.ts";
-import { infraFingerprint, syntheticFingerprint, type PostHogErrors, type ReportDecision } from "./posthog-errors.ts";
+import { infraFingerprint, syntheticFingerprint } from './posthog-errors.ts';
+import type { PostHogErrors, ReportDecision } from './posthog-errors.ts';
 import type { Outcome, Verdict, VerdictStore } from "./verdicts.ts";
 
 /** A paid run must be able to finish before the window shuts. */
@@ -109,7 +114,7 @@ export interface RunSummary {
 const RUN_ID = /^[A-Za-z0-9_-]{1,80}$/;
 
 export function newRunId(scenario: string, at: number): string {
-  return `${scenario}-${new Date(at).toISOString().replace(/[-:.TZ]/g, "").slice(0, 14)}-${randomBytes(3).toString("hex")}`;
+  return `${scenario}-${new Date(at).toISOString().replaceAll(/[-:.TZ]/g, "").slice(0, 14)}-${randomBytes(3).toString("hex")}`;
 }
 
 export async function runScenario(deps: RunnerDeps, id: string, options: RunOptions = {}): Promise<RunSummary> {
@@ -403,9 +408,9 @@ async function attemptHeld(
   const ctx: ScenarioContext = {
     ...base,
     lease,
-    browser: dialsOnPages(lanes.browser, () => placed.byApp++),
+    browser: dialsOnPages(lanes.browser, () => placed.byApp += 1),
     guard: lanes.guard,
-    devices: dialsOnDevices(lanes.devices, () => placed.byApp++),
+    devices: dialsOnDevices(lanes.devices, () => placed.byApp += 1),
     rig: lanes.rig,
     mail: lanes.mail,
     stripe: lanes.stripe,
@@ -413,7 +418,7 @@ async function attemptHeld(
     robot: noting(
       noting(lanes.robot, "sms", (message: { text: string }) => texts.add(textHash(message.text))),
       "dial",
-      () => placed.byRobot++,
+      () => placed.byRobot += 1,
     ),
     app: noting(lanes.app, "sendText", (args: { body: string }) => texts.add(textHash(args.body))),
   };
@@ -576,7 +581,7 @@ function historyOf(deps: RunnerDeps, scenario: string): ScenarioHistoryApi {
       return deps.verdicts
         .all()
         .filter((v) => v.scenario === scenario && Date.parse(v.finished_at) >= since)
-        .reverse()
+        .toReversed()
         .map((v) => ({
           run_id: v.run_id,
           attempt: v.attempt,

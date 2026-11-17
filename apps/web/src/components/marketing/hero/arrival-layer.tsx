@@ -48,11 +48,7 @@ export function ArrivalLayer() {
     let io: IntersectionObserver | null = null;
     let idleId: number | undefined;
     let idleTimeout: number | undefined;
-    const w = window as Window &
-      typeof globalThis & {
-        requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-        cancelIdleCallback?: (id: number) => void;
-      };
+    const w = window;
 
     const cancelGate = afterLcpAndLoad(() => {
       const armObserver = () => {

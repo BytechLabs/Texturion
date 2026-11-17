@@ -1,19 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  CONSENT_CHANGE_EVENT,
-  CONSENT_COOKIE,
-  CONSENT_MAX_AGE_SECONDS,
-  consentCookieString,
-  consentSignals,
-  isConsentChoice,
-  pushConsentUpdate,
-  readStoredConsent,
-  saveConsentChoice,
-  type ConsentWindow,
-} from "./consent";
+import { CONSENT_CHANGE_EVENT, CONSENT_COOKIE, CONSENT_MAX_AGE_SECONDS, consentCookieString, consentSignals, isConsentChoice, pushConsentUpdate, readStoredConsent, saveConsentChoice } from './consent';
+import type { ConsentWindow } from './consent';
 
-describe("isConsentChoice", () => {
+describe(isConsentChoice, () => {
   it("accepts exactly the two choices", () => {
     expect(isConsentChoice("granted")).toBe(true);
     expect(isConsentChoice("denied")).toBe(true);
@@ -31,6 +21,7 @@ describe("readStoredConsent (#124)", () => {
     ).toBe("granted");
     expect(readStoredConsent(`${CONSENT_COOKIE}=denied`)).toBe("denied");
   });
+
   it("returns null when nothing valid is stored", () => {
     expect(readStoredConsent("")).toBeNull();
     expect(readStoredConsent(null)).toBeNull();
@@ -39,6 +30,7 @@ describe("readStoredConsent (#124)", () => {
     expect(readStoredConsent(`${CONSENT_COOKIE}=maybe`)).toBeNull();
     expect(readStoredConsent(`${CONSENT_COOKIE}=`)).toBeNull();
   });
+
   it("never matches a foreign cookie whose name merely contains ours", () => {
     // The "." in the name must not act as a regex wildcard, and a prefixed
     // name (xloonext.consent) must not satisfy the boundary.
@@ -57,9 +49,11 @@ describe("consentCookieString (#124)", () => {
     expect(cookie).not.toContain("Domain");
     expect(cookie).not.toContain("Secure");
   });
+
   it("adds Secure only on https (localhost previews still persist)", () => {
     expect(consentCookieString("denied", true)).toContain("; Secure");
   });
+
   it("round-trips through readStoredConsent", () => {
     // A document.cookie READ returns only "name=value" pairs.
     expect(readStoredConsent(`${CONSENT_COOKIE}=denied`)).toBe("denied");
@@ -76,6 +70,7 @@ describe("consentSignals (#124)", () => {
       security_storage: "granted",
     });
   });
+
   it("keeps security_storage granted even when everything else is denied", () => {
     const denied = consentSignals("denied");
     expect(denied.ad_storage).toBe("denied");
@@ -129,6 +124,7 @@ describe("saveConsentChoice (#124)", () => {
     expect(win.events).toHaveLength(1);
     expect(win.events[0].type).toBe(CONSENT_CHANGE_EVENT);
   });
+
   it("appends to an existing dataLayer instead of replacing it", () => {
     const win = fakeWindow("http:");
     win.dataLayer = [{ existing: true }];
@@ -136,6 +132,7 @@ describe("saveConsentChoice (#124)", () => {
     expect(win.dataLayer).toHaveLength(2);
     expect(win.document.cookie).not.toContain("Secure");
   });
+
   it("still updates the dataLayer when the cookie write throws", () => {
     const win = fakeWindow("https:");
     Object.defineProperty(win.document, "cookie", {

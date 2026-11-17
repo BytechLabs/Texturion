@@ -14,8 +14,10 @@ import { ABUSE_DAILY_CAP, CONTACT_DAILY_CAP, CONTACT_INBOX, contactRoutes } from
 import type { AppEnv } from "../context";
 import type { Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 
 const IP = "203.0.113.7";
 
@@ -77,7 +79,7 @@ function buildWorld(
     resendCalls.push((await request.clone().json()) as Record<string, unknown>);
     const status = options.resendStatuses?.[index] ?? 200;
     return status >= 400
-      ? new Response(JSON.stringify({ message: "boom" }), { status })
+      ? Response.json({ message: "boom" }, { status })
       : Response.json({ id: `email_${index + 1}` });
   };
 
@@ -130,7 +132,7 @@ describe("POST /contact — happy path", () => {
 
     const res = await post(buildApp(), env, validBody());
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ ok: true });
+    await expect(res.json()).resolves.toEqual({ ok: true });
 
     // Guarded claim carried the full submission + the cap + the caller IP.
     const claims = world.sb.find(
@@ -242,7 +244,7 @@ describe("POST /contact — validation", () => {
 
     const res = await post(buildApp(), env, body);
     expect(res.status).toBe(422);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "validation_failed", message: expect.any(String) },
     });
     expect(world.sb.calls).toHaveLength(0);
@@ -261,7 +263,7 @@ describe("POST /contact — abuse layers", () => {
       website: "https://spam.example",
     });
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ ok: true });
+    await expect(res.json()).resolves.toEqual({ ok: true });
     expect(world.sb.calls).toHaveLength(0);
     expect(world.resend.calls).toHaveLength(0);
   });
@@ -284,7 +286,7 @@ describe("POST /contact — abuse layers", () => {
 
     const res = await post(buildApp(), env, validBody());
     expect(res.status).toBe(429);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "rate_limited", message: expect.any(String) },
     });
     expect(limit).toHaveBeenCalledExactlyOnceWith({ key: `contact:${IP}` });
@@ -310,7 +312,7 @@ describe("POST /contact — abuse layers", () => {
 
     const res = await post(buildApp(), env, validBody());
     expect(res.status).toBe(429);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "rate_limited", message: expect.stringContaining(CONTACT_INBOX) },
     });
     expect(world.resend.calls).toHaveLength(0);
@@ -350,7 +352,7 @@ describe("POST /contact — Turnstile (only when TURNSTILE_SECRET_KEY is set)", 
       turnstileToken: "tok_bot",
     });
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "forbidden", message: expect.any(String) },
     });
     expect(world.sb.calls).toHaveLength(0);

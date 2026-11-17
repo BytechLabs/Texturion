@@ -10,8 +10,8 @@ import { describe, expect, it } from "vitest";
 import { UNIT_COST_CENTS } from "./costs";
 import {
   DIAL_STOP_MULTIPLE,
-  PLAN_VOICE_MINUTES,
   dialCeilings,
+  PLAN_VOICE_MINUTES,
 } from "./plans";
 
 describe("the dial ceilings are derived, not invented", () => {

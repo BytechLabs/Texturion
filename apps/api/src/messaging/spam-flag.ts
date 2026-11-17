@@ -185,11 +185,11 @@ export async function classifyInbound(
     });
 
     return { blocked: false, suspected: true };
-  } catch (cause) {
+  } catch (error) {
     // Never wedge a durable inbound message over a badge.
     console.error(
       `spam classification for conversation ${args.conversationId} failed:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
     return NOT_SPAM;
   }

@@ -97,7 +97,7 @@ export function auditDiff(
   after: AuditFields,
   options: AuditDiffOptions = {},
 ): AuditDelta | null {
-  const textKeys = new Set(options.textKeys ?? []);
+  const textKeys = new Set(options.textKeys);
   const only = options.only ? new Set(options.only) : null;
   const beforeOut: AuditFields = {};
   const afterOut: AuditFields = {};

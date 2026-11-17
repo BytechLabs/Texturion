@@ -1,7 +1,8 @@
 /** The guard's version attestation against stub Cloudflare and GitHub servers. */
 import { generateKeyPairSync } from "node:crypto";
 import { mkdtempSync, readFileSync, rmSync } from "node:fs";
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -78,6 +79,7 @@ const toStubs: typeof fetch = (input, init) => {
 beforeAll(async () => {
   [cloudflare, github] = await Promise.all([stubServer(), stubServer()]);
 });
+
 afterAll(async () => {
   await Promise.all([cloudflare, github].map((stub) => stub.close()));
 });
@@ -135,7 +137,7 @@ const runningNow = (run: RunSpec) => attemptsOf(run).some((step) => step?.status
 function serve(live: Record<string, unknown> | null, runs: RunSpec[], replaced: Record<string, unknown>[] = [YESTERDAY]): void {
   cloudflare.answer = (request) => {
     if (request.path !== `/client/v4/accounts/${ACCOUNT}/workers/scripts/${GUARD_SCRIPT}/deployments`) return undefined;
-    if (request.authorization !== `Bearer ${ATTEST_TOKEN}`) return { status: 403, body: { success: false, errors: [{ code: 10000 }] } };
+    if (request.authorization !== `Bearer ${ATTEST_TOKEN}`) return { status: 403, body: { success: false, errors: [{ code: 10_000 }] } };
     return { status: 200, body: { success: true, errors: [], result: { deployments: live ? [live, ...replaced] : [] } } };
   };
   github.answer = (request) => {
@@ -152,7 +154,7 @@ function serve(live: Record<string, unknown> | null, runs: RunSpec[], replaced: 
       const event = url.searchParams.get("event");
       const listed = runs
         .filter((run) => run.event === event)
-        .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
+        .toSorted((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))
         .map((run) => ({
           id: run.id,
           head_sha: run.sha,
@@ -230,7 +232,7 @@ const attest = (store = storeWith()) => attestGuard({ store, repo: REPO, fetch: 
 describe("the guard's version attestation", () => {
   it("matches the live deployment guard.yml made from main, during its Deploy step", async () => {
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z"), HISTORY);
-    expect(await attest()).toEqual({ outcome: "match", sha: SHA_OLD, deployment_id: "dep-live-0001", run_id: 101, secret_changes: 0 });
+    await expect(attest()).resolves.toEqual({ outcome: "match", sha: SHA_OLD, deployment_id: "dep-live-0001", run_id: 101, secret_changes: 0 });
     // Only pushes and dispatches are listed; a scheduled run never deploys.
     expect(github.seen.filter((request) => request.path.includes("/runs?")).map((request) => new URL(request.path, "http://x").searchParams.get("event"))).toEqual([
       "push",
@@ -254,11 +256,11 @@ describe("the guard's version attestation", () => {
       deploy: { status: "completed", conclusion: "failure", started_at: "2026-10-31T10:01:00Z", completed_at: "2026-10-31T10:02:00Z" },
     };
     serve(deployed(SHA_NEW, "2026-10-31T11:58:00.000Z"), [...HISTORY, running, failed]);
-    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_NEW, run_id: 104 });
+    await expect(attest()).resolves.toMatchObject({ outcome: "match", sha: SHA_NEW, run_id: 104 });
     serve(deployed(SHA_OTHER, "2026-10-31T10:01:40.000Z"), [...HISTORY, running, failed]);
-    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_OTHER, run_id: 103 });
+    await expect(attest()).resolves.toMatchObject({ outcome: "match", sha: SHA_OTHER, run_id: 103 });
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z"), [...HISTORY, running, failed]);
-    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_OLD, run_id: 101 });
+    await expect(attest()).resolves.toMatchObject({ outcome: "match", sha: SHA_OLD, run_id: 101 });
   });
 
   it("counts a Deploy step cancelled part way, and never one the job skipped", async () => {
@@ -270,12 +272,12 @@ describe("the guard's version attestation", () => {
       deploy: { status: "completed", conclusion: "cancelled", started_at: "2026-10-31T10:01:00Z", completed_at: "2026-10-31T10:01:40Z" },
     };
     serve(deployed(SHA_NEW, "2026-10-31T10:01:30.000Z"), [...HISTORY, cancelled]);
-    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_NEW, run_id: 103 });
+    await expect(attest()).resolves.toMatchObject({ outcome: "match", sha: SHA_NEW, run_id: 103 });
 
     // Its policy tests failed, so the job skipped the step: nothing deployed it.
     const skipped: RunSpec = { id: 105, sha: SHA_OTHER, event: "push", created_at: "2026-10-31T11:00:00.000Z", deploy: null };
     serve(deployed(SHA_OTHER, "2026-10-31T11:00:30.000Z"), [...HISTORY, skipped]);
-    expect(await attest()).toMatchObject({ outcome: "mismatch", expected: [SHA_OLD] });
+    await expect(attest()).resolves.toMatchObject({ outcome: "mismatch", expected: [SHA_OLD] });
   });
 
   it("orders a re-run by when its Deploy step ran, so re-running an older run rolls back", async () => {
@@ -291,17 +293,17 @@ describe("the guard's version attestation", () => {
       reruns: [{ status: "completed", conclusion: "success", started_at: "2026-10-31T11:00:00Z", completed_at: "2026-10-31T11:01:30Z" }],
     };
     serve(deployed(SHA_OLD, "2026-10-31T11:01:00.000Z"), [rollback, HISTORY[1]!, newer]);
-    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_OLD, run_id: 101 });
+    await expect(attest()).resolves.toMatchObject({ outcome: "match", sha: SHA_OLD, run_id: 101 });
     // What run 103 deployed before the rollback is not the last deployment from main any more.
     serve(deployed(SHA_NEW, "2026-10-31T10:01:40.000Z"), [rollback, HISTORY[1]!, newer]);
-    expect(await attest()).toMatchObject({ outcome: "mismatch", expected: [SHA_OLD] });
+    await expect(attest()).resolves.toMatchObject({ outcome: "mismatch", expected: [SHA_OLD] });
 
     // A re-run whose Deploy step was skipped rolled nothing back.
     const retested: RunSpec = { ...HISTORY[0]!, reruns: [null], updated_at: "2026-10-31T11:01:00Z" };
     serve(deployed(SHA_NEW, "2026-10-31T10:01:40.000Z"), [retested, HISTORY[1]!, newer]);
-    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_NEW, run_id: 103 });
+    await expect(attest()).resolves.toMatchObject({ outcome: "match", sha: SHA_NEW, run_id: 103 });
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z"), [retested, HISTORY[1]!, newer]);
-    expect(await attest()).toMatchObject({ outcome: "mismatch", expected: [SHA_NEW] });
+    await expect(attest()).resolves.toMatchObject({ outcome: "mismatch", expected: [SHA_NEW] });
 
     // A re-run still deploying is read whenever GitHub last updated its run.
     const deploying: RunSpec = {
@@ -309,7 +311,7 @@ describe("the guard's version attestation", () => {
       reruns: [{ status: "in_progress", conclusion: null, started_at: "2026-10-31T11:56:00Z", completed_at: null }],
     };
     serve(deployed(SHA_OLD, "2026-10-31T11:57:00.000Z"), [deploying, HISTORY[1]!, newer]);
-    expect(await attest()).toMatchObject({ outcome: "match", sha: SHA_OLD, run_id: 101 });
+    await expect(attest()).resolves.toMatchObject({ outcome: "match", sha: SHA_OLD, run_id: 101 });
   });
 
   it("allows two minutes either side of the Deploy step for the two clocks, and no more", async () => {
@@ -327,7 +329,7 @@ describe("the guard's version attestation", () => {
 
   it("is a mismatch for a commit guard.yml did not deploy, a deployment made outside its step, another message, or a split", async () => {
     serve(deployed(SHA_OTHER, "2026-10-31T09:01:05.000Z"), HISTORY);
-    expect(await attest()).toEqual({
+    await expect(attest()).resolves.toEqual({
       outcome: "mismatch",
       reason: `the live deployment names ${SHA_OTHER.slice(0, 12)}, but guard.yml last deployed ${SHA_OLD.slice(0, 12)} from main`,
       deployment_id: "dep-live-0001",
@@ -336,17 +338,17 @@ describe("the guard's version attestation", () => {
 
     // The right message on a deployment made hours after the step: a redeploy by some other hand.
     serve(deployed(SHA_OLD, "2026-10-31T11:30:00.000Z"), HISTORY);
-    expect(await attest()).toMatchObject({ outcome: "mismatch", reason: expect.stringMatching(/Cloudflare made it at 2026-10-31T11:30:00\.000Z, while no Deploy step/) });
+    await expect(attest()).resolves.toMatchObject({ outcome: "mismatch", reason: expect.stringMatching(/Cloudflare made it at 2026-10-31T11:30:00\.000Z, while no Deploy step/) });
 
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z", { annotations: { "workers/triggered_by": "rollback" } }), HISTORY);
-    expect(await attest()).toMatchObject({ outcome: "mismatch", reason: 'the live deployment dep-live-0001 was not made by guard.yml: its message is ""' });
+    await expect(attest()).resolves.toMatchObject({ outcome: "mismatch", reason: 'the live deployment dep-live-0001 was not made by guard.yml: its message is ""' });
 
     const split = [
       { version_id: "ver-0001", percentage: 90 },
       { version_id: "ver-0002", percentage: 10 },
     ];
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z", { versions: split }), HISTORY);
-    expect(await attest()).toMatchObject({ outcome: "mismatch", reason: expect.stringMatching(/splits traffic across 2 version/) });
+    await expect(attest()).resolves.toMatchObject({ outcome: "mismatch", reason: expect.stringMatching(/splits traffic across 2 version/) });
   });
 
   it("reads through the secret changes the founder's key pastes deploy, to the deployment under them", async () => {
@@ -356,14 +358,14 @@ describe("the guard's version attestation", () => {
       guardYml,
       YESTERDAY,
     ]);
-    expect(await attest()).toEqual({ outcome: "match", sha: SHA_OLD, deployment_id: "dep-secret-0002", run_id: 101, secret_changes: 2 });
+    await expect(attest()).resolves.toEqual({ outcome: "match", sha: SHA_OLD, deployment_id: "dep-secret-0002", run_id: 101, secret_changes: 2 });
 
     // What is under a secret change is held to the same rule as a live deployment.
     serve(secretChange("dep-secret-0001", "2026-10-31T11:45:00.000Z"), HISTORY, [
       deployed(SHA_OLD, "2026-10-31T11:30:00.000Z", { id: "dep-by-hand" }),
       guardYml,
     ]);
-    expect(await attest()).toMatchObject({
+    await expect(attest()).resolves.toMatchObject({
       outcome: "mismatch",
       deployment_id: "dep-by-hand",
       reason: expect.stringMatching(/^the deployment under the live secret change names 111111111111, but Cloudflare made it at 2026-10-31T11:30/),
@@ -373,39 +375,39 @@ describe("the guard's version attestation", () => {
     serve(secretChange("dep-secret-0001", "2026-10-31T11:45:00.000Z", { versions: [{ version_id: "a", percentage: 50 }, { version_id: "b", percentage: 50 }] }), HISTORY, [
       guardYml,
     ]);
-    expect(await attest()).toMatchObject({ outcome: "mismatch", reason: expect.stringMatching(/^the live deployment dep-secret-0001 splits traffic/) });
+    await expect(attest()).resolves.toMatchObject({ outcome: "mismatch", reason: expect.stringMatching(/^the live deployment dep-secret-0001 splits traffic/) });
 
     serve(secretChange("dep-secret-0001", "2026-10-31T11:45:00.000Z"), HISTORY, []);
-    expect(await attest()).toEqual({ outcome: "infra", reason: `Cloudflare lists only secret changes of ${GUARD_SCRIPT}, not the deployment under them` });
+    await expect(attest()).resolves.toEqual({ outcome: "infra", reason: `Cloudflare lists only secret changes of ${GUARD_SCRIPT}, not the deployment under them` });
   });
 
   it("calls a side it cannot read an infrastructure fault, never a pass", async () => {
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z"), HISTORY);
     const cloudflareDown = cloudflare.answer;
-    cloudflare.answer = () => ({ status: 403, body: { success: false, errors: [{ code: 10000 }] } });
-    expect(await attest()).toEqual({ outcome: "infra", reason: "Cloudflare's deployments API answered 403 (error 10000)" });
+    cloudflare.answer = () => ({ status: 403, body: { success: false, errors: [{ code: 10_000 }] } });
+    await expect(attest()).resolves.toEqual({ outcome: "infra", reason: "Cloudflare's deployments API answered 403 (error 10000)" });
 
     cloudflare.answer = cloudflareDown;
     const githubUp = github.answer;
     github.answer = (request) => (request.path.includes("/jobs") ? { status: 502, body: {} } : githubUp(request));
-    expect(await attest()).toEqual({ outcome: "infra", reason: "GitHub answered 502 for /actions/runs/101/jobs" });
+    await expect(attest()).resolves.toEqual({ outcome: "infra", reason: "GitHub answered 502 for /actions/runs/101/jobs" });
 
     github.answer = githubUp;
     serve(null, HISTORY);
-    expect(await attest()).toEqual({ outcome: "infra", reason: `Cloudflare lists no deployment of ${GUARD_SCRIPT}` });
+    await expect(attest()).resolves.toEqual({ outcome: "infra", reason: `Cloudflare lists no deployment of ${GUARD_SCRIPT}` });
 
     // A history with no successful deploy cannot say what main deployed.
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z"), [{ ...HISTORY[0]!, deploy: null }]);
-    expect(await attest()).toMatchObject({ outcome: "infra", reason: expect.stringMatching(/^no Deploy step of guard\.yml on main succeeded/) });
+    await expect(attest()).resolves.toMatchObject({ outcome: "infra", reason: expect.stringMatching(/^no Deploy step of guard\.yml on main succeeded/) });
   });
 
   it("names a missing credential and asks nobody anything without it", async () => {
     serve(deployed(SHA_OLD, "2026-10-31T09:01:05.000Z"), HISTORY);
-    expect(await attest(storeWith([ATTEST_SECRETS.token]))).toEqual({
+    await expect(attest(storeWith([ATTEST_SECRETS.token]))).resolves.toEqual({
       outcome: "infra",
       reason: "the store has no cf-guard-attest-token, so the guard's version cannot be attested",
     });
-    expect(await attest(storeWith([ATTEST_SECRETS.account, ATTEST_SECRETS.appKey]))).toMatchObject({
+    await expect(attest(storeWith([ATTEST_SECRETS.account, ATTEST_SECRETS.appKey]))).resolves.toMatchObject({
       outcome: "infra",
       reason: expect.stringMatching(/^the store has no cloudflare-account-id, rig-app-key,/),
     });

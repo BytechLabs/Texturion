@@ -32,12 +32,12 @@ export function numberBook(entries: Record<string, string>): NumberBook {
  * longer owns.
  */
 export function standingBook(entries: unknown, owned?: readonly string[]): NumberBook {
-  if (!Array.isArray(entries)) throw new Error("numbers: the standing numbers must be a list of { role, e164 }");
+  if (!Array.isArray(entries)) throw new TypeError("numbers: the standing numbers must be a list of { role, e164 }");
   const map: Record<string, string> = {};
   const live = owned ? new Set(owned) : undefined;
   for (const entry of entries as { role?: unknown; e164?: unknown }[]) {
     if (typeof entry?.role !== "string" || typeof entry.e164 !== "string") {
-      throw new Error("numbers: every standing number needs a role and an e164");
+      throw new TypeError("numbers: every standing number needs a role and an e164");
     }
     if (map[entry.role]) throw new Error(`numbers: ${entry.role} is listed twice`);
     if (live && !live.has(entry.e164)) throw new Error(`numbers: ${entry.role} is not in the guard's live listing`);
@@ -53,7 +53,7 @@ export function loadNumberBook(path: string): NumberBook {
     throw new Error(`${path}: numbers must be an object of role to E.164`);
   }
   for (const value of Object.values(parsed)) {
-    if (typeof value !== "string") throw new Error(`${path}: every number must be a string`);
+    if (typeof value !== "string") throw new TypeError(`${path}: every number must be a string`);
   }
   return numberBook(parsed as Record<string, string>);
 }

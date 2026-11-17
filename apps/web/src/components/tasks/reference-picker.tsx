@@ -157,7 +157,7 @@ function PickerList({
                 }
               >
                 <span className="shrink-0 tabular-nums text-xs text-muted-foreground">
-                  {task.number !== undefined ? taskNumberLabel(task.number) : ""}
+                  {task.number === undefined ? "" : taskNumberLabel(task.number)}
                 </span>
                 <span className="truncate text-sm">{task.title}</span>
                 {task.contact?.name && (

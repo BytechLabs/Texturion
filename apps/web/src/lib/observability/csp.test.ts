@@ -10,8 +10,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CSP_HEADER,
   createNonce,
+  CSP_HEADER,
   cspStagingEnabled,
   nonceContentSecurityPolicy,
   reportingEndpointsHeader,

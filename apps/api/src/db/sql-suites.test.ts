@@ -24,14 +24,13 @@
  * check, but only for whoever runs the suites; this one runs in the vitest gate
  * on every push, which is where an unregistered suite gets caught first.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 const REPO_ROOT = join(
-  fileURLToPath(new URL(".", import.meta.url)),
+  import.meta.dirname,
   "..",
   "..",
   "..",
@@ -43,7 +42,7 @@ const RUNNER = join(REPO_ROOT, "scripts", "db-test-all.mjs");
 function suiteFiles(): string[] {
   return readdirSync(TESTS_DIR)
     .filter((name) => name.endsWith(".test.sql"))
-    .sort();
+    .toSorted();
 }
 
 function suitesInCi(): string[] {
@@ -58,7 +57,7 @@ function suitesInCi(): string[] {
   }
   return [...list[1].matchAll(/"([a-z0-9_]+)"/g)]
     .map((match) => `${match[1]}.test.sql`)
-    .sort();
+    .toSorted();
 }
 
 describe("the SQL suites CI actually runs", () => {

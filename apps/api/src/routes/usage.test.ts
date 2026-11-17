@@ -5,21 +5,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  countResponse,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, countResponse, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { usageRoutes } from "./usage";
 
 const env = completeEnv();
@@ -141,7 +130,7 @@ describe("GET /v1/usage", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       // 620 is far from the 1350 cap-approach line; pacing depends on the
       // wall-clock position in the period (pinned deterministically below).
       status: expect.stringMatching(/^(quiet|pacing)$/),
@@ -306,7 +295,7 @@ describe("GET /v1/usage", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       storage: { attachments_bytes: 5_368_709_120, mms_bytes: 42 },
     });
   });
@@ -321,7 +310,7 @@ describe("GET /v1/usage", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       included_segments: 2500,
       used_segments: 2502,
       overage_segments: 2,
@@ -336,7 +325,7 @@ describe("GET /v1/usage", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       used_segments: 137,
       overage_segments: 0,
       projected_overage_cents: 0,
@@ -360,7 +349,7 @@ describe("GET /v1/usage", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       // #178: not near the cap and not trending over → the quiet default.
       status: "quiet",
       projected_overage_cents: 360,
@@ -384,7 +373,7 @@ describe("GET /v1/usage", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    expect(await res.json()).toMatchObject({ status: "capped" });
+    await expect(res.json()).resolves.toMatchObject({ status: "capped" });
   });
 
   it("#178 status: trending over reads 'pacing'", async () => {
@@ -407,7 +396,7 @@ describe("GET /v1/usage", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       status: "pacing",
       overage_projection: { trending_over: true, projected_overage_cents: expect.any(Number) },
     });
@@ -428,7 +417,7 @@ describe("GET /v1/usage", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       status: "quiet",
       currency: "usd",
       period_start: null,
@@ -492,13 +481,11 @@ describe("GET /v1/usage", () => {
     };
     const quiet = usageStub({ ...starterCompany, ...period }, 137, STORAGE, 100);
     stubFetch(jwksRoute(auth), quiet.route);
-    expect(
-      await (
+    await expect((
         await apiRequest(app, env, await auth.token(), "/v1/usage", {
           companyId: COMPANY_ID,
         })
-      ).json(),
-    ).toMatchObject({ overage_projection: { trending_over: false } });
+      ).json()).resolves.toMatchObject({ overage_projection: { trending_over: false } });
 
     const paused = usageStub(
       {
@@ -512,13 +499,11 @@ describe("GET /v1/usage", () => {
       100,
     );
     stubFetch(jwksRoute(auth), paused.route);
-    expect(
-      await (
+    await expect((
         await apiRequest(app, env, await auth.token(), "/v1/usage", {
           companyId: COMPANY_ID,
         })
-      ).json(),
-    ).toMatchObject({
+      ).json()).resolves.toMatchObject({
       status: "pacing",
       overage_projection: { trending_over: true },
     });

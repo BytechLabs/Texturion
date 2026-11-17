@@ -35,7 +35,7 @@ describe("fraud-type notices", () => {
   it("clear only with the design change the latch waits for", async () => {
     const h = await ready();
     await recordSignal(h.ctx, { signal: "Account Disabled", notice_id: null, corroborated_by: "account_refused" });
-    expect(await signalSummary(h.ctx)).toMatchObject({ latched: true });
+    await expect(signalSummary(h.ctx)).resolves.toMatchObject({ latched: true });
     h.ctx.config.signalLatchReset = "after-review";
     h.advance(8 * DAY);
     await expect(requirePaidLanesOpen(h.ctx)).resolves.toBeUndefined();

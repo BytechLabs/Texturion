@@ -59,7 +59,6 @@ const ROOT = "apps/android/app/src/main/kotlin";
 const COMPONENT = join(ROOT, "com/loonext/android/ui/common/Ui.kt");
 
 const IOS_ROOT = "apps/ios/Loonext";
-const IOS_COMPONENT = join(IOS_ROOT, "Support/Ui.swift");
 const IOS_SCALE = join(IOS_ROOT, "Theme/DesignSystem.swift");
 
 /**

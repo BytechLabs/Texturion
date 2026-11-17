@@ -9,12 +9,8 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runSubscriptionReconcileJob } from "./reconcile";
-import {
-  countResponse,
-  endpoint,
-  makeHarness,
-  type StubEndpoint,
-} from "../test/billing-support";
+import { countResponse, endpoint, makeHarness } from '../test/billing-support';
+import type { StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
 
 const env = completeEnv();

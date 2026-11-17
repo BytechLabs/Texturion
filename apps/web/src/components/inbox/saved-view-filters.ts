@@ -1,7 +1,5 @@
-import {
-  sanitizeFilters,
-  type SavedViewFilters,
-} from "@loonext/shared";
+import { sanitizeFilters } from '@loonext/shared';
+import type { SavedViewFilters } from '@loonext/shared';
 
 import type { InboxUrlFilters } from "./filter-url";
 
@@ -58,7 +56,7 @@ export function viewFiltersToUrl(
 ): InboxUrlFilters {
   const clean = sanitizeFilters("conversations", filters);
   const out: InboxUrlFilters = {};
-  const status = clean.status;
+  const {status} = clean;
   if (typeof status === "string") {
     out.status = status as InboxUrlFilters["status"];
   }

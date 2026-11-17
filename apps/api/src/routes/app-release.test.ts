@@ -14,7 +14,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { app } from "../index";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { resetReleasePolicyCache } from "./app-release";
 
 const env = completeEnv();
@@ -23,7 +24,7 @@ const env = completeEnv();
 function policyRoute(policy: unknown, status = 200): FetchRoute {
   return (url) =>
     url.pathname.endsWith("/rpc/api_app_release_policy")
-      ? new Response(JSON.stringify(policy), {
+      ? Response.json(policy, {
           status,
           headers: { "content-type": "application/json" },
         })
@@ -80,7 +81,7 @@ describe("GET /app-release", () => {
     const res = await app.request("/app-release?platform=ios", {}, env);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       platform: "ios",
       recommended_version: "1.4.0",
       minimum_version: null,
@@ -114,7 +115,7 @@ describe("GET /app-release", () => {
     const res = await app.request("/app-release?platform=symbian", {}, env);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       platform: "symbian",
       minimum_version: null,
       recommended_version: null,
@@ -125,7 +126,7 @@ describe("GET /app-release", () => {
     stubFetch();
     const res = await app.request("/app-release", {}, env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ minimum_version: null });
+    await expect(res.json()).resolves.toMatchObject({ minimum_version: null });
   });
 
   it("fails OPEN when the database is unreachable", async () => {
@@ -142,7 +143,7 @@ describe("GET /app-release", () => {
     const res = await app.request("/app-release?platform=web", {}, env);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       platform: "web",
       minimum_version: null,
       recommended_version: null,
@@ -156,7 +157,7 @@ describe("GET /app-release", () => {
     stubFetch(policyRoute(null));
     const res = await app.request("/app-release?platform=web", {}, env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ minimum_version: null });
+    await expect(res.json()).resolves.toMatchObject({ minimum_version: null });
   });
 
   it("is cacheable, so a cold start does not cost a database round trip", async () => {
@@ -202,7 +203,7 @@ describe("GET /app-release", () => {
 
     const first = await app.request("/app-release?platform=ios", {}, env);
     const second = await app.request("/app-release?platform=ios", {}, env);
-    expect(await second.json()).toEqual(await first.json());
+    await expect(second.json()).resolves.toEqual(await first.json());
     expect(store.reads()).toBe(1);
 
     // Another platform has its own policy and its own read.
@@ -224,11 +225,11 @@ describe("GET /app-release", () => {
     stubFetch(store.route);
 
     const during = await app.request("/app-release?platform=ios", {}, env);
-    expect(await during.json()).toMatchObject({ minimum_version: null });
+    await expect(during.json()).resolves.toMatchObject({ minimum_version: null });
 
     down = false;
     const after = await app.request("/app-release?platform=ios", {}, env);
-    expect(await after.json()).toMatchObject({ minimum_version: "1.2.0" });
+    await expect(after.json()).resolves.toMatchObject({ minimum_version: "1.2.0" });
     expect(store.reads()).toBe(2);
   });
 });

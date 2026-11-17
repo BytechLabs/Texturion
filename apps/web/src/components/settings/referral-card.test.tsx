@@ -7,7 +7,7 @@
  * cannot satisfy these — "$109" and "$79" are not the same string, and only one
  * of them is what a Canadian owner's invoice will stop showing.
  */
-import { PLAN_PRICE_CENTS, formatMoney } from "@loonext/shared";
+import { formatMoney, PLAN_PRICE_CENTS } from "@loonext/shared";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 

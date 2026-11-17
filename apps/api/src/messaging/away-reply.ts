@@ -21,13 +21,8 @@
  * inbound ingest (the message is already stored + threaded). The guard's own
  * throttle makes a sweeper replay safe (a re-run within the window is throttled).
  */
-import {
-  copyForContact,
-  effectiveAwayMessage,
-  isAfterHours,
-  type BusinessHours,
-  type HoursException,
-} from "@loonext/shared";
+import { copyForContact, effectiveAwayMessage, isAfterHours } from '@loonext/shared';
+import type { BusinessHours, HoursException } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { resolveNumberIdentity } from "@loonext/shared";

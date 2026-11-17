@@ -229,7 +229,7 @@ export function areaCodeRegionNames(
           catalogs[locale][key as AreaCodeMessageKey],
         ] as const,
     )
-    .sort((a, b) => a[0].localeCompare(b[0]));
+    .toSorted((a, b) => a[0].localeCompare(b[0]));
   return Object.fromEntries(entries);
 }
 

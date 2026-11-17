@@ -1,5 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import path from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -8,7 +7,7 @@ import { buildRss, escapeXml } from "@/lib/marketing/blog-rss";
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
 import { absoluteUrl } from "@/lib/marketing/site";
 
-const BLOG_DIR = fileURLToPath(new URL(".", import.meta.url));
+const BLOG_DIR = import.meta.dirname;
 
 /** Post directories on disk (everything except the index page and the feed). */
 function postDirsOnDisk(): string[] {

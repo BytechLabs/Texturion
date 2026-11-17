@@ -63,7 +63,7 @@ function splitBold(text: string): { lead: string; rest: string } {
 }
 
 function plain(text: string): string {
-  return text.replace(/\*\*/g, "").replace(/`/g, "");
+  return text.replaceAll('**', "").replaceAll('`', "");
 }
 
 export function AccessibilityPageBody({

@@ -105,7 +105,7 @@ export function shortcutForEvent(
 }
 
 const COMPOSER_FOCUS_EVENT = "loonext:focus-composer";
-const COMPOSER_FOCUS_TTL_MS = 5_000;
+const COMPOSER_FOCUS_TTL_MS = 5000;
 let composerFocusRequestedAt: number | null = null;
 
 /** Ask the thread's composer to take focus when it is on screen. */

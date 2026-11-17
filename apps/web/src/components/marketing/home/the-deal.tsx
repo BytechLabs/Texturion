@@ -1,14 +1,11 @@
-import { fill, homeCopy, homeEn, type HomeCopy } from "@/i18n/marketing/home";
+import { fill, homeCopy, homeEn } from '@/i18n/marketing/home';
+import type { HomeCopy } from '@/i18n/marketing/home';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check } from "lucide-react";
 import Link from "next/link";
 
-import {
-  formatMoney,
-  PLAN_PRICE_CENTS,
-  US_REGISTRATION_FEE_CENTS,
-  type BillingCurrency,
-} from "@loonext/shared";
+import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
 import { CountryOnly, CountryText } from "@/components/marketing/country";
 import {

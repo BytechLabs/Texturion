@@ -57,14 +57,8 @@ import type { AppEnv } from "../context";
 import { app } from "../index";
 import { OVERLOADED_MESSAGE } from "../http/errors";
 import { buildTestApp } from "../test/routes-harness";
-import {
-  authorizeRoute,
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
@@ -97,8 +91,8 @@ function poolerRefuses(code = "53300", message = REFUSAL) {
     // like: not one bad query, but the next connection failing to open.
     async (url) => {
       if (!url.href.startsWith(env.SUPABASE_URL)) return undefined;
-      return new Response(
-        JSON.stringify({ message, code }),
+      return Response.json(
+        { message, code },
         { status: 500, headers: { "Content-Type": "application/json" } },
       );
     },

@@ -1,19 +1,21 @@
-import { EDGE_PATHS, GUARD_ROUTES, HEADER, type LevelEvidence } from "@loonext/rig-protocol";
+import { EDGE_PATHS, GUARD_ROUTES, HEADER } from '@loonext/rig-protocol';
+import type { LevelEvidence } from '@loonext/rig-protocol';
 import { describe, expect, it, vi } from "vitest";
 import { codeSamples } from "./audio/generate.ts";
 import { bandPass, delay, mix, noise } from "./audio/simulate.ts";
 import { encodeWav } from "./audio/wav.ts";
 import { InlineProbe } from "./probe.ts";
-import { Robot, type CallPlan } from "./robot.ts";
+import { Robot } from './robot.ts';
+import type { CallPlan } from './robot.ts';
 import { GuardedTelnyx, GuardRefusedError } from "./telnyx.ts";
-import { FakeCallControl, ManualClock, TEST_NUMBERS, telnyxEvent } from "./test-support.ts";
+import { FakeCallControl, ManualClock, telnyxEvent, TEST_NUMBERS } from "./test-support.ts";
 
 const OWNER_HEARD = encodeWav({
-  sampleRate: 8_000,
+  sampleRate: 8000,
   channels: [
     mix(
-      delay(codeSamples("qa-w-owner", { sampleRate: 8_000, cycles: 8 }), 8_000, 250),
-      delay(codeSamples("robot", { sampleRate: 8_000, cycles: 8, amplitude: 0.02 }), 8_000, 400),
+      delay(codeSamples("qa-w-owner", { sampleRate: 8000, cycles: 8 }), 8000, 250),
+      delay(codeSamples("robot", { sampleRate: 8000, cycles: 8, amplitude: 0.02 }), 8000, 400),
     ),
   ],
 });
@@ -30,7 +32,7 @@ function setup(download: Uint8Array = OWNER_HEARD) {
     clock,
     newId: (() => {
       let n = 0;
-      return () => `plan-${++n}`;
+      return () => `plan-${n += 1}`;
     })(),
     download: async (url) => {
       downloads.push(url);
@@ -67,7 +69,7 @@ describe("an outbound call, end to end", () => {
     });
     expect(dial!.context).toEqual({ lease: "lease-1", scenario: "S02" });
 
-    clock.advance(4_000);
+    clock.advance(4000);
     robot.handleEvent(telnyxEvent("call.answered", { call_control_id: "ccid-1" }, iso(clock)));
     await robot.idle();
     expect(telnyx.named("playback_start")[0]!.body).toMatchObject({ audio_type: "wav", loop: "infinity", target_legs: "self" });
@@ -92,7 +94,7 @@ describe("an outbound call, end to end", () => {
         recording_urls: { wav: "https://recordings.vendor.test/rec-1.wav" },
       }),
     );
-    const done = await robot.wait("plan-1", 1_000);
+    const done = await robot.wait("plan-1", 1000);
     expect(downloads).toEqual(["https://recordings.vendor.test/rec-1.wav"]);
     expect(done).toMatchObject({
       state: "done",
@@ -119,7 +121,7 @@ describe("an outbound call, end to end", () => {
         recording_urls: { wav: "https://recordings.vendor.test/rec-9.wav" },
       }),
     );
-    const done = await robot.wait("plan-1", 1_000);
+    const done = await robot.wait("plan-1", 1000);
     expect(done!.judgement!.pass).toBe(false);
     expect(done!.judgement!.frames!.share_db).toHaveLength(7);
     expect(JSON.stringify(done)).not.toMatch(/RIFF|UklGR/);
@@ -137,8 +139,8 @@ describe("an outbound call, end to end", () => {
 
   it("hangs up while ringing when the plan says the caller gives up", async () => {
     const { telnyx, clock, robot } = setup();
-    await robot.dial({ ...S02, hangup_before_answer_ms: 8_000 });
-    clock.advance(8_000);
+    await robot.dial({ ...S02, hangup_before_answer_ms: 8000 });
+    clock.advance(8000);
     await robot.idle();
     expect(telnyx.named("hangup")).toHaveLength(1);
     robot.handleEvent(telnyxEvent("call.hangup", { call_control_id: "ccid-1", hangup_cause: "originator_cancel" }));
@@ -151,13 +153,13 @@ describe("an outbound call, end to end", () => {
  * phone-band noise in 200 ms syllables for six seconds, then the far end's code.
  */
 function announcedCall(): Uint8Array {
-  const rate = 8_000;
-  const voiced = bandPass(noise(6, rate, -12, 5), rate, 300, 3_400);
+  const rate = 8000;
+  const voiced = bandPass(noise(6, rate, -12, 5), rate, 300, 3400);
   const syllable = Math.round(0.25 * rate);
   const speech = delay(voiced.map((x, i) => (i % syllable < 0.8 * syllable ? x : 0)), rate, 200);
   return encodeWav({
     sampleRate: rate,
-    channels: [mix(speech, delay(codeSamples("qa-w-owner", { sampleRate: rate, cycles: 8 }), rate, 6_400))],
+    channels: [mix(speech, delay(codeSamples("qa-w-owner", { sampleRate: rate, cycles: 8 }), rate, 6400))],
   });
 }
 
@@ -171,7 +173,7 @@ async function finishCall(robot: Robot) {
       recording_urls: { wav: "https://recordings.vendor.test/rec-1.wav" },
     }),
   );
-  const done = await robot.wait("plan-1", 1_000);
+  const done = await robot.wait("plan-1", 1000);
   await robot.idle();
   return done;
 }
@@ -216,7 +218,7 @@ describe("Telnyx's announcement as level evidence", () => {
     }) as typeof globalThis.fetch;
     const edge = "https://rig-edge.example.workers.dev/";
     const telnyx = new GuardedTelnyx({ edgeOrigin: edge, token: "robot-token", fetch });
-    const evidence = { announcement_ms: 4_200, at: "2026-11-02T05:00:00.000Z" };
+    const evidence = { announcement_ms: 4200, at: "2026-11-02T05:00:00.000Z" };
     await telnyx.reportLevelEvidence(evidence);
     expect(calls[0]!.url).toBe(`https://rig-edge.example.workers.dev${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.evidence}/level`);
     expect(calls[0]!.init).toMatchObject({ method: "POST", body: JSON.stringify(evidence) });
@@ -267,7 +269,7 @@ describe("an inbound call", () => {
       scenario: "S01",
       direction: "inbound",
       role: "ROBOT-1",
-      answer_after_ms: 4_000,
+      answer_after_ms: 4000,
       expect: "qa-w-owner",
       hangup_after_ms: 20_000,
     });
@@ -282,7 +284,7 @@ describe("an inbound call", () => {
     robot.handleEvent(
       telnyxEvent("call.initiated", { direction: "incoming", call_control_id: "in-2", call_leg_id: "leg-in-2", to: TEST_NUMBERS.number("ROBOT-1") }),
     );
-    clock.advance(3_999);
+    clock.advance(3999);
     await robot.idle();
     expect(telnyx.named("answer")).toEqual([]);
     clock.advance(1);
@@ -314,7 +316,7 @@ describe("voicemail and keypad", () => {
     expect(telnyx.named("speak")[0]!.body).toMatchObject({ payload: "Rig check, please call back.", language: "en-US" });
 
     robot.handleEvent(telnyxEvent("call.speak.ended", { call_control_id: "ccid-1" }));
-    clock.advance(1_500);
+    clock.advance(1500);
     await robot.idle();
     expect(telnyx.named("hangup")).toHaveLength(1);
     expect(robot.get("plan-1")!.amd).toEqual({ greeting: "beep_detected" });

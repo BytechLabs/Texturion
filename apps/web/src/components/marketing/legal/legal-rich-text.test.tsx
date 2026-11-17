@@ -121,6 +121,6 @@ describe("every legal page renders with no slot left in braces", () => {
     console.log(`legal pages rendered with no slot left in braces: ${rendered.length}`);
     expect(rendered).toContain("privacy en");
     expect(rendered).toContain("privacy fr-CA");
-    expect(rendered.length).toBe(Object.keys(BODIES).length * 2);
+    expect(rendered).toHaveLength(Object.keys(BODIES).length * 2);
   });
 });

@@ -1,16 +1,7 @@
 "use client";
 
-import {
-  HANDOVER_CONFIRM_FIELD,
-  HANDOVER_CONFIRM_REJECTED,
-  HANDOVER_CONFIRM_RESEND,
-  HANDOVER_CONFIRM_SUBMIT,
-  HANDOVER_CONFIRM_SUBMITTING,
-  HANDOVER_CONFIRM_TITLE,
-  HANDOVER_CONFIRM_WHERE,
-  type HandoverConfirmationKind,
-  isHandoverCode,
-} from "@loonext/shared";
+import { HANDOVER_CONFIRM_FIELD, HANDOVER_CONFIRM_REJECTED, HANDOVER_CONFIRM_RESEND, HANDOVER_CONFIRM_SUBMIT, HANDOVER_CONFIRM_SUBMITTING, HANDOVER_CONFIRM_TITLE, HANDOVER_CONFIRM_WHERE, isHandoverCode } from '@loonext/shared';
+import type { HandoverConfirmationKind } from '@loonext/shared';
 import { useEffect, useState } from "react";
 
 import { Button } from "@/components/ui/button";

@@ -4,23 +4,23 @@
  */
 import { mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { HEADER } from "@loonext/rig-protocol";
 import { numberBook } from "@loonext/rig-robot";
 import { afterEach, describe, expect, it } from "vitest";
-import { automationBodies, AppProbe, stableUuid } from "./app-probe.ts";
+import { AppProbe, automationBodies, stableUuid } from "./app-probe.ts";
 import { webhookForwarder } from "./forward.ts";
 import { GuardClient, PROBE_FOREIGN_CONNECTION } from "./guard-client.ts";
-import { MailClient, linksIn } from "./mail-client.ts";
+import { linksIn, MailClient } from "./mail-client.ts";
 import { dialOnDevice, rigDevices, RigOps } from "./rig-ops.ts";
-import { FakeDevices, FakeGuard, FakeApp, FakeHandoff, FakeStripe, FakeTime } from "./scenarios/fakes.ts";
+import { FakeApp, FakeDevices, FakeGuard, FakeHandoff, FakeStripe, FakeTime } from "./scenarios/fakes.ts";
 import { FaultFile, HandoffFile } from "./state-files.ts";
 import { deleteStripeObject, formEncode, STRIPE_DELETE_UNDO, StripeSandbox } from "./stripe-sandbox.ts";
-import { fakeFetch, json, type Route } from "./test-support.ts";
+import { fakeFetch, json } from './test-support.ts';
+import type { Route } from './test-support.ts';
 import { bootDevice, CHROME_STABLE_PATH, chromeOf, reinstallDevice, releaseHeldNumber, resetDevice, undoHandlers } from "./wiring.ts";
 
-const SRC = dirname(fileURLToPath(import.meta.url));
+const SRC = import.meta.dirname;
 
 const dirs: string[] = [];
 afterEach(() => {
@@ -62,7 +62,7 @@ describe("the guard client", () => {
   it("sends each negative probe as the robot under the lease, naming only owned roles and fictional numbers", async () => {
     const refusal = (rule: string) => json({ error: "guard_refused", rule }, 403, { [HEADER.refusedBy]: "guard" });
     const { guard, requests } = guardWith({ [`POST ${EDGE}/g/telnyx/v2/`]: (request) => refusal(JSON.parse(request.body!).to === "+14165550199" ? "dial.to_not_owned" : "x") });
-    expect(await guard.probe("dial-to-unowned", "lease-1")).toEqual({ status: 403, refused_by_guard: true, rule: "dial.to_not_owned" });
+    await expect(guard.probe("dial-to-unowned", "lease-1")).resolves.toEqual({ status: 403, refused_by_guard: true, rule: "dial.to_not_owned" });
     await guard.probe("foreign-connection", "lease-1");
     await guard.probe("text-from-outside", "lease-1");
     const sent = requests.filter((r) => r.method === "POST");
@@ -78,9 +78,9 @@ describe("the guard client", () => {
 
   it("tells a guard refusal from Telnyx's own answer, and a success from both", async () => {
     const { guard } = guardWith({ [`POST ${EDGE}/g/telnyx/v2/calls`]: () => json({ errors: [{ code: "10001" }] }, 403) });
-    expect(await guard.probe("dial-to-unowned", "l")).toEqual({ status: 403, refused_by_guard: false, rule: null });
+    await expect(guard.probe("dial-to-unowned", "l")).resolves.toEqual({ status: 403, refused_by_guard: false, rule: null });
     const open = guardWith({ [`POST ${EDGE}/g/telnyx/v2/calls`]: () => json({ data: { call_control_id: "c" } }) });
-    expect(await open.guard.probe("dial-to-unowned", "l")).toMatchObject({ status: 200, refused_by_guard: false });
+    await expect(open.guard.probe("dial-to-unowned", "l")).resolves.toMatchObject({ status: 200, refused_by_guard: false });
   });
 
   it("reads a held number's status with the robot's token and releases it only with the app's", async () => {
@@ -90,10 +90,10 @@ describe("the guard client", () => {
       [`DELETE ${EDGE}/g/telnyx/v2/phone_numbers/111`]: () => json({ error: "guard_refused", rule: "provisioning.number_standing" }, 403, { [HEADER.refusedBy]: "guard" }),
       [`DELETE ${EDGE}/g/telnyx/v2/phone_numbers/777`]: () => json({ data: { id: "777" } }),
     });
-    expect(await guard.numberStatus("777")).toEqual({ status: 200, in_group: true });
-    expect(await guard.numberStatus("888")).toEqual({ status: 404, in_group: false });
-    expect(await guard.releaseNumber("111")).toEqual({ status: 403, rule: "provisioning.number_standing" });
-    expect(await guard.releaseNumber("777")).toEqual({ status: 200, rule: null });
+    await expect(guard.numberStatus("777")).resolves.toEqual({ status: 200, in_group: true });
+    await expect(guard.numberStatus("888")).resolves.toEqual({ status: 404, in_group: false });
+    await expect(guard.releaseNumber("111")).resolves.toEqual({ status: 403, rule: "provisioning.number_standing" });
+    await expect(guard.releaseNumber("777")).resolves.toEqual({ status: 200, rule: null });
     expect(requests.filter((r) => r.method === "DELETE").every((r) => r.headers.authorization === "Bearer rig-api-token")).toBe(true);
     expect(requests.filter((r) => r.method === "GET").every((r) => r.headers.authorization === "Bearer robot-token")).toBe(true);
   });
@@ -174,7 +174,7 @@ const rest = (table: string) => `${SUPABASE}/rest/v1/${table}`;
 describe("the app probe", () => {
   it("reads a member's stored Android push tokens by their user id", async () => {
     const { probe, requests } = probeWith({ [`GET ${rest("device_push_tokens")}`]: () => json([{ token: "fcm-a" }, { token: "fcm-b" }]) });
-    expect(await probe.pushTokens({ member: "qa-w-technician" })).toEqual(["fcm-a", "fcm-b"]);
+    await expect(probe.pushTokens({ member: "qa-w-technician" })).resolves.toEqual(["fcm-a", "fcm-b"]);
     const read = new URL(requests.find((r) => r.url.includes("device_push_tokens"))!.url);
     expect(Object.fromEntries(read.searchParams)).toEqual({ user_id: `eq.${TECH}`, platform: "eq.android", select: "token" });
   });
@@ -188,9 +188,9 @@ describe("the app probe", () => {
     ];
     const { probe, requests } = probeWith({ [`POST ${API}/v1/conversations`]: () => answers.shift()! });
     const send = () => probe.sendTextToFictional({ member: "qa-w-owner", fromRole: "DEV-W1", e164: "+14165550199", body: "b" });
-    expect(await send()).toEqual({ ok: false, status: 201, code: "rig_destination_refused" });
-    expect(await send()).toEqual({ ok: false, status: 500, code: "internal_error" });
-    expect(await send()).toEqual({ ok: true, messageId: "m-2" });
+    await expect(send()).resolves.toEqual({ ok: false, status: 201, code: "rig_destination_refused" });
+    await expect(send()).resolves.toEqual({ ok: false, status: 500, code: "internal_error" });
+    await expect(send()).resolves.toEqual({ ok: true, messageId: "m-2" });
     await expect(probe.sendTextToFictional({ member: "qa-w-owner", fromRole: "DEV-W1", e164: "+1416555", body: "b" })).rejects.toThrow(/fictional/);
     expect(requests.filter((r) => r.url.includes("/v1/conversations"))).toHaveLength(3);
   });
@@ -201,8 +201,8 @@ describe("the app probe", () => {
       [`POST ${API}/v1/calls/browser`]: (request) =>
         JSON.parse(request.body!).to === "+14165550199" ? json({ error: { code: "internal_error", message: "Something went wrong." } }, 500) : json({ session_id: "s-1" }),
     });
-    expect(await probe.placeCall({ member: "qa-w-owner", fromRole: "DEV-W1", to: "ROBOT-1" })).toEqual({ ok: true, sessionId: "s-1" });
-    expect(await probe.placeCall({ member: "qa-w-owner", fromRole: "DEV-W1", to: { fictional: "+14165550199" } })).toEqual({
+    await expect(probe.placeCall({ member: "qa-w-owner", fromRole: "DEV-W1", to: "ROBOT-1" })).resolves.toEqual({ ok: true, sessionId: "s-1" });
+    await expect(probe.placeCall({ member: "qa-w-owner", fromRole: "DEV-W1", to: { fictional: "+14165550199" } })).resolves.toEqual({
       ok: false,
       status: 500,
       code: "internal_error",
@@ -216,7 +216,7 @@ describe("the app probe", () => {
       [`GET ${rest("companies")}`]: () => json([{ ring_seconds: 20, away_enabled: false }]),
       [`PATCH ${rest("companies")}`]: () => new Response(null, { status: 204 }),
     });
-    expect(await probe.patchCompany({ tenant: "QA-W", values: { ring_seconds: 30, away_enabled: true } })).toEqual({ ring_seconds: 20, away_enabled: false });
+    await expect(probe.patchCompany({ tenant: "QA-W", values: { ring_seconds: 30, away_enabled: true } })).resolves.toEqual({ ring_seconds: 20, away_enabled: false });
     const patch = requests.find((r) => r.method === "PATCH")!;
     expect(patch.url).toBe(`${rest("companies")}?id=eq.${COMPANY}`);
     expect(JSON.parse(patch.body!)).toEqual({ ring_seconds: 30, away_enabled: true });
@@ -229,7 +229,7 @@ describe("the app probe", () => {
       [`DELETE ${rest("number_access")}`]: () => new Response(null, { status: 204 }),
       [`POST ${rest("number_access")}`]: () => new Response(null, { status: 201 }),
     });
-    expect(await probe.setRingAudience({ tenant: "QA-W", role: "DEV-W1", member: "qa-w-technician", level: "text" })).toBeNull();
+    await expect(probe.setRingAudience({ tenant: "QA-W", role: "DEV-W1", member: "qa-w-technician", level: "text" })).resolves.toBeNull();
     const insert = requests.find((r) => r.method === "POST" && r.url.startsWith(rest("number_access")))!;
     expect(JSON.parse(insert.body!)).toEqual({
       company_id: COMPANY,
@@ -264,23 +264,23 @@ describe("the app probe", () => {
       [`POST ${SUPABASE}/rest/v1/rpc/api_period_forward_seconds`]: () => json(1200),
       [`POST ${SUPABASE}/rest/v1/rpc/api_period_forwarded_calls`]: () => json("40"),
     });
-    expect(await probe.voiceCapState({ tenant: "QA-W" })).toEqual({ plan: "pro", overage_cap_multiplier: 3, forward_seconds: 1200, forwarded_calls: 40 });
+    await expect(probe.voiceCapState({ tenant: "QA-W" })).resolves.toEqual({ plan: "pro", overage_cap_multiplier: 3, forward_seconds: 1200, forwarded_calls: 40 });
     for (const rpc of requests.filter((r) => r.url.includes("/rpc/"))) {
       expect(JSON.parse(rpc.body!)).toEqual({ p_company_id: COMPANY, p_since: "2026-10-15T00:00:00+00:00" });
     }
 
     const unpaid = probeWith({ [`GET ${rest("companies")}`]: () => json([{ plan: null, overage_cap_multiplier: null, current_period_start: null }]) });
-    expect(await unpaid.probe.voiceCapState({ tenant: "QA-W" })).toEqual({ plan: null, overage_cap_multiplier: null, forward_seconds: 0, forwarded_calls: 0 });
+    await expect(unpaid.probe.voiceCapState({ tenant: "QA-W" })).resolves.toEqual({ plan: null, overage_cap_multiplier: null, forward_seconds: 0, forwarded_calls: 0 });
     expect(unpaid.requests.some((r) => r.url.includes("/rpc/"))).toBe(false);
   });
 
   it("seeds call records in batches under one marker, already reported, each leg its own", async () => {
     const { probe, requests } = probeWith({ [`POST ${rest("call_records")}`]: () => new Response(null, { status: 201 }) });
-    const { marker } = await probe.seedCallRecords({ tenant: "QA-W", leg: "out_customer", rows: 2_500, billableSeconds: 0 });
+    const { marker } = await probe.seedCallRecords({ tenant: "QA-W", leg: "out_customer", rows: 2500, billableSeconds: 0 });
     const batches = requests.filter((r) => r.method === "POST").map((r) => JSON.parse(r.body!) as Record<string, unknown>[]);
-    expect(batches.map((batch) => batch.length)).toEqual([1_000, 1_000, 500]);
+    expect(batches.map((batch) => batch.length)).toEqual([1000, 1000, 500]);
     const rows = batches.flat();
-    expect(new Set(rows.map((row) => row.call_leg_id)).size).toBe(2_500);
+    expect(new Set(rows.map((row) => row.call_leg_id)).size).toBe(2500);
     expect(rows.every((row) => row.call_session_id === marker && row.leg === "out_customer" && row.company_id === COMPANY && row.stripe_reported_at)).toBe(true);
     await expect(probe.seedCallRecords({ tenant: "QA-W", leg: "in_browser", rows: 0, billableSeconds: 60 })).rejects.toThrow(/1 to/);
   });
@@ -291,14 +291,14 @@ describe("the app probe", () => {
       [`GET ${rest("conversations")}`]: () => json([{ id: "conv-1" }]),
       [`POST ${rest("messages")}`]: () => new Response(null, { status: 201 }),
     });
-    const { marker } = await probe.seedOutboundSegments({ tenant: "QA-W", role: "ROBOT-1", segments: 1_600, body: "Rig seeded" });
+    const { marker } = await probe.seedOutboundSegments({ tenant: "QA-W", role: "ROBOT-1", segments: 1600, body: "Rig seeded" });
     expect(JSON.parse(requests.find((r) => r.method === "POST" && r.url.startsWith(rest("messages")))!.body!)).toEqual({
       company_id: COMPANY,
       conversation_id: "conv-1",
       direction: "outbound",
       body: "Rig seeded",
       status: "delivered",
-      segments: 1_600,
+      segments: 1600,
       sent_by_user_id: OWNER,
       idempotency_key: marker,
     });
@@ -309,21 +309,21 @@ describe("the app probe", () => {
       [`GET ${rest("companies")}`]: () => json([{ ring_seconds: 20 }]),
       [`POST ${rest("on_call_shifts")}`]: (request) => json([{ id: JSON.parse(request.body!).id }], 201),
     });
-    expect(await probe.companySettings({ tenant: "QA-W", fields: ["ring_seconds", "timezone"] })).toEqual({ ring_seconds: 20, timezone: null });
+    await expect(probe.companySettings({ tenant: "QA-W", fields: ["ring_seconds", "timezone"] })).resolves.toEqual({ ring_seconds: 20, timezone: null });
     await expect(probe.companySettings({ tenant: "QA-W", fields: ["plan" as never] })).rejects.toThrow(/not a company setting/);
-    expect(await probe.addOnCallShift({ tenant: "QA-W", member: "qa-w-technician", role: "DEV-W1", startsAt: 0, endsAt: 1, id: "shift-chosen" })).toEqual({ id: "shift-chosen" });
+    await expect(probe.addOnCallShift({ tenant: "QA-W", member: "qa-w-technician", role: "DEV-W1", startsAt: 0, endsAt: 1, id: "shift-chosen" })).resolves.toEqual({ id: "shift-chosen" });
     expect(requests.some((r) => r.method === "PATCH")).toBe(false);
     expect(JSON.parse(requests.find((r) => r.url.startsWith(rest("on_call_shifts")))!.body!)).toMatchObject({ id: "shift-chosen", user_id: TECH, created_by: OWNER });
   });
 
   it("rings a member's devices for a call that does not exist, with the caller the ring shows", async () => {
     const { probe, requests } = probeWith({ [`POST ${API}/v1/rig/simulate-incoming`]: () => json({ session_id: "synthetic-1", reachable: true }, 201) });
-    expect(await probe.simulateIncoming({ member: "qa-w-owner", target: "qa-w-technician", caller: "Rig n0nce" })).toEqual({
+    await expect(probe.simulateIncoming({ member: "qa-w-owner", target: "qa-w-technician", caller: "Rig n0nce" })).resolves.toEqual({
       status: 201,
       body: { session_id: "synthetic-1", reachable: true },
     });
     expect(JSON.parse(requests.find((r) => r.url.endsWith("/v1/rig/simulate-incoming"))!.body!)).toEqual({ user_id: TECH, caller: "Rig n0nce" });
-    expect(await probe.userIdOf("qa-w-owner")).toBe(OWNER);
+    await expect(probe.userIdOf("qa-w-owner")).resolves.toBe(OWNER);
   });
 
   it("cancels a workspace a number of days back, suspends its numbers, and reads it through grace", async () => {
@@ -332,7 +332,7 @@ describe("the app probe", () => {
       [`PATCH ${rest("companies")}`]: () => new Response(null, { status: 204 }),
       [`PATCH ${rest("phone_numbers")}`]: () => new Response(null, { status: 204 }),
     });
-    expect(await probe.backdateCancellation({ tenant: "QA-W", daysAgo: 31 })).toEqual({ subscription_status: "active", canceled_at: null });
+    await expect(probe.backdateCancellation({ tenant: "QA-W", daysAgo: 31 })).resolves.toEqual({ subscription_status: "active", canceled_at: null });
     const [company, numbers] = requests.filter((r) => r.method === "PATCH");
     expect(JSON.parse(company!.body!)).toEqual({ subscription_status: "canceled", canceled_at: "2026-09-30T15:00:00.000Z" });
     expect(numbers!.url).toContain("status=eq.active");
@@ -344,7 +344,7 @@ describe("the app probe", () => {
       [`GET ${rest("messaging_registrations")}`]: () => json([]),
       [`GET ${rest("phone_numbers")}`]: () => json([{ id: "n", status: "released" }]),
     });
-    expect(await grace.probe.graceState({ tenant: "QA-W" })).toMatchObject({ notices: [1, 15, 27, 30], live_campaigns: 0, numbers: [{ status: "released" }] });
+    await expect(grace.probe.graceState({ tenant: "QA-W" })).resolves.toMatchObject({ notices: [1, 15, 27, 30], live_campaigns: 0, numbers: [{ status: "released" }] });
     const noticeRead = grace.requests.find((r) => r.url.startsWith(rest("grace_notices")))!;
     expect(decodeURIComponent(noticeRead.url)).toContain("canceled_at=eq.2026-09-30T15:00:00+00:00");
   });
@@ -355,7 +355,7 @@ describe("the app probe", () => {
       // routes/numbers.ts answers with the sanitized row itself.
       [`POST ${API}/v1/numbers/provision`]: () => json({ id: "row-1", status: "pending", number_e164: null }, 201),
     });
-    expect(await probe.provisionNumber({ member: "qa-w-owner" })).toMatchObject({ status: 201, body: { id: "row-1" } });
+    await expect(probe.provisionNumber({ member: "qa-w-owner" })).resolves.toMatchObject({ status: 201, body: { id: "row-1" } });
     const order = requests.find((r) => r.url === `${API}/v1/numbers/provision`)!;
     expect(JSON.parse(order.body!)).toEqual({ requested_area_code: "416" });
     expect(order.headers["idempotency-key"]).toMatch(/^[0-9a-f-]{36}$/);
@@ -404,7 +404,7 @@ describe("the app probe", () => {
     expect(JSON.parse(patches.at(-1)!.body!)).toMatchObject({ away_enabled: false, away_message: null, business_hours: { mon: { open: "09:00", close: "17:00" } } });
     const cancel = requests.find((r) => r.method === "PATCH" && r.url.startsWith(rest("scheduled_messages")))!;
     expect(decodeURIComponent(cancel.url)).toContain("status=in.(pending,held)");
-    expect(await probe.automatedTexts({ tenant: "QA-W", nonce: "n0nce" })).toEqual([]);
+    await expect(probe.automatedTexts({ tenant: "QA-W", nonce: "n0nce" })).resolves.toEqual([]);
   });
 
   it("refuses to arm S25 where there is no thread to arm it in", async () => {
@@ -416,13 +416,13 @@ describe("the app probe", () => {
 describe("the hand-off and the fault file", () => {
   it("keeps S28's record by Telnyx id and never by number", async () => {
     const handoff = new HandoffFile(tempDir());
-    expect(await handoff.read()).toBeNull();
+    await expect(handoff.read()).resolves.toBeNull();
     const record = { tenant: "QA-G", run_id: "S28-r", telnyx_phone_number_id: "2345678901", phone_number_id: "row", bought_at: "t", state: "bought" as const };
     await handoff.write(record);
-    expect(await handoff.read()).toEqual(record);
+    await expect(handoff.read()).resolves.toEqual(record);
     await expect(handoff.write({ ...record, telnyx_phone_number_id: "+14165550120" })).rejects.toThrow(/never a number/);
     await handoff.clear();
-    expect(await handoff.read()).toBeNull();
+    await expect(handoff.read()).resolves.toBeNull();
   });
 
   it("answers exactly one call event with the armed status, and never a text", async () => {
@@ -583,7 +583,7 @@ describe("mail", () => {
     expect((await mail.robotMail({ since: 0, tag: "s34" })).map((m) => m.links)).toEqual([["https://app.rig.internal/join"]]);
     const [confirm] = await mail.mailpit({ to: "a@resend.dev", since: Date.UTC(2026, 9, 31, 15) });
     expect(confirm!.links).toEqual(["https://app.rig.internal/auth/confirm?t=1"]);
-    expect(await mail.openLink(confirm!.links[0]!)).toEqual({ status: 303, location: "/inbox" });
+    await expect(mail.openLink(confirm!.links[0]!)).resolves.toEqual({ status: 303, location: "/inbox" });
     expect(decodeURIComponent(requests[0]!.url)).toContain('to:"a@resend.dev"');
   });
 });
@@ -600,7 +600,7 @@ describe("the Stripe sandbox", () => {
   it("sends only with a test key and only on the paths the rig uses", async () => {
     const { fetch, requests } = fakeFetch({ "POST https://api.stripe.com/v1/test_helpers/test_clocks": () => json({ id: "clock_1", livemode: false }) });
     const sandbox = (key: string) => new StripeSandbox({ key: () => key, subscriptionIdOf: async () => null, checkoutSubscriptionOf: async () => null, checkoutCustomerOf: async () => null, fetch });
-    expect(await sandbox("sk_test_x").request("POST", "/v1/test_helpers/test_clocks", { frozen_time: 1 })).toMatchObject({ id: "clock_1" });
+    await expect(sandbox("sk_test_x").request("POST", "/v1/test_helpers/test_clocks", { frozen_time: 1 })).resolves.toMatchObject({ id: "clock_1" });
     expect(requests[0]!.body).toBe("frozen_time=1");
     await expect(sandbox("sk_live_x").request("POST", "/v1/test_helpers/test_clocks")).rejects.toThrow(/not a test-mode key/);
     await expect(sandbox("sk_test_x").request("POST", "/v1/transfers")).rejects.toThrow(/not a path the rig uses/);
@@ -828,7 +828,7 @@ describe("the rig box", () => {
     );
     expect(devices.pixel().name).toBe("pixel");
     expect(devices.emulator(35).name).toBe("emulator-35");
-    expect(await devices.pixel().audio.proven()).toBe(false);
+    await expect(devices.pixel().audio.proven()).resolves.toBe(false);
     await expect(devices.pixel().audio.playCode("pixel")).rejects.toThrow("emulator-audio-unproven");
 
   });
@@ -878,7 +878,7 @@ describe("the rig box", () => {
 
   it("clears the device lane's console shaping on rig.network-clear", async () => {
     const devices = new FakeDevices();
-    await devices.pixelDevice.network.shape({ delayMs: 80, speedKbps: { up: 256, down: 1_024 } });
+    await devices.pixelDevice.network.shape({ delayMs: 80, speedKbps: { up: 256, down: 1024 } });
     const unused = () => {
       throw new Error("not built in this test");
     };

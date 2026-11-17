@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -11,7 +10,7 @@ import { describe, expect, it } from "vitest";
  * a timer.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const read = (file: string) => readFileSync(join(REPO, file), "utf8");
 
 type Run = { label?: string };

@@ -24,7 +24,8 @@ import { randomBytes } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { existsSync } from "node:fs";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
   assertRigVm,
@@ -38,18 +39,8 @@ import {
   volumeCleanupSql,
   volumeFixtureSql,
 } from "../../../scripts/load/volume-fixture.mjs";
-import {
-  CapacityConfigError,
-  CapacityRunError,
-  expectedConfirmation,
-  formatCapacityEvidence,
-  parseRamp,
-  RIG_API_ORIGIN,
-  RIG_SUPABASE_ORIGIN,
-  runHostedCapacity,
-  validateHostedCapacityInput,
-  type HostedScenario,
-} from "./deployed-capacity-lib.ts";
+import { CapacityConfigError, CapacityRunError, expectedConfirmation, formatCapacityEvidence, parseRamp, RIG_API_ORIGIN, RIG_SUPABASE_ORIGIN, runHostedCapacity, validateHostedCapacityInput } from './deployed-capacity-lib.ts';
+import type { HostedScenario } from './deployed-capacity-lib.ts';
 
 const HELP = `
 Usage (on the rig VM, from a deployed worktree's apps/api):

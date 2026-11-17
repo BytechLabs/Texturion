@@ -61,9 +61,9 @@ export function taskAttachmentView(
     sourceTag:
       item.source === "mms"
         ? "Message"
-        : item.source === "note"
+        : (item.source === "note"
           ? "Note"
-          : "Legacy",
+          : "Legacy"),
     deletable: item.source !== "mms",
     image: item.kind === "image",
   };

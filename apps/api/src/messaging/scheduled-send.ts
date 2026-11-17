@@ -48,16 +48,8 @@
  * Deliberately a HOLD and not a cancel: the owner may well still want to send
  * it, and deciding that for them is how a message silently disappears.
  */
-import {
-  AUTOMATIC_TEXT_KEYS,
-  type AutomaticTextSettings,
-  resolveAutomaticTextSettings,
-  SCHEDULED_HOLD_REASONS,
-  SCHEDULED_HOLD_REASON_KEYS,
-  type ScheduledHoldReason,
-  estimateSegments,
-  scheduledReasonRecovers,
-} from "@loonext/shared";
+import { AUTOMATIC_TEXT_KEYS, estimateSegments, resolveAutomaticTextSettings, SCHEDULED_HOLD_REASON_KEYS, SCHEDULED_HOLD_REASONS, scheduledReasonRecovers } from '@loonext/shared';
+import type { AutomaticTextSettings, ScheduledHoldReason } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
@@ -151,21 +143,27 @@ function unwrap<T>(
 function reasonFor(cause: unknown): ScheduledHoldReason {
   if (!(cause instanceof ApiError)) return "service_unavailable";
   switch (cause.code) {
-    case "recipient_opted_out":
+    case "recipient_opted_out": {
       return "recipient_opted_out";
-    case "subscription_inactive":
+    }
+    case "subscription_inactive": {
       return "subscription_inactive";
+    }
     // #277: held, not failed, and with its own sentence — a paused workspace's
     // scheduled sends go out when they resume, which is the whole point of
     // pausing rather than cancelling.
-    case "workspace_paused":
+    case "workspace_paused": {
       return "workspace_paused";
-    case "registration_pending":
+    }
+    case "registration_pending": {
       return "registration_pending";
-    case "validation_failed":
+    }
+    case "validation_failed": {
       return "invalid_destination";
-    default:
+    }
+    default: {
       return "service_unavailable";
+    }
   }
 }
 
@@ -212,7 +210,7 @@ async function resolveDestination(
   return {
     from: number.number_e164,
     to,
-    newestInbound: (newest as { created_at: string } | null)?.created_at ?? null,
+    newestInbound: (newest)?.created_at ?? null,
   };
 }
 
@@ -302,12 +300,7 @@ async function jobStillBooked(
   if (error) return true;
   if (!data) return false;
 
-  const task = data as unknown as {
-    deleted_at: string | null;
-    reminders_off: boolean;
-    due_at: string | null;
-    done_state: string | null;
-  };
+  const task = data;
   return (
     task.deleted_at === null &&
     !task.reminders_off &&
@@ -387,14 +380,7 @@ async function linkedCalendarsVerifiedRecently(
 
   const connections = new Map(
     connectionData.map((connection) => {
-      const value = connection as {
-        id: string;
-        status: string;
-        last_verified_at: string | null;
-        revoked_at: string | null;
-        sync_due_at: string | null;
-        pull_lease_owner: string | null;
-      };
+      const value = connection;
       return [value.id, value] as const;
     }),
   );
@@ -404,8 +390,7 @@ async function linkedCalendarsVerifiedRecently(
   return connectionIds.every((connectionId) => {
     const connection = connections.get(connectionId);
     if (
-      !connection ||
-      connection.status !== "active" ||
+      connection?.status !== "active" ||
       connection.revoked_at !== null ||
       connection.pull_lease_owner !== null ||
       !connection.last_verified_at
@@ -455,7 +440,7 @@ async function disclose(
 
   const viewers = await listConversationViewers(db, {
     companyId: row.company_id,
-    phoneNumberId: (conversation as { phone_number_id: string | null } | null)
+    phoneNumberId: (conversation)
       ?.phone_number_id,
   });
   if (viewers.length === 0) return;
@@ -572,10 +557,10 @@ async function expireStale(
     // claim below and keep every other workspace's due text from going out.
     try {
       await disclose(env, db, row, "expired");
-    } catch (cause) {
+    } catch (error) {
       console.error(
         `scheduled send: expiry disclosure failed for ${row.id}: ${
-          cause instanceof Error ? cause.message : String(cause)
+          error instanceof Error ? error.message : String(error)
         }`,
       );
     }
@@ -662,8 +647,8 @@ export async function runScheduledSendJob(
       let clearance;
       try {
         clearance = await runPreSendGates(env, row.company_id, destination.to);
-      } catch (cause) {
-        const reason = reasonFor(cause);
+      } catch (error) {
+        const reason = reasonFor(error);
         if (scheduledReasonRecovers(reason)) {
           await hold(env, db, row, reason);
           summary.held += 1;
@@ -692,10 +677,10 @@ export async function runScheduledSendJob(
       if (fired.outcome === "held") {
         if (fired.reason_key !== "calendar_unverified") {
           throw new Error(
-            `fire scheduled message returned unsupported hold reason ${String(fired.reason_key)}`,
+            `fire scheduled message returned unsupported hold reason ${fired.reason_key}`,
           );
         }
-        if (fired.entered === true) {
+        if (fired.entered) {
           await disclose(
             env,
             db,
@@ -709,7 +694,7 @@ export async function runScheduledSendJob(
       if (fired.outcome === "failed") {
         if (fired.reason_key !== "job_no_longer_scheduled") {
           throw new Error(
-            `fire scheduled message returned unsupported failure reason ${String(fired.reason_key)}`,
+            `fire scheduled message returned unsupported failure reason ${fired.reason_key}`,
           );
         }
         await disclose(
@@ -737,9 +722,9 @@ export async function runScheduledSendJob(
         clearance,
       });
       summary.sent += 1;
-    } catch (cause) {
+    } catch (error) {
       failures.push(
-        `${row.id}: ${cause instanceof Error ? cause.message : String(cause)}`,
+        `${row.id}: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

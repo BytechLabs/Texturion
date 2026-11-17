@@ -2,10 +2,10 @@ import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AppEnv } from "../context";
-import type { Bindings } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { FakeRest } from "../telnyx/test-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { quotesRoutes } from "./quotes";
 
 /**
@@ -149,7 +149,7 @@ function buildHarness(
       app.request(
         `/v1/quotes/${QUOTE_ID}/send`,
         { method: "POST", headers: { "Content-Type": "application/json" } },
-        env as unknown as Bindings,
+        env,
       ),
   };
 }

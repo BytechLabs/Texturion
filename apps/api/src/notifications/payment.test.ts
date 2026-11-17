@@ -19,13 +19,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../db";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
-import {
-  notifyPayment,
-  paymentAlert,
-  PAYMENT_PUSH_KIND,
-  type PaymentNotification,
-} from "./payment";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
+import { notifyPayment, PAYMENT_PUSH_KIND, paymentAlert } from './payment';
+import type { PaymentNotification } from './payment';
 import { encodeBase64Url } from "./webpush";
 
 
@@ -65,7 +62,7 @@ function inFilter(raw: string | null): string[] | null {
   if (raw === null) return null;
   const match = /^in\.\((.*)\)$/.exec(raw);
   if (!match) return null;
-  return match[1].split(",").map((value) => value.replace(/^"|"$/g, ""));
+  return match[1].split(",").map((value) => value.replaceAll(/^"|"$/g, ""));
 }
 
 async function subscriptionRow(userId: string) {

@@ -52,7 +52,7 @@ describe("InlineDue sends one PATCH", () => {
 
     fireEvent.blur(input);
     expect(mutate).toHaveBeenCalledOnce();
-    expect(mutate.mock.calls[0]![0]).toEqual({
+    expect(mutate.mock.calls[0][0]).toEqual({
       taskId: "t1",
       due_at: new Date("2026-11-20T09:30").toISOString(),
     });
@@ -65,7 +65,7 @@ describe("InlineDue sends one PATCH", () => {
     type(input, "2026-11-21T10:00");
     fireEvent.keyDown(input, { key: "Escape" });
     expect(mutate).toHaveBeenCalledOnce();
-    expect(mutate.mock.calls[0]![0]).toMatchObject({
+    expect(mutate.mock.calls[0][0]).toMatchObject({
       due_at: new Date("2026-11-21T10:00").toISOString(),
     });
   });

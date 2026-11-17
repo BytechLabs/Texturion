@@ -1,11 +1,7 @@
 "use client";
 
-import {
-  type LayoutPanelId,
-  PANEL_SPAN,
-  type PanelSize,
-  placePanels,
-} from "@loonext/shared";
+import { PANEL_SPAN, placePanels } from '@loonext/shared';
+import type { LayoutPanelId, PanelSize } from '@loonext/shared';
 import { ArrowLeft, ArrowRight, Columns3, GripVertical, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
@@ -142,15 +138,14 @@ export function BentoLayout({
       {cells.map((cell, index) => {
         const place = placed.get(cell.id);
         // The columns this frame is drawn and measured across.
-        const span = !positioned
-          ? Math.min(PANEL_SPAN[cell.size], columns)
-          : (place?.span ?? 1);
+        const span = positioned
+          ? (place?.span ?? 1)
+          : Math.min(PANEL_SPAN[cell.size], columns);
         const style: React.CSSProperties | undefined =
           width === 0
             ? undefined
-            : !positioned
-              ? { width: spanWidth(span, columns) }
-              : place
+            : positioned
+              ? place
                 ? {
                     position: "absolute",
                     top: place.top,
@@ -163,7 +158,8 @@ export function BentoLayout({
                     left: 0,
                     width: spanWidth(span, columns),
                     visibility: "hidden",
-                  };
+                  }
+              : { width: spanWidth(span, columns) };
         return (
           <PanelFrame
             key={cell.id}

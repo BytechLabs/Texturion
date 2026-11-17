@@ -116,20 +116,24 @@ export function deriveRegistrationUiState(
   // Subscription-level states first — the most urgent thing to surface.
   switch (input.subscriptionStatus) {
     case "incomplete":
-    case "incomplete_expired":
+    case "incomplete_expired": {
       // Owners/admins are routed back to onboarding to finish paying
       // (CompanyProvider), so they never reach a page with this banner. A
       // member can't pay — nudge them to ask the account owner.
       return input.role === "member"
         ? { kind: "setup_unfinished_member" }
         : { kind: "none" };
-    case "canceled":
+    }
+    case "canceled": {
       return { kind: "subscription_canceled" };
+    }
     case "past_due":
-    case "unpaid":
+    case "unpaid": {
       return { kind: "payment_issue" };
-    case "active":
+    }
+    case "active": {
       break;
+    }
   }
 
   // Number lifecycle first (§4.4 rows 1–2): nothing else matters until the

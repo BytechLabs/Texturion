@@ -8,11 +8,11 @@ import { describe, expect, it } from "vitest";
 
 import { escapeLike, orIlikeValue } from "./http";
 
-describe("escapeLike", () => {
+describe(escapeLike, () => {
   it("backslash-escapes SQL LIKE wildcards", () => {
-    expect(escapeLike("100%")).toBe("100\\%");
-    expect(escapeLike("a_b")).toBe("a\\_b");
-    expect(escapeLike("c\\d")).toBe("c\\\\d");
+    expect(escapeLike("100%")).toBe(String.raw`100\%`);
+    expect(escapeLike("a_b")).toBe(String.raw`a\_b`);
+    expect(escapeLike(String.raw`c\d`)).toBe(String.raw`c\\d`);
   });
 
   it("strips PostgREST's `*` wildcard (unescapable at the URL layer)", () => {
@@ -25,7 +25,7 @@ describe("escapeLike", () => {
   });
 });
 
-describe("orIlikeValue", () => {
+describe(orIlikeValue, () => {
   it("strips the PostgREST or= tree reserved chars AND the wildcards", () => {
     expect(orIlikeValue('a",()b')).toBe("ab");
     expect(orIlikeValue("a%_b")).toBe("ab");

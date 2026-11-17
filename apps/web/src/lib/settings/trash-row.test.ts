@@ -16,7 +16,7 @@ const base = {
   purge_after: "2026-12-01T12:00:00.000Z",
 };
 
-describe("daysLeft", () => {
+describe(daysLeft, () => {
   it("counts whole days, rounding up", () => {
     expect(daysLeft("2026-12-10T12:00:00.000Z", NOW)).toBe(30);
     expect(daysLeft("2026-11-12T11:00:00.000Z", NOW)).toBe(2);

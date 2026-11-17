@@ -16,14 +16,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
-import {
-  messageRow,
-  restMatch,
-  rpcMatch,
-  stubRoute,
-  type Stub,
-} from "../test/messaging-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { messageRow, restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { computeMissedFromEvent, sendMissedCallText } from "./missed-call";
 
 const env: Env = completeEnv();
@@ -468,7 +464,7 @@ describe("sendMissedCallText — text-back + alert", () => {
       (url, request) =>
         request.method === "POST" &&
         url.href === "https://api.telnyx.com/v2/messages",
-      () => new Response(JSON.stringify({ errors: [{ code: "40300" }] }), { status: 403 }),
+      () => Response.json({ errors: [{ code: "40300" }] }, { status: 403 }),
     );
     const claim = stubRoute(rpcMatch(env, "claim_missed_call_text"), () => ({
       message: messageRow({ status: "queued" }),
@@ -533,7 +529,7 @@ describe("sendMissedCallText — text-back + alert", () => {
     const service = fcmService();
     stubFetch(
       ...[company, numberStub(), ...gates, claim, telnyx, persist, conv, members, prefs, memberPrefs, webSubs, deviceTokens]
-        .map((s) => s.route as FetchRoute),
+        .map((s) => s.route),
       ...service.routes,
     );
 
@@ -597,13 +593,13 @@ describe("#307 the text-back names the line", () => {
   }
 
   it("MC-1: a line with no name of its own signs with the workspace's", async () => {
-    expect(await bodyFor(null)).toContain("Ace Plumbing");
+    await expect(bodyFor(null)).resolves.toContain("Ace Plumbing");
   });
 
   it("MC-2: a named line signs with its own name", async () => {
     // The coherence: this caller just heard "Ace Plumbing Sales" on the
     // greeting. A text signed "Ace Plumbing" is a second business.
-    expect(await bodyFor("Ace Plumbing Sales")).toContain("Ace Plumbing Sales");
+    await expect(bodyFor("Ace Plumbing Sales")).resolves.toContain("Ace Plumbing Sales");
   });
 
   it("MC-3: the line's name is actually fetched", async () => {
@@ -645,7 +641,7 @@ describe("#307 the text-back names the line", () => {
       restMatch(env, "GET", "phone_numbers", (url) =>
         url.searchParams.get("select")?.includes("label") ?? false,
       ),
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     const gates = sendGateStubs();
     const telnyx = telnyxStub();

@@ -2,11 +2,14 @@ import { EventEmitter } from "node:events";
 import { mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createServer as createHttpServer, type IncomingMessage } from "node:http";
-import { connect, createServer, type AddressInfo, type Server } from "node:net";
+import { createServer as createHttpServer } from 'node:http';
+import type { IncomingMessage } from 'node:http';
+import { connect, createServer } from 'node:net';
+import type { AddressInfo, Server } from 'node:net';
 import grpc from "@grpc/grpc-js";
 import { afterEach, describe, expect, it } from "vitest";
-import { Adb, adbAnswers, passedMaintenance, type Exec } from "./android/adb.ts";
+import { Adb, adbAnswers, passedMaintenance } from './android/adb.ts';
+import type { Exec } from './android/adb.ts';
 import {
   AndroidDevice,
   CALL_TEST_IDS,
@@ -18,17 +21,8 @@ import {
   parseUiDump,
   parseVersionCode,
 } from "./android/device.ts";
-import {
-  assemble,
-  AUDIO_UNPROVEN,
-  EmulatorAudioLink,
-  emulatorController,
-  pcmFromS16,
-  readAudioProof,
-  recordingActive,
-  type AudioPacket,
-  type ControllerClient,
-} from "./android/emulator-audio.ts";
+import { assemble, AUDIO_UNPROVEN, EmulatorAudioLink, emulatorController, pcmFromS16, readAudioProof, recordingActive } from './android/emulator-audio.ts';
+import type { AudioPacket, ControllerClient } from './android/emulator-audio.ts';
 import { EmulatorConsole, PACKET_LOSS_REFUSED } from "./android/emulator-console.ts";
 import { HostdClient, parseHostdOrigin } from "./android/hostd-client.ts";
 import { loadContract, rigPaths } from "../../host/src/config.mjs";
@@ -42,7 +36,7 @@ const ADB = `adb -H 127.0.0.1 -P 15037 -s ${SERIAL}`;
 
 const cleanups: (() => Promise<void> | void)[] = [];
 afterEach(async () => {
-  for (const cleanup of cleanups.splice(0).reverse()) await cleanup();
+  for (const cleanup of cleanups.splice(0).toReversed()) await cleanup();
 });
 
 function fakeExec(answers: Record<string, string> = {}) {
@@ -89,7 +83,7 @@ describe("the device driver's readings", () => {
       platforms: { platform: string; ids: { id: string }[] }[];
     };
     const android = registry.platforms.find((platform) => platform.platform === "android")!;
-    expect([...CALL_TEST_IDS].sort()).toEqual(android.ids.map((entry) => entry.id).sort());
+    expect([...CALL_TEST_IDS].toSorted()).toEqual(android.ids.map((entry) => entry.id).toSorted());
   });
 
   it("reads a UIAutomator dump's ids, text and bounds", () => {
@@ -118,7 +112,7 @@ describe("the device driver's readings", () => {
   });
 
   it("reads Play services' version code and name, and whether deep Doze is enabled", async () => {
-    expect(parseVersionCode("    versionCode=251234000 minSdk=30 targetSdk=35")).toBe(251234000);
+    expect(parseVersionCode("    versionCode=251234000 minSdk=30 targetSdk=35")).toBe(251_234_000);
     expect(parseEnabled("1\n")).toBe(true);
     expect(parseEnabled("0\n")).toBe(false);
     expect(parseEnabled("Unknown command\n")).toBeNull();
@@ -128,7 +122,7 @@ describe("the device driver's readings", () => {
     });
     const state = await android.state();
     expect(state).toMatchObject({ play_services_version: 251_234_000, play_services_version_name: "25.12.34", deep_idle_enabled: false });
-    expect(Object.keys(state).sort()).toEqual(["app_version", "battery_saver", "boot_completed", "deep_idle_enabled", "doze", "locked", "play_services_version", "play_services_version_name", "sdk_int", "standby_bucket"]);
+    expect(Object.keys(state).toSorted()).toEqual(["app_version", "battery_saver", "boot_completed", "deep_idle_enabled", "doze", "locked", "play_services_version", "play_services_version_name", "sdk_int", "standby_bucket"]);
     expect(calls).toContain(`${ADB} shell dumpsys deviceidle enabled deep`);
   });
 
@@ -138,8 +132,8 @@ describe("the device driver's readings", () => {
     expect(parseFcmToken(`<map><string name="|T|987654321|*">fcm-plain</string></map>`)).toBe("fcm-plain");
     expect(parseFcmToken(`<map><string name="|S||P|">1:2:android:3</string></map>`)).toBeNull();
     const { android, calls } = device({ "run-as": `<map><string name="|T|1|*">fcm-plain</string></map>`, "ro.crypto.type": "file\n" });
-    expect(await android.pushToken()).toBe("fcm-plain");
-    expect(await android.cryptoType()).toBe("file");
+    await expect(android.pushToken()).resolves.toBe("fcm-plain");
+    await expect(android.cryptoType()).resolves.toBe("file");
     expect(calls).toEqual([`${ADB} shell run-as ${PKG} cat shared_prefs/com.google.android.gms.appid.xml`, `${ADB} shell getprop ro.crypto.type`]);
   });
 
@@ -159,7 +153,7 @@ describe("the device driver's readings", () => {
       "        A: android:value(0x01010024)=(type 0x10)0xbdfcb8",
     ].join("\n");
     const { android, calls } = device({ "pm path": `package:/data/app/${PKG}/base.apk`, "dump xmltree": meta });
-    expect(await android.playServicesMinimum()).toBe(12_451_000);
+    await expect(android.playServicesMinimum()).resolves.toBe(12_451_000);
     expect(calls.find((c) => c.includes("dump xmltree"))).toMatch(/^aapt2 dump xmltree --file AndroidManifest\.xml /);
     expect(calls[0]).toBe(`${ADB} shell pm path ${PKG}`);
   });
@@ -191,17 +185,17 @@ describe("adb through hostd's tunnel", () => {
     const tunnelOnly = createServer((socket) => socket.destroy());
     const adbPort = await listen(adb);
     const tunnelPort = await listen(tunnelOnly);
-    expect(await adbAnswers("127.0.0.1", adbPort, 2_000)).toBe(true);
-    expect(await adbAnswers("127.0.0.1", tunnelPort, 2_000)).toBe(false);
+    await expect(adbAnswers("127.0.0.1", adbPort, 2000)).resolves.toBe(true);
+    await expect(adbAnswers("127.0.0.1", tunnelPort, 2000)).resolves.toBe(false);
     await new Promise((resolve) => adb.close(resolve));
     await new Promise((resolve) => tunnelOnly.close(resolve));
-    expect(await adbAnswers("127.0.0.1", adbPort, 2_000)).toBe(false);
+    await expect(adbAnswers("127.0.0.1", adbPort, 2000)).resolves.toBe(false);
   });
 
   it("talks only to a loopback server", () => {
-    expect(() => new Adb({ serial: SERIAL, server: { host: "10.0.0.1" as "127.0.0.1", port: 15037 } })).toThrow(/tunnel/);
+    expect(() => new Adb({ serial: SERIAL, server: { host: "10.0.0.1" as "127.0.0.1", port: 15_037 } })).toThrow(/tunnel/);
     const { exec, calls } = fakeExec();
-    return new Adb({ serial: SERIAL, exec, portCheck: tunnelUp, server: { host: "127.0.0.1", port: 15999 } })
+    return new Adb({ serial: SERIAL, exec, portCheck: tunnelUp, server: { host: "127.0.0.1", port: 15_999 } })
       .shell("getprop", "x")
       .then(() => expect(calls).toEqual([`adb -H 127.0.0.1 -P 15999 -s ${SERIAL} shell getprop x`]));
   });
@@ -237,11 +231,11 @@ describe("Doze and battery saver on an emulator", () => {
       return line.endsWith("step deep") ? `Stepped to deep: ${states[step++]}\n` : "";
     };
     const adb = new Adb({ serial: SERIAL, exec, portCheck: tunnelUp });
-    expect(await adb.stepDeepIdle()).toEqual(states.slice(0, 7));
+    await expect(adb.stepDeepIdle()).resolves.toEqual(states.slice(0, 7));
     expect(calls.slice(0, 3)).toEqual([`${ADB} shell dumpsys deviceidle enable all`, `${ADB} shell input keyevent KEYCODE_SLEEP`, `${ADB} shell dumpsys battery unplug`]);
 
     step = 0;
-    expect(await adb.stepDeepIdle(3)).toEqual(states.slice(0, 3));
+    await expect(adb.stepDeepIdle(3)).resolves.toEqual(states.slice(0, 3));
     expect(passedMaintenance(states.slice(0, 7))).toBe(true);
     expect(passedMaintenance(["IDLE", "IDLE_MAINTENANCE"])).toBe(false);
     expect(passedMaintenance(["IDLE_MAINTENANCE", "IDLE"])).toBe(false);
@@ -262,7 +256,7 @@ describe("Doze and battery saver on an emulator", () => {
       exec: async (_file, args) => (args.at(-1) === "deep" && args.includes("step") ? `Stepped to deep: ${states[step++]}` : ""),
       portCheck: tunnelUp,
     });
-    expect(await android.stepDoze()).toEqual(states);
+    await expect(android.stepDoze()).resolves.toEqual(states);
   });
 
   it("turns battery saver on unplugged and reads it back, and off by resetting the battery", async () => {
@@ -289,10 +283,10 @@ describe("Doze and battery saver on an emulator", () => {
 describe("the device driver's commands (no device has run them)", () => {
   it("taps a call control at its centre, and reports one that is not on screen", async () => {
     const { android, calls } = device({ "cat /sdcard/rig-ui.xml": UI });
-    expect(await android.tap("call_decline")).toBe(true);
+    await expect(android.tap("call_decline")).resolves.toBe(true);
     expect(calls.slice(-1)).toEqual([`${ADB} shell input tap 830 1900`]);
-    expect(await android.tap("call_hang_up")).toBe(false);
-    expect(await android.tapText("Answer")).toBe(true);
+    await expect(android.tap("call_hang_up")).resolves.toBe(false);
+    await expect(android.tapText("Answer")).resolves.toBe(true);
     expect(calls.slice(-1)).toEqual([`${ADB} shell input tap 250 1900`]);
   });
 
@@ -305,11 +299,11 @@ describe("the device driver's commands (no device has run them)", () => {
 <node text="Forgot password?" class="android.widget.TextView" bounds="[63,1504][1017,1630]" />
 </hierarchy>`;
     const { android, calls } = device({ "cat /sdcard/rig-ui.xml": signIn });
-    expect(await android.tapFieldLabelled("Email")).toBe(true);
+    await expect(android.tapFieldLabelled("Email")).resolves.toBe(true);
     expect(calls.slice(-1)).toEqual([`${ADB} shell input tap 540 1039`]);
-    expect(await android.tapFieldLabelled("Password")).toBe(true);
+    await expect(android.tapFieldLabelled("Password")).resolves.toBe(true);
     expect(calls.slice(-1)).toEqual([`${ADB} shell input tap 498 1250`]);
-    expect(await android.tapFieldLabelled("Phone")).toBe(false);
+    await expect(android.tapFieldLabelled("Phone")).resolves.toBe(false);
   });
 
   it("waits for Telecom's ring and the full-screen notification, timing each", async () => {
@@ -335,11 +329,11 @@ describe("the device driver's commands (no device has run them)", () => {
         now += ms;
       },
     });
-    expect(await android.waitForRinging(12_000)).toEqual({ telecom_ms: 1_000, full_screen_ms: 1_500 });
+    await expect(android.waitForRinging(12_000)).resolves.toEqual({ telecom_ms: 1000, full_screen_ms: 1500 });
     polls = -100;
     notes = -100;
     now = 0;
-    expect(await android.waitForRinging(2_000)).toBeUndefined();
+    await expect(android.waitForRinging(2000)).resolves.toBeUndefined();
   });
 
   it("puts the app in each state a wake variant needs, and opens it by deep link to the inert host", async () => {
@@ -361,7 +355,7 @@ describe("the device driver's commands (no device has run them)", () => {
 
   it("resets the app to a known state: stopped, launched again, and the launcher put in front of it", async () => {
     const { android, calls } = device();
-    expect(await android.resetUi()).toEqual({ crashPrompt: false });
+    await expect(android.resetUi()).resolves.toEqual({ crashPrompt: false });
     expect(calls).toEqual([
       `${ADB} shell am force-stop ${PKG}`,
       `${ADB} shell cmd statusbar collapse`,
@@ -379,7 +373,7 @@ describe("the device driver's commands (no device has run them)", () => {
 <node index="2" text="Dismiss" resource-id="" class="android.widget.Button" content-desc="" bounds="[284,1388][485,1514]" />
 </hierarchy>`;
     const { android, calls } = device({ "cat /sdcard/rig-ui.xml": prompt });
-    expect(await android.resetUi()).toEqual({ crashPrompt: true });
+    await expect(android.resetUi()).resolves.toEqual({ crashPrompt: true });
     const tap = calls.findIndex((line) => line.includes("input tap"));
     expect(calls[tap]).toBe(`${ADB} shell input tap 385 1451`);
     expect(calls[tap + 1]).toBe(`${ADB} shell input keyevent KEYCODE_HOME`);
@@ -403,7 +397,7 @@ describe("the device driver's commands (no device has run them)", () => {
       portCheck: tunnelUp,
       sleep: async () => undefined,
     });
-    expect(await android.resetUi()).toEqual({ crashPrompt: false });
+    await expect(android.resetUi()).resolves.toEqual({ crashPrompt: false });
     expect(calls.at(-1)).toBe(`${ADB} shell input keyevent KEYCODE_HOME`);
     expect(calls.some((line) => line.includes("uiautomator"))).toBe(false);
   });
@@ -494,9 +488,9 @@ describe("the emulator console", () => {
   it("authenticates, then sends each command and reads its OK", async () => {
     const world = await fakeConsole();
     const shell = world.make();
-    await shell.shape({ delayMs: 80, speedKbps: { up: 512, down: 2_048 } });
+    await shell.shape({ delayMs: 80, speedKbps: { up: 512, down: 2048 } });
     expect(world.lines).toEqual(["auth <token>", "network delay 80", "network speed 512:2048"]);
-    expect(shell.shaped).toEqual({ delayMs: 80, speedKbps: { up: 512, down: 2_048 } });
+    expect(shell.shaped).toEqual({ delayMs: 80, speedKbps: { up: 512, down: 2048 } });
     await shell.powerAc(false);
     await shell.powerStatus("discharging");
     await shell.powerCapacity(15);
@@ -527,18 +521,18 @@ describe("the emulator console", () => {
     // Assembled from parts so this file holds no real-looking number (check-rig-no-e164).
     await expect(shell.gsmCall(["+1416", "5551234"].join(""))).rejects.toThrow(/refusing/);
     await expect(shell.shape({ delayMs: 80, speedKbps: { up: 512, down: 512 }, lossPercent: 2 })).rejects.toThrow(PACKET_LOSS_REFUSED);
-    await expect(shell.networkDelay(9_000)).rejects.toThrow(/0-5000/);
+    await expect(shell.networkDelay(9000)).rejects.toThrow(/0-5000/);
     expect(world.lines).toEqual([]);
   });
 
   it("takes the network away for an outage and gives both paths back, even when one fails", async () => {
     const world = await fakeConsole();
-    await world.make().outage(3_000);
+    await world.make().outage(3000);
     expect(world.shells).toEqual(["svc wifi disable", "svc wifi enable"]);
     expect(world.lines).toEqual(["auth <token>", "gsm data unregistered", "auth <token>", "gsm data home"]);
 
     const broken = await fakeConsole({ ko: /^gsm data unregistered/ });
-    await expect(broken.make().outage(3_000)).rejects.toThrow(/gsm data unregistered/);
+    await expect(broken.make().outage(3000)).rejects.toThrow(/gsm data unregistered/);
     expect(broken.shells).toEqual(["svc wifi disable", "svc wifi enable"]);
     expect(broken.lines.filter((line) => line.startsWith("gsm"))).toEqual(["gsm data unregistered", "gsm data home"]);
 
@@ -547,13 +541,13 @@ describe("the emulator console", () => {
       if (args.join(" ") === "svc wifi enable") throw new Error("adb: device offline");
       return "";
     });
-    await expect(failing.outage(1_000)).rejects.toThrow(/could not restore Wi-Fi: adb: device offline/);
+    await expect(failing.outage(1000)).rejects.toThrow(/could not restore Wi-Fi: adb: device offline/);
     expect(stuck.lines).toContain("gsm data home");
   });
 
   it("drops only Wi-Fi for a Wi-Fi drop, and puts the whole network back at rest on a clear", async () => {
     const world = await fakeConsole();
-    await world.make().wifiDrop(2_000);
+    await world.make().wifiDrop(2000);
     expect(world.shells).toEqual(["svc wifi disable", "svc wifi enable"]);
     expect(world.lines).toEqual([]);
     await world.make().shape(null);
@@ -638,7 +632,7 @@ function audioLink(port: number, options: { proof?: string; dump?: () => string;
     client,
     transcriber: { transcribe: async (wav) => (options.transcribed?.push(wav), "hello this is the rig robot") },
     sleep: () => new Promise((resolve) => setImmediate(resolve)),
-    micWaitMs: 2_000,
+    micWaitMs: 2000,
   });
   cleanups.push(() => link.close());
   return { link, shells };
@@ -648,22 +642,22 @@ describe("the emulator's gRPC audio", () => {
   it("injects the surface's code at 48 kHz in real-time mode, and hears 2,300 Hz back as the pixel's code", async () => {
     const controller = await fakeController();
     const { link } = audioLink(controller.port);
-    expect(await link.connected()).toBe(true);
+    await expect(link.connected()).resolves.toBe(true);
     await link.playCode("pixel");
-    const heard = await link.hear({ stream: "call", ms: 8_000 });
+    const heard = await link.hear({ stream: "call", ms: 8000 });
     link.stop();
     expect(heard).toMatchObject({ verdict: "heard", answered: "pixel" });
     expect(controller.injected[0]!.format).toMatchObject({ samplingRate: 48_000, channels: "Mono", format: "AUD_FMT_S16", mode: "MODE_REAL_TIME" });
-    expect(controller.injected[0]!.audio.length).toBe(1_920);
+    expect(controller.injected[0]!.audio).toHaveLength(1920);
     expect(controller.injected[1]!.format).toBeNull();
     expect(controller.auth.every((answer) => answer === "ok")).toBe(true);
     // Its own code, as the far end would hear it back, is echo and not an answer.
     await link.playCode("pixel");
-    expect(await link.hear({ stream: "call", ms: 8_000, own: "pixel" })).toMatchObject({ answered: null, echo: { surface: "pixel" } });
+    await expect(link.hear({ stream: "call", ms: 8000, own: "pixel" })).resolves.toMatchObject({ answered: null, echo: { surface: "pixel" } });
   });
 
   it("writes one 20 ms packet every 20 ms of the clock, since real-time mode overwrites what is queued", async () => {
-    let clock = 1_000;
+    let clock = 1000;
     const sleeps: number[] = [];
     const writes: { at: number; packet: AudioPacket }[] = [];
     let finished!: () => void;
@@ -701,7 +695,7 @@ describe("the emulator's gRPC audio", () => {
     writes.forEach(({ at, packet }, n) => {
       expect(at - started, `packet ${n}`).toBe(n * 20);
       expect(packet.timestamp - writes[0]!.packet.timestamp).toBe(n * 20_000);
-      expect(packet.audio.length).toBe(1_920);
+      expect(packet.audio).toHaveLength(1920);
     });
     expect(sleeps.slice(0, 49).every((ms) => ms === 17)).toBe(true);
   });
@@ -724,14 +718,14 @@ describe("the emulator's gRPC audio", () => {
     const controller = await fakeController();
     for (const proof of [undefined, "yes", JSON.stringify({ date: "soon", flags: [] }), JSON.stringify({ date: "2026-11-01", flags: ["; rm"] })]) {
       const { link } = audioLink(controller.port, { proof });
-      expect(await link.proven()).toBe(false);
+      await expect(link.proven()).resolves.toBe(false);
       await expect(link.playCode("pixel")).rejects.toThrow(AUDIO_UNPROVEN);
-      await expect(link.hear({ stream: "call", ms: 1_000 })).rejects.toThrow(AUDIO_UNPROVEN);
-      await expect(link.transcribe({ stream: "media", ms: 1_000 })).rejects.toThrow(AUDIO_UNPROVEN);
+      await expect(link.hear({ stream: "call", ms: 1000 })).rejects.toThrow(AUDIO_UNPROVEN);
+      await expect(link.transcribe({ stream: "media", ms: 1000 })).rejects.toThrow(AUDIO_UNPROVEN);
     }
     expect(controller.injected).toEqual([]);
     expect(readAudioProof(PROVEN)).toEqual({ date: "2026-11-01", flags: ["-no-audio", "-grpc-use-token"] });
-    expect(await audioLink(controller.port, { token: "wrongT0ken" }).link.connected()).toBe(false);
+    await expect(audioLink(controller.port, { token: "wrongT0ken" }).link.connected()).resolves.toBe(false);
   });
 
   it("transcribes the media stream from 48 kHz down to whisper's 16 kHz", async () => {
@@ -739,7 +733,7 @@ describe("the emulator's gRPC audio", () => {
     const transcribed: Uint8Array[] = [];
     const { link } = audioLink(controller.port, { transcribed });
     await link.playCode("emulator");
-    expect(await link.transcribe({ stream: "media", ms: 1_000 })).toBe("hello this is the rig robot");
+    await expect(link.transcribe({ stream: "media", ms: 1000 })).resolves.toBe("hello this is the rig robot");
     link.stop();
     const wav = Buffer.from(transcribed[0]!);
     expect(wav.readUInt32LE(24)).toBe(16_000);
@@ -751,14 +745,14 @@ describe("the emulator's gRPC audio", () => {
     expect(recordingActive(RECORDING.replace("silenced:false", "silenced:true"))).toBe(false);
     expect(recordingActive(RECORDING.replace("active? true", "active? false"))).toBe(false);
     expect(recordingActive("Audio event log\n  session:57 -- source client=MIC\n")).toBe(false);
-    expect([...pcmFromS16(Buffer.from([0x00, 0x40, 0x00, 0xc0]))]).toEqual([0.5, -0.5]);
+    expect([...pcmFromS16(Buffer.from([0x00, 0x40, 0x00, 0xC0]))]).toEqual([0.5, -0.5]);
     const packet = (timestamp: number) => ({ timestamp, samples: new Float32Array(960).fill(0.5) });
     // A 40 ms stall between the packets becomes silence, not a splice.
-    const laid = assemble([packet(0), packet(60_000)], 48_000, 4_800);
+    const laid = assemble([packet(0), packet(60_000)], 48_000, 4800);
     expect(laid[959]).toBe(0.5);
     expect(laid[960]).toBe(0);
-    expect(laid[2_879]).toBe(0);
-    expect(laid[2_880]).toBe(0.5);
+    expect(laid[2879]).toBe(0);
+    expect(laid[2880]).toBe(0.5);
   });
 });
 
@@ -792,8 +786,8 @@ describe("the hostd client", () => {
     const client = hostd.client();
     await client.boot("pixel", { cold: true, wipe: false });
     await client.kill("emulator-35", { hard: true });
-    expect(await client.tokens("pixel")).toEqual({ console: CONSOLE_TOKEN, grpc: GRPC_TOKEN });
-    expect(await client.health()).toEqual({ whpx_usable: true, tunnel_up: true, reboot_pending: true });
+    await expect(client.tokens("pixel")).resolves.toEqual({ console: CONSOLE_TOKEN, grpc: GRPC_TOKEN });
+    await expect(client.health()).resolves.toEqual({ whpx_usable: true, tunnel_up: true, reboot_pending: true });
     expect(hostd.requests.map((r) => [r.method, r.url, r.body])).toEqual([
       ["POST", "/v1/devices/pixel/boot", '{"cold":true,"wipe":false}'],
       ["POST", "/v1/devices/emulator-35/kill", '{"hard":true}'],
@@ -826,9 +820,9 @@ describe("the hostd client", () => {
     cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
     const client = new HostdClient({ origin: `http://127.0.0.1:${port}`, token: () => HOSTD_TOKEN });
     await client.boot("pixel", { cold: false, wipe: false });
-    expect(await client.tokens("pixel")).toEqual({ console: CONSOLE_TOKEN, grpc: GRPC_TOKEN });
+    await expect(client.tokens("pixel")).resolves.toEqual({ console: CONSOLE_TOKEN, grpc: GRPC_TOKEN });
     await client.kill("pixel", { hard: true });
-    expect(await client.health()).toEqual({ whpx_usable: true, tunnel_up: true, reboot_pending: false });
+    await expect(client.health()).resolves.toEqual({ whpx_usable: true, tunnel_up: true, reboot_pending: false });
     facts = { ...facts, host: null };
     expect((await client.health()).reboot_pending, "unread host facts").toBe(true);
     await expect(new HostdClient({ origin: `http://127.0.0.1:${port}`, token: () => "wrong" }).health()).rejects.toThrow(/answered 401/);

@@ -1,12 +1,5 @@
-import {
-  Home,
-  Inbox,
-  ListChecks,
-  PhoneIncoming,
-  Settings,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { Home, Inbox, ListChecks, PhoneIncoming, Settings, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import type { MessageKey } from "@/i18n/translate";
 

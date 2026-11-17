@@ -10,7 +10,7 @@ import {
 // nextRecipientIndex (#63) — the combobox keyboard reducer
 // ---------------------------------------------------------------------------
 
-describe("nextRecipientIndex", () => {
+describe(nextRecipientIndex, () => {
   it("ArrowDown from no-active lands on the first option", () => {
     expect(nextRecipientIndex("ArrowDown", -1, 3)).toBe(0);
   });
@@ -58,7 +58,7 @@ describe("nextRecipientIndex", () => {
 // clampActiveIndex — stale indexes must not outlive a shrinking result set
 // ---------------------------------------------------------------------------
 
-describe("clampActiveIndex", () => {
+describe(clampActiveIndex, () => {
   it("keeps a valid index", () => {
     expect(clampActiveIndex(2, 5)).toBe(2);
     expect(clampActiveIndex(0, 1)).toBe(0);
@@ -78,7 +78,7 @@ describe("clampActiveIndex", () => {
 // recipientOptionId — the aria-activedescendant target
 // ---------------------------------------------------------------------------
 
-describe("recipientOptionId", () => {
+describe(recipientOptionId, () => {
   it("derives a stable per-index DOM id under the listbox id", () => {
     expect(recipientOptionId("compose-to-results", 0)).toBe(
       "compose-to-results-option-0",

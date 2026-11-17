@@ -8,12 +8,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import {
-  messageRow,
-  rpcMatch,
-  stubRoute,
-  type Stub,
-} from "../test/messaging-support";
+import { messageRow, rpcMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
 import { clearedFor, completeEnv, stubFetch } from "../test/support";
 import { guardedAutoSend } from "./auto-send";
 

@@ -1,26 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   exchangeGoogleAuthorizationCode,
-  GoogleCalendarProvider,
   googleAuthorizationUrl,
+  GoogleCalendarProvider,
   normalizeGoogleEvent,
   refreshGoogleAccessToken,
 } from "./google";
 import { hashCalendarDescription } from "./normalize";
-import {
-  CalendarFullResyncRequiredError,
-  CalendarEventNotFoundError,
-  CalendarPreconditionError,
-  CalendarProviderError,
-  CalendarReauthRequiredError,
-  CalendarRetryableError,
-  type CalendarFetch,
-} from "./types";
+import { CalendarEventNotFoundError, CalendarFullResyncRequiredError, CalendarPreconditionError, CalendarProviderError, CalendarReauthRequiredError, CalendarRetryableError } from './types';
+import type { CalendarFetch } from './types';
 
 const TASK_URL = "https://app.example.test/tasks/0b5c8f2e-6a1d-4c3e-9f7a-2d4b6e8c0a1f";
 
 function json(body: unknown, status = 200, headers?: HeadersInit): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status,
     headers: { "Content-Type": "application/json", ...headers },
   });
@@ -31,7 +24,7 @@ function queuedFetch(...responses: Response[]): {
   mock: ReturnType<typeof vi.fn>;
 } {
   const mock = vi.fn(async () => responses.shift() ?? json({}));
-  return { fetcher: mock as CalendarFetch, mock };
+  return { fetcher: mock, mock };
 }
 
 function googleEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -84,7 +77,7 @@ describe("Google calendar provider", () => {
       queuedFetch(json(payload)).fetcher,
       { clientId: "client", clientSecret: "secret", redirectUri: "https://api/cb" },
       "sensitive-refresh-token",
-    ).catch((caught: unknown) => caught);
+    ).catch((error_: unknown) => error_);
 
     expect(error).toBeInstanceOf(CalendarProviderError);
     expect(error).toMatchObject({
@@ -190,11 +183,11 @@ describe("Google calendar provider", () => {
   it("refuses descriptions above the task limit without truncating them", async () => {
     await expect(
       normalizeGoogleEvent(
-        googleEvent({ description: "x".repeat(5_001) }),
+        googleEvent({ description: "x".repeat(5001) }),
         "America/Edmonton",
       ),
     ).resolves.toMatchObject({
-      description: "x".repeat(5_001),
+      description: "x".repeat(5001),
       inbound: { kind: "description_refused", reason: "too_long" },
     });
   });
@@ -328,9 +321,9 @@ describe("Google calendar provider", () => {
         calendarId: "primary",
         instanceId: "event",
       })
-      .catch((caught: unknown) => caught);
+      .catch((error_: unknown) => error_);
     expect(error).toBeInstanceOf(CalendarRetryableError);
-    expect((error as CalendarRetryableError).retryAfterMs).toBe(3_000);
+    expect((error as CalendarRetryableError).retryAfterMs).toBe(3000);
   });
 
   it("classifies a missing occurrence separately from authorization and retry errors", async () => {
@@ -342,7 +335,7 @@ describe("Google calendar provider", () => {
         accessToken: "access",
         calendarId: "primary",
         instanceId: "missing",
-      }).catch((caught: unknown) => caught);
+      }).catch((error_: unknown) => error_);
       expect(error).toBeInstanceOf(CalendarEventNotFoundError);
       expect(error).toMatchObject({ kind: "not_found", status });
     }
@@ -425,7 +418,7 @@ describe("Google calendar provider", () => {
       );
       return json(googleEvent({ id: instanceId }));
     });
-    const provider = new GoogleCalendarProvider(mock as CalendarFetch);
+    const provider = new GoogleCalendarProvider(mock);
     const input = await writeInput();
 
     const first = await provider.createEvent(input);
@@ -438,7 +431,7 @@ describe("Google calendar provider", () => {
     expect(recovered.instanceId).toBe(eventIds[0]);
     expect(mock).toHaveBeenCalledTimes(3);
     expect(String(mock.mock.calls[2]?.[0])).toContain(`/events/${eventIds[0]}`);
-    expect((mock.mock.calls[2]?.[1] as RequestInit).method).toBeUndefined();
+    expect((mock.mock.calls[2]?.[1]!).method).toBeUndefined();
   });
 
   it("does not replay a failed conditional patch", async () => {
@@ -451,7 +444,7 @@ describe("Google calendar provider", () => {
         version: '"stale"',
       }),
     ).rejects.toBeInstanceOf(CalendarPreconditionError);
-    expect(mock).toHaveBeenCalledTimes(1);
+    expect(mock).toHaveBeenCalledOnce();
   });
 
   it("annotates instead of deleting an event", async () => {

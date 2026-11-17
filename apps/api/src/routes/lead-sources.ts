@@ -71,7 +71,7 @@ leadSourcesRoutes.get(
       .eq("company_id", c.get("companyId"))
       .order("name", { ascending: true });
     if (error) throw new Error(`lead_sources lookup failed: ${error.message}`);
-    return c.json({ data: (data ?? []) as LeadSourceRow[] });
+    return c.json({ data: (data ?? []) });
   },
 );
 
@@ -178,9 +178,9 @@ leadSourcesRoutes.patch(
       companyId,
       action: body.archived === undefined
         ? "lead_source.renamed"
-        : body.archived
+        : (body.archived
           ? "lead_source.archived"
-          : "lead_source.restored",
+          : "lead_source.restored"),
       targetType: "lead_source",
       targetId: row.id,
       after: { name: row.name, archived: row.archived_at !== null },

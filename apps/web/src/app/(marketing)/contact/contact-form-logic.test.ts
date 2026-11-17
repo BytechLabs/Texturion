@@ -1,18 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 
-import {
-  buildContactRequestBody,
-  buildMailto,
-  contactEndpoint,
-  CONTACT_MIN_MESSAGE,
-  CONTACT_NETWORK_ERROR,
-  hasFieldErrors,
-  isValidEmail,
-  messageForErrorCode,
-  submitContact,
-  validateContactForm,
-  type ContactFormValues,
-} from "./contact-form-logic";
+import { buildContactRequestBody, buildMailto, CONTACT_MIN_MESSAGE, CONTACT_NETWORK_ERROR, contactEndpoint, hasFieldErrors, isValidEmail, messageForErrorCode, submitContact, validateContactForm } from './contact-form-logic';
+import type { ContactFormValues } from './contact-form-logic';
 
 function values(overrides: Partial<ContactFormValues> = {}): ContactFormValues {
   return {
@@ -25,7 +14,7 @@ function values(overrides: Partial<ContactFormValues> = {}): ContactFormValues {
   };
 }
 
-describe("isValidEmail", () => {
+describe(isValidEmail, () => {
   it("accepts a normal address", () => {
     expect(isValidEmail("dale@example.com")).toBe(true);
   });
@@ -38,7 +27,7 @@ describe("isValidEmail", () => {
   });
 });
 
-describe("validateContactForm", () => {
+describe(validateContactForm, () => {
   it("passes a complete, valid submission", () => {
     expect(validateContactForm(values())).toEqual({});
     expect(hasFieldErrors(validateContactForm(values()))).toBe(false);
@@ -72,7 +61,7 @@ describe("validateContactForm", () => {
   });
 });
 
-describe("buildContactRequestBody", () => {
+describe(buildContactRequestBody, () => {
   it("trims text fields and includes a non-empty company", () => {
     expect(
       buildContactRequestBody(
@@ -101,7 +90,7 @@ describe("buildContactRequestBody", () => {
   });
 });
 
-describe("contactEndpoint", () => {
+describe(contactEndpoint, () => {
   it("targets /contact at the API root, not under /v1", () => {
     expect(contactEndpoint("https://api.loonext.com")).toBe(
       "https://api.loonext.com/contact",
@@ -115,7 +104,7 @@ describe("contactEndpoint", () => {
   });
 });
 
-describe("messageForErrorCode", () => {
+describe(messageForErrorCode, () => {
   it("maps rate_limited (and a 429 with no code) to the try-later copy", () => {
     expect(messageForErrorCode("rate_limited")).toMatch(/try again in a little while/i);
     expect(messageForErrorCode(undefined, 429)).toMatch(/try again in a little while/i);
@@ -140,7 +129,7 @@ describe("messageForErrorCode", () => {
   });
 });
 
-describe("submitContact", () => {
+describe(submitContact, () => {
   function response(status: number, body?: unknown): Response {
     return {
       ok: status >= 200 && status < 300,
@@ -153,11 +142,11 @@ describe("submitContact", () => {
     const fetchImpl = vi.fn(async () => response(201, { ok: true }));
     const result = await submitContact(values(), {
       apiBaseUrl: "https://api.loonext.com",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
+      fetchImpl,
     });
 
     expect(result).toEqual({ ok: true });
-    expect(fetchImpl).toHaveBeenCalledTimes(1);
+    expect(fetchImpl).toHaveBeenCalledOnce();
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [
       string,
       RequestInit,
@@ -180,7 +169,7 @@ describe("submitContact", () => {
     );
     const result = await submitContact(values(), {
       apiBaseUrl: "https://api.loonext.com",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
+      fetchImpl,
     });
     expect(result).toEqual({
       ok: false,
@@ -194,7 +183,7 @@ describe("submitContact", () => {
     );
     const result = await submitContact(values(), {
       apiBaseUrl: "https://api.loonext.com",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
+      fetchImpl,
     });
     expect(result).toEqual({
       ok: false,
@@ -208,7 +197,7 @@ describe("submitContact", () => {
     });
     const result = await submitContact(values(), {
       apiBaseUrl: "https://api.loonext.com",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
+      fetchImpl,
     });
     expect(result).toEqual({ ok: false, message: CONTACT_NETWORK_ERROR });
   });
@@ -226,7 +215,7 @@ describe("submitContact", () => {
     );
     const result = await submitContact(values(), {
       apiBaseUrl: "https://api.loonext.com",
-      fetchImpl: fetchImpl as unknown as typeof fetch,
+      fetchImpl,
     });
     expect(result).toEqual({
       ok: false,

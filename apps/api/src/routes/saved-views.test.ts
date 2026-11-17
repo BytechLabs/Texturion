@@ -9,20 +9,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { savedViewsRoutes } from "./saved-views";
 
 const env = completeEnv();
@@ -384,7 +374,7 @@ describe("GET /v1/saved-views/counts", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ counts: { [VIEW_ID]: 7 } });
+    await expect(res.json()).resolves.toEqual({ counts: { [VIEW_ID]: 7 } });
 
     const call = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0];
     const params = call.body as Record<string, unknown>;
@@ -460,7 +450,7 @@ describe("GET /v1/saved-views/counts", () => {
       `/v1/saved-views/counts?surface=tasks&ids=${VIEW_ID}`,
       { companyId: COMPANY_ID },
     );
-    expect(await res.json()).toEqual({ counts: {} });
+    await expect(res.json()).resolves.toEqual({ counts: {} });
   });
 
   it("ignores junk ids without erroring", async () => {
@@ -474,6 +464,6 @@ describe("GET /v1/saved-views/counts", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ counts: {} });
+    await expect(res.json()).resolves.toEqual({ counts: {} });
   });
 });

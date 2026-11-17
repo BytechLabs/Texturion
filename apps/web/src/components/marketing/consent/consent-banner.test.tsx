@@ -29,12 +29,12 @@ afterEach(() => {
 describe("ConsentBanner (#124)", () => {
   it("renders nothing when GTM is not configured (dev/CI/previews)", async () => {
     env.NEXT_PUBLIC_GTM_ID = undefined;
-    expect(await renderBanner(true)).toBe("");
+    await expect(renderBanner(true)).resolves.toBe("");
   });
 
   it("renders nothing on the server even with GTM configured (no CLS, no crawler noise)", async () => {
     env.NEXT_PUBLIC_GTM_ID = "GTM-MTL658DD";
-    expect(await renderBanner()).toBe("");
+    await expect(renderBanner()).resolves.toBe("");
   });
 
   it("asks with two equal one-tap answers and links the cookie policy", async () => {
@@ -67,7 +67,7 @@ describe("ConsentBanner (#124)", () => {
 describe("ConsentPreferences (#124)", () => {
   it("renders nothing when GTM is not configured", async () => {
     env.NEXT_PUBLIC_GTM_ID = undefined;
-    expect(await renderPreferences()).toBe("");
+    await expect(renderPreferences()).resolves.toBe("");
   });
 
   it("server-renders only the reserved well (interactive panel mounts client-side)", async () => {

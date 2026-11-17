@@ -29,7 +29,7 @@ export const NONPROD_SUFFIX = ".nonprod";
 export const STANDBY_BUCKETS = ["active", "working_set", "frequent", "rare", "restricted"] as const;
 export type StandbyBucket = (typeof STANDBY_BUCKETS)[number];
 
-const SERVER_CHECK_MS = 2_000;
+const SERVER_CHECK_MS = 2000;
 
 /** Runs a program with arguments and returns its stdout. Never through a shell. */
 export type Exec = (file: string, args: readonly string[], options?: { timeoutMs?: number }) => Promise<string>;
@@ -188,7 +188,7 @@ export class Adb {
 
   async setStandbyBucket(pkg: string, bucket: StandbyBucket): Promise<void> {
     assertPackage(pkg);
-    if (!STANDBY_BUCKETS.includes(bucket)) throw new Error(`adb: ${String(bucket)} is not a standby bucket`);
+    if (!STANDBY_BUCKETS.includes(bucket)) throw new Error(`adb: ${bucket} is not a standby bucket`);
     await this.shell("am", "set-standby-bucket", pkg, bucket);
   }
 
@@ -231,8 +231,8 @@ export class Adb {
       return await this.#exec(this.#adb, line);
     } catch (error) {
       const { code, killed, signal } = error as { code?: unknown; killed?: unknown; signal?: unknown };
-      const how = killed ? "timed out" : signal ? `ended by ${String(signal)}` : code !== undefined ? `exited ${String(code)}` : "failed";
-      throw new Error(`adb: ${step} on ${this.serial} ${how}`);
+      const how = killed ? "timed out" : signal ? `ended by ${String(signal)}` : code === undefined ? "failed" : `exited ${String(code)}`;
+      throw new Error(`adb: ${step} on ${this.serial} ${how}`, { cause: error });
     }
   }
 
@@ -268,7 +268,7 @@ export class Adb {
     while (Date.now() < deadline) {
       const booted = await this.shell("getprop", "sys.boot_completed").catch(() => "");
       if (booted.trim() === "1") return;
-      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
     throw new Error("adb: the device did not finish booting");
   }
@@ -357,7 +357,7 @@ export class Adb {
 export function passedMaintenance(states: readonly string[]): boolean {
   const idle = states.indexOf("IDLE");
   const maintenance = idle === -1 ? -1 : states.indexOf("IDLE_MAINTENANCE", idle);
-  return maintenance !== -1 && states.indexOf("IDLE", maintenance) !== -1;
+  return maintenance !== -1 && states.includes("IDLE", maintenance);
 }
 
 /** The APK `pm path` names for a package: the base one when the app is split. */
@@ -375,7 +375,7 @@ export function parsePackagePath(output: string): string | null {
  * null when there is no entry by that name.
  */
 export function manifestMetaValue(xmltree: string, name: string): number | string | null {
-  for (const element of xmltree.replace(/\r\n/g, "\n").split(/\n(?=\s*E: )/)) {
+  for (const element of xmltree.replaceAll('\r\n', "\n").split(/\n(?=\s*E: )/)) {
     if (!/^\s*E: meta-data\b/.test(element) || !element.includes(`="${name}"`)) continue;
     const value = /:value\(0x[0-9a-f]+\)=(.+)$/im.exec(element)?.[1]?.trim();
     if (!value) return null;
@@ -393,7 +393,7 @@ export function manifestMetaValue(xmltree: string, name: string): number | strin
 /** An integer resource's default value in `aapt2 dump resources` output, by its id. */
 export function integerResource(dump: string, id: string): number | null {
   if (!/^0x[0-9a-f]{8}$/i.test(id)) throw new Error("adb: not a resource id");
-  const lines = dump.replace(/\r\n/g, "\n").split("\n");
+  const lines = dump.replaceAll('\r\n', "\n").split("\n");
   const at = lines.findIndex((line) => line.trim().toLowerCase().startsWith(`resource ${id.toLowerCase()} `));
   if (at === -1) return null;
   for (const line of lines.slice(at + 1)) {

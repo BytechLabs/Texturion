@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { LOCALES, LOCALE_LABELS, isLocale, type Locale } from "@loonext/shared";
+import { isLocale, LOCALE_LABELS, LOCALES } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { SettingsCard } from "@/components/settings/section";

@@ -1,34 +1,14 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { CalendarCredentialRefreshUnavailableError } from "./authorization";
+import type { CalendarCredentialRefreshUnavailableError } from "./authorization";
 import { openCalendarCredential, sealCalendarCredential } from "./crypto";
 import { hashCalendarDescription } from "./providers/normalize";
-import {
-  CalendarFullResyncRequiredError,
-  CalendarEventNotFoundError,
-  CalendarPreconditionError,
-  CalendarProviderError,
-  CalendarReauthRequiredError,
-  type CalendarChangeNotice,
-  type CalendarProvider,
-  type CalendarRemoteEvent,
-} from "./providers/types";
+import { CalendarEventNotFoundError, CalendarFullResyncRequiredError, CalendarPreconditionError, CalendarProviderError, CalendarReauthRequiredError } from './providers/types';
+import type { CalendarChangeNotice, CalendarProvider, CalendarRemoteEvent } from './providers/types';
 import type { CalendarScheduleSnapshot } from "./sync";
-import {
-  calendarAuthorizer,
-  calendarOwnerDisclosurePayload,
-  createCalendarSyncStore,
-  drainCalendarSync,
-  type CalendarConnectionRow,
-  type CalendarLinkRow,
-  type CalendarOutboxRow,
-  type CalendarOwnerDisclosureRow,
-  type CalendarReminderReplanRow,
-  type CalendarSyncStore,
-  type CalendarTaskRow,
-  type CalendarWebhookSubscriptionRow,
-} from "./worker";
+import { calendarAuthorizer, calendarOwnerDisclosurePayload, createCalendarSyncStore, drainCalendarSync } from './worker';
+import type { CalendarConnectionRow, CalendarLinkRow, CalendarOutboxRow, CalendarOwnerDisclosureRow, CalendarReminderReplanRow, CalendarSyncStore, CalendarTaskRow, CalendarWebhookSubscriptionRow } from './worker';
 import { completeEnv } from "../test/support";
 import type { Env } from "../env";
 
@@ -289,26 +269,26 @@ describe("calendar sync worker", () => {
       now: new Date("2026-08-25T12:00:00.000Z"),
     });
 
-    expect(db.purgeOauthStates).toHaveBeenCalledWith(1_000);
-    const purgeOrder = vi.mocked(db.purgeOauthStates).mock.invocationCallOrder[0]!;
+    expect(db.purgeOauthStates).toHaveBeenCalledWith(1000);
+    const purgeOrder = vi.mocked(db.purgeOauthStates).mock.invocationCallOrder[0];
     expect(purgeOrder).toBeLessThan(
-      vi.mocked(db.claimReminderReplans).mock.invocationCallOrder[0]!,
+      vi.mocked(db.claimReminderReplans).mock.invocationCallOrder[0],
     );
     expect(db.queueStaleOwnerDisclosures).toHaveBeenCalledWith(
       "2026-08-25T11:45:00.000Z",
       25,
     );
     expect(purgeOrder).toBeLessThan(
-      vi.mocked(db.queueStaleOwnerDisclosures).mock.invocationCallOrder[0]!,
+      vi.mocked(db.queueStaleOwnerDisclosures).mock.invocationCallOrder[0],
     );
     expect(purgeOrder).toBeLessThan(
-      vi.mocked(db.claimWebhookRenewals).mock.invocationCallOrder[0]!,
+      vi.mocked(db.claimWebhookRenewals).mock.invocationCallOrder[0],
     );
     expect(purgeOrder).toBeLessThan(
-      vi.mocked(db.claimOutbox).mock.invocationCallOrder[0]!,
+      vi.mocked(db.claimOutbox).mock.invocationCallOrder[0],
     );
     expect(purgeOrder).toBeLessThan(
-      vi.mocked(db.claimPulls).mock.invocationCallOrder[0]!,
+      vi.mocked(db.claimPulls).mock.invocationCallOrder[0],
     );
   });
 
@@ -359,7 +339,7 @@ describe("calendar sync worker", () => {
     expect(
       vi.mocked(db.refreshTaskReminders).mock.invocationCallOrder[0],
     ).toBeLessThan(
-      vi.mocked(db.completeReminderReplan).mock.invocationCallOrder[0]!,
+      vi.mocked(db.completeReminderReplan).mock.invocationCallOrder[0],
     );
     expect(db.retryReminderReplan).not.toHaveBeenCalled();
   });
@@ -456,8 +436,8 @@ describe("calendar sync worker", () => {
     ).resolves.toMatchObject({ accessToken: "fresh-access-token" });
 
     expect(commitCredentialRefresh).toHaveBeenCalledTimes(2);
-    const first = commitCredentialRefresh.mock.calls[0]![0];
-    const second = commitCredentialRefresh.mock.calls[1]![0];
+    const first = commitCredentialRefresh.mock.calls[0][0];
+    const second = commitCredentialRefresh.mock.calls[1][0];
     expect(second.credential).toEqual(first.credential);
     await expect(openCalendarCredential(
       first.credential,
@@ -569,8 +549,8 @@ describe("calendar sync worker", () => {
     });
     expect(
       vi.mocked(db.markProviderEffectStarted).mock.invocationCallOrder[0],
-    ).toBeLessThan(vi.mocked(calendar.createEvent).mock.invocationCallOrder[0]!);
-    const input = vi.mocked(calendar.createEvent).mock.calls[0]![0];
+    ).toBeLessThan(vi.mocked(calendar.createEvent).mock.invocationCallOrder[0]);
+    const input = vi.mocked(calendar.createEvent).mock.calls[0][0];
     expect(input.idempotencyKey).toBe(OUTBOX.id);
     expect(input.schedule).toMatchObject({
       start: TASK.due_at,
@@ -677,7 +657,7 @@ describe("calendar sync worker", () => {
     );
     expect(
       vi.mocked(db.markProviderEffectStarted).mock.invocationCallOrder[0],
-    ).toBeLessThan(vi.mocked(calendar.patchEvent).mock.invocationCallOrder[0]!);
+    ).toBeLessThan(vi.mocked(calendar.patchEvent).mock.invocationCallOrder[0]);
     expect(db.commitSent).toHaveBeenCalledOnce();
   });
 
@@ -1136,11 +1116,11 @@ describe("calendar sync worker", () => {
       workerId: "worker-1",
     });
 
-    const readOrder = vi.mocked(calendar.getEvent).mock.invocationCallOrder[0]!;
+    const readOrder = vi.mocked(calendar.getEvent).mock.invocationCallOrder[0];
     const markOrder = vi.mocked(db.markProviderEffectStarted).mock
-      .invocationCallOrder[0]!;
+      .invocationCallOrder[0];
     const writeOrder = vi.mocked(calendar.deleteEvent).mock
-      .invocationCallOrder[0]!;
+      .invocationCallOrder[0];
     expect(readOrder).toBeLessThan(markOrder);
     expect(markOrder).toBeLessThan(writeOrder);
   });
@@ -1402,7 +1382,7 @@ describe("calendar sync worker", () => {
     });
     expect(
       vi.mocked(db.markProviderEffectStarted).mock.invocationCallOrder[0],
-    ).toBeLessThan(vi.mocked(calendar.deleteEvent).mock.invocationCallOrder[0]!);
+    ).toBeLessThan(vi.mocked(calendar.deleteEvent).mock.invocationCallOrder[0]);
   });
 
   it("neutralizes a meeting without deleting it or changing participation", async () => {
@@ -1604,9 +1584,9 @@ describe("calendar sync worker", () => {
       now: new Date("2026-08-25T12:00:00.000Z"),
     });
 
-    expect(db.applyProviderEvent).toHaveBeenCalledTimes(1);
+    expect(db.applyProviderEvent).toHaveBeenCalledOnce();
     // The privacy policy promises we never read an event we did not create.
-    expect(calendar.getEvent).toHaveBeenCalledTimes(1);
+    expect(calendar.getEvent).toHaveBeenCalledOnce();
     expect(calendar.getEvent).toHaveBeenCalledWith(
       expect.objectContaining({ instanceId: LINK.provider_instance_id }),
     );
@@ -1920,10 +1900,10 @@ describe("calendar sync worker", () => {
     });
 
     expect(calendar.listChanges).toHaveBeenCalledTimes(2);
-    expect(vi.mocked(calendar.listChanges).mock.calls[0]![0].cursor).toBe(
+    expect(vi.mocked(calendar.listChanges).mock.calls[0][0].cursor).toBe(
       "cursor-old",
     );
-    expect(vi.mocked(calendar.listChanges).mock.calls[1]![0]).toMatchObject({
+    expect(vi.mocked(calendar.listChanges).mock.calls[1][0]).toMatchObject({
       cursor: undefined,
       rangeStart: "2026-05-27T12:00:00.000Z",
       rangeEnd: "2027-08-25T12:00:00.000Z",
@@ -2021,7 +2001,7 @@ describe("calendar sync worker", () => {
     let page = 0;
     vi.mocked(calendar.listChanges).mockImplementation(async () => ({
       events: [],
-      nextPageToken: `page-${++page}`,
+      nextPageToken: `page-${page += 1}`,
       nextCursor: null,
     }));
     const db = store({ claimPulls: vi.fn().mockResolvedValue([CONNECTION]) });
@@ -2354,7 +2334,7 @@ describe("calendar sync worker", () => {
       now: new Date("2026-08-25T12:00:00.000Z"),
     });
 
-    const watchInput = vi.mocked(calendar.startWatch).mock.calls[0]![0];
+    const watchInput = vi.mocked(calendar.startWatch).mock.calls[0][0];
     expect(watchInput).toMatchObject({
       calendarId: CONNECTION.selected_calendar_id,
       callbackUrl: "https://api.example/calendar/webhooks/google",
@@ -2386,7 +2366,7 @@ describe("calendar sync worker", () => {
     });
     expect(
       vi.mocked(db.commitWebhookRenewal).mock.invocationCallOrder[0],
-    ).toBeLessThan(vi.mocked(calendar.stopWatch).mock.invocationCallOrder[0]!);
+    ).toBeLessThan(vi.mocked(calendar.stopWatch).mock.invocationCallOrder[0]);
   });
 
   it("stops a durable webhook revocation before committing local cleanup", async () => {
@@ -2417,7 +2397,7 @@ describe("calendar sync worker", () => {
     expect(
       vi.mocked(calendar.stopWatch).mock.invocationCallOrder[0],
     ).toBeLessThan(
-      vi.mocked(db.commitWebhookRevocation).mock.invocationCallOrder[0]!,
+      vi.mocked(db.commitWebhookRevocation).mock.invocationCallOrder[0],
     );
     expect(result.revocations).toBe(1);
   });
@@ -2576,16 +2556,16 @@ describe("calendar sync worker", () => {
 
     expect(db.renewPullLease).toHaveBeenCalledTimes(4);
     expect(vi.mocked(db.renewPullLease).mock.invocationCallOrder[0]).toBeLessThan(
-      vi.mocked(calendar.listChanges).mock.invocationCallOrder[0]!,
+      vi.mocked(calendar.listChanges).mock.invocationCallOrder[0],
     );
     expect(vi.mocked(db.renewPullLease).mock.invocationCallOrder[1]).toBeLessThan(
-      vi.mocked(calendar.getEvent).mock.invocationCallOrder[0]!,
+      vi.mocked(calendar.getEvent).mock.invocationCallOrder[0],
     );
     expect(vi.mocked(db.renewPullLease).mock.invocationCallOrder[2]).toBeLessThan(
-      vi.mocked(db.applyProviderEvent).mock.invocationCallOrder[0]!,
+      vi.mocked(db.applyProviderEvent).mock.invocationCallOrder[0],
     );
     expect(vi.mocked(db.renewPullLease).mock.invocationCallOrder[3]).toBeLessThan(
-      vi.mocked(db.commitPull).mock.invocationCallOrder[0]!,
+      vi.mocked(db.commitPull).mock.invocationCallOrder[0],
     );
   });
 

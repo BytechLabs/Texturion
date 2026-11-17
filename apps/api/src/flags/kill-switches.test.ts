@@ -8,18 +8,11 @@
  * takes more with it than it advertises is worse than none, because it will be
  * reached for during an incident and make the incident bigger.
  */
-import { describe, expect, it, beforeEach, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { app } from "../index";
-import {
-  authorizeRoute,
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type FetchRoute,
-  type TestAuth,
-} from "../test/support";
+import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { resetFlagCache } from "./evaluate";
 
 const env = completeEnv();
@@ -137,9 +130,9 @@ describe("kill:calls", () => {
     );
 
     const { isKilled } = await import("./evaluate");
-    expect(await isKilled(env, "kill:calls", COMPANY_ID)).toBe(true);
+    await expect(isKilled(env, "kill:calls", COMPANY_ID)).resolves.toBe(true);
     for (const other of ["kill:outbound-send", "kill:ai", "kill:realtime"] as const) {
-      expect(await isKilled(env, other, COMPANY_ID), other).toBe(false);
+      await expect(isKilled(env, other, COMPANY_ID)).resolves.toBe(false);
     }
   });
 });

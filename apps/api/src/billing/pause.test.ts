@@ -19,18 +19,13 @@ import {
   pauseLicensedPrice,
   planForLicensedPrice,
 } from "./plans";
+import { pausedLicensedItem, pauseEligibility, pausePriceSnapshot, planLicensedItem } from './pause';
+import type { CompanyForPause } from './pause';
 import {
-  pauseEligibility,
-  pausePriceSnapshot,
-  pausedLicensedItem,
-  planLicensedItem,
-  type CompanyForPause,
-} from "./pause";
-import {
+  grantPrepaidYear,
   PREPAY_METADATA_FIELD,
   PREPAY_METADATA_KIND,
   PREPAY_PLAN_FIELD,
-  grantPrepaidYear,
   prepayEligibility,
   referralMonthPending,
 } from "./prepay";
@@ -288,8 +283,8 @@ describe("the item a swap actually touches (#277)", () => {
     // would leave the workspace on its full plan while quietly converting its
     // Calling add-on into a pause.
     const sub = subscription([
-      env.STRIPE_MODULE_VOICE_PRICE_ID as string,
-      env.STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID as string,
+      env.STRIPE_MODULE_VOICE_PRICE_ID!,
+      env.STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID!,
       env.STRIPE_STARTER_PRICE_ID,
     ]);
     expect(planLicensedItem(env, sub)?.price.id).toBe(env.STRIPE_STARTER_PRICE_ID);
@@ -319,7 +314,7 @@ describe("the item a swap actually touches (#277)", () => {
  * sitting there, and both gates have already passed.
  */
 describe("a prepaid year that is paid AFTER the pause is still honoured (#277)", () => {
-  const COUPON = env.STRIPE_PREPAID_YEAR_COUPON_ID as string;
+  const COUPON = env.STRIPE_PREPAID_YEAR_COUPON_ID!;
 
   function prepaySession() {
     return {

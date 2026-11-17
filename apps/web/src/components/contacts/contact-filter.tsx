@@ -13,8 +13,10 @@ import {
 } from "@/components/ui/command";
 import { FilterButton } from "@/components/ui/filter-button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { useT, type Translate } from "@/i18n/provider";
-import { useContactFields, type ContactFieldDef } from "@/lib/api/contact-fields";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
+import { useContactFields } from '@/lib/api/contact-fields';
+import type { ContactFieldDef } from '@/lib/api/contact-fields';
 import type { ContactFieldFilter } from "@/lib/api/contacts";
 import { useTags } from "@/lib/api/tags";
 

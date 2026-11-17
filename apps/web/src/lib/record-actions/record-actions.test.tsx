@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 // The builders live beside the surfaces that use them. Mocked so importing
 // them pulls in no data layer: only the action DEFINITIONS are under test.
-vi.mock("@/components/calls/call-button", () => ({
+vi.mock(import("@/components/calls/call-button"), () => ({
   usePlaceCall: () => ({ place: vi.fn(), busy: false }),
 }));
 
@@ -25,7 +25,8 @@ import {
 } from "@/components/ui/record-menu";
 import { makeTranslate } from "@/i18n/translate";
 
-import { actionIds, submenuItems, type RecordAction } from "./types";
+import { actionIds, submenuItems } from './types';
+import type { RecordAction } from './types';
 
 afterEach(cleanup);
 
@@ -142,8 +143,8 @@ describe("#712 conversation", () => {
   it("follows the #710 grouping: state, then alerts, attachments, and the spam/block/delete group last", () => {
     const list = actionIds(header);
     const groupOf = (id: string) => header.find((a) => a.id === id)?.group;
-    expect(groupOf(list[0]!)).toBe("state");
-    expect(groupOf(list[list.length - 1]!)).toBe("danger");
+    expect(groupOf(list[0])).toBe("state");
+    expect(groupOf(list[list.length - 1])).toBe("danger");
     expect(list.indexOf("mute")).toBeGreaterThan(list.indexOf("snooze"));
     expect(list.indexOf("attachments")).toBeGreaterThan(list.indexOf("follow"));
     expect(list.indexOf("spam")).toBeGreaterThan(list.indexOf("attachments"));
@@ -221,6 +222,7 @@ describe("#712 message", () => {
     }),
     ["copy-text", "retry", "pin", "delete"],
   );
+
   it("names the delete for a note as a note", () => {
     const note = buildMessageActions({
       ...base,

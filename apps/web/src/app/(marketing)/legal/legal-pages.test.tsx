@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -102,12 +102,12 @@ const PRIVACY = {
 /** The page as a reader sees it: tags dropped, the entities React writes decoded. */
 const visibleText = (html: string): string =>
   html
-    .replace(/<[^>]+>/g, "")
-    .replace(/&#x27;/g, "'")
-    .replace(/&quot;/g, '"')
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
+    .replaceAll(/<[^>]+>/g, "")
+    .replaceAll('&#x27;', "'")
+    .replaceAll('&quot;', '"')
+    .replaceAll('&lt;', "<")
+    .replaceAll('&gt;', ">")
+    .replaceAll('&amp;', "&");
 
 /** One `<section>` of a rendered legal page, up to the next one. */
 function section(html: string, id: string): string {
@@ -152,13 +152,15 @@ describe("legal pages — Laws 1 and 6 across all seven", () => {
 });
 
 describe("terms — billing and cancellation facts survive", () => {
-  const html = PAGES[0].html;
+  const {html} = PAGES[0];
+
   it("keeps the plan prices, the one-time fee, and the alert thresholds", () => {
     expect(html).toContain(`${USD.starter}/mo`);
     expect(html).toContain(`${USD.pro}/mo`);
     expect(html).toContain(`one-time ${USD.fee} fee`);
     expect(html).toContain("80% and 100%");
   });
+
   it("names the currency the quoted prices are actually in (#328)", () => {
     // The prices and the currency sentence sit in the same paragraph, so a
     // page that showed one country's figures under the other's currency line
@@ -166,10 +168,12 @@ describe("terms — billing and cancellation facts survive", () => {
     expect(html).toContain("US dollars");
     expect(html).not.toContain("Canadian dollars");
   });
+
   it("keeps the carrier wait and porting windows in 'to' phrasing", () => {
     expect(html).toContain("3 to 7 business");
     expect(html).toContain("1 to 7 business days");
   });
+
   it("keeps the 30-day number hold and the guarantee", () => {
     expect(html).toContain("hold your number for 30 days");
     expect(html).toContain("30-day money-back guarantee");
@@ -177,7 +181,8 @@ describe("terms — billing and cancellation facts survive", () => {
 });
 
 describe("privacy — the PIPEDA/Law 25 posture survives", () => {
-  const html = PAGES[1].html;
+  const {html} = PAGES[1];
+
   it("names US processing plainly (us-east-1) and the never-sold commitment", () => {
     expect(html).toContain("us-east-1");
     expect(html).toContain(
@@ -186,6 +191,7 @@ describe("privacy — the PIPEDA/Law 25 posture survives", () => {
     expect(html).toContain("PIPEDA");
     expect(html).toContain("Law 25");
   });
+
   it("keeps the no-full-SSN/SIN and no-content-in-analytics commitments", () => {
     expect(html).toContain("never collect or store a full SSN/SIN");
     expect(html).toContain("message content");
@@ -193,7 +199,7 @@ describe("privacy — the PIPEDA/Law 25 posture survives", () => {
 });
 
 describe("#330 privacy — what stays on a phone the company does not own", () => {
-  const html = PAGES[1].html;
+  const {html} = PAGES[1];
 
   it("answers the question at all", () => {
     // Section 5 described our servers and stopped. The app runs on the tech's OWN
@@ -222,7 +228,7 @@ describe("#330 privacy — what stays on a phone the company does not own", () =
   it("says what a notification carries by the workspace default, in both languages", () => {
     // #430: the first line of a text rides the push unless an owner turns
     // push_include_content off, and then the server strips it before sending.
-    const carriesText = COMPANY_SETTING_DEFAULTS.push_include_content.value === true;
+    const carriesText =  COMPANY_SETTING_DEFAULTS.push_include_content.value;
     const copy = {
       en: { never: "never contain a message", where: "Settings → Notifications" },
       "fr-CA": { never: "ne contiennent jamais de message", where: "Paramètres → Notifications" },
@@ -304,7 +310,8 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
 });
 
 describe("aup — the consent rules survive", () => {
-  const html = PAGES[2].html;
+  const {html} = PAGES[2];
+
   it("keeps SHAFT, the list ban, and immediate opt-out", () => {
     expect(html).toContain("SHAFT");
     expect(html).toContain("purchased, rented, scraped");
@@ -313,7 +320,7 @@ describe("aup — the consent rules survive", () => {
 });
 
 describe("#303 aup — the enforcement ladder is a promise, not a mood", () => {
-  const html = PAGES[2].html;
+  const {html} = PAGES[2];
 
   it("names all four steps, in order", () => {
     // The section this replaced said we "may suspend or terminate, with or
@@ -370,20 +377,23 @@ describe("#303 aup — the enforcement ladder is a promise, not a mood", () => {
 });
 
 describe("messaging — the SMS program disclosures survive", () => {
-  const html = PAGES[3].html;
+  const {html} = PAGES[3];
+
   it("keeps STOP, HELP, frequency, and rates disclosures", () => {
     expect(html).toContain("STOP");
     expect(html).toContain("HELP");
     expect(html).toContain("Message frequency varies");
     expect(html).toContain("Message and data rates may apply");
   });
+
   it("keeps the FCC revocation window", () => {
     expect(html).toContain("10 business days");
   });
 });
 
 describe("subprocessors — the vendor ledger survives", () => {
-  const html = PAGES[4].html;
+  const {html} = PAGES[4];
+
   it("lists all six vendors", () => {
     for (const vendor of [
       "Telnyx",
@@ -396,6 +406,7 @@ describe("subprocessors — the vendor ledger survives", () => {
       expect(html).toContain(vendor);
     }
   });
+
   it("renders the table in the Honesty Ledger voice: frost striping, no cell borders", () => {
     expect(html).toContain("--fr-frost");
     expect(html).not.toContain("border-border");
@@ -403,22 +414,25 @@ describe("subprocessors — the vendor ledger survives", () => {
 });
 
 describe("refunds — the guarantee promise survives, word for word where it counts", () => {
-  const html = PAGES[5].html;
+  const {html} = PAGES[5];
+
   it("keeps the full-refund-including-registration-fee language", () => {
     expect(html).toContain("refund your first invoice in full");
     expect(html).toContain(`one-time ${USD.fee} registration fee`);
   });
+
   it("keeps the no-deductions and single-email process", () => {
     expect(html).toContain("minus credits used");
     expect(html).toContain("whole process");
   });
+
   it("keeps the bank settlement window in 'to' phrasing", () => {
     expect(html).toContain("5 to 10 business days");
   });
 });
 
 describe("fair-use — the plain limits survive", () => {
-  const html = PAGES[6].html;
+  const {html} = PAGES[6];
 
   it("discloses the carrier's own daily ceiling (#351)", () => {
     // Every tenant is registered on a 10DLC use case whose throughput the
@@ -448,12 +462,14 @@ describe("fair-use — the plain limits survive", () => {
     expect(html).toContain("Only the texts you send count");
     expect(html).toContain("Receiving is free and unlimited");
   });
+
   it("states the included allowances and the spending-cap pause", () => {
     expect(html).toContain("500 texts");
     expect(html).toContain("2,500 texts");
     expect(html).toContain("spending cap");
     expect(html).toContain("80% and again at 100%");
   });
+
   it("states the voice fair-use figures — the ONLY public home of the minutes (D36/D38)", () => {
     expect(html).toContain("2,500 calling minutes");
     expect(html).toContain("6,000");
@@ -464,10 +480,12 @@ describe("fair-use — the plain limits survive", () => {
     expect(html).not.toContain("300 forwarded minutes");
     expect(html).toContain("Only at your cap does calling pause");
   });
+
   it("keeps the reasonable-use reservation and the not-a-blaster scope", () => {
     expect(html).toContain("normal, fair, and reasonable");
     expect(html).toContain("application-to-person (A2P)");
   });
+
   it("frames the allowances as a fair-use line and states the dynamic watch (#85)", () => {
     expect(html).toContain("fair-use line");
     expect(html).toContain("reach out early");
@@ -524,22 +542,26 @@ describe("#328 — the legal pages quote the reader's own currency", () => {
 });
 
 describe("cookies — essential cookies plus consent-gated GTM (#87, #124)", () => {
-  const html = PAGES[7].html;
+  const {html} = PAGES[7];
+
   it("names the three essential first-party cookies (session + workspace + consent choice)", () => {
     expect(html).toContain("keeps you signed in");
     expect(html).toContain("remembers which workspace");
     expect(html).toContain("loonext.consent");
     expect(html).toContain("180");
   });
+
   it("states tracking cookies exist only after a yes to the banner (#124)", () => {
     expect(html).toContain("Google Tag Manager");
     expect(html).toContain("denied-by-default");
     expect(html).toContain("only if you say yes");
   });
+
   it("keeps the cookieless product-analytics promise and the no-ad-networks stance", () => {
     expect(html).toContain("cookieless");
     expect(html).toContain("no ad networks");
   });
+
   it("offers the change-your-mind path on the page itself", () => {
     expect(html).toContain("changeable right here");
     expect(html).toContain("changing your mind is one tap");

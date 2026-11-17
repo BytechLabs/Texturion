@@ -10,7 +10,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../env";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { createSessionRuntime } from "./runtime";
 
 const env: Env = completeEnv();
@@ -211,12 +212,12 @@ describe("#616 a 429 is not a definite refusal", () => {
   it("does not declare the leg dead when Telnyx rate-limits us", async () => {
     // THE DEFECT. `known-dead` prunes the pending leg immediately: premature
     // voicemail on an inbound call, and a hung-up customer on an outbound one.
-    expect(await dialAgainst(429)).toEqual({ failure: "ambiguous" });
+    await expect(dialAgainst(429)).resolves.toEqual({ failure: "ambiguous" });
   });
 
   it("does not declare it dead on a timeout either", async () => {
     // A 408 is an unanswered question, not an answer.
-    expect(await dialAgainst(408)).toEqual({ failure: "ambiguous" });
+    await expect(dialAgainst(408)).resolves.toEqual({ failure: "ambiguous" });
   });
 
   it("still declares it dead when Telnyx genuinely refuses", async () => {
@@ -224,13 +225,13 @@ describe("#616 a 429 is not a definite refusal", () => {
     // blanket softening. A 404 or a 422 IS a statement about this leg, and
     // treating those as ambiguous would leave dead legs ringing out the full
     // window before the machine gave up on them.
-    expect(await dialAgainst(404)).toEqual({ failure: "known-dead" });
-    expect(await dialAgainst(422)).toEqual({ failure: "known-dead" });
+    await expect(dialAgainst(404)).resolves.toEqual({ failure: "known-dead" });
+    await expect(dialAgainst(422)).resolves.toEqual({ failure: "known-dead" });
   });
 
   it("keeps a server error ambiguous, which is what 429 now joins", async () => {
     // The fix adds no new branch: "not now" takes the path "we could not find
     // out" already had. A 429 and a 503 mean the same thing to a caller.
-    expect(await dialAgainst(503)).toEqual({ failure: "ambiguous" });
+    await expect(dialAgainst(503)).resolves.toEqual({ failure: "ambiguous" });
   });
 });

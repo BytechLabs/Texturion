@@ -1,8 +1,5 @@
-import {
-  roleHasCapability,
-  type Capability,
-  type MemberRole,
-} from "../capabilities";
+import { roleHasCapability } from '../capabilities';
+import type { Capability, MemberRole } from '../capabilities';
 
 /**
  * #722 phase 1 — one typed shape for every lifecycle in the product.

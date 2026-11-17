@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -39,7 +38,7 @@ import { describe, expect, it } from "vitest";
  * what the store form now says.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 const read = (...parts: string[]) => readFileSync(join(REPO, ...parts), "utf8");
 
@@ -79,9 +78,9 @@ const PRIVACY_POLICY = read(
    * that says so. Matching raw source, deleting the whole customer-facing
    * paragraph left this test passing on the comment that survived it.
    */
-  .replace(/\{\/\*[\s\S]*?\*\/\}/g, "")
-  .replace(/\/\*[\s\S]*?\*\//g, "")
-  .replace(/^\s*\/\/.*$/gm, "");
+  .replaceAll(/\{\/\*[\s\S]*?\*\/\}/g, "")
+  .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+  .replaceAll(/^\s*\/\/.*$/gm, "");
 
 /**
  * Permissions that are plumbing rather than a declaration: they gate no personal

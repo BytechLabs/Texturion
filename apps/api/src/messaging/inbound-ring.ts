@@ -31,7 +31,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { fetchWithDeadline } from "../http/deadline";
-import { isDefiniteRefusal, telnyxRequest, TelnyxApiError } from "../telnyx/client";
+import { isDefiniteRefusal, TelnyxApiError, telnyxRequest } from "../telnyx/client";
 import { runAiFeature } from "../ai/run";
 import type { CompanyAiSettings } from "../ai/settings";
 import {
@@ -43,15 +43,8 @@ import {
   VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
   VOICEMAIL_TRANSCRIPT_MODEL,
 } from "../calls/voicemail-transcript";
-import {
-  buildIntakeMessages,
-  intakeFromRaw,
-  shouldExtractIntake,
-  VOICEMAIL_INTAKE_FEATURE_SPEC,
-  VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS,
-  VOICEMAIL_INTAKE_MODEL,
-  type VoicemailIntake,
-} from "../calls/voicemail-intake";
+import { buildIntakeMessages, intakeFromRaw, shouldExtractIntake, VOICEMAIL_INTAKE_FEATURE_SPEC, VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS, VOICEMAIL_INTAKE_MODEL } from '../calls/voicemail-intake';
+import type { VoicemailIntake } from '../calls/voicemail-intake';
 
 /** client_state tag on each member ring leg:
  *  `brm|<session>|<user_id>|<caller-or-empty>|<inbound_ccid>` (ccid LAST —
@@ -190,9 +183,9 @@ async function telnyxOnLiveLeg(
   try {
     await telnyxRequest(env, { method: "POST", path, body });
     return true;
-  } catch (cause) {
-    if (cause instanceof TelnyxApiError && cause.status < 500) return false;
-    throw cause;
+  } catch (error) {
+    if (error instanceof TelnyxApiError && error.status < 500) return false;
+    throw error;
   }
 }
 
@@ -247,16 +240,16 @@ export function afterHoursDefaultGreeting(
   // formatted by the caller, so it is interpolated rather than rebuilt here.
   if (locale === "fr-CA") {
     return (
-      `Vous avez joint ${companyName}. Nous sommes fermés en ce moment` +
-      (when ? ` — de retour ${when}` : "") +
-      `. Laissez un message après le signal, ou raccrochez et écrivez-nous à ` +
+      `Vous avez joint ${companyName}. Nous sommes fermés en ce moment${ 
+      when ? ` — de retour ${when}` : "" 
+      }. Laissez un message après le signal, ou raccrochez et écrivez-nous à ` +
       `ce numéro, et nous vous reviendrons.`
     );
   }
   return (
-    `You've reached ${companyName}. We're closed right now` +
-    (when ? ` — we're back ${when}` : "") +
-    `. Please leave a message after the beep, or hang up and text us at this ` +
+    `You've reached ${companyName}. We're closed right now${ 
+    when ? ` — we're back ${when}` : "" 
+    }. Please leave a message after the beep, or hang up and text us at this ` +
     `number, and we'll get back to you.`
   );
 }
@@ -268,7 +261,7 @@ export function sanitizeGreeting(
   companyName: string,
   locale?: string,
 ): string {
-  const text = (raw ?? "").replace(/[\p{Cc}\p{Cf}]/gu, " ").trim();
+  const text = (raw ?? "").replaceAll(/[\p{Cc}\p{Cf}]/gu, " ").trim();
   // An owner's OWN greeting is returned untouched whatever the locale: they
   // wrote it, in whichever language they chose, and #518 settled that we do not
   // edit it. Only OUR fallback has a language to get right.
@@ -354,8 +347,7 @@ export async function storeVoicemailRecording(
   }
   if (!response.ok) {
     console.error(
-      `voicemail fetch failed for ${sessionId}: HTTP ${response.status}` +
-        (fresh ? " on a fresh link" : ", no fresh link"),
+      `voicemail fetch failed for ${sessionId}: HTTP ${response.status}${fresh ? " on a fresh link" : ", no fresh link"}`,
     );
     // No link can fetch it, and customer audio must not stay at Telnyx.
     await deleteTelnyxRecording(env, sessionId);
@@ -496,7 +488,7 @@ async function transcribeVoicemail(
   // The only check that is ours rather than the gate's: a recording of nothing,
   // or one that ran away, is not worth paying per audio minute for.
   if (!shouldTranscribe(args.seconds)) return { reached: false, text: null };
-  return await runTranscription(env, db, args.companyId, args.audio);
+  return runTranscription(env, db, args.companyId, args.audio);
 }
 
 export interface IntakeOutcome {
@@ -539,7 +531,7 @@ export async function extractVoicemailIntake(
     spec: VOICEMAIL_INTAKE_FEATURE_SPEC,
     model: VOICEMAIL_INTAKE_MODEL,
     input: {
-      messages: buildIntakeMessages(args.transcript as string),
+      messages: buildIntakeMessages(args.transcript!),
       max_tokens: VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS,
     },
     settings: args.settings,
@@ -604,9 +596,9 @@ async function freshRecordingUrl(
     const listing = await listRecordings(env, callSessionId);
     const recording = listing.data?.find((entry) => entry.download_urls?.mp3);
     return recording?.download_urls?.mp3 ?? null;
-  } catch (cause) {
-    if (isDefiniteRefusal(cause)) return null;
-    throw cause;
+  } catch (error) {
+    if (isDefiniteRefusal(error)) return null;
+    throw error;
   }
 }
 
@@ -627,10 +619,10 @@ export async function deleteTelnyxRecording(
         path: `/v2/recordings/${recording.id}`,
       });
     }
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `telnyx recording delete failed for ${callSessionId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }

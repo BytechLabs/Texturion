@@ -18,7 +18,7 @@ function task(over: Partial<Task>): Task {
 const TORONTO = { lat: 43.6426, lng: -79.3871 };
 const CALGARY = { lat: 51.0447, lng: -114.0719 };
 
-describe("taskCoords", () => {
+describe(taskCoords, () => {
   it("PREFERS the task's own geocode over the contact's", () => {
     const t = task({
       lat: TORONTO.lat,
@@ -55,7 +55,7 @@ describe("taskCoords", () => {
   });
 });
 
-describe("mapsDirectionsHref", () => {
+describe(mapsDirectionsHref, () => {
   it("builds a keyless Google Maps directions URL to the exact coordinate", () => {
     expect(mapsDirectionsHref(TORONTO.lat, TORONTO.lng)).toBe(
       "https://www.google.com/maps/dir/?api=1&destination=43.6426,-79.3871",

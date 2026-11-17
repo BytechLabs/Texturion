@@ -1,12 +1,8 @@
 "use client";
 
 import { SettingsLink } from "@/components/settings/settings-link-guard";
-import {
-  registrationProgress,
-  isWaitingOnRegistration,
-  type RegistrationSnapshot,
-  roleHasCapability,
-} from "@loonext/shared";
+import { isWaitingOnRegistration, registrationProgress, roleHasCapability } from '@loonext/shared';
+import type { RegistrationSnapshot } from '@loonext/shared';
 import { ArrowRight, Check, Phone } from "lucide-react";
 import Link from "next/link";
 

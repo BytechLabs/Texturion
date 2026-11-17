@@ -1,5 +1,4 @@
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -17,7 +16,7 @@ import { describe, expect, it } from "vitest";
  * these assert a real mismatch is CAUGHT as well as that honest commits pass.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 const { scopeErrors, checkOne } = (await import(
   join(REPO, "scripts", "check-commit-message.mjs")

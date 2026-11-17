@@ -23,7 +23,7 @@ function render(props: { businessUnknown?: boolean; loading?: boolean } = {}) {
   );
 }
 
-describe("ReplySuggestionChips", () => {
+describe(ReplySuggestionChips, () => {
   it("offers to tell Lou what the business does when it has not been told", () => {
     const html = render({ businessUnknown: true });
     expect(html).toContain("know what you do yet");

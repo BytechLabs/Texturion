@@ -7,17 +7,14 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import { completeEnv, createTestAuth, jwksRoute, stubFetch, type TestAuth } from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { Hono } from "hono";
 
-import { NOTE_ONLY_MESSAGE, type NumberAccessLevel } from "../auth/number-access";
+import { NOTE_ONLY_MESSAGE } from '../auth/number-access';
+import type { NumberAccessLevel } from '../auth/number-access';
 import type { AppEnv } from "../context";
 import { jobPhotoShareRoutes, publicJobPhotoRoutes } from "./job-photos";
 

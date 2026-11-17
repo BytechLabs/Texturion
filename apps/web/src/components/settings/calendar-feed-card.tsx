@@ -7,7 +7,8 @@ import { AlertTriangle, CalendarClock, Check, Copy } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
-import { checkFeedLink, type FeedLinkCheck } from "@/lib/calendar/check-feed-link";
+import { checkFeedLink } from '@/lib/calendar/check-feed-link';
+import type { FeedLinkCheck } from '@/lib/calendar/check-feed-link';
 import { formatTimestamp } from "@/lib/format/time";
 import {
   useCalendarFeed,
@@ -128,7 +129,7 @@ export function CalendarFeedCard() {
                   <span className="text-app-muted">
                     {t("calendarFeed.linkChecking")}
                   </span>
-                ) : linkCheck.state === "working" ? (
+                ) : (linkCheck.state === "working" ? (
                   <span className="flex items-center gap-1.5 font-medium text-emerald-700 dark:text-emerald-400">
                     <Check className="size-4" aria-hidden />
                     {t("calendarFeed.linkWorking")}
@@ -152,7 +153,7 @@ export function CalendarFeedCard() {
                       {t("calendarFeed.linkCheckAgain")}
                     </Button>
                   </>
-                )}
+                ))}
               </div>
               <div className="flex flex-wrap gap-2">
                 <Button type="button" variant="outline" size="sm" onClick={copy}>

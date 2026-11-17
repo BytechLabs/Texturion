@@ -4,25 +4,10 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { MEMBER_ROLES } from "../capabilities";
-import { QUOTE_STATUSES, canTransitionQuote } from "../quotes";
+import { canTransitionQuote, QUOTE_STATUSES } from "../quotes";
 import { SCHEDULED_MESSAGE_STATUSES } from "../scheduled-send";
-import {
-  ALL_MACHINES,
-  allowedActions,
-  canTransition,
-  defineMachine,
-  entryEffectsFor,
-  isTerminalState,
-  nextStates,
-  callMachine,
-  calendarConnectionMachine,
-  portMachine,
-  portMessagingMachine,
-  quoteMachine,
-  registrationMachine,
-  scheduledMessageMachine,
-  type Machine,
-} from "./index";
+import { ALL_MACHINES, allowedActions, calendarConnectionMachine, callMachine, canTransition, defineMachine, entryEffectsFor, isTerminalState, nextStates, portMachine, portMessagingMachine, quoteMachine, registrationMachine, scheduledMessageMachine } from './index';
+import type { Machine } from './index';
 import { readDbVocabulary } from "./db-vocabulary";
 import {
   PROD_COUNTS,
@@ -48,9 +33,9 @@ function source(path: string): string {
   return readFileSync(join(REPO, path), "utf8");
 }
 
-const asSet = (values: readonly string[]): string[] => [...new Set(values)].sort();
+const asSet = (values: readonly string[]): string[] => [...new Set(values)].toSorted();
 
-describe("defineMachine", () => {
+describe(defineMachine, () => {
   it("refuses a transition row for a state that does not exist", () => {
     expect(() =>
       defineMachine({
@@ -121,7 +106,7 @@ describe("every machine", () => {
         const seen = new Set<string>(machine.initial);
         const queue = [...machine.initial];
         while (queue.length > 0) {
-          const state = queue.shift() as string;
+          const state = queue.shift()!;
           for (const next of nextStates(machine, state)) {
             if (!seen.has(next)) {
               seen.add(next);

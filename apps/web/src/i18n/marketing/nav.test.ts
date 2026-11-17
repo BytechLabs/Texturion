@@ -5,8 +5,8 @@ import {
   contactLinkFor,
   navMenusFor,
   PRICING_LINK,
-  PRIMARY_CTA_LABEL,
   pricingLinkFor,
+  PRIMARY_CTA_LABEL,
   productMenu,
   productMenuFor,
   SECONDARY_CTA_LABEL,
@@ -31,7 +31,7 @@ import { navCopy, navEn, navFr } from "./nav";
 
 describe("the English nav is unchanged by having a catalogue behind it", () => {
   it("still says what the deck says", () => {
-    const items = productMenu.items;
+    const {items} = productMenu;
     expect(items.find((i) => i.label === "Shared inbox")?.description).toBe(
       "Every text in one inbox the whole crew can see.",
     );
@@ -147,15 +147,15 @@ describe("the nav and the footer do not drift apart", () => {
 
 describe("the two nav catalogues", () => {
   it("carry the same keys", () => {
-    expect(Object.keys(navFr).sort()).toEqual(Object.keys(navEn).sort());
+    expect(Object.keys(navFr).toSorted()).toEqual(Object.keys(navEn).toSorted());
   });
 
   it("differ everywhere except the names", () => {
     const identical = (Object.keys(navEn) as (keyof typeof navEn)[]).filter(
       (key) => navEn[key] === navFr[key],
     );
-    expect(identical.sort()).toEqual(
-      ["compareHeymarket", "compareQuo", "contacts", "hvac", "salons"].sort(),
+    expect(identical.toSorted()).toEqual(
+      ["compareHeymarket", "compareQuo", "contacts", "hvac", "salons"].toSorted(),
     );
   });
 
@@ -164,9 +164,9 @@ describe("the two nav catalogues", () => {
     // of rows, something has been dropped rather than translated.
     const en = productMenuFor(navCopy("en"));
     const fr = productMenuFor(navCopy("fr-CA"));
-    expect(fr.items.length).toBe(en.items.length);
+    expect(fr.items).toHaveLength(en.items.length);
     expect(fr.items.map((i) => i.href)).toEqual(en.items.map((i) => i.href));
-    expect(tradesMenuFor(navCopy("fr-CA")).items.length).toBe(6);
+    expect(tradesMenuFor(navCopy("fr-CA")).items).toHaveLength(6);
   });
 });
 

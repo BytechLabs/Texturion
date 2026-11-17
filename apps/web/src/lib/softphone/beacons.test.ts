@@ -12,7 +12,8 @@ vi.mock("@/lib/supabase/browser", () => ({
   getAccessToken: async () => "token-1",
 }));
 
-import { createRingBeaconSender, webOs, type WebDeviceState } from "./beacons";
+import { createRingBeaconSender, webOs } from './beacons';
+import type { WebDeviceState } from './beacons';
 
 const DEVICE: WebDeviceState = {
   os: "web-windows",
@@ -31,14 +32,14 @@ function harness(options: { token?: string | null; fetch?: typeof fetch } = {}) 
     baseUrl: "https://api.example.test/",
     getAccessToken: async () => (options.token === undefined ? "token-1" : options.token),
     appVersion: "0.18.2",
-    fetch: fakeFetch as typeof fetch,
+    fetch: fakeFetch,
     deviceState: async () => DEVICE,
     now: () => new Date("2026-10-30T12:00:00.000Z"),
   });
   return { send, calls };
 }
 
-describe("createRingBeaconSender", () => {
+describe(createRingBeaconSender, () => {
   it("posts the stage with the app's own headers and nothing from the call", async () => {
     const { send, calls } = harness();
 
@@ -84,20 +85,20 @@ describe("createRingBeaconSender", () => {
     const { send } = harness({
       fetch: (async () => {
         throw new TypeError("Failed to fetch");
-      }) as typeof fetch,
+      }),
     });
     await expect(send("company-1", "declined", "v3:sess-1")).resolves.toBeUndefined();
   });
 
   it("resolves when the server refuses the beacon", async () => {
     const { send } = harness({
-      fetch: (async () => new Response("{}", { status: 404 })) as typeof fetch,
+      fetch: (async () => new Response("{}", { status: 404 })),
     });
     await expect(send("company-1", "declined", "v3:sess-1")).resolves.toBeUndefined();
   });
 });
 
-describe("webOs", () => {
+describe(webOs, () => {
   it("names the coarse platform and never the user agent", () => {
     expect(webOs({ userAgentData: { platform: "Windows" } })).toBe("web-windows");
     expect(webOs({ userAgentData: { platform: "Chrome OS" } })).toBe("web-chrome-os");
@@ -106,7 +107,7 @@ describe("webOs", () => {
   });
 
   it("stays inside the server's character set and length", () => {
-    const os = webOs({ userAgentData: { platform: "x".repeat(80) + "/é" } });
+    const os = webOs({ userAgentData: { platform: `${"x".repeat(80)  }/é` } });
     expect(os).toMatch(/^[A-Za-z0-9._-]+$/);
     expect(os.length).toBeLessThanOrEqual(40);
   });

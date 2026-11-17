@@ -123,10 +123,8 @@
  * "this guy never pays", and a summary is a paragraph that could carry it
  * anywhere.
  */
-import {
-  isThreadSummarySection,
-  type ThreadSummarySection,
-} from "@loonext/shared";
+import { isThreadSummarySection } from '@loonext/shared';
+import type { ThreadSummarySection } from '@loonext/shared';
 
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import { workersAiTokenPrice } from "../billing/workers-ai-prices";
@@ -305,7 +303,7 @@ export const THREAD_SUMMARY_MAX_PROMPT_CHARS = 21_000;
  * ceiling above and the unit cost under it are what an addition has to be
  * weighed against, and this is what forces the weighing.
  */
-export const THREAD_SUMMARY_MAX_SYSTEM_PROMPT_CHARS = 2_600;
+export const THREAD_SUMMARY_MAX_SYSTEM_PROMPT_CHARS = 2600;
 
 /**
  * WHAT ONE CATCH-UP COSTS AT ITS WORST, in cents — the derivation behind
@@ -499,7 +497,7 @@ const SYSTEM_PROMPT = [
 
 /** Collapse whitespace to single spaces and trim. */
 function collapse(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+  return text.replaceAll(/\s+/g, " ").trim();
 }
 
 /**
@@ -526,7 +524,7 @@ function displayName(raw: string | null | undefined, fallback: string): string {
  */
 function transcriptBody(body: string): string {
   return collapse(body)
-    .replace(/\[(\s*\d{1,3}\s*)\]/g, "$1")
+    .replaceAll(/\[(\s*\d{1,3}\s*)\]/g, "$1")
     .slice(0, THREAD_SUMMARY_MAX_MESSAGE_CHARS);
 }
 
@@ -721,7 +719,7 @@ function modelTextOf(raw: unknown): string | null {
   if (!raw || typeof raw !== "object") return null;
   const envelope = raw as Record<string, unknown>;
   if (typeof envelope.response === "string") return envelope.response;
-  const choices = envelope.choices;
+  const {choices} = envelope;
   if (Array.isArray(choices) && choices.length > 0) {
     const first = choices[0] as Record<string, unknown> | undefined;
     const message = first?.message as Record<string, unknown> | undefined;
@@ -756,7 +754,7 @@ const MONEY =
 function moneyAmounts(text: string): Set<string> {
   const found = new Set<string>();
   for (const match of text.matchAll(MONEY)) {
-    const digits = match[0].replace(/[^\d.]/g, "").replace(/\.0+$/, "");
+    const digits = match[0].replaceAll(/[^\d.]/g, "").replace(/\.0+$/, "");
     if (digits) found.add(digits);
   }
   return found;
@@ -790,8 +788,8 @@ function groundedIn(line: string, source: string): boolean {
   if (linkInLine && !(LINK_EXPLICIT.test(source) || BARE_DOMAIN.test(source))) {
     return false;
   }
-  const phoneInLine = PHONE_LIKE.test(line.replace(DATE_OR_TIME, " "));
-  if (phoneInLine && !PHONE_LIKE.test(source.replace(DATE_OR_TIME, " "))) {
+  const phoneInLine = PHONE_LIKE.test(line.replaceAll(DATE_OR_TIME, " "));
+  if (phoneInLine && !PHONE_LIKE.test(source.replaceAll(DATE_OR_TIME, " "))) {
     return false;
   }
   const allowed = moneyAmounts(source);
@@ -836,15 +834,15 @@ function groundedIn(line: string, source: string): boolean {
 function normaliseForQuote(value: string): string {
   return value
     .toLowerCase()
-    .replace(/[\u201c\u201d]/g, '"')
-    .replace(/[\u2018\u2019]/g, "'")
-    .replace(/\s+/g, " ")
+    .replaceAll(/[\u201C\u201D]/g, '"')
+    .replaceAll(/[\u2018\u2019]/g, "'")
+    .replaceAll(/\s+/g, " ")
     // NOT `!` or `?`. A run of trailing punctuation was stripped from both
     // sides, and a question mark is not decoration: "Tuesday works for me?" is
     // a question and "Tuesday works for me" is an agreement, so allowing one to
     // match the other let a line change what a message meant without changing a
     // word of it. Two of twelve threads got through on exactly that.
-    .replace(/[.,;:]+$/g, "")
+    .replaceAll(/[.,;:]+$/g, "")
     .trim();
 }
 
@@ -981,7 +979,7 @@ export function sanitizeSummary(
       dropped.unknownSection += 1;
       continue;
     }
-    const section = line.section;
+    const {section} = line;
 
     // 3. THE ATTRIBUTION. Decided from `source.direction`, which is our own
     // column, so a model that misread the transcript — or a customer who forged
@@ -994,8 +992,8 @@ export function sanitizeSummary(
     }
 
     let text = collapse(line.text)
-      .replace(/[“”]/g, '"')
-      .replace(/[‘’]/g, "'");
+      .replaceAll(/[“”]/g, '"')
+      .replaceAll(/[‘’]/g, "'");
     // A model that ignored "no bullets" wraps lines in them, and one that
     // ignored "no quotes" wraps the whole line.
     text = text.replace(/^(?:\d+[.)]\s+|[-*•]\s+)/, "").trim();
@@ -1074,7 +1072,7 @@ export function sanitizeSummary(
 
 /** Position of a section in the reading order (asked, we_said, open). */
 function sectionRank(section: ThreadSummarySection): number {
-  return section === "asked" ? 0 : section === "we_said" ? 1 : 2;
+  return section === "asked" ? 0 : (section === "we_said" ? 1 : 2);
 }
 
 /**
@@ -1084,5 +1082,5 @@ function sectionRank(section: ThreadSummarySection): number {
 export function summaryEnvelopeShape(raw: unknown): string {
   if (typeof raw === "string") return "string";
   if (!raw || typeof raw !== "object") return typeof raw;
-  return Object.keys(raw as Record<string, unknown>).sort().join(",") || "{}";
+  return Object.keys(raw).toSorted().join(",") || "{}";
 }

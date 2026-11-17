@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  MFA_SUMMARY_KEYS,
-  NAMED_MFA_FACTOR_TYPES,
   hasAuthenticatorFactor,
   hasPasskeyFactor,
+  MFA_SUMMARY_KEYS,
   mfaSummaryKey,
   missingMfaFactorTypes,
+  NAMED_MFA_FACTOR_TYPES,
 } from "./mfa-factors";
 
 /**
@@ -16,7 +16,7 @@ import {
  * that are easy to get wrong under pressure: an unknown factor type must not
  * read as "no second factor", and holding both must offer neither.
  */
-describe("mfaSummaryKey", () => {
+describe(mfaSummaryKey, () => {
   it("names a passkey as a passkey rather than as an authenticator app", () => {
     // The wrong answer here sends somebody looking for six digits that do not
     // exist on any of their devices.
@@ -46,7 +46,7 @@ describe("mfaSummaryKey", () => {
   });
 });
 
-describe("missingMfaFactorTypes", () => {
+describe(missingMfaFactorTypes, () => {
   it("offers the other kind to somebody holding one", () => {
     expect(missingMfaFactorTypes(["totp"])).toEqual(["webauthn"]);
     expect(missingMfaFactorTypes(["webauthn"])).toEqual(["totp"]);
@@ -64,7 +64,7 @@ describe("missingMfaFactorTypes", () => {
   });
 
   it("offers both to somebody holding only a kind this product does not enrol", () => {
-    expect(missingMfaFactorTypes(["phone"]).sort()).toEqual(["totp", "webauthn"]);
+    expect(missingMfaFactorTypes(["phone"]).toSorted()).toEqual(["totp", "webauthn"]);
   });
 });
 
@@ -80,6 +80,6 @@ describe("the predicates", () => {
     // Set equality in both directions. A kind added here without the copy and
     // the enrolment path behind it is a button that opens nothing; a kind
     // enrolled without being listed here renders the fallback sentence.
-    expect([...NAMED_MFA_FACTOR_TYPES].sort()).toEqual(["totp", "webauthn"]);
+    expect([...NAMED_MFA_FACTOR_TYPES].toSorted()).toEqual(["totp", "webauthn"]);
   });
 });

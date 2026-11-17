@@ -40,7 +40,7 @@ function digestBytes(hex: string | undefined): Uint8Array | null {
   const value = hex?.trim().toLowerCase();
   if (!value || !HEX_DIGEST.test(value)) return null;
   const bytes = new Uint8Array(32);
-  for (let i = 0; i < 32; i++) bytes[i] = parseInt(value.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < 32; i++) bytes[i] = Number.parseInt(value.slice(i * 2, i * 2 + 2), 16);
   return bytes;
 }
 

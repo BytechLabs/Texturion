@@ -7,8 +7,8 @@ import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
-vi.mock("@/lib/api/client", () => ({ apiFetch }));
-vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "company-1" }));
+vi.mock(import("@/lib/api/client"), () => ({ apiFetch }));
+vi.mock(import("@/lib/company/provider"), () => ({ useCompanyId: () => "company-1" }));
 
 import { useUpdateContact } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
@@ -61,7 +61,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("useDebouncedAutosave", () => {
+describe(useDebouncedAutosave, () => {
   it("(a) sends one PATCH 800ms after five keystrokes", async () => {
     const { result } = mountNotes();
     for (const draft of ["H", "He", "Hel", "Hell", "Hello"]) {
@@ -91,7 +91,7 @@ describe("useDebouncedAutosave", () => {
   });
 
   it("(c) a mounted field does not re-send while its PATCH is pending", async () => {
-    const inFlight: Array<() => void> = [];
+    const inFlight: (() => void)[] = [];
     apiFetch.mockImplementation(
       (_path: string, init?: Init) =>
         new Promise((resolve) => {

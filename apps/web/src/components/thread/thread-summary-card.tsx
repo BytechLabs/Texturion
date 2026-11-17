@@ -7,14 +7,8 @@ import { AiStatus } from "@/components/ui/ai-orb";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useT } from "@/i18n/provider";
 import { reportAiOutcome } from "@/lib/api/conversations";
-import {
-  canRetryThreadSummary,
-  groupThreadSummary,
-  threadSummaryFailureMessage,
-  threadSummaryRequestFailure,
-  useThreadSummary,
-  type ThreadSummaryResult,
-} from "@/lib/api/thread-summary";
+import { canRetryThreadSummary, groupThreadSummary, threadSummaryFailureMessage, threadSummaryRequestFailure, useThreadSummary } from '@/lib/api/thread-summary';
+import type { ThreadSummaryResult } from '@/lib/api/thread-summary';
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
 import { Timestamp } from "@/components/ui/timestamp";
@@ -216,9 +210,9 @@ export function ThreadSummaryCard({
     if (result === null) return failure?.retry ? t("common.retry") : null;
     if (!canRetryThreadSummary(result.reason)) return null;
     if (result.lines.length === 0) return t("common.retry");
-    return askedAt.current !== newestMessageId
-      ? t("thread.catchMeUpAgain")
-      : null;
+    return askedAt.current === newestMessageId
+      ? null
+      : t("thread.catchMeUpAgain");
   }
   const retryWord = retryLabel();
 
@@ -245,7 +239,7 @@ export function ThreadSummaryCard({
         <AiStatus
           // `done` is a claim that Lou answered, which a rejected request is
           // exactly what did not happen — the ring rests instead of blooming.
-          state={summary.isPending ? "thinking" : failure ? "idle" : "done"}
+          state={summary.isPending ? "thinking" : (failure ? "idle" : "done")}
           label={
             summary.isPending
               ? t("thread.readingThread")
@@ -254,7 +248,7 @@ export function ThreadSummaryCard({
         />
         {!summary.isPending && (
           <div className="ml-auto flex items-center gap-1">
-            {retryWord !== null ? (
+            {retryWord === null ? null : (
               <button
                 type="button"
                 onClick={ask}
@@ -262,7 +256,7 @@ export function ThreadSummaryCard({
               >
                 {retryWord}
               </button>
-            ) : null}
+            )}
             <button
               type="button"
               onClick={() => {
@@ -322,7 +316,7 @@ export function ThreadSummaryCard({
             {t(THREAD_SUMMARY_ATTRIBUTION)}
           </p>
 
-          {askedAt.current !== newestMessageId ? (
+          {askedAt.current === newestMessageId ? null : (
             // Citation defends against invention and does nothing against
             // staleness: a correctly cited "we'll get someone out Tuesday" can
             // be superseded two messages later, and a receipt makes a crew
@@ -334,7 +328,7 @@ export function ThreadSummaryCard({
             >
               {t("thread.newMessagesSinceCatchUp")}
             </p>
-          ) : null}
+          )}
 
           <ul className="pb-1">
             {groupThreadSummary(result.lines).map((group) => (

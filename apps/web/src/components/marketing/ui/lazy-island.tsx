@@ -34,13 +34,8 @@
  * shifts. The mounted island replaces the fallback in place.
  */
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  type ComponentType,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState } from 'react';
+import type { ComponentType, ReactNode } from 'react';
 
 /**
  * Keyed on the loaded component type `C` (not a free prop type), so
@@ -91,8 +86,7 @@ export function LazyIsland<C extends ComponentType<any>>({
     // Honor reduced motion for pure-motion islands: the static frame is enough.
     if (
       skipWhenReducedMotion &&
-      typeof window !== "undefined" &&
-      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+      window?.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches
     ) {
       return;
     }
@@ -117,10 +111,7 @@ export function LazyIsland<C extends ComponentType<any>>({
     // (fires after first render), THEN idle. Reduced-motion users already skip
     // this via skipWhenReducedMotion at the call site.
     if (eager) {
-      const w = window as Window &
-        typeof globalThis & {
-          requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number;
-        };
+      const w = window;
       const afterPaint = () => {
         if (cancelled) return;
         if (typeof w.requestIdleCallback === "function") {

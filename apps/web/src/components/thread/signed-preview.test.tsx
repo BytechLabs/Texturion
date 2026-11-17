@@ -5,7 +5,7 @@ import { describe, expect, it, vi } from "vitest";
 // client, both of which validate public env at IMPORT time. This suite renders
 // one pure presentational component, so the env module is stubbed rather than
 // the whole data layer configured — the same approach the marketing suites use.
-vi.mock("@/env", () => ({
+vi.mock(import("@/env"), () => ({
   publicEnv: {
     NEXT_PUBLIC_SUPABASE_URL: "https://stub.supabase.co",
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: "stub-key",

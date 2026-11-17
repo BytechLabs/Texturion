@@ -154,9 +154,9 @@ export function AssigneeField({
             const selected = draft.includes(member.user_id);
             const blocked = !selected && atMax;
             const name =
-              member.display_name.trim() !== ""
-                ? member.display_name
-                : t("tasks.teammate");
+              member.display_name.trim() === ""
+                ? t("tasks.teammate")
+                : member.display_name;
             return (
               <li key={member.id} role="presentation">
                 <button

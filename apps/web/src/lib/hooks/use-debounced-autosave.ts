@@ -56,7 +56,7 @@ export function useDebouncedAutosave<T>({
     const next = normalizeRef.current(draftRef.current);
     if (Object.is(next, lastSent.current)) return;
     lastSent.current = next;
-    const id = ++requestId.current;
+    const id = requestId.current += 1;
     clearTimer(savedTimer);
     setState("saving");
     setError(null);
@@ -71,12 +71,12 @@ export function useDebouncedAutosave<T>({
           setState("idle");
         }, SAVED_FLASH_MS);
       },
-      (cause: unknown) => {
+      (error_: unknown) => {
         if (id !== requestId.current) return;
         lastSent.current = lastSaved.current;
         if (!mounted.current) return;
         setState("error");
-        setError(cause);
+        setError(error_);
       },
     );
   }, []);

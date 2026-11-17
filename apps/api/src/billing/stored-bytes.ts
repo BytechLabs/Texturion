@@ -28,5 +28,5 @@ export function storedBytes(row: StorageUsageRow | null | undefined): number {
   const sum =
     (Number.isFinite(attachments) ? attachments : 0) +
     (Number.isFinite(mms) ? mms : 0);
-  return sum > 0 ? sum : 0;
+  return Math.max(sum, 0);
 }

@@ -75,8 +75,8 @@ const ANDROID_CATALOGUE = join(
 
 /** A client's words: its screen, plus the catalogue it reaches into. */
 function words(platform: string, path: string): string {
-  if (platform === "ios") return code(path) + " " + code(IOS_CATALOGUE);
-  if (platform === "android") return code(path) + " " + code(ANDROID_CATALOGUE);
+  if (platform === "ios") return `${code(path)  } ${  code(IOS_CATALOGUE)}`;
+  if (platform === "android") return `${code(path)  } ${  code(ANDROID_CATALOGUE)}`;
   return code(path);
 }
 
@@ -106,8 +106,8 @@ describe("#291 the other-numbers list reads the same everywhere", () => {
     }
     expect(
       missing,
-      "These #291 sentences are missing or reworded on some clients:\n  " +
-        missing.join("\n  "),
+      `These #291 sentences are missing or reworded on some clients:\n  ${ 
+        missing.join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -169,7 +169,7 @@ describe("#291 the other-numbers list reads the same everywhere", () => {
     // play, and the key appears exactly once, inside the adding branch. Both
     // assertions below therefore still bite; only the spelling moved.
     web: {
-      identifier: "contacts\\.phoneMatchNote",
+      identifier: String.raw`contacts\.phoneMatchNote`,
       branch: "{adding ? (",
       declaration: "export const PHONE_MATCH_NOTE",
     },
@@ -179,7 +179,7 @@ describe("#291 the other-numbers list reads the same everywhere", () => {
     // leaves the whole source in play, and the key appears exactly once,
     // inside the adding branch, so both assertions still bite.
     android: {
-      identifier: "contactsTasks\\.phoneMatchNote",
+      identifier: String.raw`contactsTasks\.phoneMatchNote`,
       branch: "if (adding) {",
       declaration: "const val PHONE_MATCH_NOTE",
     },

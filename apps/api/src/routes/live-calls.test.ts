@@ -7,21 +7,12 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import { stubRoute, type Stub } from "../test/messaging-support";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import type { Env } from "../env";
 import { liveCallsRoutes } from "./live-calls";
 
@@ -80,7 +71,7 @@ function liveWorld(opts: {
             answered_at: "2026-07-12T00:00:00Z",
             outcome: null,
             direction: "inbound",
-            ...(opts.call ?? {}),
+            ...opts.call,
           },
         ],
   );
@@ -288,7 +279,7 @@ describe("POST /v1/calls/live/:id/consult + complete (D43 phase 3)", () => {
     expect(res.status).toBe(202);
     const dials = telnyx.calls.filter((c) => c.url.pathname === "/v2/calls");
     expect(dials).toHaveLength(2);
-    const to = dials.map((d) => (d.body as { to: string }).to).sort();
+    const to = dials.map((d) => (d.body as { to: string }).to).toSorted();
     expect(to).toEqual([
       "sip:gencred_sender@sip.telnyx.com",
       "sip:gencred_target@sip.telnyx.com",
@@ -726,7 +717,7 @@ describe("POST /v1/calls/live/:id/ring-me (#135 push-to-wake, #137 scoped cancel
       { companyId: COMPANY_ID, method: "POST", body: { no_local_leg: true } },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ ok: true, rang: true, state: "ringing" });
+    await expect(res.json()).resolves.toMatchObject({ ok: true, rang: true, state: "ringing" });
     // Routed into THIS member's DO leg with the v2 no_local_leg attestation.
     expect(captured).toEqual([
       {
@@ -893,7 +884,7 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ declined: false, sessions: [] });
+    await expect(res.json()).resolves.toEqual({ declined: false, sessions: [] });
     expect(
       sb.find("POST", "/rest/v1/rpc/member_number_levels"),
       "resolved number access with no ringing session to apply it to",
@@ -1043,7 +1034,7 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ declined: false, sessions: [] });
+    await expect(res.json()).resolves.toEqual({ declined: false, sessions: [] });
     expect(routed).toHaveLength(0);
   });
 
@@ -1062,7 +1053,7 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ declined: false, sessions: [] });
+    await expect(res.json()).resolves.toEqual({ declined: false, sessions: [] });
   });
 
   it("a per-session DO throw is swallowed: still 200, batch survives", async () => {

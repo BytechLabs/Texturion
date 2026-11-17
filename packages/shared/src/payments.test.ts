@@ -22,7 +22,7 @@ function look(table: unknown, key: string): string {
   const value = (table as Record<string, Record<string, string>>)[section]?.[
     name
   ];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -37,7 +37,7 @@ const sayFr = (key: string): string => look(WEB_FR, key);
  * and the state-precedence block is the one that decides whether a crew chases
  * a customer for money they already paid.
  */
-describe("paymentRequestState", () => {
+describe(paymentRequestState, () => {
   it("reads a plain open request as waiting", () => {
     expect(paymentRequestState({ status: "requested" })).toBe("requested");
   });
@@ -90,7 +90,7 @@ describe("paymentRequestState", () => {
   });
 });
 
-describe("paymentRequestLabel", () => {
+describe(paymentRequestLabel, () => {
   it("gives every state exactly one word", () => {
     const states = [
       "requested",
@@ -121,7 +121,7 @@ describe("paymentRequestLabel", () => {
   });
 });
 
-describe("paymentRequestCancellable", () => {
+describe(paymentRequestCancellable, () => {
   it("offers cancel only while the request is genuinely open", () => {
     expect(paymentRequestCancellable({ status: "requested" })).toBe(true);
     expect(paymentRequestCancellable({ status: "paid" })).toBe(false);
@@ -132,7 +132,7 @@ describe("paymentRequestCancellable", () => {
   });
 });
 
-describe("paymentAmountProblem", () => {
+describe(paymentAmountProblem, () => {
   it("accepts an ordinary trade amount", () => {
     expect(paymentAmountProblem(25_000)).toBeNull();
   });
@@ -172,7 +172,7 @@ describe("paymentAmountProblem", () => {
   });
 });
 
-describe("paymentRequestSms", () => {
+describe(paymentRequestSms, () => {
   const text = paymentRequestSms({
     businessName: "Northline Plumbing",
     amountCents: 25_000,
@@ -203,7 +203,7 @@ describe("paymentRequestSms", () => {
   });
 });
 
-describe("payoutReadiness", () => {
+describe(payoutReadiness, () => {
   const base = {
     connected: true,
     charges_enabled: false,
@@ -246,7 +246,7 @@ describe("payoutReadiness", () => {
   });
 });
 
-describe("payoutReadinessCopy", () => {
+describe(payoutReadinessCopy, () => {
   it("offers an action for every state a person can act on", () => {
     for (const readiness of [
       "not_connected",
@@ -271,7 +271,7 @@ describe("payoutReadinessCopy", () => {
   });
 });
 
-describe("payoutRequirementCopy", () => {
+describe(payoutRequirementCopy, () => {
   /*
    * #228 — resolved through the catalogue the card reads, not against a copy
    * of the sentence held here. An assertion holding its own copy keeps passing
@@ -315,7 +315,7 @@ describe("payoutRequirementCopy", () => {
       const { key } = payoutRequirementCopy(requirement);
       expect(key, requirement).not.toBeNull();
       const name = key!.slice("payments.".length) as keyof typeof WEB_FR.payments;
-      expect(typeof WEB_FR.payments[name], requirement).toBe("string");
+      expect(WEB_FR.payments[name]).toBeTypeOf("string");
       expect(WEB_FR.payments[name], requirement).not.toBe(WEB_EN.payments[name]);
     }
   });
@@ -342,7 +342,7 @@ describe("payoutRequirementCopy", () => {
   it("sets exactly one of the two, so a caller cannot read the wrong field", () => {
     for (const requirement of ["external_account", "company.owners_provided"]) {
       const copy = payoutRequirementCopy(requirement);
-      expect((copy.key === null) !== (copy.literal === null), requirement).toBe(true);
+      expect(copy.key === null, requirement).not.toBe(copy.literal === null);
     }
   });
 });

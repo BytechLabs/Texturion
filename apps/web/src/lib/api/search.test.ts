@@ -24,7 +24,7 @@ import type {
  */
 
 function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status,
     headers: { "Content-Type": "application/json" },
   });
@@ -40,7 +40,7 @@ function makeClient(
   const request = createApiClient({
     baseUrl: "https://api.loonext.test",
     getAccessToken: async () => "test-token",
-    fetch: fetchSpy as unknown as typeof fetch,
+    fetch: fetchSpy,
   });
   return { request, fetchSpy };
 }

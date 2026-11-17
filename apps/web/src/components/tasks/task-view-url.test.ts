@@ -1,15 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  coerceTabForView,
-  hasActiveChips,
-  parseTaskSearchParams,
-  parseView,
-  serializeTaskState,
-  tabsForView,
-  toTaskFilters,
-  type TaskPageState,
-} from "./task-view-url";
+import { coerceTabForView, hasActiveChips, parseTaskSearchParams, parseView, serializeTaskState, tabsForView, toTaskFilters } from './task-view-url';
+import type { TaskPageState } from './task-view-url';
 
 describe("tabsForView / coerceTabForView (#113: per-view status tabs)", () => {
   it("List and Calendar apply all four status tabs", () => {
@@ -35,11 +27,12 @@ describe("tabsForView / coerceTabForView (#113: per-view status tabs)", () => {
   });
 });
 
-describe("parseView", () => {
+describe(parseView, () => {
   it("defaults unknown / missing to list", () => {
     expect(parseView(null)).toBe("list");
     expect(parseView("nonsense")).toBe("list");
   });
+
   it("accepts the four valid views", () => {
     expect(parseView("board")).toBe("board");
     expect(parseView("calendar")).toBe("calendar");
@@ -48,7 +41,7 @@ describe("parseView", () => {
   });
 });
 
-describe("parseTaskSearchParams", () => {
+describe(parseTaskSearchParams, () => {
   it("returns the defaults for an empty query", () => {
     expect(parseTaskSearchParams(new URLSearchParams())).toEqual({
       view: "list",
@@ -102,7 +95,7 @@ describe("serializeTaskState round-trips", () => {
   });
 });
 
-describe("toTaskFilters", () => {
+describe(toTaskFilters, () => {
   it("Open tab → status open, assignee me", () => {
     expect(toTaskFilters({ view: "list", tab: "open" })).toEqual({
       status: "open",
@@ -166,10 +159,11 @@ describe("toTaskFilters", () => {
   });
 });
 
-describe("hasActiveChips", () => {
+describe(hasActiveChips, () => {
   it("is false for a bare tab view", () => {
     expect(hasActiveChips({ view: "list", tab: "open" })).toBe(false);
   });
+
   it("is true when any chip is set", () => {
     expect(hasActiveChips({ view: "list", tab: "open", due: "overdue" })).toBe(true);
     expect(hasActiveChips({ view: "list", tab: "all", assignee: "u1" })).toBe(true);

@@ -7,7 +7,8 @@ import { toast } from "sonner";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
-import { useRestoreFromTrash, type TrashTarget } from "@/lib/api/trash";
+import { useRestoreFromTrash } from '@/lib/api/trash';
+import type { TrashTarget } from '@/lib/api/trash';
 import { useActiveCompany } from "@/lib/company/provider";
 
 /**

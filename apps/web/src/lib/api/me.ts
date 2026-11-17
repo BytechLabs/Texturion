@@ -23,7 +23,7 @@ export function useUpdateDisplayName() {
         body: { display_name },
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: keys.me });
+      void queryClient.invalidateQueries({ queryKey: keys.me });
     },
   });
 }

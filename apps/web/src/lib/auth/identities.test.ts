@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  isApplePrivateRelay,
-  isOAuthOnly,
-  signInMethods,
-  type IdentityLike,
-} from "./identities";
+import { isApplePrivateRelay, isOAuthOnly, signInMethods } from './identities';
+import type { IdentityLike } from './identities';
 
 const email: IdentityLike = { provider: "email" };
 const google: IdentityLike = { provider: "google" };

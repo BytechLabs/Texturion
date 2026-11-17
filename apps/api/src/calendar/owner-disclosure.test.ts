@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { discloseCalendarOwner } from "./worker";
 
-vi.mock("../notifications/deliver", () => ({
+vi.mock(import("../notifications/deliver"), () => ({
   deliverPush: vi.fn(
     async (_env: unknown, _db: unknown, input: { failures: unknown[] }) => {
       input.failures.push(new Error("one device has a bad token"));

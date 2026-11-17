@@ -1,10 +1,7 @@
 "use client";
 
-import {
-  HANDOVER_CODE_DESTINATION,
-  handoverConfirmationKind,
-  type HandoverConfirmationKind,
-} from "@loonext/shared";
+import { HANDOVER_CODE_DESTINATION, handoverConfirmationKind } from '@loonext/shared';
+import type { HandoverConfirmationKind } from '@loonext/shared';
 import { useRef, useState } from "react";
 
 import { ApiError } from "@/lib/api/error";

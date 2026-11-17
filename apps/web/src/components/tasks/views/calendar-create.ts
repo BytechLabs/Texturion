@@ -15,7 +15,7 @@ export function dayKey(day: Date): string {
 /** A `yyyy-MM-dd` key back to a grid day (local midnight, labels only). */
 export function dayFromKey(key: string): Date {
   const [y, m, d] = key.split("-").map(Number);
-  return new Date(y!, m! - 1, d!);
+  return new Date(y, m - 1, d);
 }
 
 /** Today's date on the workspace's wall clock, as a grid day. */

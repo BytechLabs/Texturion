@@ -35,7 +35,8 @@ import { copyFor } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
-import { guardedAutoSend, type AutoSendOutcome } from "./auto-send";
+import { guardedAutoSend } from './auto-send';
+import type { AutoSendOutcome } from './auto-send';
 import { applySendMergeFields } from "./merge";
 import { runPreSendGates } from "./send";
 

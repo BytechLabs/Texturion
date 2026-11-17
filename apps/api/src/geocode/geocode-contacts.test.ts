@@ -7,13 +7,10 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
-import {
-  geocodeContactsJob,
-  GEOCODE_BATCH,
-  GEOCODE_PER_COMPANY,
-  type Sleeper,
-} from "./geocode-contacts";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
+import { GEOCODE_BATCH, GEOCODE_PER_COMPANY, geocodeContactsJob } from './geocode-contacts';
+import type { Sleeper } from './geocode-contacts';
 import { NOMINATIM_BASE, NOMINATIM_MIN_INTERVAL_MS } from "./nominatim";
 
 const env = completeEnv();
@@ -74,7 +71,7 @@ function stubGeocodeWorld(
 
 const noSleep: Sleeper = async () => {};
 
-describe("geocodeContactsJob", () => {
+describe(geocodeContactsJob, () => {
   it("geocodes an addressed contact and caches lat/lng + status=ok", async () => {
     const { route, captured } = stubGeocodeWorld(
       [{ id: "c1", address: "1 King St W, Toronto" }],
@@ -93,9 +90,7 @@ describe("geocodeContactsJob", () => {
       lng: -79.3817,
       geocode_status: "ok",
     });
-    expect(typeof (write.body as { geocoded_at: string }).geocoded_at).toBe(
-      "string",
-    );
+    expect((write.body as { geocoded_at: string }).geocoded_at).toBeTypeOf("string");
   });
 
   it("guards the cache write-back on the captured address (a concurrent edit wins, no stale coordinate)", async () => {

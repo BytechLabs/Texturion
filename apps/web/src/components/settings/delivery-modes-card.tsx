@@ -2,16 +2,8 @@
 
 import { toast } from "sonner";
 
-import {
-  BATCH_WINDOW_CHOICES,
-  CATEGORY_LABELS,
-  DEFAULT_BATCH_WINDOW,
-  DELIVERY_COPY,
-  DELIVERY_MODES,
-  NOTIFICATION_CATEGORIES,
-  type DeliveryMode,
-  type NotificationCategory,
-} from "@loonext/shared";
+import { BATCH_WINDOW_CHOICES, CATEGORY_LABELS, DEFAULT_BATCH_WINDOW, DELIVERY_COPY, DELIVERY_MODES, NOTIFICATION_CATEGORIES } from '@loonext/shared';
+import type { DeliveryMode, NotificationCategory } from '@loonext/shared';
 
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { SettingsCard } from "@/components/settings/section";
@@ -87,10 +79,10 @@ export function DeliveryModesCard({
   async function save(next: Partial<NotificationPrefs>) {
     try {
       await onSave({ ...prefs, ...next });
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settings.deliveryModesSaveFailed"),
       );
     }
@@ -104,7 +96,7 @@ export function DeliveryModesCard({
     if (mode === "immediate") delete next[category];
     else next[category] = mode;
 
-    save({
+    void save({
       delivery: next,
       // Turning something to batched with no window would fall back to the
       // default server-side anyway; naming it here means the number on screen

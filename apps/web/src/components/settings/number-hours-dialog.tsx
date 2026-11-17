@@ -19,12 +19,8 @@ import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useNumberIdentity, useSetNumberIdentity } from "@/lib/api/numbers";
 import type { BusinessHours, NumberIdentity } from "@/lib/api/types";
-import {
-  isDirty,
-  toBusinessHours,
-  toFormState,
-  type DayFormState,
-} from "@/lib/settings/business-hours-form";
+import { isDirty, toBusinessHours, toFormState } from '@/lib/settings/business-hours-form';
+import type { DayFormState } from '@/lib/settings/business-hours-form';
 
 /**
  * #307 — "When this line is open".
@@ -77,7 +73,7 @@ export function NumberHoursDialog({
     if (!identity.data) return;
     setZone(identity.data.timezone.value);
     const seeded = toFormState(
-      (identity.data.business_hours.value ?? {}) as BusinessHours,
+      (identity.data.business_hours.value ?? {}),
     );
     setDays(seeded);
     setInitialDays(seeded);
@@ -95,10 +91,10 @@ export function NumberHoursDialog({
       await save.mutateAsync(patchFrom(identity.data, zone, days, initialDays));
       onOpenChange(false);
       toast.success(t("settingsMore.numberHoursSaved"));
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.saveFailedGeneric"),
       );
     }
@@ -108,10 +104,10 @@ export function NumberHoursDialog({
     try {
       await save.mutateAsync({ [field]: null });
       toast.success(t("settingsMore.backToWorkspace"));
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.changeFailedGeneric"),
       );
     }
@@ -131,7 +127,7 @@ export function NumberHoursDialog({
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.loading")}
           </p>
-        ) : identity.data ? (
+        ) : (identity.data ? (
           <div className="space-y-5">
             <div className="space-y-1.5">
               <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -190,7 +186,7 @@ export function NumberHoursDialog({
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.numberNotLoaded")}
           </p>
-        )}
+        ))}
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

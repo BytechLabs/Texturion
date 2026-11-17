@@ -89,7 +89,7 @@ beforeEach(() => {
   });
 });
 
-describe("ContactCustomFields", () => {
+describe(ContactCustomFields, () => {
   it("CW-1: renders nothing at all until the workspace defines a field", async () => {
     // Not an empty "Custom fields" heading on every contact forever, for a
     // feature most workspaces will never turn on.
@@ -138,7 +138,7 @@ describe("ContactCustomFields", () => {
     fireEvent.change(input, { target: { value: "2027-03-01" } });
     fireEvent.blur(input);
 
-    await waitFor(() => expect(patched).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(patched).toHaveBeenCalledOnce());
     expect(patched.mock.calls[0][0]).toEqual({
       custom_fields: {
         boiler_model: "Worcester 8000",
@@ -183,7 +183,7 @@ describe("ContactCustomFields", () => {
       document.querySelector('[role="option"][data-value="__not_set__"]')!,
       { key: "Enter" },
     );
-    await waitFor(() => expect(patched).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(patched).toHaveBeenCalledOnce());
     expect(patched.mock.calls[0][0]).toEqual({ custom_fields: { system_type: "" } });
   });
 
@@ -196,7 +196,7 @@ describe("ContactCustomFields", () => {
     expect((await screen.findByText("Not asked")).textContent).toBe("Not asked");
 
     fireEvent.click(screen.getByLabelText("Dog on site"));
-    await waitFor(() => expect(patched).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(patched).toHaveBeenCalledOnce());
     expect(patched.mock.calls[0][0]).toEqual({ custom_fields: { has_dog: "yes" } });
   });
 });

@@ -3,12 +3,8 @@
 import { MoreHorizontal } from "lucide-react";
 import * as React from "react";
 
-import {
-  ACTION_GROUPS,
-  submenuItems,
-  visibleActions,
-  type RecordAction,
-} from "@/lib/record-actions/types";
+import { ACTION_GROUPS, submenuItems, visibleActions } from '@/lib/record-actions/types';
+import type { RecordAction } from '@/lib/record-actions/types';
 import { cn } from "@/lib/utils";
 
 import {

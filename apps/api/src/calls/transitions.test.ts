@@ -13,26 +13,12 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
-import {
-  CALL_END_REASONS,
-  CALL_ROUTINGS,
-  type CallEndReason,
-  type CallRouting,
-} from "@loonext/shared";
+import { CALL_END_REASONS, CALL_ROUTINGS } from '@loonext/shared';
+import type { CallEndReason, CallRouting } from '@loonext/shared';
 import { describe, expect, it } from "vitest";
 
-import {
-  CALL_STATES,
-  type CallState,
-  type Effect,
-  type InitiatedContext,
-  isTerminal,
-  type OutboundInitiatedContext,
-  reduce,
-  type SessionEvent,
-  type SessionMachine,
-  UNAVAILABLE_NOTICE,
-} from "./transitions";
+import { CALL_STATES, isTerminal, reduce, UNAVAILABLE_NOTICE } from './transitions';
+import type { CallState, Effect, InitiatedContext, OutboundInitiatedContext, SessionEvent, SessionMachine } from './transitions';
 
 // ---- builders --------------------------------------------------------------
 

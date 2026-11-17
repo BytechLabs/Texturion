@@ -16,20 +16,8 @@
 import { fileURLToPath } from "node:url";
 import grpc from "@grpc/grpc-js";
 import protoLoader from "@grpc/proto-loader";
-import {
-  analyzeFrames,
-  bandPass,
-  codeSamples,
-  decimate,
-  detectCodes,
-  encodeWav,
-  isSurface,
-  SURFACES,
-  SURFACE_HZ,
-  type Detection,
-  type Surface,
-  type Transcriber,
-} from "@loonext/rig-robot";
+import { analyzeFrames, bandPass, codeSamples, decimate, detectCodes, encodeWav, isSurface, SURFACE_HZ, SURFACES } from '@loonext/rig-robot';
+import type { Detection, Surface, Transcriber } from '@loonext/rig-robot';
 import type { Adb } from "./adb.ts";
 
 export const AUDIO_UNPROVEN = "emulator-audio-unproven";
@@ -98,7 +86,7 @@ export function readAudioProof(text: string | undefined): AudioProof | undefined
  * line and then its indented "session:" line (an API 36 guest, EA1).
  */
 export function recordingActive(dump: string): boolean {
-  const lines = dump.replace(/\r\n/g, "\n").split("\n");
+  const lines = dump.replaceAll('\r\n', "\n").split("\n");
   const start = lines.findIndex((line) => line.includes("RecordActivityMonitor dump time"));
   if (start === -1) return false;
   let active = true;
@@ -116,13 +104,13 @@ export function recordingActive(dump: string): boolean {
 
 export function s16FromPcm(samples: Float32Array): Buffer {
   const bytes = Buffer.alloc(samples.length * 2);
-  samples.forEach((x, i) => bytes.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x)) * 32767), i * 2));
+  samples.forEach((x, i) => bytes.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x)) * 32_767), i * 2));
   return bytes;
 }
 
 export function pcmFromS16(bytes: Buffer): Float32Array {
   const samples = new Float32Array(Math.floor(bytes.length / 2));
-  for (let i = 0; i < samples.length; i++) samples[i] = bytes.readInt16LE(i * 2) / 32768;
+  for (let i = 0; i < samples.length; i++) samples[i] = bytes.readInt16LE(i * 2) / 32_768;
   return samples;
 }
 
@@ -194,7 +182,7 @@ export class EmulatorAudioLink {
     try {
       const metadata = await this.#metadata();
       return await new Promise((resolve) => {
-        this.#controller().getStatus({}, metadata, { deadline: Date.now() + 5_000 }, (error) => resolve(error === null));
+        this.#controller().getStatus({}, metadata, { deadline: Date.now() + 5000 }, (error) => resolve(error === null));
       });
     } catch {
       return false;
@@ -242,7 +230,7 @@ export class EmulatorAudioLink {
     const { samples, rate } = await this.#record(args.ms);
     if (rate % WHISPER_RATE !== 0) throw new Error(`emulator audio: ${rate} Hz does not decimate to ${WHISPER_RATE} Hz`);
     const factor = rate / WHISPER_RATE;
-    const narrowed = factor === 1 ? samples : decimate(bandPass(samples, rate, 80, 7_600), factor);
+    const narrowed = factor === 1 ? samples : decimate(bandPass(samples, rate, 80, 7600), factor);
     return this.#o.transcriber.transcribe(encodeWav({ sampleRate: WHISPER_RATE, channels: [narrowed] }));
   }
 
@@ -306,7 +294,7 @@ export class EmulatorAudioLink {
     const needed = () => Math.round((ms * rate) / 1000);
     await new Promise<void>((resolve, reject) => {
       // The stream blocks while the guest is silent, so the wall clock ends it too.
-      const timer = setTimeout(finish, ms + 5_000);
+      const timer = setTimeout(finish, ms + 5000);
       function finish(error?: Error) {
         clearTimeout(timer);
         stream.removeAllListeners("data");
@@ -315,9 +303,9 @@ export class EmulatorAudioLink {
         else resolve();
       }
       stream.on("data", (packet: AudioPacket) => {
-        if (packet.format?.samplingRate) rate = Number(packet.format.samplingRate);
+        if (packet.format?.samplingRate) rate = packet.format.samplingRate;
         const samples = pcmFromS16(Buffer.from(packet.audio));
-        packets.push({ timestamp: Number(packet.timestamp), samples });
+        packets.push({ timestamp: packet.timestamp, samples });
         have += samples.length;
         if (have >= needed()) finish();
       });

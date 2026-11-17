@@ -55,14 +55,14 @@ function fakeDb(opts: {
 }
 
 describe("#232 the widget's line", () => {
-  it("WN-1: defaults to the workspace's first number", () => {
+  it("WN-1: defaults to the workspace's first number", () => 
     // Null means "we have not been told", which is nearly every workspace:
     // Starter includes one number, so there is nothing to choose and nothing
     // is asked. The default has to be the behaviour they already had.
-    return expect(resolveWidgetNumber(fakeDb({ chosen: null }), "c1")).resolves.toEqual(
+    expect(resolveWidgetNumber(fakeDb({ chosen: null }), "c1")).resolves.toEqual(
       FIRST,
-    );
-  });
+    )
+  );
 
   it("WN-2: uses the number the owner chose", async () => {
     // The reason the column exists: a service line and a sales line in one

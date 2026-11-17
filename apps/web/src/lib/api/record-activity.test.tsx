@@ -44,10 +44,10 @@ beforeEach(() => {
 
 describe("useRecordActivity on mount", () => {
   it("RA-1: reuses the read the page finished a moment ago", async () => {
-    expect(await readsOnMount(1_000)).toBe(0);
+    await expect(readsOnMount(1000)).resolves.toBe(0);
   });
 
   it("RA-2: reads a cached history again on a later open, even inside the stale time", async () => {
-    expect(await readsOnMount(20_000)).toBe(1);
+    await expect(readsOnMount(20_000)).resolves.toBe(1);
   });
 });

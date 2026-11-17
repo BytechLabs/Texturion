@@ -64,10 +64,10 @@ export function AddressList({ contact }: { contact: ContactDetail }) {
       setDraftLabel("");
       setDraftAddress("");
       setAdding(false);
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("contacts.addressAddFailed"),
       );
     }

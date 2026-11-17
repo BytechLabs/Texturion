@@ -25,7 +25,7 @@ export function useMemberNames(): Map<string, string> {
     for (const member of members.data?.data ?? []) {
       map.set(
         member.user_id,
-        member.display_name.trim() !== "" ? member.display_name : fallback,
+        member.display_name.trim() === "" ? fallback : member.display_name,
       );
     }
     return map;

@@ -37,9 +37,9 @@ export function ExportTasks({ filters }: { filters: TaskListFilters }) {
   async function submit() {
     try {
       await download.mutateAsync(filters);
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError ? cause.message : t("tasks.exportDownloadFailed"),
+        error instanceof ApiError ? error.message : t("tasks.exportDownloadFailed"),
       );
     }
   }

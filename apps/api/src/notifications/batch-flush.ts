@@ -14,7 +14,8 @@
  * queue is consulted, so nothing in here can be an emergency waiting on a
  * window — which is the property that makes the whole feature safe to offer.
  */
-import { digestLine, type Locale } from "@loonext/shared";
+import { digestLine } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 
 import { getDb } from "../db";
 import type { Env } from "../env";
@@ -119,12 +120,12 @@ export async function runBatchFlush(
       }
       summary.members += 1;
       summary.notifications += batch.length;
-    } catch (cause) {
+    } catch (error_) {
       // The rows are already claimed and deleted, so this batch is not
       // retried. That is the right trade: a retry loop would re-notify
       // everybody whose batch happened to share a tick with a broken one, and
       // every message in it is still sitting unread in the inbox.
-      console.error(`batch flush: ${first.user_id} failed`, cause);
+      console.error(`batch flush: ${first.user_id} failed`, error_);
     }
   }
 

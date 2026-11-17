@@ -18,7 +18,7 @@
  * record_activity does not accept, or a file that no longer names its action
  * fails. The suite reports how many machines it checked and fails on zero.
  */
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -148,8 +148,8 @@ const activityKinds = (() => {
 
 describe("every machine's transitions are recorded (#722 phase 4)", () => {
   it("has a row for every machine and no row for a machine that is gone", () => {
-    const ids = ALL_MACHINES.map((m) => m.id).sort();
-    expect(Object.keys(ROSTER).sort()).toEqual(ids);
+    const ids = ALL_MACHINES.map((m) => m.id).toSorted();
+    expect(Object.keys(ROSTER).toSorted()).toEqual(ids);
   });
 
   it("names a capture trigger that the migration creates, on every table a machine reads", () => {
@@ -174,7 +174,7 @@ describe("every machine's transitions are recorded (#722 phase 4)", () => {
     let recorded = 0;
     let none = 0;
     for (const machine of ALL_MACHINES) {
-      const activity = ROSTER[machine.id].activity;
+      const {activity} = ROSTER[machine.id];
       if ("recordActivity" in activity) {
         expect(activityKinds.has(activity.recordActivity), `${machine.id}: record_activity has no kind ${activity.recordActivity}`).toBe(true);
         recorded += 1;
@@ -213,12 +213,12 @@ describe("every machine's transitions are recorded (#722 phase 4)", () => {
       }
     }
     expect(fromDefinitions.size).toBeGreaterThan(0);
-    expect([...inMigration].sort()).toEqual([...fromDefinitions].sort());
+    expect([...inMigration].toSorted()).toEqual([...fromDefinitions].toSorted());
   });
 
   it("registers its suite with the SQL runner", () => {
     expect(existsSync(join(ROOT, "supabase", "tests", "state_transition_capture.test.sql"))).toBe(true);
     expect(readFileSync(join(ROOT, "scripts", "db-test-all.mjs"), "utf8")).toContain('"state_transition_capture"');
-    expect(readdirSync(MIGRATIONS).includes(CAPTURE_MIGRATION.split("/").pop()!)).toBe(true);
+    expect(readdirSync(MIGRATIONS)).toContain(CAPTURE_MIGRATION.split('/').pop()!);
   });
 });

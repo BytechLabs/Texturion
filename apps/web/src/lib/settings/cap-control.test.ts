@@ -14,7 +14,7 @@ function resolver(table: unknown) {
   return (key: string, vars: Record<string, string>): string => {
     const [section, name] = key.split(".");
     const text = (table as Record<string, Record<string, string>>)[section]?.[name];
-    if (typeof text !== "string") throw new Error(`no entry for ${key}`);
+    if (typeof text !== "string") throw new TypeError(`no entry for ${key}`);
     return Object.entries(vars).reduce(
       (out, [token, value]) => out.split(`{${token}}`).join(value),
       text,
@@ -25,7 +25,7 @@ function resolver(table: unknown) {
 const sayEn = resolver(WEB_EN);
 const sayFr = resolver(WEB_FR);
 
-describe("normalizeMultiplier", () => {
+describe(normalizeMultiplier, () => {
   it("passes numbers through and parses Postgres numeric strings", () => {
     expect(normalizeMultiplier(3)).toBe(3);
     expect(normalizeMultiplier("3.00")).toBe(3);
@@ -45,7 +45,7 @@ describe("normalizeMultiplier", () => {
   });
 });
 
-describe("capLabel", () => {
+describe(capLabel, () => {
   it("renders presets, and the ceiling as an explicit maximum", () => {
     expect(capLabel(2)).toBe("2×");
     expect(capLabel(2.5)).toBe("2.5×");
@@ -58,7 +58,7 @@ describe("capLabel", () => {
   });
 });
 
-describe("capSegments", () => {
+describe(capSegments, () => {
   it("mirrors the API: round(included × multiplier)", () => {
     expect(capSegments(500, 3)).toBe(1500);
     expect(capSegments(500, 2.5)).toBe(1250);
@@ -67,7 +67,7 @@ describe("capSegments", () => {
 
   it("resolves a legacy null to the 10× ceiling — never unlimited", () => {
     expect(capSegments(500, null)).toBe(5000);
-    expect(capSegments(2500, null)).toBe(25000);
+    expect(capSegments(2500, null)).toBe(25_000);
   });
 });
 
@@ -148,7 +148,7 @@ describe("#228 the same cap change, read in French", () => {
     // its own name on somebody's screen.
     for (const say of [sayEn, sayFr]) {
       for (const [from, to] of [[2, 3], [3, 10], [5, 2]] as const) {
-        const summary = describeCapChange(from, to, 2500, say).summary;
+        const {summary} = describeCapChange(from, to, 2500, say);
         expect(summary).not.toContain("settings.");
         expect(summary).not.toMatch(/\{/);
       }

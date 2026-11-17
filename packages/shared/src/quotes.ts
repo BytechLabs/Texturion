@@ -33,7 +33,8 @@
  * below is what lets `tsc` prove the web catalogue answers every one.
  */
 
-import { formatMoney, type BillingCurrency } from "./billing-currency";
+import { formatMoney } from './billing-currency';
+import type { BillingCurrency } from './billing-currency';
 import type { Locale } from "./locale";
 
 

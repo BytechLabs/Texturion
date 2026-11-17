@@ -9,21 +9,8 @@ import { describe, expect, it } from "vitest";
 
 import type { BusinessHours } from "@loonext/shared";
 
-import {
-  buildSuggestionMessages,
-  envelopeShape,
-  formatBusinessHours,
-  hasReplyableInbound,
-  parseSuggestionOutput,
-  sanitizeSuggestions,
-  selectRecentContext,
-  SUGGEST_REPLY_CONTEXT_MESSAGES,
-  shouldSuggest,
-  SUGGEST_REPLY_MAX_CHARS,
-  SUGGEST_REPLY_MAX_SUGGESTIONS,
-  type SuggestionMessage,
-  threadTextOf,
-} from "./reply-suggestions";
+import { buildSuggestionMessages, envelopeShape, formatBusinessHours, hasReplyableInbound, parseSuggestionOutput, sanitizeSuggestions, selectRecentContext, shouldSuggest, SUGGEST_REPLY_CONTEXT_MESSAGES, SUGGEST_REPLY_MAX_CHARS, SUGGEST_REPLY_MAX_SUGGESTIONS, threadTextOf } from './reply-suggestions';
+import type { SuggestionMessage } from './reply-suggestions';
 
 const inbound = (body: string): SuggestionMessage => ({
   direction: "inbound",
@@ -38,7 +25,7 @@ const outbound = (body: string): SuggestionMessage => ({
 const clean = (replies: string[], threadText = "") =>
   sanitizeSuggestions(replies, { threadText });
 
-describe("hasReplyableInbound", () => {
+describe(hasReplyableInbound, () => {
   it("is true when the newest message is an inbound with text", () => {
     expect(
       hasReplyableInbound([outbound("On our way"), inbound("How much?")]),
@@ -70,7 +57,7 @@ const WEEKDAY_HOURS: BusinessHours = {
   sat: { open: "09:00", close: "13:00" },
 };
 
-describe("formatBusinessHours", () => {
+describe(formatBusinessHours, () => {
   it("reads Monday-first and names the closed days", () => {
     expect(formatBusinessHours(WEEKDAY_HOURS)).toBe(
       "Mon 08:00-17:00, Tue 08:00-17:00, Wed 08:00-17:00, Thu 08:00-17:00, " +
@@ -89,7 +76,7 @@ describe("formatBusinessHours", () => {
   });
 });
 
-describe("buildSuggestionMessages", () => {
+describe(buildSuggestionMessages, () => {
   const ctx = {
     companyName: "Bolt Plumbing",
     contactName: "Dana",
@@ -294,7 +281,7 @@ describe("buildSuggestionMessages", () => {
   });
 });
 
-describe("parseSuggestionOutput", () => {
+describe(parseSuggestionOutput, () => {
   it("reads the documented Workers AI shape", () => {
     expect(
       parseSuggestionOutput({ response: '{"replies":["Sure thing","On it"]}' }),
@@ -409,7 +396,7 @@ describe("parseSuggestionOutput", () => {
   });
 });
 
-describe("sanitizeSuggestions", () => {
+describe(sanitizeSuggestions, () => {
   it("keeps ordinary drafts untouched", () => {
     expect(clean(["We can come by Tuesday morning. Does that work?"])).toEqual([
       "We can come by Tuesday morning. Does that work?",
@@ -753,7 +740,7 @@ describe("selectRecentContext (timing decides what is worth reading)", () => {
   });
 });
 
-describe("shouldSuggest", () => {
+describe(shouldSuggest, () => {
   it("is true when a customer message is waiting", () => {
     expect(shouldSuggest([inbound("Are you free?")], null)).toBe(true);
   });
@@ -792,7 +779,7 @@ describe("shouldSuggest", () => {
   });
 });
 
-describe("threadTextOf", () => {
+describe(threadTextOf, () => {
   it("joins every customer-visible body for the money comparison", () => {
     expect(threadTextOf([inbound("You said $80"), outbound("Yes")])).toBe(
       "You said $80\nYes",

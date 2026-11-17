@@ -24,7 +24,8 @@ import {
   setExtraNumberQuantity,
   STARTER_MAX_TOTAL_NUMBERS,
 } from "./extra-numbers";
-import { getStripe, type Stripe } from "./stripe";
+import { getStripe } from './stripe';
+import type { Stripe } from './stripe';
 
 const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
@@ -143,16 +144,16 @@ function subscription(
         id: item.id,
         object: "subscription_item",
         price: { id: item.price, object: "price" },
-        ...(item.quantity !== undefined ? { quantity: item.quantity } : {}),
+        ...(item.quantity === undefined ? {} : { quantity: item.quantity }),
       })),
     },
     ...overrides,
   } as unknown as Stripe.Subscription;
 }
 
-const PRO_PRICE = env.STRIPE_EXTRA_NUMBER_PRO_PRICE_ID as string;
+const PRO_PRICE = env.STRIPE_EXTRA_NUMBER_PRO_PRICE_ID!;
 
-describe("setExtraNumberQuantity", () => {
+describe(setExtraNumberQuantity, () => {
   it("creates the item when absent (the first paid extra), charging now", async () => {
     const harness = makeHarness([
       endpoint("POST", /\/v1\/subscription_items$/, () => ({
@@ -262,7 +263,7 @@ describe("setExtraNumberQuantity", () => {
 });
 
 describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)", () => {
-  const STARTER_PRICE = env.STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID as string;
+  const STARTER_PRICE = env.STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID!;
 
   function converge(options: { plan?: "starter" | "pro" } = {}) {
     return convergeExtraNumberQuantity({

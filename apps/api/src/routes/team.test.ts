@@ -6,23 +6,10 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 import { SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY } from "@loonext/shared";
 
-import {
-  apiRequest,
-  buildTestApp,
-  countResponse,
-  membershipResponder,
-  pgError,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type FetchRoute,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, countResponse, membershipResponder, pgError, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { teamRoutes } from "./team";
 
 const env = completeEnv();

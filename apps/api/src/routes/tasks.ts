@@ -93,24 +93,17 @@ import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
 import { mayHoldReference, syncReferences } from "../tasks/references";
 import { assigneeIdsSchema, MAX_ASSIGNEES } from "../tasks/assignees";
-import { notifyTaskChangeSafely, type TaskChange } from "../tasks/notify";
-import {
-  PRIORITIES,
-  PRIORITY_RANK,
-  prioritySchema,
-  repeatSchema,
-  scopeSchema,
-  withLabelsAndRepeat,
-  withLabelsAndRepeatOne,
-  type TaskPriority,
-} from "../tasks/repeat";
+import { notifyTaskChangeSafely } from '../tasks/notify';
+import type { TaskChange } from '../tasks/notify';
+import { PRIORITIES, PRIORITY_RANK, prioritySchema, repeatSchema, scopeSchema, withLabelsAndRepeat, withLabelsAndRepeatOne } from '../tasks/repeat';
+import type { TaskPriority } from '../tasks/repeat';
 import { decodeCursor, encodeCursor } from "../http/pagination";
 import {
   buildEnrichmentMessages,
   buildEnrichmentResult,
   detectEnrichmentSignals,
-  ENRICHMENT_MAX_INPUT_CHARS,
   ENRICHMENT_FEATURE_SPEC,
+  ENRICHMENT_MAX_INPUT_CHARS,
   ENRICHMENT_MAX_OUTPUT_TOKENS,
   ENRICHMENT_MODEL,
   parseEnrichmentOutput,
@@ -2093,10 +2086,7 @@ tasksRoutes.post(
           companyId,
           doneAtCol: TASK_DONE_AT,
           effectiveStatus: filter.status,
-          assignee:
-            filter.assigned_user_id === undefined
-              ? undefined
-              : filter.assigned_user_id,
+          assignee: filter.assigned_user_id,
           unassigned: filter.unassigned === true,
           conversationId: filter.conversation_id,
           dueBefore: filter.due_before,

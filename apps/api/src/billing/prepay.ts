@@ -1,18 +1,12 @@
-import { billingCurrencyOf, usdCentsOf, type BillingCurrency } from "@loonext/shared";
+import { billingCurrencyOf, usdCentsOf } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 
 import type { Env } from "../env";
 import { canChargeIn } from "./checkout-currency";
-import {
-  PLAN_PREPAY_YEAR_CENTS,
-  PREPAY_MONTHS,
-  isPauseLicensedPrice,
-  planForLicensedPrice,
-  planPrices,
-  prepayYearPrice,
-  type PlanId,
-} from "./plans";
+import { isPauseLicensedPrice, PLAN_PREPAY_YEAR_CENTS, planForLicensedPrice, planPrices, PREPAY_MONTHS, prepayYearPrice } from './plans';
+import type { PlanId } from './plans';
 
 import { getDb } from "../db";
 import { getStripe } from "./stripe";

@@ -62,7 +62,7 @@ describe("activityLine (#714)", () => {
       ctx,
     );
     expect(line.text).toContain("Incoming call, not answered");
-    expect(line.text.split(" · ").length).toBe(2);
+    expect(line.text.split(" · ")).toHaveLength(2);
   });
 
   it("says an edit with the field, before and after", () => {
@@ -148,7 +148,7 @@ describe("activityLine (#714)", () => {
   });
 });
 
-describe("groupByDay", () => {
+describe(groupByDay, () => {
   it("keeps the order given and groups by local calendar day", () => {
     const groups = groupByDay(
       [

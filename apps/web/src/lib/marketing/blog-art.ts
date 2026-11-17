@@ -34,7 +34,7 @@ export interface BlogArtSpec {
   width: number;
   height: number;
   /** Sparse 1px field ticks (P5-SPEC texture), cobalt at low alpha. */
-  ticks: Array<{ x: number; y: number }>;
+  ticks: { x: number; y: number }[];
   trails: BlogArtTrail[];
   /** Convergence point: the inbox. Renderers draw the dock rings here. */
   dock: { x: number; y: number };
@@ -50,10 +50,10 @@ export interface BlogArtSpec {
 
 /** FNV-1a 32-bit string hash: the slug's stable identity. */
 function fnv1a(input: string): number {
-  let hash = 0x811c9dc5;
+  let hash = 0x81_1C_9D_C5;
   for (let i = 0; i < input.length; i += 1) {
     hash ^= input.charCodeAt(i);
-    hash = Math.imul(hash, 0x01000193);
+    hash = Math.imul(hash, 0x01_00_01_93);
   }
   return hash >>> 0;
 }
@@ -62,20 +62,20 @@ function fnv1a(input: string): number {
 function mulberry32(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
+    state = (state + 0x6D_2B_79_F5) >>> 0;
     let t = state;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
   };
 }
 
 /** Seeded lattice hash for value noise: cell (ix, iy) -> [0, 1). */
 function latticeHash(ix: number, iy: number, seed: number): number {
-  let h = seed ^ Math.imul(ix, 0x27d4eb2d) ^ Math.imul(iy, 0x165667b1);
-  h = Math.imul(h ^ (h >>> 15), 0x2c1b3c6d);
-  h = Math.imul(h ^ (h >>> 12), 0x297a2d39);
-  return ((h ^ (h >>> 15)) >>> 0) / 4294967296;
+  let h = seed ^ Math.imul(ix, 0x27_D4_EB_2D) ^ Math.imul(iy, 0x16_56_67_B1);
+  h = Math.imul(h ^ (h >>> 15), 0x2C_1B_3C_6D);
+  h = Math.imul(h ^ (h >>> 12), 0x29_7A_2D_39);
+  return ((h ^ (h >>> 15)) >>> 0) / 4_294_967_296;
 }
 
 function smoothstep(t: number): number {
@@ -119,14 +119,14 @@ const ARCHETYPES: Record<string, Archetype> = {
   PRICING: { trails: 7, curl: 0.5, frequency: 0.9, tickDensity: 0.55 },
   PLAYBOOK: { trails: 11, curl: 1.05, frequency: 1.35, tickDensity: 0.25 },
   TEMPLATES: { trails: 8, curl: 0.4, frequency: 0.8, tickDensity: 0.4 },
-  NUMBERS: { trails: 7, curl: 0.65, frequency: 1.0, tickDensity: 0.5 },
+  NUMBERS: { trails: 7, curl: 0.65, frequency: 1, tickDensity: 0.5 },
   COMPLIANCE: { trails: 6, curl: 0.35, frequency: 0.7, tickDensity: 0.35 },
 };
 
 const DEFAULT_ARCHETYPE: Archetype = {
   trails: 8,
   curl: 0.7,
-  frequency: 1.0,
+  frequency: 1,
   tickDensity: 0.35,
 };
 
@@ -182,7 +182,7 @@ export function blogArt(
   const spreadTop = variant === "og" ? -0.1 : -0.15;
   const spreadBottom = variant === "og" ? 0.62 : 1.15;
   const leadIndex = Math.floor(rand() * count);
-  let leadPoints: Array<{ x: number; y: number }> = [];
+  let leadPoints: { x: number; y: number }[] = [];
   const midA = (leadIndex + 1 + Math.floor(rand() * (count - 1))) % count;
   const midB = (leadIndex + 1 + Math.floor(rand() * (count - 1))) % count;
 
@@ -197,7 +197,7 @@ export function blogArt(
     const maxSteps = 220;
     const phase = rand() * 8;
 
-    const points: Array<{ x: number; y: number }> = [{ ...start }];
+    const points: { x: number; y: number }[] = [{ ...start }];
     let { x, y } = start;
     for (let s = 0; s < maxSteps; s += 1) {
       const dx = dock.x - x;
@@ -225,14 +225,14 @@ export function blogArt(
     }
 
     const role: BlogArtTrail["role"] =
-      i === leadIndex ? "lead" : i === midA || i === midB ? "mid" : "far";
+      i === leadIndex ? "lead" : (i === midA || i === midB ? "mid" : "far");
     if (role === "lead") leadPoints = points;
     trails.push({ d: toPath(points), role });
   }
 
   // Sparse field ticks on the 48px grid, biased away from the dock so the
   // convergence stays the quiet focus.
-  const ticks: Array<{ x: number; y: number }> = [];
+  const ticks: { x: number; y: number }[] = [];
   for (let gx = TICK_GRID; gx < width; gx += TICK_GRID) {
     for (let gy = TICK_GRID; gy < height; gy += TICK_GRID) {
       const nearDock = Math.hypot(dock.x - gx, dock.y - gy) < width * 0.14;
@@ -264,7 +264,7 @@ function round1(value: number): number {
 }
 
 /** Points -> "M x y L x y ..." with 1-decimal precision (compact, stable). */
-function toPath(points: Array<{ x: number; y: number }>): string {
+function toPath(points: { x: number; y: number }[]): string {
   return points
     .map(
       (p, i) => `${i === 0 ? "M" : "L"}${round1(p.x)} ${round1(p.y)}`,

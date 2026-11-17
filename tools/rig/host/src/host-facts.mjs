@@ -7,12 +7,12 @@ import { parse } from "node:path";
 import { emulatorBinary } from "./emulator.mjs";
 
 export const REBOOT_KEYS = [
-  "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\Component Based Servicing\\RebootPending",
-  "HKLM\\SOFTWARE\\Microsoft\\Windows\\CurrentVersion\\WindowsUpdate\\Auto Update\\RebootRequired",
+  String.raw`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Component Based Servicing\RebootPending`,
+  String.raw`HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\WindowsUpdate\Auto Update\RebootRequired`,
 ];
-export const ACTIVE_HOURS_KEY = "HKLM\\SOFTWARE\\Microsoft\\WindowsUpdate\\UX\\Settings";
-const REG = "C:\\Windows\\System32\\reg.exe";
-const POWERCFG = "C:\\Windows\\System32\\powercfg.exe";
+export const ACTIVE_HOURS_KEY = String.raw`HKLM\SOFTWARE\Microsoft\WindowsUpdate\UX\Settings`;
+const REG = String.raw`C:\Windows\System32\reg.exe`;
+const POWERCFG = String.raw`C:\Windows\System32\powercfg.exe`;
 
 /** `emulator -accel-check`: usable only when it names WHPX as installed and usable. */
 export function parseAccelCheck({ code, stdout = "", stderr = "" }) {
@@ -55,7 +55,7 @@ export function healthReport({ facts, adbUp, tunnel, devices }) {
 }
 
 export async function readHostFacts({ exec, sdk, root }) {
-  const whpx = parseAccelCheck(await exec(emulatorBinary(sdk), ["-accel-check"]).catch((cause) => ({ code: -1, stderr: cause.message })));
+  const whpx = parseAccelCheck(await exec(emulatorBinary(sdk), ["-accel-check"]).catch((error) => ({ code: -1, stderr: error.message })));
 
   let pendingReboot = false;
   for (const key of REBOOT_KEYS) {

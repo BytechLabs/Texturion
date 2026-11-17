@@ -22,7 +22,8 @@
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { compareUiCopy } from "@/i18n/marketing/compare-ui";
 import { homeCopy } from "@/i18n/marketing/home";
-import { formatMoney, type BillingCurrency } from "@loonext/shared";
+import { formatMoney } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
 import { compareAsOf } from "@/app/(marketing)/compare/verification";

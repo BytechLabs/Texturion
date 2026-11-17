@@ -83,7 +83,7 @@ test("selection follows imports, reads, listings, deletions and the unknown", ()
   const select = (changes) => selectAffected({ units, changes, graph, history });
 
   const docs = select([{ status: "M", path: "docs/RIG.md" }]);
-  assert.deepEqual([...docs.keys()].sort(), [
+  assert.deepEqual([...docs.keys()].toSorted(), [
     "apps/web/src/broken.test.ts",
     "apps/web/src/guard.test.ts",
     "apps/web/src/new.test.ts",
@@ -138,15 +138,15 @@ test("shards balance recorded time, slowest first", () => {
 
 test("a file with no recorded time weighs the median", () => {
   const { shards } = partition(["a", "b", "new"], new Map([["a", 100], ["b", 10]]), 2);
-  assert.deepEqual(shards.map((s) => s.weight).sort((x, y) => x - y), [100, 110]);
+  assert.deepEqual(shards.map((s) => s.weight).toSorted((x, y) => x - y), [100, 110]);
 });
 
 test("with no recorded time, shards balance file count", () => {
   const files = ["a", "b", "c", "d", "e", "f", "g"];
   const { timing, shards } = partition(files, new Map(), 3);
   assert.equal(timing, "file-count");
-  assert.deepEqual(shards.map((s) => s.files.length).sort(), [2, 2, 3]);
-  assert.deepEqual(shards.flatMap((s) => s.files).sort(), files);
+  assert.deepEqual(shards.map((s) => s.files.length).toSorted(), [2, 2, 3]);
+  assert.deepEqual(shards.flatMap((s) => s.files).toSorted(), files);
 });
 
 test("every file lands in exactly one shard", () => {

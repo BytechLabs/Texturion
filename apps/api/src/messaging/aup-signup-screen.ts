@@ -16,7 +16,8 @@
  * The window between signup and a first send is hours at minimum; that is the
  * time a reviewer has, and it is enough.
  */
-import { screeningSummary, type CategoryMatch } from "@loonext/shared";
+import { screeningSummary } from '@loonext/shared';
+import type { CategoryMatch } from '@loonext/shared';
 
 import type { Env } from "../env";
 import { opsNotice } from "../observability/capture";

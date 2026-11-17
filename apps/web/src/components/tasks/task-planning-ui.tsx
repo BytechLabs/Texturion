@@ -35,29 +35,8 @@ import { useTags } from "@/lib/api/tags";
 import type { Tag, TaskLabel, TaskPriority, TaskRepeat } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
-import {
-  PRIORITY_PICKER,
-  allowedUnits,
-  capLabels,
-  draftProblem,
-  draftSummary,
-  dueDay,
-  isFlaggedPriority,
-  isoWeekday,
-  nthOfMonth,
-  newRepeatDraft,
-  normalizePriority,
-  priorityLabelKey,
-  repeatSummary,
-  repeatUnitWord,
-  showsRepeatIcon,
-  weekdayName,
-  type RepeatDraft,
-  type RepeatEndKind,
-  type RepeatKind,
-  type RepeatUnit,
-  type TaskScope,
-} from "./task-planning";
+import { allowedUnits, capLabels, draftProblem, draftSummary, dueDay, isFlaggedPriority, isoWeekday, newRepeatDraft, normalizePriority, nthOfMonth, PRIORITY_PICKER, priorityLabelKey, repeatSummary, repeatUnitWord, showsRepeatIcon, weekdayName } from './task-planning';
+import type { RepeatDraft, RepeatEndKind, RepeatKind, RepeatUnit, TaskScope } from './task-planning';
 
 // ---------------------------------------------------------------------------
 // Priority
@@ -478,7 +457,7 @@ function RepeatDialog({
                         patch({
                           weekdays: on
                             ? work.weekdays.filter((d) => d !== day)
-                            : [...work.weekdays, day].sort((a, b) => a - b),
+                            : [...work.weekdays, day].toSorted((a, b) => a - b),
                         })
                       }
                       className={cn(
@@ -609,16 +588,21 @@ function RepeatDialog({
 
 function nthName(nth: number, t: ReturnType<typeof useT>): string {
   switch (nth) {
-    case 1:
+    case 1: {
       return t("tasks.nthFirst");
-    case 2:
+    }
+    case 2: {
       return t("tasks.nthSecond");
-    case 3:
+    }
+    case 3: {
       return t("tasks.nthThird");
-    case 4:
+    }
+    case 4: {
       return t("tasks.nthFourth");
-    default:
+    }
+    default: {
       return t("tasks.nthLast");
+    }
   }
 }
 

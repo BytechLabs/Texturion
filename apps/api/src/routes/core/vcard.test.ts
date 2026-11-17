@@ -6,7 +6,7 @@ import { describe, expect, it } from "vitest";
 
 import { parseVCards, VCardMalformedError } from "./vcard";
 
-describe("parseVCards", () => {
+describe(parseVCards, () => {
   it("parses a single vCard 3.0 card: FN + TEL", () => {
     const vcf = [
       "BEGIN:VCARD",
@@ -288,9 +288,9 @@ describe("parseVCards", () => {
       // invisible, so "look at line 5" is the only actionable part.
       try {
         parseVCards(vcf);
-      } catch (cause) {
-        expect((cause as VCardMalformedError).kind).toBe("merged-card");
-        expect((cause as VCardMalformedError).line).toBe(5);
+      } catch (error) {
+        expect((error as VCardMalformedError).kind).toBe("merged-card");
+        expect((error as VCardMalformedError).line).toBe(5);
       }
     });
 
@@ -342,9 +342,9 @@ describe("parseVCards", () => {
       expect(() => parseVCards(vcf)).toThrow(VCardMalformedError);
       try {
         parseVCards(vcf);
-      } catch (cause) {
-        expect((cause as VCardMalformedError).kind).toBe("nameless-property");
-        expect((cause as VCardMalformedError).line).toBe(3);
+      } catch (error) {
+        expect((error as VCardMalformedError).kind).toBe("nameless-property");
+        expect((error as VCardMalformedError).line).toBe(3);
       }
     });
 

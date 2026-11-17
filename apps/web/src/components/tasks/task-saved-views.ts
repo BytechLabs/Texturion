@@ -1,15 +1,11 @@
-import { sanitizeFilters, type SavedViewFilters } from "@loonext/shared";
+import { sanitizeFilters } from '@loonext/shared';
+import type { SavedViewFilters } from '@loonext/shared';
 
 import type { Translate } from "@/i18n/translate";
 import type { TaskPriority } from "@/lib/api/types";
 
-import {
-  parsePriorities,
-  type TaskGroup,
-  type TaskPageState,
-  type TaskSort,
-  type TaskSource,
-} from "./task-view-url";
+import { parsePriorities } from './task-view-url';
+import type { TaskGroup, TaskPageState, TaskSort, TaskSource } from './task-view-url';
 
 /**
  * #689 G: the /tasks page's state, in and out of a saved view.

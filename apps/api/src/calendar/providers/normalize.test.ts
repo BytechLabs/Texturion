@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 import {
   appendUnlinkNote,
-  hasTaskLink,
   hashCalendarDescription,
+  hasTaskLink,
   instantFromWallClock,
   normalizeCalendarScheduleSnapshot,
   taskLinkUrl,
   wallClockFromInstant,
-  withTaskLink,
   withoutTaskLink,
+  withTaskLink,
 } from "./normalize";
 import {
   ianaZoneToWindows,
@@ -79,7 +79,7 @@ describe("calendar provider normalization", () => {
 
   it("hashes normalized provider text without retaining customer text", async () => {
     await expect(hashCalendarDescription("Cafe\u0301\r\nUnit 4")).resolves.toBe(
-      await hashCalendarDescription("Caf\u00e9\nUnit 4"),
+      await hashCalendarDescription("Caf\u00E9\nUnit 4"),
     );
     await expect(hashCalendarDescription("private note")).resolves.toMatch(
       /^[0-9a-f]{64}$/,
@@ -99,7 +99,7 @@ describe("calendar provider normalization", () => {
       start: "2026-11-01T16:00:00.000Z",
       end: "2026-11-01T17:00:00.000Z",
       timeZone: "America/Edmonton",
-      title: "Caf\u00e9",
+      title: "Caf\u00E9",
       descriptionHash: expect.stringMatching(/^[0-9a-f]{64}$/),
     });
     await expect(
@@ -143,7 +143,7 @@ describe("calendar provider normalization", () => {
     ])("takes the link off again and gives back the task's text: %j", (description) => {
       const written = withTaskLink(description, url);
       expect(hasTaskLink(written)).toBe(true);
-      expect(withoutTaskLink(written)).toBe(description.replace(/\r\n/g, "\n"));
+      expect(withoutTaskLink(written)).toBe(description.replaceAll('\r\n', "\n"));
     });
 
     it("leaves a description alone when the link is not its last line", () => {

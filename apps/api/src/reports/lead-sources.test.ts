@@ -12,12 +12,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  buildLeadSourceReport,
-  coverageNote,
-  LOW_COVERAGE,
-  type LeadSourceRollupRow,
-} from "./lead-sources";
+import { buildLeadSourceReport, coverageNote, LOW_COVERAGE } from './lead-sources';
+import type { LeadSourceRollupRow } from './lead-sources';
 
 const TRUCK = "11111111-0000-4000-8000-000000000001";
 const GOOGLE = "22222222-0000-4000-8000-000000000002";

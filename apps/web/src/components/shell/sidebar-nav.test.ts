@@ -8,7 +8,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { MEMBER_ROLES, type MemberRole } from "@loonext/shared";
+import { MEMBER_ROLES } from '@loonext/shared';
+import type { MemberRole } from '@loonext/shared';
 
 import { navRowsFor } from "./sidebar";
 

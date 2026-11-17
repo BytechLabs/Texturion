@@ -13,7 +13,7 @@ const A = "a0000000-0000-4000-8000-000000000001";
 const B = "b0000000-0000-4000-8000-000000000002";
 const C = "c0000000-0000-4000-8000-000000000003";
 
-describe("taskAssigneeIds", () => {
+describe(taskAssigneeIds, () => {
   it("reads the crew, first assignee first", () => {
     expect(taskAssigneeIds({ assigned_user_id: A, assignee_ids: [A, B] })).toEqual([A, B]);
   });
@@ -28,7 +28,7 @@ describe("taskAssigneeIds", () => {
   });
 });
 
-describe("isAssignedTo", () => {
+describe(isAssignedTo, () => {
   it("is true for anyone on the task, not only the first", () => {
     const task = { assigned_user_id: A, assignee_ids: [A, B] };
     expect(isAssignedTo(task, B)).toBe(true);
@@ -36,14 +36,14 @@ describe("isAssignedTo", () => {
   });
 });
 
-describe("sameCrew", () => {
+describe(sameCrew, () => {
   it("ignores order", () => {
     expect(sameCrew([A, B], [B, A])).toBe(true);
     expect(sameCrew([A], [A, B])).toBe(false);
   });
 });
 
-describe("toggleAssignee", () => {
+describe(toggleAssignee, () => {
   it("adds and removes one person", () => {
     expect(toggleAssignee([A], B)).toEqual([A, B]);
     expect(toggleAssignee([A, B], A)).toEqual([B]);
@@ -56,7 +56,7 @@ describe("toggleAssignee", () => {
   });
 });
 
-describe("assigneeNames", () => {
+describe(assigneeNames, () => {
   const roster = new Map([[B, "Ben"]]);
 
   it("prefers the names the server sent, then the roster, then the fallback", () => {

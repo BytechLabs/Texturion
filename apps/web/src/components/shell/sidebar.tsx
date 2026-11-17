@@ -9,9 +9,9 @@ import {
   PanelLeft,
   PhoneIncoming,
   Search,
+  Trash2,
   Users,
   Zap,
-  Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
@@ -30,14 +30,11 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import {
-  roleHasCapability,
-  type Capability,
-  type MemberRole,
-  avatarInitials,
-} from "@loonext/shared";
+import { avatarInitials, roleHasCapability } from '@loonext/shared';
+import type { Capability, MemberRole } from '@loonext/shared';
 
-import { useT, type MessageKey, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey, Translate } from '@/i18n/provider';
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
@@ -49,7 +46,7 @@ import {
   useInboxNavCount,
   useTaskNavCount,
 } from "./use-nav-counts";
-import { NavGlyph, WorkspaceNumbers, companyInitials } from "./workspace-bits";
+import { companyInitials, NavGlyph, WorkspaceNumbers } from "./workspace-bits";
 
 /** Counts above this render as `9+` (the calm numeral cap, PORTAL-UX §1.1). */
 function cap(n: number): string {
@@ -158,7 +155,7 @@ function NavItem({
             aria-current={active ? "page" : undefined}
             aria-label={
               showCount
-                ? t("shell.navCount", { label, count: cap(count!) })
+                ? t("shell.navCount", { label, count: cap(count) })
                 : label
             }
             className={cn(
@@ -185,7 +182,7 @@ function NavItem({
         </TooltipTrigger>
         <TooltipContent side="right">
           {label}
-          {showCount ? ` · ${cap(count!)}` : ""}
+          {showCount ? ` · ${cap(count)}` : ""}
         </TooltipContent>
       </Tooltip>
     );

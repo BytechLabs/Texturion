@@ -123,7 +123,7 @@ export function useCreateCompany() {
     mutationFn: (input: CreateCompanyInput) =>
       apiFetch<CompanyView>("/v1/companies", { method: "POST", body: input }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: keys.me });
+      void queryClient.invalidateQueries({ queryKey: keys.me });
     },
   });
 }
@@ -205,13 +205,13 @@ export function useUpdateCompany() {
         keys.company(companyId),
         (company) => (company ? { ...company, ...updated } : company),
       );
-      queryClient.invalidateQueries({ queryKey: keys.settingChoices(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.settingChoices(companyId) });
       if (updated.name !== undefined) {
         // The sidebar company block reads /v1/me.
-        queryClient.invalidateQueries({ queryKey: keys.me });
+        void queryClient.invalidateQueries({ queryKey: keys.me });
       }
       if ("overage_cap_multiplier" in updated) {
-        queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           queryKey: keys.usage(companyId),
           refetchType: "active",
         });

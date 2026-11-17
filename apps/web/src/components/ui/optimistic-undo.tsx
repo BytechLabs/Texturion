@@ -109,7 +109,7 @@ export function useUndoableAction() {
   const tokenRef = React.useRef(0);
 
   return React.useCallback((config: UndoableActionConfig) => {
-    const token = ++tokenRef.current;
+    const token = tokenRef.current += 1;
     config.apply();
     undoableToast({
       message: config.message,

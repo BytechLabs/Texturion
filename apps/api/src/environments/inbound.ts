@@ -68,11 +68,11 @@ export async function refuseStrangerInbound(
         path: `/v2/calls/${caller.rejectCallControlId}/actions/reject`,
         body: { cause: "CALL_REJECTED" },
       });
-    } catch (cause) {
+    } catch (error) {
       // The leg still never reaches a member: refusing the event is what
       // keeps it from ringing, and an unanswered leg times out on its own.
       console.warn(
-        `inbound gate: reject failed: ${cause instanceof Error ? cause.message : String(cause)}`,
+        `inbound gate: reject failed: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }

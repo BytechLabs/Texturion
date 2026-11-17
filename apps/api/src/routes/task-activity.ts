@@ -173,7 +173,7 @@ function shapeItems(
 ): Record<string, unknown>[] {
   return rows.map((row) => {
     if (row.kind === "event") {
-      const event = row.detail.event;
+      const {event} = row.detail;
       const from = row.detail.from ?? null;
       const to = row.detail.to ?? null;
       const named = NAMED_EVENTS.has(String(event));
@@ -371,7 +371,7 @@ taskActivityRoutes.get(
       created_at: item.at,
     }));
     const page = buildPage(rows, limit, "created_at");
-    const pageRows = [...page.data].reverse() as ActivityRow[];
+    const pageRows = [...page.data].toReversed() as ActivityRow[];
 
     const userIds: string[] = [];
     for (const row of pageRows) {
@@ -413,7 +413,7 @@ taskActivityRoutes.post(
     // A mention names one teammate, so the id must be somebody who can see this
     // task: the same rule the push re-checks. Refused before anything is written.
     const userId = c.get("userId");
-    const mentionIds = [...new Set(body.mention_user_ids ?? [])].filter(
+    const mentionIds = [...new Set(body.mention_user_ids)].filter(
       (id) => id !== userId,
     );
     if (mentionIds.length > 0) {

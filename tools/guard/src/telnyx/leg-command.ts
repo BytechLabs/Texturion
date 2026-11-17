@@ -2,7 +2,8 @@ import { Refusal } from "../refusal";
 import { readTier } from "../state/ledger";
 import { liveLeg, markEnded } from "../state/legs";
 import { requirePaidLanesOpen } from "../state/signals";
-import { forward, isOk, relay, type Handler } from "./forward";
+import { forward, isOk, relay } from './forward';
+import type { Handler } from './forward';
 import { bodyIsContained } from "./hazards";
 
 /**
@@ -42,13 +43,13 @@ export const handleLegCommand: Handler = async (request) => {
  */
 async function deleteRecording(request: Parameters<Handler>[0]): Promise<Response> {
   const { ctx } = request;
-  const telnyx = ctx.telnyx;
+  const {telnyx} = ctx;
   if (!telnyx) throw new Refusal("telnyx.key_missing");
   const id = request.ids[0];
   const reply = await telnyx.send("GET", `/v2/recordings/${encodeURIComponent(id)}`);
   const data = (reply.body as { data?: Record<string, unknown> } | undefined)?.data;
   if (reply.status === 404) return relay(reply);
-  const leg = data && data.id === id && typeof data.call_control_id === "string" ? data.call_control_id : null;
+  const leg = data?.id === id && typeof data.call_control_id === "string" ? data.call_control_id : null;
   if (reply.status !== 200 || !leg || !(await liveLeg(ctx, leg))) throw new Refusal("leg.recording_not_registered");
   return relay(await forward(request, undefined));
 }

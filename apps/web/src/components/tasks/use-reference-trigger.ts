@@ -22,7 +22,7 @@ export function useReferenceTrigger(getValue: () => string, setValue: (next: str
   /** Call from the field's change handler with the new text and caret. */
   const onTyped = (next: string, caret: number) => {
     const at = referenceQueryAt(next, caret);
-    if (at !== null && at.query === "") {
+    if (at?.query === "") {
       hashAt.current = at.start;
       setOpen(true);
     }

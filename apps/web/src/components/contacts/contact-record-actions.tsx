@@ -18,14 +18,16 @@ import {
   useBlockedNumber,
 } from "@/components/blocked/block-number";
 import { usePlaceCall } from "@/components/calls/call-button";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import {
   useDeleteContact,
   useOptOutContact,
   useRevokeOptOut,
 } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
-import { isCarrierEnforcedOptOut, type OptOutSource } from "@/lib/api/types";
+import { isCarrierEnforcedOptOut } from '@/lib/api/types';
+import type { OptOutSource } from '@/lib/api/types';
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import type { RecordAction } from "@/lib/record-actions/types";
@@ -203,7 +205,7 @@ export function useContactActions({
     unblocking: blockedNumber.unblocking,
     viewer: { canBlock: blockedNumber.canManage, canDelete },
     openHref,
-    calling: busy === true,
+    calling:  busy,
     run: {
       open: () => openHref && navigate(openHref),
       // The compose route reuses the contact's thread on send, so this is safe

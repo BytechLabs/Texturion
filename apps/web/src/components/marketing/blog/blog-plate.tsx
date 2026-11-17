@@ -1,4 +1,5 @@
-import { blogArt, type BlogArtVariant } from "@/lib/marketing/blog-art";
+import { blogArt } from '@/lib/marketing/blog-art';
+import type { BlogArtVariant } from '@/lib/marketing/blog-art';
 import { cn } from "@/lib/utils";
 
 /**
@@ -63,7 +64,7 @@ export function BlogPlate({
             fill="none"
             stroke="var(--fr-olive)"
             strokeOpacity={
-              trail.role === "lead" ? 0.85 : trail.role === "mid" ? 0.3 : 0.14
+              trail.role === "lead" ? 0.85 : (trail.role === "mid" ? 0.3 : 0.14)
             }
             strokeWidth={trail.role === "lead" ? 2.5 : 2}
             strokeLinecap="round"

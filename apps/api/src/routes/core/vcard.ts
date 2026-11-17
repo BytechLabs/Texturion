@@ -93,7 +93,7 @@ interface LogicalLine {
  */
 function unfold(text: string): LogicalLine[] {
   // Normalize CRLF/CR → LF first so folding detection is uniform.
-  const normalized = text.replace(/\r\n?/g, "\n");
+  const normalized = text.replaceAll(/\r\n?/g, "\n");
   const rawLines = normalized.split("\n");
   const lines: LogicalLine[] = [];
   rawLines.forEach((line, index) => {
@@ -197,10 +197,10 @@ function parseContentLine(line: string): ContentLine | null {
 /** Unescape RFC text-value escapes for FN/N (\\ \, \; \n). */
 function unescapeText(value: string): string {
   return value
-    .replace(/\\n/gi, " ")
-    .replace(/\\,/g, ",")
-    .replace(/\\;/g, ";")
-    .replace(/\\\\/g, "\\")
+    .replaceAll(/\\n/gi, " ")
+    .replaceAll(String.raw`\,`, ",")
+    .replaceAll(String.raw`\;`, ";")
+    .replaceAll(String.raw`\\`, "\\")
     .trim();
 }
 

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { attachmentLabel, sharedMediaKind } from "./media-label";
 
-describe("attachmentLabel", () => {
+describe(attachmentLabel, () => {
   it("names an audio clip an audio message, never a photo", () => {
     expect(attachmentLabel("audio", 1)).toBe("Audio message");
     expect(attachmentLabel("audio", 1)).not.toContain("Photo");
@@ -41,7 +41,7 @@ describe("attachmentLabel", () => {
   });
 });
 
-describe("sharedMediaKind", () => {
+describe(sharedMediaKind, () => {
   it("returns the kind when every attachment agrees", () => {
     expect(sharedMediaKind(["image", "image"])).toBe("image");
     expect(sharedMediaKind(["audio"])).toBe("audio");

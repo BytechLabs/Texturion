@@ -4,7 +4,8 @@ import type { Ctx } from "../context";
 import { sendProductionEvent } from "../posthog";
 import { SPEC } from "../setup/spec";
 import { readTier } from "../state/ledger";
-import { invalidateOwned, type OwnedNumber, type PartitionView } from "./partition";
+import { invalidateOwned } from './partition';
+import type { OwnedNumber, PartitionView } from './partition';
 
 /**
  * Detach: clear a number's connection and messaging profile, so nothing
@@ -92,7 +93,7 @@ export async function detachFlooded(
 export async function enforceCap(ctx: Ctx, view: PartitionView): Promise<number> {
   const reading = await readTier(ctx);
   if (reading.month_to_date_usd < reading.usage_budget_usd) return 0;
-  const robot = view.record.connections.robot;
+  const {robot} = view.record.connections;
   const attached = view.numbers.filter(
     (number) =>
       !(robot && number.connection_id === robot) && (number.connection_id !== null || number.messaging_profile_id !== null),

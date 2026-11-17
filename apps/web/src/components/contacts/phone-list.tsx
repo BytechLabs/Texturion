@@ -63,12 +63,12 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
       setDraftLabel("");
       setDraftPhone("");
       setAdding(false);
-    } catch (cause) {
+    } catch (error) {
       // The server's words, not ours: it is the side that knows WHOSE number
       // this already is, and "couldn't add that" would send somebody looking
       // for a fault that is really a collision.
       toast.error(
-        cause instanceof ApiError ? cause.message : t("contacts.phoneAddFailed"),
+        error instanceof ApiError ? error.message : t("contacts.phoneAddFailed"),
       );
     }
   }

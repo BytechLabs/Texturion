@@ -322,7 +322,7 @@ describe("#399 rewardQualifiedReferral", () => {
     // workspace — `companies.plan` is intact and the subscription is active — so
     // the pause price on the item is the only signal there is.
     const spy = vi.spyOn(console, "log").mockImplementation(() => {});
-    const stub = stripeStub(subscriptionOn(env.STRIPE_PAUSE_PRICE_ID as string));
+    const stub = stripeStub(subscriptionOn(env.STRIPE_PAUSE_PRICE_ID!));
     const db = subDb();
     await withStripe(stub, () =>
       rewardQualifiedReferral(env, db, {
@@ -412,7 +412,7 @@ describe("#399 rewardQualifiedReferral", () => {
    * retry "paid on resume" would be a comment rather than a behaviour, and the
    * month would be lost exactly as surely as if it had been spent.
    */
-  describe("payPendingReferralRewards", () => {
+  describe(payPendingReferralRewards, () => {
     /** Records the PostgREST filters, so the scoping can be asserted. */
     function pendingDb(rows: Record<string, unknown>[], answer?: unknown) {
       const calls: RpcCall[] = [];

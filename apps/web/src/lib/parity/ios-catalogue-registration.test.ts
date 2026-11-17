@@ -31,7 +31,7 @@
  * against the same two files. The Swift test stays as it is; this is the half
  * that can actually fail.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";

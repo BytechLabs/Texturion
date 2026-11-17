@@ -3,7 +3,8 @@
  * edge — global fetch — so every test exercises the real product code paths
  * (jose JWKS resolution, supabase-js PostgREST requests, Hono middleware).
  */
-import { exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import type { JWK } from 'jose';
 import { vi } from "vitest";
 
 import type { Env } from "../env";

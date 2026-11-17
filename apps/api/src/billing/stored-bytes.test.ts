@@ -2,17 +2,17 @@ import { describe, expect, it } from "vitest";
 
 import { storedBytes } from "./stored-bytes";
 
-describe("storedBytes", () => {
+describe(storedBytes, () => {
   it("uses the measured total, which counts voicemail audio", () => {
     // Adding the two named arms misses voicemail recordings entirely, and every
     // workspace takes calls.
     expect(
       storedBytes({
-        attachments_bytes: 1_000,
-        mms_bytes: 2_000,
-        total_bytes: 9_000,
+        attachments_bytes: 1000,
+        mms_bytes: 2000,
+        total_bytes: 9000,
       }),
-    ).toBe(9_000);
+    ).toBe(9000);
   });
 
   it("accepts the numeric strings PostgREST returns for bigints", () => {
@@ -23,8 +23,8 @@ describe("storedBytes", () => {
   });
 
   it("falls back to the sum for a row shaped before the total existed", () => {
-    expect(storedBytes({ attachments_bytes: 1_000, mms_bytes: 2_000 })).toBe(
-      3_000,
+    expect(storedBytes({ attachments_bytes: 1000, mms_bytes: 2000 })).toBe(
+      3000,
     );
   });
 

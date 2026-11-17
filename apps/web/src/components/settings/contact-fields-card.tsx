@@ -4,13 +4,8 @@ import { Plus, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  CONTACT_FIELDS_CAP,
-  CONTACT_FIELDS_COPY,
-  CONTACT_FIELD_KINDS,
-  contactFieldKey,
-  type ContactFieldKind,
-} from "@loonext/shared";
+import { CONTACT_FIELD_KINDS, CONTACT_FIELDS_CAP, CONTACT_FIELDS_COPY, contactFieldKey } from '@loonext/shared';
+import type { ContactFieldKind } from '@loonext/shared';
 
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { SettingsCard } from "@/components/settings/section";
@@ -18,13 +13,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
-import {
-  useContactFields,
-  useSaveContactFields,
-  type ContactFieldDef,
-} from "@/lib/api/contact-fields";
+import { useContactFields, useSaveContactFields } from '@/lib/api/contact-fields';
+import type { ContactFieldDef } from '@/lib/api/contact-fields';
 
 /**
  * #291 — the fields a workspace defines for itself.
@@ -141,10 +134,10 @@ export function ContactFieldsCard({ canEdit }: { canEdit: boolean }) {
           ? t("settings.contactFieldsSavedEmpty")
           : t("settings.contactFieldsSaved"),
       );
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settings.contactFieldsSaveFailed"),
       );
     }

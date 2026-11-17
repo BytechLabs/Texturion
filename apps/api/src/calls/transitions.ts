@@ -20,7 +20,8 @@
  *     re-rings a member who explicitly declined this session (#171).
  */
 
-import { RING_STEP_SECS, type CallEndReason, type CallRouting } from "@loonext/shared";
+import { RING_STEP_SECS } from '@loonext/shared';
+import type { CallEndReason, CallRouting } from '@loonext/shared';
 
 /** §5: the ring window's CEILING, and the default. The DO alarm at the
  *  resolved deadline is the ONLY clock-based voicemail trigger.
@@ -32,7 +33,7 @@ import { RING_STEP_SECS, type CallEndReason, type CallRouting } from "@loonext/s
 export const RING_WINDOW_SECS = 45;
 
 /** §6: asserted ring-me debounce — only against a live ring_me-sourced leg. */
-export const RING_ME_DEBOUNCE_MS = 4_000;
+export const RING_ME_DEBOUNCE_MS = 4000;
 
 /** §13 cap-and-drop: engine fan-out + ring-me adds. */
 export const MAX_LEGS_PER_SESSION = 24;
@@ -88,7 +89,7 @@ export function rotateForFairness<T>(items: readonly T[], seed: string): T[] {
 export const DIAL_BATCH_SIZE = 6;
 
 /** §4.1: journal-resume alarm delay. */
-export const JOURNAL_RESUME_MS = 2_000;
+export const JOURNAL_RESUME_MS = 2000;
 
 /** §5.5: fanout-settle alarm delay. */
 export const FANOUT_SETTLE_MS = 10_000;
@@ -100,10 +101,10 @@ export const PURGE_DELAY_MS = 15 * 60_000;
 export const JANITOR_MS = 4 * 60 * 60_000;
 
 /** §7.4: intent expiry — TRANSFER_TIMEOUT_SECS (25) + 15s. */
-export const INTENT_EXPIRY_MS = (25 + 15) * 1_000;
+export const INTENT_EXPIRY_MS = (25 + 15) * 1000;
 
 /** §17.5: FIFO admission-wait warning threshold (LOAD-BEARING telemetry). */
-export const QUEUE_LATENCY_WARN_MS = 2_000;
+export const QUEUE_LATENCY_WARN_MS = 2000;
 
 export type CallState =
   /** #211: the ONE new outbound state — the customer (oc) leg is initiated but
@@ -147,15 +148,19 @@ export function outcomeForState(
   state: CallState,
 ): "answered" | "voicemail" | "missed" | null {
   switch (state) {
-    case "ended_answered":
+    case "ended_answered": {
       return "answered";
-    case "ended_voicemail":
+    }
+    case "ended_voicemail": {
       return "voicemail";
+    }
     case "ended_missed":
-    case "ended_rejected":
+    case "ended_rejected": {
       return "missed";
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 
@@ -744,8 +749,7 @@ function vmEntry(
     kind: "mirror",
     set: routing ? { state: "voicemail_greeting", routing } : { state: "voicemail_greeting" },
     terminal: false,
-  });
-  effects.push({ kind: "clear-alarm", alarm: "ring" });
+  }, { kind: "clear-alarm", alarm: "ring" });
   effects.push({ kind: "clear-alarm", alarm: "ring-step" });
   if (machine.customerCcid) {
     // Terminal-path exemption class (§13): the voicemail answer must never
@@ -873,10 +877,8 @@ function terminalize(
     effects.push({ kind: "push-call-end", reason: callEndReason });
   }
   if (!upgrade) {
-    effects.push({ kind: "clear-alarm", alarm: "ring" });
-    effects.push({ kind: "clear-alarm", alarm: "ring-step" });
-    effects.push({ kind: "clear-alarm", alarm: "fanout-settle" });
-    effects.push({ kind: "arm-alarm", alarm: "purge", atMs: nowMs + PURGE_DELAY_MS });
+    effects.push({ kind: "clear-alarm", alarm: "ring" }, { kind: "clear-alarm", alarm: "ring-step" });
+    effects.push({ kind: "clear-alarm", alarm: "fanout-settle" }, { kind: "arm-alarm", alarm: "purge", atMs: nowMs + PURGE_DELAY_MS });
   }
 }
 
@@ -934,14 +936,17 @@ export function reduce(
 
   switch (event.type) {
     // ---- T2 / T3 / T7 / §7.7: member (brm) leg events ---------------------
-    case "member-leg-answered":
+    case "member-leg-answered": {
       return reduceMemberAnswered(next, event, effects);
-    case "member-leg-hangup":
+    }
+    case "member-leg-hangup": {
       return reduceMemberHangup(next, event, effects);
+    }
 
     // ---- T5 / T8 / T12 / T17 (+ the §3 upgrade edges) ---------------------
-    case "inbound-hangup":
+    case "inbound-hangup": {
       return reduceInboundHangup(next, event, effects, nowMs);
+    }
 
     // ---- T-O2: outbound customer (oc) leg answered ------------------------
     case "outbound-answered": {
@@ -976,14 +981,17 @@ export function reduce(
     }
 
     // ---- T-O3: outbound customer (oc) leg hung up (terminal) --------------
-    case "outbound-hangup":
+    case "outbound-hangup": {
       return reduceOutboundHangup(next, event, effects, nowMs);
+    }
 
     // ---- T-O4 / T-O5: outbound PLACER (op) leg lifecycle ------------------
-    case "outbound-placer-answered":
+    case "outbound-placer-answered": {
       return reduceOutboundPlacerAnswered(next, event, effects);
-    case "outbound-placer-hangup":
+    }
+    case "outbound-placer-hangup": {
       return reduceOutboundPlacerHangup(next, event, effects, nowMs);
+    }
 
     // ---- T11 --------------------------------------------------------------
     case "speak-ended": {
@@ -1020,8 +1028,7 @@ export function reduce(
       next.state = "ended_voicemail";
       next.ringDeadlineMs = null;
       next.endedReason = next.voicemailCause ?? "left_voicemail";
-      effects.push({ kind: "voicemail-pipeline", payload: event.payload });
-      effects.push({
+      effects.push({ kind: "voicemail-pipeline", payload: event.payload }, {
         kind: "mirror",
         set: { state: "ended_voicemail", ended_reason: next.endedReason },
         terminal: true,
@@ -1033,8 +1040,9 @@ export function reduce(
     }
 
     // ---- T4: ring-me v2 (§6 — additive, never cancels) --------------------
-    case "ring-me":
+    case "ring-me": {
       return reduceRingMe(next, event, effects, nowMs, pendingKeyFor);
+    }
 
     // ---- §7.4 owner/intent RPCs -------------------------------------------
     case "set-owner": {
@@ -1080,8 +1088,9 @@ export function reduce(
     }
 
     // ---- #171: DECLINE (first-class avenue removal, re-run the ladder) -----
-    case "decline":
+    case "decline": {
       return reduceDecline(next, event, effects);
+    }
 
     // ---- #278: the next phone joins the ring ------------------------------
     //
@@ -1195,8 +1204,9 @@ export function reduce(
     }
 
     // ---- Internal: T2's journaled answer outcome --------------------------
-    case "answer-outcome":
+    case "answer-outcome": {
       return reduceAnswerOutcome(next, event, effects, nowMs);
+    }
 
     // ---- Internal: #490's T1b answer discrimination -----------------------
     case "notice-answer-outcome": {
@@ -1422,8 +1432,7 @@ function reduceInitiated(
   if (context.blocked) {
     base.rejectedForCap = true;
     base.routing = "blocked";
-    effects.push({ kind: "telnyx-reject", ccid: context.inboundCcid, cause: "USER_BUSY" });
-    effects.push({ kind: "mirror", set: { state: "ringing", routing: "blocked" }, terminal: false });
+    effects.push({ kind: "telnyx-reject", ccid: context.inboundCcid, cause: "USER_BUSY" }, { kind: "mirror", set: { state: "ringing", routing: "blocked" }, terminal: false });
     return { machine: base, effects };
   }
 
@@ -1444,7 +1453,7 @@ function reduceInitiated(
     vmEntry(
       base,
       effects,
-      context.lineBusy ? "line_busy" : context.screeningDivert ? "screened" : "after_hours",
+      context.lineBusy ? "line_busy" : (context.screeningDivert ? "screened" : "after_hours"),
     );
     return { machine: base, effects };
   }
@@ -1484,8 +1493,7 @@ function reduceInitiated(
   if (context.overCap) {
     base.rejectedForCap = true;
     base.routing = "over_cap";
-    effects.push({ kind: "telnyx-reject", ccid: context.inboundCcid, cause: "USER_BUSY" });
-    effects.push({ kind: "mirror", set: { state: "ringing", routing: "over_cap" }, terminal: false });
+    effects.push({ kind: "telnyx-reject", ccid: context.inboundCcid, cause: "USER_BUSY" }, { kind: "mirror", set: { state: "ringing", routing: "over_cap" }, terminal: false });
     return { machine: base, effects };
   }
 
@@ -1546,8 +1554,7 @@ function reduceInitiated(
   }
   // Push fan-out is a JOURNALED effect: it dispatches sends AND arms the
   // fanout-settle alarm (+10s) — §5.5 (eviction-safe settle).
-  effects.push({ kind: "push-fanout", userIds: [...context.pushAudience] });
-  effects.push({ kind: "arm-alarm", alarm: "fanout-settle", atMs: nowMs + FANOUT_SETTLE_MS });
+  effects.push({ kind: "push-fanout", userIds: [...context.pushAudience] }, { kind: "arm-alarm", alarm: "fanout-settle", atMs: nowMs + FANOUT_SETTLE_MS });
   effects.push({ kind: "arm-alarm", alarm: "ring", atMs: base.ringDeadlineMs });
   armRingStep(base, effects, nowMs);
   return { machine: base, effects };
@@ -1594,7 +1601,7 @@ function armRingStep(
   nowMs: number,
 ): void {
   if (machine.queuedTargets.length === 0) return;
-  const atMs = nowMs + RING_STEP_SECS * 1_000;
+  const atMs = nowMs + RING_STEP_SECS * 1000;
   if (machine.ringDeadlineMs !== null && atMs >= machine.ringDeadlineMs) return;
   effects.push({ kind: "arm-alarm", alarm: "ring-step", atMs });
 }
@@ -1604,7 +1611,7 @@ function ringWindowMs(seconds: number): number {
   const bounded = Number.isFinite(seconds)
     ? Math.min(RING_WINDOW_SECS, Math.max(10, Math.round(seconds)))
     : RING_WINDOW_SECS;
-  return bounded * 1_000;
+  return bounded * 1000;
 }
 
 /**
@@ -1908,8 +1915,7 @@ function reduceMemberAnswered(
     if (!leg) {
       // Non-ringing states, non-matching records, forged tags: defensive
       // hangup + warning, never a state change, never a T2 entry (§7.7).
-      effects.push({ kind: "telnyx-hangup", ccid: event.ccid, terminal: false });
-      effects.push({
+      effects.push({ kind: "telnyx-hangup", ccid: event.ccid, terminal: false }, {
         kind: "warn",
         message:
           `calls-v3: orphan brm call.answered with no matching pending/` +
@@ -2018,10 +2024,8 @@ function reduceAnswerOutcome(
       }
     }
   }
-  effects.push({ kind: "thread-at-answer" });
-  effects.push({ kind: "clear-alarm", alarm: "ring" });
-  effects.push({ kind: "clear-alarm", alarm: "fanout-settle" });
-  effects.push({ kind: "push-call-end", reason: "answered" });
+  effects.push({ kind: "thread-at-answer" }, { kind: "clear-alarm", alarm: "ring" });
+  effects.push({ kind: "clear-alarm", alarm: "fanout-settle" }, { kind: "push-call-end", reason: "answered" });
   next.answerIntent = null; // step 3: clear on success
   return { machine: next, effects };
 }
@@ -2115,8 +2119,7 @@ function reduceInboundHangup(
             : {}),
         },
         terminal: true,
-      });
-      effects.push({
+      }, {
         kind: "terminal-merge",
         mode: "event",
         outcome: "answered",
@@ -2229,9 +2232,9 @@ function reduceInboundHangup(
     "missed",
     next.rejectedForCap
       ? rejectionReason(next)
-      : next.unattended
+      : (next.unattended
         ? "line_paused"
-        : "caller_hung_up",
+        : "caller_hung_up"),
   );
   return { machine: next, effects };
 }
@@ -2266,17 +2269,7 @@ function reduceRingMe(
     (leg) => leg.userId === event.userId && LIVE_LEG_STATUSES.includes(leg.status),
   );
 
-  if (!event.noLocalLeg) {
-    // T4a — pre-v3 client: ANY live leg for this member, any age, any source
-    // → NO-OP. An unasserted request can NEVER dial past a live leg.
-    if (memberLive.length > 0) {
-      return {
-        machine: next,
-        effects,
-        reply: { rang: false, state: next.state, reason: "live_leg" },
-      };
-    }
-  } else {
+  if (event.noLocalLeg) {
     // T4b — v3 client: debounce ONLY on a live ring_me-sourced leg dialed
     // within RING_ME_DEBOUNCE_MS (engine legs never debounce — §6).
     const recent = memberLive.some(
@@ -2288,6 +2281,16 @@ function reduceRingMe(
         machine: next,
         effects,
         reply: { rang: false, state: next.state, reason: "recent_leg" },
+      };
+    }
+  } else {
+    // T4a — pre-v3 client: ANY live leg for this member, any age, any source
+    // → NO-OP. An unasserted request can NEVER dial past a live leg.
+    if (memberLive.length > 0) {
+      return {
+        machine: next,
+        effects,
+        reply: { rang: false, state: next.state, reason: "live_leg" },
       };
     }
   }

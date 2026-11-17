@@ -45,7 +45,7 @@ const quote = (over: Partial<Quote>): Quote =>
     decided_at: new Date().toISOString(),
     created_at: "2026-08-10T09:00:00Z",
     ...over,
-  }) as Quote;
+  });
 
 const render = () =>
   renderToStaticMarkup(

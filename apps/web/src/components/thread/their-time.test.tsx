@@ -23,7 +23,7 @@ const clock = (over: Partial<DestinationClock> = {}): DestinationClock => ({
 const render = (value: DestinationClock | null) =>
   renderToStaticMarkup(<TheirTime clock={value} />);
 
-describe("TheirTime", () => {
+describe(TheirTime, () => {
   it("says nothing during the day", () => {
     // The whole design: silent when the answer would not change anything.
     expect(render(clock({ local_hour: 14, quiet: false }))).toBe("");

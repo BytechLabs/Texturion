@@ -2,8 +2,7 @@ import { spawnSync } from "node:child_process";
 import { createHash, createHmac } from "node:crypto";
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -19,7 +18,7 @@ import { afterEach, describe, expect, it } from "vitest";
  * the test below fails if that copy and this script's text differ.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const SCRIPT = join(REPO, "scripts", "ops", "set-agent-diag-password.mjs");
 
 type Target = {
@@ -101,9 +100,9 @@ describe("the statement", () => {
   it.each([
     ["a plaintext password", "pencil"],
     ["a quote", `${verifier}'; alter role postgres password 'x`],
-    ["an md5 hash", "md5" + "0".repeat(32)],
+    ["an md5 hash", `md5${  "0".repeat(32)}`],
   ])("takes nothing but a verifier: refuses %s", (_label, value) => {
-    expect(() => tool.rotationSql({ production: true, verifier: value })).toThrowError(/verifier/);
+    expect(() => tool.rotationSql({ production: true, verifier: value })).toThrow(/verifier/);
   });
 
   it("refuses production where agent_diag reaches pg_net, and only warns locally", () => {

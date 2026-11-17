@@ -9,11 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  inheritedFields,
-  resolveNumberIdentity,
-  type CompanyIdentity,
-} from "./number-identity";
+import { inheritedFields, resolveNumberIdentity } from './number-identity';
+import type { CompanyIdentity } from './number-identity';
 
 const company: CompanyIdentity = {
   name: "Reed Roofing",

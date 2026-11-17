@@ -17,7 +17,8 @@
  */
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { decideOverage, type OverageCompany } from "./overage-projection";
+import { decideOverage } from './overage-projection';
+import type { OverageCompany } from './overage-projection';
 import { recordAndSendAlert } from "./usage-alerts";
 
 /** The company shape the warning job selects: {@link OverageCompany} + a name. */
@@ -99,10 +100,10 @@ export async function runOverageWarningJob(
           },
         );
       }
-    } catch (cause) {
+    } catch (error_) {
       // One broken tenant must not starve the rest; rethrown below so the cron
       // run still reports failure.
-      failures.push(cause);
+      failures.push(error_);
     }
   }
 

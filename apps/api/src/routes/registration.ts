@@ -1,34 +1,25 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Hono, type Context } from "hono";
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
-import {
-  owesUsRegistration,
-  registrationDraftComplete,
-  type RegistrationRow as DraftGateRow,
-} from "../billing/registration-draft";
+import { owesUsRegistration, registrationDraftComplete } from '../billing/registration-draft';
+import type { RegistrationRow as DraftGateRow } from '../billing/registration-draft';
 import { idempotencyKey } from "../billing/idempotency";
-import {
-  hasLiveSubscription,
-  type LocalSubscriptionStatus,
-} from "../billing/plans";
+import { hasLiveSubscription } from '../billing/plans';
+import type { LocalSubscriptionStatus } from '../billing/plans';
 import { getStripe } from "../billing/stripe";
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { stateMachines } from "@loonext/shared";
 import { ApiError, errorResponse } from "../http/errors";
 import { parseJsonBody, parseWith } from "./core/http";
 import { TelnyxApiError } from "../telnyx/client";
-import {
-  fetchRegistrationRows,
-  refreshBrandFromRemote,
-  submitRegistration,
-  triggerBrandOtp,
-  verifyBrandOtp,
-  type RegistrationRow,
-} from "../telnyx/registration";
+import { fetchRegistrationRows, refreshBrandFromRemote, submitRegistration, triggerBrandOtp, verifyBrandOtp } from '../telnyx/registration';
+import type { RegistrationRow } from '../telnyx/registration';
 import {
   brandDraftSchema,
   campaignDraftSchema,
@@ -99,7 +90,7 @@ function sanitizeRow(
     // #722: what this member may do to the row now, from the shared machine.
     allowed_actions: stateMachines.allowedActions(
       stateMachines.registrationMachine,
-      row.status as stateMachines.RegistrationState,
+      row.status,
       role,
     ),
     ...(role === "owner" || role === "admin" ? { data: row.data } : {}),
@@ -150,7 +141,7 @@ function assertEditable(
     !stateMachines
       .allowedActions(
         stateMachines.registrationMachine,
-        row.status as stateMachines.RegistrationState,
+        row.status,
         role,
       )
       .includes("edit")
@@ -242,8 +233,8 @@ registrationRoutes.put("/", requireCapability("numbers.manage"), async (c) => {
   if (hasLiveSubscription(company.subscription_status as LocalSubscriptionStatus)) {
     try {
       await submitRegistration(env, companyId);
-    } catch (cause) {
-      console.error(`post-payment registration submit failed for ${companyId}: ${String(cause)}`);
+    } catch (error) {
+      console.error(`post-payment registration submit failed for ${companyId}: ${String(error)}`);
     }
   }
 
@@ -366,9 +357,9 @@ registrationRoutes.post("/otp", requireCapability("numbers.manage"), async (c) =
   if (limited) return limited;
 
   try {
-    await verifyBrandOtp(env, brand.telnyx_id as string, code);
-  } catch (cause) {
-    if (cause instanceof TelnyxApiError && cause.status < 500) {
+    await verifyBrandOtp(env, brand.telnyx_id!, code);
+  } catch (error) {
+    if (error instanceof TelnyxApiError && error.status < 500) {
       // Wrong or expired PIN (§7: 422 validation_failed).
       return errorResponse(
         c,
@@ -376,7 +367,7 @@ registrationRoutes.post("/otp", requireCapability("numbers.manage"), async (c) =
         "That code is wrong or has expired. Request a new one and try again.",
       );
     }
-    throw cause;
+    throw error;
   }
 
   // Verification flips the brand to VERIFIED on the Telnyx side; pull that
@@ -384,8 +375,8 @@ registrationRoutes.post("/otp", requireCapability("numbers.manage"), async (c) =
   // remain the durable fallbacks).
   try {
     await refreshBrandFromRemote(env, brand);
-  } catch (cause) {
-    void captureException(env, cause, { source: "api" });
+  } catch (error) {
+    void captureException(env, error, { source: "api" });
   }
 
   return c.json(await registrationResponse(db, companyId, c.get("role")));
@@ -434,7 +425,7 @@ registrationRoutes.post("/otp/resend", requireCapability("numbers.manage"), asyn
       `bump_registration_otp_counter failed: ${budgetError.message}`,
     );
   }
-  const allowed = parseWith(z.object({ allowed: z.boolean() }), budget).allowed;
+  const {allowed} = parseWith(z.object({ allowed: z.boolean() }), budget);
   if (!allowed) {
     return errorResponse(
       c,
@@ -444,16 +435,16 @@ registrationRoutes.post("/otp/resend", requireCapability("numbers.manage"), asyn
   }
 
   try {
-    await triggerBrandOtp(env, brand.telnyx_id as string);
-  } catch (cause) {
-    if (cause instanceof TelnyxApiError && cause.status < 500) {
+    await triggerBrandOtp(env, brand.telnyx_id!);
+  } catch (error) {
+    if (error instanceof TelnyxApiError && error.status < 500) {
       return errorResponse(
         c,
         "conflict",
         "Telnyx declined to resend the code for this brand.",
       );
     }
-    throw cause;
+    throw error;
   }
   return c.json({ ok: true });
 });

@@ -17,7 +17,7 @@
  *  - Owner rule 12: canonical domain is https://loonext.com.
  */
 
-import { type ReactNode } from "react";
+import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
@@ -216,7 +216,7 @@ describe("plan cards (#70 unit-language guard, ported from night/pricing.test.ts
 describe("add-on truth (#28 guard, ported): copy can never disagree with the catalog", () => {
   it("#97/#103: pictures are included — no Picture-messages add-on is sold anywhere", () => {
     // The retired module must be gone from the catalog mirror…
-    expect(PLAN_MODULE_CARDS.map((card) => String(card.id))).not.toContain("mms");
+    expect(PLAN_MODULE_CARDS.map((card) => card.id)).not.toContain("mms");
     // …and the page must not sell it or quote its old $5/150 terms.
     expect(PAGE).not.toContain("Picture messaging is a $5/mo add-on");
     expect(PAGE).not.toContain("Picture messages");
@@ -508,9 +508,9 @@ describe("metadata (Law 6 + owner rule 12: canonical domain https://loonext.com)
     expect(metadata.alternates?.canonical).toBe("https://loonext.com");
     const strings = [
       JSON.stringify(metadata.title),
-      String(metadata.description ?? ""),
+      (metadata.description ?? ""),
       String(metadata.openGraph?.title ?? ""),
-      String(metadata.openGraph?.description ?? ""),
+      (metadata.openGraph?.description ?? ""),
     ].join(" ");
     expect(strings).not.toContain("—");
     expect(strings).not.toMatch(/\d–\d/);

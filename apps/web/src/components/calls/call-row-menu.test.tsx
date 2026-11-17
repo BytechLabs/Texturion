@@ -85,14 +85,14 @@ describe("#712 the call row's menus", () => {
     cleanup();
 
     const { container } = render(<CallRow call={call} />);
-    fireEvent.contextMenu(container.firstElementChild as Element);
+    fireEvent.contextMenu(container.firstElementChild!);
     expect(listed()).toEqual(fromButton);
   });
 
   it("an unsaved number offers Add contact in place of Contact", () => {
     const unsaved = { ...call, contact_id: null, outcome: "missed" } as Call;
     const { container } = render(<CallRow call={unsaved} />);
-    fireEvent.contextMenu(container.firstElementChild as Element);
+    fireEvent.contextMenu(container.firstElementChild!);
     const ids = listed();
     expect(ids).toContain("add-contact");
     expect(ids).not.toContain("contact");
@@ -103,7 +103,7 @@ describe("#712 the call row's menus", () => {
   it("a member who cannot delete still gets the ways to reach the caller", () => {
     state.canDelete = false;
     const { container } = render(<CallRow call={call} />);
-    fireEvent.contextMenu(container.firstElementChild as Element);
+    fireEvent.contextMenu(container.firstElementChild!);
     expect(listed()).toEqual([
       "call-back",
       "text",
@@ -123,7 +123,7 @@ describe("#712 the call row's menus", () => {
       conversation_id: null,
     } as Call;
     const { container } = render(<CallRow call={withheld} />);
-    fireEvent.contextMenu(container.firstElementChild as Element);
+    fireEvent.contextMenu(container.firstElementChild!);
     expect(listed()).toEqual(["details"]);
   });
 });

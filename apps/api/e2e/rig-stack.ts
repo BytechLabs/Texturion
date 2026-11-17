@@ -24,22 +24,27 @@
  * Worker writes, so a stray outbound text to a real number is refused by
  * Postgres whatever this file does.
  */
-import { type ChildProcess, spawn } from "node:child_process";
+import { spawn } from 'node:child_process';
+import type { ChildProcess } from 'node:child_process';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:net";
 import { join } from "node:path";
 
 import { generateVapidPair } from "../src/test/vapid-keys";
-import { startFakeJwks, type JwksAuth } from "./fake-jwks";
-import { startFakeResend, type FakeResend } from "./fake-resend";
-import { startFakeStripe, type FakeStripe } from "./fake-stripe";
-import { startFakeTelnyx, type FakeTelnyx } from "./fake-telnyx";
+import { startFakeJwks } from './fake-jwks';
+import type { JwksAuth } from './fake-jwks';
+import { startFakeResend } from './fake-resend';
+import type { FakeResend } from './fake-resend';
+import { startFakeStripe } from './fake-stripe';
+import type { FakeStripe } from './fake-stripe';
+import { startFakeTelnyx } from './fake-telnyx';
+import type { FakeTelnyx } from './fake-telnyx';
 import {
   assertRigVm,
   psql,
   psqlSync,
-  rigSecretKey,
   RIG_HOME,
+  rigSecretKey,
 } from "./rig-host";
 
 const API_ROOT = new URL("..", import.meta.url).pathname;
@@ -130,7 +135,7 @@ export function parseJsonc(text: string): Record<string, unknown> {
       index += 1;
     }
   }
-  return JSON.parse(out.replace(/,(\s*[}\]])/g, "$1")) as Record<string, unknown>;
+  return JSON.parse(out.replaceAll(/,(\s*[}\]])/g, "$1")) as Record<string, unknown>;
 }
 
 /**
@@ -228,9 +233,9 @@ export async function startRigStack(): Promise<RigStack> {
   };
   writeFileSync(
     join(dir, ".dev.vars"),
-    Object.entries(vars)
+    `${Object.entries(vars)
       .map(([name, value]) => `${name}=${quote(value)}`)
-      .join("\n") + "\n",
+      .join("\n")  }\n`,
     { mode: 0o600 },
   );
   const config = loadWorkerConfig(
@@ -299,7 +304,7 @@ export async function startRigStack(): Promise<RigStack> {
       } catch {
         // already gone
       }
-      await new Promise((resolve) => setTimeout(resolve, 1_500));
+      await new Promise((resolve) => setTimeout(resolve, 1500));
       try {
         process.kill(-child.pid, "SIGKILL");
       } catch {
@@ -317,7 +322,7 @@ export async function startRigStack(): Promise<RigStack> {
       throw new Error(`the load Worker exited while starting:\n${tail.slice(-20).join("\n")}`);
     }
     try {
-      const response = await fetch(`${origin}/health`, { signal: AbortSignal.timeout(2_000) });
+      const response = await fetch(`${origin}/health`, { signal: AbortSignal.timeout(2000) });
       if (response.ok) break;
     } catch {
       // not listening yet
@@ -439,13 +444,13 @@ export async function startRigStack(): Promise<RigStack> {
         if (logged.includes("[wrangler:info]") || /^\s+at /.test(logged)) continue;
         const key = logged
           // eslint-disable-next-line no-control-regex
-          .replace(/\u001b\[[0-9;]*m/g, "")
-          .replace(/\d{2,}/g, "N")
-          .replace(/rig_[a-z0-9_]+/g, "RUN")
+          .replaceAll(/\u001B\[[0-9;]*m/g, "")
+          .replaceAll(/\d{2,}/g, "N")
+          .replaceAll(/rig_[a-z0-9_]+/g, "RUN")
           .slice(0, 180);
         causes.set(key, (causes.get(key) ?? 0) + 1);
       }
-      return [...causes.entries()].sort((x, y) => y[1] - x[1]).slice(0, top);
+      return [...causes.entries()].toSorted((x, y) => y[1] - x[1]).slice(0, top);
     },
     stop,
   };

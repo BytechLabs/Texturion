@@ -15,10 +15,10 @@
  * midnight falls differently from the server's, which is most of the customer
  * base.
  */
-import { SUMMARY_TITLE, type Locale, summaryLine } from "@loonext/shared";
+import { SUMMARY_TITLE, summaryLine } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 
 import { resolveNumberAccess } from "../auth/number-access";
-import type { MemberRole } from "@loonext/shared";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
@@ -177,7 +177,7 @@ export async function runDailySummary(
         .eq("company_id", row.company_id)
         .eq("user_id", row.user_id)
         .limit(1);
-      const role = (members.data as { role: MemberRole }[] | null)?.[0]?.role;
+      const role = (members.data)?.[0]?.role;
       // No membership row means they left the workspace between the two reads.
       // Skipping is the only safe answer: `resolveNumberAccess` would need a
       // role to deny anything, and defaulting one would be inventing access.
@@ -241,8 +241,8 @@ export async function runDailySummary(
         );
       }
       summary.sent += 1;
-    } catch (cause) {
-      console.error(`daily summary: ${row.user_id} failed`, cause);
+    } catch (error_) {
+      console.error(`daily summary: ${row.user_id} failed`, error_);
     }
   }
 

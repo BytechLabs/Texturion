@@ -13,19 +13,13 @@
  */
 import { mkdirSync } from "node:fs";
 import { join } from "node:path";
-import { chromium, type BrowserContext, type BrowserType, type Page } from "playwright";
-import {
-  analyzeFrames,
-  detectCodes,
-  SURFACES,
-  SURFACE_HZ,
-  type DetectOptions,
-  type Detection,
-  type NumberBook,
-  type Surface,
-} from "@loonext/rig-robot";
+import { chromium } from 'playwright';
+import type { BrowserContext, BrowserType, Page } from 'playwright';
+import { analyzeFrames, detectCodes, SURFACE_HZ, SURFACES } from '@loonext/rig-robot';
+import type { Detection, DetectOptions, NumberBook, Surface } from '@loonext/rig-robot';
 import { chromiumArgs, hostResolverRules } from "./args.ts";
-import { installPageJudge, type PageCapture, type PageJudgeConfig, type RigJudgeHandle } from "./page-judge.ts";
+import { installPageJudge } from './page-judge.ts';
+import type { PageCapture, PageJudgeConfig, RigJudgeHandle } from './page-judge.ts';
 
 export const JUDGE_CONFIG: PageJudgeConfig = { captureRate: 16_000, maxSeconds: 180, statsIntervalMs: 500 };
 
@@ -101,11 +95,11 @@ const WIZARD_PATH = /^\/onboarding\/([a-z-]+)$/;
 const WIZARD_STEP_TIMEOUT_MS = 15_000;
 /** Refresh is pressed at most this often on a picker that could not load, this far apart. */
 const NUMBER_REFRESHES = 2;
-const NUMBER_REFRESH_GAP_MS = 2_000;
+const NUMBER_REFRESH_GAP_MS = 2000;
 /** A little over the guard's spacing between one lease's number searches. */
-const SEARCH_SPACING_MS = 1_200;
+const SEARCH_SPACING_MS = 1200;
 /** The inbox must still show this long after it opens: an unfinished setup sends the owner back to onboarding. */
-const INBOX_SETTLE_MS = 3_000;
+const INBOX_SETTLE_MS = 3000;
 const CHECKOUT_OPEN_TIMEOUT_MS = 30_000;
 const CHECKOUT_RETURN_TIMEOUT_MS = 90_000;
 const CHECKOUT_REPRICE_TIMEOUT_MS = 10_000;
@@ -306,7 +300,7 @@ export class PublicPage {
     const submit = this.page.locator(SELECTORS.loginSubmit);
     await submit.and(this.page.locator(":enabled")).waitFor({ timeout: SIGN_IN_TIMEOUT_MS });
     await submit.click();
-    const alert = await this.page.getByRole("alert").first().textContent({ timeout: 5_000 }).catch(() => null);
+    const alert = await this.page.getByRole("alert").first().textContent({ timeout: 5000 }).catch(() => null);
     return alert && /error|could not|invalid|already/i.test(alert) ? { ok: false, alert: alert.trim() } : { ok: true };
   }
 
@@ -331,7 +325,7 @@ export class PublicPage {
     const failed = this.page.getByText(SELECTORS.numbersLoadFailed);
     const listed = this.page.locator(SELECTORS.listedNumber);
     await failed.or(listed.first()).first().waitFor({ timeout: WIZARD_STEP_TIMEOUT_MS }).catch(() => undefined);
-    const numberSearch = (await failed.count()) > 0 ? "failed" : (await listed.count()) > 0 ? "listed" : "pending";
+    const numberSearch = (await failed.count()) > 0 ? "failed" : ((await listed.count()) > 0 ? "listed" : "pending");
     return { steps, numberSearch };
   }
 
@@ -364,7 +358,7 @@ export class PublicPage {
       await this.page.waitForURL((url) => url.pathname === "/onboarding/plan", { timeout: WIZARD_STEP_TIMEOUT_MS });
       return { ...picked, continued: true };
     } catch {
-      const alert = await this.page.getByRole("alert").first().textContent({ timeout: 1_000 }).catch(() => null);
+      const alert = await this.page.getByRole("alert").first().textContent({ timeout: 1000 }).catch(() => null);
       return { ...picked, continued: false, ...(alert ? { alert: alert.trim() } : {}) };
     }
   }
@@ -454,7 +448,7 @@ export async function pickNumber(page: Page, areaCode: string, settleMs = WIZARD
     if (!(await failed.count()) || refreshes >= NUMBER_REFRESHES) return { inventory: "failed", refreshes };
     await page.waitForTimeout(NUMBER_REFRESH_GAP_MS);
     await page.getByRole(SELECTORS.numbersRefresh.role, { name: SELECTORS.numbersRefresh.name, exact: true }).click();
-    refreshes++;
+    refreshes += 1;
     await failed.waitFor({ state: "detached", timeout: WIZARD_STEP_TIMEOUT_MS }).catch(() => undefined);
   }
 }
@@ -523,7 +517,7 @@ export async function signIn(page: Page, member: string, credentials: MemberCred
     await page.waitForURL((url) => !onLoginPage(url.toString()), { timeout: SIGN_IN_TIMEOUT_MS });
   } catch {
     // The page's own alert says why, and never holds the password.
-    const alert = await page.getByRole("alert").first().textContent({ timeout: 1_000 }).catch(() => null);
+    const alert = await page.getByRole("alert").first().textContent({ timeout: 1000 }).catch(() => null);
     throw new Error(`browser lane: ${member} could not sign in${alert ? ` (${alert.trim()})` : ""}`);
   }
 }
@@ -739,9 +733,9 @@ export function judgeCapture(
 ): PageHearing {
   const bytes = Buffer.from(capture.pcm_b64, "base64");
   const samples = new Float32Array(bytes.length / 2);
-  for (let i = 0; i < samples.length; i++) samples[i] = bytes.readInt16LE(i * 2) / 32768;
+  for (let i = 0; i < samples.length; i++) samples[i] = bytes.readInt16LE(i * 2) / 32_768;
   const mark = capture.marks.find((m) => m.name === (options.answerMark ?? "answered"));
-  const answered = options.answeredAt !== undefined ? { at: options.answeredAt } : mark;
+  const answered = options.answeredAt === undefined ? mark : { at: options.answeredAt };
   const answerOffsetMs = answered && capture.startedAt !== null ? answered.at - capture.startedAt : 0;
   const table = analyzeFrames(samples, capture.sampleRate, SURFACES.map((s) => SURFACE_HZ[s]));
   const { answerMark: _mark, answeredAt: _at, ...detect } = options;

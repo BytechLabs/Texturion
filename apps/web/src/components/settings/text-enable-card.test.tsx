@@ -62,7 +62,7 @@ import {
 import { useSyncExternalStore } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { ApiErrorCode, MemberRole } from "@loonext/shared";
+import type { MemberRole } from "@loonext/shared";
 
 import type { PhoneNumberSummary, TextEnablement } from "@/lib/api/types";
 
@@ -483,7 +483,7 @@ describe("releasing a text-enabled number, when the server asks who is doing thi
     expect(
       mutate,
       "a second DELETE went out at a number whose release was already asked for",
-    ).toHaveBeenCalledTimes(1);
+    ).toHaveBeenCalledOnce();
     // And it said so, rather than sitting there looking pressable.
     expect(submit.textContent).toBe(HANDOVER_CONFIRM_SUBMITTING);
   });
@@ -529,7 +529,7 @@ describe("releasing a text-enabled number, when the server asks who is doing thi
     };
     await act(async () => {
       retryHandlers.onError?.(
-        new ApiError("confirmation_code_required" as never, "nope", 403),
+        new ApiError("confirmation_code_required", "nope", 403),
       );
     });
 
@@ -539,7 +539,7 @@ describe("releasing a text-enabled number, when the server asks who is doing thi
     expect(screen.getAllByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toHaveLength(1);
     // The code in their inbox is still the one that works. A second mint behind
     // somebody still reading the first is how a correct code becomes a wrong one.
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
   });
 
   it("takes no second answer while the release it already fired is in flight", async () => {
@@ -569,7 +569,7 @@ describe("releasing a text-enabled number, when the server asks who is doing thi
     mutate.mockImplementation((_input: unknown, handlers?: {
       onError?: (error: unknown) => void;
     }) => {
-      handlers?.onError?.(new ApiError("conflict" as never, "Already released", 409));
+      handlers?.onError?.(new ApiError("conflict", "Already released", 409));
     });
     pressRemoveTexting();
 
@@ -583,7 +583,7 @@ describe("releasing a text-enabled number, when the server asks who is doing thi
     expect(
       mutate,
       "the card retried a refusal nobody answered — a second DELETE fired without a press",
-    ).toHaveBeenCalledTimes(1);
+    ).toHaveBeenCalledOnce();
     // Nothing was emailed either. A code minted for a failure no code can fix trains
     // the owner to expect one, and spends a mint doing it.
     expect(
@@ -616,7 +616,7 @@ describe("releasing a text-enabled number, when the server asks who is doing thi
     expect(
       mutate,
       "the release dialog was left standing with `typed` intact, so a second press fired a second DELETE at a number that is already gone",
-    ).toHaveBeenCalledTimes(1);
+    ).toHaveBeenCalledOnce();
     expect(stillStanding).toBeNull();
   });
 
@@ -636,8 +636,8 @@ describe("releasing a text-enabled number, when the server asks who is doing thi
       attempts += 1;
       handlers?.onError?.(
         attempts === 1
-          ? new ApiError("confirmation_code_required" as never, "nope", 403)
-          : new ApiError("conflict" as never, "Already released", 409),
+          ? new ApiError("confirmation_code_required", "nope", 403)
+          : new ApiError("conflict", "Already released", 409),
       );
     });
     pressRemoveTexting();
@@ -685,7 +685,7 @@ describe("who the release is offered to, and over what", () => {
   });
 
   it("does not offer it over a row that is already released", () => {
-    render(tree(ORDER, { ...HOSTED, status: "released" } as PhoneNumberSummary));
+    render(tree(ORDER, { ...HOSTED, status: "released" }));
     expect(
       releaseControl(),
       "the card offers to release a number that is already gone; the DELETE comes back a conflict",
@@ -785,7 +785,7 @@ describe("what keeps the release two presses deep", () => {
     // owner and a second DELETE at a number whose release is already running.
     // This is the double-fire just fixed on close-workspace-card.tsx.
     const view = pressRemoveTexting();
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
 
     releasePending = true;
     view.rerender(tree());
@@ -801,7 +801,7 @@ describe("what keeps the release two presses deep", () => {
     expect(
       mutate,
       "a second press fired a second DELETE at a number whose release was already in flight",
-    ).toHaveBeenCalledTimes(1);
+    ).toHaveBeenCalledOnce();
     expect(inFlight.disabled).toBe(true);
   });
 
@@ -816,7 +816,7 @@ describe("what keeps the release two presses deep", () => {
       onError?: (error: unknown) => void;
     }) => {
       handlers?.onError?.(
-        new ApiError("conflict" as never, "Already released", 409),
+        new ApiError("conflict", "Already released", 409),
       );
     });
     pressRemoveTexting();
@@ -852,7 +852,7 @@ describe("what keeps the release two presses deep", () => {
       attempts += 1;
       if (attempts === 1) {
         handlers?.onError?.(
-          new ApiError("conflict" as never, "Already released", 409),
+          new ApiError("conflict", "Already released", 409),
         );
       }
       // The retry is left in flight — the stretch the stale reason would be read in.
@@ -921,7 +921,7 @@ describe("withdrawing a text-enablement order", () => {
     expect(
       cancelOrder,
       "a second withdrawal went to the carrier for an order already being withdrawn",
-    ).toHaveBeenCalledTimes(1);
+    ).toHaveBeenCalledOnce();
     // And it says which of the two states it is in, rather than looking pressable.
     expect(withdraw().textContent).toBe("Cancelling…");
   });
@@ -937,7 +937,7 @@ describe("withdrawing a text-enablement order", () => {
         if (cancelOrder.mock.calls.length === 1) {
           handlers?.onError?.(
             new ApiError(
-              "conflict" as ApiErrorCode,
+              "conflict",
               "The carrier already closed this order.",
               409,
             ),

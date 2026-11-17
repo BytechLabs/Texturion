@@ -28,7 +28,7 @@ export const CASES: [number, string][] = [
   [172_800, "2 days"],
 ];
 
-describe("formatResponseTime", () => {
+describe(formatResponseTime, () => {
   it("says the largest unit that still tells the truth", () => {
     for (const [seconds, expected] of CASES) {
       expect(formatResponseTime(seconds), String(seconds)).toBe(expected);
@@ -51,7 +51,7 @@ describe("formatResponseTime", () => {
   });
 });
 
-describe("responseArcDirection", () => {
+describe(responseArcDirection, () => {
   it("draws no arc for a change under a minute", () => {
     // The same performance measured twice is not progress, and dressing it up as
     // progress is how a metric earns a reputation for flattery.

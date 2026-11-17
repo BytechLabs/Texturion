@@ -39,7 +39,7 @@ const SRC = join(process.cwd(), "src");
 const FORMATTER_FILES = ["lib/format/time.ts", "components/ui/timestamp.tsx"];
 
 const relative = (path: string): string =>
-  path.slice(SRC.length + 1).replace(/\\/g, "/");
+  path.slice(SRC.length + 1).replaceAll('\\', "/");
 
 const files = sourceFiles(SRC, [".ts", ".tsx"])
   .filter((file) => !/\.test\.tsx?$/.test(file))
@@ -81,7 +81,7 @@ const RULES: readonly Rule[] = [
   {
     call: "Intl.DateTimeFormat(",
     pattern: /\bIntl\.DateTimeFormat\(/g,
-    counts: (_list, line) => !/\.resolvedOptions\(\)/.test(line),
+    counts: (_list, line) => !line.includes('.resolvedOptions()'),
   },
   { call: "getFormatter(", pattern: /\bgetFormatter\(/g },
   { call: "title={formatAbsoluteDateTime(", pattern: /title=\{formatAbsoluteDateTime\(/g },
@@ -312,10 +312,10 @@ describe("#720 every date goes through one formatter", () => {
     expect(
       unlisted.map(where),
       `Scanned ${files.length} files. These draw a date or time themselves. ` +
-        "Use `<Timestamp at={iso} />` in JSX, or `formatTimestamp(iso, { style, t })` " +
-        "inside a sentence, an aria-label or a toast; a calendar day with no time of " +
-        "day may go on the ROSTER with the reason:\n  " +
-        unlisted.map(where).join("\n  "),
+        `Use \`<Timestamp at={iso} />\` in JSX, or \`formatTimestamp(iso, { style, t })\` ` +
+        `inside a sentence, an aria-label or a toast; a calendar day with no time of ` +
+        `day may go on the ROSTER with the reason:\n  ${ 
+        unlisted.map(where).join("\n  ")}`,
     ).toEqual([]);
   });
 

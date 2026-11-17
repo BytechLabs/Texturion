@@ -9,7 +9,8 @@
  * its own file. No value is ever logged; the result lists names only.
  */
 import { EDGE_PATHS } from "@loonext/rig-protocol";
-import { storeNameOf, type SecretFiles } from "@loonext/rig-robot";
+import { storeNameOf } from '@loonext/rig-robot';
+import type { SecretFiles } from '@loonext/rig-robot';
 
 /** The rig's half of the bundle key: an X25519 private JWK, made at bootstrap. */
 export const BUNDLE_KEY_SECRET = "bundle-private-key.json";
@@ -64,5 +65,5 @@ export async function deliverSecrets(options: {
     options.store.write(file, value);
     written.push(file);
   }
-  return { written: written.sort(), absent: opened.absent ?? [], sealed_at: opened.sealed_at };
+  return { written: written.toSorted(), absent: opened.absent ?? [], sealed_at: opened.sealed_at };
 }

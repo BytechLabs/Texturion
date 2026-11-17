@@ -29,10 +29,9 @@
  */
 
 import { existsSync, mkdirSync, readdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = import.meta.dirname;
 const webRoot = join(here, "..");
 const srcDir = join(webRoot, "scripts", "photos-src");
 const outDir = join(webRoot, "public", "img");
@@ -174,8 +173,8 @@ const PHOTOS = [
  * Shadow/highlight are the §3 tokens. Kept subtle: this is a graded photograph,
  * not a hard 2-color poster — the ramp preserves tonal detail.
  */
-const DUO_SHADOW = { r: 0x0b, g: 0x4f, b: 0x49 }; // --deep  #0B4F49 (petrol shadows)
-const DUO_HIGHLIGHT = { r: 0xe6, g: 0xeb, b: 0xe8 }; // --paper #E6EBE8 (paper highlights)
+const DUO_SHADOW = { r: 0x0B, g: 0x4F, b: 0x49 }; // --deep  #0B4F49 (petrol shadows)
+const DUO_HIGHLIGHT = { r: 0xE6, g: 0xEB, b: 0xE8 }; // --paper #E6EBE8 (paper highlights)
 
 function duotone(pipeline) {
   // channel multiplier a = (highlight - shadow)/255, offset b = shadow.
@@ -323,12 +322,12 @@ ${entries
   .map((e) => {
     const srcsetWebp = e.variants
       .slice()
-      .sort((a, b) => a.w - b.w)
+      .toSorted((a, b) => a.w - b.w)
       .map((v) => `/img/${v.base}.webp ${v.w}w`)
       .join(", ");
     const srcsetAvif = e.variants
       .slice()
-      .sort((a, b) => a.w - b.w)
+      .toSorted((a, b) => a.w - b.w)
       .map((v) => `/img/${v.base}.avif ${v.w}w`)
       .join(", ");
     return `  ${JSON.stringify(e.key)}: {

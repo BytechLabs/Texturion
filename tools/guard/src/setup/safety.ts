@@ -2,8 +2,10 @@ import type { Ctx } from "../context";
 import { PRODUCTION_API_ORIGIN, SAFETY_RECHECK_MS } from "../limits";
 import { Refusal } from "../refusal";
 import { onEdge } from "../telnyx/hazards";
-import { KEYS, type PartitionRecord } from "../telnyx/partition";
-import { nonprodNames, SPEC, type TelnyxSpec } from "./spec";
+import { KEYS } from '../telnyx/partition';
+import type { PartitionRecord } from '../telnyx/partition';
+import { nonprodNames, SPEC } from './spec';
+import type { TelnyxSpec } from './spec';
 
 /**
  * The start-up checks (docs/RIG.md). The guard
@@ -82,7 +84,7 @@ export interface Listings {
 }
 
 export async function fetchListings(ctx: Ctx, billingGroupId: string | null): Promise<Listings> {
-  const telnyx = ctx.telnyx;
+  const {telnyx} = ctx;
   if (!telnyx) throw new Refusal("telnyx.key_missing");
   return {
     billingGroups: await telnyx.listAll<Item>("/v2/billing_groups"),
@@ -166,14 +168,14 @@ export function assess(
       if (!id || specProfileIds.has(id)) return false;
       return appProfiles.includes(id) || webhooks(item).some((url) => onEdge(ctx, url));
     })
-    .map((item) => idOf(item) as string);
+    .map((item) => idOf(item)!);
   const nonprodProfileIds = new Set([...specProfileIds, ...extraProfiles]);
 
   const nonprodResources: { kind: string; name: string; item: Item }[] = [
-    ...Object.values(apps).filter(Boolean).map((item) => ({ kind: "app", name: String(item?.application_name), item: item as Item })),
+    ...Object.values(apps).filter(Boolean).map((item) => ({ kind: "app", name: String(item?.application_name), item: item! })),
     ...Object.values(credentials)
       .filter(Boolean)
-      .map((item) => ({ kind: "credential_connection", name: String(item?.connection_name), item: item as Item })),
+      .map((item) => ({ kind: "credential_connection", name: String(item?.connection_name), item: item! })),
     ...listings.messagingProfiles
       .filter((item) => nonprodProfileIds.has(idOf(item) ?? ""))
       .map((item) => ({ kind: "messaging_profile", name: names.messagingProfiles.has(String(item.name)) ? String(item.name) : "app-created", item })),
@@ -198,10 +200,10 @@ export function assess(
   const productionConnections = new Set<string>();
   const productionProfiles = new Set<string>();
   for (const item of [...listings.apps, ...listings.credentialConnections]) {
-    if (webhooks(item).some(isProductionHost) && idOf(item)) productionConnections.add(idOf(item) as string);
+    if (webhooks(item).some(isProductionHost) && idOf(item)) productionConnections.add(idOf(item)!);
   }
   for (const item of listings.messagingProfiles) {
-    if (webhooks(item).some(isProductionHost) && idOf(item)) productionProfiles.add(idOf(item) as string);
+    if (webhooks(item).some(isProductionHost) && idOf(item)) productionProfiles.add(idOf(item)!);
   }
   for (const number of listings.productionNumbers) {
     if (typeof number.connection_id === "string" && number.connection_id) productionConnections.add(number.connection_id);
@@ -245,8 +247,8 @@ export function assess(
     },
     messaging_profiles: messagingProfiles,
     production: {
-      connection_ids: [...productionConnections].sort(),
-      messaging_profile_ids: [...productionProfiles].sort(),
+      connection_ids: [...productionConnections].toSorted(),
+      messaging_profile_ids: [...productionProfiles].toSorted(),
     },
     discovered_at: ctx.now(),
   };
@@ -268,11 +270,11 @@ export async function runSafetyChecks(ctx: Ctx): Promise<SafetyState> {
 
   if (result.record) {
     await ctx.store.put(KEYS.record, result.record);
-    await ctx.store.put(KEYS.appProfiles, [...new Set([...appProfiles, ...result.extraProfiles])].sort());
+    await ctx.store.put(KEYS.appProfiles, [...new Set([...appProfiles, ...result.extraProfiles])].toSorted());
   }
   const unsafe = result.reasons.some((reason) => !["billing_group_missing", "partition_incomplete"].includes(reason));
   const safety: SafetyState = {
-    state: unsafe ? "unsafe" : result.configured ? "ok" : "unconfigured",
+    state: unsafe ? "unsafe" : (result.configured ? "ok" : "unconfigured"),
     reasons: result.reasons,
     checked_at: ctx.now(),
     version: ctx.versionId,
@@ -288,9 +290,9 @@ export async function requireSafe(ctx: Ctx): Promise<void> {
   if (!safety || safety.version !== ctx.versionId || ctx.now() - safety.checked_at > SAFETY_RECHECK_MS) {
     try {
       safety = await runSafetyChecks(ctx);
-    } catch (cause) {
-      if (cause instanceof Refusal) throw cause;
-      console.error("guard: start-up checks could not run:", cause instanceof Error ? cause.message : String(cause));
+    } catch (error) {
+      if (error instanceof Refusal) throw error;
+      console.error("guard: start-up checks could not run:", error instanceof Error ? error.message : String(error));
       throw new Refusal("startup.unsafe");
     }
   }

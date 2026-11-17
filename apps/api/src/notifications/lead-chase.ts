@@ -118,8 +118,8 @@ export async function runLeadChaseJob(
       try {
         await sendChase(env, db, row, failures);
         sent += 1;
-      } catch (cause) {
-        failures.push(cause);
+      } catch (error) {
+        failures.push(error);
       }
     }
   }

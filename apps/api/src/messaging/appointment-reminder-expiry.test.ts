@@ -50,10 +50,10 @@ async function expiryHoursAfterDue(settings: Record<string, unknown>) {
 
 describe("appointment reminder expiry", () => {
   it("expires two hours after the appointment by default", async () => {
-    expect(await expiryHoursAfterDue({})).toBe(2);
+    await expect(expiryHoursAfterDue({})).resolves.toBe(2);
   });
 
   it("uses the workspace's own number of hours", async () => {
-    expect(await expiryHoursAfterDue({ reminder_expiry_hours: 6 })).toBe(6);
+    await expect(expiryHoursAfterDue({ reminder_expiry_hours: 6 })).resolves.toBe(6);
   });
 });

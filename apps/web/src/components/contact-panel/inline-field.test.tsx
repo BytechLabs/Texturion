@@ -50,7 +50,7 @@ afterEach(() => {
   vi.useRealTimers();
 });
 
-describe("AutoSaveNotes", () => {
+describe(AutoSaveNotes, () => {
   it("sends one PATCH for one typed character, not one per render", async () => {
     const notes = mountNotes();
     fireEvent.change(notes, { target: { value: "a" } });

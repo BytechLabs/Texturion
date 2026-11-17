@@ -3,7 +3,8 @@
 import { parseReferenceTokens, taskNumberLabel } from "@loonext/shared";
 import { Check } from "lucide-react";
 import Link from "next/link";
-import { Fragment, type ReactNode } from "react";
+import { Fragment } from 'react';
+import type { ReactNode } from 'react';
 
 import { useT } from "@/i18n/provider";
 import { useResolvedReferences } from "@/lib/api/task-links";

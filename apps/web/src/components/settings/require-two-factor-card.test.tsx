@@ -111,14 +111,8 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "c-1", role: "owner" }),
 }));
 
-import {
-  HANDOVER_CONFIRM_FIELD,
-  HANDOVER_CONFIRM_REJECTED,
-  HANDOVER_CONFIRM_RESEND,
-  HANDOVER_CONFIRM_SUBMIT,
-  HANDOVER_CONFIRM_SUBMITTING,
-  type ApiErrorCode,
-} from "@loonext/shared";
+import { HANDOVER_CONFIRM_FIELD, HANDOVER_CONFIRM_REJECTED, HANDOVER_CONFIRM_RESEND, HANDOVER_CONFIRM_SUBMIT, HANDOVER_CONFIRM_SUBMITTING } from '@loonext/shared';
+import type { ApiErrorCode } from '@loonext/shared';
 
 import { sayEnglish } from "@/i18n/translate";
 
@@ -147,7 +141,7 @@ function flipTheSwitch() {
   );
 }
 
-describe("RequireTwoFactorCard", () => {
+describe(RequireTwoFactorCard, () => {
   it("says why it matters when nothing is required yet", () => {
     const html = renderToStaticMarkup(
       <RequireTwoFactorCard required={false} graceUntil={null} />,
@@ -547,14 +541,14 @@ describe("…and when the server asks who is doing this", () => {
     mount(card());
     turnItOff();
 
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
 
     // The second attempt, down the card's own retry — which is that same closure.
     await answer("123456");
 
     expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).not.toBeNull();
     expect(screen.getAllByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toHaveLength(1);
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
     // And a refused code is never reported as a failed save. The prompt is still up;
     // the next move is another code, not another flip of the switch.
     expect(toast.error).not.toHaveBeenCalled();
@@ -632,7 +626,7 @@ describe("…and when the server asks who is doing this", () => {
     expect(screen.queryByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD))).toBeNull();
     // And backing out is not a save. The one call is the refused attempt that opened
     // the prompt; leaving does not quietly retry it.
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
   });
 });
 
@@ -673,7 +667,7 @@ describe("…and the second press before the first save lands", () => {
     mount(<RequireTwoFactorCard required graceUntil={past} />);
 
     flipTheSwitch();
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
 
     const toggle = () =>
       screen.getByRole("switch", {
@@ -686,7 +680,7 @@ describe("…and the second press before the first save lands", () => {
     // `onCheckedChange` reaching `apply` at all — without it this line sees two
     // workspace-wide saves in flight together.
     flipTheSwitch();
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
   });
 
   it("will not let Require it fire a second save behind the first", () => {
@@ -702,14 +696,14 @@ describe("…and the second press before the first save lands", () => {
       screen.getByRole("button", { name: "Require it" }) as HTMLButtonElement;
 
     fireEvent.click(requireIt());
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
     expect(requireIt().disabled).toBe(true);
 
     // The dialog stays open until the save answers — it is closed in `onSuccess` —
     // so the button is still under the finger that just pressed it. Without the
     // guard this line sees a second `apply(true)` go out behind the first.
     fireEvent.click(requireIt());
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
   });
 });
 
@@ -754,8 +748,8 @@ describe("…and the second press after the first save landed", () => {
     flipTheSwitch();
 
     fireEvent.click(screen.getByRole("button", { name: "Require it" }));
-    expect(mutate).toHaveBeenCalledTimes(1);
-    expect(toast.success).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
+    expect(toast.success).toHaveBeenCalledOnce();
 
     // Gone, not merely spent. The grace window has been set and the server will
     // refuse to move the deadline — a prompt left up here is a dialog asking for a
@@ -773,6 +767,6 @@ describe("…and the second press after the first save landed", () => {
     })) {
       fireEvent.click(stillThere);
     }
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
   });
 });

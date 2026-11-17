@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { isOwnDialedLeg, requiresUnauthorizedHangup } from "./outbound-leg-gate";
 
-describe("isOwnDialedLeg", () => {
+describe(isOwnDialedLeg, () => {
   it("accepts the credential URIs this server actually dials", () => {
     expect(isOwnDialedLeg("sip:member_abc123@sip.telnyx.com")).toBe(true);
     expect(isOwnDialedLeg("SIP:Member_ABC@SIP.TELNYX.COM")).toBe(true);
@@ -43,7 +43,7 @@ describe("isOwnDialedLeg", () => {
   });
 });
 
-describe("requiresUnauthorizedHangup", () => {
+describe(requiresUnauthorizedHangup, () => {
   it("demands a hangup for an outgoing leg to a phone number", () => {
     // This is the forgery: a member with a WebRTC token crafts a session-family
     // client_state and dials a PSTN number. Nothing authorized it, and dropping

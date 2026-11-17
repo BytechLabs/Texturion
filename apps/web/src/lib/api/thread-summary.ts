@@ -1,15 +1,11 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import {
-  DEFAULT_LOCALE,
-  shouldOfferThreadSummary,
-  THREAD_SUMMARY_SECTIONS,
-  type ThreadSummaryKey,
-  type ThreadSummarySection,
-} from "@loonext/shared";
+import { DEFAULT_LOCALE, shouldOfferThreadSummary, THREAD_SUMMARY_SECTIONS } from '@loonext/shared';
+import type { ThreadSummaryKey, ThreadSummarySection } from '@loonext/shared';
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
@@ -156,34 +152,43 @@ export function threadSummaryFailureMessage(
   t: Translate = EN,
 ): string {
   switch (reason) {
-    case "disabled":
+    case "disabled": {
       return t("thread.catchUpDisabled");
-    case "spam":
+    }
+    case "spam": {
       return t("thread.catchUpSpam");
-    case "too_short":
+    }
+    case "too_short": {
       return t("thread.catchUpTooShort");
-    case "rate_limited":
+    }
+    case "rate_limited": {
       return t("thread.catchUpRateLimited");
-    case "over_cap":
+    }
+    case "over_cap": {
       return t("thread.catchUpOverCap");
+    }
     case "model_error":
-    case "unavailable":
+    case "unavailable": {
       return t("thread.louUnreachable");
-    case "unusable_output":
+    }
+    case "unusable_output": {
       // Names the citation rule as the cause, because that is what happened and
       // because it is the one sentence here that tells the reader something
       // true about how this feature works: nothing shows unless Lou can point
       // at the message it came from.
       return t("thread.catchUpUnusable");
-    case "subscription_inactive":
+    }
+    case "subscription_inactive": {
       // Billing, not breakage — so it must not say "try again", which is not
       // what fixes it. Names the one place that does, and does it with the KEY
       // the send paths use for a lapsed subscription rather than a second copy
       // of the sentence, so a crew meeting both in one afternoon reads one
       // story rather than two.
       return t("thread.louPausedForBilling");
-    default:
+    }
+    default: {
       return t("thread.catchUpNone");
+    }
   }
 }
 
@@ -202,13 +207,15 @@ export function canRetryThreadSummary(
     case "disabled":
     case "spam":
     case "too_short":
-    case "over_cap":
+    case "over_cap": {
       return false;
-    default:
+    }
+    default: {
       // Includes `undefined` — a summary that came back fine can be asked for
       // again once the conversation moves, which is what the staleness notice
       // on the card offers.
       return true;
+    }
   }
 }
 
@@ -278,11 +285,13 @@ export function threadSummaryRequestFailure(
     return { message: t("thread.catchUpOffline"), retry: true };
   }
   switch (error.code) {
-    case "forbidden":
+    case "forbidden": {
       return { message: t("thread.catchUpForbidden"), retry: false };
-    case "not_found":
+    }
+    case "not_found": {
       return { message: t("thread.catchUpGone"), retry: false };
-    case "rate_limited":
+    }
+    case "rate_limited": {
       // The same sentence as the gate's own `rate_limited`, on purpose: one
       // fact, one wording. An edge 429 and the AI gate's refusal mean the same
       // thing to the person holding the phone. Routed through the function
@@ -291,12 +300,14 @@ export function threadSummaryRequestFailure(
         message: threadSummaryFailureMessage("rate_limited", t),
         retry: true,
       };
-    case "service_unavailable":
+    }
+    case "service_unavailable": {
       // #283: switched off at the runtime kill switch during an incident — not
       // this workspace's fault and not permanent, which is why it retries where
       // the two refusals above do not.
       return { message: t("thread.catchUpPaused"), retry: true };
-    default:
+    }
+    default: {
       return {
         // The SERVER's own sentence, untranslated on purpose: SPEC §7 writes
         // one per code and translating it belongs there, not in a second copy
@@ -309,6 +320,7 @@ export function threadSummaryRequestFailure(
             : t("thread.catchUpFailed"),
         retry: error.retryable,
       };
+    }
   }
 }
 

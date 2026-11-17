@@ -16,17 +16,22 @@ export function nextOptionIndex(
 ): number {
   switch (key) {
     case "ArrowRight":
-    case "ArrowDown":
+    case "ArrowDown": {
       return (current + 1) % count;
+    }
     case "ArrowLeft":
-    case "ArrowUp":
+    case "ArrowUp": {
       return (current - 1 + count) % count;
-    case "Home":
+    }
+    case "Home": {
       return 0;
-    case "End":
+    }
+    case "End": {
       return count - 1;
-    default:
+    }
+    default: {
       return current;
+    }
   }
 }
 

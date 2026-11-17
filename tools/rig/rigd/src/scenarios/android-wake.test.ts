@@ -13,17 +13,17 @@ import {
   D04,
   D04_VARIANTS,
   d04Device,
+  d04VariantOn,
+  d04Verdict,
   D10,
   D11,
   D12,
   E01,
   EMULATOR_APIS,
   EMULATOR_HEARING_NOT_JUDGED,
-  RING_BEACON_STAGES,
-  d04VariantOn,
-  d04Verdict,
   emulatorApiOn,
   judgeBeacons,
+  RING_BEACON_STAGES,
 } from "./android-wake.ts";
 import type { ScenarioContext, ScenarioHistoryApi, ScenarioRunner } from "./context.ts";
 import { fakeContext } from "./fakes.ts";
@@ -86,7 +86,7 @@ function wakeWorld(scenario: string) {
 
 /** The robot's recording, judged deaf to the device. */
 function deafRobot(world: ReturnType<typeof wakeWorld>) {
-  const outcome = world.robot.outcome;
+  const {outcome} = world.robot;
   world.robot.outcome = (plan) => {
     const record = outcome(plan);
     return { ...record, judgement: { ...record.judgement!, pass: false, heard: [], verdict: "silent", answered: null } };
@@ -103,7 +103,7 @@ describe("ring beacons", () => {
     const list = /RING_BEACON_STAGES = \[([^\]]*)\]/.exec(source)?.[1];
     expect(list, "apps/api's RING_BEACON_STAGES moved").toBeDefined();
     expect([...list!.matchAll(/"([a-z_]+)"/g)].map((m) => m[1])).toEqual([...RING_BEACON_STAGES]);
-    expect(Object.keys(BEACON_AFTER).sort()).toEqual([...RING_BEACON_STAGES].sort());
+    expect(Object.keys(BEACON_AFTER).toSorted()).toEqual([...RING_BEACON_STAGES].toSorted());
   });
 
   const at = (stage: string, ms: number) => ({
@@ -151,7 +151,7 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     audio.stop = async () => {
       stopped = true;
     };
-    expect(await D02.run(ctx)).toEqual(PASSED);
+    await expect(D02.run(ctx)).resolves.toEqual(PASSED);
     expect(undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
     expect(pixel.actions).toEqual(["kill", "force doze", "lock", "tap call_answer"]);
     expect(robot.plans).toHaveLength(1);
@@ -159,7 +159,7 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     expect(audio.played).toEqual(["pixel"]);
     expect(stopped).toBe(true);
     expect(ctx.evidence).toMatchObject({
-      ring: { telecom_ms: 2_000, full_screen_ms: 2_500 },
+      ring: { telecom_ms: 2000, full_screen_ms: 2500 },
       push: [{ session_id: "call-1", response_class: "accepted", priority: "high" }],
       device: { doze: "IDLE", locked: true },
       call: { device_heard: { answered: "robot" }, robot_heard: { pass: true } },
@@ -171,19 +171,19 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
   it("blames the rig, and changes nothing, when the emulator or its audio link is missing, or EA1 has not proven the audio", async () => {
     const gone = wakeWorld("D02");
     gone.pixel.reachableNow = false;
-    expect(await D02.run(gone.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D02.run(gone.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
     expect(gone.undo).toEqual([]);
     expect(gone.robot.plans).toEqual([]);
 
     const unlinked = wakeWorld("D02");
     unlinked.audio.connectedNow = false;
-    expect(await D02.run(unlinked.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+    await expect(D02.run(unlinked.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel-audio" });
     expect(unlinked.pixel.actions).toEqual([]);
     expect(unlinked.robot.plans).toEqual([]);
 
     const unproven = wakeWorld("D02");
     unproven.audio.provenNow = false;
-    expect(await D02.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    await expect(D02.run(unproven.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
     expect(unproven.pixel.actions).toEqual([]);
     expect(unproven.robot.plans).toEqual([]);
   });
@@ -193,13 +193,13 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     world.audio.hear = async () => {
       throw new Error("emulator-audio-unproven");
     };
-    expect(await D02.run(world.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    await expect(D02.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
 
     // A product failure still outranks the rig's.
     const unshown = wakeWorld("D02");
     unshown.audio.hear = world.audio.hear;
     unshown.script.callStages = ["push_received", "os_reported", "ring_me_sent", "answered"];
-    expect(await D02.run(unshown.ctx)).toMatchObject({ failure_class: "ring_not_shown" });
+    await expect(D02.run(unshown.ctx)).resolves.toMatchObject({ failure_class: "ring_not_shown" });
   });
 
   it("blames the emulator, before dialing, when Doze or the lock did not take", async () => {
@@ -207,49 +207,49 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
     awake.pixel.forceDoze = async () => {
       throw new Error("adb: force-idle on emulator-5560 did not force deep idle (Unable to go deep idle; not enabled)");
     };
-    expect(await D02.run(awake.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("not enabled") });
+    await expect(D02.run(awake.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("not enabled") });
     expect(awake.robot.plans).toEqual([]);
     expect(awake.undo).toEqual([{ kind: "device.reset", params: { device: "pixel" } }]);
 
     const open = wakeWorld("D02");
     open.pixel.lock = async () => undefined;
-    expect(await D02.run(open.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D02.run(open.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
     expect(open.robot.plans).toEqual([]);
   });
 
   it("names where a missing or late ring stopped", async () => {
     const late = wakeWorld("D02");
     late.pixel.rings = { telecom_ms: 13_000, full_screen_ms: 13_500 };
-    expect(await D02.run(late.ctx)).toMatchObject({ failure_class: "no_ring_within_12s" });
+    await expect(D02.run(late.ctx)).resolves.toMatchObject({ failure_class: "no_ring_within_12s" });
 
     const unpushed = wakeWorld("D02");
     unpushed.script.pushes = false;
     unpushed.pixel.rings = undefined;
-    expect(await D02.run(unpushed.ctx)).toMatchObject({ failure_class: "no_push_attempt" });
+    await expect(D02.run(unpushed.ctx)).resolves.toMatchObject({ failure_class: "no_push_attempt" });
 
     const lost = wakeWorld("D02");
     lost.script.callStages = [];
     lost.pixel.rings = undefined;
-    expect(await D02.run(lost.ctx)).toMatchObject({ failure_class: "push_not_received" });
+    await expect(D02.run(lost.ctx)).resolves.toMatchObject({ failure_class: "push_not_received" });
 
     const kept = wakeWorld("D02");
     kept.script.callStages = ["push_received"];
     kept.pixel.rings = undefined;
-    expect(await D02.run(kept.ctx)).toMatchObject({ failure_class: "not_reported_to_telecom" });
+    await expect(D02.run(kept.ctx)).resolves.toMatchObject({ failure_class: "not_reported_to_telecom" });
   });
 
   it("fails a push FCM refused or took at normal priority, and blames FCM's weather on the rig", async () => {
     const rejected = wakeWorld("D02");
     rejected.script.push.response_class = "rejected";
-    expect(await D02.run(rejected.ctx)).toMatchObject({ failure_class: "push_not_accepted" });
+    await expect(D02.run(rejected.ctx)).resolves.toMatchObject({ failure_class: "push_not_accepted" });
 
     const throttled = wakeWorld("D02");
     throttled.script.push.response_class = "throttled";
-    expect(await D02.run(throttled.ctx)).toMatchObject({ outcome: "infra", component: "fcm" });
+    await expect(D02.run(throttled.ctx)).resolves.toMatchObject({ outcome: "infra", component: "fcm" });
 
     const normal = wakeWorld("D02");
     normal.script.push.priority = "normal";
-    expect(await D02.run(normal.ctx)).toMatchObject({ failure_class: "push_not_high_priority" });
+    await expect(D02.run(normal.ctx)).resolves.toMatchObject({ failure_class: "push_not_high_priority" });
   });
 
   it("passes on a stale token's `gone` beside the live token's acceptance", async () => {
@@ -262,57 +262,57 @@ describe("D02, Android wake: killed, forced Doze, locked with a PIN", () => {
       attempted_at: new Date(world.time.now).toISOString(),
       priority: "high",
     });
-    expect(await D02.run(world.ctx)).toEqual(PASSED);
+    await expect(D02.run(world.ctx)).resolves.toEqual(PASSED);
   });
 
   it("fails a ring with no answer control on the lock screen, and missing or disordered beacons", async () => {
     const noControl = wakeWorld("D02");
     noControl.pixel.onScreen.delete("call_answer");
-    expect(await D02.run(noControl.ctx)).toMatchObject({ failure_class: "answer_control_missing" });
+    await expect(D02.run(noControl.ctx)).resolves.toMatchObject({ failure_class: "answer_control_missing" });
 
     const unshown = wakeWorld("D02");
     unshown.script.callStages = ["push_received", "os_reported", "ring_me_sent", "answered"];
-    expect(await D02.run(unshown.ctx)).toMatchObject({ failure_class: "ring_not_shown" });
+    await expect(D02.run(unshown.ctx)).resolves.toMatchObject({ failure_class: "ring_not_shown" });
 
     const unanswered = wakeWorld("D02");
     unanswered.script.callStages = ["push_received", "os_reported", "ringing_shown", "ring_me_sent"];
-    expect(await D02.run(unanswered.ctx)).toMatchObject({ failure_class: "answer_not_reported" });
+    await expect(D02.run(unanswered.ctx)).resolves.toMatchObject({ failure_class: "answer_not_reported" });
 
     const disordered = wakeWorld("D02");
     disordered.script.callStages = ["push_received", "os_reported", "answered", "ringing_shown", "ring_me_sent"];
-    expect(await D02.run(disordered.ctx)).toMatchObject({ failure_class: "beacons_out_of_order" });
+    await expect(D02.run(disordered.ctx)).resolves.toMatchObject({ failure_class: "beacons_out_of_order" });
 
     // Shown ahead of Telecom is how the app rings, not a fault.
     const shownFirst = wakeWorld("D02");
     shownFirst.script.callStages = ["push_received", "ringing_shown", "os_reported", "ring_me_sent", "answered"];
-    expect(await D02.run(shownFirst.ctx)).toEqual(PASSED);
+    await expect(D02.run(shownFirst.ctx)).resolves.toEqual(PASSED);
   });
 
   it("fails when either side does not hear the other, or the call never connected", async () => {
     const deaf = wakeWorld("D02");
     deafRobot(deaf);
-    expect(await D02.run(deaf.ctx)).toMatchObject({ failure_class: "robot_did_not_hear_device" });
+    await expect(D02.run(deaf.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_device" });
 
     const muted = wakeWorld("D02");
     muted.audio.heard = null;
-    expect(await D02.run(muted.ctx)).toMatchObject({ failure_class: "device_did_not_hear_robot" });
+    await expect(D02.run(muted.ctx)).resolves.toMatchObject({ failure_class: "device_did_not_hear_robot" });
 
     const dropped = wakeWorld("D02");
     dropped.robot.outcome = () => ({ state: "done", answered_at: undefined });
-    expect(await D02.run(dropped.ctx)).toMatchObject({ failure_class: "not_answered" });
+    await expect(D02.run(dropped.ctx)).resolves.toMatchObject({ failure_class: "not_answered" });
   });
 
   it("reports a guard refusal as the rig's", async () => {
     const world = wakeWorld("D02");
     refusedDial(world);
-    expect(await D02.run(world.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    await expect(D02.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
   });
 });
 
 describe("D02p, a ring push with no call", () => {
   it("passes when the synthetic push is accepted, rings in full screen and ring-me is never answered, dialing nobody", async () => {
     const { ctx, pixel, robot, undo, simulated } = wakeWorld("D02p");
-    expect(await D02p.run(ctx)).toEqual(PASSED);
+    await expect(D02p.run(ctx)).resolves.toEqual(PASSED);
     expect(simulated).toEqual([{ member: "qa-a-owner", target: "qa-a-technician", caller: "Rig n0nce" }]);
     expect((simulated[0] as { caller: string }).caller).toContain(ctx.nonce);
     expect(pixel.actions).toEqual(["tap call_decline", "reset ui"]);
@@ -325,7 +325,7 @@ describe("D02p, a ring push with no call", () => {
   it("passes when the ring is shown before Telecom reports the call, as the app does it", async () => {
     const world = wakeWorld("D02p");
     world.script.syntheticStages = ["push_received", "ringing_shown", "os_reported"];
-    expect(await D02p.run(world.ctx)).toEqual(PASSED);
+    await expect(D02p.run(world.ctx)).resolves.toEqual(PASSED);
   });
 
   it("ends the ring it started, for the next attempt: Telecom refuses a second ringing call", async () => {
@@ -333,7 +333,7 @@ describe("D02p, a ring push with no call", () => {
     const world = wakeWorld("D02p");
     world.pixel.onScreen.delete("call_decline");
     world.pixel.call = "ringing";
-    expect(await D02p.run(world.ctx)).toEqual(PASSED);
+    await expect(D02p.run(world.ctx)).resolves.toEqual(PASSED);
     expect(world.pixel.actions).toEqual(["reset ui"]);
     expect(world.pixel.call).toBe("none");
     expect(world.ctx.evidence).toMatchObject({ dismissed: false, ring_cleared: true });
@@ -345,14 +345,14 @@ describe("D02p, a ring push with no call", () => {
       stuck.pixel.call = "ringing";
       return { crashPrompt: false };
     };
-    expect(await D02p.run(stuck.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringMatching(/still up after the app was stopped/) });
+    await expect(D02p.run(stuck.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringMatching(/still up after the app was stopped/) });
     expect(stuck.ctx.evidence).toMatchObject({ ring_cleared: false });
 
     const broken = wakeWorld("D02p");
     broken.pixel.resetUi = async () => {
       throw new Error("adb: device offline");
     };
-    expect(await D02p.run(broken.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringMatching(/stopping the app to end the ring failed: adb: device offline/) });
+    await expect(D02p.run(broken.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringMatching(/stopping the app to end the ring failed: adb: device offline/) });
 
     // A beacon failure is still the product's, found first.
     const unshown = wakeWorld("D02p");
@@ -360,45 +360,45 @@ describe("D02p, a ring push with no call", () => {
     unshown.pixel.resetUi = async () => {
       throw new Error("adb: device offline");
     };
-    expect(await D02p.run(unshown.ctx)).toMatchObject({ outcome: "fail", failure_class: "ring_not_shown" });
+    await expect(D02p.run(unshown.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "ring_not_shown" });
   });
 
   it("fails a refused or session-less simulate-incoming, and blames a refused probe session on the rig", async () => {
     const broken = wakeWorld("D02p");
     broken.app.simulated = { status: 500, code: "internal" };
-    expect(await D02p.run(broken.ctx)).toMatchObject({ failure_class: "simulate_refused" });
+    await expect(D02p.run(broken.ctx)).resolves.toMatchObject({ failure_class: "simulate_refused" });
 
     const signedOut = wakeWorld("D02p");
     signedOut.app.simulated = { status: 401, code: "unauthorized" };
-    expect(await D02p.run(signedOut.ctx)).toMatchObject({ outcome: "infra", component: "app-probe" });
+    await expect(D02p.run(signedOut.ctx)).resolves.toMatchObject({ outcome: "infra", component: "app-probe" });
 
     const sessionless = wakeWorld("D02p");
     sessionless.app.simulated = { status: 202, body: {} };
-    expect(await D02p.run(sessionless.ctx)).toMatchObject({ failure_class: "no_synthetic_session" });
+    await expect(D02p.run(sessionless.ctx)).resolves.toMatchObject({ failure_class: "no_synthetic_session" });
 
     const down = wakeWorld("D02p");
     down.app.simulateIncoming = async () => {
       throw new Error("connect ECONNREFUSED");
     };
-    expect(await D02p.run(down.ctx)).toMatchObject({ outcome: "infra", component: "app-probe" });
+    await expect(D02p.run(down.ctx)).resolves.toMatchObject({ outcome: "infra", component: "app-probe" });
   });
 
   it("fails no ring, a ring without the full-screen notification, a refused push and a ring never shown", async () => {
     const silent = wakeWorld("D02p");
     silent.pixel.rings = undefined;
-    expect(await D02p.run(silent.ctx)).toMatchObject({ failure_class: "no_ring_within_12s" });
+    await expect(D02p.run(silent.ctx)).resolves.toMatchObject({ failure_class: "no_ring_within_12s" });
 
     const telecomOnly = wakeWorld("D02p");
-    telecomOnly.pixel.rings = { telecom_ms: 2_000 };
-    expect(await D02p.run(telecomOnly.ctx)).toMatchObject({ failure_class: "no_full_screen_ring" });
+    telecomOnly.pixel.rings = { telecom_ms: 2000 };
+    await expect(D02p.run(telecomOnly.ctx)).resolves.toMatchObject({ failure_class: "no_full_screen_ring" });
 
     const refused = wakeWorld("D02p");
     refused.script.push.response_class = "rejected";
-    expect(await D02p.run(refused.ctx)).toMatchObject({ failure_class: "push_not_accepted" });
+    await expect(D02p.run(refused.ctx)).resolves.toMatchObject({ failure_class: "push_not_accepted" });
 
     const unshown = wakeWorld("D02p");
     unshown.script.syntheticStages = ["push_received", "os_reported"];
-    expect(await D02p.run(unshown.ctx)).toMatchObject({ failure_class: "ring_not_shown" });
+    await expect(D02p.run(unshown.ctx)).resolves.toMatchObject({ failure_class: "ring_not_shown" });
   });
 
   it("fails a ring-me answered for the synthetic session, even one reported 10 s after the push", async () => {
@@ -416,7 +416,7 @@ describe("D02p, a ring push with no call", () => {
       });
       return answer;
     };
-    expect(await D02p.run(world.ctx)).toMatchObject({ failure_class: "ring_me_not_refused" });
+    await expect(D02p.run(world.ctx)).resolves.toMatchObject({ failure_class: "ring_me_not_refused" });
   });
 
   it("still sees a ring-me beacon that PostHog takes 45 s to show", async () => {
@@ -434,13 +434,13 @@ describe("D02p, a ring push with no call", () => {
     };
     const read = world.app.ringBeacons;
     world.app.ringBeacons = async (args) => [...(await read(args)), ...(world.time.now >= since + 55_000 ? [late] : [])];
-    expect(await D02p.run(world.ctx)).toMatchObject({ failure_class: "ring_me_not_refused" });
+    await expect(D02p.run(world.ctx)).resolves.toMatchObject({ failure_class: "ring_me_not_refused" });
   });
 
   it("blames the rig when the emulator is unreachable, before asking for a ring", async () => {
     const world = wakeWorld("D02p");
     world.pixel.reachableNow = false;
-    expect(await D02p.run(world.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D02p.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
     expect(world.simulated).toEqual([]);
   });
 });
@@ -450,43 +450,43 @@ describe("the ring push and the beacons a call wake judges", () => {
     const web = wakeWorld("D02");
     const pushed = web.app.pushAttempts;
     web.app.pushAttempts = async (args) => (await pushed(args)).map((a) => ({ ...a, platform: "web" }));
-    expect(await D02.run(web.ctx)).toMatchObject({ failure_class: "no_push_attempt" });
+    await expect(D02.run(web.ctx)).resolves.toMatchObject({ failure_class: "no_push_attempt" });
 
     const sessionless = wakeWorld("D02");
     sessionless.script.push = { response_class: "accepted", priority: "high" };
     const read = sessionless.app.pushAttempts;
     sessionless.app.pushAttempts = async (args) => (await read(args)).map((a) => ({ ...a, call_session_id: null }));
-    expect(await D02.run(sessionless.ctx)).toMatchObject({ failure_class: "push_without_session" });
+    await expect(D02.run(sessionless.ctx)).resolves.toMatchObject({ failure_class: "push_without_session" });
 
     // D02p asks for its synthetic session's push; another session's does not count.
     const other = wakeWorld("D02p");
     const attempts = other.app.pushAttempts;
     other.app.pushAttempts = async (args) => (await attempts(args)).map((a) => ({ ...a, call_session_id: "call-9" }));
-    expect(await D02p.run(other.ctx)).toMatchObject({ failure_class: "no_push_attempt" });
+    await expect(D02p.run(other.ctx)).resolves.toMatchObject({ failure_class: "no_push_attempt" });
   });
 
   it("reads the beacons of the lane's member and the call's session only, from a device clock running behind", async () => {
     // Another session's answered beacon cannot stand in for this call's missing one.
     const stray = wakeWorld("D02");
     stray.script.callStages = ["push_received", "os_reported", "ringing_shown", "ring_me_sent"];
-    stray.app.beacons.push({ tenant: "QA-A", member: "qa-a-technician", stage: "answered", platform: "android", occurred_at: new Date(stray.time.now + 3_000).toISOString(), call_session_id: "synthetic-1" });
-    expect(await D02.run(stray.ctx)).toMatchObject({ failure_class: "answer_not_reported" });
+    stray.app.beacons.push({ tenant: "QA-A", member: "qa-a-technician", stage: "answered", platform: "android", occurred_at: new Date(stray.time.now + 3000).toISOString(), call_session_id: "synthetic-1" });
+    await expect(D02.run(stray.ctx)).resolves.toMatchObject({ failure_class: "answer_not_reported" });
 
     // Nor can another member's beacon for the same session.
     const member = wakeWorld("D02");
     member.script.callStages = ["push_received", "os_reported", "ringing_shown", "ring_me_sent"];
-    member.app.beacons.push({ tenant: "QA-A", member: "qa-a-dispatcher", stage: "answered", platform: "android", occurred_at: new Date(member.time.now + 3_000).toISOString(), call_session_id: "call-1" });
-    expect(await D02.run(member.ctx)).toMatchObject({ failure_class: "answer_not_reported" });
+    member.app.beacons.push({ tenant: "QA-A", member: "qa-a-dispatcher", stage: "answered", platform: "android", occurred_at: new Date(member.time.now + 3000).toISOString(), call_session_id: "call-1" });
+    await expect(D02.run(member.ctx)).resolves.toMatchObject({ failure_class: "answer_not_reported" });
 
     // A device whose clock is two minutes behind reports its stages before the rig's dial.
     const behind = wakeWorld("D02");
-    const dial = behind.robot.dial;
+    const {dial} = behind.robot;
     behind.robot.dial = async (plan) => {
       const record = await dial(plan);
       for (const b of behind.app.beacons) b.occurred_at = new Date(Date.parse(b.occurred_at) - 2 * 60_000).toISOString();
       return record;
     };
-    expect(await D02.run(behind.ctx)).toEqual(PASSED);
+    await expect(D02.run(behind.ctx)).resolves.toEqual(PASSED);
   });
 
   it("orders stages by each one's first beacon, so a repeated push does not reorder the ring", async () => {
@@ -506,9 +506,9 @@ describe("the ring push and the beacons a call wake judges", () => {
 
   it("blames the robot when it could not delete Telnyx's copy of the wake's recording", async () => {
     const world = wakeWorld("D02");
-    const outcome = world.robot.outcome;
+    const {outcome} = world.robot;
     world.robot.outcome = (plan) => ({ ...outcome(plan), recording_deleted: false });
-    expect(await D02.run(world.ctx)).toMatchObject({ outcome: "infra", component: "robot", detail: expect.stringContaining("delete") });
+    await expect(D02.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot", detail: expect.stringContaining("delete") });
   });
 });
 
@@ -535,24 +535,24 @@ describe("D03, stepped Doze", () => {
 
     const unmaintained = wakeWorld("D03");
     unmaintained.pixel.steps = ["INACTIVE", "IDLE_PENDING", "SENSING", "LOCATING", "IDLE"];
-    expect(await D03.run(unmaintained.ctx)).toMatchObject({ outcome: "infra", detail: expect.stringContaining("never reached deep idle") });
+    await expect(D03.run(unmaintained.ctx)).resolves.toMatchObject({ outcome: "infra", detail: expect.stringContaining("never reached deep idle") });
 
     const broken = wakeWorld("D03");
     broken.pixel.stepDoze = async () => {
       throw new Error("adb: deviceidle step on emulator-5560 printed no state (Unknown command)");
     };
-    expect(await D03.run(broken.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("stepping Doze failed") });
+    await expect(D03.run(broken.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("stepping Doze failed") });
     expect(broken.robot.plans).toEqual([]);
   });
 
   it("checks the emulator and its audio before changing anything", async () => {
     const gone = wakeWorld("D03");
     gone.pixel.reachableNow = false;
-    expect(await D03.run(gone.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D03.run(gone.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
 
     const unproven = wakeWorld("D03");
     unproven.audio.provenNow = false;
-    expect(await D03.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    await expect(D03.run(unproven.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
     expect(unproven.pixel.actions).toEqual([]);
     expect(unproven.undo).toEqual([]);
   });
@@ -612,7 +612,7 @@ describe("D04, Android variants", () => {
 
       const wrong = d04World(variant.name);
       if (rings) wrong.device.rings = undefined;
-      expect(await D04.run(wrong.ctx)).toMatchObject({ outcome: "fail", failure_class: `unconfirmed_${variant.name.replaceAll("-", "_")}` });
+      await expect(D04.run(wrong.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: `unconfirmed_${variant.name.replaceAll("-", "_")}` });
     });
   }
 
@@ -643,23 +643,23 @@ describe("D04, Android variants", () => {
 
     const dead = d04World("hibernation");
     dead.device.reachableNow = false;
-    expect(await D04.run(dead.ctx)).toMatchObject({ outcome: "infra", component: dead.device.name });
+    await expect(D04.run(dead.ctx)).resolves.toMatchObject({ outcome: "infra", component: dead.device.name });
     expect(dead.robot.plans).toEqual([]);
   });
 
   it("reads back the bucket, battery saver and the lock before every push", async () => {
     const leftover = d04World("secure-lock");
     leftover.pixel.deviceState.battery_saver = true;
-    expect(await D04.run(leftover.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("saver true") });
+    await expect(D04.run(leftover.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("saver true") });
     expect(leftover.robot.plans).toEqual([]);
 
     const bucketed = d04World("battery-saver");
     bucketed.pixel.deviceState.standby_bucket = "rare";
-    expect(await D04.run(bucketed.ctx)).toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("bucket rare") });
+    await expect(D04.run(bucketed.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel", detail: expect.stringContaining("bucket rare") });
 
     const unlocked = d04World("hibernation");
     unlocked.device.lock = async () => undefined;
-    expect(await D04.run(unlocked.ctx)).toMatchObject({ outcome: "infra", detail: expect.stringContaining("locked false") });
+    await expect(D04.run(unlocked.ctx)).resolves.toMatchObject({ outcome: "infra", detail: expect.stringContaining("locked false") });
     expect(unlocked.robot.plans).toEqual([]);
   });
 
@@ -667,7 +667,7 @@ describe("D04, Android variants", () => {
     const world = d04World("before-first-unlock");
     world.device.rings = undefined;
     world.device.crypto = "none";
-    expect(await D04.run(world.ctx)).toMatchObject({ outcome: "infra", component: world.device.name, detail: expect.stringContaining("not file") });
+    await expect(D04.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: world.device.name, detail: expect.stringContaining("not file") });
     expect(world.robot.plans).toEqual([]);
     expect(world.ctx.evidence.crypto_type).toBe("none");
   });
@@ -679,12 +679,12 @@ describe("D04, Android variants", () => {
   it("blames the device when a variant did not take, and reads a bucket by name or number", async () => {
     const stuck = d04World("standby-rare");
     stuck.pixel.setStandbyBucket = async () => undefined;
-    expect(await D04.run(stuck.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D04.run(stuck.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
     expect(stuck.robot.plans).toEqual([]);
 
     const saverOff = d04World("battery-saver");
     saverOff.pixel.batterySaver = async () => undefined;
-    expect(await D04.run(saverOff.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D04.run(saverOff.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
 
     const numbered = d04World("standby-restricted");
     numbered.pixel.setStandbyBucket = async () => {
@@ -697,28 +697,28 @@ describe("D04, Android variants", () => {
     const unpushed = d04World("before-first-unlock");
     unpushed.device.rings = undefined;
     unpushed.script.pushes = false;
-    expect(await D04.run(unpushed.ctx)).toMatchObject({ failure_class: "no_push_attempt" });
+    await expect(D04.run(unpushed.ctx)).resolves.toMatchObject({ failure_class: "no_push_attempt" });
 
     const refused = d04World("hibernation");
     refused.device.rings = undefined;
     refused.script.push.response_class = "rejected";
-    expect(await D04.run(refused.ctx)).toMatchObject({ failure_class: "push_not_accepted" });
+    await expect(D04.run(refused.ctx)).resolves.toMatchObject({ failure_class: "push_not_accepted" });
   });
 
   it("names a confirmed expectation's break as a regression, apart from an unconfirmed one", () => {
     const quiet = { ringsWithinMs: null, confirmed: true, why: "" };
     const ringing = { ringsWithinMs: 12_000, confirmed: true, why: "" };
-    expect(d04Verdict("hibernation", quiet, { telecom_ms: 2_000 })).toMatchObject({ failure_class: "rang_hibernation" });
+    expect(d04Verdict("hibernation", quiet, { telecom_ms: 2000 })).toMatchObject({ failure_class: "rang_hibernation" });
     expect(d04Verdict("battery-saver", ringing, undefined)).toMatchObject({ failure_class: "no_ring_battery_saver" });
-    expect(d04Verdict("battery-saver", ringing, { full_screen_ms: 2_000 })).toMatchObject({ failure_class: "no_ring_battery_saver" });
-    expect(d04Verdict("battery-saver", ringing, { telecom_ms: 2_000 }).outcome).toBe("pass");
+    expect(d04Verdict("battery-saver", ringing, { full_screen_ms: 2000 })).toMatchObject({ failure_class: "no_ring_battery_saver" });
+    expect(d04Verdict("battery-saver", ringing, { telecom_ms: 2000 }).outcome).toBe("pass");
     expect(d04Verdict("hibernation", quiet, undefined).outcome).toBe("pass");
   });
 
   it("blames the rig when the device lane is unreachable", async () => {
     const world = d04World("secure-lock");
     world.pixel.reachableNow = false;
-    expect(await D04.run(world.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D04.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
     expect(world.undo).toEqual([]);
   });
 });
@@ -732,7 +732,7 @@ const WAKES = ["tap call_decline", "reset ui", "kill", "force doze", "lock", "ta
 describe("D10, fresh install", () => {
   it("installs, signs in, stores a push token, then passes D02p and D02", async () => {
     const { ctx, pixel, undo, robot } = wakeWorld("D10");
-    expect(await D10.run(ctx)).toEqual(PASSED);
+    await expect(D10.run(ctx)).resolves.toEqual(PASSED);
     expect(pixel.actions).toEqual(["uninstall", "install current", "notifications allowed", "launch /", "sign in qa-a-technician", ...WAKES]);
     expect(undo).toEqual(INSTALL_UNDOS);
     expect(robot.plans).toHaveLength(1);
@@ -746,64 +746,64 @@ describe("D10, fresh install", () => {
   it("unlocks the emulator for the sign-in, and blames the rig for an emulator or audio link that is missing", async () => {
     const locked = wakeWorld("D10");
     locked.pixel.deviceState.locked = true;
-    expect(await D10.run(locked.ctx)).toEqual(PASSED);
+    await expect(D10.run(locked.ctx)).resolves.toEqual(PASSED);
     expect(locked.pixel.actions[0]).toBe("unlock");
 
     const gone = wakeWorld("D10");
     gone.pixel.reachableNow = false;
-    expect(await D10.run(gone.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D10.run(gone.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
     expect(gone.undo).toEqual([]);
 
     const unlinked = wakeWorld("D10");
     unlinked.audio.connectedNow = false;
-    expect(await D10.run(unlinked.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+    await expect(D10.run(unlinked.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel-audio" });
     expect(unlinked.pixel.actions).toEqual([]);
 
     const unproven = wakeWorld("D10");
     unproven.audio.provenNow = false;
-    expect(await D10.run(unproven.ctx)).toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
+    await expect(D10.run(unproven.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-audio-unproven" });
     expect(unproven.pixel.actions).toEqual([]);
   });
 
   it("fails when the token the API stores is not the one the installed app holds, keeping neither", async () => {
     const stale = wakeWorld("D10");
     stale.app.storedTokens.set("qa-a-technician", ["fcm-token-0"]);
-    expect(await D10.run(stale.ctx)).toMatchObject({ outcome: "fail", failure_class: "push_token_mismatch" });
+    await expect(D10.run(stale.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "push_token_mismatch" });
     expect(stale.ctx.evidence.install).toMatchObject({ stored_tokens: 1, token_matches: false });
     expect(JSON.stringify(stale.ctx.evidence)).not.toMatch(/fcm-token/);
 
     const tokenless = wakeWorld("D10");
     tokenless.pixel.token = null;
-    expect(await D10.run(tokenless.ctx)).toMatchObject({ outcome: "fail", failure_class: "no_device_push_token" });
+    await expect(D10.run(tokenless.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "no_device_push_token" });
 
     const unreadable = wakeWorld("D10");
     unreadable.pixel.pushToken = async () => {
       throw new Error("adb: run-as: package not debuggable");
     };
-    expect(await D10.run(unreadable.ctx)).toMatchObject({ outcome: "infra", component: "pixel" });
+    await expect(D10.run(unreadable.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel" });
 
     // A probe that cannot read the stored tokens leaves the check unmade, which is no pass.
     const blind = wakeWorld("D10");
     blind.app.pushTokens = async () => {
       throw new Error("app probe: reading device_push_tokens returned 503");
     };
-    expect(await D10.run(blind.ctx)).toMatchObject({ outcome: "infra", component: "app-probe" });
+    await expect(D10.run(blind.ctx)).resolves.toMatchObject({ outcome: "infra", component: "app-probe" });
 
     // A wake that failed is reported before any token check.
     const unwoken = wakeWorld("D10");
     unwoken.app.storedTokens.set("qa-a-technician", []);
     unwoken.pixel.rings = undefined;
-    expect(await D10.run(unwoken.ctx)).toMatchObject({ failure_class: "no_ring_within_12s" });
+    await expect(D10.run(unwoken.ctx)).resolves.toMatchObject({ failure_class: "no_ring_within_12s" });
   });
 
   it("fails a missing sign-in screen and a push token never stored", async () => {
     const noScreen = wakeWorld("D10");
     noScreen.pixel.signIn = async () => false;
-    expect(await D10.run(noScreen.ctx)).toMatchObject({ failure_class: "no_sign_in_screen" });
+    await expect(D10.run(noScreen.ctx)).resolves.toMatchObject({ failure_class: "no_sign_in_screen" });
 
     const tokenless = wakeWorld("D10");
     tokenless.app.targets.delete("qa-a-technician");
-    expect(await D10.run(tokenless.ctx)).toMatchObject({ failure_class: "push_token_not_stored" });
+    await expect(D10.run(tokenless.ctx)).resolves.toMatchObject({ failure_class: "push_token_not_stored" });
     expect(tokenless.robot.plans).toEqual([]);
   });
 
@@ -812,22 +812,22 @@ describe("D10, fresh install", () => {
     missing.pixel.install = async () => {
       throw new Error("no APK at work/apk/current.apk");
     };
-    expect(await D10.run(missing.ctx)).toMatchObject({ outcome: "infra", component: "apk" });
+    await expect(D10.run(missing.ctx)).resolves.toMatchObject({ outcome: "infra", component: "apk" });
 
     const production = wakeWorld("D10");
     production.pixel.install = async () => "com.loonext.android";
-    expect(await D10.run(production.ctx)).toMatchObject({ failure_class: "not_nonprod_package", critical: true });
+    await expect(D10.run(production.ctx)).resolves.toMatchObject({ failure_class: "not_nonprod_package", critical: true });
   });
 
   it("fails when the new install's push wake or call wake fails", async () => {
     const unwoken = wakeWorld("D10");
     unwoken.script.syntheticStages = [];
-    expect(await D10.run(unwoken.ctx)).toMatchObject({ failure_class: "push_not_received" });
+    await expect(D10.run(unwoken.ctx)).resolves.toMatchObject({ failure_class: "push_not_received" });
     expect(unwoken.robot.plans).toEqual([]);
 
     const deaf = wakeWorld("D10");
     deafRobot(deaf);
-    expect(await D10.run(deaf.ctx)).toMatchObject({ failure_class: "robot_did_not_hear_device" });
+    await expect(D10.run(deaf.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_device" });
   });
 });
 
@@ -842,7 +842,7 @@ describe("D12, upgrade from the previous release", () => {
     };
     const state = pixel.state.bind(pixel);
     pixel.state = async () => ({ ...(await state()), app_version: version });
-    expect(await D12.run(ctx)).toEqual(PASSED);
+    await expect(D12.run(ctx)).resolves.toEqual(PASSED);
     expect(pixel.actions).toEqual(["uninstall", "install previous", "notifications allowed", "launch /", "sign in qa-a-technician", "install current", ...WAKES]);
     expect(undo).toEqual(INSTALL_UNDOS);
     expect(robot.plans).toHaveLength(1);
@@ -857,18 +857,18 @@ describe("D12, upgrade from the previous release", () => {
       if (build === "previous") throw new Error("no APK at work/apk/previous.apk");
       return "com.loonext.android.nonprod";
     };
-    expect(await D12.run(missing.ctx)).toMatchObject({ outcome: "infra", component: "apk" });
+    await expect(D12.run(missing.ctx)).resolves.toMatchObject({ outcome: "infra", component: "apk" });
 
     const noScreen = wakeWorld("D12");
     noScreen.pixel.signIn = async () => false;
-    expect(await D12.run(noScreen.ctx)).toMatchObject({ outcome: "infra", component: "apk" });
+    await expect(D12.run(noScreen.ctx)).resolves.toMatchObject({ outcome: "infra", component: "apk" });
 
     const mismatch = wakeWorld("D12");
     mismatch.pixel.install = async (build) => {
       if (build === "current") throw new Error("INSTALL_FAILED_UPDATE_INCOMPATIBLE");
       return "com.loonext.android.nonprod";
     };
-    expect(await D12.run(mismatch.ctx)).toMatchObject({ outcome: "infra", component: "apk" });
+    await expect(D12.run(mismatch.ctx)).resolves.toMatchObject({ outcome: "infra", component: "apk" });
     expect(mismatch.robot.plans).toEqual([]);
   });
 
@@ -878,30 +878,30 @@ describe("D12, upgrade from the previous release", () => {
       if (build === "current") lost.app.targets.delete("qa-a-technician");
       return "com.loonext.android.nonprod";
     };
-    expect(await D12.run(lost.ctx)).toMatchObject({ failure_class: "push_token_not_stored" });
+    await expect(D12.run(lost.ctx)).resolves.toMatchObject({ failure_class: "push_token_not_stored" });
 
     const unwoken = wakeWorld("D12");
     unwoken.pixel.rings = undefined;
-    expect(await D12.run(unwoken.ctx)).toMatchObject({ failure_class: "no_ring_within_12s" });
+    await expect(D12.run(unwoken.ctx)).resolves.toMatchObject({ failure_class: "no_ring_within_12s" });
 
     const muted = wakeWorld("D12");
     muted.audio.heard = null;
-    expect(await D12.run(muted.ctx)).toMatchObject({ failure_class: "device_did_not_hear_robot" });
+    await expect(D12.run(muted.ctx)).resolves.toMatchObject({ failure_class: "device_did_not_hear_robot" });
   });
 
   it("fails a token the upgrade left that is not the device's", async () => {
     const world = wakeWorld("D12");
     world.app.storedTokens.set("qa-a-technician", ["fcm-token-0", "fcm-token-9"]);
-    expect(await D12.run(world.ctx)).toMatchObject({ outcome: "fail", failure_class: "push_token_mismatch", detail: expect.stringContaining("2 token(s)") });
+    await expect(D12.run(world.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "push_token_mismatch", detail: expect.stringContaining("2 token(s)") });
     const kept = wakeWorld("D12");
     kept.app.storedTokens.set("qa-a-technician", ["fcm-token-0", "fcm-token-1"]);
-    expect(await D12.run(kept.ctx)).toEqual(PASSED);
+    await expect(D12.run(kept.ctx)).resolves.toEqual(PASSED);
   });
 
   it("calls a production package critical", async () => {
     const world = wakeWorld("D12");
     world.pixel.install = async (build) => (build === "current" ? "com.loonext.android" : "com.loonext.android.nonprod");
-    expect(await D12.run(world.ctx)).toMatchObject({ failure_class: "not_nonprod_package", critical: true });
+    await expect(D12.run(world.ctx)).resolves.toMatchObject({ failure_class: "not_nonprod_package", critical: true });
   });
 });
 
@@ -938,7 +938,7 @@ describe("D11, unattended recovery", () => {
     const world = recoveryWorld();
     const { ctx, devices, pixel, undo, robot } = world;
     world.greenAfter(3);
-    expect(await D11.run(ctx)).toEqual(PASSED);
+    await expect(D11.run(ctx)).resolves.toEqual(PASSED);
     expect(devices.actions).toEqual([
       "cold restart pixel",
       "shutdown 34",
@@ -972,7 +972,7 @@ describe("D11, unattended recovery", () => {
     const world = recoveryWorld();
     world.greenAfter(Infinity);
     const started = world.time.now;
-    expect(await D11.run(world.ctx)).toMatchObject({ failure_class: "health_not_green_in_10min" });
+    await expect(D11.run(world.ctx)).resolves.toMatchObject({ failure_class: "health_not_green_in_10min" });
     expect(world.polls.at(-1)! - started).toBeLessThanOrEqual(10 * 60_000);
     expect(world.polls.slice(1).every((at, i) => at - world.polls[i]! >= 60_000)).toBe(true);
     expect(world.simulated).toEqual([]);
@@ -1001,7 +1001,7 @@ describe("D11, unattended recovery", () => {
     // A link already down would make its recovery mean nothing, so nothing is disrupted.
     const downBefore = recoveryWorld();
     downBefore.audio.connectedNow = false;
-    expect(await D11.run(downBefore.ctx)).toMatchObject({ outcome: "infra", component: "pixel-audio" });
+    await expect(D11.run(downBefore.ctx)).resolves.toMatchObject({ outcome: "infra", component: "pixel-audio" });
     expect(downBefore.devices.actions).toEqual([]);
   });
 
@@ -1015,7 +1015,7 @@ describe("D11, unattended recovery", () => {
       if (api === 36) bootedAt = late.time.now;
     };
     emulator.reachable = async () => late.time.now - bootedAt >= 2 * 60_000;
-    expect(await D11.run(late.ctx)).toEqual(PASSED);
+    await expect(D11.run(late.ctx)).resolves.toEqual(PASSED);
   });
 
   it("keeps polling past a health run that threw, and records restarts that failed", async () => {
@@ -1031,7 +1031,7 @@ describe("D11, unattended recovery", () => {
       await boot(api);
       if (api === 35) throw new Error("rig: the device is locked and the store has no PIN");
     };
-    expect(await D11.run(world.ctx)).toEqual(PASSED);
+    await expect(D11.run(world.ctx)).resolves.toEqual(PASSED);
     expect((world.ctx.evidence.recovery as { restart_errors: string[] }).restart_errors).toEqual([
       "boot emulator-35: rig: the device is locked and the store has no PIN",
     ]);
@@ -1041,7 +1041,7 @@ describe("D11, unattended recovery", () => {
     const lost = recoveryWorld();
     let seen = 0;
     lost.pixel.reachable = async () => ++seen <= 1;
-    expect(await D11.run(lost.ctx)).toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel") });
+    await expect(D11.run(lost.ctx)).resolves.toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel") });
     expect(lost.simulated).toEqual([]);
 
     const locked = recoveryWorld();
@@ -1049,20 +1049,20 @@ describe("D11, unattended recovery", () => {
       locked.devices.actions.push(`cold restart ${name}`);
       locked.pixel.deviceState.locked = true;
     };
-    expect(await D11.run(locked.ctx)).toEqual(PASSED);
+    await expect(D11.run(locked.ctx)).resolves.toEqual(PASSED);
     expect(locked.pixel.actions).toEqual(["unlock", "tap call_decline", "reset ui"]);
   });
 
   it("fails when D02p fails after recovery, and blames hostd when it cannot cold-restart the device lane", async () => {
     const unwoken = recoveryWorld();
     unwoken.pixel.rings = undefined;
-    expect(await D11.run(unwoken.ctx)).toMatchObject({ failure_class: "no_ring_within_12s" });
+    await expect(D11.run(unwoken.ctx)).resolves.toMatchObject({ failure_class: "no_ring_within_12s" });
 
     const hostless = recoveryWorld();
     hostless.devices.coldRestart = async () => {
       throw new Error("hostd: POST /v1/devices/pixel/kill answered 503");
     };
-    expect(await D11.run(hostless.ctx)).toMatchObject({ outcome: "infra", component: "hostd" });
+    await expect(D11.run(hostless.ctx)).resolves.toMatchObject({ outcome: "infra", component: "hostd" });
     expect(hostless.devices.actions).toEqual([]);
   });
 });
@@ -1101,7 +1101,7 @@ describe("E01, emulator wake", () => {
 
   it("wakes the day's emulator as D02 does, and records the robot hearing its code", async () => {
     const { ctx, device, robot, undo, api } = e01World("wake");
-    expect(await E01.run(ctx)).toEqual(E01_PASSED);
+    await expect(E01.run(ctx)).resolves.toEqual(E01_PASSED);
     expect(undo).toEqual([{ kind: "device.reset", params: { device: `emulator-${api}` } }]);
     expect(device.actions).toEqual(["kill", "force doze", "lock", "tap call_answer"]);
     expect(robot.plans).toHaveLength(1);
@@ -1116,7 +1116,7 @@ describe("E01, emulator wake", () => {
       down.devices.actions.push(`boot ${api}`);
       down.device.reachableNow = true;
     };
-    expect(await E01.run(down.ctx)).toEqual(E01_PASSED);
+    await expect(E01.run(down.ctx)).resolves.toEqual(E01_PASSED);
     expect(down.devices.actions).toEqual(["boot 35"]);
 
     const dead = e01World("wake");
@@ -1124,12 +1124,12 @@ describe("E01, emulator wake", () => {
     dead.devices.bootEmulator = async () => {
       throw new Error("the API 35 emulator did not finish booting");
     };
-    expect(await E01.run(dead.ctx)).toMatchObject({ outcome: "infra", component: "emulator-35" });
+    await expect(E01.run(dead.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-35" });
     expect(dead.undo).toEqual([]);
 
     const unseen = e01World("wake");
     unseen.device.reachableNow = false;
-    expect(await E01.run(unseen.ctx)).toMatchObject({ outcome: "infra", component: "emulator-35" });
+    await expect(E01.run(unseen.ctx)).resolves.toMatchObject({ outcome: "infra", component: "emulator-35" });
   });
 
   it("forgives one level's silence when another was heard this week, and raises emulator-audio-degraded when none was", async () => {
@@ -1148,39 +1148,39 @@ describe("E01, emulator wake", () => {
     const degraded = e01World("wake");
     deafRobot(degraded);
     withHistory(degraded.ctx, [{ run_id: "E01-1", attempt: 1, outcome: "pass", finished_at: "", evidence: { audio: { api: 34, heard: false } } }]);
-    expect(await E01.run(degraded.ctx)).toMatchObject({ outcome: "fail", failure_class: "emulator-audio-degraded" });
+    await expect(E01.run(degraded.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "emulator-audio-degraded" });
 
     const firstWeek = e01World("wake");
     deafRobot(firstWeek);
-    expect(await E01.run(firstWeek.ctx)).toMatchObject({ outcome: "fail", failure_class: "emulator-audio-degraded" });
+    await expect(E01.run(firstWeek.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "emulator-audio-degraded" });
   });
 
   it("fails a wake that does not ring, or rings with a refused push, whatever the audio did", async () => {
     const silent = e01World("wake");
     silent.device.rings = undefined;
-    expect(await E01.run(silent.ctx)).toMatchObject({ failure_class: "no_ring_within_12s" });
+    await expect(E01.run(silent.ctx)).resolves.toMatchObject({ failure_class: "no_ring_within_12s" });
 
     const refused = e01World("wake");
     refused.script.push.priority = "normal";
-    expect(await E01.run(refused.ctx)).toMatchObject({ failure_class: "push_not_high_priority" });
+    await expect(E01.run(refused.ctx)).resolves.toMatchObject({ failure_class: "push_not_high_priority" });
   });
 
   it("must not ring with notifications revoked", async () => {
     const quiet = e01World("notifications revoked", 36);
     quiet.device.rings = undefined;
-    expect(await E01.run(quiet.ctx)).toEqual(PASSED);
+    await expect(E01.run(quiet.ctx)).resolves.toEqual(PASSED);
     expect(quiet.device.actions).toEqual(["notifications revoked"]);
     expect(quiet.undo).toEqual([{ kind: "device.reset", params: { device: "emulator-36" } }]);
     expect(quiet.robot.plans[0]).toMatchObject({ to: "DEV-E1", play: null, record: false, hangup_before_answer_ms: 18_000 });
 
     const rang = e01World("notifications revoked", 36);
-    expect(await E01.run(rang.ctx)).toMatchObject({ failure_class: "rang_with_notifications_revoked" });
+    await expect(E01.run(rang.ctx)).resolves.toMatchObject({ failure_class: "rang_with_notifications_revoked" });
   });
 
   it("must not ring force-stopped, and opens the app again on release", async () => {
     const quiet = e01World("force-stopped", 34);
     quiet.device.rings = undefined;
-    expect(await E01.run(quiet.ctx)).toEqual(PASSED);
+    await expect(E01.run(quiet.ctx)).resolves.toEqual(PASSED);
     expect(quiet.device.actions).toEqual(["force-stop"]);
     expect(quiet.undo).toEqual([
       { kind: "device.reset", params: { device: "emulator-34" } },
@@ -1188,29 +1188,29 @@ describe("E01, emulator wake", () => {
     ]);
 
     const rang = e01World("force-stopped", 34);
-    expect(await E01.run(rang.ctx)).toMatchObject({ failure_class: "rang_when_force_stopped" });
+    await expect(E01.run(rang.ctx)).resolves.toMatchObject({ failure_class: "rang_when_force_stopped" });
 
     // Quiet because the call never reached the API proves nothing.
     const unpushed = e01World("force-stopped", 34);
     unpushed.device.rings = undefined;
     unpushed.script.pushes = false;
-    expect(await E01.run(unpushed.ctx)).toMatchObject({ failure_class: "no_push_attempt" });
+    await expect(E01.run(unpushed.ctx)).resolves.toMatchObject({ failure_class: "no_push_attempt" });
   });
 
   it("blames the rig for a variant it does not know, or a refused dial", async () => {
     const unknown = e01World("upside down");
-    expect(await E01.run(unknown.ctx)).toMatchObject({ outcome: "infra", component: "runner" });
+    await expect(E01.run(unknown.ctx)).resolves.toMatchObject({ outcome: "infra", component: "runner" });
 
     const refused = e01World("notifications revoked");
     refusedDial(refused);
-    expect(await E01.run(refused.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    await expect(E01.run(refused.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
   });
 });
 
 describe("the wake runners' budgets", () => {
-  const scenarios = (JSON.parse(readFileSync(join(REPO, "tools", "rig", "scenarios.json"), "utf8")) as {
+  const {scenarios} = (JSON.parse(readFileSync(join(REPO, "tools", "rig", "scenarios.json"), "utf8")) as {
     scenarios: { id: string; dials: number; far_end_legs: number; runs: { label?: string }[] }[];
-  }).scenarios;
+  });
   const runners: [ScenarioRunner, (world: ReturnType<typeof wakeWorld>) => void][] = [
     [D02, () => undefined],
     [D02p, () => undefined],

@@ -34,7 +34,8 @@
  * the people best placed to notice a wrong one are the people who work there.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Hono, type Context } from "hono";
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
@@ -47,7 +48,8 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
 import { renderEmailHtml } from "../email/html";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { errorResponse } from "../http/errors";
 import { parseJsonBody, unwrap } from "./core/http";
 
@@ -112,7 +114,7 @@ async function loadState(db: SupabaseClient, companyId: string): Promise<Ownersh
  */
 function viewFor(state: OwnershipState, userId: string) {
   const isOwner = state.owner_user_id === userId;
-  const pending = state.pending;
+  const {pending} = state;
   return {
     owner_member_id: state.owner_member_id,
     backup_member_id: state.backup_member_id,
@@ -166,22 +168,26 @@ ownershipRoutes.post(
     const result = data as { outcome: string };
 
     switch (result.outcome) {
-      case "not_found":
+      case "not_found": {
         return errorResponse(c, "not_found", "No such workspace.");
-      case "forbidden":
+      }
+      case "forbidden": {
         return errorResponse(c, "forbidden", "Only the owner can name a backup.");
-      case "no_member":
+      }
+      case "no_member": {
         return errorResponse(
           c,
           "validation_failed",
           "Name someone who is still on the team.",
         );
-      case "self":
+      }
+      case "self": {
         return errorResponse(
           c,
           "validation_failed",
           "A backup who is you is not a backup. Name somebody else.",
         );
+      }
     }
 
     await recordAuditFromRequest(db, c, {
@@ -205,11 +211,11 @@ ownershipRoutes.post(
           emails,
           `You are the backup owner for ${name}`,
           `${name}'s owner has named you as their backup.\n\n` +
-            "That means one thing: if they ever cannot act — they leave, they " +
-            "lose access to their email, or worse — you can ask to take over " +
-            "the workspace. They get a week to say no, and everyone on the " +
-            "team is told. Nothing changes today.\n\n" +
-            handoverLink(env),
+            `That means one thing: if they ever cannot act — they leave, they ` +
+            `lose access to their email, or worse — you can ask to take over ` +
+            `the workspace. They get a week to say no, and everyone on the ` +
+            `team is told. Nothing changes today.\n\n${ 
+            handoverLink(env)}`,
         );
       });
     }
@@ -362,24 +368,29 @@ ownershipRoutes.post(
     const result = data as { outcome: string; to_user_id?: string };
 
     switch (result.outcome) {
-      case "not_found":
+      case "not_found": {
         return errorResponse(c, "not_found", "No such workspace.");
-      case "forbidden":
+      }
+      case "forbidden": {
         return errorResponse(c, "forbidden", "Only the owner can hand it over.");
-      case "no_member":
+      }
+      case "no_member": {
         return errorResponse(
           c,
           "validation_failed",
           "Hand it to someone who is still on the team.",
         );
-      case "self":
+      }
+      case "self": {
         return errorResponse(c, "validation_failed", "You already own it.");
-      case "in_flight":
+      }
+      case "in_flight": {
         return errorResponse(
           c,
           "conflict",
           "A handover is already in progress. Cancel that one first.",
         );
+      }
     }
 
     await recordAuditFromRequest(db, c, {
@@ -394,10 +405,10 @@ ownershipRoutes.post(
       subject: `${name}: ownership has been offered to a teammate`,
       body:
         `The owner of ${name} has offered ownership of the workspace to a ` +
-        "teammate. Nothing has changed yet — it takes effect only if they " +
-        "accept, and the owner can cancel until then.\n\n" +
-        "If this is not something you expected, tell the owner now.\n\n" +
-        handoverLink(env),
+        `teammate. Nothing has changed yet — it takes effect only if they ` +
+        `accept, and the owner can cancel until then.\n\n` +
+        `If this is not something you expected, tell the owner now.\n\n${ 
+        handoverLink(env)}`,
     }));
 
     return c.json(viewFor(await loadState(db, companyId), c.get("userId")));
@@ -431,9 +442,10 @@ ownershipRoutes.post(
     const result = data as { outcome: string; ripens_at?: string };
 
     switch (result.outcome) {
-      case "not_found":
+      case "not_found": {
         return errorResponse(c, "not_found", "No such workspace.");
-      case "forbidden":
+      }
+      case "forbidden": {
         // Says nothing about who the backup IS. Somebody probing this route
         // learns only that it is not them.
         return errorResponse(
@@ -441,12 +453,14 @@ ownershipRoutes.post(
           "forbidden",
           "Only the person the owner named as backup can do this.",
         );
-      case "in_flight":
+      }
+      case "in_flight": {
         return errorResponse(
           c,
           "conflict",
           "A handover is already in progress.",
         );
+      }
     }
 
     await recordAuditFromRequest(db, c, {
@@ -463,12 +477,12 @@ ownershipRoutes.post(
       subject: `Action needed: someone is asking to take over ${name}`,
       body:
         `The backup owner of ${name} has asked to take over the workspace. ` +
-        "This happens when the owner cannot act — but if the owner is fine, " +
-        "it should be stopped.\n\n" +
-        "IF YOU ARE THE OWNER AND DID NOT EXPECT THIS: open the link below " +
-        "and cancel it. That takes effect immediately.\n\n" +
-        "If nobody cancels, the handover completes in 7 days.\n\n" +
-        handoverLink(env),
+        `This happens when the owner cannot act — but if the owner is fine, ` +
+        `it should be stopped.\n\n` +
+        `IF YOU ARE THE OWNER AND DID NOT EXPECT THIS: open the link below ` +
+        `and cancel it. That takes effect immediately.\n\n` +
+        `If nobody cancels, the handover completes in 7 days.\n\n${ 
+        handoverLink(env)}`,
     }));
 
     return c.json(viewFor(await loadState(db, companyId), c.get("userId")));
@@ -507,28 +521,33 @@ ownershipRoutes.post(
     };
 
     switch (result.outcome) {
-      case "none":
+      case "none": {
         return errorResponse(c, "not_found", "There is nothing to accept.");
-      case "forbidden":
+      }
+      case "forbidden": {
         return errorResponse(c, "forbidden", "This handover is not yours to take.");
-      case "expired":
+      }
+      case "expired": {
         return errorResponse(
           c,
           "conflict",
           "That offer has expired. Ask the owner to make it again.",
         );
-      case "not_yet":
+      }
+      case "not_yet": {
         return errorResponse(
           c,
           "conflict",
           "The waiting period has not finished yet.",
         );
-      case "no_member":
+      }
+      case "no_member": {
         return errorResponse(
           c,
           "forbidden",
           "You are no longer on this team.",
         );
+      }
     }
 
     await recordAuditFromRequest(db, c, {
@@ -547,11 +566,11 @@ ownershipRoutes.post(
       subject: `${name} has a new owner`,
       body:
         `Ownership of ${name} has changed hands. The previous owner is now an ` +
-        "admin and keeps working here; the new owner controls billing, " +
-        "numbers, and the spending cap.\n\n" +
-        "If this is not what you understood to be happening, say so now — " +
-        "this is on the workspace's history and can be traced.\n\n" +
-        handoverLink(env),
+        `admin and keeps working here; the new owner controls billing, ` +
+        `numbers, and the spending cap.\n\n` +
+        `If this is not what you understood to be happening, say so now — ` +
+        `this is on the workspace's history and can be traced.\n\n${ 
+        handoverLink(env)}`,
     }));
 
     return c.json(viewFor(await loadState(db, companyId), c.get("userId")));
@@ -575,14 +594,16 @@ ownershipRoutes.post(
     const result = data as { outcome: string; kind?: string };
 
     switch (result.outcome) {
-      case "none":
+      case "none": {
         return errorResponse(c, "not_found", "There is nothing in progress.");
-      case "forbidden":
+      }
+      case "forbidden": {
         return errorResponse(
           c,
           "forbidden",
           "Only the owner or the person it involves can stop this.",
         );
+      }
     }
 
     const declined = result.outcome === "declined";
@@ -598,8 +619,8 @@ ownershipRoutes.post(
       subject: `${name}: the ownership handover was stopped`,
       body:
         `The handover of ${name} has been ${declined ? "declined" : "cancelled"}. ` +
-        "Nothing changed — the workspace has the same owner it had before.\n\n" +
-        handoverLink(env),
+        `Nothing changed — the workspace has the same owner it had before.\n\n${ 
+        handoverLink(env)}`,
     }));
 
     return c.json(viewFor(await loadState(db, companyId), c.get("userId")));
@@ -649,10 +670,10 @@ async function notify(
   const env = getEnv(c.env);
   try {
     await work(env, getDb(env));
-  } catch (cause) {
+  } catch (error) {
     console.error(
       "ownership notification failed:",
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }

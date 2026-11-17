@@ -7,15 +7,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  INITIAL_SOFTPHONE_STATE,
-  isTerminalSdkState,
-  phaseFromSdkState,
-  sessionIdForPlacedCall,
-  softphoneReducer,
-  type SoftphoneAction,
-  type SoftphoneState,
-} from "./state";
+import { INITIAL_SOFTPHONE_STATE, isTerminalSdkState, phaseFromSdkState, sessionIdForPlacedCall, softphoneReducer } from './state';
+import type { SoftphoneAction, SoftphoneState } from './state';
 
 function run(actions: SoftphoneAction[]): SoftphoneState {
   return actions.reduce(softphoneReducer, INITIAL_SOFTPHONE_STATE);
@@ -24,7 +17,7 @@ function run(actions: SoftphoneAction[]): SoftphoneState {
 const PEER_A = { name: "Dana Roofer", number: "+16135551000" };
 const PEER_B = { name: "Sam Plumber", number: "+16135552000" };
 
-describe("phaseFromSdkState", () => {
+describe(phaseFromSdkState, () => {
   it("maps the SDK vocabulary onto the UI phases", () => {
     for (const s of ["new", "trying", "requesting", "recovering", "ringing", "early"]) {
       expect(phaseFromSdkState(s)).toBe("connecting");

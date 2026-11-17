@@ -9,7 +9,8 @@
  * without anyone noticing: a language quietly stubbed with the English, and an
  * interpolated value that got lost in the rewording.
  */
-import { LOCALES, type Locale } from "@loonext/shared";
+import { LOCALES } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 import { describe, expect, it } from "vitest";
 
 import { POOR_RATING_PUSH_COPY } from "./job-ratings-copy";

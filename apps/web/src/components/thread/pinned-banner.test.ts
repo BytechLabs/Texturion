@@ -5,15 +5,15 @@ import { describe, expect, it } from "vitest";
 import type { Message } from "@/lib/api/types";
 
 import {
-  PinnedStack,
   pinnedSnippet,
+  PinnedStack,
   sortPinned,
 } from "./pinned-banner";
 
 /** Minimal shape — the helpers only read body/attachments/pinned_at/id. */
 const m = (over: Partial<Message>) => over as Message;
 
-describe("pinnedSnippet", () => {
+describe(pinnedSnippet, () => {
   it("shows the trimmed body when present", () => {
     expect(pinnedSnippet(m({ body: "  Gate code 4821 ", attachments: [] }))).toBe(
       "Gate code 4821",
@@ -52,7 +52,7 @@ describe("pinnedSnippet", () => {
   });
 });
 
-describe("sortPinned", () => {
+describe(sortPinned, () => {
   it("keeps only pinned messages", () => {
     const out = sortPinned([
       m({ id: "a", pinned_at: "2026-07-04T10:00:00Z" }),

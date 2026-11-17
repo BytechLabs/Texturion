@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -71,7 +71,7 @@ function isCommentLine(source: string, index: number): boolean {
 function searchOnlyNavigations(source: string): number[] {
   const lines: number[] = [];
   for (const match of source.matchAll(CALL)) {
-    const index = match.index;
+    const {index} = match;
     if (isCommentLine(source, index)) continue;
     const args = callArguments(source, index + match[0].length);
     const first = firstArgument(args);

@@ -9,7 +9,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { deleteCompaniesSql } from "./company-cleanup";
-import { startHarness, type Harness } from "./harness";
+import { startHarness } from './harness';
+import type { Harness } from './harness';
 
 let h: Harness;
 
@@ -103,7 +104,7 @@ async function threadAndMessageCounts(): Promise<{ threads: number; messages: nu
 describe("#695 a wrong merge is undone end to end", () => {
   it("merges, hides the folded record, then unmerges with every thread and message kept", async () => {
     const token = await h.token(OWNER_ID);
-    expect((await listedContactIds(token)).sort()).toEqual([KEPT_ID, FOLDED_ID].sort());
+    expect((await listedContactIds(token)).toSorted()).toEqual([KEPT_ID, FOLDED_ID].toSorted());
 
     const merged = await h.call("POST", `/v1/contacts/${FOLDED_ID}/merge`, {
       token,
@@ -111,8 +112,8 @@ describe("#695 a wrong merge is undone end to end", () => {
       body: { into_contact_id: KEPT_ID },
     });
     expect(merged.status).toBe(200);
-    expect(await listedContactIds(token)).toEqual([KEPT_ID]);
-    expect(await threadAndMessageCounts()).toEqual({ threads: 2, messages: 2 });
+    await expect(listedContactIds(token)).resolves.toEqual([KEPT_ID]);
+    await expect(threadAndMessageCounts()).resolves.toEqual({ threads: 2, messages: 2 });
 
     const unmerged = await h.call("POST", `/v1/contacts/${FOLDED_ID}/unmerge`, {
       token,
@@ -120,13 +121,13 @@ describe("#695 a wrong merge is undone end to end", () => {
     });
     expect(unmerged.status).toBe(200);
 
-    expect((await listedContactIds(token)).sort()).toEqual([KEPT_ID, FOLDED_ID].sort());
+    expect((await listedContactIds(token)).toSorted()).toEqual([KEPT_ID, FOLDED_ID].toSorted());
     const restored = await h.db
       .from("contacts")
       .select("id,phone_e164,merged_into")
       .eq("id", FOLDED_ID)
       .single();
     expect(restored.data).toMatchObject({ phone_e164: FOLDED_PHONE, merged_into: null });
-    expect(await threadAndMessageCounts()).toEqual({ threads: 2, messages: 2 });
+    await expect(threadAndMessageCounts()).resolves.toEqual({ threads: 2, messages: 2 });
   });
 });

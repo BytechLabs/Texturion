@@ -2,7 +2,8 @@ import { Hono } from "hono";
 
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { captureEvent, SYSTEM_DISTINCT_ID } from "../observability/capture";
 
 /**
@@ -74,7 +75,7 @@ export async function verifyResendSignature(
 
   const key = await crypto.subtle.importKey(
     "raw",
-    keyBytes as BufferSource,
+    keyBytes,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
@@ -187,9 +188,9 @@ export async function processResendEvent(env: Env, event: ResendEvent): Promise<
   const db = getDb(env);
   const recipients = Array.isArray(event.data?.to)
     ? event.data.to
-    : event.data?.to
+    : (event.data?.to
       ? [event.data.to]
-      : [];
+      : []);
   const occurredAt = event.created_at ?? new Date().toISOString();
 
   for (const address of recipients) {
@@ -233,14 +234,14 @@ async function processAndStamp(
       .eq("provider", "resend")
       .eq("event_id", eventId);
     if (error) throw new Error(`webhook_events stamp failed: ${error.message}`);
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error(`resend webhook ${eventId} (${event.type}) failed:`, message);
     await db
       .from("webhook_events")
       .update({ last_error: message })
       .eq("provider", "resend")
       .eq("event_id", eventId);
-    throw cause;
+    throw error;
   }
 }

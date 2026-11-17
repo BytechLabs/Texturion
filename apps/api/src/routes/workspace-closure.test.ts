@@ -8,21 +8,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type FetchRoute,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { workspaceClosureRoutes } from "./workspace-closure";
 
 
@@ -184,7 +173,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
     const res = await close(routes);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       already_closed: false,
       purge_after: PURGE_AFTER,
       sessions_ended: 2,
@@ -239,7 +228,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
     const res = await close(failing);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       already_closed: false,
       numbers_released: 0,
       subscription_cancelled: false,
@@ -257,7 +246,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
     const res = await close(routes);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       already_closed: true,
       purge_after: PURGE_AFTER,
       sessions_ended: 0,
@@ -324,7 +313,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
       const { sb, routes, emails } = world();
       const res = await close(routes);
 
-      expect(await res.json()).toMatchObject({ receipt_emailed: true });
+      await expect(res.json()).resolves.toMatchObject({ receipt_emailed: true });
       expect(emails).toHaveLength(1);
       expect(emails[0].to).toEqual(["owner@acme.test"]);
       expect(emails[0].subject).toBe("Acme Plumbing is closed");
@@ -366,7 +355,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
       const res = await close(failing);
 
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         already_closed: false,
         receipt_emailed: false,
       });
@@ -397,7 +386,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
       const res = await close(routes, null);
 
       expect(res.status).toBe(403);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         error: { code: "confirmation_code_required" },
       });
       // And nothing happened: no teardown, no released number, no cancelled
@@ -413,7 +402,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
       expect(res.status).toBe(403);
       // One message for wrong, expired, spent and out of attempts — naming which
       // would say whether the digits were right.
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         error: { code: "confirmation_code_required" },
       });
       expect(sb.find("POST", "/rest/v1/rpc/close_workspace")).toHaveLength(0);
@@ -426,7 +415,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
       const res = await close(routes, { confirmation_code: "123456" });
 
       expect(res.status).toBe(403);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
       // #581/#7: the code changed, the property did not. `mfa_challenge_required`
       // is the wall in front of the whole workspace; `mfa_reprove_required` is
       // "tap your authenticator for THIS act". The old assertion also passed for

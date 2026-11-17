@@ -1,38 +1,16 @@
-import {
-  queryOptions,
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type InfiniteData,
-  type QueryClient,
-  type QueryKey,
-  type UseMutationOptions,
-} from "@tanstack/react-query";
+import { queryOptions, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { InfiniteData, QueryClient, QueryKey, UseMutationOptions } from '@tanstack/react-query';
 import { useCallback, useMemo } from "react";
 
 import type { DeferralKind, WorkPhase } from "@loonext/shared";
 
 import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
 
-import {
-  changesSomething,
-  findListRow,
-  listApplyConversation,
-  listPatchConversation,
-  listSetUnread,
-  pinMutationPatch,
-  snippetFromMessage,
-  threadUpsertMessages,
-  type ConversationListData,
-  type ThreadData,
-} from "./cache";
+import { changesSomething, findListRow, listApplyConversation, listPatchConversation, listSetUnread, pinMutationPatch, snippetFromMessage, threadUpsertMessages } from './cache';
+import type { ConversationListData, ThreadData } from './cache';
 import { apiFetch } from "./client";
-import {
-  conversationMatchesFilters,
-  normalizeFilters,
-  type ConversationFilters,
-} from "./filters";
+import { conversationMatchesFilters, normalizeFilters } from './filters';
+import type { ConversationFilters } from './filters';
 import type {
   BulkConversationsBody,
   BulkConversationsResult,
@@ -139,7 +117,7 @@ export function fetchConversationDetail(
 export function filtersFromListKey(
   queryKey: readonly unknown[],
 ): ConversationFilters {
-  return (queryKey[3] ?? {}) as ConversationFilters;
+  return (queryKey[3] ?? {});
 }
 
 /**
@@ -1067,7 +1045,7 @@ export function useAttachTag(conversationId: string) {
           ? { ...page, data: [...page.data, tag] }
           : page,
       );
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.conversations.events(companyId, conversationId),
         refetchType: "active",
       });
@@ -1091,7 +1069,7 @@ export function useDetachTag(conversationId: string) {
     onError: () => reconcileConversation(queryClient, companyId, conversationId),
     onSuccess: (_void, tagId) => {
       applyTagChange(queryClient, companyId, conversationId, withoutTag(tagId));
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.conversations.events(companyId, conversationId),
         refetchType: "active",
       });
@@ -1129,15 +1107,15 @@ export function useBulkConversations() {
     onSuccess: () => {
       // Everything: lists, the pinned supplement, the spam strip, and the unread
       // badge can all move in one call.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.conversations.lists(companyId),
         refetchType: "active",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.conversations.pinnedRoot(companyId),
         refetchType: "active",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.spamReview(companyId),
         refetchType: "active",
       });

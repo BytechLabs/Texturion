@@ -1,15 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  companyLocalMoment,
-  hasBusinessHours,
-  isAfterHours,
-  isValidBusinessHours,
-  parseHhmm,
-  type BusinessHours,
-} from "./business-hours";
+import { companyLocalMoment, hasBusinessHours, isAfterHours, isValidBusinessHours, parseHhmm } from './business-hours';
+import type { BusinessHours } from './business-hours';
 
-describe("parseHhmm", () => {
+describe(parseHhmm, () => {
   it("parses valid HH:MM to minutes", () => {
     expect(parseHhmm("00:00")).toBe(0);
     expect(parseHhmm("08:30")).toBe(510);
@@ -26,7 +20,7 @@ describe("parseHhmm", () => {
   });
 });
 
-describe("isValidBusinessHours", () => {
+describe(isValidBusinessHours, () => {
   it("accepts an empty map and well-formed weekday windows", () => {
     expect(isValidBusinessHours({})).toBe(true);
     expect(
@@ -49,7 +43,7 @@ describe("isValidBusinessHours", () => {
   });
 });
 
-describe("companyLocalMoment", () => {
+describe(companyLocalMoment, () => {
   it("resolves weekday + minutes in the company zone", () => {
     // 2026-07-01 is a Wednesday. 16:00Z → 12:00 in America/Toronto (EDT).
     const m = companyLocalMoment(
@@ -66,7 +60,7 @@ describe("companyLocalMoment", () => {
   });
 });
 
-describe("isAfterHours", () => {
+describe(isAfterHours, () => {
   const hours: BusinessHours = {
     mon: { open: "08:00", close: "17:00" },
     tue: { open: "08:00", close: "17:00" },
@@ -143,7 +137,7 @@ describe("isAfterHours", () => {
   });
 });
 
-describe("hasBusinessHours", () => {
+describe(hasBusinessHours, () => {
   it("is false for unset hours (null, empty map, all-closed days)", () => {
     expect(hasBusinessHours(null)).toBe(false);
     expect(hasBusinessHours({})).toBe(false);

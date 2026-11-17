@@ -97,10 +97,10 @@ export async function geocodeAddress(
       // Bound the call so a hung Nominatim can't stall the serial batch cron.
       signal: AbortSignal.timeout(NOMINATIM_TIMEOUT_MS),
     });
-  } catch (cause) {
+  } catch (error) {
     return {
       status: "failed",
-      reason: cause instanceof Error ? cause.message : String(cause),
+      reason: error instanceof Error ? error.message : String(error),
     };
   }
 

@@ -11,25 +11,10 @@ import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
-import {
-  hasLiveSubscription,
-  PLAN_IDS,
-  PLAN_LIMITS,
-  planForLicensedPrice,
-  planPrices,
-  PREPAY_MONTHS,
-  prepayYearPrice,
-  type LocalSubscriptionStatus,
-  type PlanId,
-} from "../billing/plans";
-import {
-  PAUSE_PRORATION,
-  pauseEligibility,
-  pausePriceSnapshot,
-  pausedLicensedItem,
-  planLicensedItem,
-  type PauseEligibility,
-} from "../billing/pause";
+import { hasLiveSubscription, PLAN_IDS, PLAN_LIMITS, planForLicensedPrice, planPrices, PREPAY_MONTHS, prepayYearPrice } from '../billing/plans';
+import type { LocalSubscriptionStatus, PlanId } from '../billing/plans';
+import { PAUSE_PRORATION, pausedLicensedItem, pauseEligibility, pausePriceSnapshot, planLicensedItem } from '../billing/pause';
+import type { PauseEligibility } from '../billing/pause';
 import { enabledModules, isSellableModule } from "../billing/company-modules";
 import {
   allExtraNumberPrices,
@@ -50,36 +35,35 @@ import {
   conversionPreview,
   convertPrepaidYear,
   openPrepayment,
+  prepaidCouponPending,
   PREPAY_METADATA_FIELD,
   PREPAY_METADATA_KIND,
   PREPAY_PLAN_FIELD,
-  prepaidCouponPending,
   prepayEligibility,
 } from "../billing/prepay";
 import {
   allVoiceOveragePrices,
+  isPlanModule,
   MODULE_CATALOG,
   MODULE_PRICE_CURRENCY,
   moduleForPrice,
   modulePrice,
   PLAN_MODULES,
   voiceOveragePrice,
-  isPlanModule,
 } from "../billing/modules";
-import {
-  owesUsRegistration,
-  registrationDraftComplete,
-  type RegistrationRow,
-} from "../billing/registration-draft";
+import { owesUsRegistration, registrationDraftComplete } from '../billing/registration-draft';
+import type { RegistrationRow } from '../billing/registration-draft';
 import {
   applyPriceToSchedulePhases,
 } from "../billing/schedule-phases";
 import { payPendingReferralRewards } from "../referrals/referrals";
-import { getStripe, type Stripe } from "../billing/stripe";
+import { getStripe } from '../billing/stripe';
+import type { Stripe } from '../billing/stripe';
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { callerIp } from "../public-links/guard";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { ApiError, errorResponse } from "../http/errors";
 import { expectOk, parseJsonBody } from "./core/http";
 import {

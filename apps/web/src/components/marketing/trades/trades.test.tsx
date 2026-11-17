@@ -1,4 +1,4 @@
-import { type ReactNode } from "react";
+import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
@@ -22,15 +22,8 @@ import {
   SIGNUP_HREF,
 } from "@/components/marketing/nav-links";
 
-import {
-  CLEANERS_SCRIPT,
-  CONTRACTORS_SCRIPT,
-  HVAC_SCRIPT,
-  LANDSCAPERS_SCRIPT,
-  PLUMBERS_SCRIPT,
-  SALONS_SCRIPT,
-  type TradeScript,
-} from "./scripts";
+import { CLEANERS_SCRIPT, CONTRACTORS_SCRIPT, HVAC_SCRIPT, LANDSCAPERS_SCRIPT, PLUMBERS_SCRIPT, SALONS_SCRIPT } from './scripts';
+import type { TradeScript } from './scripts';
 import { SavedRepliesPicker } from "./saved-replies-picker";
 import { THREAD_CAPTION } from "./trade-page";
 import { TradeThread } from "./trade-thread";
@@ -69,11 +62,11 @@ const CAD = money("cad");
 /** React's static-markup escaping, so deck strings compare verbatim. */
 function esc(s: string): string {
   return s
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#x27;");
+    .replaceAll('&', "&amp;")
+    .replaceAll('<', "&lt;")
+    .replaceAll('>', "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll('\'', "&#x27;");
 }
 
 interface TradePageCase {

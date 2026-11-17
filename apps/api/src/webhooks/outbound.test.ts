@@ -59,7 +59,7 @@ async function verifySignature(
   return hex === match[2];
 }
 
-describe("enqueueWebhookEvent", () => {
+describe(enqueueWebhookEvent, () => {
   it("writes one delivery per subscribed endpoint, and the envelope carries the row's own id", async () => {
     const select = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [
       { id: ENDPOINT },
@@ -154,7 +154,7 @@ function endpointRow(overrides: Partial<Record<string, unknown>> = {}) {
   };
 }
 
-describe("deliverWebhookBatch", () => {
+describe(deliverWebhookBatch, () => {
   it("signs the exact bytes it sends, with the timestamp inside the signature", async () => {
     const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [claimed()]);
     const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () => [endpointRow()]);

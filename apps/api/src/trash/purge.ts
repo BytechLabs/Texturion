@@ -129,12 +129,12 @@ export async function purgeTrash(
     try {
       const result = await purgeTrashItem(db, row.kind, row.id, null);
       if (result.outcome === "purged") summary.purged += 1;
-    } catch (cause) {
+    } catch (error_) {
       summary.failed += 1;
-      failures.push(cause);
+      failures.push(error_);
       console.error(
         `trash purge failed for ${row.kind} ${row.id}:`,
-        cause instanceof Error ? (cause.stack ?? cause.message) : String(cause),
+        error_ instanceof Error ? (error_.stack ?? error_.message) : String(error_),
       );
     }
   }

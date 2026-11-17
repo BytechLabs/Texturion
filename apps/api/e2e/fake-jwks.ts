@@ -10,10 +10,12 @@
  * Lives under apps/api/e2e/ ONLY; never imported by src/ (no mocks in product
  * code — the hard rule).
  */
-import { createServer, type Server } from "node:http";
+import { createServer } from 'node:http';
+import type { Server } from 'node:http';
 import type { AddressInfo } from "node:net";
 
-import { exportJWK, generateKeyPair, SignJWT, type JWK } from "jose";
+import { exportJWK, generateKeyPair, SignJWT } from 'jose';
+import type { JWK } from 'jose';
 
 export interface JwksAuth {
   /** Origin the JWKS is served from, e.g. `http://127.0.0.1:53111`. */
@@ -47,7 +49,7 @@ export async function startFakeJwks(): Promise<JwksAuth> {
   };
 
   const server: Server = createServer((req, res) => {
-    if (req.url && req.url.startsWith("/auth/v1/.well-known/jwks.json")) {
+    if (req.url?.startsWith("/auth/v1/.well-known/jwks.json")) {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ keys: [jwk] }));
       return;
@@ -57,7 +59,7 @@ export async function startFakeJwks(): Promise<JwksAuth> {
   });
 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const port = (server.address() as AddressInfo).port;
+  const {port} = (server.address() as AddressInfo);
   const origin = `http://127.0.0.1:${port}`;
 
   return {

@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import { isTaskEventType, taskEventSentence } from "./task-activity";
 
 const name = (id: string | null): string | null =>
-  id === "u-marcus" ? "Marcus" : id === "u-jordan" ? "Jordan" : null;
+  id === "u-marcus" ? "Marcus" : (id === "u-jordan" ? "Jordan" : null);
 
-describe("taskEventSentence", () => {
+describe(taskEventSentence, () => {
   it("renders the create line", () => {
     expect(
       taskEventSentence(
@@ -82,7 +82,7 @@ describe("taskEventSentence", () => {
   });
 });
 
-describe("isTaskEventType", () => {
+describe(isTaskEventType, () => {
   it("is true for task_* types and false otherwise", () => {
     expect(isTaskEventType("task_created")).toBe(true);
     expect(isTaskEventType("task_assigned")).toBe(true);

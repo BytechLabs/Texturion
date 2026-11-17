@@ -74,9 +74,9 @@ describe("#280 the saved-view filter table mirrors the inbox list endpoint", () 
 
     expect(
       unstorable,
-      `\n\nGET /v1/conversations accepts these and a saved view cannot hold them:\n` +
-        unstorable.map((key) => `  ${key}`).join("\n") +
-        `\n\n\`sanitizeFilters\` DROPS an unknown key rather than failing, so a view\n` +
+      `\n\nGET /v1/conversations accepts these and a saved view cannot hold them:\n${ 
+        unstorable.map((key) => `  ${key}`).join("\n") 
+        }\n\n\`sanitizeFilters\` DROPS an unknown key rather than failing, so a view\n` +
         `saved with one of these reopens without it and nobody is told. Either add\n` +
         `it to FILTERS.conversations in packages/shared/src/saved-views.ts, or add\n` +
         `it to NOT_A_FILTER here with the reason it is not a standing view.\n`,
@@ -93,9 +93,9 @@ describe("#280 the saved-view filter table mirrors the inbox list endpoint", () 
 
     expect(
       orphaned,
-      `\n\nThe saved-view table holds filters GET /v1/conversations does not accept:\n` +
-        orphaned.map((key) => `  ${key}`).join("\n") +
-        `\n\nA view can be saved with one and it will do nothing on read. Either the\n` +
+      `\n\nThe saved-view table holds filters GET /v1/conversations does not accept:\n${ 
+        orphaned.map((key) => `  ${key}`).join("\n") 
+        }\n\nA view can be saved with one and it will do nothing on read. Either the\n` +
         `endpoint should accept it, or it belongs in RESOLVED_BEFORE_THE_REQUEST\n` +
         `here with the reason the endpoint never sees it.\n`,
     ).toEqual([]);

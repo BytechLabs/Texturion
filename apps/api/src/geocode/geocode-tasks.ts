@@ -121,9 +121,9 @@ export async function geocodeTasksJob(
     const status =
       result.status === "ok"
         ? "ok"
-        : result.status === "not_found"
+        : (result.status === "not_found"
           ? "no_address"
-          : "failed";
+          : "failed");
     const patch: Record<string, unknown> = {
       geocode_status: status,
       geocoded_at: new Date().toISOString(),

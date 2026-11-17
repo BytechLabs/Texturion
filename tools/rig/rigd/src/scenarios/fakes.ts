@@ -107,7 +107,7 @@ export class FakeRobot implements RobotApi {
 
   async wait(planId: string) {
     const plan = this.plans[Number(planId.slice("plan-".length))]!;
-    return { ...this.#record(plan, "done"), ...this.outcome(plan) } as CallRecord;
+    return { ...this.#record(plan, "done"), ...this.outcome(plan) };
   }
 
   async sms(message: { from_role: string; to_role: string; text: string; media?: "gps-jpeg" }) {
@@ -586,7 +586,7 @@ export class FakeBrowser implements BrowserApi {
   readonly opened: { member: string; surface: Surface; path?: string; push?: boolean }[] = [];
   readonly publicPages: string[] = [];
   readonly actions: string[] = [];
-  script: FakePageScript = { ringsAfterMs: 1_500, heard: "robot", energyBeforeAnswer: 0.4, showsText: true, clearsAfterMs: 500 };
+  script: FakePageScript = { ringsAfterMs: 1500, heard: "robot", energyBeforeAnswer: 0.4, showsText: true, clearsAfterMs: 500 };
   /** What the public flows answer. */
   publicScript = {
     signUp: { ok: true } as { ok: boolean; alert?: string },
@@ -601,8 +601,8 @@ export class FakeBrowser implements BrowserApi {
 
   async open(member: string, surface: Surface, path?: string, options?: { push?: boolean }): Promise<MemberPageApi> {
     this.opened.push({ member, surface, path, ...(options?.push ? { push: true } : {}) });
-    const script = this.script;
-    const actions = this.actions;
+    const {script} = this;
+    const {actions} = this;
     return {
       async waitForRing(timeoutMs) {
         const after = script.ringsAfterMs;
@@ -664,10 +664,10 @@ export class FakeBrowser implements BrowserApi {
             heard: heard ? [heard] : [],
             echo: null,
             scores: {},
-            window: { startMs: 2000, endMs: 12000, silentFrames: 0, announcementMs: 0 },
+            window: { startMs: 2000, endMs: 12_000, silentFrames: 0, announcementMs: 0 },
             frameMs: 20,
           },
-          capture: { sampleRate: 16000, startedAt: 0, marks: [], stats: [], remoteStreams: 1 },
+          capture: { sampleRate: 16_000, startedAt: 0, marks: [], stats: [], remoteStreams: 1 },
           concealedRatio: 0.01,
           energyBeforeAnswer: script.energyBeforeAnswer,
         };
@@ -681,7 +681,7 @@ export class FakeBrowser implements BrowserApi {
   async openPublic(path: string): Promise<PublicPageApi> {
     this.publicPages.push(path);
     const script = this.publicScript;
-    const actions = this.actions;
+    const {actions} = this;
     return {
       async goto(target) {
         actions.push(`public goto ${target}`);
@@ -811,7 +811,7 @@ export class FakeAudioLink implements AudioLinkApi {
   async stop() {}
   async hear(): Promise<Detection> {
     if (!this.provenNow) throw new Error("emulator-audio-unproven");
-    const heard = this.heard;
+    const {heard} = this;
     return {
       verdict: heard ? "heard" : "silent",
       answered: heard,
@@ -853,7 +853,7 @@ export class FakeDevice implements DeviceApi {
   reachableNow = true;
   deviceState: DeviceState = { ...RESTING };
   /** How long until Telecom and the full-screen ring show; undefined never rings. */
-  rings: { telecom_ms?: number; full_screen_ms?: number } | undefined = { telecom_ms: 2_000, full_screen_ms: 2_500 };
+  rings: { telecom_ms?: number; full_screen_ms?: number } | undefined = { telecom_ms: 2000, full_screen_ms: 2500 };
   call: "ringing" | "active" | "holding" | "disconnected" | "none" = "none";
   onScreen = new Set<string>(["call_answer", "call_decline"]);
   /** The installed build's declared Play services minimum; null when it declares none. */
@@ -941,7 +941,7 @@ export class FakeDevice implements DeviceApi {
     this.actions.push(`launch ${path ?? "/"}`);
   }
   async waitForRinging(timeoutMs: number) {
-    const rings = this.rings;
+    const {rings} = this;
     if (!rings || (rings.telecom_ms ?? Infinity) > timeoutMs) return undefined;
     this.call = "ringing";
     return rings;
@@ -974,7 +974,7 @@ export class FakeDevice implements DeviceApi {
   async resetUi() {
     this.actions.push("reset ui");
     this.call = "none";
-    const crashPrompt = this.crashPrompt;
+    const {crashPrompt} = this;
     this.crashPrompt = false;
     return { crashPrompt };
   }

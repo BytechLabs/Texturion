@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  fallbackTranscriptInput,
   sanitizeTranscript,
   shouldTranscribe,
+  transcriptInput,
   transcriptText,
   VOICEMAIL_TRANSCRIPT_MAX_CHARS,
   VOICEMAIL_TRANSCRIPT_MAX_SECONDS,
-  fallbackTranscriptInput,
-  transcriptInput,
 } from "./voicemail-transcript";
 
-describe("shouldTranscribe", () => {
+describe(shouldTranscribe, () => {
   it("takes a recording of ordinary length", () => {
     expect(shouldTranscribe(1)).toBe(true);
     expect(shouldTranscribe(42)).toBe(true);
@@ -26,7 +26,7 @@ describe("shouldTranscribe", () => {
   });
 });
 
-describe("transcriptText", () => {
+describe(transcriptText, () => {
   it("reads the documented envelope", () => {
     expect(transcriptText({ text: "can you come tuesday" })).toBe(
       "can you come tuesday",
@@ -51,7 +51,7 @@ describe("transcriptText", () => {
   });
 });
 
-describe("sanitizeTranscript", () => {
+describe(sanitizeTranscript, () => {
   it("collapses whitespace and trims", () => {
     expect(sanitizeTranscript({ text: "  hi   there\n\nagain  " })).toBe(
       "hi there again",
@@ -81,13 +81,13 @@ describe("sanitizeTranscript", () => {
   });
 });
 
-describe("transcriptInput", () => {
+describe(transcriptInput, () => {
   it("passes the audio as base64, not a byte array", () => {
     // A five-minute recording is about a million array elements otherwise,
     // built inside a 128 MB Worker that is already holding the raw buffer.
     const input = transcriptInput("AAAA");
     expect(input.audio).toBe("AAAA");
-    expect(typeof input.audio).toBe("string");
+    expect(input.audio).toBeTypeOf("string");
   });
 
   it("sends nothing but the audio", () => {
@@ -100,7 +100,7 @@ describe("transcriptInput", () => {
   });
 });
 
-describe("fallbackTranscriptInput", () => {
+describe(fallbackTranscriptInput, () => {
   it("sends the raw bytes, which is the older model's shape", () => {
     // A second shape to fall back on, because the AI REST API refuses our
     // deploy token: production is the first place this binding is ever

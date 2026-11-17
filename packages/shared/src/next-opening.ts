@@ -24,16 +24,8 @@
  * that is on holiday or out of business, and either way "back on the 3rd of
  * next month" is not a promise this product should make on their behalf.
  */
-import {
-  companyLocalDate,
-  companyLocalMoment,
-  exceptionFor,
-  parseHhmm,
-  WEEKDAYS,
-  type BusinessHours,
-  type HoursException,
-  type Weekday,
-} from "./business-hours";
+import { companyLocalDate, companyLocalMoment, exceptionFor, parseHhmm, WEEKDAYS } from './business-hours';
+import type { BusinessHours, HoursException, Weekday } from './business-hours';
 
 /** How far ahead we are willing to look. Past this we say nothing. */
 const HORIZON_DAYS = 14;

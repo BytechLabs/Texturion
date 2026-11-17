@@ -46,10 +46,10 @@ export function EmailReachabilityCard() {
       await apiFetch("/v1/me/email/retry", { method: "POST" });
       await queryClient.invalidateQueries({ queryKey: keys.me });
       toast.success(t("settings.emailRetryQueued"));
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settings.emailRetryFailed"),
       );
     } finally {

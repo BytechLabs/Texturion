@@ -8,12 +8,8 @@ import type {
 } from "@/lib/api/types";
 
 import { PORT_STATE_COPY } from "./copy";
-import {
-  derivePortUiState,
-  numberForPort,
-  partitionNumbers,
-  type PortStepKey,
-} from "./port-ui-state";
+import { derivePortUiState, numberForPort, partitionNumbers } from './port-ui-state';
+import type { PortStepKey } from './port-ui-state';
 
 /** Minimal port row factory — only the fields the deriver reads matter. */
 function port(overrides: Partial<PortRequest> = {}): PortRequest {

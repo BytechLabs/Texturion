@@ -1,13 +1,7 @@
 "use client";
 
-import {
-  PRESENCE_HEARTBEAT_MS,
-  TYPING_THROTTLE_MS,
-  TYPING_TTL_MS,
-  presenceFor,
-  type PresenceEntry,
-  type Viewer,
-} from "@loonext/shared";
+import { PRESENCE_HEARTBEAT_MS, presenceFor, TYPING_THROTTLE_MS, TYPING_TTL_MS } from '@loonext/shared';
+import type { PresenceEntry, Viewer } from '@loonext/shared';
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
@@ -135,7 +129,7 @@ export function useConversationPresence(options: {
    */
   useEffect(() => {
     if (!healthy) return;
-    const tick = window.setInterval(() => forceTick((n) => n + 1), 5_000);
+    const tick = window.setInterval(() => forceTick((n) => n + 1), 5000);
     return () => window.clearInterval(tick);
   }, [healthy]);
 

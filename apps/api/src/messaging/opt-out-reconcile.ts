@@ -110,9 +110,9 @@ export async function reconcileOptOuts(
       if (divergence.carrierOnly.length > 0 || divergence.truncated) {
         summary.divergences.push(divergence);
       }
-    } catch (cause) {
+    } catch (error_) {
       summary.failed += 1;
-      void captureException(env, cause, {
+      void captureException(env, error_, {
         source: "cron",
         job: "job:opt-out-reconcile",
         company_id: company.id,
@@ -131,7 +131,7 @@ async function reconcileCompany(
 ): Promise<OptOutDivergence> {
   const carrier = await listCarrierOptOuts(
     env,
-    company.telnyx_messaging_profile_id as string,
+    company.telnyx_messaging_profile_id!,
   );
 
   const { data, error } = await db

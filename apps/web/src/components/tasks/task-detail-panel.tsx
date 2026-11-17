@@ -8,8 +8,8 @@ import {
   Loader2,
   MapPin,
   MoreHorizontal,
-  PhoneIncoming,
   Paperclip,
+  PhoneIncoming,
 } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -26,7 +26,6 @@ import {
 } from "@/components/attachments/use-file-drop";
 import { useStagedFiles } from "@/components/attachments/use-staged-files";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
-import { MemberAvatar, useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
 import { RecordHeader } from "@/components/ui/record-header";
 import { useIsXl } from "@/lib/use-is-xl";
@@ -37,7 +36,8 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { useT, type MessageKey, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey, Translate } from '@/i18n/provider';
 import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
 import { formatCallDuration } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
@@ -50,21 +50,12 @@ import { useMe } from "@/lib/api/me";
 import { useRecordActivity } from "@/lib/api/record-activity";
 import { useTaskActivity } from "@/lib/api/task-activity";
 import { useTaskLinks } from "@/lib/api/task-links";
-import {
-  findCachedTaskRow,
-  type TaskAddressInput,
-  useAddTaskLabel,
-  useCreateTaskNote,
-  useDeleteTask,
-  useRemoveTaskLabel,
-  useTask,
-  useUpdateTask,
-} from "@/lib/api/tasks";
+import { findCachedTaskRow, useAddTaskLabel, useCreateTaskNote, useDeleteTask, useRemoveTaskLabel, useTask, useUpdateTask } from '@/lib/api/tasks';
+import type { TaskAddressInput } from '@/lib/api/tasks';
 import { useMembers } from "@/lib/api/team";
 import type {
   AddressProvenance,
   Task,
-  TaskActivityItem,
   TaskDetail,
   TaskPriority,
 } from "@/lib/api/types";
@@ -86,14 +77,8 @@ import { taskAssigneeIds } from "./task-assignees";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { buildTaskActions } from "./task-actions";
 import { taskDeleteContent, taskDeleteSummary } from "./task-delete";
-import {
-  draftFromRepeat,
-  draftToRequest,
-  needsScopeChoice,
-  normalizePriority,
-  type RepeatDraft,
-  type TaskScope,
-} from "./task-planning";
+import { draftFromRepeat, draftToRequest, needsScopeChoice, normalizePriority } from './task-planning';
+import type { RepeatDraft, TaskScope } from './task-planning';
 import {
   EditableLabelChips,
   LabelPicker,
@@ -270,7 +255,7 @@ function TaskDetailLoaded({
       new Map(
         (members.data?.data ?? [])
           .filter((member) => member.user_id !== null)
-          .map((member) => [member.user_id as string, member.display_name]),
+          .map((member) => [member.user_id, member.display_name]),
       ),
     // The query result, not the `?? []` above it: that expression is a new array
     // every render, which would rebuild this map on every render and make the memo
@@ -732,9 +717,9 @@ function TaskDetailLoaded({
               <p className="text-[12px] text-app-muted">
                 {task.confirmed_at
                   ? confirmedLine(task.confirmed_by, t)
-                  : task.reminders_off
+                  : (task.reminders_off
                     ? t("tasks.remindersOffForJob")
-                    : t("tasks.remindersFromWorkspace")}
+                    : t("tasks.remindersFromWorkspace"))}
               </p>
             </div>
             <Switch
@@ -1203,14 +1188,18 @@ function addrProvenanceLabel(
   t: Translate,
 ): string | null {
   switch (p) {
-    case "message":
+    case "message": {
       return t("tasks.addrFromMessage");
-    case "contact":
+    }
+    case "contact": {
       return t("tasks.addrFromContact");
-    case "company":
+    }
+    case "company": {
       return t("tasks.addrFromAreaCode");
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 
@@ -1306,7 +1295,7 @@ function TaskAddressSection({
           className="grid grid-cols-2 gap-2"
           // Save only when focus leaves the whole address group (never mid-tab).
           onBlur={(e) => {
-            if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+            if (!e.currentTarget.contains(e.relatedTarget)) {
               commit();
             }
           }}

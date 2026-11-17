@@ -27,7 +27,7 @@ export function empty(status: number): Response {
 }
 
 export function json(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status,
     headers: { "content-type": "application/json" },
   });

@@ -18,7 +18,7 @@ export function taskListKeyFilters(request: TaskListRequest): TaskListRequest {
     if (Array.isArray(value) && value.length === 0) continue;
     out[key] = value;
   }
-  return out as TaskListRequest;
+  return out;
 }
 
 /**

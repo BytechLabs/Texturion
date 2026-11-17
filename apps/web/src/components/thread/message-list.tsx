@@ -29,7 +29,8 @@ import { contactDisplayName } from "@/lib/format/phone";
 import { reducedMotionScrollBehavior } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-import { buildThreadItems, type ThreadItem } from "./clusters";
+import { buildThreadItems } from './clusters';
+import type { ThreadItem } from './clusters';
 import { AnchorMissingNotice } from "./anchor-missing-notice";
 import { MessageBubble } from "./message-bubble";
 import {
@@ -39,15 +40,8 @@ import {
 import { DayDivider, SystemLine } from "./system-line";
 import { ThreadFilterBar } from "./thread-filter-bar";
 import { ThreadSummaryCard } from "./thread-summary-card";
-import {
-  ALL_CATEGORIES_ON,
-  enabledCategories,
-  filterThreadItems,
-  isAllOn,
-  threadCategoryLabel,
-  threadFilterEmptyCopy,
-  type ThreadFilter,
-} from "./thread-filter";
+import { ALL_CATEGORIES_ON, enabledCategories, filterThreadItems, isAllOn, threadCategoryLabel, threadFilterEmptyCopy } from './thread-filter';
+import type { ThreadFilter } from './thread-filter';
 
 type JumpTarget = { kind: "message" | "call"; id: string };
 
@@ -79,7 +73,7 @@ function estimateMessageHeight(message: Message): number {
   let height = MESSAGE_ESTIMATE_PX;
   for (const attachment of message.attachments ?? []) {
     const kind = mmsMediaKind(attachment.content_type);
-    if (kind === "image") images++;
+    if (kind === "image") images += 1;
     else height += kind === "audio" ? AUDIO_ESTIMATE_PX : FILE_ESTIMATE_PX;
   }
   return height + Math.ceil(images / IMAGES_PER_ROW) * IMAGE_ROW_ESTIMATE_PX;
@@ -136,13 +130,13 @@ export function MessageList({
   const anchorMissing =
     messagesQuery.data?.pages.some((page) => page.anchor_missing === true) ??
     false;
-  const hasNewer = messagesQuery.hasPreviousPage === true;
+  const hasNewer =  messagesQuery.hasPreviousPage;
   const [noticeDismissed, setNoticeDismissed] = useState(false);
   const eventsQuery = useConversationEvents(conversationId);
   const memberNames = useMemberNames();
 
   const messages = useMemo(
-    () => flattenPages(messagesQuery.data).slice().sort(byChronology),
+    () => flattenPages(messagesQuery.data).slice().toSorted(byChronology),
     [messagesQuery.data],
   );
   // #13: the banner shows the conversation's COMPLETE pinned set from a
@@ -171,12 +165,12 @@ export function MessageList({
     [messageBodyById],
   );
   const oldestLoadedMessageAt = messages[0]?.created_at ?? null;
-  const allMessagesLoaded = messagesQuery.hasNextPage === false;
+  const allMessagesLoaded = ! messagesQuery.hasNextPage;
 
   // Keep the events timeline at least as deep as the loaded message history
   // so system lines never appear to "start" mid-thread.
   const events = useMemo(
-    () => flattenPages(eventsQuery.data).slice().sort(byChronology),
+    () => flattenPages(eventsQuery.data).slice().toSorted(byChronology),
     [eventsQuery.data],
   );
   const oldestLoadedEventAt = events[0]?.created_at ?? null;
@@ -309,7 +303,7 @@ export function MessageList({
   const scrollToTarget = useCallback(
     (target: JumpTarget) => {
       const index = items.findIndex((item) => itemHasTarget(item, target));
-      if (index >= 0) {
+      if (index !== -1) {
         virtualizer.scrollToIndex(index, { align: "center" });
         markFound(target);
         return;
@@ -345,9 +339,9 @@ export function MessageList({
     const target: JumpTarget | null =
       anchorId !== null && !anchorMissing
         ? { kind: "message", id: anchorId }
-        : callSessionId !== null
-          ? { kind: "call", id: callSessionId }
-          : null;
+        : (callSessionId === null
+          ? null
+          : { kind: "call", id: callSessionId });
     if (target === null) return;
     openedAtTarget.current = true;
     didInitialScroll.current = true;
@@ -365,7 +359,7 @@ export function MessageList({
     const target = pendingJump.current;
     if (target === null || !messagesQuery.data) return;
     const index = items.findIndex((item) => itemHasTarget(item, target));
-    if (index >= 0) {
+    if (index !== -1) {
       pendingJump.current = null;
       virtualizer.scrollToIndex(index, { align: "center" });
       markFound(target);
@@ -468,7 +462,7 @@ export function MessageList({
     const settling = settle.current;
     if (settling && Date.now() < settling.until) {
       const index = items.findIndex((item) => itemHasTarget(item, settling.target));
-      if (index >= 0) virtualizer.scrollToIndex(index, { align: "center" });
+      if (index !== -1) virtualizer.scrollToIndex(index, { align: "center" });
       return;
     }
     if (!didInitialScroll.current) return;
@@ -504,10 +498,10 @@ export function MessageList({
     const timer = setTimeout(() => setRecentArrivalId(null), 400);
     if (atBottomRef.current) {
       requestAnimationFrame(() => scrollToBottom("smooth"));
-    } else if (lastMessage && lastMessage.direction === "inbound") {
+    } else if (lastMessage?.direction === "inbound") {
       setNewWhileScrolledUp(true);
     }
-    if (lastMessage && lastMessage.direction === "inbound") {
+    if (lastMessage?.direction === "inbound") {
       const body = lastMessage.body.trim();
       setAnnouncement(
         t("thread.newMessageAnnouncement", {
@@ -574,8 +568,7 @@ export function MessageList({
         </div>
       )}
       {pinnedMessages.length > 0 && (
-        <>
-          <div className="shrink-0 px-4 pb-1 pt-2 md:px-6 md:pt-0">
+        <div className="shrink-0 px-4 pb-1 pt-2 md:px-6 md:pt-0">
             <div className="mx-auto w-full max-w-[42rem]">
               <PinnedStack
                 conversationId={conversationId}
@@ -584,7 +577,6 @@ export function MessageList({
               />
             </div>
           </div>
-        </>
       )}
       {/* #247, BELOW the pinned strip on purpose: a pin is a crew member's own
           deliberate act and a catch-up is Lou's reading of the thread, so the
@@ -660,7 +652,7 @@ export function MessageList({
                 >
                   {item.kind === "divider" ? (
                     <DayDivider label={item.label} />
-                  ) : item.kind === "event" ? (
+                  ) : (item.kind === "event" ? (
                     <SystemLine
                       event={item.event}
                       memberName={memberName}
@@ -699,15 +691,15 @@ export function MessageList({
                             senderName={
                               item.direction === "inbound"
                                 ? null
-                                : item.automated
+                                : (item.automated
                                   ? sentAutomaticallyLabel(item.automation, t)
-                                  : memberName(item.senderUserId)
+                                  : memberName(item.senderUserId))
                             }
                           />
                         </div>
                       ))}
                     </div>
-                  )}
+                  ))}
                 </div>
               );
             })}

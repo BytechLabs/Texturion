@@ -23,11 +23,13 @@
  * Principle — matches render between the readout and the keypad, which is
  * where every system dialer has put them for fifteen years.
  */
-import { rankDialerCandidates, type DialerMatch } from "@loonext/shared";
+import { rankDialerCandidates } from '@loonext/shared';
+import type { DialerMatch } from '@loonext/shared';
 import { Delete, MessageSquare, Phone, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 import { toast } from "sonner";
 
 import { SimpleSelect } from "@/components/ui/simple-select";
@@ -82,7 +84,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
   // short query still means a number search unless it can also be a name.
   const [debounced, setDebounced] = useState("");
   useEffect(() => {
-    const typed = digits.replace(/\D/g, "");
+    const typed = digits.replaceAll(/\D/g, "");
     if (typed.length < 2) {
       setDebounced("");
       return;
@@ -122,7 +124,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
 
   // The server does the authoritative NANP validation; this just gates the
   // Call button so an obviously-too-short number can't be dialed.
-  const canCall = digits.replace(/\D/g, "").length >= 10 && !calling;
+  const canCall = digits.replaceAll(/\D/g, "").length >= 10 && !calling;
 
   function press(key: string) {
     // Editing the number after choosing somebody drops the choice: a call that
@@ -140,7 +142,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
   /** Tapping a match fills the readout with it, which is what a keypad does. */
   function pickMatch(match: DialerMatch) {
     setPicked(match);
-    setDigits(match.number.replace(/\D/g, ""));
+    setDigits(match.number.replaceAll(/\D/g, ""));
   }
 
   /** #459: the same person, the other verb. */
@@ -169,13 +171,13 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
       // Display the number formatted on the call chip (the server still does the
       // authoritative normalization on `to`). Only NANP shapes format; anything
       // else falls back to the raw digits.
-      const cleaned = digits.replace(/\D/g, "");
+      const cleaned = digits.replaceAll(/\D/g, "");
       const e164 =
         cleaned.length === 10
           ? `+1${cleaned}`
-          : cleaned.length === 11 && cleaned.startsWith("1")
+          : (cleaned.length === 11 && cleaned.startsWith("1")
             ? `+${cleaned}`
-            : digits;
+            : digits);
       await softphone.placeCall({
         to: digits,
         // Only pin a caller-ID number when the company owns several; a
@@ -188,12 +190,12 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
       });
       setOpen(false);
       setDigits("");
-    } catch (cause) {
+    } catch (error) {
       toast.error(
         // See call-button.tsx: a blocked mic and the concurrency ceiling both
         // carry actionable copy that ApiError-only narrowing threw away.
-        cause instanceof MicPermissionError || cause instanceof ApiError
-          ? cause.message
+        error instanceof MicPermissionError || error instanceof ApiError
+          ? error.message
           : t("shell.callStartFailed"),
       );
     } finally {
@@ -367,7 +369,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
               >
                 {t("shell.openContact")}
               </Link>
-            ) : canCall ? (
+            ) : (canCall ? (
               <Link
                 href={`/contacts?new=${encodeURIComponent(digits)}`}
                 onClick={() => setOpen(false)}
@@ -376,7 +378,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
                 <UserPlus strokeWidth={1.75} className="size-4" />
                 {t("shell.addContact")}
               </Link>
-            ) : null}
+            ) : null)}
           </div>
         </div>
       </DialogContent>

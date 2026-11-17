@@ -138,7 +138,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                       when: formatAbsoluteDateTime(state.pending.expires_at, undefined, t.locale),
                     })}
                   </>
-                ) : state.pending.ready ? (
+                ) : (state.pending.ready ? (
                   <>{t("settingsMore.ownershipWaitOver")}</>
                 ) : (
                   <>
@@ -146,7 +146,7 @@ export function OwnershipCard({ members }: { members: Member[] }) {
                       when: formatAbsoluteDateTime(state.pending.ripens_at, undefined, t.locale),
                     })}
                   </>
-                )}
+                ))}
               </p>
               <div className="flex flex-wrap gap-2 pt-1">
                 {state.pending.mine && state.pending.ready && (

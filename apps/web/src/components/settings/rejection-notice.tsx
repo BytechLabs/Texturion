@@ -2,13 +2,8 @@
 
 import { useCallback } from "react";
 
-import {
-  explainRejection,
-  needsHumanHelp,
-  RESUBMISSION_WAIT_KEY,
-  supportMailto,
-  type RejectionDomain,
-} from "@loonext/shared";
+import { explainRejection, needsHumanHelp, RESUBMISSION_WAIT_KEY, supportMailto } from '@loonext/shared';
+import type { RejectionDomain } from '@loonext/shared';
 
 import { Button } from "@/components/ui/button";
 import { sayEnglish, sayWith, useT } from "@/i18n/provider";
@@ -98,9 +93,9 @@ export function RejectionNotice({
                and "registration" on a port rejection would read as the wrong
                thing failing. Two keys rather than a noun dropped into one
                sentence: French declines the article with the noun. */
-            domain === "port"
+            (domain === "port"
             ? t("settingsMore.rejectionUnknownPort")
-            : t("settingsMore.rejectionUnknownRegistration")}
+            : t("settingsMore.rejectionUnknownRegistration"))}
       </p>
       <p className="text-sm">
         {guidance ? t(guidance.fixKey) : t("settingsMore.rejectionUnknownFix")}

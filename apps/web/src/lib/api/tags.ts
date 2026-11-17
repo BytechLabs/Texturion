@@ -44,7 +44,7 @@ export function useUpdateTag() {
           : page,
       );
       // Embedded tag chips (lists, details) show the old name until refetch.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.conversations.lists(companyId),
         refetchType: "none",
       });

@@ -17,23 +17,31 @@ export function attachmentLabel(
   const n = Math.max(count, 1);
   const many = n > 1;
   switch (kind) {
-    case "image":
+    case "image": {
       return many ? `${n} photos` : "Photo";
-    case "audio":
+    }
+    case "audio": {
       return many ? `${n} audio messages` : "Audio message";
-    case "video":
+    }
+    case "video": {
       return many ? `${n} videos` : "Video";
-    case "contact":
+    }
+    case "contact": {
       return many ? `${n} contact cards` : "Contact card";
-    case "calendar":
+    }
+    case "calendar": {
       return many ? `${n} calendar invites` : "Calendar invite";
-    case "document":
+    }
+    case "document": {
       return many ? `${n} PDFs` : "PDF";
-    case "text":
+    }
+    case "text": {
       return many ? `${n} text files` : "Text file";
-    default:
+    }
+    default: {
       // Unknown kind, or a message carrying a MIXED set: the honest noun.
       return many ? `${n} attachments` : "Attachment";
+    }
   }
 }
 

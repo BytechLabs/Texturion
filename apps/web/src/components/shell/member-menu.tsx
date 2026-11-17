@@ -20,7 +20,6 @@ import {
 import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
-import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /**
  * The sidebar footer user-bar menu (issue #8, Discord-style): opens upward from

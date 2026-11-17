@@ -12,26 +12,10 @@ import { toast } from "sonner";
 import { TaskBulkBar } from "@/components/tasks/task-bulk-bar";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
-import {
-  TASK_PAGE_LIMIT,
-  useAllTasks,
-  useBulkTasks,
-  usePrefetchTask,
-  useTasks,
-  type BulkTasksBody,
-  type TaskListFilters,
-} from "@/lib/api/tasks";
-import {
-  bulkResultMessage,
-  EMPTY_SELECTION,
-  isEmpty,
-  isRowSelected,
-  selectAllMatching,
-  selectionIds,
-  selectLoaded,
-  toggleRow,
-  type BulkSelection,
-} from "@/lib/inbox/bulk-selection";
+import { TASK_PAGE_LIMIT, useAllTasks, useBulkTasks, usePrefetchTask, useTasks } from '@/lib/api/tasks';
+import type { BulkTasksBody, TaskListFilters } from '@/lib/api/tasks';
+import { bulkResultMessage, EMPTY_SELECTION, isEmpty, isRowSelected, selectAllMatching, selectionIds, selectLoaded, toggleRow } from '@/lib/inbox/bulk-selection';
+import type { BulkSelection } from '@/lib/inbox/bulk-selection';
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { flattenPages } from "@/lib/api/pagination";
 import { cn } from "@/lib/utils";
@@ -45,7 +29,8 @@ import { InlineAssignee, InlineDue } from "../task-inline-edit";
 import { useTaskRowActions } from "../task-actions";
 import { useIsXl } from "@/lib/use-is-xl";
 import { useTaskDrawer } from "../use-task-drawer";
-import { toTaskFilters, type TaskPageState } from "../task-view-url";
+import { toTaskFilters } from '../task-view-url';
+import type { TaskPageState } from '../task-view-url';
 import { taskSourceLink } from "../task-format";
 
 /** How long the pointer rests on a row before its detail is fetched ahead. */
@@ -348,7 +333,7 @@ function TaskListBody({
  * quiet link names the source and deep-links to it, and only when there is one.
  * Focus, a resting pointer or a touch on the title fetches the detail ahead.
  */
-const TaskRow = memo(function TaskRow({
+const TaskRow = memo(({
   task,
   selected,
   onToggleSelected,
@@ -359,7 +344,7 @@ const TaskRow = memo(function TaskRow({
   task: Task;
   selected: boolean;
   onToggleSelected: (taskId: string) => void;
-} & RowContext) {
+} & RowContext) => {
   const t = useT();
   const source = taskSourceLink(task, t, { besideTask: wide });
   // #712: right-click, long-press or the menu key opens the task's one action list.

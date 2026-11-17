@@ -8,7 +8,8 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { createElement } from 'react';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ForYou, ForYouTask } from "./types";
@@ -18,14 +19,14 @@ const { BASE, fetchSpy } = vi.hoisted(() => ({
   fetchSpy: vi.fn(),
 }));
 
-vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "co-1" }));
-vi.mock("./client", async () => {
+vi.mock(import("@/lib/company/provider"), () => ({ useCompanyId: () => "co-1" }));
+vi.mock(import("./client"), async () => {
   const { createApiClient } = await import("./core");
   return {
     apiFetch: createApiClient({
       baseUrl: BASE,
       getAccessToken: async () => "test-token",
-      fetch: ((...args: unknown[]) => fetchSpy(...args)) as unknown as typeof fetch,
+      fetch: (...args: unknown[]) => fetchSpy(...args),
     }),
   };
 });
@@ -73,7 +74,7 @@ const QUEUE: ForYou = {
 };
 
 function json(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });
@@ -95,7 +96,7 @@ afterEach(() => {
   client.clear();
 });
 
-describe("forYouWithoutTask", () => {
+describe(forYouWithoutTask, () => {
   it("takes one of my tasks out of the rows, my_tasks and the headline", () => {
     const next = forYouWithoutTask(QUEUE, "mine");
     expect(next?.my_tasks).toEqual([]);
@@ -113,7 +114,7 @@ describe("forYouWithoutTask", () => {
   });
 });
 
-describe("useForYou", () => {
+describe(useForYou, () => {
   it("aborts a running request when a refetch supersedes it", async () => {
     const signals: (AbortSignal | null | undefined)[] = [];
     fetchSpy.mockImplementation((_url: string, init: RequestInit) => {
@@ -137,7 +138,7 @@ describe("useForYou", () => {
   });
 });
 
-describe("useSpamReview", () => {
+describe(useSpamReview, () => {
   it("stays fresh for five minutes; the spam mutations invalidate it", async () => {
     fetchSpy.mockResolvedValue(json({ data: [] }));
     renderHook(() => useSpamReview(), { wrapper });

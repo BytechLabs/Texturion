@@ -11,19 +11,14 @@
  * selected by state — sums vs the ledger — never by "last run" bookkeeping),
  * so re-runs and overlaps can never double-send.
  */
-import { storedBytes, type StorageUsageRow } from "./stored-bytes";
+import { storedBytes } from './stored-bytes';
+import type { StorageUsageRow } from './stored-bytes';
 
 import { billingRecipients } from "./recipients";
 import { UNIT_COST_CENTS } from "./costs";
 import { EGRESS_ALLOWANCE_BYTES } from "../attachments/egress";
-import {
-  dialCeilings,
-  INBOUND_ABUSE_TIERS_SEGMENTS,
-  PLAN_INCLUDED_SEGMENTS,
-  PLAN_VOICE_MINUTES,
-  type PlanId,
-  STORAGE_ABUSE_TIERS_GB,
-} from "./plans";
+import { dialCeilings, INBOUND_ABUSE_TIERS_SEGMENTS, PLAN_INCLUDED_SEGMENTS, PLAN_VOICE_MINUTES, STORAGE_ABUSE_TIERS_GB } from './plans';
+import type { PlanId } from './plans';
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
@@ -603,10 +598,10 @@ export async function runUsageAlertsJob(
           );
         }
       }
-    } catch (cause) {
+    } catch (error_) {
       // One broken tenant must not starve the rest; rethrown below so the
       // cron run still reports failure.
-      failures.push(cause);
+      failures.push(error_);
     }
   }
 

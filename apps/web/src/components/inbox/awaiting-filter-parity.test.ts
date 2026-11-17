@@ -73,7 +73,7 @@ const ANDROID_CATALOGUE = join(
  * sentence beside it had been reworded.
  */
 const ANDROID_COPY = readFileSync(ANDROID_CATALOGUE, "utf8")
-  .replace(/"inbox\.[A-Za-z0-9_]+"\s*to\s*/g, "")
+  .replaceAll(/"inbox\.[A-Za-z0-9_]+"\s*to\s*/g, "")
   .split("\n")
   .filter((line) => {
     const trimmed = line.trim();
@@ -99,7 +99,7 @@ const IOS_CATALOGUE = join(
 );
 
 const IOS_COPY = readFileSync(IOS_CATALOGUE, "utf8")
-  .replace(/"inbox\.[A-Za-z0-9_]+"\s*:\s*/g, "")
+  .replaceAll(/"inbox\.[A-Za-z0-9_]+"\s*:\s*/g, "")
   .split("\n")
   .filter((line) => {
     const trimmed = line.trim();

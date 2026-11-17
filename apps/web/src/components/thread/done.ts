@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 import type { ConversationEvent, Message } from "@/lib/api/types";
 import { formatTimestamp } from "@/lib/format/time";
 
@@ -21,7 +22,7 @@ const EN = makeTranslate(DEFAULT_LOCALE);
 /** §4.3: quote + truncate a message body for the done timeline line. */
 const DONE_EXCERPT_MAX = 48;
 export function doneEventExcerpt(body: string, t: Translate = EN): string {
-  const clean = body.replace(/\s+/g, " ").trim();
+  const clean = body.replaceAll(/\s+/g, " ").trim();
   // #189: MMS is not photos-only.
   if (clean === "") return t("thread.doneExcerptAttachment");
   if (clean.length <= DONE_EXCERPT_MAX) return `"${clean}"`;
@@ -44,9 +45,9 @@ export function doneEventSentence(
   t: Translate = EN,
 ): string {
   const excerpt =
-    messageBody !== undefined
-      ? doneEventExcerpt(messageBody, t)
-      : t("thread.doneExcerptMessage");
+    messageBody === undefined
+      ? t("thread.doneExcerptMessage")
+      : doneEventExcerpt(messageBody, t);
   /*
    * Two whole sentences rather than one with the verb interpolated. "done" and
    * "not done" are a grammatical agreement in French, not a word swapped into a
@@ -113,9 +114,9 @@ export function doneBadgeLabel(
   if (message.done_at === null) return "";
   const time = formatTimestamp(message.done_at, { style: "long", t });
   const name =
-    message.done_by_user_id !== null
-      ? memberName(message.done_by_user_id)
-      : undefined;
+    message.done_by_user_id === null
+      ? undefined
+      : memberName(message.done_by_user_id);
   return name
     ? t("thread.doneBadgeWithName", { name, time })
     : t("thread.doneBadge", { time });

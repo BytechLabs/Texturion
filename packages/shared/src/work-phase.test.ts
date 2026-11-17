@@ -1,14 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  WORK_PHASES,
-  WORK_PHASE_LABELS,
-  WORK_PHASE_UNSET_LABEL,
-  groupJobPhotos,
-  isWorkPhase,
-  jobPhaseSummary,
-  type JobPhotoLike,
-} from "./work-phase";
+import { groupJobPhotos, isWorkPhase, jobPhaseSummary, WORK_PHASE_LABELS, WORK_PHASE_UNSET_LABEL, WORK_PHASES } from './work-phase';
+import type { JobPhotoLike } from './work-phase';
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
@@ -18,7 +11,7 @@ function look(table: unknown, key: string): string {
   const value = (table as Record<string, Record<string, string>>)[section]?.[
     name
   ];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -132,7 +125,7 @@ describe("grouping a job's photos into visits (#294)", () => {
       photo({ id: "c", note_id: "n1", created_at: "2026-08-08T09:00:00Z" }),
     ];
     const once = groupJobPhotos(items).map((g) => g.note_id);
-    const twice = groupJobPhotos([...items].reverse()).map((g) => g.note_id);
+    const twice = groupJobPhotos([...items].toReversed()).map((g) => g.note_id);
     expect(once).toEqual(twice);
   });
 

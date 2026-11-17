@@ -23,7 +23,7 @@ import {
 } from "./crons";
 import { STUCK_SEND_SECONDS } from "./send";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -57,7 +57,7 @@ function ledgerPatchStub(options: { claimWins?: boolean } = {}) {
   });
 }
 
-describe("sweepWebhookEvents", () => {
+describe(sweepWebhookEvents, () => {
   it("claims, replays an unprocessed telnyx row through the real dispatch, and stamps it", async () => {
     const sweepQuery = stubRoute(
       restMatch(env, "GET", "webhook_events"),
@@ -412,7 +412,7 @@ describe("reportUnreportedUsage — work done, not just execution (#333)", () =>
   });
 });
 
-describe("reportUnreportedUsage", () => {
+describe(reportUnreportedUsage, () => {
   it("re-reports unstamped rows and stamps them; rows without a customer are skipped", async () => {
     const usageQuery = stubRoute(
       restMatch(env, "GET", "usage_events"),
@@ -751,11 +751,11 @@ describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
    * whole thing under test (#581).
    */
   function unstampedQueryStub(
-    rows: Array<{
+    rows: {
       call_session_id: string;
       customer_call_control_id: string;
       direction: "inbound" | "outbound";
-    }>,
+    }[],
   ) {
     return stubRoute(
       restMatch(
@@ -874,7 +874,7 @@ describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
 
     await sweepStaleCalls(env);
 
-    const hungUp = hangup.calls.map((c) => c.url.pathname).sort();
+    const hungUp = hangup.calls.map((c) => c.url.pathname).toSorted();
     expect(hungUp).toEqual([
       "/v2/calls/ccid-a/actions/hangup",
       "/v2/calls/ccid-b/actions/hangup",

@@ -1,21 +1,8 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import {
-  emptyThread,
-  findListRow,
-  listApplyConversation,
-  listPatchConversation,
-  listSetUnread,
-  pinMutationPatch,
-  snippetFromMessage,
-  threadApplyStatus,
-  threadInversePatch,
-  threadPatchMessage,
-  threadUpsertMessages,
-  type ConversationListData,
-  type ThreadData,
-} from "./cache";
+import { emptyThread, findListRow, listApplyConversation, listPatchConversation, listSetUnread, pinMutationPatch, snippetFromMessage, threadApplyStatus, threadInversePatch, threadPatchMessage, threadUpsertMessages } from './cache';
+import type { ConversationListData, ThreadData } from './cache';
 import { keys } from "./keys";
 import type {
   ConversationListItem,
@@ -127,7 +114,7 @@ const T4 = "2026-06-01T13:00:00.000Z";
 // Thread reducers (message.created / message.status / send results)
 // ---------------------------------------------------------------------------
 
-describe("threadUpsertMessages", () => {
+describe(threadUpsertMessages, () => {
   it("prepends an unseen message into page 1, newest first", () => {
     const existing = thread([[message("m2", T2), message("m1", T1)]]);
     const next = threadUpsertMessages(existing, [message("m3", T3)]);
@@ -200,7 +187,7 @@ describe("threadPatchMessage / threadApplyStatus", () => {
       [message("m3", T3)],
       [message("m2", T2), message("m1", T1)],
     ]);
-    const next = threadApplyStatus(existing, "m2", "failed" as MessageStatus);
+    const next = threadApplyStatus(existing, "m2", "failed");
     expect(next.pages[1].data[0].status).toBe("failed");
     expect(next.pages[0]).toBe(existing.pages[0]); // untouched page kept by reference
   });
@@ -214,11 +201,11 @@ describe("threadPatchMessage / threadApplyStatus", () => {
 
   it("returns the same reference when a receipt repeats the cached status", () => {
     const existing = thread([[message("m1", T1, { status: "delivered" as MessageStatus })]]);
-    expect(threadPatchMessage(existing, "m1", { status: "delivered" as MessageStatus })).toBe(existing);
+    expect(threadPatchMessage(existing, "m1", { status: "delivered" })).toBe(existing);
   });
 });
 
-describe("threadInversePatch", () => {
+describe(threadInversePatch, () => {
   it("undoes only the fields the mutation touched, keeping messages that arrived meanwhile", () => {
     // The bug this replaces: an optimistic done/pin rolled back by restoring
     // the whole thread snapshot, which also deleted a customer's reply that
@@ -234,7 +221,7 @@ describe("threadInversePatch", () => {
       threadPatchMessage(before, "m1", patch),
       [message("m2", T2)],
     );
-    const rolledBack = threadPatchMessage(withReply!, "m1", inverse!);
+    const rolledBack = threadPatchMessage(withReply, "m1", inverse!);
 
     const ids = rolledBack.pages.flatMap((page) => page.data.map((m) => m.id));
     expect(ids).toContain("m2");
@@ -254,7 +241,7 @@ describe("threadInversePatch", () => {
 // Conversation-list reducers (message.created / conversation.updated)
 // ---------------------------------------------------------------------------
 
-describe("listApplyConversation", () => {
+describe(listApplyConversation, () => {
   it("bumps an updated conversation to the top of page 1 (reorder, no refetch)", () => {
     const existing = list([[listItem("c1", T3), listItem("c2", T2)]]);
     const next = listApplyConversation(
@@ -379,7 +366,7 @@ describe("listApplyConversation", () => {
   });
 });
 
-describe("findListRow", () => {
+describe(findListRow, () => {
   const COMPANY = "company-1";
 
   it("finds the row on any loaded page of any list, then in a pinned supplement", () => {
@@ -428,7 +415,7 @@ describe("listPatchConversation / listSetUnread", () => {
   });
 });
 
-describe("snippetFromMessage", () => {
+describe(snippetFromMessage, () => {
   it("maps a message to the G4 list-row snippet embed", () => {
     expect(
       snippetFromMessage(

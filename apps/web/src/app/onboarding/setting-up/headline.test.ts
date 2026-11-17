@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { setupHeadline } from "./headline";
 
-describe("setupHeadline", () => {
+describe(setupHeadline, () => {
   it("does not call the checklist live while a row is still finishing", () => {
     // The number is the first of three rows and lands in under a minute.
     // Carrier registration takes 3 to 7 business days after it, and its row

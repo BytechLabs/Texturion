@@ -1,4 +1,5 @@
-import { EDGE_PATHS, type StandingRole } from "@loonext/rig-protocol";
+import { EDGE_PATHS } from '@loonext/rig-protocol';
+import type { StandingRole } from '@loonext/rig-protocol';
 
 import raw from "../../telnyx-spec.json";
 

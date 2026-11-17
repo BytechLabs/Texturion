@@ -4,38 +4,11 @@ import type { CallPlan, CallRecord, SegmentJudgement, Surface } from "@loonext/r
 import { describe, expect, it } from "vitest";
 import { TENANTS } from "../../../../../scripts/rig/tenants.mjs";
 import type { UndoAction } from "../lease.ts";
-import {
-  AFTER_COMPLETE_SEGMENT,
-  CALL_WAITING_TEXT,
-  COMPLETE_AT_MS,
-  CONSULT_AT_MS,
-  CONSULT_SEGMENT,
-  consultDirection,
-  ESCALATE_AFTER_MINUTES,
-  hoursClosedAt,
-  NUMBER_BUSY_TEXT,
-  OWNER_RING_MS,
-  RETURN_MS,
-  S03,
-  S05,
-  S06,
-  S06_SEGMENTS,
-  S06_STEPS,
-  S07,
-  S07_VARIANTS,
-  S08,
-  S09,
-  S10,
-  S11,
-  S11_RING_SECONDS,
-  TECHNICIAN_NAME,
-  TRANSFER_AT_MS,
-  TRANSFER_RING_SECS,
-  transferTimeline,
-  type TransferVariant,
-} from "./browser-calls.ts";
+import { AFTER_COMPLETE_SEGMENT, CALL_WAITING_TEXT, COMPLETE_AT_MS, CONSULT_AT_MS, CONSULT_SEGMENT, consultDirection, ESCALATE_AFTER_MINUTES, hoursClosedAt, NUMBER_BUSY_TEXT, OWNER_RING_MS, RETURN_MS, S03, S05, S06, S06_SEGMENTS, S06_STEPS, S07, S07_VARIANTS, S08, S09, S10, S11, S11_RING_SECONDS, TECHNICIAN_NAME, TRANSFER_AT_MS, TRANSFER_RING_SECS, transferTimeline } from './browser-calls.ts';
+import type { TransferVariant } from './browser-calls.ts';
 import type { AppApi, CallRow, MemberPageApi, ScenarioResult, ScenarioRunner } from "./context.ts";
-import { fakeContext, type FakePageScript } from "./fakes.ts";
+import { fakeContext } from './fakes.ts';
+import type { FakePageScript } from './fakes.ts';
 
 const OWNER = "qa-w-owner";
 const TECH = "qa-w-technician";
@@ -45,7 +18,7 @@ const UUID = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
 /** Ten digits in a row, with spaces, dots, dashes or brackets allowed between them. */
 const PHONE_DIGITS = /\+?\d(?:[\s().-]{0,2}\d){9,}/;
 /** Random UUIDs can hold ten digits in a row, so they are removed before the check. */
-const holdsPhoneNumber = (text: string) => PHONE_DIGITS.test(text.replace(UUID, "id"));
+const holdsPhoneNumber = (text: string) => PHONE_DIGITS.test(text.replaceAll(UUID, "id"));
 
 type World = ReturnType<typeof fakeContext>;
 type Row = CallRow & { tenant: string; caller: string };
@@ -66,7 +39,7 @@ interface PageLog {
   at: number;
 }
 
-const PAGE: FakePageScript = { ringsAfterMs: 1_500, heard: null, energyBeforeAnswer: 0.4, showsText: true };
+const PAGE: FakePageScript = { ringsAfterMs: 1500, heard: null, energyBeforeAnswer: 0.4, showsText: true };
 const LOGGED = ["answer", "decline", "hangUp", "dial", "hold", "mute", "pressKeys", "transfer", "completeTransfer", "mark", "waitForText"] as const;
 
 interface Pages {
@@ -96,7 +69,7 @@ function withPages(world: World, scripts: Record<string, PageScript>): Pages {
     did: (member, action) => log.filter((entry) => entry.member === member && entry.action === action),
   };
   installed.set(world.browser, pages);
-  const heard = pages.heard;
+  const {heard} = pages;
   const open = world.browser.open.bind(world.browser);
   world.browser.open = async (member, surface, path) => {
     const script = pages.scripts[member] ?? {};
@@ -222,7 +195,7 @@ function s03World() {
 describe("S03, Loonext calls Loonext across workspaces", () => {
   it("passes when each page hears the other and each workspace keeps and bills its own row", async () => {
     const { ctx, browser, heard, did } = s03World();
-    expect(await S03.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S03.run(ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(browser.opened).toEqual([
       { member: OWNER, surface: OWNER, path: undefined },
       { member: "qa-c-owner", surface: "qa-c", path: "/calls" },
@@ -239,46 +212,46 @@ describe("S03, Loonext calls Loonext across workspaces", () => {
   it("calls a session key or a meter shared across the two workspaces critical", async () => {
     const shared = s03World();
     shared.rows[1]!.call_session_id = "qa-c-session";
-    expect(await S03.run(shared.ctx)).toMatchObject({ failure_class: "shared_session_key", critical: true });
+    await expect(S03.run(shared.ctx)).resolves.toMatchObject({ failure_class: "shared_session_key", critical: true });
 
     const crossed = s03World();
     crossed.meters.set("QA-C/qa-w-session", 20);
-    expect(await S03.run(crossed.ctx)).toMatchObject({ failure_class: "billed_to_other_workspace", critical: true });
+    await expect(S03.run(crossed.ctx)).resolves.toMatchObject({ failure_class: "billed_to_other_workspace", critical: true });
   });
 
   it("names a missed ring, a deaf page, a missing row, an unmetered workspace and a text-back", async () => {
     const unrung = s03World();
     withPages(unrung, { [OWNER]: { rings: [undefined] } });
-    expect(await S03.run(unrung.ctx)).toMatchObject({ failure_class: "no_ring" });
+    await expect(S03.run(unrung.ctx)).resolves.toMatchObject({ failure_class: "no_ring" });
     expect(unrung.browser.actions).toContain("qa-c-owner hang up");
 
     const deafCaller = s03World();
     withPages(deafCaller, { [OWNER]: { heard: "qa-c" }, "qa-c-owner": { heard: null } });
-    expect(await S03.run(deafCaller.ctx)).toMatchObject({ failure_class: "caller_did_not_hear_callee" });
+    await expect(S03.run(deafCaller.ctx)).resolves.toMatchObject({ failure_class: "caller_did_not_hear_callee" });
 
     const deafCallee = s03World();
     withPages(deafCallee, { [OWNER]: { heard: "robot" }, "qa-c-owner": { heard: OWNER } });
-    expect(await S03.run(deafCallee.ctx)).toMatchObject({ failure_class: "callee_did_not_hear_caller" });
+    await expect(S03.run(deafCallee.ctx)).resolves.toMatchObject({ failure_class: "callee_did_not_hear_caller" });
 
     const noOutbound = s03World();
     noOutbound.rows[0]!.ended_at = null;
-    expect(await S03.run(noOutbound.ctx)).toMatchObject({ failure_class: "no_outbound_row" });
+    await expect(S03.run(noOutbound.ctx)).resolves.toMatchObject({ failure_class: "no_outbound_row" });
 
     const noInbound = s03World();
     noInbound.rows.pop();
-    expect(await S03.run(noInbound.ctx)).toMatchObject({ failure_class: "no_inbound_row" });
+    await expect(S03.run(noInbound.ctx)).resolves.toMatchObject({ failure_class: "no_inbound_row" });
 
     const callerFree = s03World();
     callerFree.meters.delete("QA-C/qa-c-session");
-    expect(await S03.run(callerFree.ctx)).toMatchObject({ failure_class: "caller_not_metered" });
+    await expect(S03.run(callerFree.ctx)).resolves.toMatchObject({ failure_class: "caller_not_metered" });
 
     const calleeFree = s03World();
     calleeFree.meters.delete("QA-W/qa-w-session");
-    expect(await S03.run(calleeFree.ctx)).toMatchObject({ failure_class: "callee_not_metered" });
+    await expect(S03.run(calleeFree.ctx)).resolves.toMatchObject({ failure_class: "callee_not_metered" });
 
     const texted = s03World();
     texted.app.thread("QA-W", "Sorry we missed you", "outbound", { withRole: "DEV-C1" });
-    expect(await S03.run(texted.ctx)).toMatchObject({ failure_class: "text_back_after_answer" });
+    await expect(S03.run(texted.ctx)).resolves.toMatchObject({ failure_class: "text_back_after_answer" });
   });
 });
 
@@ -323,9 +296,9 @@ describe("S05, the caller hangs up while it rings", () => {
   it("passes with a missed row, a text-back, a ring push and an escalation the cron widens", async () => {
     const world = s05World();
     world.app.companies.set("QA-W", { on_call_escalate_after_minutes: 15, ring_seconds: 30 });
-    expect(await S05.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S05.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.robot.plans).toEqual([
-      expect.objectContaining({ role: "ROBOT-1", to: "DEV-W1", hangup_before_answer_ms: 8_000, play: null, record: false, lease_id: "lease-test" }),
+      expect.objectContaining({ role: "ROBOT-1", to: "DEV-W1", hangup_before_answer_ms: 8000, play: null, record: false, lease_id: "lease-test" }),
     ]);
     expect(world.did(OWNER, "answer")).toEqual([]);
     expect(world.app.companies.get("QA-W")).toMatchObject({
@@ -356,30 +329,30 @@ describe("S05, the caller hangs up while it rings", () => {
   it("names an answered call, a missing text-back, row, push or escalation, and an escalation left narrow", async () => {
     const answered = s05World();
     robotOutcome(answered, (record) => ({ ...record, answered_at: "2026-10-31T15:00:06.000Z" }));
-    expect(await S05.run(answered.ctx)).toMatchObject({ failure_class: "answered_while_ringing" });
+    await expect(S05.run(answered.ctx)).resolves.toMatchObject({ failure_class: "answered_while_ringing" });
 
     const silent = s05World({ textBack: false });
-    expect(await S05.run(silent.ctx)).toMatchObject({ failure_class: "no_text_back" });
+    await expect(S05.run(silent.ctx)).resolves.toMatchObject({ failure_class: "no_text_back" });
 
     const rowless = s05World();
     rowless.rows.pop();
-    expect(await S05.run(rowless.ctx)).toMatchObject({ failure_class: "no_call_row" });
+    await expect(S05.run(rowless.ctx)).resolves.toMatchObject({ failure_class: "no_call_row" });
 
     const answeredRow = s05World();
     answeredRow.rows[0]!.outcome = "voicemail";
-    expect(await S05.run(answeredRow.ctx)).toMatchObject({ failure_class: "row_not_missed" });
+    await expect(S05.run(answeredRow.ctx)).resolves.toMatchObject({ failure_class: "row_not_missed" });
 
     const unpushed = s05World();
     unpushed.app.pushes = [{ tenant: "QA-W", purpose: "alert", platform: "web", response_class: "accepted", attempted_at: iso(unpushed.time.now) }];
-    expect(await S05.run(unpushed.ctx)).toMatchObject({ failure_class: "no_ring_push" });
+    await expect(S05.run(unpushed.ctx)).resolves.toMatchObject({ failure_class: "no_ring_push" });
 
     const unescalated = s05World({ escalation: false });
-    expect(await S05.run(unescalated.ctx)).toMatchObject({ failure_class: "no_escalation" });
+    await expect(S05.run(unescalated.ctx)).resolves.toMatchObject({ failure_class: "no_escalation" });
 
     const narrow = s05World();
     const app: AppApi = narrow.app;
     app.fireCron = async () => undefined;
-    expect(await S05.run(narrow.ctx)).toMatchObject({ failure_class: "escalation_not_widened" });
+    await expect(S05.run(narrow.ctx)).resolves.toMatchObject({ failure_class: "escalation_not_widened" });
   });
 
   it("blames the cron, not the product, when it cannot fire", async () => {
@@ -387,7 +360,7 @@ describe("S05, the caller hangs up while it rings", () => {
     (down.app as AppApi).fireCron = async () => {
       throw new Error("app probe: firing * * * * * returned 404");
     };
-    expect(await S05.run(down.ctx)).toMatchObject({ outcome: "infra", component: "cron" });
+    await expect(S05.run(down.ctx)).resolves.toMatchObject({ outcome: "infra", component: "cron" });
   });
 
   it("changes nothing and dials nothing when the probe cannot read the settings it would overwrite", async () => {
@@ -414,7 +387,7 @@ function s06World(heard: Record<string, Surface[]> = { hold: [], after_hold: [OW
 describe("S06, hold, mute and keypad", () => {
   it("passes when the code drops out on hold and mute, comes back, and the digits arrive in order", async () => {
     const { ctx, robot, log } = s06World();
-    expect(await S06.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S06.run(ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(robot.plans[0]).toMatchObject({
       to: "DEV-W1",
       expect: OWNER,
@@ -451,33 +424,33 @@ describe("S06, hold, mute and keypad", () => {
       [{ hold: [], after_hold: [OWNER], mute: [], after_mute: [] }, "not_back_after_mute"],
     ];
     for (const [heard, failure] of cases) {
-      expect(await S06.run(s06World(heard).ctx)).toMatchObject({ failure_class: failure });
+      await expect(S06.run(s06World(heard).ctx)).resolves.toMatchObject({ failure_class: failure });
     }
     // Hold music is not the member's code.
     expect((await S06.run(s06World({ hold: ["robot"], after_hold: [OWNER], mute: [], after_mute: [OWNER] }).ctx)).outcome).toBe("pass");
 
     const wrong = s06World();
     robotOutcome(wrong, (record) => ({ ...record, gathered: { digits: "132" } }));
-    expect(await S06.run(wrong.ctx)).toMatchObject({ failure_class: "wrong_digits" });
+    await expect(S06.run(wrong.ctx)).resolves.toMatchObject({ failure_class: "wrong_digits" });
 
     const none = s06World();
     robotOutcome(none, (record) => ({ ...record, gathered: undefined }));
-    expect(await S06.run(none.ctx)).toMatchObject({ failure_class: "digits_not_gathered" });
+    await expect(S06.run(none.ctx)).resolves.toMatchObject({ failure_class: "digits_not_gathered" });
 
     const deaf = s06World();
     robotOutcome(deaf, deafRobot);
-    expect(await S06.run(deaf.ctx)).toMatchObject({ failure_class: "robot_did_not_hear_member" });
+    await expect(S06.run(deaf.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_member" });
   });
 
   it("blames the lane when a control is missing, and the robot when it judged no windows", async () => {
     const world = s06World();
     withPages(world, { [OWNER]: { broken: ["mute"] } });
-    expect(await S06.run(world.ctx)).toMatchObject({ outcome: "infra", component: "browser-lane" });
+    await expect(S06.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "browser-lane" });
 
     const unjudged = fakeContext("S06");
     withPages(unjudged, {});
     robotOutcome(unjudged, (record) => ({ ...record, judgement: { ...record.judgement!, segments: undefined } }));
-    expect(await S06.run(unjudged.ctx)).toMatchObject({ outcome: "infra", component: "robot" });
+    await expect(S06.run(unjudged.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot" });
   });
 });
 
@@ -486,8 +459,8 @@ function s07World(variant: TransferVariant) {
   world.ctx.slot = { index: 0, label: variant };
   const seen = withLeaseAtChanges(world);
   const pages = withPages(world, {
-    [OWNER]: { rings: variant === "blind" ? [1_500] : [1_500, 2_000] },
-    [TECH]: { rings: [2_000] },
+    [OWNER]: { rings: variant === "blind" ? [1500] : [1500, 2000] },
+    [TECH]: { rings: [2000] },
   });
   if (variant !== "hop-cap") robotOutcome(world, (record) => withSegments(record, { after: variant === "blind" ? [TECH] : [OWNER] }));
   const rows = withRows(world, [row("QA-W", "ROBOT-1", "s07-session", { outcome: variant === "hop-cap" ? "voicemail" : "answered" })]);
@@ -510,7 +483,7 @@ function s07World(variant: TransferVariant) {
 describe("S07, blind transfer and its variants", () => {
   it("passes a blind transfer: the robot hears the technician after it, and the leg is recorded", async () => {
     const world = s07World("blind");
-    expect(await S07.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S07.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.robot.plans).toEqual([expect.objectContaining({ role: "ROBOT-1", to: "DEV-W2", expect: OWNER, lease_id: "lease-test" })]);
     expect(world.did(OWNER, "transfer").map((entry) => entry.args)).toEqual([[{ to: TECHNICIAN_NAME, mode: "blind" }]]);
     expect(world.did(OWNER, "transfer")[0]!.at - ROBOT_ANSWERED).toBe(TRANSFER_AT_MS);
@@ -531,48 +504,48 @@ describe("S07, blind transfer and its variants", () => {
   it("names a blind transfer the robot did not follow, one never recorded, and one that never rang", async () => {
     const stayed = s07World("blind");
     robotOutcome(stayed, (record) => withSegments(record, { after: [OWNER] }));
-    expect(await S07.run(stayed.ctx)).toMatchObject({ failure_class: "robot_did_not_hear_target" });
+    await expect(S07.run(stayed.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_target" });
 
     const both = s07World("blind");
     robotOutcome(both, (record) => withSegments(record, { after: [TECH, OWNER] }));
-    expect(await S07.run(both.ctx)).toMatchObject({ failure_class: "robot_did_not_hear_target" });
+    await expect(S07.run(both.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_target" });
 
     const unrecorded = s07World("blind");
     unrecorded.app.legs.set("QA-W/s07-session", [{ member: OWNER, state: "answered", kind: "ring" }]);
-    expect(await S07.run(unrecorded.ctx)).toMatchObject({ failure_class: "transfer_not_recorded" });
+    await expect(S07.run(unrecorded.ctx)).resolves.toMatchObject({ failure_class: "transfer_not_recorded" });
 
     const unrung = s07World("blind");
-    withPages(unrung, { [OWNER]: { rings: [1_500] }, [TECH]: { rings: [undefined] } });
-    expect(await S07.run(unrung.ctx)).toMatchObject({ failure_class: "transfer_never_rang" });
+    withPages(unrung, { [OWNER]: { rings: [1500] }, [TECH]: { rings: [undefined] } });
+    await expect(S07.run(unrung.ctx)).resolves.toMatchObject({ failure_class: "transfer_never_rang" });
 
     const ownerless = s07World("blind");
     withPages(ownerless, { [OWNER]: { rings: [undefined] } });
-    expect(await S07.run(ownerless.ctx)).toMatchObject({ failure_class: "no_ring" });
+    await expect(S07.run(ownerless.ctx)).resolves.toMatchObject({ failure_class: "no_ring" });
 
     const deaf = s07World("blind");
     robotOutcome(deaf, deafRobot);
-    expect(await S07.run(deaf.ctx)).toMatchObject({ failure_class: "robot_did_not_hear_member" });
+    await expect(S07.run(deaf.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_member" });
 
     const rowless = s07World("blind");
     rowless.rows.pop();
-    expect(await S07.run(rowless.ctx)).toMatchObject({ failure_class: "no_call_row" });
+    await expect(S07.run(rowless.ctx)).resolves.toMatchObject({ failure_class: "no_call_row" });
   });
 
   it("passes a decline and a timeout that snap back to the owner, and fails one that stays with the technician", async () => {
     for (const variant of ["decline", "timeout"] as const) {
       const world = s07World(variant);
-      expect(await S07.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+      await expect(S07.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
       expect(world.did(TECH, "decline")).toHaveLength(variant === "decline" ? 1 : 0);
       expect(world.did(TECH, "answer")).toEqual([]);
       expect(world.did(OWNER, "answer")).toHaveLength(2);
 
       const stuck = s07World(variant);
       robotOutcome(stuck, (record) => withSegments(record, { after: [TECH] }));
-      expect(await S07.run(stuck.ctx)).toMatchObject({ failure_class: "did_not_snap_back" });
+      await expect(S07.run(stuck.ctx)).resolves.toMatchObject({ failure_class: "did_not_snap_back" });
 
       const lost = s07World(variant);
-      withPages(lost, { [OWNER]: { rings: [1_500, undefined] }, [TECH]: { rings: [2_000] } });
-      expect(await S07.run(lost.ctx)).toMatchObject({ failure_class: "no_snap_back" });
+      withPages(lost, { [OWNER]: { rings: [1500, undefined] }, [TECH]: { rings: [2000] } });
+      await expect(S07.run(lost.ctx)).resolves.toMatchObject({ failure_class: "no_snap_back" });
     }
   });
 
@@ -580,29 +553,29 @@ describe("S07, blind transfer and its variants", () => {
     const world = s07World("timeout");
     await S07.run(world.ctx);
     const [, snapBack] = world.did(OWNER, "waitForRing");
-    expect(snapBack!.args[0]).toBeGreaterThan(TRANSFER_RING_SECS * 1_000);
+    expect(snapBack!.args[0]).toBeGreaterThan(TRANSFER_RING_SECS * 1000);
   });
 
   it("passes the hop cap when a missed snap-back reaches voicemail, and fails one that does not", async () => {
     const world = s07World("hop-cap");
-    expect(await S07.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S07.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.did(TECH, "decline")).toHaveLength(1);
     expect(world.did(OWNER, "decline")).toHaveLength(1);
     expect(world.robot.plans[0]!.segments).toBeUndefined();
 
     const answered = s07World("hop-cap");
     answered.rows[0]!.outcome = "answered";
-    expect(await S07.run(answered.ctx)).toMatchObject({ failure_class: "hop_cap_not_voicemail" });
+    await expect(S07.run(answered.ctx)).resolves.toMatchObject({ failure_class: "hop_cap_not_voicemail" });
   });
 
   it("blames the lane when the transfer control fails, and refuses a variant it does not know", async () => {
     const world = s07World("blind");
     withPages(world, { [OWNER]: { broken: ["transfer"] } });
-    expect(await S07.run(world.ctx)).toMatchObject({ outcome: "infra", component: "browser-lane" });
+    await expect(S07.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "browser-lane" });
 
     const unknown = s07World("blind");
     unknown.ctx.slot = { index: 0, label: "consult" };
-    expect(await S07.run(unknown.ctx)).toMatchObject({ outcome: "infra", component: "runner" });
+    await expect(S07.run(unknown.ctx)).resolves.toMatchObject({ outcome: "infra", component: "runner" });
     expect(unknown.robot.plans).toEqual([]);
   });
 
@@ -618,7 +591,7 @@ describe("S07, blind transfer and its variants", () => {
         expect(hangup).toBeGreaterThan(settled);
       }
     }
-    expect(transferTimeline("timeout").snapBackBy! - transferTimeline("decline").snapBackBy!).toBe(TRANSFER_RING_SECS * 1_000);
+    expect(transferTimeline("timeout").snapBackBy! - transferTimeline("decline").snapBackBy!).toBe(TRANSFER_RING_SECS * 1000);
   });
 });
 
@@ -636,7 +609,7 @@ function s08World(direction: "inbound" | "outbound") {
 describe("S08, consult transfer", () => {
   it("passes inbound: the robot hears nobody while the pages talk, then the technician, and the owner's leg is gone", async () => {
     const world = s08World("inbound");
-    expect(await S08.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S08.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.robot.plans[0]).toMatchObject({ direction: "outbound", to: "DEV-W2", segments: [CONSULT_SEGMENT, AFTER_COMPLETE_SEGMENT] });
     expect(world.app.companies.get("QA-W")).toEqual({ ring_strategy: "in_turn" });
     expect(world.did(OWNER, "transfer").map((entry) => [entry.args, entry.at - ROBOT_ANSWERED])).toEqual([
@@ -646,14 +619,14 @@ describe("S08, consult transfer", () => {
     expect(world.did(OWNER, "mark").map((entry) => entry.args)).toEqual([["consult_answered"]]);
     const sender = world.heard.find((h) => h.member === OWNER)!.options!;
     const target = world.heard.find((h) => h.member === TECH)!.options!;
-    expect(sender).toMatchObject({ answerMark: "consult_answered", windowStartMs: 2_000 });
+    expect(sender).toMatchObject({ answerMark: "consult_answered", windowStartMs: 2000 });
     expect(target.windowEndMs).toBe(sender.windowEndMs);
   });
 
   it("passes outbound, where the owner calls ROBOT-1 and nothing about the crew ring changes", async () => {
     const world = s08World("outbound");
-    expect(await S08.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
-    expect(world.robot.plans[0]).toMatchObject({ direction: "inbound", role: "ROBOT-1", answer_after_ms: 3_000 });
+    await expect(S08.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
+    expect(world.robot.plans[0]).toMatchObject({ direction: "inbound", role: "ROBOT-1", answer_after_ms: 3000 });
     expect(world.did(OWNER, "dial").map((entry) => entry.args)).toEqual([["ROBOT-1"]]);
     expect(world.undo).toEqual([]);
   });
@@ -676,37 +649,37 @@ describe("S08, consult transfer", () => {
 
     const incomplete = s08World("outbound");
     withPages(incomplete, { [OWNER]: { heard: TECH, broken: ["completeTransfer"] }, [TECH]: { heard: OWNER } });
-    expect(await S08.run(incomplete.ctx)).toMatchObject({ outcome: "infra", component: "browser-lane" });
+    await expect(S08.run(incomplete.ctx)).resolves.toMatchObject({ outcome: "infra", component: "browser-lane" });
   });
 
   it("names a consult the robot overheard, pages that did not hear each other, a robot that never reached the target and a sender leg left up", async () => {
     const overheard = s08World("inbound");
     robotOutcome(overheard, (record) => withSegments(record, { consult: [OWNER], after: [TECH] }));
-    expect(await S08.run(overheard.ctx)).toMatchObject({ failure_class: "robot_heard_consult" });
+    await expect(S08.run(overheard.ctx)).resolves.toMatchObject({ failure_class: "robot_heard_consult" });
 
     const deafSender = s08World("inbound");
     withPages(deafSender, { [OWNER]: { heard: "robot" }, [TECH]: { heard: OWNER } });
-    expect(await S08.run(deafSender.ctx)).toMatchObject({ failure_class: "sender_did_not_hear_target" });
+    await expect(S08.run(deafSender.ctx)).resolves.toMatchObject({ failure_class: "sender_did_not_hear_target" });
 
     const deafTarget = s08World("inbound");
     withPages(deafTarget, { [OWNER]: { heard: TECH }, [TECH]: { heard: null } });
-    expect(await S08.run(deafTarget.ctx)).toMatchObject({ failure_class: "target_did_not_hear_sender" });
+    await expect(S08.run(deafTarget.ctx)).resolves.toMatchObject({ failure_class: "target_did_not_hear_sender" });
 
     const notTarget = s08World("outbound");
     robotOutcome(notTarget, (record) => withSegments(record, { consult: [], after: [OWNER] }));
-    expect(await S08.run(notTarget.ctx)).toMatchObject({ failure_class: "robot_did_not_hear_target" });
+    await expect(S08.run(notTarget.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_target" });
 
     const lingering = s08World("inbound");
     lingering.app.legs.set("QA-W/s08-session", [{ member: OWNER, state: "answered", kind: "consult" }]);
-    expect(await S08.run(lingering.ctx)).toMatchObject({ failure_class: "sender_leg_not_ended" });
+    await expect(S08.run(lingering.ctx)).resolves.toMatchObject({ failure_class: "sender_leg_not_ended" });
 
     const unrung = s08World("inbound");
     withPages(unrung, { [OWNER]: { heard: TECH }, [TECH]: { rings: [undefined] } });
-    expect(await S08.run(unrung.ctx)).toMatchObject({ failure_class: "consult_never_rang" });
+    await expect(S08.run(unrung.ctx)).resolves.toMatchObject({ failure_class: "consult_never_rang" });
 
     const unanswered = s08World("outbound");
     robotOutcome(unanswered, (record) => ({ ...record, answered_at: undefined }));
-    expect(await S08.run(unanswered.ctx)).toMatchObject({ failure_class: "not_answered" });
+    await expect(S08.run(unanswered.ctx)).resolves.toMatchObject({ failure_class: "not_answered" });
   });
 });
 
@@ -745,25 +718,25 @@ const refusedDial = (error: string) => async (plan: CallPlan): Promise<CallRecor
 describe("S09, busy line, second caller and self-dial", () => {
   it("passes when the busy line sends ROBOT-2 to voicemail, refuses the owner's dial and voicemails a self-dial", async () => {
     const world = s09World();
-    expect(await S09.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S09.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.robot.plans.map((plan) => [plan.role, plan.to])).toEqual([
       ["ROBOT-1", "DEV-W1"],
       ["ROBOT-2", "DEV-W1"],
     ]);
     expect(world.did(OWNER, "dial").map((entry) => entry.args)).toEqual([["ROBOT-2"], ["DEV-W1"]]);
     expect(world.did(OWNER, "waitForText").map((entry) => entry.args[0])).toEqual([NUMBER_BUSY_TEXT]);
-    expect(world.ctx.evidence).toMatchObject({ busy_voicemail_ms: 3_500, dials_while_busy: 0 });
+    expect(world.ctx.evidence).toMatchObject({ busy_voicemail_ms: 3500, dials_while_busy: 0 });
   });
 
   it("reports the robot when the second robot call is refused by the guard or by Telnyx", async () => {
     const guarded = s09World();
     const dial = guarded.robot.dial.bind(guarded.robot);
     guarded.robot.dial = async (plan) => (plan.role === "ROBOT-2" ? refusedDial("guard_refused:dial.concurrency")(plan) : dial(plan));
-    expect(await S09.run(guarded.ctx)).toMatchObject({ outcome: "infra", component: "robot" });
+    await expect(S09.run(guarded.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot" });
 
     const telnyx = s09World();
     robotOutcome(telnyx, (record, plan) => (plan.role === "ROBOT-2" ? { ...record, state: "failed", answered_at: undefined, errors: ["dial: Telnyx 403 on /v2/calls (D60)"] } : record));
-    expect(await S09.run(telnyx.ctx)).toMatchObject({ outcome: "infra", component: "robot" });
+    await expect(S09.run(telnyx.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot" });
   });
 
   it("names a slow or missing voicemail, no busy notice, a dial from the busy line and a self-dial that rang", async () => {
@@ -771,30 +744,30 @@ describe("S09, busy line, second caller and self-dial", () => {
     robotOutcome(late, (record, plan) =>
       plan.role === "ROBOT-2" ? { ...record, dialed_at: "2026-10-31T15:00:10.000Z", answered_at: "2026-10-31T15:00:18.500Z" } : record,
     );
-    expect(await S09.run(late.ctx)).toMatchObject({ failure_class: "busy_voicemail_late" });
+    await expect(S09.run(late.ctx)).resolves.toMatchObject({ failure_class: "busy_voicemail_late" });
 
     const unanswered = s09World();
     robotOutcome(unanswered, (record, plan) => (plan.role === "ROBOT-2" ? { ...record, answered_at: undefined } : record));
-    expect(await S09.run(unanswered.ctx)).toMatchObject({ failure_class: "busy_caller_not_answered" });
+    await expect(S09.run(unanswered.ctx)).resolves.toMatchObject({ failure_class: "busy_caller_not_answered" });
 
     const busyRow = s09World();
     busyRow.rows[0]!.outcome = "missed";
-    expect(await S09.run(busyRow.ctx)).toMatchObject({ failure_class: "busy_row_not_voicemail" });
+    await expect(S09.run(busyRow.ctx)).resolves.toMatchObject({ failure_class: "busy_row_not_voicemail" });
 
     const quiet = s09World();
     withPages(quiet, { [OWNER]: { showsText: false } });
-    expect(await S09.run(quiet.ctx)).toMatchObject({ failure_class: "no_busy_notice" });
+    await expect(S09.run(quiet.ctx)).resolves.toMatchObject({ failure_class: "no_busy_notice" });
 
     const through = s09World({ dialsThrough: true });
-    expect(await S09.run(through.ctx)).toMatchObject({ failure_class: "dialed_while_busy" });
+    await expect(S09.run(through.ctx)).resolves.toMatchObject({ failure_class: "dialed_while_busy" });
 
     const rang = s09World();
     rang.rows[2]!.outcome = "answered";
-    expect(await S09.run(rang.ctx)).toMatchObject({ failure_class: "self_dial_not_voicemail" });
+    await expect(S09.run(rang.ctx)).resolves.toMatchObject({ failure_class: "self_dial_not_voicemail" });
 
     const firstLost = s09World();
     robotOutcome(firstLost, (record, plan) => (plan.role === "ROBOT-1" ? { ...record, answered_at: undefined } : { ...record, dialed_at: "2026-10-31T15:00:10.000Z", answered_at: "2026-10-31T15:00:13.500Z" }));
-    expect(await S09.run(firstLost.ctx)).toMatchObject({ failure_class: "not_answered" });
+    await expect(S09.run(firstLost.ctx)).resolves.toMatchObject({ failure_class: "not_answered" });
   });
 });
 
@@ -814,7 +787,7 @@ function s10World() {
 describe("S10, DEV-W1 calls DEV-W2 in one workspace", () => {
   it("passes when the crew rings, the owner sees call waiting, and the two pages hear each other", async () => {
     const world = s10World();
-    expect(await S10.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S10.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.robot.plans).toEqual([]);
     expect(world.did(OWNER, "dial").map((entry) => entry.args)).toEqual([["DEV-W2"]]);
     expect(world.did(OWNER, "waitForText").map((entry) => entry.args[0])).toEqual([CALL_WAITING_TEXT]);
@@ -826,38 +799,38 @@ describe("S10, DEV-W1 calls DEV-W2 in one workspace", () => {
   it("names a crew or owner that never rang, no call waiting, deaf pages and a missing or unanswered row", async () => {
     const crewless = s10World();
     withPages(crewless, { [TECH]: { rings: [undefined] } });
-    expect(await S10.run(crewless.ctx)).toMatchObject({ failure_class: "crew_not_rung" });
+    await expect(S10.run(crewless.ctx)).resolves.toMatchObject({ failure_class: "crew_not_rung" });
 
     const ownerless = s10World();
     withPages(ownerless, { [OWNER]: { heard: TECH, rings: [undefined] }, [TECH]: { heard: OWNER } });
-    expect(await S10.run(ownerless.ctx)).toMatchObject({ failure_class: "owner_not_rung" });
+    await expect(S10.run(ownerless.ctx)).resolves.toMatchObject({ failure_class: "owner_not_rung" });
 
     const unwaiting = s10World();
     withPages(unwaiting, { [OWNER]: { heard: TECH, showsText: false }, [TECH]: { heard: OWNER } });
-    expect(await S10.run(unwaiting.ctx)).toMatchObject({ failure_class: "no_call_waiting" });
+    await expect(S10.run(unwaiting.ctx)).resolves.toMatchObject({ failure_class: "no_call_waiting" });
 
     const deafCaller = s10World();
     withPages(deafCaller, { [OWNER]: { heard: null }, [TECH]: { heard: OWNER } });
-    expect(await S10.run(deafCaller.ctx)).toMatchObject({ failure_class: "caller_did_not_hear_crew" });
+    await expect(S10.run(deafCaller.ctx)).resolves.toMatchObject({ failure_class: "caller_did_not_hear_crew" });
 
     const deafCrew = s10World();
     withPages(deafCrew, { [OWNER]: { heard: TECH }, [TECH]: { heard: "robot" } });
-    expect(await S10.run(deafCrew.ctx)).toMatchObject({ failure_class: "crew_did_not_hear_caller" });
+    await expect(S10.run(deafCrew.ctx)).resolves.toMatchObject({ failure_class: "crew_did_not_hear_caller" });
 
     const rowless = s10World();
     rowless.rows[0]!.direction = "outbound";
-    expect(await S10.run(rowless.ctx)).toMatchObject({ failure_class: "no_call_row" });
+    await expect(S10.run(rowless.ctx)).resolves.toMatchObject({ failure_class: "no_call_row" });
 
     const missed = s10World();
     missed.rows[0]!.outcome = "missed";
-    expect(await S10.run(missed.ctx)).toMatchObject({ failure_class: "row_not_answered" });
+    await expect(S10.run(missed.ctx)).resolves.toMatchObject({ failure_class: "row_not_answered" });
   });
 });
 
-function s11World(ringLengthMs = S11_RING_SECONDS * 1_000 + 900) {
+function s11World(ringLengthMs = S11_RING_SECONDS * 1000 + 900) {
   const world = fakeContext("S11");
   const seen = withLeaseAtChanges(world);
-  const pages = withPages(world, { [OWNER]: { ringsAfterMs: undefined }, [TECH]: { ringsAfterMs: 1_800 } });
+  const pages = withPages(world, { [OWNER]: { ringsAfterMs: undefined }, [TECH]: { ringsAfterMs: 1800 } });
   const dialedAt = Date.parse("2026-10-31T15:00:00.500Z");
   robotOutcome(world, (record) => ({ ...record, dialed_at: iso(dialedAt), answered_at: iso(dialedAt + ringLengthMs) }));
   return { ...world, ...pages, seen };
@@ -866,7 +839,7 @@ function s11World(ringLengthMs = S11_RING_SECONDS * 1_000 + 900) {
 describe("S11, after hours, on call, in turn and ring length", () => {
   it("passes when only the on-call page rings and voicemail answers at the ring length", async () => {
     const world = s11World();
-    expect(await S11.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S11.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     const values = world.app.companies.get("QA-W")!;
     expect(values).toMatchObject({ after_hours_calls: "on_call_only", ring_strategy: "in_turn", ring_seconds: 20, timezone: "America/Toronto", business_hours_exceptions: [] });
     expect(values.business_hours).toEqual(hoursClosedAt(Date.UTC(2026, 9, 31, 15)));
@@ -888,19 +861,19 @@ describe("S11, after hours, on call, in turn and ring length", () => {
   it("names an on-call page that never rang, an owner who rang, no voicemail, and a ring of the wrong length", async () => {
     const unrung = s11World();
     withPages(unrung, { [OWNER]: { ringsAfterMs: undefined }, [TECH]: { ringsAfterMs: undefined } });
-    expect(await S11.run(unrung.ctx)).toMatchObject({ failure_class: "on_call_not_rung" });
+    await expect(S11.run(unrung.ctx)).resolves.toMatchObject({ failure_class: "on_call_not_rung" });
 
     const loud = s11World();
-    withPages(loud, { [OWNER]: { ringsAfterMs: 2_000 }, [TECH]: { ringsAfterMs: 1_800 } });
-    expect(await S11.run(loud.ctx)).toMatchObject({ failure_class: "off_call_rang" });
+    withPages(loud, { [OWNER]: { ringsAfterMs: 2000 }, [TECH]: { ringsAfterMs: 1800 } });
+    await expect(S11.run(loud.ctx)).resolves.toMatchObject({ failure_class: "off_call_rang" });
 
     const unanswered = s11World();
     robotOutcome(unanswered, (record) => ({ ...record, answered_at: undefined }));
-    expect(await S11.run(unanswered.ctx)).toMatchObject({ failure_class: "voicemail_not_answered" });
+    await expect(S11.run(unanswered.ctx)).resolves.toMatchObject({ failure_class: "voicemail_not_answered" });
 
-    expect(await S11.run(s11World(S11_RING_SECONDS * 1_000 + 2_500).ctx)).toMatchObject({ failure_class: "ring_length" });
-    expect(await S11.run(s11World(S11_RING_SECONDS * 1_000 - 2_500).ctx)).toMatchObject({ failure_class: "ring_length" });
-    expect((await S11.run(s11World(S11_RING_SECONDS * 1_000 - 1_900).ctx)).outcome).toBe("pass");
+    await expect(S11.run(s11World(S11_RING_SECONDS * 1000 + 2500).ctx)).resolves.toMatchObject({ failure_class: "ring_length" });
+    await expect(S11.run(s11World(S11_RING_SECONDS * 1000 - 2500).ctx)).resolves.toMatchObject({ failure_class: "ring_length" });
+    expect((await S11.run(s11World(S11_RING_SECONDS * 1000 - 1900).ctx)).outcome).toBe("pass");
   });
 
   it("seeds today's hours away from now on the destination clock, whatever the hour or the season", () => {
@@ -1001,7 +974,7 @@ describe("what the runners take from the rest of the repository", () => {
     expect(S11_RING_SECONDS).toBeGreaterThanOrEqual(bound("RING_SECONDS_MIN"));
     expect(S11_RING_SECONDS).toBeLessThanOrEqual(bound("RING_SECONDS_MAX"));
     // The owner answers before the next phone would join an in-turn ring.
-    expect(OWNER_RING_MS).toBeLessThan(bound("RING_STEP_SECS") * 1_000);
+    expect(OWNER_RING_MS).toBeLessThan(bound("RING_STEP_SECS") * 1000);
   });
 
   it("times the transfer variants on the API's own transfer ring and hop cap", () => {

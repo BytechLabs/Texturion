@@ -1,4 +1,4 @@
-﻿/**
+/**
  * #209 - createSessionRuntime.mirror write-time coupling: a TERMINAL state
  * mirror back-fills a still-null `outcome` (coalesce semantics via the
  * `outcome=is.null` filter) and writes it BEFORE the state, so the incident

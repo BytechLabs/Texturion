@@ -21,9 +21,10 @@
  * set the other and the email carries an address the pages say we do not have.
  * Ops still sets them in exactly one file.
  */
-import { LEGAL_ENTITY_NAME, MAILING_ADDRESS } from "@loonext/shared";
+import {LEGAL_ENTITY_NAME, MAILING_ADDRESS} from "@loonext/shared";
 
-export { LEGAL_ENTITY_NAME, MAILING_ADDRESS };
+export { LEGAL_ENTITY_NAME, MAILING_ADDRESS } from "@loonext/shared";
+
 
 /** Privacy officer name for Quebec Law 25 (BLUEPRINT §9), from ops. */
 export const PRIVACY_OFFICER_NAME: string | null = null;

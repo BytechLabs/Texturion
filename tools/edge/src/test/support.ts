@@ -8,7 +8,8 @@ import { env as bindings } from "cloudflare:workers";
 import type { CallerClass, ControlClass, EdgeToRig, Partition, RigToEdge } from "@loonext/rig-protocol";
 
 import { sha256Hex } from "../auth";
-import { MAILBOX_NAME, UPLINK_NAME, type Env } from "../env";
+import { MAILBOX_NAME, UPLINK_NAME } from '../env';
+import type { Env } from '../env';
 import { resetGuardCaches } from "../guard";
 import worker from "../index";
 
@@ -159,7 +160,7 @@ let eventCounter = 0;
 export function callEvent(
   type: string,
   payload: Record<string, unknown>,
-  id = `evt-call-${++eventCounter}`,
+  id = `evt-call-${eventCounter += 1}`,
 ): unknown {
   return {
     data: {
@@ -180,7 +181,7 @@ export function callEvent(
 export function messageEvent(
   type: string,
   payload: Record<string, unknown>,
-  id = `evt-msg-${++eventCounter}`,
+  id = `evt-msg-${eventCounter += 1}`,
 ): unknown {
   return {
     data: {
@@ -248,7 +249,7 @@ export async function resetEdge(): Promise<void> {
       }
       await state.storage.deleteAlarm();
       const tables = state.storage.sql
-        .exec<{ name: string }>("SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\\_%' ESCAPE '\\' AND name NOT LIKE 'sqlite%'")
+        .exec<{ name: string }>(String.raw`SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE '\_%' ESCAPE '\' AND name NOT LIKE 'sqlite%'`)
         .toArray();
       for (const { name } of tables) state.storage.sql.exec(`DELETE FROM "${name}"`);
     });

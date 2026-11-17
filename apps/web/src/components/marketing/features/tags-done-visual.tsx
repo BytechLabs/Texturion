@@ -13,10 +13,8 @@
  * Server component, static DOM.
  */
 
-import {
-  templatesCopy,
-  type TemplatesCopy,
-} from "@/i18n/marketing/templates";
+import { templatesCopy } from '@/i18n/marketing/templates';
+import type { TemplatesCopy } from '@/i18n/marketing/templates';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check } from "lucide-react";
 

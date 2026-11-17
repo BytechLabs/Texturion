@@ -23,7 +23,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import { supabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import {
   alarmOnBulkContactAccess,
   BULK_CONTACT_ALARM_MIN_ROWS,

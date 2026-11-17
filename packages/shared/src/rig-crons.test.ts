@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -9,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * and that each way the registry can disagree with them fails.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const read = (file: string) => readFileSync(join(REPO, file), "utf8");
 
 type Entry = Record<string, unknown>;
@@ -143,7 +142,7 @@ describe("the real registry", () => {
 
   it("fails when a cron gains a job the registry does not list", () => {
     const input = realInput();
-    const map = input.jobs[API] as Map<string, string[]>;
+    const map = input.jobs[API]!;
     map.set("0 13 * * *", [...(map.get("0 13 * * *") ?? []), "job:new"]);
     expect(problems(input)).toMatch(/runs job:new on this cron and the registry does not list it/);
   });
@@ -309,7 +308,7 @@ describe("the real registry's refusals", () => {
     const { registry, configs } = realInput();
     for (const config of [EDGE, GUARD]) {
       const entries = registry.crons.filter((entry) => entry.config === config);
-      expect(entries.map((entry) => entry.cron).sort()).toEqual([...(configs[config] ?? [])].sort());
+      expect(entries.map((entry) => entry.cron).toSorted()).toEqual([...(configs[config] ?? [])].toSorted());
       expect(entries.length).toBeGreaterThan(0);
       for (const entry of entries) {
         expect(entry.class).toBe("skip");

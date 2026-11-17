@@ -3,13 +3,8 @@ import { generateKeyPair, SignJWT } from "jose";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AppEnv } from "../context";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { expectedIssuer, jwtAuth } from "./jwt";
 
 const env = completeEnv();
@@ -42,12 +37,12 @@ function request(token?: string) {
 
 async function expectUnauthorized(res: Response) {
   expect(res.status).toBe(401);
-  expect(await res.json()).toEqual({
+  await expect(res.json()).resolves.toEqual({
     error: { code: "unauthorized", message: expect.any(String) },
   });
 }
 
-describe("expectedIssuer", () => {
+describe(expectedIssuer, () => {
   it("is SUPABASE_URL + /auth/v1, tolerant of a trailing slash", () => {
     expect(expectedIssuer("https://x.supabase.co")).toBe(
       "https://x.supabase.co/auth/v1",
@@ -62,7 +57,7 @@ describe("jwtAuth (SPEC §10: ES256 via JWKS, iss/aud/exp verified)", () => {
   it("accepts a valid token and attaches the sub as userId", async () => {
     const res = await request(await auth.token());
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ userId: auth.subject });
+    await expect(res.json()).resolves.toEqual({ userId: auth.subject });
   });
 
   it("rejects an expired token with 401", async () => {
@@ -145,7 +140,7 @@ describe("jwtAuth when the key set cannot be fetched (#251)", () => {
     // out, 503 asks them to wait.
     expect(res.status).toBe(503);
     expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "service_unavailable", message: expect.any(String) },
     });
   }

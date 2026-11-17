@@ -417,11 +417,11 @@ webhooksRoutes.post("/webhooks/:id/test", requireCapability("settings.manage"), 
       ok: response.status >= 200 && response.status < 300,
       status: response.status,
     });
-  } catch (cause) {
+  } catch (error) {
     // A test that fails is a successful test — the person learns their endpoint
     // is unreachable, which is the whole reason they pressed the button. So
     // this is a 200 with `ok: false`, not a 502: the REQUEST worked.
-    const name = cause instanceof Error ? cause.name : "Error";
+    const name = error instanceof Error ? error.name : "Error";
     return c.json({
       ok: false,
       status: null,

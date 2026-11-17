@@ -34,7 +34,7 @@ const { scanAttachment } = await import("./scan");
 
 function jpeg(sizeBytes: number): Uint8Array {
   const bytes = new Uint8Array(sizeBytes);
-  bytes.set([0xff, 0xd8, 0xff, 0xe0], 0);
+  bytes.set([0xFF, 0xD8, 0xFF, 0xE0], 0);
   return bytes;
 }
 

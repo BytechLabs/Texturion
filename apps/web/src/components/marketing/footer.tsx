@@ -2,10 +2,8 @@ import { LanguageSwitch } from "@/components/marketing/language-switch";
 import Link from "next/link";
 
 import { LEGAL_ENTITY_NAME, MAILING_ADDRESS } from "@/lib/marketing/business";
-import {
-  footerCopy,
-  type MarketingLocale,
-} from "@/i18n/marketing/footer";
+import { footerCopy } from '@/i18n/marketing/footer';
+import type { MarketingLocale } from '@/i18n/marketing/footer';
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 import { twinOf } from "@/lib/marketing/translated-pages";
 

@@ -14,7 +14,7 @@ import { completeEnv, stubFetch } from "../test/support";
 import { stripComments } from "../test/source-tree";
 import type { Env } from "../env";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -25,7 +25,7 @@ afterEach(() => {
   resetCaptures();
 });
 
-describe("sendEmail", () => {
+describe(sendEmail, () => {
   it("POSTs the Resend payload with the env sender and bearer auth", async () => {
     const harness = makeHarness([
       endpoint("POST", /^https:\/\/api\.resend\.com\/emails$/, () => ({
@@ -52,7 +52,7 @@ describe("sendEmail", () => {
       // #252: the body as given, plus the footer this layer appends so the two
       // MIME parts cannot disagree. Asserted whole rather than with `toContain`
       // because this is the one test that pins the ENTIRE payload shape.
-      text: "Hi there" + emailTextFooter(),
+      text: `Hi there${  emailTextFooter()}`,
       reply_to: "support@loonext.com",
     });
   });
@@ -104,8 +104,8 @@ describe("sendEmail", () => {
         "POST",
         /api\.resend\.com\/emails/,
         () =>
-          new Response(
-            JSON.stringify({ name: "validation_error", message: "bad from" }),
+          Response.json(
+            { name: "validation_error", message: "bad from" },
             { status: 422 },
           ),
       ),
@@ -447,10 +447,10 @@ describe("#252 which mail is critical", () => {
 
     expect(
       missing,
-      "These sends carry a deadline after which a customer loses their " +
-        "business number, and they are no longer on the critical stream. If " +
-        "the stream was retired, remove them from this roster too rather " +
-        "than leaving a rule with nothing under it: " + missing.join("; "),
+      `These sends carry a deadline after which a customer loses their ` +
+        `business number, and they are no longer on the critical stream. If ` +
+        `the stream was retired, remove them from this roster too rather ` +
+        `than leaving a rule with nothing under it: ${  missing.join("; ")}`,
     ).toEqual([]);
   });
 

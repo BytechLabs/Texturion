@@ -1,9 +1,5 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -198,7 +194,7 @@ export function usePortRequest(portId: string | null) {
   const companyId = useCompanyId();
   return useQuery({
     queryKey: keys.portRequests.detail(companyId, portId ?? "none"),
-    queryFn: () => requestDetail(companyId, portId as string),
+    queryFn: () => requestDetail(companyId, portId!),
     enabled: portId !== null,
   });
 }
@@ -220,7 +216,7 @@ export function useCreatePortRequest() {
       requestCreate(companyId, input, crypto.randomUUID()),
     onSuccess: (port) => {
       cachePort(queryClient, companyId, port);
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
@@ -258,7 +254,7 @@ export function useSubmitPortRequest(portId: string) {
     mutationFn: () => requestSubmit(companyId, portId),
     onSuccess: (port) => {
       cachePort(queryClient, companyId, port);
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
@@ -284,7 +280,7 @@ export function useCancelPortRequest(portId: string) {
     mutationFn: () => requestCancel(companyId, portId),
     onSuccess: (port) => {
       cachePort(queryClient, companyId, port);
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
@@ -305,7 +301,7 @@ export function useCancelPortRequest(portId: string) {
 export function usePortRequestsForCompany(companyId: string | null) {
   return useQuery({
     queryKey: keys.portRequests.list(companyId ?? "none"),
-    queryFn: () => requestList(companyId as string),
+    queryFn: () => requestList(companyId!),
     enabled: companyId !== null,
   });
 }
@@ -335,7 +331,7 @@ export function useCreatePortRequestForCompany() {
     }) => requestCreate(input.companyId, input.body, input.idempotencyKey),
     onSuccess: (port, { companyId }) => {
       cachePort(queryClient, companyId, port);
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
@@ -364,7 +360,7 @@ export function useSubmitPortRequestForCompany() {
       requestSubmit(input.companyId, input.portId),
     onSuccess: (port, { companyId }) => {
       cachePort(queryClient, companyId, port);
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });

@@ -12,20 +12,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getEnv } from "../env";
 import { rigEnv } from "../test/rig-env";
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { webhooksRoutes } from "./webhooks";
 
 const env = completeEnv();
@@ -195,11 +185,11 @@ describe("POST /v1/webhooks", () => {
       "POST",
       "/rest/v1/webhook_endpoints",
       () =>
-        new Response(
-          JSON.stringify({
+        Response.json(
+          {
             message: 'webhook endpoint cap reached for company 8a1b3c5d',
             code: "23514",
-          }),
+          },
           { status: 400, headers: { "content-type": "application/json" } },
         ),
     );
@@ -313,7 +303,7 @@ describe("POST /v1/webhooks/:id/test", () => {
       method: "POST",
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: true, status: 200 });
+    await expect(res.json()).resolves.toEqual({ ok: true, status: 200 });
 
     const sent = seen as unknown as { signature: string; event: string; body: string };
     expect(sent.signature).toMatch(/^t=\d+,v1=[0-9a-f]{64}$/);
@@ -342,7 +332,7 @@ describe("POST /v1/webhooks/:id/test", () => {
     // The person pressed a button to find out. Both answers are the button
     // working, so both are 200 — what changes is `ok`.
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ ok: false, status: 403 });
+    await expect(res.json()).resolves.toEqual({ ok: false, status: 403 });
   });
 
   it("refuses to ping an address that would fail the gate today", async () => {
@@ -404,7 +394,7 @@ describe("POST /v1/webhooks/:id/test on the rig", () => {
       method: "POST",
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       ok: false,
       status: null,
       error: "rig mode delivers webhooks only to the robot",
@@ -425,7 +415,7 @@ describe("POST /v1/webhooks/:id/test on the rig", () => {
       companyId: COMPANY_ID,
       method: "POST",
     });
-    expect(await res.json()).toEqual({ ok: true, status: 204 });
+    await expect(res.json()).resolves.toEqual({ ok: true, status: 204 });
     expect(posted).toBe(1);
   });
 });

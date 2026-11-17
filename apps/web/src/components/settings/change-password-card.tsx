@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { authErrorMessage } from "@/lib/auth/messages";
 import { needsReauth, planPasswordSubmit } from "@/lib/auth/reauth";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";

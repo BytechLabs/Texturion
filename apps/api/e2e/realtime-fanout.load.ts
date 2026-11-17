@@ -14,15 +14,13 @@
  */
 import { execFileSync } from "node:child_process";
 
-import {
-  createClient,
-  type RealtimeChannel,
-  type SupabaseClient,
-} from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { deleteCompaniesSql } from "./company-cleanup";
-import { startHarness, type Harness } from "./harness";
+import { startHarness } from './harness';
+import type { Harness } from './harness';
 import { capacityResult, emitCapacityResult } from "./load-report";
 
 const SUBSCRIBERS = 40;
@@ -48,7 +46,7 @@ interface LocalSupabasePublic {
 let h: Harness;
 let userId: string | undefined;
 let authClient: SupabaseClient | undefined;
-const subscribers: Array<{ client: SupabaseClient; channel: RealtimeChannel }> = [];
+const subscribers: { client: SupabaseClient; channel: RealtimeChannel }[] = [];
 const companyId = crypto.randomUUID();
 
 /**
@@ -87,7 +85,7 @@ function resolveLocalSupabasePublic(): LocalSupabasePublic {
     );
   }
 
-  const hostname = new URL(apiUrl).hostname;
+  const {hostname} = new URL(apiUrl);
   if (!new Set(["127.0.0.1", "localhost", "[::1]", "::1"]).has(hostname)) {
     throw new Error(
       `refusing Realtime load target ${hostname}: this harness is loopback-only`,
@@ -98,7 +96,7 @@ function resolveLocalSupabasePublic(): LocalSupabasePublic {
 
 function percentile(values: number[], fraction: number): number {
   if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = [...values].toSorted((a, b) => a - b);
   return sorted[
     Math.min(sorted.length - 1, Math.floor(sorted.length * fraction))
   ];

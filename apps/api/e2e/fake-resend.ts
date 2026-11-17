@@ -14,7 +14,8 @@
  *
  * Lives under apps/api/e2e/ ONLY; never imported by src/.
  */
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
 import type { AddressInfo } from "node:net";
 
 export interface SentEmail {
@@ -64,7 +65,7 @@ function parseSend(raw: string): Omit<SentEmail, "authorization"> | null {
     return null;
   }
   return {
-    to: to as string[],
+    to,
     subject: body.subject,
     from: body.from,
     text: typeof body.text === "string" ? body.text : "",
@@ -106,7 +107,7 @@ export async function startFakeResend(): Promise<FakeResend> {
   });
 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const port = (server.address() as AddressInfo).port;
+  const {port} = (server.address() as AddressInfo);
 
   return {
     origin: `http://127.0.0.1:${port}`,

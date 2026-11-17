@@ -20,7 +20,8 @@
  */
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import { pricingCopy, type PricingCopy } from "@/i18n/marketing/pricing";
+import { pricingCopy } from '@/i18n/marketing/pricing';
+import type { PricingCopy } from '@/i18n/marketing/pricing';
 import { useCountry } from "./country-context";
 
 const usSteps = (copy: PricingCopy) => [

@@ -3,7 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import { PLAN_PRICING } from "@/lib/api/types";
 
-import { CrewSizeSlider, MAX_CREW, loonextPrice } from "./crew-size-slider";
+import { CrewSizeSlider, loonextPrice, MAX_CREW } from "./crew-size-slider";
 import { CrewSizeSliderStatic } from "./crew-size-slider-static";
 
 // Starter's included seats is the slider's flat-price threshold (3). The Pro

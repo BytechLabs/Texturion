@@ -67,7 +67,7 @@ export function installPageJudge(config: PageJudgeConfig): void {
   const write = (value: number) => {
     if (written >= pcm.length) return;
     const clipped = Math.max(-1, Math.min(1, value));
-    pcm[written++] = Math.round(clipped * 32767);
+    pcm[written += 1] = Math.round(clipped * 32_767);
   };
 
   const attach = (stream: MediaStream) => {
@@ -90,10 +90,10 @@ export function installPageJudge(config: PageJudgeConfig): void {
       let count = 0;
       processor.onaudioprocess = (event) => {
         const input = event.inputBuffer.getChannelData(0);
-        if (startedAt === null) startedAt = Date.now() - (input.length / ctx.sampleRate) * 1000;
+        startedAt ??= Date.now() - (input.length / ctx.sampleRate) * 1000;
         for (let i = 0; i < input.length; i++) {
           sum += input[i]!;
-          count++;
+          count += 1;
           phase += 1;
           if (phase >= step) {
             phase -= step;
@@ -114,9 +114,9 @@ export function installPageJudge(config: PageJudgeConfig): void {
       super(...args);
       peers.push(this);
       this.addEventListener("track", (event) => {
-        const track = (event as RTCTrackEvent).track;
+        const {track} = event;
         if (track.kind !== "audio") return;
-        attach((event as RTCTrackEvent).streams[0] ?? new MediaStream([track]));
+        attach((event).streams[0] ?? new MediaStream([track]));
       });
     }
   }
@@ -133,7 +133,7 @@ export function installPageJudge(config: PageJudgeConfig): void {
         continue;
       }
       report.forEach((entry: Record<string, unknown>) => {
-        const n = (key: string) => (typeof entry[key] === "number" ? (entry[key] as number) : undefined);
+        const n = (key: string) => (typeof entry[key] === "number" ? (entry[key]) : undefined);
         if (entry.type === "inbound-rtp" && entry.kind === "audio") {
           stats.push({
             at: Date.now(),
@@ -159,7 +159,7 @@ export function installPageJudge(config: PageJudgeConfig): void {
         }
       });
     }
-    if (stats.length > 2_000) stats.splice(0, stats.length - 2_000);
+    if (stats.length > 2000) stats.splice(0, stats.length - 2000);
   };
   setInterval(() => void sample(), config.statsIntervalMs);
 
@@ -170,8 +170,8 @@ export function installPageJudge(config: PageJudgeConfig): void {
     take(): PageCapture {
       const bytes = new Uint8Array(pcm.buffer, 0, written * 2);
       let binary = "";
-      for (let i = 0; i < bytes.length; i += 0x8000) {
-        binary += String.fromCharCode(...bytes.subarray(i, i + 0x8000));
+      for (let i = 0; i < bytes.length; i += 0x80_00) {
+        binary += String.fromCharCode(...bytes.subarray(i, i + 0x80_00));
       }
       return {
         sampleRate: config.captureRate,

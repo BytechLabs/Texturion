@@ -17,22 +17,10 @@ import { useT } from "@/i18n/provider";
 import { useImportVCard } from "@/lib/api/contacts-vcard";
 import { ApiError } from "@/lib/api/error";
 import type { ImportResult } from "@/lib/api/types";
-import {
-  answerProperty,
-  ignoreRemainingProperties,
-  propertyDeclarations,
-  readVCardProperties,
-  type VCardProperty,
-} from "@/lib/contacts/vcard-properties";
-import {
-  CONTACT_IMPORT_IGNORE,
-  CONTACT_IMPORT_SHOW_FEWER_VALUES_KEY,
-  contactImportHiddenValuesLabel,
-  contactImportShowAllValuesLabel,
-  contactImportValueCeilingNote,
-  VCARD_IMPORT_MAX_BYTES,
-  type VCardPropertyAction,
-} from "@loonext/shared";
+import { answerProperty, ignoreRemainingProperties, propertyDeclarations, readVCardProperties } from '@/lib/contacts/vcard-properties';
+import type { VCardProperty } from '@/lib/contacts/vcard-properties';
+import { CONTACT_IMPORT_IGNORE, CONTACT_IMPORT_SHOW_FEWER_VALUES_KEY, contactImportHiddenValuesLabel, contactImportShowAllValuesLabel, contactImportValueCeilingNote, VCARD_IMPORT_MAX_BYTES } from '@loonext/shared';
+import type { VCardPropertyAction } from '@loonext/shared';
 
 import { ImportConsentCheck } from "./import-consent-check";
 import { ImportSummaryView } from "./import-summary-view";
@@ -184,7 +172,7 @@ export function VCardImportDialog({
               <Button onClick={() => close(false)}>{t("contacts.done")}</Button>
             </DialogFooter>
           </>
-        ) : reviewing && pending ? (
+        ) : (reviewing && pending ? (
           <>
             <DialogHeader>
               <DialogTitle>{t("contacts.vcardCardsTitle")}</DialogTitle>
@@ -284,7 +272,7 @@ export function VCardImportDialog({
                             )}
                             <button
                               type="button"
-                              aria-expanded={true}
+                              aria-expanded
                               onClick={() =>
                                 setShowAll((current) => {
                                   const next = new Set(current);
@@ -440,7 +428,7 @@ export function VCardImportDialog({
               </p>
             )}
           </>
-        )}
+        ))}
       </DialogContent>
     </Dialog>
   );

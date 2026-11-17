@@ -16,7 +16,7 @@
  * these headers changes their behavior in a browser; their cache rules live
  * in `public/_headers`.
  */
-export const SECURITY_HEADERS: ReadonlyArray<{ key: string; value: string }> = [
+export const SECURITY_HEADERS: readonly { key: string; value: string }[] = [
   /*
    * The policy, in the order it grew.
    *

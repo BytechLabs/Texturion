@@ -136,9 +136,9 @@ function flattened(paths: readonly string[]): string {
     // anyway, and a literal escape here is how this file got a parse error.
     .join(" ")
     // `"…a " +\n  "b…"` and `"…a "\n  + "b…"` both become `"…ab…"`.
-    .replace(/"\s*\+\s*\n\s*"/g, "")
-    .replace(/"\s*\n\s*\+\s*"/g, "")
-    .replace(/\s+/g, " ");
+    .replaceAll(/"\s*\+\s*\n\s*"/g, "")
+    .replaceAll(/"\s*\n\s*\+\s*"/g, "")
+    .replaceAll(/\s+/g, " ");
 }
 
 /** Every sentence, in the order a reader meets them. */
@@ -172,7 +172,7 @@ describe("#319 the pre-cutover checklist is the same on every client", () => {
     expect(
       missing,
       `These #319 checklist lines are missing or reworded on some platforms. ` +
-        `Change all three together:\n  ` + missing.join("\n  "),
+        `Change all three together:\n  ${  missing.join("\n  ")}`,
     ).toEqual([]);
   });
 

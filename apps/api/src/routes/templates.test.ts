@@ -3,21 +3,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  pgError,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, pgError, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { templatesRoutes } from "./templates";
 
 const env = completeEnv();
@@ -220,7 +209,7 @@ describe("templates CRUD (#461: read is a member's, curating is admin's)", () =>
       deleted_at: string;
       updated_by: string;
     };
-    expect(typeof wrote.deleted_at).toBe("string");
+    expect(wrote.deleted_at).toBeTypeOf("string");
     expect(wrote.updated_by).toBe(auth.subject);
 
     const audit = sb.find("POST", "/rest/v1/audit_log")[0].body as {

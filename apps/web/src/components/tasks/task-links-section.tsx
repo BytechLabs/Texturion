@@ -13,7 +13,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
 import { useAddTaskLink, useRemoveTaskLink, useTaskLinks } from "@/lib/api/task-links";
 import type { TaskLink, TaskRelation } from "@/lib/api/types";

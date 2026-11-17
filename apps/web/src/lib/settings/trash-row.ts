@@ -33,29 +33,37 @@ export function daysLeftLabel(
 
 export function kindLabel(row: TrashRow, t: Translate): string {
   switch (row.kind) {
-    case "conversation":
+    case "conversation": {
       return t("trash.kindConversation");
-    case "message":
+    }
+    case "message": {
       return row.message.direction === "note"
         ? t("trash.kindNote")
         : t("trash.kindMessage");
-    case "call":
+    }
+    case "call": {
       return t("trash.kindCall");
-    case "voicemail":
+    }
+    case "voicemail": {
       return t("trash.kindVoicemail");
+    }
   }
 }
 
 function detailsOf(row: TrashRow) {
   switch (row.kind) {
-    case "conversation":
+    case "conversation": {
       return row.conversation;
-    case "message":
+    }
+    case "message": {
       return row.message;
-    case "call":
+    }
+    case "call": {
       return row.call;
-    case "voicemail":
+    }
+    case "voicemail": {
       return row.voicemail;
+    }
   }
 }
 
@@ -79,23 +87,24 @@ export function detailLabel(row: TrashRow, t: Translate): string {
     }
     case "message": {
       const snippet = row.message.snippet?.trim();
-      return snippet ? snippet : t("trash.noSnippet");
+      return snippet || t("trash.noSnippet");
     }
     case "call": {
       const { outcome, has_voicemail } = row.call;
       const base =
         outcome === "missed"
           ? t("trash.callOutcomeMissed")
-          : outcome === "voicemail"
+          : (outcome === "voicemail"
             ? t("trash.callOutcomeVoicemail")
-            : t("trash.callOutcomeAnswered");
+            : t("trash.callOutcomeAnswered"));
       return has_voicemail && outcome !== "voicemail"
         ? `${base} · ${t("trash.callWithVoicemail")}`
         : base;
     }
-    case "voicemail":
+    case "voicemail": {
       return row.voicemail.voicemail_seconds
         ? t("trash.voicemailLength", { seconds: row.voicemail.voicemail_seconds })
         : t("trash.kindVoicemail");
+    }
   }
 }

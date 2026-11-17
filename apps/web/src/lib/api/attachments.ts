@@ -1,29 +1,24 @@
-import {
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-  type UseQueryResult,
-} from "@tanstack/react-query";
-import { useEffect, type MouseEvent } from "react";
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient, UseQueryResult } from '@tanstack/react-query';
+import { useEffect } from 'react';
+import type { MouseEvent } from 'react';
 
 import { useT } from "@/i18n/provider";
 import { useCompanyId } from "@/lib/company/provider";
-import {
-  uploadFilesSequentially,
-  type StagedUploadResult,
-} from "@/lib/attachments/upload-chain";
+import { uploadFilesSequentially } from '@/lib/attachments/upload-chain';
+import type { StagedUploadResult } from '@/lib/attachments/upload-chain';
 import { makeAttachmentPreview } from "@/lib/attachments/preview";
 import {
   buildAttachmentForm,
   validateAttachment,
 } from "@/lib/attachments/validate";
 
-import { invalidateAfterNoteUpload } from "./attachment-invalidation";
+import {invalidateAfterNoteUpload} from "./attachment-invalidation";
+
+export { invalidateAfterNoteUpload } from "./attachment-invalidation";
 import { createAttachmentUrlBatcher } from "./attachment-url-batcher";
 import { apiFetch } from "./client";
-import { ApiError } from "./error";
+import type { ApiError } from "./error";
 import { keys } from "./keys";
 import type {
   Attachment,
@@ -35,7 +30,7 @@ import type {
 // Re-exported for backwards compatibility — the pure invalidation helper now
 // lives in ./attachment-invalidation (importable without this module's heavy
 // hook/client/env graph; see that file for why).
-export { invalidateAfterNoteUpload };
+
 
 /** Every mint in the app, so one render's thumbnails share a request. */
 export const loadAttachmentUrl = createAttachmentUrlBatcher(apiFetch);

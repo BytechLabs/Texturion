@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { searchInventory } from "./inventory";
-import { TelnyxMock, telnyxError } from "./test-support";
+import { telnyxError, TelnyxMock } from "./test-support";
 import { completeEnv, stubFetch } from "../test/support";
 
 afterEach(() => {

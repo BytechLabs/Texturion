@@ -4,7 +4,7 @@ import { createSequenceTracker, REORDER_WINDOW_MS } from "./sequence";
 
 const TOPIC = "company:c1:number:n1";
 
-describe("createSequenceTracker", () => {
+describe(createSequenceTracker, () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
@@ -45,13 +45,13 @@ describe("createSequenceTracker", () => {
     vi.advanceTimersByTime(REORDER_WINDOW_MS - 1);
     expect(onGap).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(onGap).toHaveBeenCalledTimes(1);
+    expect(onGap).toHaveBeenCalledOnce();
     expect(onGap).toHaveBeenCalledWith(TOPIC);
 
     // The resync covers what was skipped, so the next event continues from 4.
     tracker.observe(TOPIC, 5);
     vi.advanceTimersByTime(REORDER_WINDOW_MS * 2);
-    expect(onGap).toHaveBeenCalledTimes(1);
+    expect(onGap).toHaveBeenCalledOnce();
   });
 
   it("ignores the event that arrives after its hole was resynced", () => {
@@ -61,7 +61,7 @@ describe("createSequenceTracker", () => {
     vi.advanceTimersByTime(REORDER_WINDOW_MS);
     tracker.observe(TOPIC, 2);
     vi.advanceTimersByTime(REORDER_WINDOW_MS * 2);
-    expect(onGap).toHaveBeenCalledTimes(1);
+    expect(onGap).toHaveBeenCalledOnce();
   });
 
   it("takes the first event after a join as the baseline only", () => {

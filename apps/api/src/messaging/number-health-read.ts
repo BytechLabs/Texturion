@@ -57,8 +57,8 @@ export async function loadNumberHealth(
       });
     }
     return map;
-  } catch (cause) {
-    console.error(`number health read failed for ${companyId}: ${String(cause)}`);
+  } catch (error) {
+    console.error(`number health read failed for ${companyId}: ${String(error)}`);
     return new Map();
   }
 }

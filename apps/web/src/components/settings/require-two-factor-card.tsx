@@ -55,11 +55,11 @@ export function RequireTwoFactorCard({
           setConfirming(false);
           toast.success(
             nextRequired
-              ? result.grace_until
+              ? (result.grace_until
                 ? t("settingsMore.mfaOnWithDeadline", {
                     when: formatAbsoluteDateTime(result.grace_until, undefined, t.locale),
                   })
-                : t("settingsMore.mfaOn")
+                : t("settingsMore.mfaOn"))
               : t("settingsMore.mfaOff"),
           );
         },
@@ -92,9 +92,9 @@ export function RequireTwoFactorCard({
           <div className="min-w-0 flex-1 space-y-1">
             <p className="text-sm font-medium">
               {required
-                ? enforcing
+                ? (enforcing
                   ? t("settingsMore.mfaStateInForce")
-                  : t("settingsMore.mfaStateGrace")
+                  : t("settingsMore.mfaStateGrace"))
                 : t("settingsMore.mfaStateOff")}
             </p>
             <p className="text-sm text-muted-foreground">

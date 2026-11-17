@@ -179,7 +179,7 @@ describe("the voicemail URL", () => {
       await client.invalidateQueries({ queryKey: [C, "calls"], refetchType: "active" });
       await client.invalidateQueries({ queryKey: [C], refetchType: "active" });
     });
-    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledOnce();
   });
 
   it("CA-10: keeps the company in its key and is kept as long as it is trusted", async () => {

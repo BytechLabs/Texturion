@@ -29,7 +29,8 @@ import { retiredModulePrices } from "./modules";
 import { ensureVoiceMeteredItem } from "../webhooks/stripe";
 import type { PlanId } from "./plans";
 import { applyPriceToSchedulePhases } from "./schedule-phases";
-import { getStripe, type Stripe } from "./stripe";
+import { getStripe } from './stripe';
+import type { Stripe } from './stripe';
 import { captureException, workerEnv } from "../observability/capture";
 
 /**

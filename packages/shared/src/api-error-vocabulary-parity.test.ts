@@ -101,7 +101,7 @@ const keys: Record<string, Set<string>> = {
   ios: keysIn(sources.ios),
 };
 
-const sorted = (set: Set<string>) => [...set].sort();
+const sorted = (set: Set<string>) => [...set].toSorted();
 
 describe("#228 every client can name every refusal", () => {
   it("found all three catalogues, so a passing run means something", () => {
@@ -145,13 +145,9 @@ describe("#228 the French is real French", () => {
   it("says Référence rather than Reference in the French template", () => {
     // The one string with a word in both languages that differ by one accent —
     // the likeliest to be pasted across unchanged.
-    for (const [client, source] of Object.entries(sources)) {
-      expect(source.includes("Référence {id}."), `${client} lost the French reference`).toBe(
-        true,
-      );
-      expect(source.includes("Reference {id}."), `${client} lost the English reference`).toBe(
-        true,
-      );
+    for (const [_client, source] of Object.entries(sources)) {
+      expect(source).toContain('Référence {id}.');
+      expect(source).toContain('Reference {id}.');
     }
   });
 });

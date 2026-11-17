@@ -44,7 +44,7 @@ async function withRig(body) {
   }
 }
 
-const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const json = (body, status = 200) => Response.json(body, { status, headers: { "content-type": "application/json" } });
 
 function token(alg) {
   const part = (value) => Buffer.from(JSON.stringify(value)).toString("base64url");
@@ -262,8 +262,8 @@ test("the adb tunnel check connects to the tunnel's port, and fails naming it wh
     open = false;
     assert.equal(await healthChecks(context).adbTunnel(), "no adb server answers on 127.0.0.1:15037, the tunnel to the host's adb server");
     assert.deepEqual(asked, [
-      ["127.0.0.1", 15037, 2000],
-      ["127.0.0.1", 15037, 2000],
+      ["127.0.0.1", 15_037, 2000],
+      ["127.0.0.1", 15_037, 2000],
     ]);
   });
 });

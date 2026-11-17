@@ -1,17 +1,16 @@
 // hostd's fixed facts: the contract it shares with the VM's lanes, and where
 // on the workstation the rig's own state lives.
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 export const SCHEMA = "loonext.rig-host.v1";
-export const DEFAULT_ROOT = "F:\\loonext-rig";
-export const DEFAULT_SDK = "D:\\Android\\sdk";
-export const VMWARE_DIR = "C:\\Program Files (x86)\\VMware\\VMware Workstation";
-export const OPENSSH_DIR = "C:\\Windows\\System32\\OpenSSH";
+export const DEFAULT_ROOT = String.raw`F:\loonext-rig`;
+export const DEFAULT_SDK = String.raw`D:\Android\sdk`;
+export const VMWARE_DIR = String.raw`C:\Program Files (x86)\VMware\VMware Workstation`;
+export const OPENSSH_DIR = String.raw`C:\Windows\System32\OpenSSH`;
 export const VMX_NAME = "loonext-rig.vmx";
 
-const CONTRACT_PATH = join(dirname(fileURLToPath(import.meta.url)), "..", "contract.json");
+const CONTRACT_PATH = join(import.meta.dirname, "..", "contract.json");
 const CONFIG_KEYS = new Set(["root", "sdk"]);
 const DEVICE_NAME = /^[a-z0-9][a-z0-9-]{0,31}$/;
 const AVD_NAME = /^[A-Za-z0-9._-]{1,64}$/;
@@ -29,7 +28,7 @@ export function contractProblems(contract) {
   }
   if (vm?.user !== "rig") problems.push("vm.user is not rig");
   const port = (value, at) => {
-    if (!Number.isInteger(value) || value < 1024 || value > 65535) problems.push(`${at} is not a port above 1023`);
+    if (!Number.isInteger(value) || value < 1024 || value > 65_535) problems.push(`${at} is not a port above 1023`);
   };
   port(hostd?.port, "hostd.port");
   port(adb?.server_port, "adb.server_port");

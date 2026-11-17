@@ -1,23 +1,7 @@
 "use client";
 
-import {
-  MARKUP_HALO,
-  MARKUP_HALO_SCALE,
-  MARKUP_HINT,
-  MARKUP_HINT_SECOND_TAP,
-  MARKUP_INK,
-  MARKUP_SAVE,
-  MARKUP_TOOLS,
-  MARKUP_TOOL_LABELS,
-  MARKUP_UNDO,
-  arrowHead,
-  circleFromDrag,
-  isDeliberateDrag,
-  markedUpFileName,
-  markupStrokeWidth,
-  type MarkupPoint,
-  type MarkupTool,
-} from "@loonext/shared";
+import { arrowHead, circleFromDrag, isDeliberateDrag, markedUpFileName, MARKUP_HALO, MARKUP_HALO_SCALE, MARKUP_HINT, MARKUP_HINT_SECOND_TAP, MARKUP_INK, MARKUP_SAVE, MARKUP_TOOL_LABELS, MARKUP_TOOLS, MARKUP_UNDO, markupStrokeWidth } from '@loonext/shared';
+import type { MarkupPoint, MarkupTool } from '@loonext/shared';
 import { useEffect, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -129,9 +113,9 @@ export function PhotoMarkupDialog({
     // so a person who tapped can see where they tapped.
     const pending: Mark[] = dragging
       ? [dragging]
-      : anchor
+      : (anchor
         ? [{ tool, from: anchor, to: anchor }]
-        : [];
+        : []);
     for (const mark of [...marks, ...pending]) {
       // Halo first, then ink on top of it. That order is what makes one fixed
       // colour legible on any photograph.

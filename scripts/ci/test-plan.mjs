@@ -53,9 +53,9 @@ const graph = new Map();
 const untraced = new Map();
 const setupTriggers = [];
 for (const pkg of packages) {
-  const vitest = await openVitest(pkg.dir);
+  const ctx = await openVitest(pkg.dir);
   try {
-    const specs = await vitest.globTestSpecifications();
+    const specs = await ctx.globTestSpecifications();
     if (specs.length === 0) throw new Error(`${pkg.dir}: vitest found no test files`);
     const seen = new Set();
     for (const spec of specs) {
@@ -64,14 +64,14 @@ for (const pkg of packages) {
       seen.add(file);
       units.push({ path: file, pkg: pkg.dir });
     }
-    if (vitest.projects.some((project) => !TRACEABLE_POOLS.has(String(project.config.pool)))) {
+    if (ctx.projects.some((project) => !TRACEABLE_POOLS.has(String(project.config.pool)))) {
       untraced.set(pkg.dir, [pkg.dir, ...workspaceDependencies(pkg).map((dep) => dep.dir)]);
     }
     if (affected) {
-      for (const project of vitest.projects) {
+      for (const project of ctx.projects) {
         const setup = [project.config.setupFiles, project.config.globalSetup].flat().filter(Boolean);
         for (const file of setup) {
-          const closure = await testDependencies(vitest, { project, moduleId: path.resolve(file) });
+          const closure = await testDependencies(ctx, { project, moduleId: path.resolve(file) });
           setupTriggers.push({ paths: new Set(closure), reason: `a setup file of ${pkg.dir}` });
         }
       }
@@ -79,7 +79,7 @@ for (const pkg of packages) {
         specs.map(async (spec) => {
           const file = toRepoPath(spec.moduleId);
           try {
-            const closure = new Set(await testDependencies(vitest, spec));
+            const closure = new Set(await testDependencies(ctx, spec));
             const existing = graph.get(file);
             // A file in two projects keeps a failed graph from either one.
             if (existing === null) return;
@@ -92,7 +92,7 @@ for (const pkg of packages) {
       );
     }
   } finally {
-    await vitest.close();
+    await ctx.close();
   }
 }
 process.chdir(REPO_ROOT);
@@ -110,12 +110,12 @@ if (affected) {
   );
   const trigger = fullRunTrigger(changes, setupTriggers);
   if (trigger) reason = `${trigger.path} changed, which is ${trigger.reason}`;
-  else if (!history) reason = "there is no recorded test history to select from";
-  else {
+  else if (history) {
     mode = "affected";
     reason = `${changes.length} changed path(s) since ${args["changed-since"].slice(0, 12)}`;
     reasons = selectAffected({ units, changes, graph, history: history.files, untraced });
   }
+  else {reason = "there is no recorded test history to select from";}
 }
 
 const selected = mode === "full" ? units.map((unit) => unit.path) : [...reasons.keys()];

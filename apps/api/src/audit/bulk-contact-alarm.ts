@@ -164,20 +164,20 @@ async function deliver(
       subject:
         alarm.event === "workspace_exported"
           ? `${actor} requested a full export of ${company.name}`
-          : alarm.event === "history_exported"
+          : (alarm.event === "history_exported"
             ? `${actor} exported a customer's message history from ${company.name}`
-            : `${actor} ${alarm.event === "exported" ? "exported" : "deleted"} ${alarm.count} contacts`,
+            : `${actor} ${alarm.event === "exported" ? "exported" : "deleted"} ${alarm.count} contacts`),
       text,
       html: renderEmailHtml(text),
     });
-  } catch (cause) {
+  } catch (error) {
     // Loud for us, invisible to the customer — the same posture as a failed
     // audit write, and for the same reason: the action succeeded and must not
     // be undone, but a missing alarm is not something to swallow silently.
     void captureException(
       env,
-      `bulk contact alarm failed for ${alarm.companyId}/${alarm.event}: ` +
-        (cause instanceof Error ? cause.message : String(cause)),
+      `bulk contact alarm failed for ${alarm.companyId}/${alarm.event}: ${ 
+        error instanceof Error ? error.message : String(error)}`,
       { source: "api", level: "warning" },
     );
   }

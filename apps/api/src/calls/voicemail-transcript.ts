@@ -162,11 +162,11 @@ export function transcriptText(raw: unknown): string | null {
 export function sanitizeTranscript(raw: unknown): string | null {
   const text = transcriptText(raw);
   if (text === null) return null;
-  const collapsed = text.replace(/\s+/g, " ").trim();
+  const collapsed = text.replaceAll(/\s+/g, " ").trim();
   if (collapsed === "") return null;
   // A transcript of silence: Whisper emits filler like "you" or "." for a
   // recording with no speech in it. One word of punctuation is not a message.
-  if (collapsed.replace(/[^\p{L}\p{N}]/gu, "").length < 2) return null;
+  if (collapsed.replaceAll(/[^\p{L}\p{N}]/gu, "").length < 2) return null;
   return collapsed.length > VOICEMAIL_TRANSCRIPT_MAX_CHARS
     ? `${collapsed.slice(0, VOICEMAIL_TRANSCRIPT_MAX_CHARS - 1).trimEnd()}…`
     : collapsed;

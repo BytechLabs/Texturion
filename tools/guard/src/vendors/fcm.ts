@@ -35,7 +35,7 @@ export function rewriteMessage(message: Item): Item {
     message.android && typeof message.android === "object" && !Array.isArray(message.android)
       ? { ...(message.android as Item) }
       : {};
-  const notification = message.notification;
+  const {notification} = message;
   if (notification && typeof notification === "object" && !Array.isArray(notification)) {
     const existing =
       android.notification && typeof android.notification === "object" ? (android.notification as Item) : {};
@@ -77,11 +77,11 @@ function base64Url(bytes: Uint8Array | string): string {
   const raw = typeof bytes === "string" ? new TextEncoder().encode(bytes) : bytes;
   let binary = "";
   for (const byte of raw) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(binary).replaceAll('+', "-").replaceAll('/', "_").replace(/[=]+$/, "");
 }
 
 function pemToDer(pem: string): ArrayBuffer {
-  const body = pem.replace(/-----[^-]+-----/g, "").replace(/\s+/g, "");
+  const body = pem.replaceAll(/-----[^-]+-----/g, "").replaceAll(/\s+/g, "");
   const binary = atob(body);
   const bytes = new Uint8Array(binary.length);
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
@@ -164,8 +164,8 @@ export async function handleFcm(ctx: Ctx, request: Request, path: string): Promi
 
 /** The rig never needs a Google token: its FCM sender sends the guard caller token instead. */
 export function handleFcmToken(): Response {
-  return new Response(
-    JSON.stringify({ access_token: "rig-guard-placeholder", token_type: "Bearer", expires_in: 3600 }),
+  return Response.json(
+    { access_token: "rig-guard-placeholder", token_type: "Bearer", expires_in: 3600 },
     { status: 200, headers: { "content-type": "application/json" } },
   );
 }

@@ -9,11 +9,11 @@ import { linearToMulaw, mulawToLinear } from "./wav.ts";
 export function rng(seed: number): () => number {
   let state = seed >>> 0;
   return () => {
-    state = (state + 0x6d2b79f5) >>> 0;
+    state = (state + 0x6D_2B_79_F5) >>> 0;
     let t = state;
     t = Math.imul(t ^ (t >>> 15), t | 1);
     t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    return ((t ^ (t >>> 14)) >>> 0) / 4_294_967_296;
   };
 }
 
@@ -117,10 +117,10 @@ export function decimate(samples: Float32Array, factor: number): Float32Array {
 }
 
 export function mulawRoundTrip(samples: Float32Array): Float32Array {
-  return samples.map((x) => mulawToLinear(linearToMulaw(Math.max(-1, Math.min(1, x)) * 32767)) / 32768);
+  return samples.map((x) => mulawToLinear(linearToMulaw(Math.max(-1, Math.min(1, x)) * 32_767)) / 32_768);
 }
 
 /** A narrowband phone path from 16 kHz: 300-3,400 Hz, down to 8 kHz, through mu-law. */
 export function phoneLine(samples16k: Float32Array): Float32Array {
-  return mulawRoundTrip(decimate(bandPass(samples16k, 16_000, 300, 3_400), 2));
+  return mulawRoundTrip(decimate(bandPass(samples16k, 16_000, 300, 3400), 2));
 }

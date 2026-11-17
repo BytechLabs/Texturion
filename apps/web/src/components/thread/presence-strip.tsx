@@ -1,6 +1,7 @@
 "use client";
 
-import { presenceLabel, type Viewer } from "@loonext/shared";
+import { presenceLabel } from '@loonext/shared';
+import type { Viewer } from '@loonext/shared';
 
 /**
  * #302 — the one line that stops a second person mid-sentence.

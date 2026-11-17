@@ -36,11 +36,10 @@ import {
 } from "@/lib/api/notifications";
 import { useActiveCompany } from "@/lib/company/provider";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
-import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
 
-import { WorkspaceNumbers, companyInitials } from "./workspace-bits";
+import { companyInitials, WorkspaceNumbers } from "./workspace-bits";
 import { avatarInitials } from "@loonext/shared";
 
 /** Count above this renders as `9+` (the calm numeral cap, §1.3). */

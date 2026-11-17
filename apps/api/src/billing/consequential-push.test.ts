@@ -29,7 +29,7 @@ import type { PushDelivery } from "../notifications/deliver";
 
 const deliveries: PushDelivery[] = [];
 
-vi.mock("../notifications/deliver", () => ({
+vi.mock(import("../notifications/deliver"), () => ({
   deliverPush: (_env: unknown, _db: unknown, delivery: PushDelivery) => {
     deliveries.push(delivery);
     return Promise.resolve();
@@ -63,7 +63,7 @@ async function deliver() {
     collapseKey: "grace:day-1",
   });
   expect(deliveries).toHaveLength(1);
-  return deliveries[0]!;
+  return deliveries[0];
 }
 
 describe("#228 a consequential notice survives serialization", () => {
@@ -75,8 +75,8 @@ describe("#228 a consequential notice survives serialization", () => {
     const delivery = await deliver();
     const payload = delivery.web("en");
 
-    expect(typeof payload.title).toBe("string");
-    expect(typeof payload.body).toBe("string");
+    expect(payload.title).toBeTypeOf("string");
+    expect(payload.body).toBeTypeOf("string");
     // The real proof: what actually goes on the wire.
     const wire = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
     expect(wire.title).toBe("Title");

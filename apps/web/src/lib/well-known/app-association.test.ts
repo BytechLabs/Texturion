@@ -4,14 +4,14 @@ import { APPLE_APP_LINK_COMPONENTS } from "@loonext/shared";
 
 import {
   ANDROID_PACKAGE,
-  HANDLE_URLS_RELATION,
-  LOGIN_CREDS_RELATION,
   androidFingerprints,
   appleAppIds,
   appleAppSiteAssociation,
   assetLinks,
+  HANDLE_URLS_RELATION,
   isAppleAppId,
   isSha256Fingerprint,
+  LOGIN_CREDS_RELATION,
 } from "./app-association";
 
 /**
@@ -131,7 +131,7 @@ describe("apple-app-site-association", () => {
       "ABCDE12345.com.loonext.ios",
     ]);
     // `appclips` is a third feature this domain does not claim.
-    expect(Object.keys(document).sort()).toEqual(["applinks", "webcredentials"]);
+    expect(Object.keys(document).toSorted()).toEqual(["applinks", "webcredentials"]);
   });
 
   it("claims named paths and never the wildcard", () => {

@@ -44,7 +44,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("runBatchFlush", () => {
+describe(runBatchFlush, () => {
   it("BF-1: one push per member, however many notifications are waiting", async () => {
     // THE WHOLE POINT. Four pushes that each say "1 new message" is the volume
     // problem wearing the feature's name.
@@ -177,9 +177,9 @@ describe("runBatchFlush", () => {
 
     await runBatchFlush(fcmEnv(account));
 
-    const headers = (
+    const {headers} = (
       service.sends[0].message as { apns: { headers: Record<string, string> } }
-    ).apns.headers;
+    ).apns;
     expect(headers["apns-collapse-id"]).toBe(`digest:${MEMBER}`);
   });
 });

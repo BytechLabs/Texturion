@@ -13,20 +13,10 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { MemberRole } from "../context";
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { forYouRoutes } from "./for-you";
 
 const env = completeEnv();
@@ -137,7 +127,7 @@ describe("GET /v1/for-you", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(MEMBER_PAYLOAD);
+    await expect(res.json()).resolves.toEqual(MEMBER_PAYLOAD);
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_for_you")[0];
     expect(rpc.body).toMatchObject({
@@ -152,7 +142,7 @@ describe("GET /v1/for-you", () => {
     // does not.
     expect(rpc.body).not.toHaveProperty("p_is_lead");
     // The clock is injected (testable "overdue") — a real ISO timestamp.
-    expect(typeof (rpc.body as Record<string, unknown>).p_now).toBe("string");
+    expect((rpc.body as Record<string, unknown>).p_now).toBeTypeOf("string");
   });
 
   it("#106: a restricted member's RPC receives the hidden-number deny list", async () => {

@@ -1,18 +1,8 @@
 import { Hono } from "hono";
 import { z } from "zod";
 
-import {
-  QUOTE_STATUSES,
-  billingCurrencyOf,
-  effectiveQuoteStatus,
-  estimateSegments,
-  isQuoteOutstanding,
-  quoteSms,
-  resolveLocale,
-  stateMachines,
-  type MemberRole,
-  type QuoteState,
-} from "@loonext/shared";
+import { billingCurrencyOf, effectiveQuoteStatus, estimateSegments, isQuoteOutstanding, QUOTE_STATUSES, quoteSms, resolveLocale, stateMachines } from '@loonext/shared';
+import type { MemberRole, QuoteState } from '@loonext/shared';
 
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -101,7 +91,7 @@ function withEffectiveStatus(
     // #722: what this member may do to it now, from the shared machine.
     allowed_actions: stateMachines.allowedActions(
       stateMachines.quoteMachine,
-      row.status as stateMachines.QuoteState,
+      row.status,
       role,
     ),
   };
@@ -130,7 +120,7 @@ const createSchema = z.object({
    * payment-request route already works this way.
    */
   currency: z.enum(["usd", "cad"]).optional(),
-  description: z.string().trim().min(1).max(2_000),
+  description: z.string().trim().min(1).max(2000),
   /** ISO 8601. Required: a quote with no expiry binds the business forever. */
   expires_at: z.iso.datetime(),
 });
@@ -260,7 +250,7 @@ quotesRoutes.get("/quotes/:id", requireCapability("conversations.read"), async (
       companyId: c.get("companyId"),
       userId: c.get("userId"),
       role: c.get("role"),
-      conversationId: String(rows[0].conversation_id),
+      conversationId: rows[0].conversation_id,
       need: "read",
     });
   }
@@ -361,7 +351,7 @@ quotesRoutes.post("/quotes", requireCapability("conversations.send"), async (c) 
     "quote create",
   );
 
-  return c.json(withEffectiveStatus(rows[0] as QuoteRow, new Date(), c.get("role")), 201);
+  return c.json(withEffectiveStatus(rows[0], new Date(), c.get("role")), 201);
 });
 
 /**
@@ -408,7 +398,7 @@ quotesRoutes.post(
       companyId,
       userId: c.get("userId"),
       role: c.get("role"),
-      conversationId: String(row.conversation_id),
+      conversationId: row.conversation_id,
       need: "text",
     });
 
@@ -571,11 +561,11 @@ quotesRoutes.post(
       // reliably multi-segment and it is metered as what it is.
         segmentsEstimate: estimateSegments(text).segments,
       });
-    } catch (cause) {
+    } catch (error) {
       await releaseSend(db, companyId, id);
-      throw cause;
+      throw error;
     }
-    const message = gated.message;
+    const {message} = gated;
 
     // The receipt: WHICH text carried this quote. #287 opens with "nobody can
     // answer what did we quote", and the answer is the message, not the row.
@@ -593,13 +583,13 @@ quotesRoutes.post(
         mediaUrls: [],
         clearance,
       });
-    } catch (cause) {
+    } catch (error) {
       // The message row survives — the outbox owns retrying a carrier that was
       // briefly unreachable, and deleting it would lose the text. What must not
       // survive is a QUOTE that says it went out when the carrier refused it
       // outright.
       await releaseSend(db, companyId, id);
-      throw cause;
+      throw error;
     }
 
     const sent = unwrap<QuoteRow[]>(
@@ -629,15 +619,15 @@ quotesRoutes.post(
           description: row.description,
         },
       },
-    ]).catch((cause: unknown) => {
-      console.error(`quote sent event failed: ${String(cause)}`);
+    ]).catch((error: unknown) => {
+      console.error(`quote sent event failed: ${String(error)}`);
     });
 
     // No tokens. The accept token is the customer's to receive, once, in a text
     // they already have — handing it back to the sender is a second copy of a
     // credential with nothing to do.
     return c.json({
-      ...withEffectiveStatus(sent[0] as QuoteRow, new Date(), c.get("role")),
+      ...withEffectiveStatus(sent[0], new Date(), c.get("role")),
       message_id: message.id,
     });
   },

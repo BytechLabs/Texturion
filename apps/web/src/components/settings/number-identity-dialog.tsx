@@ -3,10 +3,8 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  SimpleSelect,
-  type SimpleSelectOption,
-} from "@/components/ui/simple-select";
+import { SimpleSelect } from '@/components/ui/simple-select';
+import type { SimpleSelectOption } from '@/components/ui/simple-select';
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -20,7 +18,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
-import { useT, type MessageKey, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey, Translate } from '@/i18n/provider';
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { ringsIn } from "@/components/settings/ring-card";
@@ -94,10 +93,10 @@ export function NumberIdentityDialog({
       await save.mutateAsync(patchFrom(identity.data, draft));
       onOpenChange(false);
       toast.success(t("settingsMore.numberIdentitySaved"));
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.saveFailedGeneric"),
       );
     }
@@ -105,12 +104,12 @@ export function NumberIdentityDialog({
 
   async function restoreWorkspaceValue(field: ClearableField) {
     try {
-      await save.mutateAsync({ [field]: null } as NumberIdentityPatch);
+      await save.mutateAsync({ [field]: null });
       toast.success(t("settingsMore.backToWorkspace"));
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.changeFailedGeneric"),
       );
     }
@@ -130,7 +129,7 @@ export function NumberIdentityDialog({
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.loading")}
           </p>
-        ) : identity.data ? (
+        ) : (identity.data ? (
           <div className="space-y-4">
             {/*
               The one control here that is not a box. It is rendered from the
@@ -430,7 +429,7 @@ export function NumberIdentityDialog({
               </div>
             )}
             {FIELDS.map((field) => {
-              const resolved = identity.data![field.key];
+              const resolved = identity.data[field.key];
               return (
                 <div key={field.key} className="space-y-1.5">
                   <div className="flex flex-wrap items-baseline justify-between gap-2">
@@ -480,7 +479,7 @@ export function NumberIdentityDialog({
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.numberNotLoaded")}
           </p>
-        )}
+        ))}
 
         <DialogFooter>
           <Button variant="ghost" onClick={() => onOpenChange(false)}>

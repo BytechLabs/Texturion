@@ -1,12 +1,11 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 import {
   CARRIER_OPT_OUT_ERROR_CODE,
@@ -16,7 +15,7 @@ import {
   sendFailureMessageKey,
 } from "./send-failures";
 
-describe("sendFailureMessageKey", () => {
+describe(sendFailureMessageKey, () => {
   it("keeps the opt-out wording the clients already shipped", () => {
     expect(sendFailureMessageKey(CARRIER_OPT_OUT_ERROR_CODE)).toBe(
       "domain.sendFailureOptedOut",
@@ -97,7 +96,7 @@ describe("the key every client must be able to answer", () => {
     const pairs = (source: string) =>
       [...source.matchAll(/"(\d{5})"\s*(?:to|:)\s*"(domain\.\w+)"/g)]
         .map(([, code, key]) => `${code}=${key}`)
-        .sort();
+        .toSorted();
 
     const kotlin = pairs(
       readFileSync(
@@ -113,7 +112,7 @@ describe("the key every client must be able to answer", () => {
     );
     const ts = Object.entries(SEND_FAILURE_KEYS_BY_CODE)
       .map(([code, key]) => `${code}=${key}`)
-      .sort();
+      .toSorted();
 
     // A guard that read nothing would agree with itself three times over.
     expect(ts.length).toBeGreaterThan(25);

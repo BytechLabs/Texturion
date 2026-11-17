@@ -19,7 +19,7 @@ import { upgradeToast } from "./change-plan-dialog";
  */
 const t = makeTranslate("en");
 
-describe("upgradeToast", () => {
+describe(upgradeToast, () => {
   it("keeps the ordinary sentence when nothing was on hold", () => {
     // Almost every upgrade. A reader with no held numbers must never be told
     // anything about holds — that is how a rare-state feature becomes noise on

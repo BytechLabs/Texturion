@@ -1,10 +1,5 @@
-import {
-  PARTITION_CACHE_MS,
-  STANDING_ROLES,
-  type Partition,
-  type StandingEntry,
-  type StandingRole,
-} from "@loonext/rig-protocol";
+import { PARTITION_CACHE_MS, STANDING_ROLES } from '@loonext/rig-protocol';
+import type { Partition, StandingEntry, StandingRole } from '@loonext/rig-protocol';
 
 import type { Ctx } from "../context";
 import { Refusal } from "../refusal";
@@ -204,18 +199,18 @@ export function toWire(view: PartitionView): Partition & { standing: StandingEnt
   const { connections } = view.record;
   return {
     billing_group_id: view.record.billing_group_id,
-    owned_e164: view.numbers.map((number) => number.phone_number).sort(),
+    owned_e164: view.numbers.map((number) => number.phone_number).toSorted(),
     standing_e164: view.numbers
       .filter((number) => isStanding(view, number))
       .map((number) => number.phone_number)
-      .sort(),
+      .toSorted(),
     connection_ids: {
       voice: connections.voice ?? "",
       robot: connections.robot ?? "",
       webrtc: connections.webrtc ?? "",
       sentinel: connections.sentinel ?? "",
     },
-    messaging_profile_ids: [...view.messagingProfiles].sort(),
+    messaging_profile_ids: [...view.messagingProfiles].toSorted(),
     messaging_profiles: { ...view.record.messaging_profiles },
     fetched_at: new Date(view.fetchedAt).toISOString(),
     standing: view.numbers
@@ -227,6 +222,6 @@ export function toWire(view: PartitionView): Partition & { standing: StandingEnt
         telnyx_phone_number_id: number.id,
         messaging_profile_id: number.messaging_profile_id,
       }))
-      .sort((a, b) => STANDING_ROLES.indexOf(a.role) - STANDING_ROLES.indexOf(b.role)),
+      .toSorted((a, b) => STANDING_ROLES.indexOf(a.role) - STANDING_ROLES.indexOf(b.role)),
   };
 }

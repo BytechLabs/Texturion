@@ -8,7 +8,7 @@ import { InlineProbe, StorageProbe } from "./probe.ts";
 import { Robot } from "./robot.ts";
 import { robotServer } from "./server.ts";
 import { GuardedTelnyx, GuardRefusedError, TelnyxApiError } from "./telnyx.ts";
-import { FakeCallControl, ManualClock, TEST_NUMBERS, telnyxEvent } from "./test-support.ts";
+import { FakeCallControl, ManualClock, telnyxEvent, TEST_NUMBERS } from "./test-support.ts";
 
 const EDGE = "https://rig-edge.example.workers.dev";
 
@@ -21,7 +21,7 @@ function recordingFetch(respond: (url: string, init: RequestInit) => Response) {
   return { fetch, calls };
 }
 
-describe("GuardedTelnyx", () => {
+describe(GuardedTelnyx, () => {
   it("sends every command to the edge's /g/telnyx with the robot's token, lease and scenario", async () => {
     const { fetch, calls } = recordingFetch(() =>
       Response.json({ data: { call_control_id: "c1", call_leg_id: "l1", call_session_id: "s1" } }),
@@ -51,7 +51,7 @@ describe("GuardedTelnyx", () => {
     const failing = recordingFetch(() =>
       Response.json({ errors: [{ code: "90018", detail: "Call has already ended for +14165550111" }] }, { status: 422 }),
     );
-    const error = await new GuardedTelnyx({ edgeOrigin: EDGE, token: "t", fetch: failing.fetch }).hangup("c1", {}).catch((e: unknown) => e);
+    const error = await new GuardedTelnyx({ edgeOrigin: EDGE, token: "t", fetch: failing.fetch }).hangup("c1", {}).catch((error_: unknown) => error_);
     expect(error).toBeInstanceOf(TelnyxApiError);
     expect((error as Error).message).toBe("Telnyx 422 on /v2/calls/c1/actions/hangup (90018)");
   });
@@ -114,7 +114,7 @@ describe("robotd's HTTP face and its client", () => {
   it("refuses a request without the local token", async () => {
     const { base } = await start();
     expect((await fetch(`${base}/health`)).status).toBe(401);
-    expect((await new RobotClient({ base, token: "wrong" }).inbox({}).catch((e: Error) => e.message))).toMatch(/401/);
+    expect((await new RobotClient({ base, token: "wrong" }).inbox({}).catch((error: Error) => error.message))).toMatch(/401/);
   });
 
   it("takes plans, relayed events and texts, and reads them back", async () => {
@@ -143,12 +143,12 @@ describe("robotd's HTTP face and its client", () => {
         to: [{ phone_number: TEST_NUMBERS.number("ROBOT-1"), status: "delivered" }],
       }),
     );
-    expect(await client.inbox({ to_role: "ROBOT-1" })).toMatchObject([{ from_role: "DEV-W1", to_role: "ROBOT-1", text: "Rig S20 abc" }]);
+    await expect(client.inbox({ to_role: "ROBOT-1" })).resolves.toMatchObject([{ from_role: "DEV-W1", to_role: "ROBOT-1", text: "Rig S20 abc" }]);
 
     await post("/sink", { type: "message.sent", data: { id: "x" } }, { "loonext-signature": "t=1,v1=abc" });
-    expect(await client.sink({ type: "message.sent" })).toMatchObject([{ headers: { "loonext-signature": "t=1,v1=abc" } }]);
+    await expect(client.sink({ type: "message.sent" })).resolves.toMatchObject([{ headers: { "loonext-signature": "t=1,v1=abc" } }]);
 
-    expect(await client.sms({ from_role: "ROBOT-2", to_role: "DEV-E1", text: "START", scenario: "S24" })).toMatchObject({ id: expect.any(String) });
+    await expect(client.sms({ from_role: "ROBOT-2", to_role: "DEV-E1", text: "START", scenario: "S24" })).resolves.toMatchObject({ id: expect.any(String) });
     expect(telnyx.named("send_message")[0]!.body).toEqual({
       from: TEST_NUMBERS.number("ROBOT-2"),
       to: TEST_NUMBERS.number("DEV-E1"),

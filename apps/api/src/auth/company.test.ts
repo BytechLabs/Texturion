@@ -1,17 +1,12 @@
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AppEnv, MemberRole } from "../context";
-import {
-  authorizeRoute,
-  completeEnv,
-  stubFetch,
-  type CapturedRequest,
-} from "../test/support";
+import { authorizeRoute, completeEnv, stubFetch } from '../test/support';
+import type { CapturedRequest } from '../test/support';
 import type { Capability } from "@loonext/shared";
 
 import {
@@ -76,7 +71,7 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
 
     const res = await request({ "X-Company-Id": COMPANY_ID });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       companyId: COMPANY_ID,
       role: "admin",
       memberId: MEMBER_ID,
@@ -86,7 +81,7 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     // (company, user) pair. The membership filter itself now lives inside the
     // RPC (api_authorize_request), so what the wire has to prove is that the
     // caller's identity and the named company both travel server-side.
-    expect(await captured.request!.json()).toMatchObject({
+    await expect(captured.request!.json()).resolves.toMatchObject({
       p_user_id: USER_ID,
       p_company_id: COMPANY_ID,
       p_session_id: SESSION_ID,
@@ -100,7 +95,7 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     stubFetch(authorizeRoute(env, null));
     const res = await request({ "X-Company-Id": COMPANY_ID });
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "forbidden", message: expect.any(String) },
     });
   });
@@ -111,7 +106,7 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     stubFetch(authorizeRoute(env, { id: MEMBER_ID, role: "owner" }, { revoked: true }));
     const res = await request({ "X-Company-Id": COMPANY_ID });
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "unauthorized", message: expect.any(String) },
     });
   });
@@ -134,7 +129,7 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     );
     const res = await request({ "X-Company-Id": COMPANY_ID });
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "unauthorized", message: expect.any(String) },
     });
 
@@ -167,7 +162,7 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     // Its own code, not a 403 with prose: all three clients route on this to
     // the enrolment screen, and a message-sniffing client would break the
     // first time somebody edited the copy.
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "mfa_required", message: expect.any(String) },
     });
   });
@@ -205,7 +200,7 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     expect(res.status).toBe(403);
     // Not `mfa_required`: that code sends somebody to ENROL, and this person
     // already has a factor. Offering them a second one is a dead end.
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "mfa_challenge_required", message: expect.any(String) },
     });
   });
@@ -304,7 +299,7 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     vi.stubGlobal("fetch", fetchSpy);
     const res = await request({ "X-Company-Id": "not-a-uuid" });
     expect(res.status).toBe(422);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "validation_failed", message: expect.any(String) },
     });
     expect(fetchSpy).not.toHaveBeenCalled();
@@ -314,7 +309,7 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     stubFetch();
     const res = await request();
     expect(res.status).toBe(422);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "validation_failed", message: expect.any(String) },
     });
   });
@@ -324,10 +319,10 @@ describe("companyContext (SPEC §10: X-Company-Id validated against company_memb
     stubFetch(authorizeRoute(env, null, { captured }));
     const res = await app.request("/v1/me", {}, env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ companyId: null });
+    await expect(res.json()).resolves.toEqual({ companyId: null });
     // No company is named, so no membership is demanded — but the session
     // half still ran (#236).
-    expect(await captured.request!.json()).toMatchObject({
+    await expect(captured.request!.json()).resolves.toMatchObject({
       p_company_id: null,
       p_session_id: SESSION_ID,
     });
@@ -381,10 +376,10 @@ describe("requireRole (SPEC §10 role matrix: owner ⊃ admin ⊃ member)", () =
         const res = await gateApp(actual, minimum).request("/action", {}, env);
         if (allowed) {
           expect(res.status).toBe(200);
-          expect(await res.json()).toEqual({ ok: true });
+          await expect(res.json()).resolves.toEqual({ ok: true });
         } else {
           expect(res.status).toBe(403);
-          expect(await res.json()).toEqual({
+          await expect(res.json()).resolves.toEqual({
             error: { code: "forbidden", message: expect.any(String) },
           });
         }
@@ -431,15 +426,15 @@ describe("requireCapability (#315: the axis, not the rung)", () => {
     // The conversion of the billing router is only behaviour-preserving if
     // this holds. It is the route-level twin of the equivalence test in
     // @loonext/shared.
-    expect(await allows("owner", "billing.manage")).toBe(true);
-    expect(await allows("admin", "billing.manage")).toBe(true);
-    expect(await allows("member", "billing.manage")).toBe(false);
+    await expect(allows("owner", "billing.manage")).resolves.toBe(true);
+    await expect(allows("admin", "billing.manage")).resolves.toBe(true);
+    await expect(allows("member", "billing.manage")).resolves.toBe(false);
   });
 
   it("keeps the irreversible capability with the owner", async () => {
-    expect(await allows("owner", "workspace.own")).toBe(true);
-    expect(await allows("admin", "workspace.own")).toBe(false);
-    expect(await allows("member", "workspace.own")).toBe(false);
+    await expect(allows("owner", "workspace.own")).resolves.toBe(true);
+    await expect(allows("admin", "workspace.own")).resolves.toBe(false);
+    await expect(allows("member", "workspace.own")).resolves.toBe(false);
   });
 
   it("lets every role that works the inbox see it", async () => {
@@ -447,15 +442,15 @@ describe("requireCapability (#315: the axis, not the rung)", () => {
     // which is the entire reason it exists. Naming the exception here rather
     // than looping over MEMBER_ROLES keeps the claim true as roles are added.
     for (const role of [...HIERARCHY, "read_only"] as MemberRole[]) {
-      expect(await allows(role, "conversations.read"), role).toBe(true);
+      await expect(allows(role, "conversations.read")).resolves.toBe(true);
     }
-    expect(await allows("bookkeeper", "conversations.read")).toBe(false);
+    await expect(allows("bookkeeper", "conversations.read")).resolves.toBe(false);
   });
 
   it("lets a bookkeeper manage billing and nothing else", async () => {
     // The case #315 names as the one currently forcing credential sharing.
-    expect(await allows("bookkeeper", "billing.manage")).toBe(true);
-    expect(await allows("bookkeeper", "workspace.access")).toBe(true);
+    await expect(allows("bookkeeper", "billing.manage")).resolves.toBe(true);
+    await expect(allows("bookkeeper", "workspace.access")).resolves.toBe(true);
     for (const cap of [
       "conversations.read",
       "conversations.send",
@@ -464,7 +459,7 @@ describe("requireCapability (#315: the axis, not the rung)", () => {
       "contacts.bulk",
       "workspace.own",
     ] as Capability[]) {
-      expect(await allows("bookkeeper", cap), cap).toBe(false);
+      await expect(allows("bookkeeper", cap)).resolves.toBe(false);
     }
   });
 
@@ -472,10 +467,10 @@ describe("requireCapability (#315: the axis, not the rung)", () => {
     // #315: the read-only observer is exactly the gap between reading and
     // sending, and this is the route-level proof that the gap is real.
     for (const role of HIERARCHY) {
-      expect(await allows(role, "conversations.send"), role).toBe(true);
+      await expect(allows(role, "conversations.send")).resolves.toBe(true);
     }
-    expect(await allows("read_only", "conversations.send")).toBe(false);
-    expect(await allows("read_only", "conversations.note")).toBe(false);
+    await expect(allows("read_only", "conversations.send")).resolves.toBe(false);
+    await expect(allows("read_only", "conversations.note")).resolves.toBe(false);
   });
 
   it("refuses when no role is attached at all", async () => {
@@ -519,7 +514,7 @@ describe("requireCapability (#315: the axis, not the rung)", () => {
  * Each would leave every existing test green.
  */
 describe("#347 — nothing bypasses the company context", () => {
-  const API_SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+  const API_SRC = join(import.meta.dirname, "..");
 
   function routeSources(): { path: string; source: string }[] {
     const found: { path: string; source: string }[] = [];
@@ -567,7 +562,7 @@ describe("#347 — nothing bypasses the company context", () => {
     // That is correct for all of them — they act on the caller's own person
     // rather than on a workspace — but it is exactly the list somebody would
     // append to in order to make a 422 go away.
-    expect([...COMPANY_EXEMPT_ROUTES].sort()).toEqual(
+    expect([...COMPANY_EXEMPT_ROUTES].toSorted()).toEqual(
       [
         "DELETE /v1/account",
         "DELETE /v1/device-push-tokens",
@@ -588,7 +583,7 @@ describe("#347 — nothing bypasses the company context", () => {
         "GET /v1/mfa",
         "POST /v1/mfa/recovery-codes",
         "POST /v1/mfa/recover",
-      ].sort(),
+      ].toSorted(),
     );
   });
 

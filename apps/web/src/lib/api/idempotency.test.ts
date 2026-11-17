@@ -1,18 +1,15 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  attachmentSignature,
-  idempotencyKeyFor,
-  type FailedAttempt,
-} from "./idempotency";
+import { attachmentSignature, idempotencyKeyFor } from './idempotency';
+import type { FailedAttempt } from './idempotency';
 
 /** Deterministic mint so the assertions are about the RULE, not randomness. */
 function minter() {
   let n = 0;
-  return () => `minted-${++n}`;
+  return () => `minted-${n += 1}`;
 }
 
-describe("idempotencyKeyFor", () => {
+describe(idempotencyKeyFor, () => {
   it("mints a fresh key for a first attempt", () => {
     expect(idempotencyKeyFor(null, "sig-a", minter())).toBe("minted-1");
   });
@@ -37,7 +34,7 @@ describe("idempotencyKeyFor", () => {
   });
 });
 
-describe("attachmentSignature", () => {
+describe(attachmentSignature, () => {
   const file = (name: string, size: number) => ({ file: { name, size } });
 
   it("is stable for the same files", () => {

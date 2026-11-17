@@ -6,11 +6,10 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = join(fileURLToPath(new URL(".", import.meta.url)), "../..");
+const SRC = join(import.meta.dirname, "../..");
 
 /** Creations whose result is already in view, so Open would point at the screen you are on. */
 const STAYS_IN_PLACE: Record<string, string> = {

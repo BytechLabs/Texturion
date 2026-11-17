@@ -3,27 +3,19 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  ON_CALL_COPY,
-  ON_CALL_PRESETS,
-  onCallLine,
-  onCallWindow,
-  type OnCallPreset,
-} from "@loonext/shared";
+import { ON_CALL_COPY, ON_CALL_PRESETS, onCallLine, onCallWindow } from '@loonext/shared';
+import type { OnCallPreset } from '@loonext/shared';
 
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { SearchablePicker } from "@/components/ui/searchable-picker";
 import { Skeleton } from "@/components/ui/skeleton";
-import { sayWith, useT, type Translate } from "@/i18n/provider";
+import { sayWith, useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
-import {
-  useCreateOnCallShift,
-  useEndOnCallShift,
-  useOnCallShifts,
-  type OnCallShift,
-} from "@/lib/api/on-call";
+import { useCreateOnCallShift, useEndOnCallShift, useOnCallShifts } from '@/lib/api/on-call';
+import type { OnCallShift } from '@/lib/api/on-call';
 import { useMembers } from "@/lib/api/team";
 import { cn } from "@/lib/utils";
 import { formatTimestamp } from "@/lib/format/time";
@@ -110,10 +102,10 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
       toast.success(
         t("settingsMore.onCallPersonOnCall", { name: nameOf(target) }),
       );
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.onCallSetFailed"),
       );
     }
@@ -126,7 +118,7 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
     >
       {shifts.isPending ? (
         <Skeleton className="h-5 w-64" />
-      ) : live ? (
+      ) : (live ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-[14px] text-app-ink">
             {onCallLine(nameOf(live.user_id), formatUntil(live.ends_at, t), say)}
@@ -145,7 +137,7 @@ export function OnCallCard({ canEdit }: { canEdit: boolean }) {
       ) : (
         // Not "no shifts". The sentence says what the current state costs.
         <p className="text-[14px] text-app-muted-2">{say(ON_CALL_COPY.nobody)}</p>
-      )}
+      ))}
 
       {upcoming.length > 0 ? (
         <ul className="mt-3 space-y-1 border-t border-app-line pt-3">

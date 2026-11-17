@@ -1,6 +1,6 @@
 import { PLAN_PRICING, US_REGISTRATION_FEE_DOLLARS } from "@/lib/api/types";
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
-import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
+import { absoluteUrl, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
  * #451 — llms.txt, built from the same data the site renders from.

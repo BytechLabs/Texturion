@@ -11,8 +11,10 @@
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 import type { FrameTable } from "./frames.ts";
-import { detectCodes, MIN_CYCLES, type DetectOptions, type Margins } from "./detect.ts";
-import { SURFACES, isSurface, type Surface } from "./surfaces.ts";
+import { detectCodes, MIN_CYCLES } from './detect.ts';
+import type { DetectOptions, Margins } from './detect.ts';
+import { isSurface, SURFACES } from './surfaces.ts';
+import type { Surface } from './surfaces.ts';
 
 /** Signal must clear the noise by this much, or the code does not survive the path. */
 export const MIN_SEPARATION_DB = 10;
@@ -107,7 +109,7 @@ export function saveMargins(path: string, current: Margins, calibrations: Calibr
 
 function median(values: number[]): number {
   if (values.length === 0) return 0;
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = [...values].toSorted((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   return sorted.length % 2 ? sorted[mid]! : (sorted[mid - 1]! + sorted[mid]!) / 2;
 }

@@ -127,7 +127,7 @@ describe("the secret store", () => {
   });
 });
 
-describe("standingBook", () => {
+describe(standingBook, () => {
   const entries = [
     { role: "ROBOT-1", e164: "+14165550101", telnyx_phone_number_id: null, messaging_profile_id: null },
     { role: "DEV-W1", e164: "+14165550111" },

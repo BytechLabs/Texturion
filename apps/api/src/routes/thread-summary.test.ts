@@ -19,20 +19,10 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { Env, RateLimiter, WorkersAi } from "../env";
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import {
   THREAD_SUMMARY_CONTEXT_MESSAGES,
   THREAD_SUMMARY_MAX_OUTPUT_TOKENS,
@@ -139,9 +129,9 @@ function thread(count: number): Row[] {
       body:
         index === 1
           ? "no hot water since Friday"
-          : index === 2
+          : (index === 2
             ? "we will take a look"
-            : `message ${index}`,
+            : `message ${index}`),
       created_at: new Date(Date.UTC(2026, 6, 1, index)).toISOString(),
     };
   });
@@ -195,11 +185,11 @@ function stubs(options: StubOptions = {}): SupabaseStub {
   // reads only name, so one handler answers both by looking at the select.
   sb.on("GET", "/rest/v1/contacts", (call) =>
     call.url.searchParams.get("select") === "phone_e164"
-      ? options.optOutBroken === true
-        ? new Response(JSON.stringify({ message: "contacts unreachable" }), {
+      ? (options.optOutBroken === true
+        ? Response.json({ message: "contacts unreachable" }, {
             status: 500,
           })
-        : [{ phone_e164: "+16135550100" }]
+        : [{ phone_e164: "+16135550100" }])
       : [{ name: "Dana Reyes" }],
   );
   sb.on("GET", "/rest/v1/opt_outs", () =>
@@ -267,7 +257,7 @@ describe("carrier truth outranks a tidy paragraph", () => {
     const { ai, run } = mockAi(CITED);
     const res = await summarize(sb, { ...env, AI: ai });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       lines: [],
       reason: "unavailable",
       opt_out: null,
@@ -374,7 +364,7 @@ describe("nothing is spent before the free gates", () => {
   it("treats an unreachable ledger as over cap", async () => {
     // Failing closed: a broken ledger costs a catch-up, never an unbounded bill.
     const sb = stubs({
-      reserve: new Response(JSON.stringify({ message: "nope" }), { status: 500 }),
+      reserve: Response.json({ message: "nope" }, { status: 500 }),
     });
     const { ai, run } = mockAi(CITED);
     const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
@@ -459,9 +449,9 @@ describe("the burst limiters, which the monthly cap cannot stand in for", () => 
       })
     ).json()) as { lines: unknown[] };
 
-    expect(company.limit).toHaveBeenCalledTimes(1);
-    expect(member.limit).toHaveBeenCalledTimes(1);
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(company.limit).toHaveBeenCalledOnce();
+    expect(member.limit).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledOnce();
     expect(body.lines.length).toBeGreaterThan(0);
   });
 
@@ -681,7 +671,7 @@ describe("the cache", () => {
     const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
       cached?: boolean;
     };
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
     expect(body.cached).toBeUndefined();
   });
 
@@ -706,7 +696,7 @@ describe("the cache", () => {
     });
     const { ai, run } = mockAi(CITED);
     await summarize(sb, { ...env, AI: ai });
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it("drops a cached line whose cited message has since disappeared", async () => {
@@ -739,7 +729,7 @@ describe("the cache", () => {
     };
     // Not served from cache, and the fresh answer is what comes back.
     expect(body.cached).toBeUndefined();
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
     expect(body.lines.map((line) => line.text)).not.toContain(
       "cites a purged message",
     );
@@ -794,7 +784,7 @@ describe("the cache", () => {
       lines: unknown[];
       cached?: boolean;
     };
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
     expect(body.cached).toBeUndefined();
     expect(body.lines.length).toBeGreaterThan(0);
   });
@@ -826,7 +816,7 @@ describe("every failure degrades to silence", () => {
     const sb = stubs();
     const res = await summarize(sb, env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ lines: [], reason: "unavailable" });
+    await expect(res.json()).resolves.toMatchObject({ lines: [], reason: "unavailable" });
   });
 
   it("degrades when the model throws", async () => {
@@ -838,7 +828,7 @@ describe("every failure degrades to silence", () => {
     } as unknown as WorkersAi;
     const res = await summarize(sb, { ...env, AI: ai });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ lines: [], reason: "model_error" });
+    await expect(res.json()).resolves.toMatchObject({ lines: [], reason: "model_error" });
   });
 
   it("404s a conversation in another workspace", async () => {

@@ -1,14 +1,12 @@
-import { stateMachines, type Locale } from "@loonext/shared";
+import { stateMachines } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 
 import { capture } from "../analytics/posthog";
 import { stateTransitionProperties } from "../analytics/state-transition";
-import {
-  applyModuleReconcile,
-  planModuleReconcile,
-  type CompanyModuleRow,
-} from "../billing/company-modules";
+import { applyModuleReconcile, planModuleReconcile } from '../billing/company-modules';
+import type { CompanyModuleRow } from '../billing/company-modules';
 import {
   isNewCancellation,
   noticeCancellation,
@@ -16,32 +14,13 @@ import {
 import { handleChargeDispute } from "../billing/disputes";
 import { recordAndSendGraceNotice } from "../billing/grace";
 import { idempotencyKey } from "../billing/idempotency";
-import {
-  allVoiceOveragePrices,
-  moduleForPrice,
-  modulePrice,
-  PLAN_MODULES,
-  voiceOveragePrice,
-  type PlanModule,
-} from "../billing/modules";
-import {
-  hasLiveSubscription,
-  isPauseLicensedPrice,
-  mirrorSubscriptionStatus,
-  planForLicensedPrice,
-  PLAN_LIMITS,
-  type LocalSubscriptionStatus,
-  type PlanId,
-} from "../billing/plans";
+import { allVoiceOveragePrices, moduleForPrice, modulePrice, PLAN_MODULES, voiceOveragePrice } from '../billing/modules';
+import type { PlanModule } from '../billing/modules';
+import { hasLiveSubscription, isPauseLicensedPrice, mirrorSubscriptionStatus, PLAN_LIMITS, planForLicensedPrice } from '../billing/plans';
+import type { LocalSubscriptionStatus, PlanId } from '../billing/plans';
 import { readPaidCapacityEpoch } from "../billing/extra-numbers";
-import {
-  billedExtraQuantity,
-  claimNumberAllowance,
-  heldNoticeNoRecipientsAlert,
-  heldNoticeUnannouncedAlert,
-  heldNumbersCopy,
-  type HeldNumber,
-} from "../billing/number-allowance";
+import { billedExtraQuantity, claimNumberAllowance, heldNoticeNoRecipientsAlert, heldNoticeUnannouncedAlert, heldNumbersCopy } from '../billing/number-allowance';
+import type { HeldNumber } from '../billing/number-allowance';
 import { pushConsequentialNotice } from "../billing/consequential-push";
 import { SUBSCRIPTION_NOTICE_COPY } from "../billing/subscription-notice-copy";
 import {
@@ -50,10 +29,12 @@ import {
   isPrepayCheckout,
 } from "../billing/prepay";
 import { billingRecipients } from "../billing/recipients";
-import { getStripe, stripeCryptoProvider, type Stripe } from "../billing/stripe";
+import { getStripe, stripeCryptoProvider } from '../billing/stripe';
+import type { Stripe } from '../billing/stripe';
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { captureException } from "../observability/capture";
 import { liveStripeEventRefusal } from "../environments/policy";
 import { renderEmailHtml } from "../email/html";

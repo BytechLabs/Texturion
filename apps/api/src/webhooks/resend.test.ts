@@ -54,7 +54,7 @@ async function sign(id: string, timestamp: string, body: string): Promise<string
   const keyBytes = Uint8Array.from(atob(raw), (c) => c.charCodeAt(0));
   const key = await crypto.subtle.importKey(
     "raw",
-    keyBytes as BufferSource,
+    keyBytes,
     { name: "HMAC", hash: "SHA-256" },
     false,
     ["sign"],
@@ -67,7 +67,7 @@ async function sign(id: string, timestamp: string, body: string): Promise<string
   return `v1,${btoa(String.fromCharCode(...new Uint8Array(mac)))}`;
 }
 
-describe("verifyResendSignature", () => {
+describe(verifyResendSignature, () => {
   const body = JSON.stringify({ type: "email.bounced" });
 
   it("accepts a correctly signed request", async () => {
@@ -139,7 +139,7 @@ describe("verifyResendSignature", () => {
   });
 });
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -147,7 +147,7 @@ beforeEach(() => {
   resetCaptures();
 });
 
-describe("processResendEvent", () => {
+describe(processResendEvent, () => {
   function world() {
     const sb = supabaseStub(env);
     const recorded: Record<string, unknown>[] = [];

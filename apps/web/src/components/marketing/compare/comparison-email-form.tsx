@@ -166,8 +166,8 @@ export function ComparisonEmailForm({
               if (error) setError(null);
             }}
             disabled={submitting}
-            aria-invalid={error !== null ? true : undefined}
-            aria-describedby={error !== null ? "comparison-email-error" : undefined}
+            aria-invalid={error === null ? undefined : true}
+            aria-describedby={error === null ? undefined : "comparison-email-error"}
           />
           {/* Quieter than the page's primary action by construction: an outlined
               pill against the cobalt fill of "Start for $29". CONVERSION.md §2

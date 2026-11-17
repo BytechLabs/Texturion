@@ -27,12 +27,11 @@
  */
 
 import { mkdirSync, rmSync, writeFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 
 import { chromium } from "playwright";
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
+const __dirname = import.meta.dirname;
 const WEB_ROOT = resolve(__dirname, "..");
 const REPO_ROOT = resolve(WEB_ROOT, "..", "..");
 const SHOTS_DIR = join(WEB_ROOT, "public", "shots");
@@ -342,8 +341,8 @@ export const shots = {
 `;
 
   const body = entries
-    .map((e) => {
-      return `  ${JSON.stringify(e.key)}: {
+    .map((e) => 
+      `  ${JSON.stringify(e.key)}: {
     src: ${JSON.stringify(e.src)},
     avif: ${JSON.stringify(e.avif)},
     width: ${e.width},
@@ -352,8 +351,8 @@ export const shots = {
     frame: ${JSON.stringify(e.frame)},
     alt: ${JSON.stringify(e.alt)},
     placeholder: ${JSON.stringify(e.placeholder)},
-  },`;
-    })
+  },`
+    )
     .join("\n");
 
   const footer = `
@@ -430,8 +429,8 @@ async function main() {
   rmSync(WORK_DIR, { recursive: true, force: true });
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch((error) => {
+  console.error(error);
   rmSync(WORK_DIR, { recursive: true, force: true });
-  throw err;
+  throw error;
 });

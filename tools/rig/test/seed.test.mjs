@@ -40,7 +40,7 @@ function fixture() {
 
 test("the tenants cover every standing role exactly once", () => {
   const roles = TENANTS.flatMap((tenant) => tenant.numbers.map((number) => number.role));
-  assert.deepEqual([...roles].sort(), [...STANDING_ROLES].sort());
+  assert.deepEqual([...roles].toSorted(), [...STANDING_ROLES].toSorted());
   for (const tenant of TENANTS) {
     assert.equal(tenant.members.filter((member) => member.role === "owner").length, 1, `${tenant.name} has one owner`);
   }
@@ -107,10 +107,10 @@ test("each number's audience at rest is everyone at note level plus the listed m
     assert.match(sql, new RegExp(`'${numberId}', 'all', null, 'note'`));
   }
   assert.ok(qaW.members.some((member) => member.key === "note-member"));
-  assert.doesNotMatch(sql, new RegExp(userIds["qa-w"]["note-member"] + "', 'text'"));
+  assert.doesNotMatch(sql, new RegExp(`${userIds["qa-w"]["note-member"]  }', 'text'`));
   // The dispatcher rings only under a lease.
-  assert.doesNotMatch(sql, new RegExp(userIds["qa-a"].dispatcher + "', 'text'"));
-  assert.match(sql, new RegExp(userIds["qa-a"].technician + "', 'text'"));
+  assert.doesNotMatch(sql, new RegExp(`${userIds["qa-a"].dispatcher  }', 'text'`));
+  assert.match(sql, new RegExp(`${userIds["qa-a"].technician  }', 'text'`));
 });
 
 test("numbers carry the guard's ids and profiles, and the robot's numbers name the robot connection, not the voice app", () => {
@@ -191,7 +191,7 @@ test("deploy's seed check asks for every company, membership and number row as t
     const companyId = ids[tenant.key].company_id;
     assert.ok(sql.includes(`('${companyId}'::uuid)`), `${tenant.name}'s company`);
     for (const member of tenant.members) {
-      const email = ids[tenant.key].members[member.key].email;
+      const {email} = ids[tenant.key].members[member.key];
       assert.ok(sql.includes(`('${companyId}'::uuid, '${email}')`), `${tenant.name} ${member.key}`);
     }
   }
@@ -307,9 +307,9 @@ function stripeFake({ deleted = [] } = {}) {
     calls.push({ method: init.method ?? "GET", url: String(url), body: init.body ? String(init.body) : undefined });
     const id = String(url).split("/v1/customers/")[1];
     if (id !== undefined) {
-      return deleted.includes(id) ? new Response("{}", { status: 404 }) : new Response(JSON.stringify({ id }), { status: 200 });
+      return deleted.includes(id) ? new Response("{}", { status: 404 }) : Response.json({ id }, { status: 200 });
     }
-    return new Response(JSON.stringify({ id: `cus_new${++n}` }), { status: 200 });
+    return Response.json({ id: `cus_new${n += 1}` }, { status: 200 });
   };
   return { fetchImpl, calls };
 }
@@ -321,7 +321,7 @@ test("each metered tenant gets one tagged Stripe test customer, kept in the stor
     store.write("stripe-secret-key", "sk_test_abc");
     const first = stripeFake();
     const made = await ensureStripeCustomers({ store, fetchImpl: first.fetchImpl, log: () => undefined });
-    assert.deepEqual(Object.keys(made).sort(), [...METERED_TENANTS].sort());
+    assert.deepEqual(Object.keys(made).toSorted(), [...METERED_TENANTS].toSorted());
     assert.equal(first.calls.every((call) => call.method === "POST" && call.body.includes("metadata%5Bloonext_rig%5D=1")), true);
 
     const again = stripeFake({ deleted: [made["qa-c"]] });

@@ -10,16 +10,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
-import {
-  admitFiles,
-  AttachmentChips,
-  fileToBase64,
-  MediaErrors,
-  MergeFieldPreview,
-  SegmentMeterLabel,
-  useAutoGrow,
-  type DraftAttachment,
-} from "@/components/thread/composer";
+import { admitFiles, AttachmentChips, fileToBase64, MediaErrors, MergeFieldPreview, SegmentMeterLabel, useAutoGrow } from '@/components/thread/composer';
+import type { DraftAttachment } from '@/components/thread/composer';
 import { TemplatePicker } from "@/components/thread/template-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -35,12 +27,10 @@ import {
   NEW_CONVERSATION_DRAFT,
   saveDraft,
 } from "@/lib/messaging/composer-drafts";
-import { useStartConversation, type ComposeInput } from "@/lib/api/compose";
-import {
-  attachmentSignature,
-  idempotencyKeyFor,
-  type FailedAttempt,
-} from "@/lib/api/idempotency";
+import { useStartConversation } from '@/lib/api/compose';
+import type { ComposeInput } from '@/lib/api/compose';
+import { attachmentSignature, idempotencyKeyFor } from '@/lib/api/idempotency';
+import type { FailedAttempt } from '@/lib/api/idempotency';
 import { useContact, useContacts } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
 import type { OutboundMedia } from "@/lib/api/messages";
@@ -56,8 +46,8 @@ import {
   destinationCountry,
   selectComposerBanner,
   usSendApproved,
-  usTextingOff,
   usSuspended,
+  usTextingOff,
 } from "@/components/thread/composer-banner";
 import { ComposerBannerCard } from "@/components/thread/composer-banners";
 import {
@@ -118,13 +108,13 @@ export function NewConversation() {
   // A typed number is searched SERVER-side on its digits. Asking for every
   // contact and matching in the browser only ever looked at the first page, so
   // a workspace with more contacts than that could not find one by number.
-  const typedDigits = isPhone ? displayInput.replace(/\D/g, "") : "";
+  const typedDigits = isPhone ? displayInput.replaceAll(/\D/g, "") : "";
   const contacts = useContacts(isPhone ? typedDigits : input.trim());
   const contactRows = useMemo(() => {
     const rows = flattenPages(contacts.data).filter((c) => c.deleted_at === null);
     if (!isPhone) return rows.slice(0, 6);
     return rows
-      .filter((c) => c.phone_e164.replace(/\D/g, "").includes(typedDigits))
+      .filter((c) => c.phone_e164.replaceAll(/\D/g, "").includes(typedDigits))
       .slice(0, 6);
   }, [contacts.data, isPhone, typedDigits]);
 
@@ -251,9 +241,9 @@ export function NewConversation() {
   const destinationE164 =
     recipient?.kind === "contact"
       ? recipient.contact.phone_e164
-      : recipient?.kind === "number"
+      : (recipient?.kind === "number"
         ? recipient.e164
-        : typedE164;
+        : typedE164);
   /**
    * #393: the signature this particular send will carry, or null.
    *
@@ -373,12 +363,12 @@ export function NewConversation() {
       ...(media ? { media } : {}),
       // #475/#274: compared once at send rather than watched per keystroke —
       // the question is whether this went out different from the template.
-      ...(templateUse.current !== null
-        ? {
+      ...(templateUse.current === null
+        ? {}
+        : {
             template_id: templateUse.current.id,
             template_edited: templateUse.current.body.trim() !== body.trim(),
-          }
-        : {}),
+          }),
       idempotencyKey,
     };
     start.mutate(inputBody, {
@@ -511,7 +501,7 @@ export function NewConversation() {
               // option button — still inside this container — so selection's
               // onClick fires before any close.
               onBlur={(e) => {
-                if (!e.currentTarget.contains(e.relatedTarget as Node | null)) {
+                if (!e.currentTarget.contains(e.relatedTarget)) {
                   setSearchOpen(false);
                 }
               }}
@@ -565,7 +555,7 @@ export function NewConversation() {
                     // typed number confirms; a single match selects itself.
                     if (typedE164) confirmTypedNumber();
                     else if (contactRows.length === 1)
-                      selectContact(contactRows[0]);
+                      {selectContact(contactRows[0]);}
                   }
                   if (event.key === "Escape") {
                     setSearchOpen(false);
@@ -630,9 +620,9 @@ export function NewConversation() {
                     >
                       {isPhone
                         ? t("inbox.composeKeepTyping")
-                        : contacts.isPending && input.trim().length > 0
+                        : (contacts.isPending && input.trim().length > 0
                           ? t("inbox.composeSearching")
-                          : t("inbox.composeNoContacts")}
+                          : t("inbox.composeNoContacts"))}
                     </p>
                   )}
                 </div>
@@ -652,7 +642,7 @@ export function NewConversation() {
               placeholder={t("inbox.composeChooseNumber")}
               options={activeNumbers.map((number) => ({
                 value: number.id,
-                label: formatPhone(number.number_e164 as string),
+                label: formatPhone(number.number_e164!),
               }))}
             />
           </div>

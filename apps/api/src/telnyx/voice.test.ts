@@ -9,16 +9,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SUBSCRIPTION_STATUSES } from "../billing/plans";
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { restMatch, stubRoute, type Stub } from "../test/messaging-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
-import {
-  effectiveCnamDisplayName,
-  enableVoiceOnNumber,
-  reconcileVoiceEnablement,
-  sanitizeCnamDisplayName,
-  syncCallSettingsForCompany,
-  type VoiceNumberRow,
-} from "./voice";
+import { restMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
+import { effectiveCnamDisplayName, enableVoiceOnNumber, reconcileVoiceEnablement, sanitizeCnamDisplayName, syncCallSettingsForCompany } from './voice';
+import type { VoiceNumberRow } from './voice';
 
 const env: Env = completeEnv();
 const CONNECTION = env.TELNYX_VOICE_CONNECTION_ID;
@@ -105,7 +101,7 @@ function serve(...stubs: Stub[]) {
   stubFetch(...(stubs.map((s) => s.route) as FetchRoute[]));
 }
 
-describe("enableVoiceOnNumber", () => {
+describe(enableVoiceOnNumber, () => {
   it("binds the Call-Control app when the number is SMS-only, and stamps the row", async () => {
     const get = voiceGet(null);
     const patch = voicePatch();
@@ -296,7 +292,7 @@ describe("reconcileVoiceEnablement — §11 cron pass", () => {
           request.method === "PATCH" &&
           url.pathname === `/v2/phone_numbers/${TELNYX_PN_ID}`,
         () =>
-          new Response(JSON.stringify({ errors: [{ detail: "nope" }] }), {
+          Response.json({ errors: [{ detail: "nope" }] }, {
             status: 422,
           }),
       ),

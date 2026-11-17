@@ -1,6 +1,7 @@
 import { mkdirSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { CYCLE_MS, PATTERN, SLOT_MS, SURFACES, SURFACE_HZ, type Surface } from "./surfaces.ts";
+import { CYCLE_MS, PATTERN, SLOT_MS, SURFACE_HZ, SURFACES } from './surfaces.ts';
+import type { Surface } from './surfaces.ts';
 import { encodeWav } from "./wav.ts";
 
 export interface CodeOptions {
@@ -20,7 +21,7 @@ export function codeSamples(surface: Surface, options: CodeOptions): Float32Arra
   if (!Number.isInteger(cycles) || cycles < 1) throw new Error("codeSamples: cycles must be a positive integer");
   const slotSamples = (sampleRate * SLOT_MS) / 1000;
   if (!Number.isInteger(slotSamples)) {
-    throw new Error(`codeSamples: ${sampleRate} Hz does not divide a ${SLOT_MS} ms slot`);
+    throw new TypeError(`codeSamples: ${sampleRate} Hz does not divide a ${SLOT_MS} ms slot`);
   }
   const omega = (2 * Math.PI * SURFACE_HZ[surface]) / sampleRate;
   const ramp = Math.max(1, Math.round((sampleRate * rampMs) / 1000));

@@ -72,7 +72,7 @@ describe("#304 the usage export", () => {
     // Two files for two readers: the HTML is what somebody reads, the CSV is
     // what somebody pastes into their own workings.
     const { written } = await build({ from: "2026-06-01T00:00:00.000Z" });
-    expect([...written.keys()].sort()).toEqual(["c/e1/usage.csv", "c/e1/usage.html"]);
+    expect([...written.keys()].toSorted()).toEqual(["c/e1/usage.csv", "c/e1/usage.html"]);
   });
 
   it("UE-2: asks for exactly the window it was given", async () => {
@@ -232,7 +232,7 @@ describe("#304 the usage export", () => {
       endpoint(
         "POST",
         /\/rpc\/api_storage_usage/,
-        () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+        () => Response.json({ message: "boom" }, { status: 500 }),
       ),
     ]);
     stubFetch(h.route);

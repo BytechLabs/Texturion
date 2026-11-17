@@ -1,6 +1,7 @@
 "use client";
 
-import { Check, Copy, type LucideIcon } from "lucide-react";
+import { Check, Copy } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import Link, { useLinkStatus } from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";

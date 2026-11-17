@@ -14,7 +14,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 vi.stubEnv("NEXT_PUBLIC_SUPABASE_URL", "https://stub.supabase.local");
 vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "stub-publishable-key");
 vi.stubEnv("NEXT_PUBLIC_API_URL", "https://stub-api.local");
-vi.mock("@/lib/supabase/browser", () => ({
+vi.mock(import("@/lib/supabase/browser"), () => ({
   getAccessToken: async () => "test-token",
 }));
 
@@ -29,7 +29,7 @@ vi.stubGlobal(
   "fetch",
   vi.fn(async (input: RequestInfo | URL) => {
     seenUrl = typeof input === "string" ? input : input.toString();
-    return new Response(JSON.stringify({ data: [], next_cursor: null }), {
+    return Response.json({ data: [], next_cursor: null }, {
       status: 200,
       headers: { "content-type": "application/json" },
     });

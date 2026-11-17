@@ -23,7 +23,8 @@ import {
   RecordContextMenu,
   RecordOverflowMenu,
 } from "@/components/ui/record-menu";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { useCompany } from "@/lib/api/companies";
 import { useAllTasks } from "@/lib/api/tasks";
 import {
@@ -40,11 +41,12 @@ import { taskThreadId } from "../task-format";
 import { taskLinkClickHandler, useTaskDrawer } from "../use-task-drawer";
 import { useTaskRowActions } from "../task-actions";
 import { useTaskReschedule } from "../use-task-mutations";
-import { toTaskFilters, type TaskPageState } from "../task-view-url";
+import { toTaskFilters } from '../task-view-url';
+import type { TaskPageState } from '../task-view-url';
 import {
   dayKey,
-  dueCell,
   droppedDueAt,
+  dueCell,
   slotDueValue,
   todayInZone,
   windowInstants,
@@ -178,7 +180,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
 
   const onGridKeyDown = (e: React.KeyboardEvent<HTMLDivElement>) => {
     const target = e.target as HTMLElement;
-    if (!target.hasAttribute("data-create-cell")) return;
+    if (!Object.hasOwn(target.dataset, "createCell")) return;
     const delta: Record<string, number> =
       mode === "week"
         ? { ArrowUp: -1, ArrowDown: 1, ArrowLeft: -24, ArrowRight: 24 }
@@ -267,7 +269,7 @@ export function CalendarView({ state }: { state: TaskPageState }) {
                 key={dayKey(day)}
                 className={cn(SECTION_LABEL_CLASS, "flex items-center gap-1.5 px-2 py-1.5")}
               >
-                {t(DOW_KEYS[day.getDay()]!)}
+                {t(DOW_KEYS[day.getDay()])}
                 {mode === "week" && (
                   <DayNumber day={day} todayKey={todayKey} inMonth />
                 )}
@@ -380,9 +382,9 @@ function DayNumber({
         "flex size-6 items-center justify-center self-start rounded-full text-[12px] tabular-nums",
         dayKey(day) === todayKey
           ? "bg-primary font-semibold text-primary-foreground"
-          : inMonth
+          : (inMonth
             ? "text-foreground"
-            : "text-muted-foreground",
+            : "text-muted-foreground"),
       )}
     >
       {format(day, "d")}

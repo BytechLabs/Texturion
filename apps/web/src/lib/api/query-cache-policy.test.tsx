@@ -125,11 +125,11 @@ const fiveMinutes: [string, () => unknown, readonly unknown[]][] = [
 
 describe("reference data is trusted for five minutes", () => {
   it.each(fiveMinutes)("QC-2 %s: a two-minute-old answer is not asked again", async (_name, hook, key) => {
-    expect(await refetchesAt(hook, key, 2 * MINUTE)).toBe(false);
+    await expect(refetchesAt(hook, key, 2 * MINUTE)).resolves.toBe(false);
   });
 
   it.each(fiveMinutes)("QC-3 %s: a six-minute-old answer is", async (_name, hook, key) => {
-    expect(await refetchesAt(hook, key, 6 * MINUTE)).toBe(true);
+    await expect(refetchesAt(hook, key, 6 * MINUTE)).resolves.toBe(true);
   });
 });
 
@@ -145,11 +145,11 @@ const tenMinutes: [string, () => unknown, readonly unknown[]][] = [
 
 describe("reports, exports and the payout account are trusted for ten minutes", () => {
   it.each(tenMinutes)("QC-4 %s: a seven-minute-old answer is not asked again", async (_name, hook, key) => {
-    expect(await refetchesAt(hook, key, 7 * MINUTE)).toBe(false);
+    await expect(refetchesAt(hook, key, 7 * MINUTE)).resolves.toBe(false);
   });
 
   it.each(tenMinutes)("QC-5 %s: an eleven-minute-old answer is", async (_name, hook, key) => {
-    expect(await refetchesAt(hook, key, 11 * MINUTE)).toBe(true);
+    await expect(refetchesAt(hook, key, 11 * MINUTE)).resolves.toBe(true);
   });
 
   it("QC-6: a report stays in memory for an hour after its card closes", () => {
@@ -161,13 +161,11 @@ describe("reports, exports and the payout account are trusted for ten minutes", 
   });
 
   it("QC-7: the settings card reads the payout account fresh every time it opens", async () => {
-    expect(
-      await refetchesAt(
+    await expect(refetchesAt(
         () => usePayoutAccount(true, { refetchOnMount: "always" }),
         keys.payments.account(C),
         MINUTE,
-      ),
-    ).toBe(true);
+      )).resolves.toBe(true);
   });
 });
 

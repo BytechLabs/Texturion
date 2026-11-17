@@ -4,16 +4,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CalendarClock, Clock } from "lucide-react";
 import { useState } from "react";
 
-import {
-  CLOCK_CHOICE_DEFAULT,
-  CLOCK_CHOICE_LABELS,
-  type ClockChoice,
-  instantForWallClock,
-  sameClock,
-  SCHEDULED_HORIZON_DAYS,
-  schedulePresets,
-  scheduledClockProvenance,
-} from "@loonext/shared";
+import { CLOCK_CHOICE_DEFAULT, CLOCK_CHOICE_LABELS, DEFAULT_LOCALE, instantForWallClock, sameClock, SCHEDULED_HORIZON_DAYS, scheduledClockProvenance,schedulePresets } from '@loonext/shared';
+import type { ClockChoice } from '@loonext/shared';
 
 import {
   DropdownMenuItem,
@@ -30,8 +22,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
-import { DEFAULT_LOCALE } from "@loonext/shared";
-import { makeTranslate, useT, type Translate } from "@/i18n/provider";
+import { makeTranslate, useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import type { DestinationClock } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 import { formatTimestamp } from "@/lib/format/time";
@@ -98,7 +90,7 @@ export function SendLaterMenuItems({
         preset.at ? (
           <DropdownMenuItem
             key={preset.id}
-            onSelect={() => onSchedule((preset.at as Date).toISOString())}
+            onSelect={() => onSchedule((preset.at!).toISOString())}
           >
             <Clock className="size-4" strokeWidth={1.75} />
             <span>{preset.label}</span>
@@ -161,9 +153,9 @@ export function SendLaterDialog({
   const resolved =
     choice === "theirs" && canSwitch
       ? instantForWallClock(parseLocalInput(value), zone)
-      : value === ""
+      : (value === ""
         ? null
-        : new Date(value);
+        : new Date(value));
   const parsed = resolved === null ? Number.NaN : resolved.getTime();
   const horizon = Date.now() + SCHEDULED_HORIZON_DAYS * 86_400_000;
   // Both bounds mirror the API's, so the field goes quiet rather than letting
@@ -174,9 +166,9 @@ export function SendLaterDialog({
   // issue complained about ("what about my timzeone equivalent?").
   const equivalent =
     valid && canSwitch
-      ? choice === "theirs"
+      ? (choice === "theirs"
         ? t("thread.thatsYourTime", { when: clockAt(new Date(parsed), here, t.locale) })
-        : t("thread.thatsTheirTime", { when: clockAt(new Date(parsed), zone, t.locale) })
+        : t("thread.thatsTheirTime", { when: clockAt(new Date(parsed), zone, t.locale) }))
       : null;
 
   return (

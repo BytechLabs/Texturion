@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { useT } from "@/i18n/provider";
 
-import { hasActiveChips, serializeTaskState, type TaskPageState } from "./task-view-url";
+import { hasActiveChips, serializeTaskState } from './task-view-url';
+import type { TaskPageState } from './task-view-url';
 
 /**
  * The calm empty state (T6.1 / T5.3). Three voices:
@@ -31,9 +32,9 @@ export function EmptyTasks({ state }: { state: TaskPageState }) {
         title={t(
           state.tab === "done"
             ? "tasks.emptyMineDone"
-            : state.tab === "mine"
+            : (state.tab === "mine"
               ? "tasks.emptyMineAny"
-              : "tasks.emptyMine",
+              : "tasks.emptyMine"),
         )}
         action={
           <Button asChild variant="outline" size="sm">

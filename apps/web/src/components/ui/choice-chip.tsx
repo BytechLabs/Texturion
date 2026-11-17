@@ -14,8 +14,8 @@ import { cn } from "@/lib/utils";
 export const ChoiceChip = forwardRef<
   HTMLButtonElement,
   React.ComponentProps<typeof Button> & { chosen: boolean }
->(function ChoiceChip({ chosen, className, children, ...props }, ref) {
-  return (
+>(({ chosen, className, children, ...props }, ref) => 
+  (
     <Button
       ref={ref}
       type="button"
@@ -33,5 +33,5 @@ export const ChoiceChip = forwardRef<
       {chosen && <Check className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />}
       {children}
     </Button>
-  );
-});
+  )
+);

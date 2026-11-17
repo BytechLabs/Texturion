@@ -8,7 +8,8 @@
  * declarative and the conversion is unit-tested (mirroring the calm settings
  * house style of testable lib helpers).
  */
-import { WEEKDAYS, type BusinessHours, type Weekday } from "@loonext/shared";
+import { WEEKDAYS } from '@loonext/shared';
+import type { BusinessHours, Weekday } from '@loonext/shared';
 
 export { WEEKDAYS, type Weekday };
 

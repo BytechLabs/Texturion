@@ -15,8 +15,10 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { inBusinessHours, runLeadChaseJob } from "./lead-chase";
 
 const env = completeEnv();
@@ -260,7 +262,7 @@ describe("claiming", () => {
     const world = buildWorld([]);
     stubFetch(...world.routes);
 
-    expect(await runLeadChaseJob(env, OPEN)).toEqual({ sent: 0, skipped: 0 });
+    await expect(runLeadChaseJob(env, OPEN)).resolves.toEqual({ sent: 0, skipped: 0 });
     expect(world.claims).toHaveLength(0);
   });
 });

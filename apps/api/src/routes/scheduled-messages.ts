@@ -156,35 +156,42 @@ scheduledMessageRoutes.post(
     );
 
     switch (result.outcome) {
-      case "scheduled":
+      case "scheduled": {
         return c.json({ scheduled_message: result.scheduled_message }, 201);
-      case "not_found":
+      }
+      case "not_found": {
         throw new ApiError("not_found", "That conversation is not here.");
-      case "in_the_past":
+      }
+      case "in_the_past": {
         throw new ApiError(
           "validation_failed",
           "That time has already passed. Pick one in the future.",
         );
-      case "too_far_out":
+      }
+      case "too_far_out": {
         throw new ApiError(
           "validation_failed",
           `We can hold a message for up to ${result.limit_days ?? SCHEDULED_HORIZON_DAYS} days.`,
         );
-      case "thread_cap":
+      }
+      case "thread_cap": {
         throw new ApiError(
           "validation_failed",
           `This conversation already has ${result.limit} messages waiting to send.`,
         );
-      case "company_cap":
+      }
+      case "company_cap": {
         throw new ApiError(
           "validation_failed",
           `Your workspace already has ${result.limit} messages waiting to send.`,
         );
-      default:
+      }
+      default: {
         // A sentinel this route has not been taught about. A plain throw, so
         // it surfaces as a 500 in PostHog rather than being dressed up as a
         // validation message the person could act on.
         throw new Error(`unexpected schedule outcome: ${result.outcome}`);
+      }
     }
   },
 );

@@ -8,15 +8,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  closureReason,
-  companyLocalDate,
-  exceptionFor,
-  isAfterHours,
-  isValidHoursExceptions,
-  type BusinessHours,
-  type HoursException,
-} from "./business-hours";
+import { closureReason, companyLocalDate, exceptionFor, isAfterHours, isValidHoursExceptions } from './business-hours';
+import type { BusinessHours, HoursException } from './business-hours';
 
 const TZ = "America/Toronto";
 /** Open every weekday 08:00–17:00, closed at weekends. */

@@ -5,8 +5,8 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 
 import { useT } from "@/i18n/provider";
 import {
-  useConversations,
-  usePinnedConversations,
+  useBulkConversations,
+  useConversations,usePinnedConversations
 } from "@/lib/api/conversations";
 import type { ConversationFilters } from "@/lib/api/filters";
 import type { ConversationListItem } from "@/lib/api/types";
@@ -15,20 +15,8 @@ import { prefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
 import { Checkbox } from "@/components/ui/checkbox";
-import { useBulkConversations } from "@/lib/api/conversations";
-import {
-  bulkResultMessage,
-  EMPTY_SELECTION,
-  isEmpty,
-  isRowSelected,
-  selectAllMatching,
-  selectionIds,
-  selectLoaded,
-  toggleRow,
-  undoBulkCalls,
-  type BulkConversationsBody,
-  type BulkSelection,
-} from "@/lib/inbox/bulk-selection";
+import { bulkResultMessage, EMPTY_SELECTION, isEmpty, isRowSelected, selectAllMatching, selectionIds, selectLoaded, toggleRow, undoBulkCalls } from '@/lib/inbox/bulk-selection';
+import type { BulkConversationsBody, BulkSelection } from '@/lib/inbox/bulk-selection';
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { toast } from "sonner";
 
@@ -307,7 +295,7 @@ export function ConversationList({
         <BulkBar
           selection={selection}
           loadedIds={loadedIds}
-          hasMore={query.hasNextPage === true}
+          hasMore={query.hasNextPage}
           pending={bulk.isPending}
           onSelectLoaded={() => setSelection(selectLoaded(loadedIds))}
           onSelectAllMatching={() => setSelection(selectAllMatching())}

@@ -35,15 +35,8 @@
  * `settings.manage`. The check is in the handler rather than the middleware
  * because which capability applies depends on the body.
  */
-import {
-  SAVED_VIEW_COUNT_MAX_VIEWS,
-  SAVED_VIEW_NAME_MAX,
-  SAVED_VIEW_SURFACES,
-  filtersToQuery,
-  resolveAssignee,
-  sanitizeFilters,
-  type SavedViewSurface,
-} from "@loonext/shared";
+import { filtersToQuery, resolveAssignee, sanitizeFilters, SAVED_VIEW_COUNT_MAX_VIEWS, SAVED_VIEW_NAME_MAX, SAVED_VIEW_SURFACES } from '@loonext/shared';
+import type { SavedViewSurface } from '@loonext/shared';
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -229,7 +222,7 @@ savedViewsRoutes.post(
         "A view with that name already exists. Two views a letter apart are two views nobody can tell you to open.",
       );
     }
-    return c.json(toClient(result.view as ViewRow), 201);
+    return c.json(toClient(result.view!), 201);
   },
 );
 

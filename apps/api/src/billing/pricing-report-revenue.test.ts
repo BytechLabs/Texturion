@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -48,7 +47,7 @@ import {
  */
 const REPORT = readFileSync(
   join(
-    dirname(fileURLToPath(import.meta.url)),
+    import.meta.dirname,
     "..",
     "..",
     "..",
@@ -75,7 +74,7 @@ function reportScope(): ReportScope {
     // Everything from the CLI invocation to EOF.
     .replace(/\nawait runScript\([\s\S]*$/, "\n")
     // `export` is a syntax error inside a Function body.
-    .replace(/^export /gm, "");
+    .replaceAll(/^export /gm, "");
   const scope = new Function(
     `${body}\nreturn { revenueCents, isPaused, assertSnapshotShape, ` +
       "fixedMonthlyCostCents, costCents };",
@@ -87,11 +86,7 @@ function reportScope(): ReportScope {
     "fixedMonthlyCostCents",
     "costCents",
   ] as const) {
-    expect(
-      typeof scope[name],
-      `pricing-report.mjs no longer declares ${name} — this guard protects the ` +
-        "pause valuation and must be updated, not deleted.",
-    ).toBe("function");
+    expect(scope[name]).toBeTypeOf("function");
   }
   return scope;
 }
@@ -116,7 +111,7 @@ async function runReport(
   rows: Record<string, unknown>[],
   { movements = [], args = {} }: { movements?: unknown[]; args?: Record<string, unknown> } = {},
 ): Promise<string> {
-  const body = REPORT.replace(/^import[^\n]*\n/m, "").replace(/^export /gm, "");
+  const body = REPORT.replace(/^import[^\n]*\n/m, "").replaceAll(/^export /gm, "");
   const printed: string[] = [];
   const runScript = async (
     _name: string,
@@ -215,8 +210,8 @@ describe("#277 the margin report values a paused workspace at its holding fee", 
     // just as happily against a function that returned the fee for everybody.
     expect(report.revenueCents(row())).toBe(PLAN_MONTHLY_REVENUE_CENTS.pro);
     expect(
-      report.revenueCents(row({ prepaid_cents: 79000, prepaid_months: 12 })),
-    ).toBe(Math.round(79000 / 12));
+      report.revenueCents(row({ prepaid_cents: 79_000, prepaid_months: 12 })),
+    ).toBe(Math.round(79_000 / 12));
   });
 
   it("treats a row with NO pause field as unpaused, not as free", () => {
@@ -506,13 +501,13 @@ describe("#525 the margin report can see the fixed cost it is paying", () => {
     );
   });
 
-  it("PC525-4: says what the paused cohort costs, beside what it collects", () => {
+  it("PC525-4: says what the paused cohort costs, beside what it collects", () => 
     // The pause price is provisioned in a Stripe dashboard and is nowhere in
     // this repository, so this is the only place the two figures meet. Printed
     // side by side with NO verdict: #255's rule is that this report says what
     // IS, because a price change on a base this small is unmeasurable before it
     // is unfair.
-    return runReport([
+    runReport([
       row({ name: "Acme" }),
       row({
         company_id: "00000000-0000-4000-8000-000000000002",
@@ -531,8 +526,8 @@ describe("#525 the margin report can see the fixed cost it is paying", () => {
       expect(printed).toContain(
         `against ${money(stripeNetCents(PAUSED_FEE_CENTS))} of holding fees after Stripe`,
       );
-    });
-  });
+    })
+  );
 
   it("PC525-5: refuses to report at all against a snapshot with no US column", () => {
     // Pointed at a database the migration has not reached, the campaign fee

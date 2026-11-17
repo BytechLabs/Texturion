@@ -43,8 +43,10 @@ import { ArrowRight } from "lucide-react";
 
 import { MeasureCard } from "@/components/for-you/measure-card";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type Translate } from "@/i18n/provider";
-import { useLeadSourceReport, type LeadSourceReport } from "@/lib/api/reports";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
+import { useLeadSourceReport } from '@/lib/api/reports';
+import type { LeadSourceReport } from '@/lib/api/reports';
 
 /** How many sources get their own row before the rest are folded together. */
 const TOP_N = 4;
@@ -97,7 +99,7 @@ function rankedChannels(
       total: widgetCount(report),
     });
   }
-  return channels.sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+  return channels.toSorted((a, b) => b.total - a.total || a.name.localeCompare(b.name));
 }
 
 /**
@@ -148,7 +150,7 @@ export function LeadSourcesCard() {
   if (report.isLoading) {
     return <Skeleton className="h-32 w-full rounded-xl" />;
   }
-  const data = report.data;
+  const {data} = report;
   // Nothing happened this month. Silence, not a zero.
   if (!data || data.total === 0) return null;
 
@@ -243,14 +245,14 @@ function Row({
     <li className="flex items-center gap-3">
       <span
         className={
-          "min-w-[7rem] truncate text-sm " + (muted ? "text-muted-foreground" : "")
+          `min-w-[7rem] truncate text-sm ${  muted ? "text-muted-foreground" : ""}`
         }
       >
         {name}
       </span>
       <span className="h-1.5 flex-1 overflow-hidden rounded-full bg-accent/60">
         <span
-          className={"block h-full rounded-full " + (muted ? "bg-muted-foreground/40" : "bg-primary/70")}
+          className={`block h-full rounded-full ${  muted ? "bg-muted-foreground/40" : "bg-primary/70"}`}
           style={{ width: `${Math.round((total / max) * 100)}%` }}
         />
       </span>

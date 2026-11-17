@@ -32,7 +32,7 @@
  * rights could put other code under one.
  */
 import type { SecretFiles } from "@loonext/rig-robot";
-import { githubHeaders, GITHUB_API, installationToken, splitRepo } from "@loonext/rig-triage";
+import { GITHUB_API, githubHeaders, installationToken, splitRepo } from "@loonext/rig-triage";
 
 export const GUARD_SCRIPT = "loonext-telnyx-guard";
 export const GUARD_WORKFLOW = "guard.yml";
@@ -259,7 +259,7 @@ async function mainDeploys(doFetch: typeof fetch, app: { appId: string; privateK
   }
   return deploys
     .filter((deploy) => Date.parse(deploy.started_at) >= newestSuccess)
-    .sort((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
+    .toSorted((a, b) => Date.parse(b.started_at) - Date.parse(a.started_at));
 }
 
 function clip(text: string, max: number): string {

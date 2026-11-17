@@ -7,7 +7,7 @@ import { avatarColorClass } from "./avatar-color";
 // case that changed answer on the way is recorded there: "4th Street Deli" reads 4D
 // under first-plus-last, not 4S, which is the stated cost of matching how a person
 // reads a name with a middle name in it.
-describe("avatarColorClass", () => {
+describe(avatarColorClass, () => {
   it("is deterministic per key", () => {
     expect(avatarColorClass("abc")).toBe(avatarColorClass("abc"));
   });

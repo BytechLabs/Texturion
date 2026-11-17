@@ -42,10 +42,9 @@
 import { execFileSync } from "node:child_process";
 import { createHash } from "node:crypto";
 import { existsSync, readFileSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = import.meta.dirname;
 const srcDir = join(here, "fonts-src", "marketing");
 const outDir = join(here, "..", "src", "app", "fonts");
 

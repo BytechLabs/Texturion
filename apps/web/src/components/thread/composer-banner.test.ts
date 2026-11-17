@@ -129,7 +129,7 @@ describe("selectComposerBanner precedence", () => {
     expect(
       selectComposerBanner({
         ...clear,
-        usage: { used_segments: 99999, cap_segments: null },
+        usage: { used_segments: 99_999, cap_segments: null },
       }),
     ).toBeNull();
     expect(selectComposerBanner({ ...clear, usage: null })).toBeNull();
@@ -204,7 +204,7 @@ describe("usSendApproved (mirror of the API's getSendGates)", () => {
   });
 });
 
-describe("destinationCountry", () => {
+describe(destinationCountry, () => {
   it("classifies via the shared NANP table", () => {
     expect(destinationCountry("+14165550182")).toBe("CA"); // 416 Toronto
     expect(destinationCountry("+12125550100")).toBe("US");

@@ -39,19 +39,19 @@ describe("#237 confirmation replies against the carrier vocabulary", () => {
     ]);
     const overlap = APPOINTMENT_CONFIRM_KEYWORDS.filter((word) =>
       carrier.has(word),
-    ).sort();
+    ).toSorted();
 
     expect(
       overlap,
-      `\n\nThese confirmation words are ALSO carrier keywords:\n  ` +
-        overlap.join(", ") +
-        `\n\nOnly the ones in CONFIRM_KEYWORDS_ALSO_CARRIER are accounted for.\n` +
+      `\n\nThese confirmation words are ALSO carrier keywords:\n  ${ 
+        overlap.join(", ") 
+        }\n\nOnly the ones in CONFIRM_KEYWORDS_ALSO_CARRIER are accounted for.\n` +
         `A carrier keyword means what the carrier says it means — "CANCEL" is a\n` +
         `STOP, and consuming it as a confirmation would silence a customer who\n` +
         `asked to be left alone, permanently and with no way back.\n` +
         `Either drop the word, or add it to that list AND make the inbound\n` +
         `handler run the opt-out layer first.\n`,
-    ).toEqual([...CONFIRM_KEYWORDS_ALSO_CARRIER].sort());
+    ).toEqual([...CONFIRM_KEYWORDS_ALSO_CARRIER].toSorted());
   });
 
   it("never confirms on a STOP word, whatever the casing", () => {

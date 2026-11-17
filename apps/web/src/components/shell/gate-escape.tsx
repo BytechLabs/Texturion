@@ -21,7 +21,6 @@ import {
   writeCompanyCookie,
 } from "@/lib/company/cookie";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
-import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { cn } from "@/lib/utils";
 
 /**
@@ -155,13 +154,13 @@ export function GateEscape({ className }: { className?: string }) {
             ))}
           </DropdownMenuContent>
         </DropdownMenu>
-      ) : active ? (
+      ) : (active ? (
         // Single workspace: no menu to offer, but still SAY which workspace
         // this gate belongs to — the ambiguity is half of the trap.
         <span className="max-w-[200px] truncate px-2 text-[13px] text-muted-foreground">
           {active.name}
         </span>
-      ) : null}
+      ) : null)}
       <GateSignOut />
     </div>
   );

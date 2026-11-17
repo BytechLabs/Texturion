@@ -9,14 +9,8 @@ import {
   PLAN_SEATS as SHARED_PLAN_SEATS,
 } from "@loonext/shared";
 
-import {
-  PLAN_INCLUDED_SEGMENTS,
-  PLAN_LIMITS,
-  PLAN_OVERAGE_CENTS_PER_SEGMENT,
-  PLAN_VOICE_MINUTES,
-  VOICE_OVERAGE_CENTS_PER_MINUTE,
-  type PlanId,
-} from "../../billing/plans";
+import { PLAN_INCLUDED_SEGMENTS, PLAN_LIMITS, PLAN_OVERAGE_CENTS_PER_SEGMENT, PLAN_VOICE_MINUTES, VOICE_OVERAGE_CENTS_PER_MINUTE } from '../../billing/plans';
+import type { PlanId } from '../../billing/plans';
 
 export {
   PLAN_INCLUDED_SEGMENTS,

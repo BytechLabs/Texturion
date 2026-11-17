@@ -21,11 +21,8 @@ import type { TaskPriority } from "@/lib/api/types";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { MAX_ASSIGNEES, toggleAssignee } from "./task-assignees";
 import { PRIORITY_PICKER, priorityLabelKey } from "./task-planning";
-import {
-  canEscalate,
-  selectionLabel,
-  type BulkSelection,
-} from "@/lib/inbox/bulk-selection";
+import { canEscalate, selectionLabel } from '@/lib/inbox/bulk-selection';
+import type { BulkSelection } from '@/lib/inbox/bulk-selection';
 
 /**
  * #478 — the selection bar over the task list.
@@ -218,7 +215,7 @@ export function TaskBulkBar({
                   tags={tags}
                   itemTagIds={selectedLabelIds}
                   selectionKey={
-                    selection.mode === "ids" ? [...selection.ids].sort().join(",") : "filter"
+                    selection.mode === "ids" ? [...selection.ids].toSorted().join(",") : "filter"
                   }
                   onToggle={(tag, action) =>
                     action === "add" ? onAddLabel(tag.id) : onRemoveLabel(tag.id)

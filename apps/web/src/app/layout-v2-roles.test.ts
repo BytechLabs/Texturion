@@ -120,15 +120,15 @@ describe("#238 APP-LAYOUT-V2 §7 roles and live regions", () => {
     // set exists to convey, so the user hears four tabs and cannot tell
     // which view they are looking at.
     const offenders = corpus
-      .filter(({ code }) => /role="tab"/.test(code) && !/aria-selected/.test(code))
+      .filter(({ code }) => code.includes('role="tab"') && !code.includes('aria-selected'))
       .map(({ rel }) => rel);
 
     expect(
       offenders,
-      'These files declare role="tab" without aria-selected. §7 binds both ' +
-        "together — a tab that never says it is selected leaves a screen " +
-        "reader user unable to tell which view they are in:\n  " +
-        offenders.join("\n  "),
+      `These files declare role="tab" without aria-selected. §7 binds both ` +
+        `together — a tab that never says it is selected leaves a screen ` +
+        `reader user unable to tell which view they are in:\n  ${ 
+        offenders.join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -137,14 +137,14 @@ describe("#238 APP-LAYOUT-V2 §7 roles and live regions", () => {
     // buttons is a container that announces a tab set and then presents
     // something else — the assistive tech believes the role, not the markup.
     const offenders = corpus
-      .filter(({ code }) => /role="tablist"/.test(code) && !/role="tab"/.test(code))
+      .filter(({ code }) => code.includes('role="tablist"') && !code.includes('role="tab"'))
       .map(({ rel }) => rel);
 
     expect(
       offenders,
-      'These files declare role="tablist" but nothing inside carries ' +
-        'role="tab". Either the children need the role or the container ' +
-        "should not claim to be a tab set:\n  " + offenders.join("\n  "),
+      `These files declare role="tablist" but nothing inside carries ` +
+        `role="tab". Either the children need the role or the container ` +
+        `should not claim to be a tab set:\n  ${  offenders.join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -158,9 +158,9 @@ describe("#238 APP-LAYOUT-V2 §7 roles and live regions", () => {
 
     expect(
       offenders,
-      "These files set aria-live without a literal politeness value. " +
-        "Screen readers disagree about what that means, and some ignore the " +
-        "region entirely:\n  " + offenders.join("\n  "),
+      `These files set aria-live without a literal politeness value. ` +
+        `Screen readers disagree about what that means, and some ignore the ` +
+        `region entirely:\n  ${  offenders.join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -177,8 +177,8 @@ describe("#238 APP-LAYOUT-V2 §7 roles and live regions", () => {
       }
     }
 
-    expect(missing, "APP-LAYOUT-V2 §7 rules no longer implemented:\n  " +
-      missing.join("\n  ")).toEqual([]);
+    expect(missing, `APP-LAYOUT-V2 §7 rules no longer implemented:\n  ${ 
+      missing.join("\n  ")}`).toEqual([]);
   });
 
   it("R-5: reads the client, so a passing run means something", () => {
@@ -191,14 +191,14 @@ describe("#238 APP-LAYOUT-V2 §7 roles and live regions", () => {
     // components/ui, which this corpus skips), so R-1 and R-2 only guard a
     // future hand-written tab set; the radio-card lists keep the group role
     // in the corpus.
-    expect(corpus.some(({ code }) => /role="radiogroup"/.test(code))).toBe(true);
-    expect(corpus.some(({ code }) => /aria-live=/.test(code))).toBe(true);
+    expect(corpus.some(({ code }) => code.includes('role="radiogroup"'))).toBe(true);
+    expect(corpus.some(({ code }) => code.includes('aria-live='))).toBe(true);
   });
 });
 
 /** A path as the roster spells it: relative to src/, forward slashes. */
 function relative(path: string): string {
-  const normalized = path.replace(/\\/g, "/");
+  const normalized = path.replaceAll('\\', "/");
   const at = normalized.lastIndexOf("/src/");
   return at === -1 ? normalized : normalized.slice(at + "/src/".length);
 }

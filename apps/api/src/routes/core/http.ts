@@ -7,7 +7,8 @@ import type { Context } from "hono";
 import { z } from "zod";
 
 import { ApiError } from "../../http/errors";
-import { decodeCursor, type Cursor } from "../../http/pagination";
+import { decodeCursor } from '../../http/pagination';
+import type { Cursor } from '../../http/pagination';
 
 /** Parse and zod-validate a JSON body; any failure is 422 `validation_failed`. */
 export async function parseJsonBody<S extends z.ZodType>(

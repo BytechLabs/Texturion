@@ -13,8 +13,10 @@
  * automated-call announcement: then it starts once the announcement ends, and
  * keeps its length.
  */
-import { analyzeFrames, type FrameTable } from "./frames.ts";
-import { PATTERN, SLOT_MS, SURFACES, SURFACE_HZ, type Surface } from "./surfaces.ts";
+import { analyzeFrames } from './frames.ts';
+import type { FrameTable } from './frames.ts';
+import { PATTERN, SLOT_MS, SURFACE_HZ, SURFACES } from './surfaces.ts';
+import type { Surface } from './surfaces.ts';
 
 /** Bursts above gaps, in dB, until a calibration call sets a surface's own margin. */
 export const DEFAULT_MARGIN_DB = 6;
@@ -22,7 +24,7 @@ export const DEFAULT_MARGIN_DB = 6;
 export const PRESENCE_DB = -25;
 export const MIN_CORRELATION = 0.5;
 export const MIN_CYCLES = 3;
-export const WINDOW_START_MS = 2_000;
+export const WINDOW_START_MS = 2000;
 export const WINDOW_END_MS = 12_000;
 /** Cycles that correlate in the listener's own code before it counts as echo. */
 export const ECHO_MIN_CYCLES = 2;
@@ -37,8 +39,8 @@ const SLIP_FRAMES = 2;
  */
 const ANNOUNCEMENT_LEVEL_DB = -40;
 const ANNOUNCEMENT_TONE_DB = -8;
-const ANNOUNCEMENT_START_MS = 1_000;
-const ANNOUNCEMENT_MIN_MS = 1_500;
+const ANNOUNCEMENT_START_MS = 1000;
+const ANNOUNCEMENT_MIN_MS = 1500;
 const ANNOUNCEMENT_MAX_MS = 10_000;
 const ANNOUNCEMENT_GAP_MS = 500;
 const ANNOUNCEMENT_CODE_FRAMES = 3;
@@ -131,7 +133,7 @@ export function detectCodes(table: FrameTable, options: DetectOptions = {}): Det
   const scores: Partial<Record<Surface, SurfaceScore>> = {};
   for (const surface of surfaces) {
     const index = table.frequencies.indexOf(SURFACE_HZ[surface]);
-    if (index < 0) throw new Error(`detectCodes: the frame table has no ${SURFACE_HZ[surface]} Hz band for ${surface}`);
+    if (index === -1) throw new Error(`detectCodes: the frame table has no ${SURFACE_HZ[surface]} Hz band for ${surface}`);
     const margin = options.margins?.[surface] ?? DEFAULT_MARGIN_DB;
     scores[surface] = scoreSurface(surface, table.share[index]!, maskFor(table, index), frameMs, w0, w1, margin);
   }
@@ -139,10 +141,10 @@ export function detectCodes(table: FrameTable, options: DetectOptions = {}): Det
   const others = surfaces.filter((s) => s !== options.own).map((s) => scores[s]!);
   const heard = others
     .filter((score) => score.cycles >= minCycles)
-    .sort((a, b) => b.cycles - a.cycles || b.meanContrastDb - a.meanContrastDb)
+    .toSorted((a, b) => b.cycles - a.cycles || b.meanContrastDb - a.meanContrastDb)
     .map((score) => score.surface);
   const verdict: CodeVerdict =
-    heard.length > 0 ? "heard" : others.some((score) => score.cycles > 0) ? "faint" : "silent";
+    heard.length > 0 ? "heard" : (others.some((score) => score.cycles > 0) ? "faint" : "silent");
 
   const ownScore = options.own ? scores[options.own] : undefined;
   const echo =
@@ -151,7 +153,7 @@ export function detectCodes(table: FrameTable, options: DetectOptions = {}): Det
       : null;
 
   let silentFrames = 0;
-  for (let k = w0; k < w1; k++) if (table.level[k]! <= -69) silentFrames++;
+  for (let k = w0; k < w1; k++) if (table.level[k]! <= -69) silentFrames += 1;
 
   return {
     verdict,
@@ -192,7 +194,7 @@ export function findAnnouncement(table: FrameTable, answerMs: number): { startMs
     if (spoken(k)) {
       last = k;
       gap = 0;
-    } else gap++;
+    } else gap += 1;
   }
   const startMs = first * frameMs;
   const endMs = (last + 1) * frameMs;
@@ -285,7 +287,7 @@ function template(frameMs: number): Template {
   const cached = templates.get(frameMs);
   if (cached) return cached;
   const slotFrames = SLOT_MS / frameMs;
-  if (!Number.isInteger(slotFrames)) throw new Error(`detectCodes: ${frameMs} ms frames do not divide a ${SLOT_MS} ms slot`);
+  if (!Number.isInteger(slotFrames)) throw new TypeError(`detectCodes: ${frameMs} ms frames do not divide a ${SLOT_MS} ms slot`);
   const cycleFrames = slotFrames * PATTERN.length;
   const sign = new Int8Array(cycleFrames);
   const burst = new Int8Array(cycleFrames).fill(-1);
@@ -294,10 +296,10 @@ function template(frameMs: number): Template {
     for (let i = 0; i < slotFrames; i++) {
       const edge = slotFrames >= 3 && (i === 0 || i === slotFrames - 1);
       const q = slot * slotFrames + i;
-      sign[q] = edge ? 0 : on ? 1 : -1;
+      sign[q] = edge ? 0 : (on ? 1 : -1);
       if (on && !edge) burst[q] = bursts;
     }
-    if (on) bursts++;
+    if (on) bursts += 1;
   });
   const built = { cycleFrames, sign, burst, bursts };
   templates.set(frameMs, built);
@@ -329,19 +331,19 @@ function scoreCycle(
     const x = share[start + q]!;
     if (y > 0) {
       onSum += x;
-      onCount++;
+      onCount += 1;
       const b = shape.burst[q]!;
       burstSums[b] = burstSums[b]! + x;
       burstCounts[b] = burstCounts[b]! + 1;
     } else {
       offSum += x;
-      offCount++;
+      offCount += 1;
     }
     sumX += x;
     sumXX += x * x;
     sumXY += x * y;
     sumY += y;
-    count++;
+    count += 1;
   }
   if (onCount < MIN_ON_FRAMES || offCount < MIN_OFF_FRAMES) {
     return {
@@ -363,7 +365,7 @@ function scoreCycle(
   const varianceY = count - (sumY * sumY) / count;
   const correlation = varianceX > 1e-9 ? covariance / Math.sqrt(varianceX * varianceY) : 0;
   // A burst every frame of which was masked reads NaN: unknown, not missing.
-  const burstsDb = Array.from(burstSums, (sum, b) => (burstCounts[b] ? sum / burstCounts[b]! : Number.NaN));
+  const burstsDb = Array.from(burstSums, (sum, b) => (burstCounts[b] ? sum / burstCounts[b] : Number.NaN));
   return {
     startMs: start * frameMs,
     onDb,
@@ -413,7 +415,7 @@ function scoreSurface(
     if (Number.isNaN(cycle.offDb)) continue;
     for (const burstDb of cycle.burstsDb) {
       if (Number.isNaN(burstDb)) continue;
-      if (!(burstDb >= PRESENCE_DB && burstDb - cycle.offDb >= margin / 2)) missing++;
+      if (!(burstDb >= PRESENCE_DB && burstDb - cycle.offDb >= margin / 2)) missing += 1;
     }
   }
   return {
@@ -432,5 +434,5 @@ function scoreSurface(
 
 /** A correlating slip beats any that does not; then the larger contrast wins. */
 function rank(score: CycleScore): number {
-  return (score.correlates ? 1_000 : 0) + score.contrastDb;
+  return (score.correlates ? 1000 : 0) + score.contrastDb;
 }

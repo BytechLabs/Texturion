@@ -16,9 +16,8 @@
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { analyzeFrames, calibrate, decodeWav, isSurface, loadMargins, saveMargins, SURFACES, SURFACE_HZ } from "@loonext/rig-robot";
+import { analyzeFrames, calibrate, decodeWav, isSurface, loadMargins, saveMargins, SURFACE_HZ, SURFACES } from "@loonext/rig-robot";
 import { clockHourStart, utcDayStart } from "./budget.ts";
 import { loadConfig } from "./config.ts";
 import { deliverSecrets } from "./secrets.ts";
@@ -31,7 +30,7 @@ import { buildUnits } from "./units.ts";
 import { VerdictStore } from "./verdicts.ts";
 import { buildRig, marginsFileOf, rigdDir } from "./wiring.ts";
 
-const CLI = fileURLToPath(import.meta.url);
+const CLI = import.meta.filename;
 
 async function main(argv: string[]): Promise<number> {
   const [command, ...rest] = argv;
@@ -120,7 +119,7 @@ async function main(argv: string[]): Promise<number> {
       }
       const pcm = decodeWav(readFileSync(wav));
       const table = analyzeFrames(pcm.channels[0]!, pcm.sampleRate, SURFACES.map((s) => SURFACE_HZ[s]));
-      const result = calibrate(table, { surface, own: own as typeof surface | undefined });
+      const result = calibrate(table, { surface, own });
       const file = marginsFileOf(loadConfig());
       print({ result, margins: saveMargins(file, loadMargins(file), [result]) });
       return result.ok ? 0 : 1;
@@ -130,9 +129,10 @@ async function main(argv: string[]): Promise<number> {
       print(await deliverSecrets({ edgeOrigin: config.edgeOrigin, store: config.store }));
       return 0;
     }
-    default:
+    default: {
       console.error("usage: cli.ts daemon | run <scenario> [--run-id <id>] | units --install | --out <dir> | budget | verdicts | secrets | calibrate");
       return 2;
+    }
   }
 }
 

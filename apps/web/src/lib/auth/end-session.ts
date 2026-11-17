@@ -51,7 +51,7 @@ import { whileEndingSessionHere } from "./use-session-ready";
  * the timeout is a deliberate ceiling on how long we make somebody wait, not a
  * belief that it always lands.
  */
-const REVOKE_TIMEOUT_MS = 3_000;
+const REVOKE_TIMEOUT_MS = 3000;
 
 export async function endSessionOnThisDevice(
   /** Active workspace, for the X-Company-Id header. Null skips the push half. */

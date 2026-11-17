@@ -120,7 +120,7 @@ function walk(dir: string): string[] {
 const FILES = walk(SRC).filter((f) => {
   const segments = f.split(/[\\/]/);
   return !ALLOWED.some((allowed) =>
-    segments.some((segment) => segment === allowed || segment.startsWith(allowed + ".")),
+    segments.some((segment) => segment === allowed || segment.startsWith(`${allowed  }.`)),
   );
 });
 

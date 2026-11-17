@@ -1,4 +1,5 @@
-import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import { homeCopy } from '@/i18n/marketing/home';
+import type { HomeCopy } from '@/i18n/marketing/home';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { FrCard, FrSection, PanelFrame } from "@/components/marketing/fr";
 import { cn } from "@/lib/utils";

@@ -12,20 +12,16 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { releaseNumberRow, type PhoneNumberRow } from "./provisioning";
+import { releaseNumberRow } from './provisioning';
+import type { PhoneNumberRow } from './provisioning';
 import {
   FakeRest,
   registerTextEnablementRpcs,
-  TelnyxMock,
   telnyxError,
+  TelnyxMock,
 } from "./test-support";
-import {
-  cancelTextEnablement,
-  mapHostedStatus,
-  resumeTextEnablement,
-  MAX_ENABLEMENT_ATTEMPTS,
-  type TextEnablementOrderRow,
-} from "./text-enablement";
+import { cancelTextEnablement, mapHostedStatus, MAX_ENABLEMENT_ATTEMPTS, resumeTextEnablement } from './text-enablement';
+import type { TextEnablementOrderRow } from './text-enablement';
 import { completeEnv, stubFetch } from "../test/support";
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";

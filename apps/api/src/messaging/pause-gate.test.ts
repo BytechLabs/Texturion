@@ -79,7 +79,7 @@ describe("#277 the seasonal pause, at the send gate", () => {
     // product could send: `sending_suspended` says a workspace is under review
     // while we look at its conduct. Telling a crew that because they chose a
     // cheaper winter accuses them of something they did not do.
-    const error = (await attempt({ paused: true }).catch((e) => e)) as ApiError;
+    const error = (await attempt({ paused: true }).catch((error_) => error_)) as ApiError;
     expect(error).toBeInstanceOf(ApiError);
     expect(error.code).not.toBe("sending_suspended");
     expect(error.code).not.toBe("subscription_inactive");

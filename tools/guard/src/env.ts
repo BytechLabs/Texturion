@@ -62,7 +62,7 @@ export interface GuardConfig {
 
 function present(value: string | undefined): string | null {
   const trimmed = value?.trim();
-  return trimmed ? trimmed : null;
+  return trimmed || null;
 }
 
 /** A positive integer, or null for anything else ("unknown", empty, "0", "2.5"). */

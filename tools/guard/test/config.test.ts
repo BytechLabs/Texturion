@@ -22,7 +22,7 @@ function stripJsonc(source: string): string {
     const ch = source[i];
     if (inString) {
       out += ch;
-      if (ch === "\\") out += source[++i] ?? "";
+      if (ch === "\\") out += source[i += 1] ?? "";
       else if (ch === '"') inString = false;
       continue;
     }
@@ -30,7 +30,7 @@ function stripJsonc(source: string): string {
       inString = true;
       out += ch;
     } else if (ch === "/" && source[i + 1] === "/") {
-      while (i < source.length && source[i] !== "\n") i++;
+      while (i < source.length && source[i] !== "\n") i += 1;
       out += "\n";
     } else if (ch === "/" && source[i + 1] === "*") {
       i = source.indexOf("*/", i + 2) + 1;
@@ -38,7 +38,7 @@ function stripJsonc(source: string): string {
       out += ch;
     }
   }
-  return out.replace(/,(\s*[}\]])/g, "$1");
+  return out.replaceAll(/,(\s*[}\]])/g, "$1");
 }
 
 const wrangler = JSON.parse(stripJsonc(readFileSync(join(GUARD_DIR, "wrangler.jsonc"), "utf8"))) as Record<string, unknown>;
@@ -51,9 +51,9 @@ describe("wrangler.jsonc", () => {
   });
 
   it("binds the Durable Object the entry point exports, and the AI binding", () => {
-    const bindings = (wrangler.durable_objects as { bindings: { name: string; class_name: string }[] }).bindings;
+    const {bindings} = (wrangler.durable_objects as { bindings: { name: string; class_name: string }[] });
     expect(bindings).toEqual([{ name: "GUARD", class_name: "GuardState" }]);
-    expect(typeof GuardState).toBe("function");
+    expect(GuardState).toBeTypeOf("function");
     expect(wrangler.ai).toEqual({ binding: "AI" });
     expect(wrangler.version_metadata).toEqual({ binding: "CF_VERSION_METADATA" });
   });
@@ -72,7 +72,7 @@ describe("wrangler.jsonc", () => {
   });
 
   it("keeps its own log lines only, never a request URL", () => {
-    const logs = (wrangler.observability as { logs: Record<string, unknown> }).logs;
+    const {logs} = (wrangler.observability as { logs: Record<string, unknown> });
     expect(logs.invocation_logs).toBe(false);
   });
 

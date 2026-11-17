@@ -33,7 +33,7 @@ export function secretStore(dir) {
         return JSON.parse(store.read(name));
       } catch (error) {
         if (error instanceof MissingSecret) throw error;
-        throw new Error(`rig secrets: ${name} is not valid JSON`);
+        throw new Error(`rig secrets: ${name} is not valid JSON`, { cause: error });
       }
     },
     write(name, value) {

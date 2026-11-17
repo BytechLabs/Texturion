@@ -27,7 +27,7 @@ function entry(overrides: Partial<AuditEntry> = {}): AuditEntry {
   };
 }
 
-describe("auditActor", () => {
+describe(auditActor, () => {
   it("names the person, the system, or an honest placeholder", () => {
     expect(auditActor(entry())).toBe("Sam");
     // A cron or a webhook is a legitimate actor — say so rather than blaming
@@ -41,7 +41,7 @@ describe("auditActor", () => {
   });
 });
 
-describe("auditSentence", () => {
+describe(auditSentence, () => {
   it("reads as something that happened", () => {
     expect(
       auditSentence(

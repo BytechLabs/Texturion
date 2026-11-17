@@ -257,9 +257,9 @@ export function parseIntakeOutput(raw: unknown): VoicemailIntakeModelOutput | nu
   const text =
     typeof raw === "string"
       ? raw
-      : typeof (raw as { response?: unknown } | null)?.response === "string"
+      : (typeof (raw as { response?: unknown } | null)?.response === "string"
         ? (raw as { response: string }).response
-        : null;
+        : null);
   if (!text) return null;
 
   let json: unknown;
@@ -289,7 +289,7 @@ export function parseIntakeOutput(raw: unknown): VoicemailIntakeModelOutput | nu
  */
 function cleanField(value: string | null | undefined, max: number): string | null {
   if (typeof value !== "string") return null;
-  const collapsed = value.replace(/\s+/g, " ").trim();
+  const collapsed = value.replaceAll(/\s+/g, " ").trim();
   if (collapsed === "") return null;
   // A model asked for a field the caller never mentioned sometimes answers with
   // the word for absence rather than with null. Storing "none" as an address is
@@ -297,7 +297,7 @@ function cleanField(value: string | null | undefined, max: number): string | nul
   if (/^(none|n\/a|na|null|unknown|not (stated|given|provided|mentioned|specified))\.?$/i.test(collapsed)) {
     return null;
   }
-  if (collapsed.replace(/[^\p{L}\p{N}]/gu, "").length < 2) return null;
+  if (collapsed.replaceAll(/[^\p{L}\p{N}]/gu, "").length < 2) return null;
   return collapsed.length > max
     ? `${collapsed.slice(0, max - 1).trimEnd()}…`
     : collapsed;

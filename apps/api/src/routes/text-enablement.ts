@@ -29,26 +29,21 @@
  */
 import { lookupAreaCode, stateMachines } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Hono, type Context } from "hono";
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
-import { PLAN_LIMITS, type PlanId } from "../billing/plans";
+import { PLAN_LIMITS } from '../billing/plans';
+import type { PlanId } from '../billing/plans';
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { ApiError, errorResponse } from "../http/errors";
 import { uploadPortDocument } from "../telnyx/porting";
-import {
-  attachHostedOrderDocuments,
-  cancelTextEnablement,
-  deleteHostedOrder,
-  requestHostedVerificationCodes,
-  resumeTextEnablement,
-  submitHostedVerificationCode,
-  type TextEnablementOrderRow,
-  ORDER_COLUMNS,
-} from "../telnyx/text-enablement";
+import { attachHostedOrderDocuments, cancelTextEnablement, deleteHostedOrder, ORDER_COLUMNS, requestHostedVerificationCodes, resumeTextEnablement, submitHostedVerificationCode } from '../telnyx/text-enablement';
+import type { TextEnablementOrderRow } from '../telnyx/text-enablement';
 import {
   assertBodyWithinLimit,
   parseJsonBody,
@@ -319,7 +314,7 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
   // Start the saga (create the Telnyx hosted order) in the background; it never
   // throws for step failures (those land on the row for the reconcile cron), so
   // the 201 returns immediately with the order in 'pending'.
-  const saga = resumeTextEnablement(env, slot.order as TextEnablementOrderRow);
+  const saga = resumeTextEnablement(env, slot.order);
   const ctx = executionCtxOf(c);
   if (ctx) ctx.waitUntil(saga.then(() => undefined));
   else await saga;

@@ -19,7 +19,8 @@ import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { homeCopy } from "@/i18n/marketing/home";
 import { useId, useState } from "react";
 
-import { formatMoney, type BillingCurrency } from "@loonext/shared";
+import { formatMoney } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
 import { MonoFigure } from "@/components/marketing/fr";
 import {

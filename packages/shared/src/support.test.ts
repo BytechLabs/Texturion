@@ -9,12 +9,12 @@ import { describe, expect, it } from "vitest";
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
 import {
+  feedbackMailto,
   SUPPORT_EMAIL,
   SUPPORT_ERROR_LINES,
   SUPPORT_FIX_PROMISE_KEY,
   SUPPORT_RESPONSE_TIME_KEY,
   SUPPORT_TOPICS,
-  feedbackMailto,
   supportBody,
   supportMailto,
   supportSituationKey,
@@ -32,7 +32,7 @@ import {
 function lookUp(table: unknown, key: string, lang: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no ${lang} for ${key}`);
   return value;
 }
 

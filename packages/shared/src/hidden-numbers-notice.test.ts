@@ -16,7 +16,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function look(table: unknown, key: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -50,7 +50,7 @@ describe("#286 telling a member a number is hidden", () => {
     // #228 moved this from 1 to 2: the second is the reader's resolver.
     // The guard is unchanged in what it defends — a THIRD parameter is the
     // one that would carry the numbers, and this still fails on it.
-    expect(hiddenNumbersNotice.length).toBe(2);
+    expect(hiddenNumbersNotice).toHaveLength(2);
     for (const count of [1, 2, 5]) {
       const notice = hiddenNumbersNotice(count, sayEn)!;
       expect(notice).not.toMatch(/\+?\d{7,}/); // no phone number, in any shape

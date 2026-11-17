@@ -42,12 +42,10 @@ import { LoadError } from "@/components/ui/load-error";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ProportionRing } from "@/components/ui/proportion-ring";
-import { useT, type Translate } from "@/i18n/provider";
-import {
-  useResponseTime,
-  type ResponseTimeReport,
-  type ResponseTimeWindow,
-} from "@/lib/api/reports";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
+import { useResponseTime } from '@/lib/api/reports';
+import type { ResponseTimeReport, ResponseTimeWindow } from '@/lib/api/reports';
 import { formatResponseTime, responseArcDirection } from "@loonext/shared";
 import { cn } from "@/lib/utils";
 

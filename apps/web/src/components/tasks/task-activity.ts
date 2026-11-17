@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 import { formatTimestamp } from "@/lib/format/time";
 
 /** English, for a caller that has not been extracted yet. See `formatDue`. */
@@ -43,8 +44,9 @@ export function taskEventSentence(
   t: Translate = EN,
 ): string | null {
   switch (event.type) {
-    case "task_created":
+    case "task_created": {
       return t("tasks.eventCreated", { by });
+    }
     case "task_assigned": {
       const to =
         typeof event.payload.to_user_id === "string"
@@ -62,14 +64,18 @@ export function taskEventSentence(
       if (!due) return t("tasks.eventDueCleared", { by });
       return t("tasks.eventDueSet", { by, due: formatDue(due, t) });
     }
-    case "task_deleted":
+    case "task_deleted": {
       return t("tasks.eventDeleted", { by });
-    case "task_attachment_added":
+    }
+    case "task_attachment_added": {
       return t("tasks.eventAttachmentAdded", { by });
-    case "task_attachment_removed":
+    }
+    case "task_attachment_removed": {
       return t("tasks.eventAttachmentRemoved", { by });
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 

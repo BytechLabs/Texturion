@@ -1,6 +1,6 @@
 import { avatarInitials } from "@loonext/shared";
 
-import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import { homeCopy } from '@/i18n/marketing/home';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { CountryOnly } from "@/components/marketing/country";
 import { CtaButton, Dateline, PanelFrame } from "@/components/marketing/fr";
@@ -16,7 +16,8 @@ import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
 
 import { ARRIVAL_DOCK_ATTR, arrivalScript } from "./arrival-script";
 import { ArrivalLayer } from "./arrival-layer";
-import { HeroInbox, type HeroInboxRow } from "./hero-inbox";
+import { HeroInbox } from './hero-inbox';
+import type { HeroInboxRow } from './hero-inbox';
 
 /**
  * S1 · HERO (COPY-DECK v2, DESIGN-DIRECTION v4, amendment 14). Conversion job:

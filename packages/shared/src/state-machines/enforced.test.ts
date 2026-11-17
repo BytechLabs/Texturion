@@ -46,8 +46,8 @@ function triggerEdges(file: string, fn: string): Map<string, string[]> {
   const edges = new Map<string, string[]>();
   for (const match of body.matchAll(/old\.\w+ = '([\w-]+)' and new\.\w+ in \(([^)]*)\)/g)) {
     edges.set(
-      match[1]!,
-      [...match[2]!.matchAll(/'([\w-]+)'/g)].map((m) => m[1]!).sort(),
+      match[1],
+      [...match[2].matchAll(/'([\w-]+)'/g)].map((m) => m[1]).toSorted(),
     );
   }
   return edges;
@@ -85,10 +85,11 @@ describe("#722 enforced machines", () => {
       // A state staying itself is not a status change, so the trigger never sees it.
       const defined = scheduledMessageMachine.transitions[state]
         .filter((to) => to !== state)
-        .sort();
+        .toSorted();
       expect(edges.get(state) ?? [], state).toEqual(defined);
     }
   });
+
   it("message: the trigger allows exactly the defined moves", () => {
     const edges = triggerEdges(
       "20261111310000_messages_never_go_backwards.sql",
@@ -96,10 +97,11 @@ describe("#722 enforced machines", () => {
     );
     expect(edges.size, "the trigger was not found or has no edges").toBeGreaterThan(0);
     for (const state of messageMachine.states) {
-      const defined = messageMachine.transitions[state].filter((to) => to !== state).sort();
+      const defined = messageMachine.transitions[state].filter((to) => to !== state).toSorted();
       expect(edges.get(state) ?? [], state).toEqual(defined);
     }
   });
+
   it.each([
     ["payment_request", paymentRequestMachine, "payment_requests_transition_guard"],
     ["quote", quoteMachine, "quotes_transition_guard"],
@@ -140,12 +142,13 @@ describe("#722 enforced machines", () => {
     );
     expect(edges.size, "the trigger was not found or has no edges").toBeGreaterThan(0);
     for (const state of machine.states as readonly string[]) {
-      const defined = (machine.transitions as Record<string, readonly string[]>)[state]!
+      const defined = (machine.transitions as Record<string, readonly string[]>)[state]
         .filter((to) => to !== state)
-        .sort();
+        .toSorted();
       expect(edges.get(state) ?? [], state).toEqual(defined);
     }
   });
+
   it.each([
     ["task", taskMachine, "task_state"],
     ["invite", inviteMachine, "invite_state"],
@@ -156,8 +159,8 @@ describe("#722 enforced machines", () => {
     const start = sql.indexOf(`function public.${fn}(`);
     expect(start, `${fn} not found`).toBeGreaterThan(-1);
     const body = sql.slice(start, sql.indexOf("$$;", sql.indexOf("$$", start) + 2));
-    const returned = [...body.matchAll(/(?:then|else) '([\w-]+)'/g)].map((m) => m[1]!).sort();
-    expect(returned).toEqual([...(machine.states as readonly string[])].sort());
+    const returned = [...body.matchAll(/(?:then|else) '([\w-]+)'/g)].map((m) => m[1]).toSorted();
+    expect(returned).toEqual([...(machine.states as readonly string[])].toSorted());
   });
 });
 
@@ -170,7 +173,7 @@ function derivedGuardEdges(fn: string): Map<string, string[]> {
   const body = sql.slice(start, sql.indexOf("$$;", start));
   const edges = new Map<string, string[]>();
   for (const match of body.matchAll(/v_from = '([\w-]+)' and v_to in \(([^)]*)\)/g)) {
-    edges.set(match[1]!, [...match[2]!.matchAll(/'([\w-]+)'/g)].map((m) => m[1]!).sort());
+    edges.set(match[1], [...match[2].matchAll(/'([\w-]+)'/g)].map((m) => m[1]).toSorted());
   }
   return edges;
 }
@@ -220,17 +223,17 @@ describe("#722 every machine is held by the database", () => {
     const edges = derivedGuardEdges(fn);
     expect(edges.size, "the guard was not found or has no edges").toBeGreaterThan(0);
     for (const state of machine.states as readonly string[]) {
-      const defined = (machine.transitions as Record<string, readonly string[]>)[state]!
+      const defined = (machine.transitions as Record<string, readonly string[]>)[state]
         .filter((to) => to !== state)
-        .sort();
+        .toSorted();
       expect(edges.get(state) ?? [], state).toEqual(defined);
     }
   });
 
   it("names a guard for every machine, or shows it has nothing to refuse", () => {
-    const ids = ALL_MACHINES.map((machine) => machine.id).sort();
+    const ids = ALL_MACHINES.map((machine) => machine.id).toSorted();
     expect(ids.length, "no machines were found").toBeGreaterThan(0);
-    expect(Object.keys(DATABASE_GUARDS).sort()).toEqual(ids);
+    expect(Object.keys(DATABASE_GUARDS).toSorted()).toEqual(ids);
 
     const migrations = readdirSync(MIGRATIONS)
       .filter((name) => name.endsWith(".sql"))
@@ -238,7 +241,7 @@ describe("#722 every machine is held by the database", () => {
       .join("\n");
     const problems: string[] = [];
     for (const machine of ALL_MACHINES) {
-      const held = DATABASE_GUARDS[machine.id]!;
+      const held = DATABASE_GUARDS[machine.id];
       if ("guard" in held) {
         if (!migrations.includes(`function public.${held.guard}()`)) {
           problems.push(`${machine.id}: no migration defines ${held.guard}()`);
@@ -250,7 +253,7 @@ describe("#722 every machine is held by the database", () => {
       const transitions = machine.transitions as Record<string, readonly string[]>;
       for (const from of states) {
         for (const to of states) {
-          if (from !== to && !transitions[from]!.includes(to)) {
+          if (from !== to && !transitions[from].includes(to)) {
             problems.push(`${machine.id}: ${from} -> ${to} is not an edge, so it needs a guard`);
           }
         }

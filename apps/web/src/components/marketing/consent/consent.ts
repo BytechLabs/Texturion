@@ -41,7 +41,7 @@ export function isConsentChoice(value: unknown): value is ConsentChoice {
 const COOKIE_PATTERN = new RegExp(
   // The cookie name, at the string start or after a "; " separator, with its
   // metacharacters (the ".") escaped.
-  `(?:^|;\\s*)${CONSENT_COOKIE.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}=([^;]*)`,
+  `(?:^|;\\s*)${CONSENT_COOKIE.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)}=([^;]*)`,
 );
 
 /**

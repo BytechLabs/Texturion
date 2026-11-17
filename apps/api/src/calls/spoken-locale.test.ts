@@ -15,7 +15,7 @@ import {
 } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
 import type { InitiatedContext } from "./transitions";
-import { unavailableNotice, UNAVAILABLE_NOTICE } from "./transitions";
+import { UNAVAILABLE_NOTICE, unavailableNotice } from "./transitions";
 
 /**
  * #228 — what WE say aloud to a caller, in the language the business works in.

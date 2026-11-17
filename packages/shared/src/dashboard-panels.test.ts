@@ -20,7 +20,7 @@ function look(table: unknown, key: string): string {
   const value = (table as Record<string, Record<string, string>>)[section]?.[
     name
   ];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -85,11 +85,11 @@ describe("dashboard panels (#540)", () => {
       expect(DASHBOARD_PANEL_LABELS[id]?.length).toBeGreaterThan(2);
       expect(DASHBOARD_PANEL_NOTES[id]?.length).toBeGreaterThan(2);
     }
-    expect(Object.keys(DASHBOARD_PANEL_LABELS).sort()).toEqual(
-      [...DASHBOARD_PANEL_IDS].sort(),
+    expect(Object.keys(DASHBOARD_PANEL_LABELS).toSorted()).toEqual(
+      [...DASHBOARD_PANEL_IDS].toSorted(),
     );
-    expect(Object.keys(DASHBOARD_PANEL_NOTES).sort()).toEqual(
-      [...DASHBOARD_PANEL_IDS].sort(),
+    expect(Object.keys(DASHBOARD_PANEL_NOTES).toSorted()).toEqual(
+      [...DASHBOARD_PANEL_IDS].toSorted(),
     );
   });
 

@@ -2,21 +2,18 @@
  * #725: the call's own timeline, driven through the real reducer the way the
  * session drives it: one `callStepsBetween` per transition.
  */
-import { CALL_STEP_KINDS, type CallStepKind } from "@loonext/shared";
+import { CALL_STEP_KINDS } from '@loonext/shared';
+import type { CallStepKind } from '@loonext/shared';
 import { describe, expect, it } from "vitest";
 
-import { callStepsBetween, type CallStep } from "./call-steps";
-import {
-  type InitiatedContext,
-  type OutboundInitiatedContext,
-  reduce,
-  type SessionEvent,
-  type SessionMachine,
-} from "./transitions";
+import { callStepsBetween } from './call-steps';
+import type { CallStep } from './call-steps';
+import { reduce } from './transitions';
+import type { InitiatedContext, OutboundInitiatedContext, SessionEvent, SessionMachine } from './transitions';
 
 function keyGen(): () => string {
   let n = 0;
-  return () => `k${n++}`;
+  return () => `k${n += 1}`;
 }
 
 function initCtx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
@@ -69,17 +66,17 @@ function drive(
   const key = keyGen();
   let machine: SessionMachine | null = null;
   const steps: CallStep[] = [];
-  let now = 1_000;
+  let now = 1000;
   for (const raw of events) {
-    const event = typeof raw === "function" ? raw(machine as SessionMachine) : raw;
+    const event = typeof raw === "function" ? raw(machine!) : raw;
     const result = reduce(machine, event, now, key);
     if (result.machine) {
       steps.push(...callStepsBetween(machine, result.machine, now));
       machine = result.machine;
     }
-    now += 1_000;
+    now += 1000;
   }
-  return { machine: machine as SessionMachine, steps };
+  return { machine: machine!, steps };
 }
 
 const kinds = (steps: CallStep[]) => steps.map((s) => s.kind);
@@ -179,6 +176,6 @@ describe("#725 a call's steps", () => {
     ]) {
       for (const s of run.steps) seen.add(s.kind);
     }
-    expect([...seen].sort()).toEqual([...CALL_STEP_KINDS].sort());
+    expect([...seen].toSorted()).toEqual([...CALL_STEP_KINDS].toSorted());
   });
 });

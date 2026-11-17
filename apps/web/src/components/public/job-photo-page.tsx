@@ -1,9 +1,5 @@
-import {
-  DEFAULT_LOCALE,
-  isLocale,
-  WORK_PHASE_LABELS,
-  type WorkPhase,
-} from "@loonext/shared";
+import { DEFAULT_LOCALE, isLocale, WORK_PHASE_LABELS } from '@loonext/shared';
+import type { WorkPhase } from '@loonext/shared';
 
 import { makeTranslate } from "@/i18n/translate";
 

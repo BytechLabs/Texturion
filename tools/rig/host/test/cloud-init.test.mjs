@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { gunzipSync } from "node:zlib";
 
-import { CHECKOUT, REPO_URL, SECRETS_MOUNT, encode, metaData, userData } from "../vm/cloud-init.mjs";
+import { CHECKOUT, encode, metaData, REPO_URL, SECRETS_MOUNT, userData } from "../vm/cloud-init.mjs";
 
 const HOST_PRIVATE = "-----BEGIN OPENSSH PRIVATE KEY-----\r\nb3BlbnNzaC1rZXktdjEAAAAA\r\n-----END OPENSSH PRIVATE KEY-----\r\n";
 const HOST_PUBLIC = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIHostKeyForTestsOnly root@loonext-rig";
@@ -28,7 +28,7 @@ test("user-data is cloud-config with the rig account by key alone, its password 
 });
 
 test("the VM's host key is the one the host pinned, and no other is generated", () => {
-  assert.equal(JSON.parse(valueOf("ed25519_private")), HOST_PRIVATE.replace(/\r\n/g, "\n"));
+  assert.equal(JSON.parse(valueOf("ed25519_private")), HOST_PRIVATE.replaceAll('\r\n', "\n"));
   assert.equal(JSON.parse(valueOf("ed25519_public")), HOST_PUBLIC);
   assert.ok(lines.includes("ssh_deletekeys: true"));
   assert.ok(lines.includes("ssh_genkeytypes: [ed25519]"));

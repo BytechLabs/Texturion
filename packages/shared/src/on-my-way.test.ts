@@ -17,7 +17,7 @@ function look(table: unknown, key: string): string {
   const value = (table as Record<string, Record<string, string>>)[section]?.[
     name
   ];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -49,7 +49,7 @@ describe("#520 the on-my-way text", () => {
     // options is a menu; four is a tap. And the gap between them is wider than
     // the accuracy the word "about" claims.
     expect(ON_MY_WAY_PRESETS.length).toBeLessThanOrEqual(4);
-    expect([...ON_MY_WAY_PRESETS]).toEqual([...ON_MY_WAY_PRESETS].sort((a, b) => a - b));
+    expect([...ON_MY_WAY_PRESETS]).toEqual([...ON_MY_WAY_PRESETS].toSorted((a, b) => a - b));
   });
 
   it("OMW-4: labels a choice shorter than the sentence it sends", () => {

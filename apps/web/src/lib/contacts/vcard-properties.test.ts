@@ -1,8 +1,8 @@
 import {
+  CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT,
   CONTACT_IMPORT_IGNORE,
   formatVCardProperty,
-  vcardParameterProperty,
-  VCARD_MAPPED_PROPERTIES,
+  VCARD_MAPPED_PROPERTIES,vcardParameterProperty
 } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
@@ -14,7 +14,6 @@ import {
   VCARD_SAMPLE_LIMIT,
 } from "./vcard-properties";
 import { SAMPLE_VALUE_LIMIT } from "./csv-import";
-import { CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT } from "@loonext/shared";
 
 /**
  * #248 round 3 — the vCard door, which had no gate of any kind.
@@ -60,7 +59,7 @@ describe("readVCardProperties: what the cards carry that we do not read", () => 
     // of it thrown away, which is where Apple writes `X-ABLabel=DO NOT CALL`.
     // The cost of having no vocabulary is that the ubiquitous `TYPE=CELL` gets
     // asked about too; that cost is accepted upstream, in the shared docblock.
-    expect(properties.map((row) => row.property).sort()).toEqual([
+    expect(properties.map((row) => row.property).toSorted()).toEqual([
       "CATEGORIES",
       "NOTE",
       "ORG",
@@ -297,7 +296,7 @@ describe("readVCardProperties: what the cards carry that we do not read", () => 
       ].join("\r\n"),
     );
 
-    expect(properties.map((row) => row.property).sort()).toEqual([
+    expect(properties.map((row) => row.property).toSorted()).toEqual([
       "CATEGORIES",
       vcardParameterProperty("CATEGORIES", "TYPE"),
     ]);
@@ -315,7 +314,7 @@ describe("readVCardProperties: what the cards carry that we do not read", () => 
 
 describe("answering the properties", () => {
   it("VP-10: declares every property once the last one is answered", () => {
-    let properties = readVCardProperties(BOOK).properties;
+    let {properties} = readVCardProperties(BOOK);
     for (const row of properties) {
       properties = answerProperty(
         properties,

@@ -27,7 +27,7 @@ function at(hour: number, minute = 0, day = 5): Date {
   return new Date(2026, 7, day, hour, minute, 0, 0);
 }
 
-describe("snoozePresets", () => {
+describe(snoozePresets, () => {
   it("offers the whole ladder first thing in the morning", () => {
     const presets = snoozePresets(at(7));
     expect(presets.map((p) => p.id)).toEqual([
@@ -93,7 +93,7 @@ describe("snoozePresets", () => {
   });
 });
 
-describe("followUpPresets", () => {
+describe(followUpPresets, () => {
   it("is a DIFFERENT ladder, and every rung lands on a morning", () => {
     // Deferring your own next action and waiting on somebody else's answer run
     // on different clocks. "This afternoon" is a sensible time to pick a thread
@@ -132,7 +132,7 @@ describe("followUpPresets", () => {
   });
 });
 
-describe("daysUntilNextMonday", () => {
+describe(daysUntilNextMonday, () => {
   it("is next week's Monday, never today", () => {
     // Mon 2026-08-03 … Sun 2026-08-09.
     expect(daysUntilNextMonday(new Date(2026, 7, 3))).toBe(7); // Monday
@@ -142,7 +142,7 @@ describe("daysUntilNextMonday", () => {
   });
 });
 
-describe("isSnoozeTargetValid", () => {
+describe(isSnoozeTargetValid, () => {
   const now = at(9);
 
   it("refuses the past and the present", () => {
@@ -162,7 +162,7 @@ describe("isSnoozeTargetValid", () => {
   });
 });
 
-describe("snoozeReturnShape", () => {
+describe(snoozeReturnShape, () => {
   it("counts day boundaries, not elapsed hours", () => {
     // 11pm to 1am is two hours and still "tomorrow"…
     expect(snoozeReturnShape(at(1, 0, 6), at(23, 0, 5))).toBe("tomorrow");

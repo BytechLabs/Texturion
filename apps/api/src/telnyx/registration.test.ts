@@ -3,34 +3,19 @@ import { join } from "node:path";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  deactivateCampaign,
-  getSendGates,
-  handle10dlcEvent,
-  MAX_CAMPAIGN_REACTIVATIONS,
-  MAX_CAMPAIGN_SUBMISSIONS,
-  nudgeSoleProprietorOtp,
-  pollRegistrations,
-  retryCampaignAssignments,
-  submitRegistration,
-  updateCampaignContent,
-  type RegistrationRow,
-} from "./registration";
+import { deactivateCampaign, getSendGates, handle10dlcEvent, MAX_CAMPAIGN_REACTIVATIONS, MAX_CAMPAIGN_SUBMISSIONS, nudgeSoleProprietorOtp, pollRegistrations, retryCampaignAssignments, submitRegistration, updateCampaignContent } from './registration';
+import type { RegistrationRow } from './registration';
 import {
   usTextingApprovedWhilePausedCopy,
   usTextingLiveCopy,
 } from "./emails";
-import {
-  FakeRest,
-  resendRoute,
-  TelnyxMock,
-  telnyxError,
-  type SentEmailCapture,
-} from "./test-support";
+import { FakeRest, resendRoute, telnyxError, TelnyxMock } from './test-support';
+import type { SentEmailCapture } from './test-support';
 import { POSTHOG_CAPTURE_URL } from "../analytics/posthog";
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { noticesCaptured, resetCaptures } from "../test/capture-mock";
 
 vi.mock("../observability/capture", async () =>

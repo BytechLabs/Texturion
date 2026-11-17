@@ -1,23 +1,18 @@
 import { readFileSync } from "node:fs";
 
-import { EDGE_PATHS, HEADER, type GuardHealth } from "@loonext/rig-protocol";
+import { EDGE_PATHS, HEADER } from '@loonext/rig-protocol';
+import type { GuardHealth } from '@loonext/rig-protocol';
 import { describe, expect, it } from "vitest";
 
-import { edgeHealth, edgePost, HEALTH_ROUTINE, healthLines, measurementPosts, measureProduction, ROUTINES, runRoutine, type Post } from "../scripts/admin-routine";
-import {
-  parseRead,
-  planFiling,
-  PRODUCTION_SQL,
-  quietestWindow,
-  readProduction,
-  windowDue,
-  type ProductionRead,
-  type PsqlRunner,
-} from "../scripts/production-measurements";
+import { edgeHealth, edgePost, HEALTH_ROUTINE, healthLines, measurementPosts, measureProduction, ROUTINES, runRoutine } from '../scripts/admin-routine';
+import type { Post } from '../scripts/admin-routine';
+import { parseRead, planFiling, PRODUCTION_SQL, quietestWindow, readProduction, windowDue } from '../scripts/production-measurements';
+import type { ProductionRead, PsqlRunner } from '../scripts/production-measurements';
 import { ADMISSION_KEYS } from "../src/state/admission";
 import { LIMIT_KEYS } from "../src/state/concurrency";
 import { readTier } from "../src/state/ledger";
-import { EDGE, fileMeasurements, fileValidation, harness, N, ready, seedAccount, type Harness } from "./support";
+import { EDGE, fileMeasurements, fileValidation, harness, N, ready, seedAccount } from './support';
+import type { Harness } from './support';
 
 /** guard.yml's path to the guard: the edge's /g prefix, the admin class. */
 function edgeFetcher(h: Harness): typeof fetch {
@@ -36,7 +31,7 @@ function edgeFetcher(h: Harness): typeof fetch {
         body: request.method === "GET" ? undefined : await request.text(),
       }),
     );
-  }) as typeof fetch;
+  });
 }
 
 function throughEdge(h: Harness): Post {
@@ -119,7 +114,7 @@ describe("guard.yml's admin routines", () => {
     const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
     expect(held.map((item) => item.connection_id)).toEqual(Array(8).fill(null));
     expect(held.every((item) => typeof item.messaging_profile_id === "string")).toBe(true);
-    expect(await h.store.get("orders:first")).toMatchObject({ state: "verified", expect: { connection_id: null }, number_id: held[0]!.id });
+    await expect(h.store.get("orders:first")).resolves.toMatchObject({ state: "verified", expect: { connection_id: null }, number_id: held[0].id });
     assertPublicSafe(outcome.lines);
   });
 
@@ -131,12 +126,12 @@ describe("guard.yml's admin routines", () => {
     expect((await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms))).ok).toBe(true);
     const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
     expect(held.map((item) => item.connection_id)).toEqual(Array(8).fill(null));
-    await h.store.put(`detached:${held[7]!.id}`, { at: h.clock.now, reason: "stranger_flood" });
+    await h.store.put(`detached:${held[7].id}`, { at: h.clock.now, reason: "stranger_flood" });
 
     await fileValidation(h);
     h.telnyx.log.length = 0;
     const answer = await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
-    expect(await answer.json()).toMatchObject({ ordered: null, bound: 7, voice_deferred: [ROLES[7]] });
+    await expect(answer.json()).resolves.toMatchObject({ ordered: null, bound: 7, voice_deferred: [ROLES[7]] });
     const bound = h.telnyx.requests("PATCH").filter((entry) => (entry.body as Record<string, unknown>)?.connection_id !== undefined);
     expect(bound.map((entry) => entry.path)).toEqual(held.slice(0, 7).map((item) => `/v2/phone_numbers/${item.id}`));
     expect(held.map((item) => item.connection_id !== null)).toEqual([true, true, true, true, true, true, true, false]);
@@ -172,8 +167,8 @@ describe("guard.yml's admin routines", () => {
     await h.store.put("orders:stopped", { at: h.clock.now, reason: "number_unreadable" });
     const outcome = await runRoutine("resume-ordering", throughEdge(h), {}, noWait, { by: "operator-1", reason: "Read-back now lists the number" });
     expect(outcome).toEqual({ ok: true, lines: ["cleared stop number_unreadable for operator-1; the read-back answered none"] });
-    expect(await h.store.get("orders:stopped")).toBeUndefined();
-    expect(await h.store.get("orders:resumes")).toEqual([
+    await expect(h.store.get("orders:stopped")).resolves.toBeUndefined();
+    await expect(h.store.get("orders:resumes")).resolves.toEqual([
       { at: h.clock.now, by: "operator-1", why: "Read-back now lists the number", cleared: "number_unreadable" },
     ]);
     assertPublicSafe(outcome.lines);
@@ -187,7 +182,7 @@ describe("guard.yml's admin routines", () => {
       expect(outcome.ok).toBe(false);
       expect(outcome.lines[0]).toMatch(/^::error title=Resume refused::/);
     }
-    expect(await h.store.get("orders:stopped")).toMatchObject({ reason: "number_unreadable" });
+    await expect(h.store.get("orders:stopped")).resolves.toMatchObject({ reason: "number_unreadable" });
   });
 
   it("resume ordering: fail, naming the rule, when the stop is not one a person may lift", async () => {
@@ -265,7 +260,7 @@ describe("guard.yml's admin routines", () => {
     const h = await ready({ validated: null });
     await h.store.put("partition:standing", { "DEV-W1": { role: "DEV-W1", phone_number: N.devW1 } });
     const response = await h.call("/admin/numbers/reattach", { caller: "admin", method: "POST" });
-    expect(await response.json()).toEqual({ reattached: ["DEV-W1"], voice_deferred: ["DEV-W1"] });
+    await expect(response.json()).resolves.toEqual({ reattached: ["DEV-W1"], voice_deferred: ["DEV-W1"] });
     expect(h.telnyx.requests("PATCH").map((entry) => entry.path)).toEqual(["/v2/phone_numbers/num-devw1/messaging"]);
   });
 });
@@ -329,7 +324,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
   it("read ops_diag's views and nothing else", () => {
     // Qualified names only; the one-letter ones are the statement's own aliases.
     const relations = new Set([...PRODUCTION_SQL.matchAll(/\b([a-z_]{2,}\.[a-z_]+)\b/gi)].map((match) => match[1]));
-    expect([...relations].sort()).toEqual([
+    expect([...relations].toSorted()).toEqual([
       "ops_diag.call_legs",
       "ops_diag.call_sessions",
       "ops_diag.hourly_call_counts",
@@ -481,7 +476,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
     const outcome = await measureProduction(throughEdge(h), edgeHealth(EDGE, "admin-token", edgeFetcher(h)), () => readProduction(""));
     expect(outcome.ok).toBe(true);
     expect(outcome.lines).toEqual([expect.stringMatching(/^::notice title=Production not read::.*AGENT_DIAG_DATABASE_URL/)]);
-    expect(await h.store.get(ADMISSION_KEYS.reserve)).toBeUndefined();
+    await expect(h.store.get(ADMISSION_KEYS.reserve)).resolves.toBeUndefined();
   });
 
   it("file the reserve daily and the window monthly, which /health then shows", async () => {
@@ -505,9 +500,9 @@ describe("the daily measurements, read from production as agent_diag", () => {
       'filed reserve: {"legs":3}',
       'filed window: {"start_hour":7}',
     ]);
-    expect(await h.store.get(LIMIT_KEYS.history)).toEqual({ peak_calls: 3, measured_at: h.clock.now });
-    expect(await h.store.get(ADMISSION_KEYS.ratios)).toEqual({ calls: 40, abandoned: 5, short: 2, low_sample: false, measured_at: h.clock.now });
-    expect(await h.store.get(ADMISSION_KEYS.accountRate)).toEqual({ peak_hour_dials: 4, peak_day_dials: 20, measured_at: h.clock.now });
+    await expect(h.store.get(LIMIT_KEYS.history)).resolves.toEqual({ peak_calls: 3, measured_at: h.clock.now });
+    await expect(h.store.get(ADMISSION_KEYS.ratios)).resolves.toEqual({ calls: 40, abandoned: 5, short: 2, low_sample: false, measured_at: h.clock.now });
+    await expect(h.store.get(ADMISSION_KEYS.accountRate)).resolves.toEqual({ peak_hour_dials: 4, peak_day_dials: 20, measured_at: h.clock.now });
     expect(((await health()).body as GuardHealth).account_rate).toMatchObject({ production_peak_hour: 4, production_peak_day: 20 });
     assertPublicSafe(first.lines);
     const shown = (await health()).body as GuardHealth;
@@ -526,17 +521,17 @@ describe("the daily measurements, read from production as agent_diag", () => {
     await h.store.delete(ADMISSION_KEYS.ratios);
     const health = edgeHealth(EDGE, "admin-token", edgeFetcher(h));
     const blockers = async () => ((await health()).body as GuardHealth).paid_dials?.blockers;
-    expect(await blockers()).toContain("admission.ratios_unknown");
+    await expect(blockers()).resolves.toContain("admission.ratios_unknown");
     // Every call abandoned and short: 12 calls say nothing about a share.
     const read = () =>
       ({ ok: true, read: { numbers: 1, largest_audience: 1, hourly_calls: hourly([]), ...PEAKS, ratio_calls: 12, ratio_abandoned: 12, ratio_short: 12 } }) as const;
     const outcome = await measureProduction(throughEdge(h), health, read, new Date(h.clock.now));
     expect(outcome.ok).toBe(true);
     expect(outcome.lines).toContain("ratios over 12 call(s) in 28 days: below 30, filed as a low sample");
-    expect(await h.store.get(ADMISSION_KEYS.ratios)).toEqual({ calls: 12, abandoned: 12, short: 12, low_sample: true, measured_at: h.clock.now });
-    expect(await blockers()).toEqual([]);
+    await expect(h.store.get(ADMISSION_KEYS.ratios)).resolves.toEqual({ calls: 12, abandoned: 12, short: 12, low_sample: true, measured_at: h.clock.now });
+    await expect(blockers()).resolves.toEqual([]);
     h.advance(37 * 60 * 60 * 1000);
-    expect(await blockers()).toContain("admission.ratios_unknown");
+    await expect(blockers()).resolves.toContain("admission.ratios_unknown");
   });
 
   it("let a dispatch with values override the read, and keep the three counts together", async () => {
@@ -544,9 +539,9 @@ describe("the daily measurements, read from production as agent_diag", () => {
     await h.store.delete(ADMISSION_KEYS.ratios);
     const outcome = await runRoutine("measurements", throughEdge(h), { calls: "29", abandoned: "29", short: "0" });
     expect(outcome).toEqual({ ok: true, lines: ['filed ratios: {"calls":29,"abandoned":29,"short":0}'] });
-    expect(await h.store.get(ADMISSION_KEYS.ratios)).toMatchObject({ calls: 29, abandoned: 29, short: 0, low_sample: true });
+    await expect(h.store.get(ADMISSION_KEYS.ratios)).resolves.toMatchObject({ calls: 29, abandoned: 29, short: 0, low_sample: true });
     await runRoutine("measurements", throughEdge(h), { calls: "30", abandoned: "5", short: "0" });
-    expect(await h.store.get(ADMISSION_KEYS.ratios)).toMatchObject({ calls: 30, low_sample: false });
+    await expect(h.store.get(ADMISSION_KEYS.ratios)).resolves.toMatchObject({ calls: 30, low_sample: false });
   });
 
   it("fail the run when production could not be read, so a reserve going stale is never quiet", async () => {

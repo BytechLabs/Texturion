@@ -1,11 +1,5 @@
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type InfiniteData,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -202,12 +196,12 @@ export function useMarkAllNotificationsRead() {
         );
       }
       // Re-read the feed so the dots we optimistically cleared come back right.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.notifications.feed(companyId),
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.notifications.unreadCount(companyId),
       });
     },
@@ -280,12 +274,12 @@ export function useMarkNotificationReadItem() {
         );
       }
       // Re-read the feed so the dot we optimistically cleared comes back right.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.notifications.feed(companyId),
       });
     },
     onSettled: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.notifications.unreadCount(companyId),
       });
     },

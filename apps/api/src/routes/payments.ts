@@ -27,47 +27,22 @@
  * message insert — cleans up after itself rather than leaving a live link for a
  * message that never went.
  */
-import {
-  type BillingCurrency,
-  companySettingDefault,
-  estimateSegments,
-  formatMoney,
-  isBillingCurrency,
-  type MemberRole,
-  PAYMENT_DESCRIPTION_MAX,
-  paymentAmountProblem,
-  paymentAmountProblemCopy,
-  paymentRequestSms,
-  paymentRequestState,
-  payoutReadinessCopy,
-  payoutReadinessKeys,
-  resolveLocale,
-  roleHasCapability,
-  stateMachines,
-} from "@loonext/shared";
+import { companySettingDefault, estimateSegments, formatMoney, isBillingCurrency, PAYMENT_DESCRIPTION_MAX, paymentAmountProblem, paymentAmountProblemCopy, paymentRequestSms, paymentRequestState, payoutReadinessCopy, payoutReadinessKeys, resolveLocale, roleHasCapability, stateMachines } from '@loonext/shared';
+import type { BillingCurrency, MemberRole } from '@loonext/shared';
 import { Hono } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { requireAnyCapability, requireCapability } from "../auth/company";
 import { assertNumberLevel } from "../auth/number-access";
-import {
-  assertCanCharge,
-  createConnectAccount,
-  createDashboardLink,
-  createOnboardingLink,
-  connectCountryFor,
-  isConnectPlatformNotReady,
-  loadConnectAccount,
-  readinessOf,
-  refreshConnectAccount,
-  type ConnectAccountRow,
-} from "../billing/connect";
+import { assertCanCharge, connectCountryFor, createConnectAccount, createDashboardLink, createOnboardingLink, isConnectPlatformNotReady, loadConnectAccount, readinessOf, refreshConnectAccount } from '../billing/connect';
+import type { ConnectAccountRow } from '../billing/connect';
 import { getStripe } from "../billing/stripe";
 import { englishAmountProblem } from "../billing/payment-amount-copy";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { ApiError, errorResponse } from "../http/errors";
 import { captureException } from "../observability/capture";
 import {
@@ -156,7 +131,7 @@ function requestJson(row: PaymentRequestRow, role: MemberRole): Record<string, u
     // #722: what this member may do to it now, from the shared machine.
     allowed_actions: stateMachines.allowedActions(
       stateMachines.paymentRequestMachine,
-      row.status as stateMachines.PaymentRequestState,
+      row.status,
       role,
     ),
   };
@@ -258,11 +233,11 @@ paymentAccountRoutes.get(
     if (row) {
       try {
         row = await refreshConnectAccount(env, db, row);
-      } catch (cause) {
+      } catch (error) {
         // The mirror is what we have. Saying "we cannot reach Stripe" on a
         // settings page nobody can act on from is worse than showing the last
         // known answer, which is right almost always.
-        console.warn(`connect refresh failed: ${String(cause)}`);
+        console.warn(`connect refresh failed: ${String(error)}`);
       }
     }
     return c.json(accountJson(row, scopeFor(c.get("role"))));
@@ -307,10 +282,10 @@ paymentAccountRoutes.post(
           email: owner.data.user?.email ?? null,
           userId: c.get("userId"),
         });
-      } catch (cause) {
-        if (!isConnectPlatformNotReady(cause)) throw cause;
+      } catch (error) {
+        if (!isConnectPlatformNotReady(error)) throw error;
         // Ours to fix in Stripe, so it is still reported; the owner gets a plain answer.
-        void captureException(env, cause, { source: "api" });
+        void captureException(env, error, { source: "api" });
         throw new ApiError(
           "service_unavailable",
           "Getting paid by card isn't open yet. We're finishing our setup with Stripe and have been told. Try again later.",
@@ -409,8 +384,8 @@ paymentRequestRoutes.post(
     if (account) {
       try {
         account = await refreshConnectAccount(env, db, account);
-      } catch (cause) {
-        console.warn(`connect refresh failed: ${String(cause)}`);
+      } catch (error) {
+        console.warn(`connect refresh failed: ${String(error)}`);
       }
     }
     assertCanCharge(readinessOf(account));
@@ -525,12 +500,12 @@ paymentRequestRoutes.post(
         return c.json(requestJson(original ?? request, c.get("role")), 200);
       }
       message = gated.message;
-    } catch (cause) {
+    } catch (error) {
       // The rate/cap gate refused, or the insert failed. Either way there is a
       // live payment link for a text that will never arrive — kill it rather
       // than leave a customer able to pay a request nobody sent.
       await cancelQuietly(env, db, companyId, request.id, paymentLink.id, link.id);
-      throw cause;
+      throw error;
     }
 
     await db
@@ -547,9 +522,9 @@ paymentRequestRoutes.post(
         mediaUrls: [],
         clearance,
       });
-    } catch (cause) {
+    } catch (error) {
       await cancelQuietly(env, db, companyId, request.id, paymentLink.id, link.id);
-      throw cause;
+      throw error;
     }
 
     await insertConversationEvents(db, [
@@ -671,7 +646,7 @@ paymentRequestRoutes.post(
       !stateMachines
         .allowedActions(
           stateMachines.paymentRequestMachine,
-          row.status as stateMachines.PaymentRequestState,
+          row.status,
           c.get("role"),
         )
         .includes("cancel")
@@ -931,8 +906,8 @@ async function stripeLinkUrl(
       { stripeAccount: account },
     );
     return link.active ? link.url : null;
-  } catch (cause) {
-    console.warn(`payment link retrieve failed: ${String(cause)}`);
+  } catch (error) {
+    console.warn(`payment link retrieve failed: ${String(error)}`);
     return null;
   }
 }
@@ -950,8 +925,8 @@ async function deactivateStripeLink(
       { active: false },
       { stripeAccount: account },
     );
-  } catch (cause) {
-    console.warn(`payment link deactivate failed: ${String(cause)}`);
+  } catch (error) {
+    console.warn(`payment link deactivate failed: ${String(error)}`);
   }
 }
 
@@ -996,8 +971,8 @@ async function cancelQuietly(
       .eq("id", requestId)
       .eq("company_id", companyId)
       .eq("status", "requested");
-  } catch (cause) {
-    console.error(`payment request cleanup failed: ${String(cause)}`);
+  } catch (error) {
+    console.error(`payment request cleanup failed: ${String(error)}`);
   }
 }
 

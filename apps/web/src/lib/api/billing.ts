@@ -351,12 +351,12 @@ export function useReinstateHeldNumber() {
         },
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: keys.heldNumbers(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.heldNumbers(companyId) });
       // The number's own status changed, and the numbers screen renders it
       // from a different query than this one — without this the card says it
       // came back while the list beside it still reads "On hold".
-      queryClient.invalidateQueries({ queryKey: keys.numbers(companyId) });
-      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.numbers(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
     },
   });
 }
@@ -372,8 +372,8 @@ export function useSetModule() {
         { method: "POST", companyId, body: input },
       ),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: keys.modules(companyId) });
-      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.modules(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
     },
   });
 }
@@ -489,7 +489,7 @@ export function useDismissWinback() {
         companyId,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
     },
   });
 }
@@ -589,8 +589,8 @@ export function usePausePlan() {
     mutationFn: () =>
       apiFetch<PausedPlan>("/v1/billing/pause", { method: "POST", companyId }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [companyId, "billing-pause"] });
-      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+      void queryClient.invalidateQueries({ queryKey: [companyId, "billing-pause"] });
+      void queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
     },
   });
 }
@@ -605,8 +605,8 @@ export function useResumePlan() {
         companyId,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: [companyId, "billing-pause"] });
-      queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+      void queryClient.invalidateQueries({ queryKey: [companyId, "billing-pause"] });
+      void queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
     },
   });
 }
@@ -637,21 +637,21 @@ export function useChangePlan() {
             : { plan: input.plan, convert_prepaid: input.convertPrepaid },
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.usage(companyId),
         refetchType: "active",
       });
-      queryClient.invalidateQueries({ queryKey: keys.me });
+      void queryClient.invalidateQueries({ queryKey: keys.me });
       // #523: an upgrade RAISES the allowance, and the server reinstates what
       // now fits inside it. Both the held-numbers card and the numbers list are
       // stale the instant that happens — without this the owner pays for Pro
       // and the screen still shows the line they just bought back as on hold.
-      queryClient.invalidateQueries({ queryKey: keys.heldNumbers(companyId) });
-      queryClient.invalidateQueries({ queryKey: keys.numbers(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.heldNumbers(companyId) });
+      void queryClient.invalidateQueries({ queryKey: keys.numbers(companyId) });
     },
   });
 }

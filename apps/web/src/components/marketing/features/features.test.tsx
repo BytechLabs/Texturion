@@ -167,7 +167,7 @@ function honouredStopKeywords(): string[] {
 
 /** Accent-blind, because the page writes ARRET and the product also takes ARRÊT. */
 function plain(text: string): string {
-  return text.normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase();
+  return text.normalize("NFD").replaceAll(/[̀-ͯ]/g, "").toUpperCase();
 }
 
 describe("laws that hold across every features/canada page (Laws 1, 6)", () => {
@@ -483,7 +483,7 @@ describe("the FEATURE-template blocks", () => {
     expect(html).toContain("border-l-[3px]");
     expect(html).toContain("--fr-olive");
     expect(html).toContain("--fr-frost");
-    expect((html.match(/--fr-green/g) ?? []).length).toBe(1);
+    expect((html.match(/--fr-green/g) ?? [])).toHaveLength(1);
     expect(html).toContain("fr-mono-data");
   });
 
@@ -499,7 +499,7 @@ describe("the FEATURE-template blocks", () => {
       />,
     );
     expect(html).toContain("fr-mono-data");
-    expect((html.match(/rounded-full bg-\[color:var\(--fr-olive\)\]/g) ?? []).length).toBe(3);
+    expect((html.match(/rounded-full bg-\[color:var\(--fr-olive\)\]/g) ?? [])).toHaveLength(3);
   });
 
   it("PricingSnippet: price as art plus the deck's guarantee microcopy", () => {
@@ -581,7 +581,7 @@ describe("metadata (Law 6 + owner rule 12: canonical domain https://loonext.com)
       expect(meta.alternates?.canonical).toBe(`https://loonext.com${path}`);
       const strings = [
         String(meta.title ?? ""),
-        String(meta.description ?? ""),
+        (meta.description ?? ""),
       ].join(" ");
       expect(strings).not.toContain("—");
       expect(strings).not.toMatch(/\d–\d/);

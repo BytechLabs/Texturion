@@ -19,13 +19,8 @@ import { getDb } from "../db";
 import { ApiError } from "../http/errors";
 import { endpoint, makeHarness } from "../test/billing-support";
 import { completeEnv, stubFetch } from "../test/support";
-import {
-  assertNumberLevel,
-  NOTE_ONLY_MESSAGE,
-  requireConversationAccess,
-  resolveNumberAccess,
-  type NumberAccessLevel,
-} from "./number-access";
+import { assertNumberLevel, NOTE_ONLY_MESSAGE, requireConversationAccess, resolveNumberAccess } from './number-access';
+import type { NumberAccessLevel } from './number-access';
 
 const env = completeEnv();
 const COMPANY = "7c9e6679-7425-40de-944b-e07fc1f90ae7";
@@ -52,7 +47,7 @@ function restricted(
   return { phone_number_id: numberId, level };
 }
 
-describe("resolveNumberAccess", () => {
+describe(resolveNumberAccess, () => {
   it("owners and admins are unrestricted with ZERO queries", async () => {
     stubFetch(makeHarness([]).route); // any request would fail loudly
     for (const role of ["owner", "admin"] as const) {
@@ -104,7 +99,7 @@ describe("resolveNumberAccess", () => {
   });
 });
 
-describe("assertNumberLevel", () => {
+describe(assertNumberLevel, () => {
   function memberEndpoints(
     rows: { phone_number_id: string; level: NumberAccessLevel }[],
   ) {
@@ -139,7 +134,7 @@ describe("assertNumberLevel", () => {
       need: "text",
     }).then(
       () => null,
-      (cause: unknown) => cause,
+      (error: unknown) => error,
     );
     expect(thrown).toBeInstanceOf(ApiError);
     expect((thrown as ApiError).code).toBe("forbidden");
@@ -161,7 +156,7 @@ describe("assertNumberLevel", () => {
   });
 });
 
-describe("requireConversationAccess", () => {
+describe(requireConversationAccess, () => {
   it("passes owners/admins with zero queries", async () => {
     stubFetch(makeHarness([]).route);
     await expect(

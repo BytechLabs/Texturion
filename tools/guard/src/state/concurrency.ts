@@ -121,12 +121,12 @@ export async function limitInForce(ctx: Ctx): Promise<LimitInForce> {
   if (floor === null) {
     limit = null;
     source = "floor";
-  } else if (exact !== null) {
-    limit = cap(Math.min(exact, Math.max(PAID_CONCURRENT, history ?? 0)));
-    source = "validation";
-  } else {
+  } else if (exact === null) {
     limit = cap(floor);
     source = "floor";
+  } else {
+    limit = cap(Math.min(exact, Math.max(PAID_CONCURRENT, history ?? 0)));
+    source = "validation";
   }
 
   let conflict: string | null = null;

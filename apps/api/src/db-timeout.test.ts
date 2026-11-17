@@ -47,7 +47,7 @@ async function capture(): Promise<RequestInit | undefined> {
   );
   // A fresh env object each time: the client is memoized per bindings object,
   // so reusing one would hand back a client built with an earlier spy.
-  await getDb({ ...env } as Env).from("companies").select("id").limit(1);
+  await getDb({ ...env }).from("companies").select("id").limit(1);
   return seen;
 }
 
@@ -65,7 +65,7 @@ describe("#251 the database call cannot hang forever", () => {
     // a slow query. A deadline tight enough to do that would turn a working
     // page into an error to prevent a hang nobody has hit, which is the worse
     // trade.
-    expect(DB_TIMEOUT_MS).toBeGreaterThanOrEqual(5_000);
+    expect(DB_TIMEOUT_MS).toBeGreaterThanOrEqual(5000);
     expect(DB_TIMEOUT_MS).toBeLessThanOrEqual(30_000);
   });
 
@@ -98,7 +98,7 @@ describe("#251 the database call cannot hang forever", () => {
       },
     );
     const caller = new AbortController();
-    await getDb({ ...env } as Env)
+    await getDb({ ...env })
       .from("companies")
       .select("id")
       .abortSignal(caller.signal)

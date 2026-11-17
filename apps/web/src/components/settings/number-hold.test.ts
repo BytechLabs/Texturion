@@ -33,7 +33,7 @@ function view(over: Partial<HeldNumbersView> = {}): HeldNumbersView {
   };
 }
 
-describe("numberHoldState", () => {
+describe(numberHoldState, () => {
   it("says nothing about a number that is not suspended", () => {
     expect(
       numberHoldState({
@@ -143,7 +143,7 @@ function numberRow(over: Partial<PhoneNumberSummary> = {}): PhoneNumberSummary {
 
 const live = { subscription_status: "active" } as CompanyView;
 
-describe("holdForPort", () => {
+describe(holdForPort, () => {
   it("explains a held transferred line exactly as the number card would", () => {
     expect(holdForPort(portRow(), [numberRow()], live, view())).toEqual({
       kind: "over_allowance",

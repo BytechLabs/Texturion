@@ -803,7 +803,14 @@ jobs:
       - name: Install
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
+      # Every oxlint rule that applies, type-aware, over the whole repository
+      # (.oxlintrc.json says why each rule that is off is off).
+      - name: oxlint
+        run: pnpm lint
+
+      # ESLint, in apps/web only, for the two rules oxlint does not have:
+      # react/no-deprecated and @next/next/no-location-assign-relative-destination.
+      - name: ESLint (apps/web)
         run: pnpm -r lint
 
   # ---------------------------------------------------------------------------

@@ -7,7 +7,6 @@
  * explains it.
  */
 import { readFileSync } from "node:fs";
-import { copyWithCatalogue } from "@/lib/parity/client-catalogue";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -87,7 +86,7 @@ const FRAGMENTS: readonly string[] = [
  * sentence, which is the thing a customer actually reads.
  */
 function joinLiterals(text: string): string {
-  return text.replace(/"\s*\+?\s*[\r\n]+\s*\+?\s*"/g, "");
+  return text.replaceAll(/"\s*\+?\s*[\r\n]+\s*\+?\s*"/g, "");
 }
 
 /** The file with its comments removed — see satisfaction-parity for why. */
@@ -222,8 +221,8 @@ describe("#244 on-call copy is the same on every client", () => {
     }
     expect(
       missing,
-      "These #244 sentences are missing or reworded on some clients:\n  " +
-        missing.join("\n  "),
+      `These #244 sentences are missing or reworded on some clients:\n  ${ 
+        missing.join("\n  ")}`,
     ).toEqual([]);
   });
 

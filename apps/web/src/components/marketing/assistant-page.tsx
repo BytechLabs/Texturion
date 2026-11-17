@@ -38,7 +38,7 @@ import {
   TruthStripSection,
   UseCaseSteps,
 } from "@/components/marketing/features/feature-page";
-import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import { breadcrumbJsonLd } from "@/lib/marketing/seo";
 import { activationClaim } from "@/lib/marketing/activation";
 import { localizedPath } from "@/lib/marketing/translated-pages";
 

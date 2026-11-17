@@ -1,8 +1,9 @@
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 
 import {
-  DatabaseOverloadedError,
   databaseOverloaded,
+  DatabaseOverloadedError,
   markDatabaseOverloaded,
   markDatabaseReachable,
   markDatabaseUnreachable,

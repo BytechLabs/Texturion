@@ -4,14 +4,11 @@ import { AlertTriangle, Clock, X } from "lucide-react";
 
 import { scheduledClockProvenance, scheduledHoldText } from "@loonext/shared";
 
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 
-import {
-  scheduledActionAllowed,
-  useCancelScheduledMessage,
-  useScheduledMessages,
-  type ScheduledMessage,
-} from "@/lib/api/scheduled-messages";
+import { scheduledActionAllowed, useCancelScheduledMessage, useScheduledMessages } from '@/lib/api/scheduled-messages';
+import type { ScheduledMessage } from '@/lib/api/scheduled-messages';
 import { twoClockLabel, twoClockSpoken } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 

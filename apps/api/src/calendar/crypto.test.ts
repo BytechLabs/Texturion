@@ -1,18 +1,13 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  createCalendarOauthProof,
-  openCalendarCredential,
-  sealCalendarCredential,
-  type CalendarCredentialContext,
-  type CalendarEncryptionKeyring,
-} from "./crypto";
+import { createCalendarOauthProof, openCalendarCredential, sealCalendarCredential } from './crypto';
+import type { CalendarCredentialContext, CalendarEncryptionKeyring } from './crypto';
 
 function encodedKey(fill: number): string {
   const bytes = new Uint8Array(32).fill(fill);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(binary).replaceAll('+', "-").replaceAll('/', "_").replace(/[=]+$/, "");
 }
 
 const CONTEXT: CalendarCredentialContext = {
@@ -118,9 +113,9 @@ describe("calendar OAuth proof", () => {
     let binary = "";
     for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
     const expected = btoa(binary)
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
+      .replaceAll('+', "-")
+      .replaceAll('/', "_")
+      .replace(/[=]+$/, "");
     expect(proof.challenge).toBe(expected);
   });
 });

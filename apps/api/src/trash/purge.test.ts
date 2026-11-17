@@ -14,7 +14,7 @@ const B = "bbbbbbbb-1111-4222-8333-444444444444";
 
 afterEach(() => vi.unstubAllGlobals());
 
-describe("purgeTrash", () => {
+describe(purgeTrash, () => {
   it("removes each item's objects, then erases its rows", async () => {
     const order: string[] = [];
     const sb = supabaseStub(env);
@@ -56,7 +56,7 @@ describe("purgeTrash", () => {
     ]);
     sb.on("POST", "/rest/v1/rpc/api_trash_object_paths", (req) =>
       (req.body as { p_id: string }).p_id === A
-        ? new Response(JSON.stringify({ message: "down" }), { status: 500 })
+        ? Response.json({ message: "down" }, { status: 500 })
         : [],
     );
     sb.on("POST", "/rest/v1/rpc/api_purge_trash_item", () => ({

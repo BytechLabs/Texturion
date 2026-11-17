@@ -37,7 +37,7 @@ describe("public env validation (SPEC §3, §10)", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", VALID_KEY);
     vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
 
-    await expect(importEnv()).rejects.toThrowError(
+    await expect(importEnv()).rejects.toThrow(
       /NEXT_PUBLIC_SUPABASE_URL/,
     );
   });
@@ -47,7 +47,7 @@ describe("public env validation (SPEC §3, §10)", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "");
     vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
 
-    await expect(importEnv()).rejects.toThrowError(
+    await expect(importEnv()).rejects.toThrow(
       /NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY/,
     );
   });
@@ -57,7 +57,7 @@ describe("public env validation (SPEC §3, §10)", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", VALID_KEY);
     vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
 
-    await expect(importEnv()).rejects.toThrowError(
+    await expect(importEnv()).rejects.toThrow(
       /NEXT_PUBLIC_SUPABASE_URL/,
     );
   });
@@ -67,7 +67,7 @@ describe("public env validation (SPEC §3, §10)", () => {
     vi.stubEnv("NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", VALID_KEY);
     vi.stubEnv("NEXT_PUBLIC_API_URL", undefined);
 
-    await expect(importEnv()).rejects.toThrowError(/NEXT_PUBLIC_API_URL/);
+    await expect(importEnv()).rejects.toThrow(/NEXT_PUBLIC_API_URL/);
   });
 
   // The Turnstile site key is optional: local dev and CI run without it, and
@@ -122,7 +122,7 @@ describe("public env validation (SPEC §3, §10)", () => {
     vi.stubEnv("NEXT_PUBLIC_API_URL", VALID_API);
     vi.stubEnv("NEXT_PUBLIC_DEPLOY_ENV", "staging");
 
-    await expect(importEnv()).rejects.toThrowError(/NEXT_PUBLIC_DEPLOY_ENV/);
+    await expect(importEnv()).rejects.toThrow(/NEXT_PUBLIC_DEPLOY_ENV/);
   });
 
   it("treats blank PostHog and deployment values as not configured", async () => {

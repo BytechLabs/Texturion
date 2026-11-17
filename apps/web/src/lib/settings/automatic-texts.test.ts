@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  AUTOMATIC_TEXT_DEFAULTS,
-  MEMBER_ROLES,
-  canSeeSettingsSection,
-  type MemberRole,
-} from "@loonext/shared";
+import { AUTOMATIC_TEXT_DEFAULTS, canSeeSettingsSection, MEMBER_ROLES } from '@loonext/shared';
+import type { MemberRole } from '@loonext/shared';
 
 import { makeTranslate } from "@/i18n/translate";
 import { SETTINGS_SECTIONS } from "@/components/settings/settings-nav";
@@ -23,7 +19,7 @@ import {
 const en = makeTranslate("en");
 const fr = makeTranslate("fr-CA");
 
-describe("readAutomaticTextSettings", () => {
+describe(readAutomaticTextSettings, () => {
   it("decodes an older server's response, with no keys, to the defaults", () => {
     expect(readAutomaticTextSettings({})).toEqual(AUTOMATIC_TEXT_DEFAULTS);
     expect(readAutomaticTextSettings(null)).toEqual(AUTOMATIC_TEXT_DEFAULTS);
@@ -45,7 +41,7 @@ describe("readAutomaticTextSettings", () => {
   });
 });
 
-describe("choicesWithCurrent", () => {
+describe(choicesWithCurrent, () => {
   it("is the fixed list when the current value is on it", () => {
     expect(choicesWithCurrent("rating_ask_delay_hours", 4)).toEqual([
       0, 1, 2, 4, 8, 12, 24, 48,
@@ -59,9 +55,7 @@ describe("choicesWithCurrent", () => {
   });
 
   it("offers every default, so the default is always pickable", () => {
-    for (const field of Object.keys(AUTOMATIC_TEXT_CHOICES) as Array<
-      keyof typeof AUTOMATIC_TEXT_CHOICES
-    >) {
+    for (const field of Object.keys(AUTOMATIC_TEXT_CHOICES) as (keyof typeof AUTOMATIC_TEXT_CHOICES)[]) {
       expect(AUTOMATIC_TEXT_CHOICES[field]).toContain(
         AUTOMATIC_TEXT_DEFAULTS[field],
       );
@@ -69,7 +63,7 @@ describe("choicesWithCurrent", () => {
   });
 });
 
-describe("formatAutomaticTextDuration", () => {
+describe(formatAutomaticTextDuration, () => {
   it("says durations in plain English", () => {
     expect(formatAutomaticTextDuration(en, "rating_ask_delay_hours", 4)).toBe(
       "4 hours",
@@ -134,7 +128,7 @@ describe("formatAutomaticTextDuration", () => {
   });
 });
 
-describe("automaticTextDefaultCaption", () => {
+describe(automaticTextDefaultCaption, () => {
   it("states the default beside every control", () => {
     expect(automaticTextDefaultCaption(en, "hold_scheduled_on_reply")).toBe(
       "Default: on",
@@ -151,7 +145,7 @@ describe("automaticTextDefaultCaption", () => {
   });
 });
 
-describe("automaticTextPatch", () => {
+describe(automaticTextPatch, () => {
   it("carries only the field that changed", () => {
     expect(automaticTextPatch("rating_ask_enabled", false)).toEqual({
       rating_ask_enabled: false,
@@ -164,8 +158,8 @@ describe("automaticTextPatch", () => {
 
 describe("audit-log names", () => {
   it("covers every one of the eleven settings", () => {
-    expect(Object.keys(AUTOMATIC_TEXT_LABEL_KEYS).sort()).toEqual(
-      Object.keys(AUTOMATIC_TEXT_DEFAULTS).sort(),
+    expect(Object.keys(AUTOMATIC_TEXT_LABEL_KEYS).toSorted()).toEqual(
+      Object.keys(AUTOMATIC_TEXT_DEFAULTS).toSorted(),
     );
   });
 });
@@ -181,6 +175,6 @@ describe("who sees the section", () => {
     const seen = MEMBER_ROLES.filter((role: MemberRole) =>
       canSeeSettingsSection(section!.id, role),
     );
-    expect([...seen].sort()).toEqual(["admin", "owner"]);
+    expect([...seen].toSorted()).toEqual(["admin", "owner"]);
   });
 });

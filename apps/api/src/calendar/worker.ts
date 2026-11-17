@@ -5,24 +5,16 @@ import type { Env } from "../env";
 import { syncTaskReminders as regenerateTaskReminders } from "../messaging/appointment-reminders";
 import { deliverPush } from "../notifications/deliver";
 import { generateToken, hashToken } from "../public-links/tokens";
-import {
-  authorizeCalendarConnection,
-  type CalendarCredentialClaimResult,
-  type CalendarCredentialMutationResult,
-  type CalendarCredentialRefreshStore,
-} from "./authorization";
+import { authorizeCalendarConnection } from './authorization';
+import type { CalendarCredentialClaimResult, CalendarCredentialRefreshStore } from './authorization';
 import { CALENDAR_VERIFICATION_MAX_AGE_MS } from "./liveness";
 import {
   hashCalendarDescription,
   normalizeCalendarText,
   taskLinkUrl,
 } from "./providers/normalize";
-import {
-  CalendarProviderError,
-  type CalendarProvider,
-  type CalendarProviderName,
-  type CalendarRemoteEvent,
-} from "./providers/types";
+import { CalendarProviderError } from './providers/types';
+import type { CalendarProvider, CalendarProviderName, CalendarRemoteEvent } from './providers/types';
 import type { CalendarScheduleSnapshot } from "./sync";
 
 const CLAIM_LIMIT = 25;
@@ -383,7 +375,7 @@ function expectMutationOutcome(
 }
 
 function errorDetail(error: unknown): string {
-  if (error instanceof Error) return error.message.slice(0, 1_000);
+  if (error instanceof Error) return error.message.slice(0, 1000);
   return "Unknown calendar sync error";
 }
 
@@ -424,9 +416,9 @@ function retryDelaySeconds(error: unknown, attempts = 1): number {
     error instanceof CalendarProviderError &&
     error.retryAfterMs !== null
   ) {
-    return Math.max(1, Math.min(86_400, Math.ceil(error.retryAfterMs / 1_000)));
+    return Math.max(1, Math.min(86_400, Math.ceil(error.retryAfterMs / 1000)));
   }
-  return Math.min(3_600, Math.max(5, 5 * 2 ** Math.min(attempts, 9)));
+  return Math.min(3600, Math.max(5, 5 * 2 ** Math.min(attempts, 9)));
 }
 
 /** The provider answered the delete with a refusal (not a retry, reauth or precondition). */
@@ -467,7 +459,7 @@ async function taskSnapshot(
 ): Promise<CalendarScheduleSnapshot> {
   const start = new Date(task.due_at);
   if (!Number.isFinite(start.getTime())) {
-    throw new Error("calendar task has an invalid due_at");
+    throw new TypeError("calendar task has an invalid due_at");
   }
   const referenceStart = reference ? new Date(reference.start).getTime() : 0;
   const referenceEnd = reference ? new Date(reference.end).getTime() : 0;
@@ -477,7 +469,7 @@ async function taskSnapshot(
     Number.isFinite(referenceEnd) &&
     referenceEnd > referenceStart
       ? referenceEnd - referenceStart
-      : 60 * 60 * 1_000;
+      : 60 * 60 * 1000;
   return {
     start: start.toISOString(),
     end: new Date(start.getTime() + duration).toISOString(),
@@ -1404,7 +1396,7 @@ async function processPull(
         // Google page tokens are valid only with the identical timeMin/timeMax
         // query that produced them. Microsoft ignores these once its opaque
         // nextLink is present, so retaining the initial window is safe there.
-        ...(!cursor ? { rangeStart, rangeEnd } : {}),
+        ...(cursor ? {} : { rangeStart, rangeEnd }),
       });
     } catch (error) {
       if (
@@ -1617,7 +1609,7 @@ export async function drainCalendarSync(
     now: input.now ?? new Date(),
     workerId: input.workerId ?? crypto.randomUUID(),
   };
-  await deps.store.purgeOauthStates(1_000);
+  await deps.store.purgeOauthStates(1000);
   await deps.store.queueStaleOwnerDisclosures(
     new Date(
       deps.now!.getTime() - CALENDAR_VERIFICATION_MAX_AGE_MS,
@@ -2085,7 +2077,7 @@ export function createCalendarSyncStore(db: SupabaseClient): CalendarSyncStore {
         p_credential_ciphertext: input.credential.ciphertext,
         p_credential_iv: input.credential.iv,
         p_credential_key_version: input.credential.keyVersion,
-      }) as Promise<CalendarCredentialMutationResult>,
+      }),
     retryCredentialRefresh: (input) =>
       call("api_retry_calendar_credential_refresh", {
         p_connection_id: input.connectionId,
@@ -2094,7 +2086,7 @@ export function createCalendarSyncStore(db: SupabaseClient): CalendarSyncStore {
         p_requires_reauth: input.requiresReauth,
         p_error_code: input.errorCode,
         p_error_detail: input.errorDetail,
-      }) as Promise<CalendarCredentialMutationResult>,
+      }),
     commitCreated: ({ outbox, workerId, remote, sent, description }) =>
       call("api_commit_calendar_outbox_created", {
         p_outbox_id: outbox.id,
@@ -2335,12 +2327,12 @@ export function calendarOwnerDisclosurePayload(
       ? "Votre calendrier doit être vérifié"
       : "Your calendar needs attention",
     body: reason === "reauth_required"
-      ? french
+      ? (french
         ? "Reconnectez votre calendrier dans Loonext pour reprendre la synchronisation et les rappels en attente."
-        : "Reconnect your calendar in Loonext to resume sync and held reminders."
-      : french
+        : "Reconnect your calendar in Loonext to resume sync and held reminders.")
+      : (french
         ? "La synchronisation du calendrier n'a pas été vérifiée récemment. Les rappels restent en attente jusqu'à une nouvelle vérification."
-        : "Calendar sync has not been verified recently. Reminders stay held until it is verified again.",
+        : "Calendar sync has not been verified recently. Reminders stay held until it is verified again."),
     url: `${appOrigin}/settings/profile`,
   };
 }

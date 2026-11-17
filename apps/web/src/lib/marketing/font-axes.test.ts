@@ -63,23 +63,23 @@ function woff2Axes(file: string): Axis[] {
   const base128 = () => {
     let value = 0;
     for (;;) {
-      const byte = bytes[at++]!;
-      value = value * 128 + (byte & 0x7f);
+      const byte = bytes[at++];
+      value = value * 128 + (byte & 0x7F);
       if (!(byte & 0x80)) return value;
     }
   };
   const tables: { tag: string; length: number }[] = [];
   for (let i = 0; i < numTables; i++) {
-    const flags = bytes[at++]!;
-    let tag = KNOWN_TAGS[flags & 0x3f];
-    if ((flags & 0x3f) === 0x3f) {
+    const flags = bytes[at++];
+    let tag = KNOWN_TAGS[flags & 0x3F];
+    if ((flags & 0x3F) === 0x3F) {
       tag = bytes.toString("latin1", at, at + 4);
       at += 4;
     }
     const version = flags >> 6;
     const origLength = base128();
     const transformed = tag === "glyf" || tag === "loca" ? version === 0 : version !== 0;
-    tables.push({ tag: tag!, length: transformed ? base128() : origLength });
+    tables.push({ tag, length: transformed ? base128() : origLength });
   }
   const data = brotliDecompressSync(bytes.subarray(at, at + compressedSize));
   let offset = 0;
@@ -93,8 +93,8 @@ function woff2Axes(file: string): Axis[] {
         const record = axesOffset + n * axisSize;
         return {
           tag: fvar.toString("latin1", record, record + 4),
-          min: fvar.readInt32BE(record + 4) / 65536,
-          max: fvar.readInt32BE(record + 12) / 65536,
+          min: fvar.readInt32BE(record + 4) / 65_536,
+          max: fvar.readInt32BE(record + 12) / 65_536,
         };
       });
     }
@@ -116,8 +116,8 @@ function asksForDroppedAxisValue(text: string): string[] {
   ];
   for (const rule of rules) hits.push(...(text.match(rule) ?? []));
   for (const [, value] of text.matchAll(/font-variation-settings:\s*([^;}]+)/g)) {
-    if (!/^(?:normal|"opsz"\s+[\d.]+)\s*$/.test(value!.trim())) {
-      hits.push(`font-variation-settings: ${value!.trim()}`);
+    if (!/^(?:normal|"opsz"\s+[\d.]+)\s*$/.test(value.trim())) {
+      hits.push(`font-variation-settings: ${value.trim()}`);
     }
   }
   return hits;
@@ -126,8 +126,8 @@ function asksForDroppedAxisValue(text: string): string[] {
 /** The innermost CSS blocks, as selector and body. */
 function cssBlocks(css: string): { selector: string; body: string }[] {
   return Array.from(css.matchAll(/([^{}]+)\{([^{}]*)\}/g), ([, selector, body]) => ({
-    selector: selector!.replace(/\/\*[\s\S]*?\*\//g, "").trim(),
-    body: body!,
+    selector: selector.replaceAll(/\/\*[\s\S]*?\*\//g, "").trim(),
+    body,
   }));
 }
 
@@ -154,7 +154,7 @@ function classScopes(text: string): [number, number][] {
     return text.length;
   };
   for (const match of text.matchAll(/className=(["'{])|\b(?:cn|clsx|cx|cva|twMerge)\(/g)) {
-    const start = match.index! + match[0].length - 1;
+    const start = match.index + match[0].length - 1;
     const quote = match[1];
     if (quote === '"' || quote === "'") {
       scopes.push([start, text.indexOf(quote, start + 1) + 1]);
@@ -178,10 +178,10 @@ function displayAtOtherWeight(text: string): string[] {
   const scopes = classScopes(text);
   for (const literal of text.matchAll(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g)) {
     if (!DISPLAY_CLASS.test(literal[0])) continue;
-    const start = literal.index!;
+    const start = literal.index;
     const enclosing = scopes
       .filter(([from, to]) => from <= start && start < to)
-      .sort((a, b) => a[1] - a[0] - (b[1] - b[0]))[0];
+      .toSorted((a, b) => a[1] - a[0] - (b[1] - b[0]))[0];
     const scope = enclosing ? text.slice(...enclosing) : literal[0];
     if (OTHER_WEIGHT.test(scope) || !AT_800.test(scope)) hits.push(scope);
   }

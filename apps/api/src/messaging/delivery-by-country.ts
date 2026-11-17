@@ -9,7 +9,8 @@
  * The fleet-wide split is PostHog's: every final status sends a
  * `message_outcome` event with its country (D146).
  */
-import { lookupAreaCode, type NanpCountry } from "@loonext/shared";
+import { lookupAreaCode } from '@loonext/shared';
+import type { NanpCountry } from '@loonext/shared';
 
 /**
  * Minimum messages to a country before its rate means anything. Three sends
@@ -82,5 +83,5 @@ export function summarize(rows: OutboundRow[]): CountryDelivery[] {
         rate: settled >= DELIVERY_MIN_SAMPLE ? b.delivered / settled : null,
       };
     })
-    .sort((a, b) => a.country.localeCompare(b.country));
+    .toSorted((a, b) => a.country.localeCompare(b.country));
 }

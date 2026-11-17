@@ -1,12 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  capabilitiesOf,
-  MEMBER_ROLES,
-  type Capability,
-  type MemberRole,
-} from "@loonext/shared";
+import { capabilitiesOf, MEMBER_ROLES } from '@loonext/shared';
+import type { Capability, MemberRole } from '@loonext/shared';
 
 /**
  * A preset this build has never heard of, standing in for the next one #315

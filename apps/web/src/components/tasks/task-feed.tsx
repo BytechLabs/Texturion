@@ -4,10 +4,8 @@ import { Loader2, MoreHorizontal, Paperclip } from "lucide-react";
 import { useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  ActivityTimeline,
-  type ActivityExtraItem,
-} from "@/components/activity/activity-timeline";
+import { ActivityTimeline } from '@/components/activity/activity-timeline';
+import type { ActivityExtraItem } from '@/components/activity/activity-timeline';
 import { AttachmentItem } from "@/components/attachments/attachment-item";
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
 import { StagedFileChips } from "@/components/attachments/staged-file-chips";

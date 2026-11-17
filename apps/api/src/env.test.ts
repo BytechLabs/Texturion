@@ -8,7 +8,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { getEnv, type Bindings } from "./env";
+import { getEnv } from './env';
+import type { Bindings } from './env';
 import { completeEnv } from "./test/support";
 
 function bindings(overrides: Record<string, unknown> = {}): Bindings {
@@ -51,7 +52,7 @@ describe("RESEND_REPLY_TO (optional)", () => {
   });
 
   it("rejects an empty string, naming the key", () => {
-    expect(() => getEnv(bindings({ RESEND_REPLY_TO: "" }))).toThrowError(
+    expect(() => getEnv(bindings({ RESEND_REPLY_TO: "" }))).toThrow(
       /RESEND_REPLY_TO/,
     );
   });
@@ -68,7 +69,7 @@ describe("TELNYX_BILLING_GROUP_ID (optional, D142)", () => {
   });
 
   it("rejects an empty string, naming the key, rather than ordering into a blank group", () => {
-    expect(() => getEnv(bindings({ TELNYX_BILLING_GROUP_ID: "" }))).toThrowError(
+    expect(() => getEnv(bindings({ TELNYX_BILLING_GROUP_ID: "" }))).toThrow(
       /TELNYX_BILLING_GROUP_ID/,
     );
   });
@@ -88,7 +89,7 @@ describe("TURNSTILE_SECRET_KEY (optional)", () => {
   });
 
   it("rejects an empty string, naming the key", () => {
-    expect(() => getEnv(bindings({ TURNSTILE_SECRET_KEY: "" }))).toThrowError(
+    expect(() => getEnv(bindings({ TURNSTILE_SECRET_KEY: "" }))).toThrow(
       /TURNSTILE_SECRET_KEY/,
     );
   });
@@ -128,7 +129,7 @@ describe("calendar connector secrets (optional, #245)", () => {
       "CALENDAR_TOKEN_ENCRYPTION_KEYS",
       "CALENDAR_TOKEN_ENCRYPTION_ACTIVE_KEY",
     ]) {
-      expect(() => getEnv(bindings({ [key]: "" })), key).toThrowError(
+      expect(() => getEnv(bindings({ [key]: "" })), key).toThrow(
         new RegExp(key),
       );
     }

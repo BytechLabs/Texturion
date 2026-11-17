@@ -136,7 +136,7 @@ export function makeRuntime(config: FakeConfig = {}) {
   };
   const runtime: SessionRuntime = {
     now: () => Date.now(),
-    uuid: () => `uuid-${dialN++}`,
+    uuid: () => `uuid-${dialN += 1}`,
     telnyx: {
       async dial(input) {
         const result = config.dialResult
@@ -180,7 +180,7 @@ export function makeRuntime(config: FakeConfig = {}) {
       },
     },
     async mirror(_sessionId, set) {
-      if (config.mirrorThrows && config.mirrorThrows()) {
+      if (config.mirrorThrows?.()) {
         throw new Error("mirror boom");
       }
       calls.mirrors.push(set);
@@ -202,7 +202,7 @@ export function makeRuntime(config: FakeConfig = {}) {
       return config.pushAudience ?? [];
     },
     async pushFanout() {
-      if (config.pushFanoutThrows && config.pushFanoutThrows()) {
+      if (config.pushFanoutThrows?.()) {
         throw new Error("fanout boom");
       }
       return { unreachableUserIds: config.pushUnreachable ? config.pushUnreachable() : [] };

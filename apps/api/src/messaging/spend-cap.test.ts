@@ -17,7 +17,7 @@ import { captured, noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { messageRow, restMatch, stubRoute } from "../test/messaging-support";
 import { clearedFor, completeEnv, stubFetch } from "../test/support";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 

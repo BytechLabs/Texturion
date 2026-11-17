@@ -8,8 +8,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { notificationSnippet, notifyInboundMessage } from "./inbound";
 
 const env = completeEnv();
@@ -95,7 +97,7 @@ function buildWorld(options: {
   sb.on("GET", "/rest/v1/notification_prefs", () => options.prefs ?? []);
   sb.on("GET", "/rest/v1/conversation_member_prefs", () =>
     options.memberPrefsFail
-      ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+      ? Response.json({ message: "boom" }, { status: 500 })
       : (options.memberPrefs ?? []),
   );
   sb.on("GET", "/rest/v1/push_subscriptions", () => options.subscriptions ?? []);
@@ -140,9 +142,9 @@ async function subscriptionFor(userId: string, suffix: string) {
   );
   const b64u = (bytes: Uint8Array) =>
     btoa(String.fromCharCode(...bytes))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
+      .replaceAll('+', "-")
+      .replaceAll('/', "_")
+      .replace(/[=]+$/, "");
   return {
     id: SUB_ID,
     user_id: userId,
@@ -159,7 +161,7 @@ const INPUT = {
   mediaCount: 0,
 };
 
-describe("notificationSnippet", () => {
+describe(notificationSnippet, () => {
   it("clips to 80 chars with an ellipsis and collapses whitespace", () => {
     const long = `${"a".repeat(60)} \n\t ${"b".repeat(60)}`;
     const snippet = notificationSnippet(long, 0, "en");
@@ -202,8 +204,8 @@ describe("notifyInboundMessage (§8)", () => {
       text: string;
       html: string;
     };
-    expect(email.to.sort()).toEqual(
-      [`${OWNER}@team.example`, `${MEMBER}@team.example`].sort(),
+    expect(email.to.toSorted()).toEqual(
+      [`${OWNER}@team.example`, `${MEMBER}@team.example`].toSorted(),
     );
     expect(email.subject).toBe("New text from Dana Smith");
     expect(email.text).toContain("Hi, do you do gutters?");
@@ -314,7 +316,7 @@ describe("notifyInboundMessage (§8)", () => {
     stubFetch(...world.routes);
 
     await notifyInboundMessage(env, INPUT);
-    expect(world.push.calls.map((call) => call.url).sort()).toEqual([
+    expect(world.push.calls.map((call) => call.url).toSorted()).toEqual([
       `${PUSH_ENDPOINT}device-1`,
       `${PUSH_ENDPOINT}device-2`,
     ]);
@@ -412,9 +414,9 @@ describe("notifyInboundMessage — native device push (#151)", () => {
     const iosSend = service.sends.find(
       (send) => (send.message as { token: string }).token === "tok-b",
     );
-    const headers = (
+    const {headers} = (
       iosSend?.message as { apns: { headers: Record<string, string> } }
-    ).apns.headers;
+    ).apns;
     expect(headers["apns-collapse-id"]).toBe(`conversation:${CONVERSATION_ID}`);
   });
 
@@ -708,8 +710,8 @@ describe("#694 mute and follow on the inbound audience", () => {
 
     await notifyInboundMessage(env, INPUT);
 
-    expect((world.resend.calls[0] as { to: string[] }).to.sort()).toEqual(
-      [`${OWNER}@team.example`, `${MEMBER}@team.example`].sort(),
+    expect((world.resend.calls[0] as { to: string[] }).to.toSorted()).toEqual(
+      [`${OWNER}@team.example`, `${MEMBER}@team.example`].toSorted(),
     );
   });
 
@@ -734,8 +736,8 @@ describe("#694 mute and follow on the inbound audience", () => {
 
     await notifyInboundMessage(env, INPUT);
 
-    expect((world.resend.calls[0] as { to: string[] }).to.sort()).toEqual(
-      [`${OWNER}@team.example`, `${MEMBER}@team.example`].sort(),
+    expect((world.resend.calls[0] as { to: string[] }).to.toSorted()).toEqual(
+      [`${OWNER}@team.example`, `${MEMBER}@team.example`].toSorted(),
     );
     expect(pushedTo(world)).toContain(OWNER);
   });
@@ -780,8 +782,8 @@ describe("#694 mute and follow on the inbound audience", () => {
 
     await notifyInboundMessage(env, { ...INPUT, body: "URGENT no heat", emergency: true });
 
-    expect((world.resend.calls[0] as { to: string[] }).to.sort()).toEqual(
-      [`${OWNER}@team.example`, `${MEMBER}@team.example`].sort(),
+    expect((world.resend.calls[0] as { to: string[] }).to.toSorted()).toEqual(
+      [`${OWNER}@team.example`, `${MEMBER}@team.example`].toSorted(),
     );
   });
 

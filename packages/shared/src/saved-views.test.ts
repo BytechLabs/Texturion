@@ -9,8 +9,6 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  SAVED_VIEW_COUNT_CEILING,
-  SAVED_VIEW_SURFACES,
   filtersToQuery,
   formatViewCount,
   isEmptyView,
@@ -18,6 +16,8 @@ import {
   isValidViewName,
   resolveAssignee,
   sanitizeFilters,
+  SAVED_VIEW_COUNT_CEILING,
+  SAVED_VIEW_SURFACES,
   savedViewFilterKeys,
   viewNamesCollide,
 } from "./saved-views";
@@ -160,7 +160,7 @@ describe("#280 surfaces", () => {
     // Listed rather than derived, deliberately: deriving it from FILTERS would
     // compare the table with itself and assert nothing. This is a second copy
     // on purpose, so REMOVING a key has to be typed twice.
-    expect(savedViewFilterKeys("conversations").sort()).toEqual(
+    expect(savedViewFilterKeys("conversations").toSorted()).toEqual(
       [
         "assigned_to_me",
         "assigned_user_id",
@@ -171,9 +171,9 @@ describe("#280 surfaces", () => {
         "status",
         "tag_id",
         "unread",
-      ].sort(),
+      ].toSorted(),
     );
-    expect(savedViewFilterKeys("tasks").sort()).toEqual(
+    expect(savedViewFilterKeys("tasks").toSorted()).toEqual(
       [
         "assigned_user_id",
         "contact_id",
@@ -192,7 +192,7 @@ describe("#280 surfaces", () => {
         "status",
         "tag_id",
         "unassigned",
-      ].sort(),
+      ].toSorted(),
     );
   });
 });
@@ -220,6 +220,7 @@ describe("#690 task views", () => {
     });
     expect(sanitizeFilters("tasks", { source: "fax", group: "planet", sort: "random", contact_id: "x" })).toEqual({});
   });
+
   it("the grouping is a view setting and never reaches a list request", () => {
     expect(filtersToQuery({ group: "assignee", status: "open", sort: "updated" })).toEqual([
       ["sort", "updated"],

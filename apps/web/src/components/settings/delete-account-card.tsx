@@ -24,7 +24,6 @@ import {
 } from "@/lib/api/account";
 import { ApiError } from "@/lib/api/error";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
-import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /** What has to be typed. Short, unambiguous, and not a name we might change. */
 const CONFIRM_WORD = "delete";
@@ -77,11 +76,7 @@ export function DeleteAccountCard() {
       description={t("settings.deleteAccountDescription")}
     >
       <div className="space-y-4 p-4 pt-0">
-        {!expanded ? (
-          <Button variant="outline" size="sm" onClick={() => setExpanded(true)}>
-            {t("settings.deleteAccountAction")}
-          </Button>
-        ) : preview.isPending ? (
+        {expanded ? preview.isPending ? (
           <Skeleton className="h-24 w-full" />
         ) : blocked ? (
           <div className="space-y-2 text-sm">
@@ -134,6 +129,10 @@ export function DeleteAccountCard() {
               </Button>
             </div>
           </div>
+        ) : (
+          <Button variant="outline" size="sm" onClick={() => setExpanded(true)}>
+            {t("settings.deleteAccountAction")}
+          </Button>
         )}
       </div>
 

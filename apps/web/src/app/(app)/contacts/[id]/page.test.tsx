@@ -257,7 +257,7 @@ describe("/contacts/[id] opens in one wave", () => {
     const replace = vi.spyOn(window.history, "replaceState");
     mount(<ContactDetailPage params={resolvedParams("c-1")} />);
     const tabs = screen.getAllByRole("radiogroup", { name: "Contact sections" });
-    const desktop = tabs.find((group) => group.className.includes("lg:flex")) as HTMLElement;
+    const desktop = tabs.find((group) => group.className.includes("lg:flex"))!;
     fireEvent.click(
       Array.from(desktop.querySelectorAll('[role="radio"]')).find(
         (radio) => radio.textContent === "Calls",

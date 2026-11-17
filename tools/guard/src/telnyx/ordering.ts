@@ -8,7 +8,8 @@ import {
 import { Refusal } from "../refusal";
 import { sendProductionEvent } from "../posthog";
 import { SPEC } from "../setup/spec";
-import { invalidateOwned, KEYS, type PartitionRecord, type StandingNumber } from "./partition";
+import { invalidateOwned, KEYS } from './partition';
+import type { PartitionRecord, StandingNumber } from './partition';
 
 /**
  * Number ordering (docs/RIG.md). Production's sweep lists the whole account

@@ -14,11 +14,11 @@
  * re-notifies.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { canonicalMmsType, companySettingDefault } from "@loonext/shared";
+import { canonicalMmsType, companySettingDefault,looksLikeOptOut } from "@loonext/shared";
 
-import { PLAN_NOTIFY_LIMITS, type PlanId } from "../billing/plans";
+import { PLAN_NOTIFY_LIMITS } from '../billing/plans';
+import type { PlanId } from '../billing/plans';
 import { billingRecipients } from "../billing/recipients";
-import { looksLikeOptOut } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
 import { recordAudit } from "../audit/log";
@@ -40,11 +40,8 @@ import { maybeSendAwayReply } from "./away-reply";
 import { maybeSendOffRamp } from "./off-ramp";
 import { sendEmergencyAcknowledgment } from "./emergency-ack";
 import { sendHelpReply } from "./help-reply";
-import {
-  budgetAlertCopy,
-  budgetCrossings,
-  type BudgetCrossing,
-} from "./notification-budget-alert";
+import { budgetAlertCopy, budgetCrossings } from './notification-budget-alert';
+import type { BudgetCrossing } from './notification-budget-alert';
 import {
   effectiveEmergencyKeywords,
   isEmergencyKeyword,
@@ -59,8 +56,8 @@ import {
   INBOUND_MEDIA_TYPES,
   MAX_INBOUND_MEDIA_BYTES,
   MAX_INBOUND_MEDIA_ITEMS,
-  MMS_BUCKET,
   mediaStoragePath,
+  MMS_BUCKET,
 } from "./media";
 import type { TelnyxEvent, ThreadResult } from "./types";
 
@@ -184,8 +181,8 @@ async function captureFirstInboundReply(
     // Rides the same never-throws contract as everything else in this block: a
     // referral bookkeeping problem must not fail a customer's inbound message.
     await qualifyReferralForSender(env, db, args.companyId);
-  } catch (cause) {
-    const detail = cause instanceof Error ? cause.message : String(cause);
+  } catch (error) {
+    const detail = error instanceof Error ? error.message : String(error);
     console.error("first_inbound_reply capture skipped:", detail);
   }
 }
@@ -275,7 +272,7 @@ export async function handleInboundMessage(
   // write rather than a migration and a deploy.
   const company = number.companies ?? null;
   const planLimits =
-    PLAN_NOTIFY_LIMITS[(company?.plan ?? "starter") as PlanId] ??
+    PLAN_NOTIFY_LIMITS[(company?.plan ?? "starter")] ??
     PLAN_NOTIFY_LIMITS.starter;
 
   // The §6 threading transaction, atomically in the database.
@@ -377,8 +374,8 @@ export async function handleInboundMessage(
         conversationId: threaded.conversation_id,
         body: payload.text ?? "",
       });
-    } catch (cause) {
-      console.error("appointment confirmation failed:", cause);
+    } catch (error_) {
+      console.error("appointment confirmation failed:", error_);
     }
 
     // #313: "5" answering "how did it go?". Behind the same carrier gate and
@@ -405,8 +402,8 @@ export async function handleInboundMessage(
           score: rated.score,
         });
       }
-    } catch (cause) {
-      console.error("job rating record failed:", cause);
+    } catch (error_) {
+      console.error("job rating record failed:", error_);
     }
   }
 
@@ -467,10 +464,10 @@ export async function handleInboundMessage(
         targetId: threaded.conversation_id,
         after: { from: fromE164 },
       });
-    } catch (cause) {
+    } catch (error_) {
       console.error(
         `opt-out language flag for conversation ${threaded.conversation_id} failed:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error_ instanceof Error ? error_.message : String(error_),
       );
     }
   }
@@ -491,10 +488,10 @@ export async function handleInboundMessage(
         triggerBody: payload.text ?? "",
         atUtc: new Date(),
       });
-    } catch (cause) {
+    } catch (error_) {
       console.error(
         `away-reply for conversation ${threaded.conversation_id} failed:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error_ instanceof Error ? error_.message : String(error_),
       );
     }
   }
@@ -549,10 +546,10 @@ export async function handleInboundMessage(
         // inside is translated with it, which is the half that matters.
         companyLocale: company?.locale ?? null,
       });
-    } catch (cause) {
+    } catch (error_) {
       console.error(
         `emergency acknowledgment for conversation ${threaded.conversation_id} failed:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error_ instanceof Error ? error_.message : String(error_),
       );
     }
   }
@@ -570,10 +567,10 @@ export async function handleInboundMessage(
         triggerBody: payload.text ?? "",
         businessName: number.companies?.name ?? null,
       });
-    } catch (cause) {
+    } catch (error_) {
       console.error(
         `help reply for conversation ${threaded.conversation_id} failed:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error_ instanceof Error ? error_.message : String(error_),
       );
     }
   }
@@ -608,10 +605,10 @@ export async function handleInboundMessage(
         email: company?.notify_email_limit ?? planLimits.email,
         push: company?.notify_push_limit ?? planLimits.push,
       });
-    } catch (cause) {
+    } catch (error_) {
       console.error(
         `notification-budget alert for company ${number.company_id} failed:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error_ instanceof Error ? error_.message : String(error_),
       );
     }
   }
@@ -630,8 +627,8 @@ export async function handleInboundMessage(
   // channel. A workspace past its email ceiling but under its push one still
   // gets notified — push is free at both ends, and silencing it because a
   // Resend bill ran out was never the intent.
-  const allowEmail = threaded.notify_email ?? threaded.notify === true;
-  const allowPush = threaded.notify_push ?? threaded.notify === true;
+  const allowEmail = threaded.notify_email ??  threaded.notify;
+  const allowPush = threaded.notify_push ??  threaded.notify;
 
   // #414: an emergency bypasses BOTH gates above, each for its own reason:
   //
@@ -932,9 +929,9 @@ async function recordMediaRefusal(
         },
       },
     ]);
-  } catch (cause) {
+  } catch (error) {
     console.warn(
-      `media_refused event write failed for message ${args.messageId}: ${String(cause)}`,
+      `media_refused event write failed for message ${args.messageId}: ${String(error)}`,
     );
   }
 }

@@ -16,7 +16,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { heldNumbersCopy, type HeldNumber } from "./number-allowance";
+import { heldNumbersCopy } from './number-allowance';
+import type { HeldNumber } from './number-allowance';
 import { SUBSCRIPTION_NOTICE_COPY } from "./subscription-notice-copy";
 
 function held(count: number): HeldNumber[] {
@@ -52,7 +53,7 @@ describe("#228 the held-number push title and the email subject", () => {
 
 describe("#228 the French half exists", () => {
   it("answers every notice in its own words, not in English", () => {
-    const en = SUBSCRIPTION_NOTICE_COPY.en;
+    const {en} = SUBSCRIPTION_NOTICE_COPY;
     const fr = SUBSCRIPTION_NOTICE_COPY["fr-CA"];
 
     expect(fr.cancellationTitle).not.toBe(en.cancellationTitle);

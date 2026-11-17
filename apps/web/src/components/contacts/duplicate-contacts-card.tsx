@@ -16,12 +16,8 @@ import {
 } from "@/components/ui/dialog";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
-import {
-  useDuplicateContacts,
-  useMergeContacts,
-  useUnmergeContact,
-  type DuplicatePair,
-} from "@/lib/api/contacts";
+import { useDuplicateContacts, useMergeContacts, useUnmergeContact } from '@/lib/api/contacts';
+import type { DuplicatePair } from '@/lib/api/contacts';
 import { formatPhone } from "@/lib/format/phone";
 
 /**

@@ -402,7 +402,7 @@ export type RigToEdge =
   | { t: "rpc-result"; id: string; ok: false; error: string };
 
 /** A call event must be answered inside the app's 10-second webhook timeout. */
-export const CALL_EVENT_RELAY_TIMEOUT_MS = 9_000;
+export const CALL_EVENT_RELAY_TIMEOUT_MS = 9000;
 export const QUEUED_DELIVERY_MAX_AGE_MS = 24 * 60 * 60 * 1000;
 /**
  * How far `telnyx-timestamp` may be from now, at the edge and in the rig's

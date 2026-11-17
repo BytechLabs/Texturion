@@ -7,7 +7,6 @@
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
     "typecheck": "bun check && bun check -p scripts/tsconfig.json && bun check -p e2e/tsconfig.json",
-    "lint": "eslint .",
     "test": "vitest run",
     "test:e2e": "vitest run --config vitest.e2e.config.ts",
     "test:load": "vitest run --config vitest.load.config.ts",
@@ -30,11 +29,8 @@
   "devDependencies": {
     "@cloudflare/vitest-pool-workers": "0.23.0",
     "@cloudflare/workers-types": "^4.20260702.1",
-    "@eslint/js": "^9.39.4",
     "@types/node": "^22.20.5",
-    "eslint": "^9.39.4",
     "typescript": "^5.9.3",
-    "typescript-eslint": "^8.72.1",
     "vitest": "^4.1.12",
     "wrangler": "^4.157.0"
   }

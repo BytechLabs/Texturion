@@ -2,12 +2,8 @@
 
 import { useT } from "@/i18n/provider";
 
-import {
-  THREAD_CATEGORIES,
-  threadCategoryLabel,
-  toggleThreadCategory,
-  type ThreadFilter,
-} from "./thread-filter";
+import { THREAD_CATEGORIES, threadCategoryLabel, toggleThreadCategory } from './thread-filter';
+import type { ThreadFilter } from './thread-filter';
 
 /**
  * The §5.1 in-thread toggles — Messages · Notes · Events, each an INDEPENDENT
@@ -44,10 +40,10 @@ export function ThreadFilterBar({
             onClick={() => onChange(toggleThreadCategory(value, category))}
             className={
               // tap-target keeps the ≥44px mobile hit area (globals.css).
-              "tap-target rounded-full px-3 py-1 text-[13px] font-medium transition-colors duration-150 ease-out " +
-              (on
+              `tap-target rounded-full px-3 py-1 text-[13px] font-medium transition-colors duration-150 ease-out ${ 
+              on
                 ? "bg-app-paper text-app-ink"
-                : "text-app-muted hover:text-app-ink")
+                : "text-app-muted hover:text-app-ink"}`
             }
           >
             {threadCategoryLabel(category, t)}

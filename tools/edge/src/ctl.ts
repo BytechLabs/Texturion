@@ -1,5 +1,6 @@
 import { hasControlClass } from "./auth";
-import { uplink, type Env } from "./env";
+import { uplink } from './env';
+import type { Env } from './env';
 import { boundedText, empty, json } from "./http";
 import type { RpcOutcome } from "./uplink";
 
@@ -31,14 +32,18 @@ export async function handleRpc(env: Env, request: Request): Promise<Response> {
   // crosses intact.
   const outcome = (await uplink(env).rigRpc(call.method, call.params ?? null, "triage")) as unknown as RpcOutcome;
   switch (outcome.status) {
-    case "ok":
+    case "ok": {
       return json(200, { ok: true, result: outcome.result });
-    case "error":
+    }
+    case "error": {
       return json(502, { ok: false, error: outcome.error });
-    case "offline":
+    }
+    case "offline": {
       return json(503, { ok: false, error: "rig_offline" });
-    case "timeout":
+    }
+    case "timeout": {
       return json(504, { ok: false, error: "rig_timeout" });
+    }
   }
 }
 

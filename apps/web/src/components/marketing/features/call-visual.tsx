@@ -20,7 +20,8 @@
  * the 555-01XX safe fictional range.
  */
 
-import { callsCopy, type CallsCopy } from "@/i18n/marketing/calls";
+import { callsCopy } from '@/i18n/marketing/calls';
+import type { CallsCopy } from '@/i18n/marketing/calls';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Mic, Phone, PhoneOff, Voicemail } from "lucide-react";
 

@@ -64,7 +64,7 @@ beforeAll(async () => {
   const pair = (await crypto.subtle.generateKey({ name: "ECDSA", namedCurve: "P-256" }, true, [
     "sign",
     "verify",
-  ])) as CryptoKeyPair;
+  ]));
   signingKey = pair.privateKey;
   publicJwk = { ...(await crypto.subtle.exportKey("jwk", pair.publicKey)), kid: KID, alg: "ES256", use: "sig" };
   ({ middleware } = await import("./middleware"));

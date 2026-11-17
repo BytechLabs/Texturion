@@ -85,10 +85,10 @@ export async function captureServerError(
       $process_person_profile: false,
       ...(digest === undefined ? {} : { digest }),
     });
-  } catch (cause) {
+  } catch (error_) {
     console.error(
       "posthog server error capture failed:",
-      cause instanceof Error ? cause.message : String(cause),
+      error_ instanceof Error ? error_.message : String(error_),
     );
   }
 }

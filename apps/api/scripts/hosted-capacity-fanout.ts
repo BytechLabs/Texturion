@@ -27,18 +27,12 @@
  */
 import { monitorEventLoopDelay } from "node:perf_hooks";
 
-import { createClient, type RealtimeChannel, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
 import { assertHostedTarget, CapacityConfigError } from "./deployed-capacity-lib.ts";
-import {
-  countStatuses,
-  loadSigner,
-  postSigned,
-  requiredEnv,
-  sleep,
-  summarize,
-  type Ack,
-} from "./capacity-support.ts";
+import { countStatuses, loadSigner, postSigned, requiredEnv, sleep, summarize } from './capacity-support.ts';
+import type { Ack } from './capacity-support.ts';
 
 const JOIN_BATCH = 25;
 const JOIN_DEADLINE_MS = 20_000;

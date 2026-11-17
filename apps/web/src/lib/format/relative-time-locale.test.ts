@@ -19,7 +19,7 @@ const UTC = "UTC";
 
 describe("#228 formatTimestamp follows the translator", () => {
   it("says `now` in the reader's language", () => {
-    const iso = new Date(NOW.getTime() - 5_000).toISOString();
+    const iso = new Date(NOW.getTime() - 5000).toISOString();
     const at = (locale: "en" | "fr-CA") =>
       formatTimestamp(iso, { now: NOW, t: makeTranslate(locale), timeZone: UTC });
     expect(at("en")).toBe("now");
@@ -46,7 +46,7 @@ describe("#228 formatTimestamp follows the translator", () => {
   });
 
   it("keeps the English output unchanged when no translator is given", () => {
-    const iso = new Date(NOW.getTime() - 5_000).toISOString();
+    const iso = new Date(NOW.getTime() - 5000).toISOString();
     expect(formatTimestamp(iso, { now: NOW, timeZone: UTC })).toBe("now");
   });
 });

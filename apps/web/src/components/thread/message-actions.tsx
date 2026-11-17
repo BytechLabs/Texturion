@@ -32,7 +32,8 @@ import {
   PopoverHeader,
   PopoverTitle,
 } from "@/components/ui/popover";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import {
   useRetryMessage,
   useSetMessageDone,

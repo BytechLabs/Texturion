@@ -20,18 +20,18 @@ import {
   PREPAY_MONTHS_CHARGED,
 } from "./plans";
 import {
-  PREPAY_METADATA_FIELD,
-  PREPAY_METADATA_KIND,
-  PREPAY_PLAN_FIELD,
   amortisedMonthlyUsdCents,
+  ensurePrepaidDiscount,
   grantPrepaidYear,
   isPrepayCheckout,
   itemHasDiscount,
-  ensurePrepaidDiscount,
   itemHasPrepaidCoupon,
   prepaidCouponIds,
   prepaidCouponPending,
   prepaidRemainderCouponId,
+  PREPAY_METADATA_FIELD,
+  PREPAY_METADATA_KIND,
+  PREPAY_PLAN_FIELD,
   prepayEligibility,
   remainingPrepaidInvoices,
   revokePrepaidYear,
@@ -40,7 +40,7 @@ import {
 
 const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
-const COUPON = env.STRIPE_PREPAID_YEAR_COUPON_ID as string;
+const COUPON = env.STRIPE_PREPAID_YEAR_COUPON_ID!;
 
 type Session = Parameters<typeof isPrepayCheckout>[0];
 
@@ -292,9 +292,9 @@ describe("#400 eligibility", () => {
     );
     // The arithmetic the credit design failed: 29000 < 12 x 2900 = 34800.
     expect(starter.priceCents).toBe(29_000);
-    expect(starter.priceCents! * 1).toBeLessThan(12 * 2_900);
+    expect((starter.priceCents!)).toBeLessThan(12 * 2900);
     expect(pro.priceCents).toBe(79_000);
-    expect(pro.priceCents! * 1).toBeLessThan(12 * 7_900);
+    expect((pro.priceCents!)).toBeLessThan(12 * 7900);
   });
 });
 
@@ -544,12 +544,12 @@ describe("#400 amortisedMonthlyUsdCents", () => {
       granted_through: "2027-01-01T00:00:00Z",
       discount_id: COUPON,
     };
-    expect(amortisedMonthlyUsdCents(open, 2_900)).toBe(2_417);
-    expect(amortisedMonthlyUsdCents(open, 2_900)).toBeLessThan(2_900);
+    expect(amortisedMonthlyUsdCents(open, 2900)).toBe(2417);
+    expect(amortisedMonthlyUsdCents(open, 2900)).toBeLessThan(2900);
   });
 
   it("falls back to the list price with no open window", () => {
-    expect(amortisedMonthlyUsdCents(null, 2_900)).toBe(2_900);
+    expect(amortisedMonthlyUsdCents(null, 2900)).toBe(2900);
   });
 
   /**
@@ -576,8 +576,8 @@ describe("#400 amortisedMonthlyUsdCents", () => {
     // 39_000 x 0.72 / 12 = 2_340. A function that ignored `currency` returns
     // 3_250 — a figure larger than the plan's own USD list price, which is the
     // tell that a foreign number got in.
-    expect(amortisedMonthlyUsdCents(cad, 2_900)).toBe(2_340);
-    expect(amortisedMonthlyUsdCents(cad, 2_900)).toBeLessThan(
+    expect(amortisedMonthlyUsdCents(cad, 2900)).toBe(2340);
+    expect(amortisedMonthlyUsdCents(cad, 2900)).toBeLessThan(
       Math.round(cad.amount_cents / cad.months_granted),
     );
   });
@@ -1136,7 +1136,7 @@ describe("#584 ensurePrepaidDiscount", () => {
   it("carries an unspent referral month through rather than deleting it", async () => {
     // The discounts array is a REPLACE. Destroying a month somebody earned would be
     // this function committing the exact class of harm it exists to repair.
-    const referral = env.STRIPE_REFERRAL_MONTH_COUPON_ID as string;
+    const referral = env.STRIPE_REFERRAL_MONTH_COUPON_ID!;
     const stripe = convergeStripe();
     const db = dbWith(openYear());
 
@@ -1172,9 +1172,9 @@ describe("#584 ensurePrepaidDiscount", () => {
     // A convergence miss retries on the next mirror pass. Throwing would fail the
     // event that carried it and retry work that is already correct.
     const stripe = convergeStripe();
-    stripe.api.subscriptions.update = vi.fn(async () => {
-      throw new Error("Stripe is down");
-    });
+    vi.spyOn(stripe.api.subscriptions, 'update').mockImplementation(async () => {
+	throw new Error('Stripe is down');
+});
     const db = dbWith(openYear());
 
     await expect(

@@ -1,16 +1,12 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  messageStatusPatch,
-  PAYMENT_EVENT_TYPES,
-  REALTIME_EVENTS,
-  type MessageStatusEvent,
-} from "./events";
+import { messageStatusPatch, PAYMENT_EVENT_TYPES, REALTIME_EVENTS } from './events';
+import type { MessageStatusEvent } from './events';
 
-describe("messageStatusPatch", () => {
+describe(messageStatusPatch, () => {
   it("always carries the delivery status (null for notes)", () => {
     expect(messageStatusPatch({ message_id: "m1", status: "delivered" })).toEqual(
       { status: "delivered" },
@@ -112,14 +108,14 @@ const PAYMENT_EVENT = "payment.updated";
 function triggerMigration(): { name: string; sql: string } {
   const files = readdirSync(MIGRATIONS)
     .filter((name) => name.endsWith(".sql"))
-    .sort();
+    .toSorted();
   let found: { name: string; sql: string } | null = null;
   for (const name of files) {
     // Comments stripped FIRST. These migrations argue about the scope in prose
     // directly above the statement, quoting labels they deliberately do not
     // include, and a parser that read those would report a set the database
     // never had.
-    const sql = readFileSync(join(MIGRATIONS, name), "utf8").replace(
+    const sql = readFileSync(join(MIGRATIONS, name), "utf8").replaceAll(
       /--[^\n]*/g,
       "",
     );
@@ -156,8 +152,8 @@ describe("the payment broadcast vocabulary", () => {
     expect(when, `no WHEN clause in ${name}`).not.toBeNull();
     const published = [
       ...new Set([...when![1].matchAll(/'([a-z0-9_]+)'/gi)].map((m) => m[1])),
-    ].sort();
-    const listed = [...PAYMENT_EVENT_TYPES].sort();
+    ].toSorted();
+    const listed = [...PAYMENT_EVENT_TYPES].toSorted();
 
     // Set equality, stated in both directions so a failure says which one it
     // is. A missing label is a broadcast this client believes it never

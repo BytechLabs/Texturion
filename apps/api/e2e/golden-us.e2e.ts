@@ -22,7 +22,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { deleteCompaniesSql } from "./company-cleanup";
-import { startHarness, type Harness } from "./harness";
+import { startHarness } from './harness';
+import type { Harness } from './harness';
 
 let h: Harness;
 
@@ -232,11 +233,7 @@ async function companyStatus(): Promise<{
     .select("subscription_status,plan,registration_fee_paid_at")
     .eq("id", COMPANY_ID)
     .limit(1);
-  return (data ?? [])[0] as {
-    subscription_status: string;
-    plan: string | null;
-    registration_fee_paid_at: string | null;
-  };
+  return (data ?? [])[0];
 }
 
 async function registrationRow(
@@ -248,7 +245,7 @@ async function registrationRow(
     .eq("company_id", COMPANY_ID)
     .eq("kind", kind)
     .limit(1);
-  return (data ?? [])[0] as { status: string; telnyx_id: string | null };
+  return (data ?? [])[0];
 }
 
 describe("D31 golden path 1: US sole-prop full spine", () => {
@@ -357,7 +354,7 @@ describe("D31 golden path 1: US sole-prop full spine", () => {
 
   it("APPROVE: OTP verify + brand approval submit the campaign; campaign approval unlocks US sends", async () => {
     const brand = await registrationRow("brand");
-    const brandTelnyxId = brand.telnyx_id as string;
+    const brandTelnyxId = brand.telnyx_id!;
 
     // Sole-prop OTP verify (§4.2): the wizard's PUT /v1/registration/otp path.
     // The fake accepts any PIN; this proves the OTP step is on the wire.
@@ -386,7 +383,7 @@ describe("D31 golden path 1: US sole-prop full spine", () => {
     expect(h.telnyx.callsTo("POST", /\/v2\/10dlc\/campaignBuilder$/)).toHaveLength(1);
     const campaign = await registrationRow("campaign");
     expect(campaign.status).toBe("submitted");
-    const campaignTelnyxId = campaign.telnyx_id as string;
+    const campaignTelnyxId = campaign.telnyx_id!;
     expect(campaignTelnyxId).toBeTruthy();
 
     // Campaign approval webhook (MNO review accepted) → approved → US unlocks.

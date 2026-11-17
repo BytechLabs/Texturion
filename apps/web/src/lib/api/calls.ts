@@ -7,14 +7,8 @@
  * D43: the cell bridge + verification hooks are DELETED — the browser is
  * the phone (softphone provider); these hooks are the data plane only.
  */
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type InfiniteData,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -284,7 +278,7 @@ export function useLiveCall(sessionId: string | null) {
  * reads 1.2s apart.
  */
 export const LIVE_NOTE_LOOKUP_ATTEMPTS = 4;
-export const LIVE_NOTE_LOOKUP_INTERVAL_MS = 1_200;
+export const LIVE_NOTE_LOOKUP_INTERVAL_MS = 1200;
 
 /** D43 phase 3: who can take this call (credentialed, #106-cleared, busy flag). */
 export function useTransferTargets(sessionId: string | null, enabled: boolean) {

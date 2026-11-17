@@ -273,7 +273,7 @@ describe("trace-to-fixture: edges", () => {
   it("reads inside a client_state that is not ASCII, and re-encodes it the way it came", () => {
     const utf8 = Buffer.from(`vmi|${CALLER}|déjà`, "utf8").toString("base64");
     const latin1 = Buffer.from(`vmi|${CALLER}|déjà`, "latin1").toString("base64");
-    const unpadded = Buffer.from(`vmi|${CALLER}|`, "utf8").toString("base64").replace(/=+$/, "");
+    const unpadded = Buffer.from(`vmi|${CALLER}|`, "utf8").toString("base64").replace(/[=]+$/, "");
     const { fixture } = traceToFixture([
       envelope("e1", "call.initiated", { from: CALLER, client_state: utf8 }),
       envelope("e2", "call.answered", { client_state: latin1 }),
@@ -288,7 +288,7 @@ describe("trace-to-fixture: edges", () => {
       text: `vmi|${first.from}|déjà`,
       encoding: "latin1",
     });
-    expect(third.client_state).not.toMatch(/=$/);
+    expect(third.client_state).not.toMatch(/[=]$/);
     expect(decodeClientState(third.client_state)?.text).toBe(`vmi|${first.from}|`);
   });
 });
@@ -343,6 +343,7 @@ describe("trace-to-fixture: reading traces", () => {
 
 describe("trace-to-fixture: the command", () => {
   const dir = mkdtempSync(join(tmpdir(), "trace-to-fixture-"));
+
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
   it("writes the fixture and reports counts, never values", () => {

@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { telnyxRequest, TelnyxApiError } from "./client";
+import { TelnyxApiError, telnyxRequest } from "./client";
 import { completeEnv, stubFetch } from "../test/support";
 
 const env = completeEnv();
@@ -9,7 +9,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("telnyxRequest", () => {
+describe(telnyxRequest, () => {
   it("sends bearer auth + JSON body and returns the parsed response", async () => {
     let captured: Request | undefined;
     stubFetch(async (url, request) => {
@@ -30,7 +30,7 @@ describe("telnyxRequest", () => {
       `Bearer ${env.TELNYX_API_KEY}`,
     );
     expect(captured?.headers.get("Content-Type")).toBe("application/json");
-    expect(await captured?.json()).toEqual({ name: "co-1" });
+    await expect(captured?.json()).resolves.toEqual({ name: "co-1" });
   });
 
   it("encodes query params (filter[...] keys verbatim)", async () => {
@@ -75,7 +75,7 @@ describe("telnyxRequest", () => {
       method: "POST",
       path: "/v2/messages",
       body: {},
-    }).catch((cause: unknown) => cause);
+    }).catch((error_: unknown) => error_);
 
     expect(failure).toBeInstanceOf(TelnyxApiError);
     const error = failure as TelnyxApiError;
@@ -95,7 +95,7 @@ describe("telnyxRequest", () => {
     const failure = await telnyxRequest(env, {
       method: "GET",
       path: "/v2/phone_numbers",
-    }).catch((cause: unknown) => cause);
+    }).catch((error: unknown) => error);
     expect(failure).toBeInstanceOf(TelnyxApiError);
     expect((failure as TelnyxApiError).status).toBe(502);
     expect((failure as TelnyxApiError).codes).toEqual([]);

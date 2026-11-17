@@ -20,7 +20,8 @@
  */
 import { DurableObject } from "cloudflare:workers";
 
-import { getEnv, type Bindings, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import {
   BROWSER_INBOUND_STATE,
   parseBrowserAnsweredAtMs,
@@ -28,36 +29,21 @@ import {
   VOICEMAIL_INBOUND_STATE,
 } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
-import { captureException, type WaitUntil } from "../observability/capture";
+import { captureException } from '../observability/capture';
+import type { WaitUntil } from '../observability/capture';
 import {
   parseOutboundPlacerState,
   parseOutboundSessionId,
 } from "../messaging/voice-webhook";
 
 import { callStepsBetween } from "./call-steps";
-import { createSessionRuntime, type AdoptionRow, type SessionRuntime } from "./runtime";
+import { createSessionRuntime } from './runtime';
+import type { AdoptionRow, SessionRuntime } from './runtime';
 import { requiresUnauthorizedHangup } from "./outbound-leg-gate";
-import {
-  type AlarmKind,
-  type CallState,
-  type DeclineReply,
-  type Effect,
-  JANITOR_MS,
-  JOURNAL_RESUME_MS,
-  MAX_TELNYX_COMMANDS_PER_SESSION,
-  PURGE_DELAY_MS,
-  DIAL_BATCH_SIZE,
-  isTerminal,
-  outcomeForState,
-  QUEUE_LATENCY_WARN_MS,
-  RING_WINDOW_SECS,
-  type MirrorSet,
-  reduce,
-  type RingMeReply,
-  type SessionEvent,
-  type SessionMachine,
-  unavailableNotice,
-} from "./transitions";
+import {DIAL_BATCH_SIZE, isTerminal, JOURNAL_RESUME_MS, MAX_TELNYX_COMMANDS_PER_SESSION, outcomeForState, QUEUE_LATENCY_WARN_MS, reduce, RING_WINDOW_SECS, unavailableNotice} from './transitions';
+
+export { JANITOR_MS, PURGE_DELAY_MS, RING_WINDOW_SECS } from './transitions';
+import type { AlarmKind, CallState, DeclineReply, Effect, MirrorSet, RingMeReply, SessionEvent, SessionMachine } from './transitions';
 
 /** The freshest machine view the /state route serves (read-your-writes). */
 export interface SessionSnapshot {
@@ -107,7 +93,7 @@ interface VoicemailJob {
 
 const SEEN_CAP = 256;
 const MAX_MIRROR_ATTEMPTS = 12;
-const MIRROR_RETRY_MS = 3_000;
+const MIRROR_RETRY_MS = 3000;
 /** Ten tries 30s apart end inside Telnyx's 10-minute recording link. */
 const MAX_VOICEMAIL_ATTEMPTS = 10;
 const VOICEMAIL_RETRY_MS = 30_000;
@@ -161,7 +147,7 @@ export class CallSessionDO extends DurableObject<Env> {
   }
 
   private validatedEnv(): Env {
-    return getEnv(this.env as unknown as Bindings);
+    return getEnv(this.env);
   }
 
   /**
@@ -285,11 +271,11 @@ export class CallSessionDO extends DurableObject<Env> {
      * runs, so a later rejection lands here instead — where it is reported
      * rather than thrown at an edge that has long since replied.
      */
-    slot.catch((cause: unknown) => {
-      failAck(cause);
+    slot.catch((error: unknown) => {
+      failAck(error);
       this.rt.warn(
         `calls-v3 post-ack cascade failed for ${event.data?.event_type} — ` +
-          `journal-resume will retry: ${cause instanceof Error ? cause.message : String(cause)}`,
+          `journal-resume will retry: ${error instanceof Error ? error.message : String(error)}`,
       );
     });
 
@@ -320,7 +306,7 @@ export class CallSessionDO extends DurableObject<Env> {
       const r = reply as RingMeReply | undefined;
       if (!r) {
         const m = await this.load();
-        return { rang: false, state: (m?.state ?? "ended_missed") as CallState, reason: "not_ringing" };
+        return { rang: false, state: (m?.state ?? "ended_missed"), reason: "not_ringing" };
       }
       // The dial's success is only known after the telnyx-dial effect ran; the
       // reducer returned rang:true optimistically. A SUCCESSFUL dial re-keys the
@@ -331,7 +317,7 @@ export class CallSessionDO extends DurableObject<Env> {
         const m = await this.load();
         const stillPending = m?.legs.find((entry) => entry.key === r.pendingKey);
         if (stillPending && (stillPending.ccid === null || stillPending.status === "dead")) {
-          return { rang: false, state: (m?.state ?? "ringing") as CallState, reason: "dial_failed" };
+          return { rang: false, state: (m?.state ?? "ringing"), reason: "dial_failed" };
         }
       }
       return { rang: r.rang, state: r.state, reason: r.reason };
@@ -376,7 +362,7 @@ export class CallSessionDO extends DurableObject<Env> {
         const m = await this.load();
         return {
           declined: false,
-          state: (m?.state ?? "ended_missed") as CallState,
+          state: (m?.state ?? "ended_missed"),
           reason: "not_ringing",
         };
       }
@@ -401,7 +387,7 @@ export class CallSessionDO extends DurableObject<Env> {
         legs: machine.legs
           .filter((leg) => leg.ccid !== null)
           .map((leg) => ({
-            call_control_id: leg.ccid as string,
+            call_control_id: leg.ccid!,
             user_id: leg.userId,
             status: leg.status,
           })),
@@ -433,7 +419,7 @@ export class CallSessionDO extends DurableObject<Env> {
         null,
       );
       const after = await this.load();
-      return { state: (after?.state ?? machine.state) as CallState };
+      return { state: (after?.state ?? machine.state) };
     });
   }
 
@@ -454,14 +440,14 @@ export class CallSessionDO extends DurableObject<Env> {
   async alarm(): Promise<void> {
     try {
       await this.runAlarms();
-    } catch (cause) {
+    } catch (error) {
       void captureException(
-        this.env as unknown as Env,
-        cause,
+        this.env,
+        error,
         { source: "call-session-do", extra: { alarm: true } },
         this.keepAlive,
       );
-      throw cause;
+      throw error;
     }
   }
 
@@ -639,7 +625,7 @@ export class CallSessionDO extends DurableObject<Env> {
   /** Resume an unfinished journal left by a crash/eviction (§4.1 step 2). */
   private async resumeJournalIfAny(): Promise<void> {
     const journal = await this.getJournal();
-    if (!journal || !journal.head) return;
+    if (!journal?.head) return;
     await this.drain(journal);
   }
 
@@ -649,7 +635,7 @@ export class CallSessionDO extends DurableObject<Env> {
     let headReply: RingMeReply | DeclineReply | { state: CallState } | undefined;
     let first = true;
     while (journal.head) {
-      const head = journal.head;
+      const {head} = journal;
       if (head.effects === null) {
         const machine = await this.load();
         const nowMs = Date.now();
@@ -1142,8 +1128,8 @@ export class CallSessionDO extends DurableObject<Env> {
     try {
       await this.rt.mirror(sessionId, set);
       return;
-    } catch (cause) {
-      this.rt.reportError(cause);
+    } catch (error) {
+      this.rt.reportError(error);
       // MERGE into any existing pending mirror rather than overwriting it: a
       // second failed mirror carrying DIFFERENT columns would otherwise drop the
       // first one's (e.g. answered_at), and the retry would re-apply only the
@@ -1202,8 +1188,8 @@ export class CallSessionDO extends DurableObject<Env> {
       }
       await this.rt.mirror(machine.callSessionId, pending.set);
       await this.clearPendingMirror();
-    } catch (cause) {
-      this.rt.reportError(cause);
+    } catch (error) {
+      this.rt.reportError(error);
       pending.attempts += 1;
       if (pending.attempts >= MAX_MIRROR_ATTEMPTS) {
         this.rt.warn(
@@ -1466,7 +1452,7 @@ export class CallSessionDO extends DurableObject<Env> {
           type: "inbound-hangup",
           tag,
           briAnsweredAtIso:
-            briAnsweredAtMs !== null ? new Date(briAnsweredAtMs).toISOString() : null,
+            briAnsweredAtMs === null ? null : new Date(briAnsweredAtMs).toISOString(),
           payload: payload as Record<string, unknown>,
         },
       };
@@ -1507,7 +1493,7 @@ export class CallSessionDO extends DurableObject<Env> {
     raw?: TelnyxEvent,
   ): SessionMachine {
     const eventType = raw?.data?.event_type;
-    const clientState = callPayload(raw ?? ({} as TelnyxEvent))?.client_state;
+    const clientState = callPayload(raw ?? ({}))?.client_state;
     const tag = this.classifyInboundTag(clientState);
 
     let state: CallState;
@@ -1523,17 +1509,17 @@ export class CallSessionDO extends DurableObject<Env> {
           : row.outcome === "voicemail"
             ? "ended_voicemail"
             : "ended_missed"
-        : row.answeredAt
+        : (row.answeredAt
           ? "answered"
-          : "dialing";
+          : "dialing");
     } else if (row.outcome) {
       // §7.5.2: reconstruct the terminal state.
       state =
         row.outcome === "answered"
           ? "ended_answered"
-          : row.outcome === "voicemail"
+          : (row.outcome === "voicemail"
             ? "ended_voicemail"
-            : "ended_missed";
+            : "ended_missed");
     } else if (
       eventType === "call.speak.ended" ||
       eventType === "call.playback.ended" ||
@@ -1594,13 +1580,13 @@ export class CallSessionDO extends DurableObject<Env> {
       adopted: true, // §7.5.4: scopes §7.7 ledger-less minting to cutover
       pushCapableUserIds: [],
       declinedUserIds: [],
-      ringDeadlineMs: state === "ringing" ? row.startedAtMs + RING_WINDOW_SECS * 1_000 : null,
+      ringDeadlineMs: state === "ringing" ? row.startedAtMs + RING_WINDOW_SECS * 1000 : null,
       telnyxCommandCount: 0,
       legs: row.ledgerLegs.map((leg) => ({
         key: `leg:${leg.ccid}`,
         ccid: leg.ccid,
         userId: leg.userId,
-        status: leg.state === "answered" ? "answered" : leg.state === "ringing" ? "ringing" : "dead",
+        status: leg.state === "answered" ? "answered" : (leg.state === "ringing" ? "ringing" : "dead"),
         source: "engine" as const,
         dialedAtMs: row.startedAtMs,
         sipTarget: "",
@@ -1650,7 +1636,7 @@ export class CallSessionDO extends DurableObject<Env> {
     // Nothing awaits a run, so a failure to settle it is reported here. The
     // job is still saved and its alarm still armed, so it is retried.
     this.voicemailRun = this.attemptVoicemail()
-      .catch((cause: unknown) => this.rt.reportError(cause))
+      .catch((error: unknown) => this.rt.reportError(error))
       .finally(() => {
         this.voicemailRun = null;
       });
@@ -1661,8 +1647,8 @@ export class CallSessionDO extends DurableObject<Env> {
     if (!job) return;
     try {
       await this.rt.voicemailPipeline(job.payload);
-    } catch (cause) {
-      await this.enqueue(() => this.voicemailFailed(cause));
+    } catch (error) {
+      await this.enqueue(() => this.voicemailFailed(error));
       return;
     }
     await this.enqueue(() => this.voicemailDone());
@@ -1743,7 +1729,7 @@ export class CallSessionDO extends DurableObject<Env> {
 
   private async hasUnfinishedJournalFor(eventId: string): Promise<boolean> {
     const journal = await this.getJournal();
-    return Boolean(journal && journal.head && journal.eventId === eventId);
+    return Boolean(journal?.head && journal.eventId === eventId);
   }
 
   private async isSeen(eventId: string): Promise<boolean> {
@@ -1816,4 +1802,4 @@ export class CallSessionDO extends DurableObject<Env> {
 }
 
 /** Exported for the shell tests: the DO-facing constants a driver needs. */
-export { JANITOR_MS, PURGE_DELAY_MS, RING_WINDOW_SECS };
+

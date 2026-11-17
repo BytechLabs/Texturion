@@ -24,7 +24,7 @@ function mount(attrs: Record<string, string> = {}): ShadowRoot {
   document.body.innerHTML = "";
   const script = document.createElement("script");
   script.src = "https://app.loonext.com/widget.js";
-  script.setAttribute("data-key", "11111111-1111-4111-8111-111111111111");
+  script.dataset.key = "11111111-1111-4111-8111-111111111111";
   for (const [name, value] of Object.entries(attrs)) {
     script.setAttribute(name, value);
   }

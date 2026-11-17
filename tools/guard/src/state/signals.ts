@@ -48,7 +48,7 @@ interface SignalState {
 
 const KEY = "signals";
 
-const fold = (text: string) => text.toLowerCase().replace(/[^a-z0-9]/g, "");
+const fold = (text: string) => text.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
 
 /** Case and punctuation do not matter, and a longer name that contains one still counts. */
 export function isFraudSignal(signal: string): boolean {
@@ -87,7 +87,7 @@ export async function recordSignal(ctx: Ctx, halt: SignalInput): Promise<SignalS
     halt_until: Math.max(current.halt_until ?? 0, now + SIGNAL_HALT_MS),
     latch: standingLatch,
   };
-  if ((fraud || recent.length >= 1) && !next.latch) next.latch = { at: now, reset: ctx.config.signalLatchReset };
+  if ((fraud || recent.length > 0) && !next.latch) next.latch = { at: now, reset: ctx.config.signalLatchReset };
   await ctx.store.put(KEY, next);
 
   const latchedWhy = fraud
@@ -113,7 +113,7 @@ export async function requirePaidLanesOpen(ctx: Ctx): Promise<void> {
 
 export async function signalSummary(ctx: Ctx): Promise<{ halted_until: string | null; latched: boolean }> {
   const current = await state(ctx);
-  const halted = (current.halt_until ?? 0) > ctx.now() ? new Date(current.halt_until as number).toISOString() : null;
+  const halted = (current.halt_until ?? 0) > ctx.now() ? new Date(current.halt_until!).toISOString() : null;
   return {
     halted_until: halted,
     latched: Boolean(current.latch && current.latch.reset === ctx.config.signalLatchReset),

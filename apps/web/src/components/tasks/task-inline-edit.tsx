@@ -58,9 +58,9 @@ export function InlineDue({ task }: { task: Task }) {
   const overdue = isOverdue(task);
 
   const label =
-    task.due_at !== null
-      ? formatTimestamp(task.due_at, { style: "long", t })
-      : t("tasks.setDue");
+    task.due_at === null
+      ? t("tasks.setDue")
+      : formatTimestamp(task.due_at, { style: "long", t });
 
   const commit = () => {
     const value = draft.current;
@@ -87,9 +87,9 @@ export function InlineDue({ task }: { task: Task }) {
           type="button"
           aria-label={
             task.due_at
-              ? overdue
+              ? (overdue
                 ? t("tasks.changeDueOverdueAria")
-                : t("tasks.changeDueAria")
+                : t("tasks.changeDueAria"))
               : t("tasks.setDueAria")
           }
           onClick={(e) => e.stopPropagation()}

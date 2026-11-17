@@ -15,8 +15,8 @@ import {
   CARRIER_LIST_PRICES,
   CARRIER_PRICES_RECHECK_AFTER,
   CARRIER_PRICES_VERIFIED_ON,
-  INCUMBENT_VENDOR,
   forwardedCallCentsPerMinute,
+  INCUMBENT_VENDOR,
   listPrice,
   switchDeltaCentsPerSegment,
   switchDeltaCentsPerTenantMonth,
@@ -66,14 +66,14 @@ describe("the cost model never undercuts the incumbent's published floor", () =>
   it("inbound segment", () => {
     expect(telnyx.baseInboundUsd).not.toBeNull();
     expect(UNIT_COST_CENTS.inboundSegment).toBeGreaterThanOrEqual(
-      (telnyx.baseInboundUsd as number) * 100,
+      (telnyx.baseInboundUsd!) * 100,
     );
   });
 
   it("voice minute covers at least the published inbound leg", () => {
     expect(telnyx.voiceInboundUsdPerMin).not.toBeNull();
     expect(UNIT_COST_CENTS.voiceMinute).toBeGreaterThanOrEqual(
-      (telnyx.voiceInboundUsdPerMin as number) * 100,
+      (telnyx.voiceInboundUsdPerMin!) * 100,
     );
   });
 
@@ -81,7 +81,7 @@ describe("the cost model never undercuts the incumbent's published floor", () =>
     // $1.00 number + $0.10 SMS capability = the 110¢ in costs.ts. This one is
     // an equality: it is a rental we pay in full, not an estimate.
     expect(FIXED_MONTHLY_COST_CENTS.perNumber).toBe(
-      Math.round((telnyx.numberMonthlyUsd as number) * 100),
+      Math.round((telnyx.numberMonthlyUsd!) * 100),
     );
   });
 });
@@ -122,7 +122,7 @@ describe("what a switch would cost", () => {
     // is an incumbent figure, and every published alternative exceeds it.
     for (const vendor of ["Bandwidth", "Twilio"]) {
       expect(
-        forwardedCallCentsPerMinute(vendor) as number,
+        forwardedCallCentsPerMinute(vendor)!,
         `${vendor} forwarded-call cost no longer exceeds the model — recheck UNIT_COST_CENTS.voiceMinute`,
       ).toBeGreaterThan(UNIT_COST_CENTS.voiceMinute);
     }

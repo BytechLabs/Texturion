@@ -16,9 +16,6 @@ import { fill } from "@/i18n/marketing/home";
 import { pricingCopy } from "@/i18n/marketing/pricing";
 import { estimateSegments } from "@loonext/shared";
 
-const DEFAULT_MESSAGE =
-  "Hi Karen, it's Dale from Reyes Plumbing. I can come by tomorrow between 9 and 11 to look at the water heater. Does that work?";
-
 export function SegmentCounterStatic({
   locale = "en",
 }: {

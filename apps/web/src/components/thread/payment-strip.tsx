@@ -2,20 +2,13 @@
 
 import { BadgeCheck, HandCoins, TriangleAlert, X } from "lucide-react";
 
-import {
-  formatMoney,
-  paymentRequestCancellable,
-  paymentRequestLabel,
-  roleHasCapability,
-  type PaymentRequestState,
-} from "@loonext/shared";
+import { formatMoney, paymentRequestCancellable, paymentRequestLabel, roleHasCapability } from '@loonext/shared';
+import type { PaymentRequestState } from '@loonext/shared';
 
-import {
-  useCancelPaymentRequest,
-  usePaymentRequests,
-  type PaymentRequest,
-} from "@/lib/api/payments";
-import { useT, type Translate } from "@/i18n/provider";
+import { useCancelPaymentRequest, usePaymentRequests } from '@/lib/api/payments';
+import type { PaymentRequest } from '@/lib/api/payments';
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
@@ -135,9 +128,9 @@ function PaymentRow({
         "transition-colors duration-150 ease-out",
         tone === "attention"
           ? "border-app-amber/40 bg-app-amber/10 text-foreground"
-          : tone === "settled"
+          : (tone === "settled"
             ? "border-app-tint-line bg-app-tint/50 text-foreground"
-            : "border-border bg-secondary/40 text-muted-foreground",
+            : "border-border bg-secondary/40 text-muted-foreground"),
       )}
     >
       <RowIcon state={row.state} />

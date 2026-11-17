@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -31,7 +30,7 @@ import { DEFAULT_REMINDER_RULES } from "./appointment-reminders";
 import { DEFAULT_MCTB_MESSAGE } from "./mctb";
 import { EMERGENCY_SAFETY_LINE } from "./emergency";
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 const { findKotlinLiterals, findSwiftLiterals, findWebLiterals, isScannable } = (await import(
   join(REPO, "scripts", "check-hardcoded-strings.mjs")
@@ -285,12 +284,12 @@ describe("the sentence rule, which is where most of the copy actually is", () =>
   it("rejects a Swift string built only of interpolations", () => {
     // Swift's `\(…)` needed stripping of its own; only Kotlin's `${…}` was
     // handled, so every one of these counted as a sentence to translate.
-    expect(findSwiftLiterals('Text("\\(facts.name) · \\(facts.price)")')).toEqual([]);
+    expect(findSwiftLiterals(String.raw`Text("\(facts.name) · \(facts.price)")`)).toEqual([]);
   });
 
   it("still counts Swift copy that merely contains an interpolation", () => {
-    expect(findSwiftLiterals('Text("Current period ends \\(date).")')).toContain(
-      "Current period ends \\(date).",
+    expect(findSwiftLiterals(String.raw`Text("Current period ends \(date).")`)).toContain(
+      String.raw`Current period ends \(date).`,
     );
   });
 

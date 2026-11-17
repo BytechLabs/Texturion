@@ -72,8 +72,8 @@ export function ShareBar({
       role="img"
       aria-label={label}
       className={
-        "flex h-1.5 w-full overflow-hidden rounded-full bg-app-inset " +
-        (className ?? "")
+        `flex h-1.5 w-full overflow-hidden rounded-full bg-app-inset ${ 
+        className ?? ""}`
       }
     >
       {drawn.map((segment) =>
@@ -81,7 +81,7 @@ export function ShareBar({
           <span
             key={segment.label}
             aria-hidden
-            className={"h-full " + segment.className}
+            className={`h-full ${  segment.className}`}
             style={{ width: `${segment.percent}%` }}
           />
         ) : null,

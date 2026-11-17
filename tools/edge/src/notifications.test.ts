@@ -3,17 +3,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "./env";
 import { balanceOf, parseNotice, sameEvent } from "./notifications";
-import {
-  NOTIFICATIONS_SECRET,
-  ORIGIN,
-  call,
-  counters,
-  edgeEnv,
-  fakeGuard,
-  resetEdge,
-  telnyxDelivery,
-  type FakeGuard,
-} from "./test/support";
+import { call, counters, edgeEnv, fakeGuard, NOTIFICATIONS_SECRET, ORIGIN, resetEdge, telnyxDelivery } from './test/support';
+import type { FakeGuard } from './test/support';
 
 let guard: FakeGuard;
 let env: Env;
@@ -158,7 +149,7 @@ describe("account notices", () => {
   });
 
   it("halts on a late notice whose signature verifies, marked late, once per notice id", async () => {
-    const old = String(Math.floor(Date.now() / 1000) - 3_600);
+    const old = String(Math.floor(Date.now() / 1000) - 3600);
     const late = () =>
       telnyxDelivery(`/t/n/${NOTIFICATIONS_SECRET}`, { data: { id: "ntc-late", event_type: "Suspicious Outbound Voice Traffic", payload: {} } }, { timestamp: old });
     expect((await call(await late(), env)).status).toBe(200);
@@ -170,7 +161,7 @@ describe("account notices", () => {
   });
 
   it("still refuses a late notice whose signature does not verify", async () => {
-    const old = String(Math.floor(Date.now() / 1000) - 3_600);
+    const old = String(Math.floor(Date.now() / 1000) - 3600);
     const signed = await telnyxDelivery(`/t/n/${NOTIFICATIONS_SECRET}`, { data: { id: "n", event_type: "Low Balance" } }, { timestamp: old });
     const tampered = new Request(signed, { body: JSON.stringify({ data: { id: "n", event_type: "Account Disabled" } }) });
     expect((await call(tampered, env)).status).toBe(400);
@@ -192,14 +183,14 @@ describe("account notices", () => {
 
 describe("notice parsing", () => {
   it("reads the name and id from the envelope, and keys an id-less notice by its hash", async () => {
-    expect(await parseNotice(JSON.stringify({ data: { id: "a", event_type: "Low Balance" } }))).toEqual({
+    await expect(parseNotice(JSON.stringify({ data: { id: "a", event_type: "Low Balance" } }))).resolves.toEqual({
       key: "a",
       id: "a",
       name: "Low Balance",
     });
     const anonymous = await parseNotice(JSON.stringify({ event_type: "Account Disabled" }));
     expect(anonymous?.key).toMatch(/^[0-9a-f]{64}$/);
-    expect(await parseNotice("[]")).toBeNull();
+    await expect(parseNotice("[]")).resolves.toBeNull();
   });
 
   it("matches event names loosely but not trivially", () => {

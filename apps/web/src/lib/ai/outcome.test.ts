@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { draftOutcome, enrichmentOutcome, type EnrichmentState } from "./outcome";
+import { draftOutcome, enrichmentOutcome } from './outcome';
+import type { EnrichmentState } from './outcome';
 
 /**
  * #431 — these three functions decide the number the keep-or-kill decision rests
@@ -22,7 +23,7 @@ const NOTHING: EnrichmentState = {
   dueCleared: false,
 };
 
-describe("draftOutcome", () => {
+describe(draftOutcome, () => {
   it("reports nothing when no draft was ever shown", () => {
     // The important one. Most messages are typed with Lou uninvolved.
     expect(
@@ -61,7 +62,7 @@ describe("draftOutcome", () => {
   });
 });
 
-describe("enrichmentOutcome", () => {
+describe(enrichmentOutcome, () => {
   it("reports nothing when enrichment filled in nothing", () => {
     // Enrichment runs on every make-a-task and often finds no address at all.
     // That is not a rejected suggestion.
@@ -139,6 +140,6 @@ describe("voicemail transcripts are decided on the server", () => {
     // This test exists so that reintroducing a client-side rule is a deliberate
     // act with this reasoning in front of whoever does it.
     const rules: Record<string, unknown> = await import("./outcome");
-    expect(Object.keys(rules).sort()).toEqual(["draftOutcome", "enrichmentOutcome"]);
+    expect(Object.keys(rules).toSorted()).toEqual(["draftOutcome", "enrichmentOutcome"]);
   });
 });

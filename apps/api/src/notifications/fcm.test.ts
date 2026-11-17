@@ -42,7 +42,7 @@ const CALL_PAYLOAD = JSON.stringify({
   url: "/calls?call=sess-1",
 });
 
-describe("isFcmConfigured", () => {
+describe(isFcmConfigured, () => {
   it("is false without the secret and true with it", async () => {
     expect(isFcmConfigured(completeEnv())).toBe(false);
     const account = await makeServiceAccount();
@@ -62,7 +62,7 @@ describe("sendFcm — unconfigured no-op", () => {
     );
 
     expect(result).toEqual({ ok: true, status: 0, gone: false, errorBody: "" });
-    expect(log).toHaveBeenCalledTimes(1);
+    expect(log).toHaveBeenCalledOnce();
     expect(log.mock.calls[0][0]).toContain("FCM_SERVICE_ACCOUNT_JSON unset");
   });
 });
@@ -85,7 +85,7 @@ describe("sendFcm — service-account OAuth (RS256 JWT)", () => {
     const valid = await crypto.subtle.verify(
       "RSASSA-PKCS1-v1_5",
       account.publicKey,
-      decodeBase64Url(signature) as BufferSource,
+      decodeBase64Url(signature),
       encoder.encode(`${header}.${claims}`),
     );
     expect(valid).toBe(true);
@@ -163,7 +163,7 @@ describe("sendFcm — message shapes + TTL/urgency mapping", () => {
       "high",
     );
 
-    const message = service.sends[0].message;
+    const {message} = service.sends[0];
     expect(message).toEqual({
       token: "android-tok",
       data: {
@@ -301,7 +301,7 @@ describe("sendFcm — message shapes + TTL/urgency mapping", () => {
       "conversation:bbbbbbbb-0000-4000-8000-00000000000b",
     );
 
-    const message = service.sends[0].message;
+    const {message} = service.sends[0];
     expect(message).not.toHaveProperty("apns");
     expect(message).not.toHaveProperty("notification");
     expect(JSON.stringify(message)).not.toContain("collapse");
@@ -479,7 +479,7 @@ describe("sendFcm — D142 seams", () => {
         return Response.json({ access_token: "relay-access-token", expires_in: 3599 });
       }
       if (url.href.startsWith(`${RELAY}/v1/projects/`)) {
-        return new Response(JSON.stringify({ name: "ok" }), { status: 200 });
+        return Response.json({ name: "ok" }, { status: 200 });
       }
       return undefined;
     };
@@ -602,7 +602,7 @@ describe("sendFcm — D142 seams", () => {
     const seen: { url: string; authorization: string | null }[] = [];
     stubFetch((url, request) => {
       seen.push({ url: url.href, authorization: request.headers.get("authorization") });
-      return new Response(JSON.stringify({ name: "ok" }), { status: 200 });
+      return Response.json({ name: "ok" }, { status: 200 });
     });
 
     const result = await sendFcm(env, { platform: "android", token: "tok-1" }, CALL_PAYLOAD);

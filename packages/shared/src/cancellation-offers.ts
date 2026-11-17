@@ -121,20 +121,12 @@
  * on the button are not platform-specific and three of them would drift.
  */
 
-import {
-  billingCurrencyOf,
-  currencyForCountry,
-  formatMoney,
-  isBillingCurrency,
-  PLAN_PRICE_CENTS,
-  type BillingCurrency,
-} from "./billing-currency";
-import { PLAN_NUMBERS, PLAN_SEATS, type SeatPlan } from "./seats";
-import {
-  SUPPORT_FIX_PROMISE_KEY,
-  SUPPORT_RESPONSE_TIME_KEY,
-  type SayKey,
-} from "./support";
+import { billingCurrencyOf, currencyForCountry, formatMoney, isBillingCurrency, PLAN_PRICE_CENTS } from './billing-currency';
+import type { BillingCurrency } from './billing-currency';
+import { PLAN_NUMBERS, PLAN_SEATS } from './seats';
+import type { SeatPlan } from './seats';
+import { SUPPORT_FIX_PROMISE_KEY, SUPPORT_RESPONSE_TIME_KEY } from './support';
+import type { SayKey } from './support';
 
 /**
  * The reason codes the cancel card offers, on every client.

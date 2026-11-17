@@ -20,12 +20,12 @@ export interface MailClientOptions {
 
 /** Quoted-printable decoded, the way the mail's text parts are usually sent. */
 export function decodeQuotedPrintable(text: string): string {
-  return text.replace(/=\r?\n/g, "").replace(/=([0-9A-F]{2})/gi, (_, hex: string) => String.fromCharCode(parseInt(hex, 16)));
+  return text.replaceAll(/[=]\r?\n/g, "").replaceAll(/[=]([0-9A-F]{2})/gi, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)));
 }
 
 export function linksIn(text: string): string[] {
   const found = decodeQuotedPrintable(text).match(/https?:\/\/[^\s"'<>)\]]+/g) ?? [];
-  return [...new Set(found.map((link) => link.replace(/&amp;/g, "&").replace(/[.,;]+$/, "")))];
+  return [...new Set(found.map((link) => link.replaceAll('&amp;', "&").replace(/[.,;]+$/, "")))];
 }
 
 /** The body of a raw message: everything after the header block. */
@@ -79,7 +79,7 @@ export class MailClient implements MailApi {
         received_at: summary.Created,
       });
     }
-    return out.sort((a, b) => a.received_at.localeCompare(b.received_at));
+    return out.toSorted((a, b) => a.received_at.localeCompare(b.received_at));
   }
 
   async openLink(url: string): Promise<{ status: number; location: string | null }> {

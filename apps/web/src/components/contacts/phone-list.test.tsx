@@ -116,7 +116,7 @@ describe("#291 the other numbers", () => {
     });
     fireEvent.click(screen.getByText("Add"));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastError).toHaveBeenCalledOnce());
     expect(toastError.mock.calls[0][0]).toContain("Sam Rivera");
   });
 
@@ -130,7 +130,7 @@ describe("#291 the other numbers", () => {
     });
     fireEvent.click(screen.getByText("Add"));
 
-    await waitFor(() => expect(addPhone).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(addPhone).toHaveBeenCalledOnce());
     expect(addPhone.mock.calls[0][0]).toEqual({
       phone_e164: "+14165550199",
       label: null,

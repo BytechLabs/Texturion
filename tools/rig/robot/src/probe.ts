@@ -10,7 +10,8 @@
  * `InlineProbe` sends the WAV in the command itself (`playback_content`) for
  * when storage or the relay is down; it needs no URL at all.
  */
-import { EDGE_PATHS, MEDIA_BUCKETS, MEDIA_MAX_BYTES } from "@loonext/rig-protocol";
+import type { MEDIA_BUCKETS} from "@loonext/rig-protocol";
+import { EDGE_PATHS, MEDIA_MAX_BYTES } from "@loonext/rig-protocol";
 import { codeWav } from "./audio/generate.ts";
 import { gpsJpeg, sha256Hex } from "./media.ts";
 import type { Surface } from "./audio/surfaces.ts";
@@ -106,7 +107,7 @@ export class StorageProbe implements ProbeSource {
   }
 
   async #upload(surface: Surface): Promise<void> {
-    const wav = codeWav(surface, { sampleRate: 8_000, cycles: PROBE_CYCLES });
+    const wav = codeWav(surface, { sampleRate: 8000, cycles: PROBE_CYCLES });
     if (wav.byteLength > MEDIA_MAX_BYTES) throw new Error("probe: the code is larger than the relay serves");
     const storage = `${this.#options.supabaseUrl.replace(/\/+$/, "")}/storage/v1`;
     const response = await this.#fetch(`${storage}/object/${BUCKET}/${PREFIX}/${surface}.wav`, {
@@ -131,7 +132,7 @@ export class InlineProbe implements ProbeSource {
   async playback(surface: Surface): Promise<PlaybackCommand> {
     let content = this.#cache.get(surface);
     if (!content) {
-      content = Buffer.from(codeWav(surface, { sampleRate: 8_000, cycles: 4 })).toString("base64");
+      content = Buffer.from(codeWav(surface, { sampleRate: 8000, cycles: 4 })).toString("base64");
       this.#cache.set(surface, content);
     }
     return { playback_content: content, audio_type: "wav", loop: "infinity", target_legs: "self" };

@@ -27,20 +27,27 @@ export function pinnedSnippet(
   const first = message.attachments?.[0];
   if (!first) return "Attachment";
   switch (mmsMediaKind(first.content_type)) {
-    case "image":
+    case "image": {
       return "Photo";
-    case "audio":
+    }
+    case "audio": {
       return "Audio";
-    case "video":
+    }
+    case "video": {
       return "Video";
-    case "contact":
+    }
+    case "contact": {
       return "Contact card";
-    case "calendar":
+    }
+    case "calendar": {
       return "Calendar invite";
-    case "document":
+    }
+    case "document": {
       return "PDF";
-    default:
+    }
+    default: {
       return "Attachment";
+    }
   }
 }
 
@@ -48,10 +55,10 @@ export function pinnedSnippet(
 export function sortPinned(messages: readonly Message[]): Message[] {
   return messages
     .filter((m) => m.pinned_at !== null)
-    .sort((a, b) => {
+    .toSorted((a, b) => {
       const at = a.pinned_at ?? "";
       const bt = b.pinned_at ?? "";
-      return at < bt ? 1 : at > bt ? -1 : 0;
+      return at < bt ? 1 : (at > bt ? -1 : 0);
     });
 }
 

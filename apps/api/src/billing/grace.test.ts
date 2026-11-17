@@ -9,13 +9,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runGraceJob } from "./grace";
-import {
-  countResponse,
-  endpoint,
-  makeHarness,
-  type Harness,
-  type StubEndpoint,
-} from "../test/billing-support";
+import { countResponse, endpoint, makeHarness } from '../test/billing-support';
+import type { Harness, StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
 import {
   closeOutDeadProvisioning,
@@ -143,7 +138,7 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     // Ledger insert strictly precedes the email on the wire.
     const insertIndex = harness.calls.indexOf(inserts[0]);
     const emailIndex = harness.calls.findIndex((call) =>
-      /api\.resend\.com/.test(call.url.href),
+      call.url.href.includes('api.resend.com'),
     );
     expect(insertIndex).toBeLessThan(emailIndex);
     expect(releaseCompanyNumbers).not.toHaveBeenCalled();
@@ -285,7 +280,7 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     });
     const claimIndex = harness.calls.indexOf(claim!);
     const emailIndex = harness.calls.findIndex((call) =>
-      /api\.resend\.com/.test(call.url.href),
+      call.url.href.includes('api.resend.com'),
     );
     expect(claimIndex).toBeLessThan(emailIndex);
   });
@@ -503,7 +498,7 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
       endpoint(
         "POST",
         /\/rest\/v1\/grace_notices/,
-        () => new Response(JSON.stringify({ message: "db down" }), { status: 500 }),
+        () => Response.json({ message: "db down" }, { status: 500 }),
       ),
       // The unfinished-release sweep runs on every pass.
       endpoint("GET", /\/rest\/v1\/phone_numbers/, () => []),

@@ -28,23 +28,14 @@
  *     the first-visit affordance still belongs on screen.
  */
 
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useState,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
+import type { ReactNode } from 'react';
 
-import {
-  readStoredCountry,
-  writeStoredCountry,
-  type Country,
-} from "./country-storage";
+import { readStoredCountry, writeStoredCountry } from './country-storage';
+import type {Country} from './country-storage';
 
-export type { Country };
+export { type Country } from './country-storage';
+
 
 export interface CountryLabel {
   id: Country;
@@ -94,7 +85,7 @@ export function CountryProvider({
   // returning visitor one frame later.
   useEffect(() => {
     const stored = readStoredCountry(
-      typeof window !== "undefined" ? window.localStorage : null,
+      typeof window === "undefined" ? null : window.localStorage,
     );
     if (stored) {
       setCountryState(stored);
@@ -106,7 +97,7 @@ export function CountryProvider({
     setCountryState(next);
     setHasChosen(true);
     writeStoredCountry(
-      typeof window !== "undefined" ? window.localStorage : null,
+      typeof window === "undefined" ? null : window.localStorage,
       next,
     );
   }, []);

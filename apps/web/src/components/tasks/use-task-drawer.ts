@@ -1,7 +1,8 @@
 "use client";
 
 import { usePathname, useSearchParams } from "next/navigation";
-import { useCallback, type MouseEvent } from "react";
+import { useCallback } from 'react';
+import type { MouseEvent } from 'react';
 
 import { updateSearch } from "@/lib/url/search-state";
 

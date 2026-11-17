@@ -16,7 +16,8 @@
  * the 555-01XX safe fictional range.
  */
 
-import { assistantCopy, type AssistantCopy } from "@/i18n/marketing/assistant";
+import { assistantCopy } from '@/i18n/marketing/assistant';
+import type { AssistantCopy } from '@/i18n/marketing/assistant';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Send, Sparkle } from "lucide-react";
 

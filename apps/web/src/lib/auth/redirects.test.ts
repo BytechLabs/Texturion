@@ -138,8 +138,8 @@ describe("middleware redirect logic (SPEC §10, G12)", () => {
   it("safeNextPath rejects backslash/control-char open-redirect bypasses", () => {
     // The URL parser folds `\` -> `/`, so `/\evil` would resolve to `//evil`
     // (protocol-relative → off-site) when the callback does new URL(next, origin).
-    expect(safeNextPath("/\\evil.example")).toBe("/for-you");
-    expect(safeNextPath("/\\/evil.example")).toBe("/for-you");
+    expect(safeNextPath(String.raw`/\evil.example`)).toBe("/for-you");
+    expect(safeNextPath(String.raw`/\/evil.example`)).toBe("/for-you");
     expect(safeNextPath("/\tevil.example")).toBe("/for-you");
     expect(safeNextPath("/\nevil.example")).toBe("/for-you");
     expect(safeNextPath("/ evil.example")).toBe("/for-you");

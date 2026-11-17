@@ -4,22 +4,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  AUTHORIZE_RPC,
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  pgError,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, AUTHORIZE_RPC, buildTestApp, membershipResponder, pgError, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { meRoutes } from "./me";
 
 const env = completeEnv();
@@ -96,7 +84,7 @@ describe("GET /v1/me", () => {
       companyId: null,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       user_id: auth.subject,
       display_name: "Casey Owner",
       // #386: null means "we can reach you" — the common case, and the one
@@ -255,7 +243,7 @@ describe("GET /v1/me", () => {
       companyId: OTHER_COMPANY_ID,
     });
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "forbidden", message: expect.any(String) },
     });
   });
@@ -399,7 +387,7 @@ describe("PATCH /v1/me (#112: set your own display name)", () => {
       body: { locale: "fr-CA" },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       display_name: "Pat Rivera",
       locale: "fr-CA",
     });
@@ -466,7 +454,7 @@ describe("PATCH /v1/me (#112: set your own display name)", () => {
     expect(res.status).toBe(200);
     // #228: the response echoes both halves of the profile, so a client that
     // set one does not have to re-read to learn the other.
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       display_name: "Pat Rivera",
       locale: null,
     });
@@ -519,7 +507,7 @@ describe("POST /v1/me/oriented (#286: the joining orientation)", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ oriented: true, marked: true });
+    await expect(res.json()).resolves.toEqual({ oriented: true, marked: true });
 
     // The user id is the verified `sub`. There is no body on this route at
     // all, which is the point: "I have been oriented" is only ever a statement
@@ -550,7 +538,7 @@ describe("POST /v1/me/oriented (#286: the joining orientation)", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ oriented: true, marked: false });
+    await expect(res.json()).resolves.toEqual({ oriented: true, marked: false });
   });
 
   it("refuses somebody who is not a member of the company they named", async () => {
@@ -587,7 +575,7 @@ describe("POST /v1/me/oriented (#286: the joining orientation)", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ oriented: false });
+    await expect(res.json()).resolves.toMatchObject({ oriented: false });
   });
 });
 
@@ -618,7 +606,7 @@ describe("PUT /v1/me/dashboard (#540: a member puts a panel away)", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ hidden: ["pipeline", "recent_calls"] });
+    await expect(res.json()).resolves.toEqual({ hidden: ["pipeline", "recent_calls"] });
 
     // The user id is the verified `sub`, never the body — there is no request a
     // caller can make that rearranges somebody else's dashboard.
@@ -703,7 +691,7 @@ describe("PUT /v1/me/dashboard (#540: a member puts a panel away)", () => {
       { method: "PUT", companyId: COMPANY_ID, body: { hidden: [] } },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ hidden: [] });
+    await expect(res.json()).resolves.toEqual({ hidden: [] });
   });
 
   it("refuses somebody who is not a member of the company they named", async () => {
@@ -777,7 +765,7 @@ describe("PUT /v1/me/dashboard-layout (#736: a member arranges their own page)",
       },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ layout: stored });
+    await expect(res.json()).resolves.toEqual({ layout: stored });
     const call = sb.find("POST", "/rest/v1/rpc/api_set_dashboard_layout")[0];
     expect(call.body).toEqual({
       p_company_id: COMPANY_ID,
@@ -797,7 +785,7 @@ describe("PUT /v1/me/dashboard-layout (#736: a member arranges their own page)",
       body: { layout: null },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ layout: null });
+    await expect(res.json()).resolves.toEqual({ layout: null });
     expect(sb.find("POST", "/rest/v1/rpc/api_set_dashboard_layout")[0].body).toMatchObject({
       p_layout: null,
     });
@@ -907,7 +895,7 @@ describe("GET /v1/me/joining-note names who it came from (#750)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ note: "Welcome aboard", from: "Casey Owner" });
+    await expect(res.json()).resolves.toEqual({ note: "Welcome aboard", from: "Casey Owner" });
     const profile = sb.find("GET", "/rest/v1/profiles")[0];
     expect(profile.url.searchParams.get("user_id")).toBe(`eq.${OWNER_ID}`);
   });

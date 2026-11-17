@@ -10,7 +10,8 @@
  * invented (BLUEPRINT §3.10/§3.11: "reuses the NANP table island").
  */
 
-import { NANP_AREA_CODES, type NanpEntry } from "@loonext/shared";
+import { NANP_AREA_CODES } from '@loonext/shared';
+import type { NanpEntry } from '@loonext/shared';
 
 import { CITY_NPA_INDEX } from "@/app/onboarding/city-npas";
 

@@ -7,8 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { deliverPush, newestPerUser } from "./deliver";
 import { pushTopic } from "./webpush";
 
@@ -47,9 +49,9 @@ async function subscription(id: string, userId: string = USER) {
   );
   const b64u = (bytes: Uint8Array) =>
     btoa(String.fromCharCode(...bytes))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
+      .replaceAll('+', "-")
+      .replaceAll('/', "_")
+      .replace(/[=]+$/, "");
   return {
     id,
     user_id: userId,
@@ -100,7 +102,7 @@ function world(
   return { sb, routes: [sb.route, pushRoute], sends };
 }
 
-describe("deliverPush", () => {
+describe(deliverPush, () => {
   it("asks for nothing when there is nobody to reach", async () => {
     // A pipeline whose audience filtered down to nobody must not spend two
     // queries proving it.
@@ -404,7 +406,7 @@ describe("#228 a push speaks the reader's language", () => {
       phone("60000000-0000-4000-8000-000000000001", USER, "fr-CA"),
       phone("60000000-0000-4000-8000-000000000002", OTHER_USER, "en"),
     ]);
-    expect(bodies.sort()).toEqual(["en", "fr-CA"]);
+    expect(bodies.toSorted()).toEqual(["en", "fr-CA"]);
   });
 
   it("lets what a member CHOSE beat what their handset reports", async () => {
@@ -488,7 +490,7 @@ describe("#228 a push speaks the reader's language", () => {
   });
 });
 
-describe("newestPerUser", () => {
+describe(newestPerUser, () => {
   it("gives every recipient their own quota", () => {
     const rows = [
       { user_id: "a", id: "a1" },

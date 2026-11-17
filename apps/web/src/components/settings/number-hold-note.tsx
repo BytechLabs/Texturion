@@ -54,13 +54,13 @@ export function NumberHoldNote({
         <>
           {hold.allowance === null
             ? t("settingsMore.numberHoldOverAllowanceUnknown")
-            : hold.allowance === 1
+            : (hold.allowance === 1
               ? t("settingsMore.numberHoldOverAllowanceOne", {
                   count: hold.allowance,
                 })
               : t("settingsMore.numberHoldOverAllowanceMany", {
                   count: hold.allowance,
-                })}{" "}
+                }))}{" "}
           <Link
             href="/settings/billing"
             className="font-medium text-primary underline-offset-4 hover:underline"
@@ -69,7 +69,7 @@ export function NumberHoldNote({
           </Link>
           .
         </>
-      ) : hold?.kind === "subscription_inactive" ? (
+      ) : (hold?.kind === "subscription_inactive" ? (
         <>
           {t("settingsMore.numberHoldPaused")}{" "}
           <Link
@@ -97,7 +97,7 @@ export function NumberHoldNote({
           </Link>{" "}
           {t("settingsMore.numberHoldToSeeWhy")}
         </>
-      )}
+      ))}
     </p>
   );
 }

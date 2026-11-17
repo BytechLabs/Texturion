@@ -12,10 +12,8 @@
  * Server component, static DOM, 555-01XX safe fictional numbers.
  */
 
-import {
-  consentVisualCopy,
-  type ConsentVisualCopy,
-} from "@/i18n/marketing/consent-visual";
+import { consentVisualCopy } from '@/i18n/marketing/consent-visual';
+import type { ConsentVisualCopy } from '@/i18n/marketing/consent-visual';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { MessageSquareText, ShieldCheck } from "lucide-react";
 

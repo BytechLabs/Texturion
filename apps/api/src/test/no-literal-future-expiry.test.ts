@@ -108,7 +108,7 @@ const ALLOWED: Allowed[] = [
   },
 ];
 
-const camel = (key: string) => key.replace(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
+const camel = (key: string) => key.replaceAll(/_([a-z])/g, (_, letter: string) => letter.toUpperCase());
 const capital = (word: string) => word[0].toUpperCase() + word.slice(1);
 
 /** `expires_at`, `expiresAt`, a prefixed `current_period_ends_at` or `trialEndsAt`, and `FUTURE`. */

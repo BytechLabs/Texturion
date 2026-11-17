@@ -7,7 +7,8 @@
  *
  * A token never appears in an error: errors name the request and its status.
  */
-import { HOSTD_PORT, isRigDevice, type RigDeviceName } from "./devices.ts";
+import { HOSTD_PORT, isRigDevice } from './devices.ts';
+import type { RigDeviceName } from './devices.ts';
 
 export const HOSTD_ORIGIN = `http://127.0.0.1:${HOSTD_PORT}`;
 
@@ -66,20 +67,20 @@ export class HostdClient {
     const whpx = body?.whpx?.usable;
     const tunnel = body?.tunnel?.up;
     const reboot = body?.reboot_pending;
-    if (typeof whpx !== "boolean") throw new Error("hostd: /v1/health does not report whpx.usable");
-    if (typeof tunnel !== "boolean") throw new Error("hostd: /v1/health does not report tunnel.up");
-    if (typeof reboot !== "boolean") throw new Error("hostd: /v1/health does not report reboot_pending");
+    if (typeof whpx !== "boolean") throw new TypeError("hostd: /v1/health does not report whpx.usable");
+    if (typeof tunnel !== "boolean") throw new TypeError("hostd: /v1/health does not report tunnel.up");
+    if (typeof reboot !== "boolean") throw new TypeError("hostd: /v1/health does not report reboot_pending");
     return { whpx_usable: whpx, tunnel_up: tunnel, reboot_pending: reboot };
   }
 
   /** Starts the device's emulator; `cold` skips the snapshot, `wipe` also erases its data. */
   async boot(name: RigDeviceName, options: { cold: boolean; wipe: boolean }): Promise<void> {
-    await this.#request("POST", `/v1/devices/${device(name)}/boot`, { cold: options.cold === true, wipe: options.wipe === true }, BOOT_REQUEST_TIMEOUT_MS);
+    await this.#request("POST", `/v1/devices/${device(name)}/boot`, { cold:  options.cold, wipe:  options.wipe }, BOOT_REQUEST_TIMEOUT_MS);
   }
 
   /** Stops the device's emulator: through its console, or `hard` by ending the process. */
   async kill(name: RigDeviceName, options: { hard: boolean }): Promise<void> {
-    await this.#request("POST", `/v1/devices/${device(name)}/kill`, { hard: options.hard === true });
+    await this.#request("POST", `/v1/devices/${device(name)}/kill`, { hard:  options.hard });
   }
 
   /** The running emulator's console and gRPC tokens; each boot makes new ones. */
@@ -105,7 +106,7 @@ export class HostdClient {
         signal: AbortSignal.timeout(Math.max(this.#o.timeoutMs ?? 30_000, minTimeoutMs)),
       });
     } catch (error) {
-      throw new Error(`hostd: ${method} ${path} got no answer (${error instanceof Error ? error.name : "error"}); is the tunnel up?`);
+      throw new Error(`hostd: ${method} ${path} got no answer (${error instanceof Error ? error.name : "error"}); is the tunnel up?`, { cause: error });
     }
     const text = await response.text();
     if (!response.ok) throw new Error(`hostd: ${method} ${path} answered ${response.status}`);

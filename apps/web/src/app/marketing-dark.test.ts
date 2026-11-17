@@ -1,5 +1,5 @@
-import { readFileSync, statSync } from "node:fs";
-import { join, relative } from "node:path";
+import { readFileSync } from "node:fs";
+import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
@@ -39,7 +39,7 @@ import { sourceFiles as readSourceFiles } from "@/test/source-tree";
  */
 
 const css = readFileSync(
-  fileURLToPath(new URL("./globals.css", import.meta.url)),
+  fileURLToPath(new URL("globals.css", import.meta.url)),
   "utf8",
 );
 
@@ -59,14 +59,14 @@ function token(blockCss: string, name: string): string {
 
 function luminance(hex: string): number {
   const channel = (i: number) => {
-    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   };
   return 0.2126 * channel(1) + 0.7152 * channel(3) + 0.0722 * channel(5);
 }
 
 function contrast(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  const [hi, lo] = [luminance(a), luminance(b)].toSorted((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 }
 
@@ -80,7 +80,7 @@ const DARK = block(
     ".dark .marketing,\n.marketing.dark,\n.marketing .dark",
 );
 
-const COLUMNS: ReadonlyArray<readonly [string, string]> = [
+const COLUMNS: readonly (readonly [string, string])[] = [
   ["light", LIGHT],
   ["dark", DARK],
 ];
@@ -226,7 +226,7 @@ describe("#362 phase 8 — marketing reads in both modes", () => {
    ------------------------------------------------------------------------- */
 
 const MARKETING_DIRS = [
-  fileURLToPath(new URL("./(marketing)", import.meta.url)),
+  fileURLToPath(new URL("(marketing)", import.meta.url)),
   fileURLToPath(new URL("../components/marketing", import.meta.url)),
 ];
 
@@ -260,8 +260,8 @@ describe("#362 phase 8 — no literal white on a surface that flips", () => {
         // Comments EXPLAIN why the literal is wrong; several of these files now
         // carry that explanation. Flagging the explanation is how a guard gets
         // deleted by the next person who trips over it.
-        .replace(/\/\/.*/g, "")
-        .replace(/\/\*[\s\S]*?\*\//g, "");
+        .replaceAll(/\/\/.*/g, "")
+        .replaceAll(/\/\*[\s\S]*?\*\//g, "");
       for (const [pattern, what] of [
         [/\btext-white\b/g, "text-white"],
         [/\bbg-white\b/g, "bg-white"],
@@ -310,8 +310,8 @@ describe("#362 phase 8 — ink is text, never a surface", () => {
       for (const file of sourceFiles(dir)) {
         if (/\.test\.tsx?$/.test(file)) continue;
         const body = readFileSync(file, "utf8")
-          .replace(/\/\/.*/g, "")
-          .replace(/\/\*[\s\S]*?\*\//g, "");
+          .replaceAll(/\/\/.*/g, "")
+          .replaceAll(/\/\*[\s\S]*?\*\//g, "");
         for (const m of body.matchAll(
           /(?:bg-\[color:var\(--fr-ink\)\](?!\/)|background(?:-color)?:\s*var\(--fr-ink\))/g,
         )) {

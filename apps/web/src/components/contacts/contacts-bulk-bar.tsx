@@ -16,11 +16,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { useT } from "@/i18n/provider";
-import {
-  useBulkContacts,
-  type ContactBulkRequest,
-  type DuplicatePair,
-} from "@/lib/api/contacts";
+import { useBulkContacts } from '@/lib/api/contacts';
+import type { ContactBulkRequest, DuplicatePair } from '@/lib/api/contacts';
 import { useExportContacts } from "@/lib/api/contacts-export-hook";
 import { ApiError } from "@/lib/api/error";
 import { useTags } from "@/lib/api/tags";

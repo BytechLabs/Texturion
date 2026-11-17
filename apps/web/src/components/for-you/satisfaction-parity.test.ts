@@ -61,7 +61,7 @@ const ANDROID_CATALOGUE = join(
  */
 function kotlinCatalogueValues(text: string): string {
   return text
-    .replace(/"inbox\.[A-Za-z0-9_]+"\s*to\s*/g, "")
+    .replaceAll(/"inbox\.[A-Za-z0-9_]+"\s*to\s*/g, "")
     .split("\n")
     .filter((line) => {
       const trimmed = line.trim();
@@ -179,10 +179,10 @@ describe("#313 satisfaction copy is the same on every client", () => {
       const text =
         platform === "web"
           ? `${shared}\n${WEB_COPY}`
-          : platform === "android"
+          : (platform === "android"
             ? ANDROID_COPY
             : `${codeOnly(SOURCES[platform])}
-${readFileSync(IOS_CATALOGUE, "utf8")}`;
+${readFileSync(IOS_CATALOGUE, "utf8")}`);
       for (const fragment of [...CARD_FRAGMENTS, ...GAP_FRAGMENTS]) {
         if (!text.includes(fragment)) missing.push(`${platform}: ${fragment}`);
       }
@@ -190,8 +190,8 @@ ${readFileSync(IOS_CATALOGUE, "utf8")}`;
     expect(
       missing,
       `These #313 sentences are missing or reworded on some clients. Change ` +
-        `all three together, and update the rosters here:\n  ` +
-        missing.join("\n  "),
+        `all three together, and update the rosters here:\n  ${ 
+        missing.join("\n  ")}`,
     ).toEqual([]);
   });
 

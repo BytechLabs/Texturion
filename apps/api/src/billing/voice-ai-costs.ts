@@ -48,7 +48,7 @@ export const VOICE_AI_COST_CENTS_PER_MINUTE = {
    * knowledge retrieval) PLUS speech-to-text and text-to-speech, in one rate.
    * $0.05/min.
    */
-  engine: 5.0,
+  engine: 5,
   /**
    * LLM tokens on Telnyx-owned GPUs, published as $0.003–$0.006/min. The TOP of
    * the range is carried. A managed frontier model (Anthropic/OpenAI) is
@@ -125,4 +125,4 @@ export const CATEGORY_PRICE_CENTS_PER_MONTH = { low: 19_900, high: 49_900 } as c
  * NOT a decision — the price is the founder's call, and this file exists to make
  * that call against measured numbers instead of an asserted range.
  */
-export const PROPOSED_MODULE_PRICE_CENTS = { low: 4_900, high: 7_900 } as const;
+export const PROPOSED_MODULE_PRICE_CENTS = { low: 4900, high: 7900 } as const;

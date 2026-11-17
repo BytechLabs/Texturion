@@ -1,6 +1,7 @@
 "use client";
 
-import { roleHasCapability, type CompanySettingKey } from "@loonext/shared";
+import { roleHasCapability } from '@loonext/shared';
+import type { CompanySettingKey } from '@loonext/shared';
 import { UserCircle } from "lucide-react";
 
 import { useT } from "@/i18n/provider";

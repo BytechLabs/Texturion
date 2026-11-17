@@ -7,7 +7,8 @@
  * is ever stubbed (D13).
  */
 import type { Env } from "../env";
-import { completeEnv, type FetchRoute } from "./support";
+import { completeEnv } from './support';
+import type { FetchRoute } from './support';
 
 export interface TestServiceAccount {
   /** The FCM_SERVICE_ACCOUNT_JSON secret value (key file shape). */

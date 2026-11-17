@@ -19,7 +19,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { supabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { handleChargeDispute } from "./disputes";
 
 const env = completeEnv();

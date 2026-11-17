@@ -164,7 +164,7 @@ export const WEBHOOK_MAX_ATTEMPTS = WEBHOOK_RETRY_SCHEDULE_SECONDS.length + 1;
 export function webhookRetryDelaySeconds(attemptsSoFar: number): number | null {
   if (attemptsSoFar < 1) return 0;
   const next = WEBHOOK_RETRY_SCHEDULE_SECONDS[attemptsSoFar - 1];
-  return next === undefined ? null : next;
+  return next ?? null;
 }
 
 /**

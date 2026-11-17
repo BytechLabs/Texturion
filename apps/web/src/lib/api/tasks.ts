@@ -1,32 +1,17 @@
-import {
-  queryOptions,
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type InfiniteData,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 import { useCallback, useEffect } from "react";
 
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
-import {
-  detailPatchMessage,
-  doneMutationPatch,
-  threadPatchMessage,
-  threadUpsertMessages,
-  type ThreadData,
-} from "./cache";
+import { detailPatchMessage, doneMutationPatch, threadPatchMessage, threadUpsertMessages } from './cache';
+import type { ThreadData } from './cache';
 import { keys, taskMetadataInvalidationKeys } from "./keys";
 import { nextCursorParam } from "./pagination";
 import type { TaskListFilters } from "./task-filters";
-import {
-  taskListKeyFilters,
-  taskSearchParams,
-  type TaskListRequest,
-} from "./task-params";
+import { taskListKeyFilters, taskSearchParams } from './task-params';
+import type { TaskListRequest } from './task-params';
 import type { RepeatRequest, TaskScope } from "@/components/tasks/task-planning";
 import type {
   AddressProvenance,
@@ -189,7 +174,7 @@ export function useBulkTasks() {
         body,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.tasks.lists(companyId),
         refetchType: "active",
       });
@@ -445,35 +430,35 @@ export function useCreateTaskFromMessage(conversationId: string) {
         method: "POST",
         companyId,
         body: {
-          ...(input.message_id !== undefined
-            ? { message_id: input.message_id }
-            : {}),
-          ...(input.source_call_id !== undefined
-            ? { source_call_id: input.source_call_id }
-            : {}),
-          ...(input.title !== undefined ? { title: input.title } : {}),
-          ...(input.description !== undefined
-            ? { description: input.description }
-            : {}),
-          ...(input.assigned_user_id !== undefined
-            ? { assigned_user_id: input.assigned_user_id }
-            : {}),
-          ...(input.assignee_ids !== undefined
-            ? { assignee_ids: input.assignee_ids }
-            : {}),
-          ...(input.due_at !== undefined ? { due_at: input.due_at } : {}),
-          ...(input.address !== undefined ? { address: input.address } : {}),
-          ...(input.contact_id !== undefined
-            ? { contact_id: input.contact_id }
-            : {}),
-          ...(input.conversation_id !== undefined
-            ? { conversation_id: input.conversation_id }
-            : {}),
-          ...(input.priority !== undefined ? { priority: input.priority } : {}),
+          ...(input.message_id === undefined
+            ? {}
+            : { message_id: input.message_id }),
+          ...(input.source_call_id === undefined
+            ? {}
+            : { source_call_id: input.source_call_id }),
+          ...(input.title === undefined ? {} : { title: input.title }),
+          ...(input.description === undefined
+            ? {}
+            : { description: input.description }),
+          ...(input.assigned_user_id === undefined
+            ? {}
+            : { assigned_user_id: input.assigned_user_id }),
+          ...(input.assignee_ids === undefined
+            ? {}
+            : { assignee_ids: input.assignee_ids }),
+          ...(input.due_at === undefined ? {} : { due_at: input.due_at }),
+          ...(input.address === undefined ? {} : { address: input.address }),
+          ...(input.contact_id === undefined
+            ? {}
+            : { contact_id: input.contact_id }),
+          ...(input.conversation_id === undefined
+            ? {}
+            : { conversation_id: input.conversation_id }),
+          ...(input.priority === undefined ? {} : { priority: input.priority }),
           ...(input.label_ids !== undefined && input.label_ids.length > 0
             ? { label_ids: input.label_ids }
             : {}),
-          ...(input.repeat !== undefined ? { repeat: input.repeat } : {}),
+          ...(input.repeat === undefined ? {} : { repeat: input.repeat }),
         },
       }),
     onSuccess: (task) => {
@@ -550,9 +535,9 @@ export function useUpdateTask(conversationId: string) {
           ...previousDetail,
           ...patch,
           // The first assignee follows the crew, as the server keeps it.
-          ...(patch.assignee_ids !== undefined
-            ? { assigned_user_id: patch.assignee_ids[0] ?? null }
-            : {}),
+          ...(patch.assignee_ids === undefined
+            ? {}
+            : { assigned_user_id: patch.assignee_ids[0] ?? null }),
         });
       }
       return { previousDetail, detailKey };

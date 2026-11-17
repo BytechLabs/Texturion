@@ -1,20 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  addPanel,
-  defaultDashboardLayout,
-  LAYOUT_PANEL_IDS,
-  movePanel,
-  movePanelTo,
-  nextPanelSize,
-  normaliseDashboardLayout,
-  panelsNotInLayout,
-  placePanels,
-  removePanel,
-  resizePanel,
-  type PanelBox,
-  type PanelPlacement,
-} from "./dashboard-layout";
+import { addPanel, defaultDashboardLayout, LAYOUT_PANEL_IDS, movePanel, movePanelTo, nextPanelSize, normaliseDashboardLayout, panelsNotInLayout, placePanels, removePanel, resizePanel } from './dashboard-layout';
+import type { PanelBox, PanelPlacement } from './dashboard-layout';
 
 const GAP = 24;
 
@@ -29,7 +16,7 @@ function tallestHole(
   for (let column = 0; column < columns; column++) {
     const inColumn = placements
       .filter((p) => p.column <= column && column < p.column + p.span)
-      .sort((a, b) => a.top - b.top);
+      .toSorted((a, b) => a.top - b.top);
     let end = 0;
     for (const p of inColumn) {
       const expected = end === 0 ? 0 : end + GAP;
@@ -44,8 +31,8 @@ function tallestHole(
 function rng(seed: number): () => number {
   let s = seed;
   return () => {
-    s = (s * 1103515245 + 12345) % 2147483648;
-    return s / 2147483648;
+    s = (s * 1_103_515_245 + 12_345) % 2_147_483_648;
+    return s / 2_147_483_648;
   };
 }
 
@@ -137,7 +124,7 @@ describe("#736 the stored layout", () => {
   it("starts with every panel on the page, the most urgent queue wide", () => {
     const layout = defaultDashboardLayout(["waiting", "unassigned", "tasks", "unread"]);
     expect(panelsNotInLayout(layout)).toEqual([]);
-    expect(layout.panels.map((p) => p.id).sort()).toEqual([...LAYOUT_PANEL_IDS].sort());
+    expect(layout.panels.map((p) => p.id).toSorted()).toEqual([...LAYOUT_PANEL_IDS].toSorted());
     expect(layout.panels.find((p) => p.id === "waiting")?.size).toBe("two_thirds");
     expect(layout.panels.find((p) => p.id === "unassigned")?.size).toBe("third");
   });

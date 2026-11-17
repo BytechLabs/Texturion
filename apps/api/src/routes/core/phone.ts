@@ -20,7 +20,7 @@ export function normalizeNanpPhone(input: string): string | null {
   // Reject non-+1 international prefixes outright ("+44…" must not normalize).
   if (trimmed.startsWith("+") && !trimmed.startsWith("+1")) return null;
 
-  const digits = trimmed.replace(/\D/g, "");
+  const digits = trimmed.replaceAll(/\D/g, "");
   let national: string;
   if (digits.length === 10) {
     national = digits;

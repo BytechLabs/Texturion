@@ -18,10 +18,10 @@ import {
 } from "../calls/greeting-capture";
 import { ApiError, errorResponse } from "../http/errors";
 import type { AppEnv } from "../context";
-import type { Bindings } from "../env";
 import type { Env } from "../env";
 import { FakeRest } from "../telnyx/test-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { voicemailGreetingsRoutes } from "./voicemail-greetings";
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
@@ -34,7 +34,7 @@ afterEach(() => {
 
 /** Every write to the greetings bucket, so a test can count them. */
 function storageRoutes(env: Env) {
-  const origin = new URL(env.SUPABASE_URL).origin;
+  const {origin} = new URL(env.SUPABASE_URL);
   const uploads: string[] = [];
   const removed: string[] = [];
   const route: FetchRoute = (url, request) => {
@@ -161,7 +161,7 @@ function buildHarness(
     storage,
     dials: telnyx.dials,
     request: (path: string, init?: RequestInit) =>
-      app.request(path, init, env as unknown as Bindings),
+      app.request(path, init, env),
   };
 }
 
@@ -216,7 +216,7 @@ describe("#309 recording a greeting", () => {
       upload({ name: "Epic", durationMs: "180000" }),
     );
     expect(res.status).toBe(422);
-    expect(await res.text()).toContain("two minutes");
+    await expect(res.text()).resolves.toContain("two minutes");
     // And nothing was written — the ceiling is checked before the upload.
     expect(harness.storage.uploads).toHaveLength(0);
   });
@@ -242,7 +242,7 @@ describe("#309 recording a greeting", () => {
     );
     expect(res.status).toBe(422);
     // Named the conflict rather than reporting an internal error.
-    expect(await res.text()).toContain("already have a greeting");
+    await expect(res.text()).resolves.toContain("already have a greeting");
     expect(harness.storage.uploads).toHaveLength(1);
     expect(harness.storage.removed).toHaveLength(1);
   });
@@ -276,7 +276,7 @@ describe("#309 recording a greeting by phone", () => {
     );
     expect(res.status).toBe(202);
     expect(harness.dials).toHaveLength(1);
-    const dial = harness.dials[0]!;
+    const dial = harness.dials[0];
     expect(dial.to).toBe("+16135550199");
     expect(dial.from).toBe("+16135550100");
     // The two ceilings a capture leg carries: how long it rings, and how long
@@ -304,13 +304,11 @@ describe("#309 recording a greeting by phone", () => {
       "/v1/voicemail-greetings/capture-call",
       captureCall("After hours", "+16135550199"),
     );
-    const tag = harness.dials[0]!.client_state as string;
+    const tag = harness.dials[0].client_state as string;
     const forged = btoa(
       atob(tag).replace(COMPANY_ID, "dddddddd-0000-4000-8000-00000000000d"),
     );
-    expect(
-      await parseGreetingCaptureState(harness.env, forged, Date.now()),
-    ).toBeNull();
+    await expect(parseGreetingCaptureState(harness.env, forged, Date.now())).resolves.toBeNull();
   });
 
   it("VG-C2: a name already in the list is refused before anything is dialed", async () => {
@@ -324,7 +322,7 @@ describe("#309 recording a greeting by phone", () => {
       captureCall("After hours", "+16135550199"),
     );
     expect(res.status).toBe(422);
-    expect(await res.text()).toContain("already have a greeting");
+    await expect(res.text()).resolves.toContain("already have a greeting");
     expect(harness.dials).toHaveLength(0);
   });
 
@@ -339,7 +337,7 @@ describe("#309 recording a greeting by phone", () => {
       "/v1/voicemail-greetings/capture-call",
       captureCall("Holiday", "+16135550199"),
     );
-    expect(await res.text()).toContain("usage_cap_reached");
+    await expect(res.text()).resolves.toContain("usage_cap_reached");
     expect(harness.dials).toHaveLength(0);
   });
 

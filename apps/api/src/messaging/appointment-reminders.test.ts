@@ -14,7 +14,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { planReminders, type ReminderRule } from "./appointment-reminders";
+import { planReminders } from './appointment-reminders';
+import type { ReminderRule } from './appointment-reminders';
 
 const DAY_BEFORE: ReminderRule = {
   offset_minutes: 1440,
@@ -110,7 +111,7 @@ describe("#237 planReminders", () => {
       dueAt: new Date("2026-09-30T14:00:00Z"),
       rules: [
         { offset_minutes: 5, body: "too close", enabled: true },
-        { offset_minutes: 40320, body: "four weeks out", enabled: true },
+        { offset_minutes: 40_320, body: "four weeks out", enabled: true },
         TWO_HOURS,
       ],
       now,

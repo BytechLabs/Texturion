@@ -74,7 +74,7 @@ export async function burst(
   const timings = outcomes
     .filter((outcome) => typeof outcome.status === "number")
     .map((outcome) => outcome.ms)
-    .sort((a, b) => a - b);
+    .toSorted((a, b) => a - b);
 
   const statuses: Record<string, number> = {};
   for (const outcome of outcomes) {
@@ -112,13 +112,13 @@ async function runOne(
     const result = await Promise.race([task(index), hang]);
     if (result === "hang") return { status: "hang", ms: Date.now() - started };
     return { status: result.status, ms: Date.now() - started };
-  } catch (cause) {
+  } catch (error) {
     return {
       status: "throw",
       ms: Date.now() - started,
       // The message, never the value: a decode failure's `cause.message` has
       // carried customer content before (#585's neighbour).
-      detail: cause instanceof Error ? cause.name : "unknown",
+      detail: error instanceof Error ? error.name : "unknown",
     };
   } finally {
     if (timer) clearTimeout(timer);
@@ -137,7 +137,7 @@ function percentile(sorted: number[], fraction: number): number {
 /** One line per scenario, in a shape that can be pasted into CAPACITY.md. */
 export function line(report: Report): string {
   const statuses = Object.entries(report.statuses)
-    .sort(([a], [b]) => a.localeCompare(b))
+    .toSorted(([a], [b]) => a.localeCompare(b))
     .map(([status, n]) => `${status}×${n}`)
     .join(" ");
   return (

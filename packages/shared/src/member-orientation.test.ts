@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { MEMBER_ROLES, type MemberRole } from "./capabilities";
+import { MEMBER_ROLES } from './capabilities';
+import type { MemberRole } from './capabilities';
 import {
   ORIENTATION_STEPS,
   orientationProgress,
@@ -76,7 +77,7 @@ describe("the progress bar", () => {
     const values = ORIENTATION_STEPS.map((_, index) =>
       orientationProgress(index),
     );
-    expect(values).toEqual([...values].sort((a, b) => a - b));
+    expect(values).toEqual([...values].toSorted((a, b) => a - b));
     expect(values.at(-1)).toBe(1);
   });
 

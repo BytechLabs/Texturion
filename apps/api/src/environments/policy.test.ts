@@ -6,7 +6,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { completeEnv } from "../test/support";
 import { deployEnv } from "./mode";
 import * as policy from "./policy";
@@ -20,8 +21,8 @@ import {
   restrictTelnyxBody,
   RIG_DESTINATION_REFUSED,
   RIG_MESSAGING_PROFILE_DAILY_LIMIT,
-  telemetryEnvironment,
   servesRigRoutes,
+  telemetryEnvironment,
   telnyxRequestRefusal,
 } from "./policy";
 import { OWNED_A, OWNED_B, rigEnv, STRANGER } from "../test/rig-env";
@@ -36,10 +37,10 @@ describe("DEPLOY_ENV", () => {
       const env = name === "rig" ? rigEnv() : { ...completeEnv(), DEPLOY_ENV: name, POSTHOG_API_KEY: "phc_policy_test_key" };
       expect(deployEnv(getEnv(env))).toBe(name);
     }
-    expect(() => getEnv({ ...completeEnv(), DEPLOY_ENV: "staging" })).toThrowError(
+    expect(() => getEnv({ ...completeEnv(), DEPLOY_ENV: "staging" })).toThrow(
       /DEPLOY_ENV/,
     );
-    expect(() => getEnv({ ...completeEnv(), DEPLOY_ENV: "" })).toThrowError(/DEPLOY_ENV/);
+    expect(() => getEnv({ ...completeEnv(), DEPLOY_ENV: "" })).toThrow(/DEPLOY_ENV/);
   });
 });
 
@@ -56,7 +57,7 @@ describe("production's start-up refusals", () => {
   });
 
   it("refuses to boot without a PostHog key, since nothing else would notice", () => {
-    expect(() => getEnv(production({ POSTHOG_API_KEY: undefined }))).toThrowError(
+    expect(() => getEnv(production({ POSTHOG_API_KEY: undefined }))).toThrow(
       /POSTHOG_API_KEY/,
     );
     expect(() => getEnv({ ...completeEnv() })).not.toThrow();
@@ -66,7 +67,7 @@ describe("production's start-up refusals", () => {
   it("refuses TELNYX_API_BASE, naming the variable", () => {
     expect(() =>
       getEnv(production({ TELNYX_API_BASE: "http://127.0.0.1:8791" })),
-    ).toThrowError(/TELNYX_API_BASE/);
+    ).toThrow(/TELNYX_API_BASE/);
   });
 
   it.each([
@@ -77,16 +78,16 @@ describe("production's start-up refusals", () => {
     ["FCM_API_BASE", "https://edge.example"],
     ["FCM_OAUTH_TOKEN_URL", "https://edge.example/token"],
   ])("refuses %s, which would redirect a vendor's traffic", (name, value) => {
-    expect(() => getEnv(production({ [name]: value }))).toThrowError(new RegExp(name));
+    expect(() => getEnv(production({ [name]: value }))).toThrow(new RegExp(name));
   });
 
   it("refuses a database on the rig or on loopback", () => {
     expect(() =>
       getEnv(production({ SUPABASE_URL: "https://db.rig.internal" })),
-    ).toThrowError(/SUPABASE_URL/);
+    ).toThrow(/SUPABASE_URL/);
     expect(() =>
       getEnv(production({ SUPABASE_URL: "http://127.0.0.1:54321" })),
-    ).toThrowError(/SUPABASE_URL/);
+    ).toThrow(/SUPABASE_URL/);
   });
 
   it("is the only mode that refuses TELNYX_API_BASE: local keeps the e2e seam", () => {
@@ -107,7 +108,7 @@ describe("local's start-up refusals: a rig configuration without its flag", () =
   }
 
   it("refuses the rig's whole configuration, naming why", () => {
-    expect(() => getEnv(withoutFlag())).toThrowError(/RIG_OWNED_E164.*DEPLOY_ENV is not rig/);
+    expect(() => getEnv(withoutFlag())).toThrow(/RIG_OWNED_E164.*DEPLOY_ENV is not rig/);
   });
 
   it.each([
@@ -120,7 +121,7 @@ describe("local's start-up refusals: a rig configuration without its flag", () =
     ],
     ["APP_ORIGIN", { APP_ORIGIN: "https://app.rig.internal" }],
   ])("refuses %s on its own", (name, overrides) => {
-    expect(() => getEnv({ ...completeEnv(), ...overrides })).toThrowError(new RegExp(name));
+    expect(() => getEnv({ ...completeEnv(), ...overrides })).toThrow(new RegExp(name));
   });
 
   it("boots a laptop, CI and the e2e harness, which carry none of it", () => {
@@ -173,7 +174,7 @@ describe("rig mode's start-up refusals", () => {
     for (const [key, value] of Object.entries(overrides)) {
       if (value === undefined) delete bindings[key];
     }
-    expect(() => getEnv(bindings)).toThrowError(new RegExp(name));
+    expect(() => getEnv(bindings)).toThrow(new RegExp(name));
   });
 
   it("names variables, never their values", () => {
@@ -237,7 +238,7 @@ const INERT_OUTSIDE_RIG: Record<string, ((env: Env) => void) | "constant"> = {
 
 describe("outside the rig, every policy answer is the permissive one", () => {
   it("classifies every export of the module", () => {
-    expect(Object.keys(policy).sort()).toEqual(Object.keys(INERT_OUTSIDE_RIG).sort());
+    expect(Object.keys(policy).toSorted()).toEqual(Object.keys(INERT_OUTSIDE_RIG).toSorted());
   });
 
   it.each([

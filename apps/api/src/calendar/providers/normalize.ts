@@ -92,7 +92,7 @@ function partsAt(instant: number, timeZone: string): WallClockParts {
     hour: Number(values.get("hour")),
     minute: Number(values.get("minute")),
     second: Number(values.get("second")),
-    millisecond: ((instant % 1_000) + 1_000) % 1_000,
+    millisecond: ((instant % 1000) + 1000) % 1000,
   };
 }
 
@@ -162,7 +162,7 @@ export function instantFromWallClock(
   const candidates = [...offsets]
     .map((offset) => naive - offset)
     .filter((candidate) => sameWallClock(partsAt(candidate, timeZone), target))
-    .sort((left, right) => left - right);
+    .toSorted((left, right) => left - right);
   return candidates.length === 1
     ? new Date(candidates[0]).toISOString()
     : null;
@@ -193,7 +193,7 @@ export function wallClockFromInstant(
 }
 
 export function normalizeCalendarText(value: string | null | undefined): string {
-  return (value ?? "").normalize("NFC").replace(/\r\n?/g, "\n");
+  return (value ?? "").normalize("NFC").replaceAll(/\r\n?/g, "\n");
 }
 
 /** Match the canonical database snapshot's title boundary before an event is

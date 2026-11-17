@@ -16,9 +16,9 @@ export interface Clause {
 /** `**bold**` and `` `code` `` out; the page's own type carries the emphasis. */
 function plain(text: string): string {
   return text
-    .replace(/\*\*/g, "")
-    .replace(/`/g, "")
-    .replace(/\[([^\]]+)\]\([^)]*\)/g, "$1")
+    .replaceAll('**', "")
+    .replaceAll('`', "")
+    .replaceAll(/\[([^\]]+)\]\([^)]*\)/g, "$1")
     .trim();
 }
 
@@ -59,11 +59,11 @@ export function parseDpaClauses(source: string): Clause[] {
     const previous = current.blocks[current.blocks.length - 1];
     // Markdown wraps mid-sentence; join a continuation onto the block it
     // belongs to rather than emitting a paragraph per line.
-    if (previous && previous.kind === "p" && !line.startsWith("  ")) {
+    if (previous?.kind === "p" && !line.startsWith("  ")) {
       previous.text = `${previous.text} ${plain(line)}`.trim();
       continue;
     }
-    if (previous && previous.kind === "li" && line.startsWith("  ")) {
+    if (previous?.kind === "li" && line.startsWith("  ")) {
       previous.text = `${previous.text} ${plain(line)}`.trim();
       continue;
     }

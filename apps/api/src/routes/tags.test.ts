@@ -3,21 +3,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  pgError,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, pgError, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { tagsRoutes } from "./tags";
 
 const env = completeEnv();
@@ -58,7 +47,7 @@ describe("GET /v1/tags", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       data: [{ id: TAG_ID, name: "Won", color: null }],
       next_cursor: null,
     });
@@ -97,7 +86,7 @@ describe("PATCH /v1/tags/:id", () => {
       { method: "PATCH", companyId: COMPANY_ID, body: { name: "Won" } },
     );
     expect(dup.status).toBe(409);
-    expect(await dup.json()).toEqual({
+    await expect(dup.json()).resolves.toEqual({
       error: { code: "conflict", message: expect.any(String) },
     });
   });
@@ -238,7 +227,7 @@ describe("#354 deleting a pipeline stage", () => {
       { method: "PATCH", companyId: COMPANY_ID, body: { name: "Quoted" } },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ pipeline_stage: "quote_sent" });
+    await expect(res.json()).resolves.toMatchObject({ pipeline_stage: "quote_sent" });
   });
 });
 
@@ -298,7 +287,7 @@ describe("#298 POST /v1/tags/:id/merge", () => {
       { method: "POST", companyId: COMPANY_ID, body: { into_tag_id: INTO } },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ merged: true, moved: 12, already_both: 3 });
+    await expect(res.json()).resolves.toMatchObject({ merged: true, moved: 12, already_both: 3 });
   });
 
   it("409s two pipeline stages, and says what would have been lost", async () => {

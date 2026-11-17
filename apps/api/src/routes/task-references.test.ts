@@ -13,13 +13,8 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { taskReferenceRoutes } from "./task-references";
 
 const env = completeEnv();
@@ -68,7 +63,7 @@ describe("GET /v1/tasks/:id/links", () => {
     sb.on("POST", "/rest/v1/rpc/api_task_links", () => ({ outcome: "ok", items: LINKS }));
     const res = await call(sb, `/v1/tasks/${TASK_ID}/links`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: LINKS });
+    await expect(res.json()).resolves.toEqual({ data: LINKS });
   });
 
   it("404s a task the caller cannot see", async () => {
@@ -91,7 +86,7 @@ describe("POST /v1/tasks/:id/links", () => {
     const sb = withLink("ok");
     const res = await call(sb, `/v1/tasks/${TASK_ID}/links`, { method: "POST", body });
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ data: LINKS });
+    await expect(res.json()).resolves.toEqual({ data: LINKS });
     expect(sb.find("POST", "/rest/v1/rpc/api_set_task_link")[0].body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_task_id: TASK_ID,
@@ -152,7 +147,7 @@ describe("linked tasks", () => {
     sb.on("POST", "/rest/v1/rpc/api_linked_tasks", () => ({ outcome: "ok", items: ITEMS }));
     const res = await call(sb, `/v1/contacts/${OTHER_ID}/linked-tasks`);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: ITEMS });
+    await expect(res.json()).resolves.toEqual({ data: ITEMS });
     expect(sb.find("POST", "/rest/v1/rpc/api_linked_tasks")[0].body).toMatchObject({
       p_kind: "contact",
       p_id: OTHER_ID,
@@ -175,7 +170,7 @@ describe("GET /v1/references/resolve", () => {
     sb.on("POST", "/rest/v1/rpc/api_resolve_references", () => answer);
     const res = await call(sb, "/v1/references/resolve?tasks=142,7&contacts=1a2b3c4d&conversations=ABCDEF01");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual(answer);
+    await expect(res.json()).resolves.toEqual(answer);
     expect(sb.find("POST", "/rest/v1/rpc/api_resolve_references")[0].body).toMatchObject({
       p_task_numbers: [142, 7],
       p_contact_prefixes: ["1a2b3c4d"],
@@ -204,7 +199,7 @@ describe("customer texts are never read for references (#690)", () => {
         }
       },
     );
-    expect(users.sort()).toEqual(["conversations.ts", "task-activity.ts", "tasks.ts"]);
+    expect(users.toSorted()).toEqual(["conversations.ts", "task-activity.ts", "tasks.ts"]);
   });
 
   it("in conversations.ts the call sits in the note handler and nowhere near a send", () => {

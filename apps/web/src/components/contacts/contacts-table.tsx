@@ -22,11 +22,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  contactDetailOptions,
-  useContacts,
-  type ContactFieldFilter,
-} from "@/lib/api/contacts";
+import { contactDetailOptions, useContacts } from '@/lib/api/contacts';
+import type { ContactFieldFilter } from '@/lib/api/contacts';
 import type { ContactListItem } from "@/lib/api/types";
 import { ContactActiveFilters, ContactListFilter } from "@/components/contacts/contact-filter";
 import { ContactsBulkBar } from "@/components/contacts/contacts-bulk-bar";
@@ -153,7 +150,7 @@ function ContactSearch({
   );
 }
 
-const ContactRow = memo(function ContactRow({
+const ContactRow = memo(({
   contact,
   selected,
   onToggle,
@@ -161,7 +158,7 @@ const ContactRow = memo(function ContactRow({
   contact: ContactListItem;
   selected: boolean;
   onToggle: (id: string, on: boolean) => void;
-}) {
+}) => {
   const t = useT();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -353,12 +350,7 @@ export function ContactsTable({
               title={t("contacts.noMatchesFor", { query: query.trim() })}
               description={t("contacts.noMatchesDetail")}
             />
-          ) : tagFilter !== undefined ? (
-            <EmptyState
-              title={t("contacts.tagFilteredEmptyTitle")}
-              description={t("contacts.tagFilteredEmptyDetail")}
-            />
-          ) : filtering ? (
+          ) : tagFilter === undefined ? filtering ? (
             // #291: NOT the brand-new empty state. "Your customers show up
             // here on their own" under an active filter reads as "you have no
             // customers", which is alarming and wrong — they are excluded, not
@@ -375,6 +367,11 @@ export function ContactsTable({
               title={t("contacts.emptyTitle")}
               description={t("contacts.emptyDetail")}
               action={emptyAction ?? undefined}
+            />
+          ) : (
+            <EmptyState
+              title={t("contacts.tagFilteredEmptyTitle")}
+              description={t("contacts.tagFilteredEmptyDetail")}
             />
           )
         ) : (
@@ -396,9 +393,9 @@ export function ContactsTable({
                       checked={
                         allSelected
                           ? true
-                          : selectedRows.length > 0
+                          : (selectedRows.length > 0
                             ? "indeterminate"
-                            : false
+                            : false)
                       }
                       onCheckedChange={(on) =>
                         setSelectedIds(

@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -103,8 +103,8 @@ describe("#362 — every custom property that is read is also defined", () => {
       // Comments discuss tokens without painting with them, and this repo's
       // comments frequently write `var(--app-*)` in prose.
       const painted = body
-        .replace(/\/\/.*/g, "")
-        .replace(/\/\*[\s\S]*?\*\//g, "");
+        .replaceAll(/\/\/.*/g, "")
+        .replaceAll(/\/\*[\s\S]*?\*\//g, "");
       // `var(--x, fallback)` is the CORRECT way to read a property that may not
       // be set — the fallback is what makes it safe, so it is not an offender.
       // Only a bare read can silently paint nothing.

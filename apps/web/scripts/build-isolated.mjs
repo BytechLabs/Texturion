@@ -21,7 +21,7 @@
  */
 
 import { spawnSync } from "node:child_process";
-import { rmSync, existsSync } from "node:fs";
+import { existsSync, rmSync } from "node:fs";
 import { createRequire } from "node:module";
 import { join } from "node:path";
 

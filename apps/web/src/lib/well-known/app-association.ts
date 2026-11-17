@@ -26,12 +26,9 @@
  * that always fails.
  */
 
-import {
-  ANDROID_APP_LINK_PATHS,
-  APPLE_APP_LINK_COMPONENTS,
-} from "@loonext/shared";
+import {APPLE_APP_LINK_COMPONENTS} from "@loonext/shared";
 
-/** The package the Android statements are about. Matches `applicationId`. */
+export { ANDROID_APP_LINK_PATHS } from "@loonext/shared";
 export const ANDROID_PACKAGE = "com.loonext.android";
 
 /**
@@ -184,4 +181,4 @@ export function appleAppSiteAssociation(
  * The manifest's intent-filter paths, re-exported so the Android guard and the
  * Apple document are visibly reading one list.
  */
-export { ANDROID_APP_LINK_PATHS };
+

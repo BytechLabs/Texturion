@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { STANDING_ROLES } from "@loonext/rig-protocol";
 import { SPEC } from "../src/setup/spec";
 import { standingReference } from "../src/telnyx/partition";
-import { N, ready, ruleOf, type Harness } from "./support";
+import { N, ready, ruleOf } from './support';
+import type { Harness } from './support';
 
 interface Wire {
   billing_group_id: string;
@@ -34,7 +35,7 @@ describe("GET /partition", () => {
     expect(wire.messaging_profile_ids).not.toContain("prof-prod");
     // Each spec profile by key, the grace workspace's own among them.
     expect(wire.messaging_profiles).toMatchObject({ robot: "prof-robot", "qa-c": "prof-qa-c", "qa-g": "prof-qa-g" });
-    expect(Object.keys(wire.messaging_profiles).sort()).toEqual(SPEC.messaging_profiles.profiles.map((item) => item.key).sort());
+    expect(Object.keys(wire.messaging_profiles).toSorted()).toEqual(SPEC.messaging_profiles.profiles.map((item) => item.key).toSorted());
     // Roles come from each number's customer reference; DEV-A1 carries only the tag.
     expect(wire.standing).toEqual([
       { role: "ROBOT-1", e164: N.robot1, telnyx_phone_number_id: "num-robot1", messaging_profile_id: "prof-robot" },
@@ -56,7 +57,7 @@ describe("GET /partition", () => {
 
   it("is not served to the diag class", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call("/partition", { caller: "diag" }))).toBe("class.not_allowed");
+    await expect(ruleOf(await h.call("/partition", { caller: "diag" }))).resolves.toBe("class.not_allowed");
   });
 
   it("knows the eight roles the spec orders, and names each on Telnyx without a number", () => {

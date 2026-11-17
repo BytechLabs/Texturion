@@ -9,7 +9,7 @@ afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
 });
 
-describe("apiExceptionsNow", () => {
+describe(apiExceptionsNow, () => {
   it("reports a read it cannot make as an error, so R00 fails rather than passing on an empty list", async () => {
     const stateDir = mkdtempSync(join(tmpdir(), "rigd-api-exceptions-"));
     dirs.push(stateDir);

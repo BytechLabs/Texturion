@@ -263,7 +263,7 @@ describe("ReleaseNumberDialog — answering the proof the server asks for", () =
     // bug, and is how the hook's own suite passed for months.
     refuseThenHold("confirmation_code_required");
     attemptRelease();
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
     await answer("123456");
 
     // No `?.`: if the digits never produced a retry there is nothing to refuse,
@@ -276,7 +276,7 @@ describe("ReleaseNumberDialog — answering the proof the server asks for", () =
     // The retry coming back refused, exactly the way the component delivers it.
     await act(async () => {
       retryHandlers.onError?.(
-        new ApiError("confirmation_code_required" as never, "nope", 403),
+        new ApiError("confirmation_code_required", "nope", 403),
       );
     });
 
@@ -286,7 +286,7 @@ describe("ReleaseNumberDialog — answering the proof the server asks for", () =
     // Said once. Not zero times (the defect), not twice.
     expect(screen.getAllByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toHaveLength(1);
     // And no second code minted behind the one being read.
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
   });
 
   it("still reports a refusal no code could fix", async () => {
@@ -297,7 +297,7 @@ describe("ReleaseNumberDialog — answering the proof the server asks for", () =
     mutate.mockImplementation(
       (_input: unknown, handlers?: { onError?: (error: unknown) => void }) => {
         handlers?.onError?.(
-          new ApiError("conflict" as never, "That number is already gone.", 409),
+          new ApiError("conflict", "That number is already gone.", 409),
         );
       },
     );
@@ -309,7 +309,7 @@ describe("ReleaseNumberDialog — answering the proof the server asks for", () =
     );
     // Nothing was retried, and no code was minted for a refusal that is not
     // about proof.
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
     expect(requestCode).not.toHaveBeenCalled();
   });
 });

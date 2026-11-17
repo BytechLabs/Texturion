@@ -40,7 +40,7 @@ async function runLoaderOnce() {
       { parentNode: { insertBefore: (el: { src?: string }) => inserted.push(el.src ?? "") } },
     ],
   };
-  new Function("window", "document", code)(window, d);
+  new Function("window", "document", code)(globalThis, d);
   return inserted;
 }
 

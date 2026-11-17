@@ -3,10 +3,12 @@
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
-import { LOCALES, LOCALE_LABELS, isLocale, type Locale } from "@loonext/shared";
+import { isLocale, LOCALE_LABELS, LOCALES } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 
 import { ChoiceCards } from "@/components/ui/choice-cards";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useCompany } from "@/lib/api/companies";
 import { useUpdateContact } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";

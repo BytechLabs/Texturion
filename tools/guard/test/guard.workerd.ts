@@ -23,7 +23,7 @@ describe("the guard on workerd", () => {
   it("fails a Telnyx route closed without the key", async () => {
     const response = await SELF.fetch("https://guard.internal/telnyx/v2/phone_numbers", as("rig-api"));
     expect(response.status).toBe(403);
-    expect(await response.json()).toEqual({ error: "guard_refused", rule: "telnyx.key_missing" });
+    await expect(response.json()).resolves.toEqual({ error: "guard_refused", rule: "telnyx.key_missing" });
   });
 
   it("keeps one lease at a time in Durable Object storage", async () => {
@@ -43,6 +43,6 @@ describe("the guard on workerd", () => {
 
   it("answers /version", async () => {
     const response = await SELF.fetch("https://guard.internal/version", as("diag"));
-    expect(await response.json()).toHaveProperty("version_id");
+    await expect(response.json()).resolves.toHaveProperty("version_id");
   });
 });

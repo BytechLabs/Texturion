@@ -20,12 +20,8 @@
  * authority — it re-checks all of them — but there is now only one place to
  * change any of them.
  */
-import {
-  contactImportColumnCount,
-  detectContactColumns,
-  type ContactImportField,
-  type ContactImportMapping,
-} from "./contact-import-headers";
+import { contactImportColumnCount, detectContactColumns } from './contact-import-headers';
+import type { ContactImportField, ContactImportMapping } from './contact-import-headers';
 
 /**
  * The multipart field carrying the importer's consent attestation. Only the

@@ -5,10 +5,14 @@
  * summary, and on a failure the per-frame numbers as well (D112): enough to
  * see why a code was missed, not enough to play anything back.
  */
-import { calibrate, type Calibration } from "./audio/calibrate.ts";
-import { detectCodes, type Detection, type Margins } from "./audio/detect.ts";
-import { analyzeFrames, framesForEvidence, type FrameTable } from "./audio/frames.ts";
-import { SURFACES, SURFACE_HZ, type Surface } from "./audio/surfaces.ts";
+import { calibrate } from './audio/calibrate.ts';
+import type { Calibration } from './audio/calibrate.ts';
+import { detectCodes } from './audio/detect.ts';
+import type { Detection, Margins } from './audio/detect.ts';
+import { analyzeFrames, framesForEvidence } from './audio/frames.ts';
+import type { FrameTable } from './audio/frames.ts';
+import { SURFACE_HZ, SURFACES } from './audio/surfaces.ts';
+import type { Surface } from './audio/surfaces.ts';
 import { decodeWav } from "./audio/wav.ts";
 
 export interface JudgeOptions {

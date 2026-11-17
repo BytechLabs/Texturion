@@ -1,5 +1,6 @@
 import { WorkerEntrypoint } from "cloudflare:workers";
-import { EDGE_PATHS, type EdgeForGuardMethods, type MailStatus } from "@loonext/rig-protocol";
+import { EDGE_PATHS } from '@loonext/rig-protocol';
+import type { EdgeForGuardMethods, MailStatus } from '@loonext/rig-protocol';
 
 import { callerClassOf } from "./auth";
 import { handleRpc, handleSecrets, handleUplink } from "./ctl";
@@ -33,7 +34,7 @@ async function route(request: Request, env: Env): Promise<Response> {
   }
 
   const { pathname } = url;
-  const method = request.method;
+  const {method} = request;
 
   if (TELNYX_WEBHOOK_PATHS[pathname] && method === "POST") {
     return handleTelnyxWebhook(env, request, pathname);
@@ -68,8 +69,8 @@ export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     try {
       return harden(await route(request, env));
-    } catch (cause) {
-      console.error(`edge: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } catch (error) {
+      console.error(`edge: ${error instanceof Error ? error.message : String(error)}`);
       return harden(empty(retryable(new URL(request.url).pathname) ? 503 : 500));
     }
   },
@@ -77,10 +78,10 @@ export default {
   async email(message: ForwardableEmailMessage, env: Env): Promise<void> {
     try {
       await receiveMail(message, env);
-    } catch (cause) {
+    } catch (error) {
       // receiveMail catches each step; this is the last line, because a throw
       // here would bounce mail on production's sending domain.
-      console.error(`mail: ${cause instanceof Error ? cause.message : String(cause)}`);
+      console.error(`mail: ${error instanceof Error ? error.message : String(error)}`);
     }
   },
 

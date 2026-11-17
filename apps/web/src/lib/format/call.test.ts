@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { callEndReason, callOutcomeLabel, formatCallDuration } from "./call";
 
-describe("formatCallDuration", () => {
+describe(formatCallDuration, () => {
   it("renders seconds-only under a minute", () => {
     expect(formatCallDuration(58)).toBe("58s");
     expect(formatCallDuration(0)).toBe("0s");
@@ -45,7 +45,7 @@ describe("formatCallDuration", () => {
   });
 });
 
-describe("callOutcomeLabel", () => {
+describe(callOutcomeLabel, () => {
   it("inbound misses are 'Missed'", () => {
     expect(
       callOutcomeLabel({ outcome: "missed", direction: "inbound", forward_seconds: 0 }),

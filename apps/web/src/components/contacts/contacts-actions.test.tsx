@@ -40,7 +40,7 @@ vi.mock("./new-contact-dialog", () => ({
 
 import { NewContactAction } from "./contacts-actions";
 
-describe("NewContactAction", () => {
+describe(NewContactAction, () => {
   beforeEach(() => {
     window.history.replaceState(null, "", "/contacts?q=smith&new=6135550101");
   });

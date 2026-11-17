@@ -1,13 +1,9 @@
 import { publicEnv } from "@/env";
 import { getAccessToken } from "@/lib/supabase/browser";
 
-import { createApiClient, type RequestOptions } from "./core";
+import { createApiClient } from './core';
 
-/**
- * The app-wide API client (G12): fetch wrapper injecting the Supabase session
- * token (Authorization) and the active company (X-Company-Id), parsing the
- * SPEC §7 error envelope into a typed ApiError.
- */
+export { type RequestOptions } from './core';
 export const apiFetch = createApiClient({
   baseUrl: publicEnv.NEXT_PUBLIC_API_URL,
   getAccessToken,
@@ -23,4 +19,4 @@ export function getApiBaseUrl(): string {
   return publicEnv.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
 }
 
-export type { RequestOptions };
+

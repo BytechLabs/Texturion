@@ -63,7 +63,7 @@ function rowMatches(row: Row, url: URL): boolean {
     if (key === "or") {
       // \`or=(a.is.null,b.lt.2026-…)\`: any one condition holds. Each is
       // "<column>.<operator>.<value>", and none of the values here hold commas.
-      const conditions = expr.replace(/^\(|\)$/g, "").split(",");
+      const conditions = expr.replaceAll(/^\(|\)$/g, "").split(",");
       const anyHolds = conditions.some((condition) => {
         const dot = condition.indexOf(".");
         return applyFilter(row, condition.slice(0, dot), condition.slice(dot + 1));
@@ -85,7 +85,7 @@ function applyOrderAndLimit(rows: Row[], url: URL): Row[] {
     result.sort((a, b) => {
       const left = String(a[column] ?? "");
       const right = String(b[column] ?? "");
-      return left < right ? -sign : left > right ? sign : 0;
+      return left < right ? -sign : (left > right ? sign : 0);
     });
   }
   const limit = url.searchParams.get("limit");

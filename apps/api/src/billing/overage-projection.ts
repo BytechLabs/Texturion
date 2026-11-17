@@ -58,29 +58,17 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { readUsageWindow } from "./usage-window";
-import { storedBytes, type StorageUsageRow } from "./stored-bytes";
+import { storedBytes } from './stored-bytes';
+import type { StorageUsageRow } from './stored-bytes';
 
-import {
-  AI_UNIT_COST_CENTS,
-  type AiCostFeature,
-  companyRevenueCents,
-  FIXED_MONTHLY_COST_CENTS,
-  PLAN_MONTHLY_REVENUE_CENTS,
-  stripeNetCents,
-  UNIT_COST_CENTS,
-} from "./costs";
+import { AI_UNIT_COST_CENTS, companyRevenueCents, FIXED_MONTHLY_COST_CENTS, PLAN_MONTHLY_REVENUE_CENTS, stripeNetCents, UNIT_COST_CENTS } from './costs';
+import type { AiCostFeature } from './costs';
 import { enabledModuleFlags } from "./company-modules";
 import { periodProviderCostCents } from "./provider-costs";
 import { EXTRA_NUMBER_MONTHLY_CENTS } from "./extra-numbers";
 import { amortisedMonthlyUsdCents, openPrepayment } from "./prepay";
-import {
-  dialCeilings,
-  PLAN_INCLUDED_SEGMENTS,
-  PLAN_OVERAGE_CENTS_PER_SEGMENT,
-  PLAN_VOICE_MINUTES,
-  VOICE_OVERAGE_CENTS_PER_MINUTE,
-  type PlanId,
-} from "./plans";
+import { dialCeilings, PLAN_INCLUDED_SEGMENTS, PLAN_OVERAGE_CENTS_PER_SEGMENT, PLAN_VOICE_MINUTES, VOICE_OVERAGE_CENTS_PER_MINUTE } from './plans';
+import type { PlanId } from './plans';
 
 const DAY_MS = 86_400_000;
 const GB = 1024 ** 3;
@@ -526,7 +514,7 @@ export async function readPeriodUsage(
       const { data, error } = await db.rpc("api_period_ai_requests", windowed);
       // Best-effort: AI is cents at current volumes, and losing it must never
       // take down the whole profitability answer with it.
-      if (error) return {} as Record<string, number>;
+      if (error) return {};
       const raw = (data ?? {}) as Record<string, unknown>;
       return Object.fromEntries(
         Object.entries(raw).map(([k, v]) => [k, Number(v) || 0]),
@@ -612,11 +600,11 @@ export async function decideOverage(
   // back its plan's list price. See the field's own comment for the three ways
   // the fee goes missing while the pause is perfectly real.
   const planCentsOverride =
-    (company.paused_at ?? null) !== null
-      ? (company.paused_price_cents ?? 0)
-      : openPrepaid
+    (company.paused_at ?? null) === null
+      ? (openPrepaid
         ? amortisedMonthlyUsdCents(openPrepaid, PLAN_MONTHLY_REVENUE_CENTS[company.plan])
-        : undefined;
+        : undefined)
+      : (company.paused_price_cents ?? 0);
   const baseRevenueGrossCents =
     companyRevenueCents(company.plan, paidModules, planCentsOverride) +
     company.paid_extra_numbers * EXTRA_NUMBER_MONTHLY_CENTS[company.plan];

@@ -10,19 +10,14 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { notifyTaskChangeSafely } from "../tasks/notify";
 import { taskActivityRoutes } from "./task-activity";
 
 // The alerts have their own suite (tasks/notify.test.ts); here they are only
 // asked whether the route raised them, for whom, and in what order.
-vi.mock("../tasks/notify", async (importOriginal) => ({
+vi.mock(import("../tasks/notify"), async (importOriginal) => ({
   ...(await importOriginal<typeof import("../tasks/notify")>()),
   notifyTaskChangeSafely: vi.fn(async () => undefined),
 }));
@@ -286,7 +281,7 @@ describe("POST /v1/tasks/:id/comments", () => {
       },
     );
     expect(response.status).toBe(201);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       kind: "comment",
       body: "Bring the long ladder",
       author: { display_name: "Rehman" },
@@ -417,7 +412,7 @@ describe("PATCH and DELETE /v1/tasks/:id/comments/:commentId", () => {
       body: { body: "edited" },
     });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ body: "edited" });
+    await expect(response.json()).resolves.toMatchObject({ body: "edited" });
     expect(
       JSON.stringify(sb.find("PATCH", "/rest/v1/task_comments")[0]),
     ).toContain("edited_at");
@@ -442,7 +437,7 @@ describe("PATCH and DELETE /v1/tasks/:id/comments/:commentId", () => {
       companyId: COMPANY_ID,
     });
     expect(ok.status).toBe(204);
-    expect(allowed.find("PATCH", "/rest/v1/attachments").length).toBe(1);
+    expect(allowed.find("PATCH", "/rest/v1/attachments")).toHaveLength(1);
   });
 });
 
@@ -546,7 +541,7 @@ describe("POST and DELETE /v1/tasks/:id/subscription (#689 D)", () => {
     stubFetch(jwksRoute(auth), sb.route);
     const response = await call("POST");
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ subscribed: true });
+    await expect(response.json()).resolves.toEqual({ subscribed: true });
     expect(sb.find("POST", "/rest/v1/rpc/task_subscribe")[0].body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_task_id: TASK_ID,
@@ -561,7 +556,7 @@ describe("POST and DELETE /v1/tasks/:id/subscription (#689 D)", () => {
     stubFetch(jwksRoute(auth), sb.route);
     const response = await call("DELETE");
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ subscribed: false });
+    await expect(response.json()).resolves.toEqual({ subscribed: false });
     expect(sb.find("POST", "/rest/v1/rpc/task_unsubscribe")[0].body).toEqual({
       p_company_id: COMPANY_ID,
       p_task_id: TASK_ID,

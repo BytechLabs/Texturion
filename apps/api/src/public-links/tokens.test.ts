@@ -26,7 +26,7 @@ function stub(data: unknown, fail = false) {
   return { db: { rpc } as never, calls, rpc };
 }
 
-describe("generateToken", () => {
+describe(generateToken, () => {
   it("is 256 bits, URL-safe, and not a UUID", () => {
     const token = generateToken();
     // 32 bytes base64url with padding stripped.
@@ -44,17 +44,17 @@ describe("generateToken", () => {
   });
 });
 
-describe("hashToken", () => {
+describe(hashToken, () => {
   it("is a stable sha-256 hex digest", async () => {
     const a = await hashToken("hello");
     expect(a).toHaveLength(64);
     expect(a).toMatch(/^[0-9a-f]+$/);
-    expect(await hashToken("hello")).toBe(a);
-    expect(await hashToken("hellp")).not.toBe(a);
+    await expect(hashToken("hello")).resolves.toBe(a);
+    await expect(hashToken("hellp")).resolves.not.toBe(a);
   });
 });
 
-describe("mintPublicLink", () => {
+describe(mintPublicLink, () => {
   it("sends the HASH and never the token", async () => {
     // THE property. A leaked backup, a log line or a support screenshot must
     // disclose nothing usable — password-digest reasoning applied to a URL.
@@ -101,7 +101,7 @@ describe("mintPublicLink", () => {
   });
 });
 
-describe("resolvePublicLink", () => {
+describe(resolvePublicLink, () => {
   it("passes the purpose, so a view token cannot be replayed against accept", async () => {
     const { db, calls } = stub({ ok: true, outcome: "ok" });
     await resolvePublicLink(db, generateToken(), "quote_accept");

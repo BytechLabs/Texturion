@@ -9,7 +9,7 @@ import { budgetAlertCopy, budgetCrossings } from "./notification-budget-alert";
  * customer's side, which is what made them worth a test rather than a fix.
  */
 
-describe("budgetCrossings", () => {
+describe(budgetCrossings, () => {
   it("reports a PUSH crossing, which used to reach nobody", () => {
     // THE BUG. The RPC has always returned this; the handler read only the
     // legacy scalar, which the EMAIL ladder alone sets. So push could cap —
@@ -78,7 +78,7 @@ describe("budgetCrossings", () => {
   });
 });
 
-describe("budgetAlertCopy", () => {
+describe(budgetAlertCopy, () => {
   const base = { companyName: "Ace Plumbing", inboxUrl: "https://app/inbox" };
 
   it("never claims push is paused when only email capped", () => {

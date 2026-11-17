@@ -25,7 +25,7 @@ function item(partial: Partial<GalleryItem>): GalleryItem {
   };
 }
 
-describe("itemsForTab", () => {
+describe(itemsForTab, () => {
   it("splits on the API's own kind field", () => {
     const items = [
       item({ id: "a", kind: "image" }),
@@ -37,7 +37,7 @@ describe("itemsForTab", () => {
   });
 });
 
-describe("sourceLabel", () => {
+describe(sourceLabel, () => {
   it("maps the canonical source enum to display tags", () => {
     expect(sourceLabel("mms")).toBe("Message");
     expect(sourceLabel("note")).toBe("Note");
@@ -56,12 +56,14 @@ function atLocal(daysAgo: number, hour: number, base = new Date()): string {
   return d.toISOString();
 }
 
-describe("dateGroupLabel", () => {
+describe(dateGroupLabel, () => {
   const now = new Date(2026, 6, 2, 12, 0, 0); // Jul 2 2026, local noon
+
   it("labels today / yesterday relatively", () => {
     expect(dateGroupLabel(atLocal(0, 9, now), now)).toBe("Today");
     expect(dateGroupLabel(atLocal(1, 9, now), now)).toBe("Yesterday");
   });
+
   it("drops the year within the current year, keeps it otherwise", () => {
     expect(dateGroupLabel(new Date(2026, 4, 4, 9).toISOString(), now)).toBe(
       "May 4",
@@ -72,7 +74,7 @@ describe("dateGroupLabel", () => {
   });
 });
 
-describe("groupByDate", () => {
+describe(groupByDate, () => {
   it("folds a DESC-sorted list into contiguous groups without re-sorting", () => {
     const now = new Date(2026, 6, 2, 23, 0, 0);
     const items = [
@@ -87,7 +89,7 @@ describe("groupByDate", () => {
   });
 });
 
-describe("formatBytes", () => {
+describe(formatBytes, () => {
   it("scales B / KB / MB and null-guards", () => {
     expect(formatBytes(null)).toBeNull();
     expect(formatBytes(512)).toBe("512 B");
@@ -96,7 +98,7 @@ describe("formatBytes", () => {
   });
 });
 
-describe("fileLabel", () => {
+describe(fileLabel, () => {
   it("prefers the stored name, else derives from the content type", () => {
     expect(fileLabel(item({ file_name: "quote.pdf" }))).toBe("quote.pdf");
     expect(fileLabel(item({ file_name: null, content_type: "application/pdf" }))).toBe(

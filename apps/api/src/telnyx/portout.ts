@@ -26,12 +26,14 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { recordAudit, type AuditAction } from "../audit/log";
+import { recordAudit } from '../audit/log';
+import type { AuditAction } from '../audit/log';
 import { billingRecipients } from "../billing/recipients";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
-import { opsNotice, type OpsNotice } from "../observability/capture";
+import { opsNotice } from '../observability/capture';
+import type { OpsNotice } from '../observability/capture';
 import type { Env } from "../env";
 import type { TelnyxEvent } from "../messaging/types";
 
@@ -69,9 +71,9 @@ export function parsePortOutEvent(event: TelnyxEvent): PortOutNotice | null {
   const portoutId =
     typeof payload.portout_id === "string"
       ? payload.portout_id
-      : typeof payload.id === "string"
+      : (typeof payload.id === "string"
         ? payload.id
-        : null;
+        : null);
   const status = typeof payload.status === "string" ? payload.status : null;
   const raw = payload.phone_numbers;
   const phoneNumbers = Array.isArray(raw)
@@ -142,9 +144,9 @@ function portOutNotice(
         "it, dispute it with the carrier now; after it completes every customer text to " +
         "that number reaches whoever took it. If it is the customer, they are leaving and " +
         "still paying, and this is the only day the conversation is worth having."
-      : notice.status === "ported"
+      : (notice.status === "ported"
         ? "The number is gone and marked ported_out. Check whether the subscription should follow."
-        : "The port did not go through and the number is untouched. Nothing to do.",
+        : "The port did not go through and the number is untouched. Nothing to do."),
   };
 }
 

@@ -23,10 +23,9 @@
 
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-const here = dirname(fileURLToPath(import.meta.url));
+const here = import.meta.dirname;
 const webRoot = join(here, "..");
 const srcDir = join(webRoot, "scripts", "fonts-src");
 const outDir = join(webRoot, "src", "app", "fonts");

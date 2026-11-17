@@ -28,7 +28,8 @@ import {
   volumeFixtureSql,
 } from "../../../scripts/load/volume-fixture.mjs";
 import { burst, capacityResult, emitCapacityResult, line } from "./load-report";
-import { startRigStack, type CallResult, type RigStack } from "./rig-stack";
+import { startRigStack } from './rig-stack';
+import type { CallResult, RigStack } from './rig-stack';
 
 let stack: RigStack;
 
@@ -156,7 +157,7 @@ describe("#251 the API under database saturation answers honestly, ramped", () =
       // What the Worker says it finished, to tell a request stuck inside it
       // from one lost between the driver and it.
       // wrangler prints its access log a little behind the response.
-      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       const servedAfter = stack.servedTotals();
       const workerFinished: Record<string, number> = {};
       for (const [key, total] of Object.entries(servedAfter)) {
@@ -218,8 +219,8 @@ describe("#251 the API under database saturation answers honestly, ramped", () =
         notBusy.map((a) => `${a.status} ${JSON.stringify(a.json)}`).slice(0, 3),
         `level ${level}: refusals that were not a 503`,
       ).toEqual([]);
-      expect(noRetryAfter.length, `level ${level}: 503s without Retry-After`).toBe(0);
-      expect(wrongEnvelope.length, `level ${level}: 503s without the envelope`).toBe(0);
+      expect(noRetryAfter).toHaveLength(0);
+      expect(wrongEnvelope).toHaveLength(0);
       expect(recoveredMs, `level ${level}: never recovered`).not.toBeNull();
     }
   });

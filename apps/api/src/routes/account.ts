@@ -125,8 +125,8 @@ accountRoutes.delete("/account", async (c) => {
       targetId: membership.id,
       after: {
         reason: "account_deleted",
-        conversations_moved: Number(result.conversations ?? 0),
-        tasks_moved: Number(result.tasks ?? 0),
+        conversations_moved: (result.conversations ?? 0),
+        tasks_moved: (result.tasks ?? 0),
       },
     });
   }
@@ -179,7 +179,7 @@ accountRoutes.delete("/account", async (c) => {
   return c.json({
     deleted: true,
     workspaces_left: memberships.length,
-    personal_rows_removed: Number(result.personal_rows ?? 0),
+    personal_rows_removed: (result.personal_rows ?? 0),
     voice_credentials_revoked: voiceRevoked,
     receipt_emailed: receipt.sent,
   });
@@ -195,7 +195,7 @@ async function listMemberships(
     .eq("user_id", userId)
     .is("companies.deleted_at", null);
   if (error) throw new Error(`membership lookup failed: ${error.message}`);
-  return (data ?? []) as { id: string; company_id: string }[];
+  return (data ?? []);
 }
 
 /**
@@ -223,11 +223,11 @@ async function severAuthIdentity(db: Db, userId: string): Promise<void> {
       ban_duration: "876000h",
     });
     if (error) throw new Error(error.message);
-  } catch (cause) {
+  } catch (error) {
     void captureException(
       workerEnv(),
       `account deletion: auth identity not severed for ${userId}: ${
-        cause instanceof Error ? cause.message : String(cause)
+        error instanceof Error ? error.message : String(error)
       }`,
       { source: "api" },
     );

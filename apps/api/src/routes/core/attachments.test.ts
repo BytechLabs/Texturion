@@ -63,16 +63,16 @@ describe("isAllowedAttachmentType (D19 §2.4)", () => {
   });
 });
 
-describe("sniffContentType", () => {
+describe(sniffContentType, () => {
   it("recognizes common magic bytes", () => {
-    expect(sniffContentType(new Uint8Array([0xff, 0xd8, 0xff]))).toBe("image/jpeg");
+    expect(sniffContentType(new Uint8Array([0xFF, 0xD8, 0xFF]))).toBe("image/jpeg");
     expect(
-      sniffContentType(new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+      sniffContentType(new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A])),
     ).toBe("image/png");
     expect(sniffContentType(new Uint8Array([0x25, 0x50, 0x44, 0x46]))).toBe(
       "application/pdf",
     );
-    expect(sniffContentType(new Uint8Array([0x50, 0x4b, 0x03, 0x04]))).toBe(
+    expect(sniffContentType(new Uint8Array([0x50, 0x4B, 0x03, 0x04]))).toBe(
       "application/zip",
     );
   });
@@ -82,9 +82,9 @@ describe("sniffContentType", () => {
   });
 
   it("recognizes executable/script signatures as EXECUTABLE_SNIFF (D19 §2.3)", () => {
-    const mz = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]); // Windows PE
-    const elf = new Uint8Array([0x7f, 0x45, 0x4c, 0x46]); // Linux ELF
-    const machO = new Uint8Array([0xcf, 0xfa, 0xed, 0xfe]); // Mach-O 64 LE
+    const mz = new Uint8Array([0x4D, 0x5A, 0x90, 0x00]); // Windows PE
+    const elf = new Uint8Array([0x7F, 0x45, 0x4C, 0x46]); // Linux ELF
+    const machO = new Uint8Array([0xCF, 0xFA, 0xED, 0xFE]); // Mach-O 64 LE
     const shebang = new TextEncoder().encode("#!/bin/sh\nrm -rf /\n");
     for (const bytes of [mz, elf, machO, shebang]) {
       expect(sniffContentType(bytes)).toBe(EXECUTABLE_SNIFF);
@@ -94,7 +94,7 @@ describe("sniffContentType", () => {
 
 describe("bytesMatchDeclaredType (D19 §2.3)", () => {
   it("accepts a matching image declaration", () => {
-    const png = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
+    const png = new Uint8Array([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A]);
     expect(bytesMatchDeclaredType(png, "image/png")).toBe(true);
   });
 
@@ -104,7 +104,7 @@ describe("bytesMatchDeclaredType (D19 §2.3)", () => {
   });
 
   it("accepts a ZIP-container office declaration for ZIP bytes", () => {
-    const zip = new Uint8Array([0x50, 0x4b, 0x03, 0x04]);
+    const zip = new Uint8Array([0x50, 0x4B, 0x03, 0x04]);
     expect(
       bytesMatchDeclaredType(
         zip,
@@ -119,11 +119,11 @@ describe("bytesMatchDeclaredType (D19 §2.3)", () => {
   });
 
   it("rejects an executable declared as any allowed type (MZ-as-PDF, D19 §2.3)", () => {
-    const mz = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]); // .exe renamed to .pdf
+    const mz = new Uint8Array([0x4D, 0x5A, 0x90, 0x00]); // .exe renamed to .pdf
     expect(bytesMatchDeclaredType(mz, "application/pdf")).toBe(false);
     expect(bytesMatchDeclaredType(mz, "application/zip")).toBe(false);
     expect(bytesMatchDeclaredType(mz, "application/octet-stream")).toBe(false);
-    const elf = new Uint8Array([0x7f, 0x45, 0x4c, 0x46]);
+    const elf = new Uint8Array([0x7F, 0x45, 0x4C, 0x46]);
     expect(bytesMatchDeclaredType(elf, "image/png")).toBe(false);
     const shebang = new TextEncoder().encode("#!/usr/bin/env python\n");
     expect(bytesMatchDeclaredType(shebang, "text/plain")).toBe(false);

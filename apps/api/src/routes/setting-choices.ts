@@ -3,11 +3,8 @@
  * who chose the current value and when, so Settings can say "Take a message,
  * set by Dana on Aug 8" rather than look like the product's own choice.
  */
-import {
-  COMPANY_SETTING_DEFAULTS,
-  REVENUE_SETTING_KEYS,
-  type CompanySettingKey,
-} from "@loonext/shared";
+import { COMPANY_SETTING_DEFAULTS, REVENUE_SETTING_KEYS } from '@loonext/shared';
+import type { CompanySettingKey } from '@loonext/shared';
 import { Hono } from "hono";
 
 import { requireCapability } from "../auth/company";

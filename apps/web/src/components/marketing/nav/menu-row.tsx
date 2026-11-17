@@ -21,8 +21,8 @@ import { MenuIconChip } from "./menu-icon";
 export const MenuRow = React.forwardRef<
   HTMLAnchorElement,
   { item: NavItem } & Omit<React.ComponentPropsWithoutRef<typeof Link>, "href">
->(function MenuRow({ item, className, ...rest }, ref) {
-  return (
+>(({ item, className, ...rest }, ref) => 
+  (
     <Link
       ref={ref}
       href={item.href}
@@ -45,5 +45,5 @@ export const MenuRow = React.forwardRef<
         ) : null}
       </span>
     </Link>
-  );
-});
+  )
+);

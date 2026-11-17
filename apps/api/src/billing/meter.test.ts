@@ -15,7 +15,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("reportSegmentUsage", () => {
+describe(reportSegmentUsage, () => {
   it("posts the meter event with env event_name, identifier, and payload mapping", async () => {
     const harness = makeHarness([
       endpoint("POST", /api\.stripe\.com\/v1\/billing\/meter_events/, () => ({
@@ -62,8 +62,8 @@ describe("reportSegmentUsage", () => {
         "POST",
         /api\.stripe\.com\/v1\/billing\/meter_events/,
         () =>
-          new Response(
-            JSON.stringify({ error: { message: "rate limited", type: "invalid_request_error" } }),
+          Response.json(
+            { error: { message: "rate limited", type: "invalid_request_error" } },
             { status: 429 },
           ),
       ),

@@ -28,18 +28,23 @@ export function phaseFromSdkState(state: string): CallPhase {
     case "requesting":
     case "recovering":
     case "ringing":
-    case "early":
+    case "early": {
       return "connecting";
-    case "active":
+    }
+    case "active": {
       return "active";
-    case "held":
+    }
+    case "held": {
       return "held";
+    }
     case "hangup":
     case "destroy":
-    case "purge":
+    case "purge": {
       return "ended";
-    default:
+    }
+    default: {
       return "connecting";
+    }
   }
 }
 
@@ -181,18 +186,22 @@ export function softphoneReducer(
   action: SoftphoneAction,
 ): SoftphoneState {
   switch (action.type) {
-    case "ready":
+    case "ready": {
       return { ...state, ready: true, error: null };
-    case "disconnected":
+    }
+    case "disconnected": {
       // The socket dropped — the phone can't ring until it re-registers. Recovery
       // (visibility/online/backoff) flips this back to ready.
       return state.ready ? { ...state, ready: false } : state;
-    case "registration_reset":
+    }
+    case "registration_reset": {
       return state.ready || state.error
         ? { ...state, ready: false, error: null }
         : state;
-    case "error":
+    }
+    case "error": {
       return { ...state, error: action.message };
+    }
     case "placing": {
       const call: CallInfo = {
         id: action.id,
@@ -243,7 +252,7 @@ export function softphoneReducer(
           state.activeId === action.placementId ? action.id : state.activeId,
       };
     }
-    case "placement_failed":
+    case "placement_failed": {
       return {
         ...state,
         error: action.message,
@@ -251,8 +260,10 @@ export function softphoneReducer(
         activeId:
           state.activeId === action.placementId ? null : state.activeId,
       };
-    case "session_known":
+    }
+    case "session_known": {
       return updateCall(state, action.id, { sessionId: action.sessionId });
+    }
     case "sdk_state": {
       const call = state.calls.find((c) => c.id === action.id);
       if (!call) return state;
@@ -304,21 +315,24 @@ export function softphoneReducer(
       return {
         ...next,
         activeId: action.held
-          ? state.activeId === action.id
+          ? (state.activeId === action.id
             ? null
-            : state.activeId
+            : state.activeId)
           : action.id,
       };
     }
-    case "muted":
+    case "muted": {
       return updateCall(state, action.id, { muted: action.muted });
-    case "dismissed":
+    }
+    case "dismissed": {
       return {
         ...state,
         calls: state.calls.filter((c) => c.id !== action.id),
         activeId: state.activeId === action.id ? null : state.activeId,
       };
-    default:
+    }
+    default: {
       return state;
+    }
   }
 }

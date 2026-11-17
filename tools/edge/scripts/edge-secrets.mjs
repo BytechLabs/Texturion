@@ -12,7 +12,6 @@
  * secret, never the value itself.
  */
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 const DIGEST = /^[0-9a-f]{64}$/;
 const POSTHOG_KEY = /^phc_[A-Za-z0-9]{20,}$/;
@@ -49,10 +48,10 @@ function main() {
     process.exit(1);
   }
   const names = Object.keys(bulk);
-  console.error(`edge-secrets: ${names.length} of ${Object.keys(EDGE_SECRETS).length} set${names.length ? `: ${names.join(", ")}` : ""}`);
+  console.error(`edge-secrets: ${names.length} of ${Object.keys(EDGE_SECRETS).length} set${names.length > 0 ? `: ${names.join(", ")}` : ""}`);
   process.stdout.write(JSON.stringify(bulk));
 }
 
-if (typeof process !== "undefined" && process.argv?.[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (typeof process !== "undefined" && process.argv?.[1] && resolve(process.argv[1]) === import.meta.filename) {
   main();
 }

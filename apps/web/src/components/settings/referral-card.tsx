@@ -1,19 +1,14 @@
 "use client";
 
-import {
-  formatMoney,
-  PLAN_PRICE_CENTS,
-  REFERRAL_REWARD_LINE,
-  REFERRAL_STAGE_LABELS,
-  type BillingCurrency,
-} from "@loonext/shared";
+import { formatMoney, PLAN_PRICE_CENTS, REFERRAL_REWARD_LINE, REFERRAL_STAGE_LABELS } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 import { Users } from "lucide-react";
 
 import { ReferralShare } from "@/components/settings/referral-share";
 import { SettingsCard } from "@/components/settings/section";
 import { sayWith, useT } from "@/i18n/provider";
 import { useReferrals } from "@/lib/api/billing";
-import { type PlanId } from "@/lib/api/types";
+import type { PlanId } from '@/lib/api/types';
 import { Timestamp } from "@/components/ui/timestamp";
 
 /**

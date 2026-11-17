@@ -4,7 +4,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { blogArt, type BlogArtVariant } from "./blog-art";
+import { blogArt } from './blog-art';
+import type { BlogArtVariant } from './blog-art';
 import { BLOG_POSTS } from "./blog";
 
 const VARIANTS: BlogArtVariant[] = ["card", "banner", "og"];
@@ -14,7 +15,7 @@ function pathNumbers(d: string): number[] {
   return (d.match(/-?\d+(?:\.\d+)?/g) ?? []).map(Number);
 }
 
-describe("blogArt", () => {
+describe(blogArt, () => {
   it("is deterministic: same inputs, identical spec", () => {
     for (const variant of VARIANTS) {
       const a = blogArt("stop-giving-customers-your-personal-cell-number", "GUIDE", variant);

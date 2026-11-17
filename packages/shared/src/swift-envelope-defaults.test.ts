@@ -137,11 +137,11 @@ describe("a shared Swift model can gain a field without breaking its call sites"
 
     expect(
       offenders,
-      "These optional fields on a shared Swift envelope have no `= nil`, so " +
-        "they are REQUIRED arguments of the memberwise init and every " +
-        "construction site must be edited — in a language this machine " +
-        "cannot compile, where the sites live in two directories that look " +
-        "like one. Add `= nil`:\n  " + offenders.join("\n  "),
+      `These optional fields on a shared Swift envelope have no \`= nil\`, so ` +
+        `they are REQUIRED arguments of the memberwise init and every ` +
+        `construction site must be edited — in a language this machine ` +
+        `cannot compile, where the sites live in two directories that look ` +
+        `like one. Add \`= nil\`:\n  ${  offenders.join("\n  ")}`,
     ).toEqual([]);
   });
 });

@@ -1,16 +1,5 @@
-import {
-  contactImportAllColumnValues,
-  contactImportColumnCount,
-  CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT,
-  CONTACT_IMPORT_IGNORE,
-  defaultContactImportColumns,
-  isUsCaDestination,
-  joinContactName,
-  mappingFromDeclarations,
-  readContactFlag,
-  type ContactImportColumnAction,
-  type ContactImportColumnDeclaration,
-} from "@loonext/shared";
+import { CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT, CONTACT_IMPORT_IGNORE, contactImportAllColumnValues, contactImportColumnCount, defaultContactImportColumns, isUsCaDestination, joinContactName, mappingFromDeclarations, readContactFlag } from '@loonext/shared';
+import type { ContactImportColumnAction, ContactImportColumnDeclaration } from '@loonext/shared';
 
 /**
  * The CSV import wizard's model (G6), rebuilt around #248 round 3's rule:
@@ -67,7 +56,7 @@ export function normalizeNanpPhone(input: string): string | null {
   if (trimmed === "") return null;
   if (trimmed.startsWith("+") && !trimmed.startsWith("+1")) return null;
 
-  const digits = trimmed.replace(/\D/g, "");
+  const digits = trimmed.replaceAll(/\D/g, "");
   let national: string;
   if (digits.length === 10) {
     national = digits;
@@ -291,7 +280,7 @@ export function decideColumns(
     if (column.answer === null || column.answer === CONTACT_IMPORT_IGNORE) {
       continue;
     }
-    const field = column.answer as ImportField;
+    const field = column.answer;
     byField.set(field, [...(byField.get(field) ?? []), column]);
   }
   const conflicts: ColumnConflict[] = [];
@@ -302,7 +291,7 @@ export function decideColumns(
     .filter((column) => column.answer !== null)
     .map((column) => ({
       index: column.index,
-      action: column.answer as ContactImportColumnAction,
+      action: column.answer!,
       header: column.header,
     }));
   const mapping = mappingFromDeclarations(answered) as ImportMapping;
@@ -463,7 +452,7 @@ export function summarizePreview(rows: readonly PreviewRow[]): PreviewSummary {
 /** RFC 4180 escaping: quote cells containing commas, quotes, or newlines. */
 export function csvEscape(cell: string): string {
   if (/[",\r\n]/.test(cell)) {
-    return `"${cell.replace(/"/g, '""')}"`;
+    return `"${cell.replaceAll('"', '""')}"`;
   }
   return cell;
 }

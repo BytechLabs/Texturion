@@ -6,11 +6,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, stubFetch } from "../test/support";
 import { recordAudit, recordAuditFromRequest } from "./log";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -28,7 +29,7 @@ function stub(options: { insertFails?: boolean } = {}): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on("POST", "/rest/v1/audit_log", () =>
     options.insertFails
-      ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+      ? Response.json({ message: "boom" }, { status: 500 })
       : [],
   );
   return sb;
@@ -42,7 +43,7 @@ function requestContext(headers: Record<string, string>) {
   } as unknown as Parameters<typeof recordAuditFromRequest>[1];
 }
 
-describe("recordAudit", () => {
+describe(recordAudit, () => {
   it("writes exactly one row carrying the change", async () => {
     const sb = stub();
     stubFetch(sb.route);
@@ -116,7 +117,7 @@ describe("recordAudit", () => {
   });
 });
 
-describe("recordAuditFromRequest", () => {
+describe(recordAuditFromRequest, () => {
   it("keeps where the action came from — the first thing read after a phishing report", async () => {
     const sb = stub();
     stubFetch(sb.route);
@@ -174,6 +175,6 @@ describe("recordAuditFromRequest", () => {
     const written = (
       sb.find("POST", "/rest/v1/audit_log")[0].body as { actor_agent: string }
     ).actor_agent;
-    expect(written.length).toBe(400);
+    expect(written).toHaveLength(400);
   });
 });

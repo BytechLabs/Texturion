@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -11,7 +10,7 @@ import { describe, expect, it } from "vitest";
  * per language.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 type Host = { host: string; line: number };
 type Files = { file: string; text: string }[];
@@ -35,23 +34,23 @@ const hosts = (text: string, syntax: string) => guard.findHosts(text, syntax).ma
 const DEFAULTS_END = "    }\n\n    buildTypes {\n";
 const PLACEHOLDER_OVERRIDE = '            manifestPlaceholders["appLinkHost"] = "nonprod.invalid"\n';
 const GRADLE_TEXT =
-  "android {\n" +
-  "    defaultConfig {\n" +
-  '        buildConfigField("String", "API_URL", "\\"https://api.loonext.com\\"")\n' +
-  "        // The App Links host: https://app.loonext.com, in a comment, is not a use.\n" +
-  '        manifestPlaceholders["appLinkHost"] = "app.loonext.com"\n' +
-  DEFAULTS_END +
-  "        release {\n" +
-  "        }\n" +
-  '        create("nonprod") {\n' +
-  '            initWith(getByName("release"))\n' +
-  "            nonprodProperties?.let { props ->\n" +
-  '                buildConfigField("String", "API_URL", buildConfigString(props.getValue("loonextNonprodApiUrl")))\n' +
-  "            }\n" +
-  PLACEHOLDER_OVERRIDE +
-  "        }\n" +
-  "    }\n" +
-  "}\n";
+  `android {\n` +
+  `    defaultConfig {\n` +
+  `        buildConfigField("String", "API_URL", "\\"https://api.loonext.com\\"")\n` +
+  `        // The App Links host: https://app.loonext.com, in a comment, is not a use.\n` +
+  `        manifestPlaceholders["appLinkHost"] = "app.loonext.com"\n${ 
+  DEFAULTS_END 
+  }        release {\n` +
+  `        }\n` +
+  `        create("nonprod") {\n` +
+  `            initWith(getByName("release"))\n` +
+  `            nonprodProperties?.let { props ->\n` +
+  `                buildConfigField("String", "API_URL", buildConfigString(props.getValue("loonextNonprodApiUrl")))\n` +
+  `            }\n${ 
+  PLACEHOLDER_OVERRIDE 
+  }        }\n` +
+  `    }\n` +
+  `}\n`;
 
 describe("blanking comments", () => {
   it("keeps offsets and newlines, so line numbers still match the file", () => {
@@ -78,7 +77,7 @@ describe("blanking comments", () => {
     expect(hosts('val u = "${if (a) "https://app.loonext.com" else ""}/x"', "kotlin")).toEqual([
       "app.loonext.com",
     ]);
-    expect(hosts('let u = "\\(pick("https://app.loonext.com"))/x"', "swift")).toEqual(["app.loonext.com"]);
+    expect(hosts(String.raw`let u = "\(pick("https://app.loonext.com"))/x"`, "swift")).toEqual(["app.loonext.com"]);
   });
 
   it("reads multi-line strings", () => {
@@ -186,7 +185,7 @@ describe("judging files", () => {
   });
 
   it("fails when a platform's config holds no production host, since the reader is blind", () => {
-    const failures = guard.judge([{ file: GRADLE, text: "" }, configured[1]], { sanctioned, legacy: {} }).failures;
+    const {failures} = guard.judge([{ file: GRADLE, text: "" }, configured[1]], { sanctioned, legacy: {} });
     expect(failures.join("\n")).toMatch(/No production host found in the android config modules/);
   });
 
@@ -213,7 +212,7 @@ describe("the nonprod build type", () => {
   });
 
   it("fails a host it cannot tie to a setting nonprod could replace", () => {
-    const text = GRADLE_TEXT.replace(DEFAULTS_END, '        val prod = "https://api.loonext.com"\n' + DEFAULTS_END);
+    const text = GRADLE_TEXT.replace(DEFAULTS_END, `        val prod = "https://api.loonext.com"\n${  DEFAULTS_END}`);
     expect(guard.nonprodGaps(text).join("\n")).toMatch(/write it as the value of a buildConfigField/);
   });
 

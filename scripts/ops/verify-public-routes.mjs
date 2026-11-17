@@ -41,7 +41,7 @@
  *
  * Usage:  node scripts/ops/verify-public-routes.mjs [--base https://loonext.com]
  */
-import { readdirSync, statSync } from "node:fs";
+import { readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const args = process.argv.slice(2);

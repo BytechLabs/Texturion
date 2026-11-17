@@ -96,7 +96,7 @@ describe("#718 the thread opened at a message", () => {
       wrapper: wrapper(client),
     });
     await waitFor(() => expect(result.current.data).toBeDefined());
-    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledOnce();
     expect(apiFetch.mock.calls[0][0]).toBe("/v1/conversations/conv-1/messages");
     expect(apiFetch.mock.calls[0][1].searchParams).toEqual({
       cursor: undefined,
@@ -135,7 +135,7 @@ describe("#718 the thread opened at a message", () => {
     });
     const client = new QueryClient();
     renderHook(() => useMessages("conv-1"), { wrapper: wrapper(client) });
-    await waitFor(() => expect(apiFetch).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(apiFetch).toHaveBeenCalledOnce());
     expect(apiFetch.mock.calls[0][1].searchParams.around).toBeUndefined();
   });
 

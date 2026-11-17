@@ -48,7 +48,7 @@ export class Mailbox {
       .filter((name) => name.endsWith(".json"))
       .map((name) => JSON.parse(readFileSync(join(this.#dir, name), "utf8")) as StoredMail)
       .filter((mail) => since === undefined || Date.parse(mail.received_at) >= since)
-      .sort((a, b) => a.received_at.localeCompare(b.received_at));
+      .toSorted((a, b) => a.received_at.localeCompare(b.received_at));
   }
 
   purge(): void {
@@ -60,5 +60,5 @@ export class Mailbox {
 }
 
 function safeName(id: string): string {
-  return id.replace(/[^A-Za-z0-9_.-]/g, "_").slice(0, 120);
+  return id.replaceAll(/[^A-Za-z0-9_.-]/g, "_").slice(0, 120);
 }

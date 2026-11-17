@@ -1,11 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { averageDailySpend, balanceFloor, floorFor, readBalance, requireAboveFloor } from "../src/state/balance";
-import { charge, noteHeld, readTier, reconcile, tierOf, type MonthLedger } from "../src/state/ledger";
+import { charge, noteHeld, readTier, reconcile, tierOf } from '../src/state/ledger';
+import type { MonthLedger } from '../src/state/ledger';
 import { CRONS } from "../src/guard";
 import { enforceCap } from "../src/telnyx/detach";
 import { loadPartition } from "../src/telnyx/partition";
-import { harness, ready, type Harness } from "./support";
+import { harness, ready } from './support';
+import type { Harness } from './support';
 
 const LEDGER: MonthLedger = { usage_usd: 0, one_time_usd: 0, reconciled_usd: 0, peak_numbers: 8, caller_name_numbers: 1 };
 /** 2026-11-16, with 15 days left in the month counting today. */
@@ -106,7 +108,7 @@ describe("the balance floor", () => {
       h.telnyx.balance = String(300 - day * 20);
       await readBalance(h.ctx, { fresh: true });
     }
-    expect(await balanceFloor(h.ctx)).toBe(280);
+    await expect(balanceFloor(h.ctx)).resolves.toBe(280);
     await expect(requireAboveFloor(h.ctx)).rejects.toMatchObject({ rule: "budget.balance_floor" });
   });
 
@@ -120,7 +122,7 @@ describe("the balance floor", () => {
     const h = await ready();
     h.telnyx.balance = "40.00";
     const sent = h.outbound.length;
-    expect(await readBalance(h.ctx, { fresh: true })).toBe(40);
+    await expect(readBalance(h.ctx, { fresh: true })).resolves.toBe(40);
     expect(h.outbound.slice(sent)).toEqual([]);
   });
 });
@@ -136,9 +138,9 @@ describe("the cap", () => {
     const detached = await enforceCap(h.ctx, view);
     expect(detached).toBe(4);
     const robot = h.telnyx.numbers.filter((item) => item.connection_id === "conn-robot");
-    expect(robot.map((item) => item.id).sort()).toEqual(["num-robot1", "num-robot2", "num-stranger1"]);
+    expect(robot.map((item) => item.id).toSorted()).toEqual(["num-robot1", "num-robot2", "num-stranger1"]);
     expect(h.telnyx.numbers.find((item) => item.id === "num-prod")?.connection_id).toBe("conn-prod-voice");
-    expect(await enforceCap(h.ctx, await loadPartition(h.ctx, { fresh: true }))).toBe(0);
+    await expect(enforceCap(h.ctx, await loadPartition(h.ctx, { fresh: true }))).resolves.toBe(0);
     expect(detachEvents(h)).toEqual([]);
   });
 
@@ -146,7 +148,7 @@ describe("the cap", () => {
     const h = await ready();
     await charge(h.ctx, 40);
     h.telnyx.failNext = { method: "PATCH", path: "/v2/phone_numbers/num-devw1", status: 500 };
-    expect(await enforceCap(h.ctx, await loadPartition(h.ctx))).toBe(3);
+    await expect(enforceCap(h.ctx, await loadPartition(h.ctx))).resolves.toBe(3);
     expect(h.telnyx.numbers.find((item) => item.id === "num-devw1")?.connection_id).toBe("conn-voice");
     expect(detachEvents(h)).toHaveLength(1);
 

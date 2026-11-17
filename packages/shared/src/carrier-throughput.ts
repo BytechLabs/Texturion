@@ -18,7 +18,8 @@
  * here without replacing the source and the date with it.
  */
 
-import { DEFAULT_LOCALE, type Locale } from "./locale";
+import { DEFAULT_LOCALE } from './locale';
+import type { Locale } from './locale';
 
 export type TenDlcUseCase = "LOW_VOLUME" | "SOLE_PROPRIETOR";
 

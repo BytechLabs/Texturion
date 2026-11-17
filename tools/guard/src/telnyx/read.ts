@@ -1,6 +1,7 @@
 import { Refusal } from "../refusal";
 import { liveLeg } from "../state/legs";
-import { forward, relay, type Handler, type TelnyxRequest } from "./forward";
+import { forward, relay } from './forward';
+import type { Handler, TelnyxRequest } from './forward';
 
 /**
  * The read class (docs/RIG.md). Each registered GET has a rule:

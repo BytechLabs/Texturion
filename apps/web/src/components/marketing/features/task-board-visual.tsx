@@ -16,7 +16,8 @@
  */
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import { tasksCopy, type TasksCopy } from "@/i18n/marketing/tasks";
+import { tasksCopy } from '@/i18n/marketing/tasks';
+import type { TasksCopy } from '@/i18n/marketing/tasks';
 import { Check, MessageSquare, Phone } from "lucide-react";
 
 import { cn } from "@/lib/utils";

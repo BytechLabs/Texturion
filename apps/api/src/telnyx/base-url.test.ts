@@ -26,7 +26,7 @@ function relativeName(path: string): string {
   return path.slice(API_SRC.length + 1).replaceAll("\\", "/");
 }
 
-function productionCode(): Array<[string, string]> {
+function productionCode(): [string, string][] {
   return productionSources(API_SRC)
     // Test machinery is not shipped: src/test/ and the telnyx track's doubles.
     .filter((path) => !/^test\/|test-support\.ts$/.test(relativeName(path)))
@@ -58,7 +58,7 @@ describe("the Telnyx base URL", () => {
 
   it("is spelled only in the client", () => {
     const files = productionCode();
-    const spelling = files.filter(([, code]) => HOST.test(code)).map(([name]) => name);
+    const spelling = files.filter(([, code]) => code.includes('api.telnyx.com')).map(([name]) => name);
     expect(spelling).toEqual([CLIENT]);
   });
 
@@ -69,7 +69,7 @@ describe("the Telnyx base URL", () => {
       .filter(([, code]) => /\bTELNYX_API_BASE\b/.test(code))
       .map(([name]) => name)
       .filter((name) => name !== "env.ts");
-    expect(readers.sort()).toEqual([...BASE_READERS].sort());
+    expect(readers.toSorted()).toEqual([...BASE_READERS].toSorted());
   });
 
   it("is never resolved against a path, which would drop the guard's prefix", () => {

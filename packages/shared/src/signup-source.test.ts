@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  SIGNUP_SOURCES,
+  isSignupSource,
   SIGNUP_SOURCE_HINT,
   SIGNUP_SOURCE_LABELS,
   SIGNUP_SOURCE_PROMPT,
-  isSignupSource,
+  SIGNUP_SOURCES,
 } from "./signup-source";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
@@ -16,7 +16,7 @@ function look(table: unknown, key: string): string {
   const value = (table as Record<string, Record<string, string>>)[section]?.[
     name
   ];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 

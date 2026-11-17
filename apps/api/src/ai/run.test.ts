@@ -1,9 +1,10 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { noticesCaptured, resetCaptures } from "../test/capture-mock";
-import { runAiFeature, type AiFeatureSpec } from "./run";
+import { runAiFeature } from './run';
+import type { AiFeatureSpec } from './run';
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -103,7 +104,7 @@ function fakeDb(options: {
 
 const envWith = (run: unknown) => ({ AI: { run } }) as never;
 
-describe("runAiFeature", () => {
+describe(runAiFeature, () => {
   it("runs the model and hands back the raw answer", async () => {
     const run = vi.fn(async () => ({ text: "hello" }));
     const result = await runAiFeature(envWith(run), fakeDb(), {
@@ -315,7 +316,7 @@ describe("runAiFeature", () => {
       accept: (raw) => ((raw as { text?: string }).text ?? "") !== "",
     });
 
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
   });
 
   // ------------------------------------------------------------------------
@@ -344,8 +345,8 @@ describe("runAiFeature", () => {
       // untouched. The kill-switch check (`api_evaluate_flags`) legitimately runs
       // ahead of the billing gate and shares this mock, so "never called" was
       // asserting an ordering that is not true and does not need to be.
-      const calls = (db as unknown as { rpc: { mock: { calls: unknown[][] } } }).rpc
-        .mock.calls;
+      const {calls} = (db as unknown as { rpc: { mock: { calls: unknown[][] } } }).rpc
+        .mock;
       expect(calls.map((call) => call[0])).not.toContain("ai_usage_reserve");
     },
   );
@@ -430,7 +431,7 @@ describe("runAiFeature", () => {
       fallback: { model: "fallback", input: buildFallback },
     });
     expect(usable.ok).toBe(true);
-    expect(build).toHaveBeenCalledTimes(1);
+    expect(build).toHaveBeenCalledOnce();
     expect(buildFallback).not.toHaveBeenCalled();
 
     const fellBack = await runAiFeature(envWith(run), fakeDb(), {
@@ -440,7 +441,7 @@ describe("runAiFeature", () => {
       fallback: { model: "fallback", input: buildFallback },
     });
     expect(fellBack).toEqual({ ok: true, raw: { text: "Leaking tap upstairs." } });
-    expect(buildFallback).toHaveBeenCalledTimes(1);
+    expect(buildFallback).toHaveBeenCalledOnce();
     expect(run).toHaveBeenCalledWith("fallback", { audio: [1, 2, 3] });
   });
 });

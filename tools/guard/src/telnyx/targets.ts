@@ -98,7 +98,7 @@ export async function isAllowedCallTarget(ctx: Ctx, view: PartitionView, to: unk
   if (isOwnedNumber(view, to)) return true;
   const username = sipUsername(to);
   if (!username) return false;
-  const webrtc = view.record.connections.webrtc;
+  const {webrtc} = view.record.connections;
   if (!webrtc) return false;
   return (await connectionOfSipUser(ctx, username)) === webrtc;
 }

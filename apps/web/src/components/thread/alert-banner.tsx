@@ -77,9 +77,9 @@ export function AlertBanner({
           ? alertTakenLine("Somebody else", say)
           : say(ALERT_BANNER_COPY.yours),
       );
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError ? cause.message : t("thread.alertClaimFailed"),
+        error instanceof ApiError ? error.message : t("thread.alertClaimFailed"),
       );
     }
   }

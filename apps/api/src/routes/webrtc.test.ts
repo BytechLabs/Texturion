@@ -4,21 +4,12 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import { stubRoute, type Stub } from "../test/messaging-support";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import type { Env } from "../env";
 import { webrtcRoutes } from "./webrtc";
 
@@ -102,7 +93,7 @@ describe("POST /v1/webrtc/token (D43)", () => {
       body: {},
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       token: "jwt-token-abc",
       sip_username: "gencredAAA",
       expires_in_hours: 24,
@@ -153,7 +144,7 @@ describe("POST /v1/webrtc/token (D43)", () => {
       body: {},
     });
     expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "subscription_inactive" },
     });
     expect(w.create.calls).toHaveLength(0);
@@ -171,7 +162,7 @@ describe("POST /v1/webrtc/token (D43)", () => {
       body: {},
     });
     expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { message: expect.stringContaining("isn't configured") },
     });
   });
@@ -197,7 +188,7 @@ describe("POST /v1/webrtc/token (D43)", () => {
     const orphanDelete: Stub = stubRoute(
       (url, request) =>
         request.method === "DELETE" &&
-        /\/v2\/telephony_credentials\/cred_1$/.test(url.pathname),
+        url.pathname.endsWith('/v2/telephony_credentials/cred_1'),
       () => new Response(null, { status: 204 }),
     );
     stubFetch(

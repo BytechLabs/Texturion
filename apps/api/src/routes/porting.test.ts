@@ -5,13 +5,10 @@ import { portingRoutes } from "./porting";
 import type { AppEnv, MemberRole } from "../context";
 import type { Bindings } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import {
-  FakeRest,
-  resendRoute,
-  TelnyxMock,
-  type SentEmailCapture,
-} from "../telnyx/test-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { FakeRest, resendRoute, TelnyxMock } from '../telnyx/test-support';
+import type { SentEmailCapture } from '../telnyx/test-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";

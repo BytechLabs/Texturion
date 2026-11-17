@@ -15,7 +15,7 @@ import { captured, noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { loadNumberHealth } from "./number-health-read";
 import { runNumberHealthJob } from "./number-health";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -45,7 +45,7 @@ const transition = (over: Record<string, unknown> = {}) => ({
   ...over,
 });
 
-describe("runNumberHealthJob", () => {
+describe(runNumberHealthJob, () => {
   it("sends nothing when no number changed state", async () => {
     // The common morning. A known-bad number is not news, and a notice about
     // it daily is how notices stop being read.
@@ -102,7 +102,7 @@ describe("runNumberHealthJob", () => {
   });
 });
 
-describe("loadNumberHealth", () => {
+describe(loadNumberHealth, () => {
   it("returns only degraded numbers", async () => {
     const { db } = stub([
       { phone_number_id: "n1", state: "degraded", delivery_rate: 0.5, degraded_since: "x", detail: "d" },

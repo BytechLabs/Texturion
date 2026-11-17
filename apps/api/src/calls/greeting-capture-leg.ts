@@ -27,16 +27,10 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env";
 import { deleteTelnyxRecording } from "../messaging/inbound-ring";
 import { captureException } from "../observability/capture";
-import { telnyxRequest, isDefiniteRefusal } from "../telnyx/client";
+import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
 
-import {
-  GREETING_CAPTURE_MAX_SECONDS,
-  GREETING_CAPTURE_MIN_SECONDS,
-  GREETING_CAPTURE_SILENCE_SECS,
-  greetingCapturePrompt,
-  parseGreetingCaptureState,
-  type GreetingCaptureTag,
-} from "./greeting-capture";
+import { GREETING_CAPTURE_MAX_SECONDS, GREETING_CAPTURE_MIN_SECONDS, GREETING_CAPTURE_SILENCE_SECS, greetingCapturePrompt, parseGreetingCaptureState } from './greeting-capture';
+import type { GreetingCaptureTag } from './greeting-capture';
 
 /** The private bucket recorded greetings live in (20260804360000). */
 /**
@@ -70,11 +64,11 @@ async function onLiveLeg(
 ): Promise<void> {
   try {
     await telnyxRequest(env, { method: "POST", path, body });
-  } catch (cause) {
+  } catch (error) {
     // #616: see isDefiniteRefusal — a 429 is about our request rate, so it
     // takes the same path as a 503 rather than being swallowed as "done".
-    if (isDefiniteRefusal(cause)) return;
-    throw cause;
+    if (isDefiniteRefusal(error)) return;
+    throw error;
   }
 }
 

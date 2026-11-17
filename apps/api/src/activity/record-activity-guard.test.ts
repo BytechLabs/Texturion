@@ -20,12 +20,11 @@
  * cannot go stale.
  */
 import { readdirSync, readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
+const HERE = import.meta.dirname;
 const ROUTES = join(HERE, "..", "routes");
 const MIGRATIONS = join(HERE, "..", "..", "..", "..", "supabase", "migrations");
 

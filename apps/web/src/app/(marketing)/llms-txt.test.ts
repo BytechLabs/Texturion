@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
 import { buildLlmsTxt, notedRoutes } from "@/lib/marketing/llms-txt";
-import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
+import { absoluteUrl, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_PRICING, US_REGISTRATION_FEE_DOLLARS } from "@/lib/api/types";
 
 /**

@@ -100,7 +100,7 @@ describe("#251 required capacity-axis matrix", () => {
     expect(new Set(ids).size, "duplicate capacity axis in acceptance matrix").toBe(
       ids.length,
     );
-    expect([...ids].sort()).toEqual([...REQUIRED_AXES].sort());
+    expect([...ids].toSorted()).toEqual([...REQUIRED_AXES].toSorted());
   });
 
   it("gives every axis a rerun, bound, ceiling statement, and state", () => {

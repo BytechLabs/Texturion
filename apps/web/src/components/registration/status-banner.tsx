@@ -15,10 +15,8 @@ import { formatPhone } from "@/lib/format/phone";
 import { useNow } from "@/lib/use-now";
 
 import { provisioningWaitCopy, REGISTRATION_COPY } from "./copy";
-import {
-  deriveRegistrationUiState,
-  type RegistrationUiState,
-} from "./registration-ui-state";
+import { deriveRegistrationUiState } from './registration-ui-state';
+import type { RegistrationUiState } from './registration-ui-state';
 
 /**
  * WorkspaceStatusBanner (cross-track contract; DESIGN.md G7, SPEC §4.4): the

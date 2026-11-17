@@ -10,7 +10,7 @@
  * `home.ts`, the whole home page in both languages.
  */
 export function fill(template: string, values: Record<string, string>): string {
-  return template.replace(/\{(\w+)\}/g, (whole, key) =>
+  return template.replaceAll(/\{(\w+)\}/g, (whole, key) =>
     key in values ? values[key] : whole,
   );
 }

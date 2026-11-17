@@ -6,7 +6,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { deliverPush } from "../notifications/deliver";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, stubFetch } from "../test/support";
 import {
   notifyOverdueTasksJob,
@@ -15,7 +16,7 @@ import {
   TASK_OVERDUE_MAX_LATE_MINUTES,
 } from "./overdue-notice";
 
-vi.mock("../notifications/deliver", () => ({
+vi.mock(import("../notifications/deliver"), () => ({
   deliverPush: vi.fn(async () => undefined),
 }));
 
@@ -204,7 +205,7 @@ describe("the overdue alert", () => {
   it("withholds the title, and keeps the lateness, when content is turned off", async () => {
     world();
     await notifyOverdueTasksJob(env, NOW);
-    const content = sent()[0].content;
+    const {content} = sent()[0];
     if (content.written !== "people") throw new Error("unreachable");
     expect(content.withheld("en")).toEqual({ title: "A task is overdue" });
     expect(content.withheld("fr-CA")).toEqual({ title: "Une tâche est en retard" });

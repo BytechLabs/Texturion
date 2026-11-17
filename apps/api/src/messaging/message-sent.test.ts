@@ -8,13 +8,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { dispatchOutbound } from "./send";
 import type { MessageRow } from "./types";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { ApiError } from "../http/errors";
 import { eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { messageRow, restMatch, stubRoute } from "../test/messaging-support";
 import { clearedFor, completeEnv, stubFetch } from "../test/support";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 

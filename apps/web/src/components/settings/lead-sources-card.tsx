@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Plus, RotateCcw, Archive } from "lucide-react";
+import { Archive, Plus, RotateCcw } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -60,10 +60,10 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
       await create.mutateAsync(trimmed);
       setName(defaultName);
       toast.success(t("settings.leadSourceAdded", { name: trimmed }));
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settings.leadSourceAddFailed"),
       );
     }
@@ -77,10 +77,10 @@ export function LeadSourcesCard({ canEdit }: { canEdit: boolean }) {
           ? t("settings.leadSourceArchived")
           : t("settings.leadSourceRestored"),
       );
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settings.leadSourceSaveFailed"),
       );
     }

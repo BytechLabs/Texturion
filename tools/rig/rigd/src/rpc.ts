@@ -5,7 +5,8 @@
  * caller is missing or unknown is refused. Every method keeps its own limits
  * as well.
  */
-import { CONTROL_CLASSES, type ControlClass } from "@loonext/rig-protocol";
+import { CONTROL_CLASSES } from '@loonext/rig-protocol';
+import type { ControlClass } from '@loonext/rig-protocol';
 import type { RpcFrame } from "./uplink.ts";
 
 export type RpcHandler = (params: unknown) => unknown;
@@ -25,7 +26,7 @@ export class RpcRouter {
   }
 
   methods(): string[] {
-    return [...this.#methods.keys()].sort();
+    return [...this.#methods.keys()].toSorted();
   }
 
   async dispatch(frame: RpcFrame): Promise<unknown> {
@@ -42,6 +43,6 @@ export class RpcRouter {
 /** Reads an object of params, refusing anything else. */
 export function objectParams(params: unknown): Record<string, unknown> {
   if (params === undefined || params === null) return {};
-  if (typeof params !== "object" || Array.isArray(params)) throw new Error("params must be an object");
+  if (typeof params !== "object" || Array.isArray(params)) throw new TypeError("params must be an object");
   return params as Record<string, unknown>;
 }

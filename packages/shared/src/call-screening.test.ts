@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { callLooksSpam } from "./call-screening";
 
-describe("callLooksSpam", () => {
+describe(callLooksSpam, () => {
   it("is clean for the result every production call carries", () => {
     // 134 of 134 stored results on 2026-11-10 had this shape.
     expect(

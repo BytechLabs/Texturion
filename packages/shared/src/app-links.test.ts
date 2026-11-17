@@ -37,12 +37,12 @@ const read = (...parts: string[]) =>
 
 /** The first segment of a path pattern: "/inbox/*" and "/inbox/" both give "inbox". */
 const firstSegment = (path: string): string =>
-  path.replace(/^\//, "").split("/")[0]!;
+  path.replace(/^\//, "").split("/")[0];
 
 describe("#613 app links: one list, three files", () => {
   it("claims nothing in Apple's grammar that is not a known surface", () => {
     const claimed = new Set(APPLE_APP_LINK_COMPONENTS.map(firstSegment));
-    expect([...claimed].sort()).toEqual([...APP_LINK_SEGMENTS].sort());
+    expect([...claimed].toSorted()).toEqual([...APP_LINK_SEGMENTS].toSorted());
   });
 
   it("claims the same surfaces in Android's grammar", () => {
@@ -52,7 +52,7 @@ describe("#613 app links: one list, three files", () => {
     const claimed = new Set(
       ANDROID_APP_LINK_PATHS.map((entry) => firstSegment(entry.value)),
     );
-    expect([...claimed].sort()).toEqual([...APP_LINK_SEGMENTS].sort());
+    expect([...claimed].toSorted()).toEqual([...APP_LINK_SEGMENTS].toSorted());
   });
 
   it("never claims a bare prefix that would swallow a neighbouring path", () => {
@@ -86,7 +86,7 @@ describe("#613 app links: one list, three files", () => {
 
     const routed = new Set(
       [...body.matchAll(/segments(?:\[0\]|\.first) == "([a-z]+)"/g)].map(
-        (match) => match[1]!,
+        (match) => match[1],
       ),
     );
     // Every surface we take from the browser on iOS must land somewhere.
@@ -116,7 +116,7 @@ describe("#613 app links: one list, three files", () => {
         ...body.matchAll(
           /segments(?:\[0\]|\.firstOrNull\(\)) == "([a-z]+)"/g,
         ),
-      ].map((match) => match[1]!),
+      ].map((match) => match[1]),
     );
     for (const segment of APP_LINK_SEGMENTS) {
       expect(routed.has(segment)).toBe(true);
@@ -170,9 +170,9 @@ describe("#613 the manifest and the entitlement carry the same claim", () => {
     // inert one, which no association file can be served for.
     const assigned = [
       ...gradle.matchAll(/manifestPlaceholders\["appLinkHost"\] = "([^"]+)"/g),
-    ].map((match) => match[1]!);
-    expect([...new Set(assigned)].sort()).toEqual(
-      [APP_LINK_HOST, "nonprod.invalid"].sort(),
+    ].map((match) => match[1]);
+    expect([...new Set(assigned)].toSorted()).toEqual(
+      [APP_LINK_HOST, "nonprod.invalid"].toSorted(),
     );
   });
 
@@ -192,7 +192,7 @@ describe("#613 the manifest and the entitlement carry the same claim", () => {
     );
     // Set equality BOTH ways: an extra <data> in the manifest is a path taken
     // from the browser that nobody decided to take.
-    expect(declared.sort()).toEqual([...expected].sort());
+    expect(declared.toSorted()).toEqual([...expected].toSorted());
   });
 
   it("claims the same host the iOS entitlement does", () => {

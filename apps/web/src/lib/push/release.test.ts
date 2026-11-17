@@ -12,8 +12,8 @@ const apiFetch = vi.fn();
 const ensureServiceWorkerRegistration = vi.fn();
 const pushSupported = vi.fn(() => true);
 
-vi.mock("@/lib/api/client", () => ({ apiFetch: (...args: unknown[]) => apiFetch(...args) }));
-vi.mock("./register", () => ({
+vi.mock(import("@/lib/api/client"), () => ({ apiFetch: (...args: unknown[]) => apiFetch(...args) }));
+vi.mock(import("./register"), () => ({
   ensureServiceWorkerRegistration: () => ensureServiceWorkerRegistration(),
   pushSupported: () => pushSupported(),
 }));

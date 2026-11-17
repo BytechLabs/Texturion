@@ -40,7 +40,6 @@ import { processResendEvent } from "../webhooks/resend";
 import { processStripeEvent } from "../webhooks/stripe";
 import { dispatchTelnyxEvent } from "./dispatch";
 import { STUCK_SEND_SECONDS } from "./send";
-import type { TelnyxEvent } from "./types";
 
 const SWEEP_MIN_AGE_MS = 2 * 60 * 1000;
 const SWEEP_MAX_ATTEMPTS = 5;
@@ -134,25 +133,29 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
       // processor — replayed forever against a handler that could never
       // understand them.
       switch (row.provider) {
-        case "telnyx":
-          await dispatchTelnyxEvent(env, row.payload as TelnyxEvent);
+        case "telnyx": {
+          await dispatchTelnyxEvent(env, row.payload);
           break;
-        case "resend":
+        }
+        case "resend": {
           await processResendEvent(
             env,
             row.payload as unknown as Parameters<typeof processResendEvent>[1],
           );
           break;
-        case "stripe":
+        }
+        case "stripe": {
           await processStripeEvent(
             env,
             row.payload as unknown as Parameters<typeof processStripeEvent>[1],
           );
           break;
-        default:
+        }
+        default: {
           throw new Error(
             `sweep: no handler for webhook provider "${row.provider}"`,
           );
+        }
       }
       const { error: stampError } = await db
         .from("webhook_events")
@@ -162,8 +165,8 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
       if (stampError) {
         throw new Error(`sweep stamp failed: ${stampError.message}`);
       }
-    } catch (cause) {
-      const message = cause instanceof Error ? cause.message : String(cause);
+    } catch (error_) {
+      const message = error_ instanceof Error ? error_.message : String(error_);
       // The claim already counted this attempt — record the error only.
       console.error(
         `sweep of ${row.provider} ${row.event_id} (${row.event_type}) failed (attempt ${attempts}):`,
@@ -379,14 +382,14 @@ export async function reportUnreportedUsage(env: Env): Promise<void> {
         // adjustment rows deduped on Stripe's side too.
         identifier: row.meter_identifier ?? row.id,
       });
-    } catch (cause) {
-      if (!isDuplicateMeterIdentifierError(cause)) {
+    } catch (error_) {
+      if (!isDuplicateMeterIdentifierError(error_)) {
         console.error(
           `usage re-report failed for ${row.id}:`,
-          cause instanceof Error ? cause.message : String(cause),
+          error_ instanceof Error ? error_.message : String(error_),
         );
         failed += 1;
-        lastFailure = cause;
+        lastFailure = error_;
         continue; // stays unstamped; next hourly run retries
       }
       // #53: identifier already accepted by Stripe (a reported-but-unstamped
@@ -476,14 +479,14 @@ export async function reportUnreportedVoiceUsage(env: Env): Promise<void> {
         value: row.billable_seconds,
         identifier: row.call_leg_id ?? row.id,
       });
-    } catch (cause) {
-      if (!isDuplicateMeterIdentifierError(cause)) {
+    } catch (error_) {
+      if (!isDuplicateMeterIdentifierError(error_)) {
         console.error(
           `voice re-report failed for ${row.id}:`,
-          cause instanceof Error ? cause.message : String(cause),
+          error_ instanceof Error ? error_.message : String(error_),
         );
         failed += 1;
-        lastFailure = cause;
+        lastFailure = error_;
         continue; // stays unstamped; next hourly run retries
       }
       // #53: identifier already accepted by Stripe — stamp through.
@@ -612,13 +615,13 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
         body: {},
       });
       console.warn(`runaway call hung up: session ${sessionId}`);
-    } catch (cause) {
+    } catch (error_) {
       // Dead leg / already gone (4xx) is the normal case — the stale-outcome
       // RPC below finalizes its row.
-      if (isDefiniteRefusal(cause)) continue;
+      if (isDefiniteRefusal(error_)) continue;
       console.error(
         `runaway call hangup failed for ${ccid}:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error_ instanceof Error ? error_.message : String(error_),
       );
     }
   }

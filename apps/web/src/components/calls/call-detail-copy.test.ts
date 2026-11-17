@@ -29,7 +29,7 @@ const base = {
   voicemail_transcript_attempted_at: null,
 } as unknown as CallDetail;
 
-const call = (over: Partial<CallDetail>) => ({ ...base, ...over }) as CallDetail;
+const call = (over: Partial<CallDetail>) => ({ ...base, ...over });
 
 describe("what the call detail says happened", () => {
   it("names an inbound outcome in the words an owner would use", () => {

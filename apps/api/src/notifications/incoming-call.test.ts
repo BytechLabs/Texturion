@@ -10,12 +10,14 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../db";
 import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { encodeBase64Url } from "./webpush";
 import { notifyIncomingCall } from "./incoming-call";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 

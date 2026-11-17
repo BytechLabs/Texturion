@@ -5,7 +5,8 @@
  * the edge's Durable Object.
  */
 import { createHash } from "node:crypto";
-import { createServer, type Server } from "node:http";
+import { createServer } from 'node:http';
+import type { Server } from 'node:http';
 import type { Socket } from "node:net";
 import type { SocketLike } from "./uplink.ts";
 
@@ -70,7 +71,7 @@ export function fakeFetch(routes: Record<string, Route>): { fetch: typeof fetch;
     new Headers(init?.headers).forEach((value, name) => {
       headers[name] = value;
     });
-    const body = init?.body === undefined || init.body === null ? undefined : typeof init.body === "string" ? init.body : Buffer.from(init.body as Uint8Array).toString("utf8");
+    const body = init?.body === undefined || init.body === null ? undefined : (typeof init.body === "string" ? init.body : Buffer.from(init.body as Uint8Array).toString("utf8"));
     const request = { method: init?.method ?? "GET", url, headers, body };
     requests.push(request);
     const key = `${request.method} ${url}`;
@@ -82,7 +83,7 @@ export function fakeFetch(routes: Record<string, Route>): { fetch: typeof fetch;
 }
 
 export const json = (value: unknown, status = 200, headers: Record<string, string> = {}) =>
-  new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json", ...headers } });
+  Response.json(value, { status, headers: { "content-type": "application/json", ...headers } });
 
 /** An edge stand-in on loopback that speaks just enough WebSocket. */
 export class TinyWsServer {
@@ -97,7 +98,7 @@ export class TinyWsServer {
     this.#accept = accept;
     this.server = createServer();
     this.server.on("upgrade", (request, socket: Socket) => {
-      const authorization = request.headers.authorization;
+      const {authorization} = request.headers;
       this.upgrades.push({ url: request.url ?? "", authorization });
       if (!this.#accept(authorization)) {
         socket.end("HTTP/1.1 401 Unauthorized\r\nContent-Length: 0\r\n\r\n");
@@ -139,7 +140,7 @@ export class TinyWsServer {
     const header =
       payload.length < 126
         ? Buffer.from([0x81, payload.length])
-        : Buffer.from([0x81, 126, payload.length >> 8, payload.length & 0xff]);
+        : Buffer.from([0x81, 126, payload.length >> 8, payload.length & 0xFF]);
     for (const socket of this.#sockets) socket.write(Buffer.concat([header, payload]));
   }
 
@@ -156,8 +157,8 @@ export class TinyWsServer {
 
 function readClientFrame(buffer: Buffer): { opcode: number; payload: Buffer; consumed: number } | undefined {
   if (buffer.length < 2) return undefined;
-  const opcode = buffer[0]! & 0x0f;
-  let length = buffer[1]! & 0x7f;
+  const opcode = buffer[0]! & 0x0F;
+  let length = buffer[1]! & 0x7F;
   let offset = 2;
   if (length === 126) {
     if (buffer.length < 4) return undefined;

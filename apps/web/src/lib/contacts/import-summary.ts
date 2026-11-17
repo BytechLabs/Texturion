@@ -27,7 +27,7 @@ export const DEFAULT_ERROR_CAP = 50;
 export function summarizeImport(
   result: ImportResult,
   cap: number = DEFAULT_ERROR_CAP,
-  locale: string = "en",
+  locale = "en",
 ): ImportSummary {
   const visibleErrors = result.errors.slice(0, Math.max(0, cap));
   return {

@@ -1,8 +1,8 @@
 import {
+  isAllowedImageType,
   MAX_PREVIEW_BYTES,
   MAX_PREVIEW_FRACTION,
   PREVIEW_WORTH_IT_BYTES,
-  isAllowedImageType,
   previewWorthHaving,
 } from "@loonext/shared";
 

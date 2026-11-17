@@ -152,8 +152,8 @@ async function contextAt(at: Date, w: World) {
       call_control_id: "ccid-278",
       from: "+14155559001",
       to: "+14155550001",
-    } as never);
-    if (typeof ctx === "string") throw new Error(`expected a context, got ${ctx}`);
+    });
+    if (typeof ctx === "string") throw new TypeError(`expected a context, got ${ctx}`);
     return ctx;
   } finally {
     vi.useRealTimers();
@@ -167,8 +167,8 @@ describe("#278 after-hours call routing", () => {
     const ctx = await contextAt(EVENING, { afterHoursCalls: "ring_everyone" });
     expect(ctx.afterHours).toBe(true);
     expect(ctx.afterHoursVoicemail).toBe(false);
-    expect(ctx.dialTargets.map((t) => t.userId).sort()).toEqual([ALICE, BOB].sort());
-    expect(ctx.pushAudience.sort()).toEqual([ALICE, BOB].sort());
+    expect(ctx.dialTargets.map((t) => t.userId).toSorted()).toEqual([ALICE, BOB].toSorted());
+    expect(ctx.pushAudience.toSorted()).toEqual([ALICE, BOB].toSorted());
   });
 
   it("#581: a bookkeeper is neither rung nor pushed, whatever the number level says", async () => {
@@ -198,7 +198,7 @@ describe("#278 after-hours call routing", () => {
       roles: { [BOB]: "read_only" },
     });
     expect(ctx.dialTargets.map((t) => t.userId)).toEqual([ALICE]);
-    expect(ctx.pushAudience.sort()).toEqual([ALICE, BOB].sort());
+    expect(ctx.pushAudience.toSorted()).toEqual([ALICE, BOB].toSorted());
   });
 
   it("#581: an unknown role is neither rung nor pushed — the enum can outrun the Worker", async () => {

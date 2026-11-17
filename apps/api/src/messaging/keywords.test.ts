@@ -16,12 +16,12 @@ import { CARRIER_REPLY_KEYWORDS } from "@loonext/shared";
 import {
   FRENCH_HELP_KEYWORDS,
   HELP_KEYWORDS,
+  isCarrierKeyword,
+  isEmergencyKeyword,
+  isFrenchHelpKeyword,
+  normaliseKeyword,
   START_KEYWORDS,
   STOP_KEYWORDS,
-  isCarrierKeyword,
-  isFrenchHelpKeyword,
-  isEmergencyKeyword,
-  normaliseKeyword,
   suppressesAutoReply,
 } from "./keywords";
 
@@ -196,7 +196,7 @@ describe("#453 — the settings warning and the opt-out path agree on carrier wo
       ...STOP_KEYWORDS,
       ...START_KEYWORDS,
       ...HELP_KEYWORDS,
-    ].sort();
-    expect([...CARRIER_REPLY_KEYWORDS].sort()).toEqual(canonical);
+    ].toSorted();
+    expect([...CARRIER_REPLY_KEYWORDS].toSorted()).toEqual(canonical);
   });
 });

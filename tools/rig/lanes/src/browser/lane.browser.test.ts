@@ -5,7 +5,8 @@
  * must find it there. Run with `pnpm --filter @loonext/rig-lanes test:browser`.
  */
 import { mkdtempSync, rmSync } from "node:fs";
-import { createServer, type Server } from "node:http";
+import { createServer } from 'node:http';
+import type { Server } from 'node:http';
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -207,20 +208,20 @@ describe("the browser lane in Chromium", () => {
     });
     try {
       const page = await lane.open("qa-a-dispatcher", "qa-a-dispatcher", "/call-bar");
-      expect(await page.waitForCallCleared(500)).toBeUndefined();
+      await expect(page.waitForCallCleared(500)).resolves.toBeUndefined();
       const answered = Date.now();
-      await page.page.evaluate(() => (window as unknown as { answerThenEnd(ms: number): void }).answerThenEnd(3_000));
+      await page.page.evaluate(() => (globalThis as unknown as { answerThenEnd(ms: number): void }).answerThenEnd(3000));
       // The ring dialog has gone, but the call bar still shows.
-      expect(await page.waitForCallCleared(500)).toBeUndefined();
-      expect(await page.waitForCallCleared(10_000)).toBeDefined();
-      expect(Date.now() - answered).toBeGreaterThanOrEqual(3_000);
+      await expect(page.waitForCallCleared(500)).resolves.toBeUndefined();
+      await expect(page.waitForCallCleared(10_000)).resolves.toBeDefined();
+      expect(Date.now() - answered).toBeGreaterThanOrEqual(3000);
     } finally {
       await lane.closeAll();
     }
   });
 
   it("makes blocked host patterns fail to resolve, wildcards included", async () => {
-    const port = (server.address() as AddressInfo).port;
+    const {port} = (server.address() as AddressInfo);
     const launch = (blocked: string[]) =>
       chromium.launch({ args: chromiumArgs({ fakeMicWav: join(dir, "mic", "robot.wav"), blocked }) });
     // Chromium resolves localhost and every *.localhost to loopback by itself,
@@ -254,7 +255,7 @@ describe("the browser lane in Chromium", () => {
         ["dry", { inventory: "masked", refreshes: 0, areaCode: "647" }, "647"],
       ] as const) {
         const page = await lane.openPublic(`/onboarding/number?inventory=${inventory}`);
-        expect(await page.chooseCanadianNumber({ areaCodes: ["416", "647"] }), inventory).toEqual({ ...expected, continued: true });
+        await expect(page.chooseCanadianNumber({ areaCodes: ["416", "647"] })).resolves.toEqual({ ...expected, continued: true });
         expect(new URL(page.page.url()).searchParams.get("picked"), inventory).toBe(picked);
         await page.close();
       }
@@ -268,9 +269,9 @@ describe("the browser lane in Chromium", () => {
     try {
       const page = await browser.newPage();
       await page.setContent('<div id="picker"><p>No numbers in area code 416 right now.</p></div>');
-      expect(await pickNumber(page, "416", 1_000)).toEqual({ inventory: "none", refreshes: 0 });
+      await expect(pickNumber(page, "416", 1000)).resolves.toEqual({ inventory: "none", refreshes: 0 });
       await page.setContent('<div id="picker"></div>');
-      expect(await pickNumber(page, "416", 1_000)).toEqual({ inventory: "failed", refreshes: 0 });
+      await expect(pickNumber(page, "416", 1000)).resolves.toEqual({ inventory: "failed", refreshes: 0 });
     } finally {
       await browser.close();
     }
@@ -281,9 +282,9 @@ describe("the browser lane in Chromium", () => {
     try {
       const page = await browser.newPage();
       await page.setContent('<iframe src="about:blank#hcaptcha-checkbox" hidden></iframe>');
-      expect(await challenged(page)).toBe(false);
+      await expect(challenged(page)).resolves.toBe(false);
       await page.setContent('<iframe src="about:blank#hcaptcha-challenge" width="300" height="300"></iframe>');
-      expect(await challenged(page)).toBe(true);
+      await expect(challenged(page)).resolves.toBe(true);
     } finally {
       await browser.close();
     }
@@ -310,7 +311,7 @@ describe("the browser lane in Chromium", () => {
         });
         await page.goto(`https://checkout.stripe.com/pay?app=${encodeURIComponent(origin)}${swallow ? "&swallow=1" : ""}`);
         const lane = new PublicPage(page, origin, () => Promise.resolve());
-        expect(await lane.checkout({ card: "4242424242424242", email: "owner@example.invalid", postalCode: "M5V 3L9" }), String(swallow)).toEqual({ challenged: false, submitted: true, returned: true });
+        await expect(lane.checkout({ card: "4242424242424242", email: "owner@example.invalid", postalCode: "M5V 3L9" })).resolves.toEqual({ challenged: false, submitted: true, returned: true });
         expect(events, String(swallow)).toEqual(["reprice", ...Array(presses).fill("press")]);
         expect(new URL(page.url()).pathname).toBe("/inbox");
         await page.close();
@@ -325,8 +326,8 @@ describe("the browser lane in Chromium", () => {
     try {
       const page = await browser.newPage();
       await page.goto(`${origin}/pay`);
-      expect(await fillCheckout(page, { card: "4242424242424242", email: "owner@example.invalid", postalCode: "M5V 3L9" })).toEqual({ challenged: false, submitted: true });
-      expect(await page.evaluate(() => (window as unknown as { submitted: Record<string, string> }).submitted)).toEqual({
+      await expect(fillCheckout(page, { card: "4242424242424242", email: "owner@example.invalid", postalCode: "M5V 3L9" })).resolves.toEqual({ challenged: false, submitted: true });
+      await expect(page.evaluate(() => (globalThis as unknown as { submitted: Record<string, string> }).submitted)).resolves.toEqual({
         email: "owner@example.invalid",
         cardNumber: "4242424242424242",
         cardExpiry: "12 / 34",

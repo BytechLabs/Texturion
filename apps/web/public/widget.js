@@ -38,7 +38,7 @@
   var script = document.currentScript;
   if (!script) return;
 
-  var key = script.getAttribute("data-key");
+  var {key} = script.dataset;
   if (!key) {
     // A missing key is the one error worth saying out loud: the snippet was
     // pasted without the half that identifies the business, and the widget
@@ -102,16 +102,16 @@
       poweredBy: "Propulsé par Loonext"
     }
   };
-  var lang = script.getAttribute("data-lang");
+  var {lang} = script.dataset;
   var t = COPY[lang] || COPY.en;
 
-  var origin = new URL(script.src, location.href).origin;
-  var accent = script.getAttribute("data-accent") || "#1f2421";
-  var label = script.getAttribute("data-label") || t.launch;
-  var side = script.getAttribute("data-side") === "left" ? "left" : "right";
+  var {origin} = new URL(script.src, location.href);
+  var accent = script.dataset.accent || "#1f2421";
+  var label = script.dataset.label || t.launch;
+  var side = script.dataset.side === "left" ? "left" : "right";
 
   var host = document.createElement("div");
-  host.setAttribute("data-loonext-widget", "");
+  host.dataset.loonextWidget = "";
   var root = host.attachShadow({ mode: "open" });
   document.body.appendChild(host);
 
@@ -119,11 +119,11 @@
   style.textContent = [
     ":host{all:initial}",
     "*{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,sans-serif}",
-    ".wrap{position:fixed;bottom:20px;" + side + ":20px;z-index:2147483000}",
+    `.wrap{position:fixed;bottom:20px;${  side  }:20px;z-index:2147483000}`,
     // 44px is the floor for a touch target, and the launcher is the one control
     // somebody hits with a thumb while holding a phone in the other hand.
     ".launch{display:flex;align-items:center;gap:8px;min-height:48px;padding:0 20px;",
-    "border:0;border-radius:999px;background:" + accent + ";color:#fff;",
+    `border:0;border-radius:999px;background:${  accent  };color:#fff;`,
     "font-size:15px;font-weight:600;cursor:pointer;box-shadow:0 6px 20px rgba(0,0,0,.18)}",
     ".launch:focus-visible,.panel :focus-visible{outline:3px solid #7c9a3f;outline-offset:2px}",
     ".panel{width:min(340px,calc(100vw - 40px));background:#fff;color:#1f2421;",
@@ -138,9 +138,9 @@
     "border-radius:10px;font-size:16px;background:#fff;color:#1f2421}",
     "textarea{min-height:76px;resize:vertical}",
     ".send{width:100%;min-height:48px;margin-top:14px;border:0;border-radius:12px;",
-    "background:" + accent + ";color:#fff;font-size:15px;font-weight:600;cursor:pointer}",
+    `background:${  accent  };color:#fff;font-size:15px;font-weight:600;cursor:pointer}`,
     ".send[disabled]{opacity:.55;cursor:default}",
-    ".close{position:absolute;top:10px;" + side + ":10px;min-width:44px;min-height:44px;",
+    `.close{position:absolute;top:10px;${  side  }:10px;min-width:44px;min-height:44px;`,
     "border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:#5b6157}",
     ".panelwrap{position:relative}",
     ".note{margin:10px 0 0;font-size:12px;color:#5b6157}",
@@ -164,37 +164,37 @@
   var wrap = document.createElement("div");
   wrap.className = "wrap";
   wrap.innerHTML =
-    '<button class="launch" type="button" aria-haspopup="dialog" aria-expanded="false">' +
-    "<span></span></button>" +
+    `<button class="launch" type="button" aria-haspopup="dialog" aria-expanded="false">` +
+    `<span></span></button>` +
     // `aria-labelledby`, pointing at the heading this panel already had.
     // Without it a screen reader announces "dialog" and nothing else — axe's
     // `aria-dialog-name`, serious, and the one violation the audit found on the
     // expanded panel. The id is prefixed like every other in here because this
     // markup lands inside a shadow root on somebody else's page.
-    '<div class="panelwrap"><div class="panel" role="dialog" aria-modal="true" ' +
-    'aria-labelledby="lx-title" hidden>' +
-    '<button class="close" type="button" aria-label="' + t.close + '">&times;</button>' +
-    "<h2 id=\"lx-title\"></h2><p class=\"sub\"></p>" +
-    '<form novalidate>' +
-    '<div class="step-one">' +
-    '<label for="lx-name">' + t.name + '</label>' +
-    '<input id="lx-name" name="name" autocomplete="name" required>' +
-    '<label for="lx-phone">' + t.phone + '</label>' +
-    '<input id="lx-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required>' +
-    '<label for="lx-msg">' + t.message + '</label>' +
-    '<textarea id="lx-msg" name="message" required></textarea>' +
-    '<div class="hp"><label for="lx-web">' + t.honeypot + '</label>' +
-    '<input id="lx-web" name="website" tabindex="-1" autocomplete="off"></div>' +
-    "</div>" +
-    '<div class="step-two" hidden>' +
-    '<label for="lx-code">' + t.code + '</label>' +
-    '<input id="lx-code" name="code" inputmode="numeric" autocomplete="one-time-code" ' +
-    'maxlength="6" pattern="\\d{6}">' +
-    "</div>" +
-    '<button class="send" type="submit"></button>' +
-    "</form>" +
-    '<p class="note" role="status" aria-live="polite"></p>' +
-    '<p class="err" role="alert"></p>' +
+    `<div class="panelwrap"><div class="panel" role="dialog" aria-modal="true" ` +
+    `aria-labelledby="lx-title" hidden>` +
+    `<button class="close" type="button" aria-label="${  t.close  }">&times;</button>` +
+    `<h2 id="lx-title"></h2><p class="sub"></p>` +
+    `<form novalidate>` +
+    `<div class="step-one">` +
+    `<label for="lx-name">${  t.name  }</label>` +
+    `<input id="lx-name" name="name" autocomplete="name" required>` +
+    `<label for="lx-phone">${  t.phone  }</label>` +
+    `<input id="lx-phone" name="phone" type="tel" autocomplete="tel" inputmode="tel" required>` +
+    `<label for="lx-msg">${  t.message  }</label>` +
+    `<textarea id="lx-msg" name="message" required></textarea>` +
+    `<div class="hp"><label for="lx-web">${  t.honeypot  }</label>` +
+    `<input id="lx-web" name="website" tabindex="-1" autocomplete="off"></div>` +
+    `</div>` +
+    `<div class="step-two" hidden>` +
+    `<label for="lx-code">${  t.code  }</label>` +
+    `<input id="lx-code" name="code" inputmode="numeric" autocomplete="one-time-code" ` +
+    `maxlength="6" pattern="\\d{6}">` +
+    `</div>` +
+    `<button class="send" type="submit"></button>` +
+    `</form>` +
+    `<p class="note" role="status" aria-live="polite"></p>` +
+    `<p class="err" role="alert"></p>` +
     // #232's acquisition loop: a small mark on our customers' sites, in front
     // of their customers, who are often small business owners themselves.
     //
@@ -209,9 +209,9 @@
     // surface sent them and carries nothing about the person who clicked.
     // `rel="noopener"` because it opens in a new tab, and `noreferrer` would
     // throw away the one thing we want to know.
-    '<p class="by"><a href="https://loonext.com/?ref=widget" target="_blank" ' +
-    'rel="noopener">' + t.poweredBy + '</a></p>' +
-    "</div></div>";
+    `<p class="by"><a href="https://loonext.com/?ref=widget" target="_blank" ` +
+    `rel="noopener">${  t.poweredBy  }</a></p>` +
+    `</div></div>`;
   root.appendChild(wrap);
 
   var launcher = root.querySelector(".launch");
@@ -255,13 +255,13 @@
     launcher.focus();
   }
 
-  launcher.addEventListener("click", function () {
+  launcher.addEventListener("click", () => {
     if (panel.hidden) open();
     else close();
   });
   root.querySelector(".close").addEventListener("click", close);
 
-  panel.addEventListener("keydown", function (event) {
+  panel.addEventListener("keydown", (event) => {
     if (event.key === "Escape") {
       close();
       return;
@@ -290,19 +290,19 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then(function (response) {
-      return response
+    }).then((response) => 
+      response
         .json()
         .catch(function () {
           return {};
         })
         .then(function (payload) {
-          return { ok: response.ok, payload: payload };
-        });
-    });
+          return { ok: response.ok, payload };
+        })
+    );
   }
 
-  form.addEventListener("submit", function (event) {
+  form.addEventListener("submit", (event) => {
     event.preventDefault();
     err.textContent = "";
     send.disabled = true;
@@ -316,12 +316,12 @@
             website: String(data.get("website") || ""),
           })
         : post("/widget/verify", {
-            verificationId: verificationId,
+            verificationId,
             code: String(data.get("code") || ""),
             message:
-              String(data.get("name") || "") +
-              ": " +
-              String(data.get("message") || ""),
+              `${String(data.get("name") || "") 
+              }: ${ 
+              String(data.get("message") || "")}`,
           });
 
     request
@@ -329,7 +329,7 @@
         send.disabled = false;
         if (!result.ok) {
           err.textContent =
-            (result.payload && result.payload.message) || t.failed;
+            (result.payload?.message) || t.failed;
           return;
         }
         if (verificationId === null) {

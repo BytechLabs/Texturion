@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isBeforePortCutover,
   PORT_PRE_CUTOVER_CHECKLIST,
   PORT_PRE_CUTOVER_STATUSES,
-  isBeforePortCutover,
 } from "./porting";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
@@ -15,7 +15,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function lookUp(table: unknown, key: string, lang: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no ${lang} for ${key}`);
   return value;
 }
 
@@ -52,7 +52,7 @@ describe("#319/#248 what a customer is told while their number is transferring",
     // ORDER IS THE CONTRACT, not decoration. A reader skims the bold leads and
     // stops; the one that costs them the number on their trucks has to be the
     // one they cannot miss. Every other item here is an inconvenience.
-    const first = PORT_PRE_CUTOVER_CHECKLIST.items[0]!;
+    const first = PORT_PRE_CUTOVER_CHECKLIST.items[0];
     expect(say(first.lead)).toBe("Keep your old service active.");
     expect(say(first.detail)).toContain("release the number back to the carrier");
     // And in French, because the order is the contract in both languages and a
@@ -90,7 +90,7 @@ describe("#228 the pre-cutover checklist reads in both languages", () => {
       expect(sayFr(key).length, key).toBeGreaterThan(0);
       expect(sayFr(key), `${key} is not translated`).not.toBe(say(key));
     }
-    expect(keys.length).toBe(9);
+    expect(keys).toHaveLength(9);
   });
 
   it("gives every item its own lead", () => {

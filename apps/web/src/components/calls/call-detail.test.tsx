@@ -77,7 +77,7 @@ beforeEach(() => {
   query.current = {};
 });
 
-describe("CallDetail", () => {
+describe(CallDetail, () => {
   it("CD-1: paints the clicked row and its timeline, holding back the transcript sentence", () => {
     const html = shown({
       data: detail({ ended_at: null }),

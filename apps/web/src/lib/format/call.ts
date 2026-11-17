@@ -1,15 +1,13 @@
-import { DEFAULT_LOCALE, type CallEndReason, type CallRouting } from "@loonext/shared";
+import { DEFAULT_LOCALE } from '@loonext/shared';
+import type { CallEndReason, CallRouting } from '@loonext/shared';
 
-import { makeTranslate, type MessageKey, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { MessageKey, Translate } from '@/i18n/translate';
 
-import { formatCallDuration } from "./call-duration";
+import {formatCallDuration} from "./call-duration";
 
-/**
- * #129 pure call-display helpers — no API/client imports, so timeline lines
- * and tests can use them without dragging the env-validated fetch client in.
- */
+export { formatCallDuration } from "./call-duration";
 
-export { formatCallDuration };
 
 /** #721: why no phone rang, or null when the call rang (or predates the column). */
 export function callRoutingReason(
@@ -17,22 +15,30 @@ export function callRoutingReason(
   t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string | null {
   switch (routing) {
-    case "blocked":
+    case "blocked": {
       return t("misc.callRoutingBlocked");
-    case "line_busy":
+    }
+    case "line_busy": {
       return t("misc.callRoutingLineBusy");
-    case "screened":
+    }
+    case "screened": {
       return t("misc.callRoutingScreened");
-    case "after_hours":
+    }
+    case "after_hours": {
       return t("misc.callRoutingAfterHours");
-    case "paused":
+    }
+    case "paused": {
       return t("misc.callRoutingPaused");
-    case "over_cap":
+    }
+    case "over_cap": {
       return t("misc.callRoutingOverCap");
-    case "nobody_reachable":
+    }
+    case "nobody_reachable": {
       return t("misc.callRoutingNobodyReachable");
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 
@@ -103,11 +109,13 @@ export function callOutcomeLabel(
     callRoutingReason(call.routing ?? null, t) ?? callEndReason(call.ended_reason, t);
   const why = reason ? ` · ${reason}` : "";
   switch (call.outcome) {
-    case "missed":
+    case "missed": {
       return `${outbound ? t("misc.callNoAnswer") : t("misc.callMissed")}${why}`;
-    case "voicemail":
+    }
+    case "voicemail": {
       return `${t("misc.callVoicemail")}${why}`;
-    case "answered":
+    }
+    case "answered": {
       if (outbound) {
         // "Sam called" when the placer is known; "You called" (crew's-side
         // framing) for legacy/pre-#211 rows that carry no placer.
@@ -119,7 +127,9 @@ export function callOutcomeLabel(
       return `${
         actor ? t("misc.callAnsweredBy", { name: actor }) : t("misc.callAnswered")
       }${dur}`;
-    default:
+    }
+    default: {
       return outbound ? t("misc.callCalling") : t("misc.callInProgress");
+    }
   }
 }

@@ -15,7 +15,7 @@ const task = (id: string, over: Partial<Task> = {}): Task =>
     ...over,
   }) as Task;
 
-describe("groupTasks", () => {
+describe(groupTasks, () => {
   it("groups by priority, most pressing first, leaving out empty columns", () => {
     const columns = groupTasks(
       [task("a", { priority: "low" }), task("b", { priority: "urgent" }), task("c", { priority: "urgent" })],

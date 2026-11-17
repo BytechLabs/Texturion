@@ -6,7 +6,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
  * entry from somewhere else fails here. Nothing reaches the network: every
  * transport the SDK has is stubbed.
  */
-vi.mock("@/lib/perf/after-lcp-and-load", () => ({ whenPageSettles: () => Promise.resolve() }));
+vi.mock(import("@/lib/perf/after-lcp-and-load"), () => ({ whenPageSettles: () => Promise.resolve() }));
 
 const LANDING = "/?utm_source=google&utm_campaign=crew&gclid=TESTGCLID";
 

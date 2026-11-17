@@ -23,13 +23,12 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import { AI_USAGE_FEATURES } from "./usage";
 
-const API_SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+const API_SRC = join(import.meta.dirname, "..");
 
 /** The `feature:` enum out of `aiOutcomeSchema` in routes/conversations.ts. */
 function routeFeatures(): string[] {
@@ -39,15 +38,15 @@ function routeFeatures(): string[] {
   expect(match, "aiOutcomeSchema no longer declares a feature enum").not.toBeNull();
   return (match?.[1] ?? "")
     .split(",")
-    .map((part) => part.trim().replace(/^["']|["']$/g, ""))
+    .map((part) => part.trim().replaceAll(/^["']|["']$/g, ""))
     .filter(Boolean);
 }
 
 describe("#431 — POST /v1/ai/outcome accepts exactly the metered features", () => {
   it("accepts every ledger feature key, and nothing else", () => {
-    const ledger = AI_USAGE_FEATURES.map((spec) => spec.key).sort();
+    const ledger = AI_USAGE_FEATURES.map((spec) => spec.key).toSorted();
     expect(
-      routeFeatures().sort(),
+      routeFeatures().toSorted(),
       "The outcome route's feature enum and the AI ledger's features have " +
         "diverged. An outcome for a feature the ledger does not know opens a " +
         "SECOND row in company_ai_usage, which separates what Lou cost from " +
@@ -113,7 +112,7 @@ describe("#431 — every AI feature says what its own outcomes mean", () => {
     // observe the negative — "read it and got on with the job" is again a
     // person not doing something. It also has nothing to edit, because a
     // summary is not a draft.
-    expect(missing.sort()).toEqual([
+    expect(missing.toSorted()).toEqual([
       "thread_summary.discarded",
       "thread_summary.edited",
       "voicemail_intake.edited",

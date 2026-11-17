@@ -138,7 +138,7 @@ referralRoutes.get("/moment", async (c) => {
 
   const decision = referralAskDecision(
     {
-      activated: facts.activated === true,
+      activated:  facts.activated,
       activatedAt: facts.activated_at,
       // count(*) comes back from PostgREST as a string on bigint. Number()
       // rather than trusting the shape: a "20" compared against 20 with < is

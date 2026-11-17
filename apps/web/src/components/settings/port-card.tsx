@@ -15,10 +15,8 @@ import {
   PORT_STATE_COPY,
   PORT_STEP_COPY,
 } from "@/components/porting/copy";
-import {
-  derivePortUiState,
-  type PortStep,
-} from "@/components/porting/port-ui-state";
+import { derivePortUiState } from '@/components/porting/port-ui-state';
+import type { PortStep } from '@/components/porting/port-ui-state';
 import type { NumberHoldState } from "@/components/settings/number-hold";
 import { NumberHoldNote } from "@/components/settings/number-hold-note";
 import { PortDocumentsForm } from "@/components/settings/port-documents-form";
@@ -27,7 +25,8 @@ import { mayReleaseNumber } from "@/components/settings/release-number";
 import { ReleaseNumberDialog } from "@/components/settings/release-number-dialog";
 import { RejectionNotice } from "@/components/settings/rejection-notice";
 import { Button } from "@/components/ui/button";
-import { sayWith, useT, type Translate } from "@/i18n/provider";
+import { sayWith, useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import {
@@ -82,11 +81,11 @@ function StepRow({
         >
           {step.state === "done" ? (
             <Check className="size-3.5" strokeWidth={2.5} />
-          ) : step.state === "active" ? (
+          ) : (step.state === "active" ? (
             <Loader2 className="size-3.5 animate-spin" strokeWidth={2} />
           ) : (
             <CircleDashed className="size-3.5" strokeWidth={1.75} />
-          )}
+          ))}
         </span>
         {!last && <span className="w-px flex-1 bg-border" aria-hidden />}
       </div>
@@ -101,9 +100,9 @@ function StepRow({
           <span className="sr-only">
             {step.state === "done"
               ? t("settingsMore.portStepDone")
-              : step.state === "active"
+              : (step.state === "active"
                 ? t("settingsMore.portStepInProgress")
-                : t("settingsMore.portStepUpcoming")}
+                : t("settingsMore.portStepUpcoming"))}
           </span>
         </p>
         {describe ? (
@@ -343,9 +342,9 @@ export function PortCard({
         <span className="text-[13px] text-muted-foreground">
           {hold
             ? t("settingsMore.portOnHold")
-            : ui.live
+            : (ui.live
               ? t("settingsMore.portLive")
-              : t("settingsMore.portTransferring")}
+              : t("settingsMore.portTransferring"))}
         </span>
       </div>
 
@@ -515,22 +514,22 @@ export function PortCard({
               </p>
             ) : null}
           </div>
-        ) : port.status === "draft" && !canSubmitPort ? (
+        ) : (port.status === "draft" && !canSubmitPort ? (
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.portOwnerSubmits")}
           </p>
-        ) : null}
+        ) : null)}
 
         {/* Exception: fix-and-resubmit (§8.2). */}
         {ui.exception === "voice" && canFixPort ? (
           <div ref={fixFormRef} className="border-t border-border-subtle pt-4">
             <PortFixForm port={port} country={country} />
           </div>
-        ) : ui.exception === "voice" && !canFixPort ? (
+        ) : (ui.exception === "voice" && !canFixPort ? (
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.portAskOwnerToFix")}
           </p>
-        ) : null}
+        ) : null)}
 
         {/* #523: ONE destructive control at a time, and which one is decided by
             whether the number has arrived — not by taste.
@@ -573,11 +572,11 @@ export function PortCard({
                branch above and the capability the cancel route itself requires.
                The two are the same set today; asking one question two ways in
                adjacent branches is how they stop being. */
-          canCancelPort ? (
+          (canCancelPort ? (
           <div className="border-t border-border-subtle pt-3">
             <CancelPortDialog port={port} />
           </div>
-        ) : null}
+        ) : null)}
       </div>
     </div>
   );

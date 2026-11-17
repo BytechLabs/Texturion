@@ -14,21 +14,10 @@ import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vite
 import type { AppEnv } from "../context";
 import type { Env } from "../env";
 import { resetFlagCache } from "../flags/evaluate";
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type FetchRoute,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { callsRoutes } from "./calls";
 import { contactsRoutes } from "./contacts";
 import { meRoutes } from "./me";
@@ -263,7 +252,7 @@ describe("independent reads are issued together", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ counts: { [VIEW_A]: 1, [VIEW_B]: 0 } });
+    await expect(res.json()).resolves.toEqual({ counts: { [VIEW_A]: 1, [VIEW_B]: 0 } });
     expectTogether(probe);
   });
 
@@ -274,7 +263,7 @@ describe("independent reads are issued together", () => {
       { telnyx_credential_id: "cred_existing", sip_username: "gencredBBB" },
     ]);
     const mint: FetchRoute = (url) =>
-      /\/v2\/telephony_credentials\/cred_existing\/token$/.test(url.pathname)
+      url.pathname.endsWith('/v2/telephony_credentials/cred_existing/token')
         ? new Response("jwt-token-abc", { status: 201 })
         : undefined;
     const probe = heldTogether({
@@ -331,7 +320,7 @@ describe("independent reads are issued together", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ id: CONTACT_ID, created_by_name: "Sam" });
+    await expect(res.json()).resolves.toMatchObject({ id: CONTACT_ID, created_by_name: "Sam" });
     expectTogether(probe);
   });
 
@@ -368,7 +357,7 @@ describe("independent reads are issued together", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ answered_by_name: "Sam" });
+    await expect(res.json()).resolves.toMatchObject({ answered_by_name: "Sam" });
     expectTogether(probe);
   });
 
@@ -415,7 +404,7 @@ describe("independent reads are issued together", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       id: TASK_ID,
       viewer_level: "text",
       created_by: { display_name: "Sam" },

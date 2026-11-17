@@ -8,12 +8,12 @@ describe("/app-version.json", () => {
     vi.stubEnv("NEXT_PUBLIC_WEB_BUILD_ID", "web-build-b");
     const response = GET();
     expect(response.headers.get("Cache-Control")).toBe("no-store");
-    expect(await response.json()).toEqual({ version: "0.31.0", build: "web-build-b" });
+    await expect(response.json()).resolves.toEqual({ version: "0.31.0", build: "web-build-b" });
   });
 
   it("says null for a build that was given no id", async () => {
     vi.stubEnv("NEXT_PUBLIC_APP_VERSION", "0.31.0");
     vi.stubEnv("NEXT_PUBLIC_WEB_BUILD_ID", "");
-    expect(await GET().json()).toEqual({ version: "0.31.0", build: null });
+    await expect(GET().json()).resolves.toEqual({ version: "0.31.0", build: null });
   });
 });

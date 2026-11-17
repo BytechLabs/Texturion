@@ -1,11 +1,8 @@
 import { AiOrb } from "@/components/ui/ai-orb";
 import { useT } from "@/i18n/provider";
 import { cn } from "@/lib/utils";
-import {
-  voicemailIntakeLines,
-  VOICEMAIL_INTAKE_SOURCE_LABEL,
-  type VoicemailIntake,
-} from "@loonext/shared";
+import { VOICEMAIL_INTAKE_SOURCE_LABEL, voicemailIntakeLines } from '@loonext/shared';
+import type { VoicemailIntake } from '@loonext/shared';
 
 /**
  * #367 depth (1) — what the caller said, above the transcript it came from.

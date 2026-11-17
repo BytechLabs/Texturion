@@ -9,8 +9,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   hasVoicemailIntake,
-  voicemailIntakeLines,
   VOICEMAIL_INTAKE_SOURCE_LABEL,
+  voicemailIntakeLines,
 } from "./voicemail-intake";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
@@ -19,13 +19,13 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function look(table: unknown, key: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
 const empty = { problem: null, address: null, callback: null, name: null };
 
-describe("voicemailIntakeLines", () => {
+describe(voicemailIntakeLines, () => {
   it("draws nothing for nothing", () => {
     expect(voicemailIntakeLines(null)).toEqual([]);
     expect(voicemailIntakeLines(undefined)).toEqual([]);

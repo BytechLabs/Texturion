@@ -145,7 +145,7 @@ export async function buildConversationHistory(
   const access = await resolveNumberAccess(db, {
     companyId: args.companyId,
     userId: args.requestedBy,
-    role: (member as { role: string }).role as MemberRole,
+    role: (member).role as MemberRole,
   });
 
   const { data: contactRows, error: contactError } = await db
@@ -174,7 +174,7 @@ export async function buildConversationHistory(
     throw new Error(`history export conversation read failed: ${convError.message}`);
   }
   const conversations = (convRows ?? []) as ConversationRow[];
-  const hidden = new Set(access.hiddenNumberIds ?? []);
+  const hidden = new Set(access.hiddenNumberIds);
   const visible = conversations.filter(
     (row) => !(row.phone_number_id !== null && hidden.has(row.phone_number_id)),
   );
@@ -322,20 +322,24 @@ export async function buildConversationHistory(
  */
 function callOutcome(outcome: string | null): string {
   switch (outcome) {
-    case "answered": return "Call — answered";
-    case "missed": return "Call — missed";
-    case "voicemail": return "Call — went to voicemail, nothing recorded";
-    default: return "Call";
+    case "answered": { return "Call — answered";
+    }
+    case "missed": { return "Call — missed";
+    }
+    case "voicemail": { return "Call — went to voicemail, nothing recorded";
+    }
+    default: { return "Call";
+    }
   }
 }
 
 /** HTML-escape. The bodies are written by people outside the workspace. */
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replaceAll('&', "&amp;")
+    .replaceAll('<', "&lt;")
+    .replaceAll('>', "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 /**
@@ -425,8 +429,6 @@ export function renderHistoryDocument(args: {
 <h1>Message history — ${escapeHtml(who)}</h1>
 <p class="meta">${escapeHtml(period)} · ${args.entries.length} entr${
     args.entries.length === 1 ? "y" : "ies"
-  }${
-    ""
   } · produced ${escapeHtml(args.generatedAt)}</p>
 ${notes.map((note) => `<p class="note">${escapeHtml(note)}</p>`).join("\n")}
 <table>

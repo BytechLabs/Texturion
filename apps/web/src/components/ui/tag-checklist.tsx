@@ -1,10 +1,7 @@
 "use client";
 
-import {
-  tagSelectionState,
-  tagToggleAction,
-  type TagSelectionState,
-} from "@loonext/shared";
+import { tagSelectionState, tagToggleAction } from '@loonext/shared';
+import type { TagSelectionState } from '@loonext/shared';
 import { Tag as TagIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -73,7 +70,7 @@ export function TagChecklist({
         return (
           <DropdownMenuCheckboxItem
             key={tag.id}
-            checked={state === "all" ? true : state === "none" ? false : "indeterminate"}
+            checked={state === "all" ? true : (state === "none" ? false : "indeterminate")}
             onSelect={(event) => {
               event.preventDefault();
               const action = tagToggleAction(state);

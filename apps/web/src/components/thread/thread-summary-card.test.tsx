@@ -8,10 +8,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/error";
 import { sayEnglish } from "@/i18n/translate";
-import {
-  threadSummaryRequestFailure,
-  type ThreadSummaryResult,
-} from "@/lib/api/thread-summary";
+import { threadSummaryRequestFailure } from '@/lib/api/thread-summary';
+import type { ThreadSummaryResult } from '@/lib/api/thread-summary';
 
 import { ThreadSummaryCard } from "./thread-summary-card";
 

@@ -1,6 +1,7 @@
 import { COST_USD, DIALS_PER_DAY, DIALS_PER_HOUR } from "../limits";
 import { Refusal } from "../refusal";
-import { admitPaid, type Admitted } from "../state/admission";
+import { admitPaid } from '../state/admission';
+import type { Admitted } from '../state/admission';
 import { recordCeiling } from "../state/concurrency";
 import { dayOf, giveBack, hourOf, tryTake } from "../state/counters";
 import { requireDialLease } from "../state/lease";
@@ -9,7 +10,8 @@ import { liveLeg, registerLeg } from "../state/legs";
 import { recordSignal } from "../state/signals";
 import type { TelnyxReply } from "./client";
 import { enforceCap } from "./detach";
-import { forward, isDefiniteFailure, isOk, relay, type Handler, type TelnyxRequest } from "./forward";
+import { forward, isDefiniteFailure, isOk, relay } from './forward';
+import type { Handler, TelnyxRequest } from './forward';
 import { bodyIsContained } from "./hazards";
 import { isAllowedCallTarget, isOwnedNumber } from "./targets";
 
@@ -28,7 +30,7 @@ interface Shape {
 
 async function shapeOf(request: TelnyxRequest): Promise<Shape> {
   const { ctx, view } = request;
-  const body = request.body as Record<string, unknown>;
+  const body = request.body!;
   const group = view.record.billing_group_id;
 
   if (request.entry.key === "POST /v2/calls") {
@@ -93,7 +95,7 @@ async function noteLimitRefusal(request: TelnyxRequest, reply: TelnyxReply, shap
   if (concurrency) {
     const counted = admitted.production === "idle" && admitted.liveLegs !== null;
     await recordCeiling(ctx, {
-      value: counted ? (admitted.liveLegs as number) + shape.newLegs - 1 : null,
+      value: counted ? (admitted.liveLegs!) + shape.newLegs - 1 : null,
       from: `telnyx-${concurrency}`,
     });
   }

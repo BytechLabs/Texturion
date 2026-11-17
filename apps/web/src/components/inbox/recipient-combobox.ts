@@ -25,12 +25,15 @@ export function nextRecipientIndex(
 ): number | null {
   if (count <= 0) return null;
   switch (key) {
-    case "ArrowDown":
+    case "ArrowDown": {
       return current < 0 || current >= count - 1 ? 0 : current + 1;
-    case "ArrowUp":
+    }
+    case "ArrowUp": {
       return current <= 0 ? count - 1 : current - 1;
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 

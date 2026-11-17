@@ -9,13 +9,8 @@ import { describe, expect, it } from "vitest";
 
 import { CAPABILITIES, MEMBER_ROLES } from "./capabilities";
 
-import {
-  canSeeSettingsSection,
-  settingsSectionCapability,
-  visibleSettingsSections,
-  type MemberRole,
-  type SettingsSectionId,
-} from "./settings-visibility";
+import { canSeeSettingsSection, settingsSectionCapability, visibleSettingsSections } from './settings-visibility';
+import type { MemberRole, SettingsSectionId } from './settings-visibility';
 
 /** Every id the rule knows. A new section must be added here deliberately. */
 const ALL: SettingsSectionId[] = [
@@ -49,7 +44,7 @@ const PERSONAL: SettingsSectionId[] = [
   "whatsNew",
 ];
 
-describe("canSeeSettingsSection", () => {
+describe(canSeeSettingsSection, () => {
   it("shows a member what is theirs", () => {
     for (const section of PERSONAL) {
       expect(canSeeSettingsSection(section, "member"), section).toBe(true);
@@ -130,7 +125,7 @@ describe("canSeeSettingsSection", () => {
   });
 });
 
-describe("visibleSettingsSections", () => {
+describe(visibleSettingsSections, () => {
   it("filters in the caller's order and keeps the objects intact", () => {
     const rows = [
       { id: "billing" as SettingsSectionId, label: "Billing" },
@@ -162,7 +157,7 @@ describe("visibleSettingsSections", () => {
       (s) => settingsSectionCapability(s) !== "workspace.access",
     );
     const seen = business.filter((s) => canSeeSettingsSection(s, "bookkeeper"));
-    expect(seen.sort()).toEqual(["billing", "usage"]);
+    expect(seen.toSorted()).toEqual(["billing", "usage"]);
   });
 
   it("never returns an empty list for ANY role, known or not", () => {

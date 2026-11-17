@@ -10,21 +10,10 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { decodeCursor } from "../http/pagination";
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  type FetchRoute,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { conversationsRoutes } from "./conversations";
 
 const env = completeEnv();
@@ -276,7 +265,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       claimBody.p_objects
         .filter((o) => o.bucket === "attachments")
         .reduce((sum, o) => sum + o.bytes, 0),
-    ).toBe(10240);
+    ).toBe(10_240);
     const order = sb.calls.map((call) => call.path);
     expect(order.indexOf("/rest/v1/rpc/claim_signed_url_egress_objects")).toBeLessThan(
       order.findIndex((path) => path.startsWith("/storage/v1/object/sign/")),
@@ -350,7 +339,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
     sb.on(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress_objects",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -460,7 +449,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [], next_cursor: null });
+    await expect(res.json()).resolves.toEqual({ data: [], next_cursor: null });
     expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
   });
 
@@ -579,10 +568,10 @@ describe("the gallery serves derivatives", () => {
         owner_type: "note",
         storage_path: `${COMPANY_ID}/note/n1/uuid-roof.jpg`,
         preview_path: `${COMPANY_ID}/note/n1/preview-uuid-roof.jpg`,
-        preview_bytes: 184320,
+        preview_bytes: 184_320,
         file_name: "roof.jpg",
         content_type: "image/jpeg",
-        size_bytes: 20971520,
+        size_bytes: 20_971_520,
         created_at: "2026-07-02T11:00:00+00:00",
       },
     ]);
@@ -605,7 +594,7 @@ describe("the gallery serves derivatives", () => {
     // `size_bytes` stays the ORIGINAL's. It is what a "20 MB" label means and
     // what a download will cost — a grid that reported 180 KB would be lying
     // about the file, not about the thumbnail.
-    expect(body.data[0].size_bytes).toBe(20971520);
+    expect(body.data[0].size_bytes).toBe(20_971_520);
 
     // And the page claimed what it served, not what the row weighs.
     const claim = sb.find(
@@ -616,7 +605,7 @@ describe("the gallery serves derivatives", () => {
       p_objects: [
         {
           key: `attachments/${COMPANY_ID}/note/n1/preview-uuid-roof.jpg`,
-          bytes: 184320,
+          bytes: 184_320,
         },
       ],
     });
@@ -664,7 +653,7 @@ describe("the gallery serves derivatives", () => {
         id: "60000000-0000-4000-8000-000000000006",
         storage_path: `mms-media/${COMPANY_ID}/msg-1/0`,
         content_type: "image/jpeg",
-        size_bytes: 900000,
+        size_bytes: 900_000,
         created_at: "2026-07-02T09:00:00+00:00",
       },
     ]);

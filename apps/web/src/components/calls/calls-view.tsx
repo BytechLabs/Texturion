@@ -30,8 +30,10 @@ import {
 import { SoftphoneStatus } from "@/components/calls/softphone-status";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/button";
-import { useT, type MessageKey } from "@/i18n/provider";
-import { useCalls, useRingMe, type CallOutcomeFilter } from "@/lib/api/calls";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
+import { useCalls, useRingMe } from '@/lib/api/calls';
+import type { CallOutcomeFilter } from '@/lib/api/calls';
 import { callEndReason, callRoutingReason } from "@/lib/format/call";
 import { useSoftphone } from "@/lib/softphone/provider";
 import { replaceSearch } from "@/lib/url/search-state";
@@ -58,9 +60,9 @@ export function CallsView() {
   const reason =
     rawReason && (isCallRouting(rawReason) || isCallEndReason(rawReason)) ? rawReason : undefined;
   const reasonLabel = reason
-    ? isCallRouting(reason)
+    ? (isCallRouting(reason)
       ? callRoutingReason(reason, t)
-      : callEndReason(reason, t)
+      : callEndReason(reason, t))
     : null;
   const calls = useCalls(outcome, reason);
   // #210: the Ongoing card derives from the UNFILTERED query — the same cache
@@ -181,25 +183,25 @@ export function CallsView() {
               title={
                 outcome === "missed"
                   ? t("shell.emptyMissed")
-                  : outcome === "voicemail"
+                  : (outcome === "voicemail"
                     ? t("shell.emptyVoicemail")
-                    : t("shell.emptyCalls")
+                    : t("shell.emptyCalls"))
               }
               description={
-                outcome !== undefined
-                  ? undefined
+                outcome === undefined
+                  ? t("shell.emptyCallsDescription")
                   : // D43: the browser is the phone — say what happens and
                     // where the voicemail/screening knobs live.
-                    t("shell.emptyCallsDescription")
+                    undefined
               }
               action={
-                outcome !== undefined ? undefined : (
+                outcome === undefined ? (
                   <Button asChild variant="outline">
                     <Link href="/settings/missed-calls">
                       {t("shell.setUpCalls")}
                     </Link>
                   </Button>
-                )
+                ) : undefined
               }
             />
           ) : (

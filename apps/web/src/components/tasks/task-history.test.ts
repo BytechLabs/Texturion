@@ -57,7 +57,7 @@ describe("taskHistorySentence assignees (#689 C)", () => {
   });
 });
 
-describe("taskHistorySentence", () => {
+describe(taskHistorySentence, () => {
   it("names the person and the change", () => {
     expect(taskHistorySentence(event({ event: "created" }), "Rehman", t)).toBe(
       "Rehman created this task",

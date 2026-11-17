@@ -13,11 +13,13 @@
  *   - full (`fullLabels`): "United States" / "Canada", for the mobile sheet.
  */
 
-import { type KeyboardEvent, useRef } from "react";
+import { useRef } from 'react';
+import type { KeyboardEvent } from 'react';
 
 import { cn } from "@/lib/utils";
 
-import { COUNTRY_OPTIONS, type Country, useCountry } from "./country-context";
+import { COUNTRY_OPTIONS, useCountry } from './country-context';
+import type { Country } from './country-context';
 
 export function CountrySelector({
   className,

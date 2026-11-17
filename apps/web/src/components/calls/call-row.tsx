@@ -26,9 +26,9 @@ import {
 } from "@/components/calls/voicemail-player";
 import { VoicemailIntakeSummary } from "@/components/calls/voicemail-intake-summary";
 import {
+  CallActionsMenu,
   callMessageHref,
   callPrimaryAction,
-  CallActionsMenu,
   useCallActions,
 } from "@/components/calls/call-actions";
 import { usePlaceCall } from "@/components/calls/call-button";
@@ -36,7 +36,8 @@ import { MakeCallTask } from "@/components/calls/make-call-task";
 import { NewContactDialog } from "@/components/contacts/new-contact-dialog";
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { avatarColorClass } from "@/components/shell/avatar-color";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import type { Call } from "@/lib/api/types";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
@@ -63,9 +64,9 @@ function DirectionIcon({ call }: { call: Call }) {
   const Icon =
     call.direction === "outbound"
       ? PhoneOutgoing
-      : call.outcome === "missed"
+      : (call.outcome === "missed"
         ? PhoneMissed
-        : PhoneIncoming;
+        : PhoneIncoming);
   return (
     <Icon
       aria-hidden

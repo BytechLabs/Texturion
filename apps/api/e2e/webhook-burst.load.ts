@@ -34,7 +34,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { deleteCompaniesSql } from "./company-cleanup";
-import { startHarness, type Harness } from "./harness";
+import { startHarness } from './harness';
+import type { Harness } from './harness';
 import {
   burst,
   burstCapacityResult,
@@ -152,7 +153,7 @@ describe("#251 webhook burst", () => {
     // THE ASSERTION THAT MATTERS. Every copy raced the same `webhook_events`
     // check with nothing committed ahead of it. One row, or the thread shows a
     // customer's text N times and N notifications go out.
-    expect(await messageCount()).toBe(1);
+    await expect(messageCount()).resolves.toBe(1);
 
     // And the storm was ABSORBED rather than survived by luck: nothing hung,
     // and nothing came back as an unhandled throw.
@@ -198,7 +199,7 @@ describe("#251 webhook burst", () => {
 
     // Completeness, which is the property a dropped inbound message violates
     // with no error anywhere to notice.
-    expect(await messageCount()).toBe(before + DISTINCT);
+    await expect(messageCount()).resolves.toBe(before + DISTINCT);
 
     emitCapacityResult(
       burstCapacityResult(

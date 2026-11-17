@@ -3,11 +3,8 @@
  */
 import { afterEach, describe, expect, it } from "vitest";
 
-import {
-  INBOX_KEYMAP,
-  shortcutForEvent,
-  type ShortcutAction,
-} from "./shortcuts";
+import { INBOX_KEYMAP, shortcutForEvent } from './shortcuts';
+import type { ShortcutAction } from './shortcuts';
 
 afterEach(() => {
   document.body.innerHTML = "";

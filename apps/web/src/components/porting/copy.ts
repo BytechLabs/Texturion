@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 
 import type { PortStepKey } from "./port-ui-state";
 

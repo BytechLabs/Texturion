@@ -10,7 +10,7 @@ import {
   WEEKDAY_ORDER,
 } from "./business-hours-form";
 
-describe("toFormState", () => {
+describe(toFormState, () => {
   it("builds a Mon..Sun grid, open weekdays enabled with their times", () => {
     const hours: BusinessHours = {
       mon: { open: "08:00", close: "17:00" },
@@ -34,7 +34,7 @@ describe("toFormState", () => {
   });
 });
 
-describe("toBusinessHours", () => {
+describe(toBusinessHours, () => {
   it("round-trips the enabled weekdays only (closed drop out of the map)", () => {
     const grid = toFormState({
       mon: { open: "09:00", close: "18:00" },
@@ -55,7 +55,7 @@ describe("toBusinessHours", () => {
   });
 });
 
-describe("isDirty", () => {
+describe(isDirty, () => {
   it("is false for identical grids and true when a day changes", () => {
     const base = toFormState({ mon: { open: "08:00", close: "17:00" } });
     expect(isDirty(base, toFormState({ mon: { open: "08:00", close: "17:00" } }))).toBe(
@@ -72,7 +72,7 @@ describe("isDirty", () => {
   });
 });
 
-describe("summarizeDay", () => {
+describe(summarizeDay, () => {
   it("summarizes open and closed days", () => {
     expect(
       summarizeDay({ weekday: "mon", enabled: true, open: "08:00", close: "17:00" }),

@@ -27,29 +27,22 @@
  *          the same formula; creates the membership AND a notification_prefs
  *          row (defaults true/true).
  */
-import {
-  isDowngrade,
-  SELF_DOWNGRADE_ACK,
-  SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY,
-  roleHasCapability,
-  shouldShowOrientation,
-  stateMachines,
-  type MemberRole,
-} from "@loonext/shared";
+import { isDowngrade, roleHasCapability, SELF_DOWNGRADE_ACK, SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY, shouldShowOrientation, stateMachines } from '@loonext/shared';
+import type { MemberRole } from '@loonext/shared';
 import { Hono } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { billingRecipients } from "../billing/recipients";
-import { renderEmailHtml } from "../email/html";
+import { emailLayout,escapeHtml,renderEmailHtml } from "../email/html";
 import { capture } from "../analytics/posthog";
 import { requireCapability } from "../auth/company";
 import { revokeSessions } from "../auth/revoke-sessions";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { emailLayout, escapeHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { revokeMemberTelephonyCredential } from "./webrtc";
 import { ApiError, errorResponse } from "../http/errors";
 import {
@@ -111,7 +104,7 @@ const inviteSchema = z.object({
     .max(500)
     .nullable()
     .optional()
-    .transform((value) => (value ? value : null)),
+    .transform((value) => (value || null)),
 });
 
 const acceptSchema = z.object({
@@ -268,7 +261,7 @@ teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => 
   const isSelf = target.user_id === c.get("userId");
   const downgrade = isDowngrade(
     target.role as MemberRole,
-    body.role as MemberRole,
+    body.role,
   );
   if (isSelf && downgrade && body[SELF_DOWNGRADE_ACK] !== true) {
     return errorResponse(
@@ -309,12 +302,12 @@ teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => 
    */
   if (
     roleHasCapability(target.role as MemberRole, "conversations.send") &&
-    !roleHasCapability(body.role as MemberRole, "conversations.send")
+    !roleHasCapability(body.role, "conversations.send")
   ) {
     await revokeMemberTelephonyCredential(
       getEnv(c.env),
       companyId,
-      target.user_id as string,
+      target.user_id,
     );
   }
 
@@ -365,8 +358,8 @@ teamRoutes.get("/members/:id/holdings", requireCapability("team.manage"), async 
   if (error) throw new Error(`api_member_holdings failed: ${error.message}`);
   const holdings = data as { conversations: number; tasks: number };
   return c.json({
-    conversations: Number(holdings.conversations ?? 0),
-    tasks: Number(holdings.tasks ?? 0),
+    conversations: (holdings.conversations ?? 0),
+    tasks: (holdings.tasks ?? 0),
   });
 });
 
@@ -443,8 +436,8 @@ teamRoutes.delete("/members/me", requireCapability("workspace.access"), async (c
   }
 
   const moved = {
-    conversations: Number(result.conversations ?? 0),
-    tasks: Number(result.tasks ?? 0),
+    conversations: (result.conversations ?? 0),
+    tasks: (result.tasks ?? 0),
   };
 
   // Same best-effort tail as an owner-initiated removal, and for the same
@@ -452,10 +445,10 @@ teamRoutes.delete("/members/me", requireCapability("workspace.access"), async (c
   // hidden from a list (#236).
   try {
     await revokeMemberTelephonyCredential(env, companyId, userId);
-  } catch (cause) {
+  } catch (error_) {
     console.error(
       `softphone revoke on self-leave failed for user ${userId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error_ instanceof Error ? error_.message : String(error_),
     );
   }
   const ended = await endMemberAccess(db, env, userId);
@@ -517,8 +510,8 @@ async function notifyOwnerOfDeparture(
 ${who} has left ${name}. Their access ended immediately and ` +
       `their seat is free.
 
-` +
-      (moved.conversations > 0 || moved.tasks > 0
+${ 
+      moved.conversations > 0 || moved.tasks > 0
         ? `${moved.conversations} open conversation(s) and ${moved.tasks} task(s) ` +
           `they were working are now unassigned, so they show up for the team ` +
           `to pick up rather than sitting with somebody who has gone.
@@ -526,8 +519,8 @@ ${who} has left ${name}. Their access ended immediately and ` +
 `
         : `Nothing they were working was still open.
 
-`) +
-      `Everything they sent stays on the record under their name.
+` 
+      }Everything they sent stays on the record under their name.
 
 Loonext`;
     await sendEmail(env, {
@@ -536,10 +529,10 @@ Loonext`;
       text,
       html: renderEmailHtml(text),
     });
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `owner notification on self-leave failed for company ${companyId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }
@@ -584,10 +577,10 @@ teamRoutes.delete("/members/:id", requireCapability("team.manage"), async (c) =>
     );
   }
 
-  const userId = result.user_id as string;
+  const userId = result.user_id!;
   const moved = {
-    conversations: Number(result.conversations ?? 0),
-    tasks: Number(result.tasks ?? 0),
+    conversations: (result.conversations ?? 0),
+    tasks: (result.tasks ?? 0),
   };
 
   // Removing someone has to mean their access is over, not that they are
@@ -597,10 +590,10 @@ teamRoutes.delete("/members/:id", requireCapability("team.manage"), async (c) =>
   try {
     // D43 (#135): the softphone dies with the seat.
     await revokeMemberTelephonyCredential(env, companyId, userId);
-  } catch (cause) {
+  } catch (error_) {
     console.error(
       `softphone revoke on deactivation failed for member ${id}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error_ instanceof Error ? error_.message : String(error_),
     );
   }
   const ended = await endMemberAccess(db, env, userId);
@@ -670,10 +663,10 @@ async function endMemberAccess(
     sessions = result.sessions;
     devices += result.devices;
     voice = result.voice;
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `session revoke on deactivation failed for user ${userId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
   // Push rows are per person, not per company: a token left behind keeps
@@ -783,7 +776,7 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
       // Roll the invite back so the seat is not held by an email that was
       // never notified, then surface the failure.
       expectOk(
-        await db.from("invites").delete().eq("id", invite.id as string),
+        await db.from("invites").delete().eq("id", invite.id),
         "invite rollback",
       );
       throw new Error(`invite email failed: ${error.message}`);
@@ -881,28 +874,26 @@ async function sendExistingAccountInvite(
     }
 
     const text =
-      `You've been invited to join ${company} on Loonext.\n\n` +
-      note +
-      `You already have a Loonext account — log in and accept here:\n` +
-      `${link}\n\n` +
-      `This invite expires in 7 days.\n`;
+      `You've been invited to join ${company} on Loonext.\n\n${ 
+      note 
+      }You already have a Loonext account — log in and accept here:\n${link}\n\nThis invite expires in 7 days.\n`;
     await sendEmail(env, {
       to: [args.email],
       subject: `You've been invited to join ${company} on Loonext`,
       text,
       html: emailLayout(
-        `<p>You've been invited to join <strong>${escapeHtml(company)}</strong> on Loonext.</p>` +
-          noteHtml +
-          `<p>You already have a Loonext account — log in and accept here:</p>` +
+        `<p>You've been invited to join <strong>${escapeHtml(company)}</strong> on Loonext.</p>${ 
+          noteHtml 
+          }<p>You already have a Loonext account — log in and accept here:</p>` +
           `<p><a href="${link}" style="color:#66801F;text-decoration:underline;">Accept the invite</a></p>` +
           `<p style="font-size:14px;color:#6E7163;">This invite expires in 7 days.</p>`,
       ),
     });
     return true;
-  } catch (cause) {
+  } catch (error) {
     // Never-silent (D3), but non-fatal: the invite stands, Copy link covers it.
     console.error(
-      `existing-account invite email failed (${args.inviteId}): ${String(cause)}`,
+      `existing-account invite email failed (${args.inviteId}): ${String(error)}`,
     );
     return false;
   }
@@ -957,7 +948,7 @@ teamRoutes.get("/invites/mine", async (c) => {
       `auth user lookup failed: ${userError?.message ?? "no user"}`,
     );
   }
-  const user = userData.user;
+  const {user} = userData;
   if (!user.email || !user.email_confirmed_at) {
     return c.json({ data: [] });
   }
@@ -1033,7 +1024,7 @@ teamRoutes.post("/invites/accept", async (c) => {
       `auth user lookup failed: ${userError?.message ?? "no user"}`,
     );
   }
-  const user = userData.user;
+  const {user} = userData;
   if (
     !user.email ||
     !user.email_confirmed_at ||
@@ -1247,10 +1238,10 @@ async function emailNoteIfOrientationWillNotShowIt(
           `They said: ${escapeHtml(args.note)}</p>`,
       ),
     });
-  } catch (cause) {
+  } catch (error) {
     // Never-silent (D3), non-fatal: the membership stands either way.
     console.error(
-      `joining-note email failed (${args.companyId}): ${String(cause)}`,
+      `joining-note email failed (${args.companyId}): ${String(error)}`,
     );
   }
 }
@@ -1299,10 +1290,10 @@ async function promptForBackupOwner(
       text,
       html: renderEmailHtml(text),
     });
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `backup-owner prompt failed for company ${companyId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }

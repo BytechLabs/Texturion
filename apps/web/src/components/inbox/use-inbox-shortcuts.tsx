@@ -2,7 +2,8 @@
 
 import { snoozePresets } from "@loonext/shared";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState } from 'react';
+import type { ReactNode } from 'react';
 import { toast } from "sonner";
 
 import { useT } from "@/i18n/provider";
@@ -16,16 +17,14 @@ import { useMembers } from "@/lib/api/team";
 import type { ConversationListItem } from "@/lib/api/types";
 import type { BulkConversationsBody } from "@/lib/inbox/bulk-selection";
 import { useSingleKeyShortcuts } from "@/lib/inbox/shortcut-preference";
-import {
-  requestComposerFocus,
-  shortcutForEvent,
-  type ShortcutAction,
-} from "@/lib/inbox/shortcuts";
+import { requestComposerFocus, shortcutForEvent } from '@/lib/inbox/shortcuts';
+import type { ShortcutAction } from '@/lib/inbox/shortcuts';
 import { contactDisplayName } from "@/lib/format/phone";
 
 import { toastSnoozed } from "../thread/snooze-menu";
 import { ShortcutCheatSheet } from "./shortcut-cheat-sheet";
-import { ShortcutPicker, type PickerOption } from "./shortcut-picker";
+import { ShortcutPicker } from './shortcut-picker';
+import type { PickerOption } from './shortcut-picker';
 
 type PickerKind = "snooze" | "assign" | "tag";
 
@@ -119,25 +118,29 @@ export function useInboxShortcuts({
           scrollToIndex(target);
           return;
         }
-        case "help":
+        case "help": {
           setHelpOpen(true);
           return;
-        case "search":
+        }
+        case "search": {
           document
             .querySelector<HTMLInputElement>("[data-inbox-search]")
             ?.focus();
           return;
+        }
       }
 
       if (!row) return;
       switch (action) {
-        case "open":
+        case "open": {
           router.push(`/inbox/${row.id}`);
           return;
-        case "reply":
+        }
+        case "reply": {
           if (row.id !== active) router.push(`/inbox/${row.id}`);
           requestComposerFocus();
           return;
+        }
         case "close": {
           const next = list[index + 1] ?? list[index - 1];
           runBulkOn([row.id], { action: "set_status", target_status: "closed" }, t("inbox.shortcutClosed"));
@@ -152,9 +155,10 @@ export function useInboxShortcuts({
         }
         case "snooze":
         case "assign":
-        case "tag":
+        case "tag": {
           setPicker({ kind: action, id: row.id });
           return;
+        }
       }
     };
 

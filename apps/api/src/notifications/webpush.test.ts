@@ -7,7 +7,8 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import {
   decodeBase64Url,
   encodeBase64Url,
@@ -50,7 +51,7 @@ async function hkdf(
 ): Promise<Uint8Array> {
   const key = await crypto.subtle.importKey(
     "raw",
-    ikm as BufferSource,
+    ikm,
     "HKDF",
     false,
     ["deriveBits"],
@@ -113,7 +114,7 @@ async function decryptPush(
 
   const serverKey = await crypto.subtle.importKey(
     "raw",
-    serverPublic as BufferSource,
+    serverPublic,
     { name: "ECDH", namedCurve: "P-256" },
     false,
     [],
@@ -147,7 +148,7 @@ async function decryptPush(
   );
   const aesKey = await crypto.subtle.importKey(
     "raw",
-    cek as BufferSource,
+    cek,
     "AES-GCM",
     false,
     ["decrypt"],
@@ -156,7 +157,7 @@ async function decryptPush(
     await crypto.subtle.decrypt(
       { name: "AES-GCM", iv: nonce as BufferSource },
       aesKey,
-      ciphertext as BufferSource,
+      ciphertext,
     ),
   );
   // Strip the RFC 8188 last-record delimiter (0x02) + any zero padding.
@@ -228,7 +229,7 @@ describe("sendWebPush (RFC 8291 + RFC 8292)", () => {
     const [header, claims, signature] = jwt.split(".");
     const verifyKey = await crypto.subtle.importKey(
       "raw",
-      decodeBase64Url(publicKey) as BufferSource,
+      decodeBase64Url(publicKey),
       { name: "ECDSA", namedCurve: "P-256" },
       false,
       ["verify"],
@@ -236,7 +237,7 @@ describe("sendWebPush (RFC 8291 + RFC 8292)", () => {
     const valid = await crypto.subtle.verify(
       { name: "ECDSA", hash: "SHA-256" },
       verifyKey,
-      decodeBase64Url(signature) as BufferSource,
+      decodeBase64Url(signature),
       encoder.encode(`${header}.${claims}`),
     );
     expect(valid).toBe(true);

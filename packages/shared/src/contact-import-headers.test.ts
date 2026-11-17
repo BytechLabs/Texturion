@@ -14,14 +14,14 @@ import {
   unreadableFlagValues,
 } from "./contact-import-headers";
 
-describe("normalizeContactHeader", () => {
+describe(normalizeContactHeader, () => {
   it("drops case, spaces, and punctuation", () => {
     expect(normalizeContactHeader("Phone Number")).toBe("phonenumber");
     expect(normalizeContactHeader("  E-mail_Address ")).toBe("emailaddress");
   });
 });
 
-describe("detectContactColumns", () => {
+describe(detectContactColumns, () => {
   it("finds the canonical header", () => {
     expect(
       detectContactColumns(["phone", "name", "address", "notes", "opted_out"]),
@@ -238,9 +238,9 @@ describe("#528 counting the values a column does not print", () => {
       ],
       2,
     );
-    expect(held[0]!.total).toBe(5);
-    expect(held[1]!.values).toEqual(["Subscribed", "DO NOT CALL", "Pending"]);
-    expect(held[1]!.total).toBe(3);
+    expect(held[0].total).toBe(5);
+    expect(held[1].values).toEqual(["Subscribed", "DO NOT CALL", "Pending"]);
+    expect(held[1].total).toBe(3);
   });
 
   it("counts past the ceiling so the number on screen stays true", () => {
@@ -251,8 +251,8 @@ describe("#528 counting the values a column does not print", () => {
     const size = CONTACT_IMPORT_COLUMN_VALUE_CEILING + 40;
     const rows = Array.from({ length: size }, (_, index) => [`v${index}`]);
     const [column] = contactImportAllColumnValues(rows, 1);
-    expect(column!.values).toHaveLength(CONTACT_IMPORT_COLUMN_VALUE_CEILING);
-    expect(column!.total).toBe(size);
+    expect(column.values).toHaveLength(CONTACT_IMPORT_COLUMN_VALUE_CEILING);
+    expect(column.total).toBe(size);
   });
 
   it("counts a repeated value once however many rows carry it", () => {
@@ -262,8 +262,8 @@ describe("#528 counting the values a column does not print", () => {
     const rows = Array.from({ length: 400 }, () => ["Subscribed"]);
     rows.push(["DO NOT CALL"]);
     const [column] = contactImportAllColumnValues(rows, 1);
-    expect(column!.values).toEqual(["Subscribed", "DO NOT CALL"]);
-    expect(column!.total).toBe(2);
+    expect(column.values).toEqual(["Subscribed", "DO NOT CALL"]);
+    expect(column.total).toBe(2);
   });
 
   it("answers for a column no row reaches", () => {
@@ -321,7 +321,7 @@ describe("#248 reading a do-not-text cell", () => {
   });
 });
 
-describe("joinContactName", () => {
+describe(joinContactName, () => {
   it("joins first and last", () => {
     expect(joinContactName({ first: "Jo", last: "Smith" })).toBe("Jo Smith");
   });

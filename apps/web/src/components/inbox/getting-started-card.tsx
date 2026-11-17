@@ -265,9 +265,9 @@ function OwnerChecklist({
       label: t("inbox.startedOwnerNumberLabel"),
       hint: numberDone
         ? undefined
-        : numberStalled
+        : (numberStalled
           ? t("inbox.startedOwnerNumberStalledHint")
-          : t("inbox.startedOwnerNumberHint"),
+          : t("inbox.startedOwnerNumberHint")),
     },
     {
       key: "inbound",

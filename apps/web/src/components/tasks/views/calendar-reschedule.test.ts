@@ -24,7 +24,7 @@ const en = makeTranslate("en");
 const NOW = new Date("2026-07-15T09:00:00.000Z");
 
 const SOURCE = readFileSync(
-  fileURLToPath(new URL("./calendar-view.tsx", import.meta.url)),
+  fileURLToPath(new URL("calendar-view.tsx", import.meta.url)),
   "utf8",
 );
 
@@ -110,13 +110,7 @@ describe("#238 rescheduling from the calendar without a drag", () => {
     );
 
     for (const hiding of ["hidden ", '"hidden', "invisible", "sr-only"]) {
-      expect(
-        trigger.includes(hiding),
-        `The reschedule trigger uses "${hiding}", which takes it out of the ` +
-          `box tree or the accessibility tree. It is the single-pointer and ` +
-          `keyboard alternative to dragging (WCAG 2.2 2.5.7) — dim it if it ` +
-          `is too loud, but it has to stay focusable and hit-testable.`,
-      ).toBe(false);
+      expect(trigger).not.toContain(hiding);
     }
     // And the quiet-until-noticed treatment is opacity, which keeps both.
     expect(trigger).toMatch(/opacity-\d+/);

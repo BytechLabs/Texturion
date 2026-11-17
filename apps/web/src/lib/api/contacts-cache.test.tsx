@@ -93,7 +93,7 @@ describe("a contact row's prefetch", () => {
     await client.prefetchQuery(contactDetailOptions(C, "ct-1"));
     const { result } = mount(client, () => useContact("ct-1"));
     expect(result.current.data).toMatchObject({ name: "Dana" });
-    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledOnce();
     expect(apiFetch.mock.calls[0][1]?.signal).toBeInstanceOf(AbortSignal);
   });
 });
@@ -112,9 +112,9 @@ describe("the duplicates check", () => {
   }
 
   it("CT-4: is trusted for 10 minutes and kept for 30", async () => {
-    expect(await readsAt(5 * MINUTE)).toBe(false);
+    await expect(readsAt(5 * MINUTE)).resolves.toBe(false);
     apiFetch.mockClear();
-    expect(await readsAt(11 * MINUTE)).toBe(true);
+    await expect(readsAt(11 * MINUTE)).resolves.toBe(true);
     const client = makeClient();
     mount(client, () => useDuplicateContacts());
     const query = client.getQueryCache().find({ queryKey: keys.contacts.duplicates(C) });
@@ -138,15 +138,15 @@ describe("the duplicates check", () => {
   const file = new Blob(["phone\n+16135550100"], { type: "text/csv" });
 
   it("CT-5: is dropped by a create, a rename, a delete and both imports", async () => {
-    expect(await invalidatedBy(useCreateContact, { phone_e164: "+16135550100" })).toBe(true);
-    expect(await invalidatedBy(() => useUpdateContact("ct-1"), { name: "Dana R" })).toBe(true);
-    expect(await invalidatedBy(useDeleteContact, "ct-1")).toBe(true);
-    expect(await invalidatedBy(useImportContacts, { file, consentAttested: true })).toBe(true);
-    expect(await invalidatedBy(useImportVCard, { file, consentAttested: true })).toBe(true);
+    await expect(invalidatedBy(useCreateContact, { phone_e164: "+16135550100" })).resolves.toBe(true);
+    await expect(invalidatedBy(() => useUpdateContact("ct-1"), { name: "Dana R" })).resolves.toBe(true);
+    await expect(invalidatedBy(useDeleteContact, "ct-1")).resolves.toBe(true);
+    await expect(invalidatedBy(useImportContacts, { file, consentAttested: true })).resolves.toBe(true);
+    await expect(invalidatedBy(useImportVCard, { file, consentAttested: true })).resolves.toBe(true);
   });
 
   it("CT-6: survives an edit that cannot change a pair", async () => {
-    expect(await invalidatedBy(() => useUpdateContact("ct-1"), { notes: "Gate code" })).toBe(false);
+    await expect(invalidatedBy(() => useUpdateContact("ct-1"), { notes: "Gate code" })).resolves.toBe(false);
   });
 });
 

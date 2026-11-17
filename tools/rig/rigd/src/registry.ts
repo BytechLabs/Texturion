@@ -84,7 +84,7 @@ export function validateRegistry(value: unknown, source = "scenarios.json"): Reg
     seen.add(entry.id);
     scenarios.push(entry);
   });
-  if (problems.length || !caps) {
+  if (problems.length > 0 || !caps) {
     throw new Error(`${source} does not have the shape rigd runs from:\n  - ${problems.join("\n  - ")}`);
   }
   return { caps, scenarios, byId: new Map(scenarios.map((entry) => [entry.id, entry])) };
@@ -159,7 +159,7 @@ export function loadRegistry(path: string): Registry {
   try {
     parsed = JSON.parse(readFileSync(path, "utf8"));
   } catch (error) {
-    throw new Error(`${path}: ${(error as Error).message}`);
+    throw new Error(`${path}: ${(error as Error).message}`, { cause: error });
   }
   return validateRegistry(parsed, path);
 }

@@ -31,9 +31,9 @@ const REAUTH_REQUIRED_CODES = new Set([
  */
 export function needsReauth(error: unknown): boolean {
   if (!error || typeof error !== "object") return false;
-  const code = (error as { code?: unknown }).code;
+  const {code} = (error as { code?: unknown });
   if (typeof code === "string" && REAUTH_REQUIRED_CODES.has(code)) return true;
-  const message = (error as { message?: unknown }).message;
+  const {message} = (error as { message?: unknown });
   return (
     typeof message === "string" &&
     /reauthentication/i.test(message) &&

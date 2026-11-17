@@ -11,15 +11,14 @@
 // --sdk-only repeats step 10 alone, for after the SDK licences are accepted.
 import { spawn } from "node:child_process";
 import { createHash } from "node:crypto";
-import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { networkInterfaces } from "node:os";
 import { join, resolve } from "node:path";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
-import { fileURLToPath } from "node:url";
 
-import { OPENSSH_DIR, VMWARE_DIR, loadContract, loadHostConfig } from "../src/config.mjs";
-import { SSH, commandArgs } from "../src/tunnel.mjs";
+import { loadContract, loadHostConfig, OPENSSH_DIR, VMWARE_DIR } from "../src/config.mjs";
+import { commandArgs, SSH } from "../src/tunnel.mjs";
 import { vmControls } from "../src/vmrun.mjs";
 import { encode, metaData, userData } from "./cloud-init.mjs";
 import { STATE_DISK, SYSTEM_DISK, vmxText, withoutUserdata } from "./vmx.mjs";
@@ -38,9 +37,9 @@ export const CMDLINE_TOOLS = {
   url: "https://dl.google.com/android/repository/commandlinetools-win-15859902_latest.zip",
   sha256: "90ae805d20434428bffcb699c290860f19bb5f66a67e6b330067e3de801fb04a",
 };
-const GPG = "C:\\Program Files\\Git\\usr\\bin\\gpg.exe";
-const GPGCONF = "C:\\Program Files\\Git\\usr\\bin\\gpgconf.exe";
-const TAR = "C:\\Windows\\System32\\tar.exe";
+const GPG = String.raw`C:\Program Files\Git\usr\bin\gpg.exe`;
+const GPGCONF = String.raw`C:\Program Files\Git\usr\bin\gpgconf.exe`;
+const TAR = String.raw`C:\Windows\System32\tar.exe`;
 const VDISK = join(VMWARE_DIR, "vmware-vdiskmanager.exe");
 const VMCLI = join(VMWARE_DIR, "vmcli.exe");
 const SSH_KEYGEN = join(OPENSSH_DIR, "ssh-keygen.exe");
@@ -77,14 +76,14 @@ export function signedBy(status, fingerprint) {
 export function scrubUserdata(dir, vmxPath, userdata) {
   if (existsSync(vmxPath)) writeFileSync(vmxPath, withoutUserdata(readFileSync(vmxPath, "utf8")));
   const head = userdata.slice(0, 64);
-  const quoted = new RegExp(`${head.replace(/[+/=]/g, (char) => `\\${char}`)}[A-Za-z0-9+/=]*`, "g");
+  const quoted = new RegExp(`${head.replaceAll(/[+/=]/g, (char) => `\\${char}`)}[A-Za-z0-9+/=]*`, "g");
   const changed = [];
   for (const name of existsSync(dir) ? readdirSync(dir) : []) {
     if (!/^vmware.*\.log$/i.test(name)) continue;
     const path = join(dir, name);
     const text = readFileSync(path, "utf8");
     if (!text.includes(head)) continue;
-    writeFileSync(path, text.replace(quoted, "[user-data removed]"));
+    writeFileSync(path, text.replaceAll(quoted, "[user-data removed]"));
     changed.push(name);
   }
   return changed;
@@ -150,7 +149,7 @@ async function sha256File(path) {
   return hash.digest("hex");
 }
 
-const slashed = (path) => path.replace(/\\/g, "/");
+const slashed = (path) => path.replaceAll('\\', "/");
 const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
 
 /**
@@ -270,9 +269,9 @@ async function createVm({ contract, root, paths, ref }) {
     const measurements = { measured_at: new Date().toISOString(), VM1: { cloud_id: cloudId, datasource_is_vmware: cloudId === "vmware" } };
     writeFileSync(join(paths.host, "measurements.json"), `${JSON.stringify(measurements, null, 2)}\n`);
     if (status.code === 1) throw new Error("cloud-init reported an error; see the status above and /var/log/cloud-init-output.log in the VM");
-  } catch (cause) {
+  } catch (error) {
     await powerOffAndScrub(vm, paths, userdata).catch((error) => console.error(`create.mjs: ${error.message}`));
-    throw cause;
+    throw error;
   }
   return { vm, userdata };
 }
@@ -329,7 +328,7 @@ async function powerOffAndScrub(vm, paths, userdata) {
     }
   } finally {
     const changed = scrubUserdata(paths.vm, paths.vmx, userdata);
-    if (changed.length) console.log(`removed user-data from ${changed.join(", ")}`);
+    if (changed.length > 0) console.log(`removed user-data from ${changed.join(", ")}`);
   }
 }
 
@@ -360,17 +359,17 @@ async function main(argv) {
   if (!ref) throw new Error("create.mjs --ref <git ref> --yes");
   const { vm, userdata } = await createVm({ contract, root, paths, ref });
   let failure;
-  await installSdk({ contract, sdk, paths }).catch((cause) => {
-    failure = cause;
+  await installSdk({ contract, sdk, paths }).catch((error) => {
+    failure = error;
   });
   await snapshotBaseline(vm, paths, userdata);
   if (failure) throw failure;
   console.log("\ncreate.mjs: done. Measure VM2 (start with nobody logged on) and VM3 (`hostd doctor` with a device booted) next.");
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main(process.argv.slice(2)).catch((cause) => {
-    console.error(`create.mjs: ${cause.message}`);
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
+  main(process.argv.slice(2)).catch((error) => {
+    console.error(`create.mjs: ${error.message}`);
     process.exit(1);
   });
 }

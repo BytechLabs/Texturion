@@ -5,7 +5,8 @@ import { toast } from "sonner";
 
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
-import { useUpdateContact, type ContactPatch } from "@/lib/api/contacts";
+import { useUpdateContact } from '@/lib/api/contacts';
+import type { ContactPatch } from '@/lib/api/contacts';
 import { useDebouncedAutosave } from "@/lib/hooks/use-debounced-autosave";
 import { cn } from "@/lib/utils";
 
@@ -180,9 +181,9 @@ export function AutoSaveNotes({
       >
         {notes.state === "saving"
           ? t("common.saving")
-          : notes.state === "saved"
+          : (notes.state === "saved"
             ? t("common.saved")
-            : ""}
+            : "")}
       </p>
     </div>
   );

@@ -3,7 +3,8 @@
  * S24 and S25. Every body carries the attempt's nonce, so a check never
  * matches a text from another run.
  */
-import { EVENT_INGEST_MS, EVENT_POLL_MS, fail, infra, pass, poll, type ScenarioContext, type ScenarioResult, type ScenarioRunner } from "./context.ts";
+import { EVENT_INGEST_MS, EVENT_POLL_MS, fail, infra, pass, poll } from './context.ts';
+import type { ScenarioContext, ScenarioResult, ScenarioRunner } from './context.ts';
 
 /** Every rig number has an Ontario area code, so the destination's clock is Toronto's. */
 const DESTINATION_ZONE = "America/Toronto";
@@ -66,14 +67,14 @@ export const S20: ScenarioRunner = {
     const metered = await poll(ctx, async () => {
       const rows = await ctx.app.usageFor(sent.messageId);
       return rows.find((r) => r.stripe_reported_at !== null);
-    }, 120_000, 5_000);
+    }, 120_000, 5000);
     if (!metered) return fail("meter_not_reported", "the usage row was never reported to the sandbox meter");
 
     await ctx.app.fireCron(OUTBOUND_WEBHOOK_CRON);
     const webhook = await poll(ctx, async () => {
       const deliveries = await ctx.robot.sink({ since, type: "message.sent" });
       return deliveries.find((d) => d.body.includes(sent.messageId));
-    }, 60_000, 2_000);
+    }, 60_000, 2000);
     if (!webhook) return fail("webhook_missing", "no message.sent webhook for the message at the robot's sink");
     return pass();
   },
@@ -107,7 +108,7 @@ export const S21: ScenarioRunner = {
     }, 15_000);
     if (!threaded) return fail("not_threaded", "the text was not threaded within 15 s");
     // A duplicate shows up as the webhook's retry, seconds later.
-    await ctx.sleep(5_000);
+    await ctx.sleep(5000);
     const rows = await ctx.app.messages({ tenant: "QA-W", body, since });
     ctx.evidence.rows = rows.length;
     if (rows.length !== 1) return fail("threaded_twice", `threaded ${rows.length} times`);
@@ -195,7 +196,7 @@ export const S24: ScenarioRunner = {
       lease_id: ctx.lease.id,
       direction: "inbound",
       role: "ROBOT-2",
-      answer_after_ms: 3_000,
+      answer_after_ms: 3000,
       expect_within_ms: 60_000,
       record: false,
       hangup_after_ms: 20_000,
@@ -233,7 +234,7 @@ export const S24: ScenarioRunner = {
     const lifted = await poll(ctx, async () => {
       const current = await ctx.app.optOut({ tenant: "QA-E", role: "ROBOT-2" });
       return !current?.active;
-    }, 60_000, 2_000);
+    }, 60_000, 2000);
     return lifted ? undefined : fail("stop_left_in_place", "ROBOT-2 is still opted out of DEV-E1 after cleanup", { critical: true });
   },
 };
@@ -269,9 +270,9 @@ export const S25: ScenarioRunner = {
     if (texts.length === 0) return infra("app-probe", "no automated texts were armed");
     const held = night ? texts.filter((t) => !t.reply) : [];
     const leaked = held.filter((t) => t.state !== "held" || arrived(t.body));
-    if (leaked.length) return fail("sent_in_quiet_hours", `sent at night: ${leaked.map((t) => t.kind).join(", ")}`);
+    if (leaked.length > 0) return fail("sent_in_quiet_hours", `sent at night: ${leaked.map((t) => t.kind).join(", ")}`);
     const missing = texts.filter((t) => !held.includes(t) && (t.state !== "sent" || !arrived(t.body)));
-    if (missing.length) {
+    if (missing.length > 0) {
       return fail(night ? "reply_held_at_night" : "not_sent_by_day", `did not arrive ${night ? "at night" : "by day"}: ${missing.map((t) => t.kind).join(", ")}`);
     }
     return pass();

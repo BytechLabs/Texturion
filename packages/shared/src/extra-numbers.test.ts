@@ -6,13 +6,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  canBuyExtraNumber,
-  EXTRA_NUMBER_CURRENCY,
-  extraNumberBlockedReason,
-  STARTER_MAX_TOTAL_NUMBERS,
-  type ExtraNumberEligibility,
-} from "./extra-numbers";
+import { canBuyExtraNumber, EXTRA_NUMBER_CURRENCY, extraNumberBlockedReason, STARTER_MAX_TOTAL_NUMBERS } from './extra-numbers';
+import type { ExtraNumberEligibility } from './extra-numbers';
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
@@ -20,7 +15,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function look(table: unknown, key: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -28,7 +23,7 @@ const sayEn = (key: string): string => look(WEB_EN, key);
 const sayFr = (key: string): string => look(WEB_FR, key);
 
 
-describe("extraNumberBlockedReason", () => {
+describe(extraNumberBlockedReason, () => {
   it("lets a Canadian workspace buy one, with no registration wait", () => {
     // The bug: Canada has no 10DLC equivalent, so `usTextingEnabled` is never
     // true for a CA workspace — and the old rule required it, which refused

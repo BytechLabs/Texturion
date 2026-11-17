@@ -18,10 +18,8 @@
  */
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import {
-  sharedInboxCopy,
-  type SharedInboxCopy,
-} from "@/i18n/marketing/shared-inbox";
+import { sharedInboxCopy } from '@/i18n/marketing/shared-inbox';
+import type { SharedInboxCopy } from '@/i18n/marketing/shared-inbox';
 import { Check, Lock } from "lucide-react";
 
 import { cn } from "@/lib/utils";

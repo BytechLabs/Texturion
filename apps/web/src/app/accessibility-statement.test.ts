@@ -73,10 +73,10 @@ describe("#238/#285 the accessibility statement is backed by real tests", () => 
 
     expect(
       missing,
-      "docs/ACCESSIBILITY.md claims these enforce a WCAG criterion, and they " +
-        "do not exist. Either restore them, or move the row down into " +
-        "'Specified, implemented, not yet mechanically verified' — a buyer is " +
-        "reading this:\n  " + missing.join("\n  "),
+      `docs/ACCESSIBILITY.md claims these enforce a WCAG criterion, and they ` +
+        `do not exist. Either restore them, or move the row down into ` +
+        `'Specified, implemented, not yet mechanically verified' — a buyer is ` +
+        `reading this:\n  ${  missing.join("\n  ")}`,
     ).toEqual([]);
   });
 

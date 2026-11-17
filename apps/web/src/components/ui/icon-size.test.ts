@@ -21,7 +21,7 @@ function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) return walk(full);
-    return /\.tsx$/.test(entry) && !entry.includes(".test.") ? [full] : [];
+    return entry.endsWith('.tsx') && !entry.includes(".test.") ? [full] : [];
   });
 }
 
@@ -43,7 +43,7 @@ export function arbitraryIconSizes(source: string): string[] {
   for (const match of source.matchAll(/<([A-Z][A-Za-z0-9]*)\b([^<>]*?)\/?>/g)) {
     const [tag, name, attributes] = match;
     const isIcon = icons.has(name) || /\bstrokeWidth=/.test(attributes);
-    if (isIcon && ARBITRARY_PX.test(attributes)) found.push(tag.replace(/\s+/g, " ").slice(0, 120));
+    if (isIcon && ARBITRARY_PX.test(attributes)) found.push(tag.replaceAll(/\s+/g, " ").slice(0, 120));
   }
   return found;
 }

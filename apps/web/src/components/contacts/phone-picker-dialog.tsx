@@ -164,9 +164,9 @@ export function PhonePickerDialog({
                 {t(
                   picking
                     ? "contacts.pickerOpening"
-                    : importContacts.isPending
+                    : (importContacts.isPending
                       ? "contacts.importing"
-                      : "contacts.chooseContacts",
+                      : "contacts.chooseContacts"),
                 )}
               </Button>
             </div>

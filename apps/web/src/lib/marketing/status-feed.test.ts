@@ -177,8 +177,8 @@ describe("readStatusFeed — every failure resolves to claiming nothing", () => 
   it("returns the claim-nothing feed when no store is bound", async () => {
     // Local dev, a preview build, or the binding not yet added: the page must
     // render exactly as it did before this existed.
-    expect(await readStatusFeed(null, NOW)).toEqual(EMPTY_STATUS_FEED);
-    expect(await readStatusFeed(undefined, NOW)).toEqual(EMPTY_STATUS_FEED);
+    await expect(readStatusFeed(null, NOW)).resolves.toEqual(EMPTY_STATUS_FEED);
+    await expect(readStatusFeed(undefined, NOW)).resolves.toEqual(EMPTY_STATUS_FEED);
   });
 
   it("survives a KV read that throws", async () => {
@@ -223,7 +223,7 @@ describe("readStatusFeed — every failure resolves to claiming nothing", () => 
   });
 });
 
-describe("formatConfirmedDisplay", () => {
+describe(formatConfirmedDisplay, () => {
   it("matches the page's eyebrow voice, pinned to UTC", () => {
     expect(formatConfirmedDisplay("2026-07-07")).toBe("JULY 7, 2026");
     // Not dependent on where the worker ran: a date near midnight must not

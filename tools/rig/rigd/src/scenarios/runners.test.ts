@@ -4,12 +4,11 @@
  * registry lists. `rig run` reads all three, so they must agree.
  */
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { loadRegistry } from "../registry.ts";
 import { NOT_RUNNABLE_YET, RUNNERS } from "./index.ts";
 
-const registry = loadRegistry(resolve(fileURLToPath(import.meta.url), "../../../../scenarios.json"));
+const registry = loadRegistry(resolve(import.meta.filename, "../../../../scenarios.json"));
 const runnable = Object.keys(RUNNERS);
 const notRunnable = Object.keys(NOT_RUNNABLE_YET);
 

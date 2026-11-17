@@ -40,12 +40,10 @@
  * bucket) is untouched. Inbound MMS is NEVER blocked on the D30 budget — it is
  * bounded per message instead (messaging/media.ts MAX_INBOUND_MEDIA_ITEMS).
  */
-import {
-  INTERNAL_ERROR_CODE,
-  type ApiErrorCode,
-  type ErrorCode,
-} from "@loonext/shared";
-import { Hono, type Context } from "hono";
+import { INTERNAL_ERROR_CODE } from '@loonext/shared';
+import type { ApiErrorCode, ErrorCode } from '@loonext/shared';
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from "zod";
 
 import {
@@ -54,8 +52,8 @@ import {
   companyPlanRow,
 } from "../attachments/egress";
 import {
-  MAX_PREVIEW_BYTES,
   acceptUploadedPreview,
+  MAX_PREVIEW_BYTES,
   parseContentTwin,
   previewStoragePath,
   sha256Hex,
@@ -63,11 +61,8 @@ import {
 import { stripImageLocation } from "../attachments/location";
 import { scanAttachment } from "../attachments/scan";
 import { requireCapability } from "../auth/company";
-import {
-  requireConversationAccess,
-  resolveNumberAccess,
-  type NumberAccessView,
-} from "../auth/number-access";
+import { requireConversationAccess, resolveNumberAccess } from '../auth/number-access';
+import type { NumberAccessView } from '../auth/number-access';
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -75,23 +70,10 @@ import { recordAuditFromRequest } from "../audit/log";
 import { ApiError, errorResponse } from "../http/errors";
 import { captureException } from "../observability/capture";
 import { dispositionOptions } from "../storage/disposition";
-import {
-  ATTACHMENTS_BUCKET,
-  ATTACHMENT_SIGNED_URL_TTL_SECONDS,
-  assertAllowedType,
-  attachmentStoragePath,
-  bytesMatchDeclaredType,
-  MAX_ATTACHMENTS_PER_OWNER,
-  MAX_ATTACHMENT_BYTES,
-  OWNER_TYPES,
-  UPLOAD_OWNER_TYPES,
-  type OwnerType,
-} from "./core/attachments";
-import {
-  insertConversationEvents,
-  type ConversationEventRow,
-  type ConversationEventType,
-} from "./core/events";
+import { assertAllowedType, ATTACHMENT_SIGNED_URL_TTL_SECONDS, ATTACHMENTS_BUCKET, attachmentStoragePath, bytesMatchDeclaredType, MAX_ATTACHMENT_BYTES, MAX_ATTACHMENTS_PER_OWNER, OWNER_TYPES, UPLOAD_OWNER_TYPES } from './core/attachments';
+import type { OwnerType } from './core/attachments';
+import { insertConversationEvents } from './core/events';
+import type { ConversationEventRow, ConversationEventType } from './core/events';
 import {
   assertBodyWithinLimit,
   parseJsonBody,

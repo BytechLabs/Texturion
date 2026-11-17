@@ -29,7 +29,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { flagDefault, type FlagKey } from "./registry";
+import { flagDefault } from './registry';
+import type { FlagKey } from './registry';
 
 /**
  * How long a cached evaluation is trusted.
@@ -87,8 +88,8 @@ async function loadFlags(
     const values = (data ?? {}) as Record<string, boolean>;
     cache.set(cacheKey, { values, expiresAt: now + TTL_MS });
     return values;
-  } catch (cause) {
-    console.error(`flags: evaluation failed, falling back to defaults: ${String(cause)}`);
+  } catch (error) {
+    console.error(`flags: evaluation failed, falling back to defaults: ${String(error)}`);
     // Cache the empty answer too, briefly. Otherwise an outage in the flag
     // store turns into a retry storm against the same unhealthy database from
     // every request in flight.

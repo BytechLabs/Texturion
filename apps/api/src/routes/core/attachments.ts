@@ -214,13 +214,13 @@ export function sniffContentType(bytes: Uint8Array): string | null {
   // Images
   if (startsWith([0xff, 0xd8, 0xff])) return "image/jpeg";
   if (startsWith([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]))
-    return "image/png";
+    {return "image/png";}
   if (startsWith([0x47, 0x49, 0x46, 0x38])) return "image/gif"; // GIF8
   if (
     startsWith([0x52, 0x49, 0x46, 0x46]) && // RIFF
     startsWith([0x57, 0x45, 0x42, 0x50], 8) // WEBP
   )
-    return "image/webp";
+    {return "image/webp";}
   // PDF: %PDF
   if (startsWith([0x25, 0x50, 0x44, 0x46])) return "application/pdf";
   // ZIP container (PK\x03\x04) — covers application/zip AND every OpenXML/ODF
@@ -229,7 +229,7 @@ export function sniffContentType(bytes: Uint8Array): string | null {
   if (startsWith([0x50, 0x4b, 0x03, 0x04])) return "application/zip";
   // Legacy MS Office (OLE compound: D0 CF 11 E0 A1 B1 1A E1)
   if (startsWith([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1]))
-    return "application/x-ole-storage";
+    {return "application/x-ole-storage";}
   return null;
 }
 

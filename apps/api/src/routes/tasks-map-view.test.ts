@@ -1,12 +1,11 @@
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import { TASK_COLUMNS } from "./tasks";
 
-const MIGRATIONS = join(fileURLToPath(new URL(".", import.meta.url)), "../../../../supabase/migrations");
+const MIGRATIONS = join(import.meta.dirname, "../../../../supabase/migrations");
 
 /** The output column names of the newest definition of `view` in the migrations. */
 function latestViewColumns(view: string): string[] {
@@ -15,13 +14,13 @@ function latestViewColumns(view: string): string[] {
     "gi",
   );
   let body = "";
-  for (const file of readdirSync(MIGRATIONS).filter((name) => name.endsWith(".sql")).sort()) {
+  for (const file of readdirSync(MIGRATIONS).filter((name) => name.endsWith(".sql")).toSorted()) {
     for (const match of readFileSync(join(MIGRATIONS, file), "utf8").matchAll(definition)) {
       body = match[1];
     }
   }
   return body.split(",").map((part) => {
-    const column = part.trim().replace(/\s+/g, " ");
+    const column = part.trim().replaceAll(/\s+/g, " ");
     const alias = / as (\w+)$/i.exec(column);
     return alias ? alias[1] : (column.split(".").pop() ?? column).trim();
   });

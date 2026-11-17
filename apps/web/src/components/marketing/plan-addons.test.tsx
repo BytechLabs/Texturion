@@ -21,8 +21,8 @@ describe("pricing add-ons strip (#28 truth guard)", () => {
   });
 
   it("carries fine print for every add-on, and the Canada card states it can't be bought yet", () => {
-    expect(Object.keys(ADDON_FINE_PRINT).sort()).toEqual(
-      ADDON_CARDS.map((card) => card.id).sort(),
+    expect(Object.keys(ADDON_FINE_PRINT).toSorted()).toEqual(
+      ADDON_CARDS.map((card) => card.id).toSorted(),
     );
     // The API refuses to sell regions_ca until multi-region provisioning
     // ships — the strip says so instead of advertising a toggle that

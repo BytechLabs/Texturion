@@ -14,7 +14,7 @@ import {
   isRetryableFailure,
 } from "./carrier-failure";
 
-describe("classifySendFailure", () => {
+describe(classifySendFailure, () => {
   it("classifies the opt-out, which is the one with a legal meaning", () => {
     expect(classifySendFailure("40300")).toBe("opt_out");
   });
@@ -53,7 +53,7 @@ describe("classifySendFailure", () => {
   });
 });
 
-describe("failureReasonOf", () => {
+describe(failureReasonOf, () => {
   it("prefers the server's classification", () => {
     expect(failureReasonOf("spam_blocked", "40300")).toBe("spam_blocked");
   });
@@ -71,7 +71,7 @@ describe("failureReasonOf", () => {
   });
 });
 
-describe("isRetryableFailure", () => {
+describe(isRetryableFailure, () => {
   it("never offers a retry for an opt-out", () => {
     expect(isRetryableFailure("opt_out")).toBe(false);
   });

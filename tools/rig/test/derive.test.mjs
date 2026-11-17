@@ -54,7 +54,7 @@ test("the API's derived config has no routes or crons, keeps its limiters and sw
 
 test("env.rig repeats every binding under the Worker's own name", () => {
   const derived = deriveRigConfig(parseJsonc(repoFile("apps", "api", "wrangler.jsonc")), { port: 8787, aiShim: true });
-  const rig = derived.env.rig;
+  const {rig} = derived.env;
   // Without its own name, `--env rig` would rename the Worker and orphan the AI binding.
   assert.equal(rig.name, derived.name);
   assert.deepEqual(rig.services, derived.services);
@@ -113,7 +113,7 @@ test("the derived config.toml points at the signing key, confirms sign-ups by ma
   assert.equal(after.length, before.length, "the commented example line is replaced, not added to");
   const changed = after.filter((line, i) => line !== before[i]);
   assert.deepEqual(changed, ['signing_keys_path = "./signing_keys.json"', "enable_confirmations = true"]);
-  const email = /\n\[auth\.email\]\n([\s\S]*?)\n\[/.exec(derived.replace(/\r\n/g, "\n"))[1];
+  const email = /\n\[auth\.email\]\n([\s\S]*?)\n\[/.exec(derived.replaceAll('\r\n', "\n"))[1];
   assert.match(email, /^enable_confirmations = true$/m, "the phone table's own enable_confirmations stays off");
   assert.equal(projectIdOf(derived), projectIdOf(committed));
 });
@@ -124,11 +124,11 @@ test("on the box the issuer follows the rig's Supabase origin, and TOTP is on", 
     appOrigin: "https://app.rig.internal",
     totp: true,
   });
-  const auth = /\n\[auth\]\n([\s\S]*?)\n\[/.exec(derived.replace(/\r\n/g, "\n"))[1];
+  const auth = /\n\[auth\]\n([\s\S]*?)\n\[/.exec(derived.replaceAll('\r\n', "\n"))[1];
   assert.match(auth, /^jwt_issuer = "https:\/\/db\.rig\.internal\/auth\/v1"$/m);
   assert.match(auth, /^external_url = "https:\/\/db\.rig\.internal\/auth\/v1"$/m);
   assert.match(auth, /^site_url = "https:\/\/app\.rig\.internal"$/m);
-  const totp = /\[auth\.mfa\.totp\]\n([\s\S]*?)\n\n/.exec(derived.replace(/\r\n/g, "\n"))[1];
+  const totp = /\[auth\.mfa\.totp\]\n([\s\S]*?)\n\n/.exec(derived.replaceAll('\r\n', "\n"))[1];
   assert.match(totp, /^enroll_enabled = true$/m);
   assert.match(totp, /^verify_enabled = true$/m);
 });

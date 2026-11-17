@@ -26,16 +26,8 @@
 import { readFileSync } from "node:fs";
 
 import { assertHostedTarget, CapacityConfigError } from "./deployed-capacity-lib.ts";
-import {
-  countStatuses,
-  loadSigner,
-  postSigned,
-  requiredEnv,
-  sleep,
-  summarize,
-  type Ack,
-  type Signer,
-} from "./capacity-support.ts";
+import { countStatuses, loadSigner, postSigned, requiredEnv, sleep, summarize } from './capacity-support.ts';
+import type { Ack, Signer } from './capacity-support.ts';
 
 const QUIET_MS = 1_500;
 /** Fictional numbers only (555-0100 to 555-0199). */

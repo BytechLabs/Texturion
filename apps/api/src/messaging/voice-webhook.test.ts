@@ -15,20 +15,16 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { messageRow, restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import {
-  messageRow,
-  restMatch,
-  rpcMatch,
-  stubRoute,
-  type Stub,
-} from "../test/messaging-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
-import {
-  handleCallEvent,
-  handleVoicemailSaved,
   buildOutboundPlacerState,
   buildOutboundState,
   FORWARD_LEG_STATE,
+  handleCallEvent,
+  handleVoicemailSaved,
   INBOUND_FORWARDED_STATE,
   OUTBOUND_CUSTOMER_STATE,
   parseOutboundPlacerState,
@@ -858,7 +854,7 @@ describe("handleCallEvent — terminal → text-back", () => {
     );
 
     expect(close.calls).toHaveLength(1);
-    expect(close.calls[0]!.body).toMatchObject({
+    expect(close.calls[0].body).toMatchObject({
       is_spam: true,
       status: "closed",
     });

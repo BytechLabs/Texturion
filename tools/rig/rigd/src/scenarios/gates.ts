@@ -9,24 +9,8 @@
 import type { LeaseActivity } from "@loonext/rig-protocol";
 import type { CallRecord } from "@loonext/rig-robot";
 import type { SeenEvent } from "../cron-events.ts";
-import {
-  EVENT_INGEST_MS,
-  EVENT_POLL_MS,
-  fail,
-  FICTIONAL_E164,
-  GUARD_PROBES,
-  infra,
-  pass,
-  poll,
-  wordErrorRate,
-  type ApiAnswer,
-  type GuardProbe,
-  type MemberPageApi,
-  type ScenarioContext,
-  type ScenarioResult,
-  type ScenarioRunner,
-  type WebhookDelivery,
-} from "./context.ts";
+import { EVENT_INGEST_MS, EVENT_POLL_MS, fail, FICTIONAL_E164, GUARD_PROBES, infra, pass, poll, wordErrorRate } from './context.ts';
+import type { ApiAnswer, GuardProbe, MemberPageApi, ScenarioContext, ScenarioResult, ScenarioRunner, WebhookDelivery } from './context.ts';
 
 const DAY_MS = 86_400_000;
 const W_OWNER = "qa-w-owner";
@@ -154,7 +138,7 @@ async function judgeFictional(
   if (answer.status === 500) {
     let reported: boolean | undefined;
     try {
-      reported = await poll(ctx, async () => (await ctx.rig.apiEvents(since)).some((event) => gateRefusedOn(event, route)), API_ERROR_WAIT_MS, 2_000);
+      reported = await poll(ctx, async () => (await ctx.rig.apiEvents(since)).some((event) => gateRefusedOn(event, route)), API_ERROR_WAIT_MS, 2000);
     } catch (error) {
       return infra("rig", `the API's error reports could not be read: ${(error as Error).message}`);
     }
@@ -250,7 +234,7 @@ async function strangerCall(ctx: ScenarioContext, since: number): Promise<Scenar
     to: "DEV-W1",
     play: null,
     record: false,
-    hangup_after_ms: 5_000,
+    hangup_after_ms: 5000,
     ring_timeout_secs: 20,
   });
   const refused = dialRefused(dialed);
@@ -351,7 +335,7 @@ export const S12: ScenarioRunner = {
       to: "DEV-C1",
       play: null,
       record: false,
-      hangup_after_ms: 5_000,
+      hangup_after_ms: 5000,
       ring_timeout_secs: 30,
     });
     const refused = dialRefused(dialed);
@@ -363,7 +347,7 @@ export const S12: ScenarioRunner = {
     const textBack = await poll(ctx, async () => {
       const inbox = await ctx.robot.inbox({ to_role: "ROBOT-1", since: dialedAt });
       return inbox.find((m) => m.event === "message.received" && m.from_role === "DEV-C1");
-    }, 60_000, 2_000);
+    }, 60_000, 2000);
     if (!textBack) return fail("no_text_back", "ROBOT-1 got no text-back from DEV-C1 after the busy call");
 
     const dialsAfter = await callsThroughGuard(ctx);
@@ -386,7 +370,7 @@ export function downStatesFor(at: number): [DownState, DownState] {
 export const UNAVAILABLE_NOTICE = "Sorry, this number isn't taking calls right now. Please try again later.";
 /** Speech-to-text drops or splits a word or two ("isn't"); most of the spoken copy must still be there. */
 export const NOTICE_WORD_SHARE = 0.75;
-export const RELEASED_DROP_MS = 5_000;
+export const RELEASED_DROP_MS = 5000;
 const QUARTER_HOUR_MS = 15 * 60_000;
 /** The quarter-hour reconcile has read every number by then. */
 const RECONCILE_RUN_MS = 90_000;
@@ -394,7 +378,7 @@ const RECONCILE_RUN_MS = 90_000;
 const DOWN_FOR_MS = 150_000;
 
 function words(text: string): string[] {
-  return text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
+  return text.toLowerCase().replaceAll(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
 }
 
 /** The share of a piece of the API's spoken copy that the transcript holds, word by word. */
@@ -415,7 +399,7 @@ export function noticeWordShare(transcript: string): number {
 async function clearOfReconcile(ctx: ScenarioContext): Promise<void> {
   const into = ctx.now() % QUARTER_HOUR_MS;
   const wait =
-    into < RECONCILE_RUN_MS ? RECONCILE_RUN_MS - into : QUARTER_HOUR_MS - into < DOWN_FOR_MS ? QUARTER_HOUR_MS - into + RECONCILE_RUN_MS : 0;
+    into < RECONCILE_RUN_MS ? RECONCILE_RUN_MS - into : (QUARTER_HOUR_MS - into < DOWN_FOR_MS ? QUARTER_HOUR_MS - into + RECONCILE_RUN_MS : 0);
   if (wait > 0) await ctx.sleep(wait);
 }
 
@@ -484,19 +468,19 @@ async function callDownLine(ctx: ScenarioContext, page: MemberPageApi, state: Do
   if (refused) return refused;
   const [ringMs, call] = await Promise.all([page.waitForRing(30_000), ctx.robot.wait(dialed.plan_id, 120_000)]);
   const fresh = async () =>
-    (await ctx.app.calls({ tenant: "QA-C", callerRole: "ROBOT-1", since })).filter((row) => Date.parse(row.started_at) >= since - 5_000);
+    (await ctx.app.calls({ tenant: "QA-C", callerRole: "ROBOT-1", since })).filter((row) => Date.parse(row.started_at) >= since - 5000);
   // A released number's call never gets a row; the others get one as it starts.
   const rows = state === "released" ? await fresh() : ((await poll(ctx, async () => {
     const found = await fresh();
     return found.length > 0 ? found : undefined;
-  }, 15_000, 3_000)) ?? []);
+  }, 15_000, 3000)) ?? []);
   const legs = (await Promise.all(rows.map((row) => ctx.app.callLegs({ tenant: "QA-C", callSessionId: row.call_session_id })))).flat();
   const row = rows.at(-1);
   const evidence: Record<string, unknown> = { ...callEvidence(call), ring_ms: ringMs, rows: rows.length, legs: legs.length, notice_spoken: row?.notice_spoken };
   ctx.evidence[state] = evidence;
 
   if (ringMs !== undefined || legs.length > 0) {
-    return fail("rang_while_down", `with QA-C ${state}, ${legs.length} ring leg(s) were made${ringMs !== undefined ? " and the owner's page rang" : ""}`);
+    return fail("rang_while_down", `with QA-C ${state}, ${legs.length} ring leg(s) were made${ringMs === undefined ? "" : " and the owner's page rang"}`);
   }
   if (state === "released") {
     if (call.answered_at) return fail("released_answered", "a call to a released number was answered");
@@ -522,7 +506,7 @@ export const KILL_SWITCHES = ["kill:calls", "kill:outbound-send", "kill:ai"] as 
 type KillSwitch = (typeof KILL_SWITCHES)[number];
 /** TTL_MS in apps/api/src/flags/evaluate.ts: how long an isolate trusts a flag it read. */
 export const FLAG_CACHE_MS = 10_000;
-const FLAG_SETTLE_MS = FLAG_CACHE_MS + 2_000;
+const FLAG_SETTLE_MS = FLAG_CACHE_MS + 2000;
 /** From the answer: the switch flips at 10 s, and the call outlasts the cache and the refused call by a margin. */
 const KILL_AT_MS = 10_000;
 const LIVE_CALL_MS = 40_000;
@@ -565,7 +549,7 @@ export const S14: ScenarioRunner = {
   async afterRelease(ctx) {
     const killed: string[] = [];
     for (const key of KILL_SWITCHES) if ((await ctx.app.flag(key)) === false) killed.push(key);
-    return killed.length ? fail("flag_left_killed", `${killed.join(", ")} still killed after cleanup`) : undefined;
+    return killed.length > 0 ? fail("flag_left_killed", `${killed.join(", ")} still killed after cleanup`) : undefined;
   },
 };
 
@@ -582,8 +566,8 @@ async function killCalls(ctx: ScenarioContext, flip: Flip, restore: Restore): Pr
     to: "DEV-W1",
     expect: "qa-w-owner",
     segments: [
-      { name: "before", start_ms: 2_000, end_ms: KILL_AT_MS - 1_000 },
-      { name: "after", start_ms: KILL_AT_MS + FLAG_SETTLE_MS + 2_000, end_ms: LIVE_CALL_MS - 2_000 },
+      { name: "before", start_ms: 2000, end_ms: KILL_AT_MS - 1000 },
+      { name: "after", start_ms: KILL_AT_MS + FLAG_SETTLE_MS + 2000, end_ms: LIVE_CALL_MS - 2000 },
     ],
     hangup_after_ms: LIVE_CALL_MS,
   });
@@ -699,7 +683,7 @@ export const S15: ScenarioRunner = {
       lease_id: ctx.lease.id,
       direction: "inbound",
       role: "ROBOT-2",
-      answer_after_ms: 2_000,
+      answer_after_ms: 2000,
       expect_within_ms: 90_000,
       play: null,
       transcribe: true,
@@ -725,7 +709,7 @@ export const S15: ScenarioRunner = {
     }
     if (!call.spoke) return fail("did_not_speak", "the robot never spoke its greeting");
 
-    const greeting = await poll(ctx, async () => (await ctx.app.greetings({ tenant: "QA-W", since })).at(-1), 120_000, 5_000);
+    const greeting = await poll(ctx, async () => (await ctx.app.greetings({ tenant: "QA-W", since })).at(-1), 120_000, 5000);
     if (!greeting) return fail("greeting_not_saved", "no greeting was saved from the capture call");
     ctx.evidence.greeting = { id: greeting.id, duration_ms: greeting.duration_ms, mime_type: greeting.mime_type };
     // The row's path names its bucket; the object's path within it does not.
@@ -777,14 +761,14 @@ export const S16: ScenarioRunner = {
       to: "DEV-W1",
       play: null,
       record: false,
-      hangup_after_ms: 5_000,
+      hangup_after_ms: 5000,
       hangup_before_answer_ms: 15_000,
     });
     const refused = dialRefused(dialed);
     if (refused) return refused;
     const ringMs = await page.waitForRing(10_000);
     const call = await ctx.robot.wait(dialed.plan_id, 60_000);
-    const row = await poll(ctx, async () => (await ctx.app.calls({ tenant: "QA-W", callerRole: "ROBOT-1", since })).at(-1), 30_000, 2_000);
+    const row = await poll(ctx, async () => (await ctx.app.calls({ tenant: "QA-W", callerRole: "ROBOT-1", since })).at(-1), 30_000, 2000);
     if (!row) return fail("no_call_row", "ROBOT-1's call to DEV-W1 left no call row");
     const legs = await ctx.app.callLegs({ tenant: "QA-W", callSessionId: row.call_session_id });
     // Watched for, not read once: a push the note member was sent may not have reached PostHog yet.
@@ -849,7 +833,7 @@ export const S17: ScenarioRunner = {
       to: "DEV-W1",
       play: null,
       record: false,
-      hangup_after_ms: 5_000,
+      hangup_after_ms: 5000,
       hangup_before_answer_ms: 20_000,
     });
     const refused = dialRefused(dialed);
@@ -881,7 +865,7 @@ export const S17: ScenarioRunner = {
     const rows = (await poll(ctx, async () => {
       const found = await recorded();
       return found.length > 0 && found.every((row) => row.processed_at) ? found : undefined;
-    }, 60_000, 5_000)) ?? (await recorded());
+    }, 60_000, 5000)) ?? (await recorded());
     ctx.evidence.event = { rows: rows.length, attempts: rows[0]?.attempts, processed: Boolean(rows[0]?.processed_at) };
     if (rows.length === 0) return fail("event_not_recorded", `the API has no ${type} row for the event Telnyx failed over`);
     if (rows.length > 1) return fail("event_recorded_twice", `the API recorded the event ${rows.length} times`);
@@ -900,12 +884,12 @@ function failedOver(delivery: WebhookDelivery): boolean {
  * Above every plan's monthly segment cap even at the hard multiplier ceiling
  * (10 x pro's 2,500), so S26 never needs to lower a cap to reach one.
  */
-export const SEGMENT_CAP_SEED = MAX_CAP_MULTIPLIER * 2_500;
+export const SEGMENT_CAP_SEED = MAX_CAP_MULTIPLIER * 2500;
 /**
  * 80% of LOW_VOLUME's 2,000-a-day carrier ceiling, which is also over the
  * 250-segment hourly limit and over the sole proprietor's 800.
  */
-export const CARRIER_WARN_SEGMENTS = 1_600;
+export const CARRIER_WARN_SEGMENTS = 1600;
 
 function isCarrierAlert(event: SeenEvent): boolean {
   const texts = [event.message, ...(event.fingerprint ?? []), ...Object.values(event.tags ?? {}), ...(event.exceptions ?? []).map((e) => e.value)];
@@ -929,7 +913,7 @@ export const S26: ScenarioRunner = {
       const sent = await ctx.app.sendText({ member: C_OWNER, fromRole: "DEV-C1", toRole: "ROBOT-1", body: `Rig S26 ${name} ${ctx.nonce}` });
       evidence[name] = sent.ok ? "sent" : refusalOf(sent);
       if (sent.ok) {
-        realSends++;
+        realSends += 1;
         return fail(`${name}_not_enforced`, `a text went out past the ${name.replace("_", " ")}`);
       }
       return sent.status === status && sent.code === code ? undefined : fail(`${name}_wrong_refusal`, `the send was refused with ${refusalOf(sent)}, not ${status} ${code}`);
@@ -946,7 +930,7 @@ export const S26: ScenarioRunner = {
     evidence.real_sends = realSends;
 
     await ctx.app.fireCron("25 * * * *");
-    const alert = await poll(ctx, async () => (await ctx.rig.apiEvents(since)).find(isCarrierAlert), 60_000, 5_000);
+    const alert = await poll(ctx, async () => (await ctx.rig.apiEvents(since)).find(isCarrierAlert), 60_000, 5000);
     evidence.carrier_alert = Boolean(alert);
     const alerted = alert
       ? undefined

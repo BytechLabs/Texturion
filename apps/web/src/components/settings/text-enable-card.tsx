@@ -87,10 +87,10 @@ function TextEnableDocumentsForm({ order }: { order: TextEnablement }) {
       setLoa(null);
       setBill(null);
       toast.success(t("settingsMore.portDocUploaded"));
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("settingsMore.portDocUploadFailed"),
       );
     }
@@ -291,11 +291,11 @@ function ReleaseHostedNumberDialog({
           // useReleaseNumber already patches the numbers cache and invalidates
           // the company view; the order row converges server-side too, so
           // refetch every affected surface.
-          queryClient.invalidateQueries({
+          void queryClient.invalidateQueries({
             queryKey: keys.numbers(companyId),
             refetchType: "active",
           });
-          queryClient.invalidateQueries({
+          void queryClient.invalidateQueries({
             queryKey: keys.textEnablements.all(companyId),
             refetchType: "active",
           });
@@ -324,8 +324,8 @@ function ReleaseHostedNumberDialog({
   const [error, setError] = useState<string | null>(null);
 
   const display = formatPhone(order.phone_e164);
-  const expectedDigits = order.phone_e164.replace(/\D/g, "");
-  const typedDigits = typed.replace(/\D/g, "");
+  const expectedDigits = order.phone_e164.replaceAll(/\D/g, "");
+  const typedDigits = typed.replaceAll(/\D/g, "");
   const matches =
     expectedDigits !== "" &&
     (typedDigits === expectedDigits || `1${typedDigits}` === expectedDigits);
@@ -573,7 +573,7 @@ export function TextEnableCard({
           <p className="rounded-md bg-success/10 px-3 py-2 text-sm text-success">
             {ui.statusLine}
           </p>
-        ) : ui.tone === "warning" ? (
+        ) : (ui.tone === "warning" ? (
           <div className="flex items-start gap-2.5 rounded-md bg-warning/10 px-3 py-2 text-sm">
             <AlertTriangle
               className="mt-0.5 size-4 shrink-0 text-amber-800 dark:text-warning"
@@ -587,16 +587,16 @@ export function TextEnableCard({
           <p className="rounded-md bg-muted/50 px-3 py-2 text-sm text-muted-foreground">
             {ui.statusLine}
           </p>
-        )}
+        ))}
 
         {/* The upload window (pending with missing docs / action-required / failed). */}
         {ui.showDocumentsForm && canUploadDocs ? (
           <TextEnableDocumentsForm order={order} />
-        ) : ui.showDocumentsForm && ui.documentsPending && !canUploadDocs ? (
+        ) : (ui.showDocumentsForm && ui.documentsPending && !canUploadDocs ? (
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.hostedOwnerUploads")}
           </p>
-        ) : null}
+        ) : null)}
 
         {/* Number-ownership verification while under review (owner/admin). */}
         {ui.canVerify && canEdit ? (
@@ -621,11 +621,11 @@ export function TextEnableCard({
                 : t("settingsMore.hostedResubmit")}
             </Button>
           </div>
-        ) : order.status === "failed" && !canResubmitOrder ? (
+        ) : (order.status === "failed" && !canResubmitOrder ? (
           <p className="text-sm text-muted-foreground">
             {t("settingsMore.hostedAskOwnerToFix")}
           </p>
-        ) : null}
+        ) : null)}
 
         {/* Owner-only cancel while non-terminal. */}
         {canCancelOrder && ui.cancellable ? (

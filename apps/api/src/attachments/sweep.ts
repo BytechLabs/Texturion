@@ -107,8 +107,8 @@ export async function sweepDeletedAttachments(env: Env): Promise<void> {
   for (const [, run] of passes) {
     try {
       await run();
-    } catch (cause) {
-      failures.push(cause);
+    } catch (error) {
+      failures.push(error);
     }
   }
   if (failures.length > 0) {

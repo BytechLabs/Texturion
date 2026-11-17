@@ -1,0 +1,483 @@
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  // Every oxlint category is on, nursery included, with every plugin that
+  // applies here. A rule is off only when it cannot apply to this codebase;
+  // each off rule says why on its line. The jest plugin is not listed because
+  // the vitest plugin carries the same rules for vitest, and vue because there
+  // is no Vue.
+  "plugins": [
+    "eslint", "typescript", "unicorn", "oxc", "import", "jsdoc", "promise", "node", "vitest",
+    "react", "react-perf", "jsx-a11y", "nextjs"
+  ],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "pedantic": "error",
+    "perf": "error",
+    "style": "error",
+    "restriction": "error",
+    "nursery": "error"
+  },
+  "env": { "builtin": true, "es2024": true, "node": true },
+  "ignorePatterns": [
+    "**/node_modules/**",
+    "**/dist/**",
+    "**/coverage/**",
+    "**/.next/**",
+    "**/.next-*/**",
+    "**/.open-next/**",
+    "**/.wrangler/**",
+    "apps/web/next-env.d.ts",
+    "apps/web/cloudflare-env.d.ts",
+    "apps/android/**",
+    "apps/ios/**"
+  ],
+  "settings": {
+    "jsdoc": { "tagNamePreference": {} },
+    "vitest": { "typecheck": false }
+  },
+  "rules": {
+    // Configured to the conventions the code already follows.
+    "eslint/curly": ["error", "multi-line"],
+    "eslint/func-style": ["off", "declaration", { "allowArrowFunctions": true }], // not yet clean: 1 (#822)
+    "eslint/one-var": ["error", "never"],
+    "eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
+    "eslint/no-plusplus": ["off", { "allowForLoopAfterthoughts": true }], // not yet clean: 66 (#822)
+        "eslint/no-use-before-define": ["off", { "functions": false, "classes": true, "variables": false, "typedefs": false }], // not yet clean: 12 (#822)
+    "eslint/sort-imports": ["off", { "ignoreCase": true, "ignoreDeclarationSort": true }], // not yet clean: 112 (#822)
+    "eslint/new-cap": ["error", { "capIsNew": false }],
+    "import/consistent-type-specifier-style": ["off", "prefer-top-level"], // not yet clean: 148 (#822)
+    "eslint/no-duplicate-imports": ["off", { "allowSeparateTypeImports": true }], // not yet clean: 10 (#822)
+    "eslint/class-methods-use-this": ["off", { "ignoreClassesWithImplements": "all", "ignoreOverrideMethods": true }], // not yet clean: 11 (#822)
+    "eslint/no-underscore-dangle": ["off", { "allow": ["__vitest_worker__", "_def"], "allowAfterThis": true }], // not yet clean: 16 (#822)
+    "jsdoc/check-tag-names": ["off", { "definedTags": ["vitest-environment"] }], // not yet clean: 1 (#822)
+    "unicorn/import-style": ["off", { "extendDefaultStyles": false, "styles": { "node:path": { "named": true }, "node:fs": { "named": true }, "node:url": { "named": true }, "node:util": { "named": true } } }], // not yet clean: 10 (#822)
+    "import/no-unassigned-import": ["off", { "allow": ["**/*.css", "server-only", "client-only"] }], // not yet clean: 1 (#822)
+    "vitest/valid-expect": ["off", { "maxArgs": 2 }], // not yet clean: 2 (#822)
+    "vitest/valid-title": ["off", { "allowArguments": true }], // not yet clean: 1 (#822)
+    "eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
+    "vitest/consistent-test-it": ["error", { "fn": "it", "withinDescribe": "it" }],
+    "vitest/expect-expect": ["off", { "assertFunctionNames": ["expect", "expect*", "assert*", "*.expect*"] }], // not yet clean: 8 (#822)
+    // node:test awaits the promise test() returns; nothing else may be left floating.
+    "typescript/no-floating-promises": ["error", { "allowForKnownSafeCalls": [{ "from": "package", "package": "node:test", "name": ["test", "describe", "it", "suite", "before", "after", "beforeEach", "afterEach"] }] }],
+    "typescript/no-confusing-void-expression": ["off", { "ignoreArrowShorthand": true }], // not yet clean: 42 (#822)
+    "typescript/prefer-nullish-coalescing": ["off", { "ignorePrimitives": { "string": true, "number": true, "boolean": true, "bigint": true } }], // not yet clean: 1 (#822)
+
+    // Contradicts a rule that stays on, or a platform this code runs on.
+    "eslint/no-void": "off", // contradicts typescript/no-floating-promises, whose void marks a promise left unawaited on purpose
+    "eslint/no-ternary": "off", // contradicts unicorn/prefer-ternary, which asks for the ternaries this forbids
+    "eslint/no-nested-ternary": "off", // duplicate of unicorn/no-nested-ternary, which also allows one parenthesised level
+    "eslint/no-undefined": "off", // its alternative, void 0, is what eslint/no-void forbids; undefined is TypeScript's absent value
+    "eslint/no-eq-null": "off", // contradicts eqeqeq's null: ignore; x == null is the one test for null or undefined
+    "unicorn/no-useless-undefined": "off", // contradicts typescript/consistent-return: a function that returns a value says return undefined
+    "eslint/default-case": "off", // contradicts typescript/switch-exhaustiveness-check: a default hides the case a new union member needs
+    "eslint/no-undef": "off", // TypeScript reports unknown names (TS2304) from the real lib and types; this rule reads neither
+    "import/no-named-export": "off", // contradicts import/no-default-export; every module here exports by name
+    "import/prefer-default-export": "off", // contradicts import/no-default-export
+    "import/group-exports": "off", // contradicts exporting each declaration where it is written, which every module does
+    "import/exports-last": "off", // same family as group-exports: it moves every export away from its declaration
+    "import/no-nodejs-modules": "off", // scripts, tests and the rig run on Node, and the Workers use node: through nodejs_compat
+    "node/no-top-level-await": "off", // contradicts unicorn/prefer-top-level-await
+    "vitest/no-hooks": "off", // contradicts vitest/require-hook, and beforeEach is how fakes are reset between tests
+    "vitest/require-hook": "off", // flags module-level fixtures (const rows = [...]), which are data, not setup
+    "vitest/prefer-to-be-truthy": "off", // contradicts vitest/prefer-strict-boolean-matchers; toBeTruthy accepts 1 and "x"
+    "vitest/prefer-to-be-falsy": "off", // contradicts vitest/prefer-strict-boolean-matchers; toBeFalsy accepts 0 and ""
+    "vitest/prefer-called-times": "off", // contradicts vitest/prefer-called-once
+    "vitest/prefer-to-have-been-called-times": "off", // contradicts vitest/prefer-called-once
+    "vitest/no-importing-vitest-globals": "off", // no vitest config enables globals, so describe and expect must be imported
+    "oxc/no-async-await": "off", // a restriction for pre-ES2017 targets; every tsconfig targets ES2022 or later
+    "oxc/no-optional-chaining": "off", // a restriction for pre-ES2020 targets
+    "oxc/no-rest-spread-properties": "off", // a restriction for pre-ES2018 targets
+    "oxc/no-barrel-file": "off", // packages/shared has one entry point by design; check-shared-barrel.mjs guards it
+    "import/unambiguous": "off", // the extension (.mjs, .cjs) and package type decide the module format; the rule ignores both
+    "node/callback-return": "off", // flags Hono's await next(), which middleware must await and not return
+    "node/no-process-env": "off", // process.env is how Node scripts and Next.js read configuration
+    "jsdoc/require-param-type": "off", // types live in the TypeScript signature
+    "jsdoc/require-returns-type": "off", // types live in the TypeScript signature
+    "jsdoc/require-throws-type": "off", // types live in the TypeScript signature
+    "typescript/explicit-function-return-type": "off", // return types are inferred and checked by bun check; this forbids inference
+    "typescript/explicit-module-boundary-types": "off", // same as explicit-function-return-type, for exports
+
+    // Obeying it would change what the code does.
+    "eslint/sort-keys": "off", // key order is observable: CSV columns, JSON bodies, select lists and iteration follow it
+    "eslint/require-unicode-regexp": "off", // the u flag turns escapes like \- and \/ in existing patterns into syntax errors
+    "eslint/no-await-in-loop": "off", // the sequential awaits are deliberate: Telnyx and Stripe rate limits, ordered writes, retries
+    "eslint/require-await": "off", // removing async from a promise-returning function turns its rejections into synchronous throws
+    "typescript/require-await": "off", // same as eslint/require-await, with types
+    "typescript/promise-function-async": "off", // adding async turns synchronous throws into rejections, the reverse change
+    "unicorn/no-null": "off", // PostgREST, JSON and the DOM use null for no value; undefined drops the key from a JSON body
+    "unicorn/prefer-code-point": "off", // SMS segment counting and base64 work in UTF-16 code units; codePointAt changes emoji counts
+    "unicorn/prefer-spread": "off", // spreading changes the type: a Uint8Array becomes number[] and a string splits into code points
+    "unicorn/prefer-at": "off", // without noUncheckedIndexedAccess, x[x.length - 1] is typed present and .at(-1) is not
+    "oxc/no-map-spread": "off", // its fix mutates the source objects; these spreads copy query rows on purpose
+    "typescript/method-signature-style": "off", // property style makes parameters contravariant and rejects fakes that method style accepts
+    "typescript/consistent-type-definitions": "off", // an interface is not assignable to Record<string, unknown>, which the JSON helpers take
+    "typescript/no-unnecessary-condition": "off", // api, web and shared lack noUncheckedIndexedAccess, so it calls real index checks needless
+    "vitest/prefer-strict-equal": "off", // payloads carry optional keys set to undefined; toStrictEqual fails those against absent keys
+    "vitest/prefer-lowercase-title": "off", // titles start with the requirement ids docs cite (FC-2, CR-5); lowercasing breaks the reference
+
+    // A restriction on a language or library feature this code is built on.
+    "eslint/no-console": "off", // console is the logging API in Workers (Workers Logs) and the output of every CLI script
+    "eslint/no-bitwise": "off", // bit operations are the algorithm in the hashing, base64, jitter and audio code that uses them
+    "eslint/no-continue": "off", // the guard scripts filter in loops; the alternative nests one level deeper
+    "eslint/no-magic-numbers": "off", // expected values in tests, HTTP statuses, byte sizes and limits are literals by design
+    "eslint/id-length": "off", // t is the translation function on every screen and _ the unused-binding convention
+    "eslint/init-declarations": "off", // let x; assigned in branches lets TypeScript prove every branch assigns it; a dummy value hides one
+    "eslint/no-inline-comments": "off", // literals and enum members are explained on their own line (Telnyx and Stripe codes)
+    "eslint/capitalized-comments": "off", // comments open with identifiers, paths and tool names whose case is meaningful
+    "eslint/prefer-named-capture-group": "off", // the patterns read one group by index; a name nothing reads adds nothing
+    "unicorn/no-array-reduce": "off", // the reduce calls are sums and index builds, which a loop only restates
+    "unicorn/no-await-expression-member": "off", // (await response.json()).field is the idiom; the fix names a value used once
+    "unicorn/consistent-function-scoping": "off", // flags helpers declared beside their only caller inside a test or component
+    "eslint/no-empty-function": "off", // () => {} is the stated no-op for optional handlers and fakes
+    "unicorn/no-array-callback-reference": "off", // the callbacks are local functions typed by TypeScript, which rejects a wrong extra parameter
+    "promise/avoid-new": "off", // new Promise adapts callback APIs (setTimeout, streams, IndexedDB); there is no other way
+    "promise/prefer-await-to-then": "off", // .then consumes a promise in callbacks that must stay synchronous (React effects, handlers)
+    "promise/prefer-await-to-callbacks": "off", // the callbacks are the APIs being adapted (streams, timers, event listeners)
+    "node/no-sync": "off", // synchronous fs is correct in CLIs and in tests that run once
+    "import/no-relative-parent-imports": "off", // api and shared reach sibling folders with ../; Wrangler bundles no path aliases
+    "typescript/no-non-null-assertion": "off", // ! marks facts TypeScript cannot see, such as Map.get after has
+    "typescript/explicit-member-accessibility": "off", // members are public by default; the code writes private where it means it
+    "typescript/prefer-readonly-parameter-types": "off", // library types (Request, Response, Hono Context) cannot be made deeply readonly
+    "typescript/strict-void-return": "off", // flags arrow shorthands handed to void callbacks, which no-confusing-void-expression allows
+    "typescript/strict-boolean-expressions": "off", // truthiness tests on strings and optional objects are the idiom across all packages
+
+    // any arrives at the JSON and PostgREST boundary (response.json(), untyped select rows); typing
+    // that boundary is a project of its own, after which these turn on.
+    "typescript/no-unsafe-member-access": "off", // see above
+    "typescript/no-unsafe-assignment": "off", // see above
+    "typescript/no-unsafe-call": "off", // see above
+    "typescript/no-unsafe-argument": "off", // see above
+    "typescript/no-unsafe-return": "off", // see above
+    "typescript/no-unsafe-type-assertion": "off", // see above: the casts are where untyped rows get their types
+
+    // A size or shape threshold: the number is arbitrary and a split moves code without making it safer.
+    "eslint/max-lines": "off", // guard scripts are long single-purpose files on purpose
+    "eslint/max-lines-per-function": "off", // a describe block is one function by vitest's design
+    "eslint/max-statements": "off", // same as max-lines-per-function
+    "eslint/max-params": "off", // the multi-parameter functions are pure formatters whose callers name each argument
+    "eslint/max-depth": "off", // a threshold, not a defect
+    "eslint/max-classes-per-file": "off", // a threshold, not a defect; fakes group their classes per file
+    "eslint/complexity": "off", // a threshold, not a defect
+    "import/max-dependencies": "off", // a threshold, not a defect
+    "unicorn/max-nested-calls": "off", // a threshold, not a defect
+    "vitest/max-expects": "off", // a test asserts every field of the record it checks
+    "vitest/require-top-level-describe": "off", // the file is the top-level group; a describe per file repeats its name
+
+    // Testing conventions the suite settled the other way, each for a reason.
+    "vitest/prefer-expect-assertions": "off", // expect.assertions counts are for callback tests; vitest/expect-expect catches an empty test
+    "vitest/require-test-timeout": "off", // every test runs at vitest's 5s default; a raised timeout once hid two slow tests
+    "vitest/require-mock-type-parameters": "off", // an untyped vi.fn() is a looser type, not a wrong test; typing 1,162 is its own pass
+    "vitest/no-conditional-in-test": "off", // tests branch on the tzdata era deliberately; vitest/no-conditional-expect still applies
+    "vitest/prefer-called-with": "off", // toHaveBeenCalled() is used where only the call matters; arguments are checked via mock.calls
+
+    // Documentation lives in TypeScript types; JSDoc here explains why.
+    "jsdoc/require-returns": "off", // the return type is in the signature
+    "jsdoc/require-param": "off", // the parameter types are in the signature
+    "jsdoc/require-param-description": "off", // follows require-param
+    "jsdoc/require-returns-description": "off", // follows require-returns
+
+    // Not yet clean: these can apply, and their findings (counted on 2026-11-17)
+    // need a hand rewrite. Each turns on as its count reaches zero (#822).
+    "typescript/no-unnecessary-type-assertion": "off", // 775
+    "eslint/prefer-destructuring": "off", // 630
+    "import/first": "off", // 439
+    "vitest/prefer-strict-boolean-matchers": "off", // 421: its fix turned toBeTruthy() on elements and strings into toBe(true)
+    "unicorn/numeric-separators-style": "off", // 362
+    "unicorn/prefer-string-replace-all": "off", // 199
+    "vitest/prefer-expect-resolves": "off", // 160
+    "unicorn/number-literal-case": "off", // 151
+    "eslint/no-promise-executor-return": "off", // 133
+    "typescript/non-nullable-type-assertion-style": "off", // 127
+    "unicorn/no-nested-ternary": "off", // 124
+    "unicorn/switch-case-braces": "off", // 114
+    "unicorn/catch-error-name": "off", // 107
+    "vitest/no-conditional-expect": "off", // 106
+    "typescript/no-base-to-string": "off", // 104
+    "unicorn/no-array-sort": "off", // 101
+    "vitest/prefer-called-once": "off", // 93
+    "typescript/no-misused-promises": "off", // 87
+    "eslint/no-shadow": "off", // 83
+    "eslint/prefer-template": "off", // 74
+    "react/jsx-handler-names": "off", // 66
+    "typescript/restrict-template-expressions": "off", // 65
+    "unicorn/no-array-for-each": "off", // 54
+    "vitest/prefer-hooks-in-order": "off", // 49
+    "eslint/no-negated-condition": "off", // 48
+    "unicorn/no-negated-condition": "off", // 48
+    "typescript/no-deprecated": "off", // 47
+    "vitest/prefer-describe-function-title": "off", // 47
+    "vitest/prefer-each": "off", // 46
+    "unicorn/prefer-import-meta-properties": "off", // 45
+    "unicorn/prefer-module": "off", // 39
+    "typescript/use-unknown-in-catch-callback-variable": "off", // 38
+    "typescript/consistent-type-imports": "off", // 35
+    "typescript/switch-exhaustiveness-check": "off", // 35
+    "vitest/require-to-throw-message": "off", // 34
+    "eslint/no-var": "off", // 33
+    "eslint/vars-on-top": "off", // 31
+    "import/no-namespace": "off", // 30
+    "promise/always-return": "off", // 30
+    "typescript/prefer-regexp-exec": "off", // 29
+    "eslint/no-unsafe-optional-chaining": "off", // 28
+    "import/newline-after-import": "off", // 28
+    "typescript/require-array-sort-compare": "off", // 28
+    "unicorn/prefer-response-static-json": "off", // 28
+    "unicorn/prefer-top-level-await": "off", // 27
+    "typescript/no-invalid-void-type": "off", // 26
+    "typescript/no-misused-spread": "off", // 25
+    "typescript/prefer-optional-chain": "off", // 25
+    "unicorn/prefer-export-from": "off", // 25
+    "react/no-array-index-key": "off", // 24
+    "promise/param-names": "off", // 23
+    "unicorn/prefer-dom-node-dataset": "off", // 23
+    "unicorn/prefer-string-raw": "off", // 22
+    "eslint/no-useless-assignment": "off", // 21
+    "typescript/parameter-properties": "off", // 21
+    "unicorn/custom-error-definition": "off", // 21
+    "typescript/no-dynamic-delete": "off", // 20
+    "promise/prefer-catch": "off", // 19
+    "unicorn/prefer-set-has": "off", // 18
+    "vitest/prefer-mock-return-shorthand": "off", // 18
+    "typescript/no-unsafe-enum-comparison": "off", // 17
+    "unicorn/no-useless-spread": "off", // 17
+    "vitest/no-conditional-tests": "off", // 17
+    "eslint/no-sequences": "off", // 16
+    "typescript/prefer-string-starts-ends-with": "off", // 16
+    "unicorn/explicit-length-check": "off", // 16
+    "eslint/no-loop-func": "off", // 15
+    "eslint/no-return-assign": "off", // 15
+    "jsx-a11y/no-autofocus": "off", // 15
+    "typescript/prefer-includes": "off", // 15
+    "unicorn/no-object-as-default-parameter": "off", // 15
+    "react/exhaustive-effect-dependencies": "off", // 14
+    "unicorn/prefer-string-starts-ends-with": "off", // 14
+    "import/no-duplicates": "off", // 13
+    "react/function-component-definition": "off", // 13
+    "unicorn/consistent-existence-index-check": "off", // 13
+    "unicorn/prefer-dom-node-append": "off", // 13
+    "unicorn/prefer-type-error": "off", // 13
+    "eslint/no-useless-concat": "off", // 12
+    "react/jsx-no-useless-fragment": "off", // 12
+    "typescript/no-unnecessary-type-parameters": "off", // 11
+    "typescript/return-await": "off", // 11
+    "unicorn/prefer-number-coercion": "off", // 11
+    "unicorn/prefer-number-properties": "off", // 11
+    "eslint/func-names": "off", // 10
+    "typescript/no-redundant-type-constituents": "off", // 10
+    "typescript/no-unnecessary-boolean-literal-compare": "off", // 10
+    "typescript/no-unnecessary-type-conversion": "off", // 10
+    "unicorn/prefer-ternary": "off", // 10
+    "vitest/prefer-to-have-length": "off", // 10
+    "typescript/no-extraneous-class": "off", // 9
+    "unicorn/filename-case": "off", // 9
+    "unicorn/no-lonely-if": "off", // 9
+    "unicorn/no-useless-fallback-in-spread": "off", // 9
+    "nextjs/no-assign-module-variable": "off", // 8
+    "react/display-name": "off", // 8
+    "typescript/no-implied-eval": "off", // 8
+    "typescript/no-unnecessary-template-expression": "off", // 8
+    "typescript/prefer-readonly": "off", // 8
+    "unicorn/new-for-builtins": "off", // 8
+    "unicorn/prefer-add-event-listener": "off", // 8
+    "unicorn/prefer-single-call": "off", // 8
+    "vitest/prefer-expect-type-of": "off", // 8
+    "eslint/no-div-regex": "off", // 7
+    "eslint/no-useless-return": "off", // 7
+    "react/hook-use-state": "off", // 7
+    "typescript/array-type": "off", // 7
+    "unicorn/escape-case": "off", // 7
+    "unicorn/no-thenable": "off", // 7
+    "vitest/prefer-called-exactly-once-with": "off", // 7
+    "jsx-a11y/no-noninteractive-tabindex": "off", // 6
+    "react/no-danger": "off", // 6
+    "unicorn/no-immediate-mutation": "off", // 6
+    "unicorn/no-useless-collection-argument": "off", // 6
+    "unicorn/prefer-event-target": "off", // 6
+    "unicorn/prefer-query-selector": "off", // 6
+    "vitest/prefer-to-contain": "off", // 6
+    "eslint/logical-assignment-operators": "off", // 5
+    "eslint/no-empty": "off", // 5
+    "eslint/no-implicit-coercion": "off", // 5
+    "eslint/no-param-reassign": "off", // 5
+    "eslint/prefer-arrow-callback": "off", // 5
+    "import/no-named-as-default": "off", // 5
+    "jsx-a11y/no-noninteractive-element-interactions": "off", // 5
+    "jsx-a11y/no-static-element-interactions": "off", // 5
+    "react/exhaustive-deps": "off", // 5
+    "typescript/unbound-method": "off", // 5
+    "unicorn/no-array-reverse": "off", // 5
+    "unicorn/no-new-array": "off", // 5
+    "unicorn/no-process-exit": "off", // 5
+    "unicorn/prefer-array-find": "off", // 5
+    "eslint/no-control-regex": "off", // 4
+    "eslint/no-inner-declarations": "off", // 4
+    "eslint/no-lonely-if": "off", // 4
+    "eslint/no-regex-spaces": "off", // 4
+    "eslint/operator-assignment": "off", // 4
+    "jsx-a11y/click-events-have-key-events": "off", // 4
+    "jsx-a11y/no-noninteractive-element-to-interactive-role": "off", // 4
+    "react/no-object-type-as-default-prop": "off", // 4
+    "typescript/no-meaningless-void-operator": "off", // 4
+    "typescript/only-throw-error": "off", // 4
+    "typescript/prefer-promise-reject-errors": "off", // 4
+    "unicorn/no-hex-escape": "off", // 4
+    "unicorn/no-unreadable-array-destructuring": "off", // 4
+    "eslint/arrow-body-style": "off", // 3
+    "eslint/no-multi-assign": "off", // 3
+    "eslint/no-unmodified-loop-condition": "off", // 3
+    "eslint/preserve-caught-error": "off", // 3
+    "import/no-anonymous-default-export": "off", // 3
+    "import/no-default-export": "off", // 3
+    "jsx-a11y/media-has-caption": "off", // 3
+    "oxc/branches-sharing-code": "off", // 3
+    "promise/catch-or-return": "off", // 3
+    "react/jsx-no-constructed-context-values": "off", // 3
+    "unicorn/no-invalid-fetch-options": "off", // 3
+    "unicorn/prefer-default-parameters": "off", // 3
+    "unicorn/relative-url-style": "off", // 3
+    "vitest/no-standalone-expect": "off", // 3
+    "vitest/padding-around-test-blocks": "off", // 3
+    "vitest/prefer-mock-promise-shorthand": "off", // 3
+    "eslint/no-labels": "off", // 2
+    "eslint/no-new": "off", // 2
+    "eslint/prefer-exponentiation-operator": "off", // 2
+    "eslint/prefer-regex-literals": "off", // 2
+    "import/no-cycle": "off", // 2
+    "jsdoc/empty-tags": "off", // 2
+    "jsx-a11y/interactive-supports-focus": "off", // 2
+    "jsx-a11y/label-has-associated-control": "off", // 2
+    "nextjs/no-html-link-for-pages": "off", // 2
+    "oxc/no-async-endpoint-handlers": "off", // 2
+    "promise/no-promise-in-callback": "off", // 2
+    "promise/no-return-wrap": "off", // 2
+    "react/memo-dependencies": "off", // 2
+    "react/no-deriving-state-in-effects": "off", // 2
+    "typescript/no-import-type-side-effects": "off", // 2
+    "unicorn/no-document-cookie": "off", // 2
+    "unicorn/prefer-math-trunc": "off", // 2
+    "unicorn/prefer-native-coercion-functions": "off", // 2
+    "unicorn/require-array-join-separator": "off", // 2
+    "eslint/accessor-pairs": "off", // 1
+    "eslint/no-script-url": "off", // 1
+    "eslint/no-template-curly-in-string": "off", // 1
+    "eslint/no-throw-literal": "off", // 1
+    "eslint/no-unexpected-multiline": "off", // 1
+    "eslint/no-useless-constructor": "off", // 1
+    "eslint/prefer-const": "off", // 1
+    "import/no-commonjs": "off", // 1
+    "import/no-dynamic-require": "off", // 1
+    "import/no-empty-named-blocks": "off", // 1
+    "jsx-a11y/control-has-associated-label": "off", // 1
+    "oxc/no-accumulating-spread": "off", // 1
+    "promise/no-nesting": "off", // 1
+    "react/button-has-type": "off", // 1
+    "react/capitalized-calls": "off", // 1
+    "react/hooks": "off", // 1
+    "react/iframe-missing-sandbox": "off", // 1
+    "typescript/dot-notation": "off", // 1
+    "typescript/no-inferrable-types": "off", // 1
+    "typescript/no-non-null-asserted-optional-chain": "off", // 1
+    "typescript/prefer-for-of": "off", // 1
+    "typescript/prefer-function-type": "off", // 1
+    "typescript/restrict-plus-operands": "off", // 1
+    "unicorn/no-array-method-this-argument": "off", // 1
+    "unicorn/no-unnecessary-array-splice-count": "off", // 1
+    "unicorn/no-zero-fractions": "off", // 1
+    "unicorn/prefer-array-index-of": "off", // 1
+    "unicorn/prefer-dom-node-text-content": "off", // 1
+    "unicorn/prefer-logical-operator-over-ternary": "off", // 1
+    "unicorn/prefer-regexp-test": "off", // 1
+    "unicorn/prefer-structured-clone": "off", // 1
+    "unicorn/require-module-specifiers": "off", // 1
+    "unicorn/require-post-message-target-origin": "off", // 1
+    "vitest/no-duplicate-hooks": "off", // 1
+    "vitest/prefer-comparison-matcher": "off", // 1
+    "vitest/prefer-hooks-on-top": "off", // 1
+    "vitest/prefer-spy-on": "off", // 1
+    "vitest/prefer-to-be": "off", // 1
+
+    // Off by design: React effects, Hono middleware and test fetch fakes return
+    // on some branches, and their types (void | Destructor, Response | void) allow it.
+    "typescript/consistent-return": "off", // see above
+    "unicorn/prefer-global-this": "off", // tests stub window with vi.stubGlobal, so browser code reads window, not globalThis
+    "vitest/prefer-import-in-mock": "off", // vi.mock(import()) checks factories against the real module; these return partial modules on purpose
+
+    // React and Next.js, which only apps/web uses.
+    "react/jsx-filename-extension": ["error", { "extensions": [".tsx"] }],
+    "react/style-prop-object": ["error", { "allow": ["Timestamp"] }],
+    "react/react-in-jsx-scope": "off", // the automatic JSX runtime (jsx: react-jsx) needs no React in scope
+    "react/forbid-component-props": "off", // className is how Tailwind styles every component
+    "react/jsx-props-no-spreading": "off", // the UI primitives forward props to Radix by spreading them
+    "react/only-export-components": "off", // a Vite Fast Refresh rule; Next.js pages must export metadata beside the component
+    "react/no-multi-comp": "off", // small private components sit beside the one component they serve
+    "react/jsx-max-depth": "off", // a threshold, not a defect
+    "react/jsx-no-literals": "off", // check-hardcoded-strings.mjs is the ledger for literals (D68, D132)
+    // D141: the React Compiler rules are adopted as their own piece of work, as in apps/web/eslint.config.mjs before.
+    "react/set-state-in-effect": "off", // D141
+    "react/refs": "off", // D141
+    "react/purity": "off", // D141
+    "react/immutability": "off", // D141
+    "react/incompatible-library": "off", // D141
+    "react/globals": "off", // D141
+    "react/todo": "off", // D141
+    "react/rule-suppression": "off", // D141
+    "react-perf/jsx-no-new-function-as-prop": "off", // the receiving components are not memoised, so a new identity re-renders nothing extra
+    "react-perf/jsx-no-new-array-as-prop": "off", // same as jsx-no-new-function-as-prop
+    "react-perf/jsx-no-new-object-as-prop": "off", // same as jsx-no-new-function-as-prop
+    "react-perf/jsx-no-jsx-as-prop": "off", // same as jsx-no-new-function-as-prop
+    "jsx-a11y/prefer-tag-over-role": "off" // the roles are WAI-ARIA widget patterns audited on rendered output by check-app-a11y.mjs
+  },
+  "overrides": [
+    {
+      "files": ["apps/web/**"],
+      "env": { "browser": true }
+    },
+    {
+      // Next.js loads these by default export, and tools load their configs the same way.
+      "files": [
+        "apps/web/src/app/**/{page,layout,template,loading,error,global-error,not-found,default,opengraph-image,twitter-image,icon,apple-icon,sitemap,robots,manifest}.{ts,tsx}",
+        "**/*.config.{ts,mts,js,mjs,cjs}",
+        "**/eslint.config.mjs",
+        "apps/api/src/index.ts",
+        "apps/api/load/do-entry.ts",
+        "apps/api/scripts/capacity-fake-telnyx-worker.ts",
+        "tools/edge/src/index.ts",
+        "tools/guard/src/index.ts",
+        "tools/rig/ai-shim/src/index.mjs"
+      ],
+      "rules": { "import/no-default-export": "off" } // the framework or Workers runtime imports the default export
+    },
+    {
+      // Browser scripts served as files: the embed widget and the service worker.
+      "files": ["apps/web/public/**/*.js"],
+      "rules": {
+        "eslint/no-implicit-globals": "off" // a classic service worker script is written in the global scope
+      }
+    },
+    {
+      // Command-line programs.
+      "files": ["scripts/**", "tools/rig/bin/**", "tools/rig/host/**", "apps/api/scripts/**", "apps/web/scripts/**", ".githooks/**"],
+      "rules": {
+        "unicorn/no-process-exit": "off" // a CLI reports its result through the exit code
+      }
+    },
+    {
+      // Tests.
+      "files": ["**/*.test.{ts,tsx,mjs,js}", "**/test/**", "**/e2e/**", "**/load/**"],
+      "rules": {
+        "import/no-namespace": "off", // vi.spyOn needs the module namespace object
+        "eslint/no-template-curly-in-string": "off", // the tests feed Kotlin, Swift and shell source containing ${} to the scanners
+        "eslint/no-new-func": "off", // the tests evaluate the snippets pages ship to prove they run
+        "typescript/unbound-method": "off" // expect(fake.method) passes the mock to a matcher; nothing calls it unbound
+      }
+    },
+    {
+      // node:test suites, which run under node --test rather than vitest.
+      "files": ["tools/rig/test/**", "tools/rig/host/test/**", "scripts/ci/test/**"],
+      "rules": {
+        "vitest/no-import-node-test": "off" // these suites are node:test suites by design
+      }
+    }
+  ]
+}

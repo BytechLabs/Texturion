@@ -17,7 +17,8 @@
  *
  * Lives under apps/api/e2e/ ONLY; never imported by src/.
  */
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
 import type { AddressInfo } from "node:net";
 
 export interface StripeCall {
@@ -204,13 +205,13 @@ export async function startFakeStripe(): Promise<FakeStripe> {
     }
 
     // --- Invoices ---
-    if (method === "GET" && /^\/v1\/invoices/.test(path)) {
+    if (method === "GET" && path.startsWith('/v1/invoices')) {
       return {
         status: 200,
         body: { object: "list", data: [], has_more: false },
       };
     }
-    if (method === "POST" && /^\/v1\/invoices/.test(path)) {
+    if (method === "POST" && path.startsWith('/v1/invoices')) {
       return { status: 200, body: { id: "in_e2e_1", object: "invoice" } };
     }
 
@@ -239,7 +240,7 @@ export async function startFakeStripe(): Promise<FakeStripe> {
   });
 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const port = (server.address() as AddressInfo).port;
+  const {port} = (server.address() as AddressInfo);
 
   return {
     origin: `http://127.0.0.1:${port}`,

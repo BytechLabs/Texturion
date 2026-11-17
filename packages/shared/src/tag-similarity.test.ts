@@ -10,10 +10,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  TAG_SUGGEST_DISTANCE,
   editDistance,
   normalizeTagName,
   suggestExistingTag,
+  TAG_SUGGEST_DISTANCE,
   tagNameDistance,
 } from "./tag-similarity";
 

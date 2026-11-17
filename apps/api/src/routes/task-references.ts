@@ -107,18 +107,24 @@ async function changeLink(
   const outcome = (data as { outcome?: string } | null)?.outcome ?? "invalid";
   switch (outcome) {
     case "ok":
-    case "unchanged":
+    case "unchanged": {
       return outcome;
-    case "not_found":
+    }
+    case "not_found": {
       return errorResponse(c, "not_found", "No such task.");
-    case "cycle":
+    }
+    case "cycle": {
       throw new ApiError("validation_failed", "task_id: that would make a loop.");
-    case "has_parent":
+    }
+    case "has_parent": {
       throw new ApiError("conflict", "That task already has a parent. Remove it first.");
-    case "too_many":
+    }
+    case "too_many": {
       throw new ApiError("validation_failed", "A task has at most 50 links.");
-    default:
+    }
+    default: {
       throw new ApiError("validation_failed", "task_id: not a valid link.");
+    }
   }
 }
 

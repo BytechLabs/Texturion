@@ -1,4 +1,5 @@
-import { roleHasCapability, type MemberRole } from "./capabilities";
+import { roleHasCapability } from './capabilities';
+import type { MemberRole } from './capabilities';
 
 /**
  * #286 — who is shown the joining orientation, and when.

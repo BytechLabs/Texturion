@@ -83,7 +83,7 @@ describe("SECURITY_HEADERS (issue #33 response-header hardening)", () => {
 
   it("contains no duplicate keys and nothing beyond the audited set", () => {
     expect(byKey.size).toBe(SECURITY_HEADERS.length);
-    expect([...byKey.keys()].sort()).toEqual(
+    expect([...byKey.keys()].toSorted()).toEqual(
       [
         "Content-Security-Policy",
         "Cross-Origin-Opener-Policy",
@@ -92,7 +92,7 @@ describe("SECURITY_HEADERS (issue #33 response-header hardening)", () => {
         "Strict-Transport-Security",
         "X-Content-Type-Options",
         "X-Frame-Options",
-      ].sort(),
+      ].toSorted(),
     );
   });
 });

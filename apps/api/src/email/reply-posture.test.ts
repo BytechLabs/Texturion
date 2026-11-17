@@ -88,14 +88,14 @@ describe("#252 the reply posture is stated once", () => {
         // The base URL is overridable, so the host and the `/emails` path are
         // separate literals and are matched separately.
         return (
-          /api\.resend\.com/.test(text) &&
+          text.includes('api.resend.com') &&
           /\/emails\b/.test(text) &&
           /method:\s*"POST"/.test(text)
         );
       });
     expect(posters.length).toBeGreaterThan(0);
     const missing = posters.filter(
-      (path) => !/reply_to/.test(readFileSync(path, "utf8")),
+      (path) => !readFileSync(path, "utf8").includes('reply_to'),
     );
     expect(
       missing,

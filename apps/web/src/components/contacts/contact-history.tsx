@@ -48,7 +48,7 @@ export function ContactHistory({
   conversationId: string | null;
 }) {
   switch (pane) {
-    case "activity":
+    case "activity": {
       return (
         <ActivityTimeline
           recordType="contact"
@@ -56,11 +56,14 @@ export function ContactHistory({
           hideHeading
         />
       );
-    case "conversations":
+    }
+    case "conversations": {
       return <ConversationsList contact={contact} />;
-    case "calls":
+    }
+    case "calls": {
       return <CallsList contact={contact} />;
-    case "tasks":
+    }
+    case "tasks": {
       return (
         <LinkedTasks
           kind="contact"
@@ -69,8 +72,10 @@ export function ContactHistory({
           empty={<ListEmpty kind="tasks" icon={<ListChecks />} />}
         />
       );
-    case "files":
+    }
+    case "files": {
       return <FilesList conversationId={conversationId} />;
+    }
   }
 }
 

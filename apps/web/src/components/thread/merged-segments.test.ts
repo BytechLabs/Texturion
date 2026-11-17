@@ -23,14 +23,14 @@ import { describe, expect, it } from "vitest";
 
 import { segmentMeter } from "./segment-meter";
 
-import { EN as WEB_EN, FR_CA as WEB_FR } from "@/i18n/catalog";
+import { EN as WEB_EN } from "@/i18n/catalog";
 
 /** #228 — the module names keys now, so the tests resolve them. */
 function resolver(table: unknown) {
   return (key: string, vars: Record<string, string> = {}): string => {
     const [section, name] = key.split(".");
     const text = (table as Record<string, Record<string, string>>)[section]?.[name];
-    if (typeof text !== "string") throw new Error(`no entry for ${key}`);
+    if (typeof text !== "string") throw new TypeError(`no entry for ${key}`);
     return Object.entries(vars).reduce(
       (out, [token, value]) => out.split(`{${token}}`).join(value),
       text,
@@ -39,7 +39,7 @@ function resolver(table: unknown) {
 }
 
 const sayEn = resolver(WEB_EN);
-const sayFr = resolver(WEB_FR);
+
 
 
 /** What the composer now meters. */

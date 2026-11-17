@@ -4,25 +4,15 @@
 import { DEFAULT_MCTB_MESSAGE } from "@loonext/shared";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { opsNotice } from "../observability/capture";
 import { noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { companiesRoutes } from "./companies";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -83,7 +73,7 @@ describe("POST /v1/companies (company-exempt)", () => {
       body: { ...validBody, requested_area_code: "212", country: "US" },
     });
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual(company);
+    await expect(res.json()).resolves.toEqual(company);
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_create_company")[0];
     expect(rpc.body).toEqual({
@@ -227,7 +217,7 @@ describe("POST /v1/companies (company-exempt)", () => {
         },
       );
       expect(res.status, timezone).toBe(422);
-      expect(await errorCodeOf(res)).toBe("validation_failed");
+      await expect(errorCodeOf(res)).resolves.toBe("validation_failed");
     }
   });
 
@@ -247,7 +237,7 @@ describe("POST /v1/companies (company-exempt)", () => {
       body: { ...validBody, requested_area_code: "212" },
     });
     expect(res.status).toBe(409);
-    expect(await errorCodeOf(res)).toBe("conflict");
+    await expect(errorCodeOf(res)).resolves.toBe("conflict");
   });
 
   it("422s when a US company tries us_texting_enabled=false", async () => {
@@ -337,7 +327,7 @@ describe("POST /v1/companies — AUP signup screening (#303)", () => {
       body: { ...validBody, requested_area_code: "212", name: "Green Leaf Dispensary" },
     });
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ id: COMPANY_ID });
+    await expect(res.json()).resolves.toEqual({ id: COMPANY_ID });
   });
 });
 
@@ -557,7 +547,7 @@ describe("GET /v1/company", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       id: COMPANY_ID,
       plan: "pro",
       numbers: [],
@@ -616,7 +606,7 @@ describe("GET /v1/company", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ cancel_at_period_end: true });
+    await expect(res.json()).resolves.toMatchObject({ cancel_at_period_end: true });
 
     // SPEC §9 "handle cancel_at_period_end display" — the flag is part of the
     // company view; Stripe/Telnyx internals stay server-side (SPEC §10).
@@ -670,7 +660,7 @@ describe("#232 the widget key", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       widget_key: "aaaaaaaa-1111-4111-8111-aaaaaaaaaaaa",
     });
   });
@@ -709,13 +699,13 @@ describe("#232 the widget key", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       widget_key: "bbbbbbbb-2222-4222-8222-bbbbbbbbbbbb",
     });
     // The new key is minted SERVER-side. A client-supplied one would let a
     // caller choose a key somebody else's embed already carries.
     expect(updated).toHaveProperty("widget_key");
-    expect(String((updated as { widget_key: string }).widget_key)).toMatch(
+    expect((updated as { widget_key: string }).widget_key).toMatch(
       /^[0-9a-f-]{36}$/,
     );
   });
@@ -838,7 +828,7 @@ describe("GET /v1/company — billing fields follow billing.manage (#515)", () =
       // #192/#193: the derived, server-resolved effective values.
       caller_id_effective: "Acme",
     });
-    expect((body.numbers as unknown[]).length).toBe(1);
+    expect((body.numbers as unknown[])).toHaveLength(1);
   });
 
   it("withholds them from a read-only observer too", async () => {
@@ -1008,7 +998,7 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       body: { requested_area_code: "212" },
     });
     expect(res.status).toBe(409);
-    expect(await errorCodeOf(res)).toBe("conflict");
+    await expect(errorCodeOf(res)).resolves.toBe("conflict");
     // Gated before the write — the area code never reaches the DB.
     expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
   });
@@ -1029,7 +1019,7 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
         body: { requested_area_code: bad },
       });
       expect(res.status, `area code ${bad}`).toBe(422);
-      expect(await errorCodeOf(res)).toBe("validation_failed");
+      await expect(errorCodeOf(res)).resolves.toBe("validation_failed");
       expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
     }
   });
@@ -1069,7 +1059,7 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       body: { country: "CA" }, // no new area code for the new country
     });
     expect(res.status).toBe(422);
-    expect(await errorCodeOf(res)).toBe("validation_failed");
+    await expect(errorCodeOf(res)).resolves.toBe("validation_failed");
     expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
   });
 
@@ -1118,7 +1108,7 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       body: { overage_cap_multiplier: 0.004 },
     });
     expect(roundsToZero.status).toBe(422);
-    expect(await errorCodeOf(roundsToZero)).toBe("validation_failed");
+    await expect(errorCodeOf(roundsToZero)).resolves.toBe("validation_failed");
   });
 
   it("lets an admin set the timezone; invalid zones are 422 (D15)", async () => {
@@ -1144,7 +1134,7 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       body: { timezone: "Eastern" },
     });
     expect(bad.status).toBe(422);
-    expect(await errorCodeOf(bad)).toBe("validation_failed");
+    await expect(errorCodeOf(bad)).resolves.toBe("validation_failed");
     expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(1);
   });
 
@@ -1433,7 +1423,7 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
         "Sorry we missed your call — reply with your address and we'll book you in.",
     });
     // #192: the echo carries the derived pair — the owner's text is in effect.
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       mctb_effective_message:
         "Sorry we missed your call — reply with your address and we'll book you in.",
       mctb_message_is_custom: true,
@@ -1481,7 +1471,7 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
     // The schema no longer knows the field; with nothing else in the body
     // the "provide at least one field" refinement refuses it.
     expect(res.status).toBe(422);
-    expect(await errorCodeOf(res)).toBe("validation_failed");
+    await expect(errorCodeOf(res)).resolves.toBe("validation_failed");
     expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(0);
   });
 
@@ -1501,7 +1491,7 @@ describe("PATCH /v1/company — missed-call text-back (FEATURE-GAPS voice wave)"
       mctb_message: null,
     });
     // #192: cleared custom text → the echo reports the default as effective.
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       mctb_effective_message: DEFAULT_MCTB_MESSAGE,
       mctb_message_is_custom: false,
     });
@@ -1533,7 +1523,7 @@ describe("PATCH /v1/company — call-feature honesty gate (#134 review)", () => 
       body: { mctb_enabled: true },
     });
     expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "subscription_inactive" },
     });
     // The settings write never happened.
@@ -1609,7 +1599,7 @@ describe("PATCH /v1/company — #193 caller ID defaults to the company name", ()
     const patchBody = sb.find("PATCH", "/rest/v1/companies")[0]
       .body as Record<string, unknown>;
     expect(patchBody.cnam_display_name).toBe("ACE PLUMBERS");
-    expect(typeof patchBody.cnam_submitted_at).toBe("string");
+    expect(patchBody.cnam_submitted_at).toBeTypeOf("string");
 
     // The carrier-side listing carries the explicit name.
     expect(push.calls).toEqual([
@@ -1622,7 +1612,7 @@ describe("PATCH /v1/company — #193 caller ID defaults to the company name", ()
     ]);
 
     // The echo resolves the effective value for clients.
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       caller_id_effective: "ACE PLUMBERS",
       caller_id_source: "custom",
     });
@@ -1658,7 +1648,7 @@ describe("PATCH /v1/company — #193 caller ID defaults to the company name", ()
         },
       },
     ]);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       caller_id_effective: "Acme Plumbing C",
       caller_id_source: "company_name",
     });
@@ -1670,9 +1660,9 @@ describe("PATCH /v1/company — #193 caller ID defaults to the company name", ()
       const body = call.body as Record<string, unknown>;
       // First write = the rename; second = the background submitted stamp.
       return [
-        body.name !== undefined
-          ? { id: COMPANY_ID, name: body.name, cnam_display_name: null }
-          : { id: COMPANY_ID },
+        body.name === undefined
+          ? { id: COMPANY_ID }
+          : { id: COMPANY_ID, name: body.name, cnam_display_name: null },
       ];
     });
     stubActiveNumber(sb);
@@ -1700,9 +1690,7 @@ describe("PATCH /v1/company — #193 caller ID defaults to the company name", ()
     const patches = sb.find("PATCH", "/rest/v1/companies");
     expect(patches).toHaveLength(2);
     expect(patches[0].body).toEqual({ name: "Bolt Electric" });
-    expect(
-      typeof (patches[1].body as Record<string, unknown>).cnam_submitted_at,
-    ).toBe("string");
+    expect((patches[1].body as Record<string, unknown>).cnam_submitted_at).toBeTypeOf("string");
   });
 
   it("a rename with a CUSTOM caller ID set leaves the listing alone", async () => {
@@ -1725,7 +1713,7 @@ describe("PATCH /v1/company — #193 caller ID defaults to the company name", ()
     // No phone_numbers read, no Telnyx push, no second companies write.
     expect(sb.find("GET", "/rest/v1/phone_numbers")).toHaveLength(0);
     expect(sb.find("PATCH", "/rest/v1/companies")).toHaveLength(1);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       caller_id_effective: "ACE PLUMBERS",
       caller_id_source: "custom",
     });

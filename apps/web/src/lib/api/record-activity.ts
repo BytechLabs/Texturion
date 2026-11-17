@@ -38,14 +38,18 @@ export interface ActivityItem {
 /** A task's activity is at `/record-activity`: `/activity` is the #689 feed with comments. */
 export function activityPath(recordType: ActivityRecordType, recordId: string): string {
   switch (recordType) {
-    case "contact":
+    case "contact": {
       return `/v1/contacts/${recordId}/activity`;
-    case "conversation":
+    }
+    case "conversation": {
       return `/v1/conversations/${recordId}/activity`;
-    case "call":
+    }
+    case "call": {
       return `/v1/calls/${recordId}/activity`;
-    case "task":
+    }
+    case "task": {
       return `/v1/tasks/${recordId}/record-activity`;
+    }
   }
 }
 
@@ -70,6 +74,6 @@ export function useRecordActivity(
     getNextPageParam: nextCursorParam,
     // A read the page started a moment ago, beside the record's own, is this open's read.
     refetchOnMount: (query) =>
-      Date.now() - query.state.dataUpdatedAt < 5_000 ? false : "always",
+      Date.now() - query.state.dataUpdatedAt < 5000 ? false : "always",
   });
 }

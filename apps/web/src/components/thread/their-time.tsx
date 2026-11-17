@@ -37,12 +37,12 @@ export function TheirTime({ clock }: { clock: DestinationClock | null }) {
   const provenance =
     clock.source === "contact"
       ? "set on their contact"
-      : clock.source === "area_code"
+      : (clock.source === "area_code"
         ? "from their area code"
         : // The weakest rung: a non-geographic number with no override, so we
           // are showing the shop's own clock and should say so plainly rather
           // than let it read as the customer's.
-          "your workspace's timezone — we don't know theirs";
+          "your workspace's timezone — we don't know theirs");
 
   return (
     <p className="flex items-start gap-1.5 px-1 pb-1.5 text-xs text-muted-foreground">

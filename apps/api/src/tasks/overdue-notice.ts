@@ -115,7 +115,7 @@ export async function notifyOverdueTasksJob(
       }
       const silenced = new Set(
         ((prefs.data ?? []) as { user_id: string; push_enabled: boolean }[])
-          .filter((row) => row.push_enabled === false)
+          .filter((row) => ! row.push_enabled)
           .map((row) => row.user_id),
       );
       const audience = listeners.filter((userId) => !silenced.has(userId));
@@ -148,8 +148,8 @@ export async function notifyOverdueTasksJob(
         collapseKey: `task:${task.id}`,
         failures,
       });
-    } catch (cause) {
-      failures.push(cause);
+    } catch (error_) {
+      failures.push(error_);
     }
   }
 
