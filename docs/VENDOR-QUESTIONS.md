@@ -35,6 +35,10 @@ Have the robot send `START` to clean up a block. Confirm with Telnyx whether
 adding samples to an approved 10DLC campaign triggers re-vetting before
 backfilling existing campaigns. The app records punctuated STOP independently.
 
+Telnyx says a content update can return a rejected native campaign to review.
+We still need confirmation for sample-only updates to approved campaigns.
+[Telnyx guidance on native campaign appeals](https://github.com/team-telnyx/knowledge-base/blob/main/wiki/dev-docs/10dlc-messaging--part-4.md#native-campaign-appeals)
+
 Rig run `S24-20261117215818-fef4cd` stopped before any dials. The guard reported
 `room 0 is under 2`, so carrier behavior remains unverified.
 

@@ -144,7 +144,7 @@ export const onboardingEn = {
     "These details were already submitted to carriers. Nothing more to do on this step.",
   messageFlowLabel: "How do customers say yes to texts?",
   messageFlowHint:
-    "Plain truth works best. Carriers reject marketing-blast language.",
+    "Describe how customers agree to receive texts in person, by phone, or on your website.",
   sample1Label: "A text you'd actually send",
   sample2Label: "One more example",
   sample2Hint: "Carriers just want to see everyday customer conversations.",
@@ -796,14 +796,13 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
     "Ces renseignements ont déjà été transmis aux opérateurs. Rien de plus à faire à cette étape.",
   messageFlowLabel: "Comment vos clients acceptent-ils de recevoir des textos ?",
   messageFlowHint:
-    "La vérité toute simple fonctionne le mieux. Les opérateurs refusent le langage de publipostage.",
+    "Décrivez comment vos clients acceptent de recevoir des textos en personne, par téléphone ou sur votre site Web.",
   sample1Label: "Un texto que vous enverriez vraiment",
   sample2Label: "Un autre exemple",
   sample2Hint:
     "Les opérateurs veulent simplement voir des conversations courantes avec des clients.",
   // Submitted verbatim to the US carrier registry; see the catalogue header.
-  textingDefaultMessageFlow:
-    "Les clients nous écrivent ou nous appellent, nous demandent un texto en personne ou par téléphone, ou en font la demande sur notre site Web. Nous n'envoyons pas de textos promotionnels en masse.",
+  textingDefaultMessageFlow: onboardingEn.textingDefaultMessageFlow,
   textingDefaultSample1:
     "Hi, it's {name}. We can fit you in tomorrow between 9 and 11am. Does that still work for you?",
   textingDefaultSample2:
