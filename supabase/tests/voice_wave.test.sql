@@ -329,6 +329,40 @@ begin
   raise notice 'VW-10 PASSED: opted-out caller is never texted';
 end $$;
 
+do $$
+declare
+  v_company_id constant uuid := 'facade00-0000-4000-8000-000000000002';
+  v_line_id constant uuid := 'facade00-0000-4000-8000-000000000003';
+  v_caller constant text := '+14165559000';
+  v_message_id uuid;
+  v_result jsonb;
+begin
+  v_result := public.claim_missed_call_text(
+    v_company_id, v_line_id, v_caller, 'call-hint-replay', 'Call us back.', 1, 0);
+  v_message_id := (v_result->'message'->>'id')::uuid;
+  if v_message_id is null then
+    raise exception 'Expected a queued text before recording the hint, got %', v_result;
+  end if;
+
+  update public.conversations set opt_out_hint_at = now()
+   where company_id = v_company_id and contact_phone_e164 = v_caller;
+  v_result := public.claim_missed_call_text(
+    v_company_id, v_line_id, v_caller, 'call-hint-replay', 'Call us back.', 1, 0);
+  if v_result->>'skipped' is distinct from 'opt_out_unresolved' then
+    raise exception 'Open hint should block replay, got %', v_result;
+  end if;
+  v_result := public.claim_missed_call_text(
+    v_company_id, v_line_id, v_caller, 'call-hint-new', 'Call us back.', 1, 0);
+  if v_result->>'skipped' is distinct from 'opt_out_unresolved' then
+    raise exception 'Open hint should block a new text, got %', v_result;
+  end if;
+  update public.messages set status = 'failed' where id = v_message_id;
+  v_result := public.claim_message_retry(v_company_id, v_message_id, 1);
+  if v_result->>'error' is distinct from 'opt_out_unresolved' then
+    raise exception 'Open hint should block a queued automatic retry, got %', v_result;
+  end if;
+end $$;
+
 -- ===========================================================================
 -- VW-11. claim_text_enablement_slot — creates a source='hosted' phone_numbers
 --        row + a text_enablement_orders row; idempotent on the provisioning_key.

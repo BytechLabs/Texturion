@@ -27,29 +27,21 @@ import type { MessageRow } from "./types";
 /** One missed-call auto-text per conversation per 3 hours (shared throttle). */
 export const MISSED_CALL_THROTTLE_SECONDS = 3 * 60 * 60;
 
+type MissedCallSkipReason =
+  | "duplicate"
+  | "recipient_opted_out"
+  | "opt_out_unresolved"
+  | "throttled"
+  | "subscription_inactive"
+  | "workspace_paused"
+  | "not_found";
+
 export type MissedCallSendOutcome =
   | { sent: true; message: MessageRow; conversationId: string }
-  | {
-      sent: false;
-      reason:
-        | "duplicate"
-        | "recipient_opted_out"
-        | "throttled"
-        | "subscription_inactive"
-        // #277: the workspace's plan is paused — a seasonal hold, not a
-        // billing failure. The claim RPC distinguishes them and so does this.
-        | "workspace_paused"
-        | "not_found";
-    };
+  | { sent: false; reason: MissedCallSkipReason };
 
 interface ClaimResult {
-  skipped?:
-    | "duplicate"
-    | "recipient_opted_out"
-    | "throttled"
-    | "subscription_inactive"
-    | "workspace_paused"
-    | "not_found";
+  skipped?: MissedCallSkipReason;
   message?: MessageRow;
   conversation_id?: string;
   created_conversation?: boolean;
