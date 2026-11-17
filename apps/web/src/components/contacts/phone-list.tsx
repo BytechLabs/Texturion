@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/provider";
@@ -91,7 +92,7 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
                 {entry.label ? (
                   <span className="text-app-muted-2">{entry.label} · </span>
                 ) : null}
-                {entry.phone_e164}
+                <CopyablePhoneNumber number={entry.phone_e164} />
               </span>
               <button
                 type="button"

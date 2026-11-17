@@ -39,9 +39,20 @@ struct PhoneList: View {
                     Image(systemName: "phone")
                         .font(.scaled(IconSize.small, weight: .medium))
                         .foregroundStyle(BrandColor.muted500)
-                    Text(line(for: entry))
+                    Button {
+                        Haptics.tap()
+                        UIPasteboard.general.string = entry.phone_e164
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(line(for: entry))
+                            Image(systemName: "doc.on.doc")
+                                .foregroundStyle(BrandColor.muted500)
+                        }
                         .font(.golos(13))
                         .frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityHint(AppStrings.translate(appLocale, "contactsTasks.copyNumber"))
                     Button {
                         onRemove(entry.id)
                     } label: {

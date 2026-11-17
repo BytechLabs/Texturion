@@ -94,6 +94,8 @@ describe(CallDetail, () => {
     const html = shown({ data: detail() });
     expect(html).toContain(t("shell.transcriptNotYet"));
     expect(html).toContain(t("shell.endedLabel"));
+    expect(html).toContain(`${t("recordMenu.copyNumber")}: (613) 555-1000`);
+    expect(html).toContain("select-all");
   });
 
   it("CD-3: keeps the page when a background refresh fails", () => {

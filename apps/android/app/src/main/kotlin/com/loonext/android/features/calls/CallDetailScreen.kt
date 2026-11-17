@@ -11,6 +11,10 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
@@ -19,6 +23,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -189,7 +195,7 @@ private fun CallDetailBody(
                         },
                     )
                     call.caller_e164?.takeIf { it.isNotBlank() }?.let { number ->
-                        add(t("shell.numberLabel") to { DetailValue(formatPhone(number)) })
+                        add(t("shell.numberLabel") to { CopyablePhoneValue(number) })
                     }
                     call.answered_by_name?.takeIf { it.isNotBlank() }?.let { name ->
                         add(
@@ -266,4 +272,22 @@ private fun CallDetailBody(
 @Composable
 private fun DetailValue(text: String) {
     Text(text, fontSize = 14.sp, color = MaterialTheme.colorScheme.onSurface)
+}
+
+@Composable
+private fun CopyablePhoneValue(number: String) {
+    val clipboard = LocalClipboardManager.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            formatPhone(number),
+            fontSize = 14.sp,
+            color = MaterialTheme.colorScheme.onSurface,
+        )
+        IconButton(onClick = { clipboard.setText(AnnotatedString(number)) }) {
+            Icon(
+                Icons.Outlined.ContentCopy,
+                contentDescription = t("shell.copyNumber"),
+            )
+        }
+    }
 }
