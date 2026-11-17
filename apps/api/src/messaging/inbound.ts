@@ -507,37 +507,42 @@ export async function handleInboundMessage(
   }
   const spamSilences = spam.blocked || (!emergency && spam.suspected);
 
-  if (pendingAlert && threaded.crew_notify_verdict) {
-    if (spamSilences) {
-      await clearSavedInboundAlert(db, number.company_id, threaded.message_id);
-    } else {
-      await deliverSavedInboundAlert(env, db, {
-        messageId: threaded.message_id,
-        companyId: number.company_id,
-        conversationId: threaded.conversation_id,
-        body: payload.text ?? "",
-        verdict: threaded.crew_notify_verdict,
-        requireUnread: !threaded.created,
-      });
+  let notificationFailure: { error: unknown } | undefined;
+  try {
+    if (pendingAlert && threaded.crew_notify_verdict) {
+      if (spamSilences) {
+        await clearSavedInboundAlert(db, number.company_id, threaded.message_id);
+      } else {
+        await deliverSavedInboundAlert(env, db, {
+          messageId: threaded.message_id,
+          companyId: number.company_id,
+          conversationId: threaded.conversation_id,
+          body: payload.text ?? "",
+          verdict: threaded.crew_notify_verdict,
+          requireUnread: !threaded.created,
+        });
+      }
+    } else if (
+      threaded.crew_notify_state === undefined &&
+      threaded.created && !spamSilences && (emergency || allowEmail || allowPush)
+    ) {
+      await notifyInboundMessage(
+        env,
+        {
+          companyId: number.company_id,
+          conversationId: threaded.conversation_id,
+          body: payload.text ?? "",
+          mediaCount: media.length,
+          allowEmail: emergency || allowEmail,
+          allowPush: emergency || allowPush,
+          emergency,
+          lead: threaded.notify_reason === "new" || threaded.notify_reason === "reopened",
+        },
+        db,
+      );
     }
-  } else if (
-    threaded.crew_notify_state === undefined &&
-    threaded.created && !spamSilences && (emergency || allowEmail || allowPush)
-  ) {
-    await notifyInboundMessage(
-      env,
-      {
-        companyId: number.company_id,
-        conversationId: threaded.conversation_id,
-        body: payload.text ?? "",
-        mediaCount: media.length,
-        allowEmail: emergency || allowEmail,
-        allowPush: emergency || allowPush,
-        emergency,
-        lead: threaded.notify_reason === "new" || threaded.notify_reason === "reopened",
-      },
-      db,
-    );
+  } catch (error) {
+    notificationFailure = { error };
   }
 
   const canReply = threaded.created && !spam.blocked && !keywordFailure;
@@ -670,6 +675,7 @@ export async function handleInboundMessage(
   }
 
   if (keywordFailure) throw keywordFailure.error;
+  if (notificationFailure) throw notificationFailure.error;
 
   // MMS media download runs LAST — idempotent (existing attachment rows are
   // skipped) and it THROWS on a transient CDN failure so the §11 sweeper
