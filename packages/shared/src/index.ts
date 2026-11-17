@@ -849,6 +849,7 @@ export {
   type ScheduledClockKey,
   scheduledReasonRecovers,
 } from "./scheduled-send";
+export { OUTBOUND_HOLD_COPY } from "./scheduled-hold-copy";
 export type {
   ScheduledHoldReason,
   ScheduledHoldReasonKey,

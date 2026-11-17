@@ -58,6 +58,7 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
 import { deliverPush } from "../notifications/deliver";
+import { notifyFailedText } from "../notifications/failed-text";
 import { nextSendableInstant, resolveDestinationClock } from "./destination-clock";
 import { SCHEDULED_DISCLOSURE_COPY } from "./scheduled-send-copy";
 import { dispatchOutbound, runPreSendGates } from "./send";
@@ -761,6 +762,7 @@ export async function runScheduledSendJob(
         clearance,
       });
       if (message.status === "failed") {
+        await notifyFailedText(env, db, message);
         summary.failed += 1;
       } else {
         summary.sent += 1;

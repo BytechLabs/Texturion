@@ -135,6 +135,8 @@ export type PushContent =
     };
 
 export interface PushDelivery {
+  /** Claims a saved alert before its first delivery or batch write. */
+  beforeSend?: () => Promise<boolean>;
   /** Push-enabled recipients. Nothing is sent for an empty list. */
   userIds: string[];
   /**
@@ -623,6 +625,7 @@ async function fanOutPush(
       );
 
   if (resolved.queue.length > 0) {
+    if (delivery.beforeSend && !(await delivery.beforeSend())) return;
     await queueNotifications(db, delivery, resolved.queue);
   }
 
@@ -704,6 +707,7 @@ async function fanOutPush(
 
   const subscriptions = newestPerUser(subscriptionRows, MAX_TARGETS_PER_USER);
   await sendPushTargets(subscriptions, async (subscription) => {
+    if (delivery.beforeSend && !(await delivery.beforeSend())) return;
     // Web Push urgency is NOT metered (#452): no push service rations it,
     // so degrading it would save nothing and cost a wake. The meter below
     // covers the native sends, which are the ones Google and Apple count.
@@ -770,6 +774,7 @@ async function fanOutPush(
   ]);
 
   await sendPushTargets(devices, async (device) => {
+    if (delivery.beforeSend && !(await delivery.beforeSend())) return;
     const locale = localeFor(device);
     const action = delivery.nativeAction?.(device.user_id);
     const actionScope = { companyId: delivery.companyId, userId: device.user_id, locale };

@@ -22,6 +22,7 @@ import { classifySendFailure } from "@loonext/shared";
 import { reportSegmentUsage } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { notifyFailedText } from "../notifications/failed-text";
 import { captureEvent } from "../observability/capture";
 import { recordCarrierOptOut } from "./opt-out";
 import { phoneCountry } from "./delivery-by-country";
@@ -84,7 +85,7 @@ async function finalize(
     // into failure from a replay of one. The §11 sweeper re-runs this handler
     // on failure, and an integration told twice that the same text failed is
     // one that notifies the crew twice.
-    .select("id,company_id,direction,status,conversation_id")
+    .select("id,company_id,direction,status,conversation_id,sent_by_user_id,automated")
     .eq("telnyx_message_id", telnyxMessageId)
     .limit(1);
   if (lookupError) {
@@ -97,6 +98,8 @@ async function finalize(
         direction: string;
         status: string;
         conversation_id: string | null;
+        sent_by_user_id: string | null;
+        automated: boolean;
       }
     | undefined;
   if (!message) return; // unknown id → acked no-op (§8)
@@ -184,6 +187,7 @@ async function finalize(
   // — it is the one that needs a human. Only on the transition, never on a
   // replay of a row that was already failed.
   if (finalStatus === "failed" && entered) {
+    await notifyFailedText(env, db, message);
     await enqueueWebhookEvent(db, {
       companyId: message.company_id,
       type: "message.failed",

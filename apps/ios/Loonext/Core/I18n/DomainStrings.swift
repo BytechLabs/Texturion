@@ -327,6 +327,7 @@ enum DomainStrings {
             "domain.categoryMissedCalls": "Missed calls",
             "domain.categoryVoicemails": "Voicemails",
             "domain.categoryScheduledTexts": "Scheduled texts that are held or not sent",
+            "domain.categorySendFailures": "Texts that could not be delivered",
             // ── Automatic texts settings (#689) — Settings/AutomaticTextsSection.swift ─────
             "domain.autoTextsTitle": "Automatic texts",
             "domain.autoTextsBlurb": "Held texts, the rating question, how long texts wait",
@@ -838,6 +839,7 @@ enum DomainStrings {
             "domain.categoryMissedCalls": "Appels manqués",
             "domain.categoryVoicemails": "Messages vocaux",
             "domain.categoryScheduledTexts": "Textos planifiés retenus ou non envoyés",
+            "domain.categorySendFailures": "Textos qui n’ont pas pu être livrés",
             // ── Automatic texts settings (#689) — Settings/AutomaticTextsSection.swift ─────
             "domain.autoTextsTitle": "Textos automatiques",
             "domain.autoTextsBlurb": "Textos retenus, question de satisfaction, délais d'attente",

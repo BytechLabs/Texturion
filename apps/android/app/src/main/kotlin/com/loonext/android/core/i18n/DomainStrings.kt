@@ -390,6 +390,7 @@ object DomainStrings : AppStrings.Section {
         "domain.categoryMissedCalls" to "Missed calls",
         "domain.categoryVoicemails" to "Voicemails",
         "domain.categoryScheduledTexts" to "Scheduled texts that are held or not sent",
+        "domain.categorySendFailures" to "Texts that could not be delivered",
         // ── Automatic texts settings (#689) ──────────────────────────────────
         "domain.autoTextsTitle" to "Automatic texts",
         "domain.autoTextsBlurb" to "Held texts, the rating question, how long texts wait",
@@ -1005,6 +1006,7 @@ object DomainStrings : AppStrings.Section {
         "domain.categoryMissedCalls" to "Appels manqués",
         "domain.categoryVoicemails" to "Messages vocaux",
         "domain.categoryScheduledTexts" to "Textos planifiés retenus ou non envoyés",
+        "domain.categorySendFailures" to "Textos qui n’ont pas pu être livrés",
         // ── Réglages des textos automatiques (#689) ──────────────────────────
         "domain.autoTextsTitle" to "Textos automatiques",
         "domain.autoTextsBlurb" to "Textos retenus, question de satisfaction, délais d'attente",
