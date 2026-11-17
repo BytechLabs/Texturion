@@ -40,6 +40,7 @@ import { useUsage } from "@/lib/api/usage";
 import { isFilePaste } from "@/lib/attachments/clipboard";
 import { MMS_ACCEPT, MMS_MAX_MEDIA_ITEMS } from "@/lib/attachments/mms";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { inboxHref } from "@/lib/inbox/thread-href";
 import { cn } from "@/lib/utils";
 
 import {
@@ -79,6 +80,8 @@ export function NewConversation() {
   const t = useT();
   const router = useRouter();
   const searchParams = useSearchParams();
+  const listQuery = searchParams.toString();
+  const backHref = inboxHref({ listQuery });
   const company = useCompany();
   // #274: the signed-in member, for {my_name} in the preview.
   const meQuery = useMe();
@@ -377,7 +380,7 @@ export function NewConversation() {
         // It went out, so the draft is spent. This screen navigates away
         // rather than clearing its own state, so the clear is explicit.
         clearDraft(NEW_CONVERSATION_DRAFT);
-        router.push(`/inbox/${conversation.id}`);
+        router.push(inboxHref({ conversationId: conversation.id, listQuery }));
       },
       onError: (error) => {
         lastFailedComposeRef.current = { signature, key: idempotencyKey };
@@ -436,7 +439,7 @@ export function NewConversation() {
           className="md:hidden"
           aria-label={t("inbox.composeBackAria")}
         >
-          <Link href="/inbox">
+          <Link href={backHref}>
             <ArrowLeft className="size-4" strokeWidth={1.75} />
           </Link>
         </Button>
@@ -450,7 +453,7 @@ export function NewConversation() {
           className="hidden md:inline-flex"
           aria-label={t("common.close")}
         >
-          <Link href="/inbox">
+          <Link href={backHref}>
             <X className="size-4" strokeWidth={1.75} />
           </Link>
         </Button>

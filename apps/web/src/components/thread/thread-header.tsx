@@ -46,6 +46,7 @@ import type {
 import { useActiveCompany } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
+import { inboxHref } from "@/lib/inbox/thread-href";
 import { useIsBelowMd } from "@/lib/use-is-below-md";
 import { useNavigate } from "@/lib/use-navigate";
 import { cn } from "@/lib/utils";
@@ -73,6 +74,7 @@ const UNASSIGNED_VALUE = "__unassigned__";
 export function ThreadHeader({
   conversation,
   contact,
+  backHref = inboxHref(),
   onToggleContactPanel,
   panelOpen,
   onOpenGallery,
@@ -82,6 +84,7 @@ export function ThreadHeader({
 }: {
   conversation: ConversationDetail;
   contact: ContactDetail | undefined;
+  backHref?: string;
   onToggleContactPanel: () => void;
   panelOpen: boolean;
   /** Open the attachments gallery — §5.2 single entry point. */
@@ -103,7 +106,7 @@ export function ThreadHeader({
         : undefined,
       onOpenGallery,
       onCatchUp,
-      onDeleted: () => navigate("/inbox", { replace: true }),
+      onDeleted: () => navigate(backHref, { replace: true }),
     });
   const members = useMembers();
   const memberNames = useMemberNames();
@@ -197,7 +200,7 @@ export function ThreadHeader({
         className="md:hidden"
         aria-label={t("thread.backToInbox")}
       >
-        <Link href="/inbox">
+        <Link href={backHref}>
           <ArrowLeft className="size-4" strokeWidth={1.75} />
         </Link>
       </Button>

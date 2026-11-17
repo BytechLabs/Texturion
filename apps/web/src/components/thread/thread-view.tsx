@@ -49,6 +49,7 @@ import type {
 import { useUsage } from "@/lib/api/usage";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import {
+  inboxHref,
   THREAD_CALL_PARAM,
   THREAD_MESSAGE_PARAM,
   THREAD_TASK_PARAM,
@@ -157,6 +158,8 @@ function readIsCurrent({
  */
 export function ThreadView({ conversationId }: { conversationId: string }) {
   const t = useT();
+  const searchParams = useSearchParams();
+  const backHref = inboxHref({ listQuery: searchParams.toString() });
   const queryClient = useQueryClient();
   const companyId = useCompanyId();
   const detail = useConversation(conversationId);
@@ -173,7 +176,7 @@ export function ThreadView({ conversationId }: { conversationId: string }) {
 
   if (detail.isPending) {
     const row = findListRow(queryClient, companyId, conversationId);
-    return row ? <ThreadPlaceholder row={row} /> : <ThreadSkeleton />;
+    return row ? <ThreadPlaceholder row={row} backHref={backHref} /> : <ThreadSkeleton />;
   }
 
   // #299: a failed refetch keeps the open thread on screen; a conversation that is gone does not.
@@ -191,7 +194,7 @@ export function ThreadView({ conversationId }: { conversationId: string }) {
         action={
           notFound ? (
             <Button asChild variant="outline" size="sm">
-              <Link href="/inbox">{t("thread.backToInbox")}</Link>
+              <Link href={backHref}>{t("thread.backToInbox")}</Link>
             </Button>
           ) : undefined
         }
@@ -199,11 +202,11 @@ export function ThreadView({ conversationId }: { conversationId: string }) {
     );
   }
 
-  return <ThreadLoaded conversation={detail.data} />;
+  return <ThreadLoaded conversation={detail.data} backHref={backHref} searchParams={searchParams} />;
 }
 
 // No composer, read or presence here: viewer level, opt-out and the clock come only from the detail (#106/#363).
-function ThreadPlaceholder({ row }: { row: ConversationListItem }) {
+function ThreadPlaceholder({ row, backHref }: { row: ConversationListItem; backHref: string }) {
   const t = useT();
   const memberNames = useMemberNames();
   const name = contactDisplayName(row.contact);
@@ -221,7 +224,7 @@ function ThreadPlaceholder({ row }: { row: ConversationListItem }) {
           className="md:hidden"
           aria-label={t("thread.backToInbox")}
         >
-          <Link href="/inbox">
+          <Link href={backHref}>
             <ArrowLeft className="size-4" strokeWidth={1.75} />
           </Link>
         </Button>
@@ -264,7 +267,15 @@ function ThreadPlaceholder({ row }: { row: ConversationListItem }) {
   );
 }
 
-function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
+function ThreadLoaded({
+  conversation,
+  backHref,
+  searchParams,
+}: {
+  conversation: ConversationDetail;
+  backHref: string;
+  searchParams: URLSearchParams;
+}) {
   const t = useT();
   const conversationId = conversation.id;
   const queryClient = useQueryClient();
@@ -300,7 +311,6 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
 
   // §5.1 in-thread filter — independent Messages · Notes · Events toggles (#89).
   // URL is the state for shareability; it defaults to all-on and does not persist.
-  const searchParams = useSearchParams();
   const threadFilter = parseThreadFilter(searchParams.get("thread"));
 
   // #718: a link can open the thread at a message (`?message=`) or a call
@@ -419,6 +429,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
         <ThreadHeader
           conversation={conversation}
           contact={contact.data}
+          backHref={backHref}
           onToggleContactPanel={togglePanel}
           panelOpen={panelOpen}
           onOpenGallery={openGallery}

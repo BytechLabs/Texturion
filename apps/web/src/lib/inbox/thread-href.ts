@@ -1,3 +1,5 @@
+const INBOX_LIST_PARAMS = ["status", "assignee", "tag", "unread", "spam", "snoozed", "awaiting", "q"];
+
 /**
  * The ONE builder for "open this thread, here" (#718).
  *
@@ -18,6 +20,13 @@ export interface ThreadTarget {
   taskId?: string | null;
 }
 
+interface InboxHrefOptions {
+  conversationId?: string;
+  target?: ThreadTarget;
+  listQuery?: string;
+  contactId?: string;
+}
+
 export const THREAD_MESSAGE_PARAM = "message";
 export const THREAD_CALL_PARAM = "call";
 export const THREAD_TASK_PARAM = "task";
@@ -26,10 +35,27 @@ export function threadHref(
   conversationId: string,
   target: ThreadTarget = {},
 ): string {
-  const params = new URLSearchParams();
+  return inboxHref({ conversationId, target });
+}
+
+export function mergeInboxListParams(currentQuery: string, listQuery: string): URLSearchParams {
+  const params = new URLSearchParams(currentQuery);
+  const list = new URLSearchParams(listQuery);
+  for (const key of INBOX_LIST_PARAMS) {
+    const value = list.get(key);
+    if (value === null) params.delete(key);
+    else params.set(key, value);
+  }
+  return params;
+}
+
+export function inboxHref({ conversationId, target = {}, listQuery = "", contactId }: InboxHrefOptions = {}): string {
+  const params = mergeInboxListParams("", listQuery);
   if (target.messageId) params.set(THREAD_MESSAGE_PARAM, target.messageId);
   else if (target.callSessionId) params.set(THREAD_CALL_PARAM, target.callSessionId);
   if (target.taskId) params.set(THREAD_TASK_PARAM, target.taskId);
+  if (contactId) params.set("contact", contactId);
+  const pathname = conversationId ? `/inbox/${conversationId}` : "/inbox";
   const query = params.toString();
-  return query ? `/inbox/${conversationId}?${query}` : `/inbox/${conversationId}`;
+  return query ? `${pathname}?${query}` : pathname;
 }

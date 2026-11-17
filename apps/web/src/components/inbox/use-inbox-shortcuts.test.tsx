@@ -32,10 +32,11 @@ const ROWS = ["c-1", "c-2", "c-3"].map((id, index) => ({
 const runBulkOn = vi.fn();
 const scrollToIndex = vi.fn();
 
-function Harness() {
+function Harness({ listQuery }: { listQuery?: string }) {
   const { cursorId, overlays } = useInboxShortcuts({
     rows: ROWS,
     activeConversationId: null,
+    listQuery,
     scrollToIndex,
     runBulkOn,
   });
@@ -96,6 +97,15 @@ describe("inbox shortcuts", () => {
     expect(runBulkOn).not.toHaveBeenCalled();
     expect(push).not.toHaveBeenCalled();
     expect(screen.queryByRole("dialog")).toBeNull();
+  });
+
+  it("opens the next thread with the current inbox filters", () => {
+    const view = render(<Harness listQuery="status=open" />);
+    fireEvent.keyDown(document.body, { key: "j" });
+    view.rerender(<Harness listQuery="status=closed&tag=tag-id&task=previous" />);
+    fireEvent.keyDown(document.body, { key: "Enter" });
+
+    expect(push).toHaveBeenCalledExactlyOnceWith("/inbox/c-1?status=closed&tag=tag-id");
   });
 
   it("? opens the cheat sheet, listing keys from the keymap", () => {
