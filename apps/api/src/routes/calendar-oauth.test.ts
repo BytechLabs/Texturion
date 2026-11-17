@@ -6,11 +6,8 @@ import type { AppEnv } from "../context";
 import type { Env } from "../env";
 import { hashToken } from "../public-links/tokens";
 import { supabaseStub } from "../test/routes-harness";
-import {
-  completeEnv,
-  stubFetch,
-  type FetchRoute,
-} from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { calendarPublicRoutes } from "./calendar-oauth";
 
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
@@ -398,7 +395,7 @@ describe("calendar provider webhooks", () => {
       { method: "POST" },
     );
     expect(response.status).toBe(200);
-    expect(await response.text()).toBe("hello+there/=");
+    await expect(response.text()).resolves.toBe("hello+there/=");
     expect(response.headers.get("content-type")).toContain("text/plain");
   });
 
@@ -421,7 +418,7 @@ describe("calendar provider webhooks", () => {
       },
     });
     expect(malformed.status).toBe(404);
-    expect(await malformed.text()).toBe("Not found");
+    await expect(malformed.text()).resolves.toBe("Not found");
     expect(sb.find("POST", "/rest/v1/rpc/api_request_calendar_pull")).toHaveLength(0);
 
     const unknown = await postPublic(env, "/calendar/webhooks/google", {
@@ -435,7 +432,7 @@ describe("calendar provider webhooks", () => {
       },
     });
     expect(unknown.status).toBe(404);
-    expect(await unknown.text()).toBe("Not found");
+    await expect(unknown.text()).resolves.toBe("Not found");
   });
 
   it("hashes Google client state and coalesces duplicate notifications through the RPC", async () => {
@@ -445,7 +442,7 @@ describe("calendar provider webhooks", () => {
     sb.on("POST", "/rest/v1/rpc/api_request_calendar_pull", () => ({
       outcome: "queued",
       connection_id: CONNECTION_ID,
-      generation: ++generation,
+      generation: generation += 1,
     }));
     stubFetch(sb.route);
     const token = "T".repeat(43);
@@ -529,7 +526,7 @@ describe("calendar provider webhooks", () => {
     });
 
     expect(response.status).toBe(404);
-    expect(await response.text()).toBe("Not found");
+    await expect(response.text()).resolves.toBe("Not found");
     expect(sb.find("POST", "/rest/v1/rpc/api_request_calendar_pull")).toHaveLength(0);
   });
 

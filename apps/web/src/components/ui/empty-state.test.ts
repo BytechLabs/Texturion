@@ -45,7 +45,7 @@ function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) return walk(full);
-    return /\.tsx$/.test(entry) && !entry.includes(".test.") ? [full] : [];
+    return entry.endsWith('.tsx') && !entry.includes(".test.") ? [full] : [];
   });
 }
 

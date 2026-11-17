@@ -28,7 +28,7 @@ import { VoicemailPlayer } from "./voicemail-player";
 const player = () => <VoicemailPlayer callSessionId="sess-1" seconds={42} />;
 
 function audio(): HTMLAudioElement {
-  return document.querySelector("audio") as HTMLAudioElement;
+  return document.querySelector("audio")!;
 }
 
 function playing(element: HTMLAudioElement) {
@@ -53,7 +53,7 @@ beforeEach(() => {
 });
 afterEach(cleanup);
 
-describe("VoicemailPlayer", () => {
+describe(VoicemailPlayer, () => {
   it("VP-1: keeps playing the first URL when a newer one arrives", () => {
     const { rerender } = open();
     expect(audio().getAttribute("src")).toBe("https://signed/one");
@@ -76,7 +76,7 @@ describe("VoicemailPlayer", () => {
   it("VP-3: asks for a new URL when the one it has fails and nothing newer is cached", () => {
     open();
     failed(audio());
-    expect(voicemail.refetch).toHaveBeenCalledTimes(1);
+    expect(voicemail.refetch).toHaveBeenCalledOnce();
   });
 
   it("VP-4: takes a newer URL while paused before playing any of the recording", () => {

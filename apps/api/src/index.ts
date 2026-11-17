@@ -1,5 +1,6 @@
 import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@loonext/shared";
-import { Hono, type Context, type ErrorHandler } from "hono";
+import { Hono } from 'hono';
+import type { Context, ErrorHandler } from 'hono';
 import { cors } from "hono/cors";
 
 import { securityHeaders } from "./http/security-headers";
@@ -9,19 +10,18 @@ import { jwtAuth } from "./auth/jwt";
 import { runGraceJob } from "./billing/grace";
 import { sweepUncreditedConversions } from "./billing/prepay";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
-import {
-  captureException,
-  type ExceptionContext,
-  type WaitUntil,
-} from "./observability/capture";
-import { isCronSchedule, type CronSchedule } from "./crons/schedules";
+import { captureException } from './observability/capture';
+import type { ExceptionContext, WaitUntil } from './observability/capture';
+import { isCronSchedule } from './crons/schedules';
+import type { CronSchedule } from './crons/schedules';
 import { runResponseTimeRecapJob } from "./reports/monthly-recap";
 import {
   runOverageWarningJob,
 } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import type { AppEnv } from "./context";
-import { getEnv, type Bindings, type Env } from "./env";
+import { getEnv } from './env';
+import type { Bindings, Env } from './env';
 import { databasePressure, databaseTrouble } from "./db-pressure";
 import { rigDatabaseRefusal } from "./environments/database";
 import { servesRigRoutes } from "./environments/policy";
@@ -207,8 +207,8 @@ function reportUnexpected(
 ): void {
   try {
     void captureException(reportingEnv(bindings), error, context, waitUntil);
-  } catch (cause) {
-    console.error("exception not reported:", cause instanceof Error ? cause.message : String(cause));
+  } catch (error_) {
+    console.error("exception not reported:", error_ instanceof Error ? error_.message : String(error_));
   }
 }
 
@@ -263,7 +263,7 @@ const v1Cors = cors({
   // Let the browser cache the preflight for a day so the SPA doesn't re-issue
   // an OPTIONS round-trip before every /v1 call (the allowed methods/headers
   // are static). Purely a latency + request-count win; no header is widened.
-  maxAge: 86400,
+  maxAge: 86_400,
 });
 app.use("/v1/*", v1Cors);
 app.use("/v1/*", jwtAuth());
@@ -484,7 +484,7 @@ const handleAppError: ErrorHandler<AppEnv> = (error, c) => {
   //      so it is searchable;
   //   3. a `request_id` (the ray) returned to the client, so a founder can jump
   //      straight from a failed request to the exact log line and exception.
-  const method = c.req.method;
+  const {method} = c.req;
   const path = new URL(c.req.url).pathname;
   const rayId = c.req.header("cf-ray") ?? undefined;
   reportUnexpected(
@@ -881,7 +881,7 @@ export const handler = {
    * the schedule that fired.
    */
   async scheduled(controller, env, ctx) {
-    const cron = controller.cron;
+    const {cron} = controller;
     const waitUntil: WaitUntil = (promise) => ctx.waitUntil(promise);
     // These two refusals happen before any job runs, so they are reported here
     // or nowhere.
@@ -938,17 +938,17 @@ export async function runScheduledJobs(
   for (const entry of jobs) {
     try {
       await entry.run(env, now);
-    } catch (cause) {
+    } catch (error) {
       // Name the culprit in the run's own logs: the platform serializes only
       // the AggregateError's top-level message (child errors vanish), which
       // made "1 of 5 job(s) failed" undiagnosable from the dashboard.
       const detail =
-        cause instanceof Error ? (cause.stack ?? cause.message) : String(cause);
+        error instanceof Error ? (error.stack ?? error.message) : String(error);
       console.error(`cron job ${entry.key} failed: ${detail}`);
-      for (const failure of failuresIn(cause)) {
+      for (const failure of failuresIn(error)) {
         void captureException(env, failure, { source: "cron", cron, job: entry.key }, waitUntil);
       }
-      failures.push(cause);
+      failures.push(error);
     }
   }
   if (failures.length > 0) {

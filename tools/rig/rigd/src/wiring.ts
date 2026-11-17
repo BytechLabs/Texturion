@@ -7,28 +7,22 @@
  * (`state/uplink.json`) sits directly in `state/`.
  */
 import { existsSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 import { BrowserLane, HostdClient } from "@loonext/rig-lanes";
-import {
-  isRobotRole,
-  loadMargins,
-  RobotClient,
-  standingBook,
-  systemClock,
-  writeFakeMicWavs,
-  SURFACES,
-  type NumberBook,
-} from "@loonext/rig-robot";
+import { isRobotRole, loadMargins, localSupabase, RobotClient, robotLocalToken, standingBook, SURFACES,systemClock,WhisperTranscriber,writeFakeMicWavs } from '@loonext/rig-robot';
+import type { NumberBook } from '@loonext/rig-robot';
 import { APK_DIR, CURRENT_APK, NONPROD_PACKAGE, PREVIOUS_APK } from "../../src/apk.mjs";
 import { readDeployHold } from "../../src/deploy-hold.mjs";
-import { AppProbe, splitMember, type TenantsFile } from "./app-probe.ts";
-import { readDeployedSha, readRoom, type RigdConfig } from "./config.ts";
+import { AppProbe, splitMember } from './app-probe.ts';
+import type { TenantsFile } from './app-probe.ts';
+import { readDeployedSha, readRoom } from './config.ts';
+import type { RigdConfig } from './config.ts';
 import { WindowSource } from "./guard-window.ts";
 import { LateDeliveries } from "./late.ts";
-import { LeaseClient, type UndoHandlers } from "./lease.ts";
-import { loadRegistry, type Registry } from "./registry.ts";
-import { localSupabase, robotLocalToken, WhisperTranscriber } from "@loonext/rig-robot";
+import { LeaseClient } from './lease.ts';
+import type { UndoHandlers } from './lease.ts';
+import { loadRegistry } from './registry.ts';
+import type { Registry } from './registry.ts';
 import { GuardClient } from "./guard-client.ts";
 import { Mailbox } from "./mail.ts";
 import { MailClient } from "./mail-client.ts";
@@ -38,7 +32,8 @@ import { deleteStripeObject, STRIPE_DELETE_UNDO, StripeSandbox } from "./stripe-
 import type { RunnerDeps } from "./runner.ts";
 import { RUNNERS } from "./scenarios/index.ts";
 import type { BrowserApi, DeviceApi, DevicesApi, RigApi, ScenarioLanes, StripeApi, WorkspaceState } from "./scenarios/context.ts";
-import { posthogFromStore, type PostHogErrors } from "./posthog-errors.ts";
+import { posthogFromStore } from './posthog-errors.ts';
+import type { PostHogErrors } from './posthog-errors.ts';
 import { VerdictStore } from "./verdicts.ts";
 
 /** Where the rig's Supabase auth answers, which a sign-up's confirmation link opens (tools/rig/src/layout.mjs). */
@@ -68,7 +63,7 @@ export interface Rig {
 }
 
 /** tools/rig/bin/rig.mjs, beside this package in the tooling checkout. */
-const RIG_BIN = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "bin", "rig.mjs");
+const RIG_BIN = resolve(import.meta.dirname, "..", "..", "bin", "rig.mjs");
 
 /** Where bootstrap.sh puts Google Chrome stable; `RIG_CHROME_BIN` names another. */
 export const CHROME_STABLE_PATH = "/usr/bin/google-chrome-stable";
@@ -331,29 +326,29 @@ export function undoHandlers(parts: UndoParts): UndoHandlers {
       await parts.app().patchCompany({ tenant: params.tenant, values: params.values });
     },
     "app.number-status": async (params) => {
-      const status = params.status;
+      const {status} = params;
       if (typeof params.tenant !== "string" || typeof params.role !== "string" || (status !== "active" && status !== "suspended" && status !== "released")) {
         throw new Error("app.number-status undo needs tenant, role and status");
       }
-      await parts.app().setNumberStatus({ tenant: params.tenant, role: params.role as never, status });
+      await parts.app().setNumberStatus({ tenant: params.tenant, role: params.role, status });
     },
     "app.remove-on-call": async (params) => {
-      if (typeof params.id !== "string") throw new Error("app.remove-on-call undo needs id");
+      if (typeof params.id !== "string") throw new TypeError("app.remove-on-call undo needs id");
       await parts.app().removeOnCallShift(params.id);
     },
     "app.ring-audience": async (params) => {
-      const level = params.level;
+      const {level} = params;
       if (typeof params.tenant !== "string" || typeof params.role !== "string" || typeof params.member !== "string" || !(level === "text" || level === "note" || level === null)) {
         throw new Error("app.ring-audience undo needs tenant, role, member and level");
       }
-      await parts.app().setRingAudience({ tenant: params.tenant, role: params.role as never, member: params.member, level });
+      await parts.app().setRingAudience({ tenant: params.tenant, role: params.role, member: params.member, level });
     },
     "app.clear-seeded-usage": async (params) => {
-      if (typeof params.marker !== "string") throw new Error("app.clear-seeded-usage undo needs marker");
+      if (typeof params.marker !== "string") throw new TypeError("app.clear-seeded-usage undo needs marker");
       await parts.app().clearSeededUsage(params.marker);
     },
     "app.clear-seeded-voicemail": async (params) => {
-      if (typeof params.tenant !== "string" || typeof params.sessionId !== "string") throw new Error("app.clear-seeded-voicemail undo needs tenant and sessionId");
+      if (typeof params.tenant !== "string" || typeof params.sessionId !== "string") throw new TypeError("app.clear-seeded-voicemail undo needs tenant and sessionId");
       await parts.app().clearSeededVoicemail({ tenant: params.tenant, sessionId: params.sessionId });
     },
     "app.ai-usage": async (params) => {
@@ -364,19 +359,19 @@ export function undoHandlers(parts: UndoParts): UndoHandlers {
       await parts.app().seedAiUsage({ tenant: params.tenant, feature: params.feature, requestCount: count });
     },
     "app.delete-sign-up": async (params) => {
-      if (typeof params.email !== "string") throw new Error("app.delete-sign-up undo needs email");
+      if (typeof params.email !== "string") throw new TypeError("app.delete-sign-up undo needs email");
       await parts.app().deleteSignUp({ email: params.email });
     },
     "app.delete-mail-account": async (params) => {
-      if (typeof params.email !== "string") throw new Error("app.delete-mail-account undo needs email");
+      if (typeof params.email !== "string") throw new TypeError("app.delete-mail-account undo needs email");
       await parts.app().deleteMailAccount({ email: params.email });
     },
     "app.release-signup-number": async (params) => {
-      if (typeof params.provisioningKey !== "string") throw new Error("app.release-signup-number undo needs provisioningKey");
+      if (typeof params.provisioningKey !== "string") throw new TypeError("app.release-signup-number undo needs provisioningKey");
       await parts.app().releaseSignUpNumber({ provisioningKey: params.provisioningKey });
     },
     "app.revoke-invite": async (params) => {
-      if (typeof params.member !== "string" || typeof params.inviteId !== "string") throw new Error("app.revoke-invite undo needs member and inviteId");
+      if (typeof params.member !== "string" || typeof params.inviteId !== "string") throw new TypeError("app.revoke-invite undo needs member and inviteId");
       await parts.app().revokeInvite({ member: params.member, inviteId: params.inviteId });
     },
     "app.restore-workspace": async (params) => {
@@ -422,7 +417,7 @@ export async function releaseHeldNumber(
 ): Promise<void> {
   const telnyxId = params.telnyx_phone_number_id;
   const rowId = params.phone_number_id;
-  if (typeof telnyxId !== "string" || typeof rowId !== "string") throw new Error("number.release undo needs telnyx_phone_number_id and phone_number_id");
+  if (typeof telnyxId !== "string" || typeof rowId !== "string") throw new TypeError("number.release undo needs telnyx_phone_number_id and phone_number_id");
   const record = await lanes.handoff.read();
   const named = record?.telnyx_phone_number_id === telnyxId;
   if (params.unless_handed_off === true && named && record.state === "handed_off") return;
@@ -447,8 +442,8 @@ export async function releaseTenantNumbers(
     handoff: Pick<HandoffFile, "read" | "clear">;
   },
 ): Promise<void> {
-  const tenant = params.tenant;
-  if (typeof tenant !== "string") throw new Error("number.release-tenant undo needs a tenant");
+  const {tenant} = params;
+  if (typeof tenant !== "string") throw new TypeError("number.release-tenant undo needs a tenant");
   const record = await lanes.handoff.read();
   if (params.unless_handed_off === true && record?.tenant === tenant && record.state === "handed_off") return;
   const unnamed: string[] = [];
@@ -457,7 +452,7 @@ export async function releaseTenantNumbers(
     if (row.telnyx_phone_number_id) await releaseHeldNumber({ telnyx_phone_number_id: row.telnyx_phone_number_id, phone_number_id: row.id }, lanes);
     else unnamed.push(row.id);
   }
-  if (unnamed.length) throw new Error(`${tenant} holds ${unnamed.length} number row(s) that name no Telnyx number, so none could be released`);
+  if (unnamed.length > 0) throw new Error(`${tenant} holds ${unnamed.length} number row(s) that name no Telnyx number, so none could be released`);
 }
 
 /** The device a device undo names: `pixel`, or `emulator-34`, `-35` or `-36`. */
@@ -491,7 +486,7 @@ export async function resetDevice(devices: DevicesApi, name: unknown): Promise<v
       failed.push(`${what}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
-  if (failed.length) throw new Error(`device.reset left ${device.name}: ${failed.join("; ")}`);
+  if (failed.length > 0) throw new Error(`device.reset left ${device.name}: ${failed.join("; ")}`);
 }
 
 /**

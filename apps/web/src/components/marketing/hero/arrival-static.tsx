@@ -33,11 +33,11 @@ const VH = 600;
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
+    a = Math.trunc(a);
+    a = Math.trunc((a + 0x6D_2B_79_F5));
     let x = Math.imul(a ^ (a >>> 15), 1 | a);
     x = (x + Math.imul(x ^ (x >>> 7), 61 | x)) ^ x;
-    return ((x ^ (x >>> 14)) >>> 0) / 4294967296;
+    return ((x ^ (x >>> 14)) >>> 0) / 4_294_967_296;
   };
 }
 
@@ -53,7 +53,7 @@ interface Stream {
 /** Build the frozen streamlines once (module scope): a wide field of cobalt
  *  paths curving rightward toward the node, the final few warmed to green. */
 function buildStreams(): Stream[] {
-  const rnd = mulberry32(0x0b7a5011);
+  const rnd = mulberry32(0x0B_7A_50_11);
   const total = 42;
   const streams: Stream[] = [];
   for (let i = 0; i < total; i += 1) {
@@ -69,8 +69,8 @@ function buildStreams(): Stream[] {
     }
 
     // Depth: thin/faint far, crisper near (matches the live z parallax).
-    const z = Math.pow(rnd(), 1.5);
-    const weight = 1.0 + 1.6 * z;
+    const z = rnd() ** 1.5;
+    const weight = 1 + 1.6 * z;
 
     // Two control points sweep the curve rightward toward the node with a
     // pronounced vertical wander (the laminar curl look), converging near

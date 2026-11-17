@@ -231,11 +231,11 @@ export function ClosedDatesCard({
           </div>
         ) : null}
 
-        {error !== null ? (
+        {error === null ? null : (
           <p role="alert" className="text-sm text-destructive">
             {error}
           </p>
-        ) : null}
+        )}
       </div>
     </SettingsCard>
   );

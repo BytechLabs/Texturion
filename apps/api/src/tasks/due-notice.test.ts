@@ -6,7 +6,8 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, stubFetch } from "../test/support";
 import {
   dueNoticeBody,
@@ -74,9 +75,9 @@ function world(
   sb.on("PATCH", "/rest/v1/tasks", () =>
     options.stampFails
       ? new Response("boom", { status: 500 })
-      : options.claimLost
+      : (options.claimLost
         ? []
-        : [{ id: TASK_ID }],
+        : [{ id: TASK_ID }]),
   );
   sb.on("GET", "/rest/v1/task_assignees", () =>
     (options.crew ?? [ASSIGNEE]).map((user_id) => ({ task_id: TASK_ID, user_id })),

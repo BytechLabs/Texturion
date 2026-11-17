@@ -101,7 +101,7 @@ beforeAll(async () => {
   env = { ...completeEnv(), TELNYX_PUBLIC_KEY: await exportPublicKeyBase64(keyPair) };
 });
 
-describe("verifyTelnyxWebhook", () => {
+describe(verifyTelnyxWebhook, () => {
   it("returns the parsed payload for a valid signature", async () => {
     const timestamp = nowSeconds();
     const signature = await sign(keyPair, timestamp, PAYLOAD);
@@ -123,7 +123,7 @@ describe("verifyTelnyxWebhook", () => {
       "telnyx-timestamp": timestamp,
     });
     await verifyTelnyxWebhook(env, request);
-    expect(await request.text()).toBe(PAYLOAD);
+    await expect(request.text()).resolves.toBe(PAYLOAD);
   });
 
   it("rejects a timestamp older than 5 minutes", async () => {
@@ -226,18 +226,14 @@ describe("verifyTelnyxWebhook", () => {
   it("rejects missing headers", async () => {
     const timestamp = nowSeconds();
     const signature = await sign(keyPair, timestamp, PAYLOAD);
-    expect(
-      await verifyTelnyxWebhook(
+    await expect(verifyTelnyxWebhook(
         env,
         webhookRequest(PAYLOAD, { "telnyx-timestamp": timestamp }),
-      ),
-    ).toBeNull();
-    expect(
-      await verifyTelnyxWebhook(
+      )).resolves.toBeNull();
+    await expect(verifyTelnyxWebhook(
         env,
         webhookRequest(PAYLOAD, { "telnyx-signature-ed25519": signature }),
-      ),
-    ).toBeNull();
+      )).resolves.toBeNull();
   });
 
   it("rejects a non-numeric timestamp header", async () => {

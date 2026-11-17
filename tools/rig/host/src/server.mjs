@@ -105,8 +105,8 @@ export function createHostdServer({ token, devices, health, log = () => {} }) {
       }
       status = result.status;
       return send(response, status, result.body);
-    } catch (cause) {
-      status = cause.status ?? 500;
+    } catch (error) {
+      status = error.status ?? 500;
       return send(response, status, { error: status === 413 ? "body_too_large" : "internal" });
     } finally {
       log(`${request.method} ${path} ${status}`);

@@ -1,14 +1,10 @@
-import type { BillingCurrency } from "@loonext/shared";
+import type { BillingCurrency,CallEndReason,CallRouting,DeferralKind,PipelineStage,WorkPhase } from "@loonext/shared";
 import {
   OVERAGE_CENTS_PER_SEGMENT,
   PLAN_PRICE_CENTS,
   PLAN_SEATS,
   US_REGISTRATION_FEE_CENTS,
 } from "@loonext/shared";
-import type { PipelineStage } from "@loonext/shared";
-import type { DeferralKind } from "@loonext/shared";
-import type { CallEndReason, CallRouting } from "@loonext/shared";
-import type { WorkPhase } from "@loonext/shared";
 
 import { pricingEn } from "@/i18n/marketing/pricing";
 
@@ -45,9 +41,10 @@ export type SubscriptionStatus =
  * web app used to keep its own copy, which is how it came to disagree with the
  * server about which roles exist the moment a preset was added.
  */
-import type { MemberRole } from "@loonext/shared";
+import type {MemberRole} from "@loonext/shared";
 
-export type { MemberRole };
+export { type MemberRole } from "@loonext/shared";
+
 export type PlanId = "starter" | "pro";
 export type Country = "US" | "CA";
 export type ConversationStatus = "new" | "open" | "waiting" | "closed";

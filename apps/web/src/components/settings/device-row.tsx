@@ -1,15 +1,11 @@
 "use client";
 
-import {
-  Monitor,
-  MonitorSmartphone,
-  Smartphone,
-  Tablet,
-  type LucideIcon,
-} from "lucide-react";
+import { Monitor, MonitorSmartphone, Smartphone, Tablet } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
 import { Badge } from "@/components/ui/badge";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import type { SessionClient } from "@/lib/api/sessions";
 import { formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";

@@ -7,12 +7,12 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("fetchWithDeadline", () => {
+describe(fetchWithDeadline, () => {
   it("leaves no timer pending once the response is read", async () => {
     vi.useFakeTimers();
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response('{"ok":true}'));
     const response = await fetchWithDeadline("https://example.test/", undefined, 20_000);
-    expect(await response.json()).toEqual({ ok: true });
+    await expect(response.json()).resolves.toEqual({ ok: true });
     expect(vi.getTimerCount()).toBe(0);
   });
 
@@ -30,13 +30,13 @@ describe("fetchWithDeadline", () => {
           init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
         }),
     );
-    const error = await fetchWithDeadline("https://example.test/", undefined, 5).catch((cause) => cause);
+    const error = await fetchWithDeadline("https://example.test/", undefined, 5).catch((error_) => error_);
     expect((error as Error).name).toBe("TimeoutError");
   });
 
   it("passes a body-less status through without a body", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValue(new Response(null, { status: 204 }));
-    const response = await fetchWithDeadline("https://example.test/", undefined, 1_000);
+    const response = await fetchWithDeadline("https://example.test/", undefined, 1000);
     expect(response.status).toBe(204);
   });
 
@@ -47,13 +47,13 @@ describe("fetchWithDeadline", () => {
       return new Response("[]");
     });
     const caller = new AbortController();
-    await fetchWithDeadline("https://example.test/", { signal: caller.signal }, 1_000);
+    await fetchWithDeadline("https://example.test/", { signal: caller.signal }, 1000);
     caller.abort();
     expect(seen?.aborted).toBe(true);
   });
 });
 
-describe("deadline", () => {
+describe(deadline, () => {
   it("does not abort after clear", async () => {
     const limit = deadline(5);
     limit.clear();

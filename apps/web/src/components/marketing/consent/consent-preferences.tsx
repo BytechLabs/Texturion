@@ -6,12 +6,8 @@ import { clientEnv } from "@/public-env";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { consentCopy } from "@/i18n/marketing/consent";
 
-import {
-  CONSENT_CHANGE_EVENT,
-  readStoredConsent,
-  saveConsentChoice,
-  type ConsentChoice,
-} from "./consent";
+import { CONSENT_CHANGE_EVENT, readStoredConsent, saveConsentChoice } from './consent';
+import type { ConsentChoice } from './consent';
 
 /**
  * The change-your-mind control (#124), embedded in /legal/cookies "Your
@@ -120,9 +116,9 @@ export function ConsentPreferencesPanel({
       >
         {choice === "granted"
           ? copy.preferencesGranted
-          : choice === "denied"
+          : (choice === "denied"
             ? copy.preferencesDenied
-            : copy.preferencesUnset}
+            : copy.preferencesUnset)}
       </p>
       <div className="mt-3 flex flex-wrap gap-3">
         <button

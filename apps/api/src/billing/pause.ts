@@ -76,13 +76,10 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
-import { pauseLicensedPrice, planForLicensedPrice, type PlanId } from "./plans";
-import {
-  openPrepayment,
-  prepaidCouponPending,
-  referralMonthPending,
-  type OpenPrepayment,
-} from "./prepay";
+import { pauseLicensedPrice, planForLicensedPrice } from './plans';
+import type { PlanId } from './plans';
+import { openPrepayment, prepaidCouponPending, referralMonthPending } from './prepay';
+import type { OpenPrepayment } from './prepay';
 import type { Stripe } from "./stripe";
 
 export type PauseIneligibleReason =

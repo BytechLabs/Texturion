@@ -46,20 +46,24 @@ interface NavigatorWithUaData {
 export function webOs(nav: NavigatorWithUaData | undefined): string {
   const platform = nav?.userAgentData?.platform?.trim().toLowerCase();
   if (!platform) return "web";
-  return `web-${platform.replace(/[^a-z0-9._-]+/g, "-")}`.slice(0, 40);
+  return `web-${platform.replaceAll(/[^a-z0-9._-]+/g, "-")}`.slice(0, 40);
 }
 
 function notificationPermission(): PermissionState {
   if (typeof Notification === "undefined") return "unknown";
   switch (Notification.permission) {
-    case "granted":
+    case "granted": {
       return "granted";
-    case "denied":
+    }
+    case "denied": {
       return "denied";
-    case "default":
+    }
+    case "default": {
       return "prompt";
-    default:
+    }
+    default: {
       return "unknown";
+    }
   }
 }
 

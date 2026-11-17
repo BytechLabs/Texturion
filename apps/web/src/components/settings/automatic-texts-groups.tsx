@@ -9,19 +9,13 @@ import { SettingsCard } from "@/components/settings/section";
 import { Label } from "@/components/ui/label";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { Switch } from "@/components/ui/switch";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
-import {
-  automaticTextDefaultCaption,
-  automaticTextPatch,
-  choicesWithCurrent,
-  formatAutomaticTextDuration,
-  readAutomaticTextSettings,
-  type BooleanField,
-  type NumberField,
-} from "@/lib/settings/automatic-texts";
+import { automaticTextDefaultCaption, automaticTextPatch, choicesWithCurrent, formatAutomaticTextDuration, readAutomaticTextSettings } from '@/lib/settings/automatic-texts';
+import type { BooleanField, NumberField } from '@/lib/settings/automatic-texts';
 
 /**
  * Settings > Automatic texts.

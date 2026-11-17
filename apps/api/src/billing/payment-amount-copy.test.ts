@@ -24,7 +24,7 @@ function paymentsEnglish(): string {
   );
   const start = file.indexOf("const paymentsEn");
   const end = file.indexOf("const paymentsFr");
-  if (start < 0 || end < 0) {
+  if (start === -1 || end === -1) {
     throw new Error("catalog.ts no longer has both payments blocks");
   }
   return file.slice(start, end);
@@ -36,12 +36,9 @@ describe("#228 the amount refusals the wire sends", () => {
     const entries = Object.entries(PAYMENT_AMOUNT_REASONS_EN);
     // A count, so "they all match" has a number behind it rather than being
     // an impression of an empty loop.
-    expect(entries.length).toBe(3);
-    for (const [key, sentence] of entries) {
-      expect(
-        catalogue.includes(JSON.stringify(sentence)),
-        `${key} differs between the wire and the catalogue. The wire says:\n  ${sentence}`,
-      ).toBe(true);
+    expect(entries).toHaveLength(3);
+    for (const [_key, sentence] of entries) {
+      expect(catalogue).toContain(JSON.stringify(sentence));
     }
   });
 

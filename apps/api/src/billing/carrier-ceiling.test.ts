@@ -15,7 +15,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { runCarrierCeilingJob } from "./carrier-ceiling";
 import type { Env } from "../env";
 
-const sent: Array<{ to: string[]; subject: string; text: string }> = [];
+const sent: { to: string[]; subject: string; text: string }[] = [];
 
 vi.mock("../email/resend", () => ({
   sendEmail: vi.fn(async (_env: unknown, msg: { to: string[]; subject: string; text: string }) => {
@@ -38,7 +38,7 @@ interface Row {
 /** A db double that records what the job asked for and what it claimed. */
 function fakeDb(rows: Row[], opts: { alreadyClaimed?: Set<string> } = {}) {
   const claimed = opts.alreadyClaimed ?? new Set<string>();
-  const calls: { since?: string; claims: Array<Record<string, unknown>> } = { claims: [] };
+  const calls: { since?: string; claims: Record<string, unknown>[] } = { claims: [] };
   const db = {
     rpc: vi.fn(async (name: string, args: { p_since: string }) => {
       expect(name).toBe("api_daily_outbound");
@@ -79,7 +79,7 @@ describe("carrier ceiling warning (#457)", () => {
 
   it("warns at 80% of the low-volume ceiling and names the real number", async () => {
     // 2,000/day on LOW_VOLUME → the warning arm opens at 1,600.
-    const probe = fakeDb([{ company_id: "c1", use_case: "LOW_VOLUME", sent_today: 1_600 }]);
+    const probe = fakeDb([{ company_id: "c1", use_case: "LOW_VOLUME", sent_today: 1600 }]);
     const warned = await runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), probe.db);
 
     expect(warned).toBe(1);
@@ -91,8 +91,8 @@ describe("carrier ceiling warning (#457)", () => {
   });
 
   it("does not warn below the fraction", async () => {
-    const probe = fakeDb([{ company_id: "c1", use_case: "LOW_VOLUME", sent_today: 1_599 }]);
-    expect(await runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), probe.db)).toBe(0);
+    const probe = fakeDb([{ company_id: "c1", use_case: "LOW_VOLUME", sent_today: 1599 }]);
+    await expect(runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), probe.db)).resolves.toBe(0);
     expect(sent).toHaveLength(0);
   });
 
@@ -100,27 +100,27 @@ describe("carrier ceiling warning (#457)", () => {
     // 1,000/day, so 800 warns — the same volume that is comfortably fine for a
     // LOW_VOLUME campaign. Reading the use case wrongly warns the wrong crews.
     const probe = fakeDb([{ company_id: "c1", use_case: "SOLE_PROPRIETOR", sent_today: 800 }]);
-    expect(await runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), probe.db)).toBe(1);
+    await expect(runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), probe.db)).resolves.toBe(1);
     expect(sent[0].text).toContain("1000");
 
     sent.length = 0;
     const low = fakeDb([{ company_id: "c2", use_case: "LOW_VOLUME", sent_today: 800 }]);
-    expect(await runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), low.db)).toBe(0);
+    await expect(runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), low.db)).resolves.toBe(0);
   });
 
   it("warns once a day even though the job runs hourly", async () => {
-    const rows = [{ company_id: "c1", use_case: "LOW_VOLUME", sent_today: 1_800 }];
+    const rows = [{ company_id: "c1", use_case: "LOW_VOLUME", sent_today: 1800 }];
     const claimed = new Set<string>();
     const first = fakeDb(rows, { alreadyClaimed: claimed });
     const second = fakeDb(rows, { alreadyClaimed: claimed });
 
-    expect(await runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), first.db)).toBe(1);
-    expect(await runCarrierCeilingJob(env, new Date("2026-07-29T16:00:00Z"), second.db)).toBe(0);
+    await expect(runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), first.db)).resolves.toBe(1);
+    await expect(runCarrierCeilingJob(env, new Date("2026-07-29T16:00:00Z"), second.db)).resolves.toBe(0);
     expect(sent).toHaveLength(1);
   });
 
   it("claims the UTC day, so tomorrow's batch is warned about again", async () => {
-    const probe = fakeDb([{ company_id: "c1", use_case: "LOW_VOLUME", sent_today: 1_900 }]);
+    const probe = fakeDb([{ company_id: "c1", use_case: "LOW_VOLUME", sent_today: 1900 }]);
     await runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), probe.db);
     expect(probe.calls.claims[0]).toMatchObject({
       period_start: "2026-07-29T00:00:00.000Z",
@@ -130,10 +130,10 @@ describe("carrier ceiling warning (#457)", () => {
 
   it("keeps warning the fleet when one workspace's send fails", async () => {
     const probe = fakeDb([
-      { company_id: "no-inbox", use_case: "LOW_VOLUME", sent_today: 1_900 },
-      { company_id: "c2", use_case: "LOW_VOLUME", sent_today: 1_900 },
+      { company_id: "no-inbox", use_case: "LOW_VOLUME", sent_today: 1900 },
+      { company_id: "c2", use_case: "LOW_VOLUME", sent_today: 1900 },
     ]);
-    expect(await runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), probe.db)).toBe(1);
+    await expect(runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), probe.db)).resolves.toBe(1);
     expect(sent).toHaveLength(1);
   });
 });

@@ -223,9 +223,9 @@ export function useAcceptInvite() {
   return useMutation({
     mutationFn: acceptInvite,
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: keys.me });
+      void queryClient.invalidateQueries({ queryKey: keys.me });
       // #109: the banner's pending set changed too.
-      queryClient.invalidateQueries({ queryKey: keys.myInvites });
+      void queryClient.invalidateQueries({ queryKey: keys.myInvites });
     },
   });
 }

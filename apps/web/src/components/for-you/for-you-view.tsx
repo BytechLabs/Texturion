@@ -50,7 +50,8 @@ import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 import { formatTimestamp } from "@/lib/format/time";
-import { BentoLayout, type BentoEditing } from "@/components/for-you/bento-layout";
+import { BentoLayout } from '@/components/for-you/bento-layout';
+import type { BentoEditing } from '@/components/for-you/bento-layout';
 import { PageHeader } from "@/components/ui/page-header";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -66,27 +67,8 @@ import { ReferralAsk } from "@/components/for-you/referral-ask";
 import { ResponseTimeCard } from "@/components/for-you/response-time-card";
 import { SatisfactionCard } from "@/components/for-you/satisfaction-card";
 import { WhileYouWait } from "@/components/for-you/while-you-wait";
-import {
-  addPanel,
-  avatarInitials,
-  DASHBOARD_PANEL_IDS,
-  DASHBOARD_TILE_LABELS,
-  type DashboardLayout,
-  type DashboardPanelId,
-  dashboardTiles,
-  type DashboardTile,
-  type DashboardTileId,
-  defaultDashboardLayout,
-  LAYOUT_PANEL_IDS,
-  type LayoutPanelId,
-  movePanel,
-  movePanelTo,
-  nextPanelSize,
-  normaliseHiddenPanels,
-  QUEUE_PANEL_IDS,
-  removePanel,
-  resizePanel,
-} from "@loonext/shared";
+import { addPanel, avatarInitials, DASHBOARD_PANEL_IDS, DASHBOARD_TILE_LABELS, dashboardTiles, defaultDashboardLayout, LAYOUT_PANEL_IDS, movePanel, movePanelTo, nextPanelSize, normaliseHiddenPanels, QUEUE_PANEL_IDS, removePanel, resizePanel } from '@loonext/shared';
+import type { DashboardLayout, DashboardPanelId, DashboardTile, DashboardTileId, LayoutPanelId } from '@loonext/shared';
 import { cn } from "@/lib/utils";
 import { headlineWork } from "@/lib/for-you/headline";
 import { LoadError } from "@/components/ui/load-error";
@@ -159,13 +141,13 @@ function WaitingRow({ item }: { item: ForYouWaiting }) {
   const name = contactDisplayName(item.contact);
   const why = item.has_overdue_task
     ? t("inbox.forYouWhyOverdueTask")
-    : item.unread
+    : (item.unread
       ? t("inbox.forYouWhyUnread", {
           when: formatTimestamp(item.last_message_at, { style: "long", t }),
         })
       : t("inbox.forYouWhyWaiting", {
           when: formatTimestamp(item.last_message_at, { style: "long", t }),
-        });
+        }));
   return (
     <Card href={`/inbox/${item.conversation_id}`}>
       {item.unread && (
@@ -270,9 +252,9 @@ function TaskRow({ task }: { task: ForYouTask }) {
 
   const why = task.overdue
     ? t("inbox.forYouWhyOverdueTask")
-    : task.due_at
+    : (task.due_at
       ? t("inbox.forYouWhyDue", { when: formatDue(task.due_at, t) })
-      : t("inbox.forYouWhyOpenTask");
+      : t("inbox.forYouWhyOpenTask"));
 
   return (
     <div
@@ -543,14 +525,14 @@ function SummaryTile({
   const signal =
     tile.signal === null
       ? null
-      : tile.signal.kind === "overdue"
+      : (tile.signal.kind === "overdue"
         ? t("inbox.forYouTileOverdue", { count: tile.signal.count })
         : t("inbox.forYouTileOldest", {
             when: formatTimestamp(
               new Date(Date.now() - tile.signal.ageMillis).toISOString(),
               { style: "short", t },
             ),
-          });
+          }));
 
   const body = (
     <>
@@ -682,7 +664,7 @@ export function ForYouView() {
   // signal that is never worse than the truth is the right direction for one that
   // decides where somebody looks first.
   const strip = useMemo(() => {
-    const data = forYou.data;
+    const {data} = forYou;
     if (!data) return [];
     const now = Date.now();
     const age = (iso: string) => Math.max(0, now - new Date(iso).getTime());
@@ -728,11 +710,11 @@ export function ForYouView() {
               data-slot="skeleton"
               className="inline-block h-3.5 w-44 animate-pulse rounded-md bg-accent align-middle"
             />
-          ) : total > 0 ? (
+          ) : (total > 0 ? (
             t(total === 1 ? "inbox.forYouWorkOne" : "inbox.forYouWorkMany", { count: total })
           ) : (
             t("inbox.forYouAllCaughtUp")
-          )
+          ))
         }
         secondary={
           <>
@@ -797,7 +779,7 @@ export function ForYouView() {
 
       {forYou.isError ? (
         <LoadError message={t("inbox.forYouLoadFailed")} onRetry={() => void forYou.refetch()} />
-      ) : forYou.isPending ? (
+      ) : (forYou.isPending ? (
         <div className="space-y-7">
           <SectionSkeleton />
           <SectionSkeleton />
@@ -808,7 +790,7 @@ export function ForYouView() {
           order={strip.map((tile) => tile.id)}
           editing={editing}
         />
-      )}
+      ))}
     </div>
   );
 }
@@ -854,11 +836,11 @@ function SpamReviewRow({ item }: { item: SpamReviewItem }) {
   // "you texted them before marking this" reads as the mistake it probably is.
   const why = item.we_texted_them
     ? t("inbox.forYouSpamWhyTexted")
-    : item.sustained
+    : (item.sustained
       ? t("inbox.forYouSpamWhySustained", {
           when: formatTimestamp(item.last_inbound_at, { style: "long", t }),
         })
-      : t("inbox.forYouSpamWhyCount", { count: item.inbound_since });
+      : t("inbox.forYouSpamWhyCount", { count: item.inbound_since }));
 
   return (
     <div className="flex items-center gap-3 border-b border-app-line-soft px-4 py-3 last:border-b-0">
@@ -1051,7 +1033,7 @@ function ForYouSections({
   // #293: absent from an older Worker, which is "no reminders".
   const followUps = data.follow_ups ?? [];
   // #306: the heading count is what the section HOLDS; the rows are a page of it.
-  const totals = data.totals;
+  const {totals} = data;
   const waitingTotal = totals?.waiting_on_you ?? waiting_on_you.length;
   const tasksTotal = totals?.my_tasks ?? my_tasks.length;
   const unreadTotal = totals?.unread ?? unread.length;
@@ -1097,10 +1079,10 @@ function ForYouSections({
       }),
     );
   const show = (id: LayoutPanelId) => {
-    if (!layout.panels.some((entry) => entry.id === id)) {
-      commit(addPanel(layout, id), t("inbox.forYouPanelAdded", { panel: name(id) }));
-    } else {
+    if (layout.panels.some((entry) => entry.id === id)) {
       setAnnouncement(t("inbox.forYouPanelAdded", { panel: name(id) }));
+    } else {
+      commit(addPanel(layout, id), t("inbox.forYouPanelAdded", { panel: name(id) }));
     }
     if (isHideablePanel(id) && hidden.includes(id)) {
       saveHidden.mutate(hidden.filter((panel) => panel !== id));

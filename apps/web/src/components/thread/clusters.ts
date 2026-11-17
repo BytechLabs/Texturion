@@ -81,7 +81,7 @@ export function buildThreadItems(
       id: event.id,
       event,
     })),
-  ].sort((a, b) => (a.at !== b.at ? a.at - b.at : a.id < b.id ? -1 : 1));
+  ].toSorted((a, b) => (a.at === b.at ? (a.id < b.id ? -1 : 1) : a.at - b.at));
 
   const items: ThreadItem[] = [];
   let lastDay: Date | null = null;
@@ -112,7 +112,7 @@ export function buildThreadItems(
       continue;
     }
 
-    const message = entry.message as Message;
+    const message = entry.message!;
     const sameCluster =
       cluster !== null &&
       lastMessage !== null &&

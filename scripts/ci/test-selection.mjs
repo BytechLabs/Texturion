@@ -113,10 +113,10 @@ function whyRun(unit, { changes, changedPaths, graph, history, untraced }) {
 export function partition(paths, durations, shardCount) {
   const known = paths.map((p) => durations.get(p)).filter((ms) => typeof ms === "number" && ms > 0);
   const timing = known.length > 0 ? "recorded" : "file-count";
-  const sorted = [...known].sort((a, b) => a - b);
-  const median = sorted.length ? sorted[Math.floor(sorted.length / 2)] : 1;
+  const sorted = [...known].toSorted((a, b) => a - b);
+  const median = sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)] : 1;
   const weight = (p) => (timing === "file-count" ? 1 : (durations.get(p) ?? median));
-  const order = [...paths].sort((a, b) => weight(b) - weight(a) || a.localeCompare(b));
+  const order = [...paths].toSorted((a, b) => weight(b) - weight(a) || a.localeCompare(b));
   const count = Math.max(1, Math.min(shardCount, paths.length));
   const shards = Array.from({ length: count }, () => ({ files: [], weight: 0 }));
   for (const file of order) {

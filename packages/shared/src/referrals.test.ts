@@ -7,24 +7,18 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  REFERRAL_CODE_ALPHABET,
-  REFERRAL_CODE_LENGTH,
-  REFERRAL_REWARDS_PER_YEAR,
-  decideReferral,
-  isReferralCode,
-  mintReferralCode,
-  normalizeReferralCode,
-  referralStage,
-  type ReferralClaim,
-} from "./referrals";
+import { decideReferral, isReferralCode, mintReferralCode, normalizeReferralCode, REFERRAL_CODE_ALPHABET, REFERRAL_CODE_LENGTH, REFERRAL_REWARDS_PER_YEAR, referralStage } from './referrals';
+import type { ReferralClaim } from './referrals';
 
 /** Deterministic bytes, so the minting test asserts a value rather than a shape. */
 function bytesFrom(values: number[]): (n: number) => Uint8Array {
   let index = 0;
   return (n: number) => {
     const out = new Uint8Array(n);
-    for (let i = 0; i < n; i += 1) out[i] = values[index++ % values.length];
+    for (let i = 0; i < n; i += 1) {
+      out[i] = values[index % values.length];
+      index += 1;
+    }
     return out;
   };
 }

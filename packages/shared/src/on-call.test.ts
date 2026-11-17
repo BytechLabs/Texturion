@@ -2,9 +2,9 @@ import { describe, expect, it } from "vitest";
 
 import {
   ALERT_BANNER_COPY,
+  alertTakenLine,
   ON_CALL_COPY,
   ON_CALL_PRESETS,
-  alertTakenLine,
   onCallLine,
   onCallWindow,
 } from "./on-call";
@@ -15,7 +15,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function lookUp(table: unknown, key: string, lang: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no ${lang} for ${key}`);
   return value;
 }
 
@@ -39,7 +39,7 @@ function local(iso: string): string {
     .slice(0, 16);
 }
 
-describe("onCallWindow", () => {
+describe(onCallWindow, () => {
   it("OW-1: tonight is 6pm to 8am, in the crew's own clock", () => {
     const window = onCallWindow("tonight", WEDNESDAY_AFTERNOON, TORONTO);
 

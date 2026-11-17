@@ -11,7 +11,6 @@ import { useT } from "@/i18n/provider";
 import { useLeaveWorkspace } from "@/lib/api/team";
 import { ApiError } from "@/lib/api/error";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
-import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import type { CompanyView } from "@/lib/api/types";
 
 /**
@@ -51,11 +50,11 @@ export function LeaveWorkspaceCard({ company }: { company: CompanyView }) {
           : t("settings.leaveWorkspaceDone"),
       );
       router.replace("/login");
-    } catch (cause) {
+    } catch (error) {
       setOpen(false);
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settings.leaveWorkspaceFailed"),
       );
     }

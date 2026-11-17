@@ -1,6 +1,7 @@
 import { EDGE_PATHS, MEDIA_BUCKETS } from "@loonext/rig-protocol";
 
-import { uplink, type Env } from "./env";
+import { uplink } from './env';
+import type { Env } from './env';
 import { empty, safeContentType } from "./http";
 
 /**
@@ -21,7 +22,7 @@ const ALLOWED_QUERY = new Set(["token", "download"]);
 
 function base64UrlJson(segment: string): unknown {
   try {
-    const base64 = segment.replace(/-/g, "+").replace(/_/g, "/");
+    const base64 = segment.replaceAll('-', "+").replaceAll('_', "/");
     const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
     const bytes = Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
     return JSON.parse(new TextDecoder().decode(bytes));
@@ -35,7 +36,7 @@ function unsafeSegment(segment: string): boolean {
   if (segment === "" || segment === "." || segment === "..") return true;
   for (let i = 0; i < segment.length; i++) {
     const code = segment.charCodeAt(i);
-    if (code < 0x20 || code === 0x7f || segment[i] === "/" || segment[i] === "\\") return true;
+    if (code < 0x20 || code === 0x7F || segment[i] === "/" || segment[i] === "\\") return true;
   }
   return false;
 }

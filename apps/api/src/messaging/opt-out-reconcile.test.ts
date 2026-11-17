@@ -11,10 +11,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { captured, exceptionsCaptured, noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { supabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { reconcileOptOuts } from "./opt-out-reconcile";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -65,9 +66,9 @@ function world(options: WorldOptions = {}) {
     const page = Number(url.searchParams.get("page[number]") ?? "1");
     const data = options.carrierPages
       ? (options.carrierPages[page - 1] ?? [])
-      : page === 1
+      : (page === 1
         ? (options.carrier ?? [])
-        : [];
+        : []);
     return Response.json({ data });
   };
 

@@ -248,7 +248,7 @@ function NoteTaskChip({ task }: { task: { id: string; title: string } }) {
 // Memoized: the thread virtualizer re-renders on every scroll, but the cached
 // `message` object + primitive props are referentially stable, so a shallow
 // compare skips re-rendering every visible bubble.
-export const MessageBubble = memo(function MessageBubble({
+export const MessageBubble = memo(({
   message,
   isLastOfCluster,
   conversationId,
@@ -267,7 +267,7 @@ export const MessageBubble = memo(function MessageBubble({
    * Null for inbound (the contact) and for system sends (auto-replies — the
    * timeline's event lines already narrate those). */
   senderName?: string | null;
-}) {
+}) => {
   const t = useT();
   const elsewhere = contactTimeZone
     ? { timeZone: contactTimeZone, whose: contactName }
@@ -382,12 +382,12 @@ export const MessageBubble = memo(function MessageBubble({
               "max-w-full whitespace-pre-wrap break-words rounded-app-bub px-3.5 py-2.5 text-[16px] leading-[1.5] md:text-[13.5px]",
               note
                 ? "border border-app-amber-line bg-app-amber-bg text-app-amber-ink [border-bottom-right-radius:5px]"
-                : outbound
+                : (outbound
                   ? // The app-bubble-out utility carries its own theme-paired
                     // text color (#26): white on petrol in light, near-black on
                     // the lifted petrol in dark — AA in both.
                     "app-bubble-out [border-top-right-radius:5px]"
-                  : "border border-app-line bg-app-paper text-app-ink [border-top-left-radius:5px]",
+                  : "border border-app-line bg-app-paper text-app-ink [border-top-left-radius:5px]"),
             )}
           >
             {/* Amber internal-note label on the amber-tint card — with the

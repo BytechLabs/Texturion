@@ -136,7 +136,7 @@ async function candidates(
   db: SupabaseClient,
   change: TaskChange,
 ): Promise<string[]> {
-  const mentioned = [...new Set(change.mentionedUserIds ?? [])];
+  const mentioned = [...new Set(change.mentionedUserIds)];
   if (change.kind === "mentioned") {
     // Named directly, and `task_subscribe` has already lifted any unfollow.
     return mentioned.filter((id) => id !== change.actorUserId);
@@ -181,7 +181,7 @@ export async function notifyTaskChange(
     "task lookup",
   );
   const task = tasks[0];
-  if (!task || task.deleted_at !== null) return;
+  if (task?.deleted_at !== null) return;
 
   let audience = await candidates(db, change);
   if (audience.length === 0) return;
@@ -203,7 +203,7 @@ export async function notifyTaskChange(
     "notification prefs lookup",
   );
   const pushOff = new Set(
-    prefRows.filter((row) => row.push_enabled === false).map((row) => row.user_id),
+    prefRows.filter((row) => ! row.push_enabled).map((row) => row.user_id),
   );
   audience = audience.filter((id) => !pushOff.has(id));
   if (audience.length === 0) return;
@@ -238,18 +238,24 @@ export async function notifyTaskChange(
     const copy = TASK_NOTIFY_COPY[locale];
     const actor = actorName ?? THREAD_PUSH_COPY[locale].teammateFallback;
     switch (change.kind) {
-      case "unassigned":
+      case "unassigned": {
         return copy.unassignedTitle(actor);
-      case "due_changed":
+      }
+      case "due_changed": {
         return copy.dueChangedTitle(actor);
-      case "completed":
+      }
+      case "completed": {
         return copy.completedTitle(actor);
-      case "reopened":
+      }
+      case "reopened": {
         return copy.reopenedTitle(actor);
-      case "comment":
+      }
+      case "comment": {
         return copy.commentTitle(actor);
-      case "mentioned":
+      }
+      case "mentioned": {
         return copy.mentionedTitle(actor);
+      }
     }
   };
   // A comment shows the comment; every other change shows which task.
@@ -297,8 +303,8 @@ export function notifyTaskChangeSafely(
   change: TaskChange,
   db: SupabaseClient = getDb(env),
 ): Promise<void> {
-  return notifyTaskChange(env, change, db).catch((cause: unknown) => {
-    console.error(`task ${change.kind} alert failed:`, cause);
+  return notifyTaskChange(env, change, db).catch((error: unknown) => {
+    console.error(`task ${change.kind} alert failed:`, error);
   });
 }
 

@@ -13,7 +13,7 @@ import { describe, expect, it } from "vitest";
  */
 
 const css = readFileSync(
-  fileURLToPath(new URL("./globals.css", import.meta.url)),
+  fileURLToPath(new URL("globals.css", import.meta.url)),
   "utf8",
 );
 
@@ -31,7 +31,7 @@ function block(selector: string): string {
 /** Read a 6-digit hex custom property out of a block. */
 function token(blockCss: string, name: string): string {
   const m = blockCss.match(
-    new RegExp(`${name.replace(/[-]/g, "\\-")}:\\s*(#[0-9a-fA-F]{6})`),
+    new RegExp(`${name.replaceAll(/[-]/g, String.raw`\-`)}:\\s*(#[0-9a-fA-F]{6})`),
   );
   expect(m, `token ${name} is a 6-digit hex`).not.toBeNull();
   return m![1].toLowerCase();
@@ -40,7 +40,7 @@ function token(blockCss: string, name: string): string {
 /** WCAG relative luminance of a #rrggbb color. */
 function luminance(hex: string): number {
   const channel = (i: number) => {
-    const c = parseInt(hex.slice(i, i + 2), 16) / 255;
+    const c = Number.parseInt(hex.slice(i, i + 2), 16) / 255;
     return c <= 0.04045 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
   };
   return (
@@ -50,7 +50,7 @@ function luminance(hex: string): number {
 
 /** WCAG contrast ratio between two #rrggbb colors. */
 function contrast(a: string, b: string): number {
-  const [hi, lo] = [luminance(a), luminance(b)].sort((x, y) => y - x);
+  const [hi, lo] = [luminance(a), luminance(b)].toSorted((x, y) => y - x);
   return (hi + 0.05) / (lo + 0.05);
 }
 
@@ -283,7 +283,7 @@ describe("app-scope guardrails in globals.css", () => {
     const theme = block(".app-scope");
     for (const name of ["--primary", "--app-olive-accent", "--ring"]) {
       const value = token(theme, name);
-      const [r, g, b] = [1, 3, 5].map((i) => parseInt(value.slice(i, i + 2), 16));
+      const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(value.slice(i, i + 2), 16));
       const spread = Math.max(r, g, b) - Math.min(r, g, b);
       expect(
         spread,
@@ -306,7 +306,7 @@ describe("app-scope guardrails in globals.css", () => {
     // And it is unmistakably LIME rather than the yellow-green it replaced —
     // green dominant by a clear margin, which is the difference the owner
     // actually reported seeing ("more yellow than green/lime").
-    const [r, g, b] = [1, 3, 5].map((i) => parseInt(lime.slice(i, i + 2), 16));
+    const [r, g, b] = [1, 3, 5].map((i) => Number.parseInt(lime.slice(i, i + 2), 16));
     expect(g, `lime ${lime} should be green-dominant over red`).toBeGreaterThan(
       r + 20,
     );

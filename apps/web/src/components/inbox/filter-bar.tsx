@@ -30,23 +30,8 @@ import { CountPill } from "@/components/ui/count-pill";
 import { SearchField } from "@/components/ui/search-field";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 
-import {
-  activeChips,
-  applySegment,
-  clearAllFilters,
-  clearSecondary,
-  formatOpenCount,
-  hasActiveFilters,
-  INBOX_SEGMENTS,
-  isSearchingInbox,
-  OPEN_COUNT_CAP,
-  OPEN_COUNT_FILTERS,
-  segmentOf,
-  STATUS_CHIP_KEYS,
-  type InboxUrlFilters,
-  serializeInboxFilters,
-  type SecondaryFilterKey,
-} from "./filter-url";
+import { activeChips, applySegment, clearAllFilters, clearSecondary, formatOpenCount, hasActiveFilters, INBOX_SEGMENTS, isSearchingInbox, OPEN_COUNT_CAP, OPEN_COUNT_FILTERS, segmentOf, serializeInboxFilters, STATUS_CHIP_KEYS } from './filter-url';
+import type { InboxUrlFilters, SecondaryFilterKey } from './filter-url';
 import {
   suggestViewName,
   urlFiltersToView,
@@ -239,7 +224,7 @@ function ChipRow({
 
   const labelFor = (key: SecondaryFilterKey, value?: string): string => {
     switch (key) {
-      case "status":
+      case "status": {
         // #548: only ever a status the segments cannot show, so the word alone
         // would sit beside four tabs meaning the same kind of thing.
         return t("inbox.statusChipLabel", {
@@ -247,24 +232,31 @@ function ChipRow({
             ? t(STATUS_CHIP_KEYS[value as ConversationStatus])
             : t("inbox.statusChipUnset"),
         });
-      case "assignee":
+      }
+      case "assignee": {
         return (
           members.data?.data.find((m) => m.user_id === value)?.display_name ||
           t("inbox.chipAssignee")
         );
-      case "tag":
+      }
+      case "tag": {
         return (
           tags.data?.data.find((tag) => tag.id === value)?.name ??
           t("inbox.chipTag")
         );
-      case "unread":
+      }
+      case "unread": {
         return t("inbox.chipUnread");
-      case "spam":
+      }
+      case "spam": {
         return t("inbox.chipSpam");
-      case "snoozed":
+      }
+      case "snoozed": {
         return t("inbox.chipSnoozed");
-      case "awaiting":
+      }
+      case "awaiting": {
         return t("inbox.chipUnanswered");
+      }
     }
   };
 

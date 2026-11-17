@@ -10,7 +10,8 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import { completeEnv, createTestAuth, jwksRoute, stubFetch, type TestAuth } from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { appointmentReminderRoutes } from "./appointment-reminders";
 
 const env = completeEnv();

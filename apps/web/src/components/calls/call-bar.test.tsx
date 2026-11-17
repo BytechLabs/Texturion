@@ -37,7 +37,7 @@ vi.mock("@/lib/api/calls", () => ({
   // mock has to carry them — a mocked-away constant becomes NaN in the timeout
   // and the give-up would fire on the first tick.
   LIVE_NOTE_LOOKUP_ATTEMPTS: 4,
-  LIVE_NOTE_LOOKUP_INTERVAL_MS: 1_200,
+  LIVE_NOTE_LOOKUP_INTERVAL_MS: 1200,
   useTransferTargets: () => ({ isPending: false, data: { targets: [] } }),
   useTransferCall: () => ({ isPending: false, mutate: vi.fn() }),
 }));

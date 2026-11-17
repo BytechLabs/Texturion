@@ -12,7 +12,8 @@ import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import {
   Dialog,
   DialogContent,
@@ -23,10 +24,12 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useChangePlan, usePrepayOffer, type PrepayOffer } from "@/lib/api/billing";
+import { useChangePlan, usePrepayOffer } from '@/lib/api/billing';
+import type { PrepayOffer } from '@/lib/api/billing';
 import { ApiError } from "@/lib/api/error";
 import { useMembers } from "@/lib/api/team";
-import { PLAN_PRICING, type CompanyView, type PlanId } from "@/lib/api/types";
+import { PLAN_PRICING } from '@/lib/api/types';
+import type { CompanyView, PlanId } from '@/lib/api/types';
 import { formatPhone } from "@/lib/format/phone";
 
 /** SPEC §2 Starter limits — what a downgrade must fit into. Derived from the
@@ -129,7 +132,7 @@ function DowngradeBody({
                 {t("common.retry")}
               </button>
             </>
-          ) : seatsOk ? (
+          ) : (seatsOk ? (
             t("settings.planSeatsOk", {
               seats: STARTER_LIMITS.seats,
               count: activeMembers,
@@ -150,7 +153,7 @@ function DowngradeBody({
               </Link>{" "}
               {t("settings.planFirstWord")}
             </>
-          )}
+          ))}
         </Requirement>
       </ul>
       <p className="text-sm text-muted-foreground">
@@ -425,9 +428,9 @@ export function ChangePlanDialog({ company }: { company: CompanyView }) {
           >
             {changePlan.isPending
               ? t("settings.planChanging")
-              : upgrading
+              : (upgrading
                 ? t("settings.planUpgradeAction")
-                : t("settings.planSwitchAtPeriodEnd")}
+                : t("settings.planSwitchAtPeriodEnd"))}
           </Button>
         </DialogFooter>
       </DialogContent>

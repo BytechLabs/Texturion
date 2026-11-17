@@ -25,11 +25,8 @@ import { useMe } from "@/lib/api/me";
 import { browserTimezone, instantFromZonedWallClock } from "@/lib/format/time";
 import { useTags } from "@/lib/api/tags";
 import { useMembers } from "@/lib/api/team";
-import {
-  useAddTaskLabel,
-  useCreateTaskFromMessage,
-  type TaskAddressInput,
-} from "@/lib/api/tasks";
+import { useAddTaskLabel, useCreateTaskFromMessage } from '@/lib/api/tasks';
+import type { TaskAddressInput } from '@/lib/api/tasks';
 import type { Tag, TaskPriority } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
@@ -37,7 +34,8 @@ import { cn } from "@/lib/utils";
 import { AssigneeField } from "./assignee-field";
 import { QuickAddPreview } from "./quick-add-preview";
 import { NO_CONVERSATION } from "./task-format";
-import { draftProblem, draftToRequest, type RepeatDraft } from "./task-planning";
+import { draftProblem, draftToRequest } from './task-planning';
+import type { RepeatDraft } from './task-planning';
 import {
   EditableLabelChips,
   LabelPicker,
@@ -168,7 +166,7 @@ function NewTaskForm({
         selfUserId: me.data?.user_id ?? "",
         members: (members.data?.data ?? [])
           .filter((m) => m.deactivated_at === null && m.user_id !== null)
-          .map((m) => ({ userId: m.user_id as string, name: m.display_name })),
+          .map((m) => ({ userId: m.user_id, name: m.display_name })),
         labels: (tags.data?.data ?? []).map((tag) => ({ id: tag.id, name: tag.name })),
       }),
     [title, me.data?.user_id, members.data, tags.data],
@@ -192,11 +190,11 @@ function NewTaskForm({
     context.conversationId !== undefined || context.contactId !== undefined;
 
   const link =
-    context.conversationId !== undefined
-      ? t("tasks.newTaskInThisConversation")
-      : context.contactName
+    context.conversationId === undefined
+      ? (context.contactName
         ? t("tasks.newTaskFor", { name: context.contactName })
-        : null;
+        : null)
+      : t("tasks.newTaskInThisConversation");
 
   const submit = async () => {
     const trimmed = parsed.title.trim();
@@ -251,11 +249,11 @@ function NewTaskForm({
         ...(notes.trim() === "" ? {} : { description: notes.trim() }),
         ...(address ? { address } : {}),
         // The conversation fixes the contact, so send one link, not both.
-        ...(context.conversationId !== undefined
-          ? { conversation_id: context.conversationId }
-          : context.contactId !== undefined
-            ? { contact_id: context.contactId }
-            : {}),
+        ...(context.conversationId === undefined
+          ? (context.contactId === undefined
+            ? {}
+            : { contact_id: context.contactId })
+          : { conversation_id: context.conversationId }),
         ...(finalPriority === "normal" ? {} : { priority: finalPriority }),
         ...(finalLabelIds.length > 0 ? { label_ids: finalLabelIds } : {}),
         ...(repeat ? { repeat: draftToRequest(repeat, finalDue) } : {}),
@@ -349,7 +347,7 @@ function NewTaskForm({
               />
               {dueZone && dueZone !== browserTimezone() && (
                 <p className="text-[12px] text-muted-foreground">
-                  {t("tasks.newTaskDueZone", { zone: dueZone.replace(/_/g, " ") })}
+                  {t("tasks.newTaskDueZone", { zone: dueZone.replaceAll('_', " ") })}
                 </p>
               )}
             </div>

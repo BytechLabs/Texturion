@@ -15,7 +15,8 @@ vi.mock("@/lib/api/client", () => ({
 }));
 vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "co-1" }));
 
-import { AttachmentItem, type AttachmentLike } from "./attachment-item";
+import { AttachmentItem } from './attachment-item';
+import type { AttachmentLike } from './attachment-item';
 
 // This app's vitest does not set `globals`, so testing-library's automatic
 // cleanup never registers and renders stack across tests.

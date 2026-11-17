@@ -11,8 +11,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../env";
-import { restMatch, stubRoute, type Stub } from "../test/messaging-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { restMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { buildConsultState, buildTransferState } from "./live-call";
 import { handleCallEvent } from "./voice-webhook";
 import type { TelnyxEvent } from "./types";

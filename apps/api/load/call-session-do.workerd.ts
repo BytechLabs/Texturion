@@ -133,7 +133,7 @@ function gatedRuntime(targets: number, fleet?: FleetGauge) {
         fleet.opened += 1;
         fleet.peakInFlight = Math.max(fleet.peakInFlight, fleet.inFlight);
       }
-      const ccid = "cc" + String(opened - 1);
+      const ccid = `cc${  String(opened - 1)}`;
       // Long enough that a batch's members genuinely overlap, short enough
       // that 24 of them do not make this suite slow.
       return new Promise((resolve) => {
@@ -186,20 +186,20 @@ describe("#251 CallSessionDO ring fan-out, on workerd", () => {
     void stub.onTelnyxEvent(initiatedEvent("initiated-1"));
     await stub.whenIdle();
 
-    expect(gate.calls.dials.length).toBe(MAX_LEGS_PER_SESSION);
+    expect(gate.calls.dials).toHaveLength(MAX_LEGS_PER_SESSION);
     expect(gate.peakInFlight()).toBeLessThanOrEqual(DIAL_BATCH_SIZE);
     // And genuinely parallel, not serial-with-extra-steps.
     expect(gate.peakInFlight()).toBeGreaterThan(1);
 
     console.log(
-      "\n#251 workerd — bounded parallelism at a full crew:\n" +
-        "  targets dialled      " +
-        gate.calls.dials.length +
-        "\n  peak dials in flight " +
-        gate.peakInFlight() +
-        " (DIAL_BATCH_SIZE is " +
-        DIAL_BATCH_SIZE +
-        ")\n",
+      `\n#251 workerd — bounded parallelism at a full crew:\n` +
+        `  targets dialled      ${ 
+        gate.calls.dials.length 
+        }\n  peak dials in flight ${ 
+        gate.peakInFlight() 
+        } (DIAL_BATCH_SIZE is ${ 
+        DIAL_BATCH_SIZE 
+        })\n`,
     );
     console.log(
       capacityResult({
@@ -244,27 +244,27 @@ describe("#251 CallSessionDO ring fan-out, on workerd", () => {
     });
     await stub.whenIdle();
 
-    expect(gate.calls.dials.length).toBe(MAX_LEGS_PER_SESSION);
+    expect(gate.calls.dials).toHaveLength(MAX_LEGS_PER_SESSION);
     // The whole point: the answer was admitted only after the fan-out ahead of
     // it had opened every dial. A FIFO that let it jump the queue would show a
     // smaller number here.
     expect(
       dialsWhenAnswerRan,
-      "the answer was admitted after only " +
-        dialsWhenAnswerRan +
-        " of " +
-        MAX_LEGS_PER_SESSION +
-        " dials had opened — the FIFO is not serializing on workerd, which " +
-        "is the one thing it exists to do",
+      `the answer was admitted after only ${ 
+        dialsWhenAnswerRan 
+        } of ${ 
+        MAX_LEGS_PER_SESSION 
+        } dials had opened — the FIFO is not serializing on workerd, which ` +
+        `is the one thing it exists to do`,
     ).toBe(MAX_LEGS_PER_SESSION);
 
     console.log(
-      "\n#251 workerd — an answer arriving mid-fan-out:\n" +
-        "  dials opened before it was admitted  " +
-        dialsWhenAnswerRan +
-        " of " +
-        MAX_LEGS_PER_SESSION +
-        "\n",
+      `\n#251 workerd — an answer arriving mid-fan-out:\n` +
+        `  dials opened before it was admitted  ${ 
+        dialsWhenAnswerRan 
+        } of ${ 
+        MAX_LEGS_PER_SESSION 
+        }\n`,
     );
     console.log(
       capacityResult({

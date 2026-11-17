@@ -14,7 +14,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { textEnablementRoutes } from "./text-enablement";
 import type { AppEnv, MemberRole } from "../context";
-import type { Bindings, RateLimiter } from "../env";
+import type { RateLimiter } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import {
   FakeRest,
@@ -22,7 +22,8 @@ import {
   resendRoute,
   TelnyxMock,
 } from "../telnyx/test-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";
@@ -77,7 +78,7 @@ function installSlotRpc(rest: FakeRest) {
           r.kind === "brand" &&
           r.sole_proprietor === true,
       );
-    if (soleProp && nonReleased.length >= 1) {
+    if (soleProp && nonReleased.length > 0) {
       return { outcome: "sole_prop_cap", number: null, order: null };
     }
     // #110 (mirrors the RPC): effective max = included + the company's
@@ -196,7 +197,7 @@ function buildHarness(
   }));
   // Documents API: store (returns a fresh UUID-ish id) + download-back.
   telnyx.on("POST", /^\/v2\/documents$/, () => ({
-    data: { id: `doc-${++state.docSeq}` },
+    data: { id: `doc-${state.docSeq += 1}` },
   }));
   telnyx.on(
     "GET",
@@ -231,7 +232,7 @@ function buildHarness(
     telnyx,
     state,
     request: (path: string, init?: RequestInit) =>
-      app.request(path, init, env as unknown as Bindings),
+      app.request(path, init, env),
   };
 }
 
@@ -443,7 +444,7 @@ describe("GET + cancel", () => {
     const body = (await res.json()) as { data: { created_at: unknown }[] };
     expect(body.data).toHaveLength(1);
     // created_at is part of the response (the UI sorts/labels by it).
-    expect(typeof body.data[0].created_at).toBe("string");
+    expect(body.data[0].created_at).toBeTypeOf("string");
   });
 
   it("owner cancels a pending enablement and releases the number", async () => {
@@ -1058,7 +1059,7 @@ describe("allowed actions (#722)", () => {
       return Object.fromEntries(body.data.map((row) => [row.id, row.allowed_actions]));
     };
     h.state.role = "owner";
-    expect(await actionsOf()).toEqual({
+    await expect(actionsOf()).resolves.toEqual({
       [failed.id as string]: ["upload_documents", "resubmit", "cancel"],
       [inProgress.id as string]: ["cancel"],
       [completed.id as string]: [],

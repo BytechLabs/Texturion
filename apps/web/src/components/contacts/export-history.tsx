@@ -74,10 +74,10 @@ export function ExportHistory({ contactId }: { contactId: string }) {
             : "contacts.exportBuilding",
         ),
       );
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("contacts.exportStartFailed"),
       );
     }

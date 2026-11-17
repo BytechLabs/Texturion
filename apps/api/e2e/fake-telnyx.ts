@@ -23,20 +23,12 @@
  * under src/ that does is src/calls/call-journeys.test.ts, the session-layer
  * twin of the e2e call journeys.
  */
-import {
-  createServer,
-  type IncomingMessage,
-  type Server,
-  type ServerResponse,
-} from "node:http";
+import { createServer } from 'node:http';
+import type { IncomingMessage, Server, ServerResponse } from 'node:http';
 import type { AddressInfo } from "node:net";
 
-import {
-  createVoiceModel,
-  type FakeHandler,
-  type FakeResponse,
-  type FakeVoice,
-} from "./fake-telnyx-voice";
+import { createVoiceModel } from './fake-telnyx-voice';
+import type { FakeHandler, FakeResponse, FakeVoice } from './fake-telnyx-voice';
 
 export interface TelnyxCall {
   method: string;
@@ -391,7 +383,7 @@ export async function startFakeTelnyx(): Promise<FakeTelnyx> {
   });
 
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  const port = (server.address() as AddressInfo).port;
+  const {port} = (server.address() as AddressInfo);
   const origin = `http://127.0.0.1:${port}`;
   voiceModel.setOrigin(origin);
 

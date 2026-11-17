@@ -36,9 +36,9 @@ export const LIMIT_PROBE_ABSURD = 9999;
 /** The search's whole budget of profile writes, the reset to 1 included. */
 export const LIMIT_PROBE_MAX_WRITES = 16;
 /** Telnyx answers 429 (code 10011) to a quick run of requests, so each write waits. */
-export const LIMIT_PROBE_PAUSE_MS = 1_500;
+export const LIMIT_PROBE_PAUSE_MS = 1500;
 /** Waits before each retry of a write that got a 429; a write that still gets one after the last is given up. */
-export const LIMIT_PROBE_RETRY_MS = [2_000, 5_000, 10_000, 20_000] as const;
+export const LIMIT_PROBE_RETRY_MS = [2000, 5000, 10_000, 20_000] as const;
 /** Production's peak hour and day of outbound legs, read daily. */
 export const ACCOUNT_RATE_STALE_MS = 36 * HOUR;
 /** About 300 texts a month; the day cap keeps one bad loop from spending the month. */
@@ -47,14 +47,14 @@ export const TEXTS_PER_MONTH = 300;
 
 export const RESEND_PER_DAY = 10;
 export const FCM_PER_DAY = 300;
-export const AI_NEURONS_PER_DAY = 2_000;
+export const AI_NEURONS_PER_DAY = 2000;
 /** The app creates one per member device and deletes it on sign-out. */
 export const CREDENTIALS_PER_DAY = 50;
 
 export const SEARCH_INTERVAL_MS = 10 * 1000;
 /** Searches one lease may make, at least this far apart: enough for the wizard's picker to switch country and retry. */
 export const SEARCH_PER_LEASE = 12;
-export const LEASE_SEARCH_SPACING_MS = 1_000;
+export const LEASE_SEARCH_SPACING_MS = 1000;
 export const ORDER_INTERVAL_MS = 25 * DAY;
 export const MAX_NUMBERS_HELD = 10;
 /** How long a complete first order's number may stay unlisted before ordering stops: Telnyx can list a new number late. */
@@ -82,7 +82,7 @@ export const COST_USD = {
   dial: 0.03,
   transfer: 0.13,
   textPart: 0.0227,
-  numberUpfront: 1.0,
+  numberUpfront: 1,
   numberRental: 1.1,
   callerNameLookup: 0.4,
 } as const;
@@ -139,8 +139,8 @@ export const SEARCH_SCENARIOS: readonly string[] = ["S32"];
 
 /** The models the app calls; keep in step with apps/api/src/billing/workers-ai-prices.ts. */
 export const AI_MODELS: Readonly<Record<string, AiModelRate>> = {
-  "@cf/meta/llama-3.1-8b-instruct-fast": { kind: "text", inPerMillion: 4_091, outPerMillion: 34_910 },
-  "@cf/meta/llama-3.2-1b-instruct": { kind: "text", inPerMillion: 2_455, outPerMillion: 18_273 },
+  "@cf/meta/llama-3.1-8b-instruct-fast": { kind: "text", inPerMillion: 4091, outPerMillion: 34_910 },
+  "@cf/meta/llama-3.2-1b-instruct": { kind: "text", inPerMillion: 2455, outPerMillion: 18_273 },
   "@cf/openai/whisper-large-v3-turbo": { kind: "audio", perMinute: 46 },
   // Unpriced in the app's table; billed here at the turbo model's rate.
   "@cf/openai/whisper": { kind: "audio", perMinute: 46 },
@@ -159,7 +159,7 @@ export const AI_DEFAULT_MAX_TOKENS = 256;
 /** Low on purpose, so the estimate runs high. */
 export const AI_CHARS_PER_TOKEN = 3;
 /** Low on purpose (16 kbit/s), so audio minutes run high. */
-export const AI_AUDIO_BYTES_PER_SECOND = 2_000;
+export const AI_AUDIO_BYTES_PER_SECOND = 2000;
 
 export const FCM_NONPROD_PACKAGE = "com.loonext.android.nonprod";
 

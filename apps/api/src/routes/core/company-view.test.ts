@@ -7,7 +7,8 @@
  * asked as a capability and fails closed, and that the redaction list cannot
  * silently fall behind the column list it is redacting.
  */
-import { MEMBER_ROLES, type MemberRole } from "@loonext/shared";
+import { MEMBER_ROLES } from '@loonext/shared';
+import type { MemberRole } from '@loonext/shared';
 import { describe, expect, it } from "vitest";
 
 import {
@@ -36,7 +37,7 @@ function row(): Record<string, unknown> {
   };
 }
 
-describe("withBillingRedacted", () => {
+describe(withBillingRedacted, () => {
   it("asks for the capability, not the rank (#315)", () => {
     // The roles that hold billing.manage keep every field; the ones that do not
     // keep none of them. Written as the capability split rather than as a list
@@ -46,7 +47,7 @@ describe("withBillingRedacted", () => {
     const withBilling: MemberRole[] = ["owner", "admin", "bookkeeper"];
     const without: MemberRole[] = ["member", "read_only"];
     // Nobody is missing from the split — a new preset must be classified here.
-    expect([...withBilling, ...without].sort()).toEqual([...MEMBER_ROLES].sort());
+    expect([...withBilling, ...without].toSorted()).toEqual([...MEMBER_ROLES].toSorted());
 
     for (const role of withBilling) {
       expect(withBillingRedacted(row(), role), role).toEqual(row());

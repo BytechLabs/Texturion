@@ -8,10 +8,13 @@ import {
 } from "../limits";
 import { Refusal } from "../refusal";
 import { sendProductionEvent } from "../posthog";
-import { LIMIT_KEYS, type Ceiling, type ProbeWrite, type ValidationRecord } from "../state/concurrency";
-import { KEYS, type PartitionRecord } from "../telnyx/partition";
+import { LIMIT_KEYS } from '../state/concurrency';
+import type { Ceiling, ProbeWrite, ValidationRecord } from '../state/concurrency';
+import { KEYS } from '../telnyx/partition';
+import type { PartitionRecord } from '../telnyx/partition';
 import { requireSafe } from "./safety";
-import { SPEC, type TelnyxSpec } from "./spec";
+import { SPEC } from './spec';
+import type { TelnyxSpec } from './spec';
 
 /**
  * The validation check (D142 update of 2026-11-01). Telnyx documents an
@@ -92,7 +95,7 @@ async function probeProfileId(ctx: Ctx, spec: TelnyxSpec): Promise<string | null
   const profiles = await telnyx.listAll<Item>("/v2/outbound_voice_profiles");
   const found = profiles.filter((item) => item.name === spec.limit_probe.name);
   if (found.length !== 1 || typeof found[0].id !== "string" || !found[0].id) return null;
-  const id = found[0].id;
+  const {id} = found[0];
   if (found[0].billing_group_id !== record.billing_group_id) return null;
   if (Object.values(record.outbound_voice_profiles ?? {}).includes(id)) return null;
   const connections = [
@@ -106,7 +109,7 @@ async function probeProfileId(ctx: Ctx, spec: TelnyxSpec): Promise<string | null
 export async function runLimitProbe(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<ValidationRecord> {
   if (!ctx.telnyx) throw new Refusal("telnyx.key_missing");
   await requireSafe(ctx);
-  const telnyx = ctx.telnyx;
+  const {telnyx} = ctx;
   const id = await probeProfileId(ctx, spec);
   let writes = 0;
   const trace: ProbeWrite[] = [];

@@ -10,7 +10,8 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import { completeEnv, createTestAuth, jwksRoute, stubFetch, type TestAuth } from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { scheduledMessageRoutes } from "./scheduled-messages";
 
 const env = completeEnv();
@@ -58,11 +59,11 @@ async function schedule(settings: Record<string, unknown>) {
 
 describe("POST /v1/scheduled-messages expiry", () => {
   it("expires a held text 24 hours after its send time by default", async () => {
-    expect(await schedule({})).toBe(24 * 3_600_000);
+    await expect(schedule({})).resolves.toBe(24 * 3_600_000);
   });
 
   it("uses the workspace's own number of hours", async () => {
-    expect(await schedule({ scheduled_text_expiry_hours: 72 })).toBe(72 * 3_600_000);
+    await expect(schedule({ scheduled_text_expiry_hours: 72 })).resolves.toBe(72 * 3_600_000);
   });
 });
 
@@ -87,11 +88,11 @@ describe("GET /v1/scheduled-messages allowed actions (#722)", () => {
   }
 
   it("lets a member edit and cancel a live text, and nothing on a sent one", async () => {
-    expect(await listAs("member")).toEqual({ s1: ["edit", "cancel"], s2: ["edit", "cancel"], s3: [] });
+    await expect(listAs("member")).resolves.toEqual({ s1: ["edit", "cancel"], s2: ["edit", "cancel"], s3: [] });
   });
 
   it("offers a view-only member nothing", async () => {
-    expect(await listAs("read_only")).toEqual({ s1: [], s2: [], s3: [] });
+    await expect(listAs("read_only")).resolves.toEqual({ s1: [], s2: [], s3: [] });
   });
 });
 

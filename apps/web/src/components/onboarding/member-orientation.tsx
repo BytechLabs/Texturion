@@ -1,13 +1,10 @@
 "use client";
 
-import {
-  ORIENTATION_STEPS,
-  orientationProgress,
-  shouldShowOrientation,
-  type OrientationStep,
-} from "@loonext/shared";
+import { ORIENTATION_STEPS, orientationProgress, shouldShowOrientation } from '@loonext/shared';
+import type { OrientationStep } from '@loonext/shared';
 import { BellRing, Inbox, NotebookPen, Phone } from "lucide-react";
-import { useState, type ComponentType } from "react";
+import { useState } from 'react';
+import type { ComponentType } from 'react';
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,7 +13,8 @@ import {
   DialogDescription,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import {
   useJoiningNote,
   useMarkOriented,

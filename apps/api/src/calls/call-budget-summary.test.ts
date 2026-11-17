@@ -8,12 +8,8 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import {
-  appendCallBudgetSummary,
-  committedBudget,
-  resetCallBudgetSummaryForTest,
-  type JourneyBudget,
-} from "../../e2e/call-budget";
+import { appendCallBudgetSummary, committedBudget, resetCallBudgetSummaryForTest } from '../../e2e/call-budget';
+import type { JourneyBudget } from '../../e2e/call-budget';
 
 let scratch: string;
 let summary: string;

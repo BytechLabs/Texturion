@@ -4,7 +4,7 @@ import { TZDATA_ERA, TZDATA_RELEASE } from "@/test/tzdata-era";
 
 import { instantFromZonedWallClock } from "./time";
 
-describe("instantFromZonedWallClock", () => {
+describe(instantFromZonedWallClock, () => {
   // Every tzdata release in use agrees on these zones. Etc/GMT+6 is UTC-6 by
   // definition (POSIX sign). Alberta does not agree, which is why it has its
   // own era-aware block below.

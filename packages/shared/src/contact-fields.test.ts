@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CONTACT_FIELDS_COPY,
   CONTACT_FIELD_VALUE_MAX,
+  CONTACT_FIELDS_COPY,
   contactFieldKey,
   contactFieldValueError,
 } from "./contact-fields";
@@ -15,11 +15,11 @@ function look(table: unknown, key: string): string {
   const value = (table as Record<string, Record<string, string>>)[section]?.[
     name
   ];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
-describe("contactFieldKey", () => {
+describe(contactFieldKey, () => {
   it("CF-1: turns a label into something a CSV header can survive", () => {
     // The same string becomes a JSON key AND a column head for import mapping
     // (#248) and export (#227). A key with a comma in it makes a file that
@@ -62,7 +62,7 @@ describe("contactFieldKey", () => {
   });
 });
 
-describe("contactFieldValueError", () => {
+describe(contactFieldValueError, () => {
   const text = { kind: "text" as const, options: null, label: "Notes" };
   const number = { kind: "number" as const, options: null, label: "Capacity" };
   const date = { kind: "date" as const, options: null, label: "Warranty" };

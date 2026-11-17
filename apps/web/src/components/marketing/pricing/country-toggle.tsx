@@ -20,19 +20,17 @@
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/fill";
-import { pricingCopy, type PricingCopy } from "@/i18n/marketing/pricing";
-import { type KeyboardEvent } from "react";
+import { pricingCopy } from '@/i18n/marketing/pricing';
+import type { PricingCopy } from '@/i18n/marketing/pricing';
+import type { KeyboardEvent } from 'react';
 
 import { formatMoney, US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
 
 import { cn } from "@/lib/utils";
 
 import { useMarketingCurrency } from "./plan-price";
-import {
-  COUNTRY_OPTIONS,
-  useCountry,
-  type Country,
-} from "./country-context";
+import { COUNTRY_OPTIONS, useCountry } from './country-context';
+import type { Country } from './country-context';
 
 /**
  * The one fact that actually changes with the choice.

@@ -25,7 +25,7 @@ function template(name: string, category?: string | null): Template {
   };
 }
 
-describe("groupTemplates", () => {
+describe(groupTemplates, () => {
   it("gathers a category together under its own name", () => {
     const groups = groupTemplates([
       template("Quote sent", "Quoting"),

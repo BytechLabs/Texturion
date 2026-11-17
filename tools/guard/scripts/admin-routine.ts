@@ -20,10 +20,11 @@
  *   node --experimental-strip-types tools/guard/scripts/admin-routine.ts
  */
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
-import { EDGE_PATHS, GUARD_ROUTES, type GuardHealth } from "../../rig-protocol/src/index.ts";
-import { planFiling, readProduction, windowDue, type ReadOutcome } from "./production-measurements.ts";
+import { EDGE_PATHS, GUARD_ROUTES } from '../../rig-protocol/src/index.ts';
+import type { GuardHealth } from '../../rig-protocol/src/index.ts';
+import { planFiling, readProduction, windowDue } from './production-measurements.ts';
+import type { ReadOutcome } from './production-measurements.ts';
 
 export const ROUTINES = [
   "check",
@@ -68,7 +69,7 @@ const MAX_ORDER_CALLS = 80;
 
 function ruleOf(answer: Answer): string | null {
   const body = answer.body as { error?: unknown; rule?: unknown } | null;
-  return body && body.error === "guard_refused" && typeof body.rule === "string" ? body.rule : null;
+  return body?.error === "guard_refused" && typeof body.rule === "string" ? body.rule : null;
 }
 
 function ok(answer: Answer): boolean {
@@ -156,10 +157,10 @@ async function orderStanding(post: Post, wait: (ms: number) => Promise<void>): P
     else if (typeof body.searched === "string") lines.push(`no number free in area code ${body.searched}`);
     if (typeof body.tagged === "number" && body.tagged > 0) lines.push(`tagged ${body.tagged} standing number(s)`);
     if (remaining.length === 0) {
-      const done = deferred.length
+      const done = deferred.length > 0
         ? `every standing role is held; no voice connection until paid dials open: ${deferred.join(", ")}`
         : "every standing role is held";
-      if (unlisted.length) {
+      if (unlisted.length > 0) {
         lines.push(`::warning title=Standing numbers not listed::Held but not yet in the partition's group listing: ${unlisted.join(", ")}`);
       }
       return { ok: true, lines: [...lines, done] };
@@ -212,7 +213,7 @@ async function limitProbe(post: Post): Promise<Outcome> {
 export function healthLines(body: unknown): string[] {
   const health = (body ?? {}) as Partial<GuardHealth>;
   const dials = health.paid_dials;
-  const concurrency = health.concurrency;
+  const {concurrency} = health;
   return [
     JSON.stringify({ ok: health.ok, balance_above_floor: health.balance_above_floor, room: health.room ?? null }),
     JSON.stringify({
@@ -267,9 +268,9 @@ export function measurementPosts(inputs: Measurements, now: Date = new Date()): 
     posts.push({
       route: "/ratios",
       body: {
-        calls: count("calls", inputs.calls as string),
-        abandoned: count("abandoned", inputs.abandoned as string),
-        short: count("short", inputs.short as string),
+        calls: count("calls", inputs.calls!),
+        abandoned: count("abandoned", inputs.abandoned!),
+        short: count("short", inputs.short!),
       },
     });
   }
@@ -287,8 +288,8 @@ async function measurements(post: Post, inputs: Measurements): Promise<Outcome> 
   let posts: { route: string; body: Item }[];
   try {
     posts = measurementPosts(inputs);
-  } catch (cause) {
-    return { ok: false, lines: [`::error title=Measurements refused::${(cause as Error).message}`] };
+  } catch (error) {
+    return { ok: false, lines: [`::error title=Measurements refused::${(error as Error).message}`] };
   }
   if (posts.length === 0) {
     return { ok: false, lines: ["::error title=No measurements::Give reserve_legs, the three ratio counts, window_start_hour or usage_usd."] };
@@ -310,20 +311,27 @@ export async function runRoutine(
   resume: Resume = {},
 ): Promise<Outcome> {
   switch (routine) {
-    case "check":
+    case "check": {
       return check(post);
-    case "setup":
+    }
+    case "setup": {
       return setup(post);
-    case "order-standing":
+    }
+    case "order-standing": {
       return orderStanding(post, wait);
-    case "resume-ordering":
+    }
+    case "resume-ordering": {
       return resumeOrdering(post, resume);
-    case "reattach":
+    }
+    case "reattach": {
       return reattach(post);
-    case "measurements":
+    }
+    case "measurements": {
       return measurements(post, inputs);
-    case "limit-probe":
+    }
+    case "limit-probe": {
       return limitProbe(post);
+    }
   }
 }
 
@@ -378,7 +386,7 @@ export async function measureProduction(
 ): Promise<Outcome> {
   const outcome = read();
   if (outcome.ok === "absent") return { ok: true, lines: outcome.lines };
-  if (outcome.ok === false) return { ok: false, lines: outcome.lines };
+  if (!outcome.ok) return { ok: false, lines: outcome.lines };
   const answer = await health().catch(() => null);
   const guard = answer && ok(answer) ? (answer.body as Partial<GuardHealth> | null) : null;
   const lines: string[] = [];
@@ -445,6 +453,6 @@ async function main(): Promise<number> {
   return outcome.ok ? 0 : 1;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === resolve(process.argv[1])) {
+if (process.argv[1] && import.meta.filename === resolve(process.argv[1])) {
   process.exitCode = await main();
 }

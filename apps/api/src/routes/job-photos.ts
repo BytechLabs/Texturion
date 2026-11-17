@@ -35,7 +35,8 @@
  * seems confused about what she already paid for" — internal by construction. The
  * photos are the record being shared; the commentary around them is not.
  */
-import { Hono, type Context } from "hono";
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from "zod";
 
 import { assertEgressWithinAllowance } from "../attachments/egress";
@@ -113,12 +114,12 @@ async function refuseShare(
         conversationId: task.conversation_id,
         need: "text",
       });
-    } catch (cause) {
+    } catch (error_) {
       // A hidden line answers exactly as a wrong id does, so it cannot be enumerated.
-      if (cause instanceof ApiError && cause.code === "not_found") {
+      if (error_ instanceof ApiError && error_.code === "not_found") {
         return errorResponse(c, "not_found", "No such job.");
       }
-      throw cause;
+      throw error_;
     }
   }
   return null;
@@ -290,7 +291,7 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
   let loaded: { photos: SharedPhoto[]; truncated: boolean };
   try {
     loaded = await loadSharedPhotos(db, resolved.company_id, resolved.subject_id);
-  } catch (cause) {
+  } catch (error) {
     /**
      * THE EGRESS DECISION, and it is a decision rather than an oversight.
      *
@@ -315,10 +316,10 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
      * nothing may be signed when the ledger cannot be trusted — and unlike the cap,
      * it is not correlated with anything a prober could farm.
      */
-    if (cause instanceof ApiError && cause.code === "usage_cap_reached") {
+    if (error instanceof ApiError && error.code === "usage_cap_reached") {
       return publicLinkNotAvailable(c);
     }
-    throw cause;
+    throw error;
   }
 
   return c.json({
@@ -433,7 +434,7 @@ async function loadSharedPhotos(
     const usePreview = row.preview_path !== null && row.preview_path !== undefined;
     return {
       row,
-      path: usePreview ? (row.preview_path as string) : row.storage_path,
+      path: usePreview ? (row.preview_path!) : row.storage_path,
       // Charge what actually leaves. Claiming the original's size for a 200 KB
       // preview spends an allowance on bytes nobody downloaded.
       bytes: usePreview ? row.preview_bytes : row.size_bytes,

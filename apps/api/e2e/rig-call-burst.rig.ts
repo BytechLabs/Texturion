@@ -39,7 +39,8 @@ import { DIAL_BATCH_SIZE, MAX_LEGS_PER_SESSION } from "../src/calls/transitions"
 import type { FakeLeg, TelnyxWebhookEvent } from "./fake-telnyx-voice";
 import { deleteCompaniesSql } from "./company-cleanup";
 import { capacityResult, emitCapacityResult } from "./load-report";
-import { startRigStack, type RigStack } from "./rig-stack";
+import { startRigStack } from './rig-stack';
+import type { RigStack } from './rig-stack';
 
 let stack: RigStack;
 
@@ -186,7 +187,7 @@ interface DeliveryTally {
  * sends another's, and the object's FIFO is exactly what has to cope.
  */
 async function drain(): Promise<DeliveryTally> {
-  const voice = stack.telnyx.voice;
+  const {voice} = stack.telnyx;
   const tally: DeliveryTally = { posts: 0, statuses: {} };
   let quietSince: number | null = null;
   for (;;) {
@@ -249,7 +250,7 @@ function lineOf(leg: FakeLeg): Line | undefined {
 
 describe("#251 simultaneous inbound calls through the Durable Object on the rig", () => {
   it("a replayed call.initiated, 40 copies at once, dials the crew exactly once", async () => {
-    const voice = stack.telnyx.voice;
+    const {voice} = stack.telnyx;
     voice.resetCalls();
     const line = lines[LINES - 1];
     const customer = voice.incoming({ from: farEnd(line.index), to: line.e164 });
@@ -265,7 +266,7 @@ describe("#251 simultaneous inbound calls through the Durable Object on the rig"
 
     expect(acks.every((ack) => ack.status >= 200 && ack.status < 300)).toBe(true);
     expect(settled.reached).toBe(1);
-    const dials = voice.ledger().dials;
+    const {dials} = voice.ledger();
     expect(dials, "the crew was dialled once per replay").toBe(DIALS_PER_CALL);
 
     // Nothing is left ringing for the ramp or the cleanup.
@@ -286,7 +287,7 @@ describe("#251 simultaneous inbound calls through the Durable Object on the rig"
   });
 
   it("ramps simultaneous calls until a phase misses its deadline", async () => {
-    const voice = stack.telnyx.voice;
+    const {voice} = stack.telnyx;
     let ceiling: string | null = null;
 
     for (const level of LEVELS) {

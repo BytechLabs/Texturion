@@ -12,13 +12,15 @@ import { CountryPicker } from "@/components/ui/country-picker";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { undoableToast } from "@/components/ui/optimistic-undo";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { enrichmentOutcome } from "@/lib/ai/outcome";
 import { enrichTaskFromMessage, useAiSettings } from "@/lib/api/ai-settings";
 import { reportAiOutcome } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
-import { useCreateTaskFromMessage, type TaskAddressInput } from "@/lib/api/tasks";
+import { useCreateTaskFromMessage } from '@/lib/api/tasks';
+import type { TaskAddressInput } from '@/lib/api/tasks';
 import { useMembers } from "@/lib/api/team";
 import type { AddressProvenance, Message } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
@@ -62,14 +64,18 @@ function provenanceLabel(
   t: Translate,
 ): string | null {
   switch (p) {
-    case "message":
+    case "message": {
       return t("thread.provenanceFromMessage");
-    case "contact":
+    }
+    case "contact": {
       return t("thread.provenanceFromContact");
-    case "company":
+    }
+    case "company": {
       return t("thread.provenanceFromAreaCode");
-    default:
+    }
+    default: {
       return null;
+    }
   }
 }
 
@@ -280,9 +286,9 @@ export function MakeTaskForm({
     } catch (error) {
       toast.error(
         error instanceof ApiError && error.code === "conflict"
-          ? call
+          ? (call
             ? t("thread.alreadyACallTask")
-            : t("thread.alreadyATask")
+            : t("thread.alreadyATask"))
           : t("thread.taskCreateFailed"),
       );
     }

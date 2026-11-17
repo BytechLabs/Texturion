@@ -6,7 +6,8 @@
  */
 import type { CallRecord } from "@loonext/rig-robot";
 import type { PageHearing } from "@loonext/rig-lanes";
-import { fail, infra, pass, poll, wordErrorRate, type ScenarioContext, type ScenarioResult, type ScenarioRunner } from "./context.ts";
+import { fail, infra, pass, poll, wordErrorRate } from './context.ts';
+import type { ScenarioContext, ScenarioResult, ScenarioRunner } from './context.ts';
 
 /** S04's fixed phrase; the transcript is scored against it. */
 export const VOICEMAIL_PHRASE = "Hello, this is the rig robot. Please call me back about the water heater on Tuesday.";
@@ -66,7 +67,7 @@ export const S01: ScenarioRunner = {
       lease_id: ctx.lease.id,
       direction: "inbound",
       role: "ROBOT-1",
-      answer_after_ms: 4_000,
+      answer_after_ms: 4000,
       expect_within_ms: 60_000,
       expect: "qa-w-owner",
       hangup_after_ms: TALK_MS,
@@ -98,7 +99,7 @@ export const S01: ScenarioRunner = {
     const metered = await poll(ctx, async () => {
       const seconds = await ctx.app.voiceSecondsSince({ tenant: "QA-W", since });
       return seconds > 0 ? seconds : undefined;
-    }, 60_000, 5_000);
+    }, 60_000, 5000);
     if (!metered) return fail("no_voice_meter", "no voice seconds were metered for the call");
     return pass();
   },
@@ -123,7 +124,7 @@ export const S02: ScenarioRunner = {
       const refusal = dialed.errors.find((e) => e.startsWith("guard_refused:"));
       return infra(refusal ? "guard" : "robot", dialed.errors.join("; "));
     }
-    const ringMs = await page.waitForRing(6_000);
+    const ringMs = await page.waitForRing(6000);
     ctx.evidence.ring_ms = ringMs;
     if (ringMs === undefined) {
       await ctx.robot.wait(dialed.plan_id, 90_000);
@@ -142,13 +143,13 @@ export const S02: ScenarioRunner = {
     const row = await poll(ctx, async () => {
       const rows = await ctx.app.calls({ tenant: "QA-W", callerRole: "ROBOT-1", since });
       return rows.find((r) => r.ended_at !== null);
-    }, 60_000, 2_000);
+    }, 60_000, 2000);
     if (!row) return fail("no_call_row", "no finished call row for ROBOT-1's call");
     if (row.outcome !== "answered") return fail("row_not_answered", `the call row reads ${row.outcome ?? "nothing"}`);
     const metered = await poll(ctx, async () => {
       const seconds = await ctx.app.meteredSeconds({ tenant: "QA-W", callSessionId: row.call_session_id });
       return seconds > 0 ? seconds : undefined;
-    }, 60_000, 5_000);
+    }, 60_000, 5000);
     ctx.evidence.billing = { row_seconds: row.forward_seconds, metered_seconds: metered };
     if (metered !== row.forward_seconds) {
       return fail("billed_seconds_mismatch", `the row billed ${row.forward_seconds} s and the meter ${metered ?? 0} s`);
@@ -199,17 +200,17 @@ async function voicemailChecks(ctx: ScenarioContext, since: number): Promise<Sce
   const row = await poll(ctx, async () => {
     const rows = await ctx.app.calls({ tenant: "QA-W", callerRole: "ROBOT-1", since });
     return rows.find((r) => r.voicemail_path !== null);
-  }, 90_000, 3_000);
+  }, 90_000, 3000);
   if (!row) return fail("voicemail_not_stored", "no call row with a stored voicemail");
   if (row.outcome !== "voicemail") return fail("row_not_voicemail", `the call row reads ${row.outcome ?? "nothing"}`);
 
-  const held = await poll(ctx, async () => ((await ctx.app.telnyxRecordings(row.call_session_id)) === 0 ? true : undefined), 60_000, 5_000);
+  const held = await poll(ctx, async () => ((await ctx.app.telnyxRecordings(row.call_session_id)) === 0 ? true : undefined), 60_000, 5000);
   if (!held) return fail("telnyx_copy_kept", "Telnyx still holds the voicemail recording");
 
   const transcribed = await poll(ctx, async () => {
     const rows = await ctx.app.calls({ tenant: "QA-W", callerRole: "ROBOT-1", since });
     return rows.find((r) => r.call_session_id === row.call_session_id && r.voicemail_transcript);
-  }, 120_000, 5_000);
+  }, 120_000, 5000);
   if (!transcribed?.voicemail_transcript) return fail("no_transcript", "the voicemail was never transcribed");
   const wer = wordErrorRate(VOICEMAIL_PHRASE, transcribed.voicemail_transcript);
   ctx.evidence.word_error_rate = Math.round(wer * 1000) / 1000;
@@ -219,14 +220,14 @@ async function voicemailChecks(ctx: ScenarioContext, since: number): Promise<Sce
       const rows = await ctx.app.calls({ tenant: "QA-W", callerRole: "ROBOT-1", since });
       const current = rows.find((r) => r.call_session_id === row.call_session_id);
       return current?.voicemail_intake ?? undefined;
-    }, 60_000, 5_000);
+    }, 60_000, 5000);
     if (!intake) return fail("no_intake", "no intake was written for the voicemail");
   }
 
   const webhook = await poll(ctx, async () => {
     const deliveries = await ctx.robot.sink({ since, type: "voicemail.received" });
     return deliveries[0];
-  }, 120_000, 3_000);
+  }, 120_000, 3000);
   if (!webhook) return fail("webhook_missing", "no voicemail.received webhook reached the robot's sink");
   if (!Object.keys(webhook.headers).some((name) => name.includes("signature"))) {
     return fail("webhook_unsigned", "the voicemail.received webhook carried no signature header");
@@ -236,8 +237,8 @@ async function voicemailChecks(ctx: ScenarioContext, since: number): Promise<Sce
 
 async function textBack(ctx: ScenarioContext, hungUpAt: number): Promise<ScenarioResult | undefined> {
   const reply = await poll(ctx, async () => {
-    const inbox = await ctx.robot.inbox({ to_role: "ROBOT-1", since: hungUpAt - 5_000 });
+    const inbox = await ctx.robot.inbox({ to_role: "ROBOT-1", since: hungUpAt - 5000 });
     return inbox.find((m) => m.event === "message.received" && m.from_role === "DEV-W1");
-  }, 60_000, 2_000);
+  }, 60_000, 2000);
   return reply ? undefined : fail("no_text_back", "ROBOT-1 got no text-back within 60 s");
 }

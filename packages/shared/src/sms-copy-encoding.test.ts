@@ -53,7 +53,7 @@ import { DEFAULT_AWAY_MESSAGE } from "./away.js";
 import { DEFAULT_EMERGENCY_MESSAGE } from "./emergency.js";
 import { IDENTIFICATION_SUFFIX_TEMPLATE } from "./first-message-identification.js";
 import { RATING_ASK_BODY } from "./job-ratings.js";
-import { LOCALES, copyFor } from "./locale.js";
+import { copyFor, LOCALES } from "./locale.js";
 import { DEFAULT_MCTB_MESSAGE } from "./mctb.js";
 import { onMyWayText } from "./on-my-way.js";
 import { estimateSegments } from "./segments.js";

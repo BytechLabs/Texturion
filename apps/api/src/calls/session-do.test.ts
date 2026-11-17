@@ -22,7 +22,8 @@ import {
 // #251: the storage double and the runtime fake now live beside this file,
 // so the workerd load harness drives the SAME fake rather than a second one
 // written to agree with itself. See session-do-fake.ts.
-import { ctx, makeRuntime, makeStorage, SESSION, type FakeConfig } from "./session-do-fake";
+import { ctx, makeRuntime, makeStorage, SESSION } from './session-do-fake';
+import type { FakeConfig } from './session-do-fake';
 
 function makeDO(config: FakeConfig) {
   const store = makeStorage();
@@ -64,7 +65,7 @@ function vmiEvent(eventType: string): TelnyxEvent {
         call_control_id: "cust-ccid",
         call_session_id: SESSION,
         client_state: buildVoicemailState("+15551000"),
-      } as never,
+      },
     },
   };
 }
@@ -99,12 +100,12 @@ function memberHangupEvent(id: string, ccid: string): TelnyxEvent {
 
 function inboundHangupEvent(id: string, tag: "bri" | "vmi" | "untagged"): TelnyxEvent {
   const clientState =
-    tag === "bri" ? btoa("bri||2026-01-01T00:00:00.000Z") : tag === "vmi" ? btoa("vmi|") : undefined;
+    tag === "bri" ? btoa("bri||2026-01-01T00:00:00.000Z") : (tag === "vmi" ? btoa("vmi|") : undefined);
   return {
     data: {
       id,
       event_type: "call.hangup",
-      payload: { call_control_id: "cust-ccid", call_session_id: SESSION, direction: "incoming", client_state: clientState } as never,
+      payload: { call_control_id: "cust-ccid", call_session_id: SESSION, direction: "incoming", client_state: clientState },
     },
   };
 }
@@ -242,7 +243,7 @@ describe("CallSessionDO — admission + serialization (§4.1)", () => {
     const dialsBefore = calls.dials.length;
     await instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
     await instance.whenIdle(); // replay
-    expect(calls.dials.length).toBe(dialsBefore);
+    expect(calls.dials).toHaveLength(dialsBefore);
   });
 });
 
@@ -265,9 +266,9 @@ describe("CallSessionDO — §4.1 step-1 admission is ONE durable commit", () =>
       puts.push(
         typeof keyOrEntries === "string"
           ? [keyOrEntries]
-          : Object.keys(keyOrEntries).sort(),
+          : Object.keys(keyOrEntries).toSorted(),
       );
-      return realPut(keyOrEntries as never, value as never);
+      return realPut(keyOrEntries, value);
     };
 
     await instance.onTelnyxEvent(initiatedEvent("e1"));
@@ -291,7 +292,7 @@ describe("CallSessionDO — §4.1 step-1 admission is ONE durable commit", () =>
     expect(store.map.get("seen")).toEqual(["e1", "e2"]);
     const revived = reviveDO(store, { initiated: ctx() });
     await revived.instance.onTelnyxEvent(memberAnsweredEvent("e2", "cc0"));
-    expect(revived.calls.dials.length).toBe(0);
+    expect(revived.calls.dials).toHaveLength(0);
   });
 
   it("records head.effects onto the journal in the same commit as the machine", async () => {
@@ -309,9 +310,9 @@ describe("CallSessionDO — §4.1 step-1 admission is ONE durable commit", () =>
       puts.push(
         typeof keyOrEntries === "string"
           ? [keyOrEntries]
-          : Object.keys(keyOrEntries).sort(),
+          : Object.keys(keyOrEntries).toSorted(),
       );
-      return realPut(keyOrEntries as never, value as never);
+      return realPut(keyOrEntries, value);
     };
 
     await instance.onTelnyxEvent(initiatedEvent("e1"));
@@ -489,7 +490,7 @@ describe("CallSessionDO — decline (#171)", () => {
     const dialsBefore = calls.dials.length;
     const rm = await instance.ringMe({ sessionId: SESSION, userId: "u1", sipUsername: "s1", noLocalLeg: true });
     expect(rm).toMatchObject({ rang: false, reason: "declined" });
-    expect(calls.dials.length).toBe(dialsBefore); // no re-dial for the decliner
+    expect(calls.dials).toHaveLength(dialsBefore); // no re-dial for the decliner
   });
 });
 
@@ -676,8 +677,8 @@ describe("Founder sequence 3 — BACKGROUND (ring-me coexists with a live engine
     // the engine leg is still live (possibly presenting on another device).
     const reply = await instance.ringMe({ sessionId: SESSION, userId: "u1", sipUsername: "s1", noLocalLeg: true });
     expect(reply.rang).toBe(true);
-    expect(calls.dials.length).toBe(dialsAfterStart + 1); // a SECOND leg coexists
-    expect(calls.hangups.length).toBe(hangupsAfterStart); // ring-me canceled NOTHING
+    expect(calls.dials).toHaveLength(dialsAfterStart + 1); // a SECOND leg coexists
+    expect(calls.hangups).toHaveLength(hangupsAfterStart); // ring-me canceled NOTHING
 
     const snap = await snapshot(instance);
     const liveLegs = (snap?.legs ?? []).filter((l) => l.status === "ringing" || l.status === "dialing");
@@ -691,7 +692,7 @@ describe("Founder sequence 3 — BACKGROUND (ring-me coexists with a live engine
     const dialsBefore = calls.dials.length;
     const reply = await instance.ringMe({ sessionId: SESSION, userId: "u1", sipUsername: "s1", noLocalLeg: false });
     expect(reply).toMatchObject({ rang: false, reason: "live_leg" });
-    expect(calls.dials.length).toBe(dialsBefore); // no dial
+    expect(calls.dials).toHaveLength(dialsBefore); // no dial
     expect(calls.hangups).toHaveLength(0); // and no cancel
   });
 });
@@ -811,7 +812,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
     const { instance, calls } = makeDO({ outboundInitiated: "reject" });
     await instance.onTelnyxEvent(ocEvent("e1", "call.initiated"));
     await instance.whenIdle();
-    expect(await instance.snapshot(OUTBOUND_S)).toBeNull();
+    await expect(instance.snapshot(OUTBOUND_S)).resolves.toBeNull();
     expect(calls.mirrors).toHaveLength(0); // no state ever mirrored
     expect(calls.hangups).toContain("oc-ccid");
   });
@@ -843,7 +844,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
     await instance.whenIdle();
     expect(stamp).toBe(true);
     // No inbound mint, no extra dial — the DO already dialed the op leg.
-    expect(calls.dials.length).toBe(dialsBefore);
+    expect(calls.dials).toHaveLength(dialsBefore);
     expect((await instance.snapshot(OUTBOUND_S))?.direction).toBe("outbound");
   });
 
@@ -906,7 +907,7 @@ describe("CallSessionDO — outbound (oc) sessions (#211)", () => {
     await instance.whenIdle();
     expect(calls.hangups).toContain("bri-ccid");
     expect(calls.dials).toHaveLength(0);
-    expect(await snapshot(instance)).toBeNull();
+    await expect(snapshot(instance)).resolves.toBeNull();
   });
 
   it("a genuine INBOUND customer leg still mints, gate or no gate", async () => {

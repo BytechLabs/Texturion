@@ -22,7 +22,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { runGraceJob } from "../src/billing/grace";
 import { getEnv } from "../src/env";
 import { deleteCompaniesSql } from "./company-cleanup";
-import { startHarness, type Harness } from "./harness";
+import { startHarness } from './harness';
+import type { Harness } from './harness';
 
 let h: Harness;
 
@@ -201,10 +202,7 @@ async function companyRow(): Promise<{
     .select("subscription_status,canceled_at")
     .eq("id", COMPANY_ID)
     .limit(1);
-  return (data ?? [])[0] as {
-    subscription_status: string;
-    canceled_at: string | null;
-  };
+  return (data ?? [])[0];
 }
 
 async function numberRow(): Promise<{ status: string }> {
@@ -213,7 +211,7 @@ async function numberRow(): Promise<{ status: string }> {
     .select("status")
     .eq("id", NUMBER_ID)
     .limit(1);
-  return (data ?? [])[0] as { status: string };
+  return (data ?? [])[0];
 }
 
 async function campaignRow(): Promise<{
@@ -224,7 +222,7 @@ async function campaignRow(): Promise<{
     .select("deactivated_at")
     .eq("id", CAMPAIGN_ID)
     .limit(1);
-  return (data ?? [])[0] as { deactivated_at: string | null };
+  return (data ?? [])[0];
 }
 
 describe("D31 golden path 3: cancel → grace → release", () => {
@@ -241,7 +239,7 @@ describe("D31 golden path 3: cancel → grace → release", () => {
     expect(company.subscription_status).toBe("canceled");
     // canceled_at derives from the event's own timestamp (Postgres renders it
     // with a +00:00 offset; compare as instants, not string form).
-    expect(new Date(company.canceled_at as string).getTime()).toBe(
+    expect(new Date(company.canceled_at!).getTime()).toBe(
       canceledSec * 1000,
     );
 
@@ -253,7 +251,7 @@ describe("D31 golden path 3: cancel → grace → release", () => {
       .from("grace_notices")
       .select("threshold_day")
       .eq("company_id", COMPANY_ID);
-    expect((notices ?? []).map((n) => (n as { threshold_day: number }).threshold_day)).toEqual([1]);
+    expect((notices ?? []).map((n) => (n).threshold_day)).toEqual([1]);
 
     const newEmails = h.emails.slice(emailsBefore);
     const graceEmail = newEmails.find((e) =>
@@ -317,7 +315,7 @@ describe("D31 golden path 3: cancel → grace → release", () => {
     // The number is released (row + the Telnyx DELETE), the campaign
     // deactivated (its Telnyx DELETE), and the final email captured.
     expect((await numberRow()).status).toBe("released");
-    expect(h.telnyx.callsTo("DELETE", /\/v2\/phone_numbers\//).length).toBe(
+    expect(h.telnyx.callsTo("DELETE", /\/v2\/phone_numbers\//)).toHaveLength(
       deletesBefore + 1,
     );
     expect(
@@ -325,9 +323,7 @@ describe("D31 golden path 3: cancel → grace → release", () => {
     ).toHaveLength(1);
 
     expect((await campaignRow()).deactivated_at).not.toBeNull();
-    expect(
-      h.telnyx.callsTo("DELETE", /\/v2\/10dlc\/campaign\//).length,
-    ).toBe(campaignDeletesBefore + 1);
+    expect(h.telnyx.callsTo("DELETE", /\/v2\/10dlc\/campaign\//)).toHaveLength(campaignDeletesBefore + 1);
     expect(
       h.telnyx.callsTo(
         "DELETE",

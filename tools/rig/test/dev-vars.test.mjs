@@ -116,7 +116,7 @@ test("RIG_OWNED_E164 is the standing numbers: a number held for a scenario is le
   withStore(fillStore, (store) => {
     const partition = stubPartition();
     const monthly = "+14165550199";
-    const withMonthly = { ...partition, owned_e164: [...partition.owned_e164, monthly].sort() };
+    const withMonthly = { ...partition, owned_e164: [...partition.owned_e164, monthly].toSorted() };
     const endpoints = rigEndpoints(standingNumbers(withMonthly, store));
     assert.ok(!endpoints.includes(monthly));
     assert.equal(endpoints.length, STUB_STANDING.length - 1);
@@ -213,7 +213,7 @@ test("the store's standing-numbers.json is rewritten from the checked partition"
         written.map((entry) => entry.role),
         ["ROBOT-1", "ROBOT-2", "STRANGER-1", "DEV-W1", "DEV-W2", "DEV-A1", "DEV-C1", "DEV-E1"],
       );
-      assert.deepEqual(Object.keys(written[0]).sort(), ["e164", "messaging_profile_id", "role", "telnyx_phone_number_id"]);
+      assert.deepEqual(Object.keys(written[0]).toSorted(), ["e164", "messaging_profile_id", "role", "telnyx_phone_number_id"]);
     },
   );
 });

@@ -56,8 +56,8 @@ describe("#519 stripComments", () => {
       "const c = 3;",
     ].join("\n");
     const stripped = stripComments(source);
-    expect(stripped.length).toBe(source.length);
-    expect(stripped.split("\n").length).toBe(source.split("\n").length);
+    expect(stripped).toHaveLength(source.length);
+    expect(stripped.split("\n")).toHaveLength(source.split("\n").length);
     expect(stripped.indexOf("const b")).toBe(source.indexOf("const b"));
   });
 
@@ -95,8 +95,8 @@ describe("#519 stripComments", () => {
     }
     expect(
       hiding,
-      "Stripping comments removed queries from these files, so the " +
-        "tenant-scope scan cannot see them:\n  " + hiding.join("\n  "),
+      `Stripping comments removed queries from these files, so the ` +
+        `tenant-scope scan cannot see them:\n  ${  hiding.join("\n  ")}`,
     ).toEqual([]);
   });
 });

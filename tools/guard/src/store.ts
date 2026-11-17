@@ -41,7 +41,7 @@ export class MemoryStore implements Store {
 
   async list<T>(prefix: string): Promise<Map<string, T>> {
     const out = new Map<string, T>();
-    for (const [key, value] of [...this.data.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+    for (const [key, value] of [...this.data.entries()].toSorted(([a], [b]) => a.localeCompare(b))) {
       if (key.startsWith(prefix)) out.set(key, structuredClone(value) as T);
     }
     return out;

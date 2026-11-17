@@ -45,7 +45,7 @@ import { defineConfig } from "vitest/config";
 const cloudflareWorkersDouble = {
   find: /^cloudflare:workers$/,
   replacement: fileURLToPath(
-    new URL("./src/test/cloudflare-workers-double.ts", import.meta.url),
+    new URL("src/test/cloudflare-workers-double.ts", import.meta.url),
   ),
 };
 

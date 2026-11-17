@@ -30,14 +30,13 @@
  * a customer to a page that cannot accept their card.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  payoutReadiness,
-  type PayoutReadiness,
-} from "@loonext/shared";
+import { payoutReadiness } from '@loonext/shared';
+import type { PayoutReadiness } from '@loonext/shared';
 
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
-import { getStripe, type Stripe } from "./stripe";
+import { getStripe } from './stripe';
+import type { Stripe } from './stripe';
 
 export interface ConnectAccountRow {
   company_id: string;

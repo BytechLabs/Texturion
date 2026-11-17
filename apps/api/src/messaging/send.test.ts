@@ -20,13 +20,8 @@ import { POSTHOG_CAPTURE_URL } from "../analytics/posthog";
 import { getDb } from "../db";
 import type { Env, RateLimiter } from "../env";
 import { ApiError } from "../http/errors";
-import {
-  messageRow,
-  rpcMatch,
-  restMatch,
-  stubRoute,
-  type Stub,
-} from "../test/messaging-support";
+import { messageRow, restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
 import { clearedFor, completeEnv, stubFetch } from "../test/support";
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
@@ -201,7 +196,7 @@ describe("dispatchOutbound — §10 layer 3 rate limiter", () => {
       SEND_ARGS,
     ).then(
       () => null,
-      (cause: unknown) => cause,
+      (error: unknown) => error,
     );
     expect(thrown).toBeInstanceOf(ApiError);
     expect((thrown as ApiError).code).toBe("rate_limited");
@@ -577,7 +572,7 @@ describe("claimMessageRetry — the atomic retry arbiter (#19/#20/#47)", () => {
 
     const thrown = await claimMessageRetry(getDb(env), ARGS).then(
       () => null,
-      (cause: unknown) => cause,
+      (error: unknown) => error,
     );
     expect(thrown).toBeInstanceOf(ApiError);
     expect((thrown as ApiError).code).toBe(code);

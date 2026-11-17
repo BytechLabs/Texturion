@@ -9,13 +9,8 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { availableNumbersRoutes } from "./available-numbers";
 
 /**
@@ -71,8 +66,8 @@ function inventoryRoute() {
   return {
     match: (url: URL) => url.hostname === "api.telnyx.com",
     respond: () =>
-      new Response(
-        JSON.stringify({
+      Response.json(
+        {
           data: [
             {
               phone_number: "+14165550123",
@@ -80,7 +75,7 @@ function inventoryRoute() {
               cost_information: { monthly_cost: "1.00", currency: "USD" },
             },
           ],
-        }),
+        },
         { status: 200, headers: { "content-type": "application/json" } },
       ),
   };
@@ -98,7 +93,7 @@ async function search(overrides: Partial<typeof env> = {}) {
   stubFetch(jwksRoute(auth), sb.route, inventoryRoute().respond);
   return apiRequest(
     app,
-    { ...env, ...overrides } as typeof env,
+    { ...env, ...overrides },
     await auth.token(),
     "/v1/available-numbers?country=US&area_code=415",
     { companyId: COMPANY_ID },
@@ -117,13 +112,13 @@ describe("#251 the number picker and the account's Telnyx budget", () => {
     const limit = vi.fn(async () => ({ success: false }));
     const response = await search({
       NUMBER_SEARCH_FLEET_LIMITER: { limit },
-    } as Partial<typeof env>);
+    });
 
     // 503, not 429. A 429 tells the caller THEY are going too fast, and they
     // are not — the budget is ours, spent on their behalf by everybody else
     // shopping at the same moment.
     expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       error: {
         code: "service_unavailable",
         message: "The phone network is busy right now. Try that again in a moment.",
@@ -135,7 +130,7 @@ describe("#251 the number picker and the account's Telnyx budget", () => {
     // Keyed per caller or per company it would be a second copy of the limiter
     // above and would bound nothing new.
     const limit = vi.fn(async () => ({ success: true }));
-    await search({ NUMBER_SEARCH_FLEET_LIMITER: { limit } } as Partial<typeof env>);
+    await search({ NUMBER_SEARCH_FLEET_LIMITER: { limit } });
     expect(limit).toHaveBeenCalledExactlyOnceWith({ key: "available-numbers" });
   });
 
@@ -146,10 +141,10 @@ describe("#251 the number picker and the account's Telnyx budget", () => {
     const limit = vi.fn(async () => ({ success: false }));
     const response = await search({
       NUMBER_SEARCH_RATE_LIMITER: { limit },
-    } as Partial<typeof env>);
+    });
 
     expect(response.status).toBe(429);
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       error: { code: "rate_limited", message: expect.any(String) },
     });
   });
@@ -163,7 +158,7 @@ describe("#251 the number picker and the account's Telnyx budget", () => {
     await search({
       NUMBER_SEARCH_RATE_LIMITER: { limit: caller },
       NUMBER_SEARCH_FLEET_LIMITER: { limit: fleet },
-    } as Partial<typeof env>);
+    });
 
     expect(caller).toHaveBeenCalled();
     expect(fleet).not.toHaveBeenCalled();

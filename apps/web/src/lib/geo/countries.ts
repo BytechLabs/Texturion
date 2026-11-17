@@ -1,4 +1,5 @@
-import { DEFAULT_LOCALE, type Locale } from "@loonext/shared";
+import { DEFAULT_LOCALE } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 
 /**
  * #214 — country names for the task-address country field's typable autofill
@@ -130,7 +131,7 @@ export function countryNames(locale: Locale = DEFAULT_LOCALE): readonly string[]
   )
     .map(name)
     .filter((value): value is string => value !== null)
-    .sort((a, b) => a.localeCompare(b, locale));
+    .toSorted((a, b) => a.localeCompare(b, locale));
 
   const names = [...pinned, ...rest];
   cache.set(locale, names);

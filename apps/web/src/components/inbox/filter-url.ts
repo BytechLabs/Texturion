@@ -1,7 +1,5 @@
-import {
-  isInboxFiltered,
-  type InboxFilterState,
-} from "@loonext/shared";
+import { isInboxFiltered } from '@loonext/shared';
+import type { InboxFilterState } from '@loonext/shared';
 
 import type { MessageKey } from "@/i18n/translate";
 import type { ConversationFilters } from "@/lib/api/filters";

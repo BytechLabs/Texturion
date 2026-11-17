@@ -22,13 +22,13 @@ import { prepaidYearFraming } from "./prepaid-year-card";
 describe("#400 prepaidYearFraming", () => {
   it("compares against twelve real monthly payments", () => {
     // $29/mo x 12 = $348. The saving is what the customer actually keeps.
-    const f = prepaidYearFraming(29_000, 2_900);
+    const f = prepaidYearFraming(29_000, 2900);
     expect(f.twelveMonthsCents).toBe(34_800);
-    expect(f.savingCents).toBe(5_800);
+    expect(f.savingCents).toBe(5800);
   });
 
   it("prices Pro from the Pro monthly figure, not the Starter one", () => {
-    const f = prepaidYearFraming(79_000, 7_900);
+    const f = prepaidYearFraming(79_000, 7900);
     expect(f.twelveMonthsCents).toBe(94_800);
     expect(f.savingCents).toBe(15_800);
   });
@@ -37,15 +37,15 @@ describe("#400 prepaidYearFraming", () => {
     // #400 asks for the daily frame as the most favourable HONEST comparison
     // available. Dividing by 360 to round it down to a nicer number would make
     // it neither.
-    expect(prepaidYearFraming(29_000, 2_900).perDayCents).toBe(79);
-    expect(prepaidYearFraming(79_000, 7_900).perDayCents).toBe(216);
+    expect(prepaidYearFraming(29_000, 2900).perDayCents).toBe(79);
+    expect(prepaidYearFraming(79_000, 7900).perDayCents).toBe(216);
   });
 
   it("never shows a negative saving", () => {
     // A year priced at or above twelve months is not an offer. If the catalog
     // ever drifts that way the card must not render "saved -$52" — it shows
     // nothing saved, and the number beside it makes the case on its own.
-    const f = prepaidYearFraming(40_000, 2_900);
+    const f = prepaidYearFraming(40_000, 2900);
     expect(f.savingCents).toBe(0);
   });
 
@@ -54,7 +54,7 @@ describe("#400 prepaidYearFraming", () => {
     // a discounted session shows the discounted saving rather than the list
     // one. Anything else would quote a number the customer is not being
     // charged.
-    const f = prepaidYearFraming(24_650, 2_900);
+    const f = prepaidYearFraming(24_650, 2900);
     expect(f.savingCents).toBe(34_800 - 24_650);
     expect(f.perDayCents).toBe(68);
   });
@@ -64,8 +64,8 @@ describe("#400 prepaidYearFraming", () => {
     // clamped to `savingCents: 0`, so the card told a Canadian owner their year
     // saved them nothing — while charging them for it. Against the real CA$39
     // monthly it is the same ten-for-twelve deal the US customer gets.
-    const f = prepaidYearFraming(39_000, 3_900);
+    const f = prepaidYearFraming(39_000, 3900);
     expect(f.twelveMonthsCents).toBe(46_800);
-    expect(f.savingCents).toBe(7_800);
+    expect(f.savingCents).toBe(7800);
   });
 });

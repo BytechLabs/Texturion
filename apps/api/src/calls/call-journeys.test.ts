@@ -23,31 +23,28 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
 import type { Env } from "../env";
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
-import type { TelnyxEvent } from "../messaging/types";
 import { callsRoutes } from "../routes/calls";
 import { liveCallsRoutes } from "../routes/live-calls";
 import { webrtcRoutes } from "../routes/webrtc";
 import { captured, resetCaptures } from "../test/capture-mock";
 import { apiRequest, buildTestApp } from "../test/routes-harness";
-import { completeEnv, createTestAuth, type TestAuth } from "../test/support";
+import { completeEnv, createTestAuth } from '../test/support';
+import type { TestAuth } from '../test/support';
 
-import { createCallSessions, type CallSessionsDouble } from "../../e2e/call-sessions";
-import {
-  CALL_JOURNEYS,
-  journeyRegistryMismatch,
-  runCallJourney,
-  type JourneyCrew,
-  type JourneyDriver,
-  type JourneyMember,
-} from "../../e2e/call-journeys";
-import { startFakeTelnyx, type FakeTelnyx } from "../../e2e/fake-telnyx";
-import { createSessionRuntime, type SessionRuntime } from "./runtime";
+import { createCallSessions } from '../../e2e/call-sessions';
+import type { CallSessionsDouble } from '../../e2e/call-sessions';
+import { CALL_JOURNEYS, journeyRegistryMismatch, runCallJourney } from '../../e2e/call-journeys';
+import type { JourneyCrew, JourneyDriver, JourneyMember } from '../../e2e/call-journeys';
+import { startFakeTelnyx } from '../../e2e/fake-telnyx';
+import type { FakeTelnyx } from '../../e2e/fake-telnyx';
+import { createSessionRuntime } from './runtime';
+import type { SessionRuntime } from './runtime';
 import type { CallSessionDO } from "./session-do";
 import { makeRuntime } from "./session-do-fake";
 
@@ -83,11 +80,11 @@ function holds(value: unknown, condition: string): boolean {
   } else if (operator === "neq") {
     result = text !== operand;
   } else if (operator === "in") {
-    const listed = operand.replace(/^\(|\)$/g, "").split(",");
+    const listed = operand.replaceAll(/^\(|\)$/g, "").split(",");
     result = listed.map((entry) => entry.replace(/^"(.*)"$/, "$1")).includes(text);
   } else if (["gt", "gte", "lt", "lte"].includes(operator)) {
     // Every compared column here is an ISO timestamp, which sorts as text.
-    const order = text < operand ? -1 : text > operand ? 1 : 0;
+    const order = text < operand ? -1 : (text > operand ? 1 : 0);
     result = { gt: order > 0, gte: order >= 0, lt: order < 0, lte: order <= 0 }[
       operator as "gt" | "gte" | "lt" | "lte"
     ];
@@ -118,10 +115,10 @@ function ordered(rows: Row[], order: string | null): Row[] {
   if (!order) return rows;
   const [column, direction] = order.split(",")[0].split(".");
   const sign = direction === "desc" ? -1 : 1;
-  return [...rows].sort((a, b) => {
+  return [...rows].toSorted((a, b) => {
     const left = String(a[column] ?? "");
     const right = String(b[column] ?? "");
-    return left < right ? -sign : left > right ? sign : 0;
+    return left < right ? -sign : (left > right ? sign : 0);
   });
 }
 
@@ -330,9 +327,9 @@ const rpcs: Record<string, Rpc> = {
         row.from_e164 === args.p_from &&
         String(row.created_at) > isoAgo(Number(args.p_max_age_secs) * 1000),
     );
-    if (index < 0) {
+    if (index === -1) {
       const row = sessionRow(String(args.p_call_session_id));
-      if (!row || row.direction !== "outbound" || numberRow(row.phone_number_id)?.number_e164 !== args.p_from) {
+      if (row?.direction !== "outbound" || numberRow(row.phone_number_id)?.number_e164 !== args.p_from) {
         return { authorized: false };
       }
       return {
@@ -406,7 +403,7 @@ function runtimeFor(sessionId: string): SessionRuntime {
 }
 
 function stub(sessionId: string): CallSessionDO {
-  const namespace = env.CALL_SESSIONS as DurableObjectNamespace;
+  const namespace = env.CALL_SESSIONS!;
   return namespace.get(namespace.idFromName(sessionId)) as unknown as CallSessionDO;
 }
 
@@ -422,7 +419,7 @@ const driver = (): JourneyDriver => ({
   voice: fake.voice,
   // The edge's dispatch minus its ledger: DO-owned events are admitted and
   // awaited, the transfer legs run on the shared voice path.
-  deliver: (event) => dispatchTelnyxEvent(env, event as unknown as TelnyxEvent),
+  deliver: (event) => dispatchTelnyxEvent(env, event),
   idle: () => sessions.idle(),
   async state(sessionId) {
     return (await stub(sessionId).snapshot(sessionId))?.state ?? null;
@@ -572,19 +569,19 @@ function expectQuietSession(sessionId: string) {
   expect(half?.warnings).toEqual([]);
   expect(half?.errorCount).toBe(0);
   expect(captured).toEqual([]);
-  return half as NonNullable<typeof half>;
+  return half!;
 }
 
 describe("hermetic call journeys (session layer)", () => {
   it("runs every journey the budget file prices, and has a line for each", () => {
     expect(journeyRegistryMismatch()).toEqual([]);
-    expect(Object.keys(LINES).sort()).toEqual(Object.keys(CALL_JOURNEYS).sort());
+    expect(Object.keys(LINES).toSorted()).toEqual(Object.keys(CALL_JOURNEYS).toSorted());
   });
 
   it("minted one softphone credential per member through the route, on the WebRTC connection", () => {
     const members = [...crews.values()].flatMap((crew) => crew.members);
-    expect(tables.member_telephony_credentials.map((row) => row.sip_username).sort()).toEqual(
-      members.map((member) => member.sipUsername).sort(),
+    expect(tables.member_telephony_credentials.map((row) => row.sip_username).toSorted()).toEqual(
+      members.map((member) => member.sipUsername).toSorted(),
     );
     for (const member of members) {
       const credential = fake.voice.credentialForSipUsername(member.sipUsername);

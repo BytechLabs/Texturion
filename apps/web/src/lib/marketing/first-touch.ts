@@ -1,12 +1,7 @@
 "use client";
 
-import {
-  attributionParams,
-  isMeaningfulTouch,
-  referrerHost,
-  sanitizeLandingPath,
-  type FirstTouch,
-} from "@loonext/shared";
+import { attributionParams, isMeaningfulTouch, referrerHost, sanitizeLandingPath } from '@loonext/shared';
+import type { FirstTouch } from '@loonext/shared';
 
 /**
  * #296 — remembering which page started it, all the way to the workspace.
@@ -121,10 +116,10 @@ export function firstTouchForCreate(): {
   return {
     first_touch: {
       landing_path: stored.landing_path,
-      ...(stored.referrer_host !== null
-        ? { referrer_host: stored.referrer_host }
-        : {}),
-      params: stored.params as Record<string, string>,
+      ...(stored.referrer_host === null
+        ? {}
+        : { referrer_host: stored.referrer_host }),
+      params: stored.params,
     },
   };
 }

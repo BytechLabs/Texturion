@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  CsvUnterminatedQuoteError,
   csvField,
   csvSafeText,
   csvUnguardText,
+  CsvUnterminatedQuoteError,
   parseCsv,
   serializeCsv,
 } from "./csv";
@@ -57,7 +57,7 @@ describe("parseCsv (RFC 4180 subset)", () => {
       '+14165550101,"Ann',
       "+14165550102,Cass",
     ].join("\n");
-    expect(() => parseCsv(text)).toThrowError(CsvUnterminatedQuoteError);
+    expect(() => parseCsv(text)).toThrow(CsvUnterminatedQuoteError);
     // The line the quote OPENED on. By EOF the position is the one place in the
     // file that looks fine, and the mangling shows up nowhere near it.
     try {
@@ -83,11 +83,13 @@ describe("csvField (RFC 4180 quoting)", () => {
   it("emits bare values without special chars", () => {
     expect(csvField("+14165550199")).toBe("+14165550199");
   });
+
   it("quotes and doubles quotes when a value has comma/quote/newline", () => {
     expect(csvField("Smith, John")).toBe('"Smith, John"');
     expect(csvField('say "hi"')).toBe('"say ""hi"""');
     expect(csvField("line1\nline2")).toBe('"line1\nline2"');
   });
+
   it("renders null/undefined as the empty field", () => {
     expect(csvField(null)).toBe("");
     expect(csvField(undefined)).toBe("");
@@ -101,14 +103,17 @@ describe("csvSafeText (OWASP CSV/formula-injection guard)", () => {
       expect(csvSafeText(payload)).toBe(`'${payload}`);
     }
   });
+
   it("neutralizes a classic DDE payload", () => {
     expect(csvSafeText('=cmd|" /C calc"!A1')).toBe(`'=cmd|" /C calc"!A1`);
   });
+
   it("leaves ordinary free text untouched", () => {
     expect(csvSafeText("Smith, John")).toBe("Smith, John");
     expect(csvSafeText("O'Brien")).toBe("O'Brien");
     expect(csvSafeText("Won;Quote sent")).toBe("Won;Quote sent");
   });
+
   it("GUARDS a bare E.164 phone number — a leading '+' is a formula in Excel", () => {
     // The title and comment here used to say the opposite of the assertion: that
     // the export left the phone column bare and this proved the guard was pure.
@@ -119,13 +124,14 @@ describe("csvSafeText (OWASP CSV/formula-injection guard)", () => {
     // the code agree for the first time.
     expect(csvSafeText("+14165550199")).toBe("'+14165550199");
   });
+
   it("renders null/undefined as the empty field", () => {
     expect(csvSafeText(null)).toBe("");
     expect(csvSafeText(undefined)).toBe("");
   });
 });
 
-describe("serializeCsv", () => {
+describe(serializeCsv, () => {
   it("joins fields with commas and rows with CRLF", () => {
     expect(serializeCsv([["a", "b"], ["1", "2"]])).toBe("a,b\r\n1,2");
   });
@@ -167,6 +173,6 @@ describe("serializeCsv", () => {
     // trip would quietly eat a character from every `'Tis` in the book.
     expect(csvUnguardText("'Tis Fixed")).toBe("'Tis Fixed");
     expect(csvUnguardText("'=SUM(A1)")).toBe("=SUM(A1)");
-    expect(csvUnguardText(null)).toBe(null);
+    expect(csvUnguardText(null)).toBeNull();
   });
 });

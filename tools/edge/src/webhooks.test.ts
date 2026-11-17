@@ -2,28 +2,8 @@ import { runInDurableObject } from "cloudflare:test";
 import { beforeEach, describe, expect, it } from "vitest";
 
 import { STRANGER_DETACH_THRESHOLD } from "./uplink";
-import {
-  CONNECTIONS,
-  OWNED_A,
-  OWNED_B,
-  PRODUCTION_CONNECTION,
-  PRODUCTION_PROFILE,
-  PROFILE_TENANT,
-  ROBOT_WEBHOOK_SECRET,
-  STRANGER,
-  call,
-  callEvent,
-  connectRig,
-  counters,
-  edgeEnv,
-  fakeGuard,
-  messageEvent,
-  ORIGIN,
-  resetEdge,
-  telnyxDelivery,
-  uplinkStub,
-  type FakeGuard,
-} from "./test/support";
+import { call, callEvent, CONNECTIONS, connectRig, counters, edgeEnv, fakeGuard, messageEvent, ORIGIN, OWNED_A, OWNED_B, PRODUCTION_CONNECTION, PRODUCTION_PROFILE, PROFILE_TENANT, resetEdge, ROBOT_WEBHOOK_SECRET, STRANGER, telnyxDelivery, uplinkStub } from './test/support';
+import type { FakeGuard } from './test/support';
 import type { Env } from "./env";
 
 let guard: FakeGuard;
@@ -152,7 +132,7 @@ describe("call events", () => {
     expect(frame).toMatchObject({ t: "webhook", kind: "call", path: "/t/v", attempt: 1 });
     if (frame.t !== "webhook") throw new Error("unreachable");
     expect(JSON.parse(frame.body)).toEqual(event);
-    expect(Object.keys(frame.headers).sort()).toEqual(["content-type", "telnyx-signature-ed25519", "telnyx-timestamp"]);
+    expect(Object.keys(frame.headers).toSorted()).toEqual(["content-type", "telnyx-signature-ed25519", "telnyx-timestamp"]);
     rig.send({ t: "webhook-result", id: frame.id, status: 204 });
 
     expect((await pending).status).toBe(204);
@@ -200,7 +180,7 @@ describe("call events", () => {
 
   it("answers inside Telnyx's 10 seconds however long the guard took, and remembers a late answer", async () => {
     // Both guard calls inside their own timeouts, and together most of the budget.
-    guard.latency = { "/partition": 1_400, "/legs": 2_900 };
+    guard.latency = { "/partition": 1400, "/legs": 2900 };
     const rig = await connectRig(env);
     const event = callEvent("call.initiated", { call_control_id: "ccid-slow" }, "evt-slow-call");
     const started = Date.now();
@@ -302,7 +282,7 @@ describe("robot webhook sink", () => {
     const request = new Request(`${ORIGIN}/w/wrong-secret/qa-w`, { method: "POST", body: "{}" });
     const response = await call(request, env);
     expect(response.status).toBe(404);
-    expect(await response.text()).toBe("");
+    await expect(response.text()).resolves.toBe("");
   });
 });
 

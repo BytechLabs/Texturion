@@ -12,10 +12,8 @@
  * Server component, pure DOM. Wording per Law 6: "3 to 7 business days".
  */
 
-import {
-  complianceCopy,
-  type ComplianceCopy,
-} from "@/i18n/marketing/compliance";
+import { complianceCopy } from '@/i18n/marketing/compliance';
+import type { ComplianceCopy } from '@/i18n/marketing/compliance';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check, Clock } from "lucide-react";
 

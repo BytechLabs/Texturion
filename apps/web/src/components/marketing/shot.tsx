@@ -89,8 +89,8 @@ export function FramedShot({
   contentClassName,
 }: FramedShotProps) {
   const pair = shotPair(id);
-  const light = pair.light;
-  const dark = pair.dark;
+  const {light} = pair;
+  const {dark} = pair;
 
   // Nothing to render if the manifest has no such shot, fail loud in dev,
   // render nothing in prod (callers must guard with a live-DOM fallback per the

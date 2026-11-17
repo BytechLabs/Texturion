@@ -54,7 +54,7 @@ class Waitable<T> {
       const waiter = { match, resolve: (item: T) => (clearTimeout(timer), resolve(item)) };
       const timer = setTimeout(() => {
         const index = this.#waiters.indexOf(waiter);
-        if (index >= 0) this.#waiters.splice(index, 1);
+        if (index !== -1) this.#waiters.splice(index, 1);
         resolve(undefined);
       }, timeoutMs);
       this.#waiters.push(waiter);

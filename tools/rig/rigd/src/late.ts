@@ -10,7 +10,8 @@
  * I sent came back too late to verify" from a product failure, matching its
  * own texts by a hash of the body, so nothing else on the rig can excuse it.
  */
-import { createHash, createPublicKey, verify, type KeyObject } from "node:crypto";
+import { createHash, createPublicKey, verify } from 'node:crypto';
+import type { KeyObject } from 'node:crypto';
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from "node:fs";
 import { dirname } from "node:path";
 

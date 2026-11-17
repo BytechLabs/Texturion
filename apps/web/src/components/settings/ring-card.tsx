@@ -10,7 +10,8 @@ import { Label } from "@/components/ui/label";
 import { ChoiceCards } from "@/components/ui/choice-cards";
 import { SettingsCard } from "@/components/settings/section";
 import { SimpleSelect } from "@/components/ui/simple-select";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
 import { useUpdateCompany } from "@/lib/api/companies";
 import type { CompanyView } from "@/lib/api/types";
@@ -103,7 +104,7 @@ export function RingCard({
   const seconds = company.ring_seconds;
   const options = SECOND_CHOICES.includes(seconds)
     ? SECOND_CHOICES
-    : [...SECOND_CHOICES, seconds].sort((a, b) => a - b);
+    : [...SECOND_CHOICES, seconds].toSorted((a, b) => a - b);
 
   return (
     <SettingsCard id="phone-ringing"
@@ -146,12 +147,12 @@ export function RingCard({
         />
         <p className="text-xs text-muted-foreground">
           {active === "in_turn"
-            ? phonesReached(seconds) === 1
+            ? (phonesReached(seconds) === 1
               ? t("settingsMore.ringWindowOnePhone", { seconds })
               : t("settingsMore.ringWindowManyPhones", {
                   seconds,
                   phones: phonesReached(seconds),
-                })
+                }))
             : t("settingsMore.ringWindowAll")}
         </p>
         <SettingChoiceNote

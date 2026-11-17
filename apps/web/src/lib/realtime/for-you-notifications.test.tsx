@@ -14,7 +14,7 @@ import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 let companyId = "company-a";
-vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => companyId }));
+vi.mock(import("@/lib/company/provider"), () => ({ useCompanyId: () => companyId }));
 
 import { patchQuietly, useForYouNotificationsRealtime } from "./for-you-notifications";
 
@@ -34,7 +34,7 @@ function setup(id: string) {
   const hook = renderHook(() => useForYouNotificationsRealtime(), { wrapper });
   const forYouRefetches = () =>
     invalidate.mock.calls.filter(([filters]) => {
-      const key = (filters as { queryKey?: readonly unknown[] } | undefined)?.queryKey ?? [];
+      const key = (filters)?.queryKey ?? [];
       return key[1] === "for-you";
     }).length;
   return { client, listKey, hook, invalidate, forYouRefetches };
@@ -44,7 +44,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("useForYouNotificationsRealtime", () => {
+describe(useForYouNotificationsRealtime, () => {
   it("ignores an invalidation and a fetch starting", async () => {
     const { client, listKey, hook, forYouRefetches } = setup("company-invalidate");
     await client.invalidateQueries({ queryKey: listKey, refetchType: "none" });

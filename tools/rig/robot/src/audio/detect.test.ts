@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { detectInSamples, findAnnouncement, type DetectOptions } from "./detect.ts";
+import { detectInSamples, findAnnouncement } from './detect.ts';
+import type { DetectOptions } from './detect.ts';
 import { analyzeFrames } from "./frames.ts";
 import { codeSamples } from "./generate.ts";
 import {
@@ -13,9 +14,10 @@ import {
   phoneLine,
   power,
 } from "./simulate.ts";
-import { BURSTS_PER_CYCLE, CYCLE_MS, PATTERN, SLOT_MS, SURFACES, SURFACE_HZ, type Surface } from "./surfaces.ts";
+import { BURSTS_PER_CYCLE, CYCLE_MS, PATTERN, SLOT_MS, SURFACE_HZ, SURFACES } from './surfaces.ts';
+import type { Surface } from './surfaces.ts';
 
-const RATE = 8_000;
+const RATE = 8000;
 /** Mean power of a playing burst, the reference for every SNR below. */
 const BURST_POWER = power(codeSamples("robot", { sampleRate: RATE, cycles: 1 }).subarray(0, 1280));
 
@@ -40,9 +42,9 @@ describe("a clean line", () => {
   });
 
   it("finds the phase of a code that starts mid-cycle", () => {
-    const detection = detect(call("qa-c", { startMs: 1_234 }));
+    const detection = detect(call("qa-c", { startMs: 1234 }));
     expect(detection.answered).toBe("qa-c");
-    const phase = (detection.scores["qa-c"]!.phaseMs - 1_234) % CYCLE_MS;
+    const phase = (detection.scores["qa-c"]!.phaseMs - 1234) % CYCLE_MS;
     expect(Math.min(phase, CYCLE_MS - phase)).toBeLessThanOrEqual(40);
   });
 
@@ -62,7 +64,7 @@ describe("silence and noise", () => {
 
   it("never hears a code in noise alone, over many seeds", () => {
     const verdicts = Array.from({ length: 24 }, (_, seed) =>
-      detect(noise(14, RATE, -20, 1_000 + seed)).verdict,
+      detect(noise(14, RATE, -20, 1000 + seed)).verdict,
     );
     expect(verdicts.filter((v) => v === "heard")).toEqual([]);
     expect(verdicts.filter((v) => v === "silent").length).toBeGreaterThanOrEqual(20);
@@ -93,7 +95,7 @@ describe("silence and noise", () => {
   });
 
   it("ignores a steady tone at a surface's frequency", () => {
-    const steady = Float32Array.from({ length: RATE * 14 }, (_, i) => 0.25 * Math.sin((2 * Math.PI * 1_500 * i) / RATE));
+    const steady = Float32Array.from({ length: RATE * 14 }, (_, i) => 0.25 * Math.sin((2 * Math.PI * 1500 * i) / RATE));
     expect(detect(steady).verdict).toBe("silent");
   });
 
@@ -141,14 +143,14 @@ describe("a narrowband phone line: 300-3,400 Hz at 8 kHz through mu-law", () => 
   });
 });
 
-describe("dropouts", () => {
+describe(dropouts, () => {
   it("still hears a code with lost bursts, and counts them", () => {
     // The code starts at 300 ms, so cycle k's bursts start at 300 + 1,920k plus
     // 0, 320, 800 and 1,440 ms. Each hole swallows one whole burst.
     const holed = dropouts(call("qa-c"), RATE, [
-      [2_200, 2_400],
-      [4_920, 5_120],
-      [9_400, 9_600],
+      [2200, 2400],
+      [4920, 5120],
+      [9400, 9600],
     ]);
     const detection = detect(holed);
     expect(detection.answered).toBe("qa-c");
@@ -159,7 +161,7 @@ describe("dropouts", () => {
   });
 
   it("calls a line that drops for most of the window faint, not heard", () => {
-    const holed = dropouts(call("qa-c"), RATE, [[4_000, 15_000]]);
+    const holed = dropouts(call("qa-c"), RATE, [[4000, 15_000]]);
     expect(detect(holed).verdict).toBe("faint");
   });
 });
@@ -186,13 +188,13 @@ describe("two surfaces at once", () => {
       call("qa-a-dispatcher", { rate: 16_000, startMs: 900, amplitude: 0.12 }),
     );
     const detection = detect(phoneLine(both));
-    expect(detection.heard.sort()).toEqual(["pixel", "qa-a-dispatcher"]);
+    expect(detection.heard.toSorted()).toEqual(["pixel", "qa-a-dispatcher"]);
   });
 
   it("separates the two closest frequencies, 200 Hz apart, at a 20 dB level difference", () => {
     const both = mix(call("robot"), call("qa-w-owner", { startMs: 700, amplitude: 0.025 }));
     const detection = detect(both);
-    expect(detection.heard.sort()).toEqual(["qa-w-owner", "robot"]);
+    expect(detection.heard.toSorted()).toEqual(["qa-w-owner", "robot"]);
   });
 });
 
@@ -259,7 +261,7 @@ describe("Opus's smear of a burst's edges", () => {
  * 200 ms, 50 ms apart, `seconds` long, starting `startMs` into the call.
  */
 function announcement(seconds: number, { startMs = 200, rate = RATE, seed = 5 } = {}): Float32Array {
-  const voiced = bandPass(noise(seconds, rate, -12, seed), rate, 300, 3_400);
+  const voiced = bandPass(noise(seconds, rate, -12, seed), rate, 300, 3400);
   const syllable = Math.round(0.25 * rate);
   const shaped = voiced.map((x, i) => ((i % syllable) < 0.8 * syllable ? x : 0));
   return delay(shaped, rate, startMs);
@@ -271,8 +273,8 @@ describe("Telnyx's automated-call announcement", () => {
     const found = findAnnouncement(opening, 0);
     expect(found).toBeDefined();
     expect(found!.startMs).toBeLessThanOrEqual(300);
-    expect(found!.endMs).toBeGreaterThanOrEqual(4_000);
-    expect(found!.endMs).toBeLessThanOrEqual(4_400);
+    expect(found!.endMs).toBeGreaterThanOrEqual(4000);
+    expect(found!.endMs).toBeLessThanOrEqual(4400);
     const coded = analyzeFrames(call("qa-w-owner"), RATE, SURFACES.map((s) => SURFACE_HZ[s]));
     expect(findAnnouncement(coded, 0)).toBeUndefined();
     // Line noise or a hum that never stops is not an announcement.
@@ -283,26 +285,26 @@ describe("Telnyx's automated-call announcement", () => {
   it("starts the window after the announcement, so a code that follows it is heard", () => {
     // Six seconds of announcement, then the far end's code: the usual 2-12 s
     // window would hold the announcement and under three cycles of code.
-    const recording = mix(announcement(6), call("qa-w-owner", { startMs: 6_400 }));
+    const recording = mix(announcement(6), call("qa-w-owner", { startMs: 6400 }));
     const waited = detect(recording);
-    expect(waited.window.announcementMs).toBeGreaterThanOrEqual(5_800);
-    expect(waited.window.startMs).toBeGreaterThanOrEqual(6_000);
+    expect(waited.window.announcementMs).toBeGreaterThanOrEqual(5800);
+    expect(waited.window.startMs).toBeGreaterThanOrEqual(6000);
     expect(waited.window.endMs - waited.window.startMs).toBe(10_000);
     expect(waited.answered).toBe("qa-w-owner");
     expect(waited.scores["qa-w-owner"]!.cycles).toBeGreaterThanOrEqual(4);
     const unwaited = detect(recording, { announcement: false });
-    expect(unwaited.window).toMatchObject({ startMs: 2_000, announcementMs: 0 });
+    expect(unwaited.window).toMatchObject({ startMs: 2000, announcementMs: 0 });
     expect(unwaited.scores["qa-w-owner"]!.cycles).toBeLessThan(waited.scores["qa-w-owner"]!.cycles);
   });
 
   it("leaves the window alone for a call with no announcement", () => {
-    expect(detect(call("pixel")).window).toMatchObject({ startMs: 2_000, endMs: 12_000, announcementMs: 0 });
+    expect(detect(call("pixel")).window).toMatchObject({ startMs: 2000, endMs: 12_000, announcementMs: 0 });
   });
 });
 
 describe("the judging window", () => {
   it("does not count a code that only starts 9 s after answer", () => {
-    expect(detect(call("pixel", { startMs: 9_000 })).verdict).not.toBe("heard");
+    expect(detect(call("pixel", { startMs: 9000 })).verdict).not.toBe("heard");
   });
 
   it("calls a code that ended before 2 s silent", () => {
@@ -314,8 +316,8 @@ describe("the judging window", () => {
 
   it("starts the window at answer, not at the start of the recording", () => {
     const ringing = new Float32Array(RATE * 5);
-    const recording = mix(ringing, delay(call("qa-c"), RATE, 5_000));
-    expect(detect(recording, { answerOffsetMs: 5_000 }).answered).toBe("qa-c");
-    expect(detect(recording, { windowEndMs: 6_000 }).verdict).not.toBe("heard");
+    const recording = mix(ringing, delay(call("qa-c"), RATE, 5000));
+    expect(detect(recording, { answerOffsetMs: 5000 }).answered).toBe("qa-c");
+    expect(detect(recording, { windowEndMs: 6000 }).verdict).not.toBe("heard");
   });
 });

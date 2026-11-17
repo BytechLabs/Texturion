@@ -1,7 +1,5 @@
-import {
-  threadDemoCopy,
-  type ThreadDemoCopy,
-} from "@/i18n/marketing/thread-demo";
+import { threadDemoCopy } from '@/i18n/marketing/thread-demo';
+import type { ThreadDemoCopy } from '@/i18n/marketing/thread-demo';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { avatarInitials } from "@loonext/shared";
 
@@ -348,7 +346,7 @@ export function TradeThread({
   locale = "en",
 }: TradeThreadProps & { locale?: MarketingLocale }) {
   const threadCopy = threadDemoCopy(locale);
-  const doneSet = new Set(script.doneIds ?? []);
+  const doneSet = new Set(script.doneIds);
   const doneLabels = script.doneLabels ?? {};
 
   return (

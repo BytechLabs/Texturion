@@ -8,15 +8,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  CAPABILITIES,
-  MEMBER_ROLES,
-  capabilitiesOf,
-  roleHasCapability,
-  roleSatisfiesRank,
-  type Capability,
-  type MemberRole,
-} from "./capabilities";
+import { CAPABILITIES, capabilitiesOf, MEMBER_ROLES, roleHasCapability, roleSatisfiesRank } from './capabilities';
+import type { Capability, MemberRole } from './capabilities';
 
 describe("the model reproduces today's rank exactly", () => {
   it("owner ⊃ admin ⊃ member, as capability sets", () => {
@@ -84,13 +77,13 @@ describe("the model reproduces today's rank exactly", () => {
     // workspace.access is the boot baseline every role has (the company record
     // the app loads on, your own notification prefs, leaving). The point of
     // pinning the exact set is that widening a member happens on purpose.
-    expect(capabilitiesOf("member").sort()).toEqual(
+    expect(capabilitiesOf("member").toSorted()).toEqual(
       [
         "conversations.note",
         "conversations.read",
         "conversations.send",
         "workspace.access",
-      ].sort(),
+      ].toSorted(),
     );
   });
 
@@ -172,8 +165,8 @@ describe("the model is well-formed", () => {
 
   it("a read-only observer can see the work and change nothing", () => {
     // The exact set, because widening an observer must happen on purpose.
-    expect(capabilitiesOf("read_only").sort()).toEqual(
-      ["conversations.read", "workspace.access"].sort(),
+    expect(capabilitiesOf("read_only").toSorted()).toEqual(
+      ["conversations.read", "workspace.access"].toSorted(),
     );
     // And nothing of the business, which is the other half of "observer".
     for (const cap of [
@@ -199,8 +192,8 @@ describe("the model is well-formed", () => {
   it("a bookkeeper never sees a customer", () => {
     // The exact set, because widening this role is the one change that would
     // quietly undo what it exists for.
-    expect(capabilitiesOf("bookkeeper").sort()).toEqual(
-      ["billing.manage", "workspace.access"].sort(),
+    expect(capabilitiesOf("bookkeeper").toSorted()).toEqual(
+      ["billing.manage", "workspace.access"].toSorted(),
     );
     for (const cap of [
       "conversations.read",

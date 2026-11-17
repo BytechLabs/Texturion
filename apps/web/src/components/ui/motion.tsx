@@ -57,7 +57,7 @@ export function MessageArrival<T extends React.ElementType = "div">({
   className?: string;
   children?: React.ReactNode;
 } & Omit<React.ComponentPropsWithoutRef<T>, "as" | "className" | "children">) {
-  const Comp = (as ?? "div") as React.ElementType;
+  const Comp = (as ?? "div");
   return (
     <Comp
       className={cn(animate && "app-motion-message-in", className)}

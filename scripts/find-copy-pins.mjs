@@ -11,7 +11,7 @@
  *   - tests that read packages/shared/src/<module>.ts by path
  *   - tests (any tree) containing one of its sentences verbatim
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const R = "D:/projects/JobText";

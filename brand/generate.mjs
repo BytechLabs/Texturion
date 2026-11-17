@@ -17,9 +17,8 @@
  */
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
 const require = createRequire(import.meta.url);
 /** pnpm keeps no root `sharp` link - resolve through the virtual store. */
@@ -34,7 +33,7 @@ function loadSharp(root) {
   }
 }
 
-const brandDir = dirname(fileURLToPath(import.meta.url));
+const brandDir = import.meta.dirname;
 const root = join(brandDir, "..");
 const sharp = loadSharp(root);
 const pub = join(root, "apps", "web", "public");
@@ -101,7 +100,7 @@ async function main() {
   // setting it after import is too late. Re-exec once with it in place so
   // plain `node brand/generate.mjs` renders the wordmark in Golos.
   if (process.env.FONTCONFIG_FILE !== join(brandDir, "fonts.conf")) {
-    const r = spawnSync(process.execPath, [fileURLToPath(import.meta.url)], {
+    const r = spawnSync(process.execPath, [import.meta.filename], {
       env: { ...process.env, FONTCONFIG_FILE: join(brandDir, "fonts.conf") },
       stdio: "inherit",
     });
@@ -136,7 +135,7 @@ async function main() {
   console.log("brand rasters written");
 }
 
-main().catch((e) => {
-  console.error(e);
+main().catch((error) => {
+  console.error(error);
   process.exit(1);
 });

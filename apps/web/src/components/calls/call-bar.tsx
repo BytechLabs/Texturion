@@ -84,7 +84,7 @@ function TransferMenu({
         <p className="px-2 py-1.5 text-sm text-app-muted-2">
           {t("shell.loading")}
         </p>
-      ) : (targets.data?.targets.length ?? 0) === 0 ? (
+      ) : ((targets.data?.targets.length ?? 0) === 0 ? (
         <p className="px-2 py-1.5 text-sm text-app-muted-2">
           {t("shell.noTransferTargets")}
         </p>
@@ -125,7 +125,7 @@ function TransferMenu({
             )}
           </button>
         ))
-      )}
+      ))}
     </div>
   );
 }
@@ -158,10 +158,10 @@ function CallChip({ call }: { call: CallInfo }) {
           size="sm"
           className="h-6 gap-1 px-2 text-[12px]"
           onClick={() =>
-            void softphone.answer(call.id).catch((cause) =>
+            void softphone.answer(call.id).catch((error) =>
               toast.error(
-                cause instanceof Error
-                  ? cause.message
+                error instanceof Error
+                  ? error.message
                   : t("shell.answerFailed"),
               ),
             )
@@ -365,11 +365,11 @@ function ActiveCard({ call }: { call: CallInfo }) {
         <p className="truncate text-xs text-app-muted-2">
           {call.phase === "connecting" ? (
             t("shell.calling")
-          ) : call.activeSince !== null ? (
-            <LiveTimer since={call.activeSince} />
-          ) : (
+          ) : (call.activeSince === null ? (
             ""
-          )}
+          ) : (
+            <LiveTimer since={call.activeSince} />
+          ))}
           {number ? ` · ${number}` : ""}
         </p>
       </div>

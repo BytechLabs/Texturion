@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -9,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * rig's configs, and which hosts count as the rig's own.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 type Findings = { judged: number; refused: number; problems: string[] };
 const guard = (await import(join(REPO, "scripts", "check-rig-hosts.mjs"))) as {
@@ -317,7 +316,7 @@ describe("the configs the deploy CLI derives", () => {
   });
 
   it("fails production wiring that survived, and a production var", () => {
-    const problems = guard.derivedFindings("s", derived({ routes: [], vars: { ORIGIN: "https://app.loonext.com" } })).problems;
+    const {problems} = guard.derivedFindings("s", derived({ routes: [], vars: { ORIGIN: "https://app.loonext.com" } }));
     expect(problems).toEqual(
       expect.arrayContaining([
         "s (derived wrangler.rig.jsonc)  keeps routes",

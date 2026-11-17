@@ -85,11 +85,11 @@ appReleaseRoutes.get("/app-release", async (c) => {
     const value = (data as ReleasePolicy | null) ?? noDemands(platform);
     policyCache.set(platform, { value, expiresAt: now + POLICY_TTL_SECONDS * 1000 });
     return c.json(value, 200, responseHeaders());
-  } catch (cause) {
+  } catch (error) {
     // A database outage must not become a fleet-wide update screen. Logged so
     // it is not silent, answered permissively so it is not an incident. Never
     // cached, so the real policy is back on the next request after the outage.
-    console.error(`app-release: policy read failed for ${platform}: ${String(cause)}`);
+    console.error(`app-release: policy read failed for ${platform}: ${String(error)}`);
     return c.json(noDemands(platform), 200, responseHeaders());
   }
 });

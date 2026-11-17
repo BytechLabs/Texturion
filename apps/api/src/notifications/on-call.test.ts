@@ -79,7 +79,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("routeAfterHoursAlert", () => {
+describe(routeAfterHoursAlert, () => {
   it("OC-A: a Saturday night call goes to the one person holding the phone", async () => {
     const { db } = world({ onCall: ON_CALL });
 

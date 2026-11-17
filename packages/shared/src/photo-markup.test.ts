@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  MARKUP_TOOLS,
   arrowHead,
   circleFromDrag,
   isDeliberateDrag,
   markedUpFileName,
+  MARKUP_TOOLS,
   markupStrokeWidth,
 } from "./photo-markup";
 
@@ -33,7 +33,7 @@ describe("how thick to draw (#294)", () => {
 
   it("never disappears and never covers what it points at", () => {
     expect(markupStrokeWidth(40, 30)).toBeGreaterThanOrEqual(3);
-    expect(markupStrokeWidth(20000, 20000)).toBeLessThanOrEqual(18);
+    expect(markupStrokeWidth(20_000, 20_000)).toBeLessThanOrEqual(18);
   });
 
   it("measures the SHORT edge, so a panorama is not drawn with a fence post", () => {

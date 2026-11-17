@@ -46,7 +46,7 @@ const EMAIL = /[\w.+-]+@[\w-]+\.[\w.-]+/g;
  * less specific diagnostic line, which is a cost worth paying every time.
  */
 export function scrubErrorLine(raw: string): string {
-  return raw.replace(EMAIL, "[email]").replace(PHONE, "[number]").slice(0, 160);
+  return raw.replaceAll(EMAIL, "[email]").replaceAll(PHONE, "[number]").slice(0, 160);
 }
 
 /**
@@ -73,7 +73,7 @@ export function recordClientError(line: string): void {
 export function recentClientErrors(): string[] {
   return ring
     .slice()
-    .reverse()
+    .toReversed()
     .map((entry) => `${new Date(entry.at).toISOString().slice(11, 19)} ${entry.line}`);
 }
 

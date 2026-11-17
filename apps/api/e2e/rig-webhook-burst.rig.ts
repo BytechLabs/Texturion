@@ -28,7 +28,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { deleteCompaniesSql } from "./company-cleanup";
 import { burst, capacityResult, emitCapacityResult, line } from "./load-report";
-import { startRigStack, type RigStack } from "./rig-stack";
+import { startRigStack } from './rig-stack';
+import type { RigStack } from './rig-stack';
 
 let stack: RigStack;
 
@@ -173,7 +174,7 @@ describe("#251 webhook burst on the rig, ramped", () => {
     console.log(line(report));
     const settled = await settle(before + 1, Date.now() - report.totalMs);
     // A further beat, so a late duplicate would be counted rather than missed.
-    await new Promise((resolve) => setTimeout(resolve, 3_000));
+    await new Promise((resolve) => setTimeout(resolve, 3000));
     const after = await messageCount();
 
     expect(after - before, "duplicates or drops from one event").toBe(1);
@@ -241,7 +242,7 @@ describe("#251 webhook burst on the rig, ramped", () => {
       const settled = await settle(before + level, Date.now() - report.totalMs);
       // A beat for late duplicates, then until the ledger says every acked event
       // was finished with: the row lands before the ledger is marked.
-      await new Promise((resolve) => setTimeout(resolve, 2_000));
+      await new Promise((resolve) => setTimeout(resolve, 2000));
       const landed = (await messageCount()) - before;
       const drainStart = Date.now();
       let rows = await ledger(prefix);

@@ -63,7 +63,7 @@ describe("#366 — who gets rung when the crew is bigger than the ceiling", () =
     const rotated = rotateForFairness(people, "session-abc");
     expect(rotated).toHaveLength(people.length);
     expect(new Set(rotated).size).toBe(people.length);
-    expect([...rotated].sort()).toEqual([...people].sort());
+    expect([...rotated].toSorted()).toEqual([...people].toSorted());
   });
 
   it("leaves a crew under the ceiling completely alone", () => {
@@ -71,7 +71,7 @@ describe("#366 — who gets rung when the crew is bigger than the ceiling", () =
     // everybody is dialled either way, so the order should not move.
     const people = crew(5);
     const rotated = rotateForFairness(people, "session-abc");
-    expect([...rotated].sort()).toEqual([...people].sort());
+    expect([...rotated].toSorted()).toEqual([...people].toSorted());
     expect(rotated).toHaveLength(5);
   });
 

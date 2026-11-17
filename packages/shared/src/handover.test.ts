@@ -7,14 +7,8 @@ import { describe, expect, it } from "vitest";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
-import {
-  handoverPromptCancelLabel,
-  handoverPromptHeadline,
-  handoverPromptIsUrgent,
-  viewerHandoverPrompt,
-  type HandoverPromptKind,
-  type HandoverViewer,
-} from "./handover";
+import { handoverPromptCancelLabel, handoverPromptHeadline, handoverPromptIsUrgent, viewerHandoverPrompt } from './handover';
+import type { HandoverPromptKind, HandoverViewer } from './handover';
 
 const ALL: HandoverPromptKind[] = [
   "accept_offer",
@@ -25,7 +19,7 @@ const ALL: HandoverPromptKind[] = [
 
 const nobody: HandoverViewer = { can_claim: false, pending: null };
 
-describe("viewerHandoverPrompt", () => {
+describe(viewerHandoverPrompt, () => {
   it("gives the named backup somewhere to start", () => {
     expect(viewerHandoverPrompt({ can_claim: true, pending: null })).toBe(
       "backup_standing",
@@ -90,14 +84,14 @@ function look(table: unknown, key: string): string {
   const value = (table as Record<string, Record<string, string>>)[section]?.[
     name
   ];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
 const sayEn = (key: string): string => look(WEB_EN, key);
 const sayFr = (key: string): string => look(WEB_FR, key);
 
-describe("handoverPromptHeadline", () => {
+describe(handoverPromptHeadline, () => {
   it("speaks to the reader in every state", () => {
     for (const kind of ALL) {
       const line = handoverPromptHeadline(kind, sayEn);
@@ -121,7 +115,7 @@ describe("handoverPromptHeadline", () => {
   });
 });
 
-describe("handoverPromptCancelLabel", () => {
+describe(handoverPromptCancelLabel, () => {
   it("never tells somebody to decline their own request", () => {
     expect(handoverPromptCancelLabel("complete_claim", sayEn)).toBe(
       "Withdraw my request",
@@ -150,7 +144,7 @@ describe("handoverPromptCancelLabel", () => {
   });
 });
 
-describe("handoverPromptIsUrgent", () => {
+describe(handoverPromptIsUrgent, () => {
   it("interrupts only for the states on a clock", () => {
     expect(handoverPromptIsUrgent("accept_offer")).toBe(true);
     expect(handoverPromptIsUrgent("complete_claim")).toBe(true);

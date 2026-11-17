@@ -1,6 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -11,7 +10,7 @@ import { describe, expect, it } from "vitest";
  * scripts falls back to that environment.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 const { isLocalUrl, localSupabaseUrl, LOCAL_SUPABASE_URL } = (await import(
   join(REPO, "scripts", "local-supabase.mjs")

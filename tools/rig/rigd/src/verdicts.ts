@@ -116,10 +116,10 @@ export class VerdictStore {
     const out: UnresolvedFailure[] = [];
     for (const verdicts of byRun.values()) {
       const last = verdicts.at(-1)!;
-      const scenario = last.scenario;
+      const {scenario} = last;
       if (last.outcome === "pass") continue;
       let streak = verdicts.length;
-      while (streak > 0 && verdicts[streak - 1]!.outcome !== "pass") streak--;
+      while (streak > 0 && verdicts[streak - 1]!.outcome !== "pass") streak -= 1;
       const failing = verdicts.slice(streak);
       out.push({
         scenario,
@@ -130,7 +130,7 @@ export class VerdictStore {
         last,
       });
     }
-    return out.sort((a, b) => a.since.localeCompare(b.since));
+    return out.toSorted((a, b) => a.since.localeCompare(b.since));
   }
 
   /** Dials spent by attempts that started in [from, to). */
@@ -143,7 +143,7 @@ export class VerdictStore {
   saveEvidence(runId: string, attempt: number, evidence: unknown): void {
     const path = this.#evidencePath(runId);
     const existing = existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as unknown[]) : [];
-    existing.push({ attempt, ...((evidence ?? {}) as object) });
+    existing.push({ attempt, ...((evidence ?? {})) });
     writeFileSync(path, JSON.stringify(existing));
   }
 

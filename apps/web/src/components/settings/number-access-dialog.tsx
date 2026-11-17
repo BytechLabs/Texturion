@@ -15,7 +15,8 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
 import { useNumberAccess, useSetNumberAccess } from "@/lib/api/numbers";
 import { useMembers } from "@/lib/api/team";
@@ -86,7 +87,7 @@ export function NumberAccessDialog({
   // Seed the form from the server shape whenever the dialog (re)opens.
   useEffect(() => {
     if (!open || !access.data) return;
-    const data = access.data;
+    const {data} = access;
     if (data.access === "everyone") {
       setMode("everyone");
     } else if (data.access === "role") {

@@ -8,20 +8,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { blockedSendersRoutes } from "./blocked-senders";
 
 const env = completeEnv();
@@ -90,7 +80,7 @@ describe("POST /v1/blocked-senders", () => {
     });
 
     expect(res.status).toBe(201);
-    expect(await res.json()).toMatchObject({ phone_e164: "+14155559999" });
+    await expect(res.json()).resolves.toMatchObject({ phone_e164: "+14155559999" });
     // A block is a person's decision, so unlike the classifier's arrivals it
     // names the member. "Why did this number stop reaching us" has an answer.
     const audits = sb.find("POST", "/rest/v1/audit_log");
@@ -159,7 +149,7 @@ describe("GET /v1/blocked-senders", () => {
     const sb = stubs();
     const res = await call(sb, "/v1/blocked-senders", { method: "GET" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [] });
+    await expect(res.json()).resolves.toEqual({ data: [] });
     const reads = sb.find("GET", "/rest/v1/blocked_senders");
     expect(reads.length).toBeGreaterThan(0);
     // #347's tenant-scope suite is what proves every query carries company_id;

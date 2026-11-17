@@ -7,7 +7,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
-import { MEMBER_ROLES, canSeeSettingsSection } from "@loonext/shared";
+import { canSeeSettingsSection, MEMBER_ROLES } from "@loonext/shared";
 
 import { SETTINGS_SECTIONS } from "@/components/settings/settings-nav";
 

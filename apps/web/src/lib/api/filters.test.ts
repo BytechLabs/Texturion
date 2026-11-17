@@ -38,7 +38,7 @@ function item(overrides: Partial<ConversationListItem> = {}): ConversationListIt
 
 const NOW = Date.parse("2026-08-05T10:00:00.000Z");
 
-describe("isSnoozed", () => {
+describe(isSnoozed, () => {
   it("is computed from the return time, never from the field's presence", () => {
     expect(isSnoozed(item(), NOW)).toBe(false);
     expect(isSnoozed(item({ snoozed_until: null }), NOW)).toBe(false);
@@ -122,7 +122,7 @@ describe("conversationMatchesFilters + #508", () => {
     // An older cached payload carries no lead clock. Reading missing as
     // answered would drop a waiting lead off the one screen that names it, so
     // null hands the decision back to staleness instead.
-    expect(conversationMatchesFilters(item(), { awaiting: "only" })).toBe(null);
+    expect(conversationMatchesFilters(item(), { awaiting: "only" })).toBeNull();
   });
 
   it("is one gate among several, not a short circuit", () => {

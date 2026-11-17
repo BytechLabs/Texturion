@@ -225,8 +225,8 @@ contactRoutes.post("/contact", async (c) => {
       text: ack.text,
       html: renderEmailHtml(ack.text),
     });
-  } catch (cause) {
-    console.error("contact acknowledgment email failed:", cause);
+  } catch (error_) {
+    console.error("contact acknowledgment email failed:", error_);
   }
 
   return c.json({ ok: true }, 201);
@@ -237,11 +237,11 @@ function supportText(body: ContactBody, ip: string): string {
   return (
     `New contact form submission on loonext.com\n\n` +
     `Name: ${body.name}\n` +
-    `Email: ${body.email}\n` +
-    (body.company !== undefined && body.company !== ""
+    `Email: ${body.email}\n${ 
+    body.company !== undefined && body.company !== ""
       ? `Company: ${body.company}\n`
-      : "") +
-    `IP: ${ip}\n\n` +
+      : "" 
+    }IP: ${ip}\n\n` +
     `Message:\n\n${body.message}\n\n` +
     `Reply to this email to answer them directly.\n`
   );
@@ -253,11 +253,11 @@ function supportHtml(body: ContactBody, ip: string): string {
   return emailLayout(
     `<p>New contact form submission on loonext.com</p>` +
       `<p><strong>Name:</strong> ${escapeHtml(body.name)}<br>` +
-      `<strong>Email:</strong> ${escapeHtml(body.email)}<br>` +
-      (body.company !== undefined && body.company !== ""
+      `<strong>Email:</strong> ${escapeHtml(body.email)}<br>${ 
+      body.company !== undefined && body.company !== ""
         ? `<strong>Company:</strong> ${escapeHtml(body.company)}<br>`
-        : "") +
-      `<strong>IP:</strong> ${escapeHtml(ip)}</p>` +
+        : "" 
+      }<strong>IP:</strong> ${escapeHtml(ip)}</p>` +
       `<blockquote style="margin:0 0 16px;padding:8px 16px;border-left:3px solid #E8E8E0;color:#4A4D3C;">${toHtml(body.message)}</blockquote>` +
       `<p>Reply to this email to answer them directly.</p>`,
   );

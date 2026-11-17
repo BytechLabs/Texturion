@@ -2,15 +2,10 @@ import { HEADER } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
 import { limitRule, roomFor } from "../src/state/admission";
-import {
-  LIMIT_KEYS,
-  limitInForce,
-  recordCeiling,
-  roomUnder,
-  type HistoryRecord,
-  type ValidationRecord,
-} from "../src/state/concurrency";
-import { fileValidation, harness, lease, ready, registerViaEdge, ruleOf, type Harness } from "./support";
+import { LIMIT_KEYS, limitInForce, recordCeiling, roomUnder } from '../src/state/concurrency';
+import type { HistoryRecord, ValidationRecord } from '../src/state/concurrency';
+import { fileValidation, harness, lease, ready, registerViaEdge, ruleOf } from './support';
+import type { Harness } from './support';
 
 const DAY = 24 * 60 * 60 * 1000;
 
@@ -53,28 +48,28 @@ describe("the limit in force", () => {
   it("is a fresh exact validation, capped by the lowest valued ceiling", async () => {
     const h = harness();
     await validation(h, { value: 5 });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, source: "validation" });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 5, source: "validation" });
     expect(roomUnder(await limitInForce(h.ctx), 3)).toBe(2);
     await recordCeiling(h.ctx, { value: 4, from: "telnyx-90041" });
     await recordCeiling(h.ctx, { value: 6, from: "telnyx-90042" });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 4, source: "validation", ceiling: { value: 4, from: "telnyx-90041" } });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 4, source: "validation", ceiling: { value: 4, from: "telnyx-90041" } });
   });
 
   it("counts a validation above Paid's 5 only as far as production's history corroborates", async () => {
     const h = harness();
     await validation(h, { value: 40 });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, source: "validation" });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 5, source: "validation" });
     await history(h, 7);
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 7, source: "validation", conflict: null });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 7, source: "validation", conflict: null });
     await validation(h, { value: 6 });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 6 });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 6 });
   });
 
   it("stays the floor when the check found the rule not enforced, or could not tell", async () => {
     for (const result of ["not_enforced", "inconclusive"] as const) {
       const h = harness();
       await validation(h, { result, value: null });
-      expect(await limitInForce(h.ctx), result).toMatchObject({ limit: 2, source: "floor" });
+      await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 2, source: "floor" });
     }
   });
 
@@ -91,7 +86,7 @@ describe("the limit in force", () => {
     const h = harness();
     await history(h, 4);
     await validation(h, { value: 5 });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, source: "validation", conflict: null });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 5, source: "validation", conflict: null });
   });
 
   it("lets each kind of evidence lapse after 35 days", async () => {
@@ -99,26 +94,26 @@ describe("the limit in force", () => {
     const old = h.clock.now - 35 * DAY - 1;
     await validation(h, { value: 5, measured_at: old });
     await history(h, 4, old);
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 2, source: "floor", history: null });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 2, source: "floor", history: null });
     await validation(h, { value: 5, measured_at: h.clock.now - 35 * DAY });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, source: "validation" });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 5, source: "validation" });
 
     await recordCeiling(h.ctx, { value: 3, from: "telnyx-90041" });
     expect((await limitInForce(h.ctx)).limit).toBe(3);
     h.advance(35 * DAY + 1);
     await validation(h, { value: 5 });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, ceiling: null });
-    expect(await h.store.get(LIMIT_KEYS.ceiling)).toHaveLength(1);
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 5, ceiling: null });
+    await expect(h.store.get(LIMIT_KEYS.ceiling)).resolves.toHaveLength(1);
     await recordCeiling(h.ctx, { value: null, from: "telnyx-90042" });
     // Writing a new ceiling drops the lapsed ones.
-    expect(await h.store.get(LIMIT_KEYS.ceiling)).toEqual([{ value: null, from: "telnyx-90042", at: h.clock.now }]);
+    await expect(h.store.get(LIMIT_KEYS.ceiling)).resolves.toEqual([{ value: null, from: "telnyx-90042", at: h.clock.now }]);
   });
 
   it("shows a value-less ceiling without moving the limit", async () => {
     const h = harness();
     await validation(h, { value: 5 });
     await recordCeiling(h.ctx, { value: null, from: "telnyx-90043" });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, ceiling: { value: null, from: "telnyx-90043" }, conflict: null });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 5, ceiling: { value: null, from: "telnyx-90043" }, conflict: null });
   });
 });
 
@@ -153,7 +148,7 @@ describe("a conflict in the evidence", () => {
     const before = await h.store.list("");
     expect((await limitInForce(h.ctx)).conflict).toBe("validation_below_history");
     expect(h.outbound).toEqual([]);
-    expect(await h.store.list("")).toEqual(before);
+    await expect(h.store.list("")).resolves.toEqual(before);
   });
 
   it("refuses a bridge too, though it adds no leg", async () => {
@@ -166,7 +161,7 @@ describe("a conflict in the evidence", () => {
       body: { call_control_id: "ccid-2" },
       headers: { [HEADER.lease]: id },
     });
-    expect(await ruleOf(bridge)).toBe("admission.limit_conflict");
+    await expect(ruleOf(bridge)).resolves.toBe("admission.limit_conflict");
   });
 });
 
@@ -175,16 +170,16 @@ describe("level evidence from the robot", () => {
 
   it("caps the limit at the Paid level's 5 when the robot heard the announcement", async () => {
     const h = await ready();
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, ceiling: null });
-    const response = await post(h, { announcement_ms: 4_200, at: new Date(h.clock.now).toISOString() });
-    expect(await response.json()).toEqual({ recorded: true, level: "paid_or_below" });
-    expect(await limitInForce(h.ctx)).toMatchObject({ limit: 5, ceiling: { value: 5, from: "level:paid_or_below" } });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 5, ceiling: null });
+    const response = await post(h, { announcement_ms: 4200, at: new Date(h.clock.now).toISOString() });
+    await expect(response.json()).resolves.toEqual({ recorded: true, level: "paid_or_below" });
+    await expect(limitInForce(h.ctx)).resolves.toMatchObject({ limit: 5, ceiling: { value: 5, from: "level:paid_or_below" } });
   });
 
   it("records nothing for a call with no announcement, and can never raise the limit", async () => {
     const h = await ready({ validated: 3 });
-    expect(await (await post(h, { announcement_ms: 0, at: new Date(h.clock.now).toISOString() })).json()).toEqual({ recorded: false });
-    expect(await h.store.get(LIMIT_KEYS.ceiling)).toBeUndefined();
+    await expect((await post(h, { announcement_ms: 0, at: new Date(h.clock.now).toISOString() })).json()).resolves.toEqual({ recorded: false });
+    await expect(h.store.get(LIMIT_KEYS.ceiling)).resolves.toBeUndefined();
     await post(h, { announcement_ms: 900, at: new Date(h.clock.now).toISOString() });
     expect((await limitInForce(h.ctx)).limit).toBe(3);
   });
@@ -193,14 +188,14 @@ describe("level evidence from the robot", () => {
     const h = await ready();
     const at = new Date(h.clock.now).toISOString();
     for (const caller of ["rig-api", "admin", "diag", "edge"]) {
-      expect(await ruleOf(await post(h, { announcement_ms: 10, at }, caller)), caller).toBe("class.not_allowed");
+      await expect(ruleOf(await post(h, { announcement_ms: 10, at }, caller))).resolves.toBe("class.not_allowed");
     }
     for (const body of [{ at }, { announcement_ms: -1, at }, { announcement_ms: "10", at }, { announcement_ms: 10 }, { announcement_ms: 10, at: "soon" }]) {
-      expect(await ruleOf(await post(h, body)), JSON.stringify(body)).toBe("request.body_invalid");
+      await expect(ruleOf(await post(h, body))).resolves.toBe("request.body_invalid");
     }
-    expect(await ruleOf(await h.call("/evidence/other", { caller: "robot", body: { announcement_ms: 10, at } }))).toBe("route.unknown");
-    expect(await ruleOf(await h.call("/evidence/level", { caller: "robot" }))).toBe("route.unknown");
-    expect(await h.store.get(LIMIT_KEYS.ceiling)).toBeUndefined();
+    await expect(ruleOf(await h.call("/evidence/other", { caller: "robot", body: { announcement_ms: 10, at } }))).resolves.toBe("route.unknown");
+    await expect(ruleOf(await h.call("/evidence/level", { caller: "robot" }))).resolves.toBe("route.unknown");
+    await expect(h.store.get(LIMIT_KEYS.ceiling)).resolves.toBeUndefined();
   });
 });
 
@@ -210,11 +205,11 @@ describe("production's measurements of concurrency and dial peaks", () => {
   it("files the history bound and the dial peaks, never later than now", async () => {
     const h = harness();
     const future = new Date(h.clock.now + DAY).toISOString();
-    expect(await (await admin(h, "/concurrency-history", { peak_calls: 3, measured_at: future })).json()).toEqual({
+    await expect((await admin(h, "/concurrency-history", { peak_calls: 3, measured_at: future })).json()).resolves.toEqual({
       peak_calls: 3,
       measured_at: h.clock.now,
     });
-    expect(await (await admin(h, "/account-rate", { peak_hour_dials: 2, peak_day_dials: 9 })).json()).toEqual({
+    await expect((await admin(h, "/account-rate", { peak_hour_dials: 2, peak_day_dials: 9 })).json()).resolves.toEqual({
       peak_hour_dials: 2,
       peak_day_dials: 9,
       measured_at: h.clock.now,
@@ -224,11 +219,11 @@ describe("production's measurements of concurrency and dial peaks", () => {
   it("refuses counts that are not whole numbers, or an hour above its day", async () => {
     const h = harness();
     for (const body of [{}, { peak_calls: -1 }, { peak_calls: 2.5 }, { peak_calls: "3" }]) {
-      expect(await ruleOf(await admin(h, "/concurrency-history", body)), JSON.stringify(body)).toBe("request.body_invalid");
+      await expect(ruleOf(await admin(h, "/concurrency-history", body))).resolves.toBe("request.body_invalid");
     }
     for (const body of [{ peak_hour_dials: 1 }, { peak_hour_dials: 5, peak_day_dials: 4 }, { peak_hour_dials: 1, peak_day_dials: 2, measured_at: "x" }]) {
-      expect(await ruleOf(await admin(h, "/account-rate", body)), JSON.stringify(body)).toBe("request.body_invalid");
+      await expect(ruleOf(await admin(h, "/account-rate", body))).resolves.toBe("request.body_invalid");
     }
-    expect(await h.store.get(LIMIT_KEYS.history)).toBeUndefined();
+    await expect(h.store.get(LIMIT_KEYS.history)).resolves.toBeUndefined();
   });
 });

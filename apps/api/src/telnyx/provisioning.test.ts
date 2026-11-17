@@ -1,34 +1,18 @@
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { vi } from "vitest";
 
-import {
-  closeOutDeadProvisioning,
-  MAX_PROVISION_ATTEMPTS,
-  provisionCompanyNumber,
-  reconcileNumbers,
-  releaseCompanyNumbers,
-  releaseNumberRow,
-  resumeProvisioning,
-  suspendCompanyNumbers,
-  sweepStuckProvisioning,
-  TelnyxPartitionRefusal,
-  type PhoneNumberRow,
-} from "./provisioning";
-import {
-  FakeRest,
-  registerProvisioningRpcs,
-  resendRoute,
-  TelnyxMock,
-  telnyxError,
-  type SentEmailCapture,
-} from "./test-support";
+import { closeOutDeadProvisioning, MAX_PROVISION_ATTEMPTS, provisionCompanyNumber, reconcileNumbers, releaseCompanyNumbers, releaseNumberRow, resumeProvisioning, suspendCompanyNumbers, sweepStuckProvisioning, TelnyxPartitionRefusal } from './provisioning';
+import type { PhoneNumberRow } from './provisioning';
+import { FakeRest, registerProvisioningRpcs, resendRoute, telnyxError, TelnyxMock } from './test-support';
+import type { SentEmailCapture } from './test-support';
 import { getDb } from "../db";
 import {
   exceptionsCaptured,
   noticesCaptured,
   resetCaptures,
 } from "../test/capture-mock";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 
 /**
  * #526: the close-out is best-effort at all three of its call sites, so a

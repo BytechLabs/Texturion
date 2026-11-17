@@ -26,14 +26,10 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import { completeEnv, createTestAuth, jwksRoute, stubFetch, type TestAuth } from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { mfaRoutes } from "./mfa";
 
 const env = completeEnv();
@@ -95,7 +91,7 @@ describe("#545 a password-only session cannot mint recovery codes", () => {
     const res = await mint(sb, "aal1");
 
     expect(res.status).toBe(403);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "mfa_challenge_required" },
     });
     // The load-bearing assertion: nothing was minted. A 401 that still wrote
@@ -142,7 +138,7 @@ describe("#545 a password-only session cannot mint recovery codes", () => {
     const res = await mint(sb, "aal1");
 
     expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({ error: { code: "conflict" } });
+    await expect(res.json()).resolves.toMatchObject({ error: { code: "conflict" } });
     expect(
       sb.find("POST", "/rest/v1/rpc/api_mfa_set_recovery_codes"),
     ).toHaveLength(0);

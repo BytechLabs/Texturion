@@ -16,7 +16,8 @@ import {
 
 import { sayEnglish } from "@/i18n/translate";
 import { ApiError } from "@/lib/api/error";
-import { PLAN_PRICING, type CompanyView } from "@/lib/api/types";
+import { PLAN_PRICING } from '@/lib/api/types';
+import type { CompanyView } from '@/lib/api/types';
 
 import { PLAN_FACTS } from "./plan-facts";
 

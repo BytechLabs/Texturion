@@ -22,7 +22,7 @@ import type { Env } from "../env";
 import { CRON_JOBS } from "../index";
 import { rpcMatch, stubRoute } from "../test/messaging-support";
 import { completeEnv, stubFetch } from "../test/support";
-import { PUBLIC_LINK_ACCESS_RETENTION_DAYS, prunePublicLinkAccess } from "./retention-prunes";
+import { prunePublicLinkAccess, PUBLIC_LINK_ACCESS_RETENTION_DAYS } from "./retention-prunes";
 
 const REPO_ROOT = join(fileURLToPath(new URL("../../../..", import.meta.url)));
 
@@ -39,7 +39,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("prunePublicLinkAccess", () => {
+describe(prunePublicLinkAccess, () => {
   it("asks for exactly the window the inventory publishes", async () => {
     const rpc = stubRoute(
       rpcMatch(env, "api_prune_public_link_access"),

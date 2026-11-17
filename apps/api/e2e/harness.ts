@@ -23,17 +23,23 @@
  */
 import { execFileSync } from "node:child_process";
 
-import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
+import type { SupabaseClient } from '@supabase/supabase-js';
 import Stripe from "stripe";
 
 import { app } from "../src/index";
 import { expectedIssuer } from "../src/auth/jwt";
 import { generateVapidPair } from "../src/test/vapid-keys";
-import { createCallSessions, type CallSessionsDouble } from "./call-sessions";
-import { startFakeJwks, type JwksAuth } from "./fake-jwks";
-import { startFakeResend, type FakeResend, type SentEmail } from "./fake-resend";
-import { startFakeStripe, type FakeStripe } from "./fake-stripe";
-import { startFakeTelnyx, type FakeTelnyx } from "./fake-telnyx";
+import { createCallSessions } from './call-sessions';
+import type { CallSessionsDouble } from './call-sessions';
+import { startFakeJwks } from './fake-jwks';
+import type { JwksAuth } from './fake-jwks';
+import { startFakeResend } from './fake-resend';
+import type { FakeResend, SentEmail } from './fake-resend';
+import { startFakeStripe } from './fake-stripe';
+import type { FakeStripe } from './fake-stripe';
+import { startFakeTelnyx } from './fake-telnyx';
+import type { FakeTelnyx } from './fake-telnyx';
 
 // Literal fallbacks (the CLI defaults) if `supabase status` cannot be parsed.
 const FALLBACK_SUPABASE_URL = "http://127.0.0.1:54321";
@@ -151,7 +157,7 @@ function makeCtx(): { ctx: ExecutionContext; flush: () => Promise<unknown> } {
     ctx,
     flush: async () => {
       while (tasks.length > 0) {
-        const batch = tasks.splice(0, tasks.length);
+        const batch = tasks.splice(0);
         await Promise.allSettled(batch);
       }
     },
@@ -241,7 +247,7 @@ export async function startHarness(): Promise<Harness> {
     if (options.token) headers["Authorization"] = `Bearer ${options.token}`;
     if (options.companyId) headers["X-Company-Id"] = options.companyId;
     if (options.idempotencyKey)
-      headers["Idempotency-Key"] = options.idempotencyKey;
+      {headers["Idempotency-Key"] = options.idempotencyKey;}
     let body: string | undefined;
     if (options.body !== undefined) {
       headers["Content-Type"] = "application/json";

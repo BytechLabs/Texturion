@@ -1,6 +1,5 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -25,7 +24,7 @@ import { describe, expect, it } from "vitest";
  * has to be caught.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const WEB = join(REPO, "apps", "web");
 const FONTS_DIR = join(WEB, "src", "app", "fonts");
 const LICENSES_DIR = join(FONTS_DIR, "licenses");
@@ -66,7 +65,7 @@ function googleFamilies(): string[] {
       for (const match of source.matchAll(importBlock)) {
         for (const raw of match[1].split(",")) {
           const name = raw.trim();
-          if (name) found.add(name.replace(/_/g, ""));
+          if (name) found.add(name.replaceAll('_', ""));
         }
       }
     }
@@ -78,7 +77,7 @@ function googleFamilies(): string[] {
 const licenseFiles = readdirSync(LICENSES_DIR).filter((f) => f.endsWith(".txt"));
 const readme = readFileSync(join(LICENSES_DIR, "README.md"), "utf8");
 
-const shipped = [...selfHostedFamilies(), ...googleFamilies()].sort();
+const shipped = [...selfHostedFamilies(), ...googleFamilies()].toSorted();
 
 describe("#429 every font we serve ships its license", () => {
   it("finds the fonts by reading what is loaded, so the guard cannot go blind", () => {

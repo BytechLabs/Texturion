@@ -111,10 +111,10 @@ export async function runCarrierCeilingJob(
         html: renderEmailHtml(text),
       });
       warned += 1;
-    } catch (cause) {
+    } catch (error_) {
       // One tenant's bad address must not stop the rest being warned, and the
       // window this alert is useful in is measured in hours.
-      console.error(`carrier ceiling warning failed for ${row.company_id}: ${String(cause)}`);
+      console.error(`carrier ceiling warning failed for ${row.company_id}: ${String(error_)}`);
     }
   }
 

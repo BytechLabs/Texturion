@@ -9,7 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import {
 } from "./plans";
-import { isPlanModule, PLAN_MODULES, type PlanModule } from "./modules";
+import { isPlanModule, PLAN_MODULES } from './modules';
+import type { PlanModule } from './modules';
 
 /**
  * #41: the subset of the catalog we actually SELL today. `regions_ca` is

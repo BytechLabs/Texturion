@@ -19,7 +19,8 @@ import { cn } from "@/lib/utils";
 
 import { CountrySelector } from "@/components/marketing/country";
 
-import { navCopy, type NavCopyLocale } from "@/i18n/marketing/nav";
+import { navCopy } from '@/i18n/marketing/nav';
+import type { NavCopyLocale } from '@/i18n/marketing/nav';
 
 import {
   contactLinkFor,

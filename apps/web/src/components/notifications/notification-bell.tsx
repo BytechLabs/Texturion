@@ -22,7 +22,8 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import {
   useMarkAllNotificationsRead,
   useMarkNotificationReadItem,
@@ -55,20 +56,26 @@ const TYPE_ICON: Record<NotificationType, typeof MessageSquareText> = {
 /** One-line, past-tense summary of a notification (calm — the name is the hero). */
 function describe(item: NotificationItem, name: string, t: Translate): string {
   switch (item.type) {
-    case "inbound_message":
+    case "inbound_message": {
       return t("misc.notifInboundMessage", { name });
-    case "assigned":
+    }
+    case "assigned": {
       return t("misc.notifAssigned", { name });
-    case "task_assigned":
+    }
+    case "task_assigned": {
       return t("misc.notifTaskAssigned", { name });
-    case "missed_call":
+    }
+    case "missed_call": {
       return t("misc.notifMissedCall", { name });
-    case "mention":
+    }
+    case "mention": {
       // The thread is the customer's; what changed is that someone needs THIS
       // reader specifically.
       return t("misc.notifMention", { name });
-    default:
+    }
+    default: {
       return name;
+    }
   }
 }
 

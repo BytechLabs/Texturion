@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { Env } from "./env";
 import worker, * as entry from "./index";
 import { fromOurDomain, mailStatus, robotTag } from "./mailbox";
-import { ROBOT_ADDRESS, connectRig, counters, edgeEnv, fakeGuard, mailboxStub, resetEdge } from "./test/support";
+import { connectRig, counters, edgeEnv, fakeGuard, mailboxStub, resetEdge, ROBOT_ADDRESS } from "./test/support";
 
 let env: Env;
 
@@ -51,7 +51,7 @@ describe("robot addresses", () => {
 describe("the guard's entrypoint", () => {
   it("is exported under the name the guard binds", () => {
     expect((entry as Record<string, unknown>)[EDGE_GUARD_ENTRYPOINT]).toBe(entry.EdgeForGuard);
-    expect(typeof entry.EdgeForGuard.prototype.mailStatus).toBe("function");
+    expect(entry.EdgeForGuard.prototype.mailStatus).toBeTypeOf("function");
   });
 });
 
@@ -98,7 +98,7 @@ describe("email()", () => {
     expect(c["mail.count_failed"]).toBe(1);
 
     const rig = await connectRig(env);
-    expect(await rig.next((f) => f.t === "mail")).toMatchObject({ subject: "You're invited" });
+    await expect(rig.next((f) => f.t === "mail")).resolves.toMatchObject({ subject: "You're invited" });
     rig.close();
   });
 

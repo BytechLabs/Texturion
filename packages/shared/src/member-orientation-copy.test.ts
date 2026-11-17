@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -20,7 +19,7 @@ import { describe, expect, it } from "vitest";
  * point: the copy moves in one commit or it does not move.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 const CLIENTS = {
   web: "apps/web/src/components/onboarding/member-orientation.tsx",
@@ -60,7 +59,7 @@ const PRIMERS = {
  * enough to fit a Kotlin column limit, which is not a property of the copy.
  */
 function rejoin(text: string): string {
-  return text.replace(/"\s*\+\s*"/g, "");
+  return text.replaceAll(/"\s*\+\s*"/g, "");
 }
 
 function read(path: string): string {
@@ -199,7 +198,7 @@ describe("#286 the joining orientation reads the same on every client", () => {
           // own line; Kotlin and Swift quote it. Both forms are anchored — a
           // bare includes(action) would pass on the word appearing in a
           // comment, which is the kind of guard that only ever looks like one.
-          const tight = text.replace(/>\s+/g, ">").replace(/\s+</g, "<");
+          const tight = text.replaceAll(/>\s+/g, ">").replaceAll(/\s+</g, "<");
           return (
             !text.includes(`"${action}"`) && !tight.includes(`>${action}<`)
           );
@@ -331,7 +330,7 @@ describe("#521 the invite note asks for the same thing on all three clients", ()
     const offenders = Object.entries(teamSources)
       .filter(([, text]) => {
         const stripped = text
-          .replace(/\/\*[\s\S]*?\*\//g, " ")
+          .replaceAll(/\/\*[\s\S]*?\*\//g, " ")
           .split("\n")
           .filter((l) => !/^\s*(\/\/|\*)/.test(l))
           .join("\n");

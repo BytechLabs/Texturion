@@ -61,7 +61,7 @@ const TEMPLATE_PROP =
 
 /** Two or more words left over once the `${...}` holes are removed. */
 function proseOutsideInterpolations(template: string): string | null {
-  const literal = template.replace(/\$\{[^}]*\}/g, " ").trim();
+  const literal = template.replaceAll(/\$\{[^}]*\}/g, " ").trim();
   return /[A-Za-z][A-Za-z'’-]*\s+[A-Za-z][A-Za-z'’-]*/.test(literal)
     ? literal
     : null;
@@ -150,9 +150,9 @@ const DATA_COPY =
  */
 function decodeEntities(source: string): string {
   return source
-    .replace(/&apos;|&#39;|&rsquo;/g, "'")
-    .replace(/&quot;|&ldquo;|&rdquo;/g, '"')
-    .replace(/&nbsp;/g, " ");
+    .replaceAll(/&apos;|&#39;|&rsquo;/g, "'")
+    .replaceAll(/&quot;|&ldquo;|&rdquo;/g, '"')
+    .replaceAll('&nbsp;', " ");
 }
 
 function bilingualBodies(): string[] {
@@ -214,7 +214,7 @@ describe("#228/D138 the bilingual page bodies carry no words of their own", () =
       "the visuals are not being checked, which is where every miss has been",
     ).toBe(true);
     expect(
-      files.some((f) => f.includes(`${join("marketing", "legal")}`)),
+      files.some((f) => f.includes((join("marketing", "legal")))),
       "the shared legal page bodies are not being checked",
     ).toBe(true);
   });

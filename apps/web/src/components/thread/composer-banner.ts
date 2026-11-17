@@ -177,11 +177,10 @@ export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
 export function usSendApproved(
   company: Pick<CompanyView, "country" | "us_texting_enabled" | "registration">,
 ): boolean {
-  const campaign = company.registration.campaign;
+  const {campaign} = company.registration;
   return (
     (company.country === "US" || company.us_texting_enabled) &&
-    campaign !== null &&
-    campaign.status === "approved" &&
+    campaign?.status === "approved" &&
     campaign.deactivated_at === null
   );
 }

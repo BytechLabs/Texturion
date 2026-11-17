@@ -43,9 +43,9 @@ export function SoftphoneStatus({ className }: { className?: string }) {
       title={
         ready
           ? t("shell.phoneReadyTitle")
-          : failed
+          : (failed
             ? t("shell.phoneFailedTitle")
-            : t("shell.phoneConnectingTitle")
+            : t("shell.phoneConnectingTitle"))
       }
     >
       <span
@@ -68,9 +68,9 @@ export function SoftphoneStatus({ className }: { className?: string }) {
       >
         {ready
           ? t("shell.phoneReady")
-          : failed
+          : (failed
             ? t("shell.phoneCantRing")
-            : t("shell.phoneConnecting")}
+            : t("shell.phoneConnecting"))}
       </span>
     </span>
   );

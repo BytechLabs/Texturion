@@ -6,21 +6,8 @@ import {
 } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
-import {
-  answerColumn,
-  answerRemaining,
-  buildPreview,
-  csvEscape,
-  csvRows,
-  decideColumns,
-  importColumns,
-  IMPORT_FIELDS,
-  normalizeNanpPhone,
-  SAMPLE_VALUE_LIMIT,
-  skippedRowsCsv,
-  summarizePreview,
-  type CsvRow,
-} from "./csv-import";
+import { answerColumn, answerRemaining, buildPreview, csvEscape, csvRows, decideColumns, IMPORT_FIELDS, importColumns, normalizeNanpPhone, SAMPLE_VALUE_LIMIT, skippedRowsCsv, summarizePreview } from './csv-import';
+import type { CsvRow } from './csv-import';
 
 /** Data rows as they leave the parser: the header is line 1, so these start at 2. */
 function rows(...cells: string[][]): CsvRow[] {
@@ -590,7 +577,7 @@ describe("buildPreview (dry-run row statuses)", () => {
   });
 });
 
-describe("summarizePreview", () => {
+describe(summarizePreview, () => {
   it("counts ready, skipped, and opted-out rows", () => {
     const preview = buildPreview(
       rows(
@@ -609,14 +596,14 @@ describe("summarizePreview", () => {
   });
 });
 
-describe("csvEscape", () => {
+describe(csvEscape, () => {
   it("escapes commas, quotes, and newlines per RFC 4180", () => {
     expect(csvEscape('he said "hi", twice')).toBe('"he said ""hi"", twice"');
     expect(csvEscape("plain")).toBe("plain");
   });
 });
 
-describe("skippedRowsCsv", () => {
+describe(skippedRowsCsv, () => {
   it("joins API error rows back to the original values by row number", () => {
     const preview = buildPreview(
       rows(["4165550199", "Sam", ""], ["nope", "Pat", ""]),

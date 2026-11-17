@@ -9,7 +9,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
 import { unwrap } from "../routes/core/http";
-import { loadAssignees, type TaskAssignee } from "./assignees";
+import { loadAssignees } from './assignees';
+import type { TaskAssignee } from './assignees';
 
 export const PRIORITIES = ["none", "low", "normal", "high", "urgent"] as const;
 export type TaskPriority = (typeof PRIORITIES)[number];

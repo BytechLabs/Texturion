@@ -42,7 +42,7 @@ function report(over: Partial<ResponseTimeReport>): ResponseTimeReport {
   };
 }
 
-describe("arcSentence", () => {
+describe(arcSentence, () => {
   it("leads with the improvement, in the words a contractor repeats", () => {
     const sentence = arcSentence(
       report({
@@ -104,7 +104,7 @@ describe("arcSentence", () => {
   });
 });
 
-describe("noArcReason", () => {
+describe(noArcReason, () => {
   it("explains a young workspace instead of comparing it to itself", () => {
     expect(
       noArcReason(report({ baseline_unavailable: "too_new" }), t),
@@ -124,7 +124,7 @@ describe("noArcReason", () => {
   });
 });
 
-describe("unansweredLine", () => {
+describe(unansweredLine, () => {
   it("names one lead in the singular, because it often is one", () => {
     // "1 leads nobody answered" is the kind of thing that makes a careful reader
     // stop trusting the rest of the panel.

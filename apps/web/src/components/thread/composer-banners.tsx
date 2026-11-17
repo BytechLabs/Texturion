@@ -10,7 +10,8 @@ import { toast } from "sonner";
 
 import { CallButton } from "@/components/calls/call-button";
 import { Button } from "@/components/ui/button";
-import { sayEnglish, sayWith, useT, type Translate } from "@/i18n/provider";
+import { sayEnglish, sayWith, useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
 import { useBillingPortal } from "@/lib/api/billing";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
@@ -39,7 +40,7 @@ export function ComposerBannerCard({
   // #228: the shared support module takes the lookup. `say` is this reader's
   // language; `sayEnglish` is the mail SUBJECT, which stays one heading so the
   // support inbox stays searchable.
-  const say = sayWith(t);
+  
   const { role } = useActiveCompany();
   const isOwner = role === "owner";
   const isAdminUp = role === "owner" || role === "admin";
@@ -97,20 +98,23 @@ export function ComposerBannerCard({
     // one sentence each". No action button, deliberately: the remedy is a
     // conversation with a person, and a control that only navigates somewhere
     // they also cannot change would be a second dead end.
-    case "read_only":
+    case "read_only": {
       sentence = t("thread.bannerReadOnly");
       break;
-    case "number_access":
+    }
+    case "number_access": {
       sentence = t("thread.bannerNumberAccess");
       break;
-    case "opted_out":
+    }
+    case "opted_out": {
       // Say what can actually be done about it. A STOP is the customer's to
       // undo; a hand-recorded opt-out is the crew's.
       sentence = banner.carrierBlocked
         ? t("thread.bannerOptedOutCarrier")
         : t("thread.bannerOptedOut");
       break;
-    case "subscription":
+    }
+    case "subscription": {
       if (banner.status === "past_due" || banner.status === "unpaid") {
         sentence = t("thread.bannerPastDue");
         if (isAdminUp) {
@@ -133,7 +137,8 @@ export function ComposerBannerCard({
         }
       }
       break;
-    case "us_texting_off":
+    }
+    case "us_texting_off": {
       // No registration is pending here, so promising an approval would be a
       // wait that never ends. Name the switch that is actually off.
       sentence = isAdminUp
@@ -155,7 +160,8 @@ export function ComposerBannerCard({
         );
       }
       break;
-    case "registration_suspended":
+    }
+    case "registration_suspended": {
       // #423. Deliberately NOT the pending copy: promising approval to a
       // workspace that WAS approved is a wait that never ends, and it sends
       // them hunting for a form to fill in. Say what happened, say who is
@@ -174,7 +180,8 @@ export function ComposerBannerCard({
         );
       }
       break;
-    case "registration_pending":
+    }
+    case "registration_pending": {
       sentence = t("thread.bannerRegistrationPending");
       // Carrier registration gates TEXTING only: calling this customer works
       // today, on every plan. Without this the banner is a dead end for the
@@ -190,7 +197,8 @@ export function ComposerBannerCard({
         );
       }
       break;
-    case "usage_cap":
+    }
+    case "usage_cap": {
       // #178: the cap is the owner's protection, not a quota — name it that way.
       sentence = isOwner
         ? t("thread.bannerUsageCapOwner")
@@ -205,12 +213,14 @@ export function ComposerBannerCard({
         );
       }
       break;
-    case "opt_out_hint":
+    }
+    case "opt_out_hint": {
       // #396: says what was seen and who decides. It does NOT opt anyone out —
       // only the customer can, and only they can lift it, so a wrong guess
       // would silence a real lead for good.
       sentence = t("thread.bannerOptOutHint");
       break;
+    }
   }
 
   return (

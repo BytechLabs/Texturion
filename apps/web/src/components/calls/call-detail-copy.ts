@@ -27,12 +27,15 @@ export function outcomeLine(call: CallDetailRow, t: Translate): string {
       : t("shell.outcomeNoAnswer");
   }
   switch (call.outcome) {
-    case "answered":
+    case "answered": {
       return t("shell.outcomeAnswered");
-    case "voicemail":
+    }
+    case "voicemail": {
       return t("shell.outcomeLeftVoicemail");
-    default:
+    }
+    default: {
       return t("shell.outcomeMissed");
+    }
   }
 }
 

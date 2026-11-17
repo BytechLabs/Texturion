@@ -167,9 +167,9 @@ sessionsRoutes.post("/sessions/revoke", async (c) => {
     sessionIds:
       "session_id" in body
         ? [body.session_id]
-        : "self" in body
-          ? [current as string]
-          : null,
+        : ("self" in body
+          ? [current!]
+          : null),
     except: "session_id" in body || "self" in body ? null : current,
     actor: userId,
     // `self` for both single-device cases, and not for want of a better word:

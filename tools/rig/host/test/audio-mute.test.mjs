@@ -8,14 +8,14 @@ import { test } from "node:test";
 
 import {
   AUDIO_SCRIPT,
-  FAST_SWEEP_MS,
-  STEADY_SWEEP_MS,
   createAudioMuter,
+  FAST_SWEEP_MS,
   parseHelperLine,
   parseHelperOutput,
   persistentHelper,
   processTree,
   sessionsOf,
+  STEADY_SWEEP_MS,
   summarise,
 } from "../src/audio-mute.mjs";
 import { loadContract, rigPaths } from "../src/config.mjs";
@@ -64,7 +64,7 @@ test("the idle process and the kernel are never a root, so the tree cannot swall
   const rows = [...TABLE, { pid: 7, ppid: 0, name: "Registry" }, { pid: 0, ppid: 0, name: "System Idle Process" }];
   assert.deepEqual(processTree(rows, [0, 4]), []);
   assert.deepEqual(processTree(rows, [0, 4, 200]), [200, 300]);
-  assert.deepEqual(processTree(rows, [-1, 1.5, NaN]), []);
+  assert.deepEqual(processTree(rows, [-1, 1.5, Number.NaN]), []);
 });
 
 test("only sessions of the tree's pids are claimed, and the state is the mute read back", () => {
@@ -170,7 +170,7 @@ test("it keeps re-checking after the first mute, and mutes a session that appear
     rounds: 5,
     roots: () => [100],
     sessionsAt: (round) =>
-      round < 2 ? [{ pid: 200, muted: true }] : round < 4 ? [{ pid: 200, muted: true }, { pid: 300, muted: true }] : [{ pid: 200, muted: true }],
+      round < 2 ? [{ pid: 200, muted: true }] : (round < 4 ? [{ pid: 200, muted: true }, { pid: 300, muted: true }] : [{ pid: 200, muted: true }]),
   });
   assert.equal(run.shell.of("mute").length, 5, "every pass mutes again");
   assert.deepEqual(run.results.map((result) => result.sessions), [1, 1, 2, 2, 1]);

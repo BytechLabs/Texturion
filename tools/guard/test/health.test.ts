@@ -1,9 +1,11 @@
-import { HEADER, type GuardHealth } from "@loonext/rig-protocol";
+import { HEADER } from '@loonext/rig-protocol';
+import type { GuardHealth } from '@loonext/rig-protocol';
 import { describe, expect, it } from "vitest";
 
 import { CRONS } from "../src/guard";
 import { ADMISSION_KEYS } from "../src/state/admission";
-import { harness, lease, N, ready, ruleOf, type Harness } from "./support";
+import { harness, lease, N, ready, ruleOf } from './support';
+import type { Harness } from './support';
 
 /** The protocol's fields, and the guard-only detail these cases read. */
 type Health = GuardHealth & {
@@ -29,7 +31,7 @@ describe("without the Telnyx key", () => {
     ];
     for (const [path, body] of routes) {
       const response = await h.call(path, { caller: "rig-api", body, headers: { [HEADER.lease]: "l" } });
-      expect(await ruleOf(response), path).toBe("telnyx.key_missing");
+      await expect(ruleOf(response)).resolves.toBe("telnyx.key_missing");
     }
     expect(h.outbound).toEqual([]);
   });
@@ -132,6 +134,6 @@ describe("/health after ordering stopped", () => {
 describe("/version", () => {
   it("answers with the deployment's version id for the attestation", async () => {
     const h = harness({ version: "8c2f5a1e-version" });
-    expect(await (await h.call("/version", { caller: "diag" })).json()).toEqual({ version_id: "8c2f5a1e-version" });
+    await expect((await h.call("/version", { caller: "diag" })).json()).resolves.toEqual({ version_id: "8c2f5a1e-version" });
   });
 });

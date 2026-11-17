@@ -74,6 +74,7 @@ describe("#725 an automated text on the timeline", () => {
     ...step("text_out", payload),
     category: "message",
   });
+
   it("says it was sent automatically, and by which automation", () => {
     expect(say(text({ automated: true, automation: "missed_call_text" }))).toBe(
       "Text sent automatically · Missed-call text",

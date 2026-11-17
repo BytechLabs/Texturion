@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  isFlaggedUrgent,
-  URGENT_BADGE_LABEL,
-  type EmergencyFlagFields,
-} from "./emergency-flag";
+import { isFlaggedUrgent, URGENT_BADGE_LABEL } from './emergency-flag';
+import type { EmergencyFlagFields } from './emergency-flag';
 
 const thread = (
   fields: Partial<EmergencyFlagFields> = {},

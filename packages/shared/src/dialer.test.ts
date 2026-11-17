@@ -7,15 +7,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  MAX_DIALER_MATCHES,
-  bestDialerMatch,
-  nationalDigits,
-  rankDialerCandidates,
-  scoreDialerCandidate,
-  t9Words,
-  type DialerCandidate,
-} from "./dialer";
+import { bestDialerMatch, MAX_DIALER_MATCHES, nationalDigits, rankDialerCandidates, scoreDialerCandidate, t9Words } from './dialer';
+import type { DialerCandidate } from './dialer';
 
 const app = (name: string | null, number: string, contactId = "c1"): DialerCandidate => ({
   name,
@@ -30,7 +23,7 @@ const device = (name: string | null, number: string): DialerCandidate => ({
   source: "device",
 });
 
-describe("nationalDigits", () => {
+describe(nationalDigits, () => {
   it("makes the three ways of writing one number compare equal", () => {
     expect(nationalDigits("+14165550123")).toBe("4165550123");
     expect(nationalDigits("14165550123")).toBe("4165550123");
@@ -45,7 +38,7 @@ describe("nationalDigits", () => {
   });
 });
 
-describe("t9Words", () => {
+describe(t9Words, () => {
   it("spells a name the way the keypad is printed", () => {
     expect(t9Words("Bob")).toEqual(["262"]);
     expect(t9Words("Dana Whitcomb")).toEqual(["3262", "94482662"]);
@@ -124,7 +117,7 @@ describe("scoreDialerCandidate — names, which is the new part", () => {
   });
 });
 
-describe("rankDialerCandidates", () => {
+describe(rankDialerCandidates, () => {
   it("returns matches best first", () => {
     const ranked = rankDialerCandidates("5550123", [
       // Contains the typed digits but does not end with them: a real but weak
@@ -199,7 +192,7 @@ describe("rankDialerCandidates", () => {
   });
 });
 
-describe("bestDialerMatch", () => {
+describe(bestDialerMatch, () => {
   it("is the top of the same ranking, or null", () => {
     const candidates = [app("Dana Whitcomb", "+14165550123")];
     expect(bestDialerMatch("5550123", candidates)?.label).toBe("Dana Whitcomb");

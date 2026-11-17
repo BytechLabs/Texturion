@@ -177,13 +177,13 @@ export function NumberPicker({
                 </li>
               ))}
             </ul>
-          ) : searchingAreaCode ? (
+          ) : (searchingAreaCode ? (
             <p className="text-[13px] text-muted-foreground">
               {country === "US"
                 ? t("misc.areaCodeNoMatchUs")
                 : t("misc.areaCodeNoMatchCa")}
             </p>
-          ) : null}
+          ) : null)}
         </div>
       ) : (
         <div className="flex items-center justify-between gap-2">
@@ -211,12 +211,12 @@ export function NumberPicker({
           {/* Optional digit filter — one clean field + a small anywhere/start/end
               selector. Filters the fetched batch instantly (client-side). Hidden
               for the masked area-code choice. */}
-          {!masked ? (
+          {masked ? null : (
             <div className="flex items-center gap-2">
               <Input
                 value={digits}
                 onChange={(e) =>
-                  setDigits(e.target.value.replace(/\D/g, "").slice(0, 7))
+                  setDigits(e.target.value.replaceAll(/\D/g, "").slice(0, 7))
                 }
                 placeholder={t("misc.digitsPlaceholder")}
                 inputMode="numeric"
@@ -235,7 +235,7 @@ export function NumberPicker({
                 className="w-40 shrink-0"
               />
             </div>
-          ) : null}
+          )}
 
           {list.isError ? (
             <p className="text-sm text-destructive">
@@ -318,9 +318,9 @@ export function NumberPicker({
                 match:
                   match === "start"
                     ? t("misc.numbersMatchStart")
-                    : match === "end"
+                    : (match === "end"
                       ? t("misc.numbersMatchEnd")
-                      : t("misc.numbersMatchAnywhere"),
+                      : t("misc.numbersMatchAnywhere")),
                 digits,
               })}
             </p>
@@ -328,15 +328,15 @@ export function NumberPicker({
             <p className="text-sm text-muted-foreground">
               {bestEffort
                 ? t("misc.numbersNoneNearAreaCode", { code: areaCode ?? "" })
-                : areaCode
+                : (areaCode
                   ? t("misc.numbersNoneInAreaCode", { code: areaCode })
-                  : t("misc.numbersNoneAtAll")}
+                  : t("misc.numbersNoneAtAll"))}
             </p>
           )}
 
           {/* The masked (CA) case is a single area-code choice — no list to widen
               or refresh, so hide those controls there. */}
-          {!masked ? (
+          {masked ? null : (
             <div className="flex items-center justify-between gap-2">
               <label className="flex items-center gap-2 text-sm">
                 <input
@@ -360,7 +360,7 @@ export function NumberPicker({
                 {t("misc.numbersRefresh")}
               </Button>
             </div>
-          ) : null}
+          )}
         </>
       )}
     </div>

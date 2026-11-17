@@ -16,7 +16,7 @@ function look(table: unknown, key: string): string {
   const value = (table as Record<string, Record<string, string>>)[section]?.[
     name
   ];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -29,7 +29,7 @@ function look(table: unknown, key: string): string {
  * Kotlin and Swift, so a hand-port that gets February wrong fails there rather
  * than shipping.
  */
-describe("lastCompleteMonth", () => {
+describe(lastCompleteMonth, () => {
   it("gives the month before, whole", () => {
     expect(lastCompleteMonth(2026, 8)).toEqual({
       from: "2026-07-01",

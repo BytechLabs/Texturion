@@ -12,13 +12,8 @@ import { describe, expect, it } from "vitest";
 
 import { PLAN_PRICING } from "@/lib/api/types";
 
-import {
-  CREW_SIZES,
-  competitorSeatsForCrew,
-  crewComparison,
-  loonextForCrew,
-  type SeatPricing,
-} from "./crew-scaling";
+import { competitorSeatsForCrew, CREW_SIZES, crewComparison, loonextForCrew } from './crew-scaling';
+import type { SeatPricing } from './crew-scaling';
 
 /** Heymarket, as the ledger states it. */
 const HEYMARKET: SeatPricing = {

@@ -36,16 +36,9 @@
  *      made it, the whole crew sees it — a leaderboard nobody may look at is not
  *      a leaderboard, and the opt-in IS the control.
  */
-import {
-  companySettingDefault,
-  pipelineInsight,
-  pipelineInsightKeys,
-  type PipelineReport,
-  pipelineWinRate,
-  SATISFACTION_MIN_SAMPLE,
-  SATISFACTION_POOR_AT_OR_BELOW,
-} from "@loonext/shared";
-import { isAfterHours, type BusinessHours, type HoursException } from "@loonext/shared";
+import { companySettingDefault, pipelineInsight, pipelineInsightKeys, pipelineWinRate, SATISFACTION_MIN_SAMPLE, SATISFACTION_POOR_AT_OR_BELOW } from '@loonext/shared';
+import type { BusinessHours,HoursException,PipelineReport } from '@loonext/shared';
+import { isAfterHours } from '@loonext/shared';
 import { Hono } from "hono";
 
 import { requireCapability } from "../auth/company";
@@ -58,11 +51,8 @@ import { unwrap } from "./core/http";
 export const reportsRoutes = new Hono<AppEnv>();
 
 /** Windows the clients offer. Bounded so one request cannot scan all history. */
-import {
-  buildLeadSourceReport,
-  coverageNote,
-  type LeadSourceRollupRow,
-} from "../reports/lead-sources";
+import { buildLeadSourceReport, coverageNote } from '../reports/lead-sources';
+import type { LeadSourceRollupRow } from '../reports/lead-sources';
 
 const ALLOWED_DAYS = [7, 30, 90] as const;
 const DEFAULT_DAYS = 30;
@@ -153,7 +143,7 @@ async function labelledByNumber(
       .map((row) => [row.id, row.number_e164]),
   );
 
-  const hidden = new Set(hiddenNumberIds ?? []);
+  const hidden = new Set(hiddenNumberIds);
   const labelled = rows.flatMap((row) => {
     if (hidden.has(row.phone_number_id)) return [];
     const number = labels.get(row.phone_number_id);
@@ -167,7 +157,7 @@ async function labelledByNumber(
   // down", and a list ordered by anything else makes them scan for it. A number
   // with no median at all (nobody answered) sorts to the top, because that is
   // the worst answer there is.
-  return labelled.sort(
+  return labelled.toSorted(
     (a, b) => (b.median_seconds ?? Infinity) - (a.median_seconds ?? Infinity),
   );
 }
@@ -192,7 +182,7 @@ interface CompanyRow {
 /** The median of a sample, or null when there is nothing to take one of. */
 function median(values: number[]): number | null {
   if (values.length === 0) return null;
-  const sorted = [...values].sort((a, b) => a - b);
+  const sorted = [...values].toSorted((a, b) => a - b);
   const mid = Math.floor(sorted.length / 2);
   // Even-length samples average the middle pair, matching percentile_cont's
   // linear interpolation at 0.5 — the aggregate the SQL reports. Two different
@@ -701,18 +691,18 @@ reportsRoutes.get(
               // average would start is about them.
               average: averageOf(scores),
             }))
-            .sort((a, b) => b.answered - a.answered)
+            .toSorted((a, b) => b.answered - a.answered)
         : null,
       per_member_enabled: company.response_stats_per_member,
       baseline:
-        before.average !== null
-          ? {
+        before.average === null
+          ? null
+          : {
               since: priorSince.toISOString(),
               until: since.toISOString(),
               answered: before.answered,
               average: before.average,
-            }
-          : null,
+            },
       improved_by:
         before.average !== null && now.average !== null
           ? Math.round((now.average - before.average) * 10) / 10

@@ -5,7 +5,7 @@
 // Guest operations are left out too: they take a guest password on the
 // command line, and SSH is how the host drives the VM.
 import { readFileSync } from "node:fs";
-import { extname, join, relative, resolve, isAbsolute } from "node:path";
+import { extname, isAbsolute, join, relative, resolve } from "node:path";
 
 import { VMWARE_DIR } from "./config.mjs";
 
@@ -31,8 +31,8 @@ export function ownVmx(vmx, { root, readFile = readFileSync }) {
   let text;
   try {
     text = readFile(path, "utf8");
-  } catch (cause) {
-    throw new Error(`vmrun: cannot read ${path}: ${cause.code ?? cause.message}`);
+  } catch (error) {
+    throw new Error(`vmrun: cannot read ${path}: ${error.code ?? error.message}`, { cause: error });
   }
   if (!MARKER.test(text)) throw new Error(`vmrun: ${path} has no loonext.rig = "TRUE" line, so it is not the rig's VM`);
   return path;

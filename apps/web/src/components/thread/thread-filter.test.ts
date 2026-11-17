@@ -1,18 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import type { ClusterItem, DividerItem, EventItem, ThreadItem } from "./clusters";
-import type { ConversationEvent, Message } from "@/lib/api/types";
-import {
-  ALL_CATEGORIES_ON,
-  enabledCategories,
-  filterThreadItems,
-  isAllOn,
-  parseThreadFilter,
-  serializeThreadFilter,
-  threadFilterEmptyCopy,
-  toggleThreadCategory,
-  type ThreadFilter,
-} from "./thread-filter";
+import type { Message } from "@/lib/api/types";
+import { ALL_CATEGORIES_ON, enabledCategories, filterThreadItems, isAllOn, parseThreadFilter, serializeThreadFilter, threadFilterEmptyCopy, toggleThreadCategory } from './thread-filter';
+import type { ThreadFilter } from './thread-filter';
 
 function message(id: string, direction: Message["direction"]): Message {
   return {
@@ -73,13 +64,13 @@ const event: EventItem = {
     type: "message_done",
     payload: { message_id: "1" },
     created_at: "2026-07-02T10:05:00Z",
-  } as ConversationEvent,
+  },
 };
 
 const items: ThreadItem[] = [divider, inbound, outbound, note, event];
 
 /** A filter with only the named kinds on. */
-function only(...on: Array<keyof ThreadFilter>): ThreadFilter {
+function only(...on: (keyof ThreadFilter)[]): ThreadFilter {
   return {
     messages: on.includes("messages"),
     notes: on.includes("notes"),
@@ -202,7 +193,7 @@ describe("filterThreadItems (§5.1)", () => {
   });
 });
 
-describe("threadFilterEmptyCopy", () => {
+describe(threadFilterEmptyCopy, () => {
   it("gives a distinct empty line for each single kind and for all-on", () => {
     expect(threadFilterEmptyCopy(only("messages"))).toMatch(/messages/i);
     expect(threadFilterEmptyCopy(only("notes"))).toMatch(/notes/i);

@@ -1,12 +1,5 @@
-import {
-  CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT,
-  CONTACT_IMPORT_COLUMN_VALUE_CEILING,
-  CONTACT_IMPORT_IGNORE,
-  VCARD_MAPPED_PROPERTIES,
-  vcardParameterProperty,
-  type VCardPropertyAction,
-  type VCardPropertyDeclaration,
-} from "@loonext/shared";
+import { CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT, CONTACT_IMPORT_COLUMN_VALUE_CEILING, CONTACT_IMPORT_IGNORE, VCARD_MAPPED_PROPERTIES, vcardParameterProperty } from '@loonext/shared';
+import type { VCardPropertyAction, VCardPropertyDeclaration } from '@loonext/shared';
 
 /**
  * #248 round 3 — the same rule at the vCard door, in the shape that format
@@ -66,7 +59,7 @@ import {
 
 /** Unfold RFC-folded lines: a line starting with SPACE or TAB continues prior. */
 function unfold(text: string): string[] {
-  const normalized = text.replace(/\r\n?/g, "\n");
+  const normalized = text.replaceAll(/\r\n?/g, "\n");
   const lines: string[] = [];
   for (const line of normalized.split("\n")) {
     if ((line.startsWith(" ") || line.startsWith("\t")) && lines.length > 0) {
@@ -144,7 +137,7 @@ function parseContentLine(line: string): ContentLine | null {
       .toUpperCase();
     if (paramName === "") continue;
     const raw = equals === -1 ? "" : segment.slice(equals + 1).trim();
-    params.push({ name: paramName, value: raw.replace(/^"|"$/g, "") });
+    params.push({ name: paramName, value: raw.replaceAll(/^"|"$/g, "") });
   }
 
   return { name: name.toUpperCase(), params, value };

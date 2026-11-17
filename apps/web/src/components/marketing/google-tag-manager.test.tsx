@@ -107,7 +107,7 @@ describe("#577 the tag manager stays on the marketing origin", () => {
 describe("GoogleTagManager (#124)", () => {
   it("renders nothing when the container id is unset (dev/CI/previews)", async () => {
     env.NEXT_PUBLIC_GTM_ID = undefined;
-    expect(await render()).toBe("");
+    await expect(render()).resolves.toBe("");
   });
 
   it("loads the container when the id is set", async () => {
@@ -187,7 +187,7 @@ describe("gtm.js waits for the page to settle (#640)", () => {
       "default",
     ]);
     expect(dataLayer[1]).toMatchObject({ event: "gtm.js" });
-    expect(typeof w.__loonextGtm).toBe("function");
+    expect(w.__loonextGtm).toBeTypeOf("function");
   });
 
   it("downloads once the boot releases it", async () => {

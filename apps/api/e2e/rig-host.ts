@@ -86,7 +86,7 @@ export function rigSecretKey(): string {
   const file = join(RIG_HOME, "current", "apps", "api", ".dev.vars.rig");
   const match = /^SUPABASE_SECRET_KEY=(.+)$/m.exec(readFileSync(file, "utf8"));
   if (!match) throw new NotTheRigError("the deployed rig API has no SUPABASE_SECRET_KEY");
-  return match[1].trim().replace(/^"|"$/g, "");
+  return match[1].trim().replaceAll(/^"|"$/g, "");
 }
 
 /** The local stack's publishable key, from the gateway's own routing table. */

@@ -55,7 +55,7 @@ export function parseMatch(text: string): Matcher | undefined {
     try {
       const parts: unknown = JSON.parse(source.slice("fingerprint ".length));
       if (!Array.isArray(parts) || !parts.every((part) => typeof part === "string")) return undefined;
-      return matcher([{ kind: "fingerprint", parts: parts as string[] }]);
+      return matcher([{ kind: "fingerprint", parts }]);
     } catch {
       return undefined;
     }
@@ -71,7 +71,7 @@ export function parseMatch(text: string): Matcher | undefined {
     [/^(?:,|and\b)\s*/, () => undefined],
   ];
   let rest = source;
-  while (rest.length) {
+  while (rest.length > 0) {
     const found = patterns.map(([pattern, make]) => [pattern.exec(rest), make] as const).find(([m]) => m);
     if (!found) return undefined;
     const [m, make] = found;
@@ -79,7 +79,7 @@ export function parseMatch(text: string): Matcher | undefined {
     if (clause) clauses.push(clause);
     rest = rest.slice(m![0].length).trimStart();
   }
-  return clauses.length ? matcher(clauses) : undefined;
+  return clauses.length > 0 ? matcher(clauses) : undefined;
 }
 
 function matcher(clauses: Clause[]): Matcher {
@@ -99,18 +99,24 @@ function matcher(clauses: Clause[]): Matcher {
       exceptionOk &&
       clauses.every((c) => {
         switch (c.kind) {
-          case "fingerprint":
+          case "fingerprint": {
             return JSON.stringify(event.fingerprint ?? null) === JSON.stringify(c.parts);
-          case "level":
+          }
+          case "level": {
             return event.level === c.level;
-          case "tag":
+          }
+          case "tag": {
             return event.tags?.[c.name] === c.value;
-          case "message-starts":
+          }
+          case "message-starts": {
             return text.startsWith(c.text);
-          case "contains":
+          }
+          case "contains": {
             return text.includes(c.text);
-          default:
+          }
+          default: {
             return true;
+          }
         }
       })
     );

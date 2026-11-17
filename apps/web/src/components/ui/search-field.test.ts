@@ -15,7 +15,7 @@ function walk(dir: string): string[] {
   return readdirSync(dir).flatMap((entry) => {
     const full = join(dir, entry);
     if (statSync(full).isDirectory()) return walk(full);
-    return /\.tsx$/.test(entry) && !entry.includes(".test.") ? [full] : [];
+    return entry.endsWith('.tsx') && !entry.includes(".test.") ? [full] : [];
   });
 }
 
@@ -25,20 +25,20 @@ describe("#733 search fields", () => {
   it("draws a search input only inside SearchField", () => {
     const own = files
       .filter(({ rel }) => rel !== "components/ui/search-field.tsx" && !rel.startsWith("components/marketing/"))
-      .filter(({ file }) => /type="search"/.test(readFileSync(file, "utf8")))
+      .filter(({ file }) => readFileSync(file, "utf8").includes('type="search"'))
       .map(({ rel }) => rel);
     expect(own).toEqual([]);
   });
 
   it("is what the lists and settings use", () => {
     const users = files.filter(({ file }) => readFileSync(file, "utf8").includes("<SearchField"));
-    expect(users.map(({ rel }) => rel).sort()).toEqual(
+    expect(users.map(({ rel }) => rel).toSorted()).toEqual(
       [
         "components/contacts/contacts-table.tsx",
         "components/inbox/filter-bar.tsx",
         "components/settings/settings-search.tsx",
         "components/tasks/task-filter-bar.tsx",
-      ].sort(),
+      ].toSorted(),
     );
   });
 });

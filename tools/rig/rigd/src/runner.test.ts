@@ -6,11 +6,13 @@ import { ManualClock } from "@loonext/rig-robot/test-support";
 import { afterEach, describe, expect, it } from "vitest";
 import { dialsInLog, parseWindow } from "./budget.ts";
 import { textHash } from "./late.ts";
-import { LeaseClient, type UndoHandlers } from "./lease.ts";
-import { chargedDials, runScenario, type RunnerDeps } from "./runner.ts";
+import { LeaseClient } from './lease.ts';
+import type { UndoHandlers } from './lease.ts';
+import { chargedDials, runScenario } from './runner.ts';
+import type { RunnerDeps } from './runner.ts';
 import type { ScenarioResult, ScenarioRunner } from "./scenarios/context.ts";
 import { fakeLanes, FakeTime } from "./scenarios/fakes.ts";
-import { PostHogErrors, POSTHOG_CAPTURE_URL } from "./posthog-errors.ts";
+import { POSTHOG_CAPTURE_URL, PostHogErrors } from "./posthog-errors.ts";
 import { LaneHoldFile } from "./state-files.ts";
 import { fakeFetch, json } from "./test-support.ts";
 import { registryOf, scenario } from "./test-registry.ts";
@@ -101,7 +103,7 @@ function setup(results: ScenarioResult[], options: SetupOptions = {}) {
 
 const failing = (failure_class: string): ScenarioResult => ({ outcome: "fail", failure_class, detail: "x" });
 
-describe("runScenario", () => {
+describe(runScenario, () => {
   it("records a pass with the SHA and the dials it spent, under a lease it releases", async () => {
     const { deps, verdicts, requests } = setup([{ outcome: "pass" }]);
     const summary = await runScenario(deps, "S02");
@@ -210,7 +212,7 @@ describe("runScenario", () => {
 
   it("starts no paid run outside the window, past the caps or below the room", async () => {
     const late = setup([], { at: Date.UTC(2026, 10, 1, 9, 50) });
-    expect(await runScenario(late.deps, "S02")).toMatchObject({ status: "skipped", detail: "outside the dial window (04:00 UTC for 6 h)" });
+    await expect(runScenario(late.deps, "S02")).resolves.toMatchObject({ status: "skipped", detail: "outside the dial window (04:00 UTC for 6 h)" });
     expect(late.requests).toEqual([]);
 
     const tight = setup([], { room: 1 });
@@ -228,7 +230,7 @@ describe("runScenario", () => {
       finished_at: "",
       dials: 2,
     });
-    expect(await runScenario(spent.deps, "S02")).toMatchObject({ status: "skipped", detail: "the hourly cap of 3 dials is spent" });
+    await expect(runScenario(spent.deps, "S02")).resolves.toMatchObject({ status: "skipped", detail: "the hourly cap of 3 dials is spent" });
     // ...but not for one at 06:05.
     const next = setup([], { at: Date.UTC(2026, 10, 1, 6, 5) });
     next.verdicts.record({ ...spent.verdicts.all()[0]! });
@@ -237,7 +239,7 @@ describe("runScenario", () => {
 
   it("waits for a busy lease, then skips the run", async () => {
     const busy = setup([], { acquire: () => json({ error: "guard_refused", rule: "lease.busy" }, 403, { [HEADER.refusedBy]: "lease.busy" }) });
-    expect(await runScenario(busy.deps, "S02")).toMatchObject({ status: "skipped", detail: "another scenario held the lease for 20 min" });
+    await expect(runScenario(busy.deps, "S02")).resolves.toMatchObject({ status: "skipped", detail: "another scenario held the lease for 20 min" });
     expect(busy.attempts).toEqual([]);
     expect(busy.requests.filter((r) => r.method === "POST").length).toBeGreaterThan(30);
 
@@ -435,7 +437,7 @@ describe("runScenario", () => {
       ...closing.deps.runners,
       S02: { ...preparing(undefined), prepare: async () => void closing.clock.advance(50 * 60_000) },
     };
-    expect(await runScenario(closing.deps, "S02")).toMatchObject({ status: "skipped", detail: "the dial window closed while the run prepared" });
+    await expect(runScenario(closing.deps, "S02")).resolves.toMatchObject({ status: "skipped", detail: "the dial window closed while the run prepared" });
     expect(abandoned).toHaveLength(4);
 
     // A prepare that failed put its own change back; a run that started has its lease's undos.
@@ -535,7 +537,7 @@ describe("runScenario", () => {
         },
       },
     };
-    expect(await runScenario(undoFails.deps, "S02")).toMatchObject({ status: "infra" });
+    await expect(runScenario(undoFails.deps, "S02")).resolves.toMatchObject({ status: "infra" });
     expect(undoFails.verdicts.all()[0]).toMatchObject({ component: "lease-undo" });
   });
 
@@ -594,7 +596,7 @@ describe("runScenario", () => {
       await new Promise((resolve) => setImmediate(resolve));
       (deps.clock as ManualClock).advance(60_000);
     }
-    expect(await running).toMatchObject({ status: "infra" });
+    await expect(running).resolves.toMatchObject({ status: "infra" });
   });
 
   it("refuses a scenario it does not know or cannot run", async () => {
@@ -703,7 +705,7 @@ describe("the dials an attempt is charged", () => {
   });
 });
 
-describe("dialsInLog", () => {
+describe(dialsInLog, () => {
   it("counts the dials and transfers that reached Telnyx, by status or an unknown answer", () => {
     expect(
       dialsInLog({
@@ -732,7 +734,7 @@ describe("dialsInLog", () => {
   });
 });
 
-describe("chargedDials", () => {
+describe(chargedDials, () => {
   const base = { full: 2, judged: false, inLog: undefined as number | undefined, byApp: 0, byRobot: 0 };
 
   it("is the scenario's dials for a judged run or one with an app's dial, nothing for a scenario that dials nothing", () => {

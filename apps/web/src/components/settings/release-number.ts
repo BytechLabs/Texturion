@@ -1,7 +1,8 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
 import type { NumberHoldState } from "@/components/settings/number-hold";
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 import type { NumberStatus } from "@/lib/api/types";
 
 /**
@@ -72,12 +73,15 @@ export function mayReleaseNumber(
 ): boolean {
   if (numberE164 === null) return false;
   switch (status) {
-    case "active":
+    case "active": {
       return true;
-    case "suspended":
+    }
+    case "suspended": {
       return subscriptionActive;
-    default:
+    }
+    default: {
       return false;
+    }
   }
 }
 

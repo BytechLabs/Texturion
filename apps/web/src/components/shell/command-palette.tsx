@@ -16,10 +16,10 @@ import {
   PenSquare,
   PhoneIncoming,
   Settings,
+  Trash2,
   UserRoundPlus,
   Users,
   Voicemail,
-  Trash2,
 } from "lucide-react";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -34,7 +34,8 @@ import {
   CommandList,
   CommandSeparator,
 } from "@/components/ui/command";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { useConversation, useUpdateConversation } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useSearch } from "@/lib/api/search";
@@ -45,7 +46,7 @@ import { threadHref } from "@/lib/inbox/thread-href";
 
 /** ts_headline snippets carry <b> markers; the palette renders plain text. */
 function plainSnippet(snippet: string): string {
-  return snippet.replace(/<\/?b>/g, "");
+  return snippet.replaceAll(/<\/?b>/g, "");
 }
 
 /** image/* files get the image glyph; everything else the document glyph. */
@@ -337,9 +338,9 @@ export function CommandPalette() {
           >
             {searchStatus === "searching"
               ? t("shell.searching")
-              : searchStatus === "error"
+              : (searchStatus === "error"
                 ? t("shell.searchFailed")
-                : t("shell.noMatches")}
+                : t("shell.noMatches"))}
           </div>
         )}
 

@@ -1,23 +1,18 @@
-import {
-  replaceEqualDeep,
-  type InfiniteData,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { replaceEqualDeep } from '@tanstack/react-query';
+import type { InfiniteData, QueryClient } from '@tanstack/react-query';
 
 import { mmsMediaKind } from "@loonext/shared";
 import { sharedMediaKind } from "@/lib/attachments/media-label";
-import {
-  conversationMatchesFilters,
-  type ConversationFilters,
-} from "./filters";
+import { conversationMatchesFilters } from './filters';
+import type { ConversationFilters } from './filters';
 import { keys } from "./keys";
 import type {
   ConversationDetail,
   ConversationListItem,
   ConversationSnippet,
   Message,
-  MessageStatus,
   MessagesPage,
+  MessageStatus,
   Page,
 } from "./types";
 
@@ -42,7 +37,7 @@ function byKeyDesc(
   const a = Date.parse(aTs);
   const b = Date.parse(bTs);
   if (a !== b) return b - a;
-  return bId < aId ? -1 : bId > aId ? 1 : 0;
+  return bId < aId ? -1 : (bId > aId ? 1 : 0);
 }
 
 /** Shape a full message into the list row's `last_message` embed (G4). */
@@ -155,7 +150,7 @@ export function threadUpsertMessages(
   // arrives when the window grows to reach the newest.
   if (fresh.length > 0 && !first.newer_cursor) {
     changed = true;
-    const merged = [...fresh, ...first.data].sort((a, b) =>
+    const merged = [...fresh, ...first.data].toSorted((a, b) =>
       byKeyDesc(a.created_at, a.id, b.created_at, b.id),
     );
     pages[0] = { ...first, data: merged };
@@ -294,7 +289,7 @@ export function listApplyConversation(
 
   const pages = strippedPages.slice();
   const first = pages[0] ?? { data: [], next_cursor: null };
-  const data = [item, ...first.data].sort((a, b) =>
+  const data = [item, ...first.data].toSorted((a, b) =>
     byKeyDesc(a.last_message_at, a.id, b.last_message_at, b.id),
   );
   pages[0] = { ...first, data };
@@ -419,7 +414,7 @@ export function threadInversePatch(
     for (const key of Object.keys(patch)) {
       inverse[key] = (current as unknown as Record<string, unknown>)[key];
     }
-    return inverse as Partial<Message>;
+    return inverse;
   }
   return null;
 }
@@ -436,5 +431,5 @@ export function detailInversePatch(
   for (const key of Object.keys(patch)) {
     inverse[key] = (current as unknown as Record<string, unknown>)[key];
   }
-  return inverse as Partial<Message>;
+  return inverse;
 }

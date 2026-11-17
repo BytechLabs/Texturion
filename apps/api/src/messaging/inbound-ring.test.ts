@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { restMatch, stubRoute, type Stub } from "../test/messaging-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { restMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { storeVoicemailRecording } from "./inbound-ring";
 
 /**

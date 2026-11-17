@@ -2,22 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { RegistrationRow, SubscriptionStatus } from "@/lib/api/types";
 
-import {
-  applicableSteps,
-  brandRowComplete,
-  campaignRowComplete,
-  draftOwesUsRegistration,
-  hasPaid,
-  owesUsRegistration,
-  pathForLocation,
-  previousStepHref,
-  resolveOnboardingLocation,
-  setupComplete,
-  stepAllowed,
-  stepProgress,
-  type OnboardingDraft,
-  type OnboardingSnapshot,
-} from "./steps";
+import { applicableSteps, brandRowComplete, campaignRowComplete, draftOwesUsRegistration, hasPaid, owesUsRegistration, pathForLocation, previousStepHref, resolveOnboardingLocation, setupComplete, stepAllowed, stepProgress } from './steps';
+import type { OnboardingDraft, OnboardingSnapshot } from './steps';
 
 // ---------------------------------------------------------------------------
 // Factories
@@ -94,13 +80,13 @@ function snapshot(options: SnapshotOptions = {}): OnboardingSnapshot {
             subscription_status: c.status ?? "incomplete",
             numbers: c.numbers ?? [],
             registration: {
-              brand: brand,
+              brand,
               campaign:
                 c.campaign === undefined
                   ? campaign
-                  : c.campaign === null
+                  : (c.campaign === null
                     ? null
-                    : row({ kind: "campaign", ...c.campaign }),
+                    : row({ kind: "campaign", ...c.campaign })),
             },
           },
     registration:
@@ -121,12 +107,13 @@ const COMPLETE_DRAFT: OnboardingDraft = {
 // owed-registration + completeness mirrors
 // ---------------------------------------------------------------------------
 
-describe("owesUsRegistration", () => {
+describe(owesUsRegistration, () => {
   it("US companies always owe", () => {
     expect(
       owesUsRegistration({ country: "US", us_texting_enabled: true }),
     ).toBe(true);
   });
+
   it("CA owes only with US texting on", () => {
     expect(
       owesUsRegistration({ country: "CA", us_texting_enabled: true }),
@@ -137,7 +124,7 @@ describe("owesUsRegistration", () => {
   });
 });
 
-describe("draftOwesUsRegistration", () => {
+describe(draftOwesUsRegistration, () => {
   it("US drafts owe; CA defaults to owing until declined", () => {
     expect(draftOwesUsRegistration({ country: "US" })).toBe(true);
     expect(draftOwesUsRegistration({ country: "CA" })).toBe(true);
@@ -211,7 +198,7 @@ describe("brandRowComplete / campaignRowComplete", () => {
 // Resume routing — every phase of SPEC §4.1 maps to one surface
 // ---------------------------------------------------------------------------
 
-describe("resolveOnboardingLocation", () => {
+describe(resolveOnboardingLocation, () => {
   it("fresh account → name step", () => {
     expect(resolveOnboardingLocation(snapshot({ company: null }))).toEqual({
       kind: "step",
@@ -396,7 +383,7 @@ describe("resolveOnboardingLocation", () => {
 // Step gating
 // ---------------------------------------------------------------------------
 
-describe("stepAllowed", () => {
+describe(stepAllowed, () => {
   it("name locks at creation; number stays editable until checkout (#79)", () => {
     const before = snapshot({ company: null });
     expect(stepAllowed("name", before)).toBe(true);

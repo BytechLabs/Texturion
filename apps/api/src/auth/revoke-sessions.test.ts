@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -43,7 +43,7 @@ function sources(dir: string): string[] {
   for (const entry of readdirSync(dir)) {
     const full = join(dir, entry).replaceAll("\\", "/");
     if (statSync(full).isDirectory()) out.push(...sources(full));
-    else if (/\.ts$/.test(full) && !/\.test\.ts$/.test(full)) out.push(full);
+    else if (full.endsWith('.ts') && !full.endsWith('.test.ts')) out.push(full);
   }
   return out;
 }

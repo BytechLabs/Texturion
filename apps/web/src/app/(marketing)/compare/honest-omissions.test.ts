@@ -60,12 +60,7 @@ describe("#334 every negative claim cites the decision behind it", () => {
   it.each(HONEST_OMISSIONS)("$title matches a recorded refusal", (omission) => {
     // THE tie. Amending a scope decision means editing that table, and this is
     // what turns the edit into a list of pages to correct.
-    expect(
-      doNotBuildTable().includes(omission.refusal),
-      `"${omission.refusal}" is no longer in DECISIONS.md's "Do not build" table, ` +
-        `but /compare still tells buyers "${omission.title}" If the decision ` +
-        `changed, this claim is now wrong in the expensive direction.`,
-    ).toBe(true);
+    expect(doNotBuildTable()).toContain(omission.refusal);
   });
 });
 
@@ -98,6 +93,6 @@ describe("#334 corrections keep the specifics", () => {
     const named = HONEST_OMISSIONS.filter((o) =>
       /Heymarket|Podium|Quo/.test(o.body),
     );
-    expect(named.length).toBe(HONEST_OMISSIONS.length);
+    expect(named).toHaveLength(HONEST_OMISSIONS.length);
   });
 });

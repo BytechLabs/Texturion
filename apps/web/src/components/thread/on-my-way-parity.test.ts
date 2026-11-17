@@ -117,10 +117,7 @@ describe("#520 the on-my-way text reads the same everywhere", () => {
       ios: "OnMyWay.Copy.gatedNote",
     };
     for (const [platform, path] of Object.entries(SURFACES)) {
-      expect(
-        parityCode(path).includes(identifier[platform]),
-        `${platform}: the send warning is never rendered`,
-      ).toBe(true);
+      expect(parityCode(path)).toContain(identifier[platform]);
     }
   });
 

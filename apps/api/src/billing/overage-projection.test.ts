@@ -2,26 +2,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import { stripeNetCents } from "./costs";
-import {
-  countResponse,
-  endpoint,
-  makeHarness,
-  type StubEndpoint,
-} from "../test/billing-support";
+import { countResponse, endpoint, makeHarness } from '../test/billing-support';
+import type { StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
-import {
-  decideOverage,
-  extrapolationMultiplier,
-  fixedMonthlyCostCents,
-  MIN_ELAPSED_DAYS_FOR_WARNING,
-  outboundCeiling,
-  overageDecision,
-  type OverageCompany,
-  type PeriodUsage,
-  periodTiming,
-  projectUsage,
-  storageMonthlyCostCents,
-} from "./overage-projection";
+import { decideOverage, extrapolationMultiplier, fixedMonthlyCostCents, MIN_ELAPSED_DAYS_FOR_WARNING, outboundCeiling, overageDecision, periodTiming, projectUsage, storageMonthlyCostCents } from './overage-projection';
+import type { OverageCompany, PeriodUsage } from './overage-projection';
 
 const env = completeEnv();
 const GB = 1024 ** 3;
@@ -74,7 +59,7 @@ describe("#216 telecom cost = max(estimate, actual × multiplier)", () => {
   });
 });
 
-describe("periodTiming", () => {
+describe(periodTiming, () => {
   it("derives period + elapsed days from the Stripe window", () => {
     const t = periodTiming(
       "2026-06-01T00:00:00Z",
@@ -96,7 +81,7 @@ describe("periodTiming", () => {
   });
 });
 
-describe("extrapolationMultiplier", () => {
+describe(extrapolationMultiplier, () => {
   it("scales up early in the period", () => {
     expect(extrapolationMultiplier(30, 15)).toBe(2);
     expect(extrapolationMultiplier(30, 1)).toBe(30);
@@ -115,7 +100,7 @@ describe("extrapolationMultiplier", () => {
   });
 });
 
-describe("outboundCeiling", () => {
+describe(outboundCeiling, () => {
   it("is the included allowance times the cap multiplier", () => {
     expect(outboundCeiling("starter", 3)).toBe(1500); // 500 * 3
     expect(outboundCeiling("pro", 3)).toBe(7500); // 2500 * 3
@@ -213,16 +198,16 @@ describe("projectUsage (per-volume cost + overage revenue)", () => {
   it("does NOT cap the transfer count at the voice-minute ceiling (#98 — the loss the minute cap misses)", () => {
     // Minutes bound at the spending cap, but call COUNT does not: a flood of
     // brief calls keeps accruing $0.10 each past the minute cap.
-    const u = usage({ forwardedCalls: 1000, voiceSeconds: 12000 });
+    const u = usage({ forwardedCalls: 1000, voiceSeconds: 12_000 });
     // voice: 12000*3 s = 600 min (< allowance, no cap hit) * 1.2 = 720;
     // transfers: 1000*3 * 10c = 30000.
-    expect(projectUsage(u, "starter", 3, 3).costCents).toBe(720 + 30000);
+    expect(projectUsage(u, "starter", 3, 3).costCents).toBe(720 + 30_000);
   });
 
   it("prices uncapped inbound in full (the real loss driver, no revenue)", () => {
     const u = usage({ inboundSegments: 5000 });
     expect(projectUsage(u, "starter", 3, 2)).toEqual({
-      costCents: 10000, // 10000 * 1.0
+      costCents: 10_000, // 10000 * 1.0
       overageRevenueGrossCents: 0,
       // #522: inbound is free to the customer, so it produces no billable
       // volume in either currency — which is exactly why it is the loss driver.
@@ -239,7 +224,7 @@ describe("storageMonthlyCostCents (stock, not extrapolated)", () => {
   });
 });
 
-describe("fixedMonthlyCostCents", () => {
+describe(fixedMonthlyCostCents, () => {
   it("is number rental plus the US campaign fee when US-enabled", () => {
     expect(fixedMonthlyCostCents({ numbers: 2, usTextingEnabled: true })).toBe(
       2 * 110 + 1000,
@@ -275,7 +260,7 @@ describe("overageDecision (pure)", () => {
       midPeriod,
     );
     // flow 5000*2*1.0 = 10000, fixed 110 + 1000 = 1110, storage 0.
-    expect(d.extrapolatedCostCents).toBe(11110);
+    expect(d.extrapolatedCostCents).toBe(11_110);
     expect(d.revenueCents).toBeCloseTo(2771.4, 4); // stripeNet($29), no overage
     expect(d.trendingOver).toBe(true);
   });
@@ -296,9 +281,9 @@ describe("overageDecision (pure)", () => {
       midPeriod,
     );
     // cost: 10000*1.15 + 6000*1.0 + fixed 1110 = 11500 + 6000 + 1110 = 18610.
-    expect(d.extrapolatedCostCents).toBe(18610);
+    expect(d.extrapolatedCostCents).toBe(18_610);
     // revenue: stripeNet(2900 + (10000-500)*3) = stripeNet(31400).
-    expect(d.revenueCents).toBeCloseTo(31400 * 0.966 - 30, 3);
+    expect(d.revenueCents).toBeCloseTo(31_400 * 0.966 - 30, 3);
     expect(d.marginCents).toBeGreaterThan(0);
     expect(d.trendingOver).toBe(false);
   });
@@ -324,7 +309,7 @@ describe("overageDecision (pure)", () => {
     const dayOne = new Date("2026-06-01T12:00:00Z"); // 0.5 days in
     const d = overageDecision(
       {
-        usage: usage({ inboundSegments: 100000 }),
+        usage: usage({ inboundSegments: 100_000 }),
         plan: "starter",
         overageCapMultiplier: 3,
         numbers: 1,

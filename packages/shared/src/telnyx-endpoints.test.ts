@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -10,7 +9,7 @@ import { describe, expect, it } from "vitest";
  * every shape the API uses, and the shapes it must refuse rather than guess at.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 type Request = { method: string; path: string; where: string };
 type Entry = { method: string; path: string; policy: string; line: number };
@@ -32,7 +31,7 @@ const scan = (body: string) => guard.scanFile(ts, FILE, IMPORTS + body);
 const endpoints = (body: string) => {
   const result = scan(body);
   expect(result.problems).toEqual([]);
-  return result.requests.map((r) => `${r.method} ${r.path}`).sort();
+  return result.requests.map((r) => `${r.method} ${r.path}`).toSorted();
 };
 
 describe("the call shapes the API uses", () => {
@@ -124,7 +123,7 @@ describe("names, resolved by declaration", () => {
   const bare = (body: string) => {
     const result = guard.scanFile(ts, FILE, body);
     expect(result.problems).toEqual([]);
-    return result.requests.map((r) => `${r.method} ${r.path}`).sort();
+    return result.requests.map((r) => `${r.method} ${r.path}`).toSorted();
   };
 
   it("reads the client imported under another name", () => {

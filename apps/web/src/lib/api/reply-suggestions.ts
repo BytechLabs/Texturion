@@ -3,7 +3,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
@@ -23,28 +24,37 @@ export function suggestionFailureMessage(
   t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
   switch (reason) {
-    case "disabled":
+    case "disabled": {
       return t("thread.draftsDisabled");
-    case "spam":
+    }
+    case "spam": {
       return t("thread.draftsSpam");
-    case "nothing_to_reply":
+    }
+    case "nothing_to_reply": {
       return t("thread.draftsNothingToReply");
-    case "subscription_inactive":
+    }
+    case "subscription_inactive": {
       // Billing, not breakage — so it must not say "try again", which is not
       // what fixes it. The same KEY every feature Lou refuses for this reason
       // reads, so the wording cannot drift between them (#581).
       return t("thread.louPausedForBilling");
-    case "over_cap":
+    }
+    case "over_cap": {
       return t("thread.draftsOverCap");
-    case "rate_limited":
+    }
+    case "rate_limited": {
       return t("thread.draftsRateLimited");
+    }
     case "model_error":
-    case "unavailable":
+    case "unavailable": {
       return t("thread.louUnreachable");
-    case "unusable_output":
+    }
+    case "unusable_output": {
       return t("thread.draftsUnusable");
-    default:
+    }
+    default: {
       return t("thread.draftsNone");
+    }
   }
 }
 

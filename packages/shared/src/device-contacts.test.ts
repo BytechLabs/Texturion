@@ -7,11 +7,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  deviceContactMatches,
-  filterDeviceContacts,
-  type DeviceContactListRow,
-} from "./device-contacts";
+import { deviceContactMatches, filterDeviceContacts } from './device-contacts';
+import type { DeviceContactListRow } from './device-contacts';
 
 const row = (name: string, number = "+14165550123", id = name): DeviceContactListRow => ({
   id,
@@ -19,7 +16,7 @@ const row = (name: string, number = "+14165550123", id = name): DeviceContactLis
   number,
 });
 
-describe("deviceContactMatches", () => {
+describe(deviceContactMatches, () => {
   it("shows everything for an empty query", () => {
     expect(deviceContactMatches(row("Dana Smith"), "")).toBe(true);
     expect(deviceContactMatches(row("Dana Smith"), "   ")).toBe(true);
@@ -69,7 +66,7 @@ describe("deviceContactMatches", () => {
   });
 });
 
-describe("filterDeviceContacts", () => {
+describe(filterDeviceContacts, () => {
   it("returns every match, however many there are (#547)", () => {
     // THE DEFECT THIS REPLACES. There was a cap at fifty, so "Show all from
     // this phone" showed fifty and then said "Showing the first 50" — a control

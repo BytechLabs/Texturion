@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  burstCapacityResult,
-  type Report,
-} from "../e2e/load-report";
+import { burstCapacityResult } from '../e2e/load-report';
+import type { Report } from '../e2e/load-report';
 
 function report(overrides: Partial<Report> = {}): Report {
   return {

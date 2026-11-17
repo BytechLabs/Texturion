@@ -32,7 +32,7 @@ export function idempotencyKeyFor(
   signature: string,
   mint: () => string = () => crypto.randomUUID(),
 ): string {
-  return previous !== null && previous.signature === signature
+  return previous?.signature === signature
     ? previous.key
     : mint();
 }

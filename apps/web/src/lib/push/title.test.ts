@@ -13,7 +13,7 @@ import {
   formatUnreadTitle,
 } from "./title";
 
-describe("formatUnreadTitle", () => {
+describe(formatUnreadTitle, () => {
   it("prefixes the count in the G9 shape", () => {
     expect(formatUnreadTitle("Inbox — Loonext", 3)).toBe("(3) Inbox — Loonext");
   });
@@ -33,7 +33,7 @@ describe("formatUnreadTitle", () => {
   });
 });
 
-describe("createTitleController", () => {
+describe(createTitleController, () => {
   it("applies and updates the prefix without stacking", () => {
     const controller = createTitleController();
     expect(controller.next("Inbox — Loonext", 3)).toBe("(3) Inbox — Loonext");
@@ -76,14 +76,14 @@ describe("createTitleController", () => {
   });
 });
 
-describe("faviconHref", () => {
+describe(faviconHref, () => {
   it("selects the dotted favicon only while unread exists", () => {
     expect(faviconHref(0)).toBe("/favicon.svg");
     expect(faviconHref(1)).toBe("/favicon-unread.svg");
   });
 });
 
-describe("countUnreadConversations", () => {
+describe(countUnreadConversations, () => {
   const list = (rows: { id: string; unread?: boolean }[][]) => ({
     pages: rows.map((data) => ({ data })),
   });

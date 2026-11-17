@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  isDeliverableWebhookUrl,
+  isWebhookEventType,
+  parseWebhookSignatureHeader,
   WEBHOOK_AUTO_DISABLE_AFTER_CONSECUTIVE_FAILURES,
   WEBHOOK_ENDPOINT_CAP,
   WEBHOOK_EVENT_TYPES,
   WEBHOOK_MAX_ATTEMPTS,
   WEBHOOK_RETRY_SCHEDULE_SECONDS,
-  isDeliverableWebhookUrl,
-  isWebhookEventType,
-  parseWebhookSignatureHeader,
   webhookEventLabelKey,
   webhookRetryDelaySeconds,
   webhookSignatureHeader,
@@ -22,7 +22,7 @@ describe("the event vocabulary", () => {
     // Set equality in BOTH directions. A one-way containment check passes when
     // a name is added that nobody meant to promise, and every name here is a
     // permanent commitment to somebody else's code.
-    expect([...WEBHOOK_EVENT_TYPES].sort()).toEqual(
+    expect([...WEBHOOK_EVENT_TYPES].toSorted()).toEqual(
       [
         "call.completed",
         "call.deleted",
@@ -35,7 +35,7 @@ describe("the event vocabulary", () => {
         "task.completed",
         "task.created",
         "voicemail.received",
-      ].sort(),
+      ].toSorted(),
     );
   });
 
@@ -108,7 +108,7 @@ describe("the retry schedule", () => {
 
   it("backs off monotonically", () => {
     const gaps = [...WEBHOOK_RETRY_SCHEDULE_SECONDS];
-    for (let i = 1; i < gaps.length; i += 1) expect(gaps[i]).toBeGreaterThan(gaps[i - 1]!);
+    for (let i = 1; i < gaps.length; i += 1) expect(gaps[i]).toBeGreaterThan(gaps[i - 1]);
   });
 
   it("keeps the caps meaningful rather than decorative", () => {

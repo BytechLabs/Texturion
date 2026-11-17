@@ -1,4 +1,5 @@
-import { createElement, type ReactNode } from "react";
+import { createElement } from 'react';
+import type { ReactNode } from 'react';
 import { renderToString } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -53,7 +54,7 @@ async function renderPage(
 function submitButton(html: string): string {
   const match = html.match(/<button[^>]*type="submit"[^>]*>/);
   expect(match).not.toBeNull();
-  return (match as RegExpMatchArray)[0];
+  return (match!)[0];
 }
 
 // Each test re-imports a full page module tree (supabase client included)

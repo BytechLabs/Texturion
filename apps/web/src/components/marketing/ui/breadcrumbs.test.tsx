@@ -14,7 +14,7 @@ const TRAIL = [
   { name: "How to text quotes", path: "/blog/how-to-text-quotes-to-customers" },
 ];
 
-describe("Breadcrumbs", () => {
+describe(Breadcrumbs, () => {
   it("links every crumb but the last, which is the current page", () => {
     const html = renderToStaticMarkup(<Breadcrumbs crumbs={TRAIL} />);
     // Earlier crumbs are links to their paths.

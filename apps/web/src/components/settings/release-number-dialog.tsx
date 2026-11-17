@@ -83,8 +83,8 @@ export function ReleaseNumberDialog({
   }
 
   const display = number.number_e164 ? formatPhone(number.number_e164) : "";
-  const expectedDigits = (number.number_e164 ?? "").replace(/\D/g, "");
-  const typedDigits = typed.replace(/\D/g, "");
+  const expectedDigits = (number.number_e164 ?? "").replaceAll(/\D/g, "");
+  const typedDigits = typed.replaceAll(/\D/g, "");
   const matches =
     expectedDigits !== "" &&
     (typedDigits === expectedDigits || `1${typedDigits}` === expectedDigits);

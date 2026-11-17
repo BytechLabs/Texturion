@@ -185,9 +185,9 @@ export async function resolveDestinationClock(
   const region = entry?.geographic ? (entry.region ?? null) : null;
 
   const override =
-    input.contactTimezone !== undefined
-      ? input.contactTimezone
-      : await lookupContactTimezone(db, input.companyId, input.phoneE164);
+    input.contactTimezone === undefined
+      ? await lookupContactTimezone(db, input.companyId, input.phoneE164)
+      : input.contactTimezone;
   if (override) return at(override, "contact", region, atUtc);
 
   if (entry?.geographic && entry.timezone) {
@@ -276,7 +276,7 @@ export function nextSendableInstant(
   // A whole day of hours is more than enough to walk out of a 12-hour quiet
   // window from anywhere inside it, and it is a hard stop rather than a
   // `while (true)` against a runtime we do not control.
-  const cursor = new Date(fromUtc.getTime());
+  const cursor = new Date(fromUtc);
   cursor.setUTCMinutes(0, 0, 0);
   for (let step = 0; step < 26; step += 1) {
     cursor.setUTCHours(cursor.getUTCHours() + 1);
@@ -321,7 +321,7 @@ export function lastSendableInstantBefore(
 ): Date | null {
   if (!isQuietAt(timezone, region, atUtc)) return atUtc;
 
-  const cursor = new Date(atUtc.getTime());
+  const cursor = new Date(atUtc);
   cursor.setUTCMinutes(0, 0, 0);
   for (let step = 0; step < 26; step += 1) {
     cursor.setUTCHours(cursor.getUTCHours() - 1);

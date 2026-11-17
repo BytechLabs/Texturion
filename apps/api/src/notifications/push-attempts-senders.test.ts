@@ -11,15 +11,17 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { captureEvent } from "../observability/capture";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
 import { eventsCaptured, resetCaptures } from "../test/capture-mock";
-import { stubFetch, type FetchRoute } from "../test/support";
+import { stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { notifyCallEnd } from "./call-end";
 import { deliverPush } from "./deliver";
 import { notifyIncomingCall } from "./incoming-call";
 import { encodeBase64Url } from "./webpush";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 

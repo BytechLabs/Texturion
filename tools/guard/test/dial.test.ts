@@ -2,22 +2,12 @@ import { HEADER, LEASE_MAX_MS } from "@loonext/rig-protocol";
 import { describe, expect, it } from "vitest";
 
 import { ADMISSION_KEYS } from "../src/state/admission";
-import { LIMIT_KEYS, limitInForce, type Ceiling } from "../src/state/concurrency";
+import { LIMIT_KEYS, limitInForce } from '../src/state/concurrency';
+import type { Ceiling } from '../src/state/concurrency';
 import { charge } from "../src/state/ledger";
 import { recordSignal } from "../src/state/signals";
-import {
-  EDGE,
-  fileValidation,
-  harness,
-  lease,
-  MONDAY_0500,
-  N,
-  ready,
-  registerViaEdge,
-  ruleOf,
-  seedAccount,
-  type Harness,
-} from "./support";
+import { EDGE, fileValidation, harness, lease, MONDAY_0500, N, ready, registerViaEdge, ruleOf, seedAccount } from './support';
+import type { Harness } from './support';
 import { runSafetyChecks } from "../src/setup/safety";
 
 const DIAL = {
@@ -47,11 +37,11 @@ describe("dial", () => {
 
   it("needs a lease header naming the live lease", async () => {
     const h = await ready();
-    expect(await ruleOf(await dial(h, null))).toBe("dial.lease_missing");
-    expect(await ruleOf(await dial(h, "not-a-lease"))).toBe("dial.lease_not_live");
+    await expect(ruleOf(await dial(h, null))).resolves.toBe("dial.lease_missing");
+    await expect(ruleOf(await dial(h, "not-a-lease"))).resolves.toBe("dial.lease_not_live");
     const id = await lease(h);
     h.advance(LEASE_MAX_MS + 1);
-    expect(await ruleOf(await dial(h, id))).toBe("dial.lease_not_live");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("dial.lease_not_live");
     expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
   });
 
@@ -63,13 +53,13 @@ describe("dial", () => {
         body: { ...DIAL, connection_id: "conn-voice", from: N.devW1, to: "sip:gencredowner@sip.telnyx.com" },
         headers,
       });
-    expect(await ruleOf(await appDial())).toBe("dial.lease_not_live");
+    await expect(ruleOf(await appDial())).resolves.toBe("dial.lease_not_live");
     const id = await lease(h);
     expect((await appDial()).status).toBe(200);
-    expect(await ruleOf(await appDial({ [HEADER.lease]: "another-lease" }))).toBe("dial.lease_not_live");
+    await expect(ruleOf(await appDial({ [HEADER.lease]: "another-lease" }))).resolves.toBe("dial.lease_not_live");
     expect((await appDial({ [HEADER.lease]: id })).status).toBe(200);
     // Test code names its lease.
-    expect(await ruleOf(await dial(h, null))).toBe("dial.lease_missing");
+    await expect(ruleOf(await dial(h, null))).resolves.toBe("dial.lease_missing");
   });
 
   it("admits no dial under a lease taken for a run that dials nothing", async () => {
@@ -80,8 +70,8 @@ describe("dial", () => {
       caller: "rig-api",
       body: { ...DIAL, connection_id: "conn-voice", from: N.devW1, to: "sip:gencredowner@sip.telnyx.com" },
     });
-    expect(await ruleOf(await appDial)).toBe("dial.lease_not_live");
-    expect(await ruleOf(await dial(h, id))).toBe("dial.lease_not_live");
+    await expect(ruleOf(await appDial)).resolves.toBe("dial.lease_not_live");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("dial.lease_not_live");
     expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
   });
 
@@ -89,14 +79,14 @@ describe("dial", () => {
     const h = await ready();
     const id = await lease(h);
     expect((await h.call(`/lease/${id}`, { caller: "robot", method: "DELETE" })).status).toBe(200);
-    expect(await ruleOf(await dial(h, id))).toBe("dial.lease_not_live");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("dial.lease_not_live");
   });
 
   it("dials only on the two nonprod Call Control apps", async () => {
     const h = await ready();
     const id = await lease(h);
     for (const connection_id of ["conn-prod-voice", "conn-webrtc", "conn-sentinel", undefined]) {
-      expect(await ruleOf(await dial(h, id, { ...DIAL, connection_id })), String(connection_id)).toBe(
+      await expect(ruleOf(await dial(h, id, { ...DIAL, connection_id }))).resolves.toBe(
         "dial.connection_not_nonprod",
       );
     }
@@ -106,7 +96,7 @@ describe("dial", () => {
     const h = await ready();
     const id = await lease(h);
     for (const from of [N.notOwned, N.production, "anonymous", undefined]) {
-      expect(await ruleOf(await dial(h, id, { ...DIAL, from })), String(from)).toBe("dial.from_not_owned");
+      await expect(ruleOf(await dial(h, id, { ...DIAL, from }))).resolves.toBe("dial.from_not_owned");
     }
   });
 
@@ -123,7 +113,7 @@ describe("dial", () => {
       [N.devW1, N.notOwned],
       [],
     ]) {
-      expect(await ruleOf(await dial(h, id, { ...DIAL, to })), JSON.stringify(to)).toBe("dial.to_not_owned");
+      await expect(ruleOf(await dial(h, id, { ...DIAL, to }))).resolves.toBe("dial.to_not_owned");
     }
     expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
     expect((await dial(h, id, { ...DIAL, connection_id: "conn-voice", to: "sip:gencredowner@sip.telnyx.com" })).status).toBe(
@@ -144,7 +134,7 @@ describe("dial", () => {
       { billing_group_id: "bg-production" },
       { conversation_relay_config: { url: "wss://x.example" } },
     ]) {
-      expect(await ruleOf(await dial(h, id, { ...DIAL, ...extra })), JSON.stringify(extra)).toBe("dial.field_refused");
+      await expect(ruleOf(await dial(h, id, { ...DIAL, ...extra }))).resolves.toBe("dial.field_refused");
     }
     expect((await dial(h, id, { ...DIAL, webhook_url: `${EDGE}/t/r`, billing_group_id: "bg-nonprod" })).status).toBe(200);
   });
@@ -154,7 +144,7 @@ describe("dial", () => {
     const id = await lease(h);
     h.telnyx.failNext = { method: "POST", path: "/v2/calls", status: 422 };
     expect((await dial(h, id)).status).toBe(422);
-    expect(await h.store.get("count:dials:2026-11-02")).toBe(0);
+    await expect(h.store.get("count:dials:2026-11-02")).resolves.toBe(0);
     expect((await h.store.get<{ usage_usd: number }>("money:month:2026-11"))?.usage_usd).toBe(0);
   });
 
@@ -163,7 +153,7 @@ describe("dial", () => {
     const id = await lease(h);
     h.telnyx.failNext = { method: "POST", path: "/v2/calls", status: 503 };
     expect((await dial(h, id)).status).toBe(503);
-    expect(await h.store.get("count:dials:2026-11-02")).toBe(1);
+    await expect(h.store.get("count:dials:2026-11-02")).resolves.toBe(1);
   });
 });
 
@@ -174,9 +164,9 @@ describe("transfer and bridge", () => {
     await registerViaEdge(h, "ccid-1");
     const transfer = (body: Record<string, unknown>, ccid = "ccid-1") =>
       h.call(`/telnyx/v2/calls/${ccid}/actions/transfer`, { body, headers: { [HEADER.lease]: id } });
-    expect(await ruleOf(await transfer({ to: N.notOwned }))).toBe("dial.to_not_owned");
-    expect(await ruleOf(await transfer({ to: N.devW2, from: N.notOwned }))).toBe("dial.from_not_owned");
-    expect(await ruleOf(await transfer({ to: N.devW2 }, "ccid-production"))).toBe("dial.leg_not_registered");
+    await expect(ruleOf(await transfer({ to: N.notOwned }))).resolves.toBe("dial.to_not_owned");
+    await expect(ruleOf(await transfer({ to: N.devW2, from: N.notOwned }))).resolves.toBe("dial.from_not_owned");
+    await expect(ruleOf(await transfer({ to: N.devW2 }, "ccid-production"))).resolves.toBe("dial.leg_not_registered");
     expect((await transfer({ to: "sip:gencredowner@sip.telnyx.com", from: N.robot1 })).status).toBe(200);
   });
 
@@ -187,8 +177,8 @@ describe("transfer and bridge", () => {
     await registerViaEdge(h, "ccid-2", "conn-robot", "robot");
     const bridge = (body: Record<string, unknown>) =>
       h.call("/telnyx/v2/calls/ccid-1/actions/bridge", { body, headers: { [HEADER.lease]: id } });
-    expect(await ruleOf(await bridge({ call_control_id: "ccid-production" }))).toBe("dial.leg_not_registered");
-    expect(await ruleOf(await bridge({ call_control_id: "ccid-2", queue: "support" }))).toBe("dial.field_refused");
+    await expect(ruleOf(await bridge({ call_control_id: "ccid-production" }))).resolves.toBe("dial.leg_not_registered");
+    await expect(ruleOf(await bridge({ call_control_id: "ccid-2", queue: "support" }))).resolves.toBe("dial.field_refused");
     expect((await bridge({ call_control_id: "ccid-2" })).status).toBe(200);
     // A bridge adds no leg, so it spends no dial.
     expect((await h.store.get("count:dials:2026-11-02")) ?? 0).toBe(0);
@@ -204,7 +194,7 @@ describe("admission", () => {
   it("keeps paid dials off while the concurrency floor is unparseable, whatever else is proven", async () => {
     const h = await ready({ env: { TELNYX_CONCURRENT_FLOOR: "unknown" } });
     const id = await lease(h);
-    expect(await ruleOf(await dial(h, id))).toBe("admission.limit_unknown");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.limit_unknown");
     expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
   });
 
@@ -213,13 +203,13 @@ describe("admission", () => {
     const h = await ready({ validated: null });
     await h.store.put(ADMISSION_KEYS.reserve, { legs: 1, measured_at: h.clock.now });
     const id = await lease(h);
-    expect(await ruleOf(await dial(h, id))).toBe("admission.limit_unproven");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.limit_unproven");
     await registerViaEdge(h, "ccid-1");
     const transfer = await h.call("/telnyx/v2/calls/ccid-1/actions/transfer", {
       body: { to: N.devW2 },
       headers: { [HEADER.lease]: id },
     });
-    expect(await ruleOf(transfer)).toBe("admission.limit_unproven");
+    await expect(ruleOf(transfer)).resolves.toBe("admission.limit_unproven");
     expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
   });
 
@@ -232,7 +222,7 @@ describe("admission", () => {
       h.call("/telnyx/v2/calls/ccid-1/actions/bridge", { body: { call_control_id: "ccid-2" }, headers: { [HEADER.lease]: id } });
     expect((await bridge()).status).toBe(200);
     await h.store.delete(ADMISSION_KEYS.ratios);
-    expect(await ruleOf(await bridge())).toBe("admission.ratios_unknown");
+    await expect(ruleOf(await bridge())).resolves.toBe("admission.ratios_unknown");
   });
 
   it("admits up to the validated limit less the reserve: V=4 with reserve 2 is two legs", async () => {
@@ -240,7 +230,7 @@ describe("admission", () => {
     const id = await lease(h);
     expect((await dial(h, id)).status).toBe(200);
     expect((await dial(h, id, { ...DIAL, to: N.devW2 })).status).toBe(200);
-    expect(await ruleOf(await dial(h, id, { ...DIAL, to: N.devA1 }))).toBe("admission.no_room");
+    await expect(ruleOf(await dial(h, id, { ...DIAL, to: N.devA1 }))).resolves.toBe("admission.no_room");
   });
 
   it("refuses on a conflict in the evidence, and the refusal is all it says", async () => {
@@ -248,8 +238,8 @@ describe("admission", () => {
     await h.store.put(LIMIT_KEYS.history, { peak_calls: 4, measured_at: h.clock.now });
     const id = await lease(h);
     const sent = h.outbound.length;
-    expect(await ruleOf(await dial(h, id))).toBe("admission.limit_conflict");
-    expect(await ruleOf(await dial(h, id))).toBe("admission.limit_conflict");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.limit_conflict");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.limit_conflict");
     expect(h.outbound.slice(sent).filter((item) => item.body.includes('"$exception_fingerprint"'))).toEqual([]);
     expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
   });
@@ -258,9 +248,9 @@ describe("admission", () => {
     const h = await ready();
     const id = await lease(h);
     await h.store.delete(ADMISSION_KEYS.accountRate);
-    expect(await ruleOf(await dial(h, id))).toBe("admission.account_rate_unknown");
-    await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 0, peak_day_dials: 0, measured_at: h.clock.now - 37 * 3600_000 });
-    expect(await ruleOf(await dial(h, id))).toBe("admission.account_rate_unknown");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.account_rate_unknown");
+    await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 0, peak_day_dials: 0, measured_at: h.clock.now - 37 * 3_600_000 });
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.account_rate_unknown");
     expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
   });
 
@@ -275,15 +265,15 @@ describe("admission", () => {
       expect(response.status).toBe(200);
       h.telnyx.calls.set(((await response.json()) as { data: { call_control_id: string } }).data.call_control_id, { alive: false });
     }
-    expect(await ruleOf(await dial(h, id))).toBe("admission.account_hour_full");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.account_hour_full");
     // The hour before still counts: a rolling hour can straddle two UTC hours.
-    h.advance(3600_000);
+    h.advance(3_600_000);
     const next = await lease(h);
     await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 8, peak_day_dials: 8, measured_at: h.clock.now });
-    expect(await ruleOf(await dial(h, next))).toBe("admission.account_hour_full");
+    await expect(ruleOf(await dial(h, next))).resolves.toBe("admission.account_hour_full");
 
     await h.store.put(ADMISSION_KEYS.accountRate, { peak_hour_dials: 0, peak_day_dials: 98, measured_at: h.clock.now });
-    expect(await ruleOf(await dial(h, next))).toBe("admission.account_day_full");
+    await expect(ruleOf(await dial(h, next))).resolves.toBe("admission.account_day_full");
   });
 
   it("records a ceiling from Telnyx's concurrency refusal, and halts the paid lanes", async () => {
@@ -293,9 +283,9 @@ describe("admission", () => {
     refuseNextDial(h, 403, "90041");
     expect((await dial(h, id, { ...DIAL, to: N.devW2 })).status).toBe(403);
     // Production was idle at admission: one rig leg up plus the one refused, less one.
-    expect(await h.store.get<Ceiling[]>(LIMIT_KEYS.ceiling)).toEqual([{ value: 1, from: "telnyx-90041", at: h.clock.now }]);
+    await expect(h.store.get<Ceiling[]>(LIMIT_KEYS.ceiling)).resolves.toEqual([{ value: 1, from: "telnyx-90041", at: h.clock.now }]);
     expect((await limitInForce(h.ctx)).limit).toBe(1);
-    expect(await ruleOf(await dial(h, id, { ...DIAL, to: N.devA1 }))).toBe("signal.halted");
+    await expect(ruleOf(await dial(h, id, { ...DIAL, to: N.devA1 }))).resolves.toBe("signal.halted");
     const signal = h.outbound.find((item) => item.body.includes("telnyx-concurrency-refusal"));
     expect(signal?.body).toContain('"$exception_fingerprint":"ops:telnyx-account-signal"');
   });
@@ -307,8 +297,8 @@ describe("admission", () => {
       const id = await lease(h);
       refuseNextDial(h, 422, code);
       await dial(h, id);
-      expect(await h.store.get<Ceiling[]>(LIMIT_KEYS.ceiling)).toEqual([{ value: null, from: `telnyx-${code}`, at: h.clock.now }]);
-      expect(await ruleOf(await dial(h, id))).toBe("signal.halted");
+      await expect(h.store.get<Ceiling[]>(LIMIT_KEYS.ceiling)).resolves.toEqual([{ value: null, from: `telnyx-${code}`, at: h.clock.now }]);
+      await expect(ruleOf(await dial(h, id))).resolves.toBe("signal.halted");
     }
   });
 
@@ -320,8 +310,8 @@ describe("admission", () => {
     expect((await dial(h, id, { ...DIAL, to: N.devW2 })).status).toBe(200);
     refuseNextDial(h, 429, "90103");
     expect((await dial(h, id, { ...DIAL, to: N.devA1 })).status).toBe(429);
-    expect(await h.store.get(LIMIT_KEYS.ceiling)).toBeUndefined();
-    expect(await ruleOf(await dial(h, id))).toBe("signal.halted");
+    await expect(h.store.get(LIMIT_KEYS.ceiling)).resolves.toBeUndefined();
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("signal.halted");
     expect(h.outbound.some((item) => item.body.includes("telnyx-dial-rate-refusal"))).toBe(true);
   });
 
@@ -330,8 +320,8 @@ describe("admission", () => {
     const id = await lease(h);
     refuseNextDial(h, 403, "10039");
     expect((await dial(h, id)).status).toBe(403);
-    expect(await h.store.get(LIMIT_KEYS.ceiling)).toBeUndefined();
-    expect(await ruleOf(await dial(h, id, { ...DIAL, to: N.devW2 }))).toBe("signal.halted");
+    await expect(h.store.get(LIMIT_KEYS.ceiling)).resolves.toBeUndefined();
+    await expect(ruleOf(await dial(h, id, { ...DIAL, to: N.devW2 }))).resolves.toBe("signal.halted");
     expect(h.outbound.some((item) => item.body.includes("telnyx-dial-rate-refusal"))).toBe(true);
   });
 
@@ -340,14 +330,14 @@ describe("admission", () => {
     const id = await lease(h);
     refuseNextDial(h, 422, "10015");
     expect((await dial(h, id)).status).toBe(422);
-    expect(await h.store.get(LIMIT_KEYS.ceiling)).toBeUndefined();
+    await expect(h.store.get(LIMIT_KEYS.ceiling)).resolves.toBeUndefined();
     expect((await dial(h, id)).status).toBe(200);
   });
 
   it("dials only inside the window, the measured one when fresh", async () => {
     const h = await ready({ now: Date.parse("2026-11-02T12:00:00Z") });
     const id = await lease(h);
-    expect(await ruleOf(await dial(h, id))).toBe("admission.outside_window");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.outside_window");
     await h.store.put(ADMISSION_KEYS.window, { start_hour: 9, measured_at: h.clock.now });
     expect((await dial(h, id)).status).toBe(200);
     h.advance(40 * 24 * 60 * 60 * 1000);
@@ -355,20 +345,20 @@ describe("admission", () => {
     await h.store.put(ADMISSION_KEYS.reserve, { legs: 2, measured_at: h.clock.now });
     await h.store.put(ADMISSION_KEYS.ratios, { calls: 10, abandoned: 0, short: 0, measured_at: h.clock.now });
     const fresh = await lease(h);
-    expect(await ruleOf(await dial(h, fresh))).toBe("admission.outside_window");
+    await expect(ruleOf(await dial(h, fresh))).resolves.toBe("admission.outside_window");
   });
 
   it("refuses on unknown, abandoned-heavy or short-heavy ratios", async () => {
     const h = await ready();
     const id = await lease(h);
     await h.store.delete(ADMISSION_KEYS.ratios);
-    expect(await ruleOf(await dial(h, id))).toBe("admission.ratios_unknown");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.ratios_unknown");
     await h.store.put(ADMISSION_KEYS.ratios, { calls: 100, abandoned: 16, short: 0, measured_at: h.clock.now });
-    expect(await ruleOf(await dial(h, id))).toBe("admission.abandoned_ratio");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.abandoned_ratio");
     await h.store.put(ADMISSION_KEYS.ratios, { calls: 100, abandoned: 15, short: 11, measured_at: h.clock.now });
-    expect(await ruleOf(await dial(h, id))).toBe("admission.short_ratio");
-    await h.store.put(ADMISSION_KEYS.ratios, { calls: 100, abandoned: 15, short: 10, measured_at: h.clock.now - 37 * 3600_000 });
-    expect(await ruleOf(await dial(h, id))).toBe("admission.ratios_unknown");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.short_ratio");
+    await h.store.put(ADMISSION_KEYS.ratios, { calls: 100, abandoned: 15, short: 10, measured_at: h.clock.now - 37 * 3_600_000 });
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.ratios_unknown");
   });
 
   it("does not judge the shares under 30 calls, and judges them from 30", async () => {
@@ -383,21 +373,21 @@ describe("admission", () => {
     expect((await dial(h, id)).status).toBe(200);
     // 30 calls: 5 abandoned is 16.7%, 4 is 13.3%; 4 short is 13.3%, 3 is 10%.
     await file(30, 5, 0);
-    expect(await ruleOf(await dial(h, id))).toBe("admission.abandoned_ratio");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.abandoned_ratio");
     await file(30, 4, 3);
     expect((await dial(h, id)).status).toBe(200);
     await file(30, 0, 4);
-    expect(await ruleOf(await dial(h, id))).toBe("admission.short_ratio");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.short_ratio");
     // A low sample is no excuse for a stale filing.
-    await h.store.put(ADMISSION_KEYS.ratios, { calls: 3, abandoned: 0, short: 0, low_sample: true, measured_at: h.clock.now - 37 * 3600_000 });
-    expect(await ruleOf(await dial(h, id))).toBe("admission.ratios_unknown");
+    await h.store.put(ADMISSION_KEYS.ratios, { calls: 3, abandoned: 0, short: 0, low_sample: true, measured_at: h.clock.now - 37 * 3_600_000 });
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.ratios_unknown");
   });
 
   it("leaves no room without a fresh production reserve", async () => {
     const h = await ready();
     const id = await lease(h);
-    await h.store.put(ADMISSION_KEYS.reserve, { legs: 2, measured_at: h.clock.now - 37 * 3600_000 });
-    expect(await ruleOf(await dial(h, id))).toBe("admission.reserve_unknown");
+    await h.store.put(ADMISSION_KEYS.reserve, { legs: 2, measured_at: h.clock.now - 37 * 3_600_000 });
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.reserve_unknown");
   });
 
   it("counts live nonprod legs against the room", async () => {
@@ -407,7 +397,7 @@ describe("admission", () => {
     const id = await lease(h);
     expect((await dial(h, id)).status).toBe(200);
     expect((await dial(h, id, { ...DIAL, to: N.devW2 })).status).toBe(200);
-    expect(await ruleOf(await dial(h, id, { ...DIAL, to: N.devA1 }))).toBe("admission.no_room");
+    await expect(ruleOf(await dial(h, id, { ...DIAL, to: N.devA1 }))).resolves.toBe("admission.no_room");
     // A leg Telnyx says has ended frees its place.
     const [first] = [...h.telnyx.calls.keys()];
     h.telnyx.calls.set(first, { alive: false });
@@ -418,7 +408,7 @@ describe("admission", () => {
     const h = await ready();
     const id = await lease(h);
     h.telnyx.activeCalls.set("conn-prod-voice", [{ call_control_id: "ccid-production" }]);
-    expect(await ruleOf(await dial(h, id))).toBe("admission.production_call_live");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("admission.production_call_live");
   });
 
   it("caps dials at 18 a day and 3 an hour", async () => {
@@ -432,11 +422,11 @@ describe("admission", () => {
         alive: false,
       });
     }
-    expect(await ruleOf(await dial(h, id))).toBe("budget.dials_hour");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("budget.dials_hour");
     await h.store.put("count:dials:2026-11-02", 18);
-    h.advance(3600_000);
+    h.advance(3_600_000);
     const fresh = await lease(h);
-    expect(await ruleOf(await dial(h, fresh))).toBe("budget.dials_day");
+    await expect(ruleOf(await dial(h, fresh))).resolves.toBe("budget.dials_day");
   });
 
   it("admits only core scenarios at amber, and nothing paid at red", async () => {
@@ -447,23 +437,23 @@ describe("admission", () => {
     expect((await dial(h, core)).status).toBe(200);
     await h.call(`/lease/${core}`, { caller: "robot", method: "DELETE" });
     const other = await lease(h, "S09");
-    expect(await ruleOf(await dial(h, other))).toBe("budget.tier_amber");
+    await expect(ruleOf(await dial(h, other))).resolves.toBe("budget.tier_amber");
     await charge(h.ctx, 40);
-    expect(await ruleOf(await dial(h, other))).toBe("budget.tier_red");
+    await expect(ruleOf(await dial(h, other))).resolves.toBe("budget.tier_red");
   });
 
   it("refuses all test spend under the balance floor", async () => {
     const h = await ready();
     h.telnyx.balance = "29.00";
     const id = await lease(h);
-    expect(await ruleOf(await dial(h, id))).toBe("budget.balance_floor");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("budget.balance_floor");
   });
 
   it("refuses while an account signal has paid tests halted", async () => {
     const h = await ready();
     const id = await lease(h);
     await recordSignal(h.ctx, { signal: "Low Balance", notice_id: null, corroborated_by: "balance" });
-    expect(await ruleOf(await dial(h, id))).toBe("signal.halted");
+    await expect(ruleOf(await dial(h, id))).resolves.toBe("signal.halted");
   });
 
   it("refuses everything Telnyx when the start-up checks find the partition unsafe", async () => {
@@ -472,7 +462,7 @@ describe("admission", () => {
     const voice = h.telnyx.lists.call_control_applications.find((item) => item.id === "conn-voice");
     if (voice) voice.webhook_event_url = "https://api.loonext.com/webhooks/telnyx/voice";
     expect((await runSafetyChecks(h.ctx)).state).toBe("unsafe");
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers"))).toBe("startup.unsafe");
-    expect(await ruleOf(await h.call("/partition"))).toBe("startup.unsafe");
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers"))).resolves.toBe("startup.unsafe");
+    await expect(ruleOf(await h.call("/partition"))).resolves.toBe("startup.unsafe");
   });
 });

@@ -2,7 +2,8 @@
 
 import { AlertTriangle } from "lucide-react";
 
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import type { NumberHealth } from "@/lib/api/types";
 
 /**

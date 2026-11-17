@@ -55,12 +55,12 @@ export function registryClasses(registry, config = API_CONFIG) {
     throw new Error("rig: tools/rig/crons.json is missing, so no cron would get a timer");
   }
   const entries = Array.isArray(registry) ? registry : registry.crons;
-  if (!Array.isArray(entries)) throw new Error("rig: tools/rig/crons.json has no list of crons");
+  if (!Array.isArray(entries)) throw new TypeError("rig: tools/rig/crons.json has no list of crons");
   const classOf = new Map();
   for (const entry of entries) {
     if (entry?.config !== undefined && entry.config !== config) continue;
     if (typeof entry?.cron !== "string" || typeof entry.class !== "string") {
-      throw new Error("rig: a tools/rig/crons.json entry has no cron or no class");
+      throw new TypeError("rig: a tools/rig/crons.json entry has no cron or no class");
     }
     classOf.set(entry.cron.trim(), entry.class);
   }
@@ -81,7 +81,7 @@ export function classifyCrons(crons, registry) {
   for (const cron of crons) {
     const kind = classOf.get(cron.trim());
     if (kind === undefined) unclassified.push(cron);
-    else if (/^skip/.test(kind)) skipped.push(cron);
+    else if (kind.startsWith('skip')) skipped.push(cron);
     else fire.push(cron);
   }
   return { fire, unclassified, skipped };
@@ -94,9 +94,9 @@ export function classifyCrons(crons, registry) {
  * to say.
  */
 export function resolveCron(arg, registry, config = API_CONFIG) {
-  if (!/^job:/.test(arg)) return arg;
+  if (!arg.startsWith('job:')) return arg;
   const entries = Array.isArray(registry) ? registry : registry?.crons;
-  if (!Array.isArray(entries)) throw new Error("rig cron: tools/rig/crons.json has no list of crons");
+  if (!Array.isArray(entries)) throw new TypeError("rig cron: tools/rig/crons.json has no list of crons");
   const crons = entries
     .filter((entry) => (entry?.config === undefined || entry.config === config) && Array.isArray(entry.jobs) && entry.jobs.includes(arg))
     .map((entry) => entry.cron.trim());

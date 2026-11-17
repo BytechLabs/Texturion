@@ -9,12 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  isWaitingOnRegistration,
-  registrationProgress,
-  registrationStage,
-  type RegistrationSnapshot,
-} from "./registration-progress";
+import { isWaitingOnRegistration, registrationProgress, registrationStage } from './registration-progress';
+import type { RegistrationSnapshot } from './registration-progress';
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
@@ -25,7 +21,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function lookUp(table: unknown, key: string, lang: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no ${lang} for ${key}`);
   return value;
 }
 
@@ -40,7 +36,7 @@ const snap = (
   campaign: campaign ? { status: campaign } : null,
 });
 
-describe("registrationStage", () => {
+describe(registrationStage, () => {
   it("needs details when nothing has been submitted", () => {
     expect(registrationStage(null)).toBe("needs_details");
     expect(registrationStage(snap(null, null))).toBe("needs_details");
@@ -65,7 +61,7 @@ describe("registrationStage", () => {
   });
 });
 
-describe("registrationProgress", () => {
+describe(registrationProgress, () => {
   it("is never 0% once anything has been sent", () => {
     // A bar sitting at 0% for four days IS the spinner this replaces.
     for (const s of [
@@ -127,7 +123,7 @@ describe("registrationProgress", () => {
   });
 });
 
-describe("isWaitingOnRegistration", () => {
+describe(isWaitingOnRegistration, () => {
   it("is true only while the wait is genuinely on the carriers", () => {
     expect(isWaitingOnRegistration(snap("submitted", null))).toBe(true);
     expect(isWaitingOnRegistration(snap("approved", "pending"))).toBe(true);
@@ -155,7 +151,7 @@ describe("isWaitingOnRegistration", () => {
  * somebody opens precisely because they are anxious about a wait.
  */
 describe("#228 every stage's words exist in both languages", () => {
-  const SNAPSHOTS: Array<[string, RegistrationSnapshot | null]> = [
+  const SNAPSHOTS: [string, RegistrationSnapshot | null][] = [
     ["needs_details", null],
     ["submitting", snap("approved", null)],
     ["under_review", snap("approved", "pending")],

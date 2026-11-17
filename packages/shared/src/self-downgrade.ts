@@ -29,7 +29,8 @@
  * working on `DELETE /v1/account`, where it is the last line. Friction belongs on
  * the irreversible; a clear sentence and a deliberate confirm belong here.
  */
-import { capabilitiesOf, type Capability, type MemberRole } from "./capabilities";
+import { capabilitiesOf } from './capabilities';
+import type { Capability, MemberRole } from './capabilities';
 
 /**
  * What a member would lose by moving from one role to another.

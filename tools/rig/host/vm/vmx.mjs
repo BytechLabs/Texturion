@@ -8,7 +8,7 @@ export const SYSTEM_DISK = "loonext-rig.vmdk";
 export const STATE_DISK = "loonext-rig-state.vmdk";
 
 const FIXED = [
-  [".encoding", "UTF-8"],
+  [".encoding", "utf8"],
   ["config.version", "8"],
   ["virtualHW.version", "21"],
   ["displayName", "loonext-rig"],
@@ -62,8 +62,7 @@ export function vmxText({ userdata, metadata }) {
   if (userdata !== undefined) {
     entries.push(["guestinfo.userdata", userdata], ["guestinfo.userdata.encoding", "gzip+base64"]);
   }
-  entries.push(["guestinfo.metadata", metadata], ["guestinfo.metadata.encoding", "gzip+base64"]);
-  entries.push(["loonext.rig", "TRUE"]);
+  entries.push(["guestinfo.metadata", metadata], ["guestinfo.metadata.encoding", "gzip+base64"], ["loonext.rig", "TRUE"]);
   return `${entries.map(([key, value]) => `${key} = ${quote(value)}`).join("\n")}\n`;
 }
 

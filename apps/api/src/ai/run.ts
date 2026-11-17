@@ -30,16 +30,14 @@
  * Per-feature keys keep the buckets separate, so a runaway in one cost center
  * cannot starve another.
  */
-import { loadAiSettings, reportAiCapReached, reserveAiUsage, type CompanyAiSettings } from "./settings";
+import { loadAiSettings, reportAiCapReached, reserveAiUsage } from './settings';
+import type { CompanyAiSettings } from './settings';
 import type { getDb } from "../db";
 import type { Env } from "../env";
 import { isKilled } from "../flags/evaluate";
 import type { AiCostFeature } from "../billing/costs";
-import {
-  hasLiveSubscription,
-  SUBSCRIPTION_STATUSES,
-  type LocalSubscriptionStatus,
-} from "../billing/plans";
+import { hasLiveSubscription, SUBSCRIPTION_STATUSES } from '../billing/plans';
+import type { LocalSubscriptionStatus } from '../billing/plans';
 
 type Db = ReturnType<typeof getDb>;
 
@@ -225,10 +223,10 @@ export async function runAiFeature(
         label: spec.label,
         cap: spec.cap,
         stops: spec.stops,
-      }).catch((cause) => {
+      }).catch((error) => {
         console.error(
           `ai cap notice failed for ${companyId}/${spec.key}:`,
-          cause instanceof Error ? cause.message : String(cause),
+          error instanceof Error ? error.message : String(error),
         );
       });
     }
@@ -256,10 +254,10 @@ export async function runAiFeature(
             setTimeout(() => resolve(TIMED_OUT), spec.timeoutMs),
           ),
         ]);
-      } catch (cause) {
+      } catch (error) {
         console.error(
           `ai ${spec.key}: ${attempt.model} threw:`,
-          cause instanceof Error ? cause.message : String(cause),
+          error instanceof Error ? error.message : String(error),
         );
         if (last) return { ok: false, reason: "model_error" };
         continue;
@@ -280,10 +278,10 @@ export async function runAiFeature(
       );
     }
     return { ok: false, reason: "model_error" };
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `ai ${spec.key}: ${args.model} threw:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
     return { ok: false, reason: "model_error" };
   }

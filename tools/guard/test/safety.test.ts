@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { assess, isProductionHost, runSafetyChecks, SAFETY_KEY, type Listings } from "../src/setup/safety";
-import { readConfig, type Env } from "../src/env";
+import { assess, isProductionHost, runSafetyChecks, SAFETY_KEY } from '../src/setup/safety';
+import type { Listings } from '../src/setup/safety';
+import { readConfig } from '../src/env';
+import type { Env } from '../src/env';
 import { EDGE, FULL_ENV, harness, PROD_WEBHOOK, ready, ruleOf, seedAccount } from "./support";
 import { FakeTelnyx } from "./fake-telnyx";
 
@@ -9,7 +11,7 @@ function listings(mutate: (telnyx: FakeTelnyx) => void = () => {}): Listings {
   const telnyx = new FakeTelnyx();
   seedAccount(telnyx);
   mutate(telnyx);
-  const numbers = telnyx.numbers;
+  const {numbers} = telnyx;
   return {
     billingGroups: telnyx.lists.billing_groups,
     outboundVoiceProfiles: telnyx.lists.outbound_voice_profiles,
@@ -166,7 +168,7 @@ describe("start-up checks", () => {
     const safety = await runSafetyChecks(h.ctx);
     expect(safety.state).toBe("unconfigured");
     expect(safety.reasons).toContain("billing_group_missing");
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers"))).toBe("startup.unconfigured");
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers"))).resolves.toBe("startup.unconfigured");
   });
 
   it("refuse without an edge origin", async () => {
@@ -182,14 +184,14 @@ describe("start-up checks", () => {
     const checks = () => h.telnyx.requests("GET", "/v2/call_control_applications").length;
     await h.call("/telnyx/v2/phone_numbers");
     expect(checks()).toBe(0);
-    h.advance(6 * 3600_000 + 1);
+    h.advance(6 * 3_600_000 + 1);
     await h.call("/telnyx/v2/phone_numbers");
     expect(checks()).toBe(1);
 
     const voice = h.telnyx.lists.call_control_applications.find((item) => item.id === "conn-voice");
     if (voice) voice.webhook_event_url = PROD_WEBHOOK;
     h.ctx.versionId = "version-2";
-    expect(await ruleOf(await h.call("/telnyx/v2/phone_numbers"))).toBe("startup.unsafe");
+    await expect(ruleOf(await h.call("/telnyx/v2/phone_numbers"))).resolves.toBe("startup.unsafe");
     expect((await h.store.get<{ version: string }>(SAFETY_KEY))?.version).toBe("version-2");
   });
 
@@ -199,8 +201,8 @@ describe("start-up checks", () => {
     const voice = h.telnyx.lists.call_control_applications.find((item) => item.id === "conn-voice");
     if (voice) voice.webhook_event_url = PROD_WEBHOOK;
     await runSafetyChecks(h.ctx);
-    expect(await ruleOf(await h.call("/resend/emails", { body: { to: "delivered@resend.dev" } }))).toBe("startup.unsafe");
-    expect(await ruleOf(await h.call("/ai/run/x", { body: {} }))).toBe("startup.unsafe");
+    await expect(ruleOf(await h.call("/resend/emails", { body: { to: "delivered@resend.dev" } }))).resolves.toBe("startup.unsafe");
+    await expect(ruleOf(await h.call("/ai/run/x", { body: {} }))).resolves.toBe("startup.unsafe");
   });
 
   it("recognise production by its domain", () => {

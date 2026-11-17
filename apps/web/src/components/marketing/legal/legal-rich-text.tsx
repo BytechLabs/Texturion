@@ -1,4 +1,5 @@
-import { Fragment, isValidElement, type ReactNode } from "react";
+import { Fragment, isValidElement } from 'react';
+import type { ReactNode } from 'react';
 
 const MARKS = /(\{[A-Za-z][A-Za-z0-9]*\}|\*\*[^*]+\*\*|`[^`]+`|\*[^*]+\*)/;
 const SLOTS_ONLY = /(\{[A-Za-z][A-Za-z0-9]*\})/;

@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 
 /**
  * Pure browser-detection helpers behind the permission card's recovery copy
@@ -37,16 +38,21 @@ export function permissionRecoverySteps(
   t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
   switch (browserFamily(userAgent)) {
-    case "ios":
+    case "ios": {
       return t("misc.pushRecoveryIos");
-    case "firefox":
+    }
+    case "firefox": {
       return t("misc.pushRecoveryFirefox");
-    case "safari":
+    }
+    case "safari": {
       return t("misc.pushRecoverySafari");
-    case "chromium":
+    }
+    case "chromium": {
       return t("misc.pushRecoveryChromium");
-    default:
+    }
+    default: {
       return t("misc.pushRecoveryGeneric");
+    }
   }
 }
 

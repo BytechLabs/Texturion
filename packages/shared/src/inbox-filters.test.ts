@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  activeInboxFilters,
-  hasSecondaryInboxFilters,
-  isInboxFiltered,
-  type InboxFilterState,
-} from "./inbox-filters";
+import { activeInboxFilters, hasSecondaryInboxFilters, isInboxFiltered } from './inbox-filters';
+import type { InboxFilterState } from './inbox-filters';
 
 /** Nothing selected: the home view on every client. */
 function home(overrides: Partial<InboxFilterState> = {}): InboxFilterState {
@@ -65,7 +61,7 @@ describe("#548 isInboxFiltered", () => {
       ["awaitingOnly", "awaiting"],
     ] as const) {
       const value = key === "tagId" ? "t-1" : true;
-      const state = home({ [key]: value } as Partial<InboxFilterState>);
+      const state = home({ [key]: value });
       expect(activeInboxFilters(state), key).toEqual([dimension]);
       expect(isInboxFiltered(state), key).toBe(true);
     }

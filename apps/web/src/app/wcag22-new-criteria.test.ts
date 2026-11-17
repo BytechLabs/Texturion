@@ -52,7 +52,7 @@ const SRC = join(process.cwd(), "src");
 
 /** A path as the roster spells it: relative to src/, forward slashes. */
 function relative(path: string): string {
-  return path.slice(SRC.length + 1).replace(/\\/g, "/");
+  return path.slice(SRC.length + 1).replaceAll('\\', "/");
 }
 
 const productionFiles = sourceFiles(SRC, [".tsx"]).filter(
@@ -168,7 +168,7 @@ const identityFields: Field[] = productionFiles
   .filter((field) => !NOT_PERSONAL_TYPE.test(field.tag));
 
 const where = (field: Field): string =>
-  `${field.rel}:${field.line}  ${field.tag.replace(/\s+/g, " ").slice(0, 110)}`;
+  `${field.rel}:${field.line}  ${field.tag.replaceAll(/\s+/g, " ").slice(0, 110)}`;
 
 describe("#238 WCAG 2.2 criteria beyond the named three", () => {
   it("W-0: the scan looked at enough fields to mean something", () => {
@@ -186,10 +186,10 @@ describe("#238 WCAG 2.2 criteria beyond the named three", () => {
     );
     expect(
       undecided.map(where),
-      "These fields collect a person's details and name no autocomplete " +
-        "purpose (WCAG 1.3.5). Use the registered token, or autoComplete=\"off\" " +
-        "if the value is not something a browser should remember:\n  " +
-        undecided.map(where).join("\n  "),
+      `These fields collect a person's details and name no autocomplete ` +
+        `purpose (WCAG 1.3.5). Use the registered token, or autoComplete="off" ` +
+        `if the value is not something a browser should remember:\n  ${ 
+        undecided.map(where).join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -262,7 +262,7 @@ describe("#238 WCAG 2.2 criteria beyond the named three", () => {
     const handlers = productionFiles
       .filter((file) => /\bonPaste=/.test(stripComments(sourceText(file))))
       .map(relative)
-      .sort();
+      .toSorted();
     expect(handlers).toEqual([
       "components/inbox/new-conversation.tsx",
       "components/tasks/task-detail-panel.tsx",

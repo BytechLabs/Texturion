@@ -1,4 +1,5 @@
-import { estimateSegments, type SmsEncoding } from "@loonext/shared";
+import { estimateSegments } from '@loonext/shared';
+import type { SmsEncoding } from '@loonext/shared';
 
 /**
  * Composer segment hint (APP-LAYOUT-V2 §3.2): a PASSIVE `stone-400` text line,

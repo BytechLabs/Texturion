@@ -22,13 +22,8 @@ import {
 import { POSTHOG_CAPTURE_URL } from "../analytics/posthog";
 import type { AppEnv } from "../context";
 import type { Env } from "../env";
-import {
-  endpoint,
-  makeExecutionContext,
-  makeHarness,
-  type Harness,
-  type StubEndpoint,
-} from "../test/billing-support";
+import { endpoint, makeExecutionContext, makeHarness } from '../test/billing-support';
+import type { Harness, StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
 import { sendPortEmail, startPortSaga } from "../test/telnyx-doubles/porting";
 import {
@@ -46,7 +41,7 @@ import { submitRegistration } from "../test/telnyx-doubles/registration";
  * comment (#526 R3: both captures could be deleted with all 51 tests still
  * green).
  */
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -126,15 +121,15 @@ function subscriptionFixture(
     licensedUnitAmount = 2900,
   } = overrides;
   const voiceMetered =
-    overrides.voiceMetered !== undefined
-      ? overrides.voiceMetered
-      : {
+    overrides.voiceMetered === undefined
+      ? {
           id: "si_voice_metered",
           priceId:
             licensed === env.STRIPE_PRO_PRICE_ID
               ? env.STRIPE_PRO_VOICE_OVERAGE_PRICE_ID!
               : env.STRIPE_STARTER_VOICE_OVERAGE_PRICE_ID!,
-        };
+        }
+      : overrides.voiceMetered;
   return {
     id,
     object: "subscription",
@@ -362,7 +357,7 @@ describe("signature verification (real signed payloads)", () => {
     ]);
     const response = await deliver(event(), harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ received: true });
+    await expect(response.json()).resolves.toEqual({ received: true });
     expect(harness.callsTo("POST", /webhook_events/)).toHaveLength(1);
   });
 
@@ -424,12 +419,12 @@ describe("replay: the webhook_events ledger makes redelivery a no-op", () => {
     const firstHarness = buildHarness();
     const responseA = await deliver(event, firstHarness);
     expect(responseA.status).toBe(200);
-    expect(await responseA.json()).toEqual({ received: true });
+    await expect(responseA.json()).resolves.toEqual({ received: true });
 
     const secondHarness = buildHarness();
     const responseB = await deliver(event, secondHarness);
     expect(responseB.status).toBe(200);
-    expect(await responseB.json()).toEqual({ received: true, duplicate: true });
+    await expect(responseB.json()).resolves.toEqual({ received: true, duplicate: true });
 
     // First delivery: ledger write + full processing (one activation claim).
     expect(
@@ -442,8 +437,8 @@ describe("replay: the webhook_events ledger makes redelivery a no-op", () => {
       secondHarness.callsTo("POST", /rpc\/claim_checkout_activation/),
     ).toHaveLength(0);
     expect(secondHarness.callsTo("GET", /subscriptions/)).toHaveLength(0);
-    expect(provisionCompanyNumber).toHaveBeenCalledTimes(1);
-    expect(submitRegistration).toHaveBeenCalledTimes(1);
+    expect(provisionCompanyNumber).toHaveBeenCalledOnce();
+    expect(submitRegistration).toHaveBeenCalledOnce();
   });
 });
 
@@ -1341,7 +1336,7 @@ describe("§9 event → state table", () => {
       eventOf("customer.subscription.deleted", subscriptionFixture()),
       harness,
     );
-    expect(suspendCompanyNumbers).toHaveBeenCalledTimes(1);
+    expect(suspendCompanyNumbers).toHaveBeenCalledOnce();
     expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
   });
 
@@ -1637,7 +1632,7 @@ describe("§9 event → state table", () => {
         "GET",
         /api\.stripe\.com\/v1\/subscriptions\/sub_1/,
         () =>
-          new Response(JSON.stringify({ error: { message: "boom" } }), {
+          Response.json({ error: { message: "boom" } }, {
             status: 500,
           }),
       ),
@@ -1794,7 +1789,7 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     // claim RPC now, so there is NO companies PATCH.
     expect(
       harness.calls.filter((call) =>
-        /\/rest\/v1\/company_modules/.test(call.url.href),
+        call.url.href.includes('/rest/v1/company_modules'),
       ),
     ).toHaveLength(0);
     expect(harness.callsTo("PATCH", /companies/)).toHaveLength(0);
@@ -2052,7 +2047,7 @@ describe("missed-cancellation backstop (#21)", () => {
     // Only the status mirror — canceled_at is never overwritten (the grace
     // ledger keys on the one stored value).
     expect(harness.callsTo("PATCH", /companies/)).toHaveLength(1);
-    expect(suspendCompanyNumbers).toHaveBeenCalledTimes(1); // idempotent
+    expect(suspendCompanyNumbers).toHaveBeenCalledOnce(); // idempotent
     expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
   });
 });
@@ -2207,7 +2202,7 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
     await deliver(event, first);
     const second = buildHarness();
     const response = await deliver(event, second);
-    expect(await response.json()).toEqual({ received: true, duplicate: true });
+    await expect(response.json()).resolves.toEqual({ received: true, duplicate: true });
 
     // Exactly ONE bridge-keyed provisioning call across both deliveries (the
     // provisioning_key backstop covers the sweeper/waitUntil overlap case —
@@ -2241,7 +2236,7 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
       checkoutSessionId: "cs_1",
     });
     expect(harness.callsTo("PATCH", /port_requests/)).toHaveLength(0);
-    expect(startPortSaga).toHaveBeenCalledTimes(1);
+    expect(startPortSaga).toHaveBeenCalledOnce();
   });
 
   it("the port-documents nudge is ledgered — a handler re-run never re-emails (#52)", async () => {
@@ -2278,7 +2273,7 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
       company_id: COMPANY_ID,
       email_key: `port_documents_needed:${PORT_ID}`,
     });
-    expect(sendPortEmail).toHaveBeenCalledTimes(1);
+    expect(sendPortEmail).toHaveBeenCalledOnce();
 
     // A sweeper-style re-run of the handler (a LATER step failed, the whole
     // thing replays under a fresh event): the claim conflicts, no re-send.
@@ -2289,7 +2284,7 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
       }),
       rerun,
     );
-    expect(sendPortEmail).toHaveBeenCalledTimes(1);
+    expect(sendPortEmail).toHaveBeenCalledOnce();
   });
 
   it("a pending port WITHOUT the bridge opt-in starts the saga and buys nothing extra", async () => {

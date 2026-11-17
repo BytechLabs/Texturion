@@ -36,7 +36,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
         continue;
       }
       sourceFiles(full, out);
-    } else if (/\.tsx$/.test(entry.name) && !/\.test\.tsx$/.test(entry.name)) {
+    } else if (entry.name.endsWith('.tsx') && !entry.name.endsWith('.test.tsx')) {
       out.push(full);
     }
   }

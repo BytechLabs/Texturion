@@ -44,14 +44,10 @@ import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { sendAtLabel } from "@/components/thread/scheduled-strip";
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { PageHeader } from "@/components/ui/page-header";
-import { useT, type Translate } from "@/i18n/provider";
-import {
-  scheduledRecipient,
-  scheduledActionAllowed,
-  useCancelScheduledMessage,
-  useScheduledMessages,
-  type ScheduledMessage,
-} from "@/lib/api/scheduled-messages";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
+import { scheduledActionAllowed, scheduledRecipient, useCancelScheduledMessage, useScheduledMessages } from '@/lib/api/scheduled-messages';
+import type { ScheduledMessage } from '@/lib/api/scheduled-messages';
 import type { RecordAction } from "@/lib/record-actions/types";
 import { useNavigate } from "@/lib/use-navigate";
 import { cn } from "@/lib/utils";
@@ -72,9 +68,9 @@ export function ScheduledView() {
         description={
           rows.length === 0
             ? undefined
-            : rows.length === 1
+            : (rows.length === 1
               ? t("tasks.scheduledOneWaiting")
-              : t("tasks.scheduledManyWaiting", { count: rows.length })
+              : t("tasks.scheduledManyWaiting", { count: rows.length }))
         }
       />
 
@@ -114,7 +110,7 @@ export function ScheduledView() {
               title={t("tasks.scheduledNeedsYou")}
               rows={held}
               onCancel={(id) => cancel.mutate(id)}
-              cancelling={cancel.isPending ? String(cancel.variables) : null}
+              cancelling={cancel.isPending ? cancel.variables : null}
             />
           )}
           {pending.length > 0 && (
@@ -122,7 +118,7 @@ export function ScheduledView() {
               title={t("tasks.scheduledGoingOut")}
               rows={pending}
               onCancel={(id) => cancel.mutate(id)}
-              cancelling={cancel.isPending ? String(cancel.variables) : null}
+              cancelling={cancel.isPending ? cancel.variables : null}
             />
           )}
         </div>

@@ -7,11 +7,11 @@ import {
   API_KEY_REQUESTS_PER_MINUTE,
   API_KEY_SCOPES,
   API_KEY_SECRET_BYTES,
-  PUBLIC_API_BASE,
-  PUBLIC_API_VERSION,
   apiKeyAllows,
   apiKeyScopeLabelKey,
   isApiKeyScope,
+  PUBLIC_API_BASE,
+  PUBLIC_API_VERSION,
 } from "./api-keys";
 
 describe("the scope vocabulary", () => {
@@ -20,7 +20,7 @@ describe("the scope vocabulary", () => {
     // ABSENCE: #243's constraint is that a key is never a bearer of full
     // account power, and the way that stops being true is somebody adding an
     // `admin` or a `*` to a list nobody was checking.
-    expect([...API_KEY_SCOPES].sort()).toEqual(
+    expect([...API_KEY_SCOPES].toSorted()).toEqual(
       [
         "contacts:read",
         "contacts:write",
@@ -33,7 +33,7 @@ describe("the scope vocabulary", () => {
         // only endpoints THIS key created, and the address goes through the
         // same SSRF gate the settings screen uses.
         "webhooks:manage",
-      ].sort(),
+      ].toSorted(),
     );
   });
 

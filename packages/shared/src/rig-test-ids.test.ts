@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -9,7 +8,7 @@ import { describe, expect, it } from "vitest";
  * and that the registry and the source cannot disagree in either direction.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 type Found = { ids: { id: string; constant?: string }[]; problems: string[] };
 type Platform = { platform: string; kind: string; sources: string[]; ids: Record<string, string>[] };
@@ -23,7 +22,7 @@ const guard = (await import(join(REPO, "scripts", "check-rig-test-ids.mjs"))) as
 const TAGS_FILE = "apps/android/app/src/main/kotlin/com/loonext/android/features/calls/CallTestTags.kt";
 const tags: File = { file: TAGS_FILE, text: readFileSync(join(REPO, TAGS_FILE), "utf8") };
 const registry = JSON.parse(readFileSync(join(REPO, guard.REGISTRY_FILE), "utf8")) as { platforms: Platform[] };
-const android = () => structuredClone(registry.platforms.find((p) => p.platform === "android") as Platform);
+const android = () => structuredClone(registry.platforms.find((p) => p.platform === "android")!);
 const problems = (platform: Platform, files: File[]) => guard.judgePlatform(platform, files).problems.join("\n");
 
 describe("what counts as an id", () => {
@@ -104,7 +103,7 @@ describe("the Android contract", () => {
 });
 
 it("registers each web and iOS call-surface id, and fails the first unregistered one", () => {
-  const web = structuredClone(registry.platforms.find((p) => p.platform === "web") as Platform);
+  const web = structuredClone(registry.platforms.find((p) => p.platform === "web")!);
   const surface = { file: "apps/web/src/components/calls/ring.tsx", text: `<button data-testid="call_answer" />` };
   expect(problems(web, [surface])).toMatch(/declares "call_answer" and tools\/rig\/test-ids\.json does not list it/);
 });

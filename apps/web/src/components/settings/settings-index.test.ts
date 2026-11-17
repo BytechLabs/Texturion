@@ -39,7 +39,7 @@ function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const full = path.join(dir, name);
     if (statSync(full).isDirectory()) return sourceFiles(full);
-    return /\.tsx$/.test(name) && !/\.test\.tsx$/.test(name) ? [full] : [];
+    return name.endsWith('.tsx') && !name.endsWith('.test.tsx') ? [full] : [];
   });
 }
 
@@ -48,15 +48,15 @@ function openingTag(source: string, from: number): string {
   let depth = 0;
   let quote: string | null = null;
   for (let i = from; i < source.length; i++) {
-    const ch = source[i]!;
+    const ch = source[i];
     if (quote) {
       if (ch === quote) quote = null;
     } else if (ch === '"' || ch === "'" || ch === "`") {
       quote = ch;
     } else if (ch === "{") {
-      depth++;
+      depth += 1;
     } else if (ch === "}") {
-      depth--;
+      depth -= 1;
     } else if (ch === ">" && depth === 0) {
       return source.slice(from, i);
     }
@@ -76,9 +76,9 @@ function scan() {
   for (const file of ROOTS.flatMap(sourceFiles)) {
     const rel = path.relative(SRC, file).split(path.sep).join("/");
     const source = readFileSync(file, "utf8");
-    for (const match of source.matchAll(/\bid="([A-Za-z][\w-]*)"/g)) ids.add(match[1]!);
+    for (const match of source.matchAll(/\bid="([A-Za-z][\w-]*)"/g)) ids.add(match[1]);
     for (const match of source.matchAll(/<SettingsCard(?=[\s>])/g)) {
-      const tag = openingTag(source, match.index! + match[0].length);
+      const tag = openingTag(source, match.index + match[0].length);
       cards.push({
         file: rel,
         id: tag.match(/\bid="([^"]+)"/)?.[1] ?? null,

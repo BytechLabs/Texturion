@@ -15,11 +15,8 @@ import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
-import {
-  useReminderRules,
-  useSaveReminderRules,
-  type ReminderRule,
-} from "@/lib/api/appointment-reminders";
+import { useReminderRules, useSaveReminderRules } from '@/lib/api/appointment-reminders';
+import type { ReminderRule } from '@/lib/api/appointment-reminders';
 import { cn } from "@/lib/utils";
 
 /**
@@ -100,10 +97,10 @@ export function ReminderRulesCard({ canEdit }: { canEdit: boolean }) {
           ? t("settingsMore.remindersAllOff")
           : t("settingsMore.remindersSaved"),
       );
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.saveFailedGenericRetry"),
       );
     }

@@ -16,18 +16,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type Translate } from "@/i18n/provider";
-import {
-  type CalendarAttentionItem,
-  type CalendarAttentionResolution,
-  type CalendarConnection,
-  type CalendarProvider,
-  useAuthorizeCalendarConnection,
-  useCalendarAttention,
-  useCalendarConnections,
-  useDisconnectCalendarConnection,
-  useResolveCalendarAttention,
-} from "@/lib/api/calendar";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
+import { useAuthorizeCalendarConnection, useCalendarAttention, useCalendarConnections, useDisconnectCalendarConnection, useResolveCalendarAttention } from '@/lib/api/calendar';
+import type { CalendarAttentionItem, CalendarAttentionResolution, CalendarConnection, CalendarProvider } from '@/lib/api/calendar';
 import {
   formatAbsoluteDateTime,
   formatTimestamp,
@@ -114,24 +106,33 @@ function attentionHeading(t: Translate, item: CalendarAttentionItem): string {
   if (item.state === "conflict") return t("calendarFeed.conflictTitle");
   if (item.state === "event_removed") return t("calendarFeed.removedTitle");
   switch (item.refusal?.code) {
-    case "all_day":
+    case "all_day": {
       return t("calendarFeed.refusedAllDayTitle");
-    case "invalid_time":
+    }
+    case "invalid_time": {
       return t("calendarFeed.refusedTimeTitle");
-    case "invalid_title":
+    }
+    case "invalid_title": {
       return t("calendarFeed.refusedTitleTitle");
-    case "unknown_time_zone":
+    }
+    case "unknown_time_zone": {
       return t("calendarFeed.refusedZoneTitle");
-    case "description_too_long":
+    }
+    case "description_too_long": {
       return t("calendarFeed.refusedDescriptionTitle");
-    case "outside_sync_window":
+    }
+    case "outside_sync_window": {
       return t("calendarFeed.refusedWindowTitle");
-    case "unsafe_meeting":
+    }
+    case "unsafe_meeting": {
       return t("calendarFeed.refusedMeetingTitle");
-    case "recurrence":
+    }
+    case "recurrence": {
       return t("calendarFeed.refusedRecurrenceTitle");
-    default:
+    }
+    default: {
       return t("calendarFeed.refusedUnknownTitle");
+    }
   }
 }
 
@@ -152,24 +153,33 @@ function attentionDescription(
     return t("calendarFeed.removedDescription");
   }
   switch (item.refusal?.code) {
-    case "all_day":
+    case "all_day": {
       return t("calendarFeed.refusedAllDayDescription");
-    case "invalid_time":
+    }
+    case "invalid_time": {
       return t("calendarFeed.refusedTimeDescription");
-    case "invalid_title":
+    }
+    case "invalid_title": {
       return t("calendarFeed.refusedTitleDescription");
-    case "unknown_time_zone":
+    }
+    case "unknown_time_zone": {
       return t("calendarFeed.refusedZoneDescription");
-    case "description_too_long":
+    }
+    case "description_too_long": {
       return t("calendarFeed.refusedDescriptionDescription");
-    case "outside_sync_window":
+    }
+    case "outside_sync_window": {
       return t("calendarFeed.refusedWindowDescription");
-    case "unsafe_meeting":
+    }
+    case "unsafe_meeting": {
       return t("calendarFeed.refusedMeetingDescription");
-    case "recurrence":
+    }
+    case "recurrence": {
       return t("calendarFeed.refusedRecurrenceDescription");
-    default:
+    }
+    default: {
       return t("calendarFeed.refusedUnknownDescription");
+    }
   }
 }
 
@@ -338,9 +348,9 @@ export function CalendarConnectionsCard() {
       toast.error(
         instant.reason === "ambiguous"
           ? t("calendarFeed.movedDateAmbiguous")
-          : instant.reason === "nonexistent"
+          : (instant.reason === "nonexistent"
             ? t("calendarFeed.movedDateNonexistent")
-            : t("calendarFeed.movedDateRequired"),
+            : t("calendarFeed.movedDateRequired")),
       );
       return;
     }
@@ -371,7 +381,7 @@ export function CalendarConnectionsCard() {
               <Skeleton className="h-9 w-72 max-w-full" />
             </div>
           </div>
-        ) : view.isError ? (
+        ) : (view.isError ? (
           <div role="alert" className="space-y-2">
             <p className="text-sm text-destructive">
               {t("calendarFeed.connectionsLoadFailed")}
@@ -401,9 +411,9 @@ export function CalendarConnectionsCard() {
                     />
                     {disclosure.reason === "cleanup_failed"
                       ? t("calendarFeed.connectionCleanupFailed")
-                      : disclosure.reason === "sync_stale"
+                      : (disclosure.reason === "sync_stale"
                         ? t("calendarFeed.connectionStale")
-                        : t("calendarFeed.connectionError")}
+                        : t("calendarFeed.connectionError"))}
                   </li>
                 ))}
               </ul>
@@ -475,9 +485,9 @@ export function CalendarConnectionsCard() {
                           />
                           {cleaningUp
                             ? t("calendarFeed.connectionDisconnecting")
-                            : retrying
+                            : (retrying
                               ? t("calendarFeed.connectionRetrying")
-                              : t("calendarFeed.connectionError")}
+                              : t("calendarFeed.connectionError"))}
                         </p>
                       )}
 
@@ -857,7 +867,7 @@ export function CalendarConnectionsCard() {
               </section>
             ) : null}
           </>
-        )}
+        ))}
       </div>
     </div>
   );

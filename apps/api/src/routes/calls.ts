@@ -18,32 +18,27 @@
  * and the #106 deny list still applies inside the SQL: a restricted member
  * cannot see a hidden number's calls by asking for the contact directly.
  */
-import {
-  CALL_END_REASONS,
-  CALL_ROUTINGS,
-  type CallEndReason,
-  type CallRouting,
-  type MemberRole,
-  stateMachines,
-} from "@loonext/shared";
-import { Hono, type Context } from "hono";
+import { CALL_END_REASONS, CALL_ROUTINGS, stateMachines } from '@loonext/shared';
+import type { CallEndReason, CallRouting, MemberRole } from '@loonext/shared';
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { assertEgressWithinAllowance } from "../attachments/egress";
 import type { Env } from "../env";
 import {
   shouldTranscribe,
   VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
 } from "../calls/voicemail-transcript";
-import {
-  loadAiSettings,
-  type CompanyAiSettings,
-} from "../ai/settings";
-import {
-  VOICEMAIL_INTAKE_FEATURE_SPEC,
-  type VoicemailIntake,
-} from "../calls/voicemail-intake";
+import { loadAiSettings } from '../ai/settings';
+import type { CompanyAiSettings } from '../ai/settings';
+import { VOICEMAIL_INTAKE_FEATURE_SPEC } from '../calls/voicemail-intake';
+import type { VoicemailIntake } from '../calls/voicemail-intake';
 import {
   extractVoicemailIntake,
+  LOONEXT_SESSION_HEADER,
+  RING_TIMEOUT_SECS,
   runTranscription,
+  VOICEMAIL_CONTENT_TYPE,
+  VOICEMAILS_BUCKET
 } from "../messaging/inbound-ring";
 import { z } from "zod";
 
@@ -57,20 +52,9 @@ import { errorResponse } from "../http/errors";
 import { dispositionOptions } from "../storage/disposition";
 import { buildPage } from "../http/pagination";
 import { resolveActorNames } from "./core/attribution";
-import {
-  buildOutboundState,
-  companyOverDialCap,
-  companyOverVoiceCap,
-  OUTBOUND_CUSTOMER_STATE,
-  type CompanyVoiceState,
-} from "../messaging/voice-webhook";
-import {
-  LOONEXT_SESSION_HEADER,
-  RING_TIMEOUT_SECS,
-  VOICEMAILS_BUCKET,
-  VOICEMAIL_CONTENT_TYPE,
-} from "../messaging/inbound-ring";
-import { telnyxRequest, TelnyxApiError } from "../telnyx/client";
+import { buildOutboundState, companyOverDialCap, companyOverVoiceCap, OUTBOUND_CUSTOMER_STATE } from '../messaging/voice-webhook';
+import type { CompanyVoiceState } from '../messaging/voice-webhook';
+import { TelnyxApiError, telnyxRequest } from "../telnyx/client";
 import {
   parseCursor,
   parseJsonBody,
@@ -594,10 +578,10 @@ async function backfillVoicemailTranscript(
       .eq("company_id", args.companyId)
       .eq("call_session_id", args.sessionId);
     return outcome.text;
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `voicemail transcript backfill failed for ${args.sessionId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
     return null;
   }
@@ -641,10 +625,10 @@ async function backfillVoicemailIntake(
       .eq("company_id", args.companyId)
       .eq("call_session_id", args.sessionId);
     return outcome.intake;
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `voicemail intake backfill failed for ${args.sessionId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
     return null;
   }
@@ -885,7 +869,7 @@ async function authorizeOutboundCall(
     "company lookup",
   );
   const company = companies[0];
-  if (!company || company.subscription_status !== "active") {
+  if (company?.subscription_status !== "active") {
     return errorResponse(
       c,
       "subscription_inactive",
@@ -1055,7 +1039,7 @@ callsRoutes.post("/calls/browser", requireCapability("conversations.send"), asyn
     }),
     "outbound line claim",
   );
-  if (claimed !== true) {
+  if (!claimed) {
     return errorResponse(
       c,
       "conflict",
@@ -1089,22 +1073,22 @@ callsRoutes.post("/calls/browser", requireCapability("conversations.send"), asyn
         custom_headers: [{ name: LOONEXT_SESSION_HEADER, value: sessionId }],
       },
     });
-  } catch (cause) {
+  } catch (error) {
     // A 4xx is a DEFINITE refusal (no leg was created) → release the line
     // reservation so the member isn't wedged "on another call". A 5xx/timeout is
     // AMBIGUOUS (a leg MIGHT exist and its call.initiated will still mint +
     // self-heal), so leave the reservation for the webhook path to resolve. Either
     // way the failure propagates to the framework's 500 handler (the client shows
     // "Couldn't start the call") — there is no SPEC §7 code for a carrier fault.
-    if (cause instanceof TelnyxApiError && cause.status < 500) {
+    if (error instanceof TelnyxApiError && error.status < 500) {
       await db
         .from("outbound_call_authorizations")
         .delete()
         .eq("nonce", nonce)
         .eq("company_id", companyId);
     }
-    throw cause instanceof Error
-      ? cause
+    throw error instanceof Error
+      ? error
       : new Error("outbound customer dial failed");
   }
 

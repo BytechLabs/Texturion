@@ -1,4 +1,4 @@
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 
@@ -216,7 +216,7 @@ function walk(entries: string[], clientEntries: string[] = []): {
 
 function rel(f: string): string {
   if (!f.startsWith(SRC)) return f; // a package name
-  return relative(SRC, f).replace(/\\/g, "/");
+  return relative(SRC, f).replaceAll('\\', "/");
 }
 
 describe("the import reader the walk depends on", () => {
@@ -346,7 +346,7 @@ describe("the hero loads the lean p5", () => {
         continue;
       }
       if (!/\.tsx?$/.test(entry) || /\.d\.ts$|\.test\.tsx?$/.test(entry)) continue;
-      scanned++;
+      scanned += 1;
       const source = readFileSync(full, "utf8");
       if (!source.includes("p5")) continue;
       modules.push({ file: full, imports: readImports(source, full) });
@@ -445,7 +445,7 @@ describe("the hero loads the lean p5", () => {
       ts.forEachChild(n, findCalls);
     };
     findCalls(sf);
-    return [...calls].sort();
+    return [...calls].toSorted();
   }
 
   const sketches = modules.filter(({ file, imports }) =>
@@ -462,8 +462,8 @@ describe("the hero loads the lean p5", () => {
       p5MethodCalls(readFileSync(file, "utf8"), file).map((name) => ({ file, name })),
     );
     console.info(
-      `marketing-first-load: ${calls.length} p5 method calls in ` +
-        `${sketches.map((s) => rel(s.file)).join(", ")}`,
+      `marketing-first-load: ${calls.length} p5 method calls in ${ 
+        sketches.map((s) => rel(s.file)).join(", ")}`,
     );
     expect(sketches.map((s) => rel(s.file))).toContain("components/marketing/hero/arrival-field.tsx");
     expect(calls.map((c) => c.name)).toEqual(expect.arrayContaining(["createCanvas", "noise", "remove"]));

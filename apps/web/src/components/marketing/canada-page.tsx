@@ -42,10 +42,8 @@
  * which #328 has now made false.
  */
 
-import {
-  canadaCopy,
-  type CanadaCopy,
-} from "@/i18n/marketing/canada";
+import { canadaCopy } from '@/i18n/marketing/canada';
+import type { CanadaCopy } from '@/i18n/marketing/canada';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check } from "lucide-react";
 
@@ -103,7 +101,7 @@ function codesForRegions(regions: string[]): string[] {
         regions.includes(entry.region),
     )
     .map(([code]) => code);
-  return [...new Set(codes)].sort();
+  return [...new Set(codes)].toSorted();
 }
 
 function ProvinceLedger({ copy }: { copy: CanadaCopy }) {

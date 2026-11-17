@@ -1,4 +1,5 @@
-import { mailbox, uplink, type Env } from "./env";
+import { mailbox, uplink } from './env';
+import type { Env } from './env';
 
 /**
  * Everything the edge's Cloudflare cron does. Each part is independent, so
@@ -19,8 +20,8 @@ export async function scheduled(env: Env, now: number = Date.now()): Promise<voi
   for (const [name, step] of steps) {
     try {
       await step();
-    } catch (cause) {
-      console.error(`cron ${name}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } catch (error) {
+      console.error(`cron ${name}: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
 }

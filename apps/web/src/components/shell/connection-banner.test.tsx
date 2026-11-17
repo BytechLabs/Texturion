@@ -13,7 +13,7 @@
  * when there is nothing to say, and it says what still works rather than only
  * what broke.
  */
-import { cleanup, render, screen, act } from "@testing-library/react";
+import { act, cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ConnectionBanner } from "./connection-banner";

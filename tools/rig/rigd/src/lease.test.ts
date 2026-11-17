@@ -5,7 +5,8 @@ import { EDGE_PATHS, GUARD_ROUTES, HEADER, LEASE_MAX_MS } from "@loonext/rig-pro
 import { GuardRefusedError } from "@loonext/rig-robot";
 import { ManualClock } from "@loonext/rig-robot/test-support";
 import { afterEach, describe, expect, it } from "vitest";
-import { LeaseBusyError, LeaseClient, LeaseReapedError, LeaseWatchdog, type UndoHandlers } from "./lease.ts";
+import { LeaseBusyError, LeaseClient, LeaseReapedError, LeaseWatchdog } from './lease.ts';
+import type { UndoHandlers } from './lease.ts';
 import { fakeFetch, json } from "./test-support.ts";
 
 const EDGE = "https://rig-edge.example.workers.dev";
@@ -135,10 +136,10 @@ describe("releasing at the guard", () => {
     const { client, undone, clock } = setup({ release: () => refusal("lease.not_found") });
     const lease = await client.acquire("S24");
     lease.registerUndo({ kind: "robot.sms", params: { text: "START" } });
-    expect(await lease.release()).toMatchObject({ reaped: false, undone: 1, failed: [] });
+    await expect(lease.release()).resolves.toMatchObject({ reaped: false, undone: 1, failed: [] });
     expect(readdirSync(client.dir)).toEqual([]);
     clock.advance(3 * LEASE_MAX_MS);
-    expect(await new LeaseWatchdog({ client, clock }).sweep()).toEqual([]);
+    await expect(new LeaseWatchdog({ client, clock }).sweep()).resolves.toEqual([]);
     expect(undone).toEqual(["sms START"]);
   });
 
@@ -159,7 +160,7 @@ describe("the lease watchdog", () => {
     const watchdog = new LeaseWatchdog({ client, clock, onReap: (result) => reaped.push(result.lease_id) });
 
     clock.advance(LEASE_MAX_MS);
-    expect(await watchdog.sweep()).toEqual([]);
+    await expect(watchdog.sweep()).resolves.toEqual([]);
     clock.advance(1);
     const results = await watchdog.sweep();
     expect(results).toMatchObject([{ lease_id: "lease-abc", reaped: true, undone: 1 }]);
@@ -169,7 +170,7 @@ describe("the lease watchdog", () => {
 
     // The run that hung finds its lease gone and must not change anything more.
     expect(() => lease.registerUndo({ kind: "robot.sms", params: { text: "late" } })).toThrow(LeaseReapedError);
-    expect(await lease.release()).toMatchObject({ reaped: true, undone: 0 });
+    await expect(lease.release()).resolves.toMatchObject({ reaped: true, undone: 0 });
     expect(undone).toEqual(["sms START"]);
   });
 
@@ -182,11 +183,11 @@ describe("the lease watchdog", () => {
     renameSync(client.path("lease-abc"), client.path("lease-abc", "releasing"));
     const watchdog = new LeaseWatchdog({ client, clock });
     clock.advance(LEASE_MAX_MS + 1);
-    expect(await watchdog.sweep()).toEqual([]);
+    await expect(watchdog.sweep()).resolves.toEqual([]);
     // Two lease lifetimes after the journal was last touched.
-    const later = new ManualClock(Date.now() + 2 * LEASE_MAX_MS + 1_000);
+    const later = new ManualClock(Date.now() + 2 * LEASE_MAX_MS + 1000);
     const reaper = new LeaseWatchdog({ client, clock: later });
-    expect(await reaper.sweep()).toMatchObject([{ lease_id: "lease-abc", undone: 1 }]);
+    await expect(reaper.sweep()).resolves.toMatchObject([{ lease_id: "lease-abc", undone: 1 }]);
     expect(undone).toEqual(["sms START"]);
     expect(existsSync(client.path("lease-abc", "releasing"))).toBe(false);
   });

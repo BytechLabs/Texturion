@@ -23,7 +23,7 @@ export const FilterButton = forwardRef<
     /** An icon button for a narrow list column; the label shows otherwise. */
     compact?: boolean;
   }
->(function FilterButton({ count, compact = false, className, ...props }, ref) {
+>(({ count, compact = false, className, ...props }, ref) => {
   const t = useT();
   const compactName =
     count > 0 ? t("inbox.filterActionCount", { count }) : t("inbox.filterAction");

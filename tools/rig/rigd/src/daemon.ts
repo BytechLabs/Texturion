@@ -15,9 +15,11 @@ import { spawn } from "node:child_process";
 import { mkdirSync, openSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
-import { triageMethods, type StartedRun } from "@loonext/rig-triage";
+import { triageMethods } from '@loonext/rig-triage';
+import type { StartedRun } from '@loonext/rig-triage';
 import type { RigdConfig } from "./config.ts";
-import { webhookForwarder, type ForwardTargets } from "./forward.ts";
+import { webhookForwarder } from './forward.ts';
+import type { ForwardTargets } from './forward.ts';
 import { parseInstance } from "./registry.ts";
 import { telnyxPublicKey } from "./late.ts";
 import { LeaseWatchdog } from "./lease.ts";
@@ -29,9 +31,10 @@ import { newRunId } from "./runner.ts";
 import { BUNDLE_KEY_SECRET, deliverSecrets } from "./secrets.ts";
 import { infraFingerprint } from "./posthog-errors.ts";
 import { Uplink } from "./uplink.ts";
-import { buildRig, type Rig } from "./wiring.ts";
+import { buildRig } from './wiring.ts';
+import type { Rig } from './wiring.ts';
 
-const CLI = fileURLToPath(new URL("./cli.ts", import.meta.url));
+const CLI = fileURLToPath(new URL("cli.ts", import.meta.url));
 const UPLINK_STATE_MS = 60_000;
 const SECRET_REFRESH_MS = 6 * 60 * 60_000;
 
@@ -167,7 +170,7 @@ export function startDaemon(config: RigdConfig): Daemon {
     onReap: (result, entry) => {
       if (!rig.posthog.canSend) return;
       void rig.posthog.send({
-        fingerprint: infraFingerprint(result.failed.length ? "lease-undo" : "lease"),
+        fingerprint: infraFingerprint(result.failed.length > 0 ? "lease-undo" : "lease"),
         message: `the lease for ${entry.scenario} was not released in time; rigd ran its ${entry.undo.length} undo(s)`,
         extra: { lease_id: result.lease_id, failed: result.failed },
       });
@@ -190,7 +193,7 @@ export function startDaemon(config: RigdConfig): Daemon {
   if (store.has(BUNDLE_KEY_SECRET)) {
     const deliver = () =>
       deliverSecrets({ edgeOrigin: config.edgeOrigin, store })
-        .then((result) => log(`secrets delivered: ${result.written.length} written${result.absent.length ? `, ${result.absent.length} absent` : ""}`))
+        .then((result) => log(`secrets delivered: ${result.written.length} written${result.absent.length > 0 ? `, ${result.absent.length} absent` : ""}`))
         .catch((error: unknown) => log(`secret delivery failed: ${error instanceof Error ? error.message : "error"}`));
     void deliver();
     every(SECRET_REFRESH_MS, () => void deliver());

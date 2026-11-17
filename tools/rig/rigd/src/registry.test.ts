@@ -1,18 +1,18 @@
 import { existsSync, mkdtempSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { blockedByRoom, inWindow, parseWindow, windowHours } from "./budget.ts";
 import { installUnits } from "./install.ts";
 import { instanceOf, loadRegistry, parseInstance, validateRegistry } from "./registry.ts";
 import { rawRegistry, registryOf, SAMPLE, scenario } from "./test-registry.ts";
 import { buildUnits } from "./units.ts";
-import { VerdictStore, type Verdict } from "./verdicts.ts";
+import { VerdictStore } from './verdicts.ts';
+import type { Verdict } from './verdicts.ts';
 
-const REAL_REGISTRY = resolve(fileURLToPath(import.meta.url), "../../../scenarios.json");
+const REAL_REGISTRY = resolve(import.meta.filename, "../../../scenarios.json");
 
-describe("validateRegistry", () => {
+describe(validateRegistry, () => {
   it("reads tools/rig/scenarios.json's own shape", () => {
     const registry = registryOf(SAMPLE);
     expect(registry.caps).toEqual({ daily: 18, hourly: 3, window: { startHour: 4, hours: 6 } });
@@ -128,7 +128,7 @@ describe("rigd's units", () => {
   });
 });
 
-describe("installUnits", () => {
+describe(installUnits, () => {
   const options = { node: "/usr/bin/node", cli: "/opt/rig/tools/rig/rigd/src/cli.ts", home: "/var/lib/loonext-rig" };
 
   it("writes the units, reloads only on a change, starts the daemons and enables no timer", () => {
@@ -156,10 +156,10 @@ describe("installUnits", () => {
       writeFileSync(join(dir, "loonext-rig-api.service"), "[Service]\n");
       const calls: string[][] = [];
       const result = installUnits(buildUnits(options), { unitDir: dir, systemctl: (args) => calls.push(args) });
-      expect(result.removed.sort()).toEqual(["loonext-rig-scenario-S99.timer", "loonext-rig-scenario@.service"]);
+      expect(result.removed.toSorted()).toEqual(["loonext-rig-scenario-S99.timer", "loonext-rig-scenario@.service"]);
       expect(calls[0]).toEqual(["disable", "--now", "loonext-rig-scenario-S99.timer"]);
       expect(existsSync(join(dir, "loonext-rig-api.service"))).toBe(true);
-      expect(readdirSync(dir).sort()).toEqual(["loonext-rig-api.service", "loonext-rig-rigd.service", "loonext-rig-robotd.service"]);
+      expect(readdirSync(dir).toSorted()).toEqual(["loonext-rig-api.service", "loonext-rig-rigd.service", "loonext-rig-robotd.service"]);
     } finally {
       rmSync(dir, { recursive: true, force: true });
     }

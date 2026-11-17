@@ -14,11 +14,13 @@ import { spawnSync } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { rigLayout, rigSettings as cliSettings } from "../../src/layout.mjs";
-import { MissingSecret, secretStore } from "../../src/secrets.mjs";
+import { rigSettings as cliSettings, rigLayout } from "../../src/layout.mjs";
+import {secretStore} from "../../src/secrets.mjs";
+
+export { MissingSecret } from "../../src/secrets.mjs";
 import { parseLocalStatus, supabaseCli } from "../../src/supabase.mjs";
 
-export { MissingSecret };
+
 
 export interface RigHome {
   home: string;
@@ -47,10 +49,10 @@ export function rigSettings(home: RigHome): RigSettings {
   const settings = cliSettings(home) as Record<string, unknown>;
   const { appOrigin, apiPort, systemd } = settings;
   if (typeof appOrigin !== "string") {
-    throw new Error("rig: rig.json's appOrigin must be a string");
+    throw new TypeError("rig: rig.json's appOrigin must be a string");
   }
   if (typeof apiPort !== "number" || typeof systemd !== "boolean") {
-    throw new Error("rig: rig.json's apiPort must be a number and systemd a boolean");
+    throw new TypeError("rig: rig.json's apiPort must be a number and systemd a boolean");
   }
   return { appOrigin, apiPort, systemd };
 }
@@ -70,7 +72,7 @@ export class SecretFiles {
 
   constructor(dir: string) {
     this.dir = dir;
-    this.#store = secretStore(dir) as CliStore;
+    this.#store = secretStore(dir);
   }
 
   has(name: string): boolean {
@@ -103,7 +105,7 @@ export class SecretFiles {
 export function storeNameOf(bundleName: string): string {
   if (!/^[A-Z][A-Z0-9_]*$/.test(bundleName)) throw new Error(`rig secrets: "${bundleName}" is not a bundle name`);
   const json = bundleName.endsWith("_JSON");
-  const stem = (json ? bundleName.slice(0, -"_JSON".length) : bundleName).toLowerCase().replace(/_+/g, "-");
+  const stem = (json ? bundleName.slice(0, -"_JSON".length) : bundleName).toLowerCase().replaceAll(/_+/g, "-");
   return json ? `${stem}.json` : stem;
 }
 
@@ -131,7 +133,7 @@ export function parseSupabaseStatus(stdout: string): LocalSupabase {
  * has no timeout: a daemon must not hang on a stuck Docker.
  */
 export function localSupabase(home: RigHome, env: NodeJS.ProcessEnv = process.env): LocalSupabase {
-  const { command, prefix } = supabaseCli(env) as { command: string; prefix: string[] };
+  const { command, prefix } = supabaseCli(env);
   const result = spawnSync(command, [...prefix, "status", "-o", "json", "--workdir", home.supabaseWorkdir], {
     encoding: "utf8",
     timeout: 60_000,

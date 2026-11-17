@@ -52,7 +52,7 @@ describe("isAllowedAttachmentType (D19 §2.4 allow-list)", () => {
 });
 
 describe("validateAttachment (client pre-flight, plain copy)", () => {
-  const okFile = { name: "part.jpg", type: "image/jpeg", size: 2_000 };
+  const okFile = { name: "part.jpg", type: "image/jpeg", size: 2000 };
 
   it("admits an allowed, in-size file", () => {
     expect(validateAttachment(okFile, 0)).toEqual({ ok: true });
@@ -83,7 +83,7 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
     const result = validateAttachment({
       name: "run.exe",
       type: "application/x-msdownload",
-      size: 1_000,
+      size: 1000,
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/isn't allowed/i);
@@ -93,7 +93,7 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
     const result = validateAttachment({
       name: "logo.svg",
       type: "image/svg+xml",
-      size: 1_000,
+      size: 1000,
     });
     expect(result.ok).toBe(false);
     if (!result.ok) expect(result.reason).toMatch(/isn't allowed/i);
@@ -111,9 +111,9 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
     const result = validateAttachment(okFile, MAX_ATTACHMENTS_PER_OWNER);
     expect(result.ok).toBe(false);
     if (!result.ok)
-      expect(result.reason).toMatch(
+      {expect(result.reason).toMatch(
         new RegExp(String(MAX_ATTACHMENTS_PER_OWNER)),
-      );
+      );}
   });
 
   it("allows the tenth attachment but not the eleventh", () => {
@@ -125,8 +125,8 @@ describe("validateAttachment (client pre-flight, plain copy)", () => {
 });
 
 describe("partitionAttachmentFiles (multi-select / drop / paste batches)", () => {
-  const pdf = { name: "quote.pdf", type: "application/pdf", size: 2_000 };
-  const jpg = { name: "part.jpg", type: "image/jpeg", size: 5_000 };
+  const pdf = { name: "quote.pdf", type: "application/pdf", size: 2000 };
+  const jpg = { name: "part.jpg", type: "image/jpeg", size: 5000 };
   const exe = { name: "run.exe", type: "application/x-msdownload", size: 100 };
   const svg = { name: "logo.svg", type: "image/svg+xml", size: 100 };
   const huge = { name: "video.zip", type: "application/zip", size: MAX_ATTACHMENT_BYTES + 1 };

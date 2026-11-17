@@ -12,11 +12,8 @@ import {
   calendarCallbackUri,
   getCalendarProviderConfiguration,
 } from "../calendar/config";
-import {
-  openCalendarCredential,
-  sealCalendarCredential,
-  type SealedCalendarCredential,
-} from "../calendar/crypto";
+import { openCalendarCredential, sealCalendarCredential } from '../calendar/crypto';
+import type { SealedCalendarCredential } from '../calendar/crypto';
 import {
   exchangeGoogleAuthorizationCode,
   GoogleCalendarProvider,
@@ -32,7 +29,8 @@ import type {
 } from "../calendar/providers/types";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { generateToken, hashToken } from "../public-links/tokens";
 import { unwrap } from "./core/http";
 

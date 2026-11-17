@@ -175,8 +175,8 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
   it("ConvergedField: full still tells the story (4 green docked + 1 flare waiting), variants are decorative-only", () => {
     const full = renderToStaticMarkup(<ConvergedField variant="full" />);
     expect(full).toContain('aria-hidden="true"');
-    expect((full.match(/var\(--fr-green\)/g) ?? []).length).toBe(4);
-    expect((full.match(/var\(--fr-flare\)/g) ?? []).length).toBe(1);
+    expect((full.match(/var\(--fr-green\)/g) ?? [])).toHaveLength(4);
+    expect((full.match(/var\(--fr-flare\)/g) ?? [])).toHaveLength(1);
     // The P5-SPEC scripted timestamps, mono.
     for (const t of ["9:04 PM", "6:48 AM", "12:15 PM", "5:31 PM", "8:47 AM"]) {
       expect(full).toContain(t);
@@ -184,7 +184,7 @@ describe("fr primitives — the FIRST RESPONSE component kit", () => {
 
     const mark = renderToStaticMarkup(<ConvergedField variant="mark" />);
     expect(mark).toContain('aria-hidden="true"');
-    expect((mark.match(/var\(--fr-flare\)/g) ?? []).length).toBe(1);
+    expect((mark.match(/var\(--fr-flare\)/g) ?? [])).toHaveLength(1);
 
     const backdrop = renderToStaticMarkup(
       <ConvergedField

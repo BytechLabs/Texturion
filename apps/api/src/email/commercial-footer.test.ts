@@ -51,8 +51,8 @@ describe("#252 commercial sends declare themselves", () => {
       offenders,
       `These send mail with their own unsubscribe link but do not pass ` +
         `kind: "commercial", so sendEmail will append the transactional ` +
-        `service-message footer beneath their compliance block: ` +
-        offenders.join(", "),
+        `service-message footer beneath their compliance block: ${ 
+        offenders.join(", ")}`,
     ).toEqual([]);
   });
 

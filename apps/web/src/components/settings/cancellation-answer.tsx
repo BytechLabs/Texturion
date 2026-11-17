@@ -1,12 +1,7 @@
 "use client";
 
-import {
-  CANCELLATION_GRACE_DAYS,
-  cancellationOffer,
-  isWithinCancellationGrace,
-  numberReleaseAt,
-  type CancellationOffer,
-} from "@loonext/shared";
+import { CANCELLATION_GRACE_DAYS, cancellationOffer, isWithinCancellationGrace, numberReleaseAt } from '@loonext/shared';
+import type { CancellationOffer } from '@loonext/shared';
 import { Info } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -132,7 +127,7 @@ export function HoldSentence({ company }: { company: CompanyView }) {
   const t = useT();
   // #228: cancellationOffer names its sentences and takes the lookup, so the
   // cancel card says them in the reader's language.
-  const say = sayWith(t);
+  
   const day = releaseDay(company.canceled_at, t.locale);
 
   if (day === null) {

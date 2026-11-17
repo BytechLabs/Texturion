@@ -100,13 +100,13 @@ export function MfaChallenge({
       // continues; Settings will show two-factor as off, which is the honest
       // state and the prompt to set it up again.
       onVerified();
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError && cause.code === "rate_limited"
+        error_ instanceof ApiError && error_.code === "rate_limited"
           ? t("onboarding.mfaRateLimited")
-          : cause instanceof ApiError
+          : (error_ instanceof ApiError
             ? t("onboarding.mfaCodeInvalid")
-            : t("onboarding.mfaNetwork"),
+            : t("onboarding.mfaNetwork")),
       );
     } finally {
       setBusy(false);
@@ -117,7 +117,7 @@ export function MfaChallenge({
     const code = raw.trim();
     if (!code || busy) return;
     submittedRef.current = code;
-    void (mode === "code" ? verifyCode(code.replace(/\D/g, "")) : redeemRecoveryCode(code));
+    void (mode === "code" ? verifyCode(code.replaceAll(/\D/g, "")) : redeemRecoveryCode(code));
   }
 
   return (
@@ -157,7 +157,7 @@ export function MfaChallenge({
             // Auto-submit on the sixth digit. The whole interaction is "read a
             // number, type it" — making somebody then reach for a button is a
             // step that exists only because the form has one.
-            const digits = next.replace(/\D/g, "");
+            const digits = next.replaceAll(/\D/g, "");
             if (
               mode === "code" &&
               digits.length === TOTP_LENGTH &&
@@ -188,9 +188,9 @@ export function MfaChallenge({
         <Button type="submit" className="w-full" disabled={busy || !value.trim()}>
           {busy
             ? t("onboarding.checking")
-            : mode === "code"
+            : (mode === "code"
               ? t("onboarding.continue")
-              : t("onboarding.mfaUseThisCode")}
+              : t("onboarding.mfaUseThisCode"))}
         </Button>
       </form>
 

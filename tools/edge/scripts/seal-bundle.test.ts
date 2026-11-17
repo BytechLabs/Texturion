@@ -30,7 +30,7 @@ describe("the sealed bundle", () => {
     expect(bundle).toMatchObject({ v: 1, alg: "X25519-HKDF-SHA256-A256GCM" });
     expect(JSON.stringify(bundle)).not.toContain("sk_test_rig_sandbox");
     const key = await importRecipientKey(recipient.privateKeyJwk);
-    expect(await openBundle(key, bundle)).toEqual(plaintext);
+    await expect(openBundle(key, bundle)).resolves.toEqual(plaintext);
   });
 
   it("refuses another rig's key", async () => {

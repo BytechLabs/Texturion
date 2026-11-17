@@ -46,7 +46,7 @@ export function ExportDataCard() {
 
         {exports.isPending ? (
           <Skeleton className="h-9 w-40" />
-        ) : building ? (
+        ) : (building ? (
           <p className="text-sm">{t("settings.exportDataBuilding")}</p>
         ) : (
           <Button
@@ -74,7 +74,7 @@ export function ExportDataCard() {
               ? t("settings.exportDataStarting")
               : t("settings.exportDataAction")}
           </Button>
-        )}
+        ))}
 
         {latestFailed && !building && (
           <p className="text-sm text-destructive">

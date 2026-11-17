@@ -24,11 +24,11 @@ const OTHER_MEANINGS: Record<string, string> = {
 
 /** Placeholders such as `{label}` name a variable, not a word the reader sees. */
 function readable(value: string): string {
-  return value.replace(/\{[A-Za-z0-9_]+\}/g, "");
+  return value.replaceAll(/\{[A-Za-z0-9_]+\}/g, "");
 }
 
-function entries(catalog: object = EN): Array<[string, string]> {
-  const out: Array<[string, string]> = [];
+function entries(catalog: object = EN): [string, string][] {
+  const out: [string, string][] = [];
   for (const [section, keys] of Object.entries(catalog)) {
     for (const [key, value] of Object.entries(keys as Record<string, unknown>)) {
       if (typeof value === "string") out.push([`${section}.${key}`, value]);

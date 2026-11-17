@@ -31,7 +31,7 @@ export function writeHistory(file, { sha, files }) {
   const table = [];
   const index = new Map();
   const encode = (paths) =>
-    [...paths].sort().map((p) => {
+    [...paths].toSorted().map((p) => {
       if (!index.has(p)) {
         index.set(p, table.length);
         table.push(p);
@@ -39,7 +39,7 @@ export function writeHistory(file, { sha, files }) {
       return index.get(p);
     });
   const out = {};
-  for (const [unit, entry] of [...files.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+  for (const [unit, entry] of [...files.entries()].toSorted(([a], [b]) => a.localeCompare(b))) {
     out[unit] = {
       ms: Math.round(entry.ms),
       i: encode(entry.imports),

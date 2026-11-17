@@ -1,20 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  checkPortability,
-  handlePortingEvent,
-  pollPortRequests,
-  PortDocumentsMissingError,
-  startPortSaga,
-  submitPortRequest,
-  type PortRequestRow,
-} from "./porting";
-import {
-  FakeRest,
-  resendRoute,
-  TelnyxMock,
-  type SentEmailCapture,
-} from "./test-support";
+import { checkPortability, handlePortingEvent, pollPortRequests, PortDocumentsMissingError, startPortSaga, submitPortRequest } from './porting';
+import type { PortRequestRow } from './porting';
+import { FakeRest, resendRoute, TelnyxMock } from './test-support';
+import type { SentEmailCapture } from './test-support';
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
 import type { TelnyxEvent } from "../messaging/types";
 import { completeEnv, stubFetch } from "../test/support";

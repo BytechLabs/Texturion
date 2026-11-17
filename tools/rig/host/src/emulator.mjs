@@ -6,7 +6,7 @@ import { readdirSync, readFileSync, statSync, unlinkSync } from "node:fs";
 import { connect } from "node:net";
 import { join } from "node:path";
 
-import { bootCompletedArgs, adbBinary, adbEnv } from "./adb.mjs";
+import { adbBinary, adbEnv, bootCompletedArgs } from "./adb.mjs";
 import { deviceByName, serialOf } from "./config.mjs";
 
 /**
@@ -38,7 +38,7 @@ export function emulatorArgs(device, { dnsServer, cold = false, wipe = false, au
   if (!Number.isInteger(consolePort) || consolePort < 5554 || consolePort > 5682 || consolePort % 2) {
     throw new Error("emulator: console ports are even, 5554-5682");
   }
-  if (!Number.isInteger(grpc) || grpc < 1024 || grpc > 65535) throw new Error("emulator: not a gRPC port");
+  if (!Number.isInteger(grpc) || grpc < 1024 || grpc > 65_535) throw new Error("emulator: not a gRPC port");
   if (!/^\d{1,3}(\.\d{1,3}){3}$/.test(dnsServer ?? "")) throw new Error("emulator: the DNS server is the VM's address");
   if (!AUDIO_FLAGS.has(audio)) throw new Error(`emulator: ${audio} is not an allowed audio flag`);
   return [
@@ -408,8 +408,8 @@ export function createDevices({
       if (!token) return reply(503, { error: "console_token.unavailable" });
       try {
         await sendConsole(entry.device.console, token.token, "kill");
-      } catch (cause) {
-        log(`device ${name} console kill failed: ${cause.message}`);
+      } catch (error) {
+        log(`device ${name} console kill failed: ${error.message}`);
         return reply(502, { error: "console.failed" });
       }
     }

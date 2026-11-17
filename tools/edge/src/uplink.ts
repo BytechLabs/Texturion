@@ -1,12 +1,6 @@
 import { DurableObject } from "cloudflare:workers";
-import {
-  type ControlClass,
-  type EdgeToRig,
-  MEDIA_MAX_BYTES,
-  QUEUED_DELIVERY_MAX_AGE_MS,
-  type RigToEdge,
-  TELNYX_SIGNATURE_WINDOW_S,
-} from "@loonext/rig-protocol";
+import { MEDIA_MAX_BYTES, QUEUED_DELIVERY_MAX_AGE_MS, TELNYX_SIGNATURE_WINDOW_S } from '@loonext/rig-protocol';
+import type { ControlClass, EdgeToRig, RigToEdge } from '@loonext/rig-protocol';
 
 import type { Env } from "./env";
 import { relayStatus } from "./http";
@@ -85,7 +79,7 @@ export interface UplinkSnapshot {
 const RIG_TAG = "rig";
 const OPEN = 1;
 
-const QUEUE_MAX = 2_000;
+const QUEUE_MAX = 2000;
 const FLUSH_BATCH = 50;
 const RETRY_BASE_MS = 30_000;
 const RETRY_MAX_MS = 15 * 60 * 1000;
@@ -98,7 +92,7 @@ export const STRANGER_DETACH_THRESHOLD = 5;
 export const STRANGER_WINDOW_MS = 24 * 60 * 60 * 1000;
 /** A detach the guard did not act on is asked for again after this long. */
 const DETACH_REPEAT_MS = 60 * 60 * 1000;
-const STRANGER_SENDERS_MAX = 1_000;
+const STRANGER_SENDERS_MAX = 1000;
 const NOTICES_MAX = 100;
 /** How long a call relay that timed out can still be answered and remembered. */
 const LATE_CALL_MEMORY_MS = 15 * 60 * 1000;
@@ -322,7 +316,7 @@ export class RigUplink extends DurableObject<Env> {
     } finally {
       this.inFlight.delete(key);
     }
-    if (!reply || reply.t !== "webhook-result") {
+    if (reply?.t !== "webhook-result") {
       // The rig may still answer. A late 2xx means the event was handled, so
       // Telnyx's retry of it must not be relayed again.
       this.sql.exec("INSERT OR REPLACE INTO late_calls (id, key, at) VALUES (?, ?, ?)", id, key, Date.now());
@@ -450,11 +444,11 @@ export class RigUplink extends DurableObject<Env> {
    */
   private async schedule(now: number): Promise<void> {
     const connected = this.socket() !== null;
-    const at = this.sql
+    const {at} = this.sql
       .exec<{ at: number | null }>(
         connected ? "SELECT MIN(next_at) AS at FROM queue" : "SELECT MIN(first_at) AS at FROM queue",
       )
-      .one().at;
+      .one();
     if (at === null) {
       await this.ctx.storage.deleteAlarm();
       return;
@@ -479,7 +473,7 @@ export class RigUplink extends DurableObject<Env> {
       return { status: 503 };
     }
     const reply = await this.exchange(ws, { t: "media", id: crypto.randomUUID(), path }, MEDIA_TIMEOUT_MS);
-    if (!reply || reply.t !== "media-result") {
+    if (reply?.t !== "media-result") {
       this.count("media.no_answer");
       return { status: 504 };
     }
@@ -499,7 +493,7 @@ export class RigUplink extends DurableObject<Env> {
     if (!ws) return { status: "offline" };
     const frame: RpcFrame = { t: "rpc", id: crypto.randomUUID(), method, params, caller };
     const reply = await this.exchange(ws, frame, RPC_TIMEOUT_MS);
-    if (!reply || reply.t !== "rpc-result") return { status: "timeout" };
+    if (reply?.t !== "rpc-result") return { status: "timeout" };
     return reply.ok ? { status: "ok", result: reply.result } : { status: "error", error: reply.error };
   }
 
@@ -641,7 +635,7 @@ export class RigUplink extends DurableObject<Env> {
   }
 
   private number(query: string, ...bindings: SqlStorageValue[]): number {
-    return Number(this.sql.exec<{ n: number }>(query, ...bindings).one().n);
+    return this.sql.exec<{ n: number }>(query, ...bindings).one().n;
   }
 
   private meta(key: string): string | null {

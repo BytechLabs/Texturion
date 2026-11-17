@@ -19,15 +19,8 @@ import { useActiveCompany } from "@/lib/company/provider";
 import { ConversationList } from "./conversation-list";
 import { FilterBar } from "./filter-bar";
 import { GettingStartedCard } from "./getting-started-card";
-import {
-  hasActiveFilters,
-  isSearchingInbox,
-  parseInboxSearchParams,
-  searchQueryOf,
-  serializeInboxFilters,
-  toConversationFilters,
-  type InboxUrlFilters,
-} from "./filter-url";
+import { hasActiveFilters, isSearchingInbox, parseInboxSearchParams, searchQueryOf, serializeInboxFilters, toConversationFilters } from './filter-url';
+import type { InboxUrlFilters } from './filter-url';
 import { viewFiltersToUrl } from "./saved-view-filters";
 import { SearchResults } from "./search-results";
 

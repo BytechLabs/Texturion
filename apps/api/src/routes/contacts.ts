@@ -41,7 +41,8 @@
  *   DELETE /v1/contacts/:id/opt-out         M — alias of revoke.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Hono, type Context } from "hono";
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
@@ -53,22 +54,14 @@ import type { AppEnv } from "../context";
 import { answerersByCall } from "../calls/answerers";
 import { getDb } from "../db";
 import { emitWebhookEvent } from "../webhooks/outbound";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage, encodeCursor } from "../http/pagination";
-import {
-  CsvUnterminatedQuoteError,
-  csvResponse,
-  csvSafeText,
-  csvUnguardText,
-  parseCsvRows,
-  type CsvRow,
-} from "./core/csv";
-import {
-  insertConversationEvents,
-  latestConversationId,
-  type ConversationEventRow,
-} from "./core/events";
+import { csvResponse, csvSafeText, csvUnguardText, CsvUnterminatedQuoteError, parseCsvRows } from './core/csv';
+import type { CsvRow } from './core/csv';
+import { insertConversationEvents, latestConversationId } from './core/events';
+import type { ConversationEventRow } from './core/events';
 import {
   assertBodyWithinLimit,
   expectOk,
@@ -81,53 +74,8 @@ import {
   unwrap,
 } from "./core/http";
 import { resolveActorNames } from "./core/attribution";
-import {
-  CONTACT_FIELDS_CAP,
-  CONTACT_FIELD_KINDS,
-  CONTACT_FIELD_OPTIONS_CAP,
-  CONTACT_FIELD_VALUE_MAX,
-  CONTACT_IMPORT_COLUMN_FIELD,
-  CONTACT_IMPORT_CONSENT_FIELD,
-  CONTACT_IMPORT_CONSENT_REFUSED_NOTE,
-  CONTACT_IMPORT_CONSENT_REQUIRED,
-  CONTACT_IMPORT_CONSENT_VALUE,
-  CONTACT_IMPORT_IGNORE,
-  CONTACT_IMPORT_MAX_BYTES,
-  CONTACT_IMPORT_MAX_ROWS,
-  CONTACT_IMPORT_UNREADABLE_ENCODING,
-  CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
-  type ContactFieldKind,
-  type ContactImportColumnDeclaration,
-  type ContactImportMapping,
-  contactFieldValueError,
-  contactImportColumnCount,
-  contactImportColumnMismatchMessage,
-  contactImportConsentRefusedReason,
-  contactImportUndeclaredColumnsMessage,
-  contactImportUndeclaredColumnsReference,
-  contactImportUndeclaredPropertiesMessage,
-  contactImportUndeclaredPropertiesReference,
-  contactImportUnreadableFlagMessage,
-  contactImportUnreadableFlagReference,
-  contactImportUnterminatedQuoteMessage,
-  contactImportVCardMergedCardMessage,
-  contactImportVCardNamelessPropertyMessage,
-  formatContactImportColumn,
-  formatVCardProperty,
-  joinContactName,
-  LOCALES,
-  mappingFromDeclarations,
-  parseContactImportColumn,
-  parseVCardProperty,
-  readContactFlag,
-  roleHasCapability,
-  TAGS_PER_WORKSPACE,
-  unreadableFlagValues,
-  VCARD_IMPORT_MAX_BYTES,
-  VCARD_IMPORT_MAX_CARDS,
-  VCARD_MAPPED_PROPERTIES,
-  type VCardPropertyDeclaration,
-} from "@loonext/shared";
+import { CONTACT_FIELD_KINDS, CONTACT_FIELD_OPTIONS_CAP, CONTACT_FIELD_VALUE_MAX, CONTACT_FIELDS_CAP, CONTACT_IMPORT_COLUMN_FIELD, CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_REFUSED_NOTE, CONTACT_IMPORT_CONSENT_REQUIRED, CONTACT_IMPORT_CONSENT_VALUE, CONTACT_IMPORT_IGNORE, CONTACT_IMPORT_MAX_BYTES, CONTACT_IMPORT_MAX_ROWS, CONTACT_IMPORT_UNREADABLE_ENCODING, CONTACT_IMPORT_VCARD_PROPERTY_FIELD, contactFieldValueError, contactImportColumnCount, contactImportColumnMismatchMessage, contactImportConsentRefusedReason, contactImportUndeclaredColumnsMessage, contactImportUndeclaredColumnsReference, contactImportUndeclaredPropertiesMessage, contactImportUndeclaredPropertiesReference, contactImportUnreadableFlagMessage, contactImportUnreadableFlagReference, contactImportUnterminatedQuoteMessage, contactImportVCardMergedCardMessage, contactImportVCardNamelessPropertyMessage, formatContactImportColumn, formatVCardProperty, joinContactName, LOCALES, mappingFromDeclarations, parseContactImportColumn, parseVCardProperty, readContactFlag, roleHasCapability, TAGS_PER_WORKSPACE, unreadableFlagValues, VCARD_IMPORT_MAX_BYTES, VCARD_IMPORT_MAX_CARDS, VCARD_MAPPED_PROPERTIES } from '@loonext/shared';
+import type { ContactFieldKind, ContactImportColumnDeclaration, ContactImportMapping, VCardPropertyDeclaration } from '@loonext/shared';
 
 import { recordActivity } from "../activity/record";
 import { capture } from "../analytics/posthog";

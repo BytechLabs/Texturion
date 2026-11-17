@@ -9,16 +9,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  numberAccessIsRestricted,
-  numberAccessLevelLabel,
-  numberAccessReason,
-  numberAccessSelfNote,
-  sortNumberAccessExplanations,
-  type NumberAccessDecidedBy,
-  type NumberAccessExplanation,
-  type NumberAccessLevel,
-} from "./number-access-explained";
+import { numberAccessIsRestricted, numberAccessLevelLabel, numberAccessReason, numberAccessSelfNote, sortNumberAccessExplanations } from './number-access-explained';
+import type { NumberAccessDecidedBy, NumberAccessExplanation, NumberAccessLevel } from './number-access-explained';
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
@@ -33,7 +25,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function lookUp(table: unknown, key: string, lang: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no ${lang} for ${key}`);
   return value;
 }
 

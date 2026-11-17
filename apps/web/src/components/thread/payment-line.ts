@@ -1,9 +1,5 @@
-import {
-  BILLING_CURRENCIES,
-  DEFAULT_BILLING_CURRENCY,
-  formatMoney,
-  type BillingCurrency,
-} from "@loonext/shared";
+import { BILLING_CURRENCIES, DEFAULT_BILLING_CURRENCY, formatMoney } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
 import type { Translate } from "@/i18n/translate";
 import type { ConversationEvent, ConversationEventType } from "@/lib/api/types";
@@ -93,7 +89,7 @@ function currencyOf(payload: Record<string, unknown>): BillingCurrency {
  * is not the case that qualifier exists for. Same call the strip makes.
  */
 export function paymentEventAmount(event: ConversationEvent): string | null {
-  const payload = event.payload;
+  const {payload} = event;
   const cents = centsAt(payload, AMOUNT_KEY);
   const figure =
     event.type === "payment_refunded"
@@ -195,25 +191,30 @@ function paymentHeadline(
   t: Translate,
 ): string {
   switch (type) {
-    case "payment_requested":
+    case "payment_requested": {
       return amount
         ? t("thread.sysPaymentRequested", { by, amount })
         : t("thread.sysPaymentRequestedGeneric", { by });
-    case "payment_paid":
+    }
+    case "payment_paid": {
       return amount
         ? t("thread.sysPaymentPaid", { amount })
         : t("thread.sysPaymentPaidGeneric");
-    case "payment_cancelled":
+    }
+    case "payment_cancelled": {
       return amount
         ? t("thread.sysPaymentCancelled", { by, amount })
         : t("thread.sysPaymentCancelledGeneric", { by });
-    case "payment_refunded":
+    }
+    case "payment_refunded": {
       return amount
         ? t("thread.sysPaymentRefunded", { amount })
         : t("thread.sysPaymentRefundedGeneric");
-    case "payment_disputed":
+    }
+    case "payment_disputed": {
       return amount
         ? t("thread.sysPaymentDisputed", { amount })
         : t("thread.sysPaymentDisputedGeneric");
+    }
   }
 }

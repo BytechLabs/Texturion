@@ -139,23 +139,29 @@ export function useDeleteGreeting() {
  * than trusting the whole string to match a map.
  */
 export function extensionFor(mimeType: string): string {
-  const base = (mimeType || "").split(";")[0]!.trim().toLowerCase();
+  const base = (mimeType || "").split(";")[0].trim().toLowerCase();
   switch (base) {
     case "audio/mp4":
-    case "audio/x-m4a":
+    case "audio/x-m4a": {
       return "m4a";
+    }
     case "audio/mpeg":
-    case "audio/mp3":
+    case "audio/mp3": {
       return "mp3";
-    case "audio/ogg":
+    }
+    case "audio/ogg": {
       return "ogg";
+    }
     case "audio/wav":
-    case "audio/x-wav":
+    case "audio/x-wav": {
       return "wav";
-    case "audio/aac":
+    }
+    case "audio/aac": {
       return "aac";
-    default:
+    }
+    default: {
       return "webm";
+    }
   }
 }
 

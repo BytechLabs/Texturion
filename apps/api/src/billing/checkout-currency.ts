@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 
-import { billingCurrencyOf, type BillingCurrency } from "@loonext/shared";
+import { billingCurrencyOf } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
 /**
  * #328 — the currency a checkout session may actually be created in.

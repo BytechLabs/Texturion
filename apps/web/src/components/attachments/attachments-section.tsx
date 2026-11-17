@@ -97,9 +97,9 @@ export function AttachmentsSection({
         await upload.mutateAsync({ file, currentCount: count });
         count += 1;
         uploaded += 1;
-      } catch (err) {
+      } catch (error_) {
         failures.push(
-          err instanceof Error ? err.message : t("misc.uploadFailed"),
+          error_ instanceof Error ? error_.message : t("misc.uploadFailed"),
         );
       }
     }

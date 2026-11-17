@@ -42,7 +42,7 @@ const CAD: PrepayOffer = {
   eligible: true,
   reason: null,
   price_cents: 41_700,
-  monthly_cents: 4_450,
+  monthly_cents: 4450,
   currency: "cad",
   months: 10,
   open: null,

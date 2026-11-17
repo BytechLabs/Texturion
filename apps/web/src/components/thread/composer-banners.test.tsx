@@ -55,7 +55,7 @@ function render(banner: NonNullable<ComposerBanner>, thread = THREAD) {
   );
 }
 
-describe("ComposerBannerCard", () => {
+describe(ComposerBannerCard, () => {
   it("offers the call while US registration is pending", () => {
     // Carrier registration gates texting, not voice, so the call this offers
     // actually connects. The wait is 3 to 7 business days; without an action

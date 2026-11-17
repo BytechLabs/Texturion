@@ -63,7 +63,7 @@ export async function readBalance(ctx: Ctx, options: { fresh?: boolean } = {}): 
   const reply = await ctx.telnyx.send("GET", "/v2/balance");
   if (reply.status === 401 || reply.status === 403) throw new AccountRefused(reply);
   const raw = (reply.body as { data?: { balance?: unknown } } | undefined)?.data?.balance;
-  const value = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : Number.NaN;
+  const value = typeof raw === "number" ? raw : (typeof raw === "string" ? Number(raw) : Number.NaN);
   if (reply.status !== 200 || !Number.isFinite(value)) throw new Refusal("budget.balance_unknown");
 
   await ctx.store.put(KEYS.reading, { usd: value, read_at: ctx.now() } satisfies BalanceReading);
@@ -85,9 +85,9 @@ export async function requireAboveFloor(ctx: Ctx): Promise<void> {
   let balance: number;
   try {
     balance = await readBalance(ctx);
-  } catch (cause) {
-    if (cause instanceof AccountRefused) throw new Refusal("budget.balance_unknown");
-    throw cause;
+  } catch (error) {
+    if (error instanceof AccountRefused) throw new Refusal("budget.balance_unknown");
+    throw error;
   }
   if (balance < (await balanceFloor(ctx))) throw new Refusal("budget.balance_floor");
 }

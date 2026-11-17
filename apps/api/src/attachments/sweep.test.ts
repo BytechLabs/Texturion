@@ -8,7 +8,8 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { MMS_BUCKET } from "../messaging/media";
 import { VOICEMAILS_BUCKET } from "../messaging/inbound-ring";
 import { ATTACHMENTS_BUCKET } from "../routes/core/attachments";
@@ -118,7 +119,7 @@ function stubSweepWorld(
         const body = (await request.clone().json()) as { p_paths: string[] };
         captured.inUseChecks.push(body);
         if (opts.inUseCheckFails) {
-          return new Response(JSON.stringify({ message: "boom" }), { status: 500 });
+          return Response.json({ message: "boom" }, { status: 500 });
         }
         return Response.json(opts.pathsInUse ?? []);
       })();
@@ -133,7 +134,7 @@ function stubSweepWorld(
         const body = (await request.clone().json()) as Captured["orphanScans"][0];
         captured.orphanScans.push(body);
         if (opts.orphanScanFails) {
-          return new Response(JSON.stringify({ message: "boom" }), {
+          return Response.json({ message: "boom" }, {
             status: 500,
           });
         }
@@ -194,7 +195,7 @@ function stubSweepWorld(
         const body = (await request.clone().json()) as { prefixes: string[] };
         captured.removes.push({ bucket: MMS_BUCKET, paths: body.prefixes });
         if (opts.removeFails) {
-          return new Response(JSON.stringify({ error: "boom", message: "boom" }), {
+          return Response.json({ error: "boom", message: "boom" }, {
             status: 500,
           });
         }
@@ -262,7 +263,7 @@ function stubSweepWorld(
           : EXPORTS_BUCKET;
         captured.removes.push({ bucket, paths: body.prefixes });
         if (opts.removeFails) {
-          return new Response(JSON.stringify({ error: "boom", message: "boom" }), {
+          return Response.json({ error: "boom", message: "boom" }, {
             status: 500,
           });
         }
@@ -282,7 +283,7 @@ function stubSweepWorld(
         const body = (await request.clone().json()) as { prefixes: string[] };
         captured.removes.push({ bucket: ATTACHMENTS_BUCKET, paths: body.prefixes });
         if (opts.removeFails) {
-          return new Response(JSON.stringify({ error: "boom", message: "boom" }), {
+          return Response.json({ error: "boom", message: "boom" }, {
             status: 500,
           });
         }

@@ -75,10 +75,10 @@ async function inboundContext(blocked: boolean) {
     call_control_id: "ccid-696",
     from: CALLER,
     to: "+14155550001",
-  } as never);
-  if (typeof ctx === "string") throw new Error(`expected a context, got ${ctx}`);
+  });
+  if (typeof ctx === "string") throw new TypeError(`expected a context, got ${ctx}`);
   let n = 0;
-  const { effects } = reduce(null, { type: "initiated", context: ctx }, 1_000, () => `k${n++}`);
+  const { effects } = reduce(null, { type: "initiated", context: ctx }, 1000, () => `k${n += 1}`);
   return { ctx, effects, routes };
 }
 

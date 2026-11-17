@@ -57,7 +57,7 @@ const quote = (over: Partial<Quote>): Quote =>
     decided_at: null,
     created_at: "2026-08-10T09:00:00Z",
     ...over,
-  }) as Quote;
+  });
 
 const render = () => renderToStaticMarkup(<OutstandingQuotesSection />);
 
@@ -84,7 +84,7 @@ describe("#287 outstanding quotes", () => {
   it("carries the amount and links into the thread it was quoted in", () => {
     // A row that names a price and cannot be acted on is a notification. The
     // whole value is being one tap from the conversation.
-    rows = [quote({ conversation_id: "conv-42", amount_cents: 125_00 })];
+    rows = [quote({ conversation_id: "conv-42", amount_cents: 12_500 })];
     const html = render();
     expect(html).toContain("/inbox/conv-42");
     expect(html).toContain("125");

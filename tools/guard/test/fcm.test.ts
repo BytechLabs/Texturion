@@ -1,9 +1,10 @@
-import { generateKeyPairSync, createVerify } from "node:crypto";
+import { createVerify, generateKeyPairSync } from "node:crypto";
 
 import { describe, expect, it } from "vitest";
 
 import { rewriteMessage } from "../src/vendors/fcm";
-import { harness, ruleOf, type Harness } from "./support";
+import { harness, ruleOf } from './support';
+import type { Harness } from './support';
 
 // Generated per run, never committed: a key in the tree would read as a leak.
 const { privateKey, publicKey } = generateKeyPairSync("rsa", { modulusLength: 2048 });
@@ -56,7 +57,7 @@ describe("FCM rewrite", () => {
 
   it("refuses a topic or condition send, which would reach every subscribed app", () => {
     for (const message of [{ topic: "all" }, { condition: "'a' in topics" }, { token: "t", topic: "all" }, {}]) {
-      expect(() => rewriteMessage(message), JSON.stringify(message)).toThrowError(/fcm\.target_not_token/);
+      expect(() => rewriteMessage(message), JSON.stringify(message)).toThrow(/fcm\.target_not_token/);
     }
   });
 });
@@ -97,22 +98,22 @@ describe("FCM route", () => {
   it("sends at most 300 a day", async () => {
     const h = harness({ env: { FCM_SERVICE_ACCOUNT_JSON: SERVICE_ACCOUNT } });
     await h.store.put("count:fcm:2026-11-02", 300);
-    expect(await ruleOf(await send(h, IOS_SHAPED))).toBe("budget.fcm_day");
+    await expect(ruleOf(await send(h, IOS_SHAPED))).resolves.toBe("budget.fcm_day");
     expect(fcmCalls(h)).toEqual([]);
   });
 
   it("fails closed without a service account, and on any other path", async () => {
     const h = harness();
-    expect(await ruleOf(await send(h, IOS_SHAPED))).toBe("fcm.key_missing");
+    await expect(ruleOf(await send(h, IOS_SHAPED))).resolves.toBe("fcm.key_missing");
     const keyed = harness({ env: { FCM_SERVICE_ACCOUNT_JSON: SERVICE_ACCOUNT } });
-    expect(await ruleOf(await send(keyed, IOS_SHAPED, "/fcm/v1/projects/p/messages:batchSend"))).toBe("fcm.path_refused");
-    expect(await ruleOf(await keyed.call("/fcm/v1/projects/p/messages:send"))).toBe("fcm.path_refused");
+    await expect(ruleOf(await send(keyed, IOS_SHAPED, "/fcm/v1/projects/p/messages:batchSend"))).resolves.toBe("fcm.path_refused");
+    await expect(ruleOf(await keyed.call("/fcm/v1/projects/p/messages:send"))).resolves.toBe("fcm.path_refused");
   });
 
   it("answers the token route with a placeholder and asks Google for nothing", async () => {
     const h = harness();
     const response = await h.call("/fcm-token", { method: "POST", body: "grant_type=x" });
-    expect(await response.json()).toMatchObject({ access_token: "rig-guard-placeholder", token_type: "Bearer" });
+    await expect(response.json()).resolves.toMatchObject({ access_token: "rig-guard-placeholder", token_type: "Bearer" });
     expect(h.outbound).toEqual([]);
   });
 });

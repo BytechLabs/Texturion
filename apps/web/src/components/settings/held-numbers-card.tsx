@@ -9,12 +9,8 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { SettingsCard } from "@/components/settings/section";
 import { useT } from "@/i18n/provider";
-import {
-  type HeldNumber,
-  type HeldNumbersView,
-  useHeldNumbers,
-  useReinstateHeldNumber,
-} from "@/lib/api/billing";
+import { useHeldNumbers, useReinstateHeldNumber } from '@/lib/api/billing';
+import type { HeldNumber, HeldNumbersView } from '@/lib/api/billing';
 import { ApiError } from "@/lib/api/error";
 import { PLAN_PRICING } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
@@ -271,7 +267,7 @@ export function HeldNumbersCard({ show }: { show: boolean }) {
   // like the billing itself is broken. `missed-while-off` beside it makes the
   // same call for the same reason.
   if (!show || !showsHold(held.data)) return null;
-  const view = held.data as HeldNumbersView;
+  const view = held.data!;
 
   const routes = holdRoutes(view);
   const priceLabel =
@@ -279,7 +275,7 @@ export function HeldNumbersCard({ show }: { show: boolean }) {
       ? null
       : formatMoney(view.extra_number_cents, view.extra_number_currency);
   const planName = view.plan === "pro" ? "Pro" : "Starter";
-  const allowance = view.allowance;
+  const {allowance} = view;
   const many = view.held.length > 1;
 
   return (

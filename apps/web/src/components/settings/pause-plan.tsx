@@ -11,7 +11,8 @@ import { PLAN_FACTS } from "@/app/(app)/settings/billing/plan-facts";
 import { AnswerNote } from "@/components/settings/cancellation-answer";
 import { SettingsCard } from "@/components/settings/section";
 import { Button } from "@/components/ui/button";
-import { makeTranslate, useT, type Translate } from "@/i18n/provider";
+import { makeTranslate, useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { usePauseOffer, usePausePlan, useResumePlan } from "@/lib/api/billing";
 import { companyAllows } from "@/lib/api/company-actions";
 import { ApiError } from "@/lib/api/error";
@@ -337,7 +338,7 @@ export function PausedPlanCard({
   const resume = useResumePlan();
   const [error, setError] = useState<string | null>(null);
 
-  const data = pause.data;
+  const {data} = pause;
   if (!show || !data || data.paused_at === null) return null;
 
   const since = pausedDay(data.paused_at, t.locale);

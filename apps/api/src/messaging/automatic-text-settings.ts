@@ -1,9 +1,5 @@
-import {
-  AUTOMATIC_TEXT_DEFAULTS,
-  AUTOMATIC_TEXT_KEYS,
-  type AutomaticTextSettings,
-  resolveAutomaticTextSettings,
-} from "@loonext/shared";
+import { AUTOMATIC_TEXT_DEFAULTS, AUTOMATIC_TEXT_KEYS, resolveAutomaticTextSettings } from '@loonext/shared';
+import type { AutomaticTextSettings } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 /**

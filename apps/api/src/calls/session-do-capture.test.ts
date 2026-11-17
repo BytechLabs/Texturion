@@ -5,7 +5,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { buildMemberRingState, buildVoicemailState } from "../messaging/inbound-ring";
 import type { TelnyxEvent } from "../messaging/types";
 import { buildOutboundState, OUTBOUND_CUSTOMER_STATE } from "../messaging/voice-webhook";
@@ -19,9 +20,10 @@ import { completeEnv } from "../test/support";
 
 import type { SessionRuntime } from "./runtime";
 import { CallSessionDO } from "./session-do";
-import { ctx, makeRuntime, makeStorage, SESSION, type FakeConfig } from "./session-do-fake";
+import { ctx, makeRuntime, makeStorage, SESSION } from './session-do-fake';
+import type { FakeConfig } from './session-do-fake';
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -35,14 +37,14 @@ function makeDO() {
   const waitUntil = vi.fn();
   const instance = new CallSessionDO(
     { storage: store.storage, waitUntil } as never,
-    bindings as never,
+    bindings,
   );
   return { instance, waitUntil };
 }
 
 /** The object's real runtime, with only its Telnyx and database calls faked. */
 function withRealReporting(instance: CallSessionDO, config: FakeConfig = { initiated: ctx() }) {
-  const rt = (instance as unknown as { rt: SessionRuntime }).rt;
+  const {rt} = (instance as unknown as { rt: SessionRuntime });
   const { warn, reportError, capture } = rt;
   const fake = makeRuntime(config);
   Object.assign(rt, fake.runtime, { warn, reportError, capture });
@@ -51,7 +53,7 @@ function withRealReporting(instance: CallSessionDO, config: FakeConfig = { initi
 
 function telnyx(eventType: string, payload: Record<string, unknown>): TelnyxEvent {
   eventN += 1;
-  return { data: { id: `evt-${eventN}`, event_type: eventType, payload: payload as never } };
+  return { data: { id: `evt-${eventN}`, event_type: eventType, payload } };
 }
 
 function initiated(): TelnyxEvent {

@@ -734,8 +734,8 @@ describe("offline fallback wiring", () => {
     createContext(sandbox);
     runInContext(SW_SOURCE, sandbox);
     await dispatch(listeners, "activate", {});
-    expect(enable).toHaveBeenCalledTimes(1);
-    expect(claim).toHaveBeenCalledTimes(1);
+    expect(enable).toHaveBeenCalledOnce();
+    expect(claim).toHaveBeenCalledOnce();
     expect(sandbox.caches.delete).toHaveBeenCalledWith("loonext-shell-v2");
   });
 
@@ -793,7 +793,7 @@ describe("offline fallback wiring", () => {
       const response = navigationWorker(fetch)("GET");
 
       await vi.advanceTimersByTimeAsync(999);
-      expect(fetch).toHaveBeenCalledTimes(1);
+      expect(fetch).toHaveBeenCalledOnce();
       await vi.advanceTimersByTimeAsync(1);
       expect(fetch).toHaveBeenCalledTimes(2);
       await vi.advanceTimersByTimeAsync(2000);

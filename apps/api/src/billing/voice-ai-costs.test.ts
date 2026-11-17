@@ -10,16 +10,16 @@ import { describe, expect, it } from "vitest";
 
 import { PLAN_MONTHLY_REVENUE_CENTS, UNIT_COST_CENTS } from "./costs";
 import {
+  breakEvenMinutes,
   CATEGORY_PRICE_CENTS_PER_MONTH,
+  grossMarginFraction,
   PROPOSED_MODULE_PRICE_CENTS,
   REFERENCE_MINUTES_PER_MONTH,
+  referenceMonthlyCostCents,
   VOICE_AI_COST_CENTS_PER_MINUTE,
   VOICE_AI_PRICES_RECHECK_AFTER,
   VOICE_AI_PRICES_VERIFIED_ON,
   VOICE_AI_TOTAL_CENTS_PER_MINUTE,
-  breakEvenMinutes,
-  grossMarginFraction,
-  referenceMonthlyCostCents,
 } from "./voice-ai-costs";
 
 describe("freshness", () => {
@@ -57,7 +57,7 @@ describe("what a receptionist minute costs", () => {
     // #397: "$16–$30/mo in raw model cost … That equals or exceeds our entire
     // $29 plan revenue for one customer."
     const cost = referenceMonthlyCostCents();
-    const starter = PLAN_MONTHLY_REVENUE_CENTS.starter;
+    const {starter} = PLAN_MONTHLY_REVENUE_CENTS;
 
     // The asserted floor was $16. Measured is below it.
     expect(cost).toBeLessThan(1600);
@@ -80,7 +80,7 @@ describe("the cap the cost-protection mandate needs", () => {
 
   it("names break-even for the proposed module prices", () => {
     expect(breakEvenMinutes(PROPOSED_MODULE_PRICE_CENTS.low)).toBe(720);
-    expect(breakEvenMinutes(PROPOSED_MODULE_PRICE_CENTS.high)).toBe(1_161);
+    expect(breakEvenMinutes(PROPOSED_MODULE_PRICE_CENTS.high)).toBe(1161);
   });
 
   it("returns zero rather than infinity for a free module", () => {
@@ -128,7 +128,7 @@ describe("the pricing decision (#397 ask 3)", () => {
     // "Pricing it at $10 because it feels like a lot next to $29 would be the
     // expensive mistake." At $10 the module is under water at 148 minutes —
     // well inside the reference contractor's own 200.
-    const tenDollars = 1_000;
+    const tenDollars = 1000;
     expect(breakEvenMinutes(tenDollars)).toBeLessThan(
       REFERENCE_MINUTES_PER_MONTH,
     );

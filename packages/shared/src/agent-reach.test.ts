@@ -1,8 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -14,7 +13,7 @@ import { afterEach, describe, expect, it } from "vitest";
  * Secret-shaped fixtures are assembled at run time from readable stems.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const SCRIPT = join(REPO, "scripts", "ops", "audit-agent-reach.mjs");
 
 type Finding = { source: string; name: string; commented: boolean; tier: string; reason: string };
@@ -70,7 +69,7 @@ describe("a value that names itself decides its tier", () => {
     ["TELNYX_API_KEY", live.telnyx, "production-write"],
     ["ANYTHING_TOKEN", live.platform, "production-write"],
     ["AGENT_DIAG_DATABASE_URL", diagUrl("aws-0-us-east-1.pooler.supabase.com"), "production-read"],
-    ["DATABASE_URL", "postgresql://postgres.ref:" + live.diagPassword + "@aws-0-us-east-1.pooler.supabase.com/postgres", "production-write"],
+    ["DATABASE_URL", `postgresql://postgres.ref:${  live.diagPassword  }@aws-0-us-east-1.pooler.supabase.com/postgres`, "production-write"],
     ["DATABASE_URL", "postgresql://postgres:postgres@127.0.0.1:54322/postgres", "nonprod"],
   ])("%s = %s is %s", (name, value, tier) => {
     expect(tierOf(name, value)).toBe(tier);
@@ -301,7 +300,7 @@ describe("run for real", () => {
     expect(status).toBe(0);
     const { findings } = JSON.parse(output) as { findings: Finding[] };
     const tiers = (source: string) =>
-      findings.filter((f) => f.source.endsWith(source)).map((f) => `${f.name}:${f.tier}`).sort();
+      findings.filter((f) => f.source.endsWith(source)).map((f) => `${f.name}:${f.tier}`).toSorted();
     expect(tiers("prod-secrets.json")).toEqual(["STRIPE_WEBHOOK_SECRET:production-write", "VAPID_PRIVATE_KEY:production-write"]);
     expect(tiers("apps/api/.dev.vars")).toEqual(["STRIPE_WEBHOOK_SECRET:nonprod", "VAPID_PRIVATE_KEY:nonprod"]);
     for (const value of VALUES) expect(output).not.toContain(value);

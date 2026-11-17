@@ -12,14 +12,14 @@ import { describe, expect, it } from "vitest";
 import { DEFAULT_AWAY_MESSAGE } from "./away.js";
 import { emergencyReplyBody } from "./emergency.js";
 import {
+  copyFor,
+  copyForContact,
   DEFAULT_LOCALE,
   EN_COPY,
   FR_CA_COPY,
-  LOCALES,
-  LOCALE_LABELS,
-  copyFor,
-  copyForContact,
   isLocale,
+  LOCALE_LABELS,
+  LOCALES,
   resolveLocale,
 } from "./locale.js";
 import { DEFAULT_MCTB_MESSAGE } from "./mctb.js";
@@ -74,14 +74,14 @@ describe("#228 the copy behind each language", () => {
       const copy = copyFor(locale);
       for (const [key, value] of Object.entries(copy)) {
         if (key === "appointmentReminders") continue;
-        expect(typeof value, `${locale}.${key}`).toBe("string");
+        expect(value).toBeTypeOf("string");
         expect((value as string).length, `${locale}.${key}`).toBeGreaterThan(0);
       }
-      expect(copy.appointmentReminders.length, locale).toBe(
+      expect(copy.appointmentReminders).toHaveLength(
         EN_COPY.appointmentReminders.length,
       );
     }
-    expect(Object.keys(FR_CA_COPY).sort()).toEqual(Object.keys(EN_COPY).sort());
+    expect(Object.keys(FR_CA_COPY).toSorted()).toEqual(Object.keys(EN_COPY).toSorted());
   });
 
   it("LOC-7 the merge fields survive translation", () => {

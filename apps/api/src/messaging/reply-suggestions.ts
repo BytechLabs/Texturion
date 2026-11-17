@@ -35,15 +35,8 @@
  */
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import type { AiFeatureSpec } from "../ai/run";
-import {
-  type BusinessHours,
-  formatZonedStamp,
-  closureReason,
-  hasBusinessHours,
-  isAfterHours,
-  type HoursException,
-  parseHhmm,
-} from "@loonext/shared";
+import { closureReason, formatZonedStamp, hasBusinessHours, isAfterHours, parseHhmm } from '@loonext/shared';
+import type { BusinessHours, HoursException } from '@loonext/shared';
 import { z } from "zod";
 
 /**
@@ -154,14 +147,14 @@ export function selectRecentContext(
 
   for (let i = messages.length - 1; i >= 0 && kept.length < limit; i -= 1) {
     const message = messages[i];
-    const at = message.created_at ? Date.parse(message.created_at) : NaN;
+    const at = message.created_at ? Date.parse(message.created_at) : Number.NaN;
     if (kept.length > 0 && nextTime !== null && Number.isFinite(at)) {
       if (nextTime - at > SUGGEST_REPLY_CONTEXT_GAP_MS) break;
     }
     kept.push(message);
     if (Number.isFinite(at)) nextTime = at;
   }
-  return kept.reverse();
+  return kept.toReversed();
 }
 
 export interface SuggestionContext {
@@ -258,7 +251,7 @@ const modelOutputSchema = z.object({
  */
 export function hasReplyableInbound(messages: SuggestionMessage[]): boolean {
   const newest = messages[messages.length - 1];
-  return !!newest && newest.direction === "inbound" && newest.body.trim() !== "";
+  return Boolean(newest) && newest.direction === "inbound" && newest.body.trim() !== "";
 }
 
 /**
@@ -370,7 +363,7 @@ export function buildSuggestionMessages(
 ): { role: "system" | "user" | "assistant"; content: string }[] {
   const recent = selectRecentContext(ctx.messages);
   const lastCustomerMessage = [...recent]
-    .reverse()
+    .toReversed()
     .find((m) => m.direction === "inbound" && m.body.trim() !== "");
 
   const description = collapse(ctx.businessDescription ?? "");
@@ -567,7 +560,7 @@ export function modelText(raw: unknown): string | null {
   // choices[0].message.content. Production returned zero candidates on every
   // real thread precisely because only `response` was read, so an envelope we
   // did not recognise looked exactly like a model with nothing to say.
-  const choices = envelope.choices;
+  const {choices} = envelope;
   if (Array.isArray(choices) && choices.length > 0) {
     const first = choices[0] as Record<string, unknown> | undefined;
     const message = first?.message as Record<string, unknown> | undefined;
@@ -589,7 +582,7 @@ export function modelText(raw: unknown): string | null {
 export function envelopeShape(raw: unknown): string {
   if (typeof raw === "string") return "string";
   if (!raw || typeof raw !== "object") return typeof raw;
-  return Object.keys(raw as Record<string, unknown>).sort().join(",") || "{}";
+  return Object.keys(raw).toSorted().join(",") || "{}";
 }
 
 export function parseSuggestionOutput(raw: unknown): string[] {
@@ -632,7 +625,7 @@ export function parseSuggestionOutput(raw: unknown): string[] {
   const quoted = [...text.matchAll(/"((?:[^"\\]|\\.)*)"\s*(:?)/g)]
     .filter(([, value, colon]) => colon !== ":" && value.trim().length >= 15)
     .map(([, value]) =>
-      value.replace(/\\"/g, '"').replace(/\\n/g, " ").replace(/\\\\/g, "\\"),
+      value.replaceAll(String.raw`\"`, '"').replaceAll(String.raw`\n`, " ").replaceAll(String.raw`\\`, "\\"),
     );
   if (quoted.length > 0) return quoted;
 
@@ -646,7 +639,7 @@ export function parseSuggestionOutput(raw: unknown): string[] {
       (line) =>
         line !== "" &&
         !line.endsWith(":") &&
-        !/^```/.test(line) &&
+        !line.startsWith('```') &&
         // Bare punctuation and key lines are structure, never a message.
         !/^[[\]{},]+$/.test(line) &&
         !/^"[^"]*"\s*:/.test(line),
@@ -690,7 +683,7 @@ const DATE_OR_TIME =
 
 /** True when `text` contains something that is really a phone number. */
 function containsPhoneNumber(text: string): boolean {
-  return PHONE_LIKE.test(text.replace(DATE_OR_TIME, " "));
+  return PHONE_LIKE.test(text.replaceAll(DATE_OR_TIME, " "));
 }
 
 /**
@@ -720,14 +713,14 @@ const MONEY = /(\$\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{1,2})?\s?(?:dollar
 
 /** Collapse whitespace to single spaces and trim. */
 function collapse(text: string): string {
-  return text.replace(/\s+/g, " ").trim();
+  return text.replaceAll(/\s+/g, " ").trim();
 }
 
 /** Bare digits of a money mention, for comparing a draft's amount to the thread's. */
 function moneyAmounts(text: string): Set<string> {
   const found = new Set<string>();
   for (const match of text.matchAll(MONEY)) {
-    const digits = match[0].replace(/[^\d.]/g, "").replace(/\.0+$/, "");
+    const digits = match[0].replaceAll(/[^\d.]/g, "").replace(/\.0+$/, "");
     if (digits) found.add(digits);
   }
   return found;
@@ -796,9 +789,9 @@ export function sanitizeWithReport(
     let text = collapse(reply)
       // Brand: no em dashes in copy we produce. An em dash between clauses
       // becomes a comma; a stray one becomes a space.
-      .replace(/\s*[—–]\s*/g, ", ")
-      .replace(/[“”]/g, '"')
-      .replace(/[‘’]/g, "'");
+      .replaceAll(/\s*[—–]\s*/g, ", ")
+      .replaceAll(/[“”]/g, '"')
+      .replaceAll(/[‘’]/g, "'");
 
     // A model that ignored "no quotes" often wraps the whole draft in them.
     if (text.length > 1 && text.startsWith('"') && text.endsWith('"')) {

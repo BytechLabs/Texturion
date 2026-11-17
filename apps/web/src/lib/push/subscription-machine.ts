@@ -19,7 +19,8 @@
  */
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 import { ApiError } from "@/lib/api/error";
 
 export type PushPermission = "default" | "granted" | "denied";
@@ -112,7 +113,7 @@ export interface PushEnvironment {
 export function vapidKeyToApplicationServerKey(
   key: string,
 ): Uint8Array<ArrayBuffer> {
-  const padded = key.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = key.replaceAll('-', "+").replaceAll('_', "/");
   let binary: string;
   try {
     binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
@@ -160,7 +161,7 @@ export function subscriptionToKeys(
   locale: string | null = deviceLocaleTag(),
 ): SubscriptionKeys {
   const json = subscription.toJSON();
-  const endpoint = json.endpoint;
+  const {endpoint} = json;
   const p256dh = json.keys?.p256dh;
   const auth = json.keys?.auth;
   if (!endpoint || !p256dh || !auth) {
@@ -289,11 +290,11 @@ export function createPushMachine(
       }
       await env.saveSubscription(subscriptionToKeys(subscription));
       set({ phase: "subscribed", permission, error: null });
-    } catch (cause) {
+    } catch (error) {
       set({
         phase: "idle",
         permission,
-        error: errorSentence(cause, t("misc.pushTurnOnFailed")),
+        error: errorSentence(error, t("misc.pushTurnOnFailed")),
       });
     }
   }
@@ -316,10 +317,10 @@ export function createPushMachine(
         await subscription.unsubscribe();
       }
       set({ phase: "idle", error: null });
-    } catch (cause) {
+    } catch (error) {
       set({
         phase: "subscribed",
-        error: errorSentence(cause, t("misc.pushTurnOffFailed")),
+        error: errorSentence(error, t("misc.pushTurnOffFailed")),
       });
     }
   }

@@ -42,7 +42,7 @@ afterEach(() => {
   Reflect.deleteProperty(navigator, "serviceWorker");
 });
 
-describe("NotificationRouter", () => {
+describe(NotificationRouter, () => {
   it("routes a notification tap inside the tab and tells the worker it did", () => {
     render(<NotificationRouter />);
     const reply = postFromWorker({ type: "loonext:navigate", path: "/calls?call=sess-A" });
@@ -52,7 +52,7 @@ describe("NotificationRouter", () => {
 
   it("refuses a path that leaves this origin, so the worker falls back", () => {
     render(<NotificationRouter />);
-    for (const path of ["//evil.example.com/x", "https://evil.example.com/", "/\\evil.example.com"]) {
+    for (const path of ["//evil.example.com/x", "https://evil.example.com/", String.raw`/\evil.example.com`]) {
       const reply = postFromWorker({ type: "loonext:navigate", path });
       expect(reply, path).toHaveBeenCalledWith({ ok: false });
     }
@@ -85,7 +85,7 @@ describe("where it is mounted", () => {
   });
 });
 
-describe("inAppPath", () => {
+describe(inAppPath, () => {
   it("keeps the query and the hash of a same-origin path", () => {
     expect(inAppPath("/inbox/t-1?tab=notes#n-2", ORIGIN)).toBe("/inbox/t-1?tab=notes#n-2");
   });

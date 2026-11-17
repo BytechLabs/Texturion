@@ -20,7 +20,7 @@ import { stubFetch } from "../test/support";
 import { CallSessionDO } from "./session-do";
 import { ctx, makeRuntime, makeStorage, SESSION } from "./session-do-fake";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -145,7 +145,7 @@ describe("a CallSessionDO alarm on the rig", () => {
     const requests = recordEverything();
     ringWindowElapses();
 
-    await expect(revive(store, unseam(rigEnv())).alarm()).rejects.toThrowError(
+    await expect(revive(store, unseam(rigEnv())).alarm()).rejects.toThrow(
       /TELNYX_API_BASE must point at the guard/,
     );
     expect(requests).toEqual([]);
@@ -158,7 +158,7 @@ describe("a CallSessionDO alarm on the rig", () => {
 
     await expect(
       revive(store, rigEnv({ TELNYX_API_KEY: "KEY0123456789ABCDEFGHIJ" })).alarm(),
-    ).rejects.toThrowError(/TELNYX_API_KEY is a raw Telnyx key/);
+    ).rejects.toThrow(/TELNYX_API_KEY is a raw Telnyx key/);
     expect(requests).toEqual([]);
   });
 });

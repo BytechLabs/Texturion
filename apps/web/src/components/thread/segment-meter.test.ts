@@ -9,7 +9,7 @@ function resolver(table: unknown) {
   return (key: string, vars: Record<string, string> = {}): string => {
     const [section, name] = key.split(".");
     const text = (table as Record<string, Record<string, string>>)[section]?.[name];
-    if (typeof text !== "string") throw new Error(`no entry for ${key}`);
+    if (typeof text !== "string") throw new TypeError(`no entry for ${key}`);
     return Object.entries(vars).reduce(
       (out, [token, value]) => out.split(`{${token}}`).join(value),
       text,
@@ -21,7 +21,7 @@ const sayEn = resolver(WEB_EN);
 const sayFr = resolver(WEB_FR);
 
 
-describe("segmentMeter", () => {
+describe(segmentMeter, () => {
   it("stays hidden while the message fits in a single part", () => {
     expect(segmentMeter("", false, sayEn).visible).toBe(false);
     expect(segmentMeter("a".repeat(120), false, sayEn).visible).toBe(false);

@@ -1,11 +1,10 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
 import { MODULE_CATALOG, PLAN_MODULES } from "./modules";
-import { PLAN_INCLUDED_SEGMENTS, PLAN_IDS, PLAN_LIMITS } from "./plans";
+import { PLAN_IDS, PLAN_INCLUDED_SEGMENTS, PLAN_LIMITS } from "./plans";
 import {
   FIXED_MONTHLY_COST_CENTS,
   PLAN_MONTHLY_REVENUE_CENTS,
@@ -37,7 +36,7 @@ import {
 
 const REPORT = readFileSync(
   join(
-    dirname(fileURLToPath(import.meta.url)),
+    import.meta.dirname,
     "..",
     "..",
     "..",
@@ -76,7 +75,7 @@ describe("#255 the pricing report mirrors this package exactly", () => {
     // time. Asserting the SET forces the next person to add an assertion or
     // explain why the value needs none.
     expect(
-      Object.keys(m).sort(),
+      Object.keys(m).toSorted(),
       "pricing-report.mjs mirrors a value this guard does not check. Add an " +
         "assertion for it below — an unguarded mirror is the thing #255 was " +
         "filed about.",
@@ -88,7 +87,7 @@ describe("#255 the pricing report mirrors this package exactly", () => {
         "includedSegments",
         "limits",
         "fixedMonthlyCents",
-      ].sort(),
+      ].toSorted(),
     );
   });
 
@@ -138,9 +137,9 @@ describe("#255 the pricing report mirrors this package exactly", () => {
   it("covers every plan, so a third tier cannot ship unmirrored", () => {
     for (const key of ["planMonthlyCents", "includedSegments", "limits"]) {
       expect(
-        Object.keys(m[key] as Record<string, unknown>).sort(),
+        Object.keys(m[key] as Record<string, unknown>).toSorted(),
         `${key} does not cover every plan`,
-      ).toEqual([...PLAN_IDS].sort());
+      ).toEqual([...PLAN_IDS].toSorted());
     }
   });
 });

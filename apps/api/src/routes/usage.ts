@@ -34,7 +34,8 @@
  * never checked out (plan null / no period) reads as zero usage with an
  * empty history and zero storage — it cannot own files or media yet.
  */
-import { roleHasCapability, type MemberRole } from "@loonext/shared";
+import { roleHasCapability } from '@loonext/shared';
+import type { MemberRole } from '@loonext/shared';
 import { Hono } from "hono";
 
 import { summarize } from "../messaging/delivery-by-country";
@@ -48,11 +49,8 @@ import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { unwrap } from "./core/http";
 import { readAiUsage } from "../ai/usage";
-import {
-  PLAN_INCLUDED_SEGMENTS,
-  PLAN_VOICE_MINUTES,
-  type PlanId,
-} from "./core/plans";
+import { PLAN_INCLUDED_SEGMENTS, PLAN_VOICE_MINUTES } from './core/plans';
+import type { PlanId } from './core/plans';
 // #522: the CUSTOMER-FACING rates, aliased on import because the USD-only
 // scalars in ./core/plans carry the same two names. Those exist for the internal
 // cost-vs-revenue model, which must stay in the currency our providers invoice
@@ -220,7 +218,7 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
     ]);
   const used = totals.outboundSegments;
   const inboundUsed = totals.inboundSegments;
-  const voiceSeconds = totals.voiceSeconds;
+  const {voiceSeconds} = totals;
   const history = unwrap<{ month: string; segments: number }[]>(
     historyRes,
     "usage history",
@@ -303,9 +301,9 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
       voiceSeconds >= 0.9 * capVoiceSeconds);
   const status = nearCap
     ? "capped"
-    : projection.trendingOver
+    : (projection.trendingOver
       ? "pacing"
-      : "quiet";
+      : "quiet");
 
   /**
    * #515 — the money half of this payload is billing data.

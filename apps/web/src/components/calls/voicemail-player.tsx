@@ -11,7 +11,8 @@ import { Play } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useVoicemailUrl } from "@/lib/api/calls";
 import { formatCallDuration } from "@/lib/format/call";
 
@@ -107,8 +108,7 @@ export function VoicemailPlayer({
 
 function canTakeNewUrl(element: HTMLAudioElement | null): boolean {
   return (
-    element === null ||
-    element.error !== null ||
+    element?.error !== null ||
     (element.paused && element.played.length === 0)
   );
 }

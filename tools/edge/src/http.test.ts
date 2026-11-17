@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 import type { Env } from "./env";
 import { servesHost } from "./http";
 import { sealedBundle } from "./ctl";
-import { ORIGIN, TOKENS, call, edgeEnv, fakeGuard, resetEdge } from "./test/support";
+import { call, edgeEnv, fakeGuard, ORIGIN, resetEdge, TOKENS } from "./test/support";
 
 let env: Env;
 
@@ -25,7 +25,7 @@ describe("the public surface", () => {
       for (const method of ["GET", "POST"]) {
         const response = await call(new Request(`${ORIGIN}${path}`, { method }), env);
         expect(response.status, `${method} ${path}`).toBe(404);
-        expect(await response.text()).toBe("");
+        await expect(response.text()).resolves.toBe("");
         expectHardened(response);
       }
     }
@@ -77,7 +77,7 @@ describe("/ctl/secrets", () => {
     const withBundle = { ...env, ...parts(bundle), RIG_SECRET_BUNDLE_PARTS: "3" };
     const response = await get(TOKENS.rig, withBundle);
     expect(response.status).toBe(200);
-    expect(await response.text()).toBe(bundle);
+    await expect(response.text()).resolves.toBe(bundle);
     expect(response.headers.get("cache-control")).toBe("no-store");
     for (const token of [TOKENS.triage, TOKENS.admin, "nope"]) {
       expect((await get(token, withBundle)).status).toBe(401);
@@ -94,6 +94,6 @@ describe("/ctl/secrets", () => {
   it("answers 503 while no bundle is stored", async () => {
     const response = await get(TOKENS.rig, env);
     expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({ error: "bundle_absent" });
+    await expect(response.json()).resolves.toEqual({ error: "bundle_absent" });
   });
 });

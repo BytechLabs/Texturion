@@ -17,9 +17,9 @@
  */
 import {
   APPOINTMENT_CONFIRMED_EVENT,
+  isAppointmentConfirmation,
   REMINDER_OFFSET_MAX_MINUTES,
   REMINDER_OFFSET_MIN_MINUTES,
-  isAppointmentConfirmation,
 } from "@loonext/shared";
 
 import type { SupabaseClient } from "@supabase/supabase-js";

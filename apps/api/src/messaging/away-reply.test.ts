@@ -9,14 +9,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import {
-  messageRow,
-  rpcMatch,
-  restMatch,
-  stubRoute,
-  type Stub,
-} from "../test/messaging-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { messageRow, restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { maybeSendAwayReply } from "./away-reply";
 
 const env: Env = completeEnv();
@@ -106,7 +102,7 @@ function convStub(
           timezone: null,
           business_hours: null,
           business_hours_exceptions: null,
-          ...(numberOverrides ?? {}),
+          ...numberOverrides,
         },
         contacts: { name: "Dana Whitfield", phone_e164: CONTACT },
       },
@@ -379,7 +375,7 @@ describe("#307 a second line replies as itself", () => {
   it("AR-1: a number with no overrides sends exactly what it sent before", async () => {
     // The deploy-day guarantee. Every number is all-null when this ships, so
     // the reply a customer receives is byte-for-byte the one they got before.
-    expect(await bodyFor({})).toBe(
+    await expect(bodyFor({})).resolves.toBe(
       "Hi Dana, thanks for texting Ace Plumbing. For an emergency reply URGENT.",
     );
   });

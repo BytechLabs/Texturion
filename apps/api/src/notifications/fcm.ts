@@ -26,7 +26,8 @@
 import { z } from "zod";
 
 import type { Env } from "../env";
-import { fcmCredential, type FcmCredential } from "../environments/policy";
+import { fcmCredential } from '../environments/policy';
+import type { FcmCredential } from '../environments/policy';
 
 import { encodeBase64Url } from "./webpush";
 

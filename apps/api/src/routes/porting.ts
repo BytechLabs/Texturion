@@ -1,10 +1,12 @@
 import { lookupAreaCode, stateMachines } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { Hono, type Context } from "hono";
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
-import { PLAN_LIMITS, type PlanId } from "../billing/plans";
+import { PLAN_LIMITS } from '../billing/plans';
+import type { PlanId } from '../billing/plans';
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -15,17 +17,8 @@ import {
   parseWith,
   pathUuid,
 } from "./core/http";
-import {
-  cancelPortRequest,
-  checkPortability,
-  hasRequiredDocuments,
-  PortDocumentsMissingError,
-  startPortSaga,
-  submitPortRequest,
-  uploadPortDocument,
-  type PortabilityResult,
-  type PortRequestRow,
-} from "../telnyx/porting";
+import { cancelPortRequest, checkPortability, hasRequiredDocuments, PortDocumentsMissingError, startPortSaga, submitPortRequest, uploadPortDocument } from '../telnyx/porting';
+import type { PortabilityResult, PortRequestRow } from '../telnyx/porting';
 import { fetchRegistrationRows } from "../telnyx/registration";
 
 /**
@@ -302,7 +295,7 @@ portingRoutes.post("/check", requireCapability("numbers.manage"), async (c) => {
 
   const local = classifyNumber(body.phone_e164);
   if (!local.ok) {
-    return errorResponse(c, "validation_failed", local.reason as string);
+    return errorResponse(c, "validation_failed", local.reason!);
   }
 
   // #32 gate 1: same statuses the create route accepts (active, or the
@@ -424,7 +417,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
 
   const local = classifyNumber(body.phone_e164);
   if (!local.ok) {
-    return errorResponse(c, "validation_failed", local.reason as string);
+    return errorResponse(c, "validation_failed", local.reason!);
   }
   if (local.country !== company.country) {
     return errorResponse(
@@ -454,7 +447,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
     .limit(1);
   if (keyError) throw new Error(`phone_numbers lookup failed: ${keyError.message}`);
   if (existingByKey && existingByKey.length > 0) {
-    const phoneId = (existingByKey[0] as { id: string }).id;
+    const phoneId = (existingByKey[0]).id;
     const { data: portRows, error: portErr } = await db
       .from("port_requests")
       .select(PORT_COLUMNS)
@@ -544,7 +537,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
   // NEW capacity at port time stays out of scope (the honest "release or
   // upgrade" 409 stands once paid capacity is also full).
   const included =
-    company.plan !== null ? PLAN_LIMITS[company.plan].numbers : 1;
+    company.plan === null ? 1 : PLAN_LIMITS[company.plan].numbers;
   const { data: slotData, error: slotError } = await db.rpc("claim_port_slot", {
     p_company_id: companyId,
     p_provisioning_key: parsedKey.data,
@@ -957,11 +950,11 @@ portingRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), async (
       companyId: c.get("companyId"),
       portRequestId: id,
     });
-  } catch (cause) {
-    if (cause instanceof PortDocumentsMissingError) {
-      return errorResponse(c, "conflict", cause.message);
+  } catch (error) {
+    if (error instanceof PortDocumentsMissingError) {
+      return errorResponse(c, "conflict", error.message);
     }
-    throw cause;
+    throw error;
   }
   if (!updated) return errorResponse(c, "not_found", "No such port request.");
   return c.json(

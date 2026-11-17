@@ -6,17 +6,14 @@
  * user id: connecting a calendar grants long-lived access to that person's
  * schedule, so an owner cannot connect, inspect, or revoke it on their behalf.
  */
-import { stateMachines, type MemberRole } from "@loonext/shared";
+import { stateMachines } from '@loonext/shared';
+import type { MemberRole } from '@loonext/shared';
 import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
-import {
-  authorizeCalendarConnection,
-  CalendarCredentialRefreshUnavailableError,
-  type CalendarCredentialClaimResult,
-  type CalendarCredentialMutationResult,
-} from "../calendar/authorization";
+import { authorizeCalendarConnection, CalendarCredentialRefreshUnavailableError } from '../calendar/authorization';
+import type { CalendarCredentialClaimResult, CalendarCredentialMutationResult } from '../calendar/authorization';
 import {
   calendarProviderIsConfigured,
   getCalendarProviderConfiguration,
@@ -31,12 +28,8 @@ import {
 import {
   microsoftAuthorizationUrl,
 } from "../calendar/providers/microsoft";
-import {
-  CalendarProviderError,
-  type CalendarProvider,
-  type CalendarProviderName,
-  type CalendarRemoteEvent,
-} from "../calendar/providers/types";
+import { CalendarProviderError } from '../calendar/providers/types';
+import type { CalendarProvider, CalendarProviderName, CalendarRemoteEvent } from '../calendar/providers/types';
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -109,27 +102,34 @@ function refusalFromRemote(remote: CalendarRemoteEvent): {
   detail: string;
 } | null {
   switch (remote.inbound.kind) {
-    case "all_day":
+    case "all_day": {
       return { code: "all_day", detail: "Provider event is all-day" };
-    case "zone_refused":
+    }
+    case "zone_refused": {
       return {
         code: "unknown_time_zone",
         detail: remote.inbound.providerZone,
       };
-    case "title_refused":
+    }
+    case "title_refused": {
       return { code: "invalid_title", detail: remote.inbound.reason };
-    case "time_refused":
+    }
+    case "time_refused": {
       return { code: "invalid_time", detail: remote.inbound.reason };
-    case "description_refused":
+    }
+    case "description_refused": {
       return { code: "description_too_long", detail: remote.inbound.reason };
-    case "recurrence_refused":
+    }
+    case "recurrence_refused": {
       return {
         code: "recurrence",
         detail: "Provider event became a recurring series",
       };
+    }
     case "scheduled":
-    case "removed":
+    case "removed": {
       return null;
+    }
   }
 }
 
@@ -199,7 +199,7 @@ function attentionView(row: CalendarAttentionRow, role: MemberRole) {
     // #722: what this member may do to the link now, from the shared machine.
     allowed_actions: stateMachines.allowedActions(
       stateMachines.calendarLinkMachine,
-      row.link_state as stateMachines.CalendarLinkState,
+      row.link_state,
       role,
     ),
     provider_condition: row.provider_condition,
@@ -630,7 +630,7 @@ calendarConnectionRoutes.post(
     // #722: the link's own state decides which resolution is on offer.
     const offered = stateMachines.allowedActions(
       stateMachines.calendarLinkMachine,
-      attention.link_state as stateMachines.CalendarLinkState,
+      attention.link_state,
       c.get("role") as MemberRole,
     );
     const resolveAction =

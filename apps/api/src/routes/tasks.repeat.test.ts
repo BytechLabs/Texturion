@@ -13,18 +13,11 @@ import type { AppEnv } from "../context";
 import type { Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { restMatch, rpcMatch, stubRoute } from "../test/messaging-support";
-import {
-  authorizeRoute,
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type FetchRoute,
-  type TestAuth,
-} from "../test/support";
+import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { tasksRoutes } from "./tasks";
 
-vi.mock("../tasks/notify", async (importOriginal) => ({
+vi.mock(import("../tasks/notify"), async (importOriginal) => ({
   ...(await importOriginal<typeof import("../tasks/notify")>()),
   notifyTaskChangeSafely: vi.fn(async () => undefined),
 }));
@@ -138,7 +131,7 @@ describe("GET /v1/tasks: priority, labels, repeat", () => {
       `/v1/tasks?priority=high,urgent&tag_id=${TAG_ID}&status=open`,
     );
     expect(response.status).toBe(200);
-    const url = list.calls[0].url;
+    const {url} = list.calls[0];
     expect(url.searchParams.get("priority")).toBe("in.(high,urgent)");
     expect(url.searchParams.get("task_tags.tag_id")).toBe(`eq.${TAG_ID}`);
     expect(url.searchParams.get("select")).toContain("task_tags!inner(tag_id)");
@@ -370,7 +363,7 @@ describe("PATCH /v1/tasks/:id: priority, repeat, scope", () => {
       p_task_id: TASK_ID,
       p_changes: { title: "New title", priority: "high" },
     });
-    expect(Object.keys((edit.calls[0].body as { p_changes: object }).p_changes).sort()).toEqual([
+    expect(Object.keys((edit.calls[0].body as { p_changes: object }).p_changes).toSorted()).toEqual([
       "priority",
       "title",
     ]);
@@ -540,7 +533,7 @@ describe("POST /v1/tasks/bulk: priority and labels", () => {
       filter: { status: "open", priority: ["urgent"], tag_id: TAG_ID },
     });
     expect(response.status).toBe(200);
-    const url = list.calls[0].url;
+    const {url} = list.calls[0];
     expect(url.searchParams.get("priority")).toBe("in.(urgent)");
     expect(url.searchParams.get("task_tags.tag_id")).toBe(`eq.${TAG_ID}`);
   });

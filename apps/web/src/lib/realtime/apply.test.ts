@@ -1,7 +1,7 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 
-import { type ThreadData } from "@/lib/api/cache";
+import type { ThreadData } from '@/lib/api/cache';
 import { keys } from "@/lib/api/keys";
 import type { Message } from "@/lib/api/types";
 

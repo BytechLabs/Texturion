@@ -28,7 +28,8 @@ import {
 import { recordVoiceCost } from "../billing/provider-costs";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { refuseStrangerInbound } from "../environments/inbound";
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
 import type { TelnyxEvent } from "../messaging/types";
@@ -184,8 +185,8 @@ async function processAndStamp(
     if (error) {
       throw new Error(`webhook_events stamp failed: ${error.message}`);
     }
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error(
       `telnyx webhook ${eventId} (${event.data?.event_type}) failed:`,
       message,

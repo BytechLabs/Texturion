@@ -12,16 +12,17 @@
  * local storage, found with `supabase status`.
  */
 import { join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { EDGE_PATHS, GUARD_ROUTES, PARTITION_CACHE_MS, type Partition } from "@loonext/rig-protocol";
+import { EDGE_PATHS, GUARD_ROUTES, PARTITION_CACHE_MS } from '@loonext/rig-protocol';
+import type { Partition } from '@loonext/rig-protocol';
 import { loadMargins, saveMargins } from "./audio/calibrate.ts";
 import { WhisperTranscriber } from "./audio/transcribe.ts";
 import type { Margins } from "./audio/detect.ts";
 import { Inbox, WebhookSink } from "./inbox.ts";
 import { standingBook } from "./numbers.ts";
-import { InlineProbe, StorageProbe, type ProbeSource } from "./probe.ts";
+import { InlineProbe, StorageProbe } from './probe.ts';
+import type { ProbeSource } from './probe.ts';
 import { localSupabase, rigHome, robotLocalToken, SecretFiles } from "./rig-home.ts";
-import { ROBOT_ROLES, Robot } from "./robot.ts";
+import { Robot, ROBOT_ROLES } from "./robot.ts";
 import { robotServer } from "./server.ts";
 import { GuardedTelnyx } from "./telnyx.ts";
 
@@ -133,7 +134,7 @@ async function main(): Promise<void> {
   process.on("SIGINT", stop);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
   main().catch((error: unknown) => {
     console.error(error instanceof Error ? error.message : error);
     process.exit(1);

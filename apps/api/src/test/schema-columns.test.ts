@@ -22,9 +22,7 @@ describe("schema column checks (#750)", () => {
   });
 
   it("refuses an embed with no foreign key between the tables", () => {
-    expect(
-      checkSelect("profiles!inner(display_name)", "company_members").length,
-    ).toBe(1);
+    expect(checkSelect("profiles!inner(display_name)", "company_members")).toHaveLength(1);
   });
 
   it("reads the columns inside or/and groups", () => {

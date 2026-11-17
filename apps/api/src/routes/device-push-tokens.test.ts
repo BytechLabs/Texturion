@@ -11,13 +11,8 @@ import {
   buildTestApp,
   supabaseStub,
 } from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { devicePushTokensRoutes } from "./device-push-tokens";
 
 const env = completeEnv();
@@ -63,7 +58,7 @@ describe("POST /v1/device-push-tokens", () => {
     );
     expect(res.status).toBe(201);
     // The token itself is never echoed back (the device already holds it).
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       id: ROW_ID,
       platform: "android",
       created_at: "2026-07-15T12:00:00+00:00",
@@ -80,9 +75,7 @@ describe("POST /v1/device-push-tokens", () => {
       token: TOKEN,
     });
     // Re-registers refresh liveness.
-    expect(
-      typeof (upsert.body as Record<string, unknown>).last_seen_at,
-    ).toBe("string");
+    expect((upsert.body as Record<string, unknown>).last_seen_at).toBeTypeOf("string");
     expect(upsert.headers.get("prefer")).toContain(
       "resolution=merge-duplicates",
     );

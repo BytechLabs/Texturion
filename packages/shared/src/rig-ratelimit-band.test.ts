@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -10,7 +9,7 @@ import { describe, expect, it } from "vitest";
  * local-only rule that lets the derived configs keep production's ids.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 type Config = Record<string, unknown>;
 type Pair = { file: string; config: Config };

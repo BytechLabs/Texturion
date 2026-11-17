@@ -178,9 +178,9 @@ export async function notifyMissedCall(
   const bodyKey =
     input.textStatus === "sent"
       ? "bodyTexted"
-      : input.textStatus === "failed"
+      : (input.textStatus === "failed"
         ? "bodyTextFailed"
-        : "bodyNoText";
+        : "bodyNoText");
   const alert = (locale: Locale) => {
     const copy = MISSED_CALL_COPY[locale];
     // The contact's name is theirs and rides through untranslated.

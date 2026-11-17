@@ -5,7 +5,8 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { stubFetch, type FetchRoute } from "../test/support";
+import { stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import {
   geocodeAddress,
   NOMINATIM_BASE,
@@ -30,7 +31,7 @@ function nominatimRoute(
   };
 }
 
-describe("geocodeAddress", () => {
+describe(geocodeAddress, () => {
   it("returns ok with parsed lat/lng and sends a policy-compliant request", async () => {
     const captured: { url?: URL; headers?: Headers } = {};
     stubFetch(
@@ -55,19 +56,19 @@ describe("geocodeAddress", () => {
 
   it("returns not_found on zero results (a terminal answer)", async () => {
     stubFetch(nominatimRoute([]));
-    expect(await geocodeAddress("nowhere at all")).toEqual({
+    await expect(geocodeAddress("nowhere at all")).resolves.toEqual({
       status: "not_found",
     });
   });
 
   it("returns not_found without a request for an empty address", async () => {
     stubFetch(); // no fetch allowed
-    expect(await geocodeAddress("   ")).toEqual({ status: "not_found" });
+    await expect(geocodeAddress("   ")).resolves.toEqual({ status: "not_found" });
   });
 
   it("returns not_found when the row has no usable coordinate", async () => {
     stubFetch(nominatimRoute([{ display_name: "x" }]));
-    expect(await geocodeAddress("somewhere")).toEqual({ status: "not_found" });
+    await expect(geocodeAddress("somewhere")).resolves.toEqual({ status: "not_found" });
   });
 
   it("returns failed (retryable) on a non-2xx response", async () => {

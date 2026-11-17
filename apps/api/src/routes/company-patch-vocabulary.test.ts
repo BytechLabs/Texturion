@@ -28,7 +28,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 const SOURCE = readFileSync(
-  new URL("./companies.ts", import.meta.url),
+  new URL("companies.ts", import.meta.url),
   "utf8",
 );
 

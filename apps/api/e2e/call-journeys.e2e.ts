@@ -16,15 +16,10 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import {
-  CALL_JOURNEYS,
-  journeyRegistryMismatch,
-  runCallJourney,
-  type JourneyCrew,
-  type JourneyDriver,
-  type JourneyMember,
-} from "./call-journeys";
-import { startHarness, type Harness } from "./harness";
+import { CALL_JOURNEYS, journeyRegistryMismatch, runCallJourney } from './call-journeys';
+import type { JourneyCrew, JourneyDriver, JourneyMember } from './call-journeys';
+import { startHarness } from './harness';
+import type { Harness } from './harness';
 
 let h: Harness;
 
@@ -198,14 +193,14 @@ function crewFor(journey: string): SeededCrew {
 describe("hermetic call journeys (whole Worker, real database)", () => {
   it("runs every journey the budget file prices, and has a line for each", () => {
     expect(journeyRegistryMismatch()).toEqual([]);
-    expect(Object.keys(LINES).sort()).toEqual(Object.keys(CALL_JOURNEYS).sort());
+    expect(Object.keys(LINES).toSorted()).toEqual(Object.keys(CALL_JOURNEYS).toSorted());
   });
 
   it("minted one softphone credential per member, on the WebRTC connection", () => {
     const members = [...crews.values()].flatMap((crew) => crew.members);
     const credentials = h.telnyx.voice.credentials();
-    expect(credentials.map((c) => c.sipUsername).sort()).toEqual(
-      members.map((m) => m.sipUsername).sort(),
+    expect(credentials.map((c) => c.sipUsername).toSorted()).toEqual(
+      members.map((m) => m.sipUsername).toSorted(),
     );
     for (const credential of credentials) {
       expect(credential.connectionId).toBe(h.env.TELNYX_WEBRTC_CONNECTION_ID);
@@ -216,7 +211,7 @@ describe("hermetic call journeys (whole Worker, real database)", () => {
   it("S02 inbound answered: the row is answered by the member who picked up", async () => {
     const crew = crewFor("inbound-answered");
     const { sessionId } = await runCallJourney("inbound-answered", "e2e", driver(), crew);
-    expect(await callRow(sessionId)).toMatchObject({
+    await expect(callRow(sessionId)).resolves.toMatchObject({
       direction: "inbound",
       outcome: "answered",
       state: "ended_answered",
@@ -247,7 +242,7 @@ describe("hermetic call journeys (whole Worker, real database)", () => {
     const customer = h.telnyx.voice
       .legs()
       .find((leg) => leg.to === FAR_END_E164 && leg.origin === "dial");
-    expect(await callRow(sessionId)).toMatchObject({
+    await expect(callRow(sessionId)).resolves.toMatchObject({
       direction: "outbound",
       outcome: "answered",
       state: "ended_answered",
@@ -260,7 +255,7 @@ describe("hermetic call journeys (whole Worker, real database)", () => {
     const crew = crewFor("transfer-blind");
     const [, technician] = crew.members;
     const { sessionId } = await runCallJourney("transfer-blind", "e2e", driver(), crew);
-    expect(await callRow(sessionId)).toMatchObject({
+    await expect(callRow(sessionId)).resolves.toMatchObject({
       outcome: "answered",
       state: "ended_answered",
       answered_by_user_id: technician.userId,

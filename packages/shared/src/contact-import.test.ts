@@ -25,8 +25,8 @@ import {
   mappingFromDeclarations,
   parseContactImportColumn,
   parseVCardProperty,
-  vcardParameterProperty,
   VCARD_MAPPED_PROPERTIES,
+  vcardParameterProperty,
 } from "./contact-import";
 
 describe("#248 the wire form of a column declaration", () => {
@@ -236,7 +236,7 @@ describe("#248 the vCard property declaration", () => {
     // say do-not-text stop being asked about.
     expect(VCARD_MAPPED_PROPERTIES).not.toContain("CATEGORIES");
     expect(VCARD_MAPPED_PROPERTIES).not.toContain("NOTE");
-    expect([...VCARD_MAPPED_PROPERTIES].sort()).toEqual([
+    expect([...VCARD_MAPPED_PROPERTIES].toSorted()).toEqual([
       "BEGIN",
       "END",
       "FN",

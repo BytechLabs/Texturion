@@ -14,7 +14,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
 import { supabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { isNewCancellation, noticeCancellation } from "./cancellation-notice";
 
 const env = completeEnv();
@@ -97,7 +98,7 @@ describe("the notice itself", () => {
     sb.on("GET", "/rest/v1/company_members", (call) => {
       audiences.push(call.url);
       return options.audienceFails
-        ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+        ? Response.json({ message: "boom" }, { status: 500 })
         : [];
     });
     const audits: Record<string, unknown>[] = [];
@@ -158,7 +159,7 @@ describe("the notice itself", () => {
     // read's error check left `data` empty, so the push simply never happened
     // and nothing said so. A push that stops working for every workspace, with
     // no log, is indistinguishable from one nobody has needed yet.
-    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged).toHaveBeenCalledOnce();
     expect(String(logged.mock.calls[0][0])).toMatch(/consequential push failed/);
     logged.mockRestore();
   });

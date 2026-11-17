@@ -25,12 +25,8 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import {
-  CONTACT_IMPORT_IGNORE,
-  formatVCardProperty,
-  vcardParameterProperty,
-  type VCardPropertyDeclaration,
-} from "@loonext/shared";
+import { CONTACT_IMPORT_IGNORE, formatVCardProperty, vcardParameterProperty } from '@loonext/shared';
+import type { VCardPropertyDeclaration } from '@loonext/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { vcardMutate } = vi.hoisted(() => ({ vcardMutate: vi.fn() }));

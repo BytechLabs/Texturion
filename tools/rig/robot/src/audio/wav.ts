@@ -14,7 +14,7 @@ const FORMAT_PCM = 1;
 const FORMAT_FLOAT = 3;
 const FORMAT_ALAW = 6;
 const FORMAT_MULAW = 7;
-const FORMAT_EXTENSIBLE = 0xfffe;
+const FORMAT_EXTENSIBLE = 0xFF_FE;
 
 /** 16-bit PCM WAV of one or more equal-length channels. */
 export function encodeWav(pcm: Pcm): Uint8Array<ArrayBuffer> {
@@ -80,10 +80,10 @@ export function decodeWav(bytes: Uint8Array): Pcm {
         bits: view.getUint16(body + 14, true),
       };
     } else if (id === "data") {
-      data = bytes.subarray(body, size === 0 || size === 0xffffffff ? bytes.byteLength : end);
+      data = bytes.subarray(body, size === 0 || size === 0xFF_FF_FF_FF ? bytes.byteLength : end);
     }
     offset = body + size + (size % 2);
-    if (size === 0xffffffff) break;
+    if (size === 0xFF_FF_FF_FF) break;
   }
   if (!format) throw new Error("decodeWav: no fmt chunk");
   if (!data) throw new Error("decodeWav: no data chunk");
@@ -104,27 +104,27 @@ export function decodeWav(bytes: Uint8Array): Pcm {
 
 function sampleReader(code: number, bits: number): (view: DataView, offset: number) => number {
   if (code === FORMAT_PCM && bits === 8) return (v, o) => (v.getUint8(o) - 128) / 128;
-  if (code === FORMAT_PCM && bits === 16) return (v, o) => v.getInt16(o, true) / 32768;
+  if (code === FORMAT_PCM && bits === 16) return (v, o) => v.getInt16(o, true) / 32_768;
   if (code === FORMAT_PCM && bits === 24) {
     return (v, o) => {
       const value = v.getUint8(o) | (v.getUint8(o + 1) << 8) | (v.getInt8(o + 2) << 16);
-      return value / 8388608;
+      return value / 8_388_608;
     };
   }
-  if (code === FORMAT_PCM && bits === 32) return (v, o) => v.getInt32(o, true) / 2147483648;
+  if (code === FORMAT_PCM && bits === 32) return (v, o) => v.getInt32(o, true) / 2_147_483_648;
   if (code === FORMAT_FLOAT && bits === 32) return (v, o) => v.getFloat32(o, true);
-  if (code === FORMAT_MULAW && bits === 8) return (v, o) => mulawToLinear(v.getUint8(o)) / 32768;
-  if (code === FORMAT_ALAW && bits === 8) return (v, o) => alawToLinear(v.getUint8(o)) / 32768;
+  if (code === FORMAT_MULAW && bits === 8) return (v, o) => mulawToLinear(v.getUint8(o)) / 32_768;
+  if (code === FORMAT_ALAW && bits === 8) return (v, o) => alawToLinear(v.getUint8(o)) / 32_768;
   throw new Error(`decodeWav: unsupported format ${code} at ${bits} bits`);
 }
 
 function toInt16(sample: number): number {
   const clipped = Math.max(-1, Math.min(1, sample));
-  return Math.round(clipped < 0 ? clipped * 32768 : clipped * 32767);
+  return Math.round(clipped < 0 ? clipped * 32_768 : clipped * 32_767);
 }
 
 const MULAW_BIAS = 0x84;
-const MULAW_CLIP = 32635;
+const MULAW_CLIP = 32_635;
 
 /** G.711 mu-law, from a 16-bit linear sample. */
 export function linearToMulaw(sample: number): number {
@@ -134,16 +134,16 @@ export function linearToMulaw(sample: number): number {
   if (value > MULAW_CLIP) value = MULAW_CLIP;
   value += MULAW_BIAS;
   let exponent = 7;
-  for (let mask = 0x4000; (value & mask) === 0 && exponent > 0; mask >>= 1) exponent--;
-  const mantissa = (value >> (exponent + 3)) & 0x0f;
-  return ~(sign | (exponent << 4) | mantissa) & 0xff;
+  for (let mask = 0x40_00; (value & mask) === 0 && exponent > 0; mask >>= 1) exponent -= 1;
+  const mantissa = (value >> (exponent + 3)) & 0x0F;
+  return ~(sign | (exponent << 4) | mantissa) & 0xFF;
 }
 
 /** G.711 mu-law, to a 16-bit linear sample. */
 export function mulawToLinear(code: number): number {
-  const value = ~code & 0xff;
+  const value = ~code & 0xFF;
   const exponent = (value >> 4) & 0x07;
-  const magnitude = (((value & 0x0f) << 3) + MULAW_BIAS) << exponent;
+  const magnitude = (((value & 0x0F) << 3) + MULAW_BIAS) << exponent;
   return value & 0x80 ? MULAW_BIAS - magnitude : magnitude - MULAW_BIAS;
 }
 
@@ -151,10 +151,10 @@ export function mulawToLinear(code: number): number {
 export function alawToLinear(code: number): number {
   const value = code ^ 0x55;
   const segment = (value & 0x70) >> 4;
-  let magnitude = (value & 0x0f) << 4;
+  let magnitude = (value & 0x0F) << 4;
   if (segment === 0) magnitude += 8;
   else {
-    magnitude += 0x108;
+    magnitude += 0x1_08;
     if (segment > 1) magnitude <<= segment - 1;
   }
   return value & 0x80 ? magnitude : -magnitude;

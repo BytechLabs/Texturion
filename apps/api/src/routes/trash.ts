@@ -17,7 +17,8 @@
  *
  * Audit events carry ids and kinds, never content.
  */
-import { Hono, type Context } from "hono";
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";

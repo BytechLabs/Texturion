@@ -9,11 +9,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { purgeClosedWorkspaces } from "./purge";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -92,7 +94,7 @@ function world(options: WorldOptions = {}): {
   const storageRoute: FetchRoute = async (url, request) => {
     if (!url.pathname.startsWith("/storage/v1/object")) return undefined;
     if (options.storageFails) {
-      return new Response(JSON.stringify({ message: "nope" }), { status: 500 });
+      return Response.json({ message: "nope" }, { status: 500 });
     }
     // #378: LIST and REMOVE are different calls with different bodies. The
     // export sweep has to list a prefix before it can remove anything, and
@@ -120,7 +122,7 @@ function world(options: WorldOptions = {}): {
       },
     );
     return options.mailFails
-      ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+      ? Response.json({ message: "boom" }, { status: 500 })
       : Response.json({ id: "email_1" });
   };
 
@@ -134,7 +136,7 @@ function world(options: WorldOptions = {}): {
   };
 }
 
-describe("purgeClosedWorkspaces", () => {
+describe(purgeClosedWorkspaces, () => {
   it("takes the OWNER'S GREETING out too — it was in no deletion path at all", async () => {
     /**
      * #581: `voicemail-greetings` was the bucket nobody swept. It was absent from
@@ -237,7 +239,7 @@ describe("purgeClosedWorkspaces", () => {
     sb.on("GET", "/rest/v1/data_exports", () => []); // #378: the fourth bucket
     sb.on("POST", "/rest/v1/rpc/purge_workspace_step", (call) =>
       (call.body as { p_company_id: string }).p_company_id === COMPANY_ID
-        ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+        ? Response.json({ message: "boom" }, { status: 500 })
         : { step: null, deleted: 0, done: true },
     );
     sb.on("POST", "/rest/v1/rpc/anonymize_purged_workspace", () => ({
@@ -373,10 +375,10 @@ describe("purgeClosedWorkspaces", () => {
       });
       stubFetch(...routes);
 
-      expect(await purgeClosedWorkspaces(env)).toMatchObject({ completed: 1, receiptsSent: 1 });
+      await expect(purgeClosedWorkspaces(env)).resolves.toMatchObject({ completed: 1, receiptsSent: 1 });
       expect(emails).toHaveLength(1);
 
-      expect(await purgeClosedWorkspaces(env)).toMatchObject({ workspaces: 0, receiptsSent: 0 });
+      await expect(purgeClosedWorkspaces(env)).resolves.toMatchObject({ workspaces: 0, receiptsSent: 0 });
       expect(emails, "the erasure receipt was mailed again").toHaveLength(1);
     });
 

@@ -77,7 +77,7 @@ export class StripeSandbox implements StripeApi {
     }
     const key = this.#o.key();
     if (!/^(sk|rk)_test_/.test(key)) throw new Error("stripe sandbox: the key is not a test-mode key; nothing was sent");
-    const changed = method === "DELETE" ? path : method === "POST" && path.endsWith("/advance") ? path.slice(0, -"/advance".length) : null;
+    const changed = method === "DELETE" ? path : (method === "POST" && path.endsWith("/advance") ? path.slice(0, -"/advance".length) : null);
     if (changed !== null) await this.#requireRigTag(changed);
     return this.#send<T>(method, path, method === "POST" ? tagged(path, params) : params, key);
   }
@@ -163,7 +163,7 @@ const STRIPE_UNDO_PATH = /^\/v1\/(customers|subscriptions|test_helpers\/test_clo
  * so both may run.
  */
 export async function deleteStripeObject(stripe: Pick<StripeApi, "request">, params: Record<string, unknown>): Promise<void> {
-  const path = params.path;
+  const {path} = params;
   if (typeof path !== "string" || !STRIPE_UNDO_PATH.test(path)) throw new Error("stripe.delete undo needs a customer, subscription or test clock path");
   let current: { deleted?: boolean; status?: string };
   try {

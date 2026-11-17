@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import sitemap from "@/app/sitemap";
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
-import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
+import { absoluteUrl, LIVE_ROUTES } from "@/lib/marketing/site";
 import { TRANSLATED_PAGES } from "@/lib/marketing/translated-pages";
 
 const expectedPaths = new Set<string>([
@@ -20,8 +20,8 @@ describe("sitemap route inventory (BLUEPRINT §11.3 single source of truth)", ()
   it("emits every LIVE_ROUTES path and every blog post exactly once, as absolute URLs", () => {
     const urls = sitemap().map((entry) => entry.url);
     expect(new Set(urls).size).toBe(urls.length);
-    expect(urls.sort()).toEqual(
-      [...expectedPaths].map((path) => absoluteUrl(path)).sort(),
+    expect(urls.toSorted()).toEqual(
+      [...expectedPaths].map((path) => absoluteUrl(path)).toSorted(),
     );
   });
 });

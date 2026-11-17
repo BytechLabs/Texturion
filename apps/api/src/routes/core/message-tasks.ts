@@ -9,7 +9,7 @@
  * loadAttachments — the partial-unique `tasks_message_uq` (one live task per
  * message) means at most one row per message id.
  */
-import { getDb } from "../../db";
+import type { getDb } from "../../db";
 import { unwrap } from "./http";
 
 type Db = ReturnType<typeof getDb>;

@@ -19,7 +19,7 @@ function currentUrl(): string {
   return `${window.location.pathname}${window.location.search}`;
 }
 
-describe("useTaskDrawer", () => {
+describe(useTaskDrawer, () => {
   beforeEach(() => {
     window.history.replaceState(null, "", "/tasks?view=board");
   });
@@ -28,7 +28,7 @@ describe("useTaskDrawer", () => {
     const push = vi.spyOn(window.history, "pushState");
     const { result } = renderHook(() => useTaskDrawer());
     result.current.openTask("t-1");
-    expect(push).toHaveBeenCalledTimes(1);
+    expect(push).toHaveBeenCalledOnce();
     expect(currentUrl()).toBe("/tasks?view=board&task=t-1");
     expect(router.push).not.toHaveBeenCalled();
   });
@@ -49,7 +49,7 @@ describe("useTaskDrawer", () => {
   });
 });
 
-describe("taskLinkClickHandler", () => {
+describe(taskLinkClickHandler, () => {
   beforeEach(() => {
     window.history.replaceState(null, "", "/tasks?view=calendar");
   });

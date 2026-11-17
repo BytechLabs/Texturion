@@ -13,7 +13,7 @@ export default defineConfig({
     alias: [
       {
         find: /^cloudflare:workers$/,
-        replacement: fileURLToPath(new URL("./test/cloudflare-workers-double.ts", import.meta.url)),
+        replacement: fileURLToPath(new URL("test/cloudflare-workers-double.ts", import.meta.url)),
       },
     ],
   },

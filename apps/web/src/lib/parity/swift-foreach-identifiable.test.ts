@@ -90,7 +90,7 @@ describe("a SwiftUI ForEach can identify what it iterates", () => {
     const problems: string[] = [];
 
     for (const file of files) {
-      const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+      const text = readFileSync(file, "utf8").replaceAll('\r\n', "\n");
       const short = file.slice(file.indexOf("Loonext"));
       const properties = arrayProperties(text);
 
@@ -113,8 +113,8 @@ describe("a SwiftUI ForEach can identify what it iterates", () => {
 
     expect(
       problems,
-      "A SwiftUI ForEach cannot identify its elements. Swift refuses to " +
-        "compile these:\n  " + problems.join("\n  "),
+      `A SwiftUI ForEach cannot identify its elements. Swift refuses to ` +
+        `compile these:\n  ${  problems.join("\n  ")}`,
     ).toEqual([]);
   });
 });

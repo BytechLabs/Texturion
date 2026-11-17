@@ -83,7 +83,7 @@ export class HandoffFile implements HandoffApi {
       typeof parsed.telnyx_phone_number_id === "string" &&
       typeof parsed.phone_number_id === "string" &&
       typeof parsed.bought_at === "string" &&
-      HANDOFF_STATES.includes(parsed.state as NumberHandoff["state"]);
+      HANDOFF_STATES.includes(parsed.state!);
     return complete ? (parsed as NumberHandoff) : null;
   }
 

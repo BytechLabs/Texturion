@@ -1,25 +1,20 @@
-import {
-  GUARD_ROUTES,
-  HALT_CORROBORATIONS,
-  HEADER,
-  type GuardHealth,
-  type GuardSafety,
-  type HaltCorroboration,
-  type HaltRequest,
-  type LegRegistration,
-  type LevelEvidence,
-} from "@loonext/rig-protocol";
+import { GUARD_ROUTES, HALT_CORROBORATIONS, HEADER } from '@loonext/rig-protocol';
+import type { GuardHealth, GuardSafety, HaltRequest, LegRegistration, LevelEvidence } from '@loonext/rig-protocol';
 
 import { handleAdmin } from "./admin";
-import { parseCaller, ROUTE_CALLERS, routeOf, type GuardCaller } from "./caller";
+import { parseCaller, ROUTE_CALLERS, routeOf } from './caller';
+import type { GuardCaller } from './caller';
 import type { Ctx } from "./context";
 import { PAID_DIALS_PER_DAY, PAID_DIALS_PER_HOUR, PREEMPT_POLL_MS } from "./limits";
-import { json, refuse, Refusal } from "./refusal";
+import { json, Refusal, refuse } from "./refusal";
 import { limitProbeDue, runLimitProbe } from "./setup/limit-probe";
-import { requireSafe, SAFETY_KEY, type SafetyState } from "./setup/safety";
-import { inWindow, paidState, productionCalls, type PaidState, type ProductionCalls } from "./state/admission";
+import { requireSafe, SAFETY_KEY } from './setup/safety';
+import type { SafetyState } from './setup/safety';
+import { inWindow, paidState, productionCalls } from './state/admission';
+import type { PaidState, ProductionCalls } from './state/admission';
 import { balanceFloor, readBalance } from "./state/balance";
-import { recordLevelEvidence, type LimitInForce } from "./state/concurrency";
+import { recordLevelEvidence } from './state/concurrency';
+import type { LimitInForce } from './state/concurrency';
 import { readTier } from "./state/ledger";
 import { candidateLiveLegs, markEnded, pruneLegs, registerLeg } from "./state/legs";
 import {
@@ -36,7 +31,8 @@ import { mailHalted, mailSummary, readMailStatus } from "./state/mail";
 import { recordSignal, signalSummary } from "./state/signals";
 import { detachFlooded, enforceCap } from "./telnyx/detach";
 import { orderingBlockers, stoppedReason, verifyFirstOrder } from "./telnyx/ordering";
-import { loadPartition, toWire, type PartitionView } from "./telnyx/partition";
+import { loadPartition, toWire } from './telnyx/partition';
+import type { PartitionView } from './telnyx/partition';
 import { matchEndpoint } from "./telnyx/registry";
 import { handleTelnyx } from "./telnyx/route";
 import { aiNeuronsToday, handleAi } from "./vendors/ai";
@@ -100,12 +96,12 @@ export class Guard {
   async handle(request: Request): Promise<Response> {
     try {
       return await this.route(request);
-    } catch (cause) {
-      if (cause instanceof Refusal) {
-        console.log(`guard: refused ${request.method} ${new URL(request.url).pathname.split("/")[1]}: ${cause.rule}`);
-        return refuse(cause.rule);
+    } catch (error) {
+      if (error instanceof Refusal) {
+        console.log(`guard: refused ${request.method} ${new URL(request.url).pathname.split("/")[1]}: ${error.rule}`);
+        return refuse(error.rule);
       }
-      console.error("guard: request failed:", cause instanceof Error ? cause.message : String(cause));
+      console.error("guard: request failed:", error instanceof Error ? error.message : String(error));
       return json({ error: "guard_error" }, 502);
     }
   }
@@ -121,47 +117,64 @@ export class Guard {
     const { ctx } = this;
 
     switch (route) {
-      case GUARD_ROUTES.health:
+      case GUARD_ROUTES.health: {
         return json(await this.health());
-      case GUARD_ROUTES.version:
+      }
+      case GUARD_ROUTES.version: {
         return json({ version_id: ctx.versionId });
-      case GUARD_ROUTES.telnyx:
+      }
+      case GUARD_ROUTES.telnyx: {
         return this.telnyx(request, caller, url);
-      case GUARD_ROUTES.diag:
+      }
+      case GUARD_ROUTES.diag: {
         return handleDiag(ctx, request, url, rest);
-      case GUARD_ROUTES.admin:
+      }
+      case GUARD_ROUTES.admin: {
         return handleAdmin(ctx, request, rest);
-      case GUARD_ROUTES.resend:
+      }
+      case GUARD_ROUTES.resend: {
         await refuseIfKnownUnsafe(ctx);
         return handleResend(ctx, request, rest);
-      case GUARD_ROUTES.fcm:
+      }
+      case GUARD_ROUTES.fcm: {
         await refuseIfKnownUnsafe(ctx);
         return handleFcm(ctx, request, rest);
-      case GUARD_ROUTES.fcmToken:
+      }
+      case GUARD_ROUTES.fcmToken: {
         return handleFcmToken();
-      case GUARD_ROUTES.ai:
+      }
+      case GUARD_ROUTES.ai: {
         await refuseIfKnownUnsafe(ctx);
         return handleAi(ctx, request, rest);
-      case GUARD_ROUTES.partition:
+      }
+      case GUARD_ROUTES.partition: {
         if (request.method !== "GET") throw new Refusal("route.unknown");
         // The edge decides webhook ownership from this, so it waits for the
         // start-up checks exactly as a rig caller does.
         await requireSafe(ctx);
         return json(toWire(await loadPartition(ctx)));
-      case GUARD_ROUTES.lease:
+      }
+      case GUARD_ROUTES.lease: {
         return this.lease(request, caller, rest);
-      case GUARD_ROUTES.legs:
+      }
+      case GUARD_ROUTES.legs: {
         return this.legs(request);
-      case GUARD_ROUTES.reject:
+      }
+      case GUARD_ROUTES.reject: {
         return this.reject(request);
-      case GUARD_ROUTES.detach:
+      }
+      case GUARD_ROUTES.detach: {
         return this.detach(request);
-      case GUARD_ROUTES.halt:
+      }
+      case GUARD_ROUTES.halt: {
         return this.halt(request);
-      case GUARD_ROUTES.evidence:
+      }
+      case GUARD_ROUTES.evidence: {
         return this.evidence(request, rest);
-      default:
+      }
+      default: {
         throw new Refusal("route.unknown");
+      }
     }
   }
 
@@ -181,9 +194,9 @@ export class Guard {
       const response = await handleTelnyx(ctx, request, caller, url);
       outcome = response.status;
       return response;
-    } catch (cause) {
-      if (cause instanceof Refusal) outcome = cause.rule;
-      throw cause;
+    } catch (error) {
+      if (error instanceof Refusal) outcome = error.rule;
+      throw error;
     } finally {
       await noteActivity(ctx, activityKey(caller, endpoint, outcome)).catch((error: unknown) =>
         console.error("guard: lease activity not recorded:", error instanceof Error ? error.message : String(error)),
@@ -199,7 +212,7 @@ export class Guard {
     }
     const activity = /^\/([^/]+)\/activity$/.exec(rest);
     if (request.method === "GET" && activity) {
-      return json(await leaseActivity(ctx, decodeURIComponent(activity[1]!)));
+      return json(await leaseActivity(ctx, decodeURIComponent(activity[1])));
     }
     if (request.method === "POST" && rest === "") {
       const body = await bodyOf(request);
@@ -227,9 +240,9 @@ export class Guard {
     }
     const { voice, robot, webrtc } = view.record.connections;
     if (![voice, robot, webrtc].includes(leg.connection_id)) throw new Refusal("legs.connection_not_nonprod");
-    const expected = { voice, robot, webrtc }[leg.via as LegRegistration["via"]];
+    const expected = { voice, robot, webrtc }[leg.via!];
     if (!expected || expected !== leg.connection_id) throw new Refusal("legs.via_mismatch");
-    return { call_control_id: leg.call_control_id, connection_id: leg.connection_id, via: leg.via as LegRegistration["via"] };
+    return { call_control_id: leg.call_control_id, connection_id: leg.connection_id, via: leg.via! };
   }
 
   private async legs(request: Request): Promise<Response> {
@@ -273,14 +286,14 @@ export class Guard {
     const body = (await bodyOf(request)) as Partial<HaltRequest>;
     const signal = typeof body.signal === "string" ? body.signal.trim() : "";
     if (!signal || signal.length > 200) throw new Refusal("request.body_invalid");
-    if (!HALT_CORROBORATIONS.includes(body.corroborated_by as HaltCorroboration)) {
+    if (!HALT_CORROBORATIONS.includes(body.corroborated_by!)) {
       throw new Refusal("request.body_invalid");
     }
     const noticeId = typeof body.notice_id === "string" && body.notice_id ? body.notice_id : null;
     await recordSignal(this.ctx, {
       signal,
       notice_id: noticeId,
-      corroborated_by: body.corroborated_by as HaltCorroboration,
+      corroborated_by: body.corroborated_by!,
       late: body.late === true,
     });
     return json(await signalSummary(this.ctx));
@@ -381,14 +394,14 @@ export class Guard {
       await verifyFirstOrder(ctx);
       await readBalance(ctx, { fresh: true });
       await enforceCap(ctx, await loadPartition(ctx, { fresh: true }));
-    } catch (cause) {
-      const rule = cause instanceof Refusal ? cause.rule : cause instanceof Error ? cause.message : String(cause);
+    } catch (error) {
+      const rule = error instanceof Refusal ? error.rule : (error instanceof Error ? error.message : String(error));
       console.error(`guard: upkeep stopped: ${rule}`);
     }
     try {
       if (await limitProbeDue(ctx)) await runLimitProbe(ctx);
-    } catch (cause) {
-      const rule = cause instanceof Refusal ? cause.rule : cause instanceof Error ? cause.message : String(cause);
+    } catch (error) {
+      const rule = error instanceof Refusal ? error.rule : (error instanceof Error ? error.message : String(error));
       console.error(`guard: limit probe not run: ${rule}`);
     }
   }
@@ -408,8 +421,8 @@ export class Guard {
     let production: ProductionCalls = "unknown";
     try {
       production = await productionCalls(ctx, await loadPartition(ctx));
-    } catch (cause) {
-      const rule = cause instanceof Refusal ? cause.rule : cause instanceof Error ? cause.message : String(cause);
+    } catch (error) {
+      const rule = error instanceof Refusal ? error.rule : (error instanceof Error ? error.message : String(error));
       console.error(`guard: preemption poll failed: ${rule}`);
     }
     if (production === "absent") {

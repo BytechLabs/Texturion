@@ -1,42 +1,16 @@
 "use client";
 
-import {
-  Bell,
-  Ban,
-  Building2,
-  MessageSquareDashed,
-  ChevronRight,
-  Clock,
-  CreditCard,
-  Gauge,
-  HandCoins,
-  LifeBuoy,
-  MessageSquareText,
-  MonitorSmartphone,
-  Phone,
-  PhoneMissed,
-  KeyRound,
-  Plug,
-  ScrollText,
-  ShieldCheck,
-  Sparkles,
-  UserRound,
-  Users,
-  type LucideIcon,
-} from "lucide-react";
+import { Ban, Bell, Building2, ChevronRight, Clock, CreditCard, Gauge, HandCoins, KeyRound, LifeBuoy, MessageSquareDashed, MessageSquareText, MonitorSmartphone, Phone, PhoneMissed, Plug, ScrollText, ShieldCheck, Sparkles, UserRound, Users } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
-import {
-  inSettingsGroupOrder,
-  SETTINGS_GROUPS,
-  visibleSettingsSections,
-  type SettingsGroupId,
-  type SettingsSectionId,
-} from "@loonext/shared";
+import { inSettingsGroupOrder, SETTINGS_GROUPS, visibleSettingsSections } from '@loonext/shared';
+import type { SettingsGroupId, SettingsSectionId } from '@loonext/shared';
 
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { useActiveCompany } from "@/lib/company/provider";
 import { shouldShowWhatsNewMarker } from "@/lib/whats-new/seen";

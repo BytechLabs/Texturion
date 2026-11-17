@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { decideWizardDismissal } from "./import-wizard-dismissal";
 
-describe("decideWizardDismissal", () => {
+describe(decideWizardDismissal, () => {
   it("lets the dialog open without touching wizard state", () => {
     expect(decideWizardDismissal(true, false)).toEqual({
       propagate: true,

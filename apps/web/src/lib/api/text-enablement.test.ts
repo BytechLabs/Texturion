@@ -29,7 +29,7 @@ const ROW: TextEnablement = {
 };
 
 function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status,
     headers: { "Content-Type": "application/json" },
   });
@@ -45,7 +45,7 @@ function makeClient(
   const request = createApiClient({
     baseUrl: "https://api.loonext.test",
     getAccessToken: async () => "test-token",
-    fetch: fetchSpy as unknown as typeof fetch,
+    fetch: fetchSpy,
   });
   return { request, fetchSpy };
 }
@@ -88,7 +88,7 @@ describe("create — POST /v1/text-enablements", () => {
       companyId: "company-1",
       idempotencyKey: crypto.randomUUID(),
       body: { phone_e164: "+16135550100" },
-    }).catch((cause: unknown) => cause);
+    }).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(ApiError);
     expect((failure as ApiError).code).toBe("conflict");
@@ -180,7 +180,7 @@ describe("verification — the number-ownership code POSTs", () => {
         companyId: "company-1",
         body: { verification_method: "sms" },
       },
-    ).catch((cause: unknown) => cause);
+    ).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(ApiError);
     expect((failure as ApiError).code).toBe("validation_failed");
@@ -218,7 +218,7 @@ describe("verification — the number-ownership code POSTs", () => {
     const failure = await request(
       `/v1/text-enablements/${ROW.id}/verification-codes/verify`,
       { method: "POST", companyId: "company-1", body: { code: "000000" } },
-    ).catch((cause: unknown) => cause);
+    ).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(ApiError);
     expect((failure as ApiError).message).toMatch(/didn't match/);
@@ -258,7 +258,7 @@ describe("resubmit / cancel — the action POSTs", () => {
     const failure = await request(`/v1/text-enablements/${ROW.id}/cancel`, {
       method: "POST",
       companyId: "company-1",
-    }).catch((cause: unknown) => cause);
+    }).catch((error: unknown) => error);
 
     expect(failure).toBeInstanceOf(ApiError);
     expect((failure as ApiError).code).toBe("conflict");

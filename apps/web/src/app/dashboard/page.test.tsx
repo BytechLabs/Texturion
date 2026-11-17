@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 const redirected = vi.fn<(url: string) => never>(() => {
   throw new Error("NEXT_REDIRECT");
 });
-vi.mock("next/navigation", () => ({
+vi.mock(import("next/navigation"), () => ({
   redirect: (url: string) => redirected(url),
 }));
 
@@ -19,8 +19,8 @@ async function run(
   await DashboardRedirectPage({
     searchParams: Promise.resolve(params),
   }).catch(() => {});
-  expect(redirected).toHaveBeenCalledTimes(1);
-  return redirected.mock.calls[0]![0];
+  expect(redirected).toHaveBeenCalledOnce();
+  return redirected.mock.calls[0][0];
 }
 
 /**
@@ -55,8 +55,8 @@ describe("/dashboard legacy checkout redirect", () => {
   });
 
   it("sends a bare/legacy-bookmark visit to the app home, not a broken page", async () => {
-    expect(await run({})).toBe("/for-you");
-    expect(await run({ checkout: "other" })).toBe("/for-you");
+    await expect(run({})).resolves.toBe("/for-you");
+    await expect(run({ checkout: "other" })).resolves.toBe("/for-you");
   });
 
   it("never routes back to /dashboard (the old success_url is gone)", async () => {
@@ -65,7 +65,7 @@ describe("/dashboard legacy checkout redirect", () => {
       { checkout: "canceled" },
       {},
     ]) {
-      expect(await run(params)).not.toContain("/dashboard");
+      await expect(run(params)).resolves.not.toContain("/dashboard");
     }
   });
 });

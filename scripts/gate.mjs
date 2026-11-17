@@ -68,7 +68,9 @@ const [PNPM, PNPM_PREFIX] = pnpmCommand();
 const STEPS = [
   ["guards", ["check:guards"]],
   ["typecheck", ["-r", "typecheck"]],
-  ["lint", ["-r", "lint"]],
+  ["lint", ["lint"]],
+  // ESLint, in apps/web only, for the two rules oxlint does not have.
+  ["eslint", ["-r", "lint"]],
   // ONE WORKSPACE AT A TIME. `pnpm -r test` runs them concurrently, and this
   // repo has a known IO-stall flake in the tree-walking guards that only
   // appears under load: the first run of this gate failed a single api test

@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
-import { resendRoute, type SentEmailCapture } from "../telnyx/test-support";
+import { resendRoute } from '../telnyx/test-support';
+import type { SentEmailCapture } from '../telnyx/test-support';
 import {
   MEANINGFUL_CHANGE_RATIO,
   RECAP_WINDOW_DAYS,
@@ -24,7 +25,7 @@ const base = {
   baselineMedian: 900,
 };
 
-describe("recapDirection", () => {
+describe(recapDirection, () => {
   it("calls a real improvement an improvement", () => {
     expect(recapDirection(300, 900)).toBe("faster");
   });
@@ -58,7 +59,7 @@ describe("recapDirection", () => {
   });
 });
 
-describe("recapText", () => {
+describe(recapText, () => {
   it("leads with the number and the window", () => {
     const text = recapText(base);
     expect(text).toContain("Bright Spark Electrical");
@@ -116,7 +117,7 @@ describe("recapText", () => {
   });
 });
 
-describe("runResponseTimeRecapJob", () => {
+describe(runResponseTimeRecapJob, () => {
   const env = completeEnv();
   const COMPANY = "cccccccc-0000-4000-8000-00000000000c";
   const OWNER = "10000000-aaaa-4000-8000-000000000001";

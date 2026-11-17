@@ -21,7 +21,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { amortisedMonthlyUsdCents, openPrepayment } from "./prepay";
 
 import { enabledModules } from "./company-modules";
-import { MODULE_CATALOG, type PlanModule } from "./modules";
+import { MODULE_CATALOG } from './modules';
+import type { PlanModule } from './modules';
 import type { PlanId } from "./plans";
 
 /**

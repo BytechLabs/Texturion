@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 
-import { companySettingDefault, effectiveQuoteStatus, isQuoteDecided, type QuoteState } from "@loonext/shared";
+import { companySettingDefault, effectiveQuoteStatus, isQuoteDecided } from '@loonext/shared';
+import type { QuoteState } from '@loonext/shared';
 
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -300,8 +301,8 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
     "quote",
     row.id,
     "quote accepted",
-  ).catch((cause: unknown) => {
-    console.error(`quote link revoke failed: ${String(cause)}`);
+  ).catch((error: unknown) => {
+    console.error(`quote link revoke failed: ${String(error)}`);
   });
 
   /*
@@ -336,8 +337,8 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
         description: row.description,
       },
     },
-  ]).catch((cause: unknown) => {
-    console.error(`quote accepted event failed: ${String(cause)}`);
+  ]).catch((error: unknown) => {
+    console.error(`quote accepted event failed: ${String(error)}`);
   });
 
   /*

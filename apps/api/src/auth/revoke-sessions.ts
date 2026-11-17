@@ -80,11 +80,11 @@ export async function releaseTelnyxCredentials(
         path: `/v2/telephony_credentials/${credentialId}`,
       });
       deleted += 1;
-    } catch (cause) {
+    } catch (error) {
       console.error(
         `telephony credential ${credentialId} survived ${context} — that device ` +
           `can still ring and can answer as the business:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -124,8 +124,8 @@ export async function revokeSessions(
   );
 
   return {
-    sessions: Number(result?.sessions ?? 0),
-    devices: Number(result?.devices ?? 0),
+    sessions: (result?.sessions ?? 0),
+    devices: (result?.devices ?? 0),
     voice,
   };
 }

@@ -39,7 +39,7 @@ export function processTree(table, roots) {
       }
     }
   }
-  return [...found].sort((a, b) => a - b);
+  return [...found].toSorted((a, b) => a - b);
 }
 
 /** One line of the helper's JSON, or an Error carrying its message. */
@@ -113,8 +113,8 @@ export function persistentHelper({ spawn, script = AUDIO_SCRIPT, log = () => {},
       settle((current) => {
         try {
           current.resolve(parseHelperLine(line));
-        } catch (cause) {
-          current.reject(cause);
+        } catch (error) {
+          current.reject(error);
         }
       });
     });
@@ -174,7 +174,7 @@ export function sessionsOf(sessions, pids) {
  */
 export function summarise(sessions) {
   const muted = sessions.filter((session) => session.muted === true).length;
-  const state = sessions.length === 0 ? "waiting" : muted === sessions.length ? "muted" : "unmuted";
+  const state = sessions.length === 0 ? "waiting" : (muted === sessions.length ? "muted" : "unmuted");
   return { state, sessions: sessions.length, muted };
 }
 
@@ -194,7 +194,7 @@ export function createAudioMuter({
     const key = roots.join(",");
     if (cached && cached.key === key && now() - cached.at < treeTtlMs) return cached.pids;
     const table = await helper.call("processes");
-    if (!Array.isArray(table)) throw new Error("audio helper: no process table");
+    if (!Array.isArray(table)) throw new TypeError("audio helper: no process table");
     cached = { key, at: now(), pids: processTree(table, roots) };
     return cached.pids;
   };
@@ -228,13 +228,13 @@ export function createAudioMuter({
         if (current.filter(isRoot).length === 0) {
           result = { state: "waiting", sessions: 0, muted: 0, pids: [], checked_at: new Date(now()).toISOString() };
         } else {
-          result = await sweep(current, { key }).catch((cause) => ({ state: "error", sessions: 0, muted: 0, pids: [], error: cause.message, checked_at: new Date(now()).toISOString() }));
+          result = await sweep(current, { key }).catch((error) => ({ state: "error", sessions: 0, muted: 0, pids: [], error: error.message, checked_at: new Date(now()).toISOString() }));
         }
         if (stopped) break;
         try {
           onResult(result);
-        } catch (cause) {
-          log(`audio: ${cause.message}`);
+        } catch (error) {
+          log(`audio: ${error.message}`);
         }
         await sleep(result.state === "muted" || result.state === "error" ? steadyMs : fastMs);
       }

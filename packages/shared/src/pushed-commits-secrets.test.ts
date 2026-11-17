@@ -1,8 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { mkdtempSync, rmSync, unlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -14,7 +13,7 @@ import { afterEach, describe, expect, it } from "vitest";
  * holds nothing a secret scanner would stop.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const SCRIPT = join(REPO, ".githooks", "check-pushed-commits.mjs");
 const NONE = "0".repeat(40);
 const KEY = ["sk", "live", "readablestemforthistest"].join("_");

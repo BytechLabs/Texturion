@@ -25,18 +25,18 @@ const { values: args } = parseArgs({
 
 const wanted = new Set(JSON.parse(readFileSync(args.files, "utf8")));
 const reporters = process.env.GITHUB_ACTIONS ? ["default", "github-actions"] : ["default"];
-const vitest = await openVitest(args.package, { reporters });
+const ctx = await openVitest(args.package, { reporters });
 
 let exitCode = 0;
 const results = {};
 try {
-  await vitest.standalone();
-  const specs = (await vitest.globTestSpecifications()).filter((spec) => wanted.has(toRepoPath(spec.moduleId)));
+  await ctx.standalone();
+  const specs = (await ctx.globTestSpecifications()).filter((spec) => wanted.has(toRepoPath(spec.moduleId)));
   const found = new Set(specs.map((spec) => toRepoPath(spec.moduleId)));
   const missing = [...wanted].filter((file) => !found.has(file));
   if (missing.length > 0) throw new Error(`vitest in ${args.package} has no test file ${missing.join(", ")}`);
 
-  const run = await vitest.runTestSpecifications(specs, false);
+  const run = await ctx.runTestSpecifications(specs, false);
   if (run.unhandledErrors.length > 0) exitCode = 1;
   for (const module of run.testModules) {
     const file = toRepoPath(module.moduleId);
@@ -62,7 +62,7 @@ try {
   console.error(error);
   exitCode = 1;
 } finally {
-  await vitest.close();
+  await ctx.close();
 }
 
 writeFileSync(path.resolve(REPO_ROOT, args.out), JSON.stringify({ package: args.package, results }));
@@ -71,7 +71,7 @@ process.exit(exitCode);
 async function importsOf(module) {
   const spec = { project: module.project, moduleId: module.moduleId };
   try {
-    return await testDependencies(vitest, spec);
+    return await testDependencies(ctx, spec);
   } catch {
     return [toRepoPath(module.moduleId)];
   }

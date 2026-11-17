@@ -89,10 +89,10 @@ export function TwoFactorCard() {
         qr: data.totp.qr_code,
         secret: data.totp.secret,
       });
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof Error
-          ? cause.message
+        error_ instanceof Error
+          ? error_.message
           : t("settingsMore.tfaStartFailed"),
       );
     } finally {
@@ -197,13 +197,13 @@ export function TwoFactorCard() {
       // whose only key is inside a phone.
       const { codes } = await issueCodes.mutateAsync();
       setStep({ kind: "codes", codes });
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof Error
+        error_ instanceof Error
           ? // The browser's own message is better than ours here: "the operation
             // either timed out or was not allowed" is what a person needs to
             // read when their fingerprint was not recognised.
-            cause.message
+            error_.message
           : t("settingsMore.tfaPasskeyFailed"),
       );
     } finally {
@@ -218,7 +218,7 @@ export function TwoFactorCard() {
       const supabase = getSupabaseBrowser();
       const { error: verifyError } = await supabase.auth.mfa.challengeAndVerify({
         factorId,
-        code: code.replace(/\D/g, ""),
+        code: code.replaceAll(/\D/g, ""),
       });
       if (verifyError) throw verifyError;
 
@@ -228,10 +228,10 @@ export function TwoFactorCard() {
       const { codes } = await issueCodes.mutateAsync();
       setCode("");
       setStep({ kind: "codes", codes });
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("settingsMore.tfaCodeMismatch"),
       );
     } finally {
@@ -252,10 +252,10 @@ export function TwoFactorCard() {
       setConfirmOff(false);
       await mfa.refetch();
       toast.success(t("settingsMore.tfaTurnedOff"));
-    } catch (cause) {
+    } catch (error_) {
       toast.error(
-        cause instanceof Error
-          ? cause.message
+        error_ instanceof Error
+          ? error_.message
           : t("settingsMore.tfaTurnOffFailed"),
       );
     } finally {
@@ -267,10 +267,10 @@ export function TwoFactorCard() {
     try {
       const { codes } = await issueCodes.mutateAsync();
       setStep({ kind: "codes", codes });
-    } catch (cause) {
+    } catch (error_) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("settingsMore.tfaIssueCodesFailed"),
       );
     }
@@ -508,7 +508,7 @@ export function TwoFactorCard() {
                 </Button>
                 <Button
                   type="button"
-                  disabled={busy || code.replace(/\D/g, "").length < 6}
+                  disabled={busy || code.replaceAll(/\D/g, "").length < 6}
                   onClick={() => verify(step.factorId)}
                 >
                   {busy

@@ -5,16 +5,18 @@
  * unexplained.
  */
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 import type { SecretFiles } from "@loonext/rig-robot";
-import { cronExplainer, type CronExplainer } from "./cron-events.ts";
-import { openJournals, type LeaseClient } from "./lease.ts";
-import { posthogFromStore, reportApiExceptions, type ApiExceptionsReport, type Explanation, type SeenEvent } from "./posthog-errors.ts";
+import { cronExplainer } from './cron-events.ts';
+import type { CronExplainer } from './cron-events.ts';
+import { openJournals } from './lease.ts';
+import type { LeaseClient } from './lease.ts';
+import { posthogFromStore, reportApiExceptions } from './posthog-errors.ts';
+import type { ApiExceptionsReport, Explanation, SeenEvent } from './posthog-errors.ts';
 import { g01Refusal } from "./scenarios/gates.ts";
 import { VerdictStore } from "./verdicts.ts";
 
-const CRON_REGISTRY = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "crons.json");
+const CRON_REGISTRY = resolve(import.meta.dirname, "..", "..", "crons.json");
 
 /**
  * How R00 explains a local API event: the cron registry first, then a G01

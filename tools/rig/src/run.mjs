@@ -23,7 +23,7 @@ export function runCommand({ instance, runId, layout, systemd, node = process.ex
   const args = [cli, "run", instance, ...(runId === undefined ? [] : ["--run-id", runId])];
   if (!systemd) return { command: node, args, env: { RIG_HOME: layout.home } };
   const path = [...new Set([dirname(node), "/usr/local/bin", "/usr/bin", "/bin"])].join(":");
-  const stamp = new Date(now).toISOString().replace(/[-:.TZ]/g, "").slice(0, 14);
+  const stamp = new Date(now).toISOString().replaceAll(/[-:.TZ]/g, "").slice(0, 14);
   return {
     command: "systemd-run",
     args: [

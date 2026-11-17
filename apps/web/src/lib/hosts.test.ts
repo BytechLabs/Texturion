@@ -6,7 +6,6 @@
  */
 import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
@@ -24,7 +23,7 @@ function decideWith(appOrigin: string | undefined, host: string, pathname: strin
   return decideHostRedirect({ host, pathname, search: "", appOrigin });
 }
 
-describe("isAppSurfacePath", () => {
+describe(isAppSurfacePath, () => {
   it.each([
     "/for-you",
     "/inbox",
@@ -212,13 +211,13 @@ describe("pages the app frames", () => {
   // frame its pages, and the frame says "refused to connect". The website
   // button's preview did exactly that.
   it("are all served on the app host", () => {
-    const root = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+    const root = join(import.meta.dirname, "..");
     const files: string[] = [];
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
         const full = join(dir, entry.name);
         if (entry.isDirectory()) walk(full);
-        else if (/\.tsx$/.test(entry.name) && !/\.test\.tsx$/.test(entry.name)) files.push(full);
+        else if (entry.name.endsWith('.tsx') && !entry.name.endsWith('.test.tsx')) files.push(full);
       }
     };
     walk(root);

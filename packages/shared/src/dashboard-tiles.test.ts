@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  AGED_MILLIS,
-  DASHBOARD_TILE_LABELS,
-  dashboardTiles,
-  type DashboardTileInput,
-} from "./dashboard-tiles";
+import { AGED_MILLIS, DASHBOARD_TILE_LABELS, dashboardTiles } from './dashboard-tiles';
+import type { DashboardTileInput } from './dashboard-tiles';
 
 const MINUTE = 60 * 1000;
 const HOUR = 60 * MINUTE;
@@ -54,7 +50,7 @@ describe("#540 the strip is ordered by what to do first", () => {
     const order = ids({ ...EMPTY, unreadAgesMillis: [10 * MINUTE] });
     expect(order).toHaveLength(4);
     expect(order[0]).toBe("unread");
-    expect(order.slice(1).sort()).toEqual(["tasks", "unassigned", "waiting"]);
+    expect(order.slice(1).toSorted()).toEqual(["tasks", "unassigned", "waiting"]);
   });
 
   it("does not reshuffle over a few minutes' difference", () => {

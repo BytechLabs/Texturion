@@ -12,7 +12,8 @@ import { describe, expect, it } from "vitest";
 import { totpCode } from "../../../../scripts/rig/seed.mjs";
 import { AppProbe, MAIL_ACCOUNT_ADDRESS, SIGN_UP_ADDRESS, signUpNumberKey, stableUuid, VOICEMAILS_BUCKET } from "./app-probe.ts";
 import { PostHogErrors } from "./posthog-errors.ts";
-import { fakeFetch, json, type Recorded, type Route } from "./test-support.ts";
+import { fakeFetch, json } from './test-support.ts';
+import type { Recorded, Route } from './test-support.ts';
 
 const SUPABASE = "http://127.0.0.1:54321";
 const API = "http://127.0.0.1:8787";
@@ -82,7 +83,7 @@ describe("the app probe's messages", () => {
     const { probe, requests } = probeWith({
       [`POST ${API}/v1/conversations`]: () => json({ message: { id: "m-1", status: "queued", error_code: null } }, 201),
     });
-    expect(await probe.sendText({ member: "qa-w-owner", fromRole: "DEV-W1", toRole: "ROBOT-1", body: "Rig night" })).toEqual({ ok: true, messageId: "m-1" });
+    await expect(probe.sendText({ member: "qa-w-owner", fromRole: "DEV-W1", toRole: "ROBOT-1", body: "Rig night" })).resolves.toEqual({ ok: true, messageId: "m-1" });
     const sent = requests.find((r) => r.url === `${API}/v1/conversations`)!;
     expect(JSON.parse(sent.body!)).toMatchObject({ body: "Rig night", quiet_hours_confirmed: true });
   });
@@ -96,9 +97,9 @@ describe("the app probe's messages", () => {
     const { probe, requests } = probeWith({ ...THREAD, [`POST ${API}/v1/messages/send`]: () => answers.shift()! });
     const send = () =>
       probe.sendMms({ member: "qa-w-owner", fromRole: "DEV-W1", toRole: "ROBOT-1", body: "Rig pic", media: { bytes: new Uint8Array([1, 2, 3]), contentType: "image/jpeg" } });
-    expect(await send()).toEqual({ ok: true, messageId: "m-1" });
-    expect(await send()).toEqual({ ok: false, status: 201, code: "40008" });
-    expect(await send()).toEqual({ ok: false, status: 403, code: "recipient_opted_out" });
+    await expect(send()).resolves.toEqual({ ok: true, messageId: "m-1" });
+    await expect(send()).resolves.toEqual({ ok: false, status: 201, code: "40008" });
+    await expect(send()).resolves.toEqual({ ok: false, status: 403, code: "recipient_opted_out" });
     const sent = requests.find((r) => r.url === `${API}/v1/messages/send`)!;
     expect(JSON.parse(sent.body!)).toEqual({ conversation_id: "conv-1", body: "Rig pic", media: [{ content_type: "image/jpeg", base64: "AQID" }] });
     expect(sent.headers["x-company-id"]).toBe(COMPANY);
@@ -115,7 +116,7 @@ describe("the app probe's messages", () => {
 
   it("reads every message in the threads with a role since a time, and none when there is no thread", async () => {
     const { probe, requests } = probeWith({ ...THREAD, [`GET ${rest("messages")}`]: () => json([{ id: "m-1" }]) });
-    expect(await probe.messagesWith({ tenant: "QA-W", role: "ROBOT-1", since: NOW })).toEqual([{ id: "m-1" }]);
+    await expect(probe.messagesWith({ tenant: "QA-W", role: "ROBOT-1", since: NOW })).resolves.toEqual([{ id: "m-1" }]);
     expect(query(requests.find((r) => r.url.startsWith(rest("messages")))!)).toMatchObject({
       company_id: `eq.${COMPANY}`,
       conversation_id: "in.(conv-1)",
@@ -124,7 +125,7 @@ describe("the app probe's messages", () => {
     });
 
     const none = probeWith({ [`GET ${rest("contacts")}`]: () => json([]) });
-    expect(await none.probe.messagesWith({ tenant: "QA-W", role: "ROBOT-1", since: NOW })).toEqual([]);
+    await expect(none.probe.messagesWith({ tenant: "QA-W", role: "ROBOT-1", since: NOW })).resolves.toEqual([]);
     expect(none.requests.some((r) => r.url.startsWith(rest("messages")))).toBe(false);
   });
 
@@ -134,7 +135,7 @@ describe("the app probe's messages", () => {
       [`GET ${SUPABASE}/storage/v1/object/authenticated/mms-media/c/m/a%20b.jpg`]: () => new Response(new Uint8Array([7, 8, 9])),
       [`GET ${SUPABASE}/storage/v1/object/authenticated/mms-media/gone.jpg`]: () => new Response("not found", { status: 404 }),
     });
-    expect(await probe.attachments("m-1")).toHaveLength(1);
+    await expect(probe.attachments("m-1")).resolves.toHaveLength(1);
     expect(query(requests[0]!)).toMatchObject({ message_id: "eq.m-1" });
     expect([...(await probe.storedObject({ bucket: "mms-media", path: "c/m/a b.jpg" }))]).toEqual([7, 8, 9]);
     expect(requests.at(-1)!.headers.authorization).toBe("Bearer service");
@@ -152,8 +153,8 @@ describe("the app probe's calls", () => {
       [`POST ${HOGQL}`]: () =>
         json({
           results: [
-            [NOW + 2_000, "ringing_shown", "android", "2026-10-31T15:00:01.500Z", "s-1", "1.4.0", "true", false, "active"],
-            [NOW + 3_000, "push_received", "android", null, "s-1", "1.4.0", null, null, null],
+            [NOW + 2000, "ringing_shown", "android", "2026-10-31T15:00:01.500Z", "s-1", "1.4.0", "true", false, "active"],
+            [NOW + 3000, "push_received", "android", null, "s-1", "1.4.0", null, null, null],
           ],
         }),
     });
@@ -181,7 +182,7 @@ describe("the app probe's calls", () => {
       {
         stage: "push_received",
         platform: "android",
-        occurred_at: new Date(NOW + 3_000).toISOString(),
+        occurred_at: new Date(NOW + 3000).toISOString(),
         call_session_id: "s-1",
         app_version: "1.4.0",
         device_idle: null,
@@ -215,7 +216,7 @@ describe("the app probe's calls", () => {
           { user_id: null, state: "failed", kind: null },
         ]),
     });
-    expect(await probe.callLegs({ tenant: "QA-W", callSessionId: "session-1" })).toEqual([
+    await expect(probe.callLegs({ tenant: "QA-W", callSessionId: "session-1" })).resolves.toEqual([
       { member: "qa-w-technician", state: "answered", kind: "web" },
       { member: null, state: "cancelled", kind: "android" },
       { member: null, state: "failed", kind: null },
@@ -229,11 +230,11 @@ describe("the app probe's calls", () => {
       [`POST ${API}/v1/webrtc/token`]: () => answers.shift()!,
       [`POST ${API}/v1/sessions/revoke`]: () => answers.shift()!,
     });
-    expect(await probe.voiceToken({ member: "qa-w-technician" })).toEqual({ status: 200 });
-    expect(await probe.signOutSession({ member: "qa-w-technician" })).toMatchObject({ status: 200 });
+    await expect(probe.voiceToken({ member: "qa-w-technician" })).resolves.toEqual({ status: 200 });
+    await expect(probe.signOutSession({ member: "qa-w-technician" })).resolves.toMatchObject({ status: 200 });
     expect(JSON.parse(requests.find((r) => r.url.endsWith("/v1/sessions/revoke"))!.body!)).toEqual({ self: true });
-    expect(await probe.voiceToken({ member: "qa-w-technician" })).toEqual({ status: 401, code: "unauthorized" });
-    expect(await probe.voiceToken({ member: "qa-w-technician", fresh: true })).toEqual({ status: 200 });
+    await expect(probe.voiceToken({ member: "qa-w-technician" })).resolves.toEqual({ status: 401, code: "unauthorized" });
+    await expect(probe.voiceToken({ member: "qa-w-technician", fresh: true })).resolves.toEqual({ status: 200 });
     // One sign-in for the session that was signed out, and one more for the fresh one.
     expect(requests.filter((r) => r.url.startsWith(`${SUPABASE}/auth/v1/token`))).toHaveLength(2);
   });
@@ -244,7 +245,7 @@ describe("the app probe's calls", () => {
       [`GET ${rest("webhook_events")}`]: () => json([{ event_id: "e-1", event_type: "call.initiated", processed_at: null, attempts: 1 }]),
     });
     await probe.escalations({ tenant: "QA-W", since: NOW });
-    expect(await probe.webhookEvents({ since: NOW, type: "call.initiated" })).toHaveLength(1);
+    await expect(probe.webhookEvents({ since: NOW, type: "call.initiated" })).resolves.toHaveLength(1);
     await probe.webhookEvents({ since: NOW });
     const [escalations, typed, any] = requests.map(query);
     expect(escalations).toMatchObject({ company_id: `eq.${COMPANY}`, created_at: `gte.${new Date(NOW).toISOString()}` });
@@ -257,9 +258,9 @@ describe("the app probe's calls", () => {
       [`POST ${API}/v1/voicemail-greetings/capture-call`]: () => json({ ok: true }, 202),
       [`GET ${rest("voicemail_greetings")}`]: () => json([{ id: "g-1" }]),
     });
-    expect(await probe.startGreetingCapture({ member: "qa-w-owner", toRole: "ROBOT-2", name: "Rig S15 n0nce" })).toMatchObject({ status: 202 });
+    await expect(probe.startGreetingCapture({ member: "qa-w-owner", toRole: "ROBOT-2", name: "Rig S15 n0nce" })).resolves.toMatchObject({ status: 202 });
     expect(JSON.parse(requests.find((r) => r.url.endsWith("/capture-call"))!.body!)).toEqual({ name: "Rig S15 n0nce", to: "+14165550102" });
-    expect(await probe.greetings({ tenant: "QA-W", since: NOW })).toEqual([{ id: "g-1" }]);
+    await expect(probe.greetings({ tenant: "QA-W", since: NOW })).resolves.toEqual([{ id: "g-1" }]);
     expect(query(requests.at(-1)!)).toMatchObject({ company_id: `eq.${COMPANY}`, created_at: `gte.${new Date(NOW).toISOString()}`, order: "created_at.asc" });
   });
 });
@@ -278,7 +279,7 @@ describe("the app probe's copied voicemail", () => {
       [`POST ${SUPABASE}/storage/v1/object/voicemails/`]: () => json({ Key: "x" }),
       [`POST ${rest("calls")}`]: noContent,
     });
-    expect(await probe.copyVoicemail({ from: "QA-W", tenant: "QA-W", role: "DEV-W1", callerRole: "ROBOT-1", sessionId: "rig-d14-n0nce" })).toBe(true);
+    await expect(probe.copyVoicemail({ from: "QA-W", tenant: "QA-W", role: "DEV-W1", callerRole: "ROBOT-1", sessionId: "rig-d14-n0nce" })).resolves.toBe(true);
     expect(query(requests.find((r) => r.method === "GET" && r.url.startsWith(rest("calls")))!)).toMatchObject({
       company_id: `eq.${COMPANY}`,
       caller_e164: "eq.+14165550101",
@@ -308,7 +309,7 @@ describe("the app probe's copied voicemail", () => {
 
   it("copies nothing when there is no voicemail, and clears only a copy, row then audio", async () => {
     const none = probeWith({ [`GET ${rest("calls")}`]: () => json([]) });
-    expect(await none.probe.copyVoicemail({ from: "QA-W", tenant: "QA-W", role: "DEV-W1", callerRole: "ROBOT-1", sessionId: "rig-d14-n0nce" })).toBe(false);
+    await expect(none.probe.copyVoicemail({ from: "QA-W", tenant: "QA-W", role: "DEV-W1", callerRole: "ROBOT-1", sessionId: "rig-d14-n0nce" })).resolves.toBe(false);
     expect(none.requests.map((r) => r.method)).toEqual(["GET"]);
 
     const { probe, requests } = probeWith({
@@ -337,7 +338,7 @@ describe("the app probe's settings and seeds", () => {
       [`POST ${rest("feature_flags")}`]: noContent,
       [`DELETE ${rest("feature_flags")}`]: noContent,
     });
-    expect(await probe.flag("kill:ai")).toBe(false);
+    await expect(probe.flag("kill:ai")).resolves.toBe(false);
     await probe.setFlag("kill:ai", true);
     await probe.setFlag("kill:ai", null);
     const [, upsert, remove] = requests;
@@ -349,7 +350,7 @@ describe("the app probe's settings and seeds", () => {
     expect(requests).toHaveLength(3);
 
     const unset = probeWith({ [`GET ${rest("feature_flags")}`]: () => json([]) });
-    expect(await unset.probe.flag("kill:calls")).toBeNull();
+    await expect(unset.probe.flag("kill:calls")).resolves.toBeNull();
   });
 
   it("reads and sets a standing number's row by the seed's id, stamping when it went down", async () => {
@@ -358,8 +359,8 @@ describe("the app probe's settings and seeds", () => {
       [`GET ${rest("phone_numbers")}`]: () => json([{ status: statuses.shift() }]),
       [`PATCH ${rest("phone_numbers")}`]: noContent,
     });
-    expect(await probe.numberStatusOf({ tenant: "QA-W", role: "DEV-W1" })).toBe("active");
-    expect(await probe.setNumberStatus({ tenant: "QA-W", role: "DEV-W1", status: "released" })).toBe("suspended");
+    await expect(probe.numberStatusOf({ tenant: "QA-W", role: "DEV-W1" })).resolves.toBe("active");
+    await expect(probe.setNumberStatus({ tenant: "QA-W", role: "DEV-W1", status: "released" })).resolves.toBe("suspended");
     const id = stableUuid(COMPANY, "DEV-W1");
     expect(requests.map((r) => [r.method, query(r).id])).toEqual([
       ["GET", `eq.${id}`],
@@ -376,8 +377,8 @@ describe("the app probe's settings and seeds", () => {
   it("reads a member's level on a number without writing, null when no row names them", async () => {
     const levels = [[{ level: "note" }], []];
     const { probe, requests } = probeWith({ [`GET ${rest("number_access")}`]: () => json(levels.shift()) });
-    expect(await probe.ringAudience({ tenant: "QA-W", role: "DEV-W1", member: "qa-w-technician" })).toBe("note");
-    expect(await probe.ringAudience({ tenant: "QA-W", role: "DEV-W1", member: "qa-w-technician" })).toBeNull();
+    await expect(probe.ringAudience({ tenant: "QA-W", role: "DEV-W1", member: "qa-w-technician" })).resolves.toBe("note");
+    await expect(probe.ringAudience({ tenant: "QA-W", role: "DEV-W1", member: "qa-w-technician" })).resolves.toBeNull();
     expect(query(requests.find((r) => r.url.startsWith(rest("number_access")))!)).toMatchObject({
       phone_number_id: `eq.${stableUuid(COMPANY, "DEV-W1")}`,
       principal_kind: "eq.user",
@@ -399,8 +400,8 @@ describe("the app probe's settings and seeds", () => {
       [`POST ${rest("company_ai_usage")}`]: noContent,
       [`DELETE ${rest("company_ai_usage")}`]: noContent,
     });
-    expect(await probe.seedAiUsage({ tenant: "QA-W", feature: "suggest_reply", requestCount: 1500 })).toBe(7);
-    expect(await probe.seedAiUsage({ tenant: "QA-W", feature: "suggest_reply", requestCount: null })).toBeNull();
+    await expect(probe.seedAiUsage({ tenant: "QA-W", feature: "suggest_reply", requestCount: 1500 })).resolves.toBe(7);
+    await expect(probe.seedAiUsage({ tenant: "QA-W", feature: "suggest_reply", requestCount: null })).resolves.toBeNull();
     await probe.aiUsage({ tenant: "QA-W" });
     const upsert = requests.find((r) => r.method === "POST")!;
     expect(query(upsert)).toEqual({ on_conflict: "company_id,period,feature" });
@@ -414,7 +415,7 @@ describe("the app probe's settings and seeds", () => {
       ...THREAD,
       [`POST ${API}/v1/conversations/conv-1/reply-suggestions`]: () => json({ suggestions: [], reason: "over_cap" }),
     });
-    expect(await probe.replySuggestions({ member: "qa-w-owner", withRole: "ROBOT-1" })).toEqual({ status: 200, body: { suggestions: [], reason: "over_cap" } });
+    await expect(probe.replySuggestions({ member: "qa-w-owner", withRole: "ROBOT-1" })).resolves.toEqual({ status: 200, body: { suggestions: [], reason: "over_cap" } });
     expect(requests.at(-1)!.headers["x-company-id"]).toBe(COMPANY);
 
     const none = probeWith({ [`GET ${rest("contacts")}`]: () => json([]) });
@@ -430,14 +431,14 @@ describe("the app probe's public widget", () => {
       [`POST ${API}/widget/verify`]: () => json({ error: { code: "validation_failed" } }, 422),
       [`GET ${rest("widget_verifications")}`]: () => json([{ id: "a" }, { id: "b" }]),
     });
-    expect(await probe.widgetStart({ tenant: "QA-W", phoneRole: "ROBOT-1", turnstileToken: "XXXX.DUMMY.TOKEN.XXXX" })).toEqual({ status: 202, body: { verificationId: "v-1" } });
+    await expect(probe.widgetStart({ tenant: "QA-W", phoneRole: "ROBOT-1", turnstileToken: "XXXX.DUMMY.TOKEN.XXXX" })).resolves.toEqual({ status: 202, body: { verificationId: "v-1" } });
     await probe.widgetStart({ tenant: "QA-W", phoneRole: "ROBOT-1" });
     const [withToken, without] = requests.filter((r) => r.url === `${API}/widget/start`);
     expect(JSON.parse(withToken!.body!)).toEqual({ widgetKey: "wk-1", phone: "+14165550101", turnstileToken: "XXXX.DUMMY.TOKEN.XXXX" });
     expect(JSON.parse(without!.body!)).toEqual({ widgetKey: "wk-1", phone: "+14165550101" });
     expect(withToken!.headers.authorization).toBeUndefined();
-    expect(await probe.widgetVerify({ verificationId: "v-1", code: "123456", message: "hi" })).toMatchObject({ status: 422, code: "validation_failed" });
-    expect(await probe.widgetVerifications({ tenant: "QA-W", since: NOW })).toBe(2);
+    await expect(probe.widgetVerify({ verificationId: "v-1", code: "123456", message: "hi" })).resolves.toMatchObject({ status: 422, code: "validation_failed" });
+    await expect(probe.widgetVerifications({ tenant: "QA-W", since: NOW })).resolves.toBe(2);
   });
 });
 
@@ -470,7 +471,7 @@ describe("the app probe's kept sign-ins", () => {
       await probeWith(route, stateDir).probe.voiceToken({ member: "qa-w-owner" });
       const refused = [json({ error: { code: "unauthorized" } }, 401), json({ token: "voice" })];
       const later = probeWith({ [`POST ${API}/v1/webrtc/token`]: () => refused.shift()! }, stateDir);
-      expect(await later.probe.voiceToken({ member: "qa-w-owner" })).toEqual({ status: 200 });
+      await expect(later.probe.voiceToken({ member: "qa-w-owner" })).resolves.toEqual({ status: 200 });
       expect(logins(later.requests)).toHaveLength(1);
     });
   });
@@ -504,7 +505,7 @@ describe("the app probe's sign-ins and mail", () => {
   it("signs in with the password and the seed's TOTP code, and asks the API with the second-level session", async () => {
     const second = jwt({ sub: OWNER, aal: "aal2" });
     const { probe, requests } = probeWith(totpRoutes(json({ access_token: second })));
-    expect(await probe.signInWithTotp({ member: "qa-w-mfa-member" })).toEqual({ aal: "aal2", meStatus: 200 });
+    await expect(probe.signInWithTotp({ member: "qa-w-mfa-member" })).resolves.toEqual({ aal: "aal2", meStatus: 200 });
     const verify = requests.find((r) => r.url.endsWith("/factors/f-1/verify"))!;
     expect(JSON.parse(verify.body!)).toEqual({ challenge_id: "c-1", code: totpCode(rfcSeed, NOW) });
     expect(requests.find((r) => r.url === `${API}/v1/me`)!.headers.authorization).toBe(`Bearer ${second}`);
@@ -512,7 +513,7 @@ describe("the app probe's sign-ins and mail", () => {
 
   it("reports a refused code as no level, and refuses a member with no secret or no factor", async () => {
     const refused = probeWith(totpRoutes(json({ error: "invalid code" }, 422)));
-    expect(await refused.probe.signInWithTotp({ member: "qa-w-mfa-member" })).toEqual({ aal: null, meStatus: 422 });
+    await expect(refused.probe.signInWithTotp({ member: "qa-w-mfa-member" })).resolves.toEqual({ aal: null, meStatus: 422 });
     expect(refused.requests.some((r) => r.url === `${API}/v1/me`)).toBe(false);
 
     await expect(probeWith({}).probe.signInWithTotp({ member: "qa-w-owner" })).rejects.toThrow(/no TOTP secret/);
@@ -522,7 +523,7 @@ describe("the app probe's sign-ins and mail", () => {
 
   it("asks local auth to mail a member's reset to the seed's address", async () => {
     const { probe, requests } = probeWith({ [`POST ${SUPABASE}/auth/v1/recover`]: () => json({}, 200) });
-    expect(await probe.sendPasswordReset({ member: "qa-w-technician" })).toBe(200);
+    await expect(probe.sendPasswordReset({ member: "qa-w-technician" })).resolves.toBe(200);
     expect(JSON.parse(requests[0]!.body!)).toEqual({ email: "delivered+rig-qa-w-technician@resend.dev" });
     expect(requests[0]!.headers.apikey).toBe("publishable");
   });
@@ -532,7 +533,7 @@ describe("the app probe's sign-ins and mail", () => {
       [`POST ${API}/v1/invites`]: () => json({ id: "inv-1", email: "x@example.invalid", role: "member", email_sent: true }, 201),
       [`DELETE ${API}/v1/invites/inv-1`]: noContent,
     });
-    expect(await probe.invite({ member: "qa-w-owner", email: "x@example.invalid" })).toMatchObject({ status: 201, body: { id: "inv-1" } });
+    await expect(probe.invite({ member: "qa-w-owner", email: "x@example.invalid" })).resolves.toMatchObject({ status: 201, body: { id: "inv-1" } });
     expect(JSON.parse(requests.find((r) => r.method === "POST" && r.url.endsWith("/v1/invites"))!.body!)).toEqual({ email: "x@example.invalid", role: "member" });
     await probe.revokeInvite({ member: "qa-w-owner", inviteId: "inv-1" });
     const revoke = requests.at(-1)!;
@@ -545,14 +546,14 @@ describe("the app probe's workspaces", () => {
     const { probe, requests } = probeWith({
       [`GET ${rest("companies")}`]: () => json([{ id: "company-new", subscription_status: "trialing", stripe_subscription_id: null, stripe_customer_id: null }]),
     });
-    expect(await probe.workspaceOf({ ownerEmail: SIGN_UP_EMAIL.toUpperCase() })).toEqual({
+    await expect(probe.workspaceOf({ ownerEmail: SIGN_UP_EMAIL.toUpperCase() })).resolves.toEqual({
       company_id: "company-new",
       subscription_status: "trialing",
       stripe_subscription_id: null,
       stripe_customer_id: null,
     });
     expect(query(requests.find((r) => r.url.startsWith(rest("companies")))!)).toMatchObject({ owner_user_id: `eq.${SIGN_UP_USER}`, deleted_at: "is.null" });
-    expect(await probe.workspaceOf({ ownerEmail: "nobody@example.invalid" })).toBeNull();
+    await expect(probe.workspaceOf({ ownerEmail: "nobody@example.invalid" })).resolves.toBeNull();
   });
 
   it("removes only a sign-up scenario's own user and workspace, never a seeded member", async () => {
@@ -602,7 +603,7 @@ describe("the app probe's workspaces", () => {
     expect(seeded.requests).toEqual([]);
 
     const { probe, requests } = probeWith({ [`POST ${SUPABASE}/auth/v1/admin/users`]: () => json({ id: "new" }, 200) });
-    expect(await probe.createMailAccount({ email: mine })).toBe(200);
+    await expect(probe.createMailAccount({ email: mine })).resolves.toBe(200);
     const create = requests.find((r) => r.method === "POST")!;
     expect(create.headers.authorization).toBe("Bearer service");
     const body = JSON.parse(create.body!);
@@ -629,7 +630,7 @@ describe("the app probe's workspaces", () => {
       fetch: known.fetch,
       now: () => NOW,
     });
-    expect(await probe.createMailAccount({ email: mine })).toBe(200);
+    await expect(probe.createMailAccount({ email: mine })).resolves.toBe(200);
     expect(known.requests.map((r) => r.method)).toEqual(["GET"]);
     await probe.deleteMailAccount({ email: mine });
     expect(known.requests.at(-1)).toMatchObject({ method: "DELETE", url: `${SUPABASE}/auth/v1/admin/users/acct-1` });
@@ -695,7 +696,7 @@ describe("the app probe's workspaces", () => {
       [`GET ${rest("companies")}`]: () => json([{ id: "company-new" }]),
       [`GET ${rest("phone_numbers")}?company_id`]: () => json([{ id: "fixture-left", provisioning_key: signUpNumberKey("x") }, { id: "bought-1", provisioning_key: "cs_test_1" }]),
     });
-    expect(await leak.probe.signUpNumberLeak()).toEqual({ fixtures: 1, foreign: ["bought-1"] });
+    await expect(leak.probe.signUpNumberLeak()).resolves.toEqual({ fixtures: 1, foreign: ["bought-1"] });
     expect(query(leak.requests.find((r) => r.url.startsWith(rest("companies")))!)).toMatchObject({ owner_user_id: `in.(${SIGN_UP_USER})` });
   });
 
@@ -708,7 +709,7 @@ describe("the app probe's workspaces", () => {
     await expect(probe.muteSignUpMail({ email: "delivered+rig-qa-w-owner@resend.dev" })).rejects.toThrow(/sign-up scenario/);
     await probe.muteSignUpMail({ email: SIGN_UP_EMAIL });
     expect(JSON.parse(requests.at(-1)!.body!)).toEqual({ email: SIGN_UP_EMAIL, reason: "hard_bounce", cleared_at: null });
-    expect(await probe.checkoutEvent({ ownerEmail: SIGN_UP_EMAIL })).toEqual({ session_id: "cs_test_1", processed: true, last_error: null });
+    await expect(probe.checkoutEvent({ ownerEmail: SIGN_UP_EMAIL })).resolves.toEqual({ session_id: "cs_test_1", processed: true, last_error: null });
     expect(query(requests.at(-1)!)).toMatchObject({ event_type: "eq.checkout.session.completed", "payload->data->object->>client_reference_id": "eq.company-new" });
   });
 
@@ -732,7 +733,7 @@ describe("the app probe's workspaces", () => {
   it("reads the subscription the company row names", async () => {
     const answers = [[{ stripe_subscription_id: "sub_1" }], []];
     const { probe } = probeWith({ [`GET ${rest("companies")}`]: () => json(answers.shift()) });
-    expect(await probe.stripeSubscriptionId("QA-W")).toBe("sub_1");
-    expect(await probe.stripeSubscriptionId("QA-W")).toBeNull();
+    await expect(probe.stripeSubscriptionId("QA-W")).resolves.toBe("sub_1");
+    await expect(probe.stripeSubscriptionId("QA-W")).resolves.toBeNull();
   });
 });

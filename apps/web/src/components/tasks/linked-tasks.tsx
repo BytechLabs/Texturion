@@ -66,9 +66,9 @@ function LinkedRow({ row }: { row: LinkedTask }) {
   const t = useT();
   const how = row.how.includes("mentioned")
     ? t("tasks.linkedHowMentioned")
-    : row.how.includes("points_at")
+    : (row.how.includes("points_at")
       ? t("tasks.linkedHowPointsAt")
-      : null;
+      : null);
   return (
     <li>
       <Link

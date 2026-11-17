@@ -62,7 +62,7 @@ export function OutstandingQuotesSection() {
 
   const rows = (quotes.data?.data ?? [])
     .slice()
-    .sort((a, b) => (a.sent_at ?? "").localeCompare(b.sent_at ?? ""))
+    .toSorted((a, b) => (a.sent_at ?? "").localeCompare(b.sent_at ?? ""))
     .slice(0, OUTSTANDING_QUOTES_LIMIT);
 
   // Absent entirely when nothing is waiting. A workspace that has answered
@@ -104,7 +104,7 @@ export function OutstandingQuotesSection() {
             </Link>
             {canChase && (
               <ChaseButton
-                chased={chased[quote.id] === true}
+                chased={chased[quote.id]}
                 pending={
                   snooze.isPending &&
                   snooze.variables?.conversationId === quote.conversation_id

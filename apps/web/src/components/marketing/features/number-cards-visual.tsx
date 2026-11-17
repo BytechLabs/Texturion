@@ -11,10 +11,8 @@
  * Server component, static DOM, 555-01XX safe fictional numbers.
  */
 
-import {
-  businessNumberCopy,
-  type BusinessNumberCopy,
-} from "@/i18n/marketing/business-number";
+import { businessNumberCopy } from '@/i18n/marketing/business-number';
+import type { BusinessNumberCopy } from '@/i18n/marketing/business-number';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { CheckCircle2, Phone } from "lucide-react";
 

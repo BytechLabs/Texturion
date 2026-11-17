@@ -40,7 +40,7 @@ function parseColumnDefault(sql: string | null): unknown {
   if (/^-?\d+(\.\d+)?$/.test(sql)) return Number(sql);
   const quoted = /^'((?:[^']|'')*)'::([\w ]+)$/.exec(sql);
   if (quoted) {
-    const text = quoted[1]!.replace(/''/g, "'");
+    const text = quoted[1].replaceAll('\'\'', "'");
     return quoted[2] === "jsonb" ? JSON.parse(text) : text;
   }
   throw new Error(`cannot read the column default ${sql}`);
@@ -109,8 +109,8 @@ describe("every setting's default is written once (#749)", () => {
       hits.filter((hit) => !(hit in NOT_THE_SETTING)),
       "read the default from companySettingDefault() or NOTIFICATION_SETTING_DEFAULTS",
     ).toEqual([]);
-    expect(excused.sort(), "an exception that matches nothing any more").toEqual(
-      Object.keys(NOT_THE_SETTING).sort(),
+    expect(excused.toSorted(), "an exception that matches nothing any more").toEqual(
+      Object.keys(NOT_THE_SETTING).toSorted(),
     );
   });
 });

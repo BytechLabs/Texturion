@@ -2,7 +2,6 @@ import { spawnSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -16,7 +15,7 @@ import { afterEach, describe, expect, it } from "vitest";
  * so this file holds nothing a secret scanner would stop.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 const SCRIPT = join(REPO, "scripts", "check-local-secrets.mjs");
 
 type Found = { shape: string; count: number };
@@ -39,7 +38,7 @@ const guard = (await import(join(REPO, "scripts", "check-local-secrets.mjs"))) a
 const live = {
   stripe: ["sk", "live", "readablestemforthistest"].join("_"),
   restricted: ["rk", "live", "readablestemforthistest"].join("_"),
-  telnyx: `KEY${"ABCDEF".repeat(5)}_${"readablestem"}`,
+  telnyx: `KEY${"ABCDEF".repeat(5)}_readablestem`,
   supabase: ["sb", "secret", "readable-stem-for-this-test"].join("_"),
   pooler:
     "postgresql://postgres.projectrefstem:" + "stem-password-for-a-test" + "@aws-0-us-east-1.pooler." +
@@ -61,7 +60,7 @@ describe("what it reads as a live secret", () => {
   });
 
   it("names five shapes, and every one is exercised above", () => {
-    expect(guard.SHAPES.map((shape) => shape.name).sort()).toEqual([
+    expect(guard.SHAPES.map((shape) => shape.name).toSorted()).toEqual([
       "pooler-url-with-password",
       "stripe-live-restricted-key",
       "stripe-live-secret-key",
@@ -94,19 +93,19 @@ describe("what it reads through escapes", () => {
   ];
 
   it("reads every shape in a JSON string, a transcript's line", () => {
-    expect(shapesOf(JSON.stringify(`${everyKey}\n`)).sort()).toEqual(allFive);
+    expect(shapesOf(JSON.stringify(`${everyKey}\n`)).toSorted()).toEqual(allFive);
   });
 
   it("reads them escaped twice, as in a JSON dump of a JSON log", () => {
-    expect(shapesOf(JSON.stringify(JSON.stringify(`${everyKey}\n`))).sort()).toEqual(allFive);
+    expect(shapesOf(JSON.stringify(JSON.stringify(`${everyKey}\n`))).toSorted()).toEqual(allFive);
   });
 
   it("reads them URL-encoded, as in a request log or a HAR file", () => {
     expect(shapesOf(`Authorization: Bearer%20${live.stripe}`)).toEqual(["stripe-live-secret-key"]);
-    expect(shapesOf(`next=${encodeURIComponent(everyKey)}`).sort()).toEqual(allFive);
+    expect(shapesOf(`next=${encodeURIComponent(everyKey)}`).toSorted()).toEqual(allFive);
   });
 
-  it("reads them escaped as \\u sequences", () => {
+  it(String.raw`reads them escaped as \u sequences`, () => {
     const escaped = `token\\u003d${live.supabase}`;
     expect(shapesOf(escaped)).toEqual(["supabase-secret-key"]);
   });
@@ -116,7 +115,7 @@ describe("what it reads through escapes", () => {
   });
 
   it("still passes a prefix inside an identifier, escaped or not", () => {
-    const buried = "FEATURE" + ["sk", "live", "readablestemforthistest"].join("_");
+    const buried = `FEATURE${  ["sk", "live", "readablestemforthistest"].join("_")}`;
     expect(shapesOf(JSON.stringify(`${buried}\n`))).toEqual([]);
   });
 });
@@ -127,9 +126,9 @@ describe("what passes", () => {
     ["a test-mode Stripe key", ["sk", "test", "readablestemforthistest"].join("_")],
     ["a short Telnyx-looking literal", "KEY0123456789ABCDEF"],
     ["the placeholder hex run", `KEY${"0123456789ABCDEF".repeat(2)}`],
-    ["a run of x", "sb_secret_" + "x".repeat(24)],
+    ["a run of x", `sb_secret_${  "x".repeat(24)}`],
     ["a fixture that says so", ["sk", "live", "not", "a", "real", "key"].join("_")],
-    ["a prefix inside an identifier", "FEATURE" + ["sk", "live", "readablestemforthistest"].join("_")],
+    ["a prefix inside an identifier", `FEATURE${  ["sk", "live", "readablestemforthistest"].join("_")}`],
     ["a password placeholder", "postgresql://postgres.<ref>:<password>@aws-0-us-east-1.pooler." + "supabase.com:5432/postgres"],
     ["the dashboard's placeholder", "postgresql://postgres.ref:[YOUR-PASSWORD]@aws-0-us-east-1.pooler." + "supabase.com:6543/postgres"],
     ["a template", "postgresql://postgres.${ref}:${password}@${host}:5432/postgres"],
@@ -224,7 +223,7 @@ describe("on a checkout", () => {
   });
 
   it("refuses a key in a transcript, a request log, a UTF-16 file and a binary", { timeout: 60_000 }, () => {
-    const byteOrderMark = String.fromCharCode(0xfeff);
+    const byteOrderMark = String.fromCharCode(0xFE_FF);
     const utf16 = (text: string) => Buffer.from(`${byteOrderMark}${text}`, "utf16le");
     const dir = checkout({
       "transcript.jsonl": `${JSON.stringify({ text: `${live.supabase}\n${live.telnyx}\n` })}\n`,

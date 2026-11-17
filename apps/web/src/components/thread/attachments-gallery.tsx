@@ -21,14 +21,8 @@ import { cn } from "@/lib/utils";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 
-import {
-  fileLabel,
-  formatBytes,
-  groupByDate,
-  itemsForTab,
-  sourceLabel,
-  type GalleryTab,
-} from "./gallery-grouping";
+import { fileLabel, formatBytes, groupByDate, itemsForTab, sourceLabel } from './gallery-grouping';
+import type { GalleryTab } from './gallery-grouping';
 
 /**
  * The attachments gallery (§5.2 — Telegram "Shared Media" trimmed to a

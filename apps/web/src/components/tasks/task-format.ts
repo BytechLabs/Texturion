@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 import type { Task, TaskSourceCall, TaskSourceMessage } from "@/lib/api/types";
 import { threadHref } from "@/lib/inbox/thread-href";
 import { formatPhone } from "@/lib/format/phone";
@@ -51,7 +52,7 @@ export function taskCallerName(
   task: Pick<Task, "call">,
   t: Translate,
 ): string | null {
-  const call = task.call;
+  const {call} = task;
   if (!call) return null;
   if (call.caller_name) return call.caller_name;
   if (call.caller_e164) return formatPhone(call.caller_e164);

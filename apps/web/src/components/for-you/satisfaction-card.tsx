@@ -36,16 +36,14 @@ import { ProportionRing } from "@/components/ui/proportion-ring";
 import { LoadError } from "@/components/ui/load-error";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
+import { useSatisfaction } from '@/lib/api/reports';
+import type { ResponseTimeWindow, SatisfactionReport } from '@/lib/api/reports';
 import {
-  useSatisfaction,
-  type ResponseTimeWindow,
-  type SatisfactionReport,
-} from "@/lib/api/reports";
-import {
-  SATISFACTION_COPY,
   formatSatisfaction,
   poorRatingLine,
+  SATISFACTION_COPY,
   satisfactionArcDirection,
 } from "@loonext/shared";
 import { cn } from "@/lib/utils";

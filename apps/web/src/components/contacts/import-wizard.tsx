@@ -22,26 +22,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useT, type MessageKey, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey, Translate } from '@/i18n/provider';
 import { useImportContacts } from "@/lib/api/contacts";
 import { csvDownloadBlob } from "@/lib/api/contacts-export";
 import { ApiError } from "@/lib/api/error";
-import {
-  answerColumn,
-  answerRemaining,
-  buildPreview,
-  csvRows,
-  decideColumns,
-  importColumns,
-  IMPORT_FIELDS,
-  SAMPLE_VALUE_LIMIT,
-  skippedRowsCsv,
-  summarizePreview,
-  type ColumnAnswer,
-  type CsvRow,
-  type ImportColumn,
-  type ImportField,
-} from "@/lib/contacts/csv-import";
+import { answerColumn, answerRemaining, buildPreview, csvRows, decideColumns, IMPORT_FIELDS, importColumns, SAMPLE_VALUE_LIMIT, skippedRowsCsv, summarizePreview } from '@/lib/contacts/csv-import';
+import type { ColumnAnswer, CsvRow, ImportColumn, ImportField } from '@/lib/contacts/csv-import';
 import type { ImportResult } from "@/lib/api/types";
 import {
   CONTACT_IMPORT_IGNORE,
@@ -51,9 +38,8 @@ import {
   contactImportHiddenValuesLabel,
   contactImportShowAllValuesLabel,
   contactImportValueCeilingNote,
-  readContactFlag,
-  FLAG_TRUE_SPELLINGS,
   FLAG_FALSE_SPELLINGS,
+  FLAG_TRUE_SPELLINGS,
   unreadableFlagValues,
 } from "@loonext/shared";
 
@@ -227,7 +213,7 @@ function ColumnRow({
           {showAll && (
             <button
               type="button"
-              aria-expanded={true}
+              aria-expanded
               onClick={() => setShowAll(false)}
               className="rounded text-xs underline underline-offset-2 hover:text-foreground focus-visible:ring-2 focus-visible:ring-ring focus-visible:outline-none"
             >
@@ -503,7 +489,7 @@ export function ImportWizard({
               aria-label={t("contacts.csvFileInput")}
               onChange={(event) => {
                 const chosen = event.target.files?.[0];
-                if (chosen) handleFile(chosen);
+                if (chosen) void handleFile(chosen);
                 event.target.value = "";
               }}
             />
@@ -759,9 +745,9 @@ export function ImportWizard({
                     ? "contacts.gateAnswerEvery"
                     : decision.conflicts.length > 0
                       ? "contacts.gateConflict"
-                      : unreadableFlag !== null
-                        ? "contacts.gateUnreadable"
-                        : "contacts.gatePhone",
+                      : unreadableFlag === null
+                        ? "contacts.gatePhone"
+                        : "contacts.gateUnreadable",
                 )}
               </p>
             )}

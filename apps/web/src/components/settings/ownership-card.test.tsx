@@ -120,7 +120,7 @@ import { OwnershipCard } from "./ownership-card";
 
 const render = () => renderToStaticMarkup(<OwnershipCard members={members} />);
 
-describe("OwnershipCard", () => {
+describe(OwnershipCard, () => {
   it("tells an owner with no backup that nobody is named", () => {
     state = { ...state, i_am_owner: true, backup_member_id: null };
     const html = render();
@@ -444,7 +444,7 @@ describe("…and when the server asks who is doing this", () => {
     mutate.mockImplementation((_input: unknown, handlers?: {
       onError?: (error: unknown) => void;
     }) => {
-      handlers?.onError?.(new ApiError("conflict" as never, "Already in flight", 409));
+      handlers?.onError?.(new ApiError("conflict", "Already in flight", 409));
     });
     mount(<OwnershipCard members={members} />);
     fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));

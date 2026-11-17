@@ -11,8 +11,8 @@ import { describe, expect, it } from "vitest";
 
 import { exportPartText } from "../test/support";
 import {
-  HISTORY_MESSAGE_CAP,
   buildConversationHistory,
+  HISTORY_MESSAGE_CAP,
   renderHistoryDocument,
 } from "./history-export";
 

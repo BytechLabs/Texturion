@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { deletedMessageKey } from "./delete-message";
 
-describe("deletedMessageKey", () => {
+describe(deletedMessageKey, () => {
   it("warns that a sent text stays on the customer's phone", () => {
     expect(deletedMessageKey({ direction: "outbound", status: "delivered" })).toBe(
       "trash.messageDeletedSent",

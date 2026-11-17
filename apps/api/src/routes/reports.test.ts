@@ -16,20 +16,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { reportsRoutes } from "./reports";
 
 const env = completeEnv();
@@ -70,7 +60,7 @@ function statsPayload(
   const answered = rows
     .map((r) => r.response_seconds)
     .filter((s): s is number => s !== null)
-    .sort((a, b) => a - b);
+    .toSorted((a, b) => a - b);
   const mid = Math.floor(answered.length / 2);
   return {
     leads: rows.length,
@@ -79,9 +69,9 @@ function statsPayload(
     median_seconds:
       answered.length === 0
         ? null
-        : answered.length % 2 === 0
+        : (answered.length % 2 === 0
           ? (answered[mid - 1] + answered[mid]) / 2
-          : answered[mid],
+          : answered[mid]),
     p90_seconds: answered.at(-1) ?? null,
     by_member: [],
     by_number: [],

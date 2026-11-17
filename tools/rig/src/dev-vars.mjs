@@ -69,7 +69,7 @@ export function firebaseProjectId(store) {
 export function dotenvValue(value) {
   if (/^[A-Za-z0-9_./:@+=,%*-]*$/.test(value)) return value;
   if (!value.includes("'") && !value.includes("\n")) return `'${value}'`;
-  if (!value.includes('"') && !value.includes("\\")) return `"${value.replace(/\n/g, "\\n")}"`;
+  if (!value.includes('"') && !value.includes("\\")) return `"${value.replaceAll('\n', String.raw`\n`)}"`;
   throw new Error("rig dev-vars: a value holds both quote kinds or a backslash beside a newline");
 }
 
@@ -92,7 +92,7 @@ export function renderDevVars(template, context) {
     const eq = line.indexOf("=");
     const key = line.slice(0, eq);
     let dropped = false;
-    const value = line.slice(eq + 1).replace(PLACEHOLDER, (whole, kind, optional, sep, name, edge) => {
+    const value = line.slice(eq + 1).replaceAll(PLACEHOLDER, (whole, kind, optional, sep, name, edge) => {
       let resolved;
       if (edge) resolved = context.edge;
       else if (kind === "secret" && sep === ":") resolved = context.store.readOptional(name);
@@ -139,7 +139,7 @@ export function parseDevVars(text) {
     const eq = line.indexOf("=");
     let value = line.slice(eq + 1);
     if (value.startsWith("'") && value.endsWith("'")) value = value.slice(1, -1);
-    else if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1).replace(/\\n/g, "\n");
+    else if (value.startsWith('"') && value.endsWith('"')) value = value.slice(1, -1).replaceAll(String.raw`\n`, "\n");
     vars[line.slice(0, eq)] = value;
   }
   return vars;

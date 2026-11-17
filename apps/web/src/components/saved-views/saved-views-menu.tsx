@@ -1,6 +1,7 @@
 "use client";
 
-import { formatViewCount, type SavedViewFilters, type SavedViewSurface } from "@loonext/shared";
+import { formatViewCount } from '@loonext/shared';
+import type { SavedViewFilters, SavedViewSurface } from '@loonext/shared';
 import { Bookmark, Check, Pencil, Star, Trash2, Users } from "lucide-react";
 import { useMemo, useState } from "react";
 
@@ -26,15 +27,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
-import {
-  useCreateSavedView,
-  useDeleteSavedView,
-  useSavedViewCounts,
-  useSavedViews,
-  useSetDefaultSavedView,
-  useUpdateSavedView,
-  type SavedView,
-} from "@/lib/api/saved-views";
+import { useCreateSavedView, useDeleteSavedView, useSavedViewCounts, useSavedViews, useSetDefaultSavedView, useUpdateSavedView } from '@/lib/api/saved-views';
+import type { SavedView } from '@/lib/api/saved-views';
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
@@ -278,8 +272,8 @@ function SaveViewDialog({
                   ...(shared ? { shared: true } : {}),
                 })
                 .then(() => onOpenChange(false))
-                .catch((cause: unknown) => {
-                  setError(cause instanceof ApiError ? cause.message : t("inbox.viewSaveFailed"));
+                .catch((error_: unknown) => {
+                  setError(error_ instanceof ApiError ? error_.message : t("inbox.viewSaveFailed"));
                 });
             }}
           >
@@ -489,8 +483,8 @@ function RenameViewDialog({
               update
                 .mutateAsync({ id: view.id, surface, name: name.trim() })
                 .then(onClose)
-                .catch((cause: unknown) => {
-                  setError(cause instanceof ApiError ? cause.message : t("inbox.viewRenameFailed"));
+                .catch((error_: unknown) => {
+                  setError(error_ instanceof ApiError ? error_.message : t("inbox.viewRenameFailed"));
                 });
             }}
           >

@@ -1,15 +1,5 @@
-import {
-  type CallerClass,
-  type DetachRequest,
-  EDGE_CALLER,
-  EDGE_ONLY_ROUTES,
-  GUARD_ROUTES,
-  type HaltRequest,
-  HEADER,
-  type LegRegistration,
-  PARTITION_CACHE_MS,
-  type Partition,
-} from "@loonext/rig-protocol";
+import { EDGE_CALLER, EDGE_ONLY_ROUTES, GUARD_ROUTES, HEADER, PARTITION_CACHE_MS } from '@loonext/rig-protocol';
+import type { CallerClass, DetachRequest, HaltRequest, LegRegistration, Partition } from '@loonext/rig-protocol';
 
 import type { Env } from "./env";
 import { json } from "./http";
@@ -17,7 +7,7 @@ import { json } from "./http";
 /** The service binding ignores the host; a fixed one keeps the edge's out of guard logic. */
 const GUARD_ORIGIN = "https://guard.internal";
 
-export const GUARD_CALL_TIMEOUT_MS = 3_000;
+export const GUARD_CALL_TIMEOUT_MS = 3000;
 
 /** One call of the edge's own. Throws on a network failure or timeout. */
 export async function guardCall(
@@ -48,8 +38,8 @@ export async function guardPost(
     const response = await guardCall(env, "POST", route, body, timeoutMs);
     if (!response.ok) console.warn(`guard ${route}: ${response.status}`);
     return response.ok;
-  } catch (cause) {
-    console.warn(`guard ${route}: ${cause instanceof Error ? cause.message : String(cause)}`);
+  } catch (error) {
+    console.warn(`guard ${route}: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }
@@ -83,7 +73,7 @@ export async function registerLegOnce(
   const at = registeredLegs.get(leg.call_control_id);
   if (at !== undefined && now - at < REGISTERED_LEG_MEMORY_MS) return;
   if (await registerLeg(env, leg, timeoutMs)) {
-    if (registeredLegs.size > 5_000) registeredLegs.clear();
+    if (registeredLegs.size > 5000) registeredLegs.clear();
     registeredLegs.set(leg.call_control_id, now);
   }
 }
@@ -91,7 +81,7 @@ export async function registerLegOnce(
 /** A cached partition older than this is not used even when the guard is down. */
 const PARTITION_STALE_MAX_MS = 60 * 60 * 1000;
 /** Telnyx wants a messaging 2xx within 2 seconds, so a cold fetch gets less. */
-const PARTITION_TIMEOUT_MS = 1_500;
+const PARTITION_TIMEOUT_MS = 1500;
 
 let cachedPartition: { partition: Partition; fetchedAt: number } | null = null;
 
@@ -120,8 +110,8 @@ async function fetchPartition(env: Env): Promise<Partition | null> {
     }
     const body: unknown = await response.json();
     return isPartition(body) ? body : null;
-  } catch (cause) {
-    console.warn(`guard partition: ${cause instanceof Error ? cause.message : String(cause)}`);
+  } catch (error) {
+    console.warn(`guard partition: ${error instanceof Error ? error.message : String(error)}`);
     return null;
   }
 }
@@ -167,7 +157,7 @@ const CALLER_RIG_HEADERS = new Set<string>([HEADER.lease, HEADER.scenario]);
 export function isEdgeOnly(route: string): boolean {
   let folded: string;
   try {
-    folded = decodeURIComponent(route).toLowerCase().replace(/\/{2,}/g, "/");
+    folded = decodeURIComponent(route).toLowerCase().replaceAll(/\/{2,}/g, "/");
   } catch {
     return true;
   }

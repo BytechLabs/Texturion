@@ -46,7 +46,7 @@ export async function installationToken(
   const installation = await doFetch(`${GITHUB_API}/repos/${owner}/${name}/installation`, { headers: githubHeaders(jwt) });
   if (!installation.ok) throw new Error(`github app: installation lookup returned ${installation.status}`);
   const { id } = (await installation.json()) as { id?: number };
-  if (typeof id !== "number") throw new Error("github app: no installation id");
+  if (typeof id !== "number") throw new TypeError("github app: no installation id");
   const minted = await doFetch(`${GITHUB_API}/app/installations/${id}/access_tokens`, {
     method: "POST",
     headers: { ...githubHeaders(jwt), "content-type": "application/json" },

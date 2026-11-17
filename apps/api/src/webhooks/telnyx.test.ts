@@ -14,23 +14,14 @@ import type { Env } from "../env";
 // Resolved to the contract double (vitest alias) until src/telnyx lands in
 // the integrated tree; the double is a vi.fn so forwarding is assertable.
 import { handle10dlcEvent } from "../telnyx/registration";
-import {
-  messageReceivedEvent,
-  pgUniqueViolation,
-  restMatch,
-  rpcMatch,
-  signedTelnyxRequest,
-  storageUploadMatch,
-  stubRoute,
-  telnyxSigningKeys,
-  testExecutionContext,
-  type Stub,
-} from "../test/messaging-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { messageReceivedEvent, pgUniqueViolation, restMatch, rpcMatch, signedTelnyxRequest, storageUploadMatch, stubRoute, telnyxSigningKeys, testExecutionContext } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { eventsCaptured, exceptionsCaptured, resetCaptures } from "../test/capture-mock";
 import { telnyxWebhookRoute } from "./telnyx";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -203,7 +194,7 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     });
     const { response, flush } = await deliver(event);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ received: true });
+    await expect(response.json()).resolves.toEqual({ received: true });
     await flush();
 
     // Ledger row carried the full event.
@@ -264,7 +255,7 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     await first.flush();
     const second = await deliver(event);
     expect(second.response.status).toBe(200);
-    expect(await second.response.json()).toEqual({
+    await expect(second.response.json()).resolves.toEqual({
       received: true,
       duplicate: true,
     });
@@ -357,7 +348,7 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     const initiated = await deliver(
       leg("call.initiated", "e8e8e8e8-0000-4000-8000-000000000008", { direction: "incoming" }),
     );
-    expect(await initiated.response.json()).toEqual({ received: true, ignored: true });
+    await expect(initiated.response.json()).resolves.toEqual({ received: true, ignored: true });
     await initiated.flush();
     await (await deliver(leg("call.hangup", "e9e9e9e9-0000-4000-8000-000000000009"))).flush();
 
@@ -441,7 +432,7 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     expect(response.status).toBe(200);
     await flush();
 
-    expect(handle10dlcEvent).toHaveBeenCalledTimes(1);
+    expect(handle10dlcEvent).toHaveBeenCalledOnce();
     expect(handle10dlcEvent).toHaveBeenCalledWith(env, event);
     expect(ledger.stamp.calls).toHaveLength(1);
   });
@@ -575,7 +566,7 @@ describe("inbound pipeline — opt-out keywords (§5)", () => {
       opted_out: true,
     });
     expect(optOutRevoke.calls).toHaveLength(1);
-    const url = optOutRevoke.calls[0].url;
+    const {url} = optOutRevoke.calls[0];
     expect(url.searchParams.get("phone_e164")).toBe("eq.+16135551000");
     expect(url.searchParams.get("revoked_at")).toBe("is.null");
     expect(events.calls).toHaveLength(1);
@@ -727,7 +718,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
     const mediaDownload = stubRoute(
       (url, request) => request.method === "GET" && url.href.startsWith(MEDIA_URL),
       () =>
-        new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), {
+        new Response(new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0]), {
           headers: { "content-type": "image/jpeg" },
         }),
     );
@@ -824,7 +815,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       (url, request) =>
         request.method === "GET" && url.href.startsWith(MEDIA_URL),
       () =>
-        new Response(new Uint8Array([0x50, 0x4b, 0x03, 0x04]), {
+        new Response(new Uint8Array([0x50, 0x4B, 0x03, 0x04]), {
           headers: { "content-type": "application/zip" },
         }),
     );
@@ -859,7 +850,7 @@ describe("inbound pipeline — MMS media (§7)", () => {
       (url, request) =>
         request.method === "GET" && url.href.startsWith(MEDIA_URL),
       () =>
-        new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), {
+        new Response(new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0]), {
           headers: { "content-type": "image/jpeg" },
         }),
     );

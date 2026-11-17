@@ -46,28 +46,8 @@ import { describe, expect, it } from "vitest";
 
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import { workersAiTokenPrice } from "../billing/workers-ai-prices";
-import {
-  buildSummaryMessages,
-  parseSummaryOutput,
-  sanitizeSummary,
-  selectSummaryWindow,
-  summaryEnvelopeShape,
-  THREAD_SUMMARY_CONTEXT_MESSAGES,
-  THREAD_SUMMARY_FEATURE_SPEC,
-  THREAD_SUMMARY_MAX_LINE_CHARS,
-  THREAD_SUMMARY_MAX_LINES,
-  THREAD_SUMMARY_MAX_LINES_PER_SECTION,
-  THREAD_SUMMARY_MAX_MESSAGE_CHARS,
-  THREAD_SUMMARY_MAX_NAME_CHARS,
-  THREAD_SUMMARY_CHARS_PER_TOKEN,
-  THREAD_SUMMARY_MAX_PROMPT_CHARS,
-  THREAD_SUMMARY_MAX_SYSTEM_PROMPT_CHARS,
-  THREAD_SUMMARY_MODEL,
-  THREAD_SUMMARY_MONTHLY_CAP,
-  THREAD_SUMMARY_TOKEN_RATES_USD_PER_M,
-  THREAD_SUMMARY_WORST_CASE_CENTS,
-  type SummaryMessage,
-} from "./thread-summary";
+import { buildSummaryMessages, parseSummaryOutput, sanitizeSummary, selectSummaryWindow, summaryEnvelopeShape, THREAD_SUMMARY_CHARS_PER_TOKEN, THREAD_SUMMARY_CONTEXT_MESSAGES, THREAD_SUMMARY_FEATURE_SPEC, THREAD_SUMMARY_MAX_LINE_CHARS, THREAD_SUMMARY_MAX_LINES, THREAD_SUMMARY_MAX_LINES_PER_SECTION, THREAD_SUMMARY_MAX_MESSAGE_CHARS, THREAD_SUMMARY_MAX_NAME_CHARS, THREAD_SUMMARY_MAX_PROMPT_CHARS, THREAD_SUMMARY_MAX_SYSTEM_PROMPT_CHARS, THREAD_SUMMARY_MODEL, THREAD_SUMMARY_MONTHLY_CAP, THREAD_SUMMARY_TOKEN_RATES_USD_PER_M, THREAD_SUMMARY_WORST_CASE_CENTS } from './thread-summary';
+import type { SummaryMessage } from './thread-summary';
 
 /** A window message, with sane defaults so a test states only what it means. */
 function message(
@@ -93,7 +73,7 @@ function windowOf(count: number): SummaryMessage[] {
 /** The model envelope Workers AI returns for a text model. */
 const asModel = (value: unknown) => ({ response: JSON.stringify(value) });
 
-describe("selectSummaryWindow", () => {
+describe(selectSummaryWindow, () => {
   it("keeps the NEWEST messages when a thread is longer than the window", () => {
     // The direction is the point. A catch-up written from the oldest forty
     // messages of an eighty-message thread would describe a job that finished
@@ -127,7 +107,7 @@ describe("selectSummaryWindow", () => {
   });
 });
 
-describe("buildSummaryMessages", () => {
+describe(buildSummaryMessages, () => {
   const ctx = {
     companyName: "Bolt Plumbing",
     contactName: "Dana Reyes",
@@ -242,7 +222,7 @@ describe("buildSummaryMessages", () => {
   });
 });
 
-describe("parseSummaryOutput", () => {
+describe(parseSummaryOutput, () => {
   it("reads the documented shape", () => {
     const lines = parseSummaryOutput(
       asModel({ asked: [{ t: "wants the tank replaced", m: 1 }] }),
@@ -871,7 +851,7 @@ describe("sanitizeSummary — shape, ceilings and order", () => {
   });
 });
 
-describe("summaryEnvelopeShape", () => {
+describe(summaryEnvelopeShape, () => {
   it("names the keys and never the contents", () => {
     const shape = summaryEnvelopeShape({ response: "customer agreed to Tuesday" });
     expect(shape).toBe("response");

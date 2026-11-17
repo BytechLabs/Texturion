@@ -11,7 +11,7 @@ import { describe, expect, it } from "vitest";
 
 import { needsStepUp } from "./mfa-step-up";
 
-describe("needsStepUp", () => {
+describe(needsStepUp, () => {
   it("demands a code from a password login on an enrolled account", () => {
     // THE bug. `signInWithPassword` succeeds at aal1, GoTrue says the account
     // should be at aal2, and before this nothing read the second half.

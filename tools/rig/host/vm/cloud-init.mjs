@@ -48,7 +48,7 @@ export function userData({ clientPublicKey, hostPrivateKey, hostPublicKey, ref }
     // Schema-valid (an empty list is not); a supplied key is never regenerated.
     "ssh_genkeytypes: [ed25519]",
     "ssh_keys:",
-    `  ed25519_private: ${q(hostPrivateKey.replace(/\r\n/g, "\n"))}`,
+    `  ed25519_private: ${q(hostPrivateKey.replaceAll('\r\n', "\n"))}`,
     `  ed25519_public: ${q(hostPublicKey.trim())}`,
     // The state disk is formatted once; overwrite false keeps an existing
     // filesystem, so a second first-boot never wipes the secrets.

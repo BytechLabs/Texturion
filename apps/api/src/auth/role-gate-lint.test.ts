@@ -305,7 +305,7 @@ const NON_CONVERSATION_READS: Record<string, string> = {
 function gatedReads(): { name: string; route: string; capability: string }[] {
   const found: { name: string; route: string; capability: string }[] = [];
   for (const { name, src } of routeSources()) {
-    const code = src.replace(/^[ \t]*\/\/.*$/gm, "");
+    const code = src.replaceAll(/^[ \t]*\/\/.*$/gm, "");
     for (const match of code.matchAll(
       /\.get\(\s*"(\/[^"]+)"\s*,\s*requireCapability\("([^"]+)"\)/g,
     )) {
@@ -341,25 +341,14 @@ describe("route gates ask for a capability, not a rank", () => {
   });
 
   it("no route gates on requireRole('admin')", () => {
-    for (const { name, src } of routeSources()) {
-      expect(
-        src.includes('requireRole("admin")'),
-        `${name} gates on the rank 'admin'. Use requireCapability with the ` +
-          `axis it means — billing.manage, settings.manage, team.manage, ` +
-          `numbers.manage, history.read or contacts.bulk (#315).`,
-      ).toBe(false);
+    for (const { src } of routeSources()) {
+      expect(src).not.toContain('requireRole("admin")');
     }
   });
 
   it("no route gates on requireRole('owner')", () => {
-    for (const { name, src } of routeSources()) {
-      expect(
-        src.includes('requireRole("owner")'),
-        `${name} gates on the rank 'owner'. Use ` +
-          `requireCapability("workspace.own") — the irreversible actions ` +
-          `(overage cap, US enablement, number release, ownership transfer, ` +
-          `closing the workspace) are one axis, not a rung (#315).`,
-      ).toBe(false);
+    for (const { src } of routeSources()) {
+      expect(src).not.toContain('requireRole("owner")');
     }
   });
 
@@ -415,10 +404,10 @@ describe("route gates ask for a capability, not a rank", () => {
     }
     expect(
       offenders,
-      "These change state but only demand a capability the read-only observer " +
-        "already has. Either the gate is wrong, or the write is self-scoped " +
-        "and belongs in SELF_SCOPED_WRITES with a reason:\n  " +
-        offenders.join("\n  "),
+      `These change state but only demand a capability the read-only observer ` +
+        `already has. Either the gate is wrong, or the write is self-scoped ` +
+        `and belongs in SELF_SCOPED_WRITES with a reason:\n  ${ 
+        offenders.join("\n  ")}`,
     ).toEqual([]);
     // Guard the guard: this regex is stricter than the one above, so a change
     // in how routes are declared could silently empty it.
@@ -479,10 +468,10 @@ describe("route gates ask for a capability, not a rank", () => {
     }
     expect(
       offenders,
-      "These reads are open to a role that must never see a customer. Either " +
-        "gate them on conversations.read, or add them to " +
-        "NON_CONVERSATION_READS saying what they actually serve:\n  " +
-        offenders.join("\n  "),
+      `These reads are open to a role that must never see a customer. Either ` +
+        `gate them on conversations.read, or add them to ` +
+        `NON_CONVERSATION_READS saying what they actually serve:\n  ${ 
+        offenders.join("\n  ")}`,
     ).toEqual([]);
     // Guard the guard: this regex is the newest in the file, and an empty scan
     // is a passing one.
@@ -507,6 +496,7 @@ describe("route gates ask for a capability, not a rank", () => {
       `NON_CONVERSATION_READS names routes that no longer exist: ${stale.join(", ")}`,
     ).toEqual([]);
   });
+
   it("every write is gated, or says why it needs no gate (#519)", () => {
     // THE ONE THE OTHERS COULD NOT ASK. Every check above starts from a
     // `requireCapability` and reasons about it; a route with none was not
@@ -535,10 +525,10 @@ describe("route gates ask for a capability, not a rank", () => {
     }
     expect(
       offenders,
-      "These change state and ask for no capability at all — not per route, " +
-        "not on the router. Either gate them, or add them to UNGATED_WRITES " +
-        "with which of the three reasons applies (public, pre-company, or the " +
-        "caller's own):\n  " + offenders.join("\n  "),
+      `These change state and ask for no capability at all — not per route, ` +
+        `not on the router. Either gate them, or add them to UNGATED_WRITES ` +
+        `with which of the three reasons applies (public, pre-company, or the ` +
+        `caller's own):\n  ${  offenders.join("\n  ")}`,
     ).toEqual([]);
     // Guard the guard: a change in how routes are declared would otherwise
     // empty this silently, and an empty scan is a passing one.

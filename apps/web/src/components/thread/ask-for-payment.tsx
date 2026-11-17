@@ -4,16 +4,8 @@ import { HandCoins } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import {
-  formatMoney,
-  PAYMENT_DESCRIPTION_MAX,
-  paymentAmountProblem,
-  paymentAmountProblemCopy,
-  paymentRequestSms,
-  resolveLocale,
-  roleHasCapability,
-  type BillingCurrency,
-} from "@loonext/shared";
+import { formatMoney, PAYMENT_DESCRIPTION_MAX, paymentAmountProblem, paymentAmountProblemCopy, paymentRequestSms, resolveLocale, roleHasCapability } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -145,7 +137,7 @@ export function AskForPayment({
   // Not a disabled button. A workspace that cannot charge sees no control at
   // all, and the owner is told why on the settings screen that can fix it.
   if (!canAsk) return null;
-  if (!account.data || account.data.readiness !== "ready") return null;
+  if (account.data?.readiness !== "ready") return null;
 
   async function submit() {
     if (cents === null || problem !== null) return;
@@ -164,13 +156,13 @@ export function AskForPayment({
       // A new key for the next ask: reusing it would let the server dedupe a
       // genuinely different request as a retry of this one.
       setIdempotencyKey(crypto.randomUUID());
-    } catch (cause) {
+    } catch (error) {
       // The server's words. A refusal here is usually a RULE — the customer
       // opted out, the plan lapsed, Stripe is still verifying — and "couldn't
       // send" would read as the button being broken rather than the rule
       // working.
       toast.error(
-        cause instanceof ApiError ? cause.message : t("payments.sendFailed"),
+        error instanceof ApiError ? error.message : t("payments.sendFailed"),
       );
     }
   }
@@ -288,7 +280,7 @@ export function AskForPayment({
  * cannot afford.
  */
 export function parseAmountToCents(input: string): number | null {
-  const cleaned = input.replace(/[$,\s]/g, "");
+  const cleaned = input.replaceAll(/[$,\s]/g, "");
   if (cleaned.length === 0) return null;
   if (!/^\d+(\.\d{0,2})?$/.test(cleaned)) return null;
   // Via a string rather than `* 100`: 19.99 * 100 is 1998.9999999999998, and

@@ -1,15 +1,8 @@
-import {
-  DEFAULT_LOCALE,
-  ERROR_CODES,
-  INTERNAL_ERROR_CODE,
-  type ApiErrorCode,
-} from "@loonext/shared";
+import { DEFAULT_LOCALE, ERROR_CODES, INTERNAL_ERROR_CODE } from '@loonext/shared';
+import type { ApiErrorCode } from '@loonext/shared';
 
-import {
-  makeTranslate,
-  type MessageKey,
-  type Translate,
-} from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { MessageKey, Translate } from '@/i18n/translate';
 
 /**
  * Typed error for every non-2xx API response (SPEC §7 envelope
@@ -97,9 +90,9 @@ function readerFacing(
     : undefined;
   const sentence = keyed && keyed !== messageKey
     ? keyed
-    : t.locale === DEFAULT_LOCALE
+    : (t.locale === DEFAULT_LOCALE
       ? serverMessage
-      : t(`apiErrors.${code}`);
+      : t(`apiErrors.${code}`));
   // Only on a 5xx, which is the only body that carries one. Appending a
   // reference to a 422 that already names the wrong field would be noise on
   // copy that is doing its job.
@@ -113,7 +106,7 @@ export function parseErrorBody(
   t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): ApiError {
   if (typeof body === "object" && body !== null && "error" in body) {
-    const inner = (body as { error: unknown }).error;
+    const inner = (body).error;
     if (
       typeof inner === "object" &&
       inner !== null &&
@@ -122,8 +115,8 @@ export function parseErrorBody(
       typeof (inner as { code: unknown }).code === "string" &&
       typeof (inner as { message: unknown }).message === "string"
     ) {
-      const code = (inner as { code: string }).code;
-      const message = (inner as { message: string }).message;
+      const {code} = (inner as { code: string });
+      const {message} = (inner as { message: string });
       const rawId = (inner as { request_id?: unknown }).request_id;
       const requestId = typeof rawId === "string" && rawId.length > 0 ? rawId : undefined;
       const rawKey = (inner as { message_key?: unknown }).message_key;

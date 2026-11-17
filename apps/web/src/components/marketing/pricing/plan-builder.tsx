@@ -28,12 +28,11 @@
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/fill";
 import { pricingCopy } from "@/i18n/marketing/pricing";
-import { PLAN_PRICE_CENTS } from "@loonext/shared";
-import {
-  currencyForCountry,
-  US_REGISTRATION_FEE_CENTS,
-} from "@loonext/shared";
-import { useEffect, useRef, useState, type KeyboardEvent } from "react";
+import { currencyForCountry,
+  PLAN_PRICE_CENTS,
+  US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
+import { useEffect, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 import {
   trackPlanBuilderViewed,
   trackPlanModuleToggled,
@@ -43,19 +42,16 @@ import {
 import { CtaButton } from "@/components/marketing/fr";
 import { PRIMARY_CTA_LABEL } from "@/components/marketing/nav-links";
 import type { Plan } from "@/app/(marketing)/pricing/pricing-data";
-import {
-  type PlanId,
-  type PlanModule,
-} from "@/lib/api/types";
+import type { PlanId, PlanModule } from '@/lib/api/types';
 import { cn } from "@/lib/utils";
 
 import { useCountry } from "./country-context";
 import {
-  DEFAULT_SELECTION,
-  SELLABLE_ADDON_CARDS,
   addonMonthlyDollars,
+  DEFAULT_SELECTION,
   firstMonthTotalDollars,
   monthlyTotalDollars,
+  SELLABLE_ADDON_CARDS,
   signupHref,
   usd,
 } from "./plan-math";

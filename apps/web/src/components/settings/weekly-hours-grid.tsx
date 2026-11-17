@@ -4,10 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useT } from "@/i18n/provider";
-import {
-  WEEKDAY_LABEL,
-  type DayFormState,
-} from "@/lib/settings/business-hours-form";
+import { WEEKDAY_LABEL } from '@/lib/settings/business-hours-form';
+import type { DayFormState } from '@/lib/settings/business-hours-form';
 
 /**
  * The seven-row week, extracted so the workspace's hours and a single line's

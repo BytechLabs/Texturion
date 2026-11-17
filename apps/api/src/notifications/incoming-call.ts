@@ -28,11 +28,8 @@ import { captureException, workerEnv } from "../observability/capture";
 import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { claimHighPriority } from "./high-priority";
-import {
-  recordPushAttempts,
-  timedPush,
-  type PushAttempt,
-} from "./push-attempts";
+import { recordPushAttempts, timedPush } from './push-attempts';
+import type { PushAttempt } from './push-attempts';
 import { sendWebPush } from "./webpush";
 
 /** Per-recipient device bound (#267): never a single ceiling across the crew. */
@@ -144,8 +141,8 @@ export async function notifyIncomingCall(
   const attempts: PushAttempt[] = [];
   try {
     return await deliverIncomingCallPush(env, db, input, attempts);
-  } catch (cause) {
-    void captureException(env, cause, { source: "api" });
+  } catch (error) {
+    void captureException(env, error, { source: "api" });
     return { unreachableUserIds: [] };
   } finally {
     recordPushAttempts(env, attempts);
@@ -244,7 +241,9 @@ async function deliverIncomingCallPush(
             `incoming-call push: pruned dead subscription (${endpointHost(sub.endpoint)}, HTTP ${result.status})`,
           );
           await warnIfUnreachable(db, sub.user_id);
-        } else if (!result.ok) {
+        } else if (result.ok) {
+          bump(channels, sub.user_id, "liveOrSoft");
+        } else {
           bump(channels, sub.user_id, "liveOrSoft"); // transient — still an avenue
           // #142/#147: surface WHICH status came back (VAPID 403, malformed 400,
           // throttled 429, push-service 5xx) AND the service's own error text —
@@ -255,15 +254,13 @@ async function deliverIncomingCallPush(
             `incoming-call push: delivery failed (${endpointHost(sub.endpoint)}, HTTP ${result.status})${detail}`,
             { source: "api", level: "warning" },
           );
-        } else {
-          bump(channels, sub.user_id, "liveOrSoft");
         }
-      } catch (cause) {
+      } catch (error_) {
         // A network drop or local crypto failure — observable but never fatal
         // to the live call. Push weather must never break a ring. A thrown send
         // is transient, not proof-dead → counts as an avenue.
         bump(channels, sub.user_id, "liveOrSoft");
-        void captureException(env, cause, { source: "api" });
+        void captureException(env, error_, { source: "api" });
       }
     }),
   );
@@ -340,7 +337,9 @@ async function deliverIncomingCallPush(
             `incoming-call push: pruned dead device token (${device.platform}, HTTP ${result.status})`,
           );
           await warnIfUnreachable(db, device.user_id);
-        } else if (!result.ok) {
+        } else if (result.ok) {
+          bump(channels, device.user_id, "liveOrSoft");
+        } else {
           bump(channels, device.user_id, "liveOrSoft");
           const detail = result.errorBody ? ` — ${result.errorBody}` : "";
           void captureException(
@@ -348,14 +347,12 @@ async function deliverIncomingCallPush(
             `incoming-call push: native delivery failed (${device.platform}, HTTP ${result.status})${detail}`,
             { source: "api", level: "warning" },
           );
-        } else {
-          bump(channels, device.user_id, "liveOrSoft");
         }
-      } catch (cause) {
+      } catch (error_) {
         // OAuth weather / network drop — observable but never fatal to the
         // live call. A thrown send is transient → counts as an avenue.
         bump(channels, device.user_id, "liveOrSoft");
-        void captureException(env, cause, { source: "api" });
+        void captureException(env, error_, { source: "api" });
       }
     }),
   );

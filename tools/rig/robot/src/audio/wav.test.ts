@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { alawToLinear, decodeWav, encodeWav, linearToMulaw, mulawToLinear } from "./wav.ts";
 
 function wavWith(format: number, bits: number, channels: number, payload: Uint8Array, sampleRate = 8000): Uint8Array {
-  const extensible = format === 0xfffe;
+  const extensible = format === 0xFF_FE;
   const fmtSize = extensible ? 40 : 16;
   const out = new Uint8Array(12 + 8 + fmtSize + 8 + payload.length);
   const view = new DataView(out.buffer);
@@ -43,15 +43,15 @@ describe("WAV", () => {
   });
 
   it("decodes mu-law and A-law recordings", () => {
-    const mulaw = decodeWav(wavWith(7, 8, 1, Uint8Array.from([0xff, 0x80, 0x00])));
-    expect(Array.from(mulaw.channels[0]!, (x) => Math.round(x * 32768))).toEqual([0, 32124, -32124]);
-    const alaw = decodeWav(wavWith(6, 8, 1, Uint8Array.from([0xd5, 0x55])));
-    expect(Array.from(alaw.channels[0]!, (x) => Math.round(x * 32768))).toEqual([8, -8]);
+    const mulaw = decodeWav(wavWith(7, 8, 1, Uint8Array.from([0xFF, 0x80, 0x00])));
+    expect(Array.from(mulaw.channels[0]!, (x) => Math.round(x * 32_768))).toEqual([0, 32_124, -32_124]);
+    const alaw = decodeWav(wavWith(6, 8, 1, Uint8Array.from([0xD5, 0x55])));
+    expect(Array.from(alaw.channels[0]!, (x) => Math.round(x * 32_768))).toEqual([8, -8]);
   });
 
   it("decodes extensible float and 8-bit PCM", () => {
     const floats = new Uint8Array(new Float32Array([0.5, -0.25]).buffer);
-    expect(Array.from(decodeWav(wavWith(0xfffe, 32, 1, floats)).channels[0]!)).toEqual([0.5, -0.25]);
+    expect(Array.from(decodeWav(wavWith(0xFF_FE, 32, 1, floats)).channels[0]!)).toEqual([0.5, -0.25]);
     expect(Array.from(decodeWav(wavWith(1, 8, 1, Uint8Array.from([128, 192, 64]))).channels[0]!)).toEqual([0, 0.5, -0.5]);
   });
 
@@ -63,14 +63,14 @@ describe("WAV", () => {
 
 describe("G.711 mu-law", () => {
   it("matches the reference code points", () => {
-    expect(linearToMulaw(0)).toBe(0xff);
-    expect(linearToMulaw(32767)).toBe(0x80);
-    expect(linearToMulaw(-32768)).toBe(0x00);
-    expect(mulawToLinear(0xff)).toBe(0);
+    expect(linearToMulaw(0)).toBe(0xFF);
+    expect(linearToMulaw(32_767)).toBe(0x80);
+    expect(linearToMulaw(-32_768)).toBe(0x00);
+    expect(mulawToLinear(0xFF)).toBe(0);
   });
 
   it("keeps its error within the companding step everywhere", () => {
-    for (let x = -32000; x <= 32000; x += 97) {
+    for (let x = -32_000; x <= 32_000; x += 97) {
       const back = mulawToLinear(linearToMulaw(x));
       expect(Math.abs(back - x)).toBeLessThanOrEqual(Math.max(8, Math.abs(x) / 16));
     }

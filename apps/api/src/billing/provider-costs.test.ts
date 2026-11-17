@@ -77,11 +77,12 @@ const VMI_CLIENT_STATE = btoa("vmi|+15555550123");
 /** Telnyx's session id for an inbound call — which, inbound only, IS our S. */
 const INBOUND_SESSION = "3211758a-871f-11f1-ba22-02420aef8e1f";
 
-describe("parseCostUsd", () => {
+describe(parseCostUsd, () => {
   it("parses a decimal-string amount", () => {
     expect(parseCostUsd("0.0227")).toBeCloseTo(0.0227, 6);
     expect(parseCostUsd("1.5")).toBe(1.5);
   });
+
   it("treats zero / missing / negative / garbage as 0", () => {
     expect(parseCostUsd("0.0000")).toBe(0);
     expect(parseCostUsd(null)).toBe(0);
@@ -91,7 +92,7 @@ describe("parseCostUsd", () => {
   });
 });
 
-describe("decodeSessionCandidates", () => {
+describe(decodeSessionCandidates, () => {
   it("extracts every UUID-shaped part from a real op client_state", () => {
     const c = decodeSessionCandidates(REAL_CLIENT_STATE);
     // 'op' is dropped; both UUIDs (session id AND user id) are candidates — the
@@ -100,6 +101,7 @@ describe("decodeSessionCandidates", () => {
     expect(c).toContain(USER_ID);
     expect(c).not.toContain("op");
   });
+
   it("returns [] for empty / non-base64 / no-UUID input", () => {
     expect(decodeSessionCandidates("")).toEqual([]);
     expect(decodeSessionCandidates(null)).toEqual([]);
@@ -109,7 +111,7 @@ describe("decodeSessionCandidates", () => {
   });
 });
 
-describe("parseCallCost", () => {
+describe(parseCallCost, () => {
   it("parses the real call.cost payload", () => {
     const parsed = parseCallCost({
       billed_duration_secs: 0,
@@ -148,32 +150,28 @@ describe("recordVoiceCost transient-vs-skip signal (#216 sweeper recovery)", () 
   };
 
   it("returns FALSE on a transient calls-lookup error (caller must not stamp processed)", async () => {
-    expect(await recordVoiceCost(fakeDb({ callsError: true }), payload)).toBe(
+    await expect(recordVoiceCost(fakeDb({ callsError: true }), payload)).resolves.toBe(
       false,
     );
   });
 
   it("returns FALSE when the provider_costs upsert hits a transient error", async () => {
-    expect(
-      await recordVoiceCost(
+    await expect(recordVoiceCost(
         fakeDb({ callsData: [{ company_id: "c1" }], upsertError: true }),
         payload,
-      ),
-    ).toBe(false);
+      )).resolves.toBe(false);
   });
 
   it("returns TRUE on a definite skip (untracked leg — no company row)", async () => {
-    expect(await recordVoiceCost(fakeDb({ callsData: [] }), payload)).toBe(true);
+    await expect(recordVoiceCost(fakeDb({ callsData: [] }), payload)).resolves.toBe(true);
   });
 
   it("returns TRUE on a payload with no candidates (definite skip)", async () => {
-    expect(await recordVoiceCost(fakeDb({}), { total_cost: "0.02" })).toBe(true);
+    await expect(recordVoiceCost(fakeDb({}), { total_cost: "0.02" })).resolves.toBe(true);
   });
 
   it("returns TRUE after a successful record", async () => {
-    expect(
-      await recordVoiceCost(fakeDb({ callsData: [{ company_id: "c1" }] }), payload),
-    ).toBe(true);
+    await expect(recordVoiceCost(fakeDb({ callsData: [{ company_id: "c1" }] }), payload)).resolves.toBe(true);
   });
 });
 

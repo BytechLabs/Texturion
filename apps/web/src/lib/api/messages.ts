@@ -13,22 +13,12 @@ import { useT } from "@/i18n/provider";
 import { THREAD_MESSAGE_PARAM } from "@/lib/inbox/thread-href";
 import { useCompanyId } from "@/lib/company/provider";
 
-import {
-  detailPatchMessage,
-  doneMutationPatch,
-  pinMutationPatch,
-  snippetFromMessage,
-  detailInversePatch,
-  threadInversePatch,
-  threadPatchMessage,
-  threadUpsertMessages,
-  type ThreadData,
-} from "./cache";
+import { detailInversePatch, detailPatchMessage, doneMutationPatch, listApplyConversation, pinMutationPatch, snippetFromMessage, threadInversePatch, threadPatchMessage,threadUpsertMessages } from './cache';
+import type { ThreadData } from './cache';
 import { toast } from "sonner";
 
 import { apiFetch } from "./client";
 import { ApiError } from "./error";
-import { listApplyConversation } from "./cache";
 import { patchConversationLists } from "./conversations";
 import { keys } from "./keys";
 import type {
@@ -165,9 +155,7 @@ export function useMessages(conversationId: string) {
     queryKey,
     queryFn: ({ pageParam }) =>
       fetchMessagesWindow(companyId, conversationId, pageParam),
-    initialPageParam: (anchorId ? { around: anchorId } : undefined) as
-      | MessagesParam
-      | undefined,
+    initialPageParam: (anchorId ? { around: anchorId } : undefined),
     getNextPageParam: nextMessagesParam,
     getPreviousPageParam: previousMessagesParam,
     enabled: valid,
@@ -365,7 +353,7 @@ export function useSetMessageDone(conversationId: string) {
       // on its own (staleTime 30s, refetchOnWindowFocus off), so without this
       // the "X marked '…' done" line wouldn't appear until thread re-entry.
       // Mirrors the status/assign/tag mutations, which invalidate here too.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.conversations.events(companyId, conversationId),
         refetchType: "active",
       });

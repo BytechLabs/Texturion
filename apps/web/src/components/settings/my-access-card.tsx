@@ -1,13 +1,8 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import {
-  numberAccessLevelLabel,
-  numberAccessReason,
-  numberAccessSelfNote,
-  sortNumberAccessExplanations,
-  type NumberAccessExplanation,
-} from "@loonext/shared";
+import { numberAccessLevelLabel, numberAccessReason, numberAccessSelfNote, sortNumberAccessExplanations } from '@loonext/shared';
+import type { NumberAccessExplanation } from '@loonext/shared';
 
 import { SettingsCard } from "@/components/settings/section";
 import { sayWith, useT } from "@/i18n/provider";

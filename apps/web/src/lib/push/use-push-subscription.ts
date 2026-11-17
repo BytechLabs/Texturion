@@ -25,16 +25,11 @@ import type { NotificationPrefs, PushSubscriptionRow } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
 
 import { ensureServiceWorkerRegistration, pushSupported } from "./register";
-import {
-  createPushMachine,
-  type PushMachine,
-  type PushPermission,
-  type PushPhase,
-  type PushSnapshot,
-  type SubscriptionKeys,
-} from "./subscription-machine";
+import { createPushMachine } from './subscription-machine';
+import type {PushMachine, PushPermission, PushPhase, PushSnapshot, SubscriptionKeys} from './subscription-machine';
 
-export type { PushPermission, PushPhase };
+export { type PushPermission, type PushPhase } from './subscription-machine';
+
 
 /** GET /v1/notification-prefs response (prefs + the VAPID application key). */
 interface PrefsWithVapidKey extends NotificationPrefs {
@@ -82,8 +77,7 @@ export function usePushSubscription(): PushSubscriptionState {
   }));
 
   const machineRef = useRef<PushMachine | null>(null);
-  if (machineRef.current === null) {
-    machineRef.current = createPushMachine(
+  machineRef.current ??= createPushMachine(
       {
         supported: pushSupported(),
         getPermission: () => Notification.permission,
@@ -115,7 +109,6 @@ export function usePushSubscription(): PushSubscriptionState {
       setSnapshot,
       forwardTranslate(() => tRef.current),
     );
-  }
 
   useEffect(() => {
     // Read-only inspection (support, permission, existing subscription) —

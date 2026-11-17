@@ -15,16 +15,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../env";
-import {
-  messageReceivedEvent,
-  restMatch,
-  rpcMatch,
-  storageUploadMatch,
-  stubRoute,
-  type Stub,
-  type StubCall,
-} from "../test/messaging-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { messageReceivedEvent, restMatch, rpcMatch, storageUploadMatch, stubRoute } from '../test/messaging-support';
+import type { Stub, StubCall } from '../test/messaging-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { handleInboundMessage } from "./inbound";
 import type { TelnyxEvent } from "./types";
 
@@ -188,7 +182,7 @@ function resendStub(): Stub {
 function inboundEvent(
   overrides: Parameters<typeof messageReceivedEvent>[0] = {},
 ): TelnyxEvent {
-  return messageReceivedEvent(overrides) as unknown as TelnyxEvent;
+  return messageReceivedEvent(overrides);
 }
 
 describe("handleInboundMessage — #121 storage is free (media never budget-gated)", () => {
@@ -197,7 +191,7 @@ describe("handleInboundMessage — #121 storage is free (media never budget-gate
       (url, request) =>
         request.method === "GET" && url.href.startsWith(MEDIA_URL),
       () =>
-        new Response(new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), {
+        new Response(new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0]), {
           headers: { "content-type": "image/jpeg" },
         }),
     );
@@ -440,8 +434,8 @@ describe("handleInboundMessage — #294/D128 the sender's own location", () => {
       "the sender's coordinates reached the bucket",
     ).toBe(true);
     // And the photo is intact: same length, still a JPEG.
-    expect(bytes.length).toBe(jpeg.bytes.length);
-    expect([bytes[0], bytes[1]]).toEqual([0xff, 0xd8]);
+    expect(bytes).toHaveLength(jpeg.bytes.length);
+    expect([bytes[0], bytes[1]]).toEqual([0xFF, 0xD8]);
   });
 });
 
@@ -464,29 +458,29 @@ function jpegWithGpsLatitude(): {
   view.setUint16(2, 42, true);
   view.setUint32(4, 8, true);
   view.setUint16(8, 1, true); // one entry: the GPS pointer
-  view.setUint16(10, 0x8825, true);
+  view.setUint16(10, 0x88_25, true);
   view.setUint16(12, 4, true); // LONG
   view.setUint32(14, 1, true);
   view.setUint32(18, 38, true); // GPS directory at 38
   view.setUint32(22, 0, true); // no next IFD
   view.setUint16(38, 1, true); // one entry
-  view.setUint16(40, 0x0002, true); // GPSLatitude
+  view.setUint16(40, 0x00_02, true); // GPSLatitude
   view.setUint16(42, 5, true); // RATIONAL
   view.setUint32(44, 3, true);
   view.setUint32(48, 56, true); // values at 56
   view.setUint32(52, 0, true);
-  tiff.fill(0xab, 56, 80); // the latitude itself
+  tiff.fill(0xAB, 56, 80); // the latitude itself
 
   const header = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]; // the Exif header, NUL-terminated
   const segment = 2 + header.length + tiff.length;
   const bytes = new Uint8Array(4 + 2 + header.length + tiff.length + 2);
-  bytes.set([0xff, 0xd8, 0xff, 0xe1], 0);
-  bytes[4] = (segment >> 8) & 0xff;
-  bytes[5] = segment & 0xff;
+  bytes.set([0xFF, 0xD8, 0xFF, 0xE1], 0);
+  bytes[4] = (segment >> 8) & 0xFF;
+  bytes[5] = segment & 0xFF;
   bytes.set(header, 6);
   const tiffAt = 6 + header.length;
   bytes.set(tiff, tiffAt);
-  bytes.set([0xff, 0xd9], tiffAt + tiff.length);
+  bytes.set([0xFF, 0xD9], tiffAt + tiff.length);
   return { bytes, latAt: tiffAt + 56, latLength: 24 };
 }
 
@@ -948,7 +942,7 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     // bucket accepts image/jpeg, the gallery renders it inline (D87), and the
     // file lands on a tech's phone with our name on the delivery.
     const media = mediaServing(
-      new Uint8Array([0x4d, 0x5a, 0x90, 0x00, 0x03, 0x00]),
+      new Uint8Array([0x4D, 0x5A, 0x90, 0x00, 0x03, 0x00]),
       "image/jpeg",
     );
     const attachmentLookup = stubRoute(
@@ -1059,7 +1053,7 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     // stranger controls are the file name and the source URL. The name would be
     // text we display; the URL is a live handle to bytes we just declined to
     // store, which is the last thing to hand to anyone reading the timeline.
-    const media = mediaServing(new Uint8Array([0x4d, 0x5a]), "image/png");
+    const media = mediaServing(new Uint8Array([0x4D, 0x5A]), "image/png");
     const attachmentLookup = stubRoute(
       restMatch(env, "GET", "message_attachments"),
       () => [],
@@ -1082,7 +1076,7 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     );
 
     const payload = refusal(events);
-    expect(Object.keys(payload).sort()).toEqual([
+    expect(Object.keys(payload).toSorted()).toEqual([
       "content_type",
       "index",
       "message_id",
@@ -1106,7 +1100,7 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     // The customer's text matters more than our note about their attachment. A
     // database that has not taken the enum migration yet must not turn an
     // inbound message into a failed webhook and an endlessly retried ledger row.
-    const media = mediaServing(new Uint8Array([0x4d, 0x5a]), "image/jpeg");
+    const media = mediaServing(new Uint8Array([0x4D, 0x5A]), "image/jpeg");
     const attachmentLookup = stubRoute(
       restMatch(env, "GET", "message_attachments"),
       () => [],
@@ -1139,7 +1133,7 @@ describe("handleInboundMessage — #317 inbound media is checked, and refusals a
     // with no distinctive magic — refusing a customer's voice note because we
     // have no AMR signature would be the silent drop this change exists to end.
     for (const [bytes, type] of [
-      [new Uint8Array([0xff, 0xd8, 0xff, 0xe0]), "image/jpeg"],
+      [new Uint8Array([0xFF, 0xD8, 0xFF, 0xE0]), "image/jpeg"],
       [new TextEncoder().encode("#!AMR\n frames"), "audio/amr"],
     ] as [Uint8Array, string][]) {
       const media = mediaServing(bytes, type);

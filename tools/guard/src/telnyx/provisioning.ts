@@ -1,6 +1,6 @@
 import {
-  CREDENTIALS_PER_DAY,
   COST_USD,
+  CREDENTIALS_PER_DAY,
   LEASE_SEARCH_SPACING_MS,
   MAX_NUMBERS_HELD,
   NUMBER_SCENARIO,
@@ -9,7 +9,7 @@ import {
   SEARCH_SCENARIOS,
 } from "../limits";
 import { Refusal } from "../refusal";
-import { callerNameNumbers, SPEC, sentinelCredentialCap } from "../setup/spec";
+import { callerNameNumbers, sentinelCredentialCap, SPEC } from "../setup/spec";
 import { paidState } from "../state/admission";
 import { requireAboveFloor } from "../state/balance";
 import { dayOf, giveBack, tryTake } from "../state/counters";
@@ -17,18 +17,14 @@ import { liveLease } from "../state/lease";
 import { charge, noteHeld, readTier, tierWithNumber } from "../state/ledger";
 import { requirePaidLanesOpen } from "../state/signals";
 import type { Ctx } from "../context";
-import { forward, isDefiniteFailure, isOk, relay, type Handler, type TelnyxRequest } from "./forward";
+import { forward, isDefiniteFailure, isOk, relay } from './forward';
+import type { Handler, TelnyxRequest } from './forward';
 import { onEdge } from "./hazards";
 import { noteOrder, ORDER_KEYS, requireOrdering, verifyFirstOrder } from "./ordering";
-import { heldCount, invalidateOwned, isStanding, KEYS, type OwnedNumber } from "./partition";
-import {
-  CREDENTIAL_PREFIX,
-  connectionOfResource,
-  credentialById,
-  isE164,
-  rememberCredential,
-  type CredentialRecord,
-} from "./targets";
+import { heldCount, invalidateOwned, isStanding, KEYS } from './partition';
+import type { OwnedNumber } from './partition';
+import { connectionOfResource, CREDENTIAL_PREFIX, credentialById, isE164, rememberCredential } from './targets';
+import type { CredentialRecord } from './targets';
 
 /**
  * The provisioning class (docs/RIG.md): an explicit list, each
@@ -156,7 +152,7 @@ const VOICE_PATCH_FIELDS = new Set(["caller_id_name_enabled", "cnam_listing"]);
 
 const patchNumber: Handler = async (request) => {
   ownedNonStanding(request);
-  const body = request.body;
+  const {body} = request;
   if (!body) throw new Refusal("request.body_invalid");
   for (const [field, value] of Object.entries(body)) {
     if (!NUMBER_PATCH_FIELDS.has(field)) throw new Refusal("provisioning.patch_field");
@@ -175,7 +171,7 @@ const patchNumber: Handler = async (request) => {
 
 const patchVoice: Handler = async (request) => {
   ownedNonStanding(request);
-  const body = request.body;
+  const {body} = request;
   if (!body) throw new Refusal("request.body_invalid");
   // Call forwarding and number translation are absent on purpose: either
   // would send a call into a test number on to any phone at all.
@@ -194,7 +190,7 @@ const ALLOWED_DESTINATIONS = new Set(SPEC.messaging_profiles.whitelisted_destina
 
 const createMessagingProfile: Handler = async (request) => {
   const { ctx, view } = request;
-  const body = request.body;
+  const {body} = request;
   if (!body) throw new Refusal("request.body_invalid");
   const pending = (await ctx.store.get<number>("profiles:pending")) ?? 0;
   if (view.messagingProfiles.size + pending >= SPEC.messaging_profiles.max_profiles) {
@@ -230,7 +226,7 @@ const createMessagingProfile: Handler = async (request) => {
     const id = (reply.body as { data?: { id?: unknown } } | undefined)?.data?.id;
     if (isOk(reply) && typeof id === "string") {
       const known = (await ctx.store.get<string[]>(KEYS.appProfiles)) ?? [];
-      await ctx.store.put(KEYS.appProfiles, [...new Set([...known, id])].sort());
+      await ctx.store.put(KEYS.appProfiles, [...new Set([...known, id])].toSorted());
     }
     return relay(reply);
   } finally {
@@ -249,7 +245,7 @@ async function credentialsOn(ctx: Ctx, connectionId: string): Promise<number> {
 
 const createCredential: Handler = async (request) => {
   const { ctx, view } = request;
-  const body = request.body;
+  const {body} = request;
   if (!body) throw new Refusal("request.body_invalid");
   const { webrtc, sentinel } = view.record.connections;
   const connection = body.connection_id;

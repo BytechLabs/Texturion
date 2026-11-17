@@ -3,16 +3,12 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { registrationRoutes } from "./registration";
 import type { AppEnv, MemberRole } from "../context";
-import type { Bindings, RateLimiter } from "../env";
+import type { RateLimiter } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import {
-  FakeRest,
-  resendRoute,
-  TelnyxMock,
-  telnyxError,
-  type SentEmailCapture,
-} from "../telnyx/test-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { FakeRest, resendRoute, telnyxError, TelnyxMock } from '../telnyx/test-support';
+import type { SentEmailCapture } from '../telnyx/test-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
 const OWNER_ID = "22222222-2222-4222-8222-222222222222";
@@ -177,7 +173,7 @@ function buildHarness(companyOverrides: Record<string, unknown> = {}) {
       stub();
     },
     request: (path: string, init?: RequestInit) =>
-      app.request(path, init, env as unknown as Bindings),
+      app.request(path, init, env),
   };
 }
 

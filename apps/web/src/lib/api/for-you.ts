@@ -142,8 +142,8 @@ export function useCompleteForYouTask() {
       // The completed/uncompleted task changes the queue AND the linked thread's
       // done audit; re-derive both from the server (message.status also broadcast
       // to other clients by the DB trigger).
-      queryClient.invalidateQueries({ queryKey: keys.forYou(companyId) });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({ queryKey: keys.forYou(companyId) });
+      void queryClient.invalidateQueries({
         queryKey: keys.threads(companyId),
         refetchType: "active",
       });

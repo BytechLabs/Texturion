@@ -7,13 +7,8 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useT } from "@/i18n/provider";
-import {
-  browserTimezone,
-  formatAbsoluteDateTime,
-  formatTimestamp,
-  getFormatter,
-  type TimestampStyle,
-} from "@/lib/format/time";
+import { browserTimezone, formatAbsoluteDateTime, formatTimestamp, getFormatter } from '@/lib/format/time';
+import type { TimestampStyle } from '@/lib/format/time';
 import { cn } from "@/lib/utils";
 
 /**

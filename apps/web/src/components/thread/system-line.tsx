@@ -8,7 +8,7 @@ import {
   jobRatedLine,
 } from "@loonext/shared";
 
-import type { ConversationEvent } from "@/lib/api/types";
+import type { ConversationEvent,ConversationStatus } from "@/lib/api/types";
 
 import { MakeCallTask } from "@/components/calls/make-call-task";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
@@ -16,9 +16,9 @@ import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { statusInSentence } from "@/components/inbox/status-pill";
 import { taskEventSentence } from "@/components/tasks/task-activity";
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
-import { makeTranslate, useT, type Translate } from "@/i18n/provider";
+import { makeTranslate, useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { formatCallDuration } from "@/lib/format/call";
-import type { ConversationStatus } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -86,43 +86,52 @@ export function eventSentence(
         : t("thread.sysAssigned", { by });
     }
     case "tag_added": {
-      const name = event.payload.name;
+      const {name} = event.payload;
       return typeof name === "string"
         ? t("thread.sysTagAdded", { by, name })
         : t("thread.sysTagAddedGeneric", { by });
     }
-    case "tag_removed":
+    case "tag_removed": {
       return t("thread.sysTagRemoved", { by });
-    case "opted_out":
+    }
+    case "opted_out": {
       // #76: the timeline keeps its when/who audit role but no longer echoes the
       // composer's "This customer opted out of texting. Sends are blocked."
       // banner word-for-word (that banner stays the single present-state surface).
       return actor
         ? t("thread.sysOptedOutBy", { name: actor })
         : t("thread.sysOptedOut");
-    case "opt_out_revoked":
+    }
+    case "opt_out_revoked": {
       return actor
         ? t("thread.sysOptedInBy", { name: actor })
         : t("thread.sysOptedIn");
-    case "consent_attested":
+    }
+    case "consent_attested": {
       return t("thread.sysConsentAttested", { by });
-    case "quiet_hours_confirmed":
+    }
+    case "quiet_hours_confirmed": {
       return t("thread.sysQuietHours", { by });
+    }
     // #237: the actor is the CUSTOMER, who has no user row — so this is the
     // one system line that must not be prefixed with a member's name. "Sam
     // confirmed the appointment" would credit the crew with the customer's
     // answer, which is the whole value of the reply.
-    case APPOINTMENT_CONFIRMED_EVENT:
+    case APPOINTMENT_CONFIRMED_EVENT: {
       return t(APPOINTMENT_CONFIRMED_LINE);
+    }
     // #313: the customer again, so no name here either. The SCORE is the whole
     // line — "they rated it" without the number is a notification that makes
     // you open something else to learn anything.
-    case JOB_RATED_EVENT:
+    case JOB_RATED_EVENT: {
       return jobRatedLine(Number(event.payload.score ?? 0));
-    case "spam_marked":
+    }
+    case "spam_marked": {
       return t("thread.sysSpamMarked", { by });
-    case "spam_unmarked":
+    }
+    case "spam_unmarked": {
       return t("thread.sysSpamUnmarked", { by });
+    }
     // §4.2/§4.3: done audit. The body is joined live from the message the
     // event points at (payload.message_id) — never a stored excerpt.
     case "message_done":
@@ -146,11 +155,12 @@ export function eventSentence(
     case "task_due_set":
     case "task_deleted":
     case "task_attachment_added":
-    case "task_attachment_removed":
+    case "task_attachment_removed": {
       return (
         taskEventSentence(event, by, memberName, t) ??
         t("thread.sysTaskUpdated", { by })
       );
+    }
     // #317 — a file this customer sent that we would not store. There is no
     // attachment row to render, which is the whole point, so this line stands in
     // its place: without it the crew sees a text with no picture and concludes
@@ -160,7 +170,7 @@ export function eventSentence(
     // crew can act on between jobs. The reasons the customer can fix say so; the
     // one they cannot does not send them back to try the same file again.
     case "media_refused": {
-      const reason = event.payload.reason;
+      const {reason} = event.payload;
       if (reason === "too_large") return t("thread.sysMediaTooLarge");
       if (reason === "empty") return t("thread.sysMediaEmpty");
       if (reason === "type_mismatch") return t("thread.sysMediaTypeMismatch");
@@ -181,10 +191,12 @@ export function eventSentence(
       return t("thread.sysMediaUnsupported");
     }
     // D19 note-attachment audit — a quiet line matching the task attachment copy.
-    case "note_attachment_added":
+    case "note_attachment_added": {
       return t("thread.sysNoteAttachmentAdded", { by });
-    case "note_attachment_removed":
+    }
+    case "note_attachment_removed": {
       return t("thread.sysNoteAttachmentRemoved", { by });
+    }
     // #224/#607 A3 — money moved. Five arms, delegated to one function so the
     // shared trailing clause is written once (`paymentEventLine` below).
     //
@@ -196,12 +208,14 @@ export function eventSentence(
     case "payment_paid":
     case "payment_cancelled":
     case "payment_refunded":
-    case "payment_disputed":
+    case "payment_disputed": {
       return paymentEventLine(event, event.type, by, t);
+    }
     // FEATURE-GAPS voice wave: the computed-missed call + its auto text-back,
     // in the crew's plain language (the message itself renders just below).
-    case "missed_call":
+    case "missed_call": {
       return t("thread.sysMissedCallTextBack");
+    }
     // #129 Calls feature: every threaded call leaves one honest line — the
     // thread reads as the full history, texts AND calls. A missed call with
     // text-back shows this line plus the missed_call line above.
@@ -423,7 +437,7 @@ export function SystemLine({
       ? event.payload.call_session_id
       : null;
   if (answeredSession) {
-    const caller = event.payload.caller;
+    const {caller} = event.payload;
     return (
       <p className="py-1 text-center text-xs text-muted-foreground">
         {sentence}

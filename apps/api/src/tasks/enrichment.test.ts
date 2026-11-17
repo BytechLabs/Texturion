@@ -6,14 +6,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  buildEnrichmentMessages,
-  buildEnrichmentResult,
-  detectEnrichmentSignals,
-  type EnrichmentContext,
-  parseEnrichmentOutput,
-  resolveDueAt,
-} from "./enrichment";
+import { buildEnrichmentMessages, buildEnrichmentResult, detectEnrichmentSignals, parseEnrichmentOutput, resolveDueAt } from './enrichment';
+import type { EnrichmentContext } from './enrichment';
 
 const baseCtx: EnrichmentContext = {
   text: "fix the sink",
@@ -22,7 +16,7 @@ const baseCtx: EnrichmentContext = {
   now: new Date("2026-07-15T12:00:00Z"),
 };
 
-describe("buildEnrichmentMessages", () => {
+describe(buildEnrichmentMessages, () => {
   it("fences the task text and declares it untrusted (injection boundary)", () => {
     const msgs = buildEnrichmentMessages({
       ...baseCtx,
@@ -65,7 +59,7 @@ describe("buildEnrichmentMessages", () => {
   });
 });
 
-describe("parseEnrichmentOutput", () => {
+describe(parseEnrichmentOutput, () => {
   it("parses the Workers AI { response } envelope", () => {
     const out = parseEnrichmentOutput({
       response: '{"street":"123 Main Street","city":"Toronto","source":"message"}',
@@ -114,7 +108,7 @@ describe("parseEnrichmentOutput", () => {
   });
 });
 
-describe("buildEnrichmentResult", () => {
+describe(buildEnrichmentResult, () => {
   const opts = {
     enableAddress: true,
     enableDue: true,
@@ -220,7 +214,7 @@ describe("detectEnrichmentSignals (the 'only when needed' cost pre-filter)", () 
   });
 });
 
-describe("resolveDueAt", () => {
+describe(resolveDueAt, () => {
   it("resolves a local date + time in EDT (summer, UTC-4) to UTC", () => {
     // 2026-07-15 14:30 America/Toronto (EDT) → 18:30 UTC.
     expect(resolveDueAt("2026-07-15", "14:30", "America/Toronto")).toBe(

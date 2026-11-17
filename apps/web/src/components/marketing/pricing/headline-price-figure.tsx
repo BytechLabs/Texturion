@@ -1,6 +1,6 @@
 "use client";
 
-import { headlinePrice, HEADLINE_PRICE_SUFFIX } from "@/lib/marketing/headline-price";
+import { HEADLINE_PRICE_SUFFIX, headlinePrice } from "@/lib/marketing/headline-price";
 import { useMarketingCurrency } from "@/components/marketing/pricing/plan-price";
 import { MonoFigure } from "@/components/marketing/fr/mono-figure";
 

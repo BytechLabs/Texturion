@@ -16,8 +16,8 @@ import { useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
 import {
-  EMERGENCY_SAFETY_LINE,
   effectiveEmergencyKeywords,
+  EMERGENCY_SAFETY_LINE,
   emergencyKeywordError,
   emergencyReplyBody,
 } from "@loonext/shared";
@@ -212,11 +212,11 @@ export function EmergencyCard({
               </Button>
             </div>
           ) : null}
-          {!company.emergency_keywords_are_custom ? (
+          {company.emergency_keywords_are_custom ? null : (
             <p className="text-muted-foreground text-xs">
               {t("settings.emergencyWordsAreDefaults")}
             </p>
-          ) : null}
+          )}
         </div>
 
         <div className="space-y-2">

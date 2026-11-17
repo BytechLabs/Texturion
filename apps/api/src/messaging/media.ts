@@ -4,13 +4,9 @@
  * URLs handed to Telnyx for outbound media.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import {
-  MMS_MAX_MEDIA_BYTES,
-  MMS_MAX_MEDIA_ITEMS,
-  MMS_OUTBOUND_MEDIA_TYPES,
-  canonicalMmsType,
-} from "@loonext/shared";
+import {canonicalMmsType, MMS_MAX_MEDIA_BYTES, MMS_MAX_MEDIA_ITEMS, MMS_OUTBOUND_MEDIA_TYPES} from "@loonext/shared";
 
+export { MMS_OUTBOUND_MEDIA_TYPES as INBOUND_MEDIA_TYPES } from "@loonext/shared";
 import { ApiError } from "../http/errors";
 import { scanAttachment } from "../attachments/scan";
 import { EXECUTABLE_SNIFF, sniffContentType } from "../routes/core/attachments";
@@ -47,7 +43,7 @@ export const MAX_OUTBOUND_MEDIA_BODY_BYTES =
  * (canonicalMmsType) before the check so vendor spellings like audio/x-wav
  * land on the list.
  */
-export const INBOUND_MEDIA_TYPES = MMS_OUTBOUND_MEDIA_TYPES;
+
 export const MAX_INBOUND_MEDIA_BYTES = 5 * 1024 * 1024;
 
 /**
@@ -140,16 +136,16 @@ export function sniffMmsContentType(bytes: Uint8Array): string | null {
   // UTF BOMs mark text before the MPEG frame-sync check below can misread
   // a UTF-16 BOM (FF FE) as an audio frame header.
   if (
-    asciiAt(bytes, 0, "\xef\xbb\xbf") ||
-    (bytes.length >= 2 && bytes[0] === 0xff && bytes[1] === 0xfe) ||
-    (bytes.length >= 2 && bytes[0] === 0xfe && bytes[1] === 0xff)
+    asciiAt(bytes, 0, "\u00EF\u00BB\u00BF") ||
+    (bytes.length >= 2 && bytes[0] === 0xFF && bytes[1] === 0xFE) ||
+    (bytes.length >= 2 && bytes[0] === 0xFE && bytes[1] === 0xFF)
   ) {
     return "text/plain";
   }
 
   // Raw MPEG audio (no ID3): an 11-bit frame sync. JPEG never reaches here —
   // the base sniff already claimed FF D8 FF.
-  if (bytes.length >= 2 && bytes[0] === 0xff && (bytes[1] & 0xe0) === 0xe0) {
+  if (bytes.length >= 2 && bytes[0] === 0xFF && (bytes[1] & 0xE0) === 0xE0) {
     return "audio/mpeg";
   }
   return null;
@@ -219,7 +215,7 @@ export function decodeOutboundMedia(
         `media[${index}].content_type must be one of ${OUTBOUND_MEDIA_TYPES.join(", ")}.`,
       );
     }
-    const cleaned = item.base64.replace(/\s+/g, "");
+    const cleaned = item.base64.replaceAll(/\s+/g, "");
     if (cleaned.length === 0 || cleaned.length % 4 !== 0 || !BASE64_PATTERN.test(cleaned)) {
       throw new ApiError(
         "validation_failed",
@@ -381,7 +377,7 @@ export async function uploadOutboundMedia(
       })),
       storagePaths: rows.map((row) => row.storage_path),
     };
-  } catch (cause) {
+  } catch (error) {
     // Step 3: rows first, then objects. See the header for why that order.
     const { error: rowError } = await db
       .from("message_attachments")
@@ -390,8 +386,8 @@ export async function uploadOutboundMedia(
       .eq("message_id", args.messageId);
     if (rowError) {
       console.error(
-        `#263 outbound media row cleanup failed for ${args.messageId}: `
-          + rowError.message,
+        `#263 outbound media row cleanup failed for ${args.messageId}: ${
+           rowError.message}`,
       );
     }
     if (written.length > 0) {
@@ -399,12 +395,12 @@ export async function uploadOutboundMedia(
       if (removal.error) {
         console.error(
           `#263 outbound media cleanup failed (${written.length} object(s) `
-            + `left under ${args.companyId}/${args.messageId} for the §11 sweep): `
-            + removal.error.message,
+            + `left under ${args.companyId}/${args.messageId} for the §11 sweep): ${
+             removal.error.message}`,
         );
       }
     }
-    throw cause;
+    throw error;
   }
 }
 

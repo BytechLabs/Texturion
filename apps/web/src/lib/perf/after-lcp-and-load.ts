@@ -115,8 +115,9 @@ export function afterLcpAndLoad(cb: () => void): () => void {
 function reportsLcp(): boolean {
   return (
     typeof PerformanceObserver !== "undefined" &&
+    
     PerformanceObserver.supportedEntryTypes?.includes(
       "largest-contentful-paint",
-    ) === true
+    )
   );
 }

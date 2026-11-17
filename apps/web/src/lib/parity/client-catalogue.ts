@@ -42,16 +42,16 @@ function joinWrappedLiterals(text: string): string {
   return (
     text
       // Kotlin puts the `+` at the END of the line: `"It will go " +`
-      .replace(/"\s*\+\s*\n\s*"/g, "")
+      .replaceAll(/"\s*\+\s*\n\s*"/g, "")
       // Swift puts it at the START of the continuation: `"It will go "\n + "out`
-      .replace(/"\s*\n\s*\+\s*"/g, "")
+      .replaceAll(/"\s*\n\s*\+\s*"/g, "")
   );
 }
 
 /** Strip `"section.key" to ` pairs and comment lines, leaving the sentences. */
 export function kotlinCatalogueValues(text: string): string {
   return joinWrappedLiterals(text)
-    .replace(/"[a-z][A-Za-z0-9_]*\.[A-Za-z0-9_]+"\s*to\s*/g, "")
+    .replaceAll(/"[a-z][A-Za-z0-9_]*\.[A-Za-z0-9_]+"\s*to\s*/g, "")
     .split("\n")
     .filter((line) => {
       const trimmed = line.trim();
@@ -63,7 +63,7 @@ export function kotlinCatalogueValues(text: string): string {
 /** The same, for a Swift `"section.key": "value"` catalogue. */
 export function swiftCatalogueValues(text: string): string {
   return joinWrappedLiterals(text)
-    .replace(/"[a-z][A-Za-z0-9_]*\.[A-Za-z0-9_]+"\s*:\s*/g, "")
+    .replaceAll(/"[a-z][A-Za-z0-9_]*\.[A-Za-z0-9_]+"\s*:\s*/g, "")
     .split("\n")
     .filter((line) => {
       const trimmed = line.trim();
@@ -107,7 +107,7 @@ export function copyWithCatalogue(
   // The SOURCE now names keys where it used to carry sentences — `t("domain.x")`
   // in place of the English. A reverse-direction assertion reads those bare
   // identifiers as copy nobody declared, so they go before anything is compared.
-  const source = readFileSync(sourcePath, "utf8").replace(
+  const source = readFileSync(sourcePath, "utf8").replaceAll(
     /"[a-z][A-Za-z0-9_]*\.[A-Za-z0-9_]+"/g,
     "",
   );

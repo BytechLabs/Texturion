@@ -7,7 +7,7 @@ import { test } from "node:test";
 import { clearMemberSessions, MemberSessions, memberSessionsFile } from "../src/member-sessions.mjs";
 
 const MEMBER = { key: "qa-w-owner", email: "owner@rig.invalid", password: "pw" };
-const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json" } });
+const json = (body, status = 200) => Response.json(body, { status, headers: { "content-type": "application/json" } });
 
 /** An Auth service that numbers its sessions and refuses a refresh token it never issued. */
 function fakeAuth() {

@@ -6,20 +6,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { auditLogRoutes } from "./audit-log";
 import { parseCsv } from "./core/csv";
 
@@ -71,10 +61,10 @@ describe("GET /v1/audit-log", () => {
       app,
       env,
       await auth.token(),
-      "/v1/audit-log?actor=" +
-        ACTOR_ID +
-        "&action=member.deactivated" +
-        "&since=2026-07-01T00:00:00Z&until=2026-08-01T00:00:00Z&limit=10",
+      `/v1/audit-log?actor=${ 
+        ACTOR_ID 
+        }&action=member.deactivated` +
+        `&since=2026-07-01T00:00:00Z&until=2026-08-01T00:00:00Z&limit=10`,
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);

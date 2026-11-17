@@ -33,7 +33,8 @@
 import { Hono } from "hono";
 import { cors } from "hono/cors";
 
-import { buildIcs, type IcsEvent } from "@loonext/shared";
+import { buildIcs } from '@loonext/shared';
+import type { IcsEvent } from '@loonext/shared';
 
 import { taskLinkUrl, withTaskLink } from "../calendar/providers/normalize";
 import type { AppEnv } from "../context";
@@ -137,7 +138,7 @@ calendarFeedRoutes.get("/calendar/:token/schedule.ics", async (c) => {
       .select("name")
       .eq("id", reader.company_id)
       .limit(1)
-  ).data as { name: string }[] | null;
+  ).data;
   const businessName = company?.[0]?.name ?? "Loonext";
 
   /*

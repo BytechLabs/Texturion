@@ -12,7 +12,7 @@ import { completeEnv, stubFetch } from "../test/support";
 import { runDailySummary, tasksNeedingToday } from "./daily-summary";
 import { deliverPush } from "./deliver";
 
-vi.mock("./deliver", () => ({ deliverPush: vi.fn(async () => undefined) }));
+vi.mock(import("./deliver"), () => ({ deliverPush: vi.fn(async () => {}) }));
 
 const env = completeEnv();
 const COMPANY = "11111111-1111-4111-8111-111111111111";
@@ -28,7 +28,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("tasksNeedingToday", () => {
+describe(tasksNeedingToday, () => {
   const TORONTO = "America/Toronto";
 
   it("counts overdue, and what is due before their local midnight", () => {

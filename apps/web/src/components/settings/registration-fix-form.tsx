@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
 import {
   useSaveRegistration,
@@ -260,13 +261,6 @@ export function RegistrationFixForm({
               message: t("settingsMore.regMobileInvalid"),
             });
           }
-          if (!isValidOptionalWebsite(v.website)) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["website"],
-              message: t("settingsMore.regWebsiteInvalid"),
-            });
-          }
         } else {
           need("companyName", 255, "settingsMore.regFieldCompanyName");
           if (!/^[0-9A-Za-z][0-9A-Za-z-]{7,14}$/.test(v.ein.trim())) {
@@ -279,18 +273,14 @@ export function RegistrationFixForm({
                   : t("settingsMore.regCraInvalid"),
             });
           }
-          // Website is OPTIONAL on the EIN path too (matches the API +
-          // onboarding); only validate a non-blank value, and accept a bare
-          // domain (normalized). Requiring it here blocked resubmission for a
-          // standard brand that legitimately has no website.
-          if (!isValidOptionalWebsite(v.website)) {
+        }
+        if (!isValidOptionalWebsite(v.website)) {
             ctx.addIssue({
               code: "custom",
               path: ["website"],
               message: t("settingsMore.regWebsiteInvalid"),
             });
           }
-        }
       }
 
       if (editCampaign) {
@@ -376,10 +366,10 @@ export function RegistrationFixForm({
               firstName: values.firstName.trim(),
               lastName: values.lastName.trim(),
               ein: values.ein.trim(),
-              mobilePhone: normalizeNanpPhone(values.mobilePhone) as string,
-              ...(values.website.trim() !== ""
-                ? { website: normalizeWebsite(values.website) }
-                : {}),
+              mobilePhone: normalizeNanpPhone(values.mobilePhone)!,
+              ...(values.website.trim() === ""
+                ? {}
+                : { website: normalizeWebsite(values.website) }),
             }
           : {
               ...common,
@@ -387,9 +377,9 @@ export function RegistrationFixForm({
               ein: values.ein.trim(),
               // Optional + normalized (bare domain → https://…); omit when blank
               // so the API's optional website accepts it.
-              ...(values.website.trim() !== ""
-                ? { website: normalizeWebsite(values.website) }
-                : {}),
+              ...(values.website.trim() === ""
+                ? {}
+                : { website: normalizeWebsite(values.website) }),
             };
       }
       if (editCampaign) {
@@ -405,10 +395,10 @@ export function RegistrationFixForm({
       await submit.mutateAsync();
       toast.success(t("settingsMore.regSubmitted"));
       onSubmitted?.();
-    } catch (cause) {
+    } catch (error) {
       setServerError(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.regResubmitFailed"),
       );
     }

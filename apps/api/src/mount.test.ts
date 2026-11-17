@@ -21,7 +21,7 @@ import { runAupSignalsJob } from "./messaging/aup-watch";
 import { runRetentionEnforceJob } from "./workspace/retention-enforce";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { expirePaymentRequests } from "./crons/payment-requests";
-import { pruneExpiredExports } from "./workspace/export";
+import { buildDataExports,pruneExpiredExports } from "./workspace/export";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
@@ -37,7 +37,6 @@ import { sweepUncreditedConversions } from "./billing/prepay";
 import { pruneAuditLog } from "./audit/retention";
 import { pruneUserSessions } from "./auth/session-retention";
 import { prunePublicLinkAccess } from "./crons/retention-prunes";
-import { buildDataExports } from "./workspace/export";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { purgeTrash } from "./trash/purge";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
@@ -72,15 +71,8 @@ import {
   pollRegistrations,
   retryCampaignAssignments,
 } from "./telnyx/registration";
-import {
-  authorizeRoute,
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type CapturedRequest,
-  type TestAuth,
-} from "./test/support";
+import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch } from './test/support';
+import type { CapturedRequest, TestAuth } from './test/support';
 
 const env = completeEnv();
 const ORIGIN = env.APP_ORIGIN;
@@ -127,7 +119,7 @@ describe("middleware order on /v1/* (CORS → JWT → company context)", () => {
       env,
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       userId: auth.subject,
       companyId: COMPANY_ID,
       role: "owner",
@@ -135,7 +127,7 @@ describe("middleware order on /v1/* (CORS → JWT → company context)", () => {
     });
     // The authorization probe carried the sub the JWT middleware verified —
     // proof that JWT ran before company context.
-    expect(await captured.request!.json()).toMatchObject({
+    await expect(captured.request!.json()).resolves.toMatchObject({
       p_user_id: auth.subject,
     });
   });
@@ -148,7 +140,7 @@ describe("middleware order on /v1/* (CORS → JWT → company context)", () => {
       env,
     );
     expect(res.status).toBe(401);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "unauthorized", message: expect.any(String) },
     });
   });
@@ -161,7 +153,7 @@ describe("middleware order on /v1/* (CORS → JWT → company context)", () => {
       env,
     );
     expect(res.status).toBe(422);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "validation_failed", message: expect.any(String) },
     });
   });
@@ -185,7 +177,7 @@ describe("middleware order on /v1/* (CORS → JWT → company context)", () => {
     stubFetch();
     const res = await app.request("/health", {}, env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       ok: true,
       capabilities: ["telnyx-partition-v1"],
     });
@@ -465,11 +457,11 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
   }
 
   it("CRON_JOBS covers exactly the wrangler.jsonc schedule set", () => {
-    expect(Object.keys(CRON_JOBS).sort()).toEqual(wranglerCrons().sort());
+    expect(Object.keys(CRON_JOBS).toSorted()).toEqual(wranglerCrons().toSorted());
   });
 
   it("wrangler.jsonc carries exactly the §11 + porting schedules", () => {
-    expect(wranglerCrons().sort()).toEqual(
+    expect(wranglerCrons().toSorted()).toEqual(
       [
         "* * * * *", // #388 unanswered-lead escalation (2-min and 5-min rungs)
         "*/5 * * * *", // webhook sweeper
@@ -486,7 +478,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
         "45 15 * * *", // opt-out reconciliation against the carrier (#331)
         "30 15 * * *", // webhook_events ledger retention
         "35 14 1 * *", // #482 response-time recap (monthly, 1st)
-      ].sort(),
+      ].toSorted(),
     );
   });
 
@@ -648,7 +640,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
   });
 
   it("keys CRON_JOBS by exactly the schedule list scheduled() accepts", () => {
-    expect([...CRON_SCHEDULES].sort()).toEqual(wranglerCrons().sort());
-    expect(Object.keys(CRON_JOBS).sort()).toEqual([...CRON_SCHEDULES].sort());
+    expect([...CRON_SCHEDULES].toSorted()).toEqual(wranglerCrons().toSorted());
+    expect(Object.keys(CRON_JOBS).toSorted()).toEqual([...CRON_SCHEDULES].toSorted());
   });
 });

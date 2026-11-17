@@ -36,7 +36,7 @@ describe("#303 screening a business name", () => {
     // Two categories is stronger evidence than one, and a reviewer should see
     // both rather than whichever the loop reached first.
     const found = screenBusinessName("Cannabis & Vape Superstore");
-    expect(found.map((m) => m.category).sort()).toEqual(["cannabis", "tobacco_vaping"]);
+    expect(found.map((m) => m.category).toSorted()).toEqual(["cannabis", "tobacco_vaping"]);
   });
 
   it("PC-3: does NOT flag the businesses this product is for", () => {
@@ -86,21 +86,21 @@ describe("#303 screening a business name", () => {
     // learns to dismiss them, and the one real dispensary lands in a queue
     // nobody trusts. Multi-word terms are exempt — "weed shop" is unambiguous
     // where "weed" is a gardener.
-    const TOO_COMMON = [
+    const TOO_COMMON = new Set([
       "gun", "guns", "arms", "shot", "shots", "bar", "pub", "smoke", "smokes",
       "leaf", "green", "cash", "loan", "loans", "weed", "fire", "blaze",
       "colt", "high", "bud", "pot", "roll", "joint", "bet", "chance",
-    ];
+    ]);
     const offenders = allTerms().filter(
-      (term) => !term.includes(" ") && TOO_COMMON.includes(term),
+      (term) => !term.includes(" ") && TOO_COMMON.has(term),
     );
 
     expect(
       offenders,
-      "These single-word terms appear in ordinary contractor names far more " +
-        "often than in a prohibited one. Either qualify them into a phrase " +
-        '("weed shop", "cash advance") or drop them: ' +
-        offenders.join(", "),
+      `These single-word terms appear in ordinary contractor names far more ` +
+        `often than in a prohibited one. Either qualify them into a phrase ` +
+        `("weed shop", "cash advance") or drop them: ${ 
+        offenders.join(", ")}`,
     ).toEqual([]);
   });
 

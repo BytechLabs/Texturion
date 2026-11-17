@@ -59,7 +59,7 @@ function senderIsNotDialable(from: string): boolean {
   if (trimmed === "") return false;
   // Alphanumeric sender ID: contains a letter anywhere.
   if (/[A-Za-z]/.test(trimmed)) return true;
-  const digits = trimmed.replace(/\D/g, "");
+  const digits = trimmed.replaceAll(/\D/g, "");
   // A NANP number is 10 digits, or 11 with the country code. 5-6 is a
   // shortcode. Anything shorter than 7 cannot be dialled as a subscriber line.
   return digits.length > 0 && digits.length <= 6;

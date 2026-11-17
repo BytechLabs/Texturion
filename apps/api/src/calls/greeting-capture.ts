@@ -247,7 +247,7 @@ export async function parseGreetingCaptureState(
  * greeting itself is before it reaches a speak command.
  */
 export function greetingCapturePrompt(companyName: string): string {
-  const cleaned = (companyName ?? "").replace(/[\p{Cc}\p{Cf}]/gu, " ").trim();
+  const cleaned = (companyName ?? "").replaceAll(/[\p{Cc}\p{Cf}]/gu, " ").trim();
   const business = cleaned ? cleaned.slice(0, 120) : "your business";
   return (
     `This is a greeting recording call for ${business}. ` +

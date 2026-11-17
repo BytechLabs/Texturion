@@ -28,17 +28,8 @@
 import { describe, expect, it } from "vitest";
 
 import { PLAN_PRICE_CENTS } from "./billing-currency";
-import {
-  CANCELLATION_GRACE_DAYS,
-  CANCELLATION_REASON_CODES,
-  cancellationOffer,
-  isCancellationReasonCode,
-  isWithinCancellationGrace,
-  numberReleaseAt,
-  type CancellationOffer,
-  type CancellationOfferInput,
-  type CancellationOfferPhase,
-} from "./cancellation-offers";
+import { CANCELLATION_GRACE_DAYS, CANCELLATION_REASON_CODES, cancellationOffer, isCancellationReasonCode, isWithinCancellationGrace, numberReleaseAt } from './cancellation-offers';
+import type { CancellationOffer, CancellationOfferInput, CancellationOfferPhase } from './cancellation-offers';
 import { PLAN_NUMBERS, PLAN_SEATS } from "./seats";
 import { SUPPORT_FIX_PROMISE_KEY, SUPPORT_RESPONSE_TIME_KEY } from "./support";
 
@@ -54,7 +45,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function lookUp(table: unknown, key: string, lang: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no ${lang} for ${key}`);
   return value;
 }
 
@@ -207,10 +198,10 @@ describe("too expensive, on Pro", () => {
     // The guard that survives a repricing: if PLAN_PRICE_CENTS moves and the
     // copy does not, this fails.
     for (const currency of ["usd", "cad"] as const) {
-      const body = offer({
+      const {body} = offer({
         reason: "too_expensive",
         billingCurrency: currency,
-      })!.body;
+      })!;
       const dollars = (cents: number) => String(cents / 100);
       expect(body).toContain(dollars(PLAN_PRICE_CENTS[currency].starter));
       expect(body).toContain(dollars(PLAN_PRICE_CENTS[currency].pro));
@@ -246,7 +237,7 @@ describe("too expensive, on Pro", () => {
     //
     // BEFORE PHASE ONLY, and the phase is spelled out rather than defaulted:
     // change-plan is the route that 409s over these, and it is the only one.
-    const body = offer({ reason: "too_expensive", phase: "before" })!.body;
+    const {body} = offer({ reason: "too_expensive", phase: "before" })!;
     expect(body).toContain(`${PLAN_SEATS.starter} people`);
     expect(body).toContain(`${PLAN_NUMBERS.starter} business number`);
     // ...and agrees with itself about how many that is. `toContain` alone
@@ -280,7 +271,7 @@ describe("too expensive, on Pro", () => {
     // for a workspace that fits Starter and false for the one being spoken to:
     // change-plan answers 409 "Release your extra phone number before
     // downgrading to Starter". The history does survive and is still promised.
-    const body = offer({ reason: "too_expensive", phase: "before" })!.body;
+    const {body} = offer({ reason: "too_expensive", phase: "before" })!;
     expect(body).not.toContain("stay exactly as they are");
     expect(body).toContain("message history comes with you");
     expect(body).toContain("a second number does not");
@@ -292,7 +283,7 @@ describe("too expensive, on Pro", () => {
     // #85/#121: the plan card on this same screen states allowances as a
     // fair-use line and puts the concrete numbers only in the policy. A count
     // here would be a second home for them.
-    const body = offer({ reason: "too_expensive" })!.body;
+    const {body} = offer({ reason: "too_expensive" })!;
     expect(body).toContain("fair-use policy");
     expect(body).not.toMatch(/\d{3,}/);
   });
@@ -336,7 +327,7 @@ describe("too expensive, on Pro, while paused (#277)", () => {
     // Dropping to null here was the other option and it is worse: somebody
     // cancelling over $79 would be told nothing about the $29 plan they can
     // have. What was refused is the click, not the fact.
-    const body = paused().body;
+    const {body} = paused();
     expect(body).toContain("$29");
     expect(body).toContain("$79");
     for (const currency of ["usd", "cad"] as const) {
@@ -365,7 +356,7 @@ describe("too expensive, on Pro, while paused (#277)", () => {
     // it still 409s over both. "A figure may only be printed on the path that
     // enforces it" cuts the other way here: the path is unchanged, so the
     // figures stay.
-    const body = paused().body;
+    const {body} = paused();
     expect(body).toContain(`${PLAN_SEATS.starter} people`);
     expect(body).toContain(`${PLAN_NUMBERS.starter} business number`);
     expect(body).toContain(`back inside ${PLAN_SEATS.starter} seats`);
@@ -391,7 +382,7 @@ describe("too expensive, on Pro, while paused (#277)", () => {
 
 describe("seasonal", () => {
   it("states the 30-day hold, read from the constant the job uses", () => {
-    const body = offer({ reason: "seasonal" })!.body;
+    const {body} = offer({ reason: "seasonal" })!;
     expect(body).toContain(`${CANCELLATION_GRACE_DAYS} days`);
     expect(CANCELLATION_GRACE_DAYS).toBe(30);
   });
@@ -401,7 +392,7 @@ describe("seasonal", () => {
     // cancellation, and runPreSendGates answers 402 without an active
     // subscription. Stating only the first would let somebody plan a quiet
     // season around a product that answers their customers.
-    const body = offer({ reason: "seasonal" })!.body;
+    const {body} = offer({ reason: "seasonal" })!;
     expect(body).toContain("receiving texts");
     expect(body).toContain("cannot reply");
   });
@@ -460,7 +451,7 @@ describe("seasonal", () => {
     // as long as you stay paused" is simply true there. A guard kept past the
     // fact that justified it stops being a guard and becomes a ceiling.
     for (const phase of ["before", "grace"] as CancellationOfferPhase[]) {
-      const heading = offer({ reason: "seasonal", phase })!.heading;
+      const {heading} = offer({ reason: "seasonal", phase })!;
       expect(heading.toLowerCase()).not.toMatch(
         /while you are (gone|away|out)|until you (are back|return)|(whole|entire|all) (season|winter|year)|as long as/,
       );
@@ -474,7 +465,7 @@ describe("seasonal", () => {
     // UNPAUSED ONLY, and the paused case below is why: for somebody already
     // paused this sentence is false — nothing of theirs is running out — and it
     // sits on screen with a card that says so.
-    const body = offer({ reason: "seasonal", phase: "before" })!.body;
+    const {body} = offer({ reason: "seasonal", phase: "before" })!;
     expect(body).toContain("longer than that outruns the hold");
     expect(body).toContain("goes back to the phone company");
   });
@@ -553,7 +544,7 @@ describe("seasonal, while paused (#277)", () => {
 
 describe("missing feature", () => {
   it("quotes the support constants rather than restating them", () => {
-    const body = offer({ reason: "missing_feature" })!.body;
+    const {body} = offer({ reason: "missing_feature" })!;
     expect(body).toContain(say(SUPPORT_RESPONSE_TIME_KEY));
     expect(body).toContain(say(SUPPORT_FIX_PROMISE_KEY));
   });

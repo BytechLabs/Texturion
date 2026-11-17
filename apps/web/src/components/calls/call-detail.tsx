@@ -149,11 +149,11 @@ export function CallDetail({ sessionId }: { sessionId: string }) {
             offering to copy our own apology. */}
         {transcript.muted && fromList ? (
           <Skeleton className="h-5 w-56" />
-        ) : transcript.muted ? (
+        ) : (transcript.muted ? (
           <p className="text-sm text-muted-foreground">{transcript.text}</p>
         ) : (
           <VoicemailTranscript text={transcript.text} prominent />
-        )}
+        ))}
         {row.has_voicemail && (
           <div className="mt-3">
             <VoicemailPlayer

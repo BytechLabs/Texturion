@@ -32,11 +32,8 @@ import { cn } from "@/lib/utils";
 import { useThumbnailReveal } from "@/components/thread/attachment-image";
 import { formatBytes } from "@/components/thread/gallery-grouping";
 
-import {
-  attachmentLabel,
-  isImageAttachment,
-  type AttachmentLike,
-} from "./derived-attachments";
+import { attachmentLabel, isImageAttachment } from './derived-attachments';
+import type { AttachmentLike } from './derived-attachments';
 
 // Re-exported for existing importers; the pure logic lives in
 // derived-attachments.ts so it unit-tests without React.
@@ -227,7 +224,7 @@ function AttachmentActions({
 
 /** The "Image · 24 KB · Note" sub-line, dropping absent parts. */
 function subLine(parts: (string | null | undefined)[]): string {
-  return parts.filter((part): part is string => !!part).join(" · ");
+  return parts.filter((part): part is string => Boolean(part)).join(" · ");
 }
 
 function ImageAttachmentRow({

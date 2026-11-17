@@ -12,7 +12,7 @@ export interface TimezoneGroup {
 
 /** "America/St_Johns" → "America/St Johns" (display only). */
 export function timezoneLabel(zone: string): string {
-  return zone.replace(/_/g, " ");
+  return zone.replaceAll('_', " ");
 }
 
 /**
@@ -31,10 +31,10 @@ export function groupTimezones(zones: readonly string[]): TimezoneGroup[] {
     byRegion.set(region, list);
   }
   return [...byRegion.entries()]
-    .sort(([a], [b]) => (a === "Other" ? 1 : b === "Other" ? -1 : a.localeCompare(b)))
+    .toSorted(([a], [b]) => (a === "Other" ? 1 : (b === "Other" ? -1 : a.localeCompare(b))))
     .map(([region, list]) => ({
       region,
-      zones: [...list].sort((a, b) => a.localeCompare(b)),
+      zones: [...list].toSorted((a, b) => a.localeCompare(b)),
     }));
 }
 

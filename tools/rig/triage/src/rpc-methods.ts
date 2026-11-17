@@ -34,7 +34,7 @@ export function triageMethods(deps: TriageDeps): TriageMethods {
 
     async "triage.rerun"(params) {
       const { scenario } = record(params);
-      if (typeof scenario !== "string") throw new Error("triage.rerun takes { scenario }");
+      if (typeof scenario !== "string") throw new TypeError("triage.rerun takes { scenario }");
       if (!deps.unresolved().some((u) => u.scenario === scenario)) {
         throw new Error(`${scenario} has no unresolved failure to re-run`);
       }

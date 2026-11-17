@@ -37,7 +37,7 @@ function readPanelWidth(): number {
   if (typeof window === "undefined") return PANEL_DEFAULT_WIDTH;
   try {
     const raw = window.localStorage.getItem(PANEL_WIDTH_KEY);
-    const parsed = raw ? Number.parseInt(raw, 10) : Number.NaN;
+    const parsed = raw ? Math.trunc(Number(raw)) : Number.NaN;
     return Number.isFinite(parsed) ? clampPanelWidth(parsed) : PANEL_DEFAULT_WIDTH;
   } catch {
     return PANEL_DEFAULT_WIDTH;

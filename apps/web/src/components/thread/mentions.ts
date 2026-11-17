@@ -31,8 +31,8 @@ export function resolveMentions(
   //
   // Longest name first, because "@Sam Rivera" must take that span before
   // "@Sam" can look at it.
-  const order = [...picked].sort((a, b) => b.name.length - a.name.length);
-  const claimed: Array<[number, number]> = [];
+  const order = [...picked].toSorted((a, b) => b.name.length - a.name.length);
+  const claimed: [number, number][] = [];
   const ids = new Set<string>();
 
   for (const mention of order) {

@@ -8,7 +8,7 @@ import { describe, expect, it } from "vitest";
 
 import { auditDiff, redactText } from "./diff";
 
-describe("auditDiff", () => {
+describe(auditDiff, () => {
   it("records only the field that moved, not the whole section", () => {
     const before = {
       enrich_task_address: true,

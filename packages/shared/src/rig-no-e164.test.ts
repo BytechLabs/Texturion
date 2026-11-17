@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -12,7 +11,7 @@ import { describe, expect, it } from "vitest";
  * no number outside the fictional range either.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 type Found = { line: number; fictional: boolean };
 const guard = (await import(join(REPO, "scripts", "check-rig-no-e164.mjs"))) as {
@@ -84,7 +83,7 @@ describe("what it reads as a number", () => {
   it("reads the written NANP forms", () => {
     expect(verdicts("(416) 555-0123")).toEqual([true]);
     expect(verdicts("416.555.0150")).toEqual([true]);
-    expect(verdicts(`416-555-${"0200"}`)).toEqual([false]);
+    expect(verdicts(`416-555-0200`)).toEqual([false]);
   });
 
   it("reads numbers outside the NANP as real", () => {

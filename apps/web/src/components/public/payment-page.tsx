@@ -1,8 +1,10 @@
 import { ChevronRight, Lock } from "lucide-react";
 
-import { DEFAULT_LOCALE, isLocale, type PaymentRequestState } from "@loonext/shared";
+import { DEFAULT_LOCALE, isLocale } from '@loonext/shared';
+import type { PaymentRequestState } from '@loonext/shared';
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 
 /**
  * #224 — the page a homeowner opens after a text asking them to pay.
@@ -142,14 +144,18 @@ export function settledHeading(
   switch (state) {
     case "paid":
     case "refunded":
-    case "disputed":
+    case "disputed": {
       return t("payments.settledPaidTitle");
-    case "cancelled":
+    }
+    case "cancelled": {
       return t("payments.settledCancelledTitle");
-    case "expired":
+    }
+    case "expired": {
       return t("payments.settledExpiredTitle");
-    case "requested":
+    }
+    case "requested": {
       return t("payments.linkUnavailableTitle");
+    }
   }
 }
 
@@ -163,13 +169,17 @@ export function settledDetail(
   switch (state) {
     case "paid":
     case "refunded":
-    case "disputed":
+    case "disputed": {
       return t("payments.settledPaidDetail", { business: businessName, amount });
-    case "cancelled":
+    }
+    case "cancelled": {
       return t("payments.settledCancelledDetail", { business: businessName });
-    case "expired":
+    }
+    case "expired": {
       return t("payments.settledExpiredDetail", { business: businessName, amount });
-    case "requested":
+    }
+    case "requested": {
       return t("payments.askForANewOne");
+    }
   }
 }

@@ -28,7 +28,7 @@ beforeEach(() => {
   state.numbers = [];
 });
 
-describe("WorkspaceNumbers", () => {
+describe(WorkspaceNumbers, () => {
   it("is a skeleton line while the company view loads, never the setting-up note", () => {
     state.pending = true;
     const html = renderToStaticMarkup(<WorkspaceNumbers />);

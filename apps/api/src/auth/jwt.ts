@@ -2,7 +2,8 @@ import { createMiddleware } from "hono/factory";
 import { createRemoteJWKSet, errors, jwtVerify } from "jose";
 
 import type { AppEnv, AssuranceLevel } from "../context";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { errorResponse, OVERLOADED_MESSAGE } from "../http/errors";
 
 /**

@@ -10,14 +10,14 @@ import {
   shouldPopDone,
 } from "./done";
 
-describe("isDone", () => {
+describe(isDone, () => {
   it("is true exactly when done_at is set", () => {
     expect(isDone({ done_at: null })).toBe(false);
     expect(isDone({ done_at: "2026-07-02T14:14:00Z" })).toBe(true);
   });
 });
 
-describe("isUnsentOutbound", () => {
+describe(isUnsentOutbound, () => {
   it("is false for a received inbound message (real customer text)", () => {
     expect(
       isUnsentOutbound({ direction: "inbound", status: "received" }),
@@ -47,7 +47,7 @@ describe("isUnsentOutbound", () => {
   });
 });
 
-describe("doneToggleLabel", () => {
+describe(doneToggleLabel, () => {
   it("flips between mark done / not done", () => {
     expect(doneToggleLabel(false)).toBe("Mark done");
     expect(doneToggleLabel(true)).toBe("Mark not done");
@@ -70,7 +70,7 @@ describe("shouldPopDone (#4 check pop)", () => {
   });
 });
 
-describe("doneBadgeLabel", () => {
+describe(doneBadgeLabel, () => {
   it("resolves the actor name, or degrades to time only", () => {
     const message = {
       done_at: "2026-07-02T14:14:00Z",

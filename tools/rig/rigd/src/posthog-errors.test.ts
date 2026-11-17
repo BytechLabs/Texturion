@@ -1,13 +1,13 @@
 import { describe, expect, it } from "vitest";
-import { PostHogErrors, POSTHOG_CAPTURE_URL } from "./posthog-errors.ts";
+import { POSTHOG_CAPTURE_URL, PostHogErrors } from "./posthog-errors.ts";
 import { fakeFetch, json } from "./test-support.ts";
 
-describe("PostHogErrors", () => {
+describe(PostHogErrors, () => {
   it("sends a scenario failure as a synthetic exception with its fingerprint, and says whether it went", async () => {
     const { fetch, requests } = fakeFetch({ POST: () => new Response("{}") });
     const posthog = new PostHogErrors({ projectKey: "phc_rig_test_key", fetch });
     expect(posthog.canSend).toBe(true);
-    expect(await posthog.send({ fingerprint: ["synthetic", "S02", "no_ring"], message: "S02 failed: no_ring", level: "fatal", runId: "r1", tags: { scenario: "S02" } })).toEqual({ sent: true });
+    await expect(posthog.send({ fingerprint: ["synthetic", "S02", "no_ring"], message: "S02 failed: no_ring", level: "fatal", runId: "r1", tags: { scenario: "S02" } })).resolves.toEqual({ sent: true });
 
     expect(requests[0]!.url).toBe(POSTHOG_CAPTURE_URL);
     const body = JSON.parse(requests[0]!.body!);
@@ -22,8 +22,8 @@ describe("PostHogErrors", () => {
     });
 
     const down = fakeFetch({ POST: () => new Response("no", { status: 503 }) });
-    expect(await new PostHogErrors({ projectKey: "k", fetch: down.fetch }).send({ fingerprint: ["a"], message: "m" })).toEqual({ sent: false, reason: "send_failed" });
-    expect(await new PostHogErrors({}).send({ fingerprint: ["a"], message: "m" })).toEqual({ sent: false, reason: "send_failed" });
+    await expect(new PostHogErrors({ projectKey: "k", fetch: down.fetch }).send({ fingerprint: ["a"], message: "m" })).resolves.toEqual({ sent: false, reason: "send_failed" });
+    await expect(new PostHogErrors({}).send({ fingerprint: ["a"], message: "m" })).resolves.toEqual({ sent: false, reason: "send_failed" });
   });
 
   it("reads the rig's exceptions with HogQL under the personal key, and refuses to read without one", async () => {

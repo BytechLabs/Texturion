@@ -1,9 +1,5 @@
-import {
-  ERROR_CODES,
-  INTERNAL_ERROR_CODE,
-  type ContactImportErrorMessageKey,
-  type ErrorCode,
-} from "@loonext/shared";
+import { ERROR_CODES, INTERNAL_ERROR_CODE } from '@loonext/shared';
+import type { ContactImportErrorMessageKey, ErrorCode } from '@loonext/shared';
 
 import type { Translated } from "../translated";
 

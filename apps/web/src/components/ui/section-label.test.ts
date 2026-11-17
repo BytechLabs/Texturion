@@ -51,8 +51,8 @@ describe("#733 section labels come from SECTION_LABEL_CLASS", () => {
   });
 
   it("reads 11px, semibold, uppercase, 0.06em, in the AA-safe muted ink", () => {
-    expect(SECTION_LABEL_CLASS.split(" ").sort()).toEqual(
-      ["font-semibold", "text-[11px]", "text-app-muted", "tracking-[0.06em]", "uppercase"].sort(),
+    expect(SECTION_LABEL_CLASS.split(" ").toSorted()).toEqual(
+      ["font-semibold", "text-[11px]", "text-app-muted", "tracking-[0.06em]", "uppercase"].toSorted(),
     );
   });
 });

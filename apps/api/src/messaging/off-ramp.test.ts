@@ -8,14 +8,13 @@
  */
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import { productionSources } from "../test/source-tree";
 import { MAX_OFFRAMP_REPLIES } from "./off-ramp";
 
-const SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+const SRC = join(import.meta.dirname, "..");
 
 describe("#481 the off-ramp exemption is unreachable from anywhere else", () => {
   /**
@@ -32,8 +31,8 @@ describe("#481 the off-ramp exemption is unreachable from anywhere else", () => 
         // parameter rather than passing it, so it is excluded by the pattern.
         return /runPreSendGates\([^)]*,\s*(true|offRamp)\s*\)/s.test(source);
       })
-      .map((file) => file.replace(/\\/g, "/").split("/src/")[1])
-      .sort();
+      .map((file) => file.replaceAll('\\', "/").split("/src/")[1])
+      .toSorted();
 
     expect(askers).toEqual(["messaging/off-ramp.ts"]);
   });

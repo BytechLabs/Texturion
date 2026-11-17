@@ -92,7 +92,7 @@ describe("#280 viewFiltersToUrl", () => {
   });
 
   it("ignores a stored filter the app no longer understands", () => {
-    expect(viewFiltersToUrl({ status: "open", colour: "red" } as never)).toEqual({
+    expect(viewFiltersToUrl({ status: "open", colour: "red" })).toEqual({
       status: "open",
     });
   });

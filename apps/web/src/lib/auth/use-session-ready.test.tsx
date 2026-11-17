@@ -42,7 +42,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe("useSession", () => {
+describe(useSession, () => {
   it("is ready with the user's id once getSession() has one", async () => {
     const { result } = renderHook(() => useSession());
     await waitFor(() =>

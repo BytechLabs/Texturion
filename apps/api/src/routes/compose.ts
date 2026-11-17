@@ -59,10 +59,8 @@ import {
   runPreSendGates,
 } from "../messaging/send";
 import type { AttachmentSummary, MessageRow } from "../messaging/types";
-import {
-  insertConversationEvents,
-  type ConversationEventRow,
-} from "./core/events";
+import { insertConversationEvents } from './core/events';
+import type { ConversationEventRow } from './core/events';
 import { normalizeNanpPhone } from "./core/phone";
 import {
   assertBodyWithinLimit,
@@ -599,7 +597,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
       idempotencyKey,
       segmentsEstimate,
     });
-  } catch (cause) {
+  } catch (error) {
     // #48: a rejected compose (rate_limited, usage_cap_reached, the gate's
     // backstops, or an RPC failure — in every case no message row committed)
     // must not leave the message-less open conversation it just created in
@@ -609,7 +607,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
     if (created) {
       await reapEmptyConversation(db, companyId, conversation.id as string);
     }
-    throw cause;
+    throw error;
   }
   const { message, existing } = gated;
   if (existing) {
@@ -691,13 +689,13 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
       attachments = uploaded.summaries;
       mediaUrls = await signedMediaUrls(db, uploaded.storagePaths);
     }
-  } catch (cause) {
+  } catch (error) {
     await persistSendInterruption(
       db,
       message,
       "The send was interrupted before reaching the carrier.",
     );
-    throw cause;
+    throw error;
   }
 
   const sent = await dispatchOutbound(env, db, message, {
@@ -727,8 +725,8 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
         p_template_id: body.template_id,
         p_edited: body.template_edited ?? false,
       });
-    } catch (cause) {
-      console.warn(`template use not recorded: ${String(cause)}`);
+    } catch (error) {
+      console.warn(`template use not recorded: ${String(error)}`);
     }
   }
 

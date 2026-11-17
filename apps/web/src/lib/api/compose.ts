@@ -2,7 +2,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
 
-import { threadUpsertMessages, type ThreadData } from "./cache";
+import { threadUpsertMessages } from './cache';
+import type { ThreadData } from './cache';
 import { apiFetch } from "./client";
 import { keys } from "./keys";
 import type { OutboundMedia } from "./messages";
@@ -57,11 +58,11 @@ export function useStartConversation() {
       );
       // The list needs the contact/tags embed the compose response doesn't
       // carry — one targeted refetch of active lists, then realtime keeps up.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.conversations.lists(companyId),
         refetchType: "active",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.conversations.detail(companyId, conversation.id),
         refetchType: "active",
       });

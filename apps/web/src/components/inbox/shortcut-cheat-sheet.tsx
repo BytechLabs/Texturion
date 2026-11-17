@@ -8,7 +8,8 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import { useT } from "@/i18n/provider";
-import { INBOX_KEYMAP, type ShortcutAction } from "@/lib/inbox/shortcuts";
+import { INBOX_KEYMAP } from '@/lib/inbox/shortcuts';
+import type { ShortcutAction } from '@/lib/inbox/shortcuts';
 
 /** The cheat sheet reads the same keymap the key handler uses. */
 const ORDER: ShortcutAction[] = [

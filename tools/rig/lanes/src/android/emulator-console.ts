@@ -11,7 +11,8 @@
  * `svc wifi` turns off and on instead. A loss is refused (X27) rather than
  * approximated.
  */
-import { connect, type Socket } from "node:net";
+import { connect } from 'node:net';
+import type { Socket } from 'node:net';
 import type { Adb } from "./adb.ts";
 
 export const PACKET_LOSS_REFUSED = "emulator: packet loss has no emulator control (X27)";
@@ -170,7 +171,7 @@ export class EmulatorConsole {
   }
 
   async networkDelay(ms: number | null): Promise<void> {
-    if (ms !== null && !(Number.isInteger(ms) && ms >= 0 && ms <= 5_000)) throw new Error("emulator console: a delay is 0-5000 ms");
+    if (ms !== null && !(Number.isInteger(ms) && ms >= 0 && ms <= 5000)) throw new Error("emulator console: a delay is 0-5000 ms");
     await this.send(`network delay ${ms ?? "none"}`);
   }
 
@@ -221,7 +222,7 @@ export class EmulatorConsole {
       return;
     }
     if (shape.lossPercent !== undefined && shape.lossPercent !== 0) throw new Error(PACKET_LOSS_REFUSED);
-    if (!(Number.isInteger(shape.delayMs) && shape.delayMs >= 0 && shape.delayMs <= 5_000)) throw new Error("emulator console: a delay is 0-5000 ms");
+    if (!(Number.isInteger(shape.delayMs) && shape.delayMs >= 0 && shape.delayMs <= 5000)) throw new Error("emulator console: a delay is 0-5000 ms");
     assertKbps(shape.speedKbps);
     await this.send(`network delay ${shape.delayMs}`, `network speed ${shape.speedKbps.up}:${shape.speedKbps.down}`);
     this.#shaped = { delayMs: shape.delayMs, speedKbps: { ...shape.speedKbps } };

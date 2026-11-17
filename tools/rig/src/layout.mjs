@@ -9,11 +9,10 @@
  *   $RIG_HOME/state/        deployed.json and what rigd and the relay publish
  */
 import { existsSync, readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 
 /** The checkout the rig CLI itself runs from. Deployed refs are worktrees of it. */
-export const TOOLING_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+export const TOOLING_ROOT = resolve(import.meta.dirname, "..", "..", "..");
 
 export const DEFAULT_SETTINGS = {
   /** Where browsers, the emulators and the API reach Supabase: Caddy, at 192.168.70.10 and on loopback. */

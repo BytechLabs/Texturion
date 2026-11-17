@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import { charge } from "../src/state/ledger";
 import { recordSignal } from "../src/state/signals";
 import { messageCostUsd, smsParts } from "../src/telnyx/message";
-import { EDGE, lease, N, ready, ruleOf, type Harness } from "./support";
+import { EDGE, lease, N, ready, ruleOf } from './support';
+import type { Harness } from './support';
 
 const TEXT = { from: N.devW1, to: N.robot1, text: "hello" };
 
@@ -17,33 +18,33 @@ describe("messages", () => {
     const h = await ready();
     expect((await send(h)).status).toBe(200);
     expect(h.telnyx.requests("POST", "/v2/messages")).toHaveLength(1);
-    expect(await h.store.get("count:texts:2026-11-02")).toBe(1);
+    await expect(h.store.get("count:texts:2026-11-02")).resolves.toBe(1);
   });
 
   it("needs an owned from and an owned to", async () => {
     const h = await ready();
-    expect(await ruleOf(await send(h, { ...TEXT, from: N.notOwned }))).toBe("message.from_not_owned");
-    expect(await ruleOf(await send(h, { ...TEXT, from: N.production }))).toBe("message.from_not_owned");
-    expect(await ruleOf(await send(h, { ...TEXT, to: N.notOwned }))).toBe("message.to_not_owned");
-    expect(await ruleOf(await send(h, { ...TEXT, to: N.production }))).toBe("message.to_not_owned");
-    expect(await ruleOf(await send(h, { ...TEXT, to: [N.robot1, N.notOwned] }))).toBe("message.to_not_owned");
+    await expect(ruleOf(await send(h, { ...TEXT, from: N.notOwned }))).resolves.toBe("message.from_not_owned");
+    await expect(ruleOf(await send(h, { ...TEXT, from: N.production }))).resolves.toBe("message.from_not_owned");
+    await expect(ruleOf(await send(h, { ...TEXT, to: N.notOwned }))).resolves.toBe("message.to_not_owned");
+    await expect(ruleOf(await send(h, { ...TEXT, to: N.production }))).resolves.toBe("message.to_not_owned");
+    await expect(ruleOf(await send(h, { ...TEXT, to: [N.robot1, N.notOwned] }))).resolves.toBe("message.to_not_owned");
     expect(h.telnyx.requests("POST", "/v2/messages")).toEqual([]);
   });
 
   it("refuses a production messaging profile, named or bound to the sender", async () => {
     const h = await ready();
-    expect(await ruleOf(await send(h, { ...TEXT, messaging_profile_id: "prof-prod" }))).toBe(
+    await expect(ruleOf(await send(h, { ...TEXT, messaging_profile_id: "prof-prod" }))).resolves.toBe(
       "message.profile_not_nonprod",
     );
     const number = h.telnyx.numbers.find((item) => item.id === "num-devw2");
     if (number) number.messaging_profile_id = "prof-prod";
     await h.store.delete("partition:owned");
-    expect(await ruleOf(await send(h, { ...TEXT, from: N.devW2 }))).toBe("message.profile_not_nonprod");
+    await expect(ruleOf(await send(h, { ...TEXT, from: N.devW2 }))).resolves.toBe("message.profile_not_nonprod");
   });
 
   it("keeps delivery webhooks on the edge", async () => {
     const h = await ready();
-    expect(await ruleOf(await send(h, { ...TEXT, webhook_url: "https://somewhere.example/hook" }))).toBe(
+    await expect(ruleOf(await send(h, { ...TEXT, webhook_url: "https://somewhere.example/hook" }))).resolves.toBe(
       "message.field_refused",
     );
     expect((await send(h, { ...TEXT, webhook_url: `${EDGE}/t/m` })).status).toBe(200);
@@ -52,46 +53,46 @@ describe("messages", () => {
   it("caps texts at 20 a day and 300 a month", async () => {
     const h = await ready();
     await h.store.put("count:texts:2026-11-02", 20);
-    expect(await ruleOf(await send(h))).toBe("budget.texts_day");
+    await expect(ruleOf(await send(h))).resolves.toBe("budget.texts_day");
     await h.store.put("count:texts:2026-11-02", 0);
     await h.store.put("count:texts-month:2026-11", 300);
-    expect(await ruleOf(await send(h))).toBe("budget.texts_month");
+    await expect(ruleOf(await send(h))).resolves.toBe("budget.texts_month");
     // The day's take is given back when the month refuses.
-    expect(await h.store.get("count:texts:2026-11-02")).toBe(0);
+    await expect(h.store.get("count:texts:2026-11-02")).resolves.toBe(0);
   });
 
   it("sends at amber only under a core scenario's lease, and never at red", async () => {
     const h = await ready();
     await charge(h.ctx, 2);
-    expect(await ruleOf(await send(h))).toBe("budget.tier_amber");
+    await expect(ruleOf(await send(h))).resolves.toBe("budget.tier_amber");
     const other = await lease(h, "S05");
     // The scenario header is the caller's claim; the live lease decides.
-    expect(await ruleOf(await send(h, TEXT, { [HEADER.scenario]: "S01" }))).toBe("budget.tier_amber");
+    await expect(ruleOf(await send(h, TEXT, { [HEADER.scenario]: "S01" }))).resolves.toBe("budget.tier_amber");
     await h.call(`/lease/${other}`, { caller: "robot", method: "DELETE" });
     await lease(h, "S20");
     expect((await send(h)).status).toBe(200);
     await charge(h.ctx, 40);
-    expect(await ruleOf(await send(h))).toBe("budget.tier_red");
+    await expect(ruleOf(await send(h))).resolves.toBe("budget.tier_red");
   });
 
   it("refuses all test spend under the balance floor", async () => {
     const h = await ready();
     h.telnyx.balance = "29.00";
-    expect(await ruleOf(await send(h))).toBe("budget.balance_floor");
+    await expect(ruleOf(await send(h))).resolves.toBe("budget.balance_floor");
     expect(h.telnyx.requests("POST", "/v2/messages")).toEqual([]);
   });
 
   it("stops during an account-signal halt", async () => {
     const h = await ready();
     await recordSignal(h.ctx, { signal: "Short duration calls", notice_id: null, corroborated_by: "signature" });
-    expect(await ruleOf(await send(h))).toBe("signal.halted");
+    await expect(ruleOf(await send(h))).resolves.toBe("signal.halted");
   });
 
   it("gives everything back when Telnyx refuses outright", async () => {
     const h = await ready();
     h.telnyx.failNext = { method: "POST", path: "/v2/messages", status: 400 };
     expect((await send(h)).status).toBe(400);
-    expect(await h.store.get("count:texts:2026-11-02")).toBe(0);
+    await expect(h.store.get("count:texts:2026-11-02")).resolves.toBe(0);
     expect((await h.store.get<{ usage_usd: number }>("money:month:2026-11"))?.usage_usd).toBe(0);
   });
 });

@@ -14,7 +14,7 @@ const TEN_PM = new Date("2026-08-06T02:00:00Z");
 
 const OVERNIGHT = { from: "22:00", to: "07:00", timezone: TORONTO };
 
-describe("isMemberQuietNow", () => {
+describe(isMemberQuietNow, () => {
   it("MQ-1: an overnight window wraps past midnight", () => {
     // The only shape anybody actually sets, and the one a naive
     // `from <= now < to` gets exactly backwards — it would be quiet all DAY

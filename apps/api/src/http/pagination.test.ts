@@ -8,7 +8,7 @@ const ID_B = "22222222-2222-4222-8222-222222222222";
 const ID_C = "33333333-3333-4333-8333-333333333333";
 
 function base64url(text: string): string {
-  return btoa(text).replaceAll("+", "-").replaceAll("/", "_").replace(/=+$/, "");
+  return btoa(text).replaceAll("+", "-").replaceAll("/", "_").replace(/[=]+$/, "");
 }
 
 describe("cursor encode/decode (SPEC §7: opaque base64url over (timestamptz, id))", () => {
@@ -33,7 +33,7 @@ describe("cursor encode/decode (SPEC §7: opaque base64url over (timestamptz, id
     const encoded = encodeCursor({ ts: "2026-07-01T00:00:00Z", id: ID_A });
     const tampered =
       encoded.slice(0, -1) + (encoded.endsWith("A") ? "B" : "A");
-    expect(() => decodeCursor(tampered)).toThrowError(ApiError);
+    expect(() => decodeCursor(tampered)).toThrow(ApiError);
     try {
       decodeCursor(tampered);
     } catch (error) {
@@ -42,17 +42,17 @@ describe("cursor encode/decode (SPEC §7: opaque base64url over (timestamptz, id
   });
 
   it("rejects non-base64 garbage", () => {
-    expect(() => decodeCursor("!!!not-base64!!!")).toThrowError(ApiError);
+    expect(() => decodeCursor("!!!not-base64!!!")).toThrow(ApiError);
   });
 
   it("rejects valid base64 of non-JSON", () => {
-    expect(() => decodeCursor(base64url("hello world"))).toThrowError(ApiError);
+    expect(() => decodeCursor(base64url("hello world"))).toThrow(ApiError);
   });
 
   it("rejects a wrong-shape payload (bad timestamp)", () => {
     expect(() =>
       decodeCursor(base64url(JSON.stringify({ ts: "yesterday", id: ID_A }))),
-    ).toThrowError(ApiError);
+    ).toThrow(ApiError);
   });
 
   it("rejects a wrong-shape payload (bad uuid)", () => {
@@ -60,7 +60,7 @@ describe("cursor encode/decode (SPEC §7: opaque base64url over (timestamptz, id
       decodeCursor(
         base64url(JSON.stringify({ ts: "2026-07-01T00:00:00Z", id: "123" })),
       ),
-    ).toThrowError(ApiError);
+    ).toThrow(ApiError);
   });
 });
 
@@ -104,8 +104,8 @@ describe("buildPage (SPEC §7: { data, next_cursor } from limit+1 rows)", () => 
   });
 
   it("rejects a non-positive limit with 422 validation_failed", () => {
-    expect(() => buildPage(rows, 0, "created_at")).toThrowError(ApiError);
-    expect(() => buildPage(rows, -1, "created_at")).toThrowError(ApiError);
-    expect(() => buildPage(rows, 2.5, "created_at")).toThrowError(ApiError);
+    expect(() => buildPage(rows, 0, "created_at")).toThrow(ApiError);
+    expect(() => buildPage(rows, -1, "created_at")).toThrow(ApiError);
+    expect(() => buildPage(rows, 2.5, "created_at")).toThrow(ApiError);
   });
 });

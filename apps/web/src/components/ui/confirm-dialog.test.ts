@@ -73,7 +73,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
     if (entry.isDirectory()) {
       if (entry.name.startsWith("(marketing")) continue;
       sourceFiles(full, out);
-    } else if (/\.tsx$/.test(entry.name) && !/\.test\.tsx$/.test(entry.name)) {
+    } else if (entry.name.endsWith('.tsx') && !entry.name.endsWith('.test.tsx')) {
       out.push(full);
     }
   }
@@ -83,7 +83,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
 /** Does this footer hold a cancel-style button AND a destructive one? */
 export function handBuiltConfirm(footer: string): boolean {
   return (
-    /variant="destructive"/.test(footer) &&
+    footer.includes('variant="destructive"') &&
     /variant="(outline|ghost)"/.test(footer)
   );
 }

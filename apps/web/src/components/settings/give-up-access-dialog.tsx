@@ -1,15 +1,10 @@
 "use client";
 
-import {
-  isDowngrade,
-  type MemberRole,
-  selfDowngradeWarning,
-} from "@loonext/shared";
+import { isDowngrade, selfDowngradeWarning } from '@loonext/shared';
+import type { MemberRole } from '@loonext/shared';
 
-import {
-  type AssignableRole,
-  roleLabels,
-} from "@/components/settings/role-select";
+import { roleLabels } from '@/components/settings/role-select';
+import type { AssignableRole } from '@/components/settings/role-select';
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useT } from "@/i18n/provider";
 

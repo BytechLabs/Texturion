@@ -32,13 +32,13 @@ function look(table: unknown, key: string): string {
   const value = (table as Record<string, Record<string, string>>)[section]?.[
     name
   ];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
 const MINUTE = 60 * 1000;
 
-describe("shouldOfferThreadSummary", () => {
+describe(shouldOfferThreadSummary, () => {
   it("offers a catch-up on a long thread, however fresh it is", () => {
     expect(
       shouldOfferThreadSummary({

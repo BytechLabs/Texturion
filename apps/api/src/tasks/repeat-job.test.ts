@@ -24,7 +24,7 @@ describe("runTaskRepeatsJob (#693)", () => {
 
   it("fails the job when the database refuses, so the failure is reported", async () => {
     const rpc = stubRoute(rpcMatch(env, "api_materialize_task_repeats"), () =>
-      new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(rpc.route);
     await expect(runTaskRepeatsJob(env)).rejects.toThrow(/task repeat run failed/);

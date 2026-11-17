@@ -5,7 +5,8 @@
  */
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { getEnv, type Bindings } from "./env";
+import { getEnv } from './env';
+import type { Bindings } from './env';
 import { handler, runScheduledJobs } from "./index";
 import { captured, exceptionsCaptured, resetCaptures } from "./test/capture-mock";
 import { testExecutionContext } from "./test/messaging-support";
@@ -13,7 +14,7 @@ import { supabaseStub } from "./test/routes-harness";
 import { rigEnv } from "./test/rig-env";
 import { completeEnv, stubFetch } from "./test/support";
 
-vi.mock("./observability/capture", async () =>
+vi.mock(import("./observability/capture"), async () =>
   (await import("./test/capture-mock")).captureModuleMock(),
 );
 
@@ -79,7 +80,7 @@ describe("a cron trigger", () => {
   });
 });
 
-describe("runScheduledJobs", () => {
+describe(runScheduledJobs, () => {
   const env = getEnv(completeEnv());
   const now = new Date("2026-11-02T13:00:00Z");
 

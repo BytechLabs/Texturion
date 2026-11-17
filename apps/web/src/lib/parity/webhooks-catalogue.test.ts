@@ -37,8 +37,8 @@ const IOS = join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/WebhooksStrings.swift");
  */
 function joinWrapped(text: string): string {
   return text
-    .replace(/"\s*\+\s*\n\s*"/g, "")
-    .replace(/"\s*\n\s*\+\s*"/g, "");
+    .replaceAll(/"\s*\+\s*\n\s*"/g, "")
+    .replaceAll(/"\s*\n\s*\+\s*"/g, "");
 }
 
 /** Kotlin `"key" to "value"` pairs, in declaration order. */
@@ -46,7 +46,7 @@ function kotlinPairs(text: string): [string, string][] {
   const out: [string, string][] = [];
   const re = /"([^"]+)"\s+to\s*\n?\s*"((?:[^"\\]|\\.)*)"/g;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(joinWrapped(text)))) out.push([match[1]!, match[2]!]);
+  while ((match = re.exec(joinWrapped(text)))) out.push([match[1], match[2]]);
   return out;
 }
 
@@ -55,7 +55,7 @@ function swiftPairs(text: string): [string, string][] {
   const out: [string, string][] = [];
   const re = /"([^"]+)"\s*:\s*\n?\s*"((?:[^"\\]|\\.)*)"/g;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(joinWrapped(text)))) out.push([match[1]!, match[2]!]);
+  while ((match = re.exec(joinWrapped(text)))) out.push([match[1], match[2]]);
   return out;
 }
 
@@ -122,12 +122,12 @@ describe("#243 Connections copy is the same product on all three clients", () =>
 
   for (const client of CLIENTS) {
     it(`${client.name} holds exactly the web's keys, both languages`, () => {
-      const web = [...webMap(webhooksEn).keys()].sort();
+      const web = [...webMap(webhooksEn).keys()].toSorted();
       // Set equality in BOTH directions. A containment check passes when a
       // client grows a key the others never got, which is how one phone ends
       // up quietly saying something the other cannot.
-      expect([...client.en.keys()].sort()).toEqual(web);
-      expect([...client.fr.keys()].sort()).toEqual(web);
+      expect([...client.en.keys()].toSorted()).toEqual(web);
+      expect([...client.fr.keys()].toSorted()).toEqual(web);
     });
 
     it(`${client.name} says the same English, word for word`, () => {

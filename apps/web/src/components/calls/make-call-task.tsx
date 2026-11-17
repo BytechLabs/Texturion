@@ -89,7 +89,14 @@ export function MakeCallTask({
         <PopoverHeader className="mb-3">
           <PopoverTitle>{t("thread.makeATask")}</PopoverTitle>
         </PopoverHeader>
-        {callId !== undefined ? (
+        {callId === undefined ? (sessionId === undefined ? null : (
+          <FormForSession
+            sessionId={sessionId}
+            conversationId={conversationId}
+            callerName={callerName}
+            onDone={() => setOpen(false)}
+          />
+        )) : (
           <MakeTaskForm
             call={{
               id: callId,
@@ -98,14 +105,7 @@ export function MakeCallTask({
             conversationId={conversationId}
             onDone={() => setOpen(false)}
           />
-        ) : sessionId !== undefined ? (
-          <FormForSession
-            sessionId={sessionId}
-            conversationId={conversationId}
-            callerName={callerName}
-            onDone={() => setOpen(false)}
-          />
-        ) : null}
+        )}
       </PopoverContent>
     </Popover>
   );

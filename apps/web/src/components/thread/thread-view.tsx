@@ -28,9 +28,8 @@ import {
 import { useT } from "@/i18n/provider";
 import { findListRow } from "@/lib/api/cache";
 import { useCompany } from "@/lib/api/companies";
-import { useActiveCompany } from "@/lib/company/provider";
+import { useActiveCompany,useCompanyId } from "@/lib/company/provider";
 import { useMe } from "@/lib/api/me";
-import { useCompanyId } from "@/lib/company/provider";
 import { useConversationPresence } from "@/lib/realtime/presence";
 import { PresenceStrip } from "@/components/thread/presence-strip";
 import { useContact } from "@/lib/api/contacts";
@@ -64,8 +63,8 @@ import {
   destinationCountry,
   selectComposerBanner,
   usSendApproved,
-  usTextingOff,
   usSuspended,
+  usTextingOff,
 } from "./composer-banner";
 import { ComposerBannerCard } from "./composer-banners";
 import { Composer } from "./composer";
@@ -73,11 +72,8 @@ import { AlertBanner } from "./alert-banner";
 import { ScheduledStrip } from "./scheduled-strip";
 import { TheirTime } from "./their-time";
 import { MessageList } from "./message-list";
-import {
-  parseThreadFilter,
-  serializeThreadFilter,
-  type ThreadFilter,
-} from "./thread-filter";
+import { parseThreadFilter, serializeThreadFilter } from './thread-filter';
+import type { ThreadFilter } from './thread-filter';
 import { ThreadHeader } from "./thread-header";
 import { ThreadBodySkeleton, ThreadSkeleton } from "./thread-skeleton";
 import { useCatchUp } from "./use-catch-up";
@@ -315,8 +311,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
     // The context drawer shows at xl (1280px+); below that it collapses to the
     // header toggle and opens as the mobile sheet (PORTAL-UX §3.2 / §5).
     const isDesktop =
-      typeof window !== "undefined" &&
-      window.matchMedia("(min-width: 1280px)").matches;
+      globalThis?.matchMedia?.("(min-width: 1280px)")?.matches;
     if (isDesktop) {
       setPanelOpen((open) => {
         try {
@@ -334,12 +329,12 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   // G4: opening a thread, and each newer message while viewing, marks it read unless the server already counts it read.
   const newest = messages.data?.pages[0]?.data[0]; // newest-first (SPEC §7)
   const newestMessageId = newest?.id ?? null;
-  const newestIsMine = newest !== undefined && newest.sent_by_user_id === userId;
+  const newestIsMine = newest?.sent_by_user_id === userId;
   const other = newestNotSentBy(messages.data?.pages, userId);
   const otherAt = other?.created_at ?? null;
   const otherFromCustomer = other?.direction === "inbound";
   // #718: an anchored window that stops short of the newest cannot vouch for it.
-  const windowHasNewer = messages.hasPreviousPage === true;
+  const windowHasNewer =  messages.hasPreviousPage;
   const markReadMutate = markRead.mutate;
   useEffect(() => {
     const current =
@@ -528,11 +523,11 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
       {(panelOpen || (taskId !== null && wide)) && (
         <aside
           aria-label={
-            taskId !== null
-              ? t("tasks.drawerTitle")
-              : t("thread.conversationInfoForAria", {
+            taskId === null
+              ? t("thread.conversationInfoForAria", {
                   name: contactDisplayName(conversation.contact),
                 })
+              : t("tasks.drawerTitle")
           }
           style={{ width: panelWidth }}
           className="relative hidden shrink-0 border-l border-app-line bg-app-paper xl:flex xl:flex-col"
@@ -559,13 +554,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             )}
           </div>
           <div className="min-h-0 flex-1">
-            {taskId !== null ? (
-              <div className="flex h-full min-h-0 flex-col">
-                <div className="min-h-0 flex-1">
-                  <TaskDetailPanel taskId={taskId} onClose={closeThreadTask} />
-                </div>
-              </div>
-            ) : (
+            {taskId === null ? (
               <ContactPanel
                 conversation={conversation}
                 contact={contact.data}
@@ -573,6 +562,12 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
                 onOpenGallery={openGallery}
                 active={panelOpen}
               />
+            ) : (
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="min-h-0 flex-1">
+                  <TaskDetailPanel taskId={taskId} onClose={closeThreadTask} />
+                </div>
+              </div>
             )}
           </div>
         </aside>

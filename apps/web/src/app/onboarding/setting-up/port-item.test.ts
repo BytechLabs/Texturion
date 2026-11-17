@@ -2,10 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { PortRequest } from "@/lib/api/types";
 
-import {
-  resolvePortChecklistItem,
-  type PortItemPhase,
-} from "./port-item";
+import { resolvePortChecklistItem } from './port-item';
+import type { PortItemPhase } from './port-item';
 
 /** Minimal port row factory — only the fields the deriver reads matter. */
 function port(overrides: Partial<PortRequest> = {}): PortRequest {

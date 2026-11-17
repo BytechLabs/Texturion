@@ -52,7 +52,7 @@ export function Tertiary<T extends React.ElementType = "span">({
   ...rest
 }: TertiaryProps<T> &
   Omit<React.ComponentPropsWithoutRef<T>, keyof TertiaryProps<T>>) {
-  const Comp = (as ?? "span") as React.ElementType;
+  const Comp = (as ?? "span");
   return (
     <Comp
       data-slot="tertiary"

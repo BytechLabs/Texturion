@@ -21,7 +21,7 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { PLAN_SEATS, canUpgradeSeats, seatLimit, seatUsage } from "./seats";
+import { canUpgradeSeats, PLAN_SEATS, seatLimit, seatUsage } from "./seats";
 
 /** [members, invites, plan, servedLimit, used, limit, full, canUpgrade, line] */
 export const SEAT_CASES = [

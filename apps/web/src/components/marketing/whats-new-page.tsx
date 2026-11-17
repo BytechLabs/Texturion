@@ -3,10 +3,8 @@ import { WHATS_NEW } from "@loonext/shared";
 import { EN, FR_CA } from "@/i18n/catalog";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { whatsNewCopy } from "@/i18n/marketing/whats-new";
-import {
-  breadcrumbJsonLd,
-  type Breadcrumb,
-} from "@/lib/marketing/seo";
+import { breadcrumbJsonLd } from '@/lib/marketing/seo';
+import type { Breadcrumb } from '@/lib/marketing/seo';
 
 import { FrCard, FrSection } from "./fr";
 import { Breadcrumbs } from "./ui/breadcrumbs";

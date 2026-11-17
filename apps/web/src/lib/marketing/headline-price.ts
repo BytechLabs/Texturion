@@ -1,9 +1,5 @@
-import {
-  formatMoney,
-  PLAN_PRICE_CENTS,
-  PLAN_SEATS,
-  type BillingCurrency,
-} from "@loonext/shared";
+import { formatMoney, PLAN_PRICE_CENTS, PLAN_SEATS } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
 /**
  * #385 — the price and the seat count it covers, as one thing.

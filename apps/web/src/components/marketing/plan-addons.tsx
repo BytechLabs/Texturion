@@ -19,12 +19,10 @@
  */
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import {
-  pricingCopy,
-  pricingEn,
-  type PricingCopy,
-} from "@/i18n/marketing/pricing";
-import { PLAN_MODULE_CARDS, type PlanModule, type PlanModuleCard } from "@/lib/api/types";
+import { pricingCopy, pricingEn } from '@/i18n/marketing/pricing';
+import type { PricingCopy } from '@/i18n/marketing/pricing';
+import { PLAN_MODULE_CARDS } from '@/lib/api/types';
+import type { PlanModule, PlanModuleCard } from '@/lib/api/types';
 import { FrCard, FrSection } from "@/components/marketing/fr";
 import { Reveal } from "@/components/marketing/ui/reveal";
 
@@ -62,7 +60,7 @@ const ADDON_WORDS: Record<PlanModule, { label: string; blurb: string }> = {
     label: "",
     blurb: "",
   },
-} as Record<PlanModule, { label: string; blurb: string }>;
+};
 
 function addonWords(id: PlanModule, copy: PricingCopy) {
   void ADDON_WORDS;

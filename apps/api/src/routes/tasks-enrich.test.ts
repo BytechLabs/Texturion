@@ -14,21 +14,10 @@ import { jwtAuth } from "../auth/jwt";
 import type { AppEnv } from "../context";
 import type { Env, WorkersAi } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import {
-  restMatch,
-  rpcMatch,
-  stubRoute,
-  type Stub,
-} from "../test/messaging-support";
-import {
-  authorizeRoute,
-  completeEnv,
-  createTestAuth,
-  type FetchRoute,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { companiesRoutes } from "./companies";
 import { tasksRoutes } from "./tasks";
 
@@ -168,7 +157,7 @@ describe("POST /v1/tasks/enrich", () => {
       address_provenance: string | null;
       due_at: string | null;
     };
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
     expect(json.address?.street).toBe("5 King St W");
     expect(json.address_provenance).toBe("message");
     // 2026-07-16 14:00 America/Toronto (EDT) → 18:00 UTC.
@@ -257,7 +246,7 @@ describe("POST /v1/tasks/enrich", () => {
 
     const res = await enrich({ text: "fix at 5 King St Friday" }, env);
     expect(res.status).toBe(200);
-    expect(reserve.calls.length).toBe(0);
+    expect(reserve.calls).toHaveLength(0);
   });
 
   it("no address/date signal → skips the AI AND the cap entirely (cost)", async () => {
@@ -282,7 +271,7 @@ describe("POST /v1/tasks/enrich", () => {
     expect(json.address).toBeNull();
     expect(json.due_at).toBeNull();
     expect(run).not.toHaveBeenCalled();
-    expect(reserve.calls.length).toBe(0);
+    expect(reserve.calls).toHaveLength(0);
   });
 
   it("no signal but a linked contact has an address → free contact fallback, no AI", async () => {
@@ -319,7 +308,7 @@ describe("POST /v1/tasks/enrich", () => {
     expect(json.address?.street).toBe("88 Bay St, Toronto");
     expect(json.address_provenance).toBe("contact");
     expect(run).not.toHaveBeenCalled();
-    expect(reserve.calls.length).toBe(0);
+    expect(reserve.calls).toHaveLength(0);
   });
 
   it("rejects an empty text body (422)", async () => {
@@ -355,7 +344,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     stubFetch(jwksRoute(auth), membersRoute("member"), settingsRoute(null).route);
     const res = await req("GET", "/v1/company/ai-settings");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       enrich_task_address: true,
       enrich_task_due: true,
       suggest_replies: true,
@@ -425,7 +414,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     });
     expect(res.status).toBe(200);
 
-    expect(audit.calls.length).toBe(1);
+    expect(audit.calls).toHaveLength(1);
     const row = audit.calls[0].body as {
       before: Record<string, unknown>;
       after: Record<string, unknown>;
@@ -473,7 +462,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
       suggest_replies: true,
     });
     expect(res.status).toBe(200);
-    expect(audit.calls.length).toBe(0);
+    expect(audit.calls).toHaveLength(0);
   });
 
   it("PATCH (admin) upserts the toggles and echoes them back", async () => {
@@ -503,13 +492,13 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
       suggest_replies: false,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       enrich_task_address: true,
       enrich_task_due: false,
       suggest_replies: false,
       business_description: "We paint houses.",
     });
-    expect(upsert.calls.length).toBe(1);
+    expect(upsert.calls).toHaveLength(1);
   });
 
   it("#420: accepts the null description its own GET hands back", async () => {
@@ -590,7 +579,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       business_description: "We paint houses.",
     });
   });

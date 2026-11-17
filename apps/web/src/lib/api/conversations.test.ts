@@ -3,7 +3,8 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { createElement } from 'react';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ConversationListData } from "./cache";
@@ -91,7 +92,7 @@ function row(
     unread: false,
     last_message: null,
     ...overrides,
-  } as ConversationListItem;
+  };
 }
 
 /** The detail response for a list row: no per-viewer unread, no snippet. */
@@ -222,7 +223,7 @@ describe("list placeholders from the unfiltered inbox", () => {
     const client = newClient();
     const { result, rerender } = renderHook(
       ({ filters }) => usePinnedConversations(filters),
-      { wrapper: wrapperFor(client), initialProps: { filters: {} as { status?: "open" } } },
+      { wrapper: wrapperFor(client), initialProps: { filters: {} } },
     );
     await waitFor(() => expect(calls).toHaveLength(1));
     await act(async () =>

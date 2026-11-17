@@ -370,7 +370,7 @@ describe("ForYouView Recent calls (#133)", () => {
   });
 });
 
-describe("countDistinctWork", () => {
+describe(countDistinctWork, () => {
   const conv = (id: string) => ({ conversation_id: id }) as never;
   const task = (id: string) => ({ task_id: id }) as never;
 
@@ -384,7 +384,7 @@ describe("countDistinctWork", () => {
         my_tasks: [],
         unread: [conv("a")],
         triage: null,
-      } as never),
+      }),
     ).toBe(2);
   });
 
@@ -395,7 +395,7 @@ describe("countDistinctWork", () => {
         my_tasks: [task("t1")],
         unread: [],
         triage: { conversations: [conv("c")], tasks: [task("t2")] },
-      } as never),
+      }),
     ).toBe(4);
   });
 
@@ -406,7 +406,7 @@ describe("countDistinctWork", () => {
         my_tasks: [task("t1")],
         unread: [],
         triage: { conversations: [], tasks: [task("t1")] },
-      } as never),
+      }),
     ).toBe(1);
   });
 
@@ -417,7 +417,7 @@ describe("countDistinctWork", () => {
         my_tasks: [],
         unread: [],
         triage: null,
-      } as never),
+      }),
     ).toBe(0);
   });
 });
@@ -626,7 +626,7 @@ describe("the headline is the work, not the page (#306)", () => {
  * moves.
  */
 describe("#540 the strip and the sections agree, and both lead with urgency", () => {
-  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
 
   it("puts an overdue task ahead of unassigned work in BOTH the strip and the page", () => {
     state.forYou = {
@@ -747,7 +747,7 @@ describe("#540 the strip and the sections agree, and both lead with urgency", ()
  * record instead of the array.
  */
 describe("#736 the page follows the member's layout", () => {
-  const hoursAgo = (h: number) => new Date(Date.now() - h * 3600_000).toISOString();
+  const hoursAgo = (h: number) => new Date(Date.now() - h * 3_600_000).toISOString();
   const overdueTask = {
     task_id: "t1",
     title: "Send the quote",

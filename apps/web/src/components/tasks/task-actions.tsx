@@ -1,11 +1,12 @@
 "use client";
 
-import { Check, CalendarClock, Link2, SquareArrowOutUpRight, Trash2 } from "lucide-react";
+import { CalendarClock, Check, Link2, SquareArrowOutUpRight, Trash2 } from "lucide-react";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useDeleteTask } from "@/lib/api/tasks";
 import type { Task } from "@/lib/api/types";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";

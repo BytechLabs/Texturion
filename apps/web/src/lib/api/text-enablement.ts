@@ -1,9 +1,5 @@
-import {
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -179,11 +175,11 @@ function invalidateNumberSurfaces(
   queryClient: QueryClient,
   companyId: string,
 ): void {
-  queryClient.invalidateQueries({
+  void queryClient.invalidateQueries({
     queryKey: keys.numbers(companyId),
     refetchType: "active",
   });
-  queryClient.invalidateQueries({
+  void queryClient.invalidateQueries({
     queryKey: keys.company(companyId),
     refetchType: "active",
   });
@@ -251,7 +247,7 @@ export function useVerifyTextEnablementCode(orderId: string) {
   return useMutation({
     mutationFn: (code: string) => requestVerifyCode(companyId, orderId, code),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.textEnablements.all(companyId),
         refetchType: "active",
       });

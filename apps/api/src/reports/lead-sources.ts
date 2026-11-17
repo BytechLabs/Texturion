@@ -114,12 +114,12 @@ export function buildLeadSourceReport(
   let widget = 0;
 
   for (const row of rows) {
-    const byNumber = Number(row.by_number) || 0;
-    const byPerson = Number(row.by_person) || 0;
-    const byWidget = Number(row.by_widget) || 0;
+    const byNumber = row.by_number || 0;
+    const byPerson = row.by_person || 0;
+    const byWidget = row.by_widget || 0;
     // The group's own count — see the note on `total` above. Deriving it from
     // the two sub-counts would silently drop every unattributed conversation.
-    const total = Number(row.total) || 0;
+    const total = row.total || 0;
     // #232 BEFORE the empty check, not after. A group whose conversations ALL
     // came through the website has a `total` of zero and is not a row — and
     // dropping it here would take its widget count with it, which is the one

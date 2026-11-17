@@ -121,9 +121,9 @@ export function useResolvedReferences(texts: string[]) {
     }
   }
   const query = {
-    tasks: [...tasks].sort(),
-    contacts: [...contacts].sort(),
-    conversations: [...conversations].sort(),
+    tasks: [...tasks].toSorted(),
+    contacts: [...contacts].toSorted(),
+    conversations: [...conversations].toSorted(),
   };
   const wanted = JSON.stringify(query);
   const nothing =

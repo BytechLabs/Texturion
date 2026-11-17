@@ -14,8 +14,8 @@ import {
   hashWidgetCode,
   mintWidgetCode,
   normaliseVisitorNumber,
-  WIDGET_CODES_PER_NUMBER_PER_DAY,
   WIDGET_CODE_TTL_SECONDS,
+  WIDGET_CODES_PER_NUMBER_PER_DAY,
   widgetMayDiscloseGateError,
 } from "./widget";
 
@@ -67,10 +67,10 @@ describe("the code", () => {
     expect(drawn.size).toBeGreaterThan(150);
   });
 
-  it("hashes with the row's id, so two identical codes do not collide", () => {
+  it("hashes with the row's id, so two identical codes do not collide", () => 
     // Six digits means collisions are ordinary, not exotic. Without the salt,
     // one rainbow table covers every code this product will ever send.
-    return Promise.all([
+    Promise.all([
       hashWidgetCode("11111111-1111-4111-8111-111111111111", "123456"),
       hashWidgetCode("22222222-2222-4222-8222-222222222222", "123456"),
       hashWidgetCode("11111111-1111-4111-8111-111111111111", "123456"),
@@ -80,8 +80,8 @@ describe("the code", () => {
       expect(a).toMatch(/^[0-9a-f]{64}$/);
       // And the code itself is nowhere in it.
       expect(a).not.toContain("123456");
-    });
-  });
+    })
+  );
 });
 
 describe("the numbers this feature is bounded by", () => {
@@ -110,7 +110,7 @@ describe("what the two endpoints refuse to tell a caller", () => {
     // Asserted against the source because the alternative is a route test that
     // stubs five failure modes and proves only that the stubs were written.
     const source = readFileSync(
-      new URL("./widget.ts", import.meta.url),
+      new URL("widget.ts", import.meta.url),
       "utf8",
     );
     const answerBranch = source.slice(source.indexOf("api_answer_widget_verification"));
@@ -125,7 +125,7 @@ describe("what the two endpoints refuse to tell a caller", () => {
     // succeeds. The other order leaves a live code behind whenever threading
     // fails — a replayable credential created by an error path.
     const source = readFileSync(
-      new URL("./widget.ts", import.meta.url),
+      new URL("widget.ts", import.meta.url),
       "utf8",
     );
     expect(source.indexOf("api_answer_widget_verification")).toBeLessThan(
@@ -137,7 +137,7 @@ describe("what the two endpoints refuse to tell a caller", () => {
     // The whole point of the #232 source discriminator: no invented Telnyx id,
     // and a key that makes a double-tapped submit one thread.
     const source = readFileSync(
-      new URL("./widget.ts", import.meta.url),
+      new URL("widget.ts", import.meta.url),
       "utf8",
     );
     expect(source).toContain("p_telnyx_message_id: null");
@@ -156,7 +156,7 @@ describe("what the two endpoints refuse to tell a caller", () => {
     // exists, and it is behind `created`. Without the guard a double-tapped
     // submit that re-threads would answer the same visitor twice.
     const source = readFileSync(
-      new URL("./widget.ts", import.meta.url),
+      new URL("widget.ts", import.meta.url),
       "utf8",
     );
     expect(source).toContain("maybeSendAwayReply");
@@ -174,7 +174,7 @@ describe("what the two endpoints refuse to tell a caller", () => {
     // and the visitor would prove their phone against one line while the
     // crew's reply arrived from another.
     const source = readFileSync(
-      new URL("./widget.ts", import.meta.url),
+      new URL("widget.ts", import.meta.url),
       "utf8",
     );
     const calls = [...source.matchAll(/resolveWidgetNumber\(/g)];

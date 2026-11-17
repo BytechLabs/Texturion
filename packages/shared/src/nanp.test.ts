@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
-  NANP_AREA_CODES,
-  NANP_TIMEZONES,
   destinationLocalHour,
   isUsCaDestination,
   lookupAreaCode,
+  NANP_AREA_CODES,
+  NANP_TIMEZONES,
 } from "./nanp";
 
 describe("NANP_AREA_CODES table", () => {
@@ -62,7 +62,7 @@ describe("NANP_AREA_CODES table", () => {
   });
 });
 
-describe("lookupAreaCode", () => {
+describe(lookupAreaCode, () => {
   it("resolves Canadian codes to the right province and timezone", () => {
     expect(lookupAreaCode("+14165550123")).toEqual({
       country: "CA",
@@ -233,7 +233,7 @@ describe("NANP_TIMEZONES (#292 contact-timezone picker)", () => {
   });
 
   it("is sorted, and every entry is a zone the runtime knows", () => {
-    expect([...NANP_TIMEZONES]).toEqual([...NANP_TIMEZONES].sort());
+    expect([...NANP_TIMEZONES]).toEqual([...NANP_TIMEZONES].toSorted());
     for (const zone of NANP_TIMEZONES) {
       expect(() =>
         new Intl.DateTimeFormat("en-US", { timeZone: zone }),

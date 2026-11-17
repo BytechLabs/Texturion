@@ -13,15 +13,12 @@ import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { billingRoutes } from "./billing";
-import { PLAN_LIMITS, type PlanId } from "../billing/plans";
+import { PLAN_LIMITS } from '../billing/plans';
+import type { PlanId } from '../billing/plans';
 import type { AppEnv, MemberRole } from "../context";
 import { ApiError, errorResponse } from "../http/errors";
-import {
-  endpoint,
-  makeHarness,
-  type Harness,
-  type StubEndpoint,
-} from "../test/billing-support";
+import { endpoint, makeHarness } from '../test/billing-support';
+import type { Harness, StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
 
 const env = completeEnv();

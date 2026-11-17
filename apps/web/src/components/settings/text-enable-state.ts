@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 import type { PhoneNumberSummary, TextEnablement } from "@/lib/api/types";
 
 /**
@@ -114,9 +115,9 @@ export function deriveTextEnableUiState(
     statusLine,
     tone: live
       ? "success"
-      : status === "failed" || status === "action-required"
+      : (status === "failed" || status === "action-required"
         ? "warning"
-        : "muted",
+        : "muted"),
     documentsPending,
     showDocumentsForm,
     // The API allows resubmit from failed OR action-required; from

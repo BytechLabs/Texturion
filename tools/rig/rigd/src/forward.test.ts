@@ -5,7 +5,8 @@ import { join } from "node:path";
 import { ROBOT_TOKEN_HEADER } from "@loonext/rig-robot";
 import { describe, expect, it } from "vitest";
 import { RIG_PATH_HEADER, webhookForwarder } from "./forward.ts";
-import { LateDeliveries, textHash, type LateDelivery } from "./late.ts";
+import { LateDeliveries, textHash } from './late.ts';
+import type { LateDelivery } from './late.ts';
 import { fakeFetch } from "./test-support.ts";
 import type { WebhookFrame } from "./uplink.ts";
 
@@ -60,10 +61,10 @@ function setup(status = 200, options: { key?: boolean } = {}) {
   return { forward, requests, late };
 }
 
-describe("webhookForwarder", () => {
+describe(webhookForwarder, () => {
   it("sends call events and tenants' texts to the API's Telnyx route with the signature headers intact", async () => {
     const { forward, requests } = setup();
-    expect(await forward(frame("call"))).toEqual({ status: 200, body: "ok" });
+    await expect(forward(frame("call"))).resolves.toEqual({ status: 200, body: "ok" });
     await forward(frame("message", "/t/m"));
     expect(requests.map((r) => r.url)).toEqual(["http://127.0.0.1:8787/webhooks/telnyx", "http://127.0.0.1:8787/webhooks/telnyx"]);
     expect(requests[0]!.headers["telnyx-signature-ed25519"]).toBe(frame("call").headers["telnyx-signature-ed25519"]);
@@ -105,13 +106,13 @@ describe("webhookForwarder", () => {
       throw new TypeError("connect ECONNREFUSED");
     }) as unknown as typeof globalThis.fetch;
     const forward = webhookForwarder({ apiBase: "http://127.0.0.1:8787", robotBase: "http://127.0.0.1:7311", robotToken: "r", fetch });
-    expect(await forward(frame("call"))).toEqual({ status: 503 });
+    await expect(forward(frame("call"))).resolves.toEqual({ status: 503 });
   });
 
   it("records a genuine text refused only for its age, by a hash of its body", async () => {
     const { forward, late } = setup(400);
     const body = text("message.received", ROBOT_1, DEV_W1, "STOP");
-    expect(await forward(frame("message", "/t/m", 301, body))).toMatchObject({ status: 400, late: true });
+    await expect(forward(frame("message", "/t/m", 301, body))).resolves.toMatchObject({ status: 400, late: true });
     expect(late).toEqual([
       { at: NOW, frame_id: "e1", path: "/t/m", attempt: 3, age_s: 301, signed_at: NOW - 301_000, text_sha256: textHash("STOP") },
     ]);
@@ -144,15 +145,15 @@ describe("webhookForwarder", () => {
 
   it("leaves every other refusal a refusal: a fresh one, a forged one, or one rigd cannot check", async () => {
     const { forward, late } = setup(400);
-    expect(await forward(frame("message", "/t/m", 30))).toEqual({ status: 400, body: "bad" });
-    expect(await forward(frame("call", "/t/v", 900))).toEqual({ status: 400, body: "bad" });
-    expect(await forward(frame("message", "/t/m", 900, text("message.received", ROBOT_1, DEV_W1), forger.privateKey))).toEqual({
+    await expect(forward(frame("message", "/t/m", 30))).resolves.toEqual({ status: 400, body: "bad" });
+    await expect(forward(frame("call", "/t/v", 900))).resolves.toEqual({ status: 400, body: "bad" });
+    await expect(forward(frame("message", "/t/m", 900, text("message.received", ROBOT_1, DEV_W1), forger.privateKey))).resolves.toEqual({
       status: 400,
       body: "bad",
     });
     expect(late).toEqual([]);
     const blind = setup(400, { key: false });
-    expect(await blind.forward(frame("message", "/t/m", 900))).toEqual({ status: 400, body: "bad" });
+    await expect(blind.forward(frame("message", "/t/m", 900))).resolves.toEqual({ status: 400, body: "bad" });
     expect(blind.late).toEqual([]);
   });
 });

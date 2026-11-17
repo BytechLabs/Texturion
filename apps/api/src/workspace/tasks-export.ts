@@ -143,14 +143,14 @@ export async function readTaskEntries(
   const access = await resolveNumberAccess(db, {
     companyId: args.companyId,
     userId: args.requestedBy,
-    role: (member as { role: string }).role as MemberRole,
+    role: (member).role as MemberRole,
   });
-  const hidden = new Set(access.hiddenNumberIds ?? []);
+  const hidden = new Set(access.hiddenNumberIds);
 
   let query = db
     .from("tasks")
     .select(
-      "id,title,description,due_at,created_at,assigned_user_id,conversation_id,done_at," +
+      `id,title,description,due_at,created_at,assigned_user_id,conversation_id,done_at,` +
         // `!message_id`, and it is load-bearing. `tasks.message_id` and
         // `messages.task_id` both exist, so PostgREST cannot tell which
         // relationship this means and refuses the whole request with PGRST201 —
@@ -159,12 +159,12 @@ export async function readTaskEntries(
         // nothing caught it until check-postgrest-embed-ambiguity.mjs looked at
         // the constraints instead of the stubs. Same hint scheduled-send.ts
         // already carries.
-        "messages!message_id(done_at)," +
-        "conversations(phone_number_id,contact_phone_e164,contacts(name))," +
+        `messages!message_id(done_at),` +
+        `conversations(phone_number_id,contact_phone_e164,contacts(name)),` +
         // A standalone task (#689) names its customer through its own link.
-        "linked_contact:contacts!contact_id(name)," +
-        "crew:task_assignees(user_id)" +
-        (args.embeds ?? ""),
+        `linked_contact:contacts!contact_id(name),` +
+        `crew:task_assignees(user_id)${ 
+        args.embeds ?? ""}`,
     )
     .eq("company_id", args.companyId)
     // Soft-deleted work is deleted work. A file that resurrected it would be
@@ -336,10 +336,10 @@ async function memberNames(
 
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replaceAll('&', "&amp;")
+    .replaceAll('<', "&lt;")
+    .replaceAll('>', "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 export function renderTaskDocument(args: {
@@ -356,9 +356,9 @@ export function renderTaskDocument(args: {
   const state =
     args.filters.state === "open"
       ? "Still outstanding"
-      : args.filters.state === "done"
+      : (args.filters.state === "done"
         ? "Finished"
-        : "Outstanding and finished";
+        : "Outstanding and finished");
 
   const notes: string[] = [];
   if (args.withheld > 0) {

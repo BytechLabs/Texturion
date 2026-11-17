@@ -20,7 +20,8 @@ import { Switch } from "@/components/ui/switch";
 import { useT } from "@/i18n/provider";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
-import { useMergeTags, useTagUsage, useUpdateTag, type TagUsage } from "@/lib/api/tags";
+import { useMergeTags, useTagUsage, useUpdateTag } from '@/lib/api/tags';
+import type { TagUsage } from '@/lib/api/tags';
 import { Input } from "@/components/ui/input";
 import { formatTimestamp } from "@/lib/format/time";
 
@@ -141,9 +142,9 @@ function TagUsageRow({
         <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
           {row.uses === 0
             ? t("settingsMore.tagNeverUsed")
-            : row.uses === 1
+            : (row.uses === 1
               ? t("settingsMore.tagUsesOne", { count: row.uses })
-              : t("settingsMore.tagUsesMany", { count: row.uses })}
+              : t("settingsMore.tagUsesMany", { count: row.uses }))}
           {/* Last used, beside the count: a tag with forty uses and nothing
               since March is a category the crew has stopped believing in, and
               the count alone cannot say that. */}
@@ -299,10 +300,10 @@ function MergeDialog({
               merge
                 .mutateAsync({ fromTagId: from.tag_id, intoTagId: into })
                 .then(onClose)
-                .catch((cause: unknown) => {
+                .catch((error_: unknown) => {
                   setError(
-                    cause instanceof ApiError
-                      ? cause.message
+                    error_ instanceof ApiError
+                      ? error_.message
                       : t("settingsMore.tagMergeFailed"),
                   );
                 });

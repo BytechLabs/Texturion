@@ -5,7 +5,8 @@ import { describe, expect, it } from "vitest";
 
 import { edgeUrl, SPEC, WEBHOOK_PATHS } from "../src/setup/spec";
 import { vendorLimits } from "../src/setup/setup";
-import { EDGE, fileMeasurements, fileValidation, harness, ruleOf, type Harness } from "./support";
+import { EDGE, fileMeasurements, fileValidation, harness, ruleOf } from './support';
+import type { Harness } from './support';
 
 async function setup(h: Harness) {
   const response = await h.call("/admin/setup", { caller: "admin", method: "POST" });
@@ -138,7 +139,7 @@ describe("the setup routine", () => {
       ["nonprod-voice", true],
       ["nonprod-robot", true],
     ]);
-    expect(SPEC.call_control_applications.every((item) => item.call_cost_in_webhooks === true)).toBe(true);
+    expect(SPEC.call_control_applications.every((item) =>  item.call_cost_in_webhooks)).toBe(true);
   });
 
   it("is idempotent by name: a second run creates nothing", async () => {
@@ -147,7 +148,7 @@ describe("the setup routine", () => {
     await setup(h);
     const creates = h.telnyx.requests("POST").length;
     const report = await setup(h);
-    expect(h.telnyx.requests("POST").length).toBe(creates);
+    expect(h.telnyx.requests("POST")).toHaveLength(creates);
     expect(report.steps.filter((step) => step.action === "created")).toEqual([]);
   });
 
@@ -188,10 +189,10 @@ describe("the setup routine", () => {
   });
 
   it("refuses without the Telnyx key or the edge origin", async () => {
-    expect(await ruleOf(await harness({ env: { TELNYX_API_KEY: "" } }).call("/admin/setup", { caller: "admin", method: "POST" }))).toBe(
+    await expect(ruleOf(await harness({ env: { TELNYX_API_KEY: "" } }).call("/admin/setup", { caller: "admin", method: "POST" }))).resolves.toBe(
       "telnyx.key_missing",
     );
-    expect(await ruleOf(await harness({ env: { EDGE_ORIGIN: "" } }).call("/admin/setup", { caller: "admin", method: "POST" }))).toBe(
+    await expect(ruleOf(await harness({ env: { EDGE_ORIGIN: "" } }).call("/admin/setup", { caller: "admin", method: "POST" }))).resolves.toBe(
       "startup.unconfigured",
     );
   });
@@ -236,7 +237,7 @@ describe("the committed spec", () => {
       ...SPEC.credential_connections.map((item) => item.webhook),
       ...SPEC.messaging_profiles.profiles.map((item) => item.webhook),
     ];
-    expect(named.length).toBe(11);
+    expect(named).toHaveLength(11);
     for (const path of named) {
       expect(WEBHOOK_PATHS, path).toContain(path);
       expect(edgeUrl(EDGE, path)).toBe(`${EDGE}${EDGE_PATHS[path]}`);

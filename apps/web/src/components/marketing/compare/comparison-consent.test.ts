@@ -47,7 +47,7 @@ function serverConsentText(name: string): string {
   // A concatenation of string literals. Joining the literals is safer than eval
   // and fails loudly if the declaration ever becomes something more complicated.
   const literals = [...(match?.[1] ?? "").matchAll(/"((?:[^"\\]|\\.)*)"/g)].map(
-    (m) => m[1].replace(/\\"/g, '"'),
+    (m) => m[1].replaceAll(String.raw`\"`, '"'),
   );
   expect(literals.length, "could not read the consent literals").toBeGreaterThan(0);
   return literals.join("");

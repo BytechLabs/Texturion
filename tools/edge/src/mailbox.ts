@@ -1,7 +1,8 @@
 import { DurableObject } from "cloudflare:workers";
 import type { MailStatus } from "@loonext/rig-protocol";
 
-import { mailbox, uplink, type Env } from "./env";
+import { mailbox, uplink } from './env';
+import type { Env } from './env';
 
 /**
  * The robot's mailbox, for test S34.
@@ -98,7 +99,7 @@ export class RobotMailbox extends DurableObject<Env> {
 
   private get(key: string): number | null {
     const row = this.sql.exec<{ value: number }>("SELECT value FROM meta WHERE key = ?", key).toArray()[0];
-    return row ? Number(row.value) : null;
+    return row ? row.value : null;
   }
 
   private set(key: string, value: number): void {
@@ -148,15 +149,15 @@ async function readRaw(message: ForwardableEmailMessage): Promise<{ raw: string;
 
 /** The mailbox's heartbeat and counts, with store failures the uplink counted. */
 export async function mailStatus(env: Env): Promise<MailStatus> {
-  const counters = (await uplink(env).snapshot()).counters;
+  const {counters} = (await uplink(env).snapshot());
   return mailbox(env).status(counters["mail.store_failed"] ?? 0);
 }
 
 async function countOnUplink(env: Env, name: string): Promise<void> {
   try {
     await uplink(env).bump(name);
-  } catch (cause) {
-    console.error(`mail: could not count ${name}: ${cause instanceof Error ? cause.message : String(cause)}`);
+  } catch (error) {
+    console.error(`mail: could not count ${name}: ${error instanceof Error ? error.message : String(error)}`);
   }
 }
 
@@ -198,8 +199,8 @@ export async function receiveMail(message: ForwardableEmailMessage, env: Env): P
 
   try {
     await mailbox(env).store(mail);
-  } catch (cause) {
-    console.error(`mail: store failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+  } catch (error) {
+    console.error(`mail: store failed: ${error instanceof Error ? error.message : String(error)}`);
     await countOnUplink(env, "mail.store_failed");
   }
 
@@ -212,8 +213,8 @@ export async function receiveMail(message: ForwardableEmailMessage, env: Env): P
       subject: mail.subject,
       raw: mail.raw,
     });
-  } catch (cause) {
-    console.error(`mail: queue failed: ${cause instanceof Error ? cause.message : String(cause)}`);
+  } catch (error) {
+    console.error(`mail: queue failed: ${error instanceof Error ? error.message : String(error)}`);
     await countOnUplink(env, "mail.queue_failed");
   }
 }

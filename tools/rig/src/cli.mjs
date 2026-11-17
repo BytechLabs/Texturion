@@ -73,7 +73,7 @@ export function parseArgs(argv) {
       positional.push(arg);
       continue;
     }
-    const [name, inline] = arg.slice(2).split(/=(.*)/s, 2);
+    const [name, inline] = arg.slice(2).split(/[=](.*)/s, 2);
     if (BOOLEAN_FLAGS.has(name)) flags[name] = inline === undefined ? true : inline !== "false";
     else {
       const value = inline ?? argv[(i += 1)];
@@ -232,7 +232,7 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
       if (!result.timeHonored && flags.time !== undefined) {
         log(`rig cron: ${result.route} ignores --time; the job ran at the wall clock`);
       }
-      if (result.status >= 400 && result.body) log(result.body.slice(0, 2_000));
+      if (result.status >= 400 && result.body) log(result.body.slice(0, 2000));
       return result.status < 400 ? 0 : 1;
     }
 
@@ -292,8 +292,9 @@ export async function main(argv, { env = process.env, log = console.log } = {}) 
       return 0;
     }
 
-    default:
+    default: {
       log(USAGE);
       return 2;
+    }
   }
 }

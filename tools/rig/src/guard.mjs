@@ -2,15 +2,10 @@
  * The guard, reached through the edge with the rig's `rig-api` caller token.
  * Paths come from the shared wire contract, never spelled here.
  */
-import { EDGE_PATHS, GUARD_ROUTES, HEADER, STANDING_ROLES } from "../../rig-protocol/src/index.ts";
+import {EDGE_PATHS, GUARD_ROUTES, HEADER, STANDING_ROLES} from "../../rig-protocol/src/index.ts";
 
-/**
- * Standing numbers by role. The partition lists the owned numbers; which one
- * is which comes from `partition.standing` when the guard sends it, and from
- * the store's standing-numbers.json until then. Either way each must be in the
- * live listing, so a stale file cannot name a number the rig no longer owns.
- */
-export { STANDING_ROLES };
+export { STANDING_ROLES } from "../../rig-protocol/src/index.ts";
+
 
 const E164 = /^\+[1-9][0-9]{7,14}$/;
 
@@ -59,9 +54,9 @@ export function standingNumbers(partition, store) {
     );
   }
   const list = typeof entries === "string" ? JSON.parse(entries) : entries;
-  const owned = new Set(partition.owned_e164 ?? []);
+  const owned = new Set(partition.owned_e164);
   const standingE164 = Array.isArray(partition.standing_e164) ? new Set(partition.standing_e164) : null;
-  const profiles = new Set(partition.messaging_profile_ids ?? []);
+  const profiles = new Set(partition.messaging_profile_ids);
   const byRole = new Map();
   for (const entry of list) {
     if (!STANDING_ROLES.includes(entry.role)) throw new Error(`rig: unknown standing role ${entry.role}`);
@@ -110,5 +105,5 @@ export function rigEndpoints(standing) {
   return [...standing.values()]
     .filter((entry) => entry.role !== "STRANGER-1")
     .map((entry) => entry.e164)
-    .sort();
+    .toSorted();
 }

@@ -17,7 +17,7 @@ import { deliverPush } from "./deliver";
 import type { PushContent } from "./deliver";
 import type { Env } from "../env";
 
-const sent: Array<Record<string, unknown>> = [];
+const sent: Record<string, unknown>[] = [];
 
 vi.mock("./webpush", () => ({
   sendWebPush: vi.fn(async (_env: unknown, _sub: unknown, payload: string) => {

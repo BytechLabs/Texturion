@@ -176,8 +176,8 @@ describe("premise: the AI sanitation tally carries no message text (messaging/re
       { threadText: "Can you come Thursday?" },
     );
 
-    for (const [reason, value] of Object.entries(report.dropped)) {
-      expect(typeof value, `dropped.${reason} must be a count, not text`).toBe("number");
+    for (const [_reason, value] of Object.entries(report.dropped)) {
+      expect(value).toBeTypeOf("number");
     }
   });
 });

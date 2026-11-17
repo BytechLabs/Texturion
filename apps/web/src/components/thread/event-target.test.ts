@@ -41,7 +41,7 @@ const INERT_EVENTS = [
   "media_refused",
 ] as const;
 
-describe("eventTarget", () => {
+describe(eventTarget, () => {
   it.each(TASK_EVENTS)("%s opens its task", (type) => {
     expect(eventTarget(event(type, { task_id: "t1" }))).toEqual({
       kind: "task",

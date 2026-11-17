@@ -7,7 +7,8 @@ import { PortDocumentsForm } from "@/components/settings/port-documents-form";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
 import {
   useResubmitPortRequest,
@@ -134,10 +135,10 @@ export function PortFixForm({
       }
       await resubmit.mutateAsync();
       toast.success(t("settingsMore.portFixResubmitted"));
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("settingsMore.portFixResubmitFailed"),
       );
     }
@@ -191,11 +192,11 @@ export function PortFixForm({
           ? t("settingsMore.portFixResubmitting")
           : t("settingsMore.portFixResubmitAction")}
       </Button>
-      {!hasDocuments ? (
+      {hasDocuments ? null : (
         <p className="text-[13px] text-muted-foreground">
           {t("settingsMore.portFixUploadFirst")}
         </p>
-      ) : null}
+      )}
     </div>
   );
 }

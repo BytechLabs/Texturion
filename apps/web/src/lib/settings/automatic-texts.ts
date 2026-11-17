@@ -1,8 +1,5 @@
-import {
-  AUTOMATIC_TEXT_DEFAULTS,
-  resolveAutomaticTextSettings,
-  type AutomaticTextSettings,
-} from "@loonext/shared";
+import { AUTOMATIC_TEXT_DEFAULTS, resolveAutomaticTextSettings } from '@loonext/shared';
+import type { AutomaticTextSettings } from '@loonext/shared';
 
 import type { MessageKey, Translate } from "@/i18n/translate";
 
@@ -52,7 +49,7 @@ export function choicesWithCurrent(
 ): number[] {
   const list = [...AUTOMATIC_TEXT_CHOICES[field]];
   if (!list.includes(current)) list.push(current);
-  return list.sort((a, b) => a - b);
+  return list.toSorted((a, b) => a - b);
 }
 
 /** A company response with every absent or malformed key replaced by its default. */

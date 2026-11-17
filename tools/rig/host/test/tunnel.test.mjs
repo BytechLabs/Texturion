@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { forwardedPorts, loadContract, rigPaths } from "../src/config.mjs";
-import { SSH, backoffMs, commandArgs, createTunnel, digest, syncToken, tunnelArgs } from "../src/tunnel.mjs";
+import { backoffMs, commandArgs, createTunnel, digest, SSH, syncToken, tunnelArgs } from "../src/tunnel.mjs";
 
 const contract = loadContract();
 const paths = rigPaths(join("F:", "loonext-rig"));
@@ -21,7 +21,7 @@ test("one non-interactive connection with the rig's key, to rig@ the VM", () => 
   assert.deepEqual(option("ServerAliveCountMax"), ["3"]);
   assert.deepEqual(option("IdentitiesOnly"), ["yes"]);
   assert.deepEqual(option("BatchMode"), ["yes"]);
-  assert.equal(SSH, join("C:\\Windows\\System32\\OpenSSH", "ssh.exe"));
+  assert.equal(SSH, join(String.raw`C:\Windows\System32\OpenSSH`, "ssh.exe"));
 });
 
 test("the VM's host key is pinned in the rig's own known_hosts, never learned", () => {

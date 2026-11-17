@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
+import { isFullNumber, NumberPicker } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,

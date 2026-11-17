@@ -43,7 +43,8 @@
  * reasons (#452), and the case for spending it here is weak: the person waiting
  * on a deposit is holding their phone, and a phone in use is not in Doze.
  */
-import { formatMoney, isBillingCurrency, type Locale, NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
+import { formatMoney, isBillingCurrency, NOTIFICATION_SETTING_DEFAULTS } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";

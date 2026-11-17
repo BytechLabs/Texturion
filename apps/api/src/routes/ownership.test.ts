@@ -11,20 +11,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { ownershipRoutes } from "./ownership";
 
 const env = completeEnv();
@@ -142,7 +132,7 @@ describe("GET /v1/company/ownership", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       i_am_owner: false,
       i_am_backup: true,
       // The one field a client would get subtly wrong on its own — and
@@ -167,7 +157,7 @@ describe("GET /v1/company/ownership", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/company/ownership", {
       companyId: COMPANY_ID,
     });
-    expect(await res.json()).toMatchObject({ can_claim: false, i_am_backup: false });
+    await expect(res.json()).resolves.toMatchObject({ can_claim: false, i_am_backup: false });
   });
 
   it("marks a claim not yet ripe as not ready, so no client has to do the arithmetic", async () => {
@@ -376,7 +366,7 @@ describe("POST /v1/company/ownership/claim", () => {
       { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     expect(res.status).toBe(403);
-    const message = ((await res.json()) as { error: { message: string } }).error.message;
+    const {message} = ((await res.json()) as { error: { message: string } }).error;
     // Somebody probing this route learns only that it is not them.
     expect(message).not.toContain("@");
     expect(message).toContain("named as backup");
@@ -796,6 +786,6 @@ describe("#537 — proving it is you before the business moves", () => {
       { method: "POST", companyId: COMPANY_ID, body: { action: "accept" } },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ sent: true });
+    await expect(res.json()).resolves.toEqual({ sent: true });
   });
 });

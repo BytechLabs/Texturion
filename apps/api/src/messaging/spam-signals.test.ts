@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  SPAM_SUSPECT_THRESHOLD,
-  scoreInboundSpam,
-  type SpamVerdict,
-} from "./spam-signals";
+import { scoreInboundSpam, SPAM_SUSPECT_THRESHOLD } from './spam-signals';
+import type { SpamVerdict } from './spam-signals';
 
 /**
  * #250 — the classifier, tested from the expensive direction first.

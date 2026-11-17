@@ -35,7 +35,7 @@ describe("selection modes are not interchangeable", () => {
   it("sends explicit ids for a pointed-at selection, and null for filter mode", () => {
     // null is the instruction "you resolve it" — the server then applies the
     // #106 deny list to a set the client never enumerated.
-    expect(selectionIds(selectLoaded(["b", "a"]))?.sort()).toEqual(["a", "b"]);
+    expect(selectionIds(selectLoaded(["b", "a"]))?.toSorted()).toEqual(["a", "b"]);
     expect(selectionIds(selectAllMatching())).toBeNull();
   });
 
@@ -75,7 +75,7 @@ describe("toggling out of filter mode", () => {
     // unchecked row inside the selection — so filter mode ends here.
     const next = toggleRow(selectAllMatching(), "b", LOADED);
     expect(next.mode).toBe("ids");
-    expect(selectionIds(next)?.sort()).toEqual(["a", "c"]);
+    expect(selectionIds(next)?.toSorted()).toEqual(["a", "c"]);
     expect(isRowSelected(next, "b")).toBe(false);
   });
 
@@ -123,7 +123,7 @@ describe("the result message describes what the SERVER did", () => {
     // "It worked" and "it finished" are different answers here, and the user has
     // to be told which one they got.
     const message = bulkResultMessage("Closed", {
-      applied: new Array(500).fill(1),
+      applied: Array.from({length: 500}).fill(1),
       matched: 640,
       capped: true,
     });
@@ -188,7 +188,7 @@ describe("#275 — undoBulkCalls: one undo, grouped, restoring the ACTUAL prior 
     );
     expect(calls).toHaveLength(3);
     const open = calls.find((c) => c.target_status === "open");
-    expect(open?.ids?.sort()).toEqual(["a", "c"]);
+    expect(open?.ids?.toSorted()).toEqual(["a", "c"]);
     expect(calls.find((c) => c.target_status === "new")?.ids).toEqual(["b"]);
     expect(calls.find((c) => c.target_status === "waiting")?.ids).toEqual(["d"]);
   });

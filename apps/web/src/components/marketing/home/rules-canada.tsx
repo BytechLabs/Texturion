@@ -1,4 +1,5 @@
-import { homeCopy, type HomeCopy } from "@/i18n/marketing/home";
+import { homeCopy } from '@/i18n/marketing/home';
+import type { HomeCopy } from '@/i18n/marketing/home';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Check } from "lucide-react";
 import Link from "next/link";

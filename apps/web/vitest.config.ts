@@ -32,7 +32,7 @@ export default defineConfig({
     alias: {
       // Mirror the tsconfig "@/*" path so tests import product code the same
       // way the app does.
-      "@": fileURLToPath(new URL("./src", import.meta.url)),
+      "@": fileURLToPath(new URL("src", import.meta.url)),
       // And the tsconfig "@root/*" path — repo-root documents (docs/*.md,
       // SECURITY.md) that pages import as text.
       "@root": fileURLToPath(new URL("../..", import.meta.url)),

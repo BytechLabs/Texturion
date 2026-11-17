@@ -62,9 +62,9 @@ const read = (path: string) => readFileSync(join(REPO, path), "utf8");
  */
 function saidIn(source: string): string {
   return source
-    .replace(/\$\{companyName\}|\{name\}|\\\(companyName\)/g, "«NAME»")
-    .replace(/\s+/g, " ")
-    .replace(/["`] \+ ["`]/g, "");
+    .replaceAll(/\$\{companyName\}|\{name\}|\\\(companyName\)/g, "«NAME»")
+    .replaceAll(/\s+/g, " ")
+    .replaceAll(/["`] \+ ["`]/g, "");
 }
 
 /** What Telnyx says out loud, per language. */
@@ -82,11 +82,7 @@ describe("#228 the voicemail preview matches what is spoken", () => {
 
   it("read the server, so a passing run means something", () => {
     expect(server.length).toBeGreaterThan(1000);
-    expect(
-      server.includes("export function defaultGreeting"),
-      "inbound-ring.ts no longer defines defaultGreeting — this whole file is " +
-        "checking against something that moved",
-    ).toBe(true);
+    expect(server).toContain('export function defaultGreeting');
   });
 
   for (const [locale, sentence] of Object.entries(SPOKEN)) {
@@ -94,25 +90,18 @@ describe("#228 the voicemail preview matches what is spoken", () => {
       // If this fails, the SERVER changed its wording. That is allowed — but
       // the three mirrors have to move with it, which is the rest of this file,
       // so the sentence here is updated last rather than first.
-      expect(
-        server.includes(sentence),
-        `the server no longer says the ${locale} greeting:\n  ${sentence}`,
-      ).toBe(true);
+      expect(server).toContain(sentence);
     });
   }
 
   for (const [client, path] of Object.entries(MIRRORS)) {
     it(`${client} shows the same greeting the server speaks, in both languages`, () => {
       const mirror = saidIn(read(path));
-      for (const [locale, sentence] of Object.entries(SPOKEN)) {
+      for (const [_locale, sentence] of Object.entries(SPOKEN)) {
         // A boolean, not `toContain`: these files are tens of thousands of
         // characters and a failed `toContain` prints all of them, which buries
         // the one line somebody needs.
-        expect(
-          mirror.includes(sentence),
-          `${client}'s catalogue is missing the ${locale} greeting:\n  ${sentence}\n` +
-            `An owner is being shown a preview of words their callers do not hear.`,
-        ).toBe(true);
+        expect(mirror).toContain(sentence);
       }
     });
   }
@@ -127,12 +116,8 @@ describe("#228 the voicemail preview matches what is spoken", () => {
         "apps/android/app/src/main/kotlin/com/loonext/android/features/settings/SettingsLogic.kt",
       ios: "apps/ios/Loonext/Features/Settings/SettingsLogic.swift",
     };
-    for (const [client, path] of Object.entries(LOGIC)) {
-      expect(
-        saidIn(read(path)).includes("We can't take your call right now."),
-        `${client} still builds the greeting from its own literal instead of ` +
-          `looking it up, so it can drift from the server again`,
-      ).toBe(false);
+    for (const [_client, path] of Object.entries(LOGIC)) {
+      expect(saidIn(read(path))).not.toContain('We can\'t take your call right now.');
     }
   });
 });

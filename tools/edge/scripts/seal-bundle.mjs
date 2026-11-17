@@ -58,7 +58,6 @@
  * and before printing the sealer checks the hex against every one of those
  * masks, sealing again with fresh randomness on the rare collision.
  */
-import { fileURLToPath } from "node:url";
 import { resolve } from "node:path";
 
 export const BUNDLE_VERSION = 1;
@@ -74,12 +73,12 @@ const decoder = new TextDecoder();
 export function toBase64Url(bytes) {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
-  return btoa(binary).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(binary).replaceAll('+', "-").replaceAll('/', "_").replace(/[=]+$/, "");
 }
 
 export function fromBase64Url(text) {
   if (typeof text !== "string" || !/^[A-Za-z0-9_-]*$/.test(text)) throw new Error("not base64url");
-  const base64 = text.replace(/-/g, "+").replace(/_/g, "/");
+  const base64 = text.replaceAll('-', "+").replaceAll('_', "/");
   const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
   return Uint8Array.from(atob(padded), (char) => char.charCodeAt(0));
 }
@@ -213,7 +212,7 @@ export function collectSecrets(environment) {
     if (typeof value === "string" && value !== "") secrets[name] = value;
     else absent.push(name);
   }
-  return { secrets, absent: absent.sort() };
+  return { secrets, absent: absent.toSorted() };
 }
 
 /** The bundle as `wrangler secret bulk` input. */
@@ -267,7 +266,7 @@ export function decodeOutput(hex) {
     throw new Error("the sealed output is not hex");
   }
   const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < bytes.length; i++) bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  for (let i = 0; i < bytes.length; i++) bytes[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   const bulk = JSON.parse(decoder.decode(bytes));
   if (!bulk || typeof bulk !== "object" || typeof bulk.RIG_SECRET_BUNDLE_PARTS !== "string") {
     throw new Error("the sealed output is not a bundle");
@@ -294,7 +293,7 @@ async function main() {
     console.error(`seal-bundle: refusing production-shaped values for: ${refused.join(", ")}`);
     process.exit(1);
   }
-  const names = Object.keys(secrets).sort();
+  const names = Object.keys(secrets).toSorted();
   if (names.length === 0) {
     console.error("seal-bundle: no BUNDLE__ secret has a value; nothing to seal.");
     process.exit(1);
@@ -316,9 +315,7 @@ async function main() {
     const output = encodeOutput(bulk);
     if (masks.some((mask) => output.includes(mask))) continue;
     console.error(
-      `seal-bundle: sealed ${names.length} secret(s) (${names.join(", ")}) into ` +
-        `${bulk.RIG_SECRET_BUNDLE_PARTS} part(s)` +
-        (absent.length > 0 ? `; empty: ${absent.join(", ")}` : ""),
+      `seal-bundle: sealed ${names.length} secret(s) (${names.join(", ")}) into ${bulk.RIG_SECRET_BUNDLE_PARTS} part(s)${absent.length > 0 ? `; empty: ${absent.join(", ")}` : ""}`,
     );
     process.stdout.write(output);
     return;
@@ -331,9 +328,9 @@ async function main() {
   process.exit(1);
 }
 
-if (typeof process !== "undefined" && process.argv?.[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  main().catch((cause) => {
-    console.error(`seal-bundle: ${cause instanceof Error ? cause.message : String(cause)}`);
+if (typeof process !== "undefined" && process.argv?.[1] && resolve(process.argv[1]) === import.meta.filename) {
+  main().catch((error) => {
+    console.error(`seal-bundle: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   });
 }

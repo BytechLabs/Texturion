@@ -52,7 +52,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("captureException", () => {
+describe(captureException, () => {
   it("sends a thrown error with its phone number and email address scrubbed", async () => {
     const { waitUntil, pending } = invocation();
     await captureException(
@@ -147,7 +147,7 @@ describe("captureException", () => {
   });
 });
 
-describe("scrubbedError", () => {
+describe(scrubbedError, () => {
   it("rebuilds an error from scrubbed text only", () => {
     const original = new TypeError(`no route to ${PHONE}`);
     const copy = scrubbedError(original) as Error;
@@ -167,7 +167,7 @@ describe("scrubbedError", () => {
   });
 });
 
-describe("opsNotice", () => {
+describe(opsNotice, () => {
   it("is one issue per key, with the detail scrubbed", async () => {
     const { waitUntil, pending } = invocation();
     await opsNotice(
@@ -208,7 +208,7 @@ describe("opsNotice", () => {
   });
 });
 
-describe("captureEvent", () => {
+describe(captureEvent, () => {
   it("sends the event under the given identity, with the deployment", async () => {
     await captureEvent(env(), "email_bounced", "loonext-api", { kind: "bounce" }, () => {});
 

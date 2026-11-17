@@ -90,7 +90,7 @@ export function describeCapChange(
   next: number | null,
   includedSegments: number,
   say: SayCapChange,
-  locale: string = "en",
+  locale = "en",
 ): CapChange {
   const currentValue = current ?? MAX_CAP_MULTIPLIER;
   const nextValue = next ?? MAX_CAP_MULTIPLIER;

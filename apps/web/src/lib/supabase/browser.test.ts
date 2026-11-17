@@ -12,7 +12,8 @@
  * says anything about what was passed in.
  */
 import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
-import { describe, expect, it, vi, type Mock } from "vitest";
+import { describe, expect, it, vi } from 'vitest';
+import type { Mock } from 'vitest';
 
 /** Both @supabase/ssr factories, narrowed to the argument this suite reads. */
 type ClientFactory = (
@@ -65,13 +66,13 @@ function cookieOptionsOf(
 describe("Supabase auth cookie options (#581)", () => {
   it("marks the browser client's session cookie Secure", () => {
     getSupabaseBrowser();
-    expect(browserFactory).toHaveBeenCalledTimes(1);
+    expect(browserFactory).toHaveBeenCalledOnce();
     expect(cookieOptionsOf(browserFactory)?.secure).toBe(true);
   });
 
   it("marks the server client's session cookie Secure too", async () => {
     await getSupabaseServer();
-    expect(serverFactory).toHaveBeenCalledTimes(1);
+    expect(serverFactory).toHaveBeenCalledOnce();
     expect(cookieOptionsOf(serverFactory)?.secure).toBe(true);
   });
 
@@ -85,7 +86,7 @@ describe("Supabase auth cookie options (#581)", () => {
   });
 });
 
-describe("getAccessToken", () => {
+describe(getAccessToken, () => {
   it("throws getSession()'s error when a refresh was lost to the network, so it is retried", async () => {
     const error = new AuthRetryableFetchError("Failed to fetch", 0);
     sessionRead.current = { data: { session: null }, error };

@@ -56,7 +56,8 @@ import { STARTER_MAX_TOTAL_NUMBERS } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { extraNumberPrice, findExtraNumberItem } from "./extra-numbers";
-import { PLAN_LIMITS, type PlanId } from "./plans";
+import { PLAN_LIMITS } from './plans';
+import type { PlanId } from './plans';
 import type { Stripe } from "./stripe";
 import type { Env } from "../env";
 

@@ -55,7 +55,7 @@ describe("#501 referralCodeFromSearch", () => {
     // The parameter is attacker-controlled. Shape-checking here is what keeps
     // the value that reaches storage and the API a code rather than a payload.
     expect(
-      referralCodeFromSearch("?ref=" + encodeURIComponent("<script>x</script>")),
+      referralCodeFromSearch(`?ref=${  encodeURIComponent("<script>x</script>")}`),
     ).toBeNull();
     expect(referralCodeFromSearch(`?ref=${"A".repeat(5000)}`)).toBeNull();
   });

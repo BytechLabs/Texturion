@@ -67,9 +67,9 @@ export function useTaskDone() {
                 allowed_actions: task.allowed_actions.map((action) =>
                   action === "complete" && input.done
                     ? "reopen"
-                    : action === "reopen" && !input.done
+                    : (action === "reopen" && !input.done
                       ? "complete"
-                      : action,
+                      : action),
                 ),
               }),
             }

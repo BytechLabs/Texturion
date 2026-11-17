@@ -266,14 +266,14 @@ export function derivePortUiState(port: PortRequest): PortUiState {
 
   return {
     steps,
-    exception: voiceException ? "voice" : messagingException ? "messaging" : null,
+    exception: voiceException ? "voice" : (messagingException ? "messaging" : null),
     live,
     cancelled,
     editable: status === "draft" || status === "exception",
     documentsPending: !hasDocuments,
     canSubmit: status === "draft" && hasDocuments,
     canResubmit: status === "exception" && hasDocuments,
-    assignmentBlocked: port.assignment_blocked === true && !cancelled,
+    assignmentBlocked:  port.assignment_blocked && !cancelled,
     // `?? null` tolerates pre-bridge cached shapes that lack the field.
     bridge: !live && !cancelled ? (port.bridge_number_e164 ?? null) : null,
   };

@@ -18,7 +18,7 @@
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("../billing/company-modules", async (importOriginal) => {
+vi.mock(import("../billing/company-modules"), async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../billing/company-modules")>();
   // Only the #41 deliverability answer is swapped. Everything else —
@@ -29,7 +29,8 @@ vi.mock("../billing/company-modules", async (importOriginal) => {
 import { billingRoutes } from "./billing";
 import type { AppEnv, MemberRole } from "../context";
 import { ApiError, errorResponse } from "../http/errors";
-import { endpoint, makeHarness, type Harness } from "../test/billing-support";
+import { endpoint, makeHarness } from '../test/billing-support';
+import type { Harness } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
 
 const env = completeEnv();
@@ -188,7 +189,7 @@ describe("#277 POST /v1/billing/modules — a paused workspace does not buy add-
     const response = await toggle({ module: "regions_ca", enabled: true }, harness);
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ module: "regions_ca", enabled: true });
+    await expect(response.json()).resolves.toEqual({ module: "regions_ca", enabled: true });
     const created = harness.callsTo("POST", /api\.stripe\.com\/v1\/subscription_items$/);
     expect(created).toHaveLength(1);
     expect(created[0].form().get("price")).toBe(CA_PRICE);
@@ -208,7 +209,7 @@ describe("#277 POST /v1/billing/modules — a paused workspace does not buy add-
     const response = await toggle({ module: "regions_ca", enabled: false }, harness);
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ module: "regions_ca", enabled: false });
+    await expect(response.json()).resolves.toEqual({ module: "regions_ca", enabled: false });
     expect(
       harness.callsTo("DELETE", /api\.stripe\.com\/v1\/subscription_items\/si_ca/),
     ).toHaveLength(1);

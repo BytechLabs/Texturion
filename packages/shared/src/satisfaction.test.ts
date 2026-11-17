@@ -1,12 +1,12 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  SATISFACTION_ARC_MIN_DELTA,
-  SATISFACTION_MIN_SAMPLE,
   formatSatisfaction,
   poorRatingLine,
-  satisfactionArcDirection,
+  SATISFACTION_ARC_MIN_DELTA,
   SATISFACTION_COPY,
+  SATISFACTION_MIN_SAMPLE,
+  satisfactionArcDirection,
 } from "./satisfaction";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
@@ -15,7 +15,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function look(table: unknown, key: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -23,7 +23,7 @@ const sayEn = (key: string): string => look(WEB_EN, key);
 const sayFr = (key: string): string => look(WEB_FR, key);
 
 
-describe("formatSatisfaction", () => {
+describe(formatSatisfaction, () => {
   it("SF-1: renders an em dash rather than a zero nobody could score", () => {
     // 0.0 would be a score outside the 1–5 scale, i.e. the panel lying about a
     // workspace nobody has answered for.
@@ -38,7 +38,7 @@ describe("formatSatisfaction", () => {
   });
 });
 
-describe("satisfactionArcDirection", () => {
+describe(satisfactionArcDirection, () => {
   it("SF-3: a move smaller than the threshold is not a direction", () => {
     expect(satisfactionArcDirection(0.1)).toBeNull();
     expect(satisfactionArcDirection(-0.1)).toBeNull();
@@ -56,7 +56,7 @@ describe("satisfactionArcDirection", () => {
   });
 });
 
-describe("poorRatingLine", () => {
+describe(poorRatingLine, () => {
   it("SF-6: counts as work to do, and gets the singular right", () => {
     expect(poorRatingLine(1, sayEn)).toBe("1 job needed a call back");
     expect(poorRatingLine(3, sayEn)).toBe("3 jobs needed a call back");

@@ -1,25 +1,10 @@
-import {
-  queryOptions,
-  useInfiniteQuery,
-  useMutation,
-  useQuery,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { queryOptions, useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 
 import { useCompanyId } from "@/lib/company/provider";
 
-import {
-  CONTACT_IMPORT_COLUMN_FIELD,
-  CONTACT_IMPORT_CONSENT_FIELD,
-  CONTACT_IMPORT_CONSENT_VALUE,
-  CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
-  formatContactImportColumn,
-  formatVCardProperty,
-  type ContactImportColumnDeclaration,
-  type Locale,
-  type VCardPropertyDeclaration,
-} from "@loonext/shared";
+import { CONTACT_IMPORT_COLUMN_FIELD, CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_VALUE, CONTACT_IMPORT_VCARD_PROPERTY_FIELD, formatContactImportColumn, formatVCardProperty } from '@loonext/shared';
+import type { ContactImportColumnDeclaration, Locale, VCardPropertyDeclaration } from '@loonext/shared';
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
@@ -93,8 +78,8 @@ export function useContacts(
   const companyId = useCompanyId();
   const trimmed = q.trim();
   const t9 = options.t9 === true;
-  const field = options.field;
-  const tagId = options.tagId;
+  const {field} = options;
+  const {tagId} = options;
   return useInfiniteQuery({
     // The flag is part of the key: the same digits mean a different result set
     // with names folded in, and sharing a cache entry would show one caller the
@@ -198,7 +183,7 @@ export function useCreateContact() {
         keys.contacts.detail(companyId, contact.id),
         (existing) => mergeContactDetail(existing, contact),
       );
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
@@ -249,7 +234,7 @@ export function useUpdateContact(contactId: string) {
         keys.contacts.detail(companyId, contactId),
         (existing) => mergeContactDetail(existing, contact),
       );
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
@@ -259,7 +244,7 @@ export function useUpdateContact(contactId: string) {
       // is worth a round trip — an autosaved name would refetch the detail on
       // every keystroke pause for no change anyone can see.
       if ("timezone" in patch) {
-        queryClient.invalidateQueries({
+        void queryClient.invalidateQueries({
           queryKey: keys.contacts.detail(companyId, contactId),
           refetchType: "active",
         });
@@ -282,7 +267,7 @@ export function useDeleteContact() {
       queryClient.removeQueries({
         queryKey: keys.contacts.detail(companyId, contactId),
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
@@ -387,7 +372,7 @@ export function useImportContacts() {
         formData: importFormData(request),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
@@ -413,7 +398,7 @@ export function useOptOutContact() {
           existing ? { ...existing, opted_out: true } : existing,
       );
       // List rows carry `opted_out` (G6 badge) — keep the table honest.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });
@@ -438,7 +423,7 @@ export function useRevokeOptOut() {
           existing ? { ...existing, opted_out: false } : existing,
       );
       // List rows carry `opted_out` (G6 badge) — keep the table honest.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });

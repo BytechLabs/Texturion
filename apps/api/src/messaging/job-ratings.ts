@@ -15,8 +15,8 @@
  */
 import {
   copyForContact,
-  JOB_RATED_EVENT,
   isPoorRating,
+  JOB_RATED_EVENT,
   parseRatingReply,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -127,10 +127,10 @@ export async function askForJobRating(
     .select("locale")
     .eq("id", input.companyId)
     .limit(1);
-  const ratingAsk = copyForContact(
+  const {ratingAsk} = copyForContact(
     conversation?.contacts?.locale ?? null,
     ((companyRow.data ?? [])[0] as { locale: string | null } | undefined)?.locale ?? null,
-  ).ratingAsk;
+  );
 
   const ctx = await resolveSendMergeFields(db, ratingAsk, {
     companyId: input.companyId,
@@ -233,8 +233,8 @@ export async function recordRatingFromReply(
         payload: { task_id: result.task_id, score },
       },
     ]);
-  } catch (cause) {
-    console.error("job_rated event failed, rating still recorded:", cause);
+  } catch (error) {
+    console.error("job_rated event failed, rating still recorded:", error);
   }
 
   return {

@@ -28,11 +28,8 @@ import { reportVoiceSeconds } from "../billing/meter";
 import { requiresUnauthorizedHangup } from "../calls/outbound-leg-gate";
 import { GREETING_CAPTURE_STATE } from "../calls/greeting-capture";
 import { handleGreetingCaptureEvent } from "../calls/greeting-capture-leg";
-import {
-  dialCeilings,
-  PLAN_VOICE_MINUTES,
-  type PlanId,
-} from "../billing/plans";
+import { dialCeilings, PLAN_VOICE_MINUTES } from '../billing/plans';
+import type { PlanId } from '../billing/plans';
 import { getDb } from "../db";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
 import type { Env } from "../env";
@@ -41,25 +38,24 @@ import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
 import {
   BROWSER_INBOUND_STATE,
   BROWSER_MEMBER_STATE,
-  VOICEMAIL_INBOUND_STATE,
   deleteTelnyxRecording,
   insertVoicemailEvent,
   parseBrowserAnsweredAtMs,
   recoverStoredVoicemail,
   storeVoicemailRecording,
+  VOICEMAIL_INBOUND_STATE,
 } from "./inbound-ring";
 import {
   CONSULT_LEG_STATE,
-  TRANSFER_TARGET_STATE,
   handleConsultLegEvent,
   handleTransferAnswered,
   handleTransferLegHangup,
   parseConsultState,
   parseTransferState,
+  TRANSFER_TARGET_STATE,
 } from "./live-call";
 import { closeBlockedThread, isBlockedSender } from "./spam-flag";
-import { computeMissedFromEvent } from "./missed-call";
-import { sendMissedCallText } from "./missed-call";
+import { computeMissedFromEvent,sendMissedCallText } from "./missed-call";
 import type { TelnyxEvent } from "./types";
 
 /** The client_state tag we stamp on the forward (dial) leg. */
@@ -419,12 +415,12 @@ export async function handleCallEvent(
       return handleTransferAnswered(env, db, state, payload.call_control_id);
     }
     if (eventType === "call.hangup") {
-      const missed = computeMissedFromEvent({
+      const {missed} = computeMissedFromEvent({
         eventType,
         hangupCause: payload.hangup_cause ?? null,
         amdResult: null,
         leg: "forward",
-      }).missed;
+      });
       return handleTransferLegHangup(env, db, state, missed);
     }
     return;
@@ -713,12 +709,12 @@ async function telnyxRejectLeg(
       path: `/v2/calls/${callControlId}/actions/hangup`,
       body: {},
     });
-  } catch (cause) {
+  } catch (error) {
     // The leg already ended, which is what the hang-up was for.
-    if (isDefiniteRefusal(cause)) return;
+    if (isDefiniteRefusal(error)) return;
     console.error(
       `outbound leg reject hangup failed for ${callControlId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }
@@ -856,25 +852,25 @@ export async function handleTerminalCallEvent(
           // #309's 'greeting_capture' is likewise routed away before this
           // handler — an unverified one is hung up by the outgoing-leg gate,
           // and neither shape ever reaches a terminal merge.
-          leg === "vm_inbound" ||
+          (leg === "vm_inbound" ||
             leg === "browser_member" ||
             leg === "transfer_target" ||
             leg === "consult" ||
             leg === "greeting_capture"
           ? "inbound_untagged"
-          : leg,
+          : leg),
   });
 
   // The far party, per leg: inbound legs carry the caller as `from`; the
   // forward leg and both outbound legs carry it in their client_state tag.
   const finalCaller = forwardLeg
     ? decodeForwardCaller(payload.client_state ?? null)
-    : outboundLeg
+    : (outboundLeg
       ? decodeOutboundCustomer(payload.client_state)
       : // Normalize the inbound caller so a CLIR/blocked marker ('anonymous',
         // 'Restricted') threads as null — not a literal shared "anonymous"
         // contact/conversation — matching the initiated/synthetic paths.
-        normalizeCaller(payload.from);
+        normalizeCaller(payload.from));
 
   if (!ourNumberE164) return;
   const resolved = await resolveNumber(db, ourNumberE164);
@@ -969,10 +965,10 @@ export async function handleTerminalCallEvent(
         },
         db,
       );
-    } catch (cause) {
+    } catch (error) {
       console.error(
         `missed-call alert for conversation ${thread.conversationId} failed:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -1269,9 +1265,7 @@ async function recordCallDuration(
       const overrideMs = Date.parse(outboundAnsweredAtIso);
       if (Number.isFinite(overrideMs)) answeredAtMs = overrideMs;
     }
-    if (answeredAtMs === null) {
-      answeredAtMs = await outboundAnsweredAtMs(db, sessionId);
-    }
+    answeredAtMs ??= await outboundAnsweredAtMs(db, sessionId);
     seconds =
       answeredAtMs === null
         ? 0
@@ -1286,9 +1280,9 @@ async function recordCallDuration(
   const caller =
     leg === "forward"
       ? decodeForwardCaller(payload.client_state ?? null)
-      : leg === "out_agent" || leg === "out_customer"
+      : (leg === "out_agent" || leg === "out_customer"
         ? decodeOutboundCustomer(payload.client_state)
-        : (payload.from ?? null);
+        : (payload.from ?? null));
 
   const reportable =
     billedLeg && seconds > 0 && Boolean(env.STRIPE_VOICE_METER_EVENT_NAME);
@@ -1360,12 +1354,12 @@ async function reportForwardLegSeconds(
       value: input.seconds,
       identifier: input.legId,
     });
-  } catch (cause) {
+  } catch (error_) {
     // Report failed — leave stripe_reported_at NULL; the hourly re-reporter
     // (messaging/crons.ts) picks the row up with the same identifier.
     console.error(
       `voice meter report failed for ${input.rowId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error_ instanceof Error ? error_.message : String(error_),
     );
     return;
   }

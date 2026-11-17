@@ -11,13 +11,8 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { conversationsRoutes } from "./conversations";
 
 const env = completeEnv();
@@ -98,8 +93,8 @@ describe("#694 mute", () => {
     const until = Date.parse(
       (upsert?.body as { muted_until: string }).muted_until,
     );
-    expect(until - before).toBeGreaterThan(8 * 3_600_000 - 5_000);
-    expect(until - before).toBeLessThan(8 * 3_600_000 + 5_000);
+    expect(until - before).toBeGreaterThan(8 * 3_600_000 - 5000);
+    expect(until - before).toBeLessThan(8 * 3_600_000 + 5000);
     // Follow is not in the upsert, so muting never rewrites it.
     expect(upsert?.body).not.toHaveProperty("followed");
   });
@@ -142,7 +137,7 @@ describe("#694 mute", () => {
       ],
     });
     const res = await call(sb, "/mute", "PUT", { duration: "1h" });
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       muted: false,
       muted_until: null,
       followed: true,

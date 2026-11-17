@@ -30,7 +30,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { z } from "zod";
 
-import { type PlanId } from "../billing/plans";
+import type { PlanId } from '../billing/plans';
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
 import { unwrap } from "../routes/core/http";

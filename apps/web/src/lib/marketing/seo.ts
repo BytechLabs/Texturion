@@ -2,7 +2,7 @@ import { languagesFor } from "./translated-pages";
 import { BILLING_CURRENCIES, PLAN_PRICE_CENTS } from "@loonext/shared";
 import type { Metadata } from "next";
 
-import { SITE_URL, absoluteUrl } from "./site";
+import { absoluteUrl, SITE_URL } from "./site";
 
 /**
  * Default og:image for every marketing page. File-convention opengraph-image
@@ -110,7 +110,7 @@ export function buildMetadata({
 
 /** Serialize a JSON-LD object with the "<" escape the Next docs mandate. */
 export function jsonLdScript(data: object): string {
-  return JSON.stringify(data).replace(/</g, "\\u003c");
+  return JSON.stringify(data).replaceAll('<', String.raw`\u003c`);
 }
 
 const ORG_ID = `${SITE_URL}/#organization`;

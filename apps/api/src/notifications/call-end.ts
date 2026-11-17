@@ -36,11 +36,8 @@ import { captureException } from "../observability/capture";
 import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { claimHighPriority } from "./high-priority";
-import {
-  recordPushAttempts,
-  timedPush,
-  type PushAttempt,
-} from "./push-attempts";
+import { recordPushAttempts, timedPush } from './push-attempts';
+import type { PushAttempt } from './push-attempts';
 import { sendWebPush } from "./webpush";
 
 /** The capability string a v3 client declares to opt into `call_end`. */
@@ -110,8 +107,8 @@ export async function notifyCallEnd(
   const attempts: PushAttempt[] = [];
   try {
     await deliverCallEnd(env, db, input, attempts);
-  } catch (cause) {
-    void captureException(env, cause, { source: "call-session-do" });
+  } catch (error) {
+    void captureException(env, error, { source: "call-session-do" });
   } finally {
     recordPushAttempts(env, attempts);
   }
@@ -213,8 +210,8 @@ async function deliverCallEnd(
           if (result.gone) {
             await db.from("push_subscriptions").delete().eq("id", sub.id);
           }
-        } catch (cause) {
-          void captureException(env, cause, { source: "call-session-do" });
+        } catch (error) {
+          void captureException(env, error, { source: "call-session-do" });
         }
       }),
     );
@@ -270,8 +267,8 @@ async function deliverCallEnd(
         if (result.gone) {
           await db.from("device_push_tokens").delete().eq("id", device.id);
         }
-      } catch (cause) {
-        void captureException(env, cause, { source: "call-session-do" });
+      } catch (error) {
+        void captureException(env, error, { source: "call-session-do" });
       }
     }),
   );

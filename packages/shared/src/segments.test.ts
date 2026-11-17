@@ -113,7 +113,7 @@ describe("estimateSegments — GSM-7 extension table", () => {
     // 152a + € + 152a = 306 septets — naive ceil(306/153) would say 2, but the
     // € cannot split across segments: seg1 = 152a (+1 wasted), seg2 = € + 151a,
     // seg3 = the remaining 1a.
-    const text = "a".repeat(152) + "€" + "a".repeat(152);
+    const text = `${"a".repeat(152)  }€${  "a".repeat(152)}`;
     expect(estimateSegments(text)).toEqual({
       encoding: "GSM-7",
       segments: 3,
@@ -121,7 +121,7 @@ describe("estimateSegments — GSM-7 extension table", () => {
       unitsPerSegment: 153,
     });
     // With the € fully inside a segment the same septet count packs into 2.
-    expect(estimateSegments("a".repeat(151) + "€" + "a".repeat(153)).segments).toBe(2);
+    expect(estimateSegments(`${"a".repeat(151)  }€${  "a".repeat(153)}`).segments).toBe(2);
   });
 });
 
@@ -138,7 +138,7 @@ describe("estimateSegments — UCS-2 fallback", () => {
   it("one non-GSM char switches the whole message to UCS-2", () => {
     // 159 GSM chars + 1 emoji = 161 UTF-16 units → 3 UCS-2 segments,
     // not a GSM-7 message with an exception.
-    const text = "a".repeat(159) + "😀";
+    const text = `${"a".repeat(159)  }😀`;
     expect(estimateSegments(text)).toEqual({
       encoding: "UCS-2",
       segments: 3,
@@ -170,7 +170,7 @@ describe("estimateSegments — UCS-2 fallback", () => {
   it("a surrogate pair never straddles a 67-unit boundary", () => {
     // 66 BMP + emoji(2) + 66 BMP = 134 units — naive ceil gives 2, but the
     // pair cannot split: seg1 = 66 (+1 wasted), seg2 = emoji + 65, seg3 = 1.
-    const text = "中".repeat(66) + "😀" + "中".repeat(66);
+    const text = `${"中".repeat(66)  }😀${  "中".repeat(66)}`;
     expect(estimateSegments(text)).toEqual({
       encoding: "UCS-2",
       segments: 3,
@@ -178,7 +178,7 @@ describe("estimateSegments — UCS-2 fallback", () => {
       unitsPerSegment: 67,
     });
     // Same units with the pair aligned inside a segment packs into 2.
-    expect(estimateSegments("中".repeat(65) + "😀" + "中".repeat(67)).segments).toBe(2);
+    expect(estimateSegments(`${"中".repeat(65)  }😀${  "中".repeat(67)}`).segments).toBe(2);
   });
 
   it("uppercase Ç is outside the GSM0338 basic table and forces UCS-2", () => {

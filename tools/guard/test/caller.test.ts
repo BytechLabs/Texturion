@@ -23,15 +23,15 @@ describe("the caller class", () => {
       const headers = new Headers();
       if (value !== null) headers.set(HEADER.callerClass, value);
       const response = await worker.fetch(new Request("https://guard.internal/health", { headers }), env);
-      expect(await ruleOf(response)).toBe("class.unknown");
+      await expect(ruleOf(response)).resolves.toBe("class.unknown");
     }
     expect(reached).toBe(false);
   });
 
   it("is refused by the guard itself too", async () => {
     const h = harness();
-    expect(await ruleOf(await h.call("/health", { caller: null }))).toBe("class.unknown");
-    expect(await ruleOf(await h.call("/health", { caller: "production" }))).toBe("class.unknown");
+    await expect(ruleOf(await h.call("/health", { caller: null }))).resolves.toBe("class.unknown");
+    await expect(ruleOf(await h.call("/health", { caller: "production" }))).resolves.toBe("class.unknown");
   });
 
   it("limits each class to its routes", async () => {
@@ -59,28 +59,28 @@ describe("the caller class", () => {
       ["edge", "/diag/v2/webhook_deliveries", "class.not_allowed"],
     ];
     for (const [caller, path, rule] of cases) {
-      expect(await ruleOf(await h.call(path, { caller, method: "POST", body: {} })), `${caller} ${path}`).toBe(rule);
+      await expect(ruleOf(await h.call(path, { caller, method: "POST", body: {} }))).resolves.toBe(rule);
     }
   });
 
   it("refuses the robot anything that buys or binds", async () => {
     const h = await ready();
     const response = await h.call("/telnyx/v2/number_orders", { caller: "robot", body: { phone_numbers: [] } });
-    expect(await ruleOf(response)).toBe("class.not_allowed");
+    await expect(ruleOf(response)).resolves.toBe("class.not_allowed");
     expect(h.telnyx.writes()).toEqual([]);
   });
 
   it("lets the edge read only the balance and the notification events through the Telnyx route", async () => {
     const h = await ready();
     for (const path of ["/telnyx/v2/phone_numbers", "/telnyx/v2/calls/c1", "/telnyx/v2/notification_settings"]) {
-      expect(await ruleOf(await h.call(path, { caller: "edge" })), path).toBe("class.not_allowed");
+      await expect(ruleOf(await h.call(path, { caller: "edge" }))).resolves.toBe("class.not_allowed");
     }
-    expect(await ruleOf(await h.call("/telnyx/v2/messages", { caller: "edge", body: {} }))).toBe("class.not_allowed");
+    await expect(ruleOf(await h.call("/telnyx/v2/messages", { caller: "edge", body: {} }))).resolves.toBe("class.not_allowed");
     const balance = await h.call("/telnyx/v2/balance", { caller: "edge" });
-    expect(await balance.json()).toEqual({ data: { balance: 500 } });
+    await expect(balance.json()).resolves.toEqual({ data: { balance: 500 } });
     h.telnyx.lists.notification_events = [{ id: "ev-1", name: "Low Balance", enabled: true }];
     const events = await h.call("/telnyx/v2/notification_events?page[size]=250", { caller: "edge" });
-    expect(await events.json()).toMatchObject({ data: [{ name: "Low Balance", enabled: true }] });
+    await expect(events.json()).resolves.toMatchObject({ data: [{ name: "Low Balance", enabled: true }] });
   });
 
   it("passes Telnyx's own refusal of the balance read through unmarked, as evidence of a disabled account", async () => {
@@ -98,8 +98,8 @@ describe("the caller class", () => {
 
   it("answers an unknown route with a refusal, not a 404 that looks like Telnyx's", async () => {
     const h = harness();
-    expect(await ruleOf(await h.call("/v2/calls"))).toBe("route.unknown");
-    expect(await ruleOf(await h.call("/"))).toBe("route.unknown");
+    await expect(ruleOf(await h.call("/v2/calls"))).resolves.toBe("route.unknown");
+    await expect(ruleOf(await h.call("/"))).resolves.toBe("route.unknown");
   });
 });
 
@@ -108,7 +108,7 @@ describe("refusals", () => {
     const response = refuse("dial.to_not_owned");
     expect(response.status).toBe(403);
     expect(response.headers.get(HEADER.refusedBy)).toBe("dial.to_not_owned");
-    expect(await response.json()).toEqual({ error: "guard_refused", rule: "dial.to_not_owned" });
+    await expect(response.json()).resolves.toEqual({ error: "guard_refused", rule: "dial.to_not_owned" });
   });
 
   it("are 429 for a spent budget and 403 for everything else", () => {

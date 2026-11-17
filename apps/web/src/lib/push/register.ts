@@ -19,7 +19,7 @@ export function pushSupported(): boolean {
     serviceWorkerSupported() &&
     typeof window !== "undefined" &&
     "PushManager" in window &&
-    "Notification" in window
+    "Notification" in globalThis
   );
 }
 
@@ -55,8 +55,8 @@ export function registerServiceWorker(): void {
     void unregisterServiceWorkers();
     return;
   }
-  void navigator.serviceWorker.register(SW_URL).catch((cause) => {
-    console.warn("Loonext service worker registration failed:", cause);
+  void navigator.serviceWorker.register(SW_URL).catch((error) => {
+    console.warn("Loonext service worker registration failed:", error);
   });
 }
 

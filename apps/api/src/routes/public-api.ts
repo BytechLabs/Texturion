@@ -40,8 +40,8 @@
  * intended behaviour and it falls out of acting AS the creator.
  */
 import {
-  PUBLIC_API_BASE,
   missingWebhookScopes,
+  PUBLIC_API_BASE,
   WEBHOOK_ENDPOINT_CAP,
   WEBHOOK_EVENT_TYPES,
   webhookUrlRejection,
@@ -92,9 +92,9 @@ function publicTask(row: Record<string, unknown>): Record<string, unknown> {
   const source =
     typeof rest.message_id === "string"
       ? { kind: "message", id: rest.message_id }
-      : typeof callId === "string"
+      : (typeof callId === "string"
         ? { kind: "call", id: callId }
-        : null;
+        : null);
   // #689 C: `assigned_user_id` is the FIRST assignee, kept for v1 callers, and
   // `assignee_ids` is everyone. The display names stay internal.
   delete rest.assignees;
@@ -213,7 +213,7 @@ publicApiRoutes.get(
       const tags = (links ?? [])
         .map((link) => link.tags?.name)
         .filter((name): name is string => typeof name === "string")
-        .sort((a, b) => a.localeCompare(b));
+        .toSorted((a, b) => a.localeCompare(b));
       return { ...rest, tags };
     });
     return c.json({ data, limit });
@@ -230,9 +230,9 @@ publicApiRoutes.post(
     const companyId = c.get("companyId");
 
     const fields = {
-      ...(body.name !== undefined ? { name: body.name } : {}),
-      ...(body.email !== undefined ? { email: body.email } : {}),
-      ...(body.notes !== undefined ? { notes: body.notes } : {}),
+      ...(body.name === undefined ? {} : { name: body.name }),
+      ...(body.email === undefined ? {} : { email: body.email }),
+      ...(body.notes === undefined ? {} : { notes: body.notes }),
     };
 
     /*
@@ -505,8 +505,11 @@ publicApiRoutes.post(
         // A standalone task is gated by the conversation it links to, if any;
         // one with no conversation has no number to be denied by.
         const sourceRows =
-          body.message_id !== undefined
-            ? unwrap<{ conversation_id: string }[]>(
+          body.message_id === undefined
+            ? (body.conversation_id === undefined
+              ? []
+              : [{ conversation_id: body.conversation_id }])
+            : unwrap<{ conversation_id: string }[]>(
                 await db
                   .from("messages")
                   .select("conversation_id")
@@ -514,10 +517,7 @@ publicApiRoutes.post(
                   .eq("id", body.message_id)
                   .limit(1),
                 "public task source lookup",
-              )
-            : body.conversation_id !== undefined
-              ? [{ conversation_id: body.conversation_id }]
-              : [];
+              );
         if (sourceRows[0]) {
           await requireConversationAccess(db, {
             companyId: c.get("companyId"),
@@ -677,9 +677,9 @@ publicApiRoutes.post(
       return errorResponse(
         c,
         "forbidden",
-        "This API key cannot subscribe to those events without the " +
-          missing.join(", ") +
-          (missing.length > 1 ? " scopes." : " scope."),
+        `This API key cannot subscribe to those events without the ${ 
+          missing.join(", ") 
+          }${missing.length > 1 ? " scopes." : " scope."}`,
       );
     }
 

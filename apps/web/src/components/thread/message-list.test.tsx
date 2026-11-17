@@ -71,7 +71,7 @@ function message(overrides: Partial<Message>): Message {
 function threadOf(messages: Message[], page: { anchor_missing?: boolean } = {}) {
   mocks.useMessages.mockReturnValue({
     data: {
-      pages: [{ data: [...messages].reverse(), next_cursor: null, ...page }],
+      pages: [{ data: [...messages].toReversed(), next_cursor: null, ...page }],
       pageParams: [undefined],
     },
     isPending: false,

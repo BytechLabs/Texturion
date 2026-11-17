@@ -37,7 +37,7 @@ describe("#283 — the ops script and the registry agree", () => {
     // Importing the array instead would be better and is not available: the
     // script ends in a top-level `await runScript(...)`, so importing it runs
     // the CLI.
-    const script = scriptSource.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/[^\n]*/g, " ");
+    const script = scriptSource.replaceAll(/\/\*[\s\S]*?\*\//g, " ").replaceAll(/\/\/[^\n]*/g, " ");
 
     const match = /const KILL_SWITCHES = \[([^\]]*)\]/.exec(script);
     expect(
@@ -46,13 +46,13 @@ describe("#283 — the ops script and the registry agree", () => {
         "the list it protects and must be updated, not deleted.",
     ).not.toBeNull();
 
-    const inScript = [...match![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]).sort();
+    const inScript = [...match![1].matchAll(/"([^"]+)"/g)].map((m) => m[1]).toSorted();
     expect(
       inScript,
       "the ops script's kill-switch list has drifted from registry.ts. The " +
         "script uses it to require a --note and to warn before taking a " +
         "subsystem away from every customer; a missing key silently skips both.",
-    ).toEqual(killSwitchKeys().sort());
+    ).toEqual(killSwitchKeys().toSorted());
   });
 
   it("gives every kill switch a ROW in the rollback table", () => {

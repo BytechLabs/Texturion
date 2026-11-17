@@ -42,14 +42,14 @@ const ROSTER: Record<string, Served> = {
   call: {
     api: "apps/api/src/routes/calls.ts",
     web: "apps/web/src/components/calls/call-actions.tsx",
-    android: ANDROID + "features/calls/CallsLogic.kt",
-    ios: IOS + "Features/Calls/CallsLogic.swift",
+    android: `${ANDROID  }features/calls/CallsLogic.kt`,
+    ios: `${IOS  }Features/Calls/CallsLogic.swift`,
   },
   scheduled_message: {
     api: "apps/api/src/routes/scheduled-messages.ts",
     web: "apps/web/src/lib/api/scheduled-messages.ts",
-    android: ANDROID + "features/inbox/ScheduledSheet.kt",
-    ios: IOS + "Features/Inbox/ScheduledSheet.swift",
+    android: `${ANDROID  }features/inbox/ScheduledSheet.kt`,
+    ios: `${IOS  }Features/Inbox/ScheduledSheet.swift`,
   },
   calendar_connection: {
     api: "apps/api/src/routes/calendar-connections.ts",
@@ -66,87 +66,87 @@ const ROSTER: Record<string, Served> = {
   subscription: {
     api: "apps/api/src/routes/core/company-view.ts",
     web: "apps/web/src/lib/api/company-actions.ts",
-    android: ANDROID + "features/settings/BillingSection.kt",
-    ios: IOS + "Features/Settings/BillingSection.swift",
+    android: `${ANDROID  }features/settings/BillingSection.kt`,
+    ios: `${IOS  }Features/Settings/BillingSection.swift`,
   },
   workspace: {
     api: "apps/api/src/routes/core/company-view.ts",
     web: "apps/web/src/lib/api/company-actions.ts",
-    android: ANDROID + "features/settings/BillingSection.kt",
-    ios: IOS + "Features/Settings/BillingSection.swift",
+    android: `${ANDROID  }features/settings/BillingSection.kt`,
+    ios: `${IOS  }Features/Settings/BillingSection.swift`,
   },
   conversation: {
     api: "apps/api/src/routes/conversations.ts",
     web: "apps/web/src/components/thread/conversation-actions.tsx",
-    android: ANDROID + "features/inbox/InboxTab.kt",
-    ios: IOS + "Features/Inbox/InboxTab.swift",
+    android: `${ANDROID  }features/inbox/InboxTab.kt`,
+    ios: `${IOS  }Features/Inbox/InboxTab.swift`,
   },
   conversation_visibility: {
     api: "apps/api/src/routes/conversations.ts",
     web: "apps/web/src/components/thread/conversation-actions.tsx",
-    android: ANDROID + "ui/common/RecordActions.kt",
-    ios: IOS + "Support/RecordActions.swift",
+    android: `${ANDROID  }ui/common/RecordActions.kt`,
+    ios: `${IOS  }Support/RecordActions.swift`,
   },
   message: {
     api: "apps/api/src/routes/conversations.ts",
     web: "apps/web/src/components/thread/message-bubble.tsx",
     // The retry button on a bubble and the menu item both read `Message.retryable`.
-    android: ANDROID + "core/model/Messaging.kt",
-    ios: IOS + "Core/Model/Messaging.swift",
+    android: `${ANDROID  }core/model/Messaging.kt`,
+    ios: `${IOS  }Core/Model/Messaging.swift`,
   },
   registration: {
     api: "apps/api/src/routes/registration.ts",
     web: "apps/web/src/components/settings/registration-section.tsx",
-    android: ANDROID + "features/settings/RegistrationFixForm.kt",
-    ios: IOS + "Features/Settings/RegistrationFixForm.swift",
+    android: `${ANDROID  }features/settings/RegistrationFixForm.kt`,
+    ios: `${IOS  }Features/Settings/RegistrationFixForm.swift`,
   },
   payment_request: {
     api: "apps/api/src/routes/payments.ts",
     web: "apps/web/src/components/thread/payment-strip.tsx",
-    android: ANDROID + "features/thread/PaymentStrip.kt",
-    ios: IOS + "Features/Payments/ThreadPayments.swift",
+    android: `${ANDROID  }features/thread/PaymentStrip.kt`,
+    ios: `${IOS  }Features/Payments/ThreadPayments.swift`,
   },
   phone_number: {
     api: "apps/api/src/routes/numbers.ts",
     web: "apps/web/src/components/settings/number-card.tsx",
-    android: ANDROID + "features/settings/NumbersSection.kt",
-    ios: IOS + "Features/Settings/NumbersSection.swift",
+    android: `${ANDROID  }features/settings/NumbersSection.kt`,
+    ios: `${IOS  }Features/Settings/NumbersSection.swift`,
   },
   port: {
     api: "apps/api/src/routes/porting.ts",
     web: "apps/web/src/components/settings/port-card.tsx",
-    android: ANDROID + "features/settings/PortCards.kt",
-    ios: IOS + "Features/Settings/PortCards.swift",
+    android: `${ANDROID  }features/settings/PortCards.kt`,
+    ios: `${IOS  }Features/Settings/PortCards.swift`,
   },
   quote: {
     api: "apps/api/src/routes/quotes.ts",
     web: "apps/web/src/components/thread/quote-strip.tsx",
-    android: ANDROID + "features/thread/ThreadQuotes.kt",
-    ios: IOS + "Features/Quotes/ThreadQuotes.swift",
+    android: `${ANDROID  }features/thread/ThreadQuotes.kt`,
+    ios: `${IOS  }Features/Quotes/ThreadQuotes.swift`,
   },
   text_enablement: {
     api: "apps/api/src/routes/text-enablement.ts",
     web: "apps/web/src/components/settings/text-enable-card.tsx",
-    android: ANDROID + "features/settings/TextEnableCards.kt",
-    ios: IOS + "Features/Settings/TextEnableCards.swift",
+    android: `${ANDROID  }features/settings/TextEnableCards.kt`,
+    ios: `${IOS  }Features/Settings/TextEnableCards.swift`,
   },
   data_export: {
     api: "apps/api/src/routes/exports.ts",
     web: "apps/web/src/components/settings/export-data-card.tsx",
-    android: ANDROID + "features/settings/UsageExportCard.kt",
-    ios: IOS + "Features/Settings/UsageExportCard.swift",
+    android: `${ANDROID  }features/settings/UsageExportCard.kt`,
+    ios: `${IOS  }Features/Settings/UsageExportCard.swift`,
   },
   task: {
     api: "apps/api/src/routes/tasks.ts",
     web: "apps/web/src/components/tasks/task-format.ts",
-    android: ANDROID + "features/tasks/TaskRecordMenu.kt",
-    ios: IOS + "Features/Tasks/TaskRecordMenu.swift",
+    android: `${ANDROID  }features/tasks/TaskRecordMenu.kt`,
+    ios: `${IOS  }Features/Tasks/TaskRecordMenu.swift`,
   },
   invite: {
     api: "apps/api/src/routes/team.ts",
     web: "apps/web/src/app/(app)/settings/team/page.tsx",
-    android: ANDROID + "features/settings/TeamSection.kt",
-    ios: IOS + "Features/Settings/TeamSection.swift",
+    android: `${ANDROID  }features/settings/TeamSection.kt`,
+    ios: `${IOS  }Features/Settings/TeamSection.swift`,
   },
 };
 
@@ -167,7 +167,7 @@ function readerFile(reader: Reader): string | null {
 
 /** The machine ids a phone roster test lists, by the pattern its rows are written in. */
 function phoneRosterIds(file: string, row: RegExp): string[] {
-  return [...readFileSync(join(ROOT, file), "utf8").matchAll(row)].map((match) => match[1] as string).sort();
+  return [...readFileSync(join(ROOT, file), "utf8").matchAll(row)].map((match) => match[1]).toSorted();
 }
 
 describe("allowed_actions roster", () => {
@@ -178,8 +178,8 @@ describe("allowed_actions roster", () => {
   });
 
   it("lists every machine that defines actions, and nothing else", () => {
-    const ids = withActions.map((machine) => machine.id).sort();
-    expect(Object.keys(ROSTER).sort()).toEqual(ids);
+    const ids = withActions.map((machine) => machine.id).toSorted();
+    expect(Object.keys(ROSTER).toSorted()).toEqual(ids);
   });
 
   it("names an API route file and a web file that carry allowed_actions", () => {
@@ -217,8 +217,8 @@ describe("allowed_actions roster", () => {
 
   it("matches the machines the Android roster test lists", () => {
     const offered = Object.keys(ROSTER)
-      .filter((id) => readerFile(ROSTER[id]!.android) !== null)
-      .sort();
+      .filter((id) => readerFile(ROSTER[id].android) !== null)
+      .toSorted();
     const listed = phoneRosterIds(
       "apps/android/app/src/test/kotlin/com/loonext/android/AllowedActionsRosterTest.kt",
       /Row\("(\w+)"/g,
@@ -229,8 +229,8 @@ describe("allowed_actions roster", () => {
 
   it("matches the machines the iOS roster test lists", () => {
     const offered = Object.keys(ROSTER)
-      .filter((id) => readerFile(ROSTER[id]!.ios) !== null)
-      .sort();
+      .filter((id) => readerFile(ROSTER[id].ios) !== null)
+      .toSorted();
     const listed = phoneRosterIds(
       "apps/ios/LoonextTests/AllowedActionsRosterTests.swift",
       /Row\(machine: "(\w+)"/g,

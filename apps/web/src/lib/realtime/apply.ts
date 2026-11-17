@@ -1,6 +1,7 @@
 import type { QueryClient } from "@tanstack/react-query";
 
-import { threadUpsertMessages, type ThreadData } from "@/lib/api/cache";
+import { threadUpsertMessages } from '@/lib/api/cache';
+import type { ThreadData } from '@/lib/api/cache';
 import { keys } from "@/lib/api/keys";
 import type { Message } from "@/lib/api/types";
 

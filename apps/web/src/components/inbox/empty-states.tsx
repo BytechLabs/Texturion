@@ -38,9 +38,9 @@ export function FilteredEmptyState({
             clients. */}
         {awaiting
           ? t("inbox.emptyEveryoneAnswered")
-          : snoozed
+          : (snoozed
             ? t("inbox.emptyNothingSnoozed")
-            : t("inbox.emptyNothingWaiting")}
+            : t("inbox.emptyNothingWaiting"))}
       </p>
     </div>
   );

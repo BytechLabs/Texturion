@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  ERROR_CODES,
   ERROR_CODE_STATUS,
+  ERROR_CODES,
   INTERNAL_ERROR_CODE,
   INTERNAL_ERROR_STATUS,
 } from "./error-codes";
@@ -87,7 +87,7 @@ describe("error codes (SPEC §7)", () => {
   });
 
   it("has a status entry for every code and no extras", () => {
-    expect(Object.keys(ERROR_CODE_STATUS).sort()).toEqual([...ERROR_CODES].sort());
+    expect(Object.keys(ERROR_CODE_STATUS).toSorted()).toEqual([...ERROR_CODES].toSorted());
   });
 });
 

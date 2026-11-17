@@ -26,14 +26,8 @@
  */
 import { expect } from "vitest";
 
-import {
-  committedBudget,
-  committedBudgets,
-  drainCallEvents,
-  emitCallBudget,
-  measuredBudget,
-  type JourneyBudget,
-} from "./call-budget";
+import { committedBudget, committedBudgets, drainCallEvents, emitCallBudget, measuredBudget } from './call-budget';
+import type { JourneyBudget } from './call-budget';
 import type { FakeLeg, FakeVoice, TelnyxWebhookEvent } from "./fake-telnyx-voice";
 
 export interface JourneyMember {
@@ -114,9 +108,9 @@ async function expectSession(
   state: string,
   answeredBy?: string,
 ): Promise<void> {
-  expect(await driver.state(sessionId), "session state").toBe(state);
+  await expect(driver.state(sessionId)).resolves.toBe(state);
   if (answeredBy !== undefined) {
-    expect(await driver.answeredBy(sessionId), "answered by").toBe(answeredBy);
+    await expect(driver.answeredBy(sessionId)).resolves.toBe(answeredBy);
   }
 }
 

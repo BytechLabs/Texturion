@@ -5,12 +5,8 @@ import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { useT } from "@/i18n/provider";
-import {
-  useBlockedSenders,
-  useBlockSender,
-  useUnblockSender,
-  type BlockedSender,
-} from "@/lib/api/blocked-senders";
+import { useBlockedSenders, useBlockSender, useUnblockSender } from '@/lib/api/blocked-senders';
+import type { BlockedSender } from '@/lib/api/blocked-senders';
 import { ApiError } from "@/lib/api/error";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";

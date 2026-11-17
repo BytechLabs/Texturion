@@ -8,7 +8,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { companyData } = vi.hoisted(() => ({
-  companyData: { current: {} as Record<string, unknown> },
+  companyData: { current: {} },
 }));
 
 vi.mock("@/lib/api/companies", () => ({
@@ -40,7 +40,7 @@ beforeEach(() => {
 function lineOptions() {
   render(<WebsiteWidgetCard appOrigin="https://app.example.test" />);
   fireEvent.click(screen.getByRole("button", { name: "Get the snippet" }));
-  fireEvent.keyDown(document.getElementById("widget-line")!, { key: "ArrowDown" });
+  fireEvent.keyDown(document.querySelector("#widget-line")!, { key: "ArrowDown" });
   return screen.getAllByRole("option").map((option) => option.textContent);
 }
 

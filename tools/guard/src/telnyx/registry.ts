@@ -1,19 +1,8 @@
-import {
-  TELNYX_ENDPOINTS,
-  type TelnyxEndpoint,
-  type TelnyxMethod,
-  type TelnyxPolicyClass,
-} from "../../../../apps/api/src/telnyx/endpoints";
+import { TELNYX_ENDPOINTS } from '../../../../apps/api/src/telnyx/endpoints';
+import type {TelnyxEndpoint, TelnyxMethod, TelnyxPolicyClass} from '../../../../apps/api/src/telnyx/endpoints';
 
-/**
- * The guard's Telnyx policy table, generated from the app's endpoint registry
- * (apps/api/src/telnyx/endpoints.ts). The registry is the list of every
- * endpoint the app calls, each with a class; scripts/check-telnyx-endpoints.mjs
- * keeps it equal to the app's calls, and test/registry.test.ts fails when an
- * entry has no handler here. So a new endpoint is decided once, in the pull
- * request that adds it, and the guard deployed from that merge enforces it.
- */
-export type { TelnyxMethod, TelnyxPolicyClass };
+export { type TelnyxMethod, type TelnyxPolicyClass } from '../../../../apps/api/src/telnyx/endpoints';
+
 
 export interface PolicyEntry {
   readonly method: TelnyxMethod;
@@ -33,7 +22,7 @@ export interface Matched {
 function compile(endpoint: TelnyxEndpoint): PolicyEntry {
   const source = endpoint.path
     .split("/")
-    .map((segment) => (segment === ":id" ? "([^/]+)" : segment.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")))
+    .map((segment) => (segment === ":id" ? "([^/]+)" : segment.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`)))
     .join("/");
   return {
     method: endpoint.method,

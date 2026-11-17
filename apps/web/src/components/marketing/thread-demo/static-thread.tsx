@@ -59,20 +59,26 @@ export function StaticThread({
       <div className={bodyClassName ?? "flex flex-col gap-3 px-3 py-4"}>
         {script.beats.map((beat) => {
           switch (beat.kind) {
-            case "inbound":
+            case "inbound": {
               return <InboundBubble key={beat.id} beat={beat} />;
-            case "outbound":
+            }
+            case "outbound": {
               return (
                 <OutboundBubble key={beat.id} beat={beat} state={beat.delivered} />
               );
-            case "note":
+            }
+            case "note": {
               return <NoteBubble key={beat.id} beat={beat} />;
-            case "event":
+            }
+            case "event": {
               return <EventLine key={beat.id} beat={beat} />;
-            case "call":
+            }
+            case "call": {
               return <CallLine key={beat.id} beat={beat} locale={locale} />;
-            default:
+            }
+            default: {
               return null;
+            }
           }
         })}
       </div>

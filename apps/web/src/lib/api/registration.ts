@@ -63,7 +63,7 @@ export function useSubmitRegistration() {
         keys.registration(companyId),
         { brand: result.brand, campaign: result.campaign },
       );
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
@@ -84,7 +84,7 @@ export function useVerifyRegistrationOtp() {
       }),
     onSuccess: (state) => {
       queryClient.setQueryData(keys.registration(companyId), state);
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
@@ -118,11 +118,11 @@ export function useEnableUsTexting() {
         companyId,
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.registration(companyId),
         refetchType: "active",
       });

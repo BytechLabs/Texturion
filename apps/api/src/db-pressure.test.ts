@@ -159,7 +159,7 @@ describe("#251 a request that saw the database refuse stops asking it", () => {
     const env = freshEnv();
     const database = stubDatabase(
       () =>
-        new Response(JSON.stringify({ message: "An unexpected error occurred" }), {
+        Response.json({ message: "An unexpected error occurred" }, {
           status: 500,
           headers: { "content-type": "application/json" },
         }),
@@ -174,7 +174,7 @@ describe("#251 a request that saw the database refuse stops asking it", () => {
     for (const status of [502, 503, 504]) {
       const env = freshEnv();
       const database = stubDatabase(
-        () => new Response(JSON.stringify({ code: "PGRST003" }), { status }),
+        () => Response.json({ code: "PGRST003" }, { status }),
       );
       const res = await appWithReads(3, env).request("/reads");
       expect(database.calls(), `HTTP ${status}`).toBe(1);
@@ -186,19 +186,19 @@ describe("#251 a request that saw the database refuse stops asking it", () => {
     const env = freshEnv();
     const database = stubDatabase(
       () =>
-        new Response(
-          JSON.stringify({
+        Response.json(
+          {
             code: "53300",
             message:
               "remaining connection slots are reserved for non-replication superuser connections",
-          }),
+          },
           { status: 500, headers: { "content-type": "application/json" } },
         ),
     );
     const res = await appWithReads(3, env).request("/reads");
     expect(database.calls()).toBe(1);
     expect(res.status).toBe(503);
-    expect(await res.text()).not.toContain("superuser");
+    await expect(res.text()).resolves.not.toContain("superuser");
   });
 
   it("leaves an ordinary failed query alone", async () => {
@@ -207,7 +207,7 @@ describe("#251 a request that saw the database refuse stops asking it", () => {
     const env = freshEnv();
     const database = stubDatabase(
       () =>
-        new Response(JSON.stringify({ code: "23505", message: "duplicate key" }), {
+        Response.json({ code: "23505", message: "duplicate key" }, {
           status: 409,
         }),
     );
@@ -273,7 +273,7 @@ describe("#251 a request that saw the database refuse stops asking it", () => {
     // answer is theirs to interpret.
     const env = freshEnv();
     stubDatabase(
-      () => new Response(JSON.stringify({ code: "PGRST003" }), { status: 503 }),
+      () => Response.json({ code: "PGRST003" }, { status: 503 }),
     );
     const { error, status } = await getDb(env).from("t").insert({ id: 1 });
     expect(status).toBe(503);
@@ -336,38 +336,30 @@ describe("#251 a database that cannot be reached is reported as that", () => {
   });
 });
 
-describe("isDatabaseOverload", () => {
+describe(isDatabaseOverload, () => {
   it("reads only the bodies it needs to", async () => {
-    expect(await isDatabaseOverload(new Response("", { status: 200 }))).toBe(false);
-    expect(await isDatabaseOverload(new Response("", { status: 404 }))).toBe(false);
-    expect(await isDatabaseOverload(new Response("not json", { status: 500 }))).toBe(false);
-    expect(
-      await isDatabaseOverload(new Response('{"code":"XX000"}', { status: 500 })),
-    ).toBe(false);
-    expect(
-      await isDatabaseOverload(new Response('{"code":"53300"}', { status: 500 })),
-    ).toBe(true);
+    await expect(isDatabaseOverload(new Response("", { status: 200 }))).resolves.toBe(false);
+    await expect(isDatabaseOverload(new Response("", { status: 404 }))).resolves.toBe(false);
+    await expect(isDatabaseOverload(new Response("not json", { status: 500 }))).resolves.toBe(false);
+    await expect(isDatabaseOverload(new Response('{"code":"XX000"}', { status: 500 }))).resolves.toBe(false);
+    await expect(isDatabaseOverload(new Response('{"code":"53300"}', { status: 500 }))).resolves.toBe(true);
   });
 
   it("calls the gateway's bare 500 overload, and a query's own 500 a failure", async () => {
     const bare = '{"message":"An unexpected error occurred"}';
-    expect(await isDatabaseOverload(new Response(bare, { status: 500 }))).toBe(true);
+    await expect(isDatabaseOverload(new Response(bare, { status: 500 }))).resolves.toBe(true);
     // The same sentence beside a SQLSTATE came from a query, not the gateway.
-    expect(
-      await isDatabaseOverload(
+    await expect(isDatabaseOverload(
         new Response('{"code":"XX000","message":"An unexpected error occurred"}', {
           status: 500,
         }),
-      ),
-    ).toBe(false);
-    expect(
-      await isDatabaseOverload(new Response('{"message":"duplicate key"}', { status: 500 })),
-    ).toBe(false);
+      )).resolves.toBe(false);
+    await expect(isDatabaseOverload(new Response('{"message":"duplicate key"}', { status: 500 }))).resolves.toBe(false);
   });
 
   it("leaves the body readable for the caller", async () => {
     const response = new Response('{"code":"53300","message":"m"}', { status: 500 });
     await isDatabaseOverload(response);
-    expect(await response.json()).toEqual({ code: "53300", message: "m" });
+    await expect(response.json()).resolves.toEqual({ code: "53300", message: "m" });
   });
 });

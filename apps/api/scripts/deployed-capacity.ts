@@ -1,15 +1,7 @@
 #!/usr/bin/env node
 /** #251 operator entrypoint. See deployed-capacity-lib.ts for safety rules. */
-import {
-  CapacityConfigError,
-  CapacityRunError,
-  formatCapacityEvidence,
-  parseRamp,
-  runHostedCapacity,
-  validateHostedCapacityInput,
-  type CapacityTargetKind,
-  type HostedScenario,
-} from "./deployed-capacity-lib.ts";
+import { CapacityConfigError, CapacityRunError, formatCapacityEvidence, parseRamp, runHostedCapacity, validateHostedCapacityInput } from './deployed-capacity-lib.ts';
+import type { CapacityTargetKind, HostedScenario } from './deployed-capacity-lib.ts';
 
 const HELP = `
 Usage:

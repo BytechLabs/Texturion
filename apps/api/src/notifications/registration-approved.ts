@@ -112,7 +112,7 @@ export async function pushRegistrationApproved(
       .is("deactivated_at", null);
     if (memberError) throw new Error(memberError.message);
 
-    const audience = (memberData ?? []).map((row) => (row as { user_id: string }).user_id);
+    const audience = (memberData ?? []).map((row) => (row).user_id);
     if (audience.length === 0) return;
 
     const { data: prefData, error: prefError } = await db
@@ -124,7 +124,7 @@ export async function pushRegistrationApproved(
 
     const prefs = new Map(
       (prefData ?? []).map((row) => {
-        const pref = row as { user_id: string; push_enabled: boolean };
+        const pref = row;
         return [pref.user_id, pref.push_enabled];
       }),
     );
@@ -168,10 +168,10 @@ export async function pushRegistrationApproved(
         `registration approval push: ${failures.length} delivery failure(s) for ${companyId}`,
       );
     }
-  } catch (cause) {
+  } catch (error) {
     // Swallowed on purpose. The transition is applied and the email is sent;
     // a push outage must not turn the best moment in the lifecycle into a
     // failed job that retries the whole approval.
-    console.error(`registration approval push failed for ${companyId}: ${String(cause)}`);
+    console.error(`registration approval push failed for ${companyId}: ${String(error)}`);
   }
 }

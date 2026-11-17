@@ -3,19 +3,8 @@ import { describe, expect, it } from "vitest";
 import { makeTranslate } from "@/i18n/translate";
 import type { TaskRepeat } from "@/lib/api/types";
 
-import {
-  capLabels,
-  draftFromRepeat,
-  draftProblem,
-  draftToRequest,
-  isFlaggedPriority,
-  needsScopeChoice,
-  newRepeatDraft,
-  nthOfMonth,
-  repeatSummary,
-  showsRepeatIcon,
-  type RepeatDraft,
-} from "./task-planning";
+import { capLabels, draftFromRepeat, draftProblem, draftToRequest, isFlaggedPriority, needsScopeChoice, newRepeatDraft, nthOfMonth, repeatSummary, showsRepeatIcon } from './task-planning';
+import type { RepeatDraft } from './task-planning';
 
 const en = makeTranslate("en");
 const fr = makeTranslate("fr-CA");
@@ -40,7 +29,7 @@ function repeat(over: Partial<TaskRepeat> = {}): TaskRepeat {
 // 2026-11-09 is a Monday; local noon so any time zone keeps the same day.
 const MONDAY = new Date(2026, 10, 9, 12, 0).toISOString();
 
-describe("repeatSummary", () => {
+describe(repeatSummary, () => {
   it("names the weekday", () => {
     expect(repeatSummary(repeat({ weekdays: [1] }), en)).toBe("Repeats every Monday");
   });
@@ -172,7 +161,7 @@ describe("repeat draft to request body", () => {
   });
 });
 
-describe("draftProblem", () => {
+describe(draftProblem, () => {
   it("needs a due date for a schedule but not after-done", () => {
     expect(draftProblem(newRepeatDraft(false), null)).toBe("tasks.repeatNeedsDue");
     expect(draftProblem(newRepeatDraft(false), MONDAY)).toBeNull();

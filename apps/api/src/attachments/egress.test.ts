@@ -11,8 +11,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "../http/errors";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { getDb } from "../db";
 import {
   assertEgressWithinAllowance,
@@ -31,6 +33,7 @@ afterEach(() => vi.unstubAllGlobals());
 
 describe("EGRESS_ALLOWANCE_BYTES (#16/#121)", () => {
   const GB = 1024 * 1024 * 1024;
+
   it("is the fixed 200 GB per-period anti-abuse pool", () => {
     // #121: no longer derived from storage budgets (which are gone) — a flat
     // pool matching the old maxed-Pro ceiling so nobody legitimate is newly
@@ -110,7 +113,7 @@ describe("claimSignedUrlEgress (#16, fail closed)", () => {
 
   it("throws on an RPC error — the caller must not mint (fail closed)", async () => {
     const { route } = rpcRoute(
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(route);
 
@@ -137,7 +140,7 @@ describe("companyPlanRow (#16 / D30 anchor)", () => {
     ]);
     stubFetch(sb.route);
 
-    expect(await companyPlanRow(getDb(env), COMPANY_ID)).toEqual({
+    await expect(companyPlanRow(getDb(env), COMPANY_ID)).resolves.toEqual({
       plan: "starter",
       currentPeriodStart: null,
     });
@@ -150,7 +153,7 @@ describe("companyPlanRow (#16 / D30 anchor)", () => {
     ]);
     stubFetch(sb.route);
 
-    expect(await companyPlanRow(getDb(env), COMPANY_ID)).toEqual({
+    await expect(companyPlanRow(getDb(env), COMPANY_ID)).resolves.toEqual({
       plan: "pro",
       currentPeriodStart: "2026-07-01T00:00:00+00:00",
     });
@@ -309,8 +312,8 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
         { bucket: "attachments", path: "c/a.pdf", sizeBytes: 1 },
         { bucket: "mms-media", path: "c/b.jpg", sizeBytes: 1 },
       ]);
-    } catch (caught) {
-      error = caught;
+    } catch (error_) {
+      error = error_;
     }
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).code).toBe("usage_cap_reached");
@@ -330,7 +333,7 @@ describe("assertEgressWithinAllowance (#16 — the gate every mint path calls)",
     sb.on(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress_objects",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(sb.route);
 
@@ -379,8 +382,8 @@ describe("assertMintRateWithinLimit (#261 — the mint routes had no rate limit)
         COMPANY_ID,
         USER_ID,
       );
-    } catch (caught) {
-      error = caught;
+    } catch (error_) {
+      error = error_;
     }
     expect(error).toBeInstanceOf(ApiError);
     expect((error as ApiError).code).toBe("rate_limited");

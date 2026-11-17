@@ -4,15 +4,17 @@ import { useState } from "react";
 import { FileText, Send } from "lucide-react";
 
 import {
-  QUOTE_STATUS_KEYS,
   billingCurrencyOf,
   formatMoney,
   isQuoteDecided,
+  QUOTE_STATUS_KEYS,
   roleHasCapability,
 } from "@loonext/shared";
 
-import { useT, type Translate } from "@/i18n/provider";
-import { useCreateQuote, useQuotes, useSendQuote, type Quote } from "@/lib/api/quotes";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
+import { useCreateQuote, useQuotes, useSendQuote } from '@/lib/api/quotes';
+import type { Quote } from '@/lib/api/quotes';
 import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
@@ -101,10 +103,10 @@ function QuoteRow({
           "shrink-0",
           quote.effective_status === "accepted"
             ? "text-success"
-            : quote.effective_status === "expired" ||
+            : (quote.effective_status === "expired" ||
                 quote.effective_status === "declined"
               ? "text-muted-foreground"
-              : "text-foreground",
+              : "text-foreground"),
         )}
       >
         {t(QUOTE_STATUS_KEYS[quote.effective_status])}
@@ -170,7 +172,7 @@ export function QuoteStrip({
 
   function submit() {
     setError(null);
-    const dollars = Number.parseFloat(amount.replace(/[^0-9.]/g, ""));
+    const dollars = Number(amount.replaceAll(/[^0-9.]/g, ""));
     if (!Number.isFinite(dollars) || dollars <= 0) {
       setError(t("quotes.needAmount"));
       return;

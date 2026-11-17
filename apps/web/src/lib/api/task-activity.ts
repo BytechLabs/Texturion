@@ -5,10 +5,8 @@ import {
 } from "@tanstack/react-query";
 
 import { useT } from "@/i18n/provider";
-import {
-  uploadFilesSequentially,
-  type StagedUploadResult,
-} from "@/lib/attachments/upload-chain";
+import { uploadFilesSequentially } from '@/lib/attachments/upload-chain';
+import type { StagedUploadResult } from '@/lib/attachments/upload-chain';
 import { makeAttachmentPreview } from "@/lib/attachments/preview";
 import { buildAttachmentForm } from "@/lib/attachments/validate";
 import { useCompanyId } from "@/lib/company/provider";
@@ -38,7 +36,7 @@ export function useTaskActivity(taskId: string, enabled = true) {
     enabled,
   });
   const items = dedupeById(
-    [...(query.data?.pages ?? [])].reverse().flatMap((page) => page.data),
+    [...(query.data?.pages ?? [])].toReversed().flatMap((page) => page.data),
   );
   return { ...query, items };
 }

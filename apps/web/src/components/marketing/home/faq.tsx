@@ -1,14 +1,11 @@
-import { fill, homeCopy, homeEn, type HomeCopy } from "@/i18n/marketing/home";
+import { fill, homeCopy, homeEn } from '@/i18n/marketing/home';
+import type { HomeCopy } from '@/i18n/marketing/home';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import {
-  currencyForCountry,
-  formatMoney,
-  PLAN_PRICE_CENTS,
-  US_REGISTRATION_FEE_CENTS,
-  type BillingCurrency,
-} from "@loonext/shared";
+import { currencyForCountry, formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
-import { CountryOnly, type Country } from "@/components/marketing/country";
+import { CountryOnly } from '@/components/marketing/country';
+import type { Country } from '@/components/marketing/country';
 import { FrSection } from "@/components/marketing/fr";
 
 /**

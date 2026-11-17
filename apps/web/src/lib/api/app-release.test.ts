@@ -2,10 +2,12 @@
 import type { AppReleasePolicy } from "@loonext/shared";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { createElement } from 'react';
+import type { ReactNode } from 'react';
 import { describe, expect, it, vi } from "vitest";
 
-import { isSuperseded, requirementFor, useDeployedVersion, type WebBuild } from "./app-release";
+import { isSuperseded, requirementFor, useDeployedVersion } from './app-release';
+import type { WebBuild } from './app-release';
 
 const NO_DEMANDS: AppReleasePolicy = {
   platform: "web",
@@ -47,7 +49,7 @@ describe("requirementFor (#710)", () => {
   });
 });
 
-describe("isSuperseded", () => {
+describe(isSuperseded, () => {
   it("compares build ids when both sides have one", () => {
     expect(isSuperseded(tab("0.30.2", "build-a"), tab("0.30.2", "build-b"))).toBe(true);
     // The same bundle redeployed: nothing to reload, whatever the versions say.
@@ -61,11 +63,11 @@ describe("isSuperseded", () => {
   });
 });
 
-describe("useDeployedVersion", () => {
+describe(useDeployedVersion, () => {
   function renderDeployed(body: unknown) {
     vi.stubGlobal(
       "fetch",
-      vi.fn(() => Promise.resolve(new Response(JSON.stringify(body), { status: 200 }))),
+      vi.fn(() => Promise.resolve(Response.json(body, { status: 200 }))),
     );
     const client = new QueryClient();
     const wrapper = ({ children }: { children: ReactNode }) =>

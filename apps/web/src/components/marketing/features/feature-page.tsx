@@ -458,7 +458,7 @@ export function FeatureCta({
         </div>
         <p className="fr-eyebrow mt-6 text-[color:var(--fr-ink-55)]">
           <PlanPrice plan="starter" />
-          {"/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK"}
+          /MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK
         </p>
       </div>
     </FrSection>

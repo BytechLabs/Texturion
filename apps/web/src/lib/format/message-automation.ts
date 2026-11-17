@@ -1,4 +1,5 @@
-import { isMessageAutomation, type MessageAutomation } from "@loonext/shared";
+import { isMessageAutomation } from '@loonext/shared';
+import type { MessageAutomation } from '@loonext/shared';
 
 import type { MessageKey, Translate } from "@/i18n/translate";
 

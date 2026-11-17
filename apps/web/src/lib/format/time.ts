@@ -5,7 +5,8 @@ import {
   timestampShape,
 } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 
 const formatters = new Map<string, Intl.DateTimeFormat>();
 
@@ -182,7 +183,7 @@ export function instantFromZonedWallClock(
   }
   if (matches.size === 0) return { ok: false, reason: "nonexistent" };
   if (matches.size > 1) return { ok: false, reason: "ambiguous" };
-  return { ok: true, iso: new Date([...matches][0]!).toISOString() };
+  return { ok: true, iso: new Date([...matches][0]).toISOString() };
 }
 
 /**
@@ -248,29 +249,36 @@ export function formatTimestamp(
 
   const shape = timestampShape(at.getTime(), now.getTime(), zone);
   switch (shape.bucket) {
-    case "now":
+    case "now": {
       return t("misc.timeNow");
-    case "minutesAgo":
+    }
+    case "minutesAgo": {
       return `${shape.minutes}m`;
-    case "today":
+    }
+    case "today": {
       return clock();
-    case "yesterday":
+    }
+    case "yesterday": {
       return long
         ? t("misc.timeYesterdayAt", { time: clock() })
         : t("misc.timeYesterday");
-    case "tomorrow":
+    }
+    case "tomorrow": {
       return long
         ? t("misc.timeTomorrowAt", { time: clock() })
         : t("misc.timeTomorrow");
-    case "thisWeek":
+    }
+    case "thisWeek": {
       return long
         ? draw({ weekday: "short", hour: "numeric", minute: "2-digit" })
         : draw({ weekday: "short" });
-    case "thisYear":
+    }
+    case "thisYear": {
       return long
         ? draw({ month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })
         : draw({ month: "short", day: "numeric" });
-    case "older":
+    }
+    case "older": {
       return long
         ? draw({
             year: "numeric",
@@ -280,6 +288,7 @@ export function formatTimestamp(
             minute: "2-digit",
           })
         : draw({ year: "numeric", month: "short", day: "numeric" });
+    }
   }
 }
 

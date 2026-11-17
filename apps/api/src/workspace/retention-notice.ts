@@ -94,12 +94,12 @@ export async function runRetentionNoticeJob(
         html: renderEmailHtml(text),
       });
       sent += 1;
-    } catch (cause) {
+    } catch (error_) {
       // The claim is already recorded, so this workspace will not be retried.
       // That is the correct trade: a duplicate warning about data destruction
       // is more alarming than a missed one, and the enforcement job is not
       // built yet — nothing is actually at risk today.
-      console.error(`retention notice send failed for ${row.company_id}: ${String(cause)}`);
+      console.error(`retention notice send failed for ${row.company_id}: ${String(error_)}`);
     }
   }
 

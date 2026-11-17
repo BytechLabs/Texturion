@@ -70,10 +70,10 @@ const CATALOGUES: Partial<Record<keyof typeof SOURCES, string>> = {
 
 /** The screen, plus the catalogue it now reaches for its labels. */
 function wordsOf(platform: string, path: string): string {
-  const catalogue = CATALOGUES[platform as keyof typeof SOURCES];
+  const catalogue = CATALOGUES[platform];
   return (
     readFileSync(path, "utf8") +
-    (catalogue ? " " + readFileSync(catalogue, "utf8") : "")
+    (catalogue ? ` ${  readFileSync(catalogue, "utf8")}` : "")
   );
 }
 
@@ -103,8 +103,8 @@ describe("#291 the address list reads the same everywhere", () => {
     }
     expect(
       missing,
-      "These #291 sentences are missing or reworded on some clients:\n  " +
-        missing.join("\n  "),
+      `These #291 sentences are missing or reworded on some clients:\n  ${ 
+        missing.join("\n  ")}`,
     ).toEqual([]);
   });
 

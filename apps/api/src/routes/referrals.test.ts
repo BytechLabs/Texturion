@@ -10,20 +10,10 @@ import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { REFERRAL_REWARDS_PER_YEAR } from "@loonext/shared";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { referralRoutes } from "./referrals";
 
 const env = completeEnv();
@@ -93,7 +83,7 @@ describe("GET /v1/referrals/moment", () => {
     await moment(sb);
     const call = sb.find("POST", "/rest/v1/rpc/api_referral_ask_facts")[0];
     expect(call.body).toMatchObject({ p_company_id: COMPANY_ID });
-    expect(typeof (call.body as { p_now: string }).p_now).toBe("string");
+    expect((call.body as { p_now: string }).p_now).toBeTypeOf("string");
   });
 
   it("never asks a workspace that has not activated", async () => {

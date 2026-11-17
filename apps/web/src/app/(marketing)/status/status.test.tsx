@@ -1,7 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { EMPTY_STATUS_FEED, type StatusFeed } from "@/lib/marketing/status-feed";
+import { EMPTY_STATUS_FEED } from '@/lib/marketing/status-feed';
+import type { StatusFeed } from '@/lib/marketing/status-feed';
 
 import { StatusContent } from "@/components/marketing/status-content";
 

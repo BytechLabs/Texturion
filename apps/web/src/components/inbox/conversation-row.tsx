@@ -12,13 +12,8 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import {
-  isFlaggedUrgent,
-  mmsMediaKind,
-  URGENT_BADGE_LABEL,
-  type MmsMediaKind,
-  avatarInitials,
-} from "@loonext/shared";
+import { avatarInitials, isFlaggedUrgent, mmsMediaKind, URGENT_BADGE_LABEL } from '@loonext/shared';
+import type { MmsMediaKind } from '@loonext/shared';
 import { attachmentLabel, sharedMediaKind } from "@/lib/attachments/media-label";
 import { useT } from "@/i18n/provider";
 import type { ThreadData } from "@/lib/api/cache";
@@ -151,7 +146,7 @@ function TagChip({ tag, emphasis }: { tag: Tag; emphasis: boolean }) {
 // Memoized: the virtualized inbox list re-renders on every scroll + #11 FLIP
 // animation, but each cached `conversation` object + the boolean props are
 // referentially stable, so a shallow compare skips re-rendering every row.
-export const ConversationRow = memo(function ConversationRow({
+export const ConversationRow = memo(({
   conversation,
   active,
   cursor = false,
@@ -162,7 +157,7 @@ export const ConversationRow = memo(function ConversationRow({
   /** #694: the keyboard cursor (j/k) is on this row. */
   cursor?: boolean;
   spamView: boolean;
-}) {
+}) => {
   const t = useT();
   const memberNames = useMemberNames();
   const snippet = useSnippet(conversation);
@@ -171,7 +166,7 @@ export const ConversationRow = memo(function ConversationRow({
     conversation,
     openHref: `/inbox/${conversation.id}`,
   });
-  const unread = conversation.unread;
+  const {unread} = conversation;
   const pinned = conversation.pinned_at !== null;
   // #694: THIS member muted the thread. It still counts as unread; it only
   // stops making noise, so the mark sits beside the time rather than replacing
@@ -196,9 +191,9 @@ export const ConversationRow = memo(function ConversationRow({
 
   const previewText = snippet
     ? `${snippet.direction === "outbound" ? t("inbox.rowPreviewYou") : ""}${snippetText(snippet)}`
-    : conversation.contact.name
+    : (conversation.contact.name
       ? formatPhone(conversation.contact.phone_e164)
-      : "";
+      : "");
   // With a caption, the preview shows the text and the clip icon carries the
   // media — so the attachment has to be spelled out for screen readers, which
   // never see the icon.

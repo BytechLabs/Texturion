@@ -58,7 +58,7 @@ export async function pushPortCompleted(
     if (memberError) throw new Error(memberError.message);
 
     const audience = (memberData ?? []).map(
-      (row) => (row as { user_id: string }).user_id,
+      (row) => (row).user_id,
     );
     if (audience.length === 0) return;
 
@@ -71,7 +71,7 @@ export async function pushPortCompleted(
 
     const prefs = new Map(
       (prefData ?? []).map((row) => {
-        const pref = row as { user_id: string; push_enabled: boolean };
+        const pref = row;
         return [pref.user_id, pref.push_enabled];
       }),
     );
@@ -115,12 +115,12 @@ export async function pushPortCompleted(
         `port completion push: ${failures.length} delivery failure(s) for ${companyId}`,
       );
     }
-  } catch (cause) {
+  } catch (error) {
     // Swallowed on purpose. The number is live and the email is sent; a push
     // outage must not turn a successful cutover into a failed job that retries
     // the whole completion.
     console.error(
-      `port completion push failed for ${companyId}: ${String(cause)}`,
+      `port completion push failed for ${companyId}: ${String(error)}`,
     );
   }
 }

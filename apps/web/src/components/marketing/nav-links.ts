@@ -1,25 +1,8 @@
-import {
-  BadgeDollarSign,
-  Fan,
-  HardHat,
-  Hash,
-  Inbox,
-  Leaf,
-  type LucideIcon,
-  Mail,
-  PhoneCall,
-  Sparkle,
-  SquareCheckBig,
-  Scale,
-  Scissors,
-  ShieldCheck,
-  Sparkles,
-  Tags,
-  UsersRound,
-  Wrench,
-} from "lucide-react";
+import { BadgeDollarSign, Fan, HardHat, Hash, Inbox, Leaf, Mail, PhoneCall, Scale, Scissors, ShieldCheck, Sparkle, Sparkles, SquareCheckBig, Tags, UsersRound, Wrench } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
-import { navCopy, type NavCopy } from "@/i18n/marketing/nav";
+import { navCopy } from '@/i18n/marketing/nav';
+import type { NavCopy } from '@/i18n/marketing/nav';
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**

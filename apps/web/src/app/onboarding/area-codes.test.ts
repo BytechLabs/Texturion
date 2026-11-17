@@ -22,7 +22,7 @@ describe("city locale aliases", () => {
   });
 });
 
-describe("searchAreaCodes", () => {
+describe(searchAreaCodes, () => {
   it("matches a full code and formats the G7 hint", () => {
     const hits = searchAreaCodes("416", "CA", "en");
     expect(hits[0]).toMatchObject({
@@ -154,13 +154,13 @@ describe("searchAreaCodes", () => {
       "fr-CA",
       100,
     );
-    expect(englishAlias.length).toBe(french.length);
+    expect(englishAlias).toHaveLength(french.length);
     expect(englishAlias.every((h) => h.regionName === "Colombie-Britannique"))
       .toBe(true);
   });
 });
 
-describe("areaCodeHint", () => {
+describe(areaCodeHint, () => {
   it("accepts geographic codes of the chosen country only", () => {
     expect(areaCodeHint("416", "CA", "en")).toMatchObject({ code: "416" });
     expect(areaCodeHint("416", "US", "en")).toBeNull();
@@ -192,7 +192,7 @@ describe("areaCodesForCountry / regionName", () => {
     expect(ca.length).toBeGreaterThan(20);
     expect(ca.every((h) => h.country === "CA")).toBe(true);
     const codes = ca.map((h) => h.code);
-    expect([...codes].sort()).toEqual(codes);
+    expect([...codes].toSorted()).toEqual(codes);
   });
 
   it("expands region codes to full names", () => {

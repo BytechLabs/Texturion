@@ -12,8 +12,8 @@
  * workspace's follow-ups vanish because a card expired for an afternoon.
  */
 import {
-  SCHEDULED_HOLD_REASONS,
   SCHEDULED_HOLD_REASON_KEYS,
+  SCHEDULED_HOLD_REASONS,
 } from "@loonext/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -23,7 +23,8 @@ import { completeEnv, stubFetch } from "../test/support";
 // answers all-clear by default (src/test/telnyx-doubles/registration.ts), which
 // is the lever for the gate states below. Reading the real companies row would
 // not work here: index.ts's imports are aliased in this project.
-import { getSendGates, type AupEnforcement } from "../telnyx/registration";
+import { getSendGates } from '../telnyx/registration';
+import type { AupEnforcement } from '../telnyx/registration';
 import { runScheduledSendJob } from "./scheduled-send";
 
 const env = completeEnv();
@@ -145,7 +146,7 @@ function harness(options: HarnessOptions = {}) {
   // it was written to assert.
   sb.on("GET", "/rest/v1/conversations", (call) => {
     if (
-      String(call.url.searchParams.get("select") ?? "").includes(
+      (call.url.searchParams.get("select") ?? "").includes(
         "contact_phone_e164",
       )
     ) {
@@ -166,7 +167,7 @@ function harness(options: HarnessOptions = {}) {
   sb.on("GET", "/rest/v1/companies", () =>
     options.settingsReadFails
       ? pgError("57014", "statement timeout")
-      : [{ id: COMPANY_ID, ...(options.settings ?? {}) }],
+      : [{ id: COMPANY_ID, ...options.settings }],
   );
   sb.on("GET", "/rest/v1/messages", () =>
     options.newestInbound ? [{ created_at: options.newestInbound }] : [],

@@ -29,12 +29,11 @@ import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it } from "vitest";
 
 const REPO = join(
-  fileURLToPath(new URL(".", import.meta.url)),
+  import.meta.dirname,
   "..",
   "..",
   "..",
@@ -84,8 +83,8 @@ function guard(sql: string): { ok: boolean; output: string } {
       stdio: ["ignore", "pipe", "pipe"],
     });
     return { ok: true, output };
-  } catch (cause) {
-    const err = cause as { stdout?: string; stderr?: string };
+  } catch (error) {
+    const err = error as { stdout?: string; stderr?: string };
     return { ok: false, output: `${err.stdout ?? ""}${err.stderr ?? ""}` };
   }
 }

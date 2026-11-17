@@ -45,7 +45,7 @@ export function usePlaceCall() {
     }
     void softphone
       .placeCall(args)
-      .catch((cause) =>
+      .catch((error) =>
         toast.error(
           // MicPermissionError carries the only actionable copy in this path
           // ("Microphone access is blocked. Click the 🎤 or 🔒 icon…"), and the
@@ -53,8 +53,8 @@ export function usePlaceCall() {
           // ApiError alone showed "Try again." for both — advice that cannot
           // work for a blocked mic. Anything else still gets the calm generic,
           // so a raw fetch/chunk-load failure never reaches the user.
-          cause instanceof MicPermissionError || cause instanceof ApiError
-            ? cause.message
+          error instanceof MicPermissionError || error instanceof ApiError
+            ? error.message
             : t("shell.callStartFailedRetry"),
         ),
       );

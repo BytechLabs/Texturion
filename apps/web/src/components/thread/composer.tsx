@@ -11,15 +11,8 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import {
-  appendIdentificationSuffix,
-  applyMergeFields,
-  formatNanpNumber,
-  hasMergeFields,
-  hasServerOnlyTokens,
-  SERVER_ONLY_TOKENS_NOTE,
-  type MmsMediaType,
-} from "@loonext/shared";
+import { appendIdentificationSuffix, applyMergeFields, duplicateReplyPrompt, duplicateReplyWarning, formatNanpNumber, hasMergeFields,hasServerOnlyTokens,SERVER_ONLY_TOKENS_NOTE } from '@loonext/shared';
+import type { MmsMediaType,WorkPhase } from '@loonext/shared';
 
 import {
   QuietHoursConfirm,
@@ -47,16 +40,17 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { ReplySuggestionChips } from "./reply-suggestion-chips";
-import { sayWith, useT, type Translate } from "@/i18n/provider";
+import { sayWith, useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useUploadNoteFiles } from "@/lib/api/attachments";
 import { useCompany } from "@/lib/api/companies";
 import {
   clearDraftMentions,
   clearFailedSend,
+  flushDraftOnExit,
   loadDraft,
   loadDraftMentions,
   loadFailedSend,
-  flushDraftOnExit,
   saveDraft,
   saveDraftMentions,
   saveFailedSend,
@@ -77,38 +71,23 @@ import {
 } from "@/lib/api/reply-suggestions";
 import {
   useWrapUpTranscript,
-  wrapUpFailureMessage,
-  wrapUpOutcome,
   WRAP_UP_MAX_BYTES,
   WRAP_UP_MAX_SECONDS,
+  wrapUpFailureMessage,
+  wrapUpOutcome,
 } from "@/lib/api/wrap-up-transcript";
 import { AiOrb } from "@/components/ui/ai-orb";
-import {
-  duplicateReplyPrompt,
-  duplicateReplyWarning,
-  type WorkPhase,
-} from "@loonext/shared";
 
 import { ApiError } from "@/lib/api/error";
-import {
-  attachmentSignature,
-  idempotencyKeyFor,
-  type FailedAttempt,
-} from "@/lib/api/idempotency";
-import {
-  useMessages,
-  useSendMessage,
-  type OutboundMedia,
-} from "@/lib/api/messages";
+import { attachmentSignature, idempotencyKeyFor } from '@/lib/api/idempotency';
+import type { FailedAttempt } from '@/lib/api/idempotency';
+import { useMessages, useSendMessage } from '@/lib/api/messages';
+import type { OutboundMedia } from '@/lib/api/messages';
 import { useMe } from "@/lib/api/me";
 import { useMembers } from "@/lib/api/team";
 import { isFilePaste } from "@/lib/attachments/clipboard";
-import {
-  MMS_ACCEPT,
-  MMS_MAX_MEDIA_ITEMS,
-  partitionMmsFiles,
-  type SayMmsRejection,
-} from "@/lib/attachments/mms";
+import { MMS_ACCEPT, MMS_MAX_MEDIA_ITEMS, partitionMmsFiles } from '@/lib/attachments/mms';
+import type { SayMmsRejection } from '@/lib/attachments/mms';
 import {
   ATTACHMENT_ACCEPT,
   MAX_ATTACHMENTS_PER_OWNER,
@@ -122,12 +101,8 @@ import { segmentMeter, segmentTooltip } from "./segment-meter";
 import { MentionPicker } from "./mention-picker";
 import { ReferencePicker } from "@/components/tasks/reference-picker";
 import { useReferenceTrigger } from "@/components/tasks/use-reference-trigger";
-import {
-  insertMention,
-  isMentionTrigger,
-  resolveMentions,
-  type PickedMention,
-} from "./mentions";
+import { insertMention, isMentionTrigger, resolveMentions } from './mentions';
+import type { PickedMention } from './mentions';
 import { consumeComposerFocus, onComposerFocusRequest } from "@/lib/inbox/shortcuts";
 import { TemplatePicker } from "./template-picker";
 import { useWrapUpRecorder } from "./use-wrap-up-recorder";
@@ -1082,7 +1057,7 @@ export function Composer({
     // "did this go out different from the template", and somebody who typed a
     // word and deleted it did not edit anything.
     const used = templateUse.current;
-    const templateId = used !== null ? used.id : undefined;
+    const templateId = used === null ? undefined : used.id;
     const templateEdited = used !== null && used.body.trim() !== draftText.trim();
 
     send.mutate(
@@ -1278,17 +1253,17 @@ export function Composer({
             when: formatTimestamp(sendAtIso, { style: "long", t }),
           }),
         );
-      } catch (cause) {
+      } catch (error) {
         if (
-          cause instanceof ApiError &&
-          cause.code === "quiet_hours_confirmation_required"
+          error instanceof ApiError &&
+          error.code === "quiet_hours_confirmation_required"
         ) {
           setQuietConfirmFor(sendAtIso);
           return;
         }
         toast.error(
-          cause instanceof ApiError
-            ? cause.message
+          error instanceof ApiError
+            ? error.message
             : t("thread.scheduleFailed"),
         );
       }
@@ -1357,9 +1332,9 @@ export function Composer({
                 // tap-target + roomier mobile padding: G11 ≥44px hit area.
                 "tap-target rounded-full px-3 py-1.5 text-xs font-medium transition-colors duration-150 ease-out md:px-2.5 md:py-0.5 md:text-[11px]",
                 mode === m
-                  ? m === "note"
+                  ? (m === "note"
                     ? "bg-app-amber-bg text-app-amber-ink"
-                    : "bg-app-tint text-app-olive-deep"
+                    : "bg-app-tint text-app-olive-deep")
                   : "text-app-muted hover:text-app-ink",
               )}
             >

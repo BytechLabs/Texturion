@@ -8,16 +8,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  PIPELINE_SEED_NAMES,
-  PIPELINE_STAGES,
-  isPipelineStage,
-  pipelineDeleteWarning,
-  pipelineInsight,
-  pipelineInsightKeys,
-  pipelineWinRate,
-  type PipelineReport,
-} from "./pipeline";
+import { isPipelineStage, PIPELINE_SEED_NAMES, PIPELINE_STAGES, pipelineDeleteWarning, pipelineInsight, pipelineInsightKeys, pipelineWinRate } from './pipeline';
+import type { PipelineReport } from './pipeline';
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
@@ -26,7 +18,7 @@ function resolver(table: unknown) {
   return (key: string, vars: Record<string, string>): string => {
     const [section, name] = key.split(".");
     const text = (table as Record<string, Record<string, string>>)[section]?.[name];
-    if (typeof text !== "string") throw new Error(`no entry for ${key}`);
+    if (typeof text !== "string") throw new TypeError(`no entry for ${key}`);
     return Object.entries(vars).reduce(
       (out, [token, value]) => out.split(`{${token}}`).join(value),
       text,

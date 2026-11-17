@@ -105,7 +105,7 @@ describe("#411 — retrying a send that never reached the carrier", () => {
 
   it("re-dispatches a claimed stuck send", async () => {
     const probe = fakeDb([ROW]);
-    expect(await retryInterruptedSends(env, new Date(), probe.db)).toBe(1);
+    await expect(retryInterruptedSends(env, new Date(), probe.db)).resolves.toBe(1);
     expect(dispatched).toEqual(["m1"]);
   });
 
@@ -131,7 +131,7 @@ describe("#411 — retrying a send that never reached the carrier", () => {
 
   it("fails the row out when a gate refuses, rather than dropping it", async () => {
     const probe = fakeDb([ROW], { to: "+15550000BLOCKED" });
-    expect(await retryInterruptedSends(env, new Date(), probe.db)).toBe(0);
+    await expect(retryInterruptedSends(env, new Date(), probe.db)).resolves.toBe(0);
     expect(dispatched).toEqual([]);
     expect(failedOut).toEqual(["m1"]);
   });
@@ -144,7 +144,7 @@ describe("#411 — retrying a send that never reached the carrier", () => {
     // The gate throws only for the blocked destination; both rows share a
     // conversation here, so use a fresh db whose view is fine and assert both
     // dispatch — the isolation that matters is the try/catch per row.
-    expect(await retryInterruptedSends(env, new Date(), probe.db)).toBe(2);
+    await expect(retryInterruptedSends(env, new Date(), probe.db)).resolves.toBe(2);
     expect(dispatched).toEqual(["m1", "m2"]);
   });
 
@@ -153,19 +153,19 @@ describe("#411 — retrying a send that never reached the carrier", () => {
     // die at Telnyx with an opaque error, or go out from a number the company
     // no longer pays for.
     const probe = fakeDb([ROW], { status: "released" });
-    expect(await retryInterruptedSends(env, new Date(), probe.db)).toBe(0);
+    await expect(retryInterruptedSends(env, new Date(), probe.db)).resolves.toBe(0);
     expect(dispatched).toEqual([]);
   });
 
   it("declines a number still provisioning", async () => {
     const probe = fakeDb([ROW], { from: null });
-    expect(await retryInterruptedSends(env, new Date(), probe.db)).toBe(0);
+    await expect(retryInterruptedSends(env, new Date(), probe.db)).resolves.toBe(0);
     expect(dispatched).toEqual([]);
   });
 
   it("does nothing at all when nothing is stuck", async () => {
     const probe = fakeDb([]);
-    expect(await retryInterruptedSends(env, new Date(), probe.db)).toBe(0);
+    await expect(retryInterruptedSends(env, new Date(), probe.db)).resolves.toBe(0);
     expect(dispatched).toEqual([]);
     expect(failedOut).toEqual([]);
   });

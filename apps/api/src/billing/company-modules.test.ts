@@ -4,25 +4,14 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  applyModuleReconcile,
-  enabledModules,
-  isModuleEnabled,
-  isSellableModule,
-  planModuleReconcile,
-  SELLABLE_MODULES,
-  type CompanyModuleRow,
-} from "./company-modules";
-import {
-  isPlanModule,
-  MODULE_CATALOG,
-  modulePrice,
-  PLAN_MODULES,
-  retiredModulePrices,
-  type PlanModule,
-} from "./modules";
-import { restMatch, stubRoute, type Stub } from "../test/messaging-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { applyModuleReconcile, enabledModules, isModuleEnabled, isSellableModule, planModuleReconcile, SELLABLE_MODULES } from './company-modules';
+import type { CompanyModuleRow } from './company-modules';
+import { isPlanModule, MODULE_CATALOG, modulePrice, PLAN_MODULES, retiredModulePrices } from './modules';
+import type { PlanModule } from './modules';
+import { restMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { getDb } from "../db";
 
 const env = completeEnv();
@@ -96,19 +85,19 @@ describe("module catalog", () => {
   });
 });
 
-describe("isModuleEnabled", () => {
+describe(isModuleEnabled, () => {
   it("true when an enabled row exists", async () => {
     serve(modulesStub([{ module: "regions_ca" }]));
-    expect(await isModuleEnabled(getDb(env), COMPANY, "regions_ca")).toBe(true);
+    await expect(isModuleEnabled(getDb(env), COMPANY, "regions_ca")).resolves.toBe(true);
   });
 
   it("false when no row is returned (never enabled or disabled)", async () => {
     serve(modulesStub([]));
-    expect(await isModuleEnabled(getDb(env), COMPANY, "regions_ca")).toBe(false);
+    await expect(isModuleEnabled(getDb(env), COMPANY, "regions_ca")).resolves.toBe(false);
   });
 });
 
-describe("enabledModules", () => {
+describe(enabledModules, () => {
   it("returns the enabled modules and drops unknown/retired values defensively", async () => {
     serve(
       modulesStub([

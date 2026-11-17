@@ -167,7 +167,7 @@ describe("Swift top-level helpers", () => {
       { file: string; fileScoped: boolean }[]
     >();
     for (const file of files) {
-      const relative = file.slice(IOS_ROOT.length + 1).replace(/\\/g, "/");
+      const relative = file.slice(IOS_ROOT.length + 1).replaceAll('\\', "/");
       for (const decl of topLevelFunctions(readFileSync(file, "utf8"))) {
         bySignature.set(decl.signature, [
           ...(bySignature.get(decl.signature) ?? []),
@@ -189,21 +189,21 @@ describe("Swift top-level helpers", () => {
       })
       .map(
         ([signature, sites]) =>
-          `  ${signature}\n` +
+          `  ${signature}\n${ 
           sites
             .map(
               (s) => `    ${s.fileScoped ? "private " : "internal"} ${s.file}`,
             )
-            .join("\n"),
+            .join("\n")}`,
       );
 
     expect(
       collisions,
       `\n\nA private top-level func shadows a module-wide one of the same\n` +
         `signature. Swift answers "invalid redeclaration" — \`private\` does NOT\n` +
-        `avoid it, because the declaration still occupies the module namespace:\n\n` +
-        collisions.join("\n") +
-        `\n\nRename the private one so it says whose it is (e.g. a feature\n` +
+        `avoid it, because the declaration still occupies the module namespace:\n\n${ 
+        collisions.join("\n") 
+        }\n\nRename the private one so it says whose it is (e.g. a feature\n` +
         `prefix), or call the existing one if it is genuinely the same helper.\n`,
     ).toEqual([]);
   });
@@ -215,7 +215,7 @@ describe("Swift top-level helpers", () => {
     // `@Observable` sit on types all over the codebase and are not storage.
     const offenders: string[] = [];
     for (const file of files) {
-      const relative = file.slice(IOS_ROOT.length + 1).replace(/\\/g, "/");
+      const relative = file.slice(IOS_ROOT.length + 1).replaceAll('\\', "/");
       const source = readFileSync(file, "utf8");
       // Each `struct … {` and the body up to the first line-start `}` — the
       // same column-zero rule the top-level scan uses, so a nested type cannot
@@ -232,9 +232,9 @@ describe("Swift top-level helpers", () => {
 
     expect(
       offenders,
-      `\n\nThese Swift structs declare Equatable and store a property wrapper:\n` +
-        offenders.map((o) => `  ${o}`).join("\n") +
-        `\n\nA wrapped property stores the wrapper, and \`Default<…>\` is not\n` +
+      `\n\nThese Swift structs declare Equatable and store a property wrapper:\n${ 
+        offenders.map((o) => `  ${o}`).join("\n") 
+        }\n\nA wrapped property stores the wrapper, and \`Default<…>\` is not\n` +
         `Equatable, so the synthesised conformance does not compile. Drop\n` +
         `Equatable — it is almost always reached for out of habit, and\n` +
         `Identifiable is what SwiftUI lists actually need — or write \`==\` by\n` +

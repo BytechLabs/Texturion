@@ -54,17 +54,17 @@ test("the emulator's environment is the rig's own SDK, homes and adb server", ()
   const paths = rigPaths(join("F:", "loonext-rig"));
   const env = emulatorEnv({
     paths,
-    sdk: "D:\\Android\\sdk",
+    sdk: String.raw`D:\Android\sdk`,
     adbPort: 5137,
-    base: { PATH: "p", ANDROID_HOME: "C:\\agents-sdk", ANDROID_SDK_HOME: "x", ANDROID_ADB_SERVER_ADDRESS: "0.0.0.0", ANDROID_SERIAL: "s" },
+    base: { PATH: "p", ANDROID_HOME: String.raw`C:\agents-sdk`, ANDROID_SDK_HOME: "x", ANDROID_ADB_SERVER_ADDRESS: "0.0.0.0", ANDROID_SERIAL: "s" },
   });
-  assert.equal(env.ANDROID_SDK_ROOT, "D:\\Android\\sdk");
+  assert.equal(env.ANDROID_SDK_ROOT, String.raw`D:\Android\sdk`);
   assert.equal(env.ANDROID_AVD_HOME, paths.avd);
   assert.equal(env.ANDROID_EMULATOR_HOME, paths.emulatorHome);
   assert.equal(env.ANDROID_ADB_SERVER_PORT, "5137");
   assert.equal(env.PATH, "p");
   for (const name of ["ANDROID_HOME", "ANDROID_SDK_HOME", "ANDROID_ADB_SERVER_ADDRESS", "ANDROID_SERIAL"]) assert.equal(env[name], undefined, name);
-  assert.equal(emulatorBinary("D:\\Android\\sdk"), join("D:\\Android\\sdk", "emulator", "emulator.exe"));
+  assert.equal(emulatorBinary(String.raw`D:\Android\sdk`), join(String.raw`D:\Android\sdk`, "emulator", "emulator.exe"));
 });
 
 test("adb talks to the rig's 5137 server and never to the agents' 5037", () => {
@@ -231,7 +231,7 @@ test("a hard kill terminates the emulator's own pid and the launcher's; a soft o
   const { devices, killed } = fakeDevices({ alive, removed, discover: (device) => (device.name === "pixel" ? { path: "pid_7000.ini", pid: 7000, grpcToken: "g", mtimeMs: 1000 } : null) });
   await devices.boot("pixel");
   assert.deepEqual(await devices.kill("pixel", { hard: true }), { status: 200, body: { state: "off" } });
-  assert.deepEqual(killed.sort(), [7000, 9000]);
+  assert.deepEqual(killed.toSorted(), [7000, 9000]);
   assert.deepEqual(removed, ["pid_7000.ini"], "the file a terminated emulator leaves is removed");
   assert.equal(devices.list().find((device) => device.name === "pixel").state, "off");
   assert.deepEqual(await devices.kill("pixel"), { status: 200, body: { state: "off" } }, "killing an off device is a no-op");

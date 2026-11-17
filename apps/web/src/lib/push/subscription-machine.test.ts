@@ -7,17 +7,8 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/error";
 
-import {
-  createPushMachine,
-  deviceLocaleTag,
-  subscriptionToKeys,
-  vapidKeyToApplicationServerKey,
-  type BrowserPushSubscription,
-  type PushEnvironment,
-  type PushManagerLike,
-  type PushPermission,
-  type PushSnapshot,
-} from "./subscription-machine";
+import { createPushMachine, deviceLocaleTag, subscriptionToKeys, vapidKeyToApplicationServerKey } from './subscription-machine';
+import type { BrowserPushSubscription, PushEnvironment, PushManagerLike, PushPermission, PushSnapshot } from './subscription-machine';
 
 /**
  * The device language every save body below carries (#228). Stubbed rather
@@ -118,7 +109,7 @@ function harness(options: HarnessOptions = {}) {
   return { machine, env, manager, phases, calls };
 }
 
-describe("vapidKeyToApplicationServerKey", () => {
+describe(vapidKeyToApplicationServerKey, () => {
   it("decodes a base64url uncompressed P-256 point", () => {
     const bytes = vapidKeyToApplicationServerKey(VAPID_KEY);
     expect(bytes).toHaveLength(65);
@@ -133,7 +124,7 @@ describe("vapidKeyToApplicationServerKey", () => {
   });
 });
 
-describe("subscriptionToKeys", () => {
+describe(subscriptionToKeys, () => {
   it("shapes PushSubscription.toJSON() into the POST body with the caps declaration", () => {
     const { subscription } = fakeSubscription("https://push.example.net/x");
     expect(subscriptionToKeys(subscription, "fr-CA")).toEqual({
@@ -181,7 +172,7 @@ describe("subscriptionToKeys", () => {
   });
 });
 
-describe("deviceLocaleTag", () => {
+describe(deviceLocaleTag, () => {
   it("reads the browser's language", () => {
     expect(deviceLocaleTag()).toBe(DEVICE_LANGUAGE);
   });
@@ -228,7 +219,7 @@ describe("init", () => {
     // and (#170 CALLS-V3 §9.2) a PRE-v3 row gains the 'call_end' cap on the
     // first app open after this deploy — the reconcile upsert IS the upgrade
     // path that turns on call_end delivery for existing subscribers.
-    expect(env.saveSubscription).toHaveBeenCalledTimes(1);
+    expect(env.saveSubscription).toHaveBeenCalledOnce();
     expect(env.saveSubscription).toHaveBeenCalledWith({
       endpoint: "https://push.example.net/rotated",
       keys: { p256dh: "P256DH", auth: "AUTH" },
@@ -356,7 +347,7 @@ describe("subscribe", () => {
     await machine.subscribe();
     expect(manager.subscribe).not.toHaveBeenCalled();
     expect(env.fetchVapidPublicKey).not.toHaveBeenCalled();
-    expect(env.saveSubscription).toHaveBeenCalledTimes(1);
+    expect(env.saveSubscription).toHaveBeenCalledOnce();
     expect(machine.snapshot().phase).toBe("subscribed");
   });
 
@@ -444,7 +435,7 @@ describe("unsubscribe", () => {
     const { machine, env } = harness();
     await machine.init(); // idle
     await machine.unsubscribe();
-    expect(env.getPushManager).toHaveBeenCalledTimes(1); // init only
+    expect(env.getPushManager).toHaveBeenCalledOnce(); // init only
     expect(machine.snapshot().phase).toBe("idle");
   });
 });

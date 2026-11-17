@@ -14,15 +14,10 @@ import type { PushDelivery } from "../notifications/deliver";
 import { deliverPush } from "../notifications/deliver";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
-import {
-  notifyPromotedMessageDone,
-  notifyTaskChange,
-  TASK_NOTIFY_WINDOW_SECONDS,
-  taskLink,
-  type TaskChange,
-} from "./notify";
+import { notifyPromotedMessageDone, notifyTaskChange, TASK_NOTIFY_WINDOW_SECONDS, taskLink } from './notify';
+import type { TaskChange } from './notify';
 
-vi.mock("../notifications/deliver", () => ({
+vi.mock(import("../notifications/deliver"), () => ({
   deliverPush: vi.fn(async () => undefined),
 }));
 
@@ -104,7 +99,7 @@ function world(options: World = {}) {
   // an open window win, and winning opens one.
   sb.on("POST", "/rest/v1/rpc/task_notify_claim", (call) => {
     if (options.claimFails) {
-      return new Response(JSON.stringify({ message: "boom" }), { status: 500 });
+      return Response.json({ message: "boom" }, { status: 500 });
     }
     const wanted = (call.body as { p_recipients: string[] }).p_recipients;
     const won = wanted.filter((id) => !claimed.has(id));
@@ -135,7 +130,7 @@ describe("each kind of change reaches the people following the task", () => {
     expect(sent()).toHaveLength(1);
     const delivery = sent()[0];
     expect(delivery.category).toBe("tasks");
-    expect(delivery.userIds.sort()).toEqual([PAT, SAM].sort());
+    expect(delivery.userIds.toSorted()).toEqual([PAT, SAM].toSorted());
     expect(delivery.web("en")).toMatchObject({
       title: "Dana Reyes finished a task",
       body: "Replace the outdoor tap at 5 King St",

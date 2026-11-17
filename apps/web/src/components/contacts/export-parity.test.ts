@@ -102,18 +102,18 @@ describe("#304/#595 an export is both halves, on every client that has one", () 
 
       expect(
         paths.some((path) => path === "/v1/exports"),
-        "This client starts an export and never lists them. A phone that can " +
-          "START an export it cannot COLLECT is the half that generates the " +
-          "support question instead of answering it — build the list beside " +
-          "the button. GET /v1/exports returns only the kinds the caller may " +
-          "collect, so it needs no role logic of its own.\n  " +
-          paths.join("\n  "),
+        `This client starts an export and never lists them. A phone that can ` +
+          `START an export it cannot COLLECT is the half that generates the ` +
+          `support question instead of answering it — build the list beside ` +
+          `the button. GET /v1/exports returns only the kinds the caller may ` +
+          `collect, so it needs no role logic of its own.\n  ${ 
+          paths.join("\n  ")}`,
       ).toBe(true);
 
       expect(
         paths.some((path) => path.startsWith("/v1/exports/")),
-        "This client lists exports and can start none of them, so the screen " +
-          "can only ever be empty.\n  " + paths.join("\n  "),
+        `This client lists exports and can start none of them, so the screen ` +
+          `can only ever be empty.\n  ${  paths.join("\n  ")}`,
       ).toBe(true);
     },
   );

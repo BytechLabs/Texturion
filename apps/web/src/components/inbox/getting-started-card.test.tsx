@@ -65,18 +65,18 @@ const queries = [
 
 /** A paid workspace with a live number, a first text and nobody invited yet. */
 function setUpOwnerData(usedSegments: number) {
-  useCompany.mockImplementation(() => ({
+  useCompany.mockReturnValue({
     data: { subscription_status: "active", numbers: [{ status: "active" }] },
-  }));
-  useConversations.mockImplementation(() => ({
+  });
+  useConversations.mockReturnValue({
     data: { pages: [{ data: [{ id: "conv-1" }] }] },
-  }));
+  });
   useUsage.mockImplementation((options) => ({
     data: options?.enabled === false ? undefined : { used_segments: usedSegments },
   }));
-  useMembers.mockImplementation(() => ({
+  useMembers.mockReturnValue({
     data: { data: [{ deactivated_at: null }] },
-  }));
+  });
 }
 
 afterEach(cleanup);

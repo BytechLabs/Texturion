@@ -1,16 +1,10 @@
-import {
-  DEFAULT_LOCALE,
-  formatMoney,
-  US_REGISTRATION_FEE_CENTS,
-  type BillingCurrency,
-} from "@loonext/shared";
+import { DEFAULT_LOCALE, formatMoney, US_REGISTRATION_FEE_CENTS } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
-import {
-  readSaysPaused,
-  readSaysRunning,
-  type PauseRead,
-} from "@/components/settings/pause-read";
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { readSaysPaused, readSaysRunning } from '@/components/settings/pause-read';
+import type { PauseRead } from '@/components/settings/pause-read';
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 
 /**
  * #228: English is the DEFAULT here, not the only option.

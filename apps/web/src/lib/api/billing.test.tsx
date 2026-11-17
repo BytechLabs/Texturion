@@ -24,18 +24,18 @@ const { BASE, fetchSpy } = vi.hoisted(() => ({
   fetchSpy: vi.fn(),
 }));
 
-vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "company-1" }));
+vi.mock(import("@/lib/company/provider"), () => ({ useCompanyId: () => "company-1" }));
 
 // Everything except the network is the real thing: `createApiClient` is the
 // same factory `client.ts` wires to the live base URL and Supabase session, so
 // what the spy receives is what the browser would have sent.
-vi.mock("./client", async () => {
+vi.mock(import("./client"), async () => {
   const { createApiClient } = await import("./core");
   return {
     apiFetch: createApiClient({
       baseUrl: BASE,
       getAccessToken: async () => "test-token",
-      fetch: ((...args: unknown[]) => fetchSpy(...args)) as unknown as typeof fetch,
+      fetch: (...args: unknown[]) => fetchSpy(...args),
     }),
   };
 });
@@ -55,7 +55,7 @@ function renderRecorder() {
 
 /** What the spy was handed, once it has been handed something. */
 async function sent(): Promise<{ url: URL; init: RequestInit }> {
-  await waitFor(() => expect(fetchSpy).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(fetchSpy).toHaveBeenCalledOnce());
   const [url, init] = fetchSpy.mock.calls[0] as [string, RequestInit];
   return { url: new URL(url), init };
 }
@@ -104,7 +104,7 @@ describe("useRecordCancellationReason (POST /v1/billing/cancellation-reason)", (
 
     const { init } = await sent();
     const body = JSON.parse(String(init.body)) as Record<string, unknown>;
-    expect(Object.keys(body).sort()).toEqual(["detail", "reason"]);
+    expect(Object.keys(body).toSorted()).toEqual(["detail", "reason"]);
     expect(body).toEqual({ reason: null, detail: null });
   });
 

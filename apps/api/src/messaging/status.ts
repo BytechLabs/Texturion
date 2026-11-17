@@ -115,9 +115,9 @@ async function finalize(
     ) === true;
   const finalStatus: "delivered" | "sent" | "failed" = delivered
     ? "delivered"
-    : hasFailure
+    : (hasFailure
       ? "failed"
-      : "sent";
+      : "sent");
   const parts =
     typeof payload.parts === "number" && payload.parts > 0
       ? payload.parts
@@ -131,7 +131,7 @@ async function finalize(
     .from("messages")
     .update({
       status: finalStatus,
-      ...(parts !== null ? { segments: parts } : {}),
+      ...(parts === null ? {} : { segments: parts }),
       ...(typeof payload.encoding === "string"
         ? { encoding: payload.encoding }
         : {}),
@@ -258,10 +258,10 @@ async function reportUsageEvent(
       value: args.quantity,
       identifier: args.identifier,
     });
-  } catch (cause) {
+  } catch (error_) {
     console.error(
       `meter report failed for usage event ${args.usageEventId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error_ instanceof Error ? error_.message : String(error_),
     );
     return; // stripe_reported_at stays NULL → hourly cron re-reports
   }

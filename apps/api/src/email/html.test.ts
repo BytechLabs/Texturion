@@ -15,7 +15,7 @@ import {
   toHtml,
 } from "./html";
 
-describe("escapeHtml", () => {
+describe(escapeHtml, () => {
   it("escapes every HTML-significant character", () => {
     expect(escapeHtml(`&<>"'`)).toBe("&amp;&lt;&gt;&quot;&#39;");
   });
@@ -29,7 +29,7 @@ describe("escapeHtml", () => {
   });
 });
 
-describe("toHtml", () => {
+describe(toHtml, () => {
   it("renders paragraphs from blank lines and <br> from single newlines", () => {
     expect(toHtml("Hi,\n\nline one\nline two\n\nBye")).toBe(
       "<p>Hi,</p><p>line one<br>line two</p><p>Bye</p>",

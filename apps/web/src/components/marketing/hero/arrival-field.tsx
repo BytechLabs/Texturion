@@ -40,7 +40,7 @@ const GREEN: readonly [number, number, number] = [11, 122, 80]; // #0B7A50
 
 /* Field / motion constants (P5-SPEC "ALGORITHM" + "MOTION TUNING"). */
 const SCALE = 0.0016; // spatial frequency of the noise potential
-const EPS = 1.0; // finite-difference step, px
+const EPS = 1; // finite-difference step, px
 const FIELD_SPEED = 0.06; // t += dt * FIELD_SPEED (slow breathing)
 const R_OUTER = 260; // convergence band starts
 const R_INNER = 26; // dock radius (docked -> respawn)
@@ -104,7 +104,7 @@ export default function ArrivalField({
     let onVisibility: (() => void) | null = null;
     let cancelled = false;
 
-    import("./p5-lean").then((mod) => {
+    void import("./p5-lean").then((mod) => {
       if (cancelled || !hostRef.current) return;
       const P5 = mod.default;
 
@@ -168,7 +168,7 @@ export default function ArrivalField({
             // static still has no empty-then-fill pop.
             q.x = Math.random() * p.width;
             q.y = Math.random() * p.height;
-            q.z = 0.35 + 0.65 * Math.pow(Math.random(), 1.5);
+            q.z = 0.35 + 0.65 * Math.random() ** 1.5;
             q.life = Math.random() * q.maxLife;
           } else if (fresh) {
             q.x = -20;
@@ -178,11 +178,11 @@ export default function ArrivalField({
           } else if (topEdge) {
             q.x = p.width * (0.04 + 0.5 * Math.random());
             q.y = -20;
-            q.z = 0.35 + 0.65 * Math.pow(Math.random(), 1.5);
+            q.z = 0.35 + 0.65 * Math.random() ** 1.5;
           } else {
             q.x = -20 + Math.random() * (p.width * 0.06);
             q.y = p.height * (0.04 + 0.72 * Math.random());
-            q.z = 0.35 + 0.65 * Math.pow(Math.random(), 1.5);
+            q.z = 0.35 + 0.65 * Math.random() ** 1.5;
           }
           q.tx.length = 0;
           q.ty.length = 0;

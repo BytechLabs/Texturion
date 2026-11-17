@@ -17,7 +17,7 @@ export type AvatarColorClass = (typeof AVATAR_CLASSES)[number];
 export function avatarColorClass(key: string): AvatarColorClass {
   let hash = 0;
   for (let i = 0; i < key.length; i += 1) {
-    hash = (hash * 31 + key.charCodeAt(i)) | 0;
+    hash = Math.trunc((hash * 31 + key.charCodeAt(i)));
   }
   return AVATAR_CLASSES[Math.abs(hash) % AVATAR_CLASSES.length];
 }

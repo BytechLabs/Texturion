@@ -3,7 +3,8 @@
  * (`loonext.rig-scenarios.v2`). `SAMPLE` copies real entries field for field,
  * so a test that reads it reads what a run will.
  */
-import { validateRegistry, type Registry } from "./registry.ts";
+import { validateRegistry } from './registry.ts';
+import type { Registry } from './registry.ts';
 
 export const CAPS = {
   daily_cap: 18,

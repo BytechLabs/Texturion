@@ -1,18 +1,12 @@
 "use client";
 
-import {
-  Calendar,
-  Contact,
-  Download,
-  File as FileIcon,
-  FileMusic,
-  FileText,
-  FileVideoCamera,
-  type LucideIcon,
-} from "lucide-react";
+import { Calendar, Contact, Download, File as FileIcon, FileMusic, FileText, FileVideoCamera } from 'lucide-react';
+import type { LucideIcon } from 'lucide-react';
 
-import { mmsMediaKind, type MmsMediaKind } from "@loonext/shared";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { mmsMediaKind } from '@loonext/shared';
+import type { MmsMediaKind } from '@loonext/shared';
+import { useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { openWithFreshUrl, useAttachmentUrl } from "@/lib/api/attachments";
 import type { AttachmentSummary } from "@/lib/api/types";
 import { cn } from "@/lib/utils";

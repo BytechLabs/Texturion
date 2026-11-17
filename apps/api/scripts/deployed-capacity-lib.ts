@@ -16,11 +16,8 @@
 import { createHash } from "node:crypto";
 import { isIP } from "node:net";
 
-import {
-  createClient,
-  type RealtimeChannel,
-  type SupabaseClient,
-} from "@supabase/supabase-js";
+import { createClient } from '@supabase/supabase-js';
+import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
 export const CAPACITY_RESULT_PREFIX = "CAPACITY_RESULT ";
 

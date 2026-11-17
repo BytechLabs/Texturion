@@ -17,7 +17,7 @@ import { VoicemailTranscript } from "./voicemail-transcript";
 const WORDS =
   "Hi, this is Priya at 44 Maple. The upstairs faucet has really low pressure.";
 
-describe("VoicemailTranscript", () => {
+describe(VoicemailTranscript, () => {
   it("renders the words and a way to copy them", () => {
     const html = renderToStaticMarkup(<VoicemailTranscript text={WORDS} />);
     expect(html).toContain(WORDS);

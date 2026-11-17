@@ -6,7 +6,8 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import { completeEnv, createTestAuth, jwksRoute, stubFetch, type TestAuth } from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { Hono } from "hono";
 import type { AppEnv } from "../context";
 import { calendarRoutes } from "./calendar";
@@ -84,7 +85,7 @@ describe("the calendar feed answers the app's own page", () => {
     const res = await feedApp.request("/calendar/abcdefghijklmnopqrstuvwxyz/schedule.ics", {}, env);
     expect(res.status).toBe(200);
     // Unfold the ics line wrapping before reading the fields.
-    const body = (await res.text()).replace(/\r\n[ \t]/g, "");
+    const body = (await res.text()).replaceAll(/\r\n[ \t]/g, "");
     const taskUrl = `${env.APP_ORIGIN}/tasks/${taskId}`;
     expect(body).toContain(`URL:${taskUrl}`);
     expect(body).toContain(`DESCRIPTION:Bring ladder\\n\\nOpen in Loonext: ${taskUrl}`);

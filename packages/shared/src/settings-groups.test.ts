@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { inSettingsGroupOrder, SETTINGS_GROUPS, settingsGroupOf } from "./settings-groups";
-import { settingsSectionCapability, type SettingsSectionId } from "./settings-visibility";
+import { settingsSectionCapability } from './settings-visibility';
+import type { SettingsSectionId } from './settings-visibility';
 
 /** Every id the visibility rule knows; the capability table is keyed on all of them. */
 const ALL_SECTIONS: SettingsSectionId[] = [
@@ -13,7 +14,7 @@ const ALL_SECTIONS: SettingsSectionId[] = [
 describe("#727 settings groups", () => {
   it("SG-1: every section is in exactly one group", () => {
     const grouped = SETTINGS_GROUPS.flatMap((g) => g.sections);
-    expect([...grouped].sort()).toEqual([...ALL_SECTIONS].sort());
+    expect([...grouped].toSorted()).toEqual([...ALL_SECTIONS].toSorted());
     for (const id of ALL_SECTIONS) {
       expect(settingsSectionCapability(id), id).toBeTruthy();
       expect(settingsGroupOf(id), id).toBeTruthy();

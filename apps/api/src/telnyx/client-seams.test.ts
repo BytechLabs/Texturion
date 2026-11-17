@@ -7,7 +7,8 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import {
   RIG_DESTINATION_REFUSED,
   RIG_ENDPOINT_REFUSED,
@@ -162,7 +163,7 @@ describe("the webhook and media seams", () => {
 });
 
 describe("the destination gate in the client", () => {
-  const cases: Array<[string, string, Record<string, unknown>]> = [
+  const cases: [string, string, Record<string, unknown>][] = [
     ["a dial", "/v2/calls", { to: STRANGER, from: OWNED_A }],
     ["a simultaneous-ring dial", "/v2/calls", { to: [OWNED_B, STRANGER] }],
     ["a transfer", "/v2/calls/ccid-1/actions/transfer", { to: STRANGER }],

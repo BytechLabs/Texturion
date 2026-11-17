@@ -22,7 +22,8 @@
  * relationship with the workspace and can agree to be woken. Nothing here is
  * ever read by the send path, and nothing in #225 narrows who gets paged.
  */
-import { isAfterHours, type BusinessHours, type HoursException } from "@loonext/shared";
+import { isAfterHours } from '@loonext/shared';
+import type { BusinessHours, HoursException } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 export interface OnCallRouting {
@@ -162,7 +163,7 @@ export async function routeAfterHoursAlert(
   // No row means no safety net: the page would go to one person and, if they
   // slept through it, nothing would ever widen. Narrowing is only safe BECAUSE
   // the escalation exists, so without it we do not narrow.
-  const alertId = (opened.data as unknown as { id: string }[] | null)?.[0]?.id;
+  const alertId = (opened.data)?.[0]?.id;
   if (opened.error || !alertId) {
     console.error(
       `on-call escalation could not be opened, alerting everyone: ${

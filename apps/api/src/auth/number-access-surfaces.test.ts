@@ -19,13 +19,12 @@
  */
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import { productionSources as readProductionSources, stripComments } from "../test/source-tree";
 
-const SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+const SRC = join(import.meta.dirname, "..");
 
 /**
  * The RPCs that take `p_hidden_number_ids`, mirroring the roster in
@@ -218,7 +217,7 @@ describe("#368 — every filtered read surface is called with the deny list", ()
       "routes/numbers.ts": "validates the rule shape it writes",
     };
     const deciders = productionSources()
-      .filter((file) => /principal_kind/.test(codeOf(readFileSync(file, "utf8"))))
+      .filter((file) => codeOf(readFileSync(file, "utf8")).includes('principal_kind'))
       .map(repoPath);
 
     const unrostered = deciders.filter((file) => !(file in ALLOWED));

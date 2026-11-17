@@ -145,9 +145,9 @@ export function OffRampCard() {
             >
               {update.isPending
                 ? t("common.saving")
-                : saved === null
+                : (saved === null
                   ? t("settingsMore.offRampStartSending")
-                  : t("common.save")}
+                  : t("common.save"))}
             </Button>
           </div>
         </div>

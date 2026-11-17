@@ -156,7 +156,7 @@ export function sanitizeWrapUp(text: string | null | undefined): string | null {
   if (typeof text !== "string") return null;
   // Collapse the runs Whisper leaves around pauses, and normalise the line
   // endings so a note does not arrive with a mix of both.
-  const cleaned = text.replace(/\r\n/g, "\n").replace(/[ \t]+/g, " ").trim();
+  const cleaned = text.replaceAll('\r\n', "\n").replaceAll(/[ \t]+/g, " ").trim();
   if (cleaned === "") return null;
   return cleaned.length > CALL_WRAPUP_MAX_CHARS
     ? cleaned.slice(0, CALL_WRAPUP_MAX_CHARS).trimEnd()

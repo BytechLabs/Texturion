@@ -8,21 +8,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type FetchRoute,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { exportsRoutes } from "./exports";
 
 const env = completeEnv();
@@ -111,7 +100,7 @@ describe("POST /v1/exports", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(202);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       export_id: EXPORT_ID,
       already_building: false,
     });
@@ -137,7 +126,7 @@ describe("POST /v1/exports", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       export_id: EXPORT_ID,
       already_building: true,
     });
@@ -257,7 +246,7 @@ describe("GET /v1/exports", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ data: [] });
+    await expect(res.json()).resolves.toMatchObject({ data: [] });
   });
 
   it("offers no links for an expired export", async () => {
@@ -439,7 +428,7 @@ describe("POST /v1/exports/usage (#304)", () => {
       body: { from: "2026-06-01T00:00:00Z" },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       export_id: EXPORT_ID,
       already_building: true,
     });
@@ -520,7 +509,7 @@ describe("POST /v1/exports/history (#304)", () => {
       body: { contact_id: CONTACT_ID },
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       export_id: EXPORT_ID,
       already_building: true,
     });

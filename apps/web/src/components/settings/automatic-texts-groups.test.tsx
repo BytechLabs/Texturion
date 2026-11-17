@@ -15,7 +15,7 @@ function render(company: Partial<CompanyView>, canEdit = true): string {
   );
 }
 
-describe("AutomaticTextsGroups", () => {
+describe(AutomaticTextsGroups, () => {
   it("shows three groups with every default stated", () => {
     const html = render({});
     expect(html).toContain("If the customer replies first");

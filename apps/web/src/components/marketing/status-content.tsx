@@ -19,10 +19,8 @@ import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { breadcrumbJsonLd } from "@/lib/marketing/seo";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { statusCopy } from "@/i18n/marketing/status";
-import {
-  formatConfirmedDisplay,
-  type StatusFeed,
-} from "@/lib/marketing/status-feed";
+import { formatConfirmedDisplay } from '@/lib/marketing/status-feed';
+import type { StatusFeed } from '@/lib/marketing/status-feed';
 
 /**
  * When a report was last POSTED — not when the service was last checked.
@@ -61,9 +59,9 @@ export function StatusContent({
   const path = locale === "fr-CA" ? "/fr/etat-du-service" : "/status";
   const home = locale === "fr-CA" ? "/fr" : "/";
   const incident = feed.incident
-    ? locale === "fr-CA"
+    ? (locale === "fr-CA"
       ? feed.incidentFr ?? copy.incidentFallback
-      : feed.incident
+      : feed.incident)
     : null;
   return (
     <>

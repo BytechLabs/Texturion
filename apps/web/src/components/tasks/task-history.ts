@@ -66,20 +66,23 @@ export function taskHistorySentence(
   t: Translate,
 ): string {
   switch (item.event) {
-    case "created":
+    case "created": {
       return t("tasks.histCreated", { by });
+    }
     case "title": {
       const title = asString(item.to);
       return title
         ? t("tasks.histTitle", { by, title })
         : t("tasks.histUpdated", { by });
     }
-    case "description":
+    case "description": {
       return t("tasks.histDescription", { by });
-    case "address":
+    }
+    case "address": {
       return item.to === null
         ? t("tasks.histAddressCleared", { by })
         : t("tasks.histAddress", { by });
+    }
     case "assignee": {
       if (asString(item.to) === null) return t("tasks.histUnassigned", { by });
       const name = item.to_user?.display_name;
@@ -105,20 +108,25 @@ export function taskHistorySentence(
         ? t("tasks.histDue", { by, due: formatDueTime(due, t) })
         : t("tasks.histDueCleared", { by });
     }
-    case "reminders":
+    case "reminders": {
       return item.to === true
         ? t("tasks.histRemindersOff", { by })
         : t("tasks.histRemindersOn", { by });
-    case "confirmation":
+    }
+    case "confirmation": {
       return item.to === null
         ? t("tasks.histConfirmationCleared", { by })
         : t("tasks.histConfirmed", { by });
-    case "done":
+    }
+    case "done": {
       return t("tasks.histDone", { by });
-    case "reopened":
+    }
+    case "reopened": {
       return t("tasks.histReopened", { by });
-    case "deleted":
+    }
+    case "deleted": {
       return t("tasks.histDeleted", { by });
+    }
     case "priority": {
       const to = asString(item.to);
       return to
@@ -151,8 +159,9 @@ export function taskHistorySentence(
       const key = `tasks.hist${item.event === "link_added" ? "Add" : "Remove"}${LINK_KEYS[link.relation]}`;
       return t(key as MessageKey, { by, task });
     }
-    default:
+    default: {
       return t("tasks.histUpdated", { by });
+    }
   }
 }
 
@@ -169,7 +178,7 @@ function linkOf(
 ): { relation: keyof typeof LINK_KEYS; number: number; title: string } | null {
   if (value === null || typeof value !== "object") return null;
   const v = value as Record<string, unknown>;
-  const relation = v.relation;
+  const {relation} = v;
   if (typeof relation !== "string" || !(relation in LINK_KEYS)) return null;
   if (typeof v.number !== "number") return null;
   return {

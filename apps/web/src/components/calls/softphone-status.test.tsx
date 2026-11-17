@@ -27,7 +27,7 @@ function render(next: { ready: boolean; error: string | null }): string {
   return renderToStaticMarkup(<SoftphoneStatus />).replaceAll("&#x27;", "'");
 }
 
-describe("SoftphoneStatus", () => {
+describe(SoftphoneStatus, () => {
   it("says the phone is ready once registered", () => {
     const html = render({ ready: true, error: null });
     expect(html).toContain("Ready");

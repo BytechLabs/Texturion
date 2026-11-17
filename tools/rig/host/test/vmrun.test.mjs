@@ -1,12 +1,10 @@
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
 import {
-  VMRUN,
   guestIpArgs,
   ownVmx,
   parseStatus,
@@ -15,9 +13,10 @@ import {
   startArgs,
   stopArgs,
   vmControls,
+  VMRUN,
 } from "../src/vmrun.mjs";
 
-const SOURCE = readFileSync(join(dirname(fileURLToPath(import.meta.url)), "..", "src", "vmrun.mjs"), "utf8");
+const SOURCE = readFileSync(join(import.meta.dirname, "..", "src", "vmrun.mjs"), "utf8");
 
 function rigRoot() {
   const root = mkdtempSync(join(tmpdir(), "rig-host-"));
@@ -27,7 +26,7 @@ function rigRoot() {
   return { root, vmx };
 }
 
-test("its own .vmx, under <root>\\vm and marked, is accepted", () => {
+test(String.raw`its own .vmx, under <root>\vm and marked, is accepted`, () => {
   const { root, vmx } = rigRoot();
   assert.equal(ownVmx(vmx, { root }), vmx);
 });

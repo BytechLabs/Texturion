@@ -82,7 +82,7 @@ const sharedCopy = (key: string): string => {
   const [section, name] = key.split(".");
   const value = (EN as Record<string, Record<string, string>>)[section]?.[name];
   if (typeof value !== "string") {
-    throw new Error(`the shared roster names ${key}, which the web catalogue has no answer for`);
+    throw new TypeError(`the shared roster names ${key}, which the web catalogue has no answer for`);
   }
   return value;
 };
@@ -175,9 +175,9 @@ describe("#233 every client says the same thing when a text does not go", () => 
       const strangers = literals.filter((literal) => !known.has(literal));
       expect(
         strangers,
-        `\n\n${platform} carries copy the shared roster does not know about:\n` +
-          strangers.map((s) => `  ${s}`).join("\n") +
-          `\n\nAdd it to SCHEDULED_HOLD_REASONS so the other two clients say it too.\n`,
+        `\n\n${platform} carries copy the shared roster does not know about:\n${ 
+          strangers.map((s) => `  ${s}`).join("\n") 
+          }\n\nAdd it to SCHEDULED_HOLD_REASONS so the other two clients say it too.\n`,
       ).toEqual([]);
     },
   );
@@ -210,14 +210,14 @@ describe("#233 the same reasons recover on every client", () => {
       /(?:"[a-z_]+",\s*)+"[a-z_]+"\s*->\s*true/.exec(source)?.[0] ??
       /case\s+((?:"[a-z_]+",\s*)+"[a-z_]+"):\s*\n\s*return true/.exec(source)?.[1] ??
       "";
-    return [...block.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]).sort();
+    return [...block.matchAll(/"([a-z_]+)"/g)].map((m) => m[1]).toSorted();
   }
 
   const expected = Object.keys(SCHEDULED_HOLD_REASONS)
     .filter((reason) =>
       scheduledReasonRecovers(reason as keyof typeof SCHEDULED_HOLD_REASONS),
     )
-    .sort();
+    .toSorted();
 
   it.each(Object.entries(SOURCES))(
     "%s recovers exactly the reasons the shared rule does",

@@ -20,8 +20,7 @@
  *               `carrier-list-prices.ts` and `carrier-throughput.ts` take.
  */
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -57,7 +56,7 @@ const SHIPPED_MODELS = [
 
 const AUDIT = readFileSync(
   join(
-    dirname(fileURLToPath(import.meta.url)),
+    import.meta.dirname,
     "..",
     "..",
     "..",
@@ -128,13 +127,13 @@ describe("coverage — no model this product calls goes unpriced", () => {
     for (const [model, price] of Object.entries(WORKERS_AI_TOKEN_PRICES)) {
       expect(price.usdPerMillionInput).toBeGreaterThan(0);
       expect(price.usdPerMillionOutput).toBeGreaterThan(0);
-      if (price.publishedAs !== model) {
+      if (price.publishedAs === model) {
+        expect(price.gap).toBe("");
+      } else {
         expect(
           price.gap.length,
           `${model} is priced from ${price.publishedAs} with no explanation`,
         ).toBeGreaterThan(40);
-      } else {
-        expect(price.gap).toBe("");
       }
     }
   });

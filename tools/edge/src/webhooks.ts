@@ -1,7 +1,8 @@
 import { CALL_EVENT_RELAY_TIMEOUT_MS, EDGE_PATHS } from "@loonext/rig-protocol";
 
 import { secretSegmentMatches } from "./auth";
-import { uplink, type Env } from "./env";
+import { uplink } from './env';
+import type { Env } from './env';
 import { GUARD_CALL_TIMEOUT_MS, partitionFor, registerLegOnce, rejectLeg, requestDetach } from "./guard";
 import { boundedText, empty } from "./http";
 import { judge, parseEvent, relayedTelnyxHeaders, verifyTelnyxSignature } from "./telnyx";
@@ -20,7 +21,7 @@ import { STRANGER_WINDOW_MS } from "./uplink";
 
 const WEBHOOK_MAX_BYTES = 256 * 1024;
 /** Less than this left for the rig and the event is not relayed: it could not make it back in time. */
-const CALL_RELAY_MIN_MS = 1_000;
+const CALL_RELAY_MIN_MS = 1000;
 /** A leg registration with less time than this left is skipped, leaving the time to the relay. */
 const LEG_REGISTRATION_MIN_MS = 200;
 
@@ -50,9 +51,10 @@ export async function handleTelnyxWebhook(env: Env, request: Request, path: stri
 
   const verdict = judge(path, event, partition);
   switch (verdict.action) {
-    case "drop":
+    case "drop": {
       await rig.bump(`telnyx.dropped.${verdict.reason}`);
       return empty(200);
+    }
 
     case "stranger-call":
     case "stranger-text": {

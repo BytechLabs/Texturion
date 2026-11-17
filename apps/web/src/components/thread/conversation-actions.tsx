@@ -25,12 +25,8 @@ import {
 import { useState } from "react";
 import { toast } from "sonner";
 
-import {
-  followUpPresets,
-  roleHasCapability,
-  snoozePresets,
-  type DeferralKind,
-} from "@loonext/shared";
+import { followUpPresets, roleHasCapability, snoozePresets } from '@loonext/shared';
+import type { DeferralKind } from '@loonext/shared';
 
 import {
   BlockNumberDialog,
@@ -41,7 +37,8 @@ import { DeleteConversationsDialog } from "@/components/thread/delete-conversati
 import { AiOrb } from "@/components/ui/ai-orb";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { undoableToast } from "@/components/ui/optimistic-undo";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
 import {
   useFollowConversation,
@@ -55,12 +52,8 @@ import {
 } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useMembers } from "@/lib/api/team";
-import {
-  isCarrierEnforcedOptOut,
-  type ConversationStatus,
-  type MuteDuration,
-  type OptOutSource,
-} from "@/lib/api/types";
+import { isCarrierEnforcedOptOut } from '@/lib/api/types';
+import type { ConversationStatus, MuteDuration, OptOutSource } from '@/lib/api/types';
 import { useActiveCompany } from "@/lib/company/provider";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { contactDisplayName } from "@/lib/format/phone";
@@ -69,8 +62,8 @@ import { useNavigate } from "@/lib/use-navigate";
 
 import { MUTE_DURATIONS } from "./mute-menu";
 import {
-  SnoozeDialog,
   formatPresetHint,
+  SnoozeDialog,
   toastSnoozed,
 } from "./snooze-menu";
 

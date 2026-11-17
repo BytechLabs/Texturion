@@ -1,9 +1,6 @@
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import {
-  EMPTY_STATUS_FEED,
-  readStatusFeed,
-  type StatusFeedStore,
-} from "@/lib/marketing/status-feed";
+import { EMPTY_STATUS_FEED, readStatusFeed } from '@/lib/marketing/status-feed';
+import type { StatusFeedStore } from '@/lib/marketing/status-feed';
 
 import { StatusContent } from "./status-content";
 

@@ -3,11 +3,8 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
-import {
-  importFormData,
-  invalidateDuplicates,
-  type ContactImportRequest,
-} from "./contacts";
+import { importFormData, invalidateDuplicates } from './contacts';
+import type { ContactImportRequest } from './contacts';
 import { keys } from "./keys";
 import type { ImportResult } from "./types";
 
@@ -45,7 +42,7 @@ export function useImportVCard() {
     onSuccess: () => {
       // A vCard import upserts contacts — refresh the list (and its badges)
       // exactly like the CSV importer does.
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.contacts.lists(companyId),
         refetchType: "active",
       });

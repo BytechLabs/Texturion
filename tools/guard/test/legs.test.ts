@@ -14,18 +14,18 @@ describe("leg registry", () => {
 
   it("refuses a production connection, and a via that does not match the connection", async () => {
     const h = await ready();
-    expect(await ruleOf(await registerViaEdge(h, "ccid-p", "conn-prod-voice", "voice"))).toBe(
+    await expect(ruleOf(await registerViaEdge(h, "ccid-p", "conn-prod-voice", "voice"))).resolves.toBe(
       "legs.connection_not_nonprod",
     );
-    expect(await ruleOf(await registerViaEdge(h, "ccid-v", "conn-voice", "robot"))).toBe("legs.via_mismatch");
-    expect(await ruleOf(await h.call("/telnyx/v2/calls/ccid-p/actions/hangup", { body: {} }))).toBe(
+    await expect(ruleOf(await registerViaEdge(h, "ccid-v", "conn-voice", "robot"))).resolves.toBe("legs.via_mismatch");
+    await expect(ruleOf(await h.call("/telnyx/v2/calls/ccid-p/actions/hangup", { body: {} }))).resolves.toBe(
       "leg.not_registered",
     );
   });
 
   it("refuses a command on a leg nobody registered, without asking Telnyx", async () => {
     const h = await ready();
-    expect(await ruleOf(await h.call("/telnyx/v2/calls/ccid-unknown/actions/hangup", { body: {} }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/calls/ccid-unknown/actions/hangup", { body: {} }))).resolves.toBe(
       "leg.not_registered",
     );
     expect(h.telnyx.writes()).toEqual([]);
@@ -37,7 +37,7 @@ describe("leg registry", () => {
     h.advance(LEG_REGISTRY_TTL_MS - 1000);
     expect((await h.call("/telnyx/v2/calls/ccid-1/actions/speak", { body: { payload: "hi" } })).status).toBe(200);
     h.advance(2000);
-    expect(await ruleOf(await h.call("/telnyx/v2/calls/ccid-1/actions/speak", { body: { payload: "hi" } }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/calls/ccid-1/actions/speak", { body: { payload: "hi" } }))).resolves.toBe(
       "leg.not_registered",
     );
   });
@@ -62,7 +62,7 @@ describe("leg registry", () => {
       { link_to: "ccid-production" },
     ];
     for (const body of refused) {
-      expect(await ruleOf(await h.call("/telnyx/v2/calls/ccid-1/actions/answer", { body })), JSON.stringify(body)).toBe(
+      await expect(ruleOf(await h.call("/telnyx/v2/calls/ccid-1/actions/answer", { body }))).resolves.toBe(
         "leg.field_refused",
       );
     }
@@ -75,7 +75,7 @@ describe("leg registry", () => {
     const h = await ready();
     await registerViaEdge(h, "ccid-1");
     await charge(h.ctx, 40);
-    expect(await ruleOf(await h.call("/telnyx/v2/calls/ccid-1/actions/speak", { body: { payload: "hi" } }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/calls/ccid-1/actions/speak", { body: { payload: "hi" } }))).resolves.toBe(
       "budget.tier_red",
     );
     expect((await h.call("/telnyx/v2/calls/ccid-1/actions/hangup", { body: {} })).status).toBe(200);
@@ -90,7 +90,7 @@ describe("leg registry", () => {
       { id: "rec-prod", call_control_id: "ccid-prod", connection_id: "conn-prod-voice" },
     );
     await registerViaEdge(h, "ccid-1");
-    expect(await ruleOf(await h.call("/telnyx/v2/recordings/rec-prod", { method: "DELETE" }))).toBe(
+    await expect(ruleOf(await h.call("/telnyx/v2/recordings/rec-prod", { method: "DELETE" }))).resolves.toBe(
       "leg.recording_not_registered",
     );
     expect(h.telnyx.requests("DELETE")).toEqual([]);
@@ -106,9 +106,9 @@ describe("stranger rejection and detach", () => {
       caller: "edge",
       body: { call_control_id: "ccid-s", connection_id: "conn-voice", via: "voice" },
     });
-    expect(await response.json()).toEqual({ rejected: 200 });
+    await expect(response.json()).resolves.toEqual({ rejected: 200 });
     expect(h.telnyx.requests("POST", "/v2/calls/ccid-s/actions/reject")).toHaveLength(1);
-    expect(await ruleOf(await h.call("/telnyx/v2/calls/ccid-s/actions/answer", { body: {} }))).toBe("leg.not_registered");
+    await expect(ruleOf(await h.call("/telnyx/v2/calls/ccid-s/actions/answer", { body: {} }))).resolves.toBe("leg.not_registered");
   });
 
   it("will not reject a call on production's connection, or one whose via disagrees", async () => {
@@ -117,12 +117,12 @@ describe("stranger rejection and detach", () => {
       caller: "edge",
       body: { call_control_id: "ccid-p", connection_id: "conn-prod-voice", via: "voice" },
     });
-    expect(await ruleOf(production)).toBe("legs.connection_not_nonprod");
+    await expect(ruleOf(production)).resolves.toBe("legs.connection_not_nonprod");
     const mismatched = await h.call("/reject", {
       caller: "edge",
       body: { call_control_id: "ccid-p", connection_id: "conn-voice", via: "webrtc" },
     });
-    expect(await ruleOf(mismatched)).toBe("legs.via_mismatch");
+    await expect(ruleOf(mismatched)).resolves.toBe("legs.via_mismatch");
     expect(h.telnyx.writes()).toEqual([]);
   });
 
@@ -130,11 +130,11 @@ describe("stranger rejection and detach", () => {
     const h = await ready();
     const detach = () =>
       h.call("/detach", { caller: "edge", body: { e164: "+14165550111", strangers: 25, window_ms: 3_600_000 } });
-    expect(await (await detach()).json()).toEqual({ outcome: "detached" });
+    await expect((await detach()).json()).resolves.toEqual({ outcome: "detached" });
     const number = h.telnyx.numbers.find((item) => item.id === "num-devw1");
     expect(number?.connection_id).toBe("");
     expect(number?.messaging_profile_id).toBe("");
-    expect(await (await detach()).json()).toEqual({ outcome: "already_detached" });
+    await expect((await detach()).json()).resolves.toEqual({ outcome: "already_detached" });
     expect(h.telnyx.requests("PATCH")).toHaveLength(2);
   });
 
@@ -144,8 +144,8 @@ describe("stranger rejection and detach", () => {
       caller: "edge",
       body: { e164: "+14165550160", strangers: 25, window_ms: 3_600_000 },
     });
-    expect(await ruleOf(response)).toBe("provisioning.number_not_owned");
-    expect(await ruleOf(await h.call("/detach", { caller: "edge", body: { e164: "+14165550111" } }))).toBe(
+    await expect(ruleOf(response)).resolves.toBe("provisioning.number_not_owned");
+    await expect(ruleOf(await h.call("/detach", { caller: "edge", body: { e164: "+14165550111" } }))).resolves.toBe(
       "request.body_invalid",
     );
     expect(h.telnyx.writes()).toEqual([]);
@@ -156,7 +156,7 @@ describe("stranger rejection and detach", () => {
     await h.store.put("partition:standing", { "DEV-W1": { role: "DEV-W1", phone_number: "+14165550111" } });
     await h.call("/detach", { caller: "edge", body: { e164: "+14165550111", strangers: 25, window_ms: 3_600_000 } });
     const response = await h.call("/admin/numbers/reattach", { caller: "admin", method: "POST" });
-    expect(await response.json()).toEqual({ reattached: ["DEV-W1"] });
+    await expect(response.json()).resolves.toEqual({ reattached: ["DEV-W1"] });
     const number = h.telnyx.numbers.find((item) => item.id === "num-devw1");
     expect(number).toMatchObject({ connection_id: "conn-voice", messaging_profile_id: "prof-qa-w" });
   });

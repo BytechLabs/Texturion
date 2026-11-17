@@ -6,7 +6,7 @@
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-vi.mock("./client", () => ({ apiFetch: vi.fn() }));
+vi.mock(import("./client"), () => ({ apiFetch: vi.fn() }));
 
 import { apiFetch } from "./client";
 import { enrichTaskFromMessage } from "./task-enrichment";
@@ -24,7 +24,7 @@ beforeEach(() => {
   mockFetch.mockReset();
 });
 
-describe("enrichTaskFromMessage", () => {
+describe(enrichTaskFromMessage, () => {
   it("calls the API once per message and reuses the cached result", async () => {
     const result: TaskEnrichment = {
       address: {
@@ -51,7 +51,7 @@ describe("enrichTaskFromMessage", () => {
       text: "fix sink at 5 King St W",
     });
 
-    expect(mockFetch).toHaveBeenCalledTimes(1);
+    expect(mockFetch).toHaveBeenCalledOnce();
     expect(first).toBe(second);
     expect(first.address?.street).toBe("5 King St W");
   });

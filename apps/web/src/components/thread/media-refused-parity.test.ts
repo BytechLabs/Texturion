@@ -166,7 +166,7 @@ describe("#317 refused-attachment copy is the same on every client", () => {
         // The value as the catalogue writes it, wrapped literals glued back.
         const at = catalogue.indexOf(`"${key}" to`);
         if (at === -1) return `${key} (no entry in ThreadStrings.kt)`;
-        const tail = catalogue.slice(at, at + 800).replace(/"\s*\+\s*\n\s*"/g, "");
+        const tail = catalogue.slice(at, at + 800).replaceAll(/"\s*\+\s*\n\s*"/g, "");
         const value = /"[^"]+"\s*to\s*"((?:[^"\\]|\\.)*)"/.exec(tail)?.[1];
         return value ?? `${key} (unreadable entry)`;
       })
@@ -177,7 +177,7 @@ describe("#317 refused-attachment copy is the same on every client", () => {
     expect(
       uncovered,
       `These refusal sentences exist in the product and are on no roster, so ` +
-        `nothing checks the other clients say them:\n  ` + uncovered.join("\n  "),
+        `nothing checks the other clients say them:\n  ${  uncovered.join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -189,8 +189,8 @@ describe("#317 refused-attachment copy is the same on every client", () => {
       // verbatim check cannot span that — it would report six sentences missing
       // that are plainly present, which is a guard failing on line breaks.
       const text = readFileSync(path, "utf8")
-        .replace(/"\s*\+\s*\n\s*"/g, "")
-        .replace(/"\s*\n\s*\+\s*"/g, "");
+        .replaceAll(/"\s*\+\s*\n\s*"/g, "")
+        .replaceAll(/"\s*\n\s*\+\s*"/g, "");
       for (const sentence of SENTENCES) {
         if (!text.includes(sentence)) missing.push(`${platform}: ${sentence}`);
       }
@@ -198,8 +198,8 @@ describe("#317 refused-attachment copy is the same on every client", () => {
     expect(
       missing,
       `These #317 refusal sentences are missing or reworded on some platforms. ` +
-        `Change all three together, and update SENTENCES here:\n  ` +
-        missing.join("\n  "),
+        `Change all three together, and update SENTENCES here:\n  ${ 
+        missing.join("\n  ")}`,
     ).toEqual([]);
   });
 

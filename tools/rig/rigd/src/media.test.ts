@@ -6,7 +6,7 @@ import { fakeFetch } from "./test-support.ts";
 const SUPABASE = "http://127.0.0.1:54321";
 const SIGNED = "/m/object/sign/mms-media/company-a/photo.jpg?token=signed.jwt.value";
 
-describe("storageUrlFor", () => {
+describe(storageUrlFor, () => {
   it("maps a signed media path to the same signed URL on local storage", () => {
     expect(storageUrlFor(SUPABASE, SIGNED)).toEqual({
       url: `${SUPABASE}/storage/v1/object/sign/mms-media/company-a/photo.jpg?token=signed.jwt.value`,
@@ -39,7 +39,7 @@ describe("storageUrlFor", () => {
   });
 });
 
-describe("mediaRelay", () => {
+describe(mediaRelay, () => {
   it("relays the object as base64 with its content type", async () => {
     const { fetch, requests } = fakeFetch({
       [`GET ${SUPABASE}/storage/v1/object/sign/`]: () =>
@@ -53,7 +53,7 @@ describe("mediaRelay", () => {
   it("refuses an object over the size cap, by header or by counting", async () => {
     const big = new Uint8Array(MEDIA_MAX_BYTES + 1);
     const declared = fakeFetch({ GET: () => new Response(big, { headers: { "content-length": String(big.length) } }) });
-    expect(await mediaRelay({ supabaseUrl: SUPABASE, fetch: declared.fetch })({ t: "media", id: "m", path: SIGNED })).toEqual({ status: 413 });
+    await expect(mediaRelay({ supabaseUrl: SUPABASE, fetch: declared.fetch })({ t: "media", id: "m", path: SIGNED })).resolves.toEqual({ status: 413 });
     const streamed = fakeFetch({
       GET: () =>
         new Response(
@@ -65,14 +65,14 @@ describe("mediaRelay", () => {
           }),
         ),
     });
-    expect(await mediaRelay({ supabaseUrl: SUPABASE, fetch: streamed.fetch })({ t: "media", id: "m", path: SIGNED })).toEqual({ status: 413 });
+    await expect(mediaRelay({ supabaseUrl: SUPABASE, fetch: streamed.fetch })({ t: "media", id: "m", path: SIGNED })).resolves.toEqual({ status: 413 });
   });
 
   it("passes storage's refusal on, and never fetches a path it refused", async () => {
     const expired = fakeFetch({ GET: () => new Response("bad token", { status: 400 }) });
-    expect(await mediaRelay({ supabaseUrl: SUPABASE, fetch: expired.fetch })({ t: "media", id: "m", path: SIGNED })).toEqual({ status: 403 });
+    await expect(mediaRelay({ supabaseUrl: SUPABASE, fetch: expired.fetch })({ t: "media", id: "m", path: SIGNED })).resolves.toEqual({ status: 403 });
     const never = fakeFetch({});
-    expect(await mediaRelay({ supabaseUrl: SUPABASE, fetch: never.fetch })({ t: "media", id: "m", path: "/m/object/public/mms-media/x" })).toEqual({ status: 404 });
+    await expect(mediaRelay({ supabaseUrl: SUPABASE, fetch: never.fetch })({ t: "media", id: "m", path: "/m/object/public/mms-media/x" })).resolves.toEqual({ status: 404 });
     expect(never.requests).toEqual([]);
   });
 });

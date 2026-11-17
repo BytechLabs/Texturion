@@ -26,7 +26,6 @@ import { ApiError } from "@/lib/api/error";
 import type { CompanyView } from "@/lib/api/types";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
-import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /**
  * #341 / D48 — closing the workspace, and saying what that means first.

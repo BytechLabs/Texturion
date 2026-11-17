@@ -5,7 +5,7 @@ import { scrubUnknown } from "@/lib/observability/scrub";
 
 import { createTileHealth, reportTileFailure, TILE_ERROR_THRESHOLD } from "./tile-health";
 
-vi.mock("@/lib/observability/errors", () => ({ reportClientError: vi.fn() }));
+vi.mock(import("@/lib/observability/errors"), () => ({ reportClientError: vi.fn() }));
 
 /**
  * #428 ask 4 — noticing that the basemap stopped drawing.
@@ -15,7 +15,7 @@ vi.mock("@/lib/observability/errors", () => ({ reportClientError: vi.fn() }));
  * between "incidental" and "we are being refused".
  */
 
-describe("createTileHealth", () => {
+describe(createTileHealth, () => {
   it("stays quiet below the threshold", () => {
     // A single 404 is ordinary: the edge of the world at high zoom, a sea tile a
     // provider does not store, a dropped request on a job-site connection.
@@ -34,7 +34,7 @@ describe("createTileHealth", () => {
     for (let i = 0; i < TILE_ERROR_THRESHOLD; i += 1) {
       health.recordError("https://tiles.example.com/1/2/3.png");
     }
-    expect(onUnhealthy).toHaveBeenCalledTimes(1);
+    expect(onUnhealthy).toHaveBeenCalledOnce();
     expect(onUnhealthy).toHaveBeenCalledWith({
       errors: TILE_ERROR_THRESHOLD,
       sample: "https://tiles.example.com/1/2/3.png",
@@ -50,7 +50,7 @@ describe("createTileHealth", () => {
     for (let i = 0; i < TILE_ERROR_THRESHOLD * 10; i += 1) {
       health.recordError("https://tiles.example.com/1/2/3.png");
     }
-    expect(onUnhealthy).toHaveBeenCalledTimes(1);
+    expect(onUnhealthy).toHaveBeenCalledOnce();
     expect(health.errorCount).toBe(TILE_ERROR_THRESHOLD * 10);
   });
 
@@ -79,11 +79,11 @@ describe("createTileHealth", () => {
   });
 });
 
-describe("reportTileFailure", () => {
+describe(reportTileFailure, () => {
   it("sends one exception naming the count and the first failing tile", () => {
     reportTileFailure({ errors: 7, sample: "https://tiles.example.com/1/2/3.png?key=secret" });
 
-    expect(reportClientError).toHaveBeenCalledTimes(1);
+    expect(reportClientError).toHaveBeenCalledOnce();
     const [error, properties] = vi.mocked(reportClientError).mock.calls[0];
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe("Basemap tiles are not loading");

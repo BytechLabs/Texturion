@@ -1,6 +1,8 @@
-import { DEFAULT_LOCALE, type Locale } from "@loonext/shared";
+import { DEFAULT_LOCALE } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 
-import { CATALOGS, type Catalog } from "./catalog";
+import { CATALOGS } from './catalog';
+import type { Catalog } from './catalog';
 
 /**
  * The lookups that need no React, in a module with no "use client" directive.
@@ -74,7 +76,7 @@ export function makeTranslate(locale: Locale): Translate {
       (fallback[section] as Record<string, string> | undefined)?.[name] ??
       key;
     if (!vars) return raw;
-    return raw.replace(/\{(\w+)\}/g, (match, token: string) =>
+    return raw.replaceAll(/\{(\w+)\}/g, (match, token: string) =>
       token in vars ? String(vars[token]) : match,
     );
   };

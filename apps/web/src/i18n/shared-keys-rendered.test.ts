@@ -70,7 +70,7 @@ export function bareKeyPropertyLines(
     for (const match of line.matchAll(slot)) {
       const before = line.slice(0, match.index);
       // A React key and a template-string part are never shown to anyone.
-      if (/key=$/.test(before) || before.endsWith("$")) continue;
+      if (before.endsWith('key=') || before.endsWith("$")) continue;
       if (!/\b(?:t|say|sayWith|translate)\(/.test(before)) return true;
     }
     return false;
@@ -86,7 +86,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
     if (entry.isDirectory()) sourceFiles(full, out);
-    else if (/\.tsx$/.test(entry.name) && !/\.test\.tsx$/.test(entry.name)) {
+    else if (entry.name.endsWith('.tsx') && !entry.name.endsWith('.test.tsx')) {
       out.push(full);
     }
   }

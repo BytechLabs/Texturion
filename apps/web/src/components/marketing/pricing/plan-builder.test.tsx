@@ -7,12 +7,8 @@ import {
   US_REGISTRATION_FEE_CENTS,
 } from "@loonext/shared";
 
-import {
-  PLAN_MODULE_CARDS,
-  PLAN_PRICING,
-  US_REGISTRATION_FEE_DOLLARS,
-  type PlanModule,
-} from "@/lib/api/types";
+import { PLAN_MODULE_CARDS, PLAN_PRICING, US_REGISTRATION_FEE_DOLLARS } from '@/lib/api/types';
+import type { PlanModule } from '@/lib/api/types';
 import { PLANS } from "@/app/(marketing)/pricing/pricing-data";
 
 import { CountryProvider } from "./country-context";
@@ -20,11 +16,11 @@ import { CountryToggle } from "./country-toggle";
 import { FirstWeekTimeline } from "./first-week-timeline";
 import { PlanBuilder } from "./plan-builder";
 import {
-  DEFAULT_SELECTION,
-  SELLABLE_ADDON_CARDS,
   addonMonthlyDollars,
+  DEFAULT_SELECTION,
   firstMonthTotalDollars,
   monthlyTotalDollars,
+  SELLABLE_ADDON_CARDS,
   signupHref,
 } from "./plan-math";
 

@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
-import { checkTelnyxSignature, judge, parseEvent, type TelnyxEvent, verifyTelnyxSignature } from "./telnyx";
+import { checkTelnyxSignature, judge, parseEvent, verifyTelnyxSignature } from './telnyx';
+import type { TelnyxEvent } from './telnyx';
 import {
   CONNECTIONS,
+  nowSeconds,
   OWNED_A,
   OWNED_B,
   PARTITION,
@@ -10,10 +12,9 @@ import {
   PRODUCTION_PROFILE,
   PROFILE_ROBOT,
   PROFILE_TENANT,
+  signature,
   STANDING,
   STRANGER,
-  nowSeconds,
-  signature,
   telnyxKeys,
 } from "./test/support";
 
@@ -21,7 +22,7 @@ import {
  * The signature check against a real Ed25519 pair generated here, signed the
  * way Telnyx signs: over the bytes of `"{timestamp}|{raw_body}"`.
  */
-describe("verifyTelnyxSignature", () => {
+describe(verifyTelnyxSignature, () => {
   const body = JSON.stringify({ data: { id: "evt-1", event_type: "call.initiated", payload: {} } });
 
   async function headers(timestamp: string, signed = body): Promise<Headers> {
@@ -34,53 +35,53 @@ describe("verifyTelnyxSignature", () => {
 
   it("accepts a fresh signature over the exact body", async () => {
     const { publicKey } = await telnyxKeys();
-    expect(await verifyTelnyxSignature(publicKey, await headers(nowSeconds()), body)).toBe(true);
+    await expect(verifyTelnyxSignature(publicKey, await headers(nowSeconds()), body)).resolves.toBe(true);
   });
 
   it("refuses a signature over a different body", async () => {
     const { publicKey } = await telnyxKeys();
     const forged = await headers(nowSeconds(), `${body} `);
-    expect(await verifyTelnyxSignature(publicKey, forged, body)).toBe(false);
+    await expect(verifyTelnyxSignature(publicKey, forged, body)).resolves.toBe(false);
   });
 
   it("refuses a signature from another key", async () => {
     const other = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair;
     const raw = new Uint8Array((await crypto.subtle.exportKey("raw", other.publicKey)) as ArrayBuffer);
     const otherKey = btoa(String.fromCharCode(...raw));
-    expect(await verifyTelnyxSignature(otherKey, await headers(nowSeconds()), body)).toBe(false);
+    await expect(verifyTelnyxSignature(otherKey, await headers(nowSeconds()), body)).resolves.toBe(false);
   });
 
   it("refuses a timestamp more than five minutes old or ahead, and accepts one at the edge", async () => {
     const { publicKey } = await telnyxKeys();
     const now = 1_786_000_000_000;
     const at = (offset: number) => String(now / 1000 + offset);
-    expect(await verifyTelnyxSignature(publicKey, await headers(at(-301)), body, now)).toBe(false);
-    expect(await verifyTelnyxSignature(publicKey, await headers(at(301)), body, now)).toBe(false);
-    expect(await verifyTelnyxSignature(publicKey, await headers(at(-300)), body, now)).toBe(true);
+    await expect(verifyTelnyxSignature(publicKey, await headers(at(-301)), body, now)).resolves.toBe(false);
+    await expect(verifyTelnyxSignature(publicKey, await headers(at(301)), body, now)).resolves.toBe(false);
+    await expect(verifyTelnyxSignature(publicKey, await headers(at(-300)), body, now)).resolves.toBe(true);
   });
 
   it("tells a late signature from a bad one, for the notices that still halt on it", async () => {
     const { publicKey } = await telnyxKeys();
     const now = 1_786_000_000_000;
     const at = (offset: number) => String(now / 1000 + offset);
-    expect(await checkTelnyxSignature(publicKey, await headers(at(-300)), body, now)).toBe("valid");
-    expect(await checkTelnyxSignature(publicKey, await headers(at(-301)), body, now)).toBe("late");
-    expect(await checkTelnyxSignature(publicKey, await headers(at(-86_400)), body, now)).toBe("late");
+    await expect(checkTelnyxSignature(publicKey, await headers(at(-300)), body, now)).resolves.toBe("valid");
+    await expect(checkTelnyxSignature(publicKey, await headers(at(-301)), body, now)).resolves.toBe("late");
+    await expect(checkTelnyxSignature(publicKey, await headers(at(-86_400)), body, now)).resolves.toBe("late");
     // Ahead of the clock is never late, and a late timestamp proves nothing without a signature that verifies.
-    expect(await checkTelnyxSignature(publicKey, await headers(at(301)), body, now)).toBe("invalid");
-    expect(await checkTelnyxSignature(publicKey, await headers(at(-301), `${body} `), body, now)).toBe("invalid");
-    expect(await checkTelnyxSignature(undefined, await headers(at(-301)), body, now)).toBe("invalid");
+    await expect(checkTelnyxSignature(publicKey, await headers(at(301)), body, now)).resolves.toBe("invalid");
+    await expect(checkTelnyxSignature(publicKey, await headers(at(-301), `${body} `), body, now)).resolves.toBe("invalid");
+    await expect(checkTelnyxSignature(undefined, await headers(at(-301)), body, now)).resolves.toBe("invalid");
   });
 
   it("refuses missing headers, a malformed timestamp and a missing or malformed key", async () => {
     const { publicKey } = await telnyxKeys();
     const good = await headers(nowSeconds());
-    expect(await verifyTelnyxSignature(publicKey, new Headers(), body)).toBe(false);
+    await expect(verifyTelnyxSignature(publicKey, new Headers(), body)).resolves.toBe(false);
     const loose = new Headers(good);
     loose.set("telnyx-timestamp", `${nowSeconds()}.5`);
-    expect(await verifyTelnyxSignature(publicKey, loose, body)).toBe(false);
-    expect(await verifyTelnyxSignature(undefined, good, body)).toBe(false);
-    expect(await verifyTelnyxSignature("c2hvcnQ=", good, body)).toBe(false);
+    await expect(verifyTelnyxSignature(publicKey, loose, body)).resolves.toBe(false);
+    await expect(verifyTelnyxSignature(undefined, good, body)).resolves.toBe(false);
+    await expect(verifyTelnyxSignature("c2hvcnQ=", good, body)).resolves.toBe(false);
   });
 });
 
@@ -214,7 +215,7 @@ describe("judge: strangers", () => {
   });
 });
 
-describe("parseEvent", () => {
+describe(parseEvent, () => {
   it("reads the envelope and refuses one without an id or type", () => {
     expect(parseEvent(JSON.stringify({ data: { id: "e", event_type: "call.hangup", payload: { a: 1 } } }))).toEqual({
       id: "e",

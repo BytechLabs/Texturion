@@ -1,13 +1,8 @@
 import { formatContactImportColumn } from "@loonext/shared";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import {
-  contactsPickerSupported,
-  getContactsManager,
-  mapPickedContacts,
-  pickedContactsToCsv,
-  type PickedContact,
-} from "./contacts-picker";
+import { contactsPickerSupported, getContactsManager, mapPickedContacts, pickedContactsToCsv } from './contacts-picker';
+import type { PickedContact } from './contacts-picker';
 
 /**
  * Install a fake Web Contacts Picker environment: a `navigator.contacts`

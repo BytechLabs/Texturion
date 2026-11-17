@@ -14,11 +14,11 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
 import {
-  CONTACT_FIELDS_CAP,
-  CONTACT_FIELDS_COPY,
   CONTACT_FIELD_KINDS,
   CONTACT_FIELD_OPTIONS_CAP,
   CONTACT_FIELD_VALUE_MAX,
+  CONTACT_FIELDS_CAP,
+  CONTACT_FIELDS_COPY,
 } from "@loonext/shared";
 
 import { describe, expect, it } from "vitest";

@@ -10,7 +10,8 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { createElement } from 'react';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ForYou, ForYouTask } from "@/lib/api/types";
@@ -20,17 +21,17 @@ const { BASE, fetchSpy } = vi.hoisted(() => ({
   fetchSpy: vi.fn(),
 }));
 
-vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "co-1" }));
-vi.mock("@/lib/push/use-unread-count", () => ({
+vi.mock(import("@/lib/company/provider"), () => ({ useCompanyId: () => "co-1" }));
+vi.mock(import("@/lib/push/use-unread-count"), () => ({
   useUnreadConversationCount: () => 3,
 }));
-vi.mock("@/lib/api/client", async () => {
+vi.mock(import("@/lib/api/client"), async () => {
   const { createApiClient } = await import("@/lib/api/core");
   return {
     apiFetch: createApiClient({
       baseUrl: BASE,
       getAccessToken: async () => "test-token",
-      fetch: ((...args: unknown[]) => fetchSpy(...args)) as unknown as typeof fetch,
+      fetch: (...args: unknown[]) => fetchSpy(...args),
     }),
   };
 });
@@ -74,7 +75,7 @@ function forYou(overrides: Partial<ForYou> = {}): ForYou {
 }
 
 function json(body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status: 200,
     headers: { "Content-Type": "application/json" },
   });

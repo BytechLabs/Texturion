@@ -28,8 +28,8 @@ import type { ThreadBeat, ThreadScript } from "./script";
 import { ThreadFrame } from "./thread-frame";
 import {
   DEEP_DIVE_BODY_CLASSES,
-  deepDiveCaptions,
   DeepDiveCaption,
+  deepDiveCaptions,
   DeepDiveHeader,
   DeepDiveInlineCta,
 } from "./thread-deep-dive-static";
@@ -121,13 +121,13 @@ export function ThreadDeepDive({
         <ol className="mt-8 space-y-1">
           {captions.map((caption, i) => {
             const step = i + 1;
-            const state = !engaged
-              ? "rest"
-              : activeStep === step
+            const state = engaged
+              ? activeStep === step
                 ? "active"
                 : activeStep != null && step < activeStep
                   ? "past"
-                  : "rest";
+                  : "rest"
+              : "rest";
             return (
               <DeepDiveCaption
                 key={caption}

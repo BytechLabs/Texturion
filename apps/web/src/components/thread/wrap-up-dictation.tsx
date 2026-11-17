@@ -62,9 +62,9 @@ export function WrapUpButton({
   const t = useT();
   const label = recording
     ? t("thread.stopAndWriteDown")
-    : transcribing
+    : (transcribing
       ? t("thread.writingWrapUpDown")
-      : t("thread.dictateWrapUp");
+      : t("thread.dictateWrapUp"));
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -83,19 +83,19 @@ export function WrapUpButton({
         >
           {transcribing ? (
             <AiOrb state="thinking" size={18} />
-          ) : recording ? (
+          ) : (recording ? (
             <Square className="size-4 fill-current" strokeWidth={1.75} />
           ) : (
             <Mic className="size-5" strokeWidth={1.75} />
-          )}
+          ))}
         </Button>
       </TooltipTrigger>
       <TooltipContent className="max-w-64">
         {recording
           ? t("thread.stopAndWriteDown")
-          : transcribing
+          : (transcribing
             ? t("thread.writingWrapUpDownEllipsis")
-            : t("thread.dictateWrapUpTooltip")}
+            : t("thread.dictateWrapUpTooltip"))}
       </TooltipContent>
     </Tooltip>
   );

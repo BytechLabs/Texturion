@@ -25,7 +25,7 @@ const UA = {
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/126.0.6478.54 Mobile/15E148 Safari/604.1",
 };
 
-describe("browserFamily", () => {
+describe(browserFamily, () => {
   it("classifies the common browsers", () => {
     expect(browserFamily(UA.chromeWin)).toBe("chromium");
     expect(browserFamily(UA.edgeWin)).toBe("chromium");
@@ -37,7 +37,7 @@ describe("browserFamily", () => {
   });
 });
 
-describe("permissionRecoverySteps", () => {
+describe(permissionRecoverySteps, () => {
   it("gives every family a concrete, non-empty sentence", () => {
     for (const ua of Object.values(UA)) {
       expect(permissionRecoverySteps(ua).length).toBeGreaterThan(20);
@@ -50,7 +50,7 @@ describe("permissionRecoverySteps", () => {
   });
 });
 
-describe("isIosBrowserTab", () => {
+describe(isIosBrowserTab, () => {
   it("flags iOS browser tabs but not installed PWAs or desktops", () => {
     expect(isIosBrowserTab(UA.iphoneSafari, false)).toBe(true);
     expect(isIosBrowserTab(UA.iphoneSafari, true)).toBe(false);

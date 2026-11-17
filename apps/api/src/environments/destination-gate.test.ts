@@ -18,7 +18,8 @@ import { join } from "node:path";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";
-import { getEnv, type Bindings } from "../env";
+import { getEnv } from '../env';
+import type { Bindings } from '../env';
 import { dispatchOutbound, sendSystemText } from "../messaging/send";
 import { TELNYX_ENDPOINTS } from "../telnyx/endpoints";
 import { attachHostedOrderDocuments } from "../telnyx/text-enablement";
@@ -39,7 +40,7 @@ import { RIG_DESTINATION_REFUSED, telnyxRequestRefusal } from "./policy";
 const API_SRC = join(import.meta.dirname, "..");
 
 /** A Telnyx path that makes Telnyx call or text somebody. */
-const SITE_PATTERNS: Array<{ kind: string; pattern: RegExp }> = [
+const SITE_PATTERNS: { kind: string; pattern: RegExp }[] = [
   { kind: "dial", pattern: /(["'`])\/v2\/calls\1/g },
   {
     kind: "leg action",
@@ -82,7 +83,7 @@ function relativeName(path: string): string {
   return path.slice(API_SRC.length + 1).replaceAll("\\", "/");
 }
 
-function productionCode(): Array<[string, string]> {
+function productionCode(): [string, string][] {
   return productionSources(API_SRC)
     .map((path) => [relativeName(path), path] as const)
     .filter(([name]) => !/^test\/|test-support\.ts$/.test(name))
@@ -106,7 +107,7 @@ function routeOf(code: string, at: number): Route {
     const open = (match.index ?? 0) + match[0].length - 1;
     if (!stillOpen(code, open, at)) continue;
     const name = match[1];
-    route = name === "fetch" || name === "fetchWithDeadline" ? "direct" : name === "telnyxUpload" ? "upload" : "client";
+    route = name === "fetch" || name === "fetchWithDeadline" ? "direct" : (name === "telnyxUpload" ? "upload" : "client");
   }
   return route;
 }
@@ -195,7 +196,7 @@ describe("the destination gate census", () => {
 
   it("finds the client's classifier naming a destination for every site's path", () => {
     for (const site of sites.filter((entry) => entry.route === "client")) {
-      const path = site.path.replace(/\$\{[^}]+\}/g, "transfer");
+      const path = site.path.replaceAll(/\$\{[^}]+\}/g, "transfer");
       expect(
         telnyxDestinations({
           method: "POST",
@@ -346,7 +347,7 @@ describe("an account-wide raw fetch, behaving", () => {
         : Response.json({ data: { id: "hno-1" } });
     });
     await attachHostedOrderDocuments(getEnv(completeEnv()), order);
-    expect([...sent].sort()).toEqual([
+    expect([...sent].toSorted()).toEqual([
       "/v2/documents/doc-bill/download",
       "/v2/documents/doc-loa/download",
       "/v2/messaging_hosted_number_orders/hno-1/actions/file_upload",

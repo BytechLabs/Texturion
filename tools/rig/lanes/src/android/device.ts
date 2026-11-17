@@ -10,7 +10,8 @@
  * rather than guessing. None of this has met a device yet; the tests pin the
  * command lines and the parsers against captured shapes.
  */
-import { Adb, NONPROD_SUFFIX, type AdbServer, type Exec, type PortCheck, type StandbyBucket } from "./adb.ts";
+import { Adb, NONPROD_SUFFIX } from './adb.ts';
+import type { AdbServer, Exec, PortCheck, StandbyBucket } from './adb.ts';
 
 /** The values of CallTestTags.kt; lanes.test.ts keeps this equal to tools/rig/test-ids.json. */
 export const CALL_TEST_IDS = [
@@ -26,7 +27,7 @@ export const CALL_TEST_IDS = [
 export type CallTestId = (typeof CALL_TEST_IDS)[number];
 
 /** How long a launched app is given to draw its first frame before the launcher is put in front of it. */
-const APP_SETTLE_MS = 2_000;
+const APP_SETTLE_MS = 2000;
 
 /** The title of the prompt the app opens on after a crash (ShellStrings `shell.crashTitle`). */
 const CRASH_PROMPT = "The app closed unexpectedly";
@@ -108,20 +109,25 @@ export function parseTelecomState(dump: string, pkg: string): "ringing" | "activ
   }
   switch (state) {
     case "RINGING":
-    case "NEW":
+    case "NEW": {
       return "ringing";
+    }
     case "ACTIVE":
     case "DIALING":
-    case "CONNECTING":
+    case "CONNECTING": {
       return "active";
-    case "ON_HOLD":
+    }
+    case "ON_HOLD": {
       return "holding";
+    }
     case "DISCONNECTED":
     case "DISCONNECTING":
-    case "ABORTED":
+    case "ABORTED": {
       return "disconnected";
-    default:
+    }
+    default: {
       return "none";
+    }
   }
 }
 
@@ -159,7 +165,7 @@ export function parseFcmToken(xml: string): string | null {
     if (!value) continue;
     if (!value.startsWith("{")) return value;
     try {
-      const token = (JSON.parse(value) as { token?: unknown }).token;
+      const {token} = (JSON.parse(value) as { token?: unknown });
       if (typeof token === "string" && token) return token;
     } catch {
       return null;
@@ -171,7 +177,7 @@ export function parseFcmToken(xml: string): string | null {
 /** `dumpsys deviceidle enabled deep` prints 1 or 0. */
 export function parseEnabled(output: string): boolean | null {
   const value = output.trim();
-  return value === "1" ? true : value === "0" ? false : null;
+  return value === "1" ? true : (value === "0" ? false : null);
 }
 
 export interface AndroidDeviceOptions {
@@ -231,7 +237,7 @@ export class AndroidDevice {
         return null;
       }
     };
-    const pkg = this.#o.pkg;
+    const {pkg} = this.#o;
     return {
       boot_completed: await this.reachable(),
       sdk_int: await read(async () => parseSdkInt(await this.adb.shell("getprop", "ro.build.version.sdk"))),
@@ -415,7 +421,7 @@ export class AndroidDevice {
 
   async type(text: string): Promise<void> {
     if (!/^[A-Za-z0-9 .@+_-]+$/.test(text)) throw new Error(`device ${this.name}: only plain text can be typed`);
-    await this.adb.inputText(text.replace(/ /g, "%s"));
+    await this.adb.inputText(text.replaceAll(' ', "%s"));
   }
 
   async #nodes(): Promise<UiNode[]> {
@@ -439,9 +445,9 @@ export class AndroidDevice {
 
 function decodeXml(value: string): string {
   return value
-    .replace(/&quot;/g, '"')
-    .replace(/&apos;/g, "'")
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&amp;/g, "&");
+    .replaceAll('&quot;', '"')
+    .replaceAll('&apos;', "'")
+    .replaceAll('&lt;', "<")
+    .replaceAll('&gt;', ">")
+    .replaceAll('&amp;', "&");
 }

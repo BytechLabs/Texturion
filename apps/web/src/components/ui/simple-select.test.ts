@@ -52,7 +52,7 @@ const files = sourceFiles(SRC, [".tsx"])
   .map((file) => ({ path: relative(SRC, file).split(sep).join("/"), file }))
   .filter(
     ({ path }) =>
-      !/\.test\.tsx$/.test(path) &&
+      !path.endsWith('.test.tsx') &&
       !path.startsWith("components/marketing/") &&
       !path.includes("(marketing"),
   )

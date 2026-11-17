@@ -23,20 +23,20 @@ export function useProvisioningEvents(companyId: string | null): void {
     let disposed = false;
 
     const invalidate = () => {
-      queryClient.invalidateQueries({ queryKey: keys.me });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({ queryKey: keys.me });
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.registration(companyId),
         refetchType: "active",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.numbers(companyId),
         refetchType: "active",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.portRequests.all(companyId),
         refetchType: "active",
       });

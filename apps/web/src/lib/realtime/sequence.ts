@@ -7,7 +7,7 @@
  * ceiling's edge the slowest emit-to-socket time was 1.4 s (CAPACITY.md 2e),
  * so a frame that is only late still lands inside the window and costs nothing.
  */
-export const REORDER_WINDOW_MS = 2_000;
+export const REORDER_WINDOW_MS = 2000;
 
 type TopicState = {
   /** Highest sequence applied in order, or null before the first event. */

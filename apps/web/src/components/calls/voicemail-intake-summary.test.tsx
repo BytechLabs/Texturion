@@ -13,7 +13,7 @@ import { VoicemailIntakeSummary } from "./voicemail-intake-summary";
 
 const empty = { problem: null, address: null, callback: null, name: null };
 
-describe("VoicemailIntakeSummary", () => {
+describe(VoicemailIntakeSummary, () => {
   it("renders nothing at all when there is nothing to say", () => {
     expect(renderToStaticMarkup(<VoicemailIntakeSummary intake={null} />)).toBe("");
     expect(renderToStaticMarkup(<VoicemailIntakeSummary intake={empty} />)).toBe("");

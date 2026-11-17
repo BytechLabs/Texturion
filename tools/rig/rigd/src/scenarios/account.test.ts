@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import { gpsJpeg, hasGpsExif, sha256Hex } from "@loonext/rig-robot";
 import { memberEmail } from "../../../../../scripts/rig/tenants.mjs";
@@ -8,9 +7,9 @@ import { MAIL_ACCOUNT_ADDRESS, SIGN_UP_ADDRESS, signUpNumberKey } from "../app-p
 import { STRIPE_DELETE_UNDO } from "../stripe-sandbox.ts";
 import { releaseHeldNumber, releaseTenantNumbers } from "../wiring.ts";
 import {
-  graduatedAmount,
   GRACE_CRON,
   GRACE_NOTICES,
+  graduatedAmount,
   S22,
   S27,
   S28,
@@ -29,9 +28,10 @@ import {
   SUGGEST_REPLY_MONTHLY_CAP,
 } from "./account.ts";
 import type { ApiAnswer, AppApi, MailMessage, NumberRow, ScenarioResult } from "./context.ts";
-import { fakeContext, type FakeStripe } from "./fakes.ts";
+import { fakeContext } from './fakes.ts';
+import type { FakeStripe } from './fakes.ts';
 
-const REPO = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../..");
+const REPO = resolve(import.meta.dirname, "../../../../..");
 const source = (path: string) => readFileSync(resolve(REPO, path), "utf8");
 
 /** Evidence keeps ids and numbers; an E.164 anywhere in it is a leak. */
@@ -45,7 +45,7 @@ function withoutGps(jpeg: Uint8Array): Uint8Array {
   for (let i = 0; i + 1 < bytes.length; i++) {
     if (bytes[i] === 0x25 && bytes[i + 1] === 0x88) {
       bytes[i] = 0x00;
-      bytes[i + 1] = 0xc0;
+      bytes[i + 1] = 0xC0;
       break;
     }
   }
@@ -91,7 +91,7 @@ describe("S22, picture messages both ways", () => {
 
   it("passes when Telnyx fetched the stored copy and the inbound picture lost its position", async () => {
     const { ctx, app, robot } = s22World();
-    expect(await S22.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S22.run(ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(app.sends[0]).toMatchObject({ member: "qa-w-owner", fromRole: "DEV-W1", toRole: "ROBOT-1" });
     expect(app.sends[0]!.body).toContain(ctx.nonce);
     expect(robot.sent).toEqual([{ from_role: "ROBOT-1", to_role: "DEV-W1", text: `Rig S22 inbound ${ctx.nonce}`, media: "gps-jpeg" }]);
@@ -103,34 +103,34 @@ describe("S22, picture messages both ways", () => {
   it("names a refused or unsendable picture", async () => {
     const refused = s22World();
     refused.app.sendMms = async () => ({ ok: false, status: 402, code: "plan_required" });
-    expect(await S22.run(refused.ctx)).toMatchObject({ outcome: "fail", failure_class: "send_refused" });
+    await expect(S22.run(refused.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "send_refused" });
 
     const unthreaded = s22World();
     unthreaded.app.sendMms = async () => {
       throw new Error("app probe: QA-W has no thread with ROBOT-1");
     };
-    expect(await S22.run(unthreaded.ctx)).toMatchObject({ outcome: "infra", component: "app-probe" });
+    await expect(S22.run(unthreaded.ctx)).resolves.toMatchObject({ outcome: "infra", component: "app-probe" });
   });
 
   it("names an outbound picture that never arrived, arrived bare, or arrived as other bytes", async () => {
     const lost = s22World();
     lost.robot.deliver = () => undefined;
-    expect(await S22.run(lost.ctx)).toMatchObject({ failure_class: "picture_not_delivered" });
+    await expect(S22.run(lost.ctx)).resolves.toMatchObject({ failure_class: "picture_not_delivered" });
 
     const elsewhere = s22World();
     const deliverElsewhere = elsewhere.robot.deliver.bind(elsewhere.robot);
     elsewhere.robot.deliver = (item) => deliverElsewhere({ ...item, from_role: "DEV-W2" });
-    expect(await S22.run(elsewhere.ctx)).toMatchObject({ failure_class: "wrong_sender" });
+    await expect(S22.run(elsewhere.ctx)).resolves.toMatchObject({ failure_class: "wrong_sender" });
 
     const bare = s22World();
     const deliver = bare.robot.deliver.bind(bare.robot);
     bare.robot.deliver = (item) => deliver({ ...item, media: [] });
-    expect(await S22.run(bare.ctx)).toMatchObject({ failure_class: "media_missing" });
+    await expect(S22.run(bare.ctx)).resolves.toMatchObject({ failure_class: "media_missing" });
 
     const other = s22World();
     const deliverOther = other.robot.deliver.bind(other.robot);
     other.robot.deliver = (item) => deliverOther({ ...item, media: [{ content_type: "image/jpeg", size: 10, sha256: "0".repeat(64) }] });
-    expect(await S22.run(other.ctx)).toMatchObject({ failure_class: "media_hash_mismatch" });
+    await expect(S22.run(other.ctx)).resolves.toMatchObject({ failure_class: "media_hash_mismatch" });
 
     const rowless = s22World();
     const send = rowless.app.sendMms;
@@ -139,24 +139,24 @@ describe("S22, picture messages both ways", () => {
       rowless.app.attachmentRows.clear();
       return sent;
     };
-    expect(await S22.run(rowless.ctx)).toMatchObject({ failure_class: "no_attachment_row" });
+    await expect(S22.run(rowless.ctx)).resolves.toMatchObject({ failure_class: "no_attachment_row" });
   });
 
   it("blames Telnyx's unverified hash field, not the app, when it reports no hash", async () => {
     const world = s22World();
     const deliver = world.robot.deliver.bind(world.robot);
     world.robot.deliver = (item) => deliver({ ...item, media: [{ content_type: "image/jpeg", size: 10, sha256: null }] });
-    expect(await S22.run(world.ctx)).toMatchObject({ outcome: "infra", component: "telnyx-media-hash" });
+    await expect(S22.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "telnyx-media-hash" });
   });
 
   it("names an inbound picture not threaded, not stored, not a JPEG, still located, or quarantined", async () => {
     const unthreaded = s22World();
     unthreaded.robot.onSms = () => undefined;
-    expect(await S22.run(unthreaded.ctx)).toMatchObject({ failure_class: "picture_not_threaded" });
+    await expect(S22.run(unthreaded.ctx)).resolves.toMatchObject({ failure_class: "picture_not_threaded" });
 
     const unstored = s22World();
     unstored.robot.onSms = (message) => unstored.app.thread("QA-W", message.text, "inbound", { id: "msg-in-1" });
-    expect(await S22.run(unstored.ctx)).toMatchObject({ failure_class: "picture_not_stored" });
+    await expect(S22.run(unstored.ctx)).resolves.toMatchObject({ failure_class: "picture_not_stored" });
 
     const garbled = s22World();
     const handle = garbled.robot.onSms;
@@ -164,7 +164,7 @@ describe("S22, picture messages both ways", () => {
       handle(message);
       garbled.app.objects.set("mms-media/company/msg-in-1/0.jpg", Uint8Array.from(Buffer.from("not a jpeg")));
     };
-    expect(await S22.run(garbled.ctx)).toMatchObject({ failure_class: "stored_picture_not_jpeg" });
+    await expect(S22.run(garbled.ctx)).resolves.toMatchObject({ failure_class: "stored_picture_not_jpeg" });
 
     const located = s22World();
     const thread = located.robot.onSms;
@@ -172,7 +172,7 @@ describe("S22, picture messages both ways", () => {
       thread(message);
       located.app.objects.set("mms-media/company/msg-in-1/0.jpg", gpsJpeg());
     };
-    expect(await S22.run(located.ctx)).toMatchObject({ failure_class: "gps_kept" });
+    await expect(S22.run(located.ctx)).resolves.toMatchObject({ failure_class: "gps_kept" });
 
     const held = s22World();
     const store = held.robot.onSms;
@@ -180,7 +180,7 @@ describe("S22, picture messages both ways", () => {
       store(message);
       held.app.attachmentRows.get("msg-in-1")![0]!.quarantined_at = "2026-10-31T15:00:05.000Z";
     };
-    expect(await S22.run(held.ctx)).toMatchObject({ failure_class: "picture_quarantined" });
+    await expect(S22.run(held.ctx)).resolves.toMatchObject({ failure_class: "picture_quarantined" });
   });
 });
 
@@ -222,26 +222,26 @@ describe("S27, website widget code", () => {
   it("fails a widget that starts without a Turnstile token", async () => {
     const world = s27World();
     world.app.widgetStart = async () => world.app.widget.start;
-    expect(await S27.run(world.ctx)).toMatchObject({ failure_class: "captcha_not_required" });
+    await expect(S27.run(world.ctx)).resolves.toMatchObject({ failure_class: "captcha_not_required" });
   });
 
   it("names a refused start, an undelivered code, a refused code and an uncounted verification", async () => {
     const refused = s27World();
     refused.app.widget.start = { status: 403, code: "forbidden" };
-    expect(await S27.run(refused.ctx)).toMatchObject({ failure_class: "widget_start_refused" });
+    await expect(S27.run(refused.ctx)).resolves.toMatchObject({ failure_class: "widget_start_refused" });
 
     const silent = s27World();
     silent.robot.deliver = () => undefined;
-    expect(await S27.run(silent.ctx)).toMatchObject({ failure_class: "code_not_delivered" });
+    await expect(S27.run(silent.ctx)).resolves.toMatchObject({ failure_class: "code_not_delivered" });
 
     const elsewhere = s27World();
     const deliver = elsewhere.robot.deliver.bind(elsewhere.robot);
     elsewhere.robot.deliver = (item) => deliver({ ...item, from_role: "DEV-W2" });
-    expect(await S27.run(elsewhere.ctx)).toMatchObject({ failure_class: "code_not_delivered" });
+    await expect(S27.run(elsewhere.ctx)).resolves.toMatchObject({ failure_class: "code_not_delivered" });
 
     const wrong = s27World();
     wrong.app.widget.verify = { status: 403, code: "forbidden" };
-    expect(await S27.run(wrong.ctx)).toMatchObject({ failure_class: "code_refused" });
+    await expect(S27.run(wrong.ctx)).resolves.toMatchObject({ failure_class: "code_refused" });
 
     const uncounted = s27World();
     const start = uncounted.app.widgetStart;
@@ -250,13 +250,13 @@ describe("S27, website widget code", () => {
       uncounted.app.widget.verifications = 0;
       return answer;
     };
-    expect(await S27.run(uncounted.ctx)).toMatchObject({ failure_class: "budget_not_decremented" });
+    await expect(S27.run(uncounted.ctx)).resolves.toMatchObject({ failure_class: "budget_not_decremented" });
   });
 
   it("reports the widget's own rate limit as the rig's, not the product's", async () => {
     const world = s27World();
     world.app.widgetStart = async () => ({ status: 429, code: "rate_limited" });
-    expect(await S27.run(world.ctx)).toMatchObject({ outcome: "infra", component: "widget-limit" });
+    await expect(S27.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "widget-limit" });
   });
 });
 
@@ -305,7 +305,7 @@ function s28World(options: { row?: Partial<NumberRow>; log?: Record<string, numb
 describe("S28, number buy, bind and ring", () => {
   it("passes, registers the release before it buys, and hands the number to S29 unreleased", async () => {
     const { ctx, undo, handoff, robot, browser, guard, undoAtWrite } = s28World();
-    expect(await S28.run(ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S28.run(ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(undo).toEqual([{ kind: "number.release-tenant", params: { tenant: "QA-G", unless_handed_off: true } }]);
     expect(undoAtWrite).toEqual([1, 1]);
     expect(handoff.record).toMatchObject({ tenant: "QA-G", run_id: "S28-test", telnyx_phone_number_id: TELNYX_ID, phone_number_id: "number-row-1", state: "handed_off" });
@@ -325,7 +325,7 @@ describe("S28, number buy, bind and ring", () => {
 
     const silent = s28World();
     silent.browser.script.ringsAfterMs = undefined;
-    expect(await S28.run(silent.ctx)).toMatchObject({ failure_class: "number_did_not_ring" });
+    await expect(S28.run(silent.ctx)).resolves.toMatchObject({ failure_class: "number_did_not_ring" });
     expect(silent.handoff.record?.state).toBe("bought");
     await releaseTenantNumbers(silent.undo[0]!.params, silent);
     expect(silent.guard.released).toEqual([TELNYX_ID]);
@@ -339,7 +339,7 @@ describe("S28, number buy, bind and ring", () => {
     stale.guard.held.add(TELNYX_ID);
     const handedOff = { tenant: "QA-G", run_id: "S28-old", telnyx_phone_number_id: TELNYX_ID, phone_number_id: "number-row-1", state: "handed_off" as const };
     stale.handoff.record = { ...handedOff, bought_at: new Date(stale.ctx.now() - 3 * 86_400_000).toISOString() };
-    expect(await S28.run(stale.ctx)).toMatchObject({ outcome: "infra", component: "handoff" });
+    await expect(S28.run(stale.ctx)).resolves.toMatchObject({ outcome: "infra", component: "handoff" });
     expect(stale.handoff.record).toMatchObject({ state: "bought", run_id: "S28-test" });
     await releaseTenantNumbers(stale.undo[0]!.params, stale);
     expect(stale.guard.released).toEqual([TELNYX_ID]);
@@ -348,7 +348,7 @@ describe("S28, number buy, bind and ring", () => {
     const fresh = s28World();
     fresh.app.numbers.set("QA-G", [boughtRow()]);
     fresh.handoff.record = { ...handedOff, bought_at: new Date(fresh.ctx.now() - 86_400_000).toISOString() };
-    expect(await S28.run(fresh.ctx)).toMatchObject({ outcome: "infra", component: "grace-workspace" });
+    await expect(S28.run(fresh.ctx)).resolves.toMatchObject({ outcome: "infra", component: "grace-workspace" });
     await releaseTenantNumbers(fresh.undo[0]!.params, fresh);
     expect(fresh.guard.released).toEqual([]);
   });
@@ -356,19 +356,19 @@ describe("S28, number buy, bind and ring", () => {
   it("buys nothing into a workspace that is not ready, or while the guard has ordering off", async () => {
     const canceled = s28World();
     canceled.app.workspaces.set("QA-G", { subscription_status: "canceled", canceled_at: "2026-09-30T15:00:00.000Z" });
-    expect(await S28.run(canceled.ctx)).toMatchObject({ outcome: "infra", component: "grace-workspace" });
+    await expect(S28.run(canceled.ctx)).resolves.toMatchObject({ outcome: "infra", component: "grace-workspace" });
 
     const holding = s28World();
     holding.app.numbers.set("QA-G", [boughtRow({ status: "suspended" })]);
-    expect(await S28.run(holding.ctx)).toMatchObject({ outcome: "infra", component: "grace-workspace" });
+    await expect(S28.run(holding.ctx)).resolves.toMatchObject({ outcome: "infra", component: "grace-workspace" });
 
     const off = s28World();
     off.guard.healthBody = { ...off.guard.healthBody, ordering: { enabled: false, blockers: ["production_lacks_partition_rule"] } };
-    expect(await S28.run(off.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    await expect(S28.run(off.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
 
     const unknown = s28World();
     unknown.guard.healthBody = { ...unknown.guard.healthBody, ordering: undefined };
-    expect(await S28.run(unknown.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    await expect(S28.run(unknown.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
 
     for (const world of [canceled, holding, off, unknown]) expect(world.robot.plans).toEqual([]);
   });
@@ -379,29 +379,29 @@ describe("S28, number buy, bind and ring", () => {
       retry.guard.log = { "rig-api GET /v2/available_phone_numbers 200": 1, "rig-api POST /v2/number_orders provisioning.order_interval": 1 };
       return { status: 502, code: "provisioning_failed" };
     };
-    expect(await S28.run(retry.ctx)).toMatchObject({ outcome: "infra", component: "provisioning.order_interval" });
+    await expect(S28.run(retry.ctx)).resolves.toMatchObject({ outcome: "infra", component: "provisioning.order_interval" });
 
     const guarded = s28World();
     guarded.app.provisionNumber = async () => {
       guarded.guard.log = { "rig-api GET /v2/available_phone_numbers 200": 1, "rig-api POST /v2/number_orders budget.tier_red": 1 };
       return { status: 502 };
     };
-    expect(await S28.run(guarded.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    await expect(S28.run(guarded.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
 
     const refusedByApp = s28World();
     refusedByApp.app.provisionNumber = async () => ({ status: 402, code: "subscription_inactive" });
-    expect(await S28.run(refusedByApp.ctx)).toMatchObject({ outcome: "fail", failure_class: "provision_refused" });
+    await expect(S28.run(refusedByApp.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "provision_refused" });
 
     const probe = s28World();
     probe.app.provisionNumber = async () => {
       throw new Error("app probe: QA-G has no requested area code to buy in");
     };
-    expect(await S28.run(probe.ctx)).toMatchObject({ outcome: "infra", component: "app-probe" });
+    await expect(S28.run(probe.ctx)).resolves.toMatchObject({ outcome: "infra", component: "app-probe" });
   });
 
   it("names a number never provisioned or never bound, and fails the undo for a row that never named its number", async () => {
     const unnamed = s28World({ row: { status: "provisioning", telnyx_phone_number_id: null, voice_connection_id: null } });
-    expect(await S28.run(unnamed.ctx)).toMatchObject({ failure_class: "number_not_provisioned" });
+    await expect(S28.run(unnamed.ctx)).resolves.toMatchObject({ failure_class: "number_not_provisioned" });
     await expect(releaseTenantNumbers(unnamed.undo[0]!.params, unnamed)).rejects.toThrow(/name no Telnyx number/);
 
     // The row names its number only after the run gave up on it: the undo still releases it.
@@ -412,7 +412,7 @@ describe("S28, number buy, bind and ring", () => {
     expect(late.guard.released).toEqual([TELNYX_ID]);
 
     const unbound = s28World({ row: { voice_connection_id: null } });
-    expect(await S28.run(unbound.ctx)).toMatchObject({ failure_class: "number_not_bound" });
+    await expect(S28.run(unbound.ctx)).resolves.toMatchObject({ failure_class: "number_not_bound" });
     expect(unbound.undo).toHaveLength(1);
     expect(unbound.handoff.record?.state).toBe("bought");
   });
@@ -429,30 +429,30 @@ describe("S28, number buy, bind and ring", () => {
       world.app.numbers.set("QA-G", [boughtRow({ id: "number-row-0", status: "provisioning", telnyx_phone_number_id: null }), boughtRow()]);
       return answer;
     };
-    expect(await S28.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S28.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.handoff.record).toMatchObject({ phone_number_id: "number-row-1" });
   });
 
   it("judges the guard's log: one search, one order, no release, only binding's PATCHes", async () => {
     const { "rig-api POST /v2/number_orders 200": _order, ...noOrder } = PURCHASE_LOG;
     const bypassed = s28World({ log: noOrder });
-    expect(await S28.run(bypassed.ctx)).toMatchObject({ failure_class: "order_bypassed_guard", critical: true });
+    await expect(S28.run(bypassed.ctx)).resolves.toMatchObject({ failure_class: "order_bypassed_guard", critical: true });
 
     const twice = s28World({ log: { ...PURCHASE_LOG, "rig-api POST /v2/number_orders 200": 2 } });
-    expect(await S28.run(twice.ctx)).toMatchObject({ failure_class: "order_count" });
+    await expect(S28.run(twice.ctx)).resolves.toMatchObject({ failure_class: "order_count" });
 
     const { "rig-api GET /v2/available_phone_numbers 200": _search, ...noSearch } = PURCHASE_LOG;
     const unsearched = s28World({ log: noSearch });
-    expect(await S28.run(unsearched.ctx)).toMatchObject({ failure_class: "search_count" });
+    await expect(S28.run(unsearched.ctx)).resolves.toMatchObject({ failure_class: "search_count" });
 
     const released = s28World({ log: { ...PURCHASE_LOG, "rig-api DELETE /v2/phone_numbers/:id 200": 1 } });
-    expect(await S28.run(released.ctx)).toMatchObject({ failure_class: "number_released_during_run" });
+    await expect(S28.run(released.ctx)).resolves.toMatchObject({ failure_class: "number_released_during_run" });
 
     const forwarded = s28World({ log: { ...PURCHASE_LOG, "rig-api PATCH /v2/phone_numbers/:id/voice provisioning.patch_field": 1 } });
-    expect(await S28.run(forwarded.ctx)).toMatchObject({ failure_class: "unexpected_patch" });
+    await expect(S28.run(forwarded.ctx)).resolves.toMatchObject({ failure_class: "unexpected_patch" });
 
     const profile = s28World({ log: { ...PURCHASE_LOG, "rig-api PATCH /v2/messaging_profiles/:id 200": 1 } });
-    expect(await S28.run(profile.ctx)).toMatchObject({ failure_class: "unexpected_patch" });
+    await expect(S28.run(profile.ctx)).resolves.toMatchObject({ failure_class: "unexpected_patch" });
 
     const boundAtOrder = s28World({ log: { "rig-api GET /v2/available_phone_numbers 200": 1, "rig-api POST /v2/number_orders 200": 1 } });
     expect((await S28.run(boundAtOrder.ctx)).outcome).toBe("pass");
@@ -466,16 +466,16 @@ describe("S28, number buy, bind and ring", () => {
       stopped.guard.healthBody = { ...stopped.guard.healthBody, ordering: { enabled: false, blockers: ["stopped_after_group_check"] } };
       return answer;
     };
-    expect(await S28.run(stopped.ctx)).toMatchObject({ failure_class: "order_left_group", critical: true });
+    await expect(S28.run(stopped.ctx)).resolves.toMatchObject({ failure_class: "order_left_group", critical: true });
 
     const outside = s28World();
     outside.guard.numberStatus = async () => ({ status: 404, in_group: false });
-    expect(await S28.run(outside.ctx)).toMatchObject({ failure_class: "number_outside_group", critical: true });
+    await expect(S28.run(outside.ctx)).resolves.toMatchObject({ failure_class: "number_outside_group", critical: true });
 
     const touched = s28World();
     let reads = 0;
     touched.guard.partition = async () => ({ owned: 9, standing: reads++ === 0 ? 8 : 7, messaging_profiles: 5 });
-    expect(await S28.run(touched.ctx)).toMatchObject({ failure_class: "standing_number_touched", critical: true });
+    await expect(S28.run(touched.ctx)).resolves.toMatchObject({ failure_class: "standing_number_touched", critical: true });
   });
 
   it("waits out the first order's read-back, and records it when the guard has not finished it", async () => {
@@ -503,15 +503,15 @@ describe("S28, number buy, bind and ring", () => {
   it("blames the guard when it refuses ROBOT-1's dial to the new number", async () => {
     const world = s28World();
     world.robot.dial = async (plan) => ({ plan_id: "plan-0", plan, state: "failed", ids: {}, events: [], dtmf: "", errors: ["guard_refused:dial.window"] });
-    expect(await S28.run(world.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    await expect(S28.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
     expect(world.handoff.record?.state).toBe("bought");
   });
 });
 
-function stripeBilling(stripe: FakeStripe, invoiced = 2_930) {
+function stripeBilling(stripe: FakeStripe, invoiced = 2930) {
   stripe.answers.set("GET /v1/prices", {
     data: [
-      { id: "price_licensed", lookup_key: STARTER_LICENSED, unit_amount: 2_900, recurring: { meter: null } },
+      { id: "price_licensed", lookup_key: STARTER_LICENSED, unit_amount: 2900, recurring: { meter: null } },
       {
         id: "price_overage",
         lookup_key: STARTER_OVERAGE,
@@ -531,7 +531,7 @@ function stripeBilling(stripe: FakeStripe, invoiced = 2_930) {
   stripe.answers.set("GET /v1/test_helpers/test_clocks/clock_1", { id: "clock_1", status: "ready" });
   stripe.answers.set("GET /v1/invoices", {
     data: [
-      { id: "in_create", billing_reason: "subscription_create", subtotal: 2_900 },
+      { id: "in_create", billing_reason: "subscription_create", subtotal: 2900 },
       { id: "in_cycle", billing_reason: "subscription_cycle", subtotal: invoiced },
     ],
   });
@@ -573,7 +573,7 @@ const deletes = (stripe: FakeStripe) => stripe.requests.filter((r) => r.method =
 describe("S29, cancel, grace, release and billing", () => {
   it("passes, taking the number over, restoring QA-G to active, and deleting its test clock", async () => {
     const { ctx, undo, handoff, app, stripe } = s29World();
-    expect(await S29.run(ctx)).toEqual({ outcome: "pass", detail: "QA-G held no live campaign, so its deactivation was not covered" });
+    await expect(S29.run(ctx)).resolves.toEqual({ outcome: "pass", detail: "QA-G held no live campaign, so its deactivation was not covered" });
     expect(undo).toEqual([
       { kind: "number.release", params: { telnyx_phone_number_id: TELNYX_ID, phone_number_id: "number-row-1" } },
       { kind: "app.restore-workspace", params: { tenant: "QA-G", state: { subscription_status: "active", canceled_at: null } } },
@@ -582,7 +582,7 @@ describe("S29, cancel, grace, release and billing", () => {
     expect(handoff.record?.state).toBe("taken");
     expect(app.firedCrons).toEqual([{ cron: "0 14 * * *" }]);
     expect(ctx.evidence.grace).toMatchObject({ notices: [1, 15, 27, 30], live_campaigns: 0, number_status: "released" });
-    expect(ctx.evidence.billing).toMatchObject({ expected_cents: 2_930, invoiced_cents: 2_930, invoice_id: "in_cycle" });
+    expect(ctx.evidence.billing).toMatchObject({ expected_cents: 2930, invoiced_cents: 2930, invoice_id: "in_cycle" });
     expect(deletes(stripe)).toEqual(["/v1/test_helpers/test_clocks/clock_1"]);
     expectNoPhoneNumber(ctx.evidence);
   });
@@ -590,7 +590,7 @@ describe("S29, cancel, grace, release and billing", () => {
   it("passes without the caveat when QA-G held a campaign that grace then deactivated", async () => {
     const world = s29World();
     world.app.grace.set("QA-G", { notices: [], live_campaigns: 1 });
-    expect(await S29.run(world.ctx)).toEqual({ outcome: "pass", detail: undefined });
+    await expect(S29.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(world.ctx.evidence.grace).toMatchObject({ live_campaigns_before: 1, live_campaigns: 0 });
   });
 
@@ -623,7 +623,7 @@ describe("S29, cancel, grace, release and billing", () => {
     const otherRun = s29World({ handoff: null });
     otherRun.ctx.attempt = 2;
     otherRun.history.rows = [{ ...retry.history.rows[0]!, run_id: "S29-earlier" }];
-    expect(await S29.run(otherRun.ctx)).toMatchObject({ outcome: "infra", component: "s28-handoff" });
+    await expect(S29.run(otherRun.ctx)).resolves.toMatchObject({ outcome: "infra", component: "s28-handoff" });
 
     const passedFirst = s29World();
     await S29.run(passedFirst.ctx);
@@ -673,13 +673,13 @@ describe("S29, cancel, grace, release and billing", () => {
   it("says so when QA-G does not hold the handed-off number", async () => {
     const world = s29World();
     world.app.numbers.set("QA-G", []);
-    expect(await S29.run(world.ctx)).toMatchObject({ outcome: "infra", component: "s28-handoff" });
+    await expect(S29.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "s28-handoff" });
   });
 
   it("changes nothing in a workspace an earlier undo left canceled, but still releases the number", async () => {
     const world = s29World();
     world.app.workspaces.set("QA-G", { subscription_status: "canceled", canceled_at: "2026-10-01T00:00:00.000Z" });
-    expect(await S29.run(world.ctx)).toMatchObject({ outcome: "infra", component: "grace-workspace" });
+    await expect(S29.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "grace-workspace" });
     expect(world.app.firedCrons).toEqual([]);
     expect(world.undo.map((u) => u.kind)).toEqual(["number.release", STRIPE_DELETE_UNDO]);
   });
@@ -702,7 +702,7 @@ describe("S29, cancel, grace, release and billing", () => {
       await fireCampaign(cron);
       campaign.app.grace.set("QA-G", { notices: [...GRACE_NOTICES], live_campaigns: 1 });
     };
-    expect(await S29.run(campaign.ctx)).toMatchObject({ failure_class: "campaign_still_live" });
+    await expect(S29.run(campaign.ctx)).resolves.toMatchObject({ failure_class: "campaign_still_live" });
 
     const kept = s29World();
     const fireKept = kept.app.fireCron;
@@ -710,7 +710,7 @@ describe("S29, cancel, grace, release and billing", () => {
       await fireKept(cron);
       kept.app.numbers.get("QA-G")![0]!.status = "suspended";
     };
-    expect(await S29.run(kept.ctx)).toMatchObject({ failure_class: "number_not_released" });
+    await expect(S29.run(kept.ctx)).resolves.toMatchObject({ failure_class: "number_not_released" });
 
     const held = s29World();
     const fireHeld = held.app.fireCron;
@@ -718,40 +718,40 @@ describe("S29, cancel, grace, release and billing", () => {
       await fireHeld(cron);
       held.guard.held.add(TELNYX_ID);
     };
-    expect(await S29.run(held.ctx)).toMatchObject({ failure_class: "telnyx_number_kept" });
+    await expect(S29.run(held.ctx)).resolves.toMatchObject({ failure_class: "telnyx_number_kept" });
   });
 
   it("calls a standing number touched by grace critical", async () => {
     const world = s29World();
     let reads = 0;
     world.guard.partition = async () => ({ owned: 8, standing: reads++ === 0 ? 8 : 7, messaging_profiles: 5 });
-    expect(await S29.run(world.ctx)).toMatchObject({ failure_class: "standing_number_touched", critical: true });
+    await expect(S29.run(world.ctx)).resolves.toMatchObject({ failure_class: "standing_number_touched", critical: true });
   });
 
   it("names a renewal invoice that does not match the usage, or none at all", async () => {
     const off = s29World();
-    stripeBilling(off.stripe, 2_900);
-    expect(await S29.run(off.ctx)).toMatchObject({ failure_class: "invoice_total_mismatch" });
+    stripeBilling(off.stripe, 2900);
+    await expect(S29.run(off.ctx)).resolves.toMatchObject({ failure_class: "invoice_total_mismatch" });
     expect(deletes(off.stripe)).toEqual(["/v1/test_helpers/test_clocks/clock_1"]);
 
     const none = s29World();
-    none.stripe.answers.set("GET /v1/invoices", { data: [{ id: "in_create", billing_reason: "subscription_create", subtotal: 2_900 }] });
-    expect(await S29.run(none.ctx)).toMatchObject({ failure_class: "no_renewal_invoice" });
+    none.stripe.answers.set("GET /v1/invoices", { data: [{ id: "in_create", billing_reason: "subscription_create", subtotal: 2900 }] });
+    await expect(S29.run(none.ctx)).resolves.toMatchObject({ failure_class: "no_renewal_invoice" });
   });
 
   it("reports the sandbox, not the product, when it lacks the catalog, never meters, never advances or fails", async () => {
     const empty = s29World();
     empty.stripe.answers.set("GET /v1/prices", { data: [] });
-    expect(await S29.run(empty.ctx)).toMatchObject({ outcome: "infra", component: "stripe-catalog" });
+    await expect(S29.run(empty.ctx)).resolves.toMatchObject({ outcome: "infra", component: "stripe-catalog" });
     expect(deletes(empty.stripe)).toEqual([]);
 
     const unmetered = s29World();
     unmetered.stripe.answers.set("GET /v1/billing/meters/mtr_1/event_summaries", { data: [] });
-    expect(await S29.run(unmetered.ctx)).toMatchObject({ outcome: "infra", component: "stripe" });
+    await expect(S29.run(unmetered.ctx)).resolves.toMatchObject({ outcome: "infra", component: "stripe" });
 
     const stuck = s29World();
     stuck.stripe.answers.set("GET /v1/test_helpers/test_clocks/clock_1", { id: "clock_1", status: "advancing" });
-    expect(await S29.run(stuck.ctx)).toMatchObject({ outcome: "infra", component: "stripe" });
+    await expect(S29.run(stuck.ctx)).resolves.toMatchObject({ outcome: "infra", component: "stripe" });
     expect(deletes(stuck.stripe)).toEqual(["/v1/test_helpers/test_clocks/clock_1"]);
 
     const down = s29World();
@@ -760,7 +760,7 @@ describe("S29, cancel, grace, release and billing", () => {
       if (path === "/v1/subscriptions") throw new Error("stripe sandbox: POST answered 500");
       return request<T>(method, path, params);
     };
-    expect(await S29.run(down.ctx)).toMatchObject({ outcome: "infra", component: "stripe" });
+    await expect(S29.run(down.ctx)).resolves.toMatchObject({ outcome: "infra", component: "stripe" });
     expect(deletes(down.stripe)).toEqual(["/v1/test_helpers/test_clocks/clock_1"]);
   });
 
@@ -768,17 +768,17 @@ describe("S29, cancel, grace, release and billing", () => {
     const grace = s29World();
     grace.app.fireCron = async () => undefined;
     grace.stripe.answers.set("GET /v1/prices", { data: [] });
-    expect(await S29.run(grace.ctx)).toMatchObject({ outcome: "fail", failure_class: "grace_notices" });
+    await expect(S29.run(grace.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "grace_notices" });
 
     const billing = s29World({ handoff: null });
     stripeBilling(billing.stripe, 1);
-    expect(await S29.run(billing.ctx)).toMatchObject({ outcome: "fail", failure_class: "invoice_total_mismatch" });
+    await expect(S29.run(billing.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "invoice_total_mismatch" });
   });
 });
 
 /** The route's answer: drafts, or none and the reason why. */
 function drafts(suggestions: unknown[], reason?: string): ApiAnswer<{ suggestions?: unknown[] }> {
-  return { status: 200, body: Object.assign({ suggestions }, reason ? { reason } : {}) };
+  return { status: 200, body: {suggestions, ...(reason ? { reason } : {})} };
 }
 
 /** A draft costs 40 neurons at the guard and one unit of the ledger, and over the cap draws `over_cap`. */
@@ -794,7 +794,7 @@ function s31World() {
     app.ai.set(key, count);
     if (behaviour.caps && count > SUGGEST_REPLY_MONTHLY_CAP) return drafts([], "over_cap");
     if (behaviour.newDay) time.now = Date.UTC(2026, 10, 1, 0, 0, 1);
-    const today = behaviour.newDay ? 0 : (guard.healthBody.ai_neurons_today as number);
+    const today = behaviour.newDay ? 0 : (guard.healthBody.ai_neurons_today!);
     if (behaviour.meters) guard.healthBody = { ...guard.healthBody, ai_neurons_today: today + 40 };
     return drafts(["Rig draft"]);
   };
@@ -830,50 +830,50 @@ describe("S31, Lou's drafts and the AI cap", () => {
   it("calls a draft the guard never metered critical", async () => {
     const world = s31World();
     world.behaviour.meters = false;
-    expect(await S31.run(world.ctx)).toMatchObject({ failure_class: "draft_bypassed_guard", critical: true });
+    await expect(S31.run(world.ctx)).resolves.toMatchObject({ failure_class: "draft_bypassed_guard", critical: true });
     expect(world.undo).toEqual([]);
   });
 
   it("names a refused request, no draft, an uncounted draft and an unenforced cap", async () => {
     const refused = s31World();
     refused.app.replySuggestions = async () => ({ status: 403, code: "forbidden" });
-    expect(await S31.run(refused.ctx)).toMatchObject({ failure_class: "suggestions_refused" });
+    await expect(S31.run(refused.ctx)).resolves.toMatchObject({ failure_class: "suggestions_refused" });
 
     const empty = s31World();
     empty.app.replySuggestions = async () => drafts([], "model_error");
-    expect(await S31.run(empty.ctx)).toMatchObject({ failure_class: "no_draft" });
+    await expect(S31.run(empty.ctx)).resolves.toMatchObject({ failure_class: "no_draft" });
 
     const uncounted = s31World();
     uncounted.behaviour.counts = false;
-    expect(await S31.run(uncounted.ctx)).toMatchObject({ failure_class: "usage_not_counted" });
+    await expect(S31.run(uncounted.ctx)).resolves.toMatchObject({ failure_class: "usage_not_counted" });
 
     const uncapped = s31World();
     uncapped.behaviour.caps = false;
-    expect(await S31.run(uncapped.ctx)).toMatchObject({ failure_class: "cap_not_enforced" });
+    await expect(S31.run(uncapped.ctx)).resolves.toMatchObject({ failure_class: "cap_not_enforced" });
   });
 
   it("reports the rig's setup and limits as infrastructure", async () => {
     const health = s31World();
     health.guard.healthBody = { ...health.guard.healthBody, ai_neurons_today: undefined };
-    expect(await S31.run(health.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    await expect(S31.run(health.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
 
     const spent = s31World();
-    spent.guard.healthBody = { ...spent.guard.healthBody, ai_neurons_today: 2_000 };
-    expect(await S31.run(spent.ctx)).toMatchObject({ outcome: "infra", component: "guard" });
+    spent.guard.healthBody = { ...spent.guard.healthBody, ai_neurons_today: 2000 };
+    await expect(S31.run(spent.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard" });
 
     const capped = s31World();
     capped.app.ai.set(`QA-W/${SUGGEST_REPLY_FEATURE}`, SUGGEST_REPLY_MONTHLY_CAP);
-    expect(await S31.run(capped.ctx)).toMatchObject({ outcome: "infra", component: "ai-usage" });
+    await expect(S31.run(capped.ctx)).resolves.toMatchObject({ outcome: "infra", component: "ai-usage" });
 
     const disabled = s31World();
     disabled.app.replySuggestions = async () => drafts([], "disabled");
-    expect(await S31.run(disabled.ctx)).toMatchObject({ outcome: "infra", component: "reply-suggestions" });
+    await expect(S31.run(disabled.ctx)).resolves.toMatchObject({ outcome: "infra", component: "reply-suggestions" });
 
     const limited = s31World();
     const draft = limited.app.replySuggestions;
     let calls = 0;
     limited.app.replySuggestions = async () => (calls++ === 0 ? draft() : drafts([], "rate_limited"));
-    expect(await S31.run(limited.ctx)).toMatchObject({ outcome: "infra", component: "reply-suggestions" });
+    await expect(S31.run(limited.ctx)).resolves.toMatchObject({ outcome: "infra", component: "reply-suggestions" });
   });
 });
 
@@ -885,11 +885,11 @@ function signUpWorld(scenario: "S32" | "S35", landing = "http://127.0.0.1:3100/o
   const open = browser.openPublic.bind(browser);
   browser.openPublic = async (path) => {
     const page = await open(path);
-    const signUp = page.signUp;
+    const {signUp} = page;
     page.signUp = async (args) => {
       undoAtSignUp.push(undo.length);
       const answer = await signUp(args);
-      if (answer.ok) mail.auth.push(mailTo(args.email, [landing], time.now + 5_000));
+      if (answer.ok) mail.auth.push(mailTo(args.email, [landing], time.now + 5000));
       return answer;
     };
     return page;
@@ -918,25 +918,25 @@ describe("S35, public sign-up", () => {
   it("names a refused sign-up, a missing confirmation and a link that does not sign in", async () => {
     const refused = signUpWorld("S35");
     refused.browser.publicScript.signUp = { ok: false, alert: "That email is already registered." };
-    expect(await S35.run(refused.ctx)).toMatchObject({ failure_class: "sign_up_refused" });
+    await expect(S35.run(refused.ctx)).resolves.toMatchObject({ failure_class: "sign_up_refused" });
     expect(refused.undo).toHaveLength(1);
 
     const unmailed = signUpWorld("S35");
     unmailed.mail.mailpit = async () => [];
-    expect(await S35.run(unmailed.ctx)).toMatchObject({ failure_class: "no_confirmation_mail" });
+    await expect(S35.run(unmailed.ctx)).resolves.toMatchObject({ failure_class: "no_confirmation_mail" });
 
     const bounced = signUpWorld("S35", "http://127.0.0.1:3100/login?error=link_expired");
-    expect(await S35.run(bounced.ctx)).toMatchObject({ failure_class: "confirmation_not_signed_in" });
+    await expect(S35.run(bounced.ctx)).resolves.toMatchObject({ failure_class: "confirmation_not_signed_in" });
   });
 
   it("reports auth's rate limit and Turnstile as the rig's", async () => {
     const limited = signUpWorld("S35");
     limited.browser.publicScript.signUp = { ok: false, alert: "Email rate limit exceeded" };
-    expect(await S35.run(limited.ctx)).toMatchObject({ outcome: "infra", component: "sign-up-rate-limit" });
+    await expect(S35.run(limited.ctx)).resolves.toMatchObject({ outcome: "infra", component: "sign-up-rate-limit" });
 
     const captcha = signUpWorld("S35");
     captcha.browser.publicScript.signUp = { ok: false, alert: "Captcha check failed" };
-    expect(await S35.run(captcha.ctx)).toMatchObject({ outcome: "infra", component: "turnstile" });
+    await expect(S35.run(captcha.ctx)).resolves.toMatchObject({ outcome: "infra", component: "turnstile" });
   });
 });
 
@@ -973,28 +973,28 @@ describe("S32, sign-up through Checkout and the portal", () => {
     const undeployed = signUpWorld("S32");
     undeployed.browser.publicScript.numberChoice = { inventory: "failed", refreshes: 2, continued: false };
     undeployed.guard.log = { "rig-api GET /v2/available_phone_numbers provisioning.search_needs_lease": 3 };
-    expect(await S32.run(undeployed.ctx)).toMatchObject({ outcome: "infra", component: "guard", detail: "search allowance not deployed" });
+    await expect(S32.run(undeployed.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard", detail: "search allowance not deployed" });
     expect(undeployed.undo).toHaveLength(1);
 
     const empty = signUpWorld("S32");
     empty.browser.publicScript.numberChoice = { inventory: "none", refreshes: 0, continued: false };
-    expect(await S32.run(empty.ctx)).toMatchObject({ failure_class: "number_step" });
+    await expect(S32.run(empty.ctx)).resolves.toMatchObject({ failure_class: "number_step" });
 
     const stalled = signUpWorld("S32");
     stalled.browser.publicScript.onboarding = null;
-    expect(await S32.run(stalled.ctx)).toMatchObject({ failure_class: "onboarding_incomplete" });
+    await expect(S32.run(stalled.ctx)).resolves.toMatchObject({ failure_class: "onboarding_incomplete" });
   });
 
   it("stops before sign-up without Stripe Tax, and judges all but the portal without a default portal configuration", async () => {
     const noTax = signUpWorld("S32");
     noTax.stripe.answers.set("GET /v1/tax/settings", { status: "pending" });
-    expect(await S32.run(noTax.ctx)).toMatchObject({ outcome: "infra", component: "stripe-tax" });
+    await expect(S32.run(noTax.ctx)).resolves.toMatchObject({ outcome: "infra", component: "stripe-tax" });
     expect(noTax.browser.publicPages).toEqual([]);
 
     const noPortal = signUpWorld("S32");
     noPortal.stripe.answers.set("GET /v1/billing_portal/configurations", { data: [] });
     noPortal.browser.publicScript.portalHost = null;
-    expect(await S32.run(noPortal.ctx)).toMatchObject({ outcome: "infra", component: "stripe-portal-config" });
+    await expect(S32.run(noPortal.ctx)).resolves.toMatchObject({ outcome: "infra", component: "stripe-portal-config" });
     expect(noPortal.ctx.evidence.numbers).toEqual({ held: 1, fixture_status: "active", keyed_by_checkout: 0 });
     expect(deletes(noPortal.stripe)).toEqual(["/v1/subscriptions/sub_s32", "/v1/customers/cus_s32"]);
   });
@@ -1002,14 +1002,14 @@ describe("S32, sign-up through Checkout and the portal", () => {
   it("reports a challenged Checkout as the rig's and never a fail", async () => {
     const world = signUpWorld("S32");
     world.browser.publicScript.checkout = { returned: false, challenged: true, submitted: false };
-    expect(await S32.run(world.ctx)).toEqual({ outcome: "infra", component: "stripe-checkout", detail: "challenged" });
+    await expect(S32.run(world.ctx)).resolves.toEqual({ outcome: "infra", component: "stripe-checkout", detail: "challenged" });
     expect(world.stripe.adopted).toEqual([]);
   });
 
   it("tags and removes the Checkout objects a run that stopped early finds named afterwards, and leaves an unpaid Checkout alone", async () => {
     const unreturned = signUpWorld("S32");
     unreturned.browser.publicScript.checkout = { returned: false, challenged: false, submitted: true };
-    expect(await S32.run(unreturned.ctx)).toMatchObject({ failure_class: "checkout_not_returned" });
+    await expect(S32.run(unreturned.ctx)).resolves.toMatchObject({ failure_class: "checkout_not_returned" });
     expect(unreturned.stripe.adopted).toEqual(["sub_s32", "cus_s32"]);
     expect(deletes(unreturned.stripe)).toEqual(["/v1/subscriptions/sub_s32", "/v1/customers/cus_s32"]);
     expect(unreturned.undo.slice(2)).toEqual([
@@ -1020,7 +1020,7 @@ describe("S32, sign-up through Checkout and the portal", () => {
     const unnamed = signUpWorld("S32");
     unnamed.browser.publicScript.checkout = { returned: false, challenged: false, submitted: true };
     unnamed.app.signUps.set(unnamed.email, { company_id: "company-s32", subscription_status: "incomplete", stripe_subscription_id: null, stripe_customer_id: null });
-    expect(await S32.run(unnamed.ctx)).toMatchObject({ failure_class: "checkout_not_returned" });
+    await expect(S32.run(unnamed.ctx)).resolves.toMatchObject({ failure_class: "checkout_not_returned" });
     expect(unnamed.ctx.evidence.late_subscription).toBe(false);
     expect(unnamed.stripe.adopted).toEqual([]);
   });
@@ -1033,14 +1033,14 @@ describe("S32, sign-up through Checkout and the portal", () => {
       world.app.signUpRows.get(args.ownerEmail)!.push({ id: "bought", status: "provisioning", provisioning_key: "cs_test_s32" });
       return fixture;
     };
-    expect(await S32.run(world.ctx)).toMatchObject({ failure_class: "number_purchase_attempted", critical: true });
+    await expect(S32.run(world.ctx)).resolves.toMatchObject({ failure_class: "number_purchase_attempted", critical: true });
     expect(deletes(world.stripe)).toEqual(["/v1/subscriptions/sub_s32", "/v1/customers/cus_s32"]);
   });
 
   it("fails critically on any number write the guard forwarded, and records refused ones", async () => {
     const forwarded = signUpWorld("S32");
     forwarded.guard.log["rig-api POST /v2/number_orders 200"] = 1;
-    expect(await S32.run(forwarded.ctx)).toMatchObject({ failure_class: "number_purchase_attempted", critical: true });
+    await expect(S32.run(forwarded.ctx)).resolves.toMatchObject({ failure_class: "number_purchase_attempted", critical: true });
 
     const refused = signUpWorld("S32");
     refused.guard.log["rig-api PATCH /v2/phone_numbers/:id provisioning.number_standing"] = 1;
@@ -1049,30 +1049,30 @@ describe("S32, sign-up through Checkout and the portal", () => {
 
     const unsearched = signUpWorld("S32");
     unsearched.guard.log = {};
-    expect(await S32.run(unsearched.ctx)).toMatchObject({ failure_class: "no_number_search" });
+    await expect(S32.run(unsearched.ctx)).resolves.toMatchObject({ failure_class: "no_number_search" });
   });
 
   it("names an unfinished webhook, a setup that never completes and a portal that does not open", async () => {
     const unfinished = signUpWorld("S32");
     unfinished.app.checkoutEvents.set(unfinished.email, { session_id: "cs_test_s32", processed: false, last_error: "boom" });
-    expect(await S32.run(unfinished.ctx)).toMatchObject({ failure_class: "checkout_webhook_unfinished" });
+    await expect(S32.run(unfinished.ctx)).resolves.toMatchObject({ failure_class: "checkout_webhook_unfinished" });
 
     const stuck = signUpWorld("S32");
     stuck.browser.publicScript.inbox = false;
-    expect(await S32.run(stuck.ctx)).toMatchObject({ failure_class: "setup_not_complete" });
+    await expect(S32.run(stuck.ctx)).resolves.toMatchObject({ failure_class: "setup_not_complete" });
 
     const portal = signUpWorld("S32");
     portal.browser.publicScript.portalHost = null;
-    expect(await S32.run(portal.ctx)).toMatchObject({ failure_class: "portal_not_opened" });
+    await expect(S32.run(portal.ctx)).resolves.toMatchObject({ failure_class: "portal_not_opened" });
   });
 
   it("fails critically after release when a fixture or a foreign number is left held", async () => {
     const world = signUpWorld("S32");
-    expect(await S32.afterRelease!(world.ctx)).toBeUndefined();
+    await expect(S32.afterRelease!(world.ctx)).resolves.toBeUndefined();
     world.app.leak = { fixtures: 1, foreign: [] };
-    expect(await S32.afterRelease!(world.ctx)).toMatchObject({ failure_class: "signup_number_leaked", critical: true });
+    await expect(S32.afterRelease!(world.ctx)).resolves.toMatchObject({ failure_class: "signup_number_leaked", critical: true });
     world.app.leak = { fixtures: 0, foreign: ["row-1"] };
-    expect(await S32.afterRelease!(world.ctx)).toMatchObject({ failure_class: "signup_number_leaked", detail: expect.stringContaining("row-1") });
+    await expect(S32.afterRelease!(world.ctx)).resolves.toMatchObject({ failure_class: "signup_number_leaked", detail: expect.stringContaining("row-1") });
   });
 });
 
@@ -1086,11 +1086,11 @@ describe("S33, two-factor sign-in", () => {
   it("names a first-level session and an API that refuses the second-level one", async () => {
     const first = fakeContext("S33");
     first.app.totp = { aal: "aal1", meStatus: 200 };
-    expect(await S33.run(first.ctx)).toMatchObject({ failure_class: "not_second_level" });
+    await expect(S33.run(first.ctx)).resolves.toMatchObject({ failure_class: "not_second_level" });
 
     const refused = fakeContext("S33");
     refused.app.totp = { aal: "aal2", meStatus: 401 };
-    expect(await S33.run(refused.ctx)).toMatchObject({ failure_class: "api_refused_aal2" });
+    await expect(S33.run(refused.ctx)).resolves.toMatchObject({ failure_class: "api_refused_aal2" });
   });
 
   it("reports a seed with no TOTP secret as infrastructure", async () => {
@@ -1098,7 +1098,7 @@ describe("S33, two-factor sign-in", () => {
     world.app.signInWithTotp = async () => {
       throw new Error("app probe: tenants.json holds no TOTP secret for qa-w-mfa-member");
     };
-    expect(await S33.run(world.ctx)).toMatchObject({ outcome: "infra", component: "totp-seed" });
+    await expect(S33.run(world.ctx)).resolves.toMatchObject({ outcome: "infra", component: "totp-seed" });
   });
 });
 
@@ -1115,13 +1115,13 @@ function s34World() {
     const answer = await invite(args);
     // routes/team.ts: an address with an account is mailed over Resend, to the edge; any other is mailed by local auth.
     if (app.mailAccounts.has(args.email)) mail.robot.push(mailTo(args.email, [INVITE_LINK], time.now + 30_000, "robot-mail-1", INVITE_SUBJECT));
-    else mail.auth.push(mailTo(args.email, [INVITE_LINK], time.now + 1_000, "auth-invite-1", INVITE_SUBJECT));
+    else mail.auth.push(mailTo(args.email, [INVITE_LINK], time.now + 1000, "auth-invite-1", INVITE_SUBJECT));
     return answer;
   };
   const reset = app.sendPasswordReset.bind(app);
   app.sendPasswordReset = async (args: { member: string }) => {
     const status = await reset(args);
-    mail.auth.push(mailTo(memberEmail("qa-w", "technician"), [RESET_LINK], time.now + 2_000, "auth-mail-1"));
+    mail.auth.push(mailTo(memberEmail("qa-w", "technician"), [RESET_LINK], time.now + 2000, "auth-mail-1"));
     return status;
   };
   mail.links.set(RESET_LINK, { status: 303, location: "http://127.0.0.1:3100/reset-password" });
@@ -1171,12 +1171,12 @@ describe("S34, emails", () => {
   it("reports an account local auth would not make as infrastructure, and invites nobody", async () => {
     const refused = s34World();
     refused.app.createMailAccount = async () => 500;
-    expect(await S34.run(refused.ctx)).toMatchObject({ outcome: "infra", component: "local-auth" });
+    await expect(S34.run(refused.ctx)).resolves.toMatchObject({ outcome: "infra", component: "local-auth" });
     const down = s34World();
     down.app.createMailAccount = async () => {
       throw new Error("fetch failed");
     };
-    expect(await S34.run(down.ctx)).toMatchObject({ outcome: "infra", component: "local-auth" });
+    await expect(S34.run(down.ctx)).resolves.toMatchObject({ outcome: "infra", component: "local-auth" });
     expect(refused.app.invites).toEqual([]);
     expect(down.app.invites).toEqual([]);
   });
@@ -1185,7 +1185,7 @@ describe("S34, emails", () => {
     const world = s34World();
     world.app.createMailAccount = async () => 200;
     world.app.mailAccounts.clear();
-    expect(await S34.run(world.ctx)).toMatchObject({ outcome: "fail", failure_class: "invite_sent_by_auth" });
+    await expect(S34.run(world.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "invite_sent_by_auth" });
     expect(world.app.passwordResets).toEqual([]);
   });
 
@@ -1196,7 +1196,7 @@ describe("S34, emails", () => {
     const mailpit = world.mail.mailpit.bind(world.mail);
     let looks = 0;
     world.mail.mailpit = async (args) => (++looks === 1 ? [] : mailpit(args));
-    expect(await S34.run(world.ctx)).toMatchObject({ outcome: "fail", failure_class: "invite_sent_by_auth" });
+    await expect(S34.run(world.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "invite_sent_by_auth" });
     expect(looks).toBeGreaterThan(1);
   });
 
@@ -1204,13 +1204,13 @@ describe("S34, emails", () => {
     const world = s34World();
     const invite = world.app.invite.bind(world.app);
     world.app.invite = async (args) => ({ ...(await invite(args)), body: { id: "invite-1", email_sent: false } });
-    expect(await S34.run(world.ctx)).toMatchObject({ failure_class: "invite_not_sent" });
+    await expect(S34.run(world.ctx)).resolves.toMatchObject({ failure_class: "invite_not_sent" });
   });
 
   it("tells mail that arrived without the +tag from mail that never arrived, and checks the mail is the invite", async () => {
     const stripped = s34World();
     stripped.mail.robotMail = async (args) => (args.tag ? [] : [mailTo("rig-robot@example.invalid", [INVITE_LINK], stripped.time.now + 60_000)]);
-    expect(await S34.run(stripped.ctx)).toMatchObject({ failure_class: "invite_mail_untagged" });
+    await expect(S34.run(stripped.ctx)).resolves.toMatchObject({ failure_class: "invite_mail_untagged" });
 
     const other = s34World();
     const invite = other.app.invite.bind(other.app);
@@ -1219,7 +1219,7 @@ describe("S34, emails", () => {
       other.mail.robot.forEach((item) => (item.subject = "Your receipt"));
       return answer;
     };
-    expect(await S34.run(other.ctx)).toMatchObject({ failure_class: "invite_mail_wrong" });
+    await expect(S34.run(other.ctx)).resolves.toMatchObject({ failure_class: "invite_mail_wrong" });
 
     const elsewhere = s34World();
     const invite2 = elsewhere.app.invite.bind(elsewhere.app);
@@ -1228,27 +1228,27 @@ describe("S34, emails", () => {
       elsewhere.mail.robot.forEach((item) => (item.links = ["http://127.0.0.1:3100/login"]));
       return answer;
     };
-    expect(await S34.run(elsewhere.ctx)).toMatchObject({ failure_class: "invite_link_broken" });
+    await expect(S34.run(elsewhere.ctx)).resolves.toMatchObject({ failure_class: "invite_link_broken" });
   });
 
   it("checks nothing without a robot mailbox, a fresh heartbeat or a guard lease that lets the guard mail it", async () => {
     const unnamed = s34World();
     unnamed.mail.mailbox = undefined;
-    expect(await S34.run(unnamed.ctx)).toMatchObject({ outcome: "infra", component: "robot-mailbox" });
+    await expect(S34.run(unnamed.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot-mailbox" });
 
     const stale = s34World();
     stale.guard.healthBody = { ...stale.guard.healthBody, mail: { heartbeat_fresh: false, halted: false, pending: 0 } };
-    expect(await S34.run(stale.ctx)).toMatchObject({ outcome: "infra", component: "robot-mailbox" });
+    await expect(S34.run(stale.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot-mailbox" });
 
     const halted = s34World();
     halted.guard.healthBody = { ...halted.guard.healthBody, mail: { heartbeat_fresh: true, halted: true, pending: 1 } };
-    expect(await S34.run(halted.ctx)).toMatchObject({ outcome: "infra", component: "robot-mailbox" });
+    await expect(S34.run(halted.ctx)).resolves.toMatchObject({ outcome: "infra", component: "robot-mailbox" });
 
     const local = s34World();
     local.guard.activity = async () => {
       throw new Error("guard: lease.not_found");
     };
-    expect(await S34.run(local.ctx)).toMatchObject({ outcome: "infra", component: "guard-lease" });
+    await expect(S34.run(local.ctx)).resolves.toMatchObject({ outcome: "infra", component: "guard-lease" });
 
     for (const world of [unnamed, stale, halted, local]) {
       expect(world.app.invites).toEqual([]);
@@ -1260,42 +1260,42 @@ describe("S34, emails", () => {
     const refused = s34World();
     const api: AppApi = refused.app;
     api.invite = async () => ({ status: 409, code: "already_invited" });
-    expect(await S34.run(refused.ctx)).toMatchObject({ failure_class: "invite_refused" });
+    await expect(S34.run(refused.ctx)).resolves.toMatchObject({ failure_class: "invite_refused" });
 
     const reset = s34World();
     reset.app.sendPasswordReset = async () => 500;
-    expect(await S34.run(reset.ctx)).toMatchObject({ failure_class: "reset_refused" });
+    await expect(S34.run(reset.ctx)).resolves.toMatchObject({ failure_class: "reset_refused" });
 
     const throttled = s34World();
     throttled.app.sendPasswordReset = async () => 429;
-    expect(await S34.run(throttled.ctx)).toMatchObject({ outcome: "infra", component: "auth-rate-limit" });
+    await expect(S34.run(throttled.ctx)).resolves.toMatchObject({ outcome: "infra", component: "auth-rate-limit" });
 
     const lost = s34World();
     lost.mail.robotMail = async () => [];
-    expect(await S34.run(lost.ctx)).toMatchObject({ failure_class: "invite_mail_missing" });
+    await expect(S34.run(lost.ctx)).resolves.toMatchObject({ failure_class: "invite_mail_missing" });
 
     const unsent = s34World();
     unsent.mail.mailpit = async () => [];
-    expect(await S34.run(unsent.ctx)).toMatchObject({ failure_class: "reset_mail_missing" });
+    await expect(S34.run(unsent.ctx)).resolves.toMatchObject({ failure_class: "reset_mail_missing" });
   });
 
   it("names a broken or missing link in either mail", async () => {
     const broken = s34World();
     broken.mail.links.set(INVITE_LINK, { status: 404, location: null });
-    expect(await S34.run(broken.ctx)).toMatchObject({ failure_class: "invite_link_broken" });
+    await expect(S34.run(broken.ctx)).resolves.toMatchObject({ failure_class: "invite_link_broken" });
 
     const linkless = s34World();
-    const invite = linkless.app.invite;
+    const {invite} = linkless.app;
     linkless.app.invite = async (args) => {
       const answer = await invite(args);
       linkless.mail.robot.forEach((item) => (item.links = []));
       return answer;
     };
-    expect(await S34.run(linkless.ctx)).toMatchObject({ failure_class: "invite_link_broken" });
+    await expect(S34.run(linkless.ctx)).resolves.toMatchObject({ failure_class: "invite_link_broken" });
 
     const expired = s34World();
     expired.mail.links.set(RESET_LINK, { status: 500, location: null });
-    expect(await S34.run(expired.ctx)).toMatchObject({ failure_class: "reset_link_broken" });
+    await expect(S34.run(expired.ctx)).resolves.toMatchObject({ failure_class: "reset_link_broken" });
   });
 });
 
@@ -1339,7 +1339,7 @@ describe("what the runners take from the app, the seed and the sandbox", () => {
       { up_to: 2500, unit_amount: 0 },
       { up_to: null, unit_amount_decimal: "2.5" },
     ];
-    expect(graduatedAmount(pro, 2_510)).toBe(25);
+    expect(graduatedAmount(pro, 2510)).toBe(25);
     expect(graduatedAmount([{ up_to: null, unit_amount: 1, flat_amount: 100 }], 5)).toBe(105);
   });
 });

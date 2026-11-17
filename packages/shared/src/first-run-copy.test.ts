@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -20,7 +19,7 @@ import { describe, expect, it } from "vitest";
  * Adding a checklist row means adding its strings below.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 /**
  * Where each client's checklist LOGIC lives — the gate at the bottom is a claim

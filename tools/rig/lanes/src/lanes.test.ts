@@ -4,7 +4,8 @@ import { dirname, join } from "node:path";
 import { codeSamples, delay, mix } from "@loonext/rig-robot";
 import type { Page } from "playwright";
 import { afterAll, describe, expect, it } from "vitest";
-import { Adb, integerResource, manifestMetaValue, parsePackagePath, type Exec } from "./android/adb.ts";
+import { Adb, integerResource, manifestMetaValue, parsePackagePath } from './android/adb.ts';
+import type { Exec } from './android/adb.ts';
 import { ADB_VM_PORT, HOSTD_PORT, MAX_BOOTED, RIG_DEVICES } from "./android/devices.ts";
 import { BLOCKED_HOSTS, chromiumArgs, hostResolverRules } from "./browser/args.ts";
 import { judgeCapture, profileName, PublicPage } from "./browser/lane.ts";
@@ -119,7 +120,7 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
     const { exec, calls } = fakeExec({ "deviceidle get deep": "IDLE\n", "deviceidle force-idle": "Now forced in to deep idle mode\n" });
     const adb = rigAdb("emulator-5560", exec);
     await adb.forceDoze();
-    expect(await adb.dozeState()).toBe("IDLE");
+    await expect(adb.dozeState()).resolves.toBe("IDLE");
     await adb.setStandbyBucket(PKG, "rare");
     await adb.exitDoze();
     expect(calls).toEqual([
@@ -157,13 +158,14 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
   });
 
   const dir = mkdtempSync(join(tmpdir(), "rig-apk-test-"));
+
   afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
   it("installs a .nonprod build, from a copy, and confirms it is listed", async () => {
     const apk = join(dir, "app-nonprod.apk");
     writeFileSync(apk, "not really an apk");
     const { exec, calls } = fakeExec({ "dump packagename": `${PKG}\n`, "pm list packages": `package:${PKG}\n` });
-    expect(await rigAdb("PIXEL123", exec).install(apk)).toBe(PKG);
+    await expect(rigAdb("PIXEL123", exec).install(apk)).resolves.toBe(PKG);
     const install = calls.find((c) => c.includes(" install -r "))!;
     expect(install).not.toContain(apk);
     expect(install).toMatch(/rig-apk-.*app-nonprod\.apk$/);
@@ -183,14 +185,14 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
       "dump xmltree": MANIFEST,
       "dump resources": RESOURCES,
     });
-    expect(await rigAdb("PIXEL123", exec).manifestInteger(PKG, "com.google.android.gms.version")).toBe(12_451_000);
+    await expect(rigAdb("PIXEL123", exec).manifestInteger(PKG, "com.google.android.gms.version")).resolves.toBe(12_451_000);
     const pull = calls.find((c) => c.includes(" pull "))!;
     expect(pull).toMatch(new RegExp(`^adb -H 127\\.0\\.0\\.1 -P 15037 -s PIXEL123 pull /data/app/~~aB==/${PKG}-cD==/base\\.apk .*rig-apk-.*base\\.apk$`));
     expect(calls.filter((c) => c.startsWith("aapt2 dump"))).toHaveLength(2);
     expect(existsSync(dirname(pull.split(" ").at(-1)!))).toBe(false);
 
     const undeclared = fakeExec({ "pm path": `package:/data/app/${PKG}/base.apk`, "dump xmltree": MANIFEST.replaceAll("com.google.android.gms.version", "com.other") });
-    expect(await rigAdb("PIXEL123", undeclared.exec).manifestInteger(PKG, "com.google.android.gms.version")).toBeNull();
+    await expect(rigAdb("PIXEL123", undeclared.exec).manifestInteger(PKG, "com.google.android.gms.version")).resolves.toBeNull();
     expect(undeclared.calls.some((c) => c.includes("dump resources"))).toBe(false);
 
     const unresolved = fakeExec({ "pm path": `package:/data/app/${PKG}/base.apk`, "dump xmltree": MANIFEST, "dump resources": "Package name=x id=7f\n" });
@@ -201,7 +203,7 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
   it("reads a meta-data value whether the manifest states it or names a resource", () => {
     expect(manifestMetaValue(MANIFEST, "com.google.android.gms.version")).toBe("0x7f0b0005");
     expect(manifestMetaValue(MANIFEST.replace("=@0x7f0b0005", "=(type 0x10)0xbdfcb8"), "com.google.android.gms.version")).toBe(12_451_000);
-    expect(manifestMetaValue(MANIFEST, "com.google.firebase.messaging.default_notification_channel_id")).toBe(null);
+    expect(manifestMetaValue(MANIFEST, "com.google.firebase.messaging.default_notification_channel_id")).toBeNull();
     expect(integerResource(RESOURCES, "0x7f0b0005")).toBe(12_451_000);
     expect(integerResource(RESOURCES.replace("() 12451000", "() (integer) 0xbdfcb8"), "0x7f0b0005")).toBe(12_451_000);
     expect(integerResource(RESOURCES, "0x7f0b0006")).toBeNull();
@@ -217,11 +219,11 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
 
 function capture(samples: Float32Array, marks: PageCapture["marks"], stats: PageCapture["stats"] = []): PageCapture {
   const bytes = Buffer.alloc(samples.length * 2);
-  samples.forEach((x, i) => bytes.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x)) * 32767), i * 2));
+  samples.forEach((x, i) => bytes.writeInt16LE(Math.round(Math.max(-1, Math.min(1, x)) * 32_767), i * 2));
   return { sampleRate: 16_000, startedAt: 1_000_000, pcm_b64: bytes.toString("base64"), marks, stats, remoteStreams: 1 };
 }
 
-describe("judgeCapture", () => {
+describe(judgeCapture, () => {
   it("judges what the page heard from the answer mark, with the page's own code as echo", () => {
     // North American ringback, 440 + 480 Hz, for the three seconds before answer.
     const ringback = Float32Array.from({ length: 16_000 * 3 }, (_, i) =>
@@ -229,8 +231,8 @@ describe("judgeCapture", () => {
     );
     const heard = mix(
       ringback,
-      delay(codeSamples("robot", { sampleRate: 16_000, cycles: 8 }), 16_000, 3_200),
-      delay(codeSamples("qa-w-owner", { sampleRate: 16_000, cycles: 8, amplitude: 0.02 }), 16_000, 3_400),
+      delay(codeSamples("robot", { sampleRate: 16_000, cycles: 8 }), 16_000, 3200),
+      delay(codeSamples("qa-w-owner", { sampleRate: 16_000, cycles: 8, amplitude: 0.02 }), 16_000, 3400),
     );
     const result = judgeCapture(
       capture(heard, [{ name: "answered", at: 1_003_000 }], [
@@ -248,7 +250,7 @@ describe("judgeCapture", () => {
   });
 
   it("counts from a far-end answer time when the page did not answer itself", () => {
-    const late = delay(codeSamples("robot", { sampleRate: 16_000, cycles: 8 }), 16_000, 9_000);
+    const late = delay(codeSamples("robot", { sampleRate: 16_000, cycles: 8 }), 16_000, 9000);
     const raw = capture(late, []);
     expect(judgeCapture(raw, "qa-w-owner").detection.verdict).not.toBe("heard");
     const answered = judgeCapture(raw, "qa-w-owner", { answeredAt: 1_008_800 });

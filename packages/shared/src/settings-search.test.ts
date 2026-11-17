@@ -1,7 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import { SETTINGS_INDEX, searchSettings } from "./settings-search";
-import { canSeeSettingsSection, type SettingsSectionId } from "./settings-visibility";
+import { searchSettings, SETTINGS_INDEX } from "./settings-search";
+import { canSeeSettingsSection } from './settings-visibility';
+import type { SettingsSectionId } from './settings-visibility';
 
 const everything = (_section: SettingsSectionId) => true;
 const asRole = (role: "owner" | "admin" | "member") => (section: SettingsSectionId) =>

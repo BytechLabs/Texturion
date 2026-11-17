@@ -10,7 +10,7 @@
   "scripts": {
     "prepare": "git config core.hooksPath .githooks || true",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
+    "lint": "oxlint --type-aware --deny-warnings",
     "test": "pnpm -r test",
     "db:start": "node scripts/pin-postgres-image.mjs && pnpm dlx supabase start",
     "db:reset": "node scripts/pin-postgres-image.mjs && pnpm dlx supabase db reset",

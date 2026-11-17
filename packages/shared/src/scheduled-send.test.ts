@@ -11,14 +11,14 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 import { describe, expect, it } from "vitest";
 
 import {
+  isScheduledMessageLive,
+  SCHEDULED_HOLD_REASON_KEYS,
   SCHEDULED_HOLD_REASONS,
   SCHEDULED_MESSAGE_STATUSES,
-  isScheduledMessageLive,
-  schedulePresets,
   scheduledClockProvenance,
-  scheduledReasonRecovers,
-  SCHEDULED_HOLD_REASON_KEYS,
   scheduledHoldText,
+  scheduledReasonRecovers,
+  schedulePresets,
 } from "./scheduled-send";
 
 /**
@@ -34,7 +34,7 @@ const sayFr = (key: string): string => look(WEB_FR, key);
 function look(table: unknown, key: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -63,7 +63,7 @@ describe("#233 presets land on the destination's wall clock", () => {
     const now = new Date("2026-06-15T21:00:00Z");
     const [tomorrow] = schedulePresets(now, "America/Los_Angeles", sayEn);
     expect(tomorrow.at).not.toBeNull();
-    expect(hourIn(tomorrow.at as Date, "America/Los_Angeles")).toBe(8);
+    expect(hourIn(tomorrow.at!, "America/Los_Angeles")).toBe(8);
   });
 
   it("is still 8am across the spring-forward boundary", () => {
@@ -71,7 +71,7 @@ describe("#233 presets land on the destination's wall clock", () => {
     // implementation returns 9am here and nobody notices until a customer does.
     const now = new Date("2026-03-07T12:00:00Z");
     const [tomorrow] = schedulePresets(now, "America/New_York", sayEn);
-    expect(hourIn(tomorrow.at as Date, "America/New_York")).toBe(8);
+    expect(hourIn(tomorrow.at!, "America/New_York")).toBe(8);
   });
 
   it("is still 8am across the fall-back boundary", () => {
@@ -79,14 +79,14 @@ describe("#233 presets land on the destination's wall clock", () => {
     // that produces a 7am text.
     const now = new Date("2026-10-31T12:00:00Z");
     const [tomorrow] = schedulePresets(now, "America/New_York", sayEn);
-    expect(hourIn(tomorrow.at as Date, "America/New_York")).toBe(8);
+    expect(hourIn(tomorrow.at!, "America/New_York")).toBe(8);
   });
 
   it("lands Monday on a Monday, in that zone", () => {
     const now = new Date("2026-06-17T15:00:00Z"); // a Wednesday
     const monday = schedulePresets(now, "America/New_York", sayEn)[1];
-    expect(weekdayIn(monday.at as Date, "America/New_York")).toBe("Mon");
-    expect(hourIn(monday.at as Date, "America/New_York")).toBe(8);
+    expect(weekdayIn(monday.at!, "America/New_York")).toBe("Mon");
+    expect(hourIn(monday.at!, "America/New_York")).toBe(8);
   });
 
   it("means NEXT Monday when today is already Monday", () => {
@@ -94,8 +94,8 @@ describe("#233 presets land on the destination's wall clock", () => {
     // which the API would reject as in_the_past — a preset that cannot be used.
     const now = new Date("2026-06-15T18:00:00Z"); // Monday
     const monday = schedulePresets(now, "America/New_York", sayEn)[1];
-    expect(weekdayIn(monday.at as Date, "America/New_York")).toBe("Mon");
-    expect((monday.at as Date).getTime()).toBeGreaterThan(now.getTime());
+    expect(weekdayIn(monday.at!, "America/New_York")).toBe("Mon");
+    expect((monday.at!).getTime()).toBeGreaterThan(now.getTime());
   });
 
   it("never offers a preset that is already in the past", () => {
@@ -173,7 +173,7 @@ describe("#233 what we tell somebody when it did not send", () => {
 
   it("classifies every status as live or done, with none missed", () => {
     const live = SCHEDULED_MESSAGE_STATUSES.filter(isScheduledMessageLive);
-    expect([...live].sort()).toEqual(["held", "pending"]);
+    expect([...live].toSorted()).toEqual(["held", "pending"]);
   });
 });
 
@@ -188,13 +188,13 @@ describe("#233 whose clock it was", () => {
   const say = (key: string): string => {
     const [section, name] = key.split(".");
     const value = (WEB_EN as Record<string, Record<string, string>>)[section]?.[name];
-    if (typeof value !== "string") throw new Error(`no English for ${key}`);
+    if (typeof value !== "string") throw new TypeError(`no English for ${key}`);
     return value;
   };
   const sayFr = (key: string): string => {
     const [section, name] = key.split(".");
     const value = (WEB_FR as Record<string, Record<string, string>>)[section]?.[name];
-    if (typeof value !== "string") throw new Error(`no French for ${key}`);
+    if (typeof value !== "string") throw new TypeError(`no French for ${key}`);
     return value;
   };
 
@@ -246,8 +246,8 @@ describe("SCHEDULED_HOLD_REASON_KEYS", () => {
   it("covers exactly the reasons that have sentences, both directions", () => {
     // Set equality. A reason added to one map and not the other is the whole
     // failure mode, and `satisfies` only catches the missing-key half.
-    expect(Object.keys(SCHEDULED_HOLD_REASON_KEYS).sort()).toEqual(
-      Object.keys(SCHEDULED_HOLD_REASONS).sort(),
+    expect(Object.keys(SCHEDULED_HOLD_REASON_KEYS).toSorted()).toEqual(
+      Object.keys(SCHEDULED_HOLD_REASONS).toSorted(),
     );
   });
 

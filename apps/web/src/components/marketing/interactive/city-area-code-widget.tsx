@@ -13,20 +13,15 @@
  * aria-live result; cobalt focus rings (§7).
  */
 
-import {
-  useEffect,
-  useId,
-  useMemo,
-  useRef,
-  useState,
-  type KeyboardEvent,
-} from "react";
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import type { KeyboardEvent } from 'react';
 
 import { useCountry } from "@/components/marketing/country";
 import { APP_LINKS } from "@/lib/marketing/site";
 import { cn } from "@/lib/utils";
 
-import { resolveQuery, type AreaCodeResult } from "./city-lookup";
+import { resolveQuery } from './city-lookup';
+import type { AreaCodeResult } from './city-lookup';
 
 /** The local example each country seeds with (a real metro in the NANP index):
  *  Toronto (416) for Canada, Austin (512) for the US. */
@@ -123,22 +118,26 @@ export function CityAreaCodeWidget() {
     }
 
     switch (e.key) {
-      case "ArrowDown":
+      case "ArrowDown": {
         e.preventDefault();
         setActiveIndex((i) => (i + 1) % results.length);
         break;
-      case "ArrowUp":
+      }
+      case "ArrowUp": {
         e.preventDefault();
         setActiveIndex((i) => (i <= 0 ? results.length - 1 : i - 1));
         break;
-      case "Home":
+      }
+      case "Home": {
         e.preventDefault();
         setActiveIndex(0);
         break;
-      case "End":
+      }
+      case "End": {
         e.preventDefault();
         setActiveIndex(results.length - 1);
         break;
+      }
       case "Enter": {
         const r = activeIndex >= 0 ? results[activeIndex] : results[0];
         if (r) {
@@ -147,13 +146,15 @@ export function CityAreaCodeWidget() {
         }
         break;
       }
-      case "Escape":
+      case "Escape": {
         e.preventDefault();
         setOpen(false);
         setActiveIndex(-1);
         break;
-      default:
+      }
+      default: {
         break;
+      }
     }
   };
 

@@ -20,7 +20,7 @@ function resolver(table: unknown) {
   return (key: string, vars: Record<string, string> = {}): string => {
     const [section, name] = key.split(".");
     const text = (table as Record<string, Record<string, string>>)[section]?.[name];
-    if (typeof text !== "string") throw new Error(`no entry for ${key}`);
+    if (typeof text !== "string") throw new TypeError(`no entry for ${key}`);
     return Object.entries(vars).reduce(
       (out, [token, value]) => out.split(`{${token}}`).join(value),
       text,
@@ -33,7 +33,7 @@ const sayFr = resolver(WEB_FR);
 
 const jpeg = { name: "site.jpg", type: "image/jpeg", size: 500_000 };
 
-describe("validateMmsFile", () => {
+describe(validateMmsFile, () => {
   it("admits a deliverable file and resolves its send type", () => {
     const check = validateMmsFile(jpeg, 0, sayEn);
     expect(check).toEqual({ ok: true, contentType: "image/jpeg" });
@@ -107,7 +107,7 @@ describe("validateMmsFile", () => {
   });
 });
 
-describe("partitionMmsFiles", () => {
+describe(partitionMmsFiles, () => {
   it("admits up to the cap and rejects the tail with the cap sentence", () => {
     const files = Array.from({ length: 5 }, (_, i) => ({
       name: `photo-${i}.jpg`,
@@ -136,7 +136,7 @@ describe("partitionMmsFiles", () => {
   });
 });
 
-describe("MMS_ACCEPT", () => {
+describe(MMS_ACCEPT, () => {
   it("offers the deliverable MIME set plus the empty-type extensions", () => {
     expect(MMS_ACCEPT).toContain("image/jpeg");
     expect(MMS_ACCEPT).toContain("video/mp4");

@@ -20,12 +20,15 @@ export function itemsForTab(items: GalleryItem[], tab: GalleryTab): GalleryItem[
 /** Origin `source` → the display tag shown on a thumbnail (UI layer only). */
 export function sourceLabel(source: GallerySource): string {
   switch (source) {
-    case "mms":
+    case "mms": {
       return "Message";
-    case "note":
+    }
+    case "note": {
       return "Note";
-    case "task":
+    }
+    case "task": {
       return "Task";
+    }
   }
 }
 
@@ -63,7 +66,7 @@ export function groupByDate(
   for (const item of items) {
     const label = dateGroupLabel(item.created_at, now);
     const last = groups[groups.length - 1];
-    if (last && last.label === label) {
+    if (last?.label === label) {
       last.items.push(item);
     } else {
       groups.push({ label, items: [item] });

@@ -8,12 +8,8 @@
  * cannot be taken back, and it lives on the Trash page behind a typed
  * confirmation, never behind an undo toast.
  */
-import {
-  useInfiniteQuery,
-  useMutation,
-  useQueryClient,
-  type QueryClient,
-} from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 
 import { useCompanyId } from "@/lib/company/provider";
 

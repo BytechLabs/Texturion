@@ -51,7 +51,8 @@ import { getEnv } from "../env";
 import { notifyPromotedMessageDone } from "../tasks/notify";
 import { askForJobRating } from "../messaging/job-ratings";
 import { ApiError } from "../http/errors";
-import { encodeCursor, type Cursor } from "../http/pagination";
+import { encodeCursor } from '../http/pagination';
+import type { Cursor } from '../http/pagination';
 import {
   decodeOutboundMedia,
   MAX_OUTBOUND_MEDIA_BODY_BYTES,
@@ -267,8 +268,8 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
   // gateOutboundSend, counting against the plan allowance + the #85 fair-use
   // overage exactly like text. No paid module, no separate MMS cap. (Incoming
   // pictures are always free — this path is outbound-only.)
-  const text = prepared.text;
-  const segmentsEstimate = prepared.segmentsEstimate;
+  const {text} = prepared;
+  const {segmentsEstimate} = prepared;
 
   // §7/§10: opt-out → rate → cap, atomic with the queued insert.
   const { message, existing } = await gateOutboundSend(db, {
@@ -308,13 +309,13 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
       });
       attachments = uploaded.summaries;
       mediaUrls = await signedMediaUrls(db, uploaded.storagePaths);
-    } catch (cause) {
+    } catch (error) {
       await persistSendInterruption(
         db,
         message,
         "The send was interrupted before reaching the carrier.",
       );
-      throw cause;
+      throw error;
     }
   }
 
@@ -340,8 +341,8 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
         p_template_id: body.template_id,
         p_edited: body.template_edited ?? false,
       });
-    } catch (cause) {
-      console.warn(`template use not recorded: ${String(cause)}`);
+    } catch (error) {
+      console.warn(`template use not recorded: ${String(error)}`);
     }
   }
 
@@ -384,7 +385,7 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
     stateMachines
       .allowedActions(
         stateMachines.messageMachine,
-        (message.status ?? "received") as stateMachines.MessageState,
+        (message.status ?? "received"),
         c.get("role"),
       )
       .includes("retry") || stuckQueued;
@@ -549,21 +550,21 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
   // (it's organizational, not an audited transition like done).
   const userId = c.get("userId");
   const { data, error } =
-    body.pinned !== undefined
-      ? await db.rpc("set_message_pinned", {
-          p_company_id: companyId,
-          p_message_id: message.id,
-          p_pinned: body.pinned,
-          p_actor_user_id: userId,
-        })
-      : await db.rpc("set_message_done", {
+    body.pinned === undefined
+      ? await db.rpc("set_message_done", {
           p_company_id: companyId,
           p_message_id: message.id,
           p_done: body.done,
           p_actor_user_id: userId,
+        })
+      : await db.rpc("set_message_pinned", {
+          p_company_id: companyId,
+          p_message_id: message.id,
+          p_pinned: body.pinned,
+          p_actor_user_id: userId,
         });
   if (error) {
-    const fn = body.pinned !== undefined ? "set_message_pinned" : "set_message_done";
+    const fn = body.pinned === undefined ? "set_message_done" : "set_message_pinned";
     throw new Error(`${fn} failed: ${error.message}`);
   }
   const result = data as {
@@ -604,8 +605,8 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
       messageId: updated.id,
       actorUserId: userId,
       done: body.done,
-    }).catch((cause: unknown) => {
-      console.error("task done alert failed:", cause);
+    }).catch((error_: unknown) => {
+      console.error("task done alert failed:", error_);
     });
     executionCtxOf(c)?.waitUntil(alert);
   }
@@ -662,8 +663,8 @@ function onPromotedMessageDone(
       taskId: task.id,
       userId: input.userId,
     });
-  })().catch((cause: unknown) => {
-    console.error("job rating ask failed:", cause);
+  })().catch((error: unknown) => {
+    console.error("job rating ask failed:", error);
   });
   executionCtxOf(c)?.waitUntil(work);
 }
@@ -766,7 +767,7 @@ messageRoutes.get(
         .limit(count + 1);
       const rows = unwrap<Row[]>(await q, "messages newer list");
       return {
-        rows: rows.slice(0, count).reverse(),
+        rows: rows.slice(0, count).toReversed(),
         more: rows.length > count,
       };
     };
@@ -790,18 +791,17 @@ messageRoutes.get(
       // Continues downward from this page's oldest row, which is what lets a
       // client refetch a stack of newer pages by following next_cursor alone.
       nextCursor = rows.length > 0 ? cursorOf(rows[rows.length - 1]) : null;
-    } else if (around !== null) {
+    } else if (around === null) {
+      const page = await olderThan(cursor, limit);
+      rows = page.rows;
+      nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
+    } else {
       const anchors = unwrap<Row[]>(
         await base().eq("id", around).limit(1),
         "message anchor lookup",
       );
       const anchor = anchors[0];
-      if (!anchor) {
-        anchorMissing = true;
-        const page = await olderThan(cursor, limit);
-        rows = page.rows;
-        nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
-      } else {
+      if (anchor) {
         anchorId = anchor.id;
         const half = Math.floor((limit - 1) / 2);
         const at = { ts: anchor.created_at, id: anchor.id };
@@ -814,11 +814,12 @@ messageRoutes.get(
           ? cursorOf(older.rows[older.rows.length - 1])
           : null;
         newerCursor = newer.more ? cursorOf(newer.rows[0]) : null;
+      } else {
+        anchorMissing = true;
+        const page = await olderThan(cursor, limit);
+        rows = page.rows;
+        nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
       }
-    } else {
-      const page = await olderThan(cursor, limit);
-      rows = page.rows;
-      nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
     }
 
     const page = { data: rows };

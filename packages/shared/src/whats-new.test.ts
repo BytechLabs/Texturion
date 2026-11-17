@@ -12,13 +12,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  WHATS_NEW,
-  hasUnseenWhatsNew,
-  latestWhatsNewDate,
-  unseenEntries,
-  type WhatsNewEntry,
-} from "./whats-new";
+import { hasUnseenWhatsNew, latestWhatsNewDate, unseenEntries, WHATS_NEW } from './whats-new';
+import type { WhatsNewEntry } from './whats-new';
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
@@ -30,7 +25,7 @@ const entries: WhatsNewEntry[] = [
 describe("#321 the entries report what shipped", () => {
   it("is ordered newest first, which is what the page renders", () => {
     const dates = WHATS_NEW.map((e) => e.date);
-    expect([...dates].sort().reverse()).toEqual(dates);
+    expect([...dates].toSorted().toReversed()).toEqual(dates);
   });
 
   it("never announces something that has not happened", () => {
@@ -139,7 +134,7 @@ describe("#228 the changelog reads in both languages", () => {
   const lookUp = (table: unknown, key: string, lang: string): string => {
     const [section, name] = key.split(".");
     const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-    if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+    if (typeof value !== "string") throw new TypeError(`no ${lang} for ${key}`);
     return value;
   };
   const say = (key: string) => lookUp(WEB_EN, key, "English");

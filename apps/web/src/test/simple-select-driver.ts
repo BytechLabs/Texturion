@@ -7,7 +7,7 @@ import { fireEvent } from "@testing-library/react";
  * with `.value`.
  */
 export function selectedValue(trigger: HTMLElement): string {
-  return trigger.getAttribute("data-value") ?? "";
+  return trigger.dataset.value ?? "";
 }
 
 /** Open the select and choose the option with this value. */

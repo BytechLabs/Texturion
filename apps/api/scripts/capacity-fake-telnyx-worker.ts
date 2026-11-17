@@ -13,7 +13,8 @@
  * `200 {"data":{}}`, which also stands in for Stripe and Resend when the API
  * Worker is pointed here for them.
  */
-import { createVoiceModel, type FakeResponse } from "../e2e/fake-telnyx-voice.ts";
+import { createVoiceModel } from '../e2e/fake-telnyx-voice.ts';
+import type { FakeResponse } from '../e2e/fake-telnyx-voice.ts';
 
 interface SwitchStub {
   fetch(request: Request): Promise<Response>;

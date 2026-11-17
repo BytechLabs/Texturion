@@ -120,7 +120,7 @@ export function notificationSnippet(
   mediaCount: number,
   locale: Locale,
 ): string {
-  const text = body.trim().replace(/\s+/g, " ");
+  const text = body.trim().replaceAll(/\s+/g, " ");
   if (text.length === 0) {
     // #189: MMS is not photos-only (audio, video, contact cards, PDFs…).
     const copy = THREAD_PUSH_COPY[locale];
@@ -304,8 +304,8 @@ export async function notifyInboundMessage(
           headers: { "List-Unsubscribe": `<${settingsUrl}>` },
         });
       }
-    } catch (cause) {
-      failures.push(cause);
+    } catch (error) {
+      failures.push(error);
     }
   }
 
@@ -371,9 +371,9 @@ export async function notifyInboundMessage(
     // input an outsider controls, so it is the one with a ceiling.
     highPriority: input.emergency
       ? { companyId: input.companyId, reason: "emergency" }
-      : input.lead
+      : (input.lead
         ? { companyId: input.companyId, reason: "lead" }
-        : undefined,
+        : undefined),
     failures,
   });
 

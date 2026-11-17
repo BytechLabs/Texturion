@@ -13,7 +13,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { Hono } from "hono";
 
 import type { AppEnv } from "../context";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, stubFetch } from "../test/support";
 import { publicQuoteRoutes } from "./quotes-public";
 
@@ -40,7 +41,7 @@ const app = new Hono<AppEnv>();
 app.route("/", publicQuoteRoutes);
 
 const call = (path: string, init: RequestInit = {}) =>
-  app.request(path, init, env as unknown as Record<string, unknown>);
+  app.request(path, init, env);
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -160,7 +161,7 @@ describe("GET /q/:token", () => {
     const missing = await call(`/q/${TOKEN}`);
 
     expect(expired.status).toBe(missing.status);
-    expect(await expired.text()).toBe(await missing.text());
+    await expect(expired.text()).resolves.toBe(await missing.text());
   });
 });
 
@@ -196,7 +197,7 @@ describe("POST /q/:token/accept", () => {
 
     const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ accepted: true, status: "accepted" });
+    await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
 
     const revoke = sb.find("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject")[0];
     // #571: the company id is required and first. Without it this revoked any
@@ -295,7 +296,7 @@ describe("POST /q/:token/accept", () => {
 
     const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ accepted: true, status: "accepted" });
+    await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
   });
 
   it("refuses to bind anybody to a price that has lapsed", async () => {
@@ -324,7 +325,7 @@ describe("POST /q/:token/accept", () => {
 
     const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ accepted: true, status: "accepted" });
+    await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
   });
 
   it("the same acceptance applied twice tells the thread once", async () => {
@@ -432,7 +433,7 @@ describe("#581 the view token is not the accept token", () => {
     // The token is generated in the Worker and only its HASH is sent to the
     // database, so this asserts the property rather than a fixture string: a
     // real credential came back, and it is NOT the one in the URL.
-    expect(typeof body.accept_token).toBe("string");
+    expect(body.accept_token).toBeTypeOf("string");
     expect(body.accept_token!.length).toBeGreaterThan(20);
     expect(body.accept_token).not.toBe(TOKEN);
   });

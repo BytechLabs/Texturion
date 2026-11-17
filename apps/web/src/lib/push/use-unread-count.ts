@@ -19,7 +19,8 @@ import { useConversations } from "@/lib/api/conversations";
 import { keys } from "@/lib/api/keys";
 import { useCompanyId } from "@/lib/company/provider";
 
-import { countUnreadConversations, type UnreadCountableList } from "./title";
+import { countUnreadConversations } from './title';
+import type { UnreadCountableList } from './title';
 
 export function useUnreadConversationCount(): number {
   const companyId = useCompanyId();

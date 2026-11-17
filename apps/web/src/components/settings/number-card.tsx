@@ -15,7 +15,8 @@ import type { NumberHoldState } from "@/components/settings/number-hold";
 import { NumberHoldNote } from "@/components/settings/number-hold-note";
 import { mayReleaseNumber } from "@/components/settings/release-number";
 import { ReleaseNumberDialog } from "@/components/settings/release-number-dialog";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import type { PhoneNumberSummary } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
@@ -66,22 +67,24 @@ function StatusBadge({ number }: { number: PhoneNumberSummary }) {
     </Badge>
   );
   switch (number.status) {
-    case "active":
+    case "active": {
       return (
         <Badge className="border-transparent bg-success/10 text-success">
           {t("settingsMore.numberStatusActive")}
         </Badge>
       );
-    case "provisioning":
+    }
+    case "provisioning": {
       return amber(t("settingsMore.numberStatusSettingUp"));
-    case "provision_failed":
+    }
+    case "provision_failed": {
       // The lie ends here: a stuck provision is a DISTINCT state, never the same
       // amber "Setting up" as a number actually still being set up. A 'timeout'
       // (a Telnyx order that stalled) is a calm amber "Action needed" — nothing
       // broke, just pick a number; a real failure (no inventory / out of
       // attempts) is the red "Couldn't set up".
       if (!needsNumberChoice(number))
-        return amber(t("settingsMore.numberStatusSettingUp"));
+        {return amber(t("settingsMore.numberStatusSettingUp"));}
       return number.failure_reason === "timeout" ? (
         amber(t("settingsMore.numberStatusActionNeeded"))
       ) : (
@@ -89,14 +92,17 @@ function StatusBadge({ number }: { number: PhoneNumberSummary }) {
           {t("settingsMore.numberStatusSetupFailed")}
         </Badge>
       );
-    case "suspended":
+    }
+    case "suspended": {
       return amber(t("settingsMore.numberStatusSuspended"));
-    case "released":
+    }
+    case "released": {
       return (
         <Badge variant="secondary">
           {t("settingsMore.numberStatusReleased")}
         </Badge>
       );
+    }
   }
 }
 
@@ -168,7 +174,7 @@ export function NumberCard({
               // clipboard permission or an insecure context rejects, and a
               // false "copied" toast leaves the user pasting stale data.
               void navigator.clipboard
-                .writeText(number.number_e164 as string)
+                .writeText(number.number_e164!)
                 .then(() => toast.success(t("settingsMore.numberCopied")))
                 .catch(() => toast.error(t("settingsMore.numberCopyFailed")));
             }}

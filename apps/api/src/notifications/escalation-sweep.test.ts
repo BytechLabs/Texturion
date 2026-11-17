@@ -64,7 +64,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("runEscalationSweep", () => {
+describe(runEscalationSweep, () => {
   it("ES-1: widens to the rest of the crew, not to the person already paged", async () => {
     // They have the first notification on their phone. A second one telling
     // them nobody has picked it up is the product arguing with itself.
@@ -143,9 +143,9 @@ describe("runEscalationSweep", () => {
     await runEscalationSweep(fcmEnv(account));
 
     expect(service.sends).toHaveLength(1);
-    const headers = (
+    const {headers} = (
       service.sends[0].message as { apns: { headers: Record<string, string> } }
-    ).apns.headers;
+    ).apns;
     expect(headers["apns-collapse-id"]).toBe("escalation:alert-1");
     expect(headers["apns-collapse-id"]).not.toBe(`conversation:${CONVERSATION}`);
 

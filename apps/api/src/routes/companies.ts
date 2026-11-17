@@ -32,7 +32,8 @@ import {
 import { Hono } from "hono";
 import { z } from "zod";
 
-import { type CompanyAiSettings, loadAiSettings } from "../ai/settings";
+import { loadAiSettings } from '../ai/settings';
+import type { CompanyAiSettings } from '../ai/settings';
 import { auditDiff } from "../audit/diff";
 import { recordAuditFromRequest } from "../audit/log";
 import { alertProhibitedCategory } from "../messaging/aup-signup-screen";
@@ -42,9 +43,9 @@ import { getDb } from "../db";
 import {
   ATTRIBUTION_PARAMS,
   CREW_SIZE_BUCKETS,
-  SIGNUP_SOURCES,
   sanitizeAttributionValue,
   sanitizeLandingPath,
+  SIGNUP_SOURCES,
 } from "@loonext/shared";
 import { attributeReferral } from "../referrals/referrals";
 import { getEnv } from "../env";
@@ -58,10 +59,10 @@ import {
   billingWritesEnabled,
   COMPANY_COLUMNS,
   loadCompanyView,
-  withCallerIdDerived,
   withAwayDerived,
-  withEmergencyDerived,
   withBillingRedacted,
+  withCallerIdDerived,
+  withEmergencyDerived,
   withIdentificationDerived,
   withLifecycleActions,
   withMctbDerived,
@@ -536,7 +537,7 @@ companiesRoutes.post("/companies", async (c) => {
       p_us_texting_enabled:
         body.country === "US" ? true : (body.us_texting_enabled ?? companySettingDefault("us_texting_enabled")),
       // Omitted → the SQL default ('America/Toronto', D15) applies.
-      ...(body.timezone !== undefined ? { p_timezone: body.timezone } : {}),
+      ...(body.timezone === undefined ? {} : { p_timezone: body.timezone }),
     }),
     "company create",
   );
@@ -566,7 +567,7 @@ companiesRoutes.post("/companies", async (c) => {
     const { error: stageError } = await db
       .from("companies")
       .update(staged)
-      .eq("id", company.id as string);
+      .eq("id", company.id);
     if (stageError) {
       // Never fail the signup over a segmentation field. The workspace is more
       // important than knowing how big its crew is or where it came from.
@@ -598,13 +599,13 @@ companiesRoutes.post("/companies", async (c) => {
         companyId: company.id as string,
         matches: flags,
       });
-    } catch (cause) {
+    } catch (error) {
       // Awaited inside a try rather than handed to `executionCtx.waitUntil`.
       // The execution context is not present in every environment this route
       // runs in, and reaching for it turned a working signup into a 500 —
       // which is a far worse bug than the one this screen prevents. The same
       // shape as the referral block below, for the same reason.
-      console.error(`aup signup screen alert skipped: ${String(cause)}`);
+      console.error(`aup signup screen alert skipped: ${String(error)}`);
     }
   }
 
@@ -619,8 +620,8 @@ companiesRoutes.post("/companies", async (c) => {
         refereeCompanyId: company.id as string,
         refereeOwnerUserId: c.get("userId"),
       });
-    } catch (cause) {
-      console.error(`referral attribution skipped: ${String(cause)}`);
+    } catch (error) {
+      console.error(`referral attribution skipped: ${String(error)}`);
     }
   }
 
@@ -651,10 +652,10 @@ companiesRoutes.post("/companies", async (c) => {
             signup_landing_path: landing,
             signup_first_touch: touch,
           })
-          .eq("id", company.id as string);
+          .eq("id", company.id);
       }
-    } catch (cause) {
-      console.error(`signup attribution skipped: ${String(cause)}`);
+    } catch (error) {
+      console.error(`signup attribution skipped: ${String(error)}`);
     }
   }
 
@@ -662,7 +663,7 @@ companiesRoutes.post("/companies", async (c) => {
     const { error: chosenError } = await db
       .from("companies")
       .update({ chosen_number_e164: body.chosen_number_e164 })
-      .eq("id", company.id as string);
+      .eq("id", company.id);
     if (chosenError) {
       throw new Error(`chosen number persist failed: ${chosenError.message}`);
     }
@@ -1250,7 +1251,7 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
   // lets a test double recognise it (routes-harness.ts narrows its ambient
   // company handlers by select for exactly this reason).
   const patchedColumns = Object.keys(patch);
-  const priorSettings = patchedColumns.length
+  const priorSettings = patchedColumns.length > 0
     ? (
         await db
           .from("companies")
@@ -1320,10 +1321,10 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
   const turnedOnVoice = body.mctb_enabled === true;
   if (turnedOnVoice) {
     const enable = enableVoiceForCompany(env, db, c.get("companyId")).catch(
-      (cause: unknown) => {
+      (error: unknown) => {
         console.error(
           `voice enable for company ${c.get("companyId")} failed:`,
-          cause instanceof Error ? cause.message : String(cause),
+          error instanceof Error ? error.message : String(error),
         );
       },
     );
@@ -1350,12 +1351,12 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
     const companyId = c.get("companyId");
     const sync = (async () => {
       const { pushed } = await syncCallSettingsForCompany(env, db, companyId, {
-        ...(body.call_screening !== undefined
-          ? { callScreening: body.call_screening }
-          : {}),
-        ...(body.caller_id_lookup !== undefined
-          ? { callerIdLookup: body.caller_id_lookup }
-          : {}),
+        ...(body.call_screening === undefined
+          ? {}
+          : { callScreening: body.call_screening }),
+        ...(body.caller_id_lookup === undefined
+          ? {}
+          : { callerIdLookup: body.caller_id_lookup }),
         ...("cnam_display_name" in body || renameChangedCallerId
           ? {
               cnamDisplayName: effectiveCnamDisplayName({
@@ -1377,10 +1378,10 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
           throw new Error(`cnam_submitted_at stamp failed: ${error.message}`);
         }
       }
-    })().catch((cause: unknown) => {
+    })().catch((error: unknown) => {
       console.error(
         `call settings sync for company ${companyId} failed:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error instanceof Error ? error.message : String(error),
       );
     });
     const ctx = executionCtxOf(c);

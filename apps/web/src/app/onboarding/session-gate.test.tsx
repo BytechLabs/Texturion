@@ -35,7 +35,7 @@ function markup(): string {
   );
 }
 
-describe("OnboardingSessionGate", () => {
+describe(OnboardingSessionGate, () => {
   it("renders the wizard while the session is resolving or live", () => {
     for (const state of ["pending", "ready"]) {
       sessionState.current = state;

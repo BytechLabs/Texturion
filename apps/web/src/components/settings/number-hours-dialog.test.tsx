@@ -16,7 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 const { save, identity } = vi.hoisted(() => ({
   save: vi.fn(),
   identity: {
-    current: {} as Record<string, { value: unknown; inherited: boolean }>,
+    current: {},
   },
 }));
 

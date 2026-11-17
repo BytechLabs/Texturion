@@ -43,7 +43,7 @@ export async function signedTelnyxRequest(
       new TextEncoder().encode(`${timestamp}|${body}`),
     ),
   );
-  if (options.tamper) signature[0] ^= 0xff;
+  if (options.tamper) signature[0] ^= 0xFF;
   return new Request("https://api.loonext.com/webhooks/telnyx", {
     method: "POST",
     headers: {
@@ -120,7 +120,7 @@ export function restMatch(
   table: string,
   extra?: (url: URL) => boolean,
 ): (url: URL, request: Request) => boolean {
-  const origin = new URL(env.SUPABASE_URL).origin;
+  const {origin} = new URL(env.SUPABASE_URL);
   return (url, request) =>
     request.method === method &&
     url.origin === origin &&
@@ -133,7 +133,7 @@ export function rpcMatch(
   env: Env,
   fn: string,
 ): (url: URL, request: Request) => boolean {
-  const origin = new URL(env.SUPABASE_URL).origin;
+  const {origin} = new URL(env.SUPABASE_URL);
   return (url, request) =>
     request.method === "POST" &&
     url.origin === origin &&
@@ -144,7 +144,7 @@ export function rpcMatch(
 export function storageUploadMatch(
   env: Env,
 ): (url: URL, request: Request) => boolean {
-  const origin = new URL(env.SUPABASE_URL).origin;
+  const {origin} = new URL(env.SUPABASE_URL);
   return (url, request) =>
     request.method === "POST" &&
     url.origin === origin &&
@@ -155,7 +155,7 @@ export function storageUploadMatch(
 export function storageSignMatch(
   env: Env,
 ): (url: URL, request: Request) => boolean {
-  const origin = new URL(env.SUPABASE_URL).origin;
+  const {origin} = new URL(env.SUPABASE_URL);
   return (url, request) =>
     request.method === "POST" &&
     url.origin === origin &&

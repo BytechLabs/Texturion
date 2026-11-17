@@ -37,8 +37,8 @@ const IOS = join(REPO_ROOT, "apps/ios/Loonext/Core/I18n/ApiKeysStrings.swift");
  */
 function joinWrapped(text: string): string {
   return text
-    .replace(/"\s*\+\s*\n\s*"/g, "")
-    .replace(/"\s*\n\s*\+\s*"/g, "");
+    .replaceAll(/"\s*\+\s*\n\s*"/g, "")
+    .replaceAll(/"\s*\n\s*\+\s*"/g, "");
 }
 
 /** Kotlin `"key" to "value"` pairs, in declaration order. */
@@ -46,7 +46,7 @@ function kotlinPairs(text: string): [string, string][] {
   const out: [string, string][] = [];
   const re = /"([^"]+)"\s+to\s*\n?\s*"((?:[^"\\]|\\.)*)"/g;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(joinWrapped(text)))) out.push([match[1]!, match[2]!]);
+  while ((match = re.exec(joinWrapped(text)))) out.push([match[1], match[2]]);
   return out;
 }
 
@@ -55,7 +55,7 @@ function swiftPairs(text: string): [string, string][] {
   const out: [string, string][] = [];
   const re = /"([^"]+)"\s*:\s*\n?\s*"((?:[^"\\]|\\.)*)"/g;
   let match: RegExpExecArray | null;
-  while ((match = re.exec(joinWrapped(text)))) out.push([match[1]!, match[2]!]);
+  while ((match = re.exec(joinWrapped(text)))) out.push([match[1], match[2]]);
   return out;
 }
 
@@ -122,12 +122,12 @@ describe("#243 API key copy is the same product on all three clients", () => {
 
   for (const client of CLIENTS) {
     it(`${client.name} holds exactly the web's keys, both languages`, () => {
-      const web = [...webMap(apiKeysEn).keys()].sort();
+      const web = [...webMap(apiKeysEn).keys()].toSorted();
       // Set equality in BOTH directions. A containment check passes when a
       // client grows a key the others never got, which is how one phone ends
       // up quietly saying something the other cannot.
-      expect([...client.en.keys()].sort()).toEqual(web);
-      expect([...client.fr.keys()].sort()).toEqual(web);
+      expect([...client.en.keys()].toSorted()).toEqual(web);
+      expect([...client.fr.keys()].toSorted()).toEqual(web);
     });
 
     it(`${client.name} says the same English, word for word`, () => {
@@ -163,11 +163,7 @@ describe("#243 API key copy is the same product on all three clients", () => {
     // English value because somebody duplicated the block and translated most
     // of it. Checked against the whole catalogue rather than a sample, and
     // exempting only what is deliberately identical in both languages.
-    const identicalOnPurpose = new Set<string>([
-      // Nothing yet. Every sentence on this screen is prose, so any English
-      // appearing in the French map is a copy-paste rather than a word that
-      // happens to be the same.
-    ]);
+    const identicalOnPurpose = new Set<string>();
     const shared: string[] = [];
     for (const [key, english] of webMap(apiKeysEn)) {
       if (identicalOnPurpose.has(key)) continue;

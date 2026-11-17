@@ -32,12 +32,8 @@ import {
   screen,
   waitFor,
 } from "@testing-library/react";
-import {
-  CONTACT_IMPORT_IGNORE,
-  formatContactImportColumn,
-  readContactFlag,
-  type ContactImportColumnDeclaration,
-} from "@loonext/shared";
+import { CONTACT_IMPORT_IGNORE, formatContactImportColumn, readContactFlag } from '@loonext/shared';
+import type { ContactImportColumnDeclaration } from '@loonext/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { csvMutate, sheet } = vi.hoisted(() => ({

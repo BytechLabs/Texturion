@@ -9,16 +9,19 @@
  * CORS rules.
  */
 import { readFileSync } from "node:fs";
-import { createServer, type IncomingMessage, type Server } from "node:http";
+import { createServer } from 'node:http';
+import type { IncomingMessage, Server } from 'node:http';
 import { join } from "node:path";
 
-import { chromium, type Browser } from "playwright";
+import { chromium } from 'playwright';
+import type { Browser } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 // The line Settings hands an owner to paste, built by the web app's own code.
 import { widgetSnippet } from "../../web/src/lib/marketing/widget-snippet";
 import { deleteCompaniesSql } from "./company-cleanup";
-import { startHarness, type Harness } from "./harness";
+import { startHarness } from './harness';
+import type { Harness } from './harness';
 
 const OWNER_ID = "d31c0748-0001-4001-8001-000000000001";
 const COMPANY_ID = "d31c0748-0002-4002-8002-000000000002";
@@ -150,7 +153,7 @@ describe("#748 the website widget, from a customer's page to the inbox", () => {
 
     const sent = h.telnyx.callsTo("POST", /\/v2\/messages$/).slice(textsBefore);
     expect(sent).toHaveLength(1);
-    const text = sent[0]!.body as { to: string; from: string; text: string };
+    const text = sent[0].body as { to: string; from: string; text: string };
     expect(text.to).toBe(VISITOR_E164);
     expect(text.from).toBe(NUMBER_E164);
     const code = /(\d{6}) is your code/.exec(text.text)?.[1];

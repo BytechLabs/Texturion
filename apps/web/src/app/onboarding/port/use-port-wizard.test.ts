@@ -20,7 +20,7 @@ function snap(partial: Partial<OnboardingSnapshot>): OnboardingSnapshot {
     registration: null,
     draft: {},
     ...partial,
-  } as OnboardingSnapshot;
+  };
 }
 
 function company(
@@ -36,7 +36,7 @@ function company(
   } as unknown as OnboardingSnapshot["company"];
 }
 
-describe("portStepProgress", () => {
+describe(portStepProgress, () => {
   it("is always the top-level 'number' step (index 2, never a sub-step count)", () => {
     // Whatever the branch, the port detour is the second dot — name is first.
     expect(portStepProgress(snap({ draft: { country: "US" } })).index).toBe(2);

@@ -8,9 +8,9 @@
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import path from "node:path";
-import { fileURLToPath, pathToFileURL } from "node:url";
+import { pathToFileURL } from "node:url";
 
-export const REPO_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+export const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
 
 export function toRepoPath(absolute) {
   return path.relative(REPO_ROOT, absolute).split(path.sep).join("/");
@@ -33,7 +33,7 @@ export function workspacePackages() {
       }
     }
   }
-  return [...dirs].sort().map((dir) => {
+  return [...dirs].toSorted().map((dir) => {
     const manifest = JSON.parse(readFileSync(path.join(REPO_ROOT, dir, "package.json"), "utf8"));
     return { dir, name: manifest.name, manifest };
   });
@@ -89,10 +89,10 @@ export async function openVitest(pkgDir, options = {}) {
 }
 
 /** The vitest-internal graph walk `vitest --changed` uses, checked for presence. */
-export async function testDependencies(vitest, spec) {
-  const specifications = vitest.specifications;
+export async function testDependencies(ctx, spec) {
+  const { specifications } = ctx;
   if (typeof specifications?.getTestDependencies !== "function") {
-    throw new Error("this vitest no longer has specifications.getTestDependencies; update scripts/ci");
+    throw new TypeError("this vitest no longer has specifications.getTestDependencies; update scripts/ci");
   }
   const deps = await specifications.getTestDependencies(spec);
   return [spec.moduleId, ...deps].map(toRepoPath);

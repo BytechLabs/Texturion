@@ -111,11 +111,7 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
       title={t("settings.widgetTitle")}
       description={t("settings.widgetBlurb")}
     >
-      {!open ? (
-        <Button variant="outline" onClick={() => setOpen(true)}>
-          {t("settings.widgetShow")}
-        </Button>
-      ) : key.isPending ? (
+      {open ? key.isPending ? (
         <p className="text-sm text-muted-foreground">{t("shell.loading")}</p>
       ) : key.isError ? (
         <p className="text-sm text-destructive">{t("settings.widgetLoadFailed")}</p>
@@ -166,11 +162,7 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
 
           <div className="flex flex-wrap gap-2">
             <Button onClick={copy}>{t("settings.widgetCopy")}</Button>
-            {!confirming ? (
-              <Button variant="ghost" onClick={() => setConfirming(true)}>
-                {t("settings.widgetRotate")}
-              </Button>
-            ) : (
+            {confirming ? (
               <div className="flex w-full flex-col gap-2 rounded-app-card border border-app-line p-3">
                 {/* Loss Aversion, stated plainly: what they stand to LOSE is
                     the widget on every site carrying the old snippet. */}
@@ -196,6 +188,10 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
                   </Button>
                 </div>
               </div>
+            ) : (
+              <Button variant="ghost" onClick={() => setConfirming(true)}>
+                {t("settings.widgetRotate")}
+              </Button>
             )}
           </div>
 
@@ -257,6 +253,10 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
             </div>
           )}
         </div>
+      ) : (
+        <Button variant="outline" onClick={() => setOpen(true)}>
+          {t("settings.widgetShow")}
+        </Button>
       )}
     </SettingsCard>
   );

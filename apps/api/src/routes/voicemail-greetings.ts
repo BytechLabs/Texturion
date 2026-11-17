@@ -107,7 +107,7 @@ voicemailGreetingsRoutes.get(
     if (error) {
       throw new Error(`voicemail_greetings lookup failed: ${error.message}`);
     }
-    return c.json({ data: (data ?? []) as GreetingRow[] });
+    return c.json({ data: (data ?? []) });
   },
 );
 
@@ -161,7 +161,7 @@ voicemailGreetingsRoutes.post(
       throw new ApiError("validation_failed", "file: is required.");
     }
     const blob = filePart as File;
-    const declaredType = (blob.type || "").split(";")[0]!.trim().toLowerCase();
+    const declaredType = (blob.type || "").split(";")[0].trim().toLowerCase();
     if (!ALLOWED_TYPES.has(declaredType)) {
       throw new ApiError(
         "validation_failed",
@@ -236,7 +236,7 @@ voicemailGreetingsRoutes.post(
       after: { name, duration_ms: durationMs },
     });
 
-    return c.json((data ?? [])[0] as GreetingRow, 201);
+    return c.json((data ?? [])[0], 201);
   },
 );
 
@@ -301,7 +301,7 @@ voicemailGreetingsRoutes.post(
     const company = companyRows?.[0] as
       | { subscription_status: string }
       | undefined;
-    if (!company || company.subscription_status !== "active") {
+    if (company?.subscription_status !== "active") {
       return errorResponse(
         c,
         "subscription_inactive",
@@ -426,8 +426,8 @@ voicemailGreetingsRoutes.post(
           client_state: clientState,
         },
       });
-    } catch (cause) {
-      if (cause instanceof TelnyxApiError && cause.status < 500) {
+    } catch (error) {
+      if (error instanceof TelnyxApiError && error.status < 500) {
         // A definite carrier refusal — an unreachable number, a blocked
         // destination. Say so plainly instead of a 500: the owner mistyped, and
         // the fix is theirs.
@@ -437,8 +437,8 @@ voicemailGreetingsRoutes.post(
           "We couldn't ring that number. Check it and try again.",
         );
       }
-      throw cause instanceof Error
-        ? cause
+      throw error instanceof Error
+        ? error
         : new Error("greeting capture dial failed");
     }
 

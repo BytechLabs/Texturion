@@ -39,7 +39,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { readUsageWindow } from "../billing/usage-window";
-import { storedBytes, type StorageUsageRow } from "../billing/stored-bytes";
+import { storedBytes } from '../billing/stored-bytes';
+import type { StorageUsageRow } from '../billing/stored-bytes';
 import { csvBytes, csvSafeText } from "../routes/core/csv";
 
 export interface UsageExportFilters {
@@ -154,7 +155,7 @@ export async function buildUsageExport(
   // The window's start is required by the caller; an absent one would mean
   // "since the beginning of time", which is a different document and not one
   // anybody asked for.
-  const from = args.filters.from;
+  const {from} = args.filters;
   if (!from) {
     throw new Error("a usage export needs a period start");
   }
@@ -207,10 +208,10 @@ export async function buildUsageExport(
 /** HTML-escape. Nothing here is user-written, but the shell is shared. */
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replaceAll('&', "&amp;")
+    .replaceAll('<', "&lt;")
+    .replaceAll('>', "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 export function renderUsageDocument(args: {

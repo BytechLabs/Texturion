@@ -168,8 +168,8 @@ marketingRoutes.post("/marketing/comparison", async (c) => {
   try {
     const result = await sendComparisonEmail(env, db, body.email);
     sent = result.sent;
-  } catch (cause) {
-    console.error(`marketing comparison send failed: ${String(cause)}`);
+  } catch (error_) {
+    console.error(`marketing comparison send failed: ${String(error_)}`);
   }
 
   // `sent` is reported honestly so the form can say "check your email" only when

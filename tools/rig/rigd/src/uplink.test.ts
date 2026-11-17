@@ -2,7 +2,8 @@ import { CALL_EVENT_RELAY_TIMEOUT_MS, EDGE_PATHS } from "@loonext/rig-protocol";
 import { ManualClock } from "@loonext/rig-robot/test-support";
 import { afterEach, describe, expect, it } from "vitest";
 import { FakeSocket, TinyWsServer } from "./test-support.ts";
-import { parseFrame, Uplink, uplinkUrl, type UplinkHandlers } from "./uplink.ts";
+import { parseFrame, Uplink, uplinkUrl } from './uplink.ts';
+import type { UplinkHandlers } from './uplink.ts';
 
 const flush = () => new Promise((resolve) => setImmediate(resolve));
 
@@ -90,7 +91,7 @@ describe("the uplink", () => {
     let release: () => void = () => undefined;
     const { socket } = setup({
       webhook: () => {
-        calls++;
+        calls += 1;
         return new Promise((resolve) => {
           release = () => resolve({ status: 200 });
         });
@@ -155,7 +156,7 @@ describe("the uplink", () => {
     expect(socket.sent).toContainEqual({ t: "rpc-result", id: "r-1", ok: true, result: { echoed: { a: 1 } } });
     expect(socket.sent).toContainEqual({ t: "rpc-result", id: "r-2", ok: false, error: "no such thing" });
     // A ping from the edge needs no answer.
-    expect(socket.sent.map((f) => (f as { t: string }).t).sort()).toEqual(["media-result", "rpc-result", "rpc-result"]);
+    expect(socket.sent.map((f) => (f as { t: string }).t).toSorted()).toEqual(["media-result", "rpc-result", "rpc-result"]);
   });
 
   it("reconnects with a growing backoff, reset once a connection holds", () => {
@@ -171,13 +172,13 @@ describe("the uplink", () => {
       }
       waits.push(waited);
     }
-    expect(waits).toEqual([1_000, 2_000, 4_000, 8_000]);
+    expect(waits).toEqual([1000, 2000, 4000, 8000]);
     sockets.at(-1)!.open();
     clock.advance(10_000);
     sockets.at(-1)!.drop();
     const before = sockets.length;
-    clock.advance(1_000);
-    expect(sockets.length).toBe(before + 1);
+    clock.advance(1000);
+    expect(sockets).toHaveLength(before + 1);
   });
 
   it("caps the backoff at a minute", () => {
@@ -198,7 +199,7 @@ describe("the uplink", () => {
   });
 });
 
-describe("parseFrame", () => {
+describe(parseFrame, () => {
   it("accepts the protocol's frames and nothing else", () => {
     expect(parseFrame(JSON.stringify(webhook("call")))).toMatchObject({ t: "webhook" });
     expect(parseFrame(JSON.stringify({ ...webhook("call"), kind: "sms" }))).toBeUndefined();

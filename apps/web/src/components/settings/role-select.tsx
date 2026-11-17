@@ -1,7 +1,7 @@
 "use client";
 
 import { SimpleSelect } from "@/components/ui/simple-select";
-import { type Translate } from "@/i18n/provider";
+import type { Translate } from '@/i18n/provider';
 import type { Member } from "@/lib/api/types";
 
 /** The roles a person can be given, in the order every list shows them. */

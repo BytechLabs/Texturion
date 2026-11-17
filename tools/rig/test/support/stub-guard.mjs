@@ -7,7 +7,6 @@
  *   node tools/rig/test/support/stub-guard.mjs [port]
  */
 import { createServer } from "node:http";
-import { fileURLToPath } from "node:url";
 
 import { EDGE_PATHS, GUARD_ROUTES, HEADER } from "../../../rig-protocol/src/index.ts";
 
@@ -97,7 +96,7 @@ export function startStubGuard({ port = 0, aiAnswer = () => ({ response: "stub" 
   });
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv[1] && import.meta.filename === process.argv[1]) {
   const port = Number(process.argv[2] ?? 8899);
   // STUB_AI_RESPONSE: the model output to answer every AI run with, as JSON.
   const canned = process.env.STUB_AI_RESPONSE ? JSON.parse(process.env.STUB_AI_RESPONSE) : null;

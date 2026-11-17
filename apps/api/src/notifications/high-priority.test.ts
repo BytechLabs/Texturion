@@ -19,14 +19,15 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { exceptionsCaptured, noticesCaptured, resetCaptures } from "../test/capture-mock";
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { deliverPush } from "./deliver";
 import {
   claimHighPriority,
   HIGH_PRIORITY_PUSH_DAILY_LIMIT,
 } from "./high-priority";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -60,9 +61,9 @@ async function subscription() {
   );
   const b64u = (bytes: Uint8Array) =>
     btoa(String.fromCharCode(...bytes))
-      .replace(/\+/g, "-")
-      .replace(/\//g, "_")
-      .replace(/=+$/, "");
+      .replaceAll('+', "-")
+      .replaceAll('/', "_")
+      .replace(/[=]+$/, "");
   return {
     id: "20000000-aaaa-4000-8000-000000000001",
     user_id: USER,
@@ -96,9 +97,9 @@ async function world(options: {
     })),
   );
   sb.on("POST", "/rest/v1/rpc/claim_high_priority_push", () =>
-    options.claimStatus !== undefined
-      ? new Response("boom", { status: options.claimStatus })
-      : (options.claim ?? { allowed: true, reached_cap: false }),
+    options.claimStatus === undefined
+      ? (options.claim ?? { allowed: true, reached_cap: false })
+      : new Response("boom", { status: options.claimStatus }),
   );
   sb.on("GET", "/rest/v1/company_members", () => [{ user_id: USER }]);
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, () => ({
@@ -243,7 +244,7 @@ describe("#452 — the meter on high-priority push", () => {
   });
 });
 
-describe("claimHighPriority", () => {
+describe(claimHighPriority, () => {
   it("is a no-op for an empty fan-out", async () => {
     // A pipeline can legitimately find zero registered devices; that is not a
     // claim and must not cost a round trip.

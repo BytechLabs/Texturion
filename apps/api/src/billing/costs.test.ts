@@ -4,11 +4,11 @@ import { describe, expect, it, vi } from "vitest";
 import { MODULE_CATALOG } from "./modules";
 import { PLAN_VOICE_MINUTES } from "./plans";
 import {
+  AI_UNIT_COST_CENTS,
   companyRevenueCents,
   FIXED_MONTHLY_COST_CENTS,
   PLAN_MONTHLY_REVENUE_CENTS,
   stripeNetCents,
-  AI_UNIT_COST_CENTS,
   UNIT_COST_CENTS,
 } from "./costs";
 
@@ -22,7 +22,7 @@ describe("UNIT_COST_CENTS matches the audited provider basis (PRICING-AUDIT §4)
     // which never fires for messages we receive), now built from all three
     // 2026 carrier surcharges rather than T-Mobile alone. PRICING-AUDIT 4.1.
     expect(UNIT_COST_CENTS.outboundSegment).toBe(1.15); // measured high end
-    expect(UNIT_COST_CENTS.inboundSegment).toBe(1.0); // base + T-Mobile + AT&T
+    expect(UNIT_COST_CENTS.inboundSegment).toBe(1); // base + T-Mobile + AT&T
     expect(UNIT_COST_CENTS.voiceMinute).toBe(1.2); // ~$0.012 both legs, high end
     expect(UNIT_COST_CENTS.voiceTransfer).toBe(10); // ~$0.10 per forwarded call (#98)
     expect(UNIT_COST_CENTS.storageGbMonth).toBe(2.1); // $0.021/GB/mo
@@ -64,7 +64,7 @@ describe("PLAN_MONTHLY_REVENUE_CENTS mirrors SPEC §2 plan prices", () => {
   });
 });
 
-describe("stripeNetCents", () => {
+describe(stripeNetCents, () => {
   it("takes 2.9% + 0.5% plus $0.30 off a monthly charge", () => {
     // $79 gross: 7900 × (1 - 0.034) - 30 = 7900 × 0.966 - 30 = 7631.4 - 30.
     expect(stripeNetCents(7900)).toBeCloseTo(7601.4, 5);
@@ -78,7 +78,7 @@ describe("stripeNetCents", () => {
   });
 });
 
-describe("companyRevenueCents", () => {
+describe(companyRevenueCents, () => {
   it("is the plan price with no modules enabled", () => {
     expect(companyRevenueCents("starter", [])).toBe(2900);
     expect(companyRevenueCents("pro", [])).toBe(7900);
@@ -95,7 +95,7 @@ describe("companyRevenueCents", () => {
 describe("companyMonthlyRevenueCents (DB helper)", () => {
   it("reads enabled modules and sums them onto the plan price", async () => {
     vi.resetModules();
-    vi.doMock("./company-modules", () => ({
+    vi.doMock(import("./company-modules"), () => ({
       enabledModules: vi.fn().mockResolvedValue(["regions_ca"]),
     }));
     const { companyMonthlyRevenueCents } = await import("./costs");

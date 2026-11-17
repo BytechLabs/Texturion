@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
-import { contactRelationshipLine , avatarInitials } from "@loonext/shared";
+import { avatarInitials , contactRelationshipLine,roleHasCapability,suggestExistingTag } from "@loonext/shared";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { CallButton } from "@/components/calls/call-button";
@@ -35,7 +35,8 @@ import {
   RecordSection,
 } from "@/components/ui/record-header";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
 import {
   useAttachTag,
@@ -44,7 +45,6 @@ import {
 } from "@/lib/api/conversations";
 import { LeadSourcePicker } from "@/components/contact-panel/lead-source-picker";
 import { ApiError } from "@/lib/api/error";
-import { roleHasCapability, suggestExistingTag } from "@loonext/shared";
 import { useCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
 import { activeSources, useLeadSources } from "@/lib/api/lead-sources";
@@ -52,7 +52,7 @@ import { useTags } from "@/lib/api/tags";
 import { useConversationTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import { isCarrierEnforcedOptOut } from "@/lib/api/types";
-import type { ConversationDetail, ContactDetail } from "@/lib/api/types";
+import type { ContactDetail, ConversationDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 import { formatTimestamp } from "@/lib/format/time";
@@ -579,9 +579,9 @@ function ConversationTags({
                         ? "contacts.typeToCreateTag"
                         : "contacts.typeToFindTag",
                     )
-                  : !mayCreate
-                    ? t("contacts.noTagAskAdmin")
-                    : null}
+                  : (mayCreate
+                    ? null
+                    : t("contacts.noTagAskAdmin"))}
               </CommandEmpty>
               <CommandGroup>
                 {available.map((tag) => (

@@ -1,13 +1,5 @@
-import {
-  CalendarEventNotFoundError,
-  CalendarFullResyncRequiredError,
-  type CalendarFetch,
-  type CalendarProviderName,
-  CalendarPreconditionError,
-  CalendarProviderError,
-  CalendarReauthRequiredError,
-  CalendarRetryableError,
-} from "./types";
+import { CalendarEventNotFoundError, CalendarFullResyncRequiredError, CalendarPreconditionError, CalendarProviderError, CalendarReauthRequiredError, CalendarRetryableError } from './types';
+import type { CalendarFetch, CalendarProviderName } from './types';
 
 interface ProviderRequestOptions {
   provider: CalendarProviderName;
@@ -28,7 +20,7 @@ function retryAfterMilliseconds(value: string | null): number | null {
   if (!value) return null;
   const seconds = Number(value);
   if (Number.isFinite(seconds) && seconds >= 0) {
-    return Math.ceil(seconds * 1_000);
+    return Math.ceil(seconds * 1000);
   }
   const date = Date.parse(value);
   return Number.isFinite(date) ? Math.max(0, date - Date.now()) : null;
@@ -36,7 +28,7 @@ function retryAfterMilliseconds(value: string | null): number | null {
 
 async function errorDetail(response: Response): Promise<string> {
   try {
-    return (await response.text()).replace(/\s+/g, " ").slice(0, 512);
+    return (await response.text()).replaceAll(/\s+/g, " ").slice(0, 512);
   } catch {
     return "";
   }

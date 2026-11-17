@@ -4,7 +4,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, useT, type Translate } from "@/i18n/provider";
+import { makeTranslate, useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 
 /**
  * #507 Phase 1 — capturing the crew member's own voice, in the browser.
@@ -66,8 +67,7 @@ export function pickWrapUpMimeType(
 /** Can this browser record at all? Checked before the prompt, never after. */
 export function canRecordAudio(): boolean {
   return (
-    typeof window !== "undefined" &&
-    typeof window.MediaRecorder !== "undefined" &&
+    window.MediaRecorder !== undefined &&
     typeof navigator !== "undefined" &&
     typeof navigator.mediaDevices?.getUserMedia === "function"
   );
@@ -186,8 +186,8 @@ export function useWrapUpRecorder(options: {
       // Block throws immediately with no prompt at all, which is why the
       // message below distinguishes it from "try again".
       stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    } catch (cause) {
-      setError(micFailureMessage(cause, t));
+    } catch (error_) {
+      setError(micFailureMessage(error_, t));
       return;
     }
 

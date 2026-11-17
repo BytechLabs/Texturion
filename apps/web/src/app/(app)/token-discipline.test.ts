@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { extname, join, relative, sep } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -53,7 +53,7 @@ const LITERAL = /#[0-9a-fA-F]{6}(?:[0-9a-fA-F]{2})?\b|\b(?:rgb|hsl)a?\(\s*[\d.]/
  * fine, and a guard that argues about fine things is a guard people switch off.
  */
 function withoutShadows(line: string): string {
-  return line.replace(/(?:box|text)-shadow\s*:[^;"'`]*/g, "");
+  return line.replaceAll(/(?:box|text)-shadow\s*:[^;"'`]*/g, "");
 }
 
 /**

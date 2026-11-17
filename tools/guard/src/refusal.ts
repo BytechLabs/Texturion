@@ -1,4 +1,5 @@
-import { HEADER, type GuardRefusal } from "@loonext/rig-protocol";
+import { HEADER } from '@loonext/rig-protocol';
+import type { GuardRefusal } from '@loonext/rig-protocol';
 
 /**
  * Every rule the guard can refuse under. The names are a contract: rig
@@ -158,7 +159,7 @@ export class Refusal extends Error {
 /** The response for a refusal: a {@link GuardRefusal} body and the refused-by header. */
 export function refuse(rule: RuleName): Response {
   const body: GuardRefusal = { error: "guard_refused", rule };
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status: statusFor(rule),
     headers: {
       "content-type": "application/json",
@@ -168,7 +169,7 @@ export function refuse(rule: RuleName): Response {
 }
 
 export function json(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status,
     headers: { "content-type": "application/json" },
   });

@@ -2,12 +2,12 @@ import { describe, expect, it } from "vitest";
 
 import {
   ASSUMED_USD_PER_CAD,
-  MAX_FX_ABSORPTION,
   BILLING_CURRENCIES,
   billingCurrencyOf,
   currencyForCountry,
   formatMoney,
   isBillingCurrency,
+  MAX_FX_ABSORPTION,
   OVERAGE_CENTS_PER_SEGMENT,
   PLAN_PRICE_CENTS,
   planRevenueUsdCents,
@@ -117,7 +117,7 @@ describe("the CAD figures are set, not converted", () => {
   });
 });
 
-describe("planRevenueUsdCents", () => {
+describe(planRevenueUsdCents, () => {
   it("leaves USD alone", () => {
     for (const plan of PLANS) {
       expect(planRevenueUsdCents(plan, "usd")).toBe(PLAN_PRICE_CENTS.usd[plan]);
@@ -159,7 +159,7 @@ describe("usdCentsOf (#522)", () => {
   });
 });
 
-describe("currencyForCountry", () => {
+describe(currencyForCountry, () => {
   it("offers a Canadian workspace Canadian dollars", () => {
     expect(currencyForCountry("CA")).toBe("cad");
     expect(currencyForCountry("ca")).toBe("cad");
@@ -174,7 +174,7 @@ describe("currencyForCountry", () => {
   });
 });
 
-describe("billingCurrencyOf", () => {
+describe(billingCurrencyOf, () => {
   it("reads a stored currency", () => {
     expect(billingCurrencyOf("cad")).toBe("cad");
     expect(billingCurrencyOf("usd")).toBe("usd");
@@ -191,7 +191,7 @@ describe("billingCurrencyOf", () => {
   });
 });
 
-describe("formatMoney", () => {
+describe(formatMoney, () => {
   it("shows a Canadian their own money as a plain dollar sign", () => {
     // "CA$39" to a Canadian reads as though we expect them to be confused
     // about their own currency.
@@ -206,7 +206,7 @@ describe("formatMoney", () => {
 
   it("keeps whole dollars whole", () => {
     // "$39.00" on a plan card reads as machine output and costs a phone width.
-    expect(formatMoney(10900, "cad")).toBe("$109");
+    expect(formatMoney(10_900, "cad")).toBe("$109");
     expect(formatMoney(3950, "cad")).toBe("$39.50");
   });
 });

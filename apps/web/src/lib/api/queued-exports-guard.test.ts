@@ -56,7 +56,7 @@ function sources(dir: string): string[] {
 
 /** A comment that names the endpoint is documentation, not a call. */
 function withoutComments(text: string): string {
-  return text.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|\s)\/\/.*$/gm, "$1");
+  return text.replaceAll(/\/\*[\s\S]*?\*\//g, "").replaceAll(/(^|\s)\/\/.*$/gm, "$1");
 }
 
 const files = sources(SRC).map((full) => ({
@@ -65,7 +65,7 @@ const files = sources(SRC).map((full) => ({
 }));
 
 const IMPORTS_CLIENT = /from\s+["'](?:@\/lib\/api\/exports|\.{1,2}\/(?:\.\.\/)*(?:lib\/api\/)?exports)["']/;
-const LITERAL = /\/v1\/exports/;
+
 
 describe("#745 the queued export pipeline is for data exports only", () => {
   it("reads a real tree", () => {
@@ -77,7 +77,7 @@ describe("#745 the queued export pipeline is for data exports only", () => {
 
   it("only the exports client names /v1/exports", () => {
     const offenders = files
-      .filter((file) => LITERAL.test(file.text) && file.path !== CLIENT)
+      .filter((file) => file.text.includes('/v1/exports') && file.path !== CLIENT)
       .map((file) => file.path);
     expect(
       offenders,

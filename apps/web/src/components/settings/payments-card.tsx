@@ -8,7 +8,8 @@ import { payoutRequirementCopy } from "@loonext/shared";
 import { SettingsCard } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ApiError } from "@/lib/api/error";
@@ -92,10 +93,10 @@ export function PaymentsCard() {
       // back to this page, and a tab that closes onto a stale page is how
       // somebody concludes nothing happened.
       window.location.href = url;
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("payments.stripeOpenFailed"),
       );
     }
@@ -105,10 +106,10 @@ export function PaymentsCard() {
     try {
       const { url } = await dashboard.mutateAsync();
       window.open(url, "_blank", "noopener,noreferrer");
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("payments.stripeOpenFailed"),
       );
     }

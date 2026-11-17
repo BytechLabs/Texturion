@@ -1,4 +1,4 @@
-import { readFileSync, statSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -72,8 +72,8 @@ describe("#362 — every app/fr colour utility has a @theme entry", () => {
     for (const file of sourceFiles(SRC)) {
       if (/\.test\.tsx?$/.test(file)) continue; // tests name classes to assert them
       const body = readFileSync(file, "utf8")
-        .replace(/\/\/.*/g, "")
-        .replace(/\/\*[\s\S]*?\*\//g, "");
+        .replaceAll(/\/\/.*/g, "")
+        .replaceAll(/\/\*[\s\S]*?\*\//g, "");
       for (const match of body.matchAll(UTILITY)) {
         // Strip a Tailwind opacity modifier: `text-fr-ink/70` themes on `fr-ink`.
         const name = match[1].split("/")[0];

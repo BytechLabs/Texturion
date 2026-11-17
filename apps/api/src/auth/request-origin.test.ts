@@ -24,7 +24,7 @@ function ctx(headers: Record<string, string>): Context<AppEnv> {
   } as unknown as Context<AppEnv>;
 }
 
-describe("requestAppVersion", () => {
+describe(requestAppVersion, () => {
   it("takes a well-formed version", () => {
     expect(requestAppVersion(ctx({ "X-App-Version": "1.4.0" }))).toBe("1.4.0");
     expect(requestAppVersion(ctx({ "X-App-Version": "2" }))).toBe("2");

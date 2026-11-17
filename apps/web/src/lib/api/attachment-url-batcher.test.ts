@@ -42,7 +42,7 @@ function stubRequest(
   return { request: request as never, calls };
 }
 
-describe("createAttachmentUrlBatcher", () => {
+describe(createAttachmentUrlBatcher, () => {
   it("sends one POST per company for the mints asked for together", async () => {
     const { request, calls } = stubRequest();
     const load = createAttachmentUrlBatcher(request);

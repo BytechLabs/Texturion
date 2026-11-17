@@ -183,7 +183,7 @@ describe("retrying with the digits", () => {
     expect(result.current.rejected).toBe(true);
     expect(result.current.kind).toBe("email");
     // And NO second code was minted behind the person still looking at the first.
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
   });
 
   it("mints a new one only when asked", () => {
@@ -196,7 +196,7 @@ describe("retrying with the digits", () => {
       gate.demanded(refusal("confirmation_code_required"), "release_number", () => {});
     });
     expect(result.current.rejected).toBe(true);
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
 
     act(() => result.current.resend());
     expect(requestCode).toHaveBeenCalledTimes(2);
@@ -242,7 +242,7 @@ describe("retrying with the digits", () => {
         releasing,
       );
     });
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
 
     act(() => result.current.resend());
     expect(requestCode).toHaveBeenLastCalledWith("release_number");
@@ -266,11 +266,11 @@ describe("retrying with the digits", () => {
         () => {},
       );
     });
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
 
     act(() => result.current.dismiss());
     act(() => result.current.resend());
-    expect(requestCode).toHaveBeenCalledTimes(1);
+    expect(requestCode).toHaveBeenCalledOnce();
   });
 
   it("reports itself busy while our server is still minting the emailed code", () => {
@@ -538,7 +538,7 @@ describe("proving a factor again, in the browser", () => {
     // thirty seconds, so the second attempt here is the normal one, not the
     // exception — and leaving "that code didn't work" on screen over digits nobody
     // has judged yet reads as a verdict on the new ones.
-    const pending: Array<(value: unknown) => void> = [];
+    const pending: ((value: unknown) => void)[] = [];
     challengeAndVerify
       .mockResolvedValueOnce({ data: null, error: new Error("invalid totp") })
       .mockImplementation(
@@ -624,8 +624,8 @@ describe("proving a factor again, in the browser", () => {
     });
     // A second challenge would burn the same code against a new one and tell
     // somebody their correct digits were wrong.
-    expect(listFactors).toHaveBeenCalledTimes(1);
-    expect(challengeAndVerify).toHaveBeenCalledTimes(1);
+    expect(listFactors).toHaveBeenCalledOnce();
+    expect(challengeAndVerify).toHaveBeenCalledOnce();
 
     await act(async () => settle({ data: {}, error: null }));
     expect(retry.mock.calls).toEqual([[undefined]]);
@@ -647,7 +647,7 @@ describe("proving a factor again, in the browser", () => {
      * digits are wrong — somebody's own correct code, refused, because they pressed
      * twice.
      */
-    const pending: Array<(value: unknown) => void> = [];
+    const pending: ((value: unknown) => void)[] = [];
     challengeAndVerify.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -673,8 +673,8 @@ describe("proving a factor again, in the browser", () => {
     });
 
     // Refused before it reached Supabase at all — not merely deduplicated after.
-    expect(listFactors).toHaveBeenCalledTimes(1);
-    expect(challengeAndVerify).toHaveBeenCalledTimes(1);
+    expect(listFactors).toHaveBeenCalledOnce();
+    expect(challengeAndVerify).toHaveBeenCalledOnce();
     expect(pending).toHaveLength(1);
 
     await act(async () => pending[0]({ data: {}, error: null }));
@@ -725,7 +725,7 @@ describe("proving a factor again, in the browser", () => {
    * now lands while something else is genuinely in flight, and everything it touches
    * belongs to a different action.
    */
-  async function abandonThenAskAgain(pending: Array<(value: unknown) => void>) {
+  async function abandonThenAskAgain(pending: ((value: unknown) => void)[]) {
     challengeAndVerify.mockImplementation(
       () =>
         new Promise((resolve) => {
@@ -752,7 +752,7 @@ describe("proving a factor again, in the browser", () => {
   }
 
   it("does not blame a fresh prompt for a verify abandoned before it", async () => {
-    const pending: Array<(value: unknown) => void> = [];
+    const pending: ((value: unknown) => void)[] = [];
     const { hook, first, second } = await abandonThenAskAgain(pending);
     const { result } = hook;
 
@@ -781,7 +781,7 @@ describe("proving a factor again, in the browser", () => {
   });
 
   it("lets an abandoned verify finish without disarming the one that replaced it", async () => {
-    const pending: Array<(value: unknown) => void> = [];
+    const pending: ((value: unknown) => void)[] = [];
     const { hook, first, second } = await abandonThenAskAgain(pending);
     const { result } = hook;
 

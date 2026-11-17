@@ -39,11 +39,8 @@
  * scheduled list. Two renderings of one hold read as two different events, and
  * the one that says less is the one they will believe. A test asserts it.
  */
-import {
-  SCHEDULED_HOLD_REASONS,
-  type Locale,
-  type ScheduledHoldReason,
-} from "@loonext/shared";
+import { SCHEDULED_HOLD_REASONS } from '@loonext/shared';
+import type { Locale, ScheduledHoldReason } from '@loonext/shared';
 
 /**
  * One language's half of the disclosure.

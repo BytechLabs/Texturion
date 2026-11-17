@@ -152,7 +152,7 @@ describe("a Swift struct's required parameters reach every call site", () => {
     const problems: string[] = [];
 
     for (const file of files) {
-      const text = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+      const text = readFileSync(file, "utf8").replaceAll('\r\n', "\n");
       const short = file.slice(file.indexOf("Loonext"));
 
       for (const declaration of text.matchAll(
@@ -202,8 +202,8 @@ describe("a Swift struct's required parameters reach every call site", () => {
       problems,
       `A required parameter was added without updating every construction ` +
         `site in the same file — usually a #Preview block. Swift optionals get ` +
-        `NO implicit default, so these are compile errors:\n  ` +
-        problems.join("\n  "),
+        `NO implicit default, so these are compile errors:\n  ${ 
+        problems.join("\n  ")}`,
     ).toEqual([]);
   });
 });

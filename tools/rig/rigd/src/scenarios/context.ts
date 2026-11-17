@@ -9,7 +9,8 @@
  * Telnyx partition exists.
  */
 import type { GuardHealth, LeaseActivity, StandingRole } from "@loonext/rig-protocol";
-import { AUDIO_UNPROVEN, type CallTestId, type DeviceState, type HearOptions, type HostdHealth, type CheckoutRun, type NetworkShape, type NumberChoice, type OnboardingWalk, type PageHearing, type RigDeviceName, type StandbyBucket } from "@loonext/rig-lanes";
+import { AUDIO_UNPROVEN } from '@loonext/rig-lanes';
+import type { CallTestId, CheckoutRun, DeviceState, HearOptions, HostdHealth, NetworkShape, NumberChoice, OnboardingWalk, PageHearing, RigDeviceName, StandbyBucket } from '@loonext/rig-lanes';
 import type { Detection, RobotApi, Surface } from "@loonext/rig-robot";
 import type { UndoAction } from "../lease.ts";
 import type { SeenEvent } from "../cron-events.ts";
@@ -39,7 +40,7 @@ export const FICTIONAL_E164 = ["+14165550199", "+14165550198"] as const;
  */
 export const EVENT_INGEST_MS = 60_000;
 /** Between reads of PostHog, whose query API is limited per project. */
-export const EVENT_POLL_MS = 5_000;
+export const EVENT_POLL_MS = 5000;
 
 export function isFictional(e164: string): boolean {
   return /^\+1\d{3}55501\d{2}$/.test(e164);
@@ -805,7 +806,7 @@ export async function poll<T>(
   ctx: Pick<ScenarioContext, "now" | "sleep">,
   probe: () => Promise<T | undefined | null | false>,
   timeoutMs: number,
-  intervalMs = 1_000,
+  intervalMs = 1000,
 ): Promise<T | undefined> {
   const deadline = ctx.now() + timeoutMs;
   for (;;) {
@@ -818,7 +819,7 @@ export async function poll<T>(
 
 /** Word error rate: edits to turn the reference into the hypothesis, over reference words. */
 export function wordErrorRate(reference: string, hypothesis: string): number {
-  const words = (text: string) => text.toLowerCase().replace(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
+  const words = (text: string) => text.toLowerCase().replaceAll(/[^a-z0-9' ]+/g, " ").split(/\s+/).filter(Boolean);
   const ref = words(reference);
   const hyp = words(hypothesis);
   if (ref.length === 0) return hyp.length === 0 ? 0 : 1;

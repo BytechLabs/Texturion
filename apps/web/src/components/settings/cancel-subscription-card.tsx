@@ -19,7 +19,8 @@ import {
   readSaysPaused,
 } from "@/components/settings/pause-read";
 import { SettingsCard } from "@/components/settings/section";
-import { makeTranslate, sayWith, useT, type MessageKey } from "@/i18n/provider";
+import { makeTranslate, sayWith, useT } from '@/i18n/provider';
+import type { MessageKey } from '@/i18n/provider';
 import { Button } from "@/components/ui/button";
 import { ChoiceCards } from "@/components/ui/choice-cards";
 import { Textarea } from "@/components/ui/textarea";
@@ -353,8 +354,7 @@ export function CancelSubscriptionCard({
    * for our network being slow.
    */
   const answer =
-    offer !== null &&
-    offer.action === "change_plan" &&
+    offer?.action === "change_plan" &&
     !readAllowsPlanChange(pause)
       ? { ...offer, action: null, actionLabel: null }
       : offer;
@@ -527,10 +527,10 @@ export function CancelSubscriptionCard({
             the spring. Two notes stacked here would be the retention funnel this
             card refuses to become — and they would push nothing, because both
             sit below the exit either way. */}
-        {pauseOffer !== null ? (
-          <SeasonalPauseAnswer monthlyCents={pauseOffer} />
-        ) : (
+        {pauseOffer === null ? (
           answer && <CancellationAnswer offer={answer} company={company} />
+        ) : (
+          <SeasonalPauseAnswer monthlyCents={pauseOffer} />
         )}
       </div>
     </SettingsCard>

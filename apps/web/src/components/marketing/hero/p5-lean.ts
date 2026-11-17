@@ -11,6 +11,8 @@
  * node_modules/p5/dist) registered here, or it is undefined at runtime.
  */
 import p5 from "p5/core";
+
+export { default } from "p5/core";
 import accessibility from "p5/accessibility";
 import color from "p5/color";
 import math from "p5/math";
@@ -27,4 +29,4 @@ math(p5);
 const withErrors = p5 as unknown as { _friendlyError?: (...args: unknown[]) => void };
 withErrors._friendlyError ??= () => {};
 
-export default p5;
+

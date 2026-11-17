@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 
 /**
  * Customer-facing registration/provisioning strings. The banner rows are the
@@ -80,7 +81,7 @@ export function provisioningWaitCopy(
   now: number,
   t: Translate = EN,
 ): string {
-  const created = createdAtIso ? Date.parse(createdAtIso) : NaN;
+  const created = createdAtIso ? Date.parse(createdAtIso) : Number.NaN;
   const elapsed = Number.isFinite(created) ? now - created : 0;
   if (elapsed >= 4 * 60_000) {
     return t("shell.regWaitLonger");

@@ -13,16 +13,9 @@ import {
   UserRound,
 } from "lucide-react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
-import {
-  contactRepeatBadge,
-  isFlaggedUrgent,
-  URGENT_BADGE_LABEL,
-  type DeferralKind,
-  avatarInitials,
-} from "@loonext/shared";
+import { avatarInitials, contactRepeatBadge, isFlaggedUrgent, URGENT_BADGE_LABEL } from '@loonext/shared';
 
 import { useBlockedNumber } from "@/components/blocked/block-number";
 import { CallButton } from "@/components/calls/call-button";
@@ -46,9 +39,9 @@ import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { useT } from "@/i18n/provider";
 import { useMembers } from "@/lib/api/team";
 import type {
+  ContactDetail,
   ConversationDetail,
   ConversationStatus,
-  ContactDetail,
 } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
@@ -59,12 +52,8 @@ import { cn } from "@/lib/utils";
 
 import { useConversationActions } from "./conversation-actions";
 import { deferralReturnLabel } from "./snooze-menu";
-import {
-  THREAD_CATEGORIES,
-  threadCategoryLabel,
-  toggleThreadCategory,
-  type ThreadFilter,
-} from "./thread-filter";
+import { THREAD_CATEGORIES, threadCategoryLabel, toggleThreadCategory } from './thread-filter';
+import type { ThreadFilter } from './thread-filter';
 
 /** Stands in for a null assignee: a radio group's value must be a string.
  *  User ids are UUIDs, so this sentinel cannot collide with one. */
@@ -161,7 +150,7 @@ export function ThreadHeader({
   };
 
   const snoozedUntil = conversation.snoozed_until ?? null;
-  const snoozeKind = (conversation.snooze_kind ?? null) as DeferralKind | null;
+  const snoozeKind = (conversation.snooze_kind ?? null);
 
   // Lifted out of the JSX only so the #505 badge can sit beside it in a flex
   // row without the no-badge path having to render a wrapper it does not need.

@@ -3,10 +3,10 @@ import { describe, expect, it } from "vitest";
 import { ApiError } from "../http/errors";
 import { scanAttachment } from "./scan";
 import {
+  acceptUploadedPreview,
   MAX_PREVIEW_BYTES,
   MAX_PREVIEW_FRACTION,
   PREVIEW_WORTH_IT_BYTES,
-  acceptUploadedPreview,
   previewStoragePath,
   previewWorthHaving,
 } from "./preview";
@@ -23,13 +23,13 @@ import {
 /** A minimal but genuine JPEG: SOI + APP0/JFIF, which the byte sniffer reads. */
 function jpeg(sizeBytes: number): Uint8Array {
   const bytes = new Uint8Array(sizeBytes);
-  bytes.set([0xff, 0xd8, 0xff, 0xe0], 0);
+  bytes.set([0xFF, 0xD8, 0xFF, 0xE0], 0);
   return bytes;
 }
 
 function png(sizeBytes: number): Uint8Array {
   const bytes = new Uint8Array(sizeBytes);
-  bytes.set([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 0);
+  bytes.set([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], 0);
   return bytes;
 }
 

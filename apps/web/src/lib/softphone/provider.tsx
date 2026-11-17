@@ -21,21 +21,14 @@
  * the screenshot harness).
  */
 import { useQueryClient } from "@tanstack/react-query";
-import {
-  createContext,
-  useCallback,
-  useContext,
-  useEffect,
-  useMemo,
-  useReducer,
-  useRef,
-  type ReactNode,
-} from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
+import type { ReactNode } from 'react';
 import { toast } from "sonner";
 
 import { roleHasCapability } from "@loonext/shared";
 
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import {
   useAuthorizeBrowserCall,
   useResolveLiveSession,
@@ -46,13 +39,8 @@ import { useActiveCompany } from "@/lib/company/provider";
 
 import { emitRingBeacon } from "./beacons";
 import { setLiveBrowserCall } from "./live-call";
-import {
-  INITIAL_SOFTPHONE_STATE,
-  isTerminalSdkState,
-  softphoneReducer,
-  type CallInfo,
-  type SoftphoneState,
-} from "./state";
+import { INITIAL_SOFTPHONE_STATE, isTerminalSdkState, softphoneReducer } from './state';
+import type { CallInfo, SoftphoneState } from './state';
 
 /** The minimal slice of the @telnyx/webrtc surface we touch (kept local so the
  *  SDK types never leak into the server bundle via a top-level import). */

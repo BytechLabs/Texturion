@@ -5,7 +5,7 @@
  * also written to state/health.json, with the guard's room, for rigd to
  * publish, and it is written even when nothing could be measured.
  */
-import { existsSync, readFileSync, writeFileSync, mkdirSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { classifyCrons, readCronRegistry } from "./cron.mjs";
@@ -47,7 +47,7 @@ export function nodeOffsetMinutes(zone, instant) {
     .formatToParts(instant)
     .find((part) => part.type === "timeZoneName").value;
   const match = /GMT(?:([+-])(\d{2}):(\d{2}))?/.exec(name);
-  if (!match || !match[1]) return 0;
+  if (!match?.[1]) return 0;
   const minutes = Number(match[2]) * 60 + Number(match[3]);
   return match[1] === "-" ? -minutes : minutes;
 }
@@ -215,7 +215,7 @@ export function healthChecks(context) {
         } catch (error) {
           return error.message.replace(/^member sessions: signing qa-w-owner in returned/, "sign-in answered");
         }
-        const alg = JSON.parse(Buffer.from(session.token.split(".")[0], "base64url").toString()).alg;
+        const {alg} = JSON.parse(Buffer.from(session.token.split(".")[0], "base64url").toString());
         if (alg !== "ES256") return `local auth signs ${alg}, and the API accepts ES256 only`;
         answered = await fetchImpl(`${api()}/v1/me`, { headers: { authorization: `Bearer ${session.token}` } });
         // A session kept from before a reset database is gone: sign in once more.
@@ -331,7 +331,7 @@ export function healthChecks(context) {
 
     /** The rig's adb server on the host, through the tunnel; without it every device check fails. */
     async adbTunnel() {
-      return (await portAnswers("127.0.0.1", ADB_VM_PORT, 2_000)) ? null : `no adb server answers on 127.0.0.1:${ADB_VM_PORT}, the tunnel to the host's adb server`;
+      return (await portAnswers("127.0.0.1", ADB_VM_PORT, 2000)) ? null : `no adb server answers on 127.0.0.1:${ADB_VM_PORT}, the tunnel to the host's adb server`;
     },
 
     /** The VM's firewall table, which keeps the rig off private ranges and the host's other ports. */

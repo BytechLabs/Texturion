@@ -30,9 +30,9 @@ export function NotificationPauseNotice({ pause }: { pause?: AlertPause }) {
   const what =
     pause.email_paused && pause.push_paused
       ? t("misc.alertsPausedAll")
-      : pause.email_paused
+      : (pause.email_paused
         ? t("misc.alertsPausedEmail")
-        : t("misc.alertsPausedPush");
+        : t("misc.alertsPausedPush"));
   // Both channels rarely go together, and when only one has, saying which is
   // the difference between "we are broken" and "you are still covered".
   //

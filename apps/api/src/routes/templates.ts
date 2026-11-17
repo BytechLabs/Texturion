@@ -141,7 +141,7 @@ templatesRoutes.get("/templates", requireCapability("conversations.read"), async
     rows.map((row) => (row as { updated_by?: string | null }).updated_by),
   );
   const data = rows.map((row) => {
-    const template = row as Record<string, unknown>;
+    const template = row;
     const editor = template.updated_by as string | null;
     return {
       ...template,

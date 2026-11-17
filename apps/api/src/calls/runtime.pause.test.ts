@@ -34,7 +34,8 @@ import {
 import { restMatch, rpcMatch, stubRoute } from "../test/messaging-support";
 import { completeEnv, stubFetch } from "../test/support";
 import { createSessionRuntime } from "./runtime";
-import { type Effect, reduce } from "./transitions";
+import { reduce } from './transitions';
+import type { Effect } from './transitions';
 
 const env: Env = completeEnv();
 
@@ -139,15 +140,15 @@ async function inboundContext(world: InboundWorld) {
     call_control_id: "ccid-277",
     from: "+14155559001",
     to: "+14155550001",
-  } as never);
-  if (typeof ctx === "string") throw new Error(`expected a context, got ${ctx}`);
+  });
+  if (typeof ctx === "string") throw new TypeError(`expected a context, got ${ctx}`);
   return { ctx, routes };
 }
 
 /** What the REAL machine does with that context, the moment the caller rings. */
 function effectsFor(ctx: Awaited<ReturnType<typeof inboundContext>>["ctx"]): Effect[] {
   let n = 0;
-  return reduce(null, { type: "initiated", context: ctx }, 1_000, () => `k${n++}`)
+  return reduce(null, { type: "initiated", context: ctx }, 1000, () => `k${n += 1}`)
     .effects;
 }
 

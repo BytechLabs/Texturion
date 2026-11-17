@@ -55,10 +55,10 @@ export function readDbVocabulary(): DbVocabulary {
 
   const files = readdirSync(MIGRATIONS)
     .filter((name) => name.endsWith(".sql"))
-    .sort();
+    .toSorted();
 
   for (const file of files) {
-    const sql = readFileSync(join(MIGRATIONS, file), "utf8").replace(/--[^\n]*/g, "");
+    const sql = readFileSync(join(MIGRATIONS, file), "utf8").replaceAll(/--[^\n]*/g, "");
 
     const tableAt = (index: number): string | null => {
       const head = sql.slice(0, index);

@@ -7,20 +7,10 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { sessionsRoutes } from "./sessions";
 
 const env = completeEnv();
@@ -77,7 +67,7 @@ describe("GET /v1/sessions — your own devices", () => {
       companyId: null, // bearer-only: sessions belong to the person
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       data: [
         {
           id: OTHER_SESSION,
@@ -101,7 +91,7 @@ describe("GET /v1/sessions — your own devices", () => {
 
   it("marks the session the request itself is on", async () => {
     const token = await auth.token();
-    const sessionId = auth.sessionId;
+    const {sessionId} = auth;
     const sb = stub([sessionRow({ session_id: sessionId, client: "web" })]);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -161,7 +151,7 @@ describe("#573 signing out stops the softphone", () => {
 
     expect(res.status).toBe(200);
     expect(deleted).toEqual(["cred-abc", "cred-def"]);
-    expect(await res.json()).toEqual({ sessions: 1, devices: 1, voice: 2 });
+    await expect(res.json()).resolves.toEqual({ sessions: 1, devices: 1, voice: 2 });
   });
 
   it("still signs the device out when Telnyx refuses", async () => {
@@ -191,7 +181,7 @@ describe("#573 signing out stops the softphone", () => {
 
     expect(res.status).toBe(200);
     // Zero deleted, and the sign-out still happened.
-    expect(await res.json()).toEqual({ sessions: 1, devices: 1, voice: 0 });
+    await expect(res.json()).resolves.toEqual({ sessions: 1, devices: 1, voice: 0 });
   });
 });
 
@@ -215,7 +205,7 @@ describe("POST /v1/sessions/revoke", () => {
       { method: "POST", companyId: null, body: { session_id: OTHER_SESSION } },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ sessions: 1, devices: 1, voice: 0 });
+    await expect(res.json()).resolves.toEqual({ sessions: 1, devices: 1, voice: 0 });
 
     // Scoped to the caller and to exactly the session they named.
     expect(sb.find("POST", "/rest/v1/rpc/api_revoke_sessions")[0].body).toEqual({
@@ -229,7 +219,7 @@ describe("POST /v1/sessions/revoke", () => {
 
   it("signs out everywhere EXCEPT the device asking", async () => {
     const token = await auth.token();
-    const sessionId = auth.sessionId;
+    const {sessionId} = auth;
     const sb = stub([]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
       sessions: 3,
@@ -254,7 +244,7 @@ describe("POST /v1/sessions/revoke", () => {
 
   it("refuses to sign out the device making the request", async () => {
     const token = await auth.token();
-    const sessionId = auth.sessionId;
+    const {sessionId} = auth;
     const sb = stub([]);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -304,7 +294,7 @@ describe("POST /v1/sessions/revoke", () => {
      * 401ing the next request is the whole point.
      */
     const token = await auth.token();
-    const sessionId = auth.sessionId;
+    const {sessionId} = auth;
     const sb = stub([]);
     sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({
       sessions: 1,
@@ -379,7 +369,7 @@ describe("GET /v1/members/sessions — the workspace view", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       data: [
         {
           id: OTHER_SESSION,
@@ -424,7 +414,7 @@ describe("POST /v1/members/:id/sessions/revoke", () => {
       { method: "POST", companyId: COMPANY_ID, body: {} },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ sessions: 2, devices: 3, voice: 0 });
+    await expect(res.json()).resolves.toEqual({ sessions: 2, devices: 3, voice: 0 });
 
     // Every session of theirs, with no exception — the point is that the
     // person is gone.
@@ -461,7 +451,7 @@ describe("POST /v1/members/:id/sessions/revoke", () => {
 
   it("lets an owner clear their own other devices without locking themselves out", async () => {
     const token = await auth.token();
-    const sessionId = auth.sessionId;
+    const {sessionId} = auth;
     const sb = revokeStub("owner", { user_id: auth.subject, role: "owner" });
     stubFetch(jwksRoute(auth), sb.route);
 

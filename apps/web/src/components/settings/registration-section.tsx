@@ -15,9 +15,9 @@ import { LoadError } from "@/components/ui/load-error";
 import {
   usRegistrationFee,
   usRegistrationPausedTerms,
+  usRegistrationStarted,
   usRegistrationTail,
   usRegistrationTerms,
-  usRegistrationStarted,
   usRegistrationTiming,
 } from "@/components/settings/us-registration-timing";
 import { Button } from "@/components/ui/button";
@@ -103,7 +103,7 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
 
   const phone =
     typeof brand.data?.mobilePhone === "string"
-      ? (brand.data.mobilePhone as string)
+      ? (brand.data.mobilePhone)
       : t("settingsMore.regOtpYourMobile");
 
   return (
@@ -145,7 +145,7 @@ function OtpRow({ brand }: { brand: RegistrationRow }) {
             id="otp-code"
             value={code}
             onChange={(event) =>
-              setCode(event.target.value.replace(/\D/g, "").slice(0, 6))
+              setCode(event.target.value.replaceAll(/\D/g, "").slice(0, 6))
             }
             inputMode="numeric"
             autoComplete="one-time-code"
@@ -390,9 +390,9 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
   const rejectedRow =
     brand?.status === "rejected"
       ? brand
-      : campaign?.status === "rejected"
+      : (campaign?.status === "rejected"
         ? campaign
-        : null;
+        : null);
   const approved =
     campaign?.status === "approved" && campaign.deactivated_at === null;
   const deactivated = campaign?.deactivated_at !== null && campaign !== null;
@@ -410,7 +410,7 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
 
   const steps: { state: StepState; label: string; detail?: string | null }[] = [
     {
-      state: submittedAt ? "done" : isDraft ? "active" : "todo",
+      state: submittedAt ? "done" : (isDraft ? "active" : "todo"),
       label: t("settingsMore.regStepSubmitted"),
       detail: submittedAt
         ? t("settingsMore.regStepSubmittedOn", {
@@ -419,13 +419,13 @@ export function RegistrationSection({ company }: { company: CompanyView }) {
         : t("settingsMore.regStepNotSubmitted"),
     },
     {
-      state: approved ? "done" : inReview ? "active" : "todo",
+      state: approved ? "done" : (inReview ? "active" : "todo"),
       label: t("settingsMore.regStepReview"),
       detail: approved
         ? null
-        : inReview
+        : (inReview
           ? t("settingsMore.regStepReviewDetail")
-          : null,
+          : null),
     },
     {
       state: approved ? "done" : "todo",

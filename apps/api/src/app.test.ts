@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { getEnv, type Bindings } from "./env";
+import { getEnv } from './env';
+import type { Bindings } from './env';
 import { app, handler } from "./index";
 import { TelnyxApiError } from "./telnyx/client";
 import { completeEnv as sharedCompleteEnv } from "./test/support";
@@ -62,13 +63,13 @@ describe("env validation", () => {
   it("rejects a missing key and names it in the error", () => {
     const bindings = completeEnv();
     delete bindings.TELNYX_API_KEY;
-    expect(() => getEnv(bindings)).toThrowError(/TELNYX_API_KEY/);
+    expect(() => getEnv(bindings)).toThrow(/TELNYX_API_KEY/);
   });
 
   it("rejects an empty value and names the key in the error", () => {
     const bindings = completeEnv();
     bindings.STRIPE_WEBHOOK_SECRET = "";
-    expect(() => getEnv(bindings)).toThrowError(/STRIPE_WEBHOOK_SECRET/);
+    expect(() => getEnv(bindings)).toThrow(/STRIPE_WEBHOOK_SECRET/);
   });
 
   it("validates once per bindings object (memoized per isolate)", () => {
@@ -84,7 +85,7 @@ describe("GET /health", () => {
     // D142: the rig's guard orders no Telnyx number until production lists
     // this capability, and it matches the literal from outside this codebase —
     // spelled out rather than imported, so renaming the constant fails here.
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       ok: true,
       capabilities: ["telnyx-partition-v1"],
     });
@@ -95,7 +96,7 @@ describe("error envelope (SPEC §7)", () => {
   it("returns { error: { code, message } } with code not_found for unknown routes", async () => {
     const res = await app.request("/nope", {}, completeEnv());
     expect(res.status).toBe(404);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       error: { code: "not_found", message: "No such route." },
     });
   });
@@ -116,7 +117,7 @@ describe("error envelope (SPEC §7)", () => {
     async (status) => {
       const res = await app.request(`/__test__/telnyx-${status}`, {}, completeEnv());
       expect(res.status).toBe(503);
-      expect(await res.json()).toEqual({
+      await expect(res.json()).resolves.toEqual({
         error: {
           code: "service_unavailable",
           message: "The phone network is busy right now. Try that again in a moment.",
@@ -195,7 +196,7 @@ describe("outermost fetch guard (escaped-onError safety net)", () => {
       executionCtx,
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       ok: true,
       capabilities: ["telnyx-partition-v1"],
     });

@@ -13,7 +13,6 @@
  */
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import { threadDemoCopy } from "@/i18n/marketing/thread-demo";
 import type { ReactNode } from "react";
 
 import type { ThreadScript } from "@/components/marketing/thread-demo/script";

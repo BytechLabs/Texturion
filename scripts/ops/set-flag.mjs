@@ -134,7 +134,7 @@ await runScript("set-flag", async ({ args, apply, db, script }) => {
   showRows("Flag after", [
     {
       key,
-      enabled: enabled === null ? "(unsaid — code default)" : enabled,
+      enabled: enabled ?? "(unsaid — code default)",
       percent: percent ?? "-",
       internal_only: internal,
       note: args.note ?? "-",

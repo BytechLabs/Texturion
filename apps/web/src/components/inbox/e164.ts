@@ -1,4 +1,4 @@
-import { lookupAreaCode, isUsCaDestination } from "@loonext/shared";
+import { isUsCaDestination, lookupAreaCode } from "@loonext/shared";
 
 /**
  * Live E.164 handling for the compose recipient field (G5): the user types
@@ -11,7 +11,7 @@ import { lookupAreaCode, isUsCaDestination } from "@loonext/shared";
 /** The national 10 digits typed so far (country prefix stripped), max 10. */
 export function nationalDigits(raw: string): string {
   const hasPlusOne = raw.trim().startsWith("+1");
-  let digits = raw.replace(/\D/g, "");
+  let digits = raw.replaceAll(/\D/g, "");
   if (hasPlusOne || (digits.length === 11 && digits.startsWith("1"))) {
     digits = digits.startsWith("1") ? digits.slice(1) : digits;
   }

@@ -26,18 +26,10 @@
  * share it.
  */
 
-import {
-  formatMoney,
-  PLAN_PRICE_CENTS,
-  US_REGISTRATION_FEE_CENTS,
-  type BillingCurrency,
-} from "@loonext/shared";
-import {
-  PLAN_MODULE_CARDS,
-  type PlanId,
-  type PlanModule,
-  type PlanModuleCard,
-} from "@/lib/api/types";
+import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
+import { PLAN_MODULE_CARDS } from '@/lib/api/types';
+import type { PlanId, PlanModule, PlanModuleCard } from '@/lib/api/types';
 import { APP_LINKS } from "@/lib/marketing/site";
 
 /** Modules marketing never sells: regions_ca (not purchasable yet),
@@ -61,7 +53,7 @@ export const SELLABLE_ADDON_CARDS: PlanModuleCard[] = PLAN_MODULE_CARDS.filter(
  * never render a wrong total.
  */
 export function addonMonthlyDollars(card: PlanModuleCard): number {
-  const parsed = Number(card.price.replace(/[^0-9.]/g, ""));
+  const parsed = Number(card.price.replaceAll(/[^0-9.]/g, ""));
   if (!Number.isFinite(parsed) || parsed <= 0) {
     throw new Error(
       `Unparseable module price for "${card.id}": ${JSON.stringify(card.price)}`,

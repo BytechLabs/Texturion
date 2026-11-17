@@ -55,10 +55,10 @@ export function StartTextEnableDialog() {
       await create.mutateAsync(e164);
       toast.success(t("settingsMore.textEnableStarted"));
       onOpenChange(false);
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("settingsMore.textEnableStartFailed"),
       );
     }

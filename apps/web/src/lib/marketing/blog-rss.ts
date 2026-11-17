@@ -1,5 +1,5 @@
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
-import { LIVE_ROUTES, SITE_URL, absoluteUrl } from "@/lib/marketing/site";
+import { absoluteUrl, LIVE_ROUTES, SITE_URL } from "@/lib/marketing/site";
 
 /**
  * RSS 2.0 for /blog/rss.xml (#127), generated from the BLOG_POSTS registry,
@@ -11,10 +11,10 @@ import { LIVE_ROUTES, SITE_URL, absoluteUrl } from "@/lib/marketing/site";
 /** Minimal XML text escape for element content we author ourselves. */
 export function escapeXml(text: string): string {
   return text
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;");
+    .replaceAll('&', "&amp;")
+    .replaceAll('<', "&lt;")
+    .replaceAll('>', "&gt;")
+    .replaceAll('"', "&quot;");
 }
 
 export function buildRss(): string {

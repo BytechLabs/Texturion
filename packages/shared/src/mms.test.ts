@@ -6,11 +6,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  canonicalMmsType,
+  isMmsMediaType,
   MMS_MAX_MEDIA_BYTES,
   MMS_MAX_MEDIA_ITEMS,
   MMS_OUTBOUND_MEDIA_TYPES,
-  canonicalMmsType,
-  isMmsMediaType,
   mmsMediaKind,
   mmsMediaTypeForFile,
 } from "./mms";
@@ -44,7 +44,7 @@ describe("MMS media allow-list", () => {
   });
 });
 
-describe("canonicalMmsType", () => {
+describe(canonicalMmsType, () => {
   it("lowercases and strips parameters", () => {
     expect(canonicalMmsType("Text/VCard; charset=UTF-8")).toBe("text/vcard");
   });
@@ -69,14 +69,14 @@ describe("canonicalMmsType", () => {
     for (const key of ["constructor", "__proto__", "toString", "hasOwnProperty"]) {
       // Returns the cleaned (lowercased) string, never a prototype member.
       const result = canonicalMmsType(key);
-      expect(typeof result).toBe("string");
+      expect(result).toBeTypeOf("string");
       expect(result).toBe(key.toLowerCase());
       expect(isMmsMediaType(key)).toBe(false);
     }
   });
 });
 
-describe("mmsMediaTypeForFile", () => {
+describe(mmsMediaTypeForFile, () => {
   it("prefers a deliverable declared type", () => {
     expect(
       mmsMediaTypeForFile({ name: "clip.bin", type: "video/mp4" }),
@@ -121,7 +121,7 @@ describe("mmsMediaTypeForFile", () => {
   });
 });
 
-describe("mmsMediaKind", () => {
+describe(mmsMediaKind, () => {
   it("maps every allow-listed type onto a concrete kind", () => {
     for (const type of MMS_OUTBOUND_MEDIA_TYPES) {
       expect(mmsMediaKind(type)).not.toBe("file");

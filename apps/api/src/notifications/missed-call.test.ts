@@ -8,8 +8,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
-import { supabaseStub, type SupabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { notifyMissedCall } from "./missed-call";
 
 const env = completeEnv();
@@ -302,9 +304,9 @@ describe("notifyMissedCall — native device push (#151)", () => {
     const iosSend = service.sends.find(
       (send) => (send.message as { token: string }).token === "tok-b",
     );
-    const headers = (
+    const {headers} = (
       iosSend?.message as { apns: { headers: Record<string, string> } }
-    ).apns.headers;
+    ).apns;
     expect(headers["apns-collapse-id"]).toBe(`conversation:${CONVERSATION_ID}`);
   });
 
@@ -396,7 +398,7 @@ describe("notifyMissedCall — native device push (#151)", () => {
     // `tag` is the shared collapse identity every client coalesces on (#266);
     // `kind` is the only field the service worker must not see.
     const data = service.sends[0].message.data as Record<string, string>;
-    expect(Object.keys(data).sort()).toEqual([
+    expect(Object.keys(data).toSorted()).toEqual([
       "body",
       "kind",
       "tag",

@@ -8,7 +8,7 @@
  * just switched reminders off sees the reminder they cancelled still sitting
  * there.
  */
-import { describe, expect, it, vi, beforeAll, afterEach } from "vitest";
+import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
   apiRequest,
@@ -16,13 +16,8 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { tasksRoutes } from "./tasks";
 
 const env = completeEnv();

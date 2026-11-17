@@ -21,7 +21,7 @@ import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
 
 const deliverPush = vi.fn();
-vi.mock("./deliver", () => ({
+vi.mock(import("./deliver"), () => ({
   deliverPush: (...args: unknown[]) => deliverPush(...args),
 }));
 
@@ -82,9 +82,9 @@ describe("#310 the approval push", () => {
     stub([{ user_id: OWNER }, { user_id: CREW }]);
     await pushRegistrationApproved(env, getDb(env), COMPANY_ID, false);
 
-    expect(deliverPush).toHaveBeenCalledTimes(1);
+    expect(deliverPush).toHaveBeenCalledOnce();
     const payload = deliverPush.mock.calls[0][2] as { userIds: string[] };
-    expect(payload.userIds.sort()).toEqual([OWNER, CREW].sort());
+    expect(payload.userIds.toSorted()).toEqual([OWNER, CREW].toSorted());
     // Against the shipped constant, so the assertion cannot pass by quoting a
     // string nobody renders.
     expect(sent().web.title).toBe(REGISTRATION_APPROVED_PUSH.title);

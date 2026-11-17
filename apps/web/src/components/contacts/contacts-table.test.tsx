@@ -8,7 +8,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { useMemo, useSyncExternalStore } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi, type MockInstance } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import type { MockInstance } from 'vitest';
 
 import type { ContactListItem } from "@/lib/api/types";
 
@@ -156,7 +157,7 @@ describe("the view lives in the URL", () => {
     window.history.pushState(null, "", "/contacts?new=6135550101");
     mount();
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "dana " } });
-    act(() => vi.advanceTimersByTime(250));
+    void act(() => vi.advanceTimersByTime(250));
     expect(window.location.search).toBe("?new=6135550101&q=dana");
     expect(contactsCalls.at(-1)?.q).toBe("dana");
     expect(router.push).not.toHaveBeenCalled();
@@ -178,7 +179,7 @@ describe("the view lives in the URL", () => {
     vi.useFakeTimers();
     mount();
     fireEvent.change(screen.getByRole("searchbox"), { target: { value: "dana " } });
-    act(() => vi.advanceTimersByTime(250));
+    void act(() => vi.advanceTimersByTime(250));
     expect(screen.getByRole("searchbox")).toHaveProperty("value", "dana ");
   });
 
@@ -228,10 +229,10 @@ describe("a row starts its contact's read", () => {
     mount();
     fireEvent.pointerEnter(row("Sam"), { pointerType: "mouse" });
     fireEvent.pointerLeave(row("Sam"), { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(200));
+    void act(() => vi.advanceTimersByTime(200));
     expect(prefetch).not.toHaveBeenCalled();
     fireEvent.pointerEnter(row("Dana"), { pointerType: "mouse" });
-    act(() => vi.advanceTimersByTime(100));
+    void act(() => vi.advanceTimersByTime(100));
     expect(prefetched()).toEqual([detailKey("ct-1")]);
   });
 

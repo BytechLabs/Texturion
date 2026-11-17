@@ -41,7 +41,7 @@ function render(pairs: DuplicatePair[], canMerge = true): string {
   ).replaceAll("&#x27;", "'");
 }
 
-describe("DuplicateContactsCard", () => {
+describe(DuplicateContactsCard, () => {
   it("renders nothing at all when there are no duplicates", () => {
     // The common workspace. Its contacts page must look exactly as it did —
     // an empty "no duplicates" card is chrome that describes nothing.

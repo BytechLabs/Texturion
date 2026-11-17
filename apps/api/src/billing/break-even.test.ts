@@ -16,14 +16,11 @@ import { describe, expect, it } from "vitest";
 import {
   FIXED_MONTHLY_COST_CENTS,
   PLAN_MONTHLY_REVENUE_CENTS,
-  UNIT_COST_CENTS,
   stripeNetCents,
+  UNIT_COST_CENTS,
 } from "./costs";
-import {
-  PLAN_INCLUDED_SEGMENTS,
-  PLAN_VOICE_MINUTES,
-  type PlanId,
-} from "./plans";
+import { PLAN_INCLUDED_SEGMENTS, PLAN_VOICE_MINUTES } from './plans';
+import type { PlanId } from './plans';
 
 /** Per-tenant fixed cost for a US company: one campaign + its numbers. */
 function fixedCents(numbers: number): number {
@@ -67,7 +64,7 @@ describe("#446 — where break-even actually sits", () => {
     const cost = costAtCeilingCents("pro", 2);
     // $76.01 net against $112.95 of cost (#445 raised both segment rates).
     expect(Math.round(net)).toBe(7601);
-    expect(cost).toBe(11295);
+    expect(cost).toBe(11_295);
     expect(Math.round(net - cost)).toBe(-3694);
   });
 
@@ -106,7 +103,7 @@ describe("#446 — where break-even actually sits", () => {
     // the remaining one that can move these.
     expect(UNIT_COST_CENTS.voiceMinute).toBe(1.2);
     expect(UNIT_COST_CENTS.outboundSegment).toBe(1.15);
-    expect(UNIT_COST_CENTS.inboundSegment).toBe(1.0);
+    expect(UNIT_COST_CENTS.inboundSegment).toBe(1);
     expect(FIXED_MONTHLY_COST_CENTS.us10dlcCampaign).toBe(1000);
     expect(FIXED_MONTHLY_COST_CENTS.perNumber).toBe(110);
   });

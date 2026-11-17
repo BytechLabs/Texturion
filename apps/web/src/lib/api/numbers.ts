@@ -104,7 +104,7 @@ export function useProvisionNumber() {
             ? { ...page, data: [...page.data, number] }
             : page,
       );
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
@@ -142,7 +142,7 @@ export function useRemediateNumber(numberId: string) {
               }
             : page,
       );
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });
@@ -180,7 +180,7 @@ export function useReleaseNumber() {
               }
             : page,
       );
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.company(companyId),
         refetchType: "active",
       });

@@ -1,18 +1,22 @@
 import { EDGE_CALLER, HEADER } from "@loonext/rig-protocol";
 
-import { TELNYX_CLASSES_BY_CALLER, type GuardCaller } from "../caller";
+import { TELNYX_CLASSES_BY_CALLER } from '../caller';
+import type { GuardCaller } from '../caller';
 import type { Ctx } from "../context";
-import { json, Refusal, type RuleName } from "../refusal";
+import { json, Refusal } from '../refusal';
+import type { RuleName } from '../refusal';
 import { requireSafe } from "../setup/safety";
 import { AccountRefused, readBalance } from "../state/balance";
 import { handleDial } from "./dial";
-import { relay, type Handler, type TelnyxRequest } from "./forward";
+import { relay } from './forward';
+import type { Handler, TelnyxRequest } from './forward';
 import { handleLegCommand } from "./leg-command";
 import { handleMessage } from "./message";
 import { loadPartition } from "./partition";
 import { handleProvisioning } from "./provisioning";
 import { handleRead } from "./read";
-import { isCleanPath, matchEndpoint, type PolicyEntry } from "./registry";
+import { isCleanPath, matchEndpoint } from './registry';
+import type { PolicyEntry } from './registry';
 
 /**
  * Account-wide areas, refused whatever the registry says and before anything
@@ -89,9 +93,9 @@ export async function handleTelnyx(ctx: Ctx, request: Request, caller: GuardCall
   if (method === "GET" && path === "/v2/balance") {
     try {
       return json({ data: { balance: await readBalance(ctx) } });
-    } catch (cause) {
-      if (cause instanceof AccountRefused) return relay(cause.reply);
-      throw cause;
+    } catch (error) {
+      if (error instanceof AccountRefused) return relay(error.reply);
+      throw error;
     }
   }
   if (caller === EDGE_CALLER) {

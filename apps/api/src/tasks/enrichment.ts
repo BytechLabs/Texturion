@@ -206,9 +206,9 @@ export function parseEnrichmentOutput(
   const text =
     typeof raw === "string"
       ? raw
-      : typeof (raw as { response?: unknown } | null)?.response === "string"
+      : (typeof (raw as { response?: unknown } | null)?.response === "string"
         ? (raw as { response: string }).response
-        : null;
+        : null);
   if (!text) return null;
 
   let json: unknown;
@@ -233,7 +233,7 @@ export function parseEnrichmentOutput(
 /** Trim to a non-empty string, or null. */
 function clean(v: string | null | undefined): string | null {
   const t = v?.trim();
-  return t ? t : null;
+  return t || null;
 }
 
 /**

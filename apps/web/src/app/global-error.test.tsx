@@ -62,8 +62,8 @@ describe("global-error page", () => {
   });
 
   it("shows the Next.js digest as a support reference when present", async () => {
-    expect(await render("abc123")).toContain("Reference: abc123");
-    expect(await render(undefined)).not.toContain("Reference:");
+    await expect(render("abc123")).resolves.toContain("Reference: abc123");
+    await expect(render(undefined)).resolves.not.toContain("Reference:");
   });
 
   it("inlines the v4 palette and uses no em-dashes", async () => {

@@ -14,7 +14,8 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { FakeRest } from "../telnyx/test-support";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 
 import { buildGreetingCaptureState } from "./greeting-capture";
 import { handleGreetingCaptureEvent } from "./greeting-capture-leg";

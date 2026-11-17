@@ -20,20 +20,14 @@
  */
 import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import ts from "typescript";
 import { describe, expect, it } from "vitest";
 
-import {
-  checkFilterName,
-  checkLogicalExpression,
-  checkSelect,
-  type Problem,
-  SCHEMA_SNAPSHOT,
-} from "./schema-columns";
+import { checkFilterName, checkLogicalExpression, checkSelect, SCHEMA_SNAPSHOT } from './schema-columns';
+import type { Problem } from './schema-columns';
 
-const SRC = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const SRC = resolve(import.meta.dirname, "..");
 
 /** Calls whose first argument is a column name. */
 const COLUMN_FILTERS = new Set([
@@ -95,7 +89,7 @@ function sourceFiles(dir: string, out: string[] = []): string[] {
       name.endsWith(".ts") &&
       !name.endsWith(".test.ts") &&
       !name.endsWith(".d.ts") &&
-      !full.includes(`${join("src", "test")}`) &&
+      !full.includes((join("src", "test"))) &&
       !name.startsWith("test-support")
     ) {
       out.push(full);
@@ -180,7 +174,7 @@ let blame = "";
 
 /** Every string `node` can be, or null when it is not statically known. */
 function blameNull(node: ts.Node): null {
-  blame = node.getText().replace(/\s+/g, " ").slice(0, 50);
+  blame = node.getText().replaceAll(/\s+/g, " ").slice(0, 50);
   return null;
 }
 
@@ -232,7 +226,7 @@ function strings(file: string, node: ts.Node, depth = 0): string[] | null {
     const sep = node.arguments[0]
       ? strings(file, node.arguments[0], depth + 1)
       : [","];
-    return items && sep && sep.length === 1 ? [items.join(sep[0])] : null;
+    return items && sep?.length === 1 ? [items.join(sep[0])] : null;
   }
   return blameNull(node);
 }
@@ -259,7 +253,7 @@ function stringList(file: string, node: ts.Node, depth: number): string[] | null
       out.push(...inner);
     } else {
       const one = strings(file, element, depth + 1);
-      if (!one || one.length !== 1) return blameNull(node);
+      if (one?.length !== 1) return blameNull(node);
       out.push(one[0]);
     }
   }
@@ -322,14 +316,10 @@ function scan() {
           const root = chainRoot(node);
           if (root === "storage") {
             // not a table
-          } else if (!root) {
-            if (isSelect) totals.notChains++;
-          } else {
+          } else if (root) {
             const tableArg = root.arguments[0];
             const tables = tableArg ? strings(file, tableArg) : null;
-            if (!tables) {
-              dynamic.push({ file: rel, line: lineOf(node), what: `${method} on a table the scan cannot resolve` });
-            } else {
+            if (tables) {
               for (const table of tables) {
                 const report = (problems: Problem[]) => {
                   for (const problem of problems) {
@@ -346,22 +336,22 @@ function scan() {
                   }
                 };
                 if (isSelect) {
-                  totals.selects++;
+                  totals.selects += 1;
                   const arg = node.arguments[0];
                   const texts = arg ? strings(file, arg) : ["*"];
-                  if (!texts) {
-                    dynamic.push({ file: rel, line: lineOf(node), what: `select(${arg.getText().replace(/\s+/g, " ").slice(0, 40)}) on ${table} [cannot resolve: ${blame}]` });
-                  } else {
+                  if (texts) {
                     for (const text of texts) report(checkSelect(text, table));
+                  } else {
+                    dynamic.push({ file: rel, line: lineOf(node), what: `select(${arg.getText().replaceAll(/\s+/g, " ").slice(0, 40)}) on ${table} [cannot resolve: ${blame}]` });
                   }
                 } else if (isLogical) {
                   const arg = node.arguments[0];
                   const text = arg ? strings(file, arg) : null;
                   const foreign = node.arguments[1] !== undefined;
                   if (!text) {
-                    dynamic.push({ file: rel, line: lineOf(node), what: `${method}(${arg?.getText().replace(/\s+/g, " ").slice(0, 40)}) on ${table}` });
+                    dynamic.push({ file: rel, line: lineOf(node), what: `${method}(${arg?.getText().replaceAll(/\s+/g, " ").slice(0, 40)}) on ${table}` });
                   } else if (!foreign) {
-                    totals.filters++;
+                    totals.filters += 1;
                     for (const t of text) {
                       report(checkLogicalExpression(t, table));
                     }
@@ -369,28 +359,28 @@ function scan() {
                 } else if (isFilter) {
                   const arg = node.arguments[0];
                   const names = arg ? strings(file, arg) : null;
-                  if (!names) {
-                    dynamic.push({ file: rel, line: lineOf(node), what: `${method}(${arg?.getText().slice(0, 40)}) on ${table}` });
-                  } else {
-                    totals.filters++;
+                  if (names) {
+                    totals.filters += 1;
                     for (const name of names) {
                       const problem = checkFilterName(name, table);
                       if (problem) report([{ ...problem, reason: `${problem.reason} (${method})` }]);
                     }
+                  } else {
+                    dynamic.push({ file: rel, line: lineOf(node), what: `${method}(${arg?.getText().slice(0, 40)}) on ${table}` });
                   }
                 } else {
                   const arg = node.arguments[0];
-                  const rows = !arg
-                    ? []
-                    : ts.isArrayLiteralExpression(arg)
+                  const rows = arg
+                    ? (ts.isArrayLiteralExpression(arg)
                       ? arg.elements
-                      : [arg];
+                      : [arg])
+                    : [];
                   for (const row of rows) {
                     if (!ts.isObjectLiteralExpression(row)) {
                       dynamic.push({ file: rel, line: lineOf(node), what: `${method}(${row.getText().slice(0, 40)}) on ${table}` });
                       continue;
                     }
-                    totals.writes++;
+                    totals.writes += 1;
                     for (const prop of row.properties) {
                       if (
                         (ts.isPropertyAssignment(prop) ||
@@ -403,8 +393,12 @@ function scan() {
                   }
                 }
               }
-              if (isSelect || isFilter || isWrite || isLogical) totals.chains++;
+              if (isSelect || isFilter || isWrite || isLogical) totals.chains += 1;
+            } else {
+              dynamic.push({ file: rel, line: lineOf(node), what: `${method} on a table the scan cannot resolve` });
             }
+          } else {
+            if (isSelect) totals.notChains += 1;
           }
         }
       }

@@ -24,7 +24,8 @@ import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { compareUiCopy } from "@/i18n/marketing/compare-ui";
 import { homeCopy } from "@/i18n/marketing/home";
 import { useMarketingCurrency } from "@/components/marketing/pricing/plan-price";
-import { formatMoney, type BillingCurrency } from "@loonext/shared";
+import { formatMoney } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 import { useId, useState } from "react";
 
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";

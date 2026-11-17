@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -39,7 +38,7 @@ import { REALTIME_BACKGROUND_GRACE_MS } from "./realtime-lifecycle";
  * places.
  */
 
-const REPO = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..");
+const REPO = join(import.meta.dirname, "..", "..", "..");
 
 const SOURCES = {
   android:
@@ -69,7 +68,7 @@ function heartbeatSeconds(source: string): number[] {
     // Swift: `try? await Task.sleep(for: .seconds(25))` in the heartbeat loop.
     ...source.matchAll(/Task\.sleep\(for: \.seconds\((\d+)\)\)/g),
   ].map((match) => {
-    const raw = Number(match[1].replace(/_/g, ""));
+    const raw = Number(match[1].replaceAll('_', ""));
     return raw > 1000 ? raw / 1000 : raw;
   });
 }

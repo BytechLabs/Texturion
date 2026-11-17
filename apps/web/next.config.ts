@@ -283,4 +283,4 @@ export default withMDX(nextConfig);
 
 // Gives `next dev` access to the Cloudflare bindings declared in wrangler.jsonc.
 // No-op outside the dev server.
-initOpenNextCloudflareForDev();
+void initOpenNextCloudflareForDev();

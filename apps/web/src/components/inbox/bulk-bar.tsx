@@ -23,11 +23,8 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useT } from "@/i18n/provider";
 import { useTags } from "@/lib/api/tags";
-import {
-  canEscalate,
-  selectionLabel,
-  type BulkSelection,
-} from "@/lib/inbox/bulk-selection";
+import { canEscalate, selectionLabel } from '@/lib/inbox/bulk-selection';
+import type { BulkSelection } from '@/lib/inbox/bulk-selection';
 
 /**
  * #275 — the selection bar over the inbox list.
@@ -217,7 +214,7 @@ export function BulkBar({
                 label={t("inbox.bulkTags")}
                 tags={tags.data?.data ?? []}
                 itemTagIds={selectedTagIds}
-                selectionKey={selection.mode === "ids" ? [...selection.ids].sort().join(",") : "filter"}
+                selectionKey={selection.mode === "ids" ? [...selection.ids].toSorted().join(",") : "filter"}
                 onToggle={(tag, action) => onTag(tag.id, action)}
               />
             </>

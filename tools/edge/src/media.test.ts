@@ -3,10 +3,10 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import type { Env } from "./env";
 import { signedMediaPath } from "./media";
-import { ORIGIN, call, connectRig, edgeEnv, fakeGuard, resetEdge } from "./test/support";
+import { call, connectRig, edgeEnv, fakeGuard, ORIGIN, resetEdge } from "./test/support";
 
 function base64Url(text: string): string {
-  return btoa(text).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  return btoa(text).replaceAll('+', "-").replaceAll('/', "_").replace(/[=]+$/, "");
 }
 
 /** A Supabase-shaped signed-URL token: the edge reads its claims, never its signature. */
@@ -18,7 +18,7 @@ function mediaUrl(object: string, claim = object, exp?: number): URL {
   return new URL(`${ORIGIN}/m/object/sign/${object}?token=${token(claim, exp)}`);
 }
 
-describe("signedMediaPath", () => {
+describe(signedMediaPath, () => {
   it("relays a live signed URL for either bucket, as the storage path", () => {
     const url = mediaUrl("mms-media/qa-w/photo.jpg");
     expect(signedMediaPath(url)).toBe(`/object/sign/mms-media/qa-w/photo.jpg${url.search}`);
@@ -43,7 +43,7 @@ describe("signedMediaPath", () => {
     expect(signedMediaPath(mediaUrl("mms-media/%2e%2e/secret", "mms-media/../secret"))).toBeNull();
     expect(signedMediaPath(mediaUrl("mms-media/a%2Fb.jpg", "mms-media/a/b.jpg"))).toBeNull();
     expect(signedMediaPath(mediaUrl("mms-media/a%00b.jpg", "mms-media/a\u0000b.jpg"))).toBeNull();
-    expect(signedMediaPath(mediaUrl("mms-media/a%5Cb.jpg", "mms-media/a\\b.jpg"))).toBeNull();
+    expect(signedMediaPath(mediaUrl("mms-media/a%5Cb.jpg", String.raw`mms-media/a\b.jpg`))).toBeNull();
     const extra = mediaUrl("mms-media/a.jpg");
     extra.searchParams.set("width", "100");
     expect(signedMediaPath(extra)).toBeNull();
@@ -101,7 +101,7 @@ describe("the media relay", () => {
     rig.send({ t: "media-result", id: frame.t === "media" ? frame.id : "", status: 404 });
     const response = await pending;
     expect(response.status).toBe(404);
-    expect(await response.text()).toBe("");
+    await expect(response.text()).resolves.toBe("");
     rig.close();
   });
 

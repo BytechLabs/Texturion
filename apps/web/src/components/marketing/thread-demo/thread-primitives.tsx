@@ -1,9 +1,6 @@
 import type { MarketingLocale } from "@/i18n/marketing/footer";
-import {
-  threadDemoCopy,
-  threadDemoEn,
-  type ThreadDemoCopy,
-} from "@/i18n/marketing/thread-demo";
+import { threadDemoCopy, threadDemoEn } from '@/i18n/marketing/thread-demo';
+import type { ThreadDemoCopy } from '@/i18n/marketing/thread-demo';
 import { avatarInitials } from "@loonext/shared";
 
 /**

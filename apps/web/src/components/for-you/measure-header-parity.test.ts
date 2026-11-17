@@ -83,9 +83,9 @@ describe("#540 every measure card uses the shared heading", () => {
       .map(([name]) => name);
     expect(
       missing,
-      "These measure cards build their own heading instead of using the " +
-        "shared one, which is how four cards on one screen become two " +
-        "species of panel:\n  " + missing.join("\n  "),
+      `These measure cards build their own heading instead of using the ` +
+        `shared one, which is how four cards on one screen become two ` +
+        `species of panel:\n  ${  missing.join("\n  ")}`,
     ).toEqual([]);
   });
 
@@ -106,8 +106,8 @@ describe("#540 every measure card uses the shared heading", () => {
       .map(([name]) => name);
     expect(
       restated,
-      "These cards spell out the heading's kerning themselves:\n  " +
-        restated.join("\n  "),
+      `These cards spell out the heading's kerning themselves:\n  ${ 
+        restated.join("\n  ")}`,
     ).toEqual([]);
   });
 

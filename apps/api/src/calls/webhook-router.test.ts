@@ -45,7 +45,7 @@ const BRM = buildMemberRingState({
 const OP = buildOutboundPlacerState(S, "placer-1");
 
 function ev(eventType: string, payload: Record<string, unknown>): TelnyxEvent {
-  return { data: { id: "x", event_type: eventType, payload } as never };
+  return { data: { id: "x", event_type: eventType, payload } };
 }
 
 // The leg Telnyx creates on the WebRTC credential connection when we dial a

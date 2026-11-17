@@ -6,7 +6,8 @@ import { liveLease } from "../state/lease";
 import { charge, readTier, refund } from "../state/ledger";
 import { requirePaidLanesOpen } from "../state/signals";
 import { enforceCap } from "./detach";
-import { forward, isDefiniteFailure, relay, type Handler } from "./forward";
+import { forward, isDefiniteFailure, relay } from './forward';
+import type { Handler } from './forward';
 import { onEdge } from "./hazards";
 import { isOwnedNumber } from "./targets";
 
@@ -27,7 +28,7 @@ export function smsParts(text: string): number {
   const gsm = GSM.test(text);
   const single = gsm ? 160 : 70;
   const multi = gsm ? 153 : 67;
-  const length = [...text].length;
+  const {length} = [...text];
   return length <= single ? 1 : Math.ceil(length / multi);
 }
 
@@ -42,7 +43,7 @@ export function messageCostUsd(body: Record<string, unknown>): number {
 
 export const handleMessage: Handler = async (request) => {
   const { ctx, view } = request;
-  const body = request.body;
+  const {body} = request;
   if (!body) throw new Refusal("request.body_invalid");
 
   if (!isOwnedNumber(view, body.from)) throw new Refusal("message.from_not_owned");

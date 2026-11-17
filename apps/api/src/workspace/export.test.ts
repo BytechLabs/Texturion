@@ -10,11 +10,13 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
-import { pgError, supabaseStub, type SupabaseStub } from "../test/routes-harness";
-import { completeEnv, stubFetch, type FetchRoute } from "../test/support";
+import { pgError, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, stubFetch } from '../test/support';
+import type { FetchRoute } from '../test/support';
 import { buildDataExports, pruneExpiredExports } from "./export";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -96,7 +98,7 @@ function world(options: WorldOptions = {}): {
   const storageRoute: FetchRoute = (url) => {
     if (!url.pathname.startsWith("/storage/v1/object")) return undefined;
     if (options.uploadFails) {
-      return new Response(JSON.stringify({ message: "nope" }), { status: 500 });
+      return Response.json({ message: "nope" }, { status: 500 });
     }
     uploaded.push(url.pathname.replace("/storage/v1/object/exports/", ""));
     return Response.json({ Key: url.pathname });
@@ -107,7 +109,7 @@ function world(options: WorldOptions = {}): {
   return { sb, routes: [storageRoute, resendRoute, sb.route], uploaded };
 }
 
-describe("buildDataExports", () => {
+describe(buildDataExports, () => {
   it("writes a file per table and lands the manifest last", async () => {
     const { sb, routes, uploaded } = world({
       rowsFor: { table: "messages", rows: [{ id: "m-1", body: "hi" }] },
@@ -405,7 +407,7 @@ describe("pruneExpiredExports (#378)", () => {
     const w = world([], []);
     stubFetch(...w.routes);
 
-    expect(await pruneExpiredExports(env, NOW)).toEqual({ reaped: 0, objectsRemoved: 0 });
+    await expect(pruneExpiredExports(env, NOW)).resolves.toEqual({ reaped: 0, objectsRemoved: 0 });
     expect(w.removed).toHaveLength(0);
   });
 });

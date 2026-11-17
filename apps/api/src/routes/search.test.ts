@@ -7,20 +7,10 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { encodeCursor } from "../http/pagination";
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { searchRoutes } from "./search";
 
 const env = completeEnv();
@@ -236,7 +226,7 @@ describe("GET /v1/search", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       conversations: [],
       contacts: [],
       tasks: [],

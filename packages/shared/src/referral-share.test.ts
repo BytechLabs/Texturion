@@ -1,27 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import { REFERRAL_REWARDS_PER_YEAR } from "./referrals";
-import {
-  REFERRAL_ASK_MIN_CUSTOMERS,
-  REFERRAL_ASK_MIN_DAYS,
-  REFERRAL_ASK_QUIET_DAYS,
-  REFERRAL_ASK_ACTION,
-  REFERRAL_ASK_BODY,
-  REFERRAL_ASK_DISMISS,
-  REFERRAL_REWARD_LINE,
-  REFERRAL_SHARE_ACTION,
-  REFERRAL_SHARE_COPIED,
-  REFERRAL_SHARE_COPY,
-  REFERRAL_SHARE_DRAFT_LABEL,
-  REFERRAL_SHARE_LINK_NOTE,
-  REFERRAL_SHARE_NOTE,
-  REFERRAL_SHARE_TITLE,
-  REFERRAL_STAGE_LABELS,
-  referralAskDecision,
-  referralAskHeadline,
-  referralShareText,
-  type ReferralAskFacts,
-} from "./referral-share";
+import { REFERRAL_ASK_ACTION, REFERRAL_ASK_BODY, REFERRAL_ASK_DISMISS, REFERRAL_ASK_MIN_CUSTOMERS, REFERRAL_ASK_MIN_DAYS, REFERRAL_ASK_QUIET_DAYS, REFERRAL_REWARD_LINE, REFERRAL_SHARE_ACTION, REFERRAL_SHARE_COPIED, REFERRAL_SHARE_COPY, REFERRAL_SHARE_DRAFT_LABEL, REFERRAL_SHARE_LINK_NOTE, REFERRAL_SHARE_NOTE, REFERRAL_SHARE_TITLE, REFERRAL_STAGE_LABELS, referralAskDecision, referralAskHeadline, referralShareText } from './referral-share';
+import type { ReferralAskFacts } from './referral-share';
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
@@ -29,7 +10,7 @@ import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalo
 function lookUp(table: unknown, key: string, lang: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no ${lang} for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no ${lang} for ${key}`);
   return value;
 }
 
@@ -68,7 +49,7 @@ function earned(overrides: Partial<ReferralAskFacts> = {}): ReferralAskFacts {
   };
 }
 
-describe("referralShareText", () => {
+describe(referralShareText, () => {
   it("puts the link on the end so an edited message keeps it", () => {
     const text = referralShareText("Come try this", "https://loonext.com/?ref=ABCD2345", "ABCD2345", sayVars);
     expect(text).toBe("Come try this\n\nhttps://loonext.com/?ref=ABCD2345");
@@ -118,7 +99,7 @@ describe("referralShareText", () => {
   });
 });
 
-describe("REFERRAL_SHARE_NOTE", () => {
+describe(REFERRAL_SHARE_NOTE, () => {
   it("does not claim the crew is limited to one number", () => {
     // A crew can run several numbers, so "one number" is a promise the product
     // does not make. The inbox is the thing that is singular.
@@ -136,7 +117,7 @@ describe("REFERRAL_SHARE_NOTE", () => {
   });
 });
 
-describe("referralAskDecision", () => {
+describe(referralAskDecision, () => {
   it("asks a workspace that has been working for a month", () => {
     expect(referralAskDecision(earned(), NOW)).toEqual({
       ask: true,
@@ -238,7 +219,7 @@ describe("referralAskDecision", () => {
   });
 });
 
-describe("referralAskHeadline", () => {
+describe(referralAskHeadline, () => {
   it("counts in customers, in their own numbers", () => {
     expect(referralAskHeadline(37, say)).toBe("You replied to 37 customers this month.");
   });

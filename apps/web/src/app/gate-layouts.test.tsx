@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 import path from "node:path";
 
 import { renderToStaticMarkup } from "react-dom/server";
@@ -24,7 +23,7 @@ import { describe, expect, it, vi } from "vitest";
  * and mount the shared header — do not hand-roll chrome.
  */
 
-const APP_DIR = fileURLToPath(new URL(".", import.meta.url));
+const APP_DIR = import.meta.dirname;
 
 /**
  * Every layout that renders a full-screen authenticated state OUTSIDE the

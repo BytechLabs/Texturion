@@ -1,10 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  resolveCalendarSync,
-  sameCalendarSchedule,
-  type CalendarScheduleSnapshot,
-} from "./sync";
+import { resolveCalendarSync, sameCalendarSchedule } from './sync';
+import type { CalendarScheduleSnapshot } from './sync';
 
 const BASE: CalendarScheduleSnapshot = {
   start: "2026-11-01T14:00:00.000Z",
@@ -20,7 +17,7 @@ function changed(
   return { ...BASE, ...patch };
 }
 
-describe("sameCalendarSchedule", () => {
+describe(sameCalendarSchedule, () => {
   it("compares every scheduling field, including zone and description hash", () => {
     expect(sameCalendarSchedule(BASE, { ...BASE })).toBe(true);
     for (const candidate of [
@@ -38,7 +35,7 @@ describe("sameCalendarSchedule", () => {
   });
 });
 
-describe("resolveCalendarSync", () => {
+describe(resolveCalendarSync, () => {
   it("pushes ours when only our scheduling fields changed", () => {
     const ours = changed({ start: "2026-11-01T17:00:00.000Z" });
     expect(

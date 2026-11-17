@@ -73,7 +73,7 @@ function productionFiles(): string[] {
 /** The source with comments removed — prose about the rule is not a breach. */
 function code(path: string): string {
   return sourceText(path)
-    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
     .split("\n")
     .map((line) => line.replace(/(^|\s)\/\/.*$/, "$1"))
     .join("\n");
@@ -87,14 +87,14 @@ describe("#291 a send goes to the number the thread is with", () => {
     const files = productionFiles();
     expect(files.length).toBeGreaterThan(100);
     expect(
-      files.some((f) => f.replace(/\\/g, "/").endsWith("routes/messages.ts")),
+      files.some((f) => f.replaceAll('\\', "/").endsWith("routes/messages.ts")),
     ).toBe(true);
   });
 
   it("never pulls a contact's primary number out of a conversation query", () => {
     const offenders: string[] = [];
     for (const path of productionFiles()) {
-      const rel = path.slice(API_SRC.length + 1).replace(/\\/g, "/");
+      const rel = path.slice(API_SRC.length + 1).replaceAll('\\', "/");
       if (rel in ALLOWED) continue;
       const text = code(path);
       // The embed form — `conversations(contacts(phone_e164))` or a select on
@@ -119,7 +119,7 @@ describe("#291 a send goes to the number the thread is with", () => {
     // widens to whatever takes that path next.
     const all = new Set(
       productionFiles().map((p) =>
-        p.slice(API_SRC.length + 1).replace(/\\/g, "/"),
+        p.slice(API_SRC.length + 1).replaceAll('\\', "/"),
       ),
     );
     const missing = Object.keys(ALLOWED).filter((rel) => !all.has(rel));

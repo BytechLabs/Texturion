@@ -7,10 +7,9 @@
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import type { MemberRole } from "@/lib/api/types";
 
 const { active, replace } = vi.hoisted(() => ({
-  active: { role: "member" as MemberRole },
+  active: { role: "member" },
   replace: vi.fn(),
 }));
 

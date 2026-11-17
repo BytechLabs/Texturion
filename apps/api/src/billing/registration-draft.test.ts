@@ -4,11 +4,8 @@
  */
 import { describe, expect, it } from "vitest";
 
-import {
-  owesUsRegistration,
-  registrationDraftComplete,
-  type RegistrationRow,
-} from "./registration-draft";
+import { owesUsRegistration, registrationDraftComplete } from './registration-draft';
+import type { RegistrationRow } from './registration-draft';
 
 const brandData = {
   displayName: "Acme Plumbing",
@@ -61,7 +58,7 @@ describe("owesUsRegistration (SPEC §4.2 table)", () => {
   });
 });
 
-describe("registrationDraftComplete", () => {
+describe(registrationDraftComplete, () => {
   it("passes a complete standard-path brand + campaign draft", () => {
     expect(registrationDraftComplete([brand(), campaign()])).toBe(true);
   });

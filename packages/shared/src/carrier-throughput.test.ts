@@ -9,13 +9,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  approachingCarrierCeiling,
   CARRIER_CEILING_WARN_FRACTION,
+  carrierThroughputCopy,
+  dailyCeiling,
   TEN_DLC_CEILINGS,
   TEN_DLC_CEILINGS_RECHECK_AFTER,
   TEN_DLC_CEILINGS_VERIFIED_ON,
-  approachingCarrierCeiling,
-  carrierThroughputCopy,
-  dailyCeiling,
 } from "./carrier-throughput";
 
 describe("the ceilings themselves", () => {
@@ -103,8 +103,8 @@ describe("approaching the ceiling", () => {
   it("warns at 80%, the same fraction every other arm uses", () => {
     expect(CARRIER_CEILING_WARN_FRACTION).toBe(0.8);
     // 2,000/day on Low Volume Standard.
-    expect(approachingCarrierCeiling(1_599, "LOW_VOLUME")).toBe(false);
-    expect(approachingCarrierCeiling(1_600, "LOW_VOLUME")).toBe(true);
+    expect(approachingCarrierCeiling(1599, "LOW_VOLUME")).toBe(false);
+    expect(approachingCarrierCeiling(1600, "LOW_VOLUME")).toBe(true);
   });
 
   it("warns sooner for a sole proprietor, because their ceiling is lower", () => {

@@ -1,16 +1,7 @@
-import {
-  type DashboardLayout,
-  type DashboardPanelId,
-  normaliseDashboardLayout,
-  normaliseHiddenPanels,
-} from "@loonext/shared";
-import {
-  type QueryClient,
-  queryOptions,
-  useMutation,
-  useQuery,
-  useQueryClient,
-} from "@tanstack/react-query";
+import { normaliseDashboardLayout, normaliseHiddenPanels } from '@loonext/shared';
+import type { DashboardLayout, DashboardPanelId } from '@loonext/shared';
+import { queryOptions, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import type { QueryClient } from '@tanstack/react-query';
 import { useMemo } from "react";
 
 import { useCompanyId } from "@/lib/company/provider";

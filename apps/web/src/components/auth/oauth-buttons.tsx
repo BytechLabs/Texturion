@@ -9,7 +9,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
-import { oauthRedirectTo, type OAuthProvider } from "@/lib/auth/oauth";
+import { oauthRedirectTo } from '@/lib/auth/oauth';
+import type { OAuthProvider } from '@/lib/auth/oauth';
 import { rememberSignInMethod } from "@/lib/auth/last-used";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 

@@ -40,7 +40,7 @@ describe("#432 — the voicemail notice cannot be silent", () => {
     // once sanitized — and each is a real thing an owner can type into a form.
     // If any of them produced an empty utterance, a caller would be recorded
     // after hearing nothing at all.
-    for (const raw of ["", "   ", "\n\t", "\u200b", "\u0000\u0001"]) {
+    for (const raw of ["", "   ", "\n\t", "\u200B", "\u0000\u0001"]) {
       const spoken = sanitizeGreeting(raw, COMPANY);
       expect(spoken, JSON.stringify(raw)).toBe(defaultGreeting(COMPANY));
       expect(isUnambiguousNotice(spoken), JSON.stringify(raw)).toBe(true);
@@ -66,7 +66,7 @@ describe("#432 — the voicemail notice cannot be silent", () => {
     // Truncating keeps SOME notice; refusing would leave silence, which is the
     // one outcome this whole file exists to prevent.
     const spoken = sanitizeGreeting("a".repeat(5000), COMPANY);
-    expect(spoken.length).toBe(500);
+    expect(spoken).toHaveLength(500);
   });
 
   it("states our default notice in words a caller cannot misread", () => {

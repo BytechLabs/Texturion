@@ -51,7 +51,7 @@ function load() {
   window.dispatchEvent(new Event("load"));
 }
 
-describe("afterLcpAndLoad", () => {
+describe(afterLcpAndLoad, () => {
   it("waits for both the LCP entry and the load event", () => {
     const po = fakeObserver(["largest-contentful-paint", "navigation"]);
     const cb = vi.fn();
@@ -60,7 +60,7 @@ describe("afterLcpAndLoad", () => {
     po.paintLcp();
     expect(cb).not.toHaveBeenCalled();
     load();
-    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledOnce();
   });
 
   it("does not boot on load alone while an LCP entry can still land", () => {
@@ -72,7 +72,7 @@ describe("afterLcpAndLoad", () => {
     vi.advanceTimersByTime(1000);
     expect(cb).not.toHaveBeenCalled();
     po.paintLcp();
-    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledOnce();
   });
 
   it("boots 1.5 s after load when no LCP entry lands (bfcache restore)", () => {
@@ -84,7 +84,7 @@ describe("afterLcpAndLoad", () => {
     vi.advanceTimersByTime(1499);
     expect(cb).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledOnce();
   });
 
   it("boots on load alone where the browser does not report LCP", () => {
@@ -94,7 +94,7 @@ describe("afterLcpAndLoad", () => {
 
     expect(cb).not.toHaveBeenCalled();
     load();
-    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledOnce();
   });
 
   it("boots on load alone where there is no PerformanceObserver", () => {
@@ -103,7 +103,7 @@ describe("afterLcpAndLoad", () => {
     afterLcpAndLoad(cb);
 
     load();
-    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledOnce();
   });
 
   it("boots at once on a page that has already loaded, once LCP is in", () => {
@@ -114,7 +114,7 @@ describe("afterLcpAndLoad", () => {
 
     expect(cb).not.toHaveBeenCalled();
     po.paintLcp();
-    expect(cb).toHaveBeenCalledTimes(1);
+    expect(cb).toHaveBeenCalledOnce();
   });
 
   it("never boots after it is cancelled", () => {
@@ -160,8 +160,8 @@ describe("whenPageSettles", () => {
     w.requestIdleCallback = idle;
     const settle = await freshSettle();
     let done = 0;
-    void settle().then(() => done++);
-    void settle().then(() => done++);
+    void settle().then(() => done += 1);
+    void settle().then(() => done += 1);
     expect(settle()).toBe(settle());
 
     load();
@@ -169,7 +169,7 @@ describe("whenPageSettles", () => {
     expect(idle).not.toHaveBeenCalled();
     po.paintLcp();
     await vi.advanceTimersByTimeAsync(0);
-    expect(idle).toHaveBeenCalledTimes(1);
+    expect(idle).toHaveBeenCalledOnce();
     expect(idle.mock.calls[0]?.[1]).toEqual({ timeout: 2000 });
     expect(done).toBe(0);
 
@@ -214,7 +214,7 @@ describe("whenPageSettles", () => {
     let done = false;
     void settle().then(() => (done = true));
 
-    await vi.advanceTimersByTimeAsync(9_699);
+    await vi.advanceTimersByTimeAsync(9699);
     expect(done).toBe(false);
     await vi.advanceTimersByTimeAsync(1);
     expect(done).toBe(true);

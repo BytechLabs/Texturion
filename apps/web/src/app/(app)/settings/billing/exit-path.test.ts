@@ -250,14 +250,7 @@ function exitElement(file: TS.SourceFile, marker: string): JsxNode {
   // reason is usually legitimate: an edit that gives the exit a second
   // rendering (a dialog trigger beside the button) is a real change to review,
   // not a broken test. `expect` says which, and says it about their code.
-  expect(
-    innermost.length,
-    `#524: the exit carrying "${marker}" in ${file.fileName} is no longer a ` +
-      "single element, so this guard cannot follow the path to it. If that is " +
-      "deliberate, teach the locator the new shape rather than deleting it - " +
-      "the walk below is what proves nothing on the way to the exit reads the " +
-      "pause.",
-  ).toBe(1);
+  expect(innermost).toHaveLength(1);
   return innermost[0];
 }
 

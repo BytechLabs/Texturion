@@ -11,7 +11,7 @@ import {
 function look(table: unknown, key: string): string {
   const [section, name] = key.split(".");
   const value = (table as Record<string, Record<string, string>>)[section]?.[name];
-  if (typeof value !== "string") throw new Error(`no entry for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no entry for ${key}`);
   return value;
 }
 
@@ -43,7 +43,7 @@ describe("#228 the offset ladder, in the reader's language", () => {
   });
 
   it("leaves no variable unfilled at any rung", () => {
-    for (const minutes of [1440, 2880, 60, 120, 90, 20160]) {
+    for (const minutes of [1440, 2880, 60, 120, 90, 20_160]) {
       for (const say of [sayEn, sayFr]) {
         expect(reminderOffsetLabel(minutes, say)).not.toMatch(/\{/);
         expect(reminderOffsetLabel(minutes, say)).not.toMatch(/^domain\./);

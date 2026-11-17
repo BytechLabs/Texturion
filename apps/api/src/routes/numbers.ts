@@ -4,19 +4,13 @@ import {
   isValidBusinessHours,
   isValidHoursExceptions,
   NANP_AREA_CODES,
-  stateMachines,
+  resolveNumberIdentity,RING_SECONDS_MAX,RING_SECONDS_MIN,stateMachines
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { Hono } from "hono";
 import { z } from "zod";
 
-import {
-  resolveNumberIdentity,
-  RING_SECONDS_MAX,
-  RING_SECONDS_MIN,
-  type AfterHoursCalls,
-  type RingStrategy,
-} from "@loonext/shared";
+import type { AfterHoursCalls, RingStrategy } from '@loonext/shared';
 
 import { assertOwnGreeting } from "./companies";
 import { assertOwnLeadSource } from "./lead-sources";
@@ -41,11 +35,8 @@ import {
 } from "../billing/extra-numbers";
 import { idempotencyKey } from "../billing/idempotency";
 import { loadNumberHealth } from "../messaging/number-health-read";
-import {
-  NUMBER_PROVISION_CHURN_CAP,
-  PLAN_LIMITS,
-  type PlanId,
-} from "../billing/plans";
+import { NUMBER_PROVISION_CHURN_CAP, PLAN_LIMITS } from '../billing/plans';
+import type { PlanId } from '../billing/plans';
 import { getStripe } from "../billing/stripe";
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
@@ -57,13 +48,8 @@ import {
   parseWith,
   pathUuid,
 } from "./core/http";
-import {
-  areaCodeOf,
-  MAX_PROVISION_ATTEMPTS,
-  releaseNumberRow,
-  resumeProvisioning,
-  type PhoneNumberRow,
-} from "../telnyx/provisioning";
+import { areaCodeOf, MAX_PROVISION_ATTEMPTS, releaseNumberRow, resumeProvisioning } from '../telnyx/provisioning';
+import type { PhoneNumberRow } from '../telnyx/provisioning';
 
 /**
  * Numbers routes (SPEC §7 route table, §4.2/§4.3, §10, §12 step 18). Mounted
@@ -185,9 +171,9 @@ numbersRoutes.get("/", async (c) => {
             row.id,
           );
           ringTargets.set(row.id, dialTargets.length);
-        } catch (cause) {
+        } catch (error) {
           console.error(
-            `ring target count failed for number ${row.id}: ${String(cause)}`,
+            `ring target count failed for number ${row.id}: ${String(error)}`,
           );
         }
       }),
@@ -334,7 +320,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
     chosen = body.chosen_number_e164;
     areaCode = ndc;
   } else {
-    const code = body.requested_area_code as string;
+    const code = body.requested_area_code!;
     const entry = NANP_AREA_CODES[code];
     if (!entry || !entry.geographic) {
       throw new ApiError(
@@ -512,11 +498,11 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
           parsedKey.data,
         ),
       });
-    } catch (cause) {
+    } catch (error) {
       // A raced concurrent first-extra buy: the loser's item CREATE hits
       // Stripe's one-item-per-price rule. Clean conflict, not a 500 — the
       // winner's quantity is live, so a retry sees it and updates instead.
-      const message = cause instanceof Error ? cause.message : String(cause);
+      const message = error instanceof Error ? error.message : String(error);
       if (/same price|duplicate/i.test(message)) {
         return errorResponse(
           c,
@@ -524,7 +510,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
           "Another number purchase just went through on this account. Try again in a moment.",
         );
       }
-      throw cause;
+      throw error;
     }
     // #110 VERIFY-AFTER-WRITE: re-read the live item before trusting our own
     // intent. Two ways the write above can be a ghost: (a) Stripe replayed a
@@ -627,12 +613,12 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
 
   if (slot.outcome === "exists") {
     // Idempotent replay (§7): the same Idempotency-Key returns the same row.
-    return c.json(sanitizeNumber(slot.number as NumberRowFull, c.get("role")), 200);
+    return c.json(sanitizeNumber(slot.number, c.get("role")), 200);
   }
 
   const provisioned = await resumeProvisioning(
     env,
-    slot.number as unknown as PhoneNumberRow,
+    slot.number,
   );
   return c.json(sanitizeNumber(provisioned as NumberRowFull, c.get("role")), 201);
 });
@@ -696,10 +682,7 @@ numbersRoutes.delete("/:id", requireCapability("workspace.own"), async (c) => {
       .select("plan,stripe_subscription_id")
       .eq("id", companyId)
       .limit(1);
-    const company = (companyRows?.[0] ?? null) as {
-      plan: PlanId | null;
-      stripe_subscription_id: string | null;
-    } | null;
+    const company = (companyRows?.[0] ?? null);
     if (company?.plan && company.stripe_subscription_id) {
       await convergeExtraNumberQuantity({
         env,
@@ -711,10 +694,10 @@ numbersRoutes.delete("/:id", requireCapability("workspace.own"), async (c) => {
         now: new Date(),
       });
     }
-  } catch (cause) {
+  } catch (error_) {
     console.error(
       `extra-number convergence after release failed for ${companyId} (daily reconcile will settle it):`,
-      cause instanceof Error ? cause.message : cause,
+      error_ instanceof Error ? error_.message : error_,
     );
   }
 
@@ -884,22 +867,7 @@ async function loadIdentity(
     | undefined;
   if (!number) return null;
 
-  const company = (companyRes.data ?? [])[0] as {
-    name: string;
-    timezone: string;
-    voicemail_greeting: string | null;
-    away_message: string | null;
-    away_enabled: boolean;
-    mctb_enabled: boolean;
-    mctb_message: string | null;
-    business_hours: unknown;
-    business_hours_exceptions: unknown;
-    voicemail_greeting_id: string | null;
-    after_hours_calls: AfterHoursCalls | null;
-    after_hours_greeting_id: string | null;
-    ring_strategy: RingStrategy | null;
-    ring_seconds: number | null;
-  };
+  const company = (companyRes.data ?? [])[0];
 
   const identity = resolveNumberIdentity(
     {
@@ -1409,9 +1377,9 @@ numbersRoutes.put("/:id/access", requireCapability("numbers.manage"), async (c) 
     after:
       body.access === "everyone"
         ? { access: "everyone" }
-        : body.access === "role"
+        : (body.access === "role"
           ? { access: "role", role: body.role, level: body.level }
-          : { access: "people", people: userIds.length, level: body.level },
+          : { access: "people", people: userIds.length, level: body.level }),
   });
 
   return c.json(body);
@@ -1464,7 +1432,7 @@ numbersRoutes.post("/:id/remediate", requireCapability("numbers.manage"), async 
     !stateMachines
       .allowedActions(
         stateMachines.phoneNumberMachine,
-        row.status as stateMachines.PhoneNumberState,
+        row.status,
         c.get("role"),
       )
       .includes("remediate")

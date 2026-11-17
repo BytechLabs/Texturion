@@ -1,9 +1,5 @@
-import {
-  ERROR_CODE_STATUS,
-  INTERNAL_ERROR_CODE,
-  INTERNAL_ERROR_STATUS,
-  type ErrorCode,
-} from "@loonext/shared";
+import { ERROR_CODE_STATUS, INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from '@loonext/shared';
+import type { ErrorCode } from '@loonext/shared';
 import type { Context } from "hono";
 
 /**

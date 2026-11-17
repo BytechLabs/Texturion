@@ -1,4 +1,5 @@
-import { LEASE_MAX_MS, type LeaseActivity, type LeaseGrant } from "@loonext/rig-protocol";
+import { LEASE_MAX_MS } from '@loonext/rig-protocol';
+import type { LeaseActivity, LeaseGrant } from '@loonext/rig-protocol';
 
 import type { GuardCaller } from "../caller";
 import type { Ctx } from "../context";
@@ -61,7 +62,7 @@ export async function releaseLease(ctx: Ctx, leaseId: string): Promise<LeaseReco
 
 export async function markPreempted(ctx: Ctx, leaseId: string): Promise<void> {
   const lease = await ctx.store.get<LeaseRecord>(KEY);
-  if (lease && lease.lease_id === leaseId) await ctx.store.put(KEY, { ...lease, preempted_at: ctx.now() });
+  if (lease?.lease_id === leaseId) await ctx.store.put(KEY, { ...lease, preempted_at: ctx.now() });
 }
 
 /**

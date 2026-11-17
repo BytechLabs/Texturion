@@ -4,7 +4,8 @@ import { beforeEach, describe, expect, it } from "vitest";
 import { sha256Hex } from "./auth";
 import type { Env } from "./env";
 import { partitionFor } from "./guard";
-import { ORIGIN, PARTITION, TOKENS, call, edgeEnv, fakeGuard, resetEdge, type FakeGuard } from "./test/support";
+import { call, edgeEnv, fakeGuard, ORIGIN, PARTITION, resetEdge, TOKENS } from './test/support';
+import type { FakeGuard } from './test/support';
 
 let guard: FakeGuard;
 let env: Env;
@@ -32,7 +33,7 @@ describe("token to caller class", () => {
     for (const token of [null, "edge-test-token-unknown-0123456789abcdef", TOKENS.rig, TOKENS.triage]) {
       const response = await call(toGuard("/g/health", token), env);
       expect(response.status).toBe(401);
-      expect(await response.text()).toBe("");
+      await expect(response.text()).resolves.toBe("");
     }
     expect(guard.calls).toEqual([]);
   });
@@ -55,20 +56,20 @@ describe("the partition cache", () => {
   const T0 = 1_790_000_000_000;
 
   it("serves a fresh copy without asking, and asks again once it is five minutes old", async () => {
-    expect(await partitionFor(env, T0)).toEqual(PARTITION);
-    expect(await partitionFor(env, T0 + 4 * MINUTE)).toEqual(PARTITION);
+    await expect(partitionFor(env, T0)).resolves.toEqual(PARTITION);
+    await expect(partitionFor(env, T0 + 4 * MINUTE)).resolves.toEqual(PARTITION);
     expect(guard.calls.filter((c) => c.path === "/partition")).toHaveLength(1);
     await partitionFor(env, T0 + 5 * MINUTE);
     expect(guard.calls.filter((c) => c.path === "/partition")).toHaveLength(2);
   });
 
   it("falls back to the last copy while the guard is down, for an hour and no longer", async () => {
-    expect(await partitionFor(env, T0)).toEqual(PARTITION);
+    await expect(partitionFor(env, T0)).resolves.toEqual(PARTITION);
     guard.partition = null;
-    expect(await partitionFor(env, T0 + 10 * MINUTE)).toEqual(PARTITION);
-    expect(await partitionFor(env, T0 + 59 * MINUTE)).toEqual(PARTITION);
-    expect(await partitionFor(env, T0 + 60 * MINUTE)).toBeNull();
-    expect(await partitionFor(env, T0 + 3 * 60 * MINUTE)).toBeNull();
+    await expect(partitionFor(env, T0 + 10 * MINUTE)).resolves.toEqual(PARTITION);
+    await expect(partitionFor(env, T0 + 59 * MINUTE)).resolves.toEqual(PARTITION);
+    await expect(partitionFor(env, T0 + 60 * MINUTE)).resolves.toBeNull();
+    await expect(partitionFor(env, T0 + 3 * 60 * MINUTE)).resolves.toBeNull();
   });
 });
 
@@ -120,7 +121,7 @@ describe("forwarding", () => {
       const response = await call(toGuard(path, TOKENS.admin, { method: "POST", body: "{}" }), env);
       expect(response.status).toBe(403);
       expect(response.headers.get(HEADER.refusedBy)).toBe("edge");
-      expect(await response.json()).toEqual({ error: "guard_refused", rule: "route.edge_only" });
+      await expect(response.json()).resolves.toEqual({ error: "guard_refused", rule: "route.edge_only" });
     }
     expect(guard.calls).toEqual([]);
   });

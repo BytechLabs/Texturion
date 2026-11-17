@@ -5,7 +5,8 @@
  * from /settings/notifications. Run with `pnpm --filter @loonext/rig-lanes test:browser`.
  */
 import { mkdtempSync, rmSync } from "node:fs";
-import { createServer, type Server } from "node:http";
+import { createServer } from 'node:http';
+import type { Server } from 'node:http';
 import type { AddressInfo } from "node:net";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -57,7 +58,7 @@ beforeAll(async () => {
     const url = new URL(request.url ?? "/", "http://stand-in");
     const signedIn = (request.headers.cookie ?? "").includes("session=ok");
     if (url.pathname === "/login") {
-      logins++;
+      logins += 1;
       response.writeHead(200, { "content-type": "text/html" }).end(LOGIN_PAGE);
     } else if (!signedIn) {
       response.writeHead(302, { location: `/login?next=${encodeURIComponent(url.pathname)}` }).end();
@@ -92,7 +93,7 @@ describe("a member's browser profile", () => {
     try {
       const page = await first.open("qa-w-owner", "qa-w-owner", "/inbox");
       expect(new URL(page.page.url()).pathname).toBe("/inbox");
-      expect(await page.page.textContent("p")).toBe("Signed in at /inbox");
+      await expect(page.page.textContent("p")).resolves.toBe("Signed in at /inbox");
     } finally {
       await first.closeAll();
     }
@@ -100,7 +101,7 @@ describe("a member's browser profile", () => {
     const again = lane("profiles");
     try {
       const page = await again.open("qa-w-owner", "qa-w-owner", "/calls");
-      expect(await page.page.textContent("p")).toBe("Signed in at /calls");
+      await expect(page.page.textContent("p")).resolves.toBe("Signed in at /calls");
     } finally {
       await again.closeAll();
     }
@@ -124,9 +125,9 @@ describe("a member's browser profile", () => {
     try {
       const page = await browser.open("qa-w-owner", "qa-w-owner", "/inbox");
       pushWorks = true;
-      expect(await page.enablePush()).toBe(true);
+      await expect(page.enablePush()).resolves.toBe(true);
       pushWorks = false;
-      expect(await page.enablePush()).toBe(false);
+      await expect(page.enablePush()).resolves.toBe(false);
       expect(new URL(page.page.url()).pathname).toBe("/inbox");
     } finally {
       await browser.closeAll();

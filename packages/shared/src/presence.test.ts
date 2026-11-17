@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  PRESENCE_TTL_MS,
-  TYPING_TTL_MS,
-  presenceFor,
-  presenceLabel,
-  type PresenceEntry,
-} from "./presence";
+import { PRESENCE_TTL_MS, presenceFor, presenceLabel, TYPING_TTL_MS } from './presence';
+import type { PresenceEntry } from './presence';
 
 /**
  * #302 — the rule three clients implement, pinned once.
@@ -61,7 +56,7 @@ describe("#302 presenceFor — who is really here", () => {
     // twice (#215). The TTL is the backstop for exactly that.
     const stale = entry({ at: NOW - PRESENCE_TTL_MS - 1 });
     expect(presenceFor([stale], opts())).toEqual([]);
-    const fresh = entry({ at: NOW - PRESENCE_TTL_MS + 1_000 });
+    const fresh = entry({ at: NOW - PRESENCE_TTL_MS + 1000 });
     expect(presenceFor([fresh], opts())).toHaveLength(1);
   });
 
@@ -71,7 +66,7 @@ describe("#302 presenceFor — who is really here", () => {
     const skewed = entry({ at: NOW + PRESENCE_TTL_MS * 4 });
     expect(presenceFor([skewed], opts())).toEqual([]);
     // Small skew is normal and tolerated.
-    expect(presenceFor([entry({ at: NOW + 2_000 })], opts())).toHaveLength(1);
+    expect(presenceFor([entry({ at: NOW + 2000 })], opts())).toHaveLength(1);
   });
 
   it("reports NOTHING when the connection is unhealthy", () => {
@@ -81,8 +76,8 @@ describe("#302 presenceFor — who is really here", () => {
   });
 
   it("collapses one person on two devices, and believes typing on either", () => {
-    const laptop = entry({ at: NOW - 1_000, typing: false });
-    const phone = entry({ at: NOW - 3_000, typing: true });
+    const laptop = entry({ at: NOW - 1000, typing: false });
+    const phone = entry({ at: NOW - 3000, typing: true });
     const viewers = presenceFor([laptop, phone], opts());
     expect(viewers).toHaveLength(1);
     // They ARE replying, on the phone, whether or not the laptop knows.
@@ -92,7 +87,7 @@ describe("#302 presenceFor — who is really here", () => {
   it("lets typing expire without dropping the person", () => {
     // The cost of expiring early is that the label falls back to "also here",
     // which is still true. The cost of it lingering is a lie.
-    const old = entry({ at: NOW - TYPING_TTL_MS - 1_000, typing: true });
+    const old = entry({ at: NOW - TYPING_TTL_MS - 1000, typing: true });
     const viewers = presenceFor([old], opts());
     expect(viewers).toHaveLength(1);
     expect(viewers[0].typing).toBe(false);
@@ -101,8 +96,8 @@ describe("#302 presenceFor — who is really here", () => {
   it("orders freshest first", () => {
     const viewers = presenceFor(
       [
-        entry({ user_id: "a", display_name: "Ann", at: NOW - 9_000 }),
-        entry({ user_id: "b", display_name: "Bo", at: NOW - 1_000 }),
+        entry({ user_id: "a", display_name: "Ann", at: NOW - 9000 }),
+        entry({ user_id: "b", display_name: "Bo", at: NOW - 1000 }),
       ],
       opts(),
     );

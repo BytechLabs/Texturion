@@ -197,15 +197,15 @@ export async function runRetentionEnforceJob(
       summary.messagesDeleted += result.messages;
       summary.objectsRemoved += result.objects;
       summary.callsDeleted += result.calls;
-    } catch (cause) {
+    } catch (error_) {
       // Named in the run's own logs, because an AggregateError serializes only
       // its top-level message on this platform and "1 of 5 failed" is not
       // diagnosable from a dashboard.
       console.error(
         `retention enforcement failed for ${row.company_id}:`,
-        cause instanceof Error ? (cause.stack ?? cause.message) : String(cause),
+        error_ instanceof Error ? (error_.stack ?? error_.message) : String(error_),
       );
-      failures.push(cause);
+      failures.push(error_);
     }
   }
 
@@ -214,12 +214,12 @@ export async function runRetentionEnforceJob(
   // failed above must not also stop every other tenant's audio from ageing out.
   try {
     summary.voicemailsCleared = await clearOverdueVoicemailAudio(db);
-  } catch (cause) {
+  } catch (error_) {
     console.error(
       "voicemail audio retention failed:",
-      cause instanceof Error ? (cause.stack ?? cause.message) : String(cause),
+      error_ instanceof Error ? (error_.stack ?? error_.message) : String(error_),
     );
-    failures.push(cause);
+    failures.push(error_);
   }
 
   if (failures.length > 0) {
@@ -601,9 +601,9 @@ async function removeMessageObjects(
     const keyIds =
       source.ownerType === "task"
         ? taskIds
-        : source.ownerType === "task_comment"
+        : (source.ownerType === "task_comment"
           ? commentIds
-          : messageIds;
+          : messageIds);
     if (keyIds.length === 0) continue;
     let query = db
       .from(source.table)

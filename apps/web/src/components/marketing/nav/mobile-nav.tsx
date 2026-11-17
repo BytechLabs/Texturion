@@ -7,12 +7,8 @@ import { CountrySelector } from "@/components/marketing/country";
 import { SheetClose } from "@/components/ui/sheet-base";
 import { cn } from "@/lib/utils";
 
-import {
-  LOGIN_HREF,
-  SIGNUP_HREF,
-  type NavItem,
-  type NavMenu,
-} from "../nav-links";
+import { LOGIN_HREF, SIGNUP_HREF } from '../nav-links';
+import type { NavItem, NavMenu } from '../nav-links';
 import { MenuIconChip } from "./menu-icon";
 
 /**

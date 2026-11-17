@@ -130,11 +130,11 @@ export async function recordCarrierOptOut(
       after: { source: "carrier", signal: input.signal },
     });
     return true;
-  } catch (cause) {
+  } catch (error) {
     void captureException(
       workerEnv(),
       `carrier opt-out not recorded for ${input.companyId} (${input.signal}): ${
-        cause instanceof Error ? cause.message : String(cause)
+        error instanceof Error ? error.message : String(error)
       }`,
       { source: "api" },
     );

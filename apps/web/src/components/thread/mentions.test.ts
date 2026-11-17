@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { insertMention, isMentionTrigger, resolveMentions } from "./mentions";
 
-describe("resolveMentions", () => {
+describe(resolveMentions, () => {
   it("sends the id that was picked, not one guessed from the text", () => {
     // Two teammates share a display name. Parsing "@Sam" cannot say which one
     // the author meant, so only the pick counts.
@@ -36,7 +36,7 @@ describe("resolveMentions", () => {
   });
 });
 
-describe("insertMention", () => {
+describe(insertMention, () => {
   it("replaces the @ that opened the picker", () => {
     const result = insertMention("hey @", 5, "Sam");
     expect(result.text).toBe("hey @Sam ");
@@ -78,7 +78,7 @@ describe("resolveMentions — names that collide", () => {
       { userId: "sam", name: "Sam" },
       { userId: "sam-rivera", name: "Sam Rivera" },
     ]);
-    expect(ids.sort()).toEqual(["sam", "sam-rivera"]);
+    expect(ids.toSorted()).toEqual(["sam", "sam-rivera"]);
   });
 
   it("notifies one person when two teammates share a display name and one is named", () => {
@@ -96,11 +96,11 @@ describe("resolveMentions — names that collide", () => {
       { userId: "sam-a", name: "Sam" },
       { userId: "sam-b", name: "Sam" },
     ]);
-    expect(ids.sort()).toEqual(["sam-a", "sam-b"]);
+    expect(ids.toSorted()).toEqual(["sam-a", "sam-b"]);
   });
 });
 
-describe("isMentionTrigger", () => {
+describe(isMentionTrigger, () => {
   it("opens on @ at the start of a note", () => {
     expect(isMentionTrigger("@", 1)).toBe(true);
   });

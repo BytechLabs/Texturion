@@ -40,14 +40,16 @@
  * (http://127.0.0.1:15900) and RIG_ADB_SERVER (127.0.0.1:15037) move its
  * ends, and both stay on loopback.
  */
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
-import { HOSTD_ORIGIN, parseAdbServer, parseHostdOrigin, RIG_ADB_SERVER, type AdbServer } from "@loonext/rig-lanes";
-import { parseWindow, type DialCaps, type DialWindow } from "./budget.ts";
+import { resolve } from "node:path";
+import { HOSTD_ORIGIN, parseAdbServer, parseHostdOrigin, RIG_ADB_SERVER } from '@loonext/rig-lanes';
+import type { AdbServer } from '@loonext/rig-lanes';
+import { parseWindow } from './budget.ts';
+import type { DialCaps, DialWindow } from './budget.ts';
 import { rigRepo } from "./guard-attest.ts";
-import { readState, rigHome, rigSettings, SecretFiles, type RigHome, type RigSettings } from "@loonext/rig-robot";
+import { readState, rigHome, rigSettings, SecretFiles } from '@loonext/rig-robot';
+import type { RigHome, RigSettings } from '@loonext/rig-robot';
 
-const HERE = dirname(fileURLToPath(import.meta.url));
+const HERE = import.meta.dirname;
 
 export interface RigdConfig {
   home: RigHome;

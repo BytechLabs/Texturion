@@ -14,7 +14,7 @@ const { download, toastSuccess, toastError, role } = vi.hoisted(() => ({
   download: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
-  role: { current: "owner" as string },
+  role: { current: "owner" },
 }));
 
 vi.mock("@/lib/api/tasks-export-hook", () => ({
@@ -57,7 +57,7 @@ describe("#745 exporting the tasks in view", () => {
     render(<ExportTasks filters={filters} />);
     fireEvent.click(screen.getByText("Export this list"));
 
-    await waitFor(() => expect(download).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(download).toHaveBeenCalledOnce());
     expect(download).toHaveBeenCalledWith(filters);
   });
 
@@ -65,7 +65,7 @@ describe("#745 exporting the tasks in view", () => {
     render(<ExportTasks filters={{}} />);
     fireEvent.click(screen.getByText("Export this list"));
 
-    await waitFor(() => expect(download).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(download).toHaveBeenCalledOnce());
     expect(toastSuccess).not.toHaveBeenCalled();
     expect(toastError).not.toHaveBeenCalled();
   });
@@ -75,7 +75,7 @@ describe("#745 exporting the tasks in view", () => {
     render(<ExportTasks filters={{}} />);
     fireEvent.click(screen.getByText("Export this list"));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastError).toHaveBeenCalledOnce());
     expect(toastError.mock.calls[0][0]).toContain("Not allowed");
   });
 
@@ -84,7 +84,7 @@ describe("#745 exporting the tasks in view", () => {
     render(<ExportTasks filters={{}} />);
     fireEvent.click(screen.getByText("Export this list"));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastError).toHaveBeenCalledOnce());
     expect(toastError.mock.calls[0][0]).toContain("could not be downloaded");
   });
 

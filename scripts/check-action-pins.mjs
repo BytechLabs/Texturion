@@ -100,8 +100,6 @@ const WORKFLOW_DIR = ".github/workflows";
  * So: every workflow file, no exemption. The cost is a dependabot pull request
  * per bump, which `.github/dependabot.yml` already opens.
  */
-const ALWAYS_STRICT = null;
-
 /** Every workflow file. Kept as a function so the reason above has somewhere to live. */
 function isAlwaysStrict(_file) {
   return true;

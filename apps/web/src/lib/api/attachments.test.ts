@@ -3,7 +3,8 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
-import { createElement, type ReactNode } from "react";
+import { createElement } from 'react';
+import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
@@ -23,16 +24,17 @@ import {
   useDeleteAttachment,
   useReportAttachment,
 } from "./attachments";
-import { createApiClient, type RequestOptions } from "./core";
+import { createApiClient } from './core';
+import type { RequestOptions } from './core';
 import { useAttachmentGallery } from "./gallery";
 import { keys } from "./keys";
 import type { Attachment, AttachmentUrl } from "./types";
 
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
-vi.mock("./client", () => ({
+vi.mock(import("./client"), () => ({
   apiFetch: (path: string, options?: RequestOptions) => apiFetch(path, options),
 }));
-vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "company-1" }));
+vi.mock(import("@/lib/company/provider"), () => ({ useCompanyId: () => "company-1" }));
 
 /**
  * The upload hook (`useUploadAttachment`) is a thin React wrapper over two pure
@@ -47,7 +49,7 @@ vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "company-1" }));
  */
 
 function jsonResponse(status: number, body: unknown): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status,
     headers: { "Content-Type": "application/json" },
   });
@@ -63,7 +65,7 @@ function makeClient(
   const request = createApiClient({
     baseUrl: "https://api.loonext.test",
     getAccessToken: async () => "test-token",
-    fetch: fetchSpy as unknown as typeof fetch,
+    fetch: fetchSpy,
   });
   return { request, fetchSpy };
 }
@@ -399,7 +401,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
     apiFetch.mockReset();
     apiFetch.mockImplementation(async (path: string, options: RequestOptions = {}) => {
       if (path !== "/v1/attachments/urls") return undefined;
-      const items = (options.body as { items: { id: string; variant: string }[] }).items;
+      const {items} = (options.body as { items: { id: string; variant: string }[] });
       minted += items.length;
       return {
         data: items
@@ -474,9 +476,9 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
     const { queryClient, wrapper } = harness();
     const oldWorker: AttachmentUrl = { url: "https://storage.test/old", expires_at: "" };
     seed(queryClient, "mms", MMS, 58 * 60_000);
-    seed(queryClient, "mms-late", MMS, 59 * 60_000 + 5_000);
+    seed(queryClient, "mms-late", MMS, 59 * 60_000 + 5000);
     seed(queryClient, "old-worker", oldWorker, 3 * 60_000);
-    seed(queryClient, "old-worker-late", oldWorker, 4 * 60_000 + 5_000);
+    seed(queryClient, "old-worker-late", oldWorker, 4 * 60_000 + 5000);
 
     const { result } = renderHook(
       () => ({
@@ -504,7 +506,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
 
   it("reports a URL within 30 s of expiry as pending and mints a new one", async () => {
     const { queryClient, wrapper } = harness();
-    seed(queryClient, "att-1", MMS, 3600_000 - 15_000);
+    seed(queryClient, "att-1", MMS, 3_600_000 - 15_000);
 
     const { result } = renderHook(() => useAttachmentUrl("att-1"), { wrapper });
 
@@ -523,7 +525,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
     });
     expect(result.current.data?.url).toBe("https://storage.test/cached");
 
-    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3600_000 - 10_000);
+    vi.spyOn(Date, "now").mockReturnValue(Date.now() + 3_600_000 - 10_000);
     rerender();
 
     expect(result.current.data).toBeUndefined();
@@ -534,7 +536,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
 
   it("stops refreshing a player's URL once the re-mint is refused", async () => {
     const { queryClient, wrapper } = harness();
-    seed(queryClient, "att-1", MMS, 3600_000 - 45_000, "original");
+    seed(queryClient, "att-1", MMS, 3_600_000 - 45_000, "original");
     refuse.add("att-1");
 
     const { result } = renderHook(
@@ -543,7 +545,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
     );
 
     await waitFor(() => expect(result.current.error).toMatchObject({ code: "forbidden" }));
-    await new Promise((resolve) => setTimeout(resolve, 1_500));
+    await new Promise((resolve) => setTimeout(resolve, 1500));
     expect(batchCalls()).toHaveLength(1);
   });
 
@@ -627,7 +629,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
     await new Promise((resolve) => setTimeout(resolve, 40));
 
     expect(again.result.current.isSuccess).toBe(true);
-    expect(apiFetch).toHaveBeenCalledTimes(1);
+    expect(apiFetch).toHaveBeenCalledOnce();
     expect(
       queryClient
         .getQueryCache()

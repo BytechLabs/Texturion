@@ -46,15 +46,15 @@ describe("#251 the Telnyx rate-limit probe restates the real constants", () => {
   ])("%s matches %i", (local, value, named) => {
     // Split rather than match: the declaration is a fixed shape, and a regex
     // literal is one more thing between this guard and what it is checking.
-    const marker = "const " + local + " = ";
+    const marker = `const ${  local  } = `;
     const at = source.indexOf(marker);
     expect(
       at,
-      "the probe no longer declares '" +
-        marker +
-        "<n>; // " +
-        named +
-        "', so this guard cannot see the copy it exists to check",
+      `the probe no longer declares '${ 
+        marker 
+        }<n>; // ${ 
+        named 
+        }', so this guard cannot see the copy it exists to check`,
     ).toBeGreaterThan(-1);
 
     const tail = source.slice(at + marker.length);
@@ -63,23 +63,23 @@ describe("#251 the Telnyx rate-limit probe restates the real constants", () => {
 
     expect(
       line,
-      "the probe's " +
-        local +
-        " line no longer names " +
-        named +
-        ", so a reader cannot tell which constant it is copying",
+      `the probe's ${ 
+        local 
+        } line no longer names ${ 
+        named 
+        }, so a reader cannot tell which constant it is copying`,
     ).toContain(named);
 
     expect(
       printed,
-      "the probe says " +
-        named +
-        " is " +
-        printed +
-        "; transitions.ts says " +
-        value +
-        ". The printed 'concurrent ringing calls to saturate' figure is " +
-        "derived from these, so it is now quoting a ceiling we do not have.",
+      `the probe says ${ 
+        named 
+        } is ${ 
+        printed 
+        }; transitions.ts says ${ 
+        value 
+        }. The printed 'concurrent ringing calls to saturate' figure is ` +
+        `derived from these, so it is now quoting a ceiling we do not have.`,
     ).toBe(value);
   });
 });

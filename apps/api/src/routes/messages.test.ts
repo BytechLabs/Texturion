@@ -19,30 +19,16 @@ import type { MessageRow } from "../messaging/types";
 // Resolved to the contract double (vitest alias): a vi.fn defaulting to
 // all-gates-open, overridable per test.
 import { getSendGates } from "../telnyx/registration";
-import {
-  messageRow,
-  restMatch,
-  rpcMatch,
-  storageSignMatch,
-  storageUploadMatch,
-  stubRoute,
-  type Stub,
-} from "../test/messaging-support";
-import {
-  authorizeRoute,
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type FetchRoute,
-  type TestAuth,
-} from "../test/support";
+import { messageRow, restMatch, rpcMatch, storageSignMatch, storageUploadMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { notifyPromotedMessageDone } from "../tasks/notify";
 import { messageRoutes } from "./messages";
 
 // The alert has its own suite (tasks/notify.test.ts); here the route is only
 // asked whether it raised it, and for whom.
-vi.mock("../tasks/notify", async (importOriginal) => ({
+vi.mock(import("../tasks/notify"), async (importOriginal) => ({
   ...(await importOriginal<typeof import("../tasks/notify")>()),
   notifyPromotedMessageDone: vi.fn(async () => undefined),
 }));
@@ -324,7 +310,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
       { idempotencyKey: null },
     );
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
   });
 
   it("gate 1 — subscription_inactive (402) before any other gate", async () => {
@@ -340,7 +326,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
       body: "hi",
     });
     expect(response.status).toBe(402);
-    expect(await errorCode(response)).toBe("subscription_inactive");
+    await expect(errorCode(response)).resolves.toBe("subscription_inactive");
     expect(stubs.gateRpc.calls).toHaveLength(0);
     expect(stubs.telnyx.calls).toHaveLength(0);
   });
@@ -355,7 +341,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
       body: "hi",
     });
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
     expect(stubs.gateRpc.calls).toHaveLength(0);
   });
 
@@ -373,7 +359,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
       body: "hi",
     });
     expect(response.status).toBe(403);
-    expect(await errorCode(response)).toBe("registration_pending");
+    await expect(errorCode(response)).resolves.toBe("registration_pending");
     expect(stubs.gateRpc.calls).toHaveLength(0);
   });
 
@@ -409,7 +395,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
         body: "hi",
       });
       expect(response.status).toBe(status);
-      expect(await errorCode(response)).toBe(code);
+      await expect(errorCode(response)).resolves.toBe(code);
       expect(stubs.telnyx.calls).toHaveLength(0); // rejected before Telnyx
     },
   );
@@ -432,7 +418,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
       body: "hi",
     });
     expect(response.status).toBe(403);
-    expect(await errorCode(response)).toBe("recipient_opted_out");
+    await expect(errorCode(response)).resolves.toBe("recipient_opted_out");
     // Never reached the provider, and never wrote a message row to fail out.
     expect(stubs.telnyx.calls).toHaveLength(0);
     expect(stubs.gateRpc.calls).toHaveLength(0);
@@ -449,7 +435,7 @@ describe("POST /v1/messages/send — gate order (§7)", () => {
       body: "hi",
     });
     expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("conflict");
+    await expect(errorCode(response)).resolves.toBe("conflict");
     expect(stubs.gateRpc.calls).toHaveLength(0);
     expect(stubs.telnyx.calls).toHaveLength(0);
   });
@@ -696,7 +682,7 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
   // Real JPEG magic (FF D8 FF): decodeOutboundMedia sniffs the decoded bytes
   // and 422s a byte/declaration mismatch, so fixtures must carry the magic of
   // the type they declare.
-  const PIXEL = btoa("\xff\xd8\xff\xe0 fake image bytes");
+  const PIXEL = btoa("\u00FF\u00D8\u00FF\u00E0 fake image bytes");
 
   it.each([
     [
@@ -738,7 +724,7 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
       ...bodyOverrides,
     });
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
     expect(stubs.gateRpc.calls).toHaveLength(0);
   });
 
@@ -787,7 +773,7 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
       `/object/sign/mms-media/${COMPANY_ID}/${MESSAGE_ID}/0`,
     );
     expect(telnyxBody.media_urls[0]).toContain("token=test-token");
-    expect(stubs.sign.calls[0].body).toMatchObject({ expiresIn: 86400 });
+    expect(stubs.sign.calls[0].body).toMatchObject({ expiresIn: 86_400 });
 
     const body = (await response.json()) as { attachments: unknown[] };
     expect(body.attachments).toHaveLength(1);
@@ -1122,7 +1108,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
 
     const response = await postRetry();
     expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("conflict");
+    await expect(errorCode(response)).resolves.toBe("conflict");
     expect(stubs.claim.calls).toHaveLength(0);
     expect(stubs.base.telnyx.calls).toHaveLength(0);
   });
@@ -1136,7 +1122,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
 
     const response = await postRetry();
     expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("conflict");
+    await expect(errorCode(response)).resolves.toBe("conflict");
     // The loser never reaches Telnyx — exactly one send, ever.
     expect(stubs.base.telnyx.calls).toHaveLength(0);
   });
@@ -1155,7 +1141,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
 
       const response = await postRetry();
       expect(response.status).toBe(status);
-      expect(await errorCode(response)).toBe(code);
+      await expect(errorCode(response)).resolves.toBe(code);
       expect(stubs.base.telnyx.calls).toHaveLength(0);
     },
   );
@@ -1169,7 +1155,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
 
     const response = await postRetry();
     expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("conflict");
+    await expect(errorCode(response)).resolves.toBe("conflict");
     expect(stubs.claim.calls).toHaveLength(0);
     expect(stubs.base.telnyx.calls).toHaveLength(0);
   });
@@ -1198,7 +1184,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
 
     const response = await postRetry();
     expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("conflict");
+    await expect(errorCode(response)).resolves.toBe("conflict");
     expect(stubs.base.telnyx.calls).toHaveLength(0);
   });
 
@@ -1222,7 +1208,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
 
     const response = await postRetry();
     expect(response.status).toBe(403);
-    expect(await errorCode(response)).toBe("recipient_opted_out");
+    await expect(errorCode(response)).resolves.toBe("recipient_opted_out");
     expect(stubs.base.telnyx.calls).toHaveLength(0);
   });
 });
@@ -1400,7 +1386,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
       p_done: false,
       p_message_id: MESSAGE_ID,
     });
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       done_at: null,
       done_by_user_id: null,
     });
@@ -1418,7 +1404,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
     // The route delegates idempotency to the RPC: a redundant mark-done returns
     // 'unchanged' — no flip, no audit event (the RPC writes nothing).
     expect(stubs.rpc.calls).toHaveLength(1);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       done_at: DONE_AT,
       done_by_user_id: auth.subject,
     });
@@ -1430,7 +1416,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
 
     const response = await patchDone({ done: false });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       done_at: null,
       done_by_user_id: null,
     });
@@ -1442,7 +1428,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
 
     const response = await patchDone({ done: true });
     expect(response.status).toBe(404);
-    expect(await errorCode(response)).toBe("not_found");
+    await expect(errorCode(response)).resolves.toBe("not_found");
     // The pre-RPC company-scoped lookup 404s before any write RPC.
     expect(stubs.rpc.calls).toHaveLength(0);
   });
@@ -1597,7 +1583,7 @@ describe("PATCH /v1/messages/:id — pin state (#3)", () => {
       p_pinned: false,
       p_message_id: MESSAGE_ID,
     });
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       pinned_at: null,
       pinned_by_user_id: null,
     });
@@ -1613,7 +1599,7 @@ describe("PATCH /v1/messages/:id — pin state (#3)", () => {
     const response = await patchPin({ pinned: true });
     expect(response.status).toBe(200);
     expect(stubs.rpc.calls).toHaveLength(1);
-    expect(await response.json()).toMatchObject({ pinned_at: PINNED_AT });
+    await expect(response.json()).resolves.toMatchObject({ pinned_at: PINNED_AT });
   });
 
   it("404s a message outside the caller's company (tenant isolation, §10)", async () => {
@@ -1622,7 +1608,7 @@ describe("PATCH /v1/messages/:id — pin state (#3)", () => {
 
     const response = await patchPin({ pinned: true });
     expect(response.status).toBe(404);
-    expect(await errorCode(response)).toBe("not_found");
+    await expect(errorCode(response)).resolves.toBe("not_found");
     expect(stubs.rpc.calls).toHaveLength(0);
   });
 
@@ -1822,7 +1808,7 @@ describe("GET /v1/conversations/:id/messages — anchored (#718)", () => {
       const or = q.get("or") ?? "";
       const asc = q.get("order") === "created_at.asc,id.asc";
       const pivot = /created_at.(?:lt|gt).([^,]+)/.exec(or)?.[1];
-      let pool = asc ? [...all] : [...all].reverse();
+      let pool = asc ? [...all] : [...all].toReversed();
       if (pivot) {
         pool = pool.filter((r) =>
           or.includes("created_at.gt.")
@@ -1891,7 +1877,7 @@ describe("GET /v1/conversations/:id/messages — anchored (#718)", () => {
     const limits = listCalls
       .map((u) => u.searchParams.get("limit"))
       .filter((l) => l !== "1")
-      .sort();
+      .toSorted();
     expect(limits).toEqual(["3", "3"]);
   });
 

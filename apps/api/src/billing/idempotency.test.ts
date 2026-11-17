@@ -17,7 +17,7 @@ const LICENSED = "price_licensed";
 const METERED = "price_metered";
 const US_FEE = "price_us_fee";
 
-describe("idempotencyKey", () => {
+describe(idempotencyKey, () => {
   it("joins the company, the intent and its discriminators", () => {
     expect(idempotencyKey("co_1", "checkout", "a", "b")).toBe(
       "co_1:checkout:a:b",
@@ -31,7 +31,7 @@ describe("idempotencyKey", () => {
   });
 });
 
-describe("cartSignature", () => {
+describe(cartSignature, () => {
   it("changes when the $29 fee line appears — the bug", () => {
     // Same plan, same modules, one extra line. These MUST NOT collide, or
     // Stripe rejects the second attempt and the customer is stuck for a day.

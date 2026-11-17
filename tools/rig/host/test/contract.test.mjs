@@ -1,12 +1,11 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 import { test } from "node:test";
-import { fileURLToPath } from "node:url";
 
 import { contractProblems, forwardedPorts, loadContract, serialOf } from "../src/config.mjs";
 
-const RIG = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const RIG = join(import.meta.dirname, "..", "..");
 const box = (path) => readFileSync(join(RIG, "box", path), "utf8");
 const contract = loadContract();
 const copy = () => structuredClone(contract);
@@ -69,7 +68,7 @@ test("the VM's sshd lets the tunnel bind exactly the contract's loopback ports, 
   const line = box("ssh/sshd-loonext-rig.conf").split("\n").find((entry) => entry.startsWith("PermitListen "));
   const permitted = line.split(/\s+/).slice(1);
   const tunnelled = forwardedPorts(contract).map(([vmPort]) => `127.0.0.1:${vmPort}`);
-  assert.deepEqual([...permitted].sort(), [...tunnelled].sort());
+  assert.deepEqual([...permitted].toSorted(), [...tunnelled].toSorted());
   assert.match(box("ssh/sshd-loonext-rig.conf"), /^GatewayPorts no$/m);
   assert.match(box("ssh/sshd-loonext-rig.conf"), /^AllowTcpForwarding remote$/m);
   assert.match(box("ssh/sshd-loonext-rig.conf"), /^PasswordAuthentication no$/m);
@@ -77,7 +76,7 @@ test("the VM's sshd lets the tunnel bind exactly the contract's loopback ports, 
 });
 
 test("the VM serves the emulators on the contract's address, and admits only the workstation", () => {
-  assert.match(box("caddy/Caddyfile"), new RegExp(`^\\s*bind 127\\.0\\.0\\.1 ${contract.vm.address.replace(/\./g, "\\.")}$`, "m"));
+  assert.match(box("caddy/Caddyfile"), new RegExp(`^\\s*bind 127\\.0\\.0\\.1 ${contract.vm.address.replaceAll('.', String.raw`\.`)}$`, "m"));
   assert.match(box("dnsmasq/emulators.conf"), new RegExp(`^listen-address=${contract.vm.address}$`, "m"));
   assert.match(box("dnsmasq/emulators.conf"), new RegExp(`^address=/rig\\.internal/${contract.vm.address}$`, "m"));
   assert.doesNotMatch(box("dnsmasq/emulators.conf"), /^dhcp-/m);

@@ -1,15 +1,15 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  IDENTIFICATION_SUFFIX_TEMPLATE,
   appendIdentification,
+  IDENTIFICATION_SUFFIX_TEMPLATE,
   identificationSuffix,
   pendingIdentificationSuffix,
   shouldIdentify,
 } from "./first-message-identification";
 import { estimateSegments } from "./segments";
 
-describe("identificationSuffix", () => {
+describe(identificationSuffix, () => {
   it("names the business, in D4's wording", () => {
     expect(identificationSuffix("Mike's Plumbing")).toBe(
       " - Mike's Plumbing. Reply STOP to opt out",
@@ -27,10 +27,10 @@ describe("identificationSuffix", () => {
     // non-GSM character switches the WHOLE message to UCS-2: 67 units per
     // concatenated segment instead of 153. That turns a 150-char first message
     // from 2 segments into 3. The separator is a hyphen for that reason.
-    const suffix = identificationSuffix("Mike's Plumbing") as string;
+    const suffix = identificationSuffix("Mike's Plumbing")!;
     expect(suffix).not.toMatch(/[—–]/);
     // Every character must be plain ASCII, which GSM-7 covers.
-    expect(suffix).toMatch(/^[\x20-\x7E]+$/);
+    expect(suffix).toMatch(/^[\u0020-\u007E]+$/);
   });
 
   it("returns null rather than identifying nobody", () => {
@@ -46,7 +46,7 @@ describe("identificationSuffix", () => {
   });
 });
 
-describe("appendIdentification", () => {
+describe(appendIdentification, () => {
   it("appends to the body the user wrote", () => {
     expect(appendIdentification("On my way", "Mike's Plumbing")).toBe(
       "On my way - Mike's Plumbing. Reply STOP to opt out",
@@ -137,7 +137,7 @@ describe("pendingIdentificationSuffix (the clients' rule)", () => {
   });
 });
 
-describe("shouldIdentify", () => {
+describe(shouldIdentify, () => {
   it("is off unless the owner enabled it — D4's reversal is the default", () => {
     expect(
       shouldIdentify({ settingEnabled: false, alreadyIdentifiedAt: null }),

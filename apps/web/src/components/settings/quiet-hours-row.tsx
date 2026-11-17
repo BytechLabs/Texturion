@@ -53,10 +53,10 @@ export function QuietHoursRow({
   async function save(next: Partial<NotificationPrefs>) {
     try {
       await onSave({ ...prefs, ...next });
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settingsMore.saveThatFailed"),
       );
     }

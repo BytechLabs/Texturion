@@ -6,38 +6,16 @@ import {
 import {
   appendUnlinkNote,
   calendarTitleRefusalReason,
-  hasTaskLink,
   hashCalendarDescription,
+  hasTaskLink,
   instantFromRfc3339OrWallClock,
   isIanaTimeZone,
   normalizeCalendarText,
-  withTaskLink,
   withoutTaskLink,
+  withTaskLink,
 } from "./normalize";
-import {
-  type AnnotateCalendarEventInput,
-  type CalendarChangePage,
-  type CalendarChangeNotice,
-  type CalendarFetch,
-  type CalendarOAuthClient,
-  type CalendarOAuthTokens,
-  type CalendarProvider,
-  CalendarProviderError,
-  type CalendarRemoteEvent,
-  CalendarReauthRequiredError,
-  type CalendarWatch,
-  type CreateCalendarEventInput,
-  type DeleteCalendarEventInput,
-  type GetCalendarEventInput,
-  InvalidCalendarEventError,
-  type ListCalendarChangesInput,
-  type PatchCalendarEventInput,
-  type RenewCalendarWatchInput,
-  type ScrubCalendarEventInput,
-  type StartCalendarWatchInput,
-  type StopCalendarWatchInput,
-  type WriteCalendarEventInput,
-} from "./types";
+import { CalendarProviderError, CalendarReauthRequiredError, InvalidCalendarEventError } from './types';
+import type { AnnotateCalendarEventInput, CalendarChangeNotice, CalendarChangePage, CalendarFetch, CalendarOAuthClient, CalendarOAuthTokens, CalendarProvider, CalendarRemoteEvent, CalendarWatch, CreateCalendarEventInput, DeleteCalendarEventInput, GetCalendarEventInput, ListCalendarChangesInput, PatchCalendarEventInput, RenewCalendarWatchInput, ScrubCalendarEventInput, StartCalendarWatchInput, StopCalendarWatchInput, WriteCalendarEventInput } from './types';
 
 const GOOGLE_API = "https://www.googleapis.com/calendar/v3";
 const GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth";
@@ -287,7 +265,7 @@ export async function normalizeGoogleEvent(
       inbound: { kind: "time_refused", reason: "invalid_range" },
     };
   }
-  if ([...description].length > 5_000) {
+  if ([...description].length > 5000) {
     return {
       ...common,
       inbound: { kind: "description_refused", reason: "too_long" },
@@ -402,9 +380,9 @@ function oauthTokens(
   }
   return {
     accessToken: token.access_token,
-    refreshToken: (token.refresh_token as string | undefined) ?? fallbackRefreshToken,
-    expiresInSeconds: (token.expires_in as number | undefined) ?? null,
-    scope: (token.scope as string | undefined) ?? null,
+    refreshToken: (token.refresh_token) ?? fallbackRefreshToken,
+    expiresInSeconds: (token.expires_in) ?? null,
+    scope: (token.scope) ?? null,
   };
 }
 
@@ -749,7 +727,7 @@ export class GoogleCalendarProvider implements CalendarProvider {
         "Google watch expiration must be an ISO instant",
       );
     }
-    const ttlSeconds = Math.max(1, Math.floor((expiration - Date.now()) / 1_000));
+    const ttlSeconds = Math.max(1, Math.floor((expiration - Date.now()) / 1000));
     const watch = await providerJson<GoogleWatchResponse>(
       this.fetcher,
       googleUrl(`/calendars/${encodeURIComponent(input.calendarId)}/events/watch`),

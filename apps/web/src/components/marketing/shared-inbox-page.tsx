@@ -36,7 +36,7 @@ import {
   UseCaseSteps,
 } from "@/components/marketing/features/feature-page";
 import { InboxListVisual } from "@/components/marketing/features/inbox-list-visual";
-import { breadcrumbJsonLd, buildMetadata } from "@/lib/marketing/seo";
+import { breadcrumbJsonLd } from "@/lib/marketing/seo";
 import { activationClaim } from "@/lib/marketing/activation";
 
 const PATH = "/features/shared-inbox";

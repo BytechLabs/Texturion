@@ -38,13 +38,12 @@
  */
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
 import { productionSources as readProductionSources } from "../test/source-tree";
 
-const API_SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+const API_SRC = join(import.meta.dirname, "..");
 
 /**
  * Every place a customer-bound message reaches the carrier, and why it is

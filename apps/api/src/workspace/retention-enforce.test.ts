@@ -384,20 +384,20 @@ describe("the two voicemail pointers are cleared together, everywhere", () => {
       readdirSync(dir).flatMap((entry) => {
         const full = join(dir, entry).replaceAll("\\", "/");
         if (statSync(full).isDirectory()) return walk(full);
-        return /\.ts$/.test(full) && !/\.test\.ts$/.test(full) ? [full] : [];
+        return full.endsWith('.ts') && !full.endsWith('.test.ts') ? [full] : [];
       });
 
     const offenders: string[] = [];
     let clears = 0;
     for (const file of walk(apiSrc)) {
-      const body = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+      const body = readFileSync(file, "utf8").replaceAll('\r\n', "\n");
       // Every `.update({ … })` object that mentions nulling either pointer.
       for (const match of body.matchAll(/\.update\(\{[^}]*voicemail_(?:path|seconds)[^}]*\}/g)) {
         const object = match[0];
         if (!/voicemail_path:\s*null/.test(object)) continue;
         clears += 1;
         if (!/voicemail_seconds:\s*null/.test(object)) {
-          offenders.push(`${file}: ${object.replace(/\s+/g, " ").slice(0, 90)}`);
+          offenders.push(`${file}: ${object.replaceAll(/\s+/g, " ").slice(0, 90)}`);
         }
       }
     }

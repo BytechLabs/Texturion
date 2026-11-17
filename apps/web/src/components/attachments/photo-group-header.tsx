@@ -1,6 +1,7 @@
 "use client";
 
-import { WORK_PHASE_LABELS, type WorkPhase } from "@loonext/shared";
+import { WORK_PHASE_LABELS } from '@loonext/shared';
+import type { WorkPhase } from '@loonext/shared';
 
 import { useT } from "@/i18n/provider";
 import { Timestamp } from "@/components/ui/timestamp";

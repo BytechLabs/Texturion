@@ -77,15 +77,15 @@ describe("#340 the personal-data inventory document is the inventory", () => {
   });
 
   it("names every table the SQL guard counts as classified", () => {
-    const missing = [...inSql].filter((table) => !inDoc.has(table)).sort();
+    const missing = [...inSql].filter((table) => !inDoc.has(table)).toSorted();
     expect(
       missing,
-      "These tables are classified by supabase/tests/personal_data_inventory" +
-        ".test.sql and appear nowhere in docs/PERSONAL-DATA-INVENTORY.md:\n  " +
-        missing.join("\n  ") +
-        "\n\nThe SQL guard cannot see this — it compares the live catalog to " +
-        "its own array and never opens the document. That document is what a " +
-        "subject-access or erasure request is answered from.",
+      `These tables are classified by supabase/tests/personal_data_inventory` +
+        `.test.sql and appear nowhere in docs/PERSONAL-DATA-INVENTORY.md:\n  ${ 
+        missing.join("\n  ") 
+        }\n\nThe SQL guard cannot see this — it compares the live catalog to ` +
+        `its own array and never opens the document. That document is what a ` +
+        `subject-access or erasure request is answered from.`,
     ).toEqual([]);
   });
 });

@@ -7,11 +7,8 @@ import { ACTIVATION_CLAIM } from "@/lib/marketing/activation";
 import type { BlogPost } from "@/lib/marketing/blog";
 import { blogPostPath } from "@/lib/marketing/blog";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
-import {
-  blogPostingJsonLd,
-  breadcrumbJsonLd,
-  type Breadcrumb,
-} from "@/lib/marketing/seo";
+import { blogPostingJsonLd, breadcrumbJsonLd } from '@/lib/marketing/seo';
+import type { Breadcrumb } from '@/lib/marketing/seo';
 
 /**
  * ARTICLE template (#127): the quiet register, same 68ch single column as

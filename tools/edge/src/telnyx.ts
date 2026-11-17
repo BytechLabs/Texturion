@@ -1,4 +1,5 @@
-import { EDGE_PATHS, type LegRegistration, type Partition, TELNYX_SIGNATURE_WINDOW_S } from "@loonext/rig-protocol";
+import { EDGE_PATHS, TELNYX_SIGNATURE_WINDOW_S } from '@loonext/rig-protocol';
+import type { LegRegistration, Partition } from '@loonext/rig-protocol';
 
 /**
  * The account has one signing key, shared with production, so a valid
@@ -21,7 +22,7 @@ async function importPublicKey(base64Key: string): Promise<CryptoKey | null> {
   const cached = importedKeys.get(base64Key);
   if (cached) return cached;
   const raw = decodeBase64(base64Key);
-  if (!raw || raw.length !== 32) return null;
+  if (raw?.length !== 32) return null;
   try {
     const key = await crypto.subtle.importKey("raw", raw, { name: "Ed25519" }, false, ["verify"]);
     importedKeys.set(base64Key, key);

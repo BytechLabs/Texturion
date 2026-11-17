@@ -27,7 +27,7 @@
  * button from a mention of the predicate in a comment. It is a floor, not a
  * proof — but it is a floor that spans three languages, and there was none.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
@@ -62,7 +62,7 @@ function walk(dir: string): string[] {
  * furthest from the person, which is the opposite of the fix.
  */
 function code(source: string): string {
-  return source.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/\/\/.*$/gm, " ");
+  return source.replaceAll(/\/\*[\s\S]*?\*\//g, " ").replaceAll(/\/\/.*$/gm, " ");
 }
 
 /**
@@ -72,7 +72,7 @@ function code(source: string): string {
  * check that the rendered UI passes.
  */
 function flat(source: string): string {
-  return source.replace(/\s+/g, " ");
+  return source.replaceAll(/\s+/g, " ");
 }
 
 /**
@@ -291,7 +291,7 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
       if (open === -1) break;
       // Anything but whitespace, a separator or a concatenation between here
       // and the quote means the value has ended and this is the NEXT entry.
-      if (/[^\s:+to]/.test(catalogue.slice(i, open).replace(/\bto\b/g, ""))) break;
+      if (/[^\s:+to]/.test(catalogue.slice(i, open).replaceAll(/\bto\b/g, ""))) break;
       let end = open + 1;
       while (end < catalogue.length && catalogue[end] !== '"') {
         if (catalogue[end] === "\\") end += 1;
@@ -320,9 +320,9 @@ describe("#407 — every surface offering a revoke asks which kind it is", () =>
     const path = file.replaceAll("\\", "/");
     const list = path.includes("/apps/android/")
       ? join(REPO, "apps/android/app/src/main/kotlin/com/loonext/android/ui/common/RecordActions.kt")
-      : path.includes("/apps/ios/")
+      : (path.includes("/apps/ios/")
         ? join(REPO, "apps/ios/Loonext/Support/RecordActions.swift")
-        : null;
+        : null);
     return list ? `${source}\n${readFileSync(list, "utf8")}` : source;
   }
 

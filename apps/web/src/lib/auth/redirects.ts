@@ -110,8 +110,7 @@ export function isTransientAuthBlip(
   hasSessionCookie: boolean,
 ): boolean {
   return (
-    redirect !== null &&
-    redirect.pathname === "/login" &&
+    redirect?.pathname === "/login" &&
     authErrored &&
     hasSessionCookie
   );
@@ -135,7 +134,7 @@ export function safeNextPath(next: string | null | undefined): string {
   if (!next.startsWith("/") || next.startsWith("//")) return "/for-you";
   for (let i = 0; i < next.length; i++) {
     const code = next.charCodeAt(i);
-    if (code <= 0x20 || code === 0x5c /* backslash */) return "/for-you";
+    if (code <= 0x20 || code === 0x5C /* backslash */) return "/for-you";
   }
   return next;
 }

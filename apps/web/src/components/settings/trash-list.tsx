@@ -14,12 +14,8 @@ import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useMembers } from "@/lib/api/team";
-import {
-  usePurgeTrashItem,
-  useRestoreFromTrash,
-  useTrash,
-  type TrashRow,
-} from "@/lib/api/trash";
+import { usePurgeTrashItem, useRestoreFromTrash, useTrash } from '@/lib/api/trash';
+import type { TrashRow } from '@/lib/api/trash';
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatTimestamp } from "@/lib/format/time";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -112,10 +108,10 @@ function TrashItem({ row, onPurge }: { row: TrashRow; onPurge: () => void }) {
   const deletedBy =
     row.deleted_by_user_id === null
       ? null
-      : row.deleted_by_user_id === userId
+      : (row.deleted_by_user_id === userId
         ? t("trash.you")
         : (members.data?.data.find((m) => m.user_id === row.deleted_by_user_id)
-            ?.display_name ?? t("trash.someone"));
+            ?.display_name ?? t("trash.someone")));
   const when = formatTimestamp(row.deleted_at, { style: "long", t });
 
   return (

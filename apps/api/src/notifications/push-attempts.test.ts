@@ -7,15 +7,10 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { scrubProperties } from "../observability/scrub";
 import { eventsCaptured, resetCaptures } from "../test/capture-mock";
 import { completeEnv } from "../test/support";
-import {
-  classifyPushResponse,
-  recordPushAttempts,
-  timedPush,
-  type PushAttempt,
-  type PushTarget,
-} from "./push-attempts";
+import { classifyPushResponse, recordPushAttempts, timedPush } from './push-attempts';
+import type { PushAttempt, PushTarget } from './push-attempts';
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -38,7 +33,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("classifyPushResponse", () => {
+describe(classifyPushResponse, () => {
   it.each([
     [{ ok: true, status: 201, gone: false }, "accepted"],
     [{ ok: false, status: 410, gone: true }, "gone"],
@@ -54,7 +49,7 @@ describe("classifyPushResponse", () => {
   });
 });
 
-describe("timedPush", () => {
+describe(timedPush, () => {
   it("records the outcome and latency, and hands the result back untouched", async () => {
     const log: PushAttempt[] = [];
     const result = { ok: true, status: 200, gone: false, errorBody: "" };
@@ -75,7 +70,7 @@ describe("timedPush", () => {
       });
       expect(log[0]).toMatchObject({
         startedAt: Date.parse("2026-10-31T14:00:00.000Z"),
-        latencyMs: 4_000,
+        latencyMs: 4000,
       });
     } finally {
       vi.useRealTimers();
@@ -102,7 +97,7 @@ describe("timedPush", () => {
   });
 });
 
-describe("recordPushAttempts", () => {
+describe(recordPushAttempts, () => {
   const attempt: PushAttempt = {
     ...TARGET,
     responseClass: "accepted",

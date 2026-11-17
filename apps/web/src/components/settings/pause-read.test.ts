@@ -2,15 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { PauseOffer } from "@/lib/api/billing";
 
-import {
-  type PauseRead,
-  pauseReadOf,
-  planBadge,
-  planStateUnknownNote,
-  readAllowsPlanChange,
-  readSaysPaused,
-  readSaysRunning,
-} from "./pause-read";
+import { pauseReadOf, planBadge, planStateUnknownNote, readAllowsPlanChange, readSaysPaused, readSaysRunning } from './pause-read';
+import type { PauseRead } from './pause-read';
 
 /**
  * #277 — the rule that a screen may not state a fact it has not read.

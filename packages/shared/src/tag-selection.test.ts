@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { tagSelectionState, tagToggleAction } from "./tag-selection";
 
-describe("tagSelectionState", () => {
+describe(tagSelectionState, () => {
   it("reads every, some or none of the selection", () => {
     expect(tagSelectionState([["a"], ["a", "b"]], "a")).toBe("all");
     expect(tagSelectionState([["a"], ["b"]], "a")).toBe("some");
@@ -15,7 +15,7 @@ describe("tagSelectionState", () => {
   });
 });
 
-describe("tagToggleAction", () => {
+describe(tagToggleAction, () => {
   it("removes only what every item already has", () => {
     expect(tagToggleAction("all")).toBe("remove");
     for (const state of ["some", "none", "unknown"] as const) {

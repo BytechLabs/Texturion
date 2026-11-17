@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 import type { AuditEntry } from "@/lib/api/types";
 import { AUTOMATIC_TEXT_LABEL_KEYS } from "@/lib/settings/automatic-texts";
 
@@ -125,7 +126,7 @@ function changedSettings(after: Record<string, unknown>, t: Translate): string {
   const named = Object.keys(after)
     // A key this build has no name for reads as itself with the underscores
     // opened out — untranslated, because it is a column name rather than copy.
-    .map((key) => NAMES[key] ?? key.replace(/_/g, " "))
+    .map((key) => NAMES[key] ?? key.replaceAll('_', " "))
     .filter((label) => label !== "");
   if (named.length === 0) return t("appShell.auditSettingsFallback");
   if (named.length === 1) return named[0];
@@ -156,18 +157,24 @@ function accessPhrase(after: Record<string, unknown>, t: Translate): string {
 /** What a #691 deletion row was about: its kind, never its content. */
 function recordNoun(entry: AuditEntry, t: Translate): string {
   switch (entry.target_type) {
-    case "message":
+    case "message": {
       return t("trash.auditTargetMessage");
-    case "conversation":
+    }
+    case "conversation": {
       return t("trash.auditTargetConversation");
-    case "call":
+    }
+    case "call": {
       return t("trash.auditTargetCall");
-    case "voicemail":
+    }
+    case "voicemail": {
       return t("trash.auditTargetVoicemail");
-    case "contact":
+    }
+    case "contact": {
       return t("trash.auditTargetContact");
-    default:
+    }
+    default: {
       return t("trash.auditTargetOther");
+    }
   }
 }
 
@@ -186,72 +193,89 @@ export function auditSentence(entry: AuditEntry, t: Translate = EN): string {
   const before = entry.before ?? {};
 
   switch (entry.action) {
-    case "member.invited":
+    case "member.invited": {
       return t("appShell.auditInvited", {
         who,
         email: String(after.email ?? t("appShell.auditEmailFallback")),
         role: roleWord(after.role, t),
       });
-    case "member.invite_revoked":
+    }
+    case "member.invite_revoked": {
       return t("appShell.auditInviteRevoked", { who });
-    case "member.joined":
+    }
+    case "member.joined": {
       return t("appShell.auditJoined", { who, role: roleWord(after.role, t) });
-    case "member.role_changed":
+    }
+    case "member.role_changed": {
       return t("appShell.auditRoleChanged", {
         who,
         before: roleWord(before.role, t),
         after: roleWord(after.role, t),
       });
-    case "member.deactivated":
+    }
+    case "member.deactivated": {
       return t("appShell.auditDeactivated", { who });
-    case "member.reactivated":
+    }
+    case "member.reactivated": {
       return t("appShell.auditReactivated", { who });
-    case "number_access.changed":
+    }
+    case "number_access.changed": {
       return t("appShell.auditNumberAccessChanged", {
         who,
         phrase: accessPhrase(after, t),
       });
-    case "settings.changed":
+    }
+    case "settings.changed": {
       return t("appShell.auditSettingsChanged", {
         who,
         what: changedSettings(after, t),
       });
-    case "billing.plan_changed":
+    }
+    case "billing.plan_changed": {
       return t("appShell.auditPlanChanged", {
         who,
         plan: String(after.plan ?? t("appShell.auditPlanFallback")),
       });
-    case "billing.module_changed":
+    }
+    case "billing.module_changed": {
       return t("appShell.auditModuleChanged", { who });
-    case "contacts.imported":
+    }
+    case "contacts.imported": {
       return t("appShell.auditContactsImported", {
         who,
         count: String(after.count ?? t("appShell.auditCountFallback")),
       });
-    case "contacts.exported":
+    }
+    case "contacts.exported": {
       return t("appShell.auditContactsExported", {
         who,
         count: String(after.count ?? t("appShell.auditCountFallback")),
       });
-    case "contacts.bulk_deleted":
+    }
+    case "contacts.bulk_deleted": {
       return t("appShell.auditContactsDeleted", {
         who,
         count: String(after.count ?? t("appShell.auditCountFallback")),
       });
-    case "record.deleted":
+    }
+    case "record.deleted": {
       return t("trash.auditDeleted", { who, what: recordNoun(entry, t) });
-    case "record.restored":
+    }
+    case "record.restored": {
       return t("trash.auditRestored", { who, what: recordNoun(entry, t) });
-    case "record.purged":
+    }
+    case "record.purged": {
       // The expiry job is not a person; naming "Loonext" as the one who erased
       // it would read as the product choosing to. Never content, only the kind.
       return after.by === "trash_expiry"
         ? t("trash.auditPurgedByExpiry", { what: capitalised(recordNoun(entry, t)) })
         : t("trash.auditPurgedByPerson", { who, what: recordNoun(entry, t) });
-    default:
+    }
+    default: {
       return t("appShell.auditUnknownAction", {
         who,
-        action: entry.action.replace(/[._]/g, " "),
+        action: entry.action.replaceAll(/[._]/g, " "),
       });
+    }
   }
 }

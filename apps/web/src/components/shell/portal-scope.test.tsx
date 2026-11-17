@@ -23,7 +23,7 @@ function stubTarget() {
   };
 }
 
-describe("mountScope", () => {
+describe(mountScope, () => {
   it("adds every scope class and the cleanup removes exactly those", () => {
     const target = stubTarget();
     const cleanup = mountScope(target, "app-scope __golos_var");
@@ -46,7 +46,7 @@ describe("mountScope", () => {
   });
 });
 
-describe("PortalScope", () => {
+describe(PortalScope, () => {
   it("renders no visual footprint of its own", () => {
     expect(renderToStaticMarkup(<PortalScope classes="app-scope" />)).toBe("");
   });

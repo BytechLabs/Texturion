@@ -1,4 +1,4 @@
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
 
 import { describe, expect, it } from "vitest";
@@ -16,7 +16,7 @@ function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const path = join(dir, name);
     if (statSync(path).isDirectory()) return sourceFiles(path);
-    return /\.(ts|tsx)$/.test(name) && !/\.test\./.test(name) ? [path] : [];
+    return /\.(ts|tsx)$/.test(name) && !name.includes('.test.') ? [path] : [];
   });
 }
 
@@ -32,7 +32,7 @@ describe("references stay out of texts to customers", () => {
         );
       })
       .map(rel)
-      .sort();
+      .toSorted();
     expect(users).toEqual([
       "components/tasks/task-detail-panel.tsx",
       "components/tasks/task-feed.tsx",
@@ -51,8 +51,8 @@ describe("references stay out of texts to customers", () => {
     expect(picker).toBeGreaterThan(0);
     expect(text.slice(picker - 40, picker)).toMatch(/\{isNote && \(\s*$/);
     // And nowhere else in the file.
-    expect(text.split("noteRefs.onTyped(").length).toBe(2);
-    expect(text.split("<ReferencePicker").length).toBe(2);
+    expect(text.split("noteRefs.onTyped(")).toHaveLength(2);
+    expect(text.split("<ReferencePicker")).toHaveLength(2);
   });
 
   it("the message bubble reads references out of a note and nothing else", () => {

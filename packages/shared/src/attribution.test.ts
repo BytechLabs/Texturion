@@ -93,10 +93,10 @@ describe("#296 the landing path never smuggles a query", () => {
       "//evil.example.com",
       "compare",
       "",
-      "/" + "a".repeat(ATTRIBUTION_PATH_MAX),
+      `/${  "a".repeat(ATTRIBUTION_PATH_MAX)}`,
       null,
     ]) {
-      expect(sanitizeLandingPath(bad as string | null), String(bad)).toBeNull();
+      expect(sanitizeLandingPath(bad), String(bad)).toBeNull();
     }
   });
 });

@@ -61,9 +61,9 @@ export function escalationCopy(
   const title =
     kind === "missed_call"
       ? copy.missedCallTitle
-      : kind === "emergency"
+      : (kind === "emergency"
         ? copy.emergencyTitle
-        : copy.genericTitle;
+        : copy.genericTitle);
   return { title, body: copy.body };
 }
 
@@ -99,7 +99,7 @@ export async function runEscalationSweep(
         .eq("id", alert.conversation_id)
         .eq("company_id", alert.company_id)
         .maybeSingle();
-      const thread = conversation.data as { phone_number_id: string | null } | null;
+      const thread = conversation.data;
       // UNCERTAINTY DOES NOT WIDEN HERE, and that is the opposite of the rule
       // in `on-call.ts` — deliberately.
       //
@@ -168,12 +168,12 @@ export async function runEscalationSweep(
         );
       }
       summary.widened += 1;
-    } catch (cause) {
+    } catch (error_) {
       // The claim already happened, so this alert will not be retried. That is
       // the right trade: a retry loop on a broken row would re-page the crew
       // every minute, and the alert is still visible in the thread and on the
       // For You surface.
-      console.error(`escalation sweep: alert ${alert.id} failed`, cause);
+      console.error(`escalation sweep: alert ${alert.id} failed`, error_);
     }
   }
 

@@ -12,25 +12,25 @@ describe("the run lease", () => {
     const grant = (await first.json()) as { lease_id: string; scenario: string; expires_at: string };
     expect(grant.scenario).toBe("S02");
     expect(Date.parse(grant.expires_at) - h.clock.now).toBe(LEASE_MAX_MS);
-    expect(await ruleOf(await h.call("/lease", { caller: "rig-api", body: { scenario: "S01" } }))).toBe("lease.busy");
-    expect(await (await h.call("/lease", { caller: "rig-api" })).json()).toMatchObject({ lease_id: grant.lease_id });
+    await expect(ruleOf(await h.call("/lease", { caller: "rig-api", body: { scenario: "S01" } }))).resolves.toBe("lease.busy");
+    await expect((await h.call("/lease", { caller: "rig-api" })).json()).resolves.toMatchObject({ lease_id: grant.lease_id });
   });
 
   it("is free again once released, or once it has run out", async () => {
     const h = await ready();
     const id = await lease(h);
     expect((await h.call(`/lease/${id}`, { caller: "robot", method: "DELETE" })).status).toBe(200);
-    expect(await ruleOf(await h.call(`/lease/${id}`, { caller: "robot", method: "DELETE" }))).toBe("lease.not_found");
+    await expect(ruleOf(await h.call(`/lease/${id}`, { caller: "robot", method: "DELETE" }))).resolves.toBe("lease.not_found");
     await lease(h, "S04");
     h.advance(LEASE_MAX_MS);
-    expect(await (await h.call("/lease", { caller: "robot" })).json()).toBeNull();
+    await expect((await h.call("/lease", { caller: "robot" })).json()).resolves.toBeNull();
     await lease(h, "S05");
   });
 
   it("refuses a scenario id that is not one", async () => {
     const h = harness();
     for (const scenario of ["", "s02", "S2", "S002", "../S02", 7]) {
-      expect(await ruleOf(await h.call("/lease", { caller: "robot", body: { scenario } })), String(scenario)).toBe(
+      await expect(ruleOf(await h.call("/lease", { caller: "robot", body: { scenario } }))).resolves.toBe(
         "lease.scenario_invalid",
       );
     }
@@ -59,10 +59,10 @@ describe("preemption", () => {
 
     h.telnyx.activeCalls.set("conn-prod-webrtc", [{ call_control_id: "ccid-production" }]);
     await h.guard.alarm();
-    const hangups = h.telnyx.requests("POST", "/v2/calls").map((entry) => entry.path).sort();
+    const hangups = h.telnyx.requests("POST", "/v2/calls").map((entry) => entry.path).toSorted();
     expect(hangups).toEqual(["/v2/calls/ccid-1/actions/hangup", "/v2/calls/ccid-2/actions/hangup"]);
-    expect(await h.store.get<{ preempted_at?: number }>("lease")).toMatchObject({ lease_id: id, preempted_at: h.clock.now });
-    expect(await (await h.call("/lease", { caller: "robot" })).json()).toBeNull();
+    await expect(h.store.get<{ preempted_at?: number }>("lease")).resolves.toMatchObject({ lease_id: id, preempted_at: h.clock.now });
+    await expect((await h.call("/lease", { caller: "robot" })).json()).resolves.toBeNull();
     expect(h.alarms).toHaveLength(2);
   });
 
@@ -84,7 +84,7 @@ describe("preemption", () => {
     expect(h.alarms).toHaveLength(3);
     h.telnyx.activeCalls.set("conn-prod-voice", [{ call_control_id: "ccid-production" }]);
     await h.guard.alarm();
-    expect(await (await h.call("/lease", { caller: "robot" })).json()).toBeNull();
+    await expect((await h.call("/lease", { caller: "robot" })).json()).resolves.toBeNull();
   });
 
   it("keeps polling when the partition cannot be refreshed", async () => {
@@ -106,7 +106,7 @@ describe("preemption", () => {
         body: { connection_id: "conn-robot", from: N.robot1, to: N.devW1 },
         headers: { [HEADER.lease]: id },
       });
-    expect(await ruleOf(await dial())).toBe("admission.production_calls_unknown");
+    await expect(ruleOf(await dial())).resolves.toBe("admission.production_calls_unknown");
     expect(h.telnyx.requests("POST", "/v2/calls")).toEqual([]);
     expect((await dial()).status).toBe(200);
   });
@@ -119,11 +119,11 @@ describe("preemption", () => {
     h.telnyx.activeCalls.set("conn-prod-voice", [{ call_control_id: "ccid-production" }]);
     h.telnyx.failNext = { method: "POST", path: "/v2/calls/ccid-1/actions/hangup", status: 500 };
     await h.guard.alarm();
-    expect(await h.store.get<{ preempted_at?: number }>("lease")).not.toHaveProperty("preempted_at");
+    await expect(h.store.get<{ preempted_at?: number }>("lease")).resolves.not.toHaveProperty("preempted_at");
     expect(h.alarms).toHaveLength(2);
     await h.guard.alarm();
     expect(h.telnyx.requests("POST", "/v2/calls/ccid-1/actions/hangup")).toHaveLength(2);
-    expect(await h.store.get<{ preempted_at?: number }>("lease")).toMatchObject({ lease_id: id, preempted_at: h.clock.now });
+    await expect(h.store.get<{ preempted_at?: number }>("lease")).resolves.toMatchObject({ lease_id: id, preempted_at: h.clock.now });
   });
 
   it("does nothing without a live lease", async () => {
@@ -151,7 +151,7 @@ describe("account signals", () => {
         received_at: new Date(h.clock.now).toISOString(),
       },
     });
-    expect(await response.json()).toMatchObject({ latched: false });
+    await expect(response.json()).resolves.toMatchObject({ latched: false });
     await expect(requirePaidLanesOpen(h.ctx)).rejects.toMatchObject({ rule: "signal.halted" });
     const event = h.outbound.find((item) => item.url.includes("posthog.com"));
     expect(event?.body).toContain('"$exception_fingerprint":"ops:telnyx-account-signal"');
@@ -204,13 +204,11 @@ describe("account signals", () => {
       { signal: "Low Balance", corroborated_by: "notification_event" },
       { signal: "Low Balance" },
     ]) {
-      expect(await ruleOf(await h.call("/halt", { caller: "edge", body })), JSON.stringify(body)).toBe(
+      await expect(ruleOf(await h.call("/halt", { caller: "edge", body }))).resolves.toBe(
         "request.body_invalid",
       );
     }
-    expect(
-      await ruleOf(await h.call("/halt", { caller: "admin", body: { signal: "Low Balance", corroborated_by: "balance" } })),
-    ).toBe("class.not_allowed");
+    await expect(ruleOf(await h.call("/halt", { caller: "admin", body: { signal: "Low Balance", corroborated_by: "balance" } }))).resolves.toBe("class.not_allowed");
   });
 });
 
@@ -225,7 +223,7 @@ describe("the lease's activity record", () => {
   it("counts each Telnyx request by caller, endpoint and outcome, refusals included", async () => {
     const h = await ready();
     const id = await lease(h);
-    expect(await activityOf(h, id)).toMatchObject({ live: true, activity: {} });
+    await expect(activityOf(h, id)).resolves.toMatchObject({ live: true, activity: {} });
     await h.call("/telnyx/v2/calls", { caller: "robot", body: DIAL, headers: { [HEADER.lease]: id } });
     await h.call("/telnyx/v2/calls", { caller: "robot", body: { ...DIAL, to: N.notOwned }, headers: { [HEADER.lease]: id } });
     await h.call("/telnyx/v2/calls", { caller: "robot", body: { ...DIAL, to: N.notOwned }, headers: { [HEADER.lease]: id } });
@@ -247,7 +245,7 @@ describe("the lease's activity record", () => {
     expect(placed.status).toBe(200);
     expect(h.telnyx.requests("POST", "/v2/calls")).toHaveLength(1);
     const refused = await h.call("/telnyx/v2/calls", { caller: "robot", body: { ...DIAL, to: N.notOwned }, headers: { [HEADER.lease]: id } });
-    expect(await ruleOf(refused)).toBe("dial.to_not_owned");
+    await expect(ruleOf(refused)).resolves.toBe("dial.to_not_owned");
   });
 
   it("is kept after release, counts nothing while no lease is live, and names only the last lease", async () => {
@@ -256,8 +254,8 @@ describe("the lease's activity record", () => {
     await h.call("/telnyx/v2/calls", { caller: "robot", body: DIAL, headers: { [HEADER.lease]: id } });
     await h.call(`/lease/${id}`, { caller: "robot", method: "DELETE" });
     await h.call("/telnyx/v2/calls", { caller: "robot", body: DIAL, headers: { [HEADER.lease]: id } });
-    expect(await activityOf(h, id)).toMatchObject({ live: false, activity: { "robot POST /v2/calls 200": 1 } });
+    await expect(activityOf(h, id)).resolves.toMatchObject({ live: false, activity: { "robot POST /v2/calls 200": 1 } });
     await lease(h, "S04");
-    expect(await ruleOf(await h.call(`/lease/${id}/activity`, { caller: "robot" }))).toBe("lease.not_found");
+    await expect(ruleOf(await h.call(`/lease/${id}/activity`, { caller: "robot" }))).resolves.toBe("lease.not_found");
   });
 });

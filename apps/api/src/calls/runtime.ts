@@ -8,25 +8,14 @@
  * suites substitute a fake, so the shell's queue/journal/alarm logic is
  * testable with no Telnyx and no PostgREST.
  */
-import {
-  type AfterHoursCalls,
-  type BusinessHours,
-  callLooksSpam,
-  clampRingSeconds,
-  companySettingDefault,
-  type HoursException,
-  isAfterHours,
-  nextOpening,
-  resolveNumberIdentity,
-  RING_SECONDS_MAX,
-  type RingStrategy,
-  roleHasCapability,
-} from "@loonext/shared";
+import { callLooksSpam, clampRingSeconds, companySettingDefault, isAfterHours, nextOpening, resolveNumberIdentity, RING_SECONDS_MAX, roleHasCapability } from '@loonext/shared';
+import type { AfterHoursCalls, BusinessHours, HoursException, RingStrategy } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { captureEvent, captureException, workerEnv, type WaitUntil } from "../observability/capture";
+import { captureEvent, captureException, workerEnv } from '../observability/capture';
+import type { WaitUntil } from '../observability/capture';
 import {
   afterHoursDefaultGreeting,
   buildBrowserAnsweredState,
@@ -38,28 +27,16 @@ import {
   RING_TIMEOUT_SECS,
   sanitizeGreeting,
 } from "../messaging/inbound-ring";
-import {
-  buildOutboundPlacerState,
-  companyOverVoiceCap,
-  type CompanyVoiceState,
-  handleTerminalCallEvent,
-  handleVoicemailSaved,
-  normalizeCaller,
-  OUTBOUND_AUTH_MAX_AGE_SECS,
-  parseOutboundNonce,
-  parseOutboundSessionId,
-  threadCallSession,
-} from "../messaging/voice-webhook";
+import { buildOutboundPlacerState, companyOverVoiceCap, handleTerminalCallEvent, handleVoicemailSaved, normalizeCaller, OUTBOUND_AUTH_MAX_AGE_SECS, parseOutboundNonce, parseOutboundSessionId, threadCallSession } from '../messaging/voice-webhook';
+import type { CompanyVoiceState } from '../messaging/voice-webhook';
 import { normalizeNanpPhone } from "../routes/core/phone";
 import { notifyMissedCall } from "../notifications/missed-call";
 import { closeBlockedThread, isBlockedSender } from "../messaging/spam-flag";
 import { sendMissedCallText } from "../messaging/missed-call";
-import {
-  notifyIncomingCall,
-  type IncomingCallPushReport,
-} from "../notifications/incoming-call";
+import { notifyIncomingCall } from '../notifications/incoming-call';
+import type { IncomingCallPushReport } from '../notifications/incoming-call';
 import { notifyCallEnd } from "../notifications/call-end";
-import { telnyxRequest, TelnyxApiError, isDefiniteRefusal } from "../telnyx/client";
+import { isDefiniteRefusal, TelnyxApiError, telnyxRequest } from "../telnyx/client";
 
 import type { CallStep } from "./call-steps";
 import type {
@@ -316,12 +293,12 @@ async function legAlive(env: Env, ccid: string): Promise<boolean> {
       path: `/v2/calls/${ccid}`,
     })) as { data?: { is_alive?: boolean } };
     return response.data?.is_alive === true;
-  } catch (cause) {
+  } catch (error) {
     // #616: a 429 must not answer "not alive" — it is about our own request
     // rate, not about this leg, and a false "dead" here propagates into
     // commandWithDiscrimination as a verdict on somebody's phone.
-    if (isDefiniteRefusal(cause)) return false;
-    throw cause;
+    if (isDefiniteRefusal(error)) return false;
+    throw error;
   }
 }
 
@@ -341,11 +318,11 @@ async function commandWithDiscrimination(
       body,
     });
     return "ok";
-  } catch (cause) {
-    if (isDefiniteRefusal(cause)) {
+  } catch (error) {
+    if (isDefiniteRefusal(error)) {
       return (await legAlive(env, ccid)) ? "ok" : "dead";
     }
-    throw cause;
+    throw error;
   }
 }
 
@@ -360,12 +337,12 @@ async function swallow4xx(
 ): Promise<void> {
   try {
     await telnyxRequest(env, { method: "POST", path, body });
-  } catch (cause) {
+  } catch (error) {
     // #616: swallowing a 429 would record a hangup that never happened —
     // the call stays up, billing continues, and the customer is connected to
     // nothing. Rethrown onto the same path a 503 already takes.
-    if (isDefiniteRefusal(cause)) return;
-    throw cause;
+    if (isDefiniteRefusal(error)) return;
+    throw error;
   }
 }
 
@@ -445,8 +422,8 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
           const ccid = response.data?.call_control_id;
           if (!ccid) return { failure: "ambiguous" };
           return { ccid };
-        } catch (cause) {
-          if (isDefiniteRefusal(cause)) {
+        } catch (error) {
+          if (isDefiniteRefusal(error)) {
             return { failure: "known-dead" }; // definite Telnyx refusal
           }
           // #616: a 429 lands HERE now rather than above. "ambiguous" is the
@@ -495,14 +472,14 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
             },
           });
           return true;
-        } catch (cause) {
+        } catch (error) {
           // A 4xx here is the expected failure — a deleted object, an expired
           // signature, a format Telnyx will not fetch. Report it so the caller
           // gets the TTS line. A 5xx is reported the same way for the same
           // reason: the caller is on the phone NOW, and there is no retry that
           // helps them.
-          if (cause instanceof TelnyxApiError) return false;
-          throw cause;
+          if (error instanceof TelnyxApiError) return false;
+          throw error;
         }
       },
       recordStart: (ccid) =>
@@ -614,7 +591,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       if (priorError) {
         throw new Error(`initiated replay read failed: ${priorError.message}`);
       }
-      if (priorRows?.[0] && (priorRows[0] as { outcome: string | null }).outcome) {
+      if (priorRows?.[0] && (priorRows[0]).outcome) {
         return "replay-ended";
       }
 
@@ -813,7 +790,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         Boolean(clockHours) &&
         isAfterHours(
           clockTz,
-          clockHours as BusinessHours,
+          clockHours!,
           now,
           identity.businessHoursExceptions.value as HoursException[] | null,
         );
@@ -1020,8 +997,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
             })
           | undefined;
         if (
-          !company ||
-          company.subscription_status !== "active" ||
+          company?.subscription_status !== "active" ||
           // #277: a workspace that PAUSED between authorize and dial must not
           // connect either — a paused subscription is genuinely `active`, so
           // the status test above cannot see it. Same defence-in-depth reason
@@ -1243,16 +1219,16 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
           forwardSeconds: 0,
           direction: "inbound",
         });
-      } catch (cause) {
+      } catch (error) {
         console.error(
           `calls-v3 answer-time threading failed for ${machine.callSessionId}:`,
-          cause instanceof Error ? cause.message : String(cause),
+          error instanceof Error ? error.message : String(error),
         );
       }
     },
 
     async terminalMergeEvent(payload, opts) {
-      await handleTerminalCallEvent(env, db, "call.hangup", payload as never, opts);
+      await handleTerminalCallEvent(env, db, "call.hangup", payload, opts);
     },
 
     async terminalMergeSynthetic(machine, outcome, briAnsweredAtIso) {
@@ -1335,17 +1311,17 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
             },
             db,
           );
-        } catch (cause) {
+        } catch (error_) {
           console.error(
             `calls-v3 missed-call alert failed for ${machine.callSessionId}:`,
-            cause instanceof Error ? cause.message : String(cause),
+            error_ instanceof Error ? error_.message : String(error_),
           );
         }
       }
     },
 
     async voicemailPipeline(payload) {
-      await handleVoicemailSaved(env, db, payload as never);
+      await handleVoicemailSaved(env, db, payload);
     },
 
     warn(message) {
@@ -1375,7 +1351,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         ({ error }) => {
           if (error) report(new Error(`record_call_steps failed: ${error.code ?? "unknown"}`), "warning");
         },
-        (cause: unknown) => report(cause, "warning"),
+        (error: unknown) => report(error, "warning"),
       );
       // Runs inside the transition, so it must never throw into it: a host
       // with no waitUntil still lets the write finish on its own.
@@ -1614,8 +1590,8 @@ export async function computeRingContext(
   );
   // subs/tokens errors already threw above, so these reads are safe.
   const channelUsers = new Set<string>([
-    ...(subs.data ?? []).map((row) => (row as { user_id: string }).user_id),
-    ...(tokens.data ?? []).map((row) => (row as { user_id: string }).user_id),
+    ...(subs.data ?? []).map((row) => (row).user_id),
+    ...(tokens.data ?? []).map((row) => (row).user_id),
   ]);
 
   const dialTargets: { userId: string; sipUsername: string }[] = [];

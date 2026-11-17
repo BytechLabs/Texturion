@@ -7,7 +7,8 @@ import { exceptionExplain } from "./api-exceptions.ts";
 import { forwardTargets } from "./daemon.ts";
 import { destinationRefusedEvent } from "./scenarios/fakes.ts";
 import { FaultFile } from "./state-files.ts";
-import { VerdictStore, type Verdict } from "./verdicts.ts";
+import { VerdictStore } from './verdicts.ts';
+import type { Verdict } from './verdicts.ts';
 import type { Rig } from "./wiring.ts";
 
 const noLeases = { open: () => [] };
@@ -36,7 +37,7 @@ function g01Verdict(startedAt: number, finishedAt: number): Verdict {
   };
 }
 
-describe("forwardTargets", () => {
+describe(forwardTargets, () => {
   it("hands the forwarder the fault S17 armed, once", () => {
     const faults = new FaultFile(tempDir());
     const secrets = new Map([["robot-local-token", "token"]]);
@@ -57,13 +58,13 @@ describe("forwardTargets", () => {
   });
 });
 
-describe("exceptionExplain", () => {
+describe(exceptionExplain, () => {
   it("expects a G01 attempt's refused send, and nothing outside one", () => {
     const at = Date.parse("2026-11-01T15:00:00Z");
     const verdicts = new VerdictStore(tempDir());
     verdicts.record(g01Verdict(at, at + 60_000));
     const explain = exceptionExplain(undefined, verdicts, noLeases, at + 2 * 60 * 60_000);
-    expect(explain(destinationRefusedEvent("POST /v1/conversations", at + 2_000))).toEqual({ kind: "expected" });
+    expect(explain(destinationRefusedEvent("POST /v1/conversations", at + 2000))).toEqual({ kind: "expected" });
     expect(explain(destinationRefusedEvent("POST /v1/conversations", at + 60 * 60_000))).toBeUndefined();
   });
 

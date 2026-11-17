@@ -13,7 +13,7 @@
  * each capture is sent immediately and handed to `waitUntil`, which keeps the
  * invocation alive for it without holding up the response.
  */
-import { env as isolateBindings, waitUntil as invocationWaitUntil } from "cloudflare:workers";
+import { waitUntil as invocationWaitUntil, env as isolateBindings } from "cloudflare:workers";
 // The build workerd resolves to, named so node tests run the same code.
 import { PostHog } from "posthog-node/edge";
 

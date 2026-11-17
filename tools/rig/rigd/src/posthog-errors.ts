@@ -12,9 +12,10 @@
  * list would pass the gate for the wrong reason.
  */
 import type { SecretFiles } from "@loonext/rig-robot";
-import type { Explanation, SeenEvent } from "./cron-events.ts";
+import type {Explanation, SeenEvent} from "./cron-events.ts";
 
-export type { Explanation, SeenEvent };
+export { type Explanation, type SeenEvent } from "./cron-events.ts";
+
 
 export const POSTHOG_CAPTURE_URL = "https://us.i.posthog.com/capture/";
 const APP_HOST = "https://us.posthog.com";
@@ -142,7 +143,7 @@ export class PostHogErrors {
     });
     if (!response.ok) throw new Error(`PostHog answered ${response.status} for the HogQL query`);
     const body = (await response.json()) as { results?: unknown };
-    if (!Array.isArray(body.results)) throw new Error("PostHog's HogQL query answered no results");
+    if (!Array.isArray(body.results)) throw new TypeError("PostHog's HogQL query answered no results");
     return body.results as unknown[][];
   }
 }
@@ -173,7 +174,7 @@ export function seenException(row: unknown[]): SeenEvent {
     type: typeof entry?.type === "string" ? entry.type : "",
     value: typeof entry?.value === "string" ? clip(entry.value, 500) : "",
   }));
-  if (exceptions.length) seen.exceptions = exceptions.reverse();
+  if (exceptions.length > 0) seen.exceptions = exceptions.toReversed();
   const message = seen.exceptions?.at(-1)?.value;
   if (message) seen.message = message;
 
@@ -182,7 +183,7 @@ export function seenException(row: unknown[]): SeenEvent {
     const found = text(value);
     if (found) tags[name] = clip(found, 200);
   }
-  if (Object.keys(tags).length) seen.tags = tags;
+  if (Object.keys(tags).length > 0) seen.tags = tags;
   return seen;
 }
 
@@ -225,7 +226,7 @@ export async function reportApiExceptions(
   }
   return {
     at,
-    unexplained_24h: [...unexplained].sort(),
-    defects_24h: [...defects].map(([key, means]) => ({ key, means })).sort((a, b) => a.key.localeCompare(b.key)),
+    unexplained_24h: [...unexplained].toSorted(),
+    defects_24h: [...defects].map(([key, means]) => ({ key, means })).toSorted((a, b) => a.key.localeCompare(b.key)),
   };
 }

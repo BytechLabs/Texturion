@@ -12,10 +12,7 @@
  * Server component, static DOM.
  */
 
-import {
-  complianceCopy,
-  type ComplianceCopy,
-} from "@/i18n/marketing/compliance";
+import { complianceCopy } from '@/i18n/marketing/compliance';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { cn } from "@/lib/utils";
 

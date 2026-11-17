@@ -24,7 +24,7 @@ describe("the cron", () => {
     globalThis.fetch = (async (input, init) => {
       sent.push(new Request(input, init).url);
       return new Response("{}", { status: 200 });
-    }) as typeof fetch;
+    });
     try {
       const env = await edgeEnv(fakeGuard(), {
         POSTHOG_PROJECT_KEY: "phc_edge_test_key",

@@ -83,10 +83,10 @@ export function ExportUsage() {
           ? t("settings.exportUsageAlready")
           : t("settings.exportUsageStarted"),
       );
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("settings.exportUsageFailed"),
       );
     }

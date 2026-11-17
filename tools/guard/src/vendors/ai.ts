@@ -1,12 +1,6 @@
 import type { Ctx } from "../context";
-import {
-  AI_AUDIO_BYTES_PER_SECOND,
-  AI_CHARS_PER_TOKEN,
-  AI_DEFAULT_MAX_TOKENS,
-  AI_MODELS,
-  AI_NEURONS_PER_DAY,
-  type AiModelRate,
-} from "../limits";
+import { AI_AUDIO_BYTES_PER_SECOND, AI_CHARS_PER_TOKEN, AI_DEFAULT_MAX_TOKENS, AI_MODELS, AI_NEURONS_PER_DAY } from '../limits';
+import type { AiModelRate } from '../limits';
 import { json, Refusal } from "../refusal";
 import { add, counted, dayOf, giveBack, tryTake } from "../state/counters";
 
@@ -40,7 +34,7 @@ export function estimateNeurons(rate: AiModelRate, inputs: Inputs): number {
 /** Neurons from a text model's reported usage, or null when it reported none. */
 export function reportedNeurons(rate: AiModelRate, result: unknown): number | null {
   if (rate.kind !== "text" || !result || typeof result !== "object") return null;
-  const usage = (result as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } }).usage;
+  const {usage} = (result as { usage?: { prompt_tokens?: unknown; completion_tokens?: unknown } });
   if (typeof usage?.prompt_tokens !== "number" || typeof usage?.completion_tokens !== "number") return null;
   return Math.ceil((usage.prompt_tokens * rate.inPerMillion + usage.completion_tokens * rate.outPerMillion) / 1_000_000);
 }
@@ -71,9 +65,9 @@ export async function handleAi(ctx: Ctx, request: Request, path: string): Promis
   let result: unknown;
   try {
     result = await ctx.ai.run(model, inputs);
-  } catch (cause) {
+  } catch (error) {
     await giveBack(ctx, "ai-neurons", day, reserved);
-    const message = cause instanceof Error ? cause.message : String(cause);
+    const message = error instanceof Error ? error.message : String(error);
     return json({ error: "ai_run_failed", message: message.slice(0, 300) }, 502);
   }
   const actual = reportedNeurons(rate, result);

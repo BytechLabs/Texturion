@@ -4,10 +4,12 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { getEnv, type Bindings } from "../env";
+import { getEnv } from '../env';
+import type { Bindings } from '../env';
 import worker, { handler } from "../index";
 import { testExecutionContext } from "../test/messaging-support";
-import { supabaseStub, type SbResponder } from "../test/routes-harness";
+import { supabaseStub } from '../test/routes-harness';
+import type { SbResponder } from '../test/routes-harness';
 import { rigEnv } from "../test/rig-env";
 import { completeEnv, stubFetch } from "../test/support";
 import { rigDatabaseRefusal } from "./database";
@@ -35,7 +37,7 @@ describe("the rig's database posture", () => {
     stubFetch(() => {
       throw new Error("nothing may be fetched");
     });
-    expect(await rigDatabaseRefusal(getEnv(bindings))).toBeNull();
+    await expect(rigDatabaseRefusal(getEnv(bindings))).resolves.toBeNull();
   });
 
   it("serves a bootstrapped rig, and asks again only after a minute", async () => {
@@ -43,10 +45,10 @@ describe("the rig's database posture", () => {
     const sb = database(bindings, () => ({ deploy_env: "rig", endpoints: 3 }));
     const env = getEnv(bindings);
 
-    expect(await rigDatabaseRefusal(env, 1_000)).toBeNull();
-    expect(await rigDatabaseRefusal(env, 59_000)).toBeNull();
+    await expect(rigDatabaseRefusal(env, 1000)).resolves.toBeNull();
+    await expect(rigDatabaseRefusal(env, 59_000)).resolves.toBeNull();
     expect(sb.find("POST", POSTURE)).toHaveLength(1);
-    expect(await rigDatabaseRefusal(env, 61_001)).toBeNull();
+    await expect(rigDatabaseRefusal(env, 61_001)).resolves.toBeNull();
     expect(sb.find("POST", POSTURE)).toHaveLength(2);
   });
 
@@ -61,15 +63,15 @@ describe("the rig's database posture", () => {
     const sb = database(bindings, () => posture);
     const env = getEnv(bindings);
 
-    expect(await rigDatabaseRefusal(env, 1_000)).toEqual(expect.any(String));
-    expect(await rigDatabaseRefusal(env, 1_001)).toEqual(expect.any(String));
+    await expect(rigDatabaseRefusal(env, 1000)).resolves.toEqual(expect.any(String));
+    await expect(rigDatabaseRefusal(env, 1001)).resolves.toEqual(expect.any(String));
     expect(sb.find("POST", POSTURE)).toHaveLength(2);
   });
 
   it("refuses when the database cannot be asked", async () => {
     const bindings = rigEnv();
     database(bindings, () => Response.json({ message: "no such function" }, { status: 404 }));
-    expect(await rigDatabaseRefusal(getEnv(bindings))).toMatch(/could not read/);
+    await expect(rigDatabaseRefusal(getEnv(bindings))).resolves.toMatch(/could not read/);
   });
 
   it("forgets a confirmation once the database stops confirming", async () => {
@@ -78,12 +80,12 @@ describe("the rig's database posture", () => {
     database(bindings, () => posture);
     const env = getEnv(bindings);
 
-    expect(await rigDatabaseRefusal(env, 0)).toBeNull();
+    await expect(rigDatabaseRefusal(env, 0)).resolves.toBeNull();
     posture = { deploy_env: "", endpoints: 0 };
-    expect(await rigDatabaseRefusal(env, 60_001)).not.toBeNull();
+    await expect(rigDatabaseRefusal(env, 60_001)).resolves.not.toBeNull();
     // The next request asks again, and serves once the database confirms.
     posture = { deploy_env: "rig", endpoints: 2 };
-    expect(await rigDatabaseRefusal(env, 60_002)).toBeNull();
+    await expect(rigDatabaseRefusal(env, 60_002)).resolves.toBeNull();
   });
 });
 
@@ -102,7 +104,7 @@ describe("a rig whose database gate is off", () => {
     await flush();
 
     expect(response.status).toBe(503);
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       error: { code: "service_unavailable", message: expect.stringMatching(/destination gate is off/) },
     });
     expect(sb.calls.map((call) => call.path)).toEqual([POSTURE]);

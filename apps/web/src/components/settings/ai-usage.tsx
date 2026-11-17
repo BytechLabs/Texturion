@@ -97,11 +97,11 @@ export function AiUsage({ features }: { features: AiFeatureUsage[] }) {
                   </span>
                 ))}
               </p>
-            ) : feature.enabled && feature.used > 0 ? (
+            ) : (feature.enabled && feature.used > 0 ? (
               <p className="mt-1 text-[12px] text-muted-foreground">
                 {t("settings.aiUsageNoOutcomes")}
               </p>
-            ) : null}
+            ) : null)}
           </li>
         );
       })}

@@ -17,7 +17,7 @@ const { requestExport, toastSuccess, toastError, role } = vi.hoisted(() => ({
   requestExport: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
-  role: { current: "owner" as string },
+  role: { current: "owner" },
 }));
 
 vi.mock("@/lib/api/exports", () => ({
@@ -108,7 +108,7 @@ describe("#304 exporting one customer's history", () => {
     });
     fireEvent.click(screen.getByText("Start it"));
 
-    await waitFor(() => expect(requestExport).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(requestExport).toHaveBeenCalledOnce());
     const sent = requestExport.mock.calls[0][0] as { to: string };
     expect(new Date(sent.to).getHours()).toBe(23);
   });
@@ -120,7 +120,7 @@ describe("#304 exporting one customer's history", () => {
     fireEvent.click(screen.getByText(EXPORT_HISTORY_ACTION));
     fireEvent.click(screen.getByText("Start it"));
 
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledOnce());
     expect(toastSuccess.mock.calls[0][0]).toContain("Data export");
   });
 
@@ -132,7 +132,7 @@ describe("#304 exporting one customer's history", () => {
     fireEvent.click(screen.getByText(EXPORT_HISTORY_ACTION));
     fireEvent.click(screen.getByText("Start it"));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastError).toHaveBeenCalledOnce());
     expect(toastError.mock.calls[0][0]).toContain("before its start");
   });
 });

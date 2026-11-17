@@ -32,7 +32,8 @@
  * believe a per-member scope is absent from a file that has two of them.
  */
 import { stateMachines } from "@loonext/shared";
-import { Hono, type Context } from "hono";
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
@@ -44,17 +45,11 @@ import type { CallSessionDO, SessionSnapshot } from "../calls/session-do";
 import type { CallState } from "../calls/transitions";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { errorResponse } from "../http/errors";
-import {
-  buildConsultState,
-  consultLegs,
-  issueTransfer,
-  liveCallBySession,
-  TRANSFER_TIMEOUT_SECS,
-  type LiveCallRow,
-} from "../messaging/live-call";
-import { insertJourneyEvent } from "../messaging/live-call";
+import { buildConsultState, consultLegs, insertJourneyEvent, issueTransfer, liveCallBySession,TRANSFER_TIMEOUT_SECS } from '../messaging/live-call';
+import type { LiveCallRow } from '../messaging/live-call';
 import { LOONEXT_SESSION_HEADER } from "../messaging/inbound-ring";
 import { telnyxRequest } from "../telnyx/client";
 import { parseJsonBody, unwrap } from "./core/http";
@@ -225,7 +220,7 @@ liveCallsRoutes.get("/calls/live/mine", requireCapability("conversations.read"),
     userId: c.get("userId"),
     role: c.get("role"),
   });
-  const hidden = new Set(access.hiddenNumberIds ?? []);
+  const hidden = new Set(access.hiddenNumberIds);
   return c.json({
     calls: rows.filter(
       (row) => row.phone_number_id === null || !hidden.has(row.phone_number_id),
@@ -338,12 +333,12 @@ liveCallsRoutes.post(
             state: result.state,
           });
         }
-      } catch (cause) {
+      } catch (error) {
         // A DO RPC failure on ONE session must not sink the batch or the 200.
         // The DO journals its own in-flight state; here we log and move on.
         console.error(
           `decline-mine: DO.decline failed (session ${row.call_session_id}):`,
-          cause instanceof Error ? cause.message : String(cause),
+          error instanceof Error ? error.message : String(error),
         );
       }
     }
@@ -469,7 +464,7 @@ liveCallsRoutes.get(
         }
       }
     }
-    if (state === null) state = deriveStateFromRow(row);
+    state ??= deriveStateFromRow(row);
 
     return c.json({
       call_session_id: row.call_session_id,
@@ -567,7 +562,7 @@ liveCallsRoutes.post(
     const target = await eligibleTarget(
       db,
       c.get("companyId"),
-      gate.call.phone_number_id as string,
+      gate.call.phone_number_id!,
       body.target_user_id,
     );
     if (!target) {
@@ -602,7 +597,7 @@ liveCallsRoutes.post(
 
     const issued = await issueTransfer(env, db, {
       companyId: c.get("companyId"),
-      customerCcid: gate.call.customer_call_control_id as string,
+      customerCcid: gate.call.customer_call_control_id!,
       targetSipUsername: target.sipUsername,
       // Present the customer to the target (who they're about to talk to),
       // falling back to the business number for an anonymous caller.
@@ -657,13 +652,13 @@ liveCallsRoutes.post(
       eligibleTarget(
         db,
         companyId,
-        gate.call.phone_number_id as string,
+        gate.call.phone_number_id!,
         body.target_user_id,
       ),
       eligibleTarget(
         db,
         companyId,
-        gate.call.phone_number_id as string,
+        gate.call.phone_number_id!,
         c.get("userId"),
       ),
     ]);
@@ -726,10 +721,10 @@ liveCallsRoutes.post(
         })) as { data?: { call_control_id?: string } };
         const ccid = response.data?.call_control_id;
         if (ccid) dialed.push({ ccid, userId: leg.userId });
-      } catch (cause) {
+      } catch (error_) {
         console.error(
           `consult dial failed (user ${leg.userId}):`,
-          cause instanceof Error ? cause.message : String(cause),
+          error_ instanceof Error ? error_.message : String(error_),
         );
       }
     }
@@ -848,7 +843,7 @@ liveCallsRoutes.post(
         path: `/v2/calls/${targetLeg.call_control_id}/actions/bridge`,
         body: { call_control_id: gate.call.customer_call_control_id },
       });
-    } catch (cause) {
+    } catch (error) {
       await db
         .from("calls")
         .update({ answered_by_user_id: c.get("userId") })
@@ -860,7 +855,7 @@ liveCallsRoutes.post(
       if (completeStub) {
         await completeStub.setOwner({ sessionId, userId: c.get("userId") });
       }
-      throw cause;
+      throw error;
     }
 
     // CRITICAL ORDERING: remove the consult ledger rows BEFORE hanging up the

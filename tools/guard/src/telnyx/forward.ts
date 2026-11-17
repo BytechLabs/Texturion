@@ -31,7 +31,7 @@ export async function forward(
   request: TelnyxRequest,
   body: Record<string, unknown> | undefined = request.body,
 ): Promise<TelnyxReply> {
-  const telnyx = request.ctx.telnyx;
+  const {telnyx} = request.ctx;
   if (!telnyx) throw new Error("forward without a Telnyx key");
   const query = request.query.toString();
   return telnyx.send(
@@ -55,7 +55,7 @@ export function relay(reply: TelnyxReply, body: unknown = reply.body): Response 
       headers: text ? { "content-type": "text/plain" } : {},
     });
   }
-  return new Response(JSON.stringify(withoutSecrets(body)), {
+  return Response.json(withoutSecrets(body), {
     status: reply.status,
     headers: { "content-type": "application/json" },
   });

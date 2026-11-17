@@ -21,7 +21,8 @@ import { Hono } from "hono";
 import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { isKilled } from "../flags/evaluate";
 import { errorResponse } from "../http/errors";
 import { telnyxRequest, telnyxUrl } from "../telnyx/client";
@@ -163,10 +164,10 @@ webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), asyn
           method: "DELETE",
           path: `/v2/telephony_credentials/${telnyxId}`,
         });
-      } catch (cause) {
+      } catch (error) {
         console.error(
           `orphan credential cleanup failed for ${telnyxId}:`,
-          cause instanceof Error ? cause.message : String(cause),
+          error instanceof Error ? error.message : String(error),
         );
       }
       if (!credential) {
@@ -228,10 +229,10 @@ export async function revokeMemberTelephonyCredential(
       method: "DELETE",
       path: `/v2/telephony_credentials/${credentialId}`,
     });
-  } catch (cause) {
+  } catch (error_) {
     console.error(
       `telephony credential revoke failed for ${credentialId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error_ instanceof Error ? error_.message : String(error_),
     );
   }
   const { error } = await db

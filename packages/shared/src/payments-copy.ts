@@ -15,13 +15,11 @@
  * out of scope — a platform is allowed to phrase things its own way.
  */
 
-import { formatMoney, type BillingCurrency } from "./billing-currency";
+import { formatMoney } from './billing-currency';
+import type { BillingCurrency } from './billing-currency';
 import type { Locale } from "./locale";
-import {
-  PAYMENT_MAX_CENTS,
-  PAYMENT_MIN_CENTS,
-  type PaymentAmountProblem,
-} from "./payments";
+import { PAYMENT_MAX_CENTS, PAYMENT_MIN_CENTS } from './payments';
+import type { PaymentAmountProblem } from './payments';
 
 /** The sentence a crew member reads when the amount is refused. */
 /** Every catalogue key this module names. */

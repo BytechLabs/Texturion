@@ -20,7 +20,7 @@ import type { CallLedger, FakeVoice, TelnyxWebhookEvent } from "./fake-telnyx-vo
 export const CALL_BUDGET_PREFIX = "CALL_BUDGET ";
 
 export const CALL_BUDGET_FILE = fileURLToPath(
-  new URL("./call-journey-budget.json", import.meta.url),
+  new URL("call-journey-budget.json", import.meta.url),
 );
 
 export interface JourneyBudget {
@@ -106,9 +106,9 @@ export function callBudgetSummaryRow(
   const verdict =
     committed === undefined
       ? "not in call-journey-budget.json"
-      : JSON.stringify(committed) === JSON.stringify(budget)
+      : (JSON.stringify(committed) === JSON.stringify(budget)
         ? "matches"
-        : "differs";
+        : "differs");
   return (
     `| ${[
       journey,

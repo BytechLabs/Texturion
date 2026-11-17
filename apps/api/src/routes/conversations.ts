@@ -59,22 +59,21 @@ import {
 } from "../ai/call-wrapup";
 import { runAiFeature } from "../ai/run";
 import {
-  VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
-  VOICEMAIL_TRANSCRIPT_MODEL,
   fallbackTranscriptInput,
   transcriptInput,
   transcriptText,
+  VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
+  VOICEMAIL_TRANSCRIPT_MODEL,
 } from "../calls/voicemail-transcript";
 import { answerersByCall } from "../calls/answerers";
 import { notifyAssigned } from "../notifications/assignment";
-import {
-  isMuted,
-  type ConversationMemberPref,
-} from "../notifications/conversation-prefs";
+import { isMuted } from '../notifications/conversation-prefs';
+import type { ConversationMemberPref } from '../notifications/conversation-prefs';
 import { recordActivity } from "../activity/record";
 import { notifyNoteMention } from "../notifications/mention";
 import { mayHoldReference, syncReferences } from "../tasks/references";
-import { Hono, type Context } from "hono";
+import { Hono } from 'hono';
+import type { Context } from 'hono';
 import { z } from "zod";
 
 import {
@@ -97,49 +96,25 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
-import { buildPage, encodeCursor, type Cursor } from "../http/pagination";
+import { buildPage, encodeCursor } from '../http/pagination';
+import type { Cursor } from '../http/pagination';
+import { buildSuggestionMessages, envelopeShape, parseSuggestionOutput, sanitizeWithReport, shouldSuggest, SUGGEST_REPLY_CONTEXT_MESSAGES, SUGGEST_REPLY_FEATURE_SPEC, SUGGEST_REPLY_MAX_DRAFT_CHARS, SUGGEST_REPLY_MAX_OUTPUT_TOKENS, SUGGEST_REPLY_MODEL, threadTextOf } from '../messaging/reply-suggestions';
+import type { SuggestionMessage } from '../messaging/reply-suggestions';
+import { buildSummaryMessages, parseSummaryOutput, sanitizeSummary, selectSummaryWindow, summaryEnvelopeShape, THREAD_SUMMARY_CONTEXT_MESSAGES, THREAD_SUMMARY_FEATURE_SPEC, THREAD_SUMMARY_MAX_OUTPUT_TOKENS, THREAD_SUMMARY_MODEL } from '../messaging/thread-summary';
+import type { SummaryLine, SummaryMessage } from '../messaging/thread-summary';
 import {
-  buildSuggestionMessages,
-  envelopeShape,
-  parseSuggestionOutput,
-  sanitizeWithReport,
-  shouldSuggest,
-  SUGGEST_REPLY_CONTEXT_MESSAGES,
-  SUGGEST_REPLY_MAX_DRAFT_CHARS,
-  SUGGEST_REPLY_MAX_OUTPUT_TOKENS,
-  SUGGEST_REPLY_FEATURE_SPEC,
-  SUGGEST_REPLY_MODEL,
-  type SuggestionMessage,
-  threadTextOf,
-} from "../messaging/reply-suggestions";
-import {
-  buildSummaryMessages,
-  parseSummaryOutput,
-  sanitizeSummary,
-  selectSummaryWindow,
-  summaryEnvelopeShape,
-  THREAD_SUMMARY_CONTEXT_MESSAGES,
-  THREAD_SUMMARY_FEATURE_SPEC,
-  THREAD_SUMMARY_MAX_OUTPUT_TOKENS,
-  THREAD_SUMMARY_MODEL,
-  type SummaryLine,
-  type SummaryMessage,
-} from "../messaging/thread-summary";
-import {
-  ATTACHMENTS_BUCKET,
   ATTACHMENT_SIGNED_URL_TTL_SECONDS,
+  ATTACHMENTS_BUCKET,
 } from "./core/attachments";
-import {
-  insertConversationEvents,
-  type ConversationEventRow,
-} from "./core/events";
+import { insertConversationEvents } from './core/events';
+import type { ConversationEventRow } from './core/events';
 import {
   assertBodyWithinLimit,
   escapeLike,
+  executionCtxOf,
   expectOk,
   keysetFilter,
   parseCursor,
-  executionCtxOf,
   parseJsonBody,
   parseLimit,
   parseWith,
@@ -553,8 +528,8 @@ conversationsRoutes.post(
         count: applied,
         actorUserId: c.get("userId"),
         assigneeUserId: body.target_user_id,
-      }).catch((cause: unknown) => {
-        console.error("bulk assignment alert failed:", cause);
+      }).catch((error: unknown) => {
+        console.error("bulk assignment alert failed:", error);
       });
       const ctx = executionCtxOf(c);
       if (ctx) ctx.waitUntil(notify);
@@ -617,7 +592,7 @@ async function recordBulkConversationActivity(
     tagName = tag[0]?.name ?? null;
   }
   for (const row of applied) {
-    const previous = row.previous;
+    const {previous} = row;
     let kind: "assigned" | "unassigned" | "edited" | "tagged" | "untagged" | null = null;
     let payload: Record<string, unknown> = {};
     if (body.action === "assign") {
@@ -1041,7 +1016,7 @@ conversationsRoutes.patch(
         // forced close overrides any status in the same request. Un-spam only
         // clears the flag — the conversation stays closed.
         patch.status = "closed";
-        patch.closed_at = (current.closed_at as string | null) ?? now;
+        patch.closed_at = (current.closed_at) ?? now;
         event("spam_marked", { forced_status: "closed" });
       } else {
         // #342: un-marking clears the review watermark too. The next mark
@@ -1080,7 +1055,7 @@ conversationsRoutes.patch(
             .from("company_members")
             .select("id")
             .eq("company_id", companyId)
-            .eq("user_id", body.assigned_user_id as string)
+            .eq("user_id", body.assigned_user_id!)
             .is("deactivated_at", null)
             .limit(1),
           "assignee lookup",
@@ -1142,8 +1117,8 @@ conversationsRoutes.patch(
         conversationId: id,
         actorUserId: userId,
         assigneeUserId: handedTo,
-      }).catch((cause: unknown) => {
-        console.error("conversation assignment alert failed:", cause);
+      }).catch((error: unknown) => {
+        console.error("conversation assignment alert failed:", error);
       });
       const ctx = executionCtxOf(c);
       if (ctx) ctx.waitUntil(notify);
@@ -1276,7 +1251,7 @@ conversationsRoutes.post(
     // ONE message for every rejection: a caller must not be able to tell "not
     // in this workspace" from "cannot see this number", which would turn the
     // endpoint into a probe for who has access to what.
-    const mentionIds = [...new Set(body.mention_user_ids ?? [])];
+    const mentionIds = [...new Set(body.mention_user_ids)];
     if (mentionIds.length > 0) {
       const viewers = await listConversationViewers(db, {
         companyId,
@@ -1394,8 +1369,8 @@ conversationsRoutes.post(
         authorUserId: c.get("userId"),
         mentionedUserIds: mentionIds,
         body: body.body,
-      }).catch((cause: unknown) => {
-        console.error("note mention alert failed:", cause);
+      }).catch((error: unknown) => {
+        console.error("note mention alert failed:", error);
       });
       const ctx = executionCtxOf(c);
       if (ctx) ctx.waitUntil(notify);
@@ -1552,7 +1527,7 @@ conversationsRoutes.post(
     );
     const messages: SuggestionMessage[] = history
       .slice()
-      .reverse()
+      .toReversed()
       .map((row) => ({
         direction: row.direction === "inbound" ? "inbound" : "outbound",
         body: row.body ?? "",
@@ -1841,7 +1816,7 @@ conversationsRoutes.post(
     const window: SummaryMessage[] = selectSummaryWindow(
       history
         .slice()
-        .reverse()
+        .toReversed()
         // Filtered, NOT coerced. The obvious mapping is
         // `row.direction === "inbound" ? "inbound" : "outbound"`, and it turns
         // any direction we did not expect — a note, or whatever the next
@@ -1941,7 +1916,7 @@ conversationsRoutes.post(
         .limit(1)
         .then((r) => {
           if (r.error) console.error("thread summary company lookup:", r.error.message);
-          return (r.data?.[0] as { name: string | null; timezone: string | null } | undefined) ?? null;
+          return (r.data?.[0]) ?? null;
         }),
       db
         .from("contacts")
@@ -1951,7 +1926,7 @@ conversationsRoutes.post(
         .limit(1)
         .then((r) => {
           if (r.error) console.error("thread summary contact lookup:", r.error.message);
-          return (r.data?.[0] as { name: string | null } | undefined) ?? null;
+          return (r.data?.[0]) ?? null;
         }),
     ]);
 
@@ -2049,7 +2024,7 @@ async function readOptOutState(
     .from("contacts")
     .select("phone_e164")
     .eq("company_id", companyId)
-    .eq("id", conversation.contact_id as string)
+    .eq("id", conversation.contact_id)
     .limit(1);
   if (contact.error) {
     console.error("thread summary opt-out contact lookup:", contact.error.message);
@@ -2893,28 +2868,14 @@ conversationsRoutes.post(
     }
     let tag: TagRow;
 
-    if (body.tag_id !== undefined) {
-      const rows = unwrap<TagRow[]>(
-        await db
-          .from("tags")
-          .select("id,name,color")
-          .eq("company_id", companyId)
-          .eq("id", body.tag_id)
-          .limit(1),
-        "tag lookup",
-      );
-      if (!rows[0]) {
-        return errorResponse(c, "not_found", "No such tag.");
-      }
-      tag = rows[0];
-    } else {
+    if (body.tag_id === undefined) {
       // Create-on-attach (SPEC §7): reuse the company's tag with this name
       // (case-insensitive — tags_name_uq is on lower(name)), else create it, in
       // ONE atomic RPC. The old ilike-by-name lookup used escapeLike, which
       // STRIPS '*' (PostgREST maps '*'->'%' unescapably), so a name with a '*'
       // matched the wrong tag or 500'd on the second attach — and it raced the
       // concurrent create/select. The RPC keys on (company_id, lower(name)).
-      const name = body.name as string;
+      const name = body.name!;
 
       // #298: the optional tag lock, enforced INSIDE the RPC.
       //
@@ -2933,7 +2894,7 @@ conversationsRoutes.post(
         }),
         "tag find-or-create",
       );
-      if (rows[0]?.refused === true) {
+      if (rows[0]?.refused) {
         // Two refusals, two sentences. A refusal with no reason forces the
         // person to invent one, and these need different next steps: one is
         // "ask an admin", the other is "something is creating these
@@ -2957,6 +2918,20 @@ conversationsRoutes.post(
       }
       if (!rows[0]) {
         throw new Error("tag find-or-create: no row returned");
+      }
+      tag = rows[0];
+    } else {
+      const rows = unwrap<TagRow[]>(
+        await db
+          .from("tags")
+          .select("id,name,color")
+          .eq("company_id", companyId)
+          .eq("id", body.tag_id)
+          .limit(1),
+        "tag lookup",
+      );
+      if (!rows[0]) {
+        return errorResponse(c, "not_found", "No such tag.");
       }
       tag = rows[0];
     }
@@ -3081,7 +3056,7 @@ function galleryDesc(a: GalleryRow, b: GalleryRow): number {
   if (a.created_at !== b.created_at) {
     return a.created_at < b.created_at ? 1 : -1;
   }
-  return a.id < b.id ? 1 : a.id > b.id ? -1 : 0;
+  return a.id < b.id ? 1 : (a.id > b.id ? -1 : 0);
 }
 
 /** Keyset predicate for one arm: rows strictly before the cursor `(ts, id)`. */

@@ -8,16 +8,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runOverageWarningJob } from "./overage-warning";
 import { eventsCaptured, resetCaptures } from "../test/capture-mock";
-import {
-  endpoint,
-  makeHarness,
-  countResponse,
-  type Harness,
-  type StubEndpoint,
-} from "../test/billing-support";
+import { countResponse, endpoint, makeHarness } from '../test/billing-support';
+import type { Harness, StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -143,8 +138,8 @@ describe("runOverageWarningJob (#85/#92 dynamic overage warning)", () => {
     expect(projected.distinctId).toBe(COMPANY_ID);
     expect(projected.properties).toMatchObject({ metric: "cost_projection", threshold: 100 });
     expect(projected.properties.margin_cents).toBeLessThan(0);
-    expect(typeof projected.properties.projected_cost_cents).toBe("number");
-    expect(typeof projected.properties.revenue_cents).toBe("number");
+    expect(projected.properties.projected_cost_cents).toBeTypeOf("number");
+    expect(projected.properties.revenue_cents).toBeTypeOf("number");
     expect(eventsCaptured("usage_threshold_crossed")).toEqual([]);
 
     // Both ride ONE ledger row, so the event can never fire more often than

@@ -3,7 +3,8 @@
 import { useMutation } from "@tanstack/react-query";
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/provider";
+import { makeTranslate } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
@@ -88,26 +89,33 @@ export function wrapUpFailureMessage(
   t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
   switch (reason) {
-    case "too_long":
+    case "too_long": {
       return t("thread.wrapUpTooLong", {
         minutes: WRAP_UP_MAX_SECONDS / 60,
       });
-    case "disabled":
+    }
+    case "disabled": {
       return t("thread.wrapUpDisabled");
-    case "subscription_inactive":
+    }
+    case "subscription_inactive": {
       // Billing, not breakage — so it must not say "try again", which is not
       // what fixes it. The same KEY every feature Lou refuses for this reason
       // reads, so the wording cannot drift between them (#581).
       return t("thread.louPausedForBilling");
-    case "over_cap":
+    }
+    case "over_cap": {
       return t("thread.wrapUpOverCap");
+    }
     case "model_error":
-    case "unavailable":
+    case "unavailable": {
       return t("thread.wrapUpUnreachable");
-    case "unusable_output":
+    }
+    case "unusable_output": {
       return t("thread.wrapUpUnusable");
-    default:
+    }
+    default: {
       return t("thread.wrapUpFailed");
+    }
   }
 }
 

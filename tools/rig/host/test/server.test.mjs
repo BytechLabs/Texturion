@@ -7,8 +7,8 @@ import { after, before, test } from "node:test";
 
 import { loadContract, rigPaths } from "../src/config.mjs";
 import { createDevices } from "../src/emulator.mjs";
-import { healthReport, parseAcSleepMinutes, parseAccelCheck, parseRegDword } from "../src/host-facts.mjs";
-import { BIND, bearerMatches, createHostdServer, listen, parseFlags } from "../src/server.mjs";
+import { healthReport, parseAccelCheck, parseAcSleepMinutes, parseRegDword } from "../src/host-facts.mjs";
+import { bearerMatches, BIND, createHostdServer, listen, parseFlags } from "../src/server.mjs";
 import { startupPath, startupScript } from "../src/startup.mjs";
 
 const contract = loadContract();
@@ -42,7 +42,7 @@ const call = (path, { method = "GET", token = TOKEN, body } = {}) =>
   fetch(`${origin}${path}`, {
     method,
     headers: token === null ? {} : { authorization: `Bearer ${token}` },
-    body: body === undefined ? undefined : typeof body === "string" ? body : JSON.stringify(body),
+    body: body === undefined ? undefined : (typeof body === "string" ? body : JSON.stringify(body)),
   }).then(async (response) => ({ status: response.status, body: await response.json() }));
 
 before(async () => {
@@ -147,13 +147,13 @@ test("host facts hostd could not read are reported as a pending reboot", () => {
 
 test("the Startup entry is per user, fixes the root and refuses characters cmd.exe would read", () => {
   assert.equal(
-    startupPath({ APPDATA: "C:\\Users\\x\\AppData\\Roaming" }),
-    join("C:\\Users\\x\\AppData\\Roaming", "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "loonext-rig-hostd.cmd"),
+    startupPath({ APPDATA: String.raw`C:\Users\x\AppData\Roaming` }),
+    join(String.raw`C:\Users\x\AppData\Roaming`, "Microsoft", "Windows", "Start Menu", "Programs", "Startup", "loonext-rig-hostd.cmd"),
   );
   assert.throws(() => startupPath({}), /APPDATA/);
-  const script = startupScript({ node: "C:\\node\\node.exe", hostd: "D:\\r\\tools\\rig\\host\\hostd.mjs", root: "F:\\loonext-rig" });
+  const script = startupScript({ node: String.raw`C:\node\node.exe`, hostd: String.raw`D:\r\tools\rig\host\hostd.mjs`, root: String.raw`F:\loonext-rig` });
   assert.match(script, /^@echo off\r\n/);
   assert.match(script, /\r\nset "RIG_HOST_ROOT=F:\\loonext-rig"\r\n/);
   assert.match(script, /start "loonext-rig-hostd" \/min "C:\\node\\node\.exe" "D:\\r\\tools\\rig\\host\\hostd\.mjs" serve\r\n$/);
-  assert.throws(() => startupScript({ node: "n", hostd: "h", root: "F:\\a&calc" }), /cmd\.exe/);
+  assert.throws(() => startupScript({ node: "n", hostd: "h", root: String.raw`F:\a&calc` }), /cmd\.exe/);
 });

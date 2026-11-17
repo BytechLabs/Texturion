@@ -11,7 +11,7 @@ const NOW = new Date("2026-07-01T12:00:00Z");
 const FUTURE = "2026-07-08T12:00:00Z";
 const PAST = "2026-06-24T12:00:00Z";
 
-describe("seatLimit", () => {
+describe(seatLimit, () => {
   it("mirrors SPEC §2: Starter 3, Pro 15, NULL plan reads as Starter", () => {
     expect(seatLimit("starter")).toBe(3);
     expect(seatLimit("pro")).toBe(15);
@@ -19,7 +19,7 @@ describe("seatLimit", () => {
   });
 });
 
-describe("countActiveMembers", () => {
+describe(countActiveMembers, () => {
   it("counts only rows with deactivated_at NULL (the API's filter)", () => {
     expect(
       countActiveMembers([
@@ -31,7 +31,7 @@ describe("countActiveMembers", () => {
   });
 });
 
-describe("countPendingInvites", () => {
+describe(countPendingInvites, () => {
   it("counts unaccepted, unrevoked, unexpired invites only", () => {
     expect(
       countPendingInvites(
@@ -47,7 +47,7 @@ describe("countPendingInvites", () => {
   });
 });
 
-describe("seatUsage", () => {
+describe(seatUsage, () => {
   it("produces the G8 line at Starter capacity", () => {
     const usage = seatUsage(3, 0, "starter");
     expect(usage).toEqual({

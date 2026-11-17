@@ -52,7 +52,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("escalatePoorRating", () => {
+describe(escalatePoorRating, () => {
   it("ES-1: a 2 stamps the row and goes looking for somebody to tell", async () => {
     const { env, sb, db } = harness();
 

@@ -1,10 +1,7 @@
 import type { Env } from "../env";
 import { getCalendarProviderConfiguration } from "./config";
-import {
-  openCalendarCredential,
-  sealCalendarCredential,
-  type SealedCalendarCredential,
-} from "./crypto";
+import { openCalendarCredential, sealCalendarCredential } from './crypto';
+import type { SealedCalendarCredential } from './crypto';
 import {
   GoogleCalendarProvider,
   refreshGoogleAccessToken,
@@ -13,12 +10,8 @@ import {
   MicrosoftCalendarProvider,
   refreshMicrosoftAccessToken,
 } from "./providers/microsoft";
-import {
-  CalendarProviderError,
-  type CalendarFetch,
-  type CalendarProvider,
-  type CalendarProviderName,
-} from "./providers/types";
+import { CalendarProviderError } from './providers/types';
+import type { CalendarFetch, CalendarProvider, CalendarProviderName } from './providers/types';
 
 export interface CalendarCredentialConnection {
   id: string;
@@ -82,7 +75,7 @@ function credentialErrorCode(error: unknown): string {
 
 function credentialErrorDetail(error: unknown): string {
   return error instanceof Error
-    ? error.message.slice(0, 1_000)
+    ? error.message.slice(0, 1000)
     : "Unknown calendar credential refresh error";
 }
 
@@ -263,7 +256,7 @@ export async function authorizeCalendarConnection(input: {
         ].includes(retried.outcome)
       ) {
         throw new Error(
-          `calendar credential refresh retry returned ${retried.outcome}`,
+          `calendar credential refresh retry returned ${retried.outcome}`, { cause: error },
         );
       }
     }

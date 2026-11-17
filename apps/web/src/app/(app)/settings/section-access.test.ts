@@ -8,27 +8,20 @@
  * the shared union with nobody deciding what the web does about it.
  */
 import { readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-import {
-  MEMBER_ROLES,
-  canSeeSettingsSection,
-  roleHasCapability,
-  settingsSectionCapability,
-  type MemberRole,
-  type SettingsSectionId,
-} from "@loonext/shared";
+import { canSeeSettingsSection, MEMBER_ROLES, roleHasCapability, settingsSectionCapability } from '@loonext/shared';
+import type { MemberRole, SettingsSectionId } from '@loonext/shared';
 
 import { SETTINGS_SECTIONS } from "@/components/settings/settings-nav";
 
 import {
-  WEB_SECTION_ROUTES,
   firstVisibleSettingsSection,
   settingsAccessFor,
   settingsSectionForPath,
   settingsSectionHref,
+  WEB_SECTION_ROUTES,
 } from "./section-access";
 
 /** The sections whose URL each role may open. Written out rather than derived,
@@ -316,7 +309,7 @@ describe("the gate cannot silently fall behind the app", () => {
     // The failure this whole module exists to prevent, checked against the file
     // system rather than against a list somebody remembered to update. A new
     // directory here is a new URL, and a new URL with no section is #515 again.
-    const here = fileURLToPath(new URL(".", import.meta.url));
+    const here = import.meta.dirname;
     const routes = readdirSync(here, { withFileTypes: true })
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name);
@@ -329,7 +322,7 @@ describe("the gate cannot silently fall behind the app", () => {
 
   it("has a page for every section it claims to have a route for", () => {
     // The other direction: a nav row pointing at a 404.
-    const here = fileURLToPath(new URL(".", import.meta.url));
+    const here = import.meta.dirname;
     const routes = new Set(
       readdirSync(here, { withFileTypes: true })
         .filter((entry) => entry.isDirectory())
@@ -375,6 +368,6 @@ describe("the gate cannot silently fall behind the app", () => {
     const canRerole = MEMBER_ROLES.filter((role) =>
       roleHasCapability(role, "team.manage"),
     );
-    expect([...canRerole].sort()).toEqual(["admin", "owner"]);
+    expect([...canRerole].toSorted()).toEqual(["admin", "owner"]);
   });
 });

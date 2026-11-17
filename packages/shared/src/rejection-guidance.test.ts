@@ -20,14 +20,14 @@ import {
 const say = (key: string): string => {
   const name = key.slice("domain.".length) as keyof typeof WEB_EN.domain;
   const value = WEB_EN.domain[name];
-  if (typeof value !== "string") throw new Error(`no English for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no English for ${key}`);
   return value;
 };
 
 const sayFr = (key: string): string => {
   const name = key.slice("domain.".length) as keyof typeof WEB_FR.domain;
   const value = WEB_FR.domain[name];
-  if (typeof value !== "string") throw new Error(`no French for ${key}`);
+  if (typeof value !== "string") throw new TypeError(`no French for ${key}`);
   return value;
 };
 

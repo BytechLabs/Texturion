@@ -16,25 +16,10 @@ import type { Env } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import type { MessageRow } from "../messaging/types";
 import { getSendGates } from "../telnyx/registration";
-import {
-  messageRow,
-  pgUniqueViolation,
-  restMatch,
-  rpcMatch,
-  storageSignMatch,
-  storageUploadMatch,
-  stubRoute,
-  type Stub,
-} from "../test/messaging-support";
-import {
-  authorizeRoute,
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type FetchRoute,
-  type TestAuth,
-} from "../test/support";
+import { messageRow, pgUniqueViolation, restMatch, rpcMatch, storageSignMatch, storageUploadMatch, stubRoute } from '../test/messaging-support';
+import type { Stub } from '../test/messaging-support';
+import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { composeRoutes } from "./compose";
 
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
@@ -459,7 +444,7 @@ describe("POST /v1/conversations — quiet hours (§5)", () => {
 
     const response = await postCompose(VALID_BODY);
     expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("quiet_hours_confirmation_required");
+    await expect(errorCode(response)).resolves.toBe("quiet_hours_confirmation_required");
     // Nothing was created.
     expect(stubs.contactInsert.calls).toHaveLength(0);
     expect(stubs.conversationInsert.calls).toHaveLength(0);
@@ -551,7 +536,7 @@ describe("POST /v1/conversations — the quiet-hours confirmation switch (#225 a
 
     const response = await postCompose(VALID_BODY);
     expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("quiet_hours_confirmation_required");
+    await expect(errorCode(response)).resolves.toBe("quiet_hours_confirmation_required");
   });
 
   it("keeps the confirmation when the column is absent entirely", async () => {
@@ -707,7 +692,7 @@ describe("POST /v1/conversations — first-message identification (#393, D4)", (
 
     const stamped = stubs.contactPatch.calls.some((call) =>
       Object.hasOwn(
-        (call.body ?? {}) as Record<string, unknown>,
+        (call.body ?? {}),
         "first_identification_sent_at",
       ),
     );
@@ -732,7 +717,7 @@ describe("POST /v1/conversations — first-message identification (#393, D4)", (
 
     const stamped = stubs.contactPatch.calls.some((call) =>
       Object.hasOwn(
-        (call.body ?? {}) as Record<string, unknown>,
+        (call.body ?? {}),
         "first_identification_sent_at",
       ),
     );
@@ -830,7 +815,7 @@ describe("POST /v1/conversations — destination + gate failures", () => {
 
     const response = await postCompose(VALID_BODY);
     expect(response.status).toBe(403);
-    expect(await errorCode(response)).toBe("recipient_opted_out");
+    await expect(errorCode(response)).resolves.toBe("recipient_opted_out");
     expect(stubs.contactInsert.calls).toHaveLength(0);
     expect(stubs.conversationInsert.calls).toHaveLength(0);
   });
@@ -841,7 +826,7 @@ describe("POST /v1/conversations — destination + gate failures", () => {
 
     const response = await postCompose(VALID_BODY);
     expect(response.status).toBe(429);
-    expect(await errorCode(response)).toBe("rate_limited");
+    await expect(errorCode(response)).resolves.toBe("rate_limited");
 
     // The just-created empty conversation was deleted (scoped to the row).
     expect(stubs.conversationDelete.calls).toHaveLength(1);
@@ -865,7 +850,7 @@ describe("POST /v1/conversations — destination + gate failures", () => {
 
     const response = await postCompose(VALID_BODY);
     expect(response.status).toBe(402);
-    expect(await errorCode(response)).toBe("usage_cap_reached");
+    await expect(errorCode(response)).resolves.toBe("usage_cap_reached");
 
     // The open conversation predates this request — it must survive.
     expect(stubs.conversationDelete.calls).toHaveLength(0);
@@ -893,7 +878,7 @@ describe("POST /v1/conversations — destination + gate failures", () => {
 
     const response = await postCompose(VALID_BODY);
     expect(response.status).toBe(429);
-    expect(await errorCode(response)).toBe("rate_limited");
+    await expect(errorCode(response)).resolves.toBe("rate_limited");
     expect(stubs.conversationDelete.calls).toHaveLength(1);
   });
 
@@ -907,13 +892,13 @@ describe("POST /v1/conversations — destination + gate failures", () => {
 
     const response = await postCompose(VALID_BODY);
     expect(response.status).toBe(402);
-    expect(await errorCode(response)).toBe("subscription_inactive");
+    await expect(errorCode(response)).resolves.toBe("subscription_inactive");
     expect(stubs.conversationInsert.calls).toHaveLength(0);
   });
 });
 
 describe("POST /v1/conversations — MMS (§7, §8, #12)", () => {
-  const PIXEL = btoa("\xff\xd8\xff\xe0 fake image bytes");
+  const PIXEL = btoa("\u00FF\u00D8\u00FF\u00E0 fake image bytes");
 
   it("uploads to Storage, records the attachment, sends signed media_urls", async () => {
     const stubs = composeStubs({
@@ -957,7 +942,7 @@ describe("POST /v1/conversations — MMS (§7, §8, #12)", () => {
       `/object/sign/mms-media/${COMPANY_ID}/${MESSAGE_ID}/0`,
     );
     expect(telnyxBody.media_urls[0]).toContain("token=test-token");
-    expect(stubs.sign.calls[0].body).toMatchObject({ expiresIn: 86400 });
+    expect(stubs.sign.calls[0].body).toMatchObject({ expiresIn: 86_400 });
 
     // The compose response carries the attachment summary.
     const body = (await response.json()) as {
@@ -1034,7 +1019,7 @@ describe("POST /v1/conversations — MMS (§7, §8, #12)", () => {
 
     const response = await postCompose({ ...VALID_BODY, ...bodyOverrides });
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
     // Rejected before any DB work or send.
     expect(stubs.gateRpc.calls).toHaveLength(0);
     expect(stubs.conversationInsert.calls).toHaveLength(0);

@@ -15,7 +15,8 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import { deleteCompaniesSql } from "./company-cleanup";
-import { startHarness, type Harness } from "./harness";
+import { startHarness } from './harness';
+import type { Harness } from './harness';
 
 let h: Harness;
 
@@ -184,10 +185,7 @@ describe("D31 golden path 2: CA-only instant path", () => {
       .select("subscription_status,plan")
       .eq("id", COMPANY_ID)
       .limit(1);
-    const company = (data ?? [])[0] as {
-      subscription_status: string;
-      plan: string | null;
-    };
+    const company = (data ?? [])[0];
     expect(company.subscription_status).toBe("active");
     expect(company.plan).toBe("starter");
 

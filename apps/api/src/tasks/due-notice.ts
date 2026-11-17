@@ -203,8 +203,8 @@ export async function notifyDueTasksJob(
           listeners.push(userId);
         }
       }
-    } catch (cause) {
-      failures.push(cause);
+    } catch (error_) {
+      failures.push(error_);
       continue;
     }
     if (listeners.length === 0) continue;
@@ -223,7 +223,7 @@ export async function notifyDueTasksJob(
     // A missing row reads as the §6 defaults, which have push on.
     const silenced = new Set(
       ((prefRows.data ?? []) as PrefsRow[])
-        .filter((row) => row.push_enabled === false)
+        .filter((row) => ! row.push_enabled)
         .map((row) => row.user_id),
     );
     const audience = listeners.filter((userId) => !silenced.has(userId));

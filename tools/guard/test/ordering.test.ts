@@ -2,8 +2,10 @@ import { describe, expect, it } from "vitest";
 
 import { CRONS } from "../src/guard";
 import { NUMBER_LISTING_GRACE_MS } from "../src/limits";
-import { ORDER_KEYS, orderingBlockers, stoppedReason, verifyFirstOrder, type FirstOrder, type OrderingResume } from "../src/telnyx/ordering";
-import { lease, PROD_WEBHOOK, ready, type Harness } from "./support";
+import { ORDER_KEYS, orderingBlockers, stoppedReason, verifyFirstOrder } from '../src/telnyx/ordering';
+import type { FirstOrder, OrderingResume } from '../src/telnyx/ordering';
+import { lease, PROD_WEBHOOK, ready } from './support';
+import type { Harness } from './support';
 
 const ORDERED = "+14165550150";
 const OTHER = "+14165550151";
@@ -24,12 +26,12 @@ async function order(h: Harness): Promise<number> {
 /** An order that is still pending, so the test controls when Telnyx reports it done. */
 async function orderPending(h: Harness): Promise<void> {
   h.telnyx.orderStatus = "pending";
-  expect(await order(h)).toBe(200);
+  await expect(order(h)).resolves.toBe(200);
 }
 
 /** The order the test placed, done. S28's order carries no connection while paid dials are refused, and the test's carries none. */
 function complete(h: Harness): void {
-  h.telnyx.numberOrders[0]!.status = "success";
+  h.telnyx.numberOrders[0].status = "success";
 }
 
 const ordered = (h: Harness) => h.telnyx.numbers.find((item) => item.phone_number === ORDERED)!;
@@ -41,9 +43,9 @@ const first = (h: Harness) => h.store.get<FirstOrder>(ORDER_KEYS.first);
 
 /** Stopped, nothing deleted, one alert, and the reason code health shows. */
 async function expectStopped(h: Harness, reason: string): Promise<void> {
-  expect(await h.store.get(ORDER_KEYS.stopped)).toMatchObject({ reason });
-  expect(await stoppedReason(h.ctx)).toBe(reason);
-  expect(await orderingBlockers(h.ctx)).toContain("stopped_after_group_check");
+  await expect(h.store.get(ORDER_KEYS.stopped)).resolves.toMatchObject({ reason });
+  await expect(stoppedReason(h.ctx)).resolves.toBe(reason);
+  await expect(orderingBlockers(h.ctx)).resolves.toContain("stopped_after_group_check");
   expect(deletes(h)).toEqual([]);
   expect(stopAlerts(h)).toHaveLength(1);
 }
@@ -52,26 +54,26 @@ describe("the first order's read-back", () => {
   it("waits while the order is pending, and looks for the number only once Telnyx reports it complete", async () => {
     const h = await ready();
     await orderPending(h);
-    expect(await first(h)).toMatchObject({ state: "pending" });
-    expect(await orderingBlockers(h.ctx)).toEqual(["first_order_unverified"]);
+    await expect(first(h)).resolves.toMatchObject({ state: "pending" });
+    await expect(orderingBlockers(h.ctx)).resolves.toEqual(["first_order_unverified"]);
     const before = groupListings(h).length;
-    expect(await verifyFirstOrder(h.ctx)).toBe("pending");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("pending");
     expect(groupListings(h)).toHaveLength(before);
 
     complete(h);
     await h.guard.cron(CRONS.upkeep);
-    expect(await first(h)).toMatchObject({ state: "verified" });
-    expect(await orderingBlockers(h.ctx)).toEqual([]);
+    await expect(first(h)).resolves.toMatchObject({ state: "verified" });
+    await expect(orderingBlockers(h.ctx)).resolves.toEqual([]);
   });
 
   it("lists the partition's group and matches the exact E.164 itself, and records the id the listing gives", async () => {
     const h = await ready();
-    expect(await order(h)).toBe(200);
+    await expect(order(h)).resolves.toBe(200);
     const lookup = groupListings(h).at(-1);
     // Telnyx's spec: filter[phone_number] answers nothing for the "+" an E.164 starts with.
     expect(lookup!.query.has("filter[phone_number]")).toBe(false);
 
-    const lineId = (h.telnyx.numberOrders[0]!.phone_numbers as { id: string }[])[0]!.id;
+    const lineId = (h.telnyx.numberOrders[0].phone_numbers as { id: string }[])[0].id;
     expect(lineId).not.toBe(ordered(h).id);
     const record = await first(h);
     expect(record).toMatchObject({ state: "verified", number_id: ordered(h).id });
@@ -83,15 +85,15 @@ describe("the first order's read-back", () => {
   it("verifies the same way when the order line's id happens to be the number's", async () => {
     const h = await ready();
     h.telnyx.orderLineIds = false;
-    expect(await order(h)).toBe(200);
-    expect(await first(h)).toMatchObject({ state: "verified", number_id: ordered(h).id });
+    await expect(order(h)).resolves.toBe(200);
+    await expect(first(h)).resolves.toMatchObject({ state: "verified", number_id: ordered(h).id });
   });
 
   it("stops at once, without deleting, when the number is listed with no group, in production's partition", async () => {
     const h = await ready();
     h.telnyx.dropGroupOnOrder = true;
-    expect(await order(h)).toBe(200);
-    expect(await first(h)).toMatchObject({ state: "pending" });
+    await expect(order(h)).resolves.toBe(200);
+    await expect(first(h)).resolves.toMatchObject({ state: "pending" });
     expect(ordered(h)).toBeDefined();
     await expectStopped(h, "group_not_kept");
   });
@@ -101,17 +103,17 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     h.telnyx.unlisted.add(ORDERED);
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("pending");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("pending");
     h.advance(NUMBER_LISTING_GRACE_MS - 1);
     await h.guard.cron(CRONS.upkeep);
-    expect(await first(h)).toMatchObject({ state: "pending" });
-    expect(await h.store.get(ORDER_KEYS.stopped)).toBeUndefined();
+    await expect(first(h)).resolves.toMatchObject({ state: "pending" });
+    await expect(h.store.get(ORDER_KEYS.stopped)).resolves.toBeUndefined();
     expect(stopAlerts(h)).toEqual([]);
 
     h.telnyx.unlisted.clear();
-    expect(await verifyFirstOrder(h.ctx)).toBe("verified");
-    expect(await first(h)).toMatchObject({ number_id: ordered(h).id });
-    expect(await h.store.get(ORDER_KEYS.unlisted)).toBeUndefined();
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("verified");
+    await expect(first(h)).resolves.toMatchObject({ number_id: ordered(h).id });
+    await expect(h.store.get(ORDER_KEYS.unlisted)).resolves.toBeUndefined();
     expect(deletes(h)).toEqual([]);
   });
 
@@ -120,9 +122,9 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     h.telnyx.unlisted.add(ORDERED);
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("pending");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("pending");
     h.advance(NUMBER_LISTING_GRACE_MS);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "number_missing");
   });
 
@@ -132,8 +134,8 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     h.telnyx.unlisted.add(ORDERED);
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("pending");
-    expect(await h.store.get(ORDER_KEYS.stopped)).toBeUndefined();
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("pending");
+    await expect(h.store.get(ORDER_KEYS.stopped)).resolves.toBeUndefined();
   });
 
   it("stops without deleting when more than one number matches", async () => {
@@ -141,7 +143,7 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     h.telnyx.numbers.push({ ...ordered(h), id: "num-twin" });
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "number_ambiguous");
   });
 
@@ -150,8 +152,8 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     h.telnyx.ignoreFilters = true;
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("verified");
-    expect(await first(h)).toMatchObject({ number_id: ordered(h).id });
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("verified");
+    await expect(first(h)).resolves.toMatchObject({ number_id: ordered(h).id });
   });
 
   it("stops without deleting when the group listing runs past one page", async () => {
@@ -159,7 +161,7 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     complete(h);
     h.telnyx.failNext = { method: "GET", path: "/v2/phone_numbers", status: 200, body: { data: [], meta: { total_pages: 2 } } };
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "number_unreadable");
   });
 
@@ -169,7 +171,7 @@ describe("the first order's read-back", () => {
     h.telnyx.ignoreFilters = true;
     h.telnyx.numbers = [Object.assign(ordered(h), { billing_group_id: "bg-production" })];
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "group_not_kept");
   });
 
@@ -178,9 +180,9 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     Object.assign(ordered(h), { phone_number: OTHER });
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("pending");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("pending");
     h.advance(NUMBER_LISTING_GRACE_MS);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     expect((await first(h))?.number_id).toBeUndefined();
     await expectStopped(h, "number_missing");
   });
@@ -190,7 +192,7 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     ordered(h).messaging_profile_id = "prof-robot";
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "binding_mismatch");
   });
 
@@ -200,7 +202,7 @@ describe("the first order's read-back", () => {
     expect(ordered(h).connection_id).toBe("conn-voice");
     ordered(h).connection_id = "conn-robot";
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "binding_mismatch");
   });
 
@@ -209,7 +211,7 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     ordered(h).connection_id = null;
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "binding_mismatch");
   });
 
@@ -218,7 +220,7 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     await h.store.put(ORDER_KEYS.first, { ...(await first(h))!, expect: { messaging_profile_id: "prof-qa-c", connection_id: null } });
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "binding_mismatch");
   });
 
@@ -227,17 +229,17 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     Object.assign(ordered(h), { connection_id: "conn-prod-voice", messaging_profile_id: "prof-prod" });
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "binding_mismatch");
   });
 
   it("stops without deleting when the complete order names a different number", async () => {
     const h = await ready();
     await orderPending(h);
-    (h.telnyx.numberOrders[0]!.phone_numbers as Record<string, unknown>[])[0]!.phone_number = OTHER;
+    (h.telnyx.numberOrders[0].phone_numbers as Record<string, unknown>[])[0].phone_number = OTHER;
     complete(h);
     const before = groupListings(h).length;
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     expect(groupListings(h)).toHaveLength(before);
     await expectStopped(h, "order_ambiguous");
   });
@@ -245,18 +247,18 @@ describe("the first order's read-back", () => {
   it("stops without deleting when the complete order lists more than one number", async () => {
     const h = await ready();
     await orderPending(h);
-    (h.telnyx.numberOrders[0]!.phone_numbers as Record<string, unknown>[]).push({ id: "line-2", phone_number: OTHER });
+    (h.telnyx.numberOrders[0].phone_numbers as Record<string, unknown>[]).push({ id: "line-2", phone_number: OTHER });
     complete(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "order_ambiguous");
   });
 
   it("stops without deleting when the order reports a status it does not know", async () => {
     const h = await ready();
     await orderPending(h);
-    h.telnyx.numberOrders[0]!.status = "partially-fulfilled";
+    h.telnyx.numberOrders[0].status = "partially-fulfilled";
     const before = groupListings(h).length;
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     expect(groupListings(h)).toHaveLength(before);
     await expectStopped(h, "order_status_unknown");
   });
@@ -266,7 +268,7 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     complete(h);
     h.telnyx.failNext = { method: "GET", path: "/v2/phone_numbers", status: 403 };
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "number_unreadable");
   });
 
@@ -275,29 +277,29 @@ describe("the first order's read-back", () => {
     await orderPending(h);
     complete(h);
     h.telnyx.failNext = { method: "GET", path: "/v2/phone_numbers", status: 503 };
-    expect(await verifyFirstOrder(h.ctx)).toBe("pending");
-    expect(await h.store.get(ORDER_KEYS.stopped)).toBeUndefined();
-    expect(await verifyFirstOrder(h.ctx)).toBe("verified");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("pending");
+    await expect(h.store.get(ORDER_KEYS.stopped)).resolves.toBeUndefined();
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("verified");
   });
 
   it("stops without deleting when there is no order id to read", async () => {
     const h = await ready();
     h.telnyx.numbers.push({ id: "num-loose", phone_number: ORDERED, billing_group_id: null, connection_id: null, tags: [] });
     await h.store.put(ORDER_KEYS.first, { state: "pending", order_id: null, phone_number: ORDERED, at: h.clock.now } satisfies FirstOrder);
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "order_id_missing");
   });
 
   it("asks again after an order read that may pass, and forgets an order that failed", async () => {
     const h = await ready();
     await orderPending(h);
-    const orderId = h.telnyx.numberOrders[0]!.id as string;
+    const orderId = h.telnyx.numberOrders[0].id as string;
     h.telnyx.failNext = { method: "GET", path: `/v2/number_orders/${orderId}`, status: 503 };
-    expect(await verifyFirstOrder(h.ctx)).toBe("pending");
-    expect(await h.store.get(ORDER_KEYS.stopped)).toBeUndefined();
-    h.telnyx.numberOrders[0]!.status = "failure";
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("pending");
+    await expect(h.store.get(ORDER_KEYS.stopped)).resolves.toBeUndefined();
+    h.telnyx.numberOrders[0].status = "failure";
     await verifyFirstOrder(h.ctx);
-    expect(await first(h)).toBeUndefined();
+    await expect(first(h)).resolves.toBeUndefined();
     expect(deletes(h)).toEqual([]);
   });
 
@@ -307,23 +309,23 @@ describe("the first order's read-back", () => {
     h.telnyx.available = ["+14165550170", "+14165550171"];
     h.telnyx.orderStatus = "pending";
     expect((await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" })).status).toBe(200);
-    expect(await h.store.get("partition:standing")).toMatchObject({ "ROBOT-1": { phone_number: "+14165550170" } });
+    await expect(h.store.get("partition:standing")).resolves.toMatchObject({ "ROBOT-1": { phone_number: "+14165550170" } });
 
-    h.telnyx.numberOrders[0]!.status = "failure";
+    h.telnyx.numberOrders[0].status = "failure";
     h.telnyx.numbers = h.telnyx.numbers.filter((item) => item.phone_number !== "+14165550170");
     h.telnyx.orderStatus = "success";
     h.advance(11_000);
     const answer = await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
-    expect(await answer.json()).toMatchObject({ ordered: "ROBOT-1" });
-    expect(await h.store.get("partition:standing")).toMatchObject({ "ROBOT-1": { phone_number: "+14165550171" } });
+    await expect(answer.json()).resolves.toMatchObject({ ordered: "ROBOT-1" });
+    await expect(h.store.get("partition:standing")).resolves.toMatchObject({ "ROBOT-1": { phone_number: "+14165550171" } });
   });
 
   it("stops without deleting on an order read that cannot pass", async () => {
     const h = await ready();
     await orderPending(h);
-    const orderId = h.telnyx.numberOrders[0]!.id as string;
+    const orderId = h.telnyx.numberOrders[0].id as string;
     h.telnyx.failNext = { method: "GET", path: `/v2/number_orders/${orderId}`, status: 404 };
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "order_unreadable");
   });
 });
@@ -354,14 +356,14 @@ describe("a first order recorded before the read-back kept what it asked for", (
   it("is judged against its standing role's profile and no connection", async () => {
     const h = await ready();
     await legacy(h);
-    expect(await verifyFirstOrder(h.ctx)).toBe("verified");
-    expect(await first(h)).toMatchObject({ number_id: "num-legacy" });
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("verified");
+    await expect(first(h)).resolves.toMatchObject({ number_id: "num-legacy" });
   });
 
   it("stops when the number carries another role's profile", async () => {
     const h = await ready();
     await legacy(h, { messaging_profile_id: "prof-qa-w" });
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "binding_mismatch");
   });
 
@@ -369,7 +371,7 @@ describe("a first order recorded before the read-back kept what it asked for", (
     const h = await ready();
     await legacy(h);
     await h.store.delete("partition:standing");
-    expect(await verifyFirstOrder(h.ctx)).toBe("failed");
+    await expect(verifyFirstOrder(h.ctx)).resolves.toBe("failed");
     await expectStopped(h, "binding_mismatch");
   });
 });
@@ -387,25 +389,25 @@ describe("resuming ordering after number_unreadable", () => {
     const answer = await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
     expect(answer.status).toBe(200);
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toHaveLength(1);
-    h.telnyx.numberOrders[0]!.status = "success";
+    h.telnyx.numberOrders[0].status = "success";
     h.telnyx.orderStatus = "success";
     await h.store.put(ORDER_KEYS.stopped, { at: h.clock.now, reason: "number_unreadable" });
-    expect(await stoppedReason(h.ctx)).toBe("number_unreadable");
+    await expect(stoppedReason(h.ctx)).resolves.toBe("number_unreadable");
     return h;
   }
 
   it("adopts the number already ordered, orders the other seven, and never orders it again", async () => {
     const h = await stoppedAfterRobot1();
     h.advance(11_000);
-    expect(await ruleOfOrderStanding(h)).toBe("provisioning.ordering_off");
+    await expect(ruleOfOrderStanding(h)).resolves.toBe("provisioning.ordering_off");
 
     const response = await resume(h);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ cleared: "number_unreadable", state: "verified" });
+    await expect(response.json()).resolves.toEqual({ cleared: "number_unreadable", state: "verified" });
     const adopted = h.telnyx.numbers.find((item) => item.phone_number === "+14165550170")!;
-    expect(await first(h)).toMatchObject({ state: "verified", number_id: adopted.id });
-    expect(await h.store.get(ORDER_KEYS.stopped)).toBeUndefined();
-    expect(await orderingBlockers(h.ctx)).toEqual([]);
+    await expect(first(h)).resolves.toMatchObject({ state: "verified", number_id: adopted.id });
+    await expect(h.store.get(ORDER_KEYS.stopped)).resolves.toBeUndefined();
+    await expect(orderingBlockers(h.ctx)).resolves.toEqual([]);
 
     for (let call = 0; call < 7; call++) {
       h.advance(11_000);
@@ -414,7 +416,7 @@ describe("resuming ordering after number_unreadable", () => {
     const orders = h.telnyx.requests("POST", "/v2/number_orders");
     expect(orders).toHaveLength(8);
     const searched = ["+14165550170", "+14165550171", "+14165550172", "+14165550173", "+14165550174", "+14165550175", "+14165550176", "+14165550177"];
-    expect(orders.map((entry) => (entry.body as { phone_numbers: { phone_number: string }[] }).phone_numbers[0]!.phone_number)).toEqual(searched);
+    expect(orders.map((entry) => (entry.body as { phone_numbers: { phone_number: string }[] }).phone_numbers[0].phone_number)).toEqual(searched);
     expect(adopted.tags).toContain("rig-standing");
     expect(deletes(h)).toEqual([]);
   });
@@ -422,7 +424,7 @@ describe("resuming ordering after number_unreadable", () => {
   it("records who lifted the stop, why, and which stop it was", async () => {
     const h = await stoppedAfterRobot1();
     await resume(h, { by: "operator-1", reason: "Read-back now lists the number" });
-    expect(await h.store.get<OrderingResume[]>(ORDER_KEYS.resumes)).toEqual([
+    await expect(h.store.get<OrderingResume[]>(ORDER_KEYS.resumes)).resolves.toEqual([
       { at: h.clock.now, by: "operator-1", why: "Read-back now lists the number", cleared: "number_unreadable" },
     ]);
   });
@@ -431,9 +433,9 @@ describe("resuming ordering after number_unreadable", () => {
     const h = await stoppedAfterRobot1();
     h.telnyx.failNext = { method: "GET", path: "/v2/phone_numbers", status: 403 };
     const response = await resume(h);
-    expect(await response.json()).toEqual({ cleared: "number_unreadable", state: "failed" });
-    expect(await stoppedReason(h.ctx)).toBe("number_unreadable");
-    expect(await h.store.get<OrderingResume[]>(ORDER_KEYS.resumes)).toHaveLength(1);
+    await expect(response.json()).resolves.toEqual({ cleared: "number_unreadable", state: "failed" });
+    await expect(stoppedReason(h.ctx)).resolves.toBe("number_unreadable");
+    await expect(h.store.get<OrderingResume[]>(ORDER_KEYS.resumes)).resolves.toHaveLength(1);
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toHaveLength(1);
   });
 
@@ -441,9 +443,9 @@ describe("resuming ordering after number_unreadable", () => {
     const h = await stoppedAfterRobot1();
     h.telnyx.unlisted.add("+14165550170");
     const response = await resume(h);
-    expect(await response.json()).toEqual({ cleared: "number_unreadable", state: "pending" });
+    await expect(response.json()).resolves.toEqual({ cleared: "number_unreadable", state: "pending" });
     h.advance(11_000);
-    expect(await ruleOfOrderStanding(h)).toBe("provisioning.ordering_off");
+    await expect(ruleOfOrderStanding(h)).resolves.toBe("provisioning.ordering_off");
     expect(h.telnyx.requests("POST", "/v2/number_orders")).toHaveLength(1);
   });
 
@@ -451,8 +453,8 @@ describe("resuming ordering after number_unreadable", () => {
     const h = await ready();
     const response = await resume(h);
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ rule: "provisioning.resume_refused" });
-    expect(await h.store.get(ORDER_KEYS.resumes)).toBeUndefined();
+    await expect(response.json()).resolves.toMatchObject({ rule: "provisioning.resume_refused" });
+    await expect(h.store.get(ORDER_KEYS.resumes)).resolves.toBeUndefined();
   });
 
   it("refuses to lift a stop that is not number_unreadable", async () => {
@@ -460,9 +462,9 @@ describe("resuming ordering after number_unreadable", () => {
     await h.store.put(ORDER_KEYS.stopped, { at: h.clock.now, reason: "group_not_kept" });
     const response = await resume(h);
     expect(response.status).toBe(403);
-    expect(await response.json()).toMatchObject({ rule: "provisioning.resume_refused" });
-    expect(await stoppedReason(h.ctx)).toBe("group_not_kept");
-    expect(await h.store.get(ORDER_KEYS.resumes)).toBeUndefined();
+    await expect(response.json()).resolves.toMatchObject({ rule: "provisioning.resume_refused" });
+    await expect(stoppedReason(h.ctx)).resolves.toBe("group_not_kept");
+    await expect(h.store.get(ORDER_KEYS.resumes)).resolves.toBeUndefined();
   });
 
   it("refuses a request that does not say who and why, or whose reason could carry a number", async () => {
@@ -480,10 +482,10 @@ describe("resuming ordering after number_unreadable", () => {
     ]) {
       const response = await resume(h, body);
       expect(response.status, JSON.stringify(body)).toBe(403);
-      expect(await response.json()).toMatchObject({ rule: "request.body_invalid" });
+      await expect(response.json()).resolves.toMatchObject({ rule: "request.body_invalid" });
     }
-    expect(await stoppedReason(h.ctx)).toBe("number_unreadable");
-    expect(await h.store.get(ORDER_KEYS.resumes)).toBeUndefined();
+    await expect(stoppedReason(h.ctx)).resolves.toBe("number_unreadable");
+    await expect(h.store.get(ORDER_KEYS.resumes)).resolves.toBeUndefined();
   });
 
   it("refuses while the start-up checks find the partition unsafe", async () => {
@@ -493,9 +495,9 @@ describe("resuming ordering after number_unreadable", () => {
     if (voice) voice.webhook_event_url = PROD_WEBHOOK;
     h.advance(24 * 60 * 60 * 1000);
     const response = await resume(h);
-    expect(await response.json()).toMatchObject({ rule: "startup.unsafe" });
-    expect(await stoppedReason(h.ctx)).toBe("number_unreadable");
-    expect(await h.store.get(ORDER_KEYS.resumes)).toBeUndefined();
+    await expect(response.json()).resolves.toMatchObject({ rule: "startup.unsafe" });
+    await expect(stoppedReason(h.ctx)).resolves.toBe("number_unreadable");
+    await expect(h.store.get(ORDER_KEYS.resumes)).resolves.toBeUndefined();
   });
 
   it("is an admin route, refused to every other caller", async () => {
@@ -505,7 +507,7 @@ describe("resuming ordering after number_unreadable", () => {
       const response = await h.call("/admin/numbers/resume-ordering", { caller, method: "POST", body: { by: "operator-1", reason: "Read-back now lists the number" } });
       expect(response.status, caller).toBe(403);
     }
-    expect(await stoppedReason(h.ctx)).toBe("number_unreadable");
+    await expect(stoppedReason(h.ctx)).resolves.toBe("number_unreadable");
   });
 });
 
@@ -517,17 +519,17 @@ async function ruleOfOrderStanding(h: Harness): Promise<string | undefined> {
 describe("ordering's gate", () => {
   it("waits only on production's partition rule, the first order and a stop", async () => {
     const h = await ready({ validated: null, env: { TELNYX_CONCURRENT_FLOOR: "unknown" } });
-    expect(await orderingBlockers(h.ctx)).toEqual([]);
+    await expect(orderingBlockers(h.ctx)).resolves.toEqual([]);
     h.production.capabilities = [];
     h.advance(11 * 60 * 1000);
-    expect(await orderingBlockers(h.ctx)).toEqual(["production_lacks_partition_rule"]);
+    await expect(orderingBlockers(h.ctx)).resolves.toEqual(["production_lacks_partition_rule"]);
   });
 });
 
 describe("a standing order Telnyx does not confirm", () => {
   const orderStanding = (h: Harness) => h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
   const ordersSent = (h: Harness) =>
-    h.telnyx.requests("POST", "/v2/number_orders").map((entry) => (entry.body as { phone_numbers: { phone_number: string }[] }).phone_numbers[0]!.phone_number);
+    h.telnyx.requests("POST", "/v2/number_orders").map((entry) => (entry.body as { phone_numbers: { phone_number: string }[] }).phone_numbers[0].phone_number);
   const standing = (h: Harness) => h.store.get<Record<string, { phone_number: string }>>("partition:standing");
 
   async function fresh(): Promise<Harness> {
@@ -542,13 +544,13 @@ describe("a standing order Telnyx does not confirm", () => {
     h.telnyx.orderAnswerAfterPlacing = 503;
     const answer = await orderStanding(h);
     expect(answer.status).toBe(502);
-    expect(await answer.json()).toEqual({ error: "order_unconfirmed", role: "ROBOT-1", status: 503 });
-    expect(await standing(h)).toMatchObject({ "ROBOT-1": { phone_number: "+14165550170" } });
-    expect(await first(h)).toBeUndefined();
+    await expect(answer.json()).resolves.toEqual({ error: "order_unconfirmed", role: "ROBOT-1", status: 503 });
+    await expect(standing(h)).resolves.toMatchObject({ "ROBOT-1": { phone_number: "+14165550170" } });
+    await expect(first(h)).resolves.toBeUndefined();
     expect((await h.store.get<{ one_time_usd: number }>("money:month:2026-11"))?.one_time_usd).toBe(1);
 
     h.advance(11_000);
-    expect(await orderStanding(h).then((response) => response.json())).toMatchObject({ ordered: "ROBOT-2" });
+    await expect(orderStanding(h).then((response) => response.json())).resolves.toMatchObject({ ordered: "ROBOT-2" });
     expect(ordersSent(h)).toEqual(["+14165550170", "+14165550171"]);
     const bought = h.telnyx.numbers.find((item) => item.phone_number === "+14165550170")!;
     expect(bought.tags).toContain("rig-standing");
@@ -574,21 +576,21 @@ describe("a standing order Telnyx does not confirm", () => {
     expect((await orderStanding(h)).status).toBe(502);
     expect(h.telnyx.available[0]).toBe("+14165550170");
     h.advance(11_000);
-    expect(await orderStanding(h).then((response) => response.json())).toMatchObject({ ordered: "ROBOT-2" });
+    await expect(orderStanding(h).then((response) => response.json())).resolves.toMatchObject({ ordered: "ROBOT-2" });
     expect(ordersSent(h)).toEqual(["+14165550170", "+14165550171"]);
-    expect(await standing(h)).toMatchObject({ "ROBOT-1": { phone_number: "+14165550170" }, "ROBOT-2": { phone_number: "+14165550171" } });
+    await expect(standing(h)).resolves.toMatchObject({ "ROBOT-1": { phone_number: "+14165550170" }, "ROBOT-2": { phone_number: "+14165550171" } });
   });
 
   it("gives the role back when Telnyx refuses the order outright, and orders it again", async () => {
     const h = await fresh();
     h.telnyx.failNext = { method: "POST", path: "/v2/number_orders", status: 422 };
     expect((await orderStanding(h)).status).toBe(502);
-    expect(await standing(h)).toEqual({});
+    await expect(standing(h)).resolves.toEqual({});
     expect((await h.store.get<{ one_time_usd: number }>("money:month:2026-11"))?.one_time_usd ?? 0).toBe(0);
     h.advance(11_000);
-    expect(await orderStanding(h).then((response) => response.json())).toMatchObject({ ordered: "ROBOT-1" });
+    await expect(orderStanding(h).then((response) => response.json())).resolves.toMatchObject({ ordered: "ROBOT-1" });
     expect(ordersSent(h)).toEqual(["+14165550170", "+14165550170"]);
-    expect(await standing(h)).toMatchObject({ "ROBOT-1": { phone_number: "+14165550170" } });
+    await expect(standing(h)).resolves.toMatchObject({ "ROBOT-1": { phone_number: "+14165550170" } });
   });
 
   it("counts a held role's number toward the ten before Telnyx lists it", async () => {
@@ -597,7 +599,7 @@ describe("a standing order Telnyx does not confirm", () => {
       h.telnyx.numbers.push({ id: `num-held-${i}`, phone_number: `+1416555019${i}`, billing_group_id: "bg-nonprod", connection_id: null, messaging_profile_id: "prof-qa-c", tags: [] });
     }
     await h.store.put("partition:standing", { "DEV-E1": { role: "DEV-E1", phone_number: "+14165550189" } });
-    expect(await ruleOfOrderStanding(h)).toBe("provisioning.numbers_held");
+    await expect(ruleOfOrderStanding(h)).resolves.toBe("provisioning.numbers_held");
     expect(h.telnyx.requests("GET", "/v2/available_phone_numbers")).toEqual([]);
     expect(ordersSent(h)).toEqual([]);
   });

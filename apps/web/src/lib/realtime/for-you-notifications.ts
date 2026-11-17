@@ -39,14 +39,18 @@ function feedsForYouOrBell(key: readonly unknown[], companyId: string): boolean 
   // message threads carry done state (task completion); tasks lists/checklist
   // carry the my_tasks / triage sections.
   switch (key[1]) {
-    case "conversations":
+    case "conversations": {
       return key[2] === "list" || key[2] === "pinned" || key[2] === "detail";
-    case "messages":
+    }
+    case "messages": {
       return true;
-    case "tasks":
+    }
+    case "tasks": {
       return key[2] === "list" || key[2] === "checklist";
-    default:
+    }
+    default: {
       return false;
+    }
   }
 }
 
@@ -117,8 +121,8 @@ export function useForYouNotificationsRealtime() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
 
-  useEffect(() => {
-    return acquireSubscription(companyId, () => {
+  useEffect(() => 
+    acquireSubscription(companyId, () => {
     const cache = queryClient.getQueryCache();
     let disposed = false;
     let timer: ReturnType<typeof setTimeout> | null = null;
@@ -126,14 +130,14 @@ export function useForYouNotificationsRealtime() {
     let missedDuringCooldown = false;
 
     const invalidate = () => {
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.forYou(companyId),
         refetchType: "active",
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.notifications.unreadCount(companyId),
       });
-      queryClient.invalidateQueries({
+      void queryClient.invalidateQueries({
         queryKey: keys.notifications.feed(companyId),
         refetchType: "active",
       });
@@ -196,6 +200,6 @@ export function useForYouNotificationsRealtime() {
       if (timer !== null) clearTimeout(timer);
       unsubscribe();
     };
-    });
-  }, [companyId, queryClient]);
+    })
+  , [companyId, queryClient]);
 }

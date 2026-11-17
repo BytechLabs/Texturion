@@ -1,30 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-  CAPACITY_RESULT_PREFIX,
-  CapacityConfigError,
-  CapacityRunError,
-  PRODUCTION_SUPABASE_HOST,
-  RealtimeCleanupFailure,
-  RealtimeJoinFailure,
-  assertContentFreeEvidence,
-  expectedConfirmation,
-  formatCapacityEvidence,
-  initialRealtimeTransitionState,
-  openSupabaseRealtimeConnection,
-  parseRamp,
-  performBoundedGet,
-  runHostedCapacity,
-  transitionRealtimeState,
-  validateHostedCapacityInput,
-  type CapacityEvidence,
-  type HostedCapacityConfig,
-  type HostedCapacityInput,
-  type OpenRealtimeInput,
-  type RealtimeConnection,
-  type RealtimeStateSnapshot,
-} from "./deployed-capacity-lib.ts";
+import { assertContentFreeEvidence, CAPACITY_RESULT_PREFIX, CapacityConfigError, CapacityRunError, expectedConfirmation, formatCapacityEvidence, initialRealtimeTransitionState, openSupabaseRealtimeConnection, parseRamp, performBoundedGet, PRODUCTION_SUPABASE_HOST, RealtimeCleanupFailure, RealtimeJoinFailure, runHostedCapacity, transitionRealtimeState, validateHostedCapacityInput } from './deployed-capacity-lib.ts';
+import type { CapacityEvidence, HostedCapacityConfig, HostedCapacityInput, OpenRealtimeInput, RealtimeConnection, RealtimeStateSnapshot } from './deployed-capacity-lib.ts';
 
 const NOW_SECONDS = 2_000_000_000;
 const COMPANY_ID = "51000000-0000-4000-8000-000000000251";

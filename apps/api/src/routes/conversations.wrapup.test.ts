@@ -20,20 +20,10 @@
 import { beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { Env, RateLimiter } from "../env";
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { conversationsRoutes } from "./conversations";
 
 /**
@@ -46,7 +36,7 @@ import { conversationsRoutes } from "./conversations";
  */
 const built: string[] = [];
 
-vi.mock("../calls/voicemail-transcript", async (importOriginal) => {
+vi.mock(import("../calls/voicemail-transcript"), async (importOriginal) => {
   const actual =
     await importOriginal<typeof import("../calls/voicemail-transcript")>();
   return {
@@ -161,7 +151,7 @@ describe("the wrap-up burst gates (#581)", () => {
     } as unknown as Env);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ text: null, reason: "rate_limited" });
+    await expect(res.json()).resolves.toEqual({ text: null, reason: "rate_limited" });
     expect(limiter.limit).toHaveBeenCalledWith({ key: COMPANY_ID });
     expect(run).not.toHaveBeenCalled();
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
@@ -211,12 +201,12 @@ describe("the wrap-up burst gates (#581)", () => {
       AI_MEMBER_RATE_LIMITER: member,
     } as unknown as Env);
 
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       text: "Quoted him $2,400 for the tank, parts Thursday.",
     });
-    expect(company.limit).toHaveBeenCalledTimes(1);
-    expect(member.limit).toHaveBeenCalledTimes(1);
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(company.limit).toHaveBeenCalledOnce();
+    expect(member.limit).toHaveBeenCalledOnce();
+    expect(run).toHaveBeenCalledOnce();
   });
 });
 
@@ -242,7 +232,7 @@ describe("what a refused dictation costs to refuse (#581)", () => {
       AI_MEMBER_RATE_LIMITER: fakeLimiter(true),
     } as unknown as Env);
 
-    expect(await res.json()).toEqual({ text: null, reason: "over_cap" });
+    await expect(res.json()).resolves.toEqual({ text: null, reason: "over_cap" });
     expect(run).not.toHaveBeenCalled();
     expect(built).toEqual([]);
   });
@@ -294,7 +284,7 @@ describe("a workspace that has stopped paying (#581)", () => {
     } as unknown as Env);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       text: null,
       reason: "subscription_inactive",
     });
@@ -316,9 +306,9 @@ describe("a workspace that has stopped paying (#581)", () => {
       AI: ai,
     } as unknown as Env);
 
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       text: "Quoted him $2,400 for the tank, parts Thursday.",
     });
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
   });
 });

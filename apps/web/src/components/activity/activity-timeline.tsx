@@ -24,19 +24,17 @@ import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
 import { ChoiceChip } from "@/components/ui/choice-chip";
 import { Timestamp } from "@/components/ui/timestamp";
-import { type Translate, useT } from "@/i18n/provider";
+import { useT } from '@/i18n/provider';
+import type { Translate } from '@/i18n/provider';
 import { flattenPages } from "@/lib/api/pagination";
-import {
-  useRecordActivity,
-  type ActivityCategory,
-  type ActivityItem,
-  type ActivityRecordType,
-} from "@/lib/api/record-activity";
+import { useRecordActivity } from '@/lib/api/record-activity';
+import type { ActivityCategory, ActivityItem, ActivityRecordType } from '@/lib/api/record-activity';
 import { useMembers } from "@/lib/api/team";
 import { reducedMotionScrollBehavior } from "@/lib/motion";
 import { cn } from "@/lib/utils";
 
-import { activityLine, type ActivityIcon } from "./activity-line";
+import { activityLine } from './activity-line';
+import type { ActivityIcon } from './activity-line';
 
 /**
  * #714: the ONE timeline every record uses (a customer, a job, a thread, a
@@ -136,12 +134,12 @@ export function ActivityTimeline({
             extra,
           }))
         : [];
-    const merged = [...events, ...extras].sort((a, b) => b.at.localeCompare(a.at));
-    return oldestFirst ? merged.reverse() : merged;
+    const merged = [...events, ...extras].toSorted((a, b) => b.at.localeCompare(a.at));
+    return oldestFirst ? merged.toReversed() : merged;
   }, [activity.data, extraItems, filter, oldestFirst]);
 
   const moreExtra = (filter === "all" || filter === "change") && extraMore?.hasMore === true;
-  const fetchingMore = activity.isFetchingNextPage || (moreExtra && extraMore?.fetching === true);
+  const fetchingMore = activity.isFetchingNextPage || (moreExtra &&  extraMore?.fetching);
   const loadMore = activity.hasNextPage || moreExtra ? (
     <div className={cn("text-center", oldestFirst ? "pb-2" : "border-t border-app-line-soft p-2")}>
       <Button
@@ -355,7 +353,7 @@ export function groupByDay(entries: Entry[], locale: string): DayGroup[] {
     const at = new Date(entry.at);
     const isoDay = `${at.getFullYear()}-${String(at.getMonth() + 1).padStart(2, "0")}-${String(at.getDate()).padStart(2, "0")}`;
     const last = groups[groups.length - 1];
-    if (last && last.isoDay === isoDay) {
+    if (last?.isoDay === isoDay) {
       last.rows.push(entry);
       continue;
     }

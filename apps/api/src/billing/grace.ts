@@ -1,4 +1,5 @@
-import { CANCELLATION_GRACE_DAYS, type Locale } from "@loonext/shared";
+import { CANCELLATION_GRACE_DAYS } from '@loonext/shared';
+import type { Locale } from '@loonext/shared';
 
 import { billingRecipients } from "./recipients";
 import { NUMBER_NOTICE_COPY } from "../notifications/number-copy";

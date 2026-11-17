@@ -10,14 +10,10 @@
  */
 import { beforeAll, describe, expect, it } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import { completeEnv, createTestAuth, jwksRoute, stubFetch, type TestAuth } from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { mfaRoutes } from "./mfa";
 
 const env = completeEnv();
@@ -96,7 +92,7 @@ describe("switching the requirement ON", () => {
     const res = await save(sb, { required: true, grace_days: 14 });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       required: true,
       grace_until: "2026-08-22T00:00:00+00:00",
     });
@@ -123,7 +119,7 @@ describe("switching the requirement OFF (#537 audit)", () => {
     const res = await save(sb, { required: false });
 
     expect(res.status).toBe(403);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "confirmation_code_required" },
     });
     // Nothing changed, and no audit row says it did.
@@ -136,7 +132,7 @@ describe("switching the requirement OFF (#537 audit)", () => {
     const res = await save(sb, { required: false, confirmation_code: "123456" });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ required: false });
+    await expect(res.json()).resolves.toMatchObject({ required: false });
     // The code was scoped to this action and no other.
     expect(
       sb.find("POST", "/rest/v1/rpc/api_use_ownership_code")[0].body,
@@ -159,7 +155,7 @@ describe("switching the requirement OFF (#537 audit)", () => {
     const res = await save(sb, { required: false, confirmation_code: "123456" });
 
     expect(res.status).toBe(403);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       // #581/#7: the code changed, the property did not. `mfa_challenge_required`
       // is the wall in front of the whole workspace; `mfa_reprove_required` is
       // "tap your authenticator for THIS act". The old assertion also passed for

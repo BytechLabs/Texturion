@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
-import { useGeocodeProgress, useAllTasks, useTasks } from "@/lib/api/tasks";
+import { useAllTasks, useGeocodeProgress, useTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Task } from "@/lib/api/types";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -16,7 +16,8 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { EmptyTasks } from "../task-empty";
 import type { TaskPageState } from "../task-view-url";
 import { toTaskFilters } from "../task-view-url";
-import { taskCoords, type LocatedTask } from "./map-types";
+import { taskCoords } from './map-types';
+import type { LocatedTask } from './map-types';
 
 /**
  * The map island is imported LAZILY with `ssr:false` so Leaflet + react-leaflet

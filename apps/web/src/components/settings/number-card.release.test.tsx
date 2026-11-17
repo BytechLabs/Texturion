@@ -183,7 +183,7 @@ describe("…and the confirmation describes the number in front of you", () => {
     const hold: NumberHoldState = { kind: "over_allowance", allowance: 1 };
     show({ status: "suspended", hold });
 
-    fireEvent.click(releaseControl() as HTMLElement);
+    fireEvent.click(releaseControl()!);
     const dialog = screen.getByRole("dialog");
     expect(dialog.textContent).toContain(releaseNumberBody(hold));
     expect(dialog.textContent).not.toContain(
@@ -196,7 +196,7 @@ describe("…and the confirmation describes the number in front of you", () => {
     // hold, plan-included replacement available.
     show({ status: "active" });
 
-    fireEvent.click(releaseControl() as HTMLElement);
+    fireEvent.click(releaseControl()!);
     const dialog = screen.getByRole("dialog");
     expect(dialog.textContent).toContain(releaseNumberBody(null));
     expect(dialog.textContent).toContain(
@@ -208,7 +208,7 @@ describe("…and the confirmation describes the number in front of you", () => {
     // The pause in front of the irreversible thing (G8). The branched paragraph
     // above is the reason to use it; this is the friction itself.
     show({ status: "active" });
-    fireEvent.click(releaseControl() as HTMLElement);
+    fireEvent.click(releaseControl()!);
 
     const confirm = screen.getByRole("button", { name: "Release number" });
     expect((confirm as HTMLButtonElement).disabled).toBe(true);

@@ -12,20 +12,10 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import type { Env, WorkersAi } from "../env";
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { conversationsRoutes } from "./conversations";
 
 const env = completeEnv();
@@ -155,11 +145,11 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     const res = await suggest(stubs(), { ...env, AI: ai });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       suggestions: ["We can come by Thursday.", "What time suits you?"],
       business_unknown: true,
     });
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it("tells the model who the customer is", async () => {
@@ -170,7 +160,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     const { ai, run } = mockAi(TWO_REPLIES);
     await suggest(stubs(), { ...env, AI: ai });
 
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
     const prompt = JSON.stringify(run.mock.calls[0]?.[1] ?? {});
     expect(prompt).toContain("Dana Reyes");
     expect(prompt).not.toContain("unknown name");
@@ -186,7 +176,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
 
     // Best effort: a draft with less context beats no draft at all.
     expect(res.status).toBe(200);
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it("spends nothing on a thread somebody marked as spam (#250)", async () => {
@@ -198,7 +188,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     const res = await suggest(sb, { ...env, AI: ai });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       suggestions: [],
       suggestions_disabled: true,
       reason: "spam",
@@ -215,7 +205,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     const res = await suggest(sb, { ...env, AI: ai });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       suggestions: [],
       suggestions_disabled: true,
       reason: "disabled",
@@ -236,11 +226,11 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     });
     const res = await suggest(sb, { ...env, AI: ai });
 
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       suggestions: ["We can come by Thursday.", "What time suits you?"],
       business_unknown: true,
     });
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it("refuses only when the thread has no readable text at all", async () => {
@@ -248,7 +238,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     const sb = stubs({ messages: [{ direction: "inbound", body: "   " }] });
     const res = await suggest(sb, { ...env, AI: ai });
 
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       suggestions: [],
       reason: "nothing_to_reply",
     });
@@ -266,11 +256,11 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     });
     const res = await suggest(sb, { ...env, AI: ai }, { draft: "We can also" });
 
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       suggestions: ["We can also bring the part."],
       business_unknown: true,
     });
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
   });
 
   it("over the monthly cap, it stops calling the model", async () => {
@@ -280,7 +270,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     });
     const res = await suggest(sb, { ...env, AI: ai });
 
-    expect(await res.json()).toEqual({ suggestions: [], reason: "over_cap" });
+    await expect(res.json()).resolves.toEqual({ suggestions: [], reason: "over_cap" });
     expect(run).not.toHaveBeenCalled();
   });
 
@@ -290,7 +280,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
 
     const res = await suggest(sb, { ...env, AI: ai });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ suggestions: [], reason: "over_cap" });
+    await expect(res.json()).resolves.toEqual({ suggestions: [], reason: "over_cap" });
     expect(run).not.toHaveBeenCalled();
   });
 
@@ -301,7 +291,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     const { ai } = mockAi(TWO_REPLIES);
     const res = await suggest(stubs(), { ...env, AI: ai });
 
-    expect(await res.json()).toMatchObject({ business_unknown: true });
+    await expect(res.json()).resolves.toMatchObject({ business_unknown: true });
   });
 
   it("says nothing about the description once it is set", async () => {
@@ -310,7 +300,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
       settings: { suggest_replies: true, business_description: "Plumbing" },
     });
 
-    expect(await (await suggest(sb, { ...env, AI: ai })).json()).toMatchObject({
+    await expect((await suggest(sb, { ...env, AI: ai })).json()).resolves.toMatchObject({
       business_unknown: false,
     });
   });
@@ -368,7 +358,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
         '{"replies":["Book at https://example.com/book","That runs $450.","We can come by Thursday."]}',
     });
     const res = await suggest(stubs(), { ...env, AI: ai });
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       suggestions: ["We can come by Thursday."],
       business_unknown: true,
       // A thinner-than-expected set says which rule fired, same as an empty one.
@@ -392,14 +382,14 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
         throw new Error("model unavailable");
       }),
     };
-    expect(await (await suggest(stubs(), { ...env, AI: failing })).json()).toEqual(
+    await expect((await suggest(stubs(), { ...env, AI: failing })).json()).resolves.toEqual(
       { suggestions: [], reason: "model_error" },
     );
 
     // Prose with no usable draft: reported as unusable, NOT as "no ideas" —
     // the distinction is what tells us the model is reachable at all.
     const { ai } = mockAi({ response: "Sorry:" });
-    expect(await (await suggest(stubs(), { ...env, AI: ai })).json()).toEqual({
+    await expect((await suggest(stubs(), { ...env, AI: ai })).json()).resolves.toEqual({
       suggestions: [],
       reason: "unusable_output",
       // The tally says WHICH rule fired, which is what "unusable_output" alone
@@ -425,7 +415,7 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     const sb = stubs();
     const res = await suggest(sb, env);
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ suggestions: [], reason: "unavailable" });
+    await expect(res.json()).resolves.toEqual({ suggestions: [], reason: "unavailable" });
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
   });
 

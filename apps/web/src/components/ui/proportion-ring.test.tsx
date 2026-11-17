@@ -14,14 +14,14 @@ import { ProportionRing } from "./proportion-ring";
 /** The drawn arc's dashoffset, or null when no arc was drawn at all. */
 function offset(html: string): number | null {
   const matches = [...html.matchAll(/stroke-dashoffset="([\d.]+)"/g)];
-  return matches.length ? Number(matches[matches.length - 1]![1]) : null;
+  return matches.length > 0 ? Number(matches[matches.length - 1][1]) : null;
 }
 function circumference(html: string): number {
   const m = html.match(/stroke-dasharray="([\d.]+)"/);
   return m ? Number(m[1]) : 0;
 }
 
-describe("ProportionRing", () => {
+describe(ProportionRing, () => {
   it("draws nothing but the track at zero", () => {
     // An arc of length zero still paints a round cap at the top — a dot that
     // reads as "one of these is done" when none are.

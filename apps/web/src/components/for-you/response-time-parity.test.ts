@@ -79,7 +79,7 @@ const IOS_CATALOGUE = join(
  */
 function kotlinCatalogueValues(text: string): string {
   return text
-    .replace(/"inbox\.[A-Za-z0-9_]+"\s*to\s*/g, "")
+    .replaceAll(/"inbox\.[A-Za-z0-9_]+"\s*to\s*/g, "")
     .split("\n")
     .filter((line) => {
       const trimmed = line.trim();
@@ -165,8 +165,8 @@ describe("#239 response-time copy is the same on every client", () => {
     expect(
       missing,
       `These #239 sentences are missing or reworded on some platforms. Change ` +
-        `all three together, and update FRAGMENTS here:\n  ` +
-        missing.join("\n  "),
+        `all three together, and update FRAGMENTS here:\n  ${ 
+        missing.join("\n  ")}`,
     ).toEqual([]);
   });
 

@@ -1,12 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  wrapUpFailureMessage,
-  wrapUpFileName,
-  wrapUpOutcome,
-  WRAP_UP_MAX_SECONDS,
-  type WrapUpFailureReason,
-} from "./wrap-up-transcript";
+import { WRAP_UP_MAX_SECONDS, wrapUpFailureMessage, wrapUpFileName, wrapUpOutcome } from './wrap-up-transcript';
+import type { WrapUpFailureReason } from './wrap-up-transcript';
 
 /**
  * #507 Phase 1 — dictation is BEST EFFORT, and the whole point of the reason
@@ -19,7 +14,7 @@ import {
  * has to survive a rename of the reason on the server: an unmapped one falls to
  * the default rather than rendering "undefined".
  */
-describe("wrapUpFailureMessage", () => {
+describe(wrapUpFailureMessage, () => {
   const reasons: WrapUpFailureReason[] = [
     "too_long",
     "disabled",
@@ -112,7 +107,7 @@ describe("wrapUpFailureMessage", () => {
  * naive "does the saved note equal the transcript" would report "corrected
  * first" for every note that had a word of context in front of it.
  */
-describe("wrapUpOutcome", () => {
+describe(wrapUpOutcome, () => {
   it("reports nothing when no dictation happened", () => {
     expect(wrapUpOutcome(null, "typed the whole thing myself")).toBeNull();
   });
@@ -176,7 +171,7 @@ describe("wrapUpOutcome", () => {
  * no way to infer one, so the filename carries it. Every value here is inside
  * Whisper's accepted set.
  */
-describe("wrapUpFileName", () => {
+describe(wrapUpFileName, () => {
   it("names Safari's container", () => {
     expect(wrapUpFileName("audio/mp4")).toBe("wrap-up.mp4");
   });

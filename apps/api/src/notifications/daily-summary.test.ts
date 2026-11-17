@@ -70,7 +70,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("runDailySummary", () => {
+describe(runDailySummary, () => {
   it("SM-1: goes once the member's own chosen time has passed", async () => {
     const sb = world();
 
@@ -177,7 +177,7 @@ describe("runDailySummary", () => {
   });
 });
 
-describe("localClock", () => {
+describe(localClock, () => {
   it("SM-9: reports the member's date, not the server's", async () => {
     // 03:00Z on the 5th is still the EVENING of the 4th in Toronto. A summary
     // keyed on the server's date would think a new day had started.

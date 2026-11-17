@@ -14,7 +14,8 @@ import { cn } from "@/lib/utils";
 import type { Task } from "@/lib/api/types";
 
 import { TaskAssignee, TaskDue, TaskNumber } from "../task-atoms";
-import { groupTasks, type TaskColumn } from "../task-grouping";
+import { groupTasks } from '../task-grouping';
+import type { TaskColumn } from '../task-grouping';
 import { priorityLabelKey } from "../task-planning";
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { LabelChips, PriorityMark, RepeatMark } from "../task-planning-ui";
@@ -23,7 +24,8 @@ import { useTaskRowActions } from "../task-actions";
 import { taskLinkClickHandler, useTaskDrawer } from "../use-task-drawer";
 import { EmptyTasks } from "../task-empty";
 import { useTaskDone } from "../use-task-mutations";
-import { toTaskFilters, type TaskPageState } from "../task-view-url";
+import { toTaskFilters } from '../task-view-url';
+import type { TaskPageState } from '../task-view-url';
 
 /**
  * The Board view (D25): two states, **To do → Done**. Done stays derived
@@ -120,7 +122,7 @@ export function BoardView({ state }: { state: TaskPageState }) {
       <Column
         title={t("tasks.boardColumnDone")}
         tasks={done}
-        target={true}
+        target
         busy={busy}
         more={moreDone}
       />
@@ -163,9 +165,9 @@ function GroupedBoard({
   const titleOf = (column: TaskColumn): string =>
     column.kind === "priority"
       ? t(priorityLabelKey(column.priority))
-      : column.kind === "unassigned"
+      : (column.kind === "unassigned"
         ? t("tasks.unassigned")
-        : (names.get(column.key) ?? t("tasks.teammate"));
+        : (names.get(column.key) ?? t("tasks.teammate")));
   return (
     <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
       {columns.map((column) => {

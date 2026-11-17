@@ -12,7 +12,6 @@ import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { AppEnv } from "../context";
-import type { Bindings } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { FakeRest } from "../telnyx/test-support";
 import { completeEnv, stubFetch } from "../test/support";
@@ -55,7 +54,7 @@ function buildHarness(sources: Record<string, unknown>[] = []) {
     env,
     rest,
     request: (path: string, init?: RequestInit) =>
-      app.request(path, init, env as unknown as Bindings),
+      app.request(path, init, env),
   };
 }
 
@@ -75,7 +74,7 @@ describe("#301 lead sources", () => {
     const harness = buildHarness();
     const res = await harness.request("/v1/lead-sources");
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [] });
+    await expect(res.json()).resolves.toEqual({ data: [] });
   });
 
   it("LS-R2: a duplicate name says which, and says why it matters", async () => {
@@ -102,7 +101,7 @@ describe("#301 lead sources", () => {
     const { assertOwnLeadSource } = await import("./lead-sources");
     await expect(
       assertOwnLeadSource(
-        { get: () => COMPANY_ID, env: harness.env } as never,
+        { get: () => COMPANY_ID, env: harness.env },
         THEIRS,
       ),
     ).rejects.toThrow(/No such source/);
@@ -123,7 +122,7 @@ describe("#301 lead sources", () => {
     const { assertOwnLeadSource } = await import("./lead-sources");
     await expect(
       assertOwnLeadSource(
-        { get: () => COMPANY_ID, env: harness.env } as never,
+        { get: () => COMPANY_ID, env: harness.env },
         TRUCK,
       ),
     ).rejects.toThrow(/archived/i);

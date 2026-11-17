@@ -66,7 +66,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("makeAttachmentPreview", () => {
+describe(makeAttachmentPreview, () => {
   it("makes one for a big image, scaled to the shared ceiling", async () => {
     const { drawImage, close } = stubCanvas({ width: 4000, height: 3000 });
     const preview = await makeAttachmentPreview(
@@ -87,33 +87,25 @@ describe("makeAttachmentPreview", () => {
     // something the size and type already said.
     const decode = vi.fn();
     vi.stubGlobal("createImageBitmap", decode);
-    expect(
-      await makeAttachmentPreview(
+    await expect(makeAttachmentPreview(
         imageFile("quote.pdf", "application/pdf", 20 * 1024 * 1024),
-      ),
-    ).toBeNull();
-    expect(
-      await makeAttachmentPreview(imageFile("small.jpg", "image/jpeg", 40 * 1024)),
-    ).toBeNull();
+      )).resolves.toBeNull();
+    await expect(makeAttachmentPreview(imageFile("small.jpg", "image/jpeg", 40 * 1024))).resolves.toBeNull();
     expect(decode).not.toHaveBeenCalled();
   });
 
   it("gives up quietly when the browser cannot decode", async () => {
     stubCanvas({ decodeThrows: true });
-    expect(
-      await makeAttachmentPreview(
+    await expect(makeAttachmentPreview(
         imageFile("cmyk.jpg", "image/jpeg", 8 * 1024 * 1024),
-      ),
-    ).toBeNull();
+      )).resolves.toBeNull();
   });
 
   it("gives up quietly on a browser with no createImageBitmap", async () => {
     vi.stubGlobal("createImageBitmap", undefined);
-    expect(
-      await makeAttachmentPreview(
+    await expect(makeAttachmentPreview(
         imageFile("roof.jpg", "image/jpeg", 8 * 1024 * 1024),
-      ),
-    ).toBeNull();
+      )).resolves.toBeNull();
   });
 
   it("drops a result the server would refuse", async () => {
@@ -121,27 +113,21 @@ describe("makeAttachmentPreview", () => {
     // bigger than its source. Sending it would earn a 422 on a photo that was
     // perfectly fine — so the client asks the same question first.
     stubCanvas({ blobSize: MAX_PREVIEW_BYTES + 1 });
-    expect(
-      await makeAttachmentPreview(
+    await expect(makeAttachmentPreview(
         imageFile("roof.jpg", "image/jpeg", 8 * 1024 * 1024),
-      ),
-    ).toBeNull();
+      )).resolves.toBeNull();
 
     stubCanvas({ blobSize: 500 * 1024 });
-    expect(
-      await makeAttachmentPreview(
+    await expect(makeAttachmentPreview(
         imageFile("roof.jpg", "image/jpeg", 600 * 1024),
-      ),
-    ).toBeNull();
+      )).resolves.toBeNull();
   });
 
   it("drops an empty encode", async () => {
     stubCanvas({ blobSize: 0 });
-    expect(
-      await makeAttachmentPreview(
+    await expect(makeAttachmentPreview(
         imageFile("roof.jpg", "image/jpeg", 8 * 1024 * 1024),
-      ),
-    ).toBeNull();
+      )).resolves.toBeNull();
   });
 });
 

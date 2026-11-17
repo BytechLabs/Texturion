@@ -47,12 +47,12 @@ function balancedBraceEnd(code: string, open: number): number {
 export function triggerRanges(code: string): Range[] {
   const ranges: Range[] = [];
   for (const match of code.matchAll(TRIGGER_TAG)) {
-    const start = match.index!;
+    const start = match.index;
     const close = code.indexOf(`</${match[1]}>`, start);
     if (close !== -1) ranges.push([start, close]);
   }
   for (const match of code.matchAll(/\btrigger=\{/g)) {
-    const open = match.index! + match[0].length - 1;
+    const open = match.index + match[0].length - 1;
     ranges.push([open, balancedBraceEnd(code, open)]);
   }
   return ranges;
@@ -78,7 +78,7 @@ export function handleTriggerConflicts(code: string): string[] {
   const found: string[] = [];
   for (const { name, pattern } of HANDLE_MARKERS) {
     for (const match of code.matchAll(pattern)) {
-      const at = match.index!;
+      const at = match.index;
       const insideTrigger = ranges.some(([from, to]) => at > from && at < to);
       const ownTag = enclosingOpeningTag(code, at);
       const isTriggerItself =
@@ -115,9 +115,9 @@ describe("#742 a drag handle never opens a menu", () => {
     }
     expect(
       offenders,
-      "These handles are menu triggers, so pressing them opens a menu instead of " +
-        "starting a drag. Make the handle only drag; put the menu on a separate " +
-        "control (the panel's ⋯ menu):\n  " + offenders.join("\n  "),
+      `These handles are menu triggers, so pressing them opens a menu instead of ` +
+        `starting a drag. Make the handle only drag; put the menu on a separate ` +
+        `control (the panel's ⋯ menu):\n  ${  offenders.join("\n  ")}`,
     ).toEqual([]);
   });
 

@@ -1,14 +1,14 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  decideDelivery,
   DEFAULT_DELIVERY,
   DELIVERY_MODES,
-  NOTIFICATION_CATEGORIES,
-  decideDelivery,
   digestLine,
+  NOTIFICATION_CATEGORIES,
 } from "./notification-delivery";
 
-describe("decideDelivery", () => {
+describe(decideDelivery, () => {
   it("ND-1: an urgent event sends, whatever the member chose", () => {
     // THE RULE THIS MODULE EXISTS FOR. "Batching must never become a way to
     // miss the call that mattered." Every mode, including the quietest.
@@ -51,7 +51,7 @@ describe("decideDelivery", () => {
         decideDelivery({ mode, urgent: true }),
       ]),
     );
-    expect([...decisions].sort()).toEqual(["hold", "queue", "send"]);
+    expect([...decisions].toSorted()).toEqual(["hold", "queue", "send"]);
   });
 });
 
@@ -74,7 +74,7 @@ describe("the defaults", () => {
   });
 });
 
-describe("digestLine", () => {
+describe(digestLine, () => {
   it("ND-8: says both numbers, because they answer different questions", () => {
     // Four messages from one customer is a conversation. Four across four is a
     // morning. A digest that reported only the total would flatten them.

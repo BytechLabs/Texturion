@@ -1,26 +1,19 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   exchangeMicrosoftAuthorizationCode,
-  MicrosoftCalendarProvider,
   microsoftAuthorizationUrl,
+  MicrosoftCalendarProvider,
   normalizeMicrosoftEvent,
   refreshMicrosoftAccessToken,
 } from "./microsoft";
 import { hashCalendarDescription } from "./normalize";
-import {
-  CalendarPreconditionError,
-  CalendarEventNotFoundError,
-  CalendarProviderError,
-  CalendarReauthRequiredError,
-  CalendarRetryableError,
-  InvalidCalendarEventError,
-  type CalendarFetch,
-} from "./types";
+import { CalendarEventNotFoundError, CalendarPreconditionError, CalendarProviderError, CalendarReauthRequiredError, CalendarRetryableError, InvalidCalendarEventError } from './types';
+import type { CalendarFetch } from './types';
 
 const TASK_URL = "https://app.example.test/tasks/0b5c8f2e-6a1d-4c3e-9f7a-2d4b6e8c0a1f";
 
 function json(body: unknown, status = 200, headers?: HeadersInit): Response {
-  return new Response(JSON.stringify(body), {
+  return Response.json(body, {
     status,
     headers: { "Content-Type": "application/json", ...headers },
   });
@@ -31,7 +24,7 @@ function queuedFetch(...responses: Response[]): {
   mock: ReturnType<typeof vi.fn>;
 } {
   const mock = vi.fn(async () => responses.shift() ?? json({}));
-  return { fetcher: mock as CalendarFetch, mock };
+  return { fetcher: mock, mock };
 }
 
 function graphEvent(overrides: Record<string, unknown> = {}): Record<string, unknown> {
@@ -81,7 +74,7 @@ describe("Microsoft calendar provider", () => {
       queuedFetch(json(payload)).fetcher,
       { clientId: "client", clientSecret: "secret", redirectUri: "https://api/cb" },
       "sensitive-refresh-token",
-    ).catch((caught: unknown) => caught);
+    ).catch((error_: unknown) => error_);
 
     expect(error).toBeInstanceOf(CalendarProviderError);
     expect(error).toMatchObject({
@@ -327,11 +320,11 @@ describe("Microsoft calendar provider", () => {
     await expect(
       normalizeMicrosoftEvent(
         graphEvent({
-          body: { contentType: "text", content: "x".repeat(5_001) },
+          body: { contentType: "text", content: "x".repeat(5001) },
         }),
       ),
     ).resolves.toMatchObject({
-      description: "x".repeat(5_001),
+      description: "x".repeat(5001),
       inbound: { kind: "description_refused", reason: "too_long" },
     });
   });
@@ -513,9 +506,9 @@ describe("Microsoft calendar provider", () => {
         calendarId: "primary",
         instanceId: "event",
       })
-      .catch((caught: unknown) => caught);
+      .catch((error_: unknown) => error_);
     expect(error).toBeInstanceOf(CalendarRetryableError);
-    expect((error as CalendarRetryableError).retryAfterMs).toBe(2_000);
+    expect((error as CalendarRetryableError).retryAfterMs).toBe(2000);
   });
 
   it("classifies a missing occurrence separately from authorization and retry errors", async () => {
@@ -527,7 +520,7 @@ describe("Microsoft calendar provider", () => {
         accessToken: "access",
         calendarId: "primary",
         instanceId: "missing",
-      }).catch((caught: unknown) => caught);
+      }).catch((error_: unknown) => error_);
       expect(error).toBeInstanceOf(CalendarEventNotFoundError);
       expect(error).toMatchObject({ kind: "not_found", status });
     }
@@ -641,7 +634,7 @@ describe("Microsoft calendar provider", () => {
         version: "stale",
       }),
     ).rejects.toBeInstanceOf(CalendarPreconditionError);
-    expect(mock).toHaveBeenCalledTimes(1);
+    expect(mock).toHaveBeenCalledOnce();
   });
 
   it("annotates the event body instead of deleting the event", async () => {

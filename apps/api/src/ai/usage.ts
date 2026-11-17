@@ -141,7 +141,7 @@ export async function readAiUsage(
             ] as const
           )
             .filter(([label]) => label !== null)
-            .map(([label, count]) => ({ label: label as string, count }));
+            .map(([label, count]) => ({ label: label!, count }));
     return {
       key: spec.key,
       label: spec.label,

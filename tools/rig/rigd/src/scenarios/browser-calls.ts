@@ -8,20 +8,8 @@ import { randomUUID } from "node:crypto";
 import type { StandingRole } from "@loonext/rig-protocol";
 import type { PageHearing } from "@loonext/rig-lanes";
 import type { CallPlan, CallRecord, Surface } from "@loonext/rig-robot";
-import {
-  EVENT_INGEST_MS,
-  EVENT_POLL_MS,
-  fail,
-  infra,
-  pass,
-  poll,
-  type AppApi,
-  type CallRow,
-  type CompanyField,
-  type ScenarioContext,
-  type ScenarioResult,
-  type ScenarioRunner,
-} from "./context.ts";
+import { EVENT_INGEST_MS, EVENT_POLL_MS, fail, infra, pass, poll } from './context.ts';
+import type { AppApi, CallRow, CompanyField, ScenarioContext, ScenarioResult, ScenarioRunner } from './context.ts';
 
 const OWNER = "qa-w-owner";
 const TECHNICIAN = "qa-w-technician";
@@ -38,13 +26,13 @@ export const CALL_WAITING_TEXT = "Incoming call from";
  * The robot's windows count from Telnyx's answer and the runner acts on its
  * own clock, so every window keeps this far from the action that bounds it.
  */
-const MARGIN_MS = 1_000;
+const MARGIN_MS = 1000;
 const RING_MS = 10_000;
 const TALK_MS = 14_000;
 /** How long the runner waits for the robot to learn of the answer before falling back to its own clock. */
-const ANSWER_SYNC_MS = 5_000;
+const ANSWER_SYNC_MS = 5000;
 /** Under `in_turn` the next phone joins after packages/shared's RING_STEP_SECS (12 s), so the owner answers before then. */
-export const OWNER_RING_MS = 8_000;
+export const OWNER_RING_MS = 8000;
 const ROBOT_REFUSAL = /guard_refused:|Telnyx \d{3} on /;
 
 type Segment = { name: string; start_ms: number; end_ms: number };
@@ -123,7 +111,7 @@ async function until(ctx: ScenarioContext, at: number): Promise<void> {
 /** When Telnyx says the call was answered, which the robot's windows count from; undefined if the robot has not heard by then. */
 function answerMoment(ctx: ScenarioContext, planId: string, timeoutMs = ANSWER_SYNC_MS): Promise<number | undefined> {
   return poll(ctx, async () => {
-    const record = await ctx.robot.wait(planId, 1_000);
+    const record = await ctx.robot.wait(planId, 1000);
     return record.answered_at ? Date.parse(record.answered_at) : undefined;
   }, timeoutMs, 500);
 }
@@ -138,14 +126,14 @@ function finishedRow(
   return poll(ctx, async () => {
     const rows = await ctx.app.calls({ tenant, callerRole, since });
     return rows.find((row) => row.ended_at !== null && match(row));
-  }, 60_000, 2_000);
+  }, 60_000, 2000);
 }
 
 function metered(ctx: ScenarioContext, tenant: string, callSessionId: string): Promise<number | undefined> {
   return poll(ctx, async () => {
     const seconds = await ctx.app.meteredSeconds({ tenant, callSessionId });
     return seconds > 0 ? seconds : undefined;
-  }, 60_000, 5_000);
+  }, 60_000, 5000);
 }
 
 /** Company settings changed under the lease, the undo registered with what they were before anything is written. */
@@ -188,7 +176,7 @@ export const S03: ScenarioRunner = {
     ctx.evidence.ring_ms = ringMs;
     if (ringMs === undefined) {
       await settle(caller.hangUp());
-      return fail("no_ring", `the QA-W owner's page did not ring within ${RING_MS / 1_000} s of QA-C's dial`);
+      return fail("no_ring", `the QA-W owner's page did not ring within ${RING_MS / 1000} s of QA-C's dial`);
     }
     await callee.answer();
     const answeredAt = ctx.now();
@@ -250,7 +238,7 @@ export const S03: ScenarioRunner = {
 };
 
 export const ESCALATE_AFTER_MINUTES = 10;
-export const HANG_UP_AT_MS = 8_000;
+export const HANG_UP_AT_MS = 8000;
 /** Longer than the robot lets it ring, so nothing answers before the robot hangs up. */
 const S05_RING_SECONDS = 25;
 
@@ -283,7 +271,7 @@ export const S05: ScenarioRunner = {
       play: null,
       record: false,
       hangup_before_answer_ms: HANG_UP_AT_MS,
-      hangup_after_ms: 1_000,
+      hangup_after_ms: 1000,
       ring_timeout_secs: 30,
     });
     if (dialed.state === "failed") return dialFailure(dialed);
@@ -294,9 +282,9 @@ export const S05: ScenarioRunner = {
     if (record.answered_at) return fail("answered_while_ringing", `the call was answered at ${record.answered_at}, before the robot hung up`);
 
     const textBack = await poll(ctx, async () => {
-      const inbox = await ctx.robot.inbox({ to_role: "ROBOT-1", since: hungUpAt - 5_000 });
+      const inbox = await ctx.robot.inbox({ to_role: "ROBOT-1", since: hungUpAt - 5000 });
       return inbox.find((m) => m.event === "message.received" && m.from_role === "DEV-W1");
-    }, 60_000, 2_000);
+    }, 60_000, 2000);
     ctx.evidence.text_back = textBack && { id: textBack.id, after_ms: textBack.received_at - hungUpAt };
     if (!textBack) return fail("no_text_back", "ROBOT-1 got no text-back within 60 s of hanging up");
 
@@ -317,7 +305,7 @@ export const S05: ScenarioRunner = {
 };
 
 async function escalationWidens(ctx: ScenarioContext, since: number): Promise<ScenarioResult> {
-  const opened = await poll(ctx, async () => (await ctx.app.escalations({ tenant: "QA-W", since })).find((e) => e.kind === "missed_call"), 30_000, 2_000);
+  const opened = await poll(ctx, async () => (await ctx.app.escalations({ tenant: "QA-W", since })).find((e) => e.kind === "missed_call"), 30_000, 2000);
   if (!opened) return fail("no_escalation", "the missed call opened no on-call escalation");
   const at = ctx.now() + ESCALATE_AFTER_MINUTES * 60_000 + 30_000;
   try {
@@ -328,7 +316,7 @@ async function escalationWidens(ctx: ScenarioContext, since: number): Promise<Sc
   const widened = await poll(ctx, async () => {
     const rows = await ctx.app.escalations({ tenant: "QA-W", since });
     return rows.find((e) => e.kind === opened.kind && e.escalate_at === opened.escalate_at && e.escalated_at);
-  }, 30_000, 2_000);
+  }, 30_000, 2000);
   ctx.evidence.escalation = {
     escalate_at: opened.escalate_at,
     fired_for: new Date(at).toISOString(),
@@ -340,15 +328,15 @@ async function escalationWidens(ctx: ScenarioContext, since: number): Promise<Sc
 }
 
 /** S06's controls, from the owner's answer. Each lasts about 6 s, and the keys follow the second resume. */
-export const S06_STEPS = { holdOn: 7_000, holdOff: 13_000, muteOn: 20_000, muteOff: 26_000, keys: 33_000 } as const;
+export const S06_STEPS = { holdOn: 7000, holdOff: 13_000, muteOn: 20_000, muteOff: 26_000, keys: 33_000 } as const;
 /** The member's code must be back this long after a resume. */
-export const RETURN_MS = 2_000;
+export const RETURN_MS = 2000;
 export const S06_DIGITS = "123#";
 export const S06_SEGMENTS: Segment[] = [
   segment("hold", S06_STEPS.holdOn + MARGIN_MS, S06_STEPS.holdOff - MARGIN_MS),
-  segment("after_hold", S06_STEPS.holdOff + RETURN_MS + MARGIN_MS, S06_STEPS.holdOff + RETURN_MS + MARGIN_MS + 4_000),
+  segment("after_hold", S06_STEPS.holdOff + RETURN_MS + MARGIN_MS, S06_STEPS.holdOff + RETURN_MS + MARGIN_MS + 4000),
   segment("mute", S06_STEPS.muteOn + MARGIN_MS, S06_STEPS.muteOff - MARGIN_MS),
-  segment("after_mute", S06_STEPS.muteOff + RETURN_MS + MARGIN_MS, S06_STEPS.muteOff + RETURN_MS + MARGIN_MS + 4_000),
+  segment("after_mute", S06_STEPS.muteOff + RETURN_MS + MARGIN_MS, S06_STEPS.muteOff + RETURN_MS + MARGIN_MS + 4000),
 ];
 const S06_EXPECT: [name: string, present: boolean, failure: string][] = [
   ["hold", false, "heard_during_hold"],
@@ -369,17 +357,17 @@ export const S06: ScenarioRunner = {
       role: "ROBOT-1",
       to: "DEV-W1",
       expect: OWNER,
-      window: { start_ms: 2_000, end_ms: S06_STEPS.holdOn - MARGIN_MS },
+      window: { start_ms: 2000, end_ms: S06_STEPS.holdOn - MARGIN_MS },
       segments: S06_SEGMENTS,
       gather: { max_digits: 4, terminating_digit: "#" },
-      hangup_after_ms: S06_STEPS.keys + 9_000,
+      hangup_after_ms: S06_STEPS.keys + 9000,
     });
     if (dialed.state === "failed") return dialFailure(dialed);
     const ringMs = await page.waitForRing(RING_MS);
     ctx.evidence.ring_ms = ringMs;
     if (ringMs === undefined) {
       await ctx.robot.wait(dialed.plan_id, 90_000);
-      return fail("no_ring", `the owner's page did not ring within ${RING_MS / 1_000} s`);
+      return fail("no_ring", `the owner's page did not ring within ${RING_MS / 1000} s`);
     }
     const clicked = ctx.now();
     await page.answer();
@@ -416,7 +404,7 @@ export const S06: ScenarioRunner = {
 
 export const S07_VARIANTS = ["blind", "decline", "timeout", "hop-cap"] as const;
 export type TransferVariant = (typeof S07_VARIANTS)[number];
-export const TRANSFER_AT_MS = 8_000;
+export const TRANSFER_AT_MS = 8000;
 const TARGET_RING_MS = 10_000;
 const SNAP_BACK_RING_MS = 15_000;
 /** apps/api/src/messaging/live-call.ts TRANSFER_TIMEOUT_SECS: how long an unanswered transfer rings before it snaps back. */
@@ -431,11 +419,11 @@ const VOICEMAIL_LISTEN_MS = 25_000;
  */
 export function transferTimeline(variant: TransferVariant): { targetBy: number; snapBackBy?: number; after?: Segment; hangup: number } {
   const targetBy = TRANSFER_AT_MS + TARGET_RING_MS;
-  const snapBackBy = variant === "blind" ? undefined : targetBy + SNAP_BACK_RING_MS + (variant === "timeout" ? TRANSFER_RING_SECS * 1_000 : 0);
+  const snapBackBy = variant === "blind" ? undefined : targetBy + SNAP_BACK_RING_MS + (variant === "timeout" ? TRANSFER_RING_SECS * 1000 : 0);
   const settledBy = snapBackBy ?? targetBy;
   if (variant === "hop-cap") return { targetBy, snapBackBy, hangup: settledBy + VOICEMAIL_LISTEN_MS };
-  const after = segment("after", settledBy + RETURN_MS + MARGIN_MS, settledBy + RETURN_MS + MARGIN_MS + 8_000);
-  return { targetBy, snapBackBy, after, hangup: after.end_ms + 4_000 };
+  const after = segment("after", settledBy + RETURN_MS + MARGIN_MS, settledBy + RETURN_MS + MARGIN_MS + 8000);
+  return { targetBy, snapBackBy, after, hangup: after.end_ms + 4000 };
 }
 
 /**
@@ -463,7 +451,7 @@ export const S07: ScenarioRunner = {
       role: "ROBOT-1",
       to: "DEV-W2",
       expect: OWNER,
-      window: { start_ms: 2_000, end_ms: TRANSFER_AT_MS - MARGIN_MS },
+      window: { start_ms: 2000, end_ms: TRANSFER_AT_MS - MARGIN_MS },
       segments: timeline.after ? [timeline.after] : undefined,
       hangup_after_ms: timeline.hangup,
     });
@@ -472,7 +460,7 @@ export const S07: ScenarioRunner = {
     ctx.evidence.ring_ms = ringMs;
     if (ringMs === undefined) {
       await ctx.robot.wait(dialed.plan_id, 90_000);
-      return fail("no_ring", `the owner's page did not ring within ${OWNER_RING_MS / 1_000} s`);
+      return fail("no_ring", `the owner's page did not ring within ${OWNER_RING_MS / 1000} s`);
     }
     const clicked = ctx.now();
     await owner.answer();
@@ -534,7 +522,7 @@ export const S07: ScenarioRunner = {
   },
 };
 
-export const CONSULT_AT_MS = 7_000;
+export const CONSULT_AT_MS = 7000;
 /** The target must have answered 2 s before this opens, so the consult is up throughout. */
 export const CONSULT_SEGMENT = segment("consult", 20_000, 27_000);
 export const COMPLETE_AT_MS = 28_000;
@@ -543,7 +531,7 @@ const WEEK_MS = 7 * 86_400_000;
 
 /** Which way S08 runs: the slot's label when it names one, else alternating by week. */
 export function consultDirection(ctx: Pick<ScenarioContext, "slot" | "now">): "inbound" | "outbound" {
-  const label = ctx.slot.label;
+  const {label} = ctx.slot;
   if (label === "inbound" || label === "outbound") return label;
   return Math.floor(ctx.now() / WEEK_MS) % 2 === 0 ? "inbound" : "outbound";
 }
@@ -572,9 +560,9 @@ export const S08: ScenarioRunner = {
       lease_id: ctx.lease.id,
       role: "ROBOT-1",
       expect: OWNER,
-      window: { start_ms: 2_000, end_ms: CONSULT_AT_MS - MARGIN_MS },
+      window: { start_ms: 2000, end_ms: CONSULT_AT_MS - MARGIN_MS },
       segments: [CONSULT_SEGMENT, AFTER_COMPLETE_SEGMENT],
-      hangup_after_ms: AFTER_COMPLETE_SEGMENT.end_ms + 4_000,
+      hangup_after_ms: AFTER_COMPLETE_SEGMENT.end_ms + 4000,
     };
     let started: CallRecord;
     if (direction === "inbound") {
@@ -584,11 +572,11 @@ export const S08: ScenarioRunner = {
       ctx.evidence.ring_ms = ringMs;
       if (ringMs === undefined) {
         await ctx.robot.wait(started.plan_id, 90_000);
-        return fail("no_ring", `the owner's page did not ring within ${OWNER_RING_MS / 1_000} s`);
+        return fail("no_ring", `the owner's page did not ring within ${OWNER_RING_MS / 1000} s`);
       }
       await owner.answer();
     } else {
-      started = await ctx.robot.expect({ ...plan, direction: "inbound", answer_after_ms: 3_000, expect_within_ms: 60_000 });
+      started = await ctx.robot.expect({ ...plan, direction: "inbound", answer_after_ms: 3000, expect_within_ms: 60_000 });
       if (started.state === "failed") return dialFailure(started);
       await owner.dial("ROBOT-1");
     }
@@ -620,7 +608,7 @@ export const S08: ScenarioRunner = {
     const incomplete = await settle(owner.completeTransfer());
     if (incomplete) return infra("browser-lane", incomplete.message);
     const record = await ctx.robot.wait(started.plan_id, 180_000);
-    const consult = { windowStartMs: 2_000, windowEndMs: answeredAt + COMPLETE_AT_MS - MARGIN_MS - consultAnsweredAt };
+    const consult = { windowStartMs: 2000, windowEndMs: answeredAt + COMPLETE_AT_MS - MARGIN_MS - consultAnsweredAt };
     const targetHeard = await technician.hear(consult);
     const senderHeard = await owner.hear({ ...consult, answerMark: "consult_answered" });
     ctx.evidence.call = robotEvidence(record);
@@ -662,9 +650,9 @@ async function appDials(ctx: ScenarioContext): Promise<number> {
     .reduce((sum, [, count]) => sum + count, 0);
 }
 
-export const BUSY_VOICEMAIL_MS = 8_000;
+export const BUSY_VOICEMAIL_MS = 8000;
 /** A dial that slipped past the line check reaches the guard within this. */
-const DIAL_SETTLE_MS = 5_000;
+const DIAL_SETTLE_MS = 5000;
 const SELF_DIAL_MS = 15_000;
 
 /**
@@ -690,7 +678,7 @@ export const S09: ScenarioRunner = {
     ctx.evidence.ring_ms = ringMs;
     if (ringMs === undefined) {
       await ctx.robot.wait(first.plan_id, 150_000);
-      return fail("no_ring", `the owner's page did not ring within ${RING_MS / 1_000} s`);
+      return fail("no_ring", `the owner's page did not ring within ${RING_MS / 1000} s`);
     }
     await page.answer();
 
@@ -703,7 +691,7 @@ export const S09: ScenarioRunner = {
       to: "DEV-W1",
       play: null,
       record: false,
-      hangup_after_ms: 6_000,
+      hangup_after_ms: 6000,
       ring_timeout_secs: 30,
     });
     const secondRecord = second.state === "failed" ? second : await ctx.robot.wait(second.plan_id, 60_000);
@@ -770,7 +758,7 @@ export const S10: ScenarioRunner = {
     ctx.evidence.call_waiting = waiting;
     if (crewRing === undefined) {
       await settle(caller.hangUp());
-      return fail("crew_not_rung", `the technician's page did not ring within ${RING_MS / 1_000} s`);
+      return fail("crew_not_rung", `the technician's page did not ring within ${RING_MS / 1000} s`);
     }
     await crew.answer();
     const answeredAt = ctx.now();
@@ -801,7 +789,7 @@ export const S10: ScenarioRunner = {
 };
 
 export const S11_RING_SECONDS = 20;
-export const RING_LENGTH_TOLERANCE_MS = 2_000;
+export const RING_LENGTH_TOLERANCE_MS = 2000;
 /** How long the owner's page must stay quiet. */
 const IDLE_MS = 15_000;
 
@@ -857,7 +845,7 @@ export const S11: ScenarioRunner = {
       to: "DEV-W2",
       play: null,
       record: false,
-      hangup_after_ms: 5_000,
+      hangup_after_ms: 5000,
       ring_timeout_secs: 60,
     });
     if (dialed.state === "failed") return dialFailure(dialed);
@@ -866,14 +854,14 @@ export const S11: ScenarioRunner = {
     const record = await ctx.robot.wait(dialed.plan_id, 120_000);
     ctx.evidence.call = robotEvidence(record);
 
-    if (onCallRing === undefined) return fail("on_call_not_rung", `the on-call technician's page did not ring within ${RING_MS / 1_000} s`);
+    if (onCallRing === undefined) return fail("on_call_not_rung", `the on-call technician's page did not ring within ${RING_MS / 1000} s`);
     if (ownerRing !== undefined) return fail("off_call_rang", `the owner's page rang after hours, ${ownerRing} ms in, though only the technician is on call`);
     if (!record.answered_at) return fail("voicemail_not_answered", `voicemail never took the call (${record.errors.join("; ") || record.state})`);
     if (!record.dialed_at) return infra("robot", "the robot's call has no dial time");
     const ringLengthMs = Date.parse(record.answered_at) - Date.parse(record.dialed_at);
     ctx.evidence.ring_length_ms = ringLengthMs;
-    if (Math.abs(ringLengthMs - S11_RING_SECONDS * 1_000) > RING_LENGTH_TOLERANCE_MS) {
-      return fail("ring_length", `voicemail answered after ${ringLengthMs} ms, not ${S11_RING_SECONDS} s ± ${RING_LENGTH_TOLERANCE_MS / 1_000} s`);
+    if (Math.abs(ringLengthMs - S11_RING_SECONDS * 1000) > RING_LENGTH_TOLERANCE_MS) {
+      return fail("ring_length", `voicemail answered after ${ringLengthMs} ms, not ${S11_RING_SECONDS} s ± ${RING_LENGTH_TOLERANCE_MS / 1000} s`);
     }
     return pass();
   },

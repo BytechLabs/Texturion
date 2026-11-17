@@ -3,20 +3,9 @@ import { describe, expect, it } from "vitest";
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
 import { formatMoney } from "./billing-currency";
-import { quoteSms } from "./quotes";
+import { canTransitionQuote,effectiveQuoteStatus,isQuoteDecided,isQuoteDecidedForWinRate,isQuoteOutstanding,isQuoteStatus,QUOTE_STATUS_KEYS,QUOTE_STATUSES,quoteSms } from "./quotes";
 
-import {
-  QUOTE_STATUSES,
-  QUOTE_STATUS_KEYS,
-  canTransitionQuote,
-  effectiveQuoteStatus,
-  isQuoteDecided,
-  isQuoteDecidedForWinRate,
-  isQuoteOutstanding,
-  isQuoteStatus,
-  type QuoteState,
-  type QuoteStatus,
-} from "./quotes";
+import type { QuoteState, QuoteStatus } from './quotes';
 
 /**
  * #287 — the rules a quote's status obeys, on all three clients.
@@ -58,7 +47,7 @@ describe("#287 the vocabulary", () => {
         ["French", WEB_FR],
       ] as const) {
         const text = (table as Record<string, Record<string, string>>)[section]?.[name];
-        expect(typeof text, `${lang} has no ${key}`).toBe("string");
+        expect(text).toBeTypeOf("string");
         expect(text, `${lang} ${key} is empty`).not.toBe("");
       }
     }

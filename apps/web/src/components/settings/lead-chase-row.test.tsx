@@ -60,7 +60,7 @@ function switchDisabled(html: string): boolean {
   return / disabled(=|\s|$)/.test(tag);
 }
 
-describe("LeadChaseRow", () => {
+describe(LeadChaseRow, () => {
   it("says whose settings these are", () => {
     // Every other switch on this page is personal. A workspace-wide control
     // that does not announce itself is one a member changes for everybody

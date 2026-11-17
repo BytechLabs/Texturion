@@ -1,6 +1,5 @@
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -22,10 +21,10 @@ import {
   QUO_SEAT_PRICING,
 } from "./quo/page-data";
 import {
+  asOfLabel,
   COMPARE_AS_OF,
   COMPARE_RECHECK_AFTER,
   COMPARE_VERIFIED_ON,
-  asOfLabel,
 } from "./verification";
 
 interface PageData {
@@ -201,12 +200,12 @@ describe("compare pages carry ONE dateline (#403, #435)", () => {
   for (const file of SOURCES) {
     it(`${file}: states no month and year as a literal`, () => {
       const source = readFileSync(
-        join(dirname(fileURLToPath(import.meta.url)), file),
+        join(import.meta.dirname, file),
         "utf8",
       );
       // Strip block comments: prose ABOUT the date in a docstring is fine, it
       // is only rendered copy that can contradict the table.
-      const code = source.replace(/\/\*[\s\S]*?\*\//g, "");
+      const code = source.replaceAll(/\/\*[\s\S]*?\*\//g, "");
       const hit = MONTH_YEAR.exec(code);
       expect(
         hit?.[0],

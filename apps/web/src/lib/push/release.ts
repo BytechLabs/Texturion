@@ -32,7 +32,7 @@ import { subscriptionToKeys } from "./subscription-machine";
  * the outcome — a stalled request just means the row is pruned as dead on the
  * next send instead of deleted now.
  */
-const RELEASE_TIMEOUT_MS = 3_000;
+const RELEASE_TIMEOUT_MS = 3000;
 
 export async function releasePushOnThisDevice(
   /** Active workspace, for the X-Company-Id header. Null skips the API half. */

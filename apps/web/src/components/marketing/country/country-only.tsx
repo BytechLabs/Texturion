@@ -22,10 +22,10 @@
  * with the nav selector and the first-visit chooser.
  */
 
-import { type ReactNode } from "react";
+import type { ReactNode } from 'react';
 
 import { useCountry } from "./country-context";
-import { type Country } from "./country-storage";
+import type { Country } from './country-storage';
 
 /** Render children only when the active country matches `country`. */
 export function CountryOnly({

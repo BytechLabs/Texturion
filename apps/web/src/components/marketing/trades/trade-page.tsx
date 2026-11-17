@@ -174,7 +174,7 @@ export const THREAD_CAPTION =
 const FINAL_MICROCOPY = (
   <>
     <PlanPrice plan="starter" />
-    {"/mo flat · Month to month · 30-day money-back"}
+    /mo flat · Month to month · 30-day money-back
   </>
 );
 

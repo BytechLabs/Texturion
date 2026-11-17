@@ -6,7 +6,7 @@ import { harness } from "./support";
 describe("production ops notices", () => {
   it("post to PostHog's capture endpoint with the public project key only", async () => {
     const h = harness();
-    expect(await sendProductionEvent(h.ctx, { key: "telnyx-guard-detach", summary: "x" })).toBe(true);
+    await expect(sendProductionEvent(h.ctx, { key: "telnyx-guard-detach", summary: "x" })).resolves.toBe(true);
     const [sent] = h.outbound;
     expect(sent.url).toBe(POSTHOG_CAPTURE_URL);
     expect(sent.headers.get("content-type")).toBe("application/json");
@@ -43,14 +43,14 @@ describe("production ops notices", () => {
   });
 
   it("never throw: no key, a refusing PostHog or a network failure is a logged false", async () => {
-    expect(await sendProductionEvent(harness({ env: { POSTHOG_PROJECT_KEY: "" } }).ctx, { key: "k", summary: "s" })).toBe(false);
+    await expect(sendProductionEvent(harness({ env: { POSTHOG_PROJECT_KEY: "" } }).ctx, { key: "k", summary: "s" })).resolves.toBe(false);
     const refusing = harness();
-    refusing.ctx.fetch = (async () => new Response("no", { status: 400 })) as typeof fetch;
-    expect(await sendProductionEvent(refusing.ctx, { key: "k", summary: "s" })).toBe(false);
+    refusing.ctx.fetch = (async () => new Response("no", { status: 400 }));
+    await expect(sendProductionEvent(refusing.ctx, { key: "k", summary: "s" })).resolves.toBe(false);
     const offline = harness();
     offline.ctx.fetch = (async () => {
       throw new Error("offline");
-    }) as typeof fetch;
-    expect(await sendProductionEvent(offline.ctx, { key: "k", summary: "s" })).toBe(false);
+    });
+    await expect(sendProductionEvent(offline.ctx, { key: "k", summary: "s" })).resolves.toBe(false);
   });
 });

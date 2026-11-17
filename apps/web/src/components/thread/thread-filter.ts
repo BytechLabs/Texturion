@@ -1,6 +1,7 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from '@/i18n/translate';
+import type { Translate } from '@/i18n/translate';
 
 import type { ThreadItem } from "./clusters";
 
@@ -154,12 +155,15 @@ export function threadFilterEmptyCopy(
   const on = enabledCategories(filter);
   if (on.length === 1) {
     switch (on[0]) {
-      case "messages":
+      case "messages": {
         return t("thread.emptyMessages");
-      case "notes":
+      }
+      case "notes": {
         return t("thread.emptyNotes");
-      case "events":
+      }
+      case "events": {
         return t("thread.emptyEvents");
+      }
     }
   }
   return t("thread.emptyFiltered");

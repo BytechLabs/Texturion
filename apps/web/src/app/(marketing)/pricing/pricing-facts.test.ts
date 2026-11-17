@@ -8,12 +8,8 @@ vi.mock("next/font/local", () => ({
   default: () => ({ variable: "font-golos-mock", className: "font-golos-mock" }),
 }));
 
-import {
-  formatMoney,
-  PLAN_PRICE_CENTS,
-  US_REGISTRATION_FEE_CENTS,
-  type BillingCurrency,
-} from "@loonext/shared";
+import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
 
 import {
   PLAN_MODULE_CARDS,

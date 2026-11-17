@@ -43,7 +43,7 @@ export async function verifyTurnstile(
       body: new URLSearchParams({
         secret,
         response: token,
-        ...(ip !== "unknown" ? { remoteip: ip } : {}),
+        ...(ip === "unknown" ? {} : { remoteip: ip }),
       }),
     });
     if (!response.ok) return false;

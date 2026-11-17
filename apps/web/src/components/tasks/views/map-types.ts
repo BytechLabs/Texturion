@@ -54,7 +54,7 @@ export function taskCoords(
   const own = validCoords(task.lat ?? null, task.lng ?? null);
   if (own) return { ...own, name: task.contact?.name ?? null };
 
-  const contact = task.contact;
+  const {contact} = task;
   if (!contact) return null;
   const fallback = validCoords(contact.lat, contact.lng);
   return fallback ? { ...fallback, name: contact.name } : null;

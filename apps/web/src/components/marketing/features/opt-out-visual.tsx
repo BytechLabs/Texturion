@@ -13,10 +13,7 @@
  * Server component, static DOM, 555-01XX safe fictional number.
  */
 
-import {
-  complianceCopy,
-  type ComplianceCopy,
-} from "@/i18n/marketing/compliance";
+import { complianceCopy } from '@/i18n/marketing/compliance';
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { Ban } from "lucide-react";
 

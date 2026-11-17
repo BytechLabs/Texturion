@@ -42,16 +42,16 @@ function base64urlEncode(bytes: Uint8Array): string {
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
   return btoa(binary)
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
-    .replace(/=+$/, "");
+    .replaceAll('+', "-")
+    .replaceAll('/', "_")
+    .replace(/[=]+$/, "");
 }
 
 function base64urlDecode(value: string): Uint8Array {
   if (!/^[A-Za-z0-9_-]+$/.test(value)) {
     throw new Error("calendar encryption value is not base64url");
   }
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/") +
+  const padded = value.replaceAll('-', "+").replaceAll('_', "/") +
     "=".repeat((4 - (value.length % 4)) % 4);
   let binary: string;
   try {

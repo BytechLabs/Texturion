@@ -15,7 +15,7 @@ function spawnArgs(command, args) {
   if (process.platform !== "win32" || !shim) {
     return { file: command, argv: args, shell: false };
   }
-  const quote = (arg) => (/^[\w@%+=:,./\\-]+$/.test(arg) ? arg : `"${arg.replace(/"/g, '""')}"`);
+  const quote = (arg) => (/^[\w@%+=:,./\\-]+$/.test(arg) ? arg : `"${arg.replaceAll('"', '""')}"`);
   return { file: [command, ...args].map(quote).join(" "), argv: [], shell: true };
 }
 
@@ -26,7 +26,7 @@ function spawnArgs(command, args) {
 function childEnv(env) {
   const merged = env ? { ...process.env, ...env } : { ...process.env };
   if (process.platform === "win32") {
-    for (const key of Object.keys(merged)) if (/^path$/i.test(key)) merged[key] = merged[key].replace(/"/g, "");
+    for (const key of Object.keys(merged)) if (/^path$/i.test(key)) merged[key] = merged[key].replaceAll('"', "");
   }
   return merged;
 }

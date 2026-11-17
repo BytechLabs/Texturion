@@ -10,7 +10,8 @@
  */
 import { execFile } from "node:child_process";
 import { once } from "node:events";
-import { createServer, type Server } from "node:http";
+import { createServer } from 'node:http';
+import type { Server } from 'node:http';
 import type { AddressInfo } from "node:net";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -69,7 +70,7 @@ async function setFlag(args: string[], env: Record<string, string | undefined>) 
   selects.length = 0;
   const { stdout, stderr } = await promisify(execFile)(process.execPath, [SCRIPT, ...args], {
     cwd: REPO_ROOT,
-    env: childEnv as NodeJS.ProcessEnv,
+    env: childEnv,
   });
   return { output: stdout + stderr, selects: [...selects] };
 }

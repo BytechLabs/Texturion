@@ -6,18 +6,18 @@ import { test } from "node:test";
 import { deflateRawSync } from "node:zlib";
 
 import {
-  CURRENT_APK,
-  KEY_ALIAS,
-  KEYSTORE_FILE,
-  KEYSTORE_SECRETS,
-  NONPROD_PACKAGE,
   apkPackage,
   apkRefusal,
   buildApk,
   buildNonprodApk,
+  CURRENT_APK,
   ensureNonprodKeystore,
+  KEY_ALIAS,
+  KEYSTORE_FILE,
+  KEYSTORE_SECRETS,
   keytoolCommand,
   manifestPackage,
+  NONPROD_PACKAGE,
   nonprodGradleEnv,
   placeApk,
   PREVIOUS_APK,
@@ -49,18 +49,18 @@ function compiledManifest(packageName, { utf8 = false } = {}) {
   let data = Buffer.concat(encoded);
   if (data.length % 4) data = Buffer.concat([data, Buffer.alloc(4 - (data.length % 4))]);
   const poolHeader = Buffer.alloc(28);
-  poolHeader.writeUInt16LE(0x0001, 0);
+  poolHeader.writeUInt16LE(0x00_01, 0);
   poolHeader.writeUInt16LE(28, 2);
   poolHeader.writeUInt32LE(28 + strings.length * 4 + data.length, 4);
   poolHeader.writeUInt32LE(strings.length, 8);
-  poolHeader.writeUInt32LE(utf8 ? 0x100 : 0, 16);
+  poolHeader.writeUInt32LE(utf8 ? 0x1_00 : 0, 16);
   poolHeader.writeUInt32LE(28 + strings.length * 4, 20);
   const offsetTable = Buffer.alloc(strings.length * 4);
   offsets.forEach((value, i) => offsetTable.writeUInt32LE(value, i * 4));
   const pool = Buffer.concat([poolHeader, offsetTable, data]);
 
   const element = Buffer.alloc(56);
-  element.writeUInt16LE(0x0102, 0);
+  element.writeUInt16LE(0x01_02, 0);
   element.writeUInt16LE(16, 2);
   element.writeUInt32LE(56, 4);
   element.writeUInt32LE(1, 8);
@@ -78,7 +78,7 @@ function compiledManifest(packageName, { utf8 = false } = {}) {
   element.writeUInt32LE(2, 52);
 
   const header = Buffer.alloc(8);
-  header.writeUInt16LE(0x0003, 0);
+  header.writeUInt16LE(0x00_03, 0);
   header.writeUInt16LE(8, 2);
   header.writeUInt32LE(8 + pool.length + element.length, 4);
   return Buffer.concat([header, pool, element]);
@@ -89,13 +89,13 @@ function zipWith(name, content) {
   const compressed = deflateRawSync(content);
   const nameBytes = Buffer.from(name);
   const local = Buffer.alloc(30);
-  local.writeUInt32LE(0x04034b50, 0);
+  local.writeUInt32LE(0x04_03_4B_50, 0);
   local.writeUInt16LE(8, 8);
   local.writeUInt32LE(compressed.length, 18);
   local.writeUInt32LE(content.length, 22);
   local.writeUInt16LE(nameBytes.length, 26);
   const central = Buffer.alloc(46);
-  central.writeUInt32LE(0x02014b50, 0);
+  central.writeUInt32LE(0x02_01_4B_50, 0);
   central.writeUInt16LE(8, 10);
   central.writeUInt32LE(compressed.length, 20);
   central.writeUInt32LE(content.length, 24);
@@ -103,7 +103,7 @@ function zipWith(name, content) {
   central.writeUInt32LE(0, 42);
   const directoryOffset = local.length + nameBytes.length + compressed.length;
   const end = Buffer.alloc(22);
-  end.writeUInt32LE(0x06054b50, 0);
+  end.writeUInt32LE(0x06_05_4B_50, 0);
   end.writeUInt16LE(1, 8);
   end.writeUInt16LE(1, 10);
   end.writeUInt32LE(central.length + nameBytes.length, 12);
@@ -198,7 +198,7 @@ test("the first rig apk makes the signing pair, its password never on a command 
     assert.ok(!JSON.stringify(argv()).includes(secrets.storePassword));
     assert.match(lines.join("\n"), /certificate SHA-256 ([0-9A-F]{2}:){31}[0-9A-F]{2}$/);
     assert.equal(made.sha256, /SHA-256 (\S+)$/.exec(lines.join("\n"))[1]);
-    assert.deepEqual(readdirSync(store.dir).sort(), [KEYSTORE_SECRETS, KEYSTORE_FILE].sort());
+    assert.deepEqual(readdirSync(store.dir).toSorted(), [KEYSTORE_SECRETS, KEYSTORE_FILE].toSorted());
   });
 });
 
@@ -249,7 +249,7 @@ test("the first rig apk makes the key before it needs FA6's google-services.json
     let first = "";
     assert.throws(build, (error) => {
       first = error.message;
-      return /no android-nonprod-google-services\.json yet\. Register com\.loonext\.android\.nonprod in Firebase/.test(first);
+      return first.includes('no android-nonprod-google-services.json yet. Register com.loonext.android.nonprod in Firebase');
     });
     assert.ok(existsSync(join(store.dir, KEYSTORE_FILE)));
     const logged = /certificate SHA-256 (\S+)$/.exec(lines.join("\n"))?.[1];
@@ -319,10 +319,10 @@ test("the build's properties go through the environment and name rig hosts only"
   // Exactly the list the build file reads, which fails a half-configured build.
   const gradle = readFileSync(join(TOOLING_ROOT, "apps", "android", "app", "build.gradle.kts"), "utf8");
   const list = /val nonprodPropertyNames = listOf\(([\s\S]*?)\)/.exec(gradle)[1];
-  const wanted = [...list.matchAll(/"(loonextNonprod\w+)"/g)].map((match) => match[1]).sort();
+  const wanted = [...list.matchAll(/"(loonextNonprod\w+)"/g)].map((match) => match[1]).toSorted();
   const names = Object.keys(env).map((key) => key.replace("ORG_GRADLE_PROJECT_", ""));
   assert.ok(wanted.length >= 8);
-  assert.deepEqual(names.sort(), wanted);
+  assert.deepEqual(names.toSorted(), wanted);
 });
 
 function withApkDir(body) {
@@ -368,7 +368,7 @@ test("a rebuild of the same commit replaces current and leaves previous alone", 
     placeApk({ apk: built("b2.apk", "build B again"), dir, sha: SHA_B, log: () => {} });
     assert.equal(read(CURRENT_APK), "build B again");
     assert.equal(read(PREVIOUS_APK), "build A");
-    assert.deepEqual(readdirSync(dir).sort(), ["current.apk", "current.json", "previous.apk"]);
+    assert.deepEqual(readdirSync(dir).toSorted(), ["current.apk", "current.json", "previous.apk"]);
   });
 });
 
@@ -423,6 +423,6 @@ test("a record that cannot be read names no commit, and the build still lands", 
     assert.equal(read(PREVIOUS_APK), "build A");
     assert.equal(read(CURRENT_APK), "build B");
     assert.deepEqual(JSON.parse(read("current.json")), { sha: SHA_B });
-    assert.deepEqual(readdirSync(dir).sort(), ["current.apk", "current.json", "previous.apk"]);
+    assert.deepEqual(readdirSync(dir).toSorted(), ["current.apk", "current.json", "previous.apk"]);
   });
 });

@@ -9,16 +9,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runUsageAlertsJob } from "./usage-alerts";
-import {
-  endpoint,
-  makeHarness,
-  type Harness,
-  type StubEndpoint,
-} from "../test/billing-support";
+import { endpoint, makeHarness } from '../test/billing-support';
+import type { Harness, StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
 import { eventsCaptured, resetCaptures } from "../test/capture-mock";
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -480,7 +476,7 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
       endpoint("POST", /\/rest\/v1\/rpc\/api_period_segments/, (call) => {
         const body = call.json() as { p_company_id: string };
         if (body.p_company_id === COMPANY_ID) {
-          return new Response(JSON.stringify({ message: "boom" }), {
+          return Response.json({ message: "boom" }, {
             status: 500,
           });
         }
@@ -527,7 +523,7 @@ describe("#449 — inbound is uncapped, so it is at least visible", () => {
       inboundSegments: 10_000,
       // The RPC counts forward from a timestamp, so the 60-day figure INCLUDES
       // the last 30: 1,700 - 900 = 800 in the month before last.
-      inboundTrailing: [1_700, 900],
+      inboundTrailing: [1700, 900],
     };
     const { harness, done } = run(state);
     await done;
@@ -572,7 +568,7 @@ describe("#449 — inbound is uncapped, so it is at least visible", () => {
     const quiet: UsageState = {
       used: 0,
       ledger: new Set(),
-      inboundSegments: 2_499,
+      inboundSegments: 2499,
     };
     const first = run(quiet);
     await first.done;
@@ -581,7 +577,7 @@ describe("#449 — inbound is uncapped, so it is at least visible", () => {
     const repeat: UsageState = {
       used: 0,
       ledger: new Set(["inbound_volume:2500"]),
-      inboundSegments: 3_000,
+      inboundSegments: 3000,
     };
     const second = run(repeat);
     await second.done;
@@ -609,7 +605,7 @@ describe("#449 — inbound is uncapped, so it is at least visible", () => {
     const state: UsageState = {
       used: 0,
       ledger: new Set(),
-      inboundSegments: 5_000,
+      inboundSegments: 5000,
       inboundTrailing: [0, 0],
     };
     const { done } = run(state);

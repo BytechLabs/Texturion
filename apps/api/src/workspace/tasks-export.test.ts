@@ -95,7 +95,7 @@ async function build(
 describe("#304 the task export", () => {
   it("TE-1: writes a spreadsheet and a document", async () => {
     const { written } = await build();
-    expect([...written.keys()].sort()).toEqual(["c/e1/tasks.csv", "c/e1/tasks.html"]);
+    expect([...written.keys()].toSorted()).toEqual(["c/e1/tasks.csv", "c/e1/tasks.html"]);
   });
 
   it("TE-2: a task on a line they cannot see is not in the file, and is counted", async () => {
@@ -315,7 +315,7 @@ describe("#304 the task export", () => {
       endpoint(
         "GET",
         /\/rest\/v1\/tasks/,
-        () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+        () => Response.json({ message: "boom" }, { status: 500 }),
       ),
     ]);
     stubFetch(h.route);

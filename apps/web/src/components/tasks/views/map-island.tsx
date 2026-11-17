@@ -26,7 +26,8 @@ import { createTileHealth, reportTileFailure } from "@/lib/maps/tile-health";
 
 import { useTaskDrawer } from "../use-task-drawer";
 import { PriorityMark } from "../task-planning-ui";
-import { mapsDirectionsHref, type LocatedTask } from "./map-types";
+import { mapsDirectionsHref } from './map-types';
+import type { LocatedTask } from './map-types';
 
 /**
  * The Leaflet map island (D25 "Map view technology"): Leaflet + OpenStreetMap
@@ -66,7 +67,7 @@ const meIcon = L.divIcon({
 
 /** A round cluster badge scaled by count. */
 function clusterIcon(count: number): L.DivIcon {
-  const size = count < 10 ? 30 : count < 50 ? 38 : 46;
+  const size = count < 10 ? 30 : (count < 50 ? 38 : 46);
   return L.divIcon({
     className: "",
     html:
@@ -221,7 +222,7 @@ function FitBounds({
   const boundsKey = Array.isArray(bounds)
     ? (bounds as [number, number][])
         .map(([lat, lng]) => `${lat},${lng}`)
-        .sort()
+        .toSorted()
         .join("|")
     : "";
   useEffect(() => {

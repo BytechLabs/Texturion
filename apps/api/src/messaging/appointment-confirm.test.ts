@@ -57,9 +57,9 @@ function db(options: {
         data:
           options.remindedTask === undefined
             ? [{ task_id: TASK }]
-            : options.remindedTask === null
+            : (options.remindedTask === null
               ? []
-              : [{ task_id: options.remindedTask }],
+              : [{ task_id: options.remindedTask }]),
         error: null,
       });
     chain.insert = (row: Record<string, unknown>) => {
@@ -136,14 +136,11 @@ describe("#237 confirmAppointmentFromReply", () => {
   it("does nothing for a reply that is not a confirmation", async () => {
     const { client, rpcCalls } = db({});
     for (const body of ["can we do Friday instead?", "no", "STOP"]) {
-      expect(
-        await confirmAppointmentFromReply(client, {
+      await expect(confirmAppointmentFromReply(client, {
           companyId: COMPANY,
           conversationId: CONVERSATION,
           body,
-        }),
-        body,
-      ).toBeNull();
+        })).resolves.toBeNull();
     }
     expect(rpcCalls).toHaveLength(0);
   });

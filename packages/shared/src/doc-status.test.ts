@@ -1,6 +1,5 @@
-import { readFileSync, readdirSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { readdirSync, readFileSync } from "node:fs";
+import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
@@ -23,7 +22,7 @@ import { describe, expect, it } from "vitest";
  * they are. That costs one line at creation and nothing afterwards.
  */
 
-const DOCS = join(dirname(fileURLToPath(import.meta.url)), "..", "..", "..", "docs");
+const DOCS = join(import.meta.dirname, "..", "..", "..", "docs");
 
 /** How far into a file the status may sit. Title, blank line, status. */
 const HEADER_LINES = 12;

@@ -13,7 +13,7 @@ function resolver(table: unknown) {
   return (key: string, vars: Record<string, string> = {}): string => {
     const [section, name] = key.split(".");
     const text = (table as Record<string, Record<string, string>>)[section]?.[name];
-    if (typeof text !== "string") throw new Error(`no entry for ${key}`);
+    if (typeof text !== "string") throw new TypeError(`no entry for ${key}`);
     return Object.entries(vars).reduce(
       (out, [token, value]) => out.split(`{${token}}`).join(value),
       text,
@@ -24,7 +24,7 @@ function resolver(table: unknown) {
 const sayEn = resolver(WEB_EN);
 const sayFr = resolver(WEB_FR);
 
-describe("formatMonthlyCents", () => {
+describe(formatMonthlyCents, () => {
   it("drops cents on whole dollars and keeps them otherwise", () => {
     expect(formatMonthlyCents(500)).toBe("$5");
     expect(formatMonthlyCents(600)).toBe("$6");

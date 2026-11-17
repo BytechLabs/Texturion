@@ -6,7 +6,8 @@ import {
   membershipResponder,
   supabaseStub,
 } from "../test/routes-harness";
-import { completeEnv, createTestAuth, jwksRoute, stubFetch, type TestAuth } from "../test/support";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { REVENUE_SETTING_KEYS } from "@loonext/shared";
 
 import { REVENUE_SETTING_COLUMNS, settingChoicesRoutes } from "./setting-choices";
@@ -60,13 +61,13 @@ async function request(role: "owner" | "member", company: Record<string, unknown
 
 describe("who chose a setting that can lose a customer (#749)", () => {
   it("reads exactly the settings the shared table attributes", () => {
-    expect(REVENUE_SETTING_COLUMNS.split(",").sort()).toEqual([...REVENUE_SETTING_KEYS].sort());
+    expect(REVENUE_SETTING_COLUMNS.split(",").toSorted()).toEqual([...REVENUE_SETTING_KEYS].toSorted());
   });
 
   it("names who moved after-hours calls off the default, and when", async () => {
     const { res } = await request("owner", { ...AT_DEFAULTS, after_hours_calls: "voicemail" });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       data: [
         {
           key: "after_hours_calls",
@@ -81,13 +82,13 @@ describe("who chose a setting that can lose a customer (#749)", () => {
 
   it("says nothing, and asks the log nothing, when every setting is at its default", async () => {
     const { res, latest } = await request("owner", AT_DEFAULTS);
-    expect(await res.json()).toEqual({ data: [] });
+    await expect(res.json()).resolves.toEqual({ data: [] });
     expect(latest).not.toHaveBeenCalled();
   });
 
   it("leaves who chose it empty when no change on record touched it", async () => {
     const { res } = await request("owner", { ...AT_DEFAULTS, away_enabled: true });
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       data: [
         { key: "away_enabled", value: true, default_value: false, chosen_by: null, chosen_at: null },
       ],

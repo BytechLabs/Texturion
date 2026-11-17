@@ -5,55 +5,21 @@
  */
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
 import { decodeCursor, encodeCursor } from "../http/pagination";
-import {
-  CONTACT_IMPORT_COLUMN_FIELD,
-  CONTACT_IMPORT_CONSENT_FIELD,
-  CONTACT_IMPORT_CONSENT_REFUSED_NOTE,
-  CONTACT_IMPORT_CONSENT_REQUIRED,
-  CONTACT_IMPORT_CONSENT_VALUE,
-  CONTACT_IMPORT_IGNORE,
-  CONTACT_IMPORT_MAX_ROWS,
-  CONTACT_IMPORT_UNREADABLE_ENCODING,
-  CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
-  contactImportColumnMismatchMessage,
-  contactImportConsentRefusedReason,
-  contactImportUndeclaredColumnsMessage,
-  contactImportUndeclaredColumnsReference,
-  contactImportUndeclaredPropertiesMessage,
-  contactImportUndeclaredPropertiesReference,
-  contactImportUnreadableFlagMessage,
-  contactImportUnreadableFlagReference,
-  contactImportUnterminatedQuoteMessage,
-  defaultContactImportColumns,
-  formatContactImportColumn,
-  formatVCardProperty,
-  vcardParameterProperty,
-  type ContactImportColumnDeclaration,
-  type ContactImportColumnGuess,
-} from "@loonext/shared";
+import { CONTACT_IMPORT_COLUMN_FIELD, CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_REFUSED_NOTE, CONTACT_IMPORT_CONSENT_REQUIRED, CONTACT_IMPORT_CONSENT_VALUE, CONTACT_IMPORT_IGNORE, CONTACT_IMPORT_MAX_ROWS, CONTACT_IMPORT_UNREADABLE_ENCODING, CONTACT_IMPORT_VCARD_PROPERTY_FIELD, contactImportColumnMismatchMessage, contactImportConsentRefusedReason, contactImportUndeclaredColumnsMessage, contactImportUndeclaredColumnsReference, contactImportUndeclaredPropertiesMessage, contactImportUndeclaredPropertiesReference, contactImportUnreadableFlagMessage, contactImportUnreadableFlagReference, contactImportUnterminatedQuoteMessage, defaultContactImportColumns, formatContactImportColumn, formatVCardProperty, vcardParameterProperty } from '@loonext/shared';
+import type { ContactImportColumnDeclaration, ContactImportColumnGuess } from '@loonext/shared';
 
 import { parseCsvRows } from "./core/csv";
 import {
   CONSENT_ATTEST_ALREADY_RECORDED,
   CONSENT_ATTEST_REFUSED_OPTED_OUT,
-  EXPORT_HEADER,
   contactSearchOr,
   contactsRoutes,
+  EXPORT_HEADER,
 } from "./contacts";
 
 const env = completeEnv();

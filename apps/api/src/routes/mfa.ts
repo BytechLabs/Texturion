@@ -30,7 +30,8 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
 import { renderEmailHtml } from "../email/html";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { errorResponse } from "../http/errors";
 import { parseJsonBody } from "./core/http";
 
@@ -67,7 +68,7 @@ function generateCodes(): string[] {
 
 /** Normalised before hashing so case and the dash never decide a match. */
 function normalise(code: string): string {
-  return code.trim().toUpperCase().replace(/[^0-9A-Z]/g, "");
+  return code.trim().toUpperCase().replaceAll(/[^0-9A-Z]/g, "");
 }
 
 async function hash(code: string): Promise<string> {
@@ -255,7 +256,7 @@ mfaRoutes.post("/mfa/recover", async (c) => {
 
   return c.json({
     removed_factors: removed,
-    recovery_codes_remaining: Number(result.remaining ?? 0),
+    recovery_codes_remaining: (result.remaining ?? 0),
   });
 });
 
@@ -365,10 +366,10 @@ async function notifyAccount(
       text: message.body,
       html: renderEmailHtml(message.body),
     });
-  } catch (cause) {
+  } catch (error) {
     console.error(
       "mfa notification failed:",
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }

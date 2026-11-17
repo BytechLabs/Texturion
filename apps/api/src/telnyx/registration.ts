@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { telnyxRequest, TelnyxApiError } from "./client";
+import { TelnyxApiError, telnyxRequest } from "./client";
 import {
   otpNudgeCopy,
   portAssignmentBlockedCopy,
@@ -11,16 +11,8 @@ import {
   usTextingApprovedWhilePausedCopy,
   usTextingLiveCopy,
 } from "./emails";
-import {
-  brandDraftSchema,
-  buildBrandPayload,
-  buildCampaignContentUpdate,
-  buildCampaignPayload,
-  campaignDraftSchema,
-  isSoleProprietorDraft,
-  type BrandDraft,
-  type CampaignDraft,
-} from "./wizard";
+import { brandDraftSchema, buildBrandPayload, buildCampaignContentUpdate, buildCampaignPayload, campaignDraftSchema, isSoleProprietorDraft } from './wizard';
+import type { BrandDraft, CampaignDraft } from './wizard';
 import { capture } from "../analytics/posthog";
 import { billingRecipients } from "../billing/recipients";
 import { owesUsRegistration } from "../billing/registration-draft";
@@ -246,7 +238,7 @@ function formatReasons(value: unknown): string | null {
       .map((item) => {
         if (typeof item === "string") return item;
         if (item !== null && typeof item === "object") {
-          const description = (item as { description?: unknown }).description;
+          const {description} = (item as { description?: unknown });
           if (typeof description === "string") return description;
           return JSON.stringify(item);
         }
@@ -457,10 +449,10 @@ async function sendOperationalEmail(
   try {
     const to = await billingRecipients(env, companyId, db);
     if (to.length > 0) await sendEmail(env, { to, ...copy });
-  } catch (cause) {
+  } catch (error) {
     // Emails are best-effort side effects of an already-applied transition;
     // a Resend outage must not wedge the state machine.
-    void captureException(env, cause, { source: "api" });
+    void captureException(env, error, { source: "api" });
   }
 }
 
@@ -546,8 +538,8 @@ async function applyTransition(
     // this attempt fails — see pollRegistrations).
     try {
       await submitCampaignIfReady(env, db, company, updated);
-    } catch (cause) {
-      void captureException(env, cause, { source: "api" });
+    } catch (error) {
+      void captureException(env, error, { source: "api" });
     }
   }
   const reinstated = mapped.next === "approved" && row.status === "suspended";
@@ -563,8 +555,8 @@ async function applyTransition(
     // needs it for a different reason. Reinstatement gets its own copy.
     try {
       await assignNumbersToCampaign(env, db, updated);
-    } catch (cause) {
-      void captureException(env, cause, { source: "api" });
+    } catch (error) {
+      void captureException(env, error, { source: "api" });
     }
     // #525 — is this workspace PAUSED, and therefore unable to use what was
     // just approved?
@@ -626,8 +618,8 @@ async function applyTransition(
     // suspension it replaced.
     try {
       await assignNumbersToCampaign(env, db, updated);
-    } catch (cause) {
-      void captureException(env, cause, { source: "api" });
+    } catch (error) {
+      void captureException(env, error, { source: "api" });
     }
     // #525: branched for the same reason the approval branch above is. The
     // running copy says texts are sending "right now, with nothing for you to
@@ -1038,8 +1030,8 @@ async function submitBrand(
     // fail the submission itself.
     try {
       await triggerBrandOtp(env, telnyxId);
-    } catch (cause) {
-      void captureException(env, cause, { source: "api" });
+    } catch (error) {
+      void captureException(env, error, { source: "api" });
     }
   }
   return updated;
@@ -1217,13 +1209,13 @@ async function runSubmitRegistration(
         "reactivation",
       );
       return { action: "campaign_reactivated", brand, campaign: updated };
-    } catch (cause) {
+    } catch (error) {
       // #40 terminal state: budget spent → 409 'contact support' via the
       // route's noop mapping; the one-shot owner email already went out.
-      if (cause instanceof CampaignSubmissionCapError) {
-        return { action: "noop", reason: cause.message };
+      if (error instanceof CampaignSubmissionCapError) {
+        return { action: "noop", reason: error.message };
       }
-      throw cause;
+      throw error;
     }
   }
 
@@ -1255,11 +1247,11 @@ async function runSubmitRegistration(
         "review",
       );
       return { action: "campaign_submitted", brand, campaign: updated };
-    } catch (cause) {
-      if (cause instanceof CampaignSubmissionCapError) {
-        return { action: "noop", reason: cause.message };
+    } catch (error) {
+      if (error instanceof CampaignSubmissionCapError) {
+        return { action: "noop", reason: error.message };
       }
-      throw cause;
+      throw error;
     }
   }
 
@@ -1382,7 +1374,7 @@ export async function assignNumbersToCampaign(
   const ledger = assignmentLedger(campaign);
   let changed = false;
   for (const item of data ?? []) {
-    const e164 = (item as { number_e164: string }).number_e164;
+    const e164 = (item).number_e164;
     if (ledger[e164] === "added" || ledger[e164] === "pending") continue;
     let status: AssignmentState;
     try {
@@ -1392,9 +1384,9 @@ export async function assignNumbersToCampaign(
         body: { phoneNumber: e164, campaignId: campaign.telnyx_id },
       });
       status = "pending";
-    } catch (cause) {
+    } catch (error_) {
       status = "failed";
-      void captureException(env, cause, { source: "api" });
+      void captureException(env, error_, { source: "api" });
     }
     // Per-key atomic merge (not a whole-object write) so a concurrent
     // phone_number.update webhook's ledger entry isn't clobbered here.
@@ -1506,19 +1498,19 @@ export async function updateCampaignContent(
       path: `/v2/10dlc/campaign/${campaign.telnyx_id}`,
       body: buildCampaignContentUpdate({ campaign: draft, businessName }),
     });
-  } catch (cause) {
-    if (cause instanceof TelnyxApiError && cause.status === 422) {
+  } catch (error) {
+    if (error instanceof TelnyxApiError && error.status === 422) {
       // Defense in depth: content this specific campaign cannot accept is a
       // per-tenant data problem, not a poll-stopping outage. Report and skip;
       // any other failure (5xx, transport) propagates so the poll retries.
-      void captureException(env, cause, {
+      void captureException(env, error, {
         source: "api",
         company_id: campaign.company_id,
         extra: { telnyx_campaign_id: campaign.telnyx_id, step: "content migration" },
       });
       return false;
     }
-    throw cause;
+    throw error;
   }
   return true;
 }
@@ -1734,8 +1726,8 @@ export async function pollRegistrations(env: Env): Promise<PollSummary> {
           : mapCampaignRemote(remote, row.status);
       const updated = await applyTransition(env, db, company, row, mapped);
       if (updated.status !== row.status) summary.transitioned += 1;
-    } catch (cause) {
-      failures.push(cause);
+    } catch (error_) {
+      failures.push(error_);
     }
   }
 
@@ -1754,11 +1746,11 @@ export async function pollRegistrations(env: Env): Promise<PollSummary> {
       const company = await fetchCompany(db, brand.company_id);
       if (company.subscription_status === "canceled") continue;
       const { campaign } = await fetchRegistrationRows(db, brand.company_id);
-      if (campaign && campaign.status === "draft" && campaign.deactivated_at === null) {
+      if (campaign?.status === "draft" && campaign.deactivated_at === null) {
         await submitCampaignIfReady(env, db, company, brand);
       }
-    } catch (cause) {
-      failures.push(cause);
+    } catch (error_) {
+      failures.push(error_);
     }
   }
 
@@ -1781,15 +1773,15 @@ export async function pollRegistrations(env: Env): Promise<PollSummary> {
       if (await updateCampaignContent(env, db, campaign)) {
         summary.contentUpdated += 1;
       }
-    } catch (cause) {
-      failures.push(cause);
+    } catch (error_) {
+      failures.push(error_);
     }
   }
 
   try {
     summary.assignmentsRetried = await retryCampaignAssignments(env);
-  } catch (cause) {
-    failures.push(cause);
+  } catch (error_) {
+    failures.push(error_);
   }
 
   if (failures.length > 0) {
@@ -1872,11 +1864,11 @@ export async function deactivateCampaign(
       method: "DELETE",
       path: `/v2/10dlc/campaign/${campaign.telnyx_id}`,
     });
-  } catch (cause) {
+  } catch (error) {
     // Already gone on the Telnyx side → converge; real failures propagate so
     // the daily cron retries (the fee keeps billing until this succeeds).
-    if (!(cause instanceof TelnyxApiError && cause.status === 404)) {
-      throw cause;
+    if (!(error instanceof TelnyxApiError && error.status === 404)) {
+      throw error;
     }
   }
   return updateRow(db, campaign.id, {
@@ -1959,8 +1951,7 @@ export async function getSendGates(
 
   const usApproved =
     (company.country === "US" || company.us_texting_enabled) &&
-    campaign !== null &&
-    campaign.status === "approved" &&
+    campaign?.status === "approved" &&
     campaign.deactivated_at === null;
 
   return {

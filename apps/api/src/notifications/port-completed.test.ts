@@ -17,7 +17,7 @@ import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
 
 const deliverPush = vi.fn();
-vi.mock("./deliver", () => ({
+vi.mock(import("./deliver"), () => ({
   deliverPush: (...args: unknown[]) => deliverPush(...args),
 }));
 
@@ -51,7 +51,7 @@ describe("#319 port completion push", () => {
     stub([{ user_id: OWNER }, { user_id: CREW }], []);
     await pushPortCompleted(env, getDb(env), COMPANY_ID, NUMBER);
 
-    expect(deliverPush).toHaveBeenCalledTimes(1);
+    expect(deliverPush).toHaveBeenCalledOnce();
     const payload = deliverPush.mock.calls[0][2] as {
       userIds: string[];
       // #228: composed per reader, so a copy assertion names its language.
@@ -62,7 +62,7 @@ describe("#319 port completion push", () => {
       };
       collapseKey: string;
     };
-    expect(payload.userIds.sort()).toEqual([OWNER, CREW].sort());
+    expect(payload.userIds.toSorted()).toEqual([OWNER, CREW].toSorted());
     const web = payload.web("en");
     // The number is in the body on purpose: a crew mid-port may be moving more
     // than one line, and "your number" would not say which.
@@ -91,7 +91,7 @@ describe("#319 port completion push", () => {
     // Never having visited the notifications screen is not an opt-out.
     stub([{ user_id: OWNER }], []);
     await pushPortCompleted(env, getDb(env), COMPANY_ID, NUMBER);
-    expect(deliverPush).toHaveBeenCalledTimes(1);
+    expect(deliverPush).toHaveBeenCalledOnce();
   });
 
   it("obeys push_enabled, because this is not a side door", async () => {
@@ -139,7 +139,7 @@ describe("#319 port completion push", () => {
       "GET",
       /company_members/,
       () =>
-        new Response(JSON.stringify({ message: "db down" }), {
+        Response.json({ message: "db down" }, {
           status: 500,
           headers: { "Content-Type": "application/json" },
         }),

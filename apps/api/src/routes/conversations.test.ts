@@ -6,21 +6,10 @@
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { encodeCursor } from "../http/pagination";
-import {
-  apiRequest,
-  buildTestApp,
-  membershipResponder,
-  supabaseStub,
-  type SupabaseStub,
-} from "../test/routes-harness";
-import {
-  completeEnv,
-  createTestAuth,
-  type FetchRoute,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
+import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
+import type { SupabaseStub } from '../test/routes-harness';
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { FetchRoute, TestAuth } from '../test/support';
 import { conversationsRoutes } from "./conversations";
 
 const env = completeEnv();
@@ -105,7 +94,7 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [], next_cursor: null });
+    await expect(res.json()).resolves.toEqual({ data: [], next_cursor: null });
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0];
     expect(rpc.body).toEqual({
@@ -117,7 +106,7 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       p_tag_id: TAG_ID,
       p_is_spam: false,
       p_unread: true,
-      p_q: "smith\\_50\\%", // LIKE wildcards escaped
+      p_q: String.raw`smith\_50\%`, // LIKE wildcards escaped
       p_cursor_ts: "2026-07-01T10:00:00+00:00",
       p_cursor_id: CONV_ID,
       p_pinned: null,
@@ -413,8 +402,8 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       // presenting a guess as a fact.
       source: "area_code",
     });
-    expect(typeof clock.local_hour).toBe("number");
-    expect(typeof clock.quiet).toBe("boolean");
+    expect(clock.local_hour).toBeTypeOf("number");
+    expect(clock.quiet).toBeTypeOf("boolean");
   });
 
   it("returns conversation + contact + tags + messages page with attachments", async () => {
@@ -702,7 +691,7 @@ describe("PATCH /v1/conversations/:id (events per changed field)", () => {
     const update = sb.find("PATCH", "/rest/v1/conversations")[0]
       .body as Record<string, unknown>;
     expect(update.status).toBe("closed");
-    expect(typeof update.closed_at).toBe("string");
+    expect(update.closed_at).toBeTypeOf("string");
 
     const events = sb.find("POST", "/rest/v1/conversation_events")[0]
       .body as unknown[];
@@ -803,7 +792,7 @@ describe("PATCH /v1/conversations/:id (events per changed field)", () => {
     });
     const events = sb.find("POST", "/rest/v1/conversation_events")[0]
       .body as { type: string }[];
-    expect(events.map((e) => e.type).sort()).toEqual([
+    expect(events.map((e) => e.type).toSorted()).toEqual([
       "assigned",
       "status_changed",
     ]);
@@ -822,7 +811,7 @@ describe("PATCH /v1/conversations/:id (events per changed field)", () => {
       .body as Record<string, unknown>;
     expect(update.is_spam).toBe(true);
     expect(update.status).toBe("closed");
-    expect(typeof update.closed_at).toBe("string");
+    expect(update.closed_at).toBeTypeOf("string");
     const events = sb.find("POST", "/rest/v1/conversation_events")[0]
       .body as { type: string }[];
     expect(events.map((e) => e.type)).toEqual(["spam_marked"]);
@@ -902,7 +891,7 @@ describe("PATCH /v1/conversations/:id (events per changed field)", () => {
 
     const update = sb.find("PATCH", "/rest/v1/conversations")[0]
       .body as Record<string, unknown>;
-    expect(typeof update.pinned_at).toBe("string");
+    expect(update.pinned_at).toBeTypeOf("string");
     expect(update.pinned_by_user_id).toBe(auth.subject);
     // A pin is organizational — no conversation_events row.
     expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
@@ -1056,7 +1045,7 @@ describe("POST /v1/conversations/:id/notes", () => {
     );
     expect(res.status).toBe(201);
     // An unlinked note carries task: null (no task_id in the body).
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       ...noteRow(),
       attachments: [],
       task: null,
@@ -1664,7 +1653,7 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
       { method: "POST", companyId: COMPANY_ID, body: { tag_id: TAG_ID } },
     );
     expect(res.status).toBe(201);
-    expect(await res.json()).toEqual({ id: TAG_ID, name: "Won", color: null });
+    await expect(res.json()).resolves.toEqual({ id: TAG_ID, name: "Won", color: null });
     const events = sb.find("POST", "/rest/v1/conversation_events")[0]
       .body as unknown[];
     expect(events).toEqual([
@@ -1733,7 +1722,7 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
       p_company_id: COMPANY_ID,
       p_name: "VIP*",
     });
-    expect(await res.json()).toMatchObject({ id: TAG_ID });
+    await expect(res.json()).resolves.toMatchObject({ id: TAG_ID });
   });
 
   it("already-attached tag: 200, no duplicate event", async () => {
@@ -2011,7 +2000,7 @@ describe("POST /v1/conversations/bulk (#275)", () => {
     // escapeLike backslash-escapes the LIKE wildcards, so "50%" reaches the
     // function as the literal characters 5, 0, \, % — matching a contact called
     // "50%" rather than every contact starting with "50".
-    expect(calls[0].p_q).toBe("50\\%");
+    expect(calls[0].p_q).toBe(String.raw`50\%`);
   });
 });
 
@@ -2200,7 +2189,7 @@ describe("#293 snooze routes", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       snoozed_until: "2026-08-06T15:00:00+00:00",
       snooze_note: "waiting on the supplier",
     });

@@ -32,7 +32,8 @@ import { idempotencyKey } from "../billing/idempotency";
 import { getStripe } from "../billing/stripe";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { getEnv, type Env } from "../env";
+import { getEnv } from '../env';
+import type { Env } from '../env';
 import { errorResponse } from "../http/errors";
 import { parseOptionalJsonBody } from "./core/http";
 import { releaseCompanyNumbers } from "../telnyx/provisioning";
@@ -264,11 +265,11 @@ async function endEveryMembersAccess(
       ended += result.sessions;
       devices += result.devices;
       voice += result.voice;
-    } catch (cause) {
+    } catch (error) {
       void captureException(
         env,
         `workspace close: session revoke failed for ${userId}: ${
-          cause instanceof Error ? cause.message : String(cause)
+          error instanceof Error ? error.message : String(error)
         }`,
         { source: "api" },
       );
@@ -316,14 +317,14 @@ async function releaseNumbers(env: Env, companyId: string): Promise<number> {
     // per-number failures in aggregate.
     const released = await releaseCompanyNumbers(env, companyId);
     return released.length;
-  } catch (cause) {
+  } catch (error) {
     // Never fatal: a carrier blip must not leave the workspace open. The
     // customer asked to leave, and a number we still hold is a cost to US, not
     // a risk to them — the daily release cron re-attempts it.
     void captureException(
       env,
       `workspace close: number release failed for ${companyId}: ${
-        cause instanceof Error ? cause.message : String(cause)
+        error instanceof Error ? error.message : String(error)
       }`,
       { source: "api" },
     );
@@ -345,11 +346,11 @@ async function cancelSubscription(
       idempotencyKey: idempotencyKey(companyId, "workspace_close", subscriptionId),
     });
     return true;
-  } catch (cause) {
+  } catch (error) {
     void captureException(
       env,
       `workspace close: subscription cancel failed for ${companyId}: ${
-        cause instanceof Error ? cause.message : String(cause)
+        error instanceof Error ? error.message : String(error)
       }`,
       { source: "api" },
     );

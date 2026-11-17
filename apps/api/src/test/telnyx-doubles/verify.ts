@@ -53,7 +53,7 @@ export async function verifyTelnyxWebhook(
     if (!valid) return null;
     const parsed: unknown = JSON.parse(rawBody);
     return typeof parsed === "object" && parsed !== null
-      ? (parsed as object)
+      ? (parsed)
       : null;
   } catch {
     return null;

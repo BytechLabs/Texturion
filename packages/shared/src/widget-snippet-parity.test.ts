@@ -66,14 +66,9 @@ describe("#232 the snippet is the same line on every client", () => {
     // The attributes are the markup's whole contract: a visitor's browser reads
     // these and nothing else about how the string was assembled.
     const ATTRIBUTES = ["src=", "data-key=", "data-lang=", "defer"];
-    for (const [client, body] of Object.entries(bodies)) {
+    for (const [_client, body] of Object.entries(bodies)) {
       for (const attribute of ATTRIBUTES) {
-        expect(
-          body.includes(attribute),
-          `${client}'s snippet does not emit ${attribute}. The three builders ` +
-            `are hand-ports of one line, and an owner copying from this client ` +
-            `pastes something different from what the others give.`,
-        ).toBe(true);
+        expect(body).toContain(attribute);
       }
     }
   });

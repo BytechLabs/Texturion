@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import {
   applyMergeFields,
   hasMergeFields,
-  mergeFieldsNeeded,
   MERGE_FIELD_TOKENS,
+  mergeFieldsNeeded,
 } from "./merge-fields";
 
 describe("applyMergeFields — substitution", () => {
@@ -91,7 +91,7 @@ describe("applyMergeFields — graceful degradation", () => {
   });
 });
 
-describe("hasMergeFields", () => {
+describe(hasMergeFields, () => {
   it("detects supported tokens", () => {
     expect(hasMergeFields("Hi {first_name}")).toBe(true);
     expect(hasMergeFields("Business: {business_name}")).toBe(true);

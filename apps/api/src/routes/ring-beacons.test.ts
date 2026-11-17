@@ -20,22 +20,12 @@ import {
   supabaseStub,
 } from "../test/routes-harness";
 import { captured, eventsCaptured, resetCaptures } from "../test/capture-mock";
-import {
-  completeEnv,
-  createTestAuth,
-  jwksRoute,
-  stubFetch,
-  type TestAuth,
-} from "../test/support";
-import {
-  RING_BEACON_PERMISSIONS,
-  RING_BEACON_STAGES,
-  RING_BEACON_STANDBY_BUCKETS,
-  ringBeaconsRoutes,
-  type RingBeaconStage,
-} from "./ring-beacons";
+import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
+import type { TestAuth } from '../test/support';
+import { RING_BEACON_PERMISSIONS, RING_BEACON_STAGES, RING_BEACON_STANDBY_BUCKETS, ringBeaconsRoutes } from './ring-beacons';
+import type { RingBeaconStage } from './ring-beacons';
 
-vi.mock("../observability/capture", async () =>
+vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
 
@@ -92,7 +82,7 @@ const beacons = () => eventsCaptured("ring_beacon").map((event) => event.propert
 describe("POST /v1/ring-beacons", () => {
   it("relays one stage under the workspace, with the device state, the member and the build", async () => {
     stubs();
-    const occurredAt = new Date(Date.now() - 2_000).toISOString();
+    const occurredAt = new Date(Date.now() - 2000).toISOString();
 
     const res = await post({
       call_session_id: SESSION,
@@ -112,7 +102,7 @@ describe("POST /v1/ring-beacons", () => {
     });
 
     expect(res.status).toBe(202);
-    expect(await res.json()).toEqual({ recorded: true });
+    await expect(res.json()).resolves.toEqual({ recorded: true });
     expect(eventsCaptured("ring_beacon")).toEqual([
       {
         event: "ring_beacon",
@@ -145,7 +135,7 @@ describe("POST /v1/ring-beacons", () => {
     await post({
       call_session_id: SESSION,
       stage: "answered",
-      occurred_at: new Date(Date.now() - 1_000).toISOString(),
+      occurred_at: new Date(Date.now() - 1000).toISOString(),
       os: "ios-17.4",
       permissions: { notifications: "granted" },
       standby_bucket: "active",
@@ -184,7 +174,7 @@ describe("POST /v1/ring-beacons", () => {
     expect(res.status).toBe(202);
     const [beacon] = beacons();
     // Exact, not a subset: an unknown permission name is the leak this filters.
-    expect(beacon!.permissions).toEqual({ notifications: "granted" });
+    expect(beacon.permissions).toEqual({ notifications: "granted" });
     expect(beacon).toMatchObject({
       stage: "push_received",
       occurred_at: null,
@@ -253,7 +243,7 @@ describe("POST /v1/ring-beacons", () => {
 
     const res = await post({ call_session_id: SESSION, stage: "answered" }, undefined, limited.env);
 
-    expect(await res.json()).toEqual({ recorded: true });
+    await expect(res.json()).resolves.toEqual({ recorded: true });
     expect(limited.limit).toHaveBeenCalledWith({
       key: `ring-beacon:${COMPANY_ID}:${auth.subject}`,
     });
@@ -267,7 +257,7 @@ describe("POST /v1/ring-beacons", () => {
     const res = await post({ call_session_id: SESSION, stage: "answered" }, undefined, limited.env);
 
     expect(res.status).toBe(202);
-    expect(await res.json()).toEqual({ recorded: false });
+    await expect(res.json()).resolves.toEqual({ recorded: false });
     expect(captured).toEqual([]);
   });
 });
@@ -287,7 +277,7 @@ describe("the clients send this server's vocabulary", () => {
     expect(from, `marker "${start}" not found`).toBeGreaterThanOrEqual(0);
     const to = source.indexOf(end, from + start.length);
     const block = source.slice(from, to);
-    return [...block.matchAll(/"([a-z_]+)"/g)].map((match) => match[1]!);
+    return [...block.matchAll(/"([a-z_]+)"/g)].map((match) => match[1]);
   }
 
   const clients = {
@@ -319,7 +309,7 @@ describe("the clients send this server's vocabulary", () => {
       const found = words();
       // An empty read is a moved marker, not agreement.
       expect(found.length).toBeGreaterThan(0);
-      expect([...new Set(found)].sort()).toEqual([...RING_BEACON_STAGES].sort());
+      expect([...new Set(found)].toSorted()).toEqual([...RING_BEACON_STAGES].toSorted());
     });
   }
 
@@ -337,13 +327,13 @@ describe("the clients send this server's vocabulary", () => {
 
   /** Swift case or Kotlin constant name -> wire word, from a client's enum. */
   function wireNames(source: string, pattern: RegExp): Map<string, string> {
-    return new Map([...source.matchAll(pattern)].map((match) => [match[1]!, match[2]!]));
+    return new Map([...source.matchAll(pattern)].map((match) => [match[1], match[2]]));
   }
 
   const emitted = {
     web: () => {
       const provider = read("apps", "web", "src", "lib", "softphone", "provider.tsx");
-      return [...provider.matchAll(/emitRingBeacon\([^,]+,\s*"([a-z_]+)"/g)].map((m) => m[1]!);
+      return [...provider.matchAll(/emitRingBeacon\([^,]+,\s*"([a-z_]+)"/g)].map((m) => m[1]);
     },
     android: () => {
       const root = ["apps", "android", "app", "src", "main", "kotlin", "com", "loonext", "android"];
@@ -355,7 +345,7 @@ describe("the clients send this server's vocabulary", () => {
         read(...root, "telephony", "SoftphoneManager.kt"),
         read(...root, "push", "LoonextMessagingService.kt"),
       ].join("\n");
-      return [...callers.matchAll(/RingBeaconStage\.([A-Z_]+)/g)].map((m) => names.get(m[1]!) ?? m[1]!);
+      return [...callers.matchAll(/RingBeaconStage\.([A-Z_]+)/g)].map((m) => names.get(m[1]) ?? m[1]);
     },
     ios: () => {
       const dir = ["apps", "ios", "Loonext", "Features", "Calls", "Telephony"];
@@ -365,15 +355,15 @@ describe("the clients send this server's vocabulary", () => {
       );
       const manager = read(...dir, "CallsManager.swift");
       return [...manager.matchAll(/\bbeacon(?:IfRinging)?\(\s*\.(\w+)/g)].map(
-        (m) => names.get(m[1]!) ?? m[1]!,
+        (m) => names.get(m[1]) ?? m[1],
       );
     },
   };
 
   for (const [client, sites] of Object.entries(emitted)) {
     it(`${client} still sends every stage it is meant to, and only those`, () => {
-      const found = [...new Set(sites())].sort();
-      expect([...found]).toEqual([...SENT_BY[client]!].sort());
+      const found = [...new Set(sites())].toSorted();
+      expect([...found]).toEqual([...SENT_BY[client]].toSorted());
     });
   }
 

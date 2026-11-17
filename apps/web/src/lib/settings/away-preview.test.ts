@@ -6,7 +6,7 @@ import {
   SAMPLE_FIRST_NAME,
 } from "./away-preview";
 
-describe("previewAwayMessage", () => {
+describe(previewAwayMessage, () => {
   it("resolves {first_name} (sample) and {business_name}", () => {
     expect(
       previewAwayMessage(
@@ -23,7 +23,7 @@ describe("previewAwayMessage", () => {
   });
 });
 
-describe("previewMissedCallText", () => {
+describe(previewMissedCallText, () => {
   it("resolves {business_name}", () => {
     expect(
       previewMissedCallText(

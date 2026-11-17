@@ -31,12 +31,12 @@
  *    and if it lands on an unlisted surface nothing catches it. The colour is
  *    fine; the translucency is the defect, every time.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
-import { MIN_FOCUS_CONTRAST, classifyFocusStop } from "../../../../scripts/focus-classify.mjs";
+import { classifyFocusStop, MIN_FOCUS_CONTRAST } from "../../../../scripts/focus-classify.mjs";
 
 /** A stop that is fine, so each test can change exactly one thing. */
 const OK = {
@@ -162,7 +162,7 @@ describe("#238 the focus walk's verdict", () => {
  */
 function stripComments(text: string): string {
   return text
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
+    .replaceAll(/\/\*[\s\S]*?\*\//g, " ")
     .split("\n")
     .filter((line) => !/^\s*(\/\/|\*)/.test(line))
     .join("\n");

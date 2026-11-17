@@ -60,9 +60,9 @@ export function MobileTabBar() {
             const count =
               item.href === "/for-you"
                 ? forYouCount
-                : item.href === "/inbox"
+                : (item.href === "/inbox"
                   ? inboxCount
-                  : 0;
+                  : 0);
             const showCount = count > 0;
             const label = t(item.labelKey);
             return (

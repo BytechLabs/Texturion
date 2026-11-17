@@ -35,7 +35,7 @@ describe("holding the realtime socket", () => {
     expect(
       shouldHoldRealtime({
         visibility: "background",
-        backgroundedForMs: 5_000,
+        backgroundedForMs: 5000,
         callActive: false,
       }),
     ).toBe(true);

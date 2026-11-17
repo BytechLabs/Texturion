@@ -6,11 +6,11 @@ import { toast } from "sonner";
 
 import {
   copyFor,
-  resolveLocale,
   ON_MY_WAY_COPY,
   ON_MY_WAY_PRESETS,
   onMyWayPresetLabel,
   onMyWayText,
+  resolveLocale,
 } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
@@ -105,12 +105,12 @@ export function OnMyWay({
           copyFor(resolveLocale(contactLocale, company.data?.locale ?? null)).onMyWay,
         ),
       });
-    } catch (cause) {
+    } catch (error) {
       // The server's words. A refusal here is usually a RULE — they opted out,
       // it is outside quiet hours — and "couldn't send" would read as the
       // button being broken rather than as the rule working.
       toast.error(
-        cause instanceof ApiError ? cause.message : t("thread.sendFailed"),
+        error instanceof ApiError ? error.message : t("thread.sendFailed"),
       );
     }
   }
