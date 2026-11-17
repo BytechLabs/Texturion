@@ -192,6 +192,7 @@ const SUITES = [
   // #691: deleting messages, conversations, calls and voicemails; the 30-day
   // Trash; the purge that leaves usage and opt-out evidence alone.
   "deletion_and_trash",
+  "contact_trash",
   // Gapless per-topic broadcast sequence, so a client can see a lost delivery.
   "realtime_sequence",
   // #689 D: who follows a task, the 60-second push collapse, and the overdue re-arm.
