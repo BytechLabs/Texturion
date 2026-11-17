@@ -1,9 +1,10 @@
-import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { join } from "node:path";
+import { relative } from "node:path";
 import { fileURLToPath } from "node:url";
 import type { Node } from "typescript";
 import { expect, it } from "vitest";
+
+import { productionSources, sourceText } from "../test/source-tree";
 
 const ts = createRequire(import.meta.url)("typescript") as typeof import("typescript");
 const sourceRoot = fileURLToPath(new URL("../", import.meta.url));
@@ -21,7 +22,7 @@ const rawFetchAllowlist: Record<string, number> = {
 };
 
 function rawFetchLines(file: string): number[] {
-  const text = readFileSync(join(sourceRoot, file), "utf8");
+  const text = sourceText(file);
   if (!/\bfetch\s*(?:\?\.\s*)?\(/.test(text)) return [];
   const source = ts.createSourceFile(file, text, ts.ScriptTarget.Latest, true);
   const lines: number[] = [];
@@ -43,12 +44,10 @@ function rawFetchLines(file: string): number[] {
 }
 
 it("routes new outbound fetch calls through a deadline", () => {
-  const files = readdirSync(sourceRoot, { encoding: "utf8", recursive: true }).map((path) =>
-    path.replaceAll("\\", "/"),
-  ).filter((file) => file.endsWith(".ts") && !file.endsWith(".test.ts") &&
-    !file.startsWith("test/") && file !== "http/deadline.ts");
-  const violations = files.flatMap((file) =>
-    rawFetchLines(file).slice(rawFetchAllowlist[file] ?? 0).map((line) => `${file}:${line}`),
-  );
+  const violations = productionSources(sourceRoot).flatMap((path) => {
+    const file = relative(sourceRoot, path).replaceAll("\\", "/");
+    if (file.startsWith("test/") || file === "http/deadline.ts") return [];
+    return rawFetchLines(path).slice(rawFetchAllowlist[file] ?? 0).map((line) => `${file}:${line}`);
+  });
   expect(violations).toEqual([]);
 });
