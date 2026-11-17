@@ -1,6 +1,13 @@
 import { getStripe } from "./stripe";
 import type { Env } from "../env";
 
+export const METER_TIMEOUT_MS = 10_000;
+
+interface MeterRetry {
+  timestamp: number;
+  timeout: number;
+}
+
 export interface SegmentUsage {
   stripeCustomerId: string;
   /** Outbound segments to bill (MMS rows carry 3 — SPEC §2, §9). */
@@ -36,28 +43,36 @@ async function reportMeterEvent(
   env: Env,
   eventName: string,
   usage: { stripeCustomerId: string; value: number; identifier: string },
+  retry?: MeterRetry,
 ): Promise<void> {
   if (!Number.isInteger(usage.value) || usage.value < 1) {
     throw new Error(
       `reportMeterEvent(${eventName}): value must be a positive integer, got ${usage.value}`,
     );
   }
-  await getStripe(env).billing.meterEvents.create({
-    event_name: eventName,
-    identifier: usage.identifier,
-    payload: {
-      stripe_customer_id: usage.stripeCustomerId,
-      value: String(usage.value),
+  await getStripe(env).billing.meterEvents.create(
+    {
+      event_name: eventName,
+      identifier: usage.identifier,
+      timestamp: retry?.timestamp,
+      payload: {
+        stripe_customer_id: usage.stripeCustomerId,
+        value: String(usage.value),
+      },
     },
-  });
+    retry
+      ? { timeout: retry.timeout, maxNetworkRetries: 0 }
+      : { timeout: METER_TIMEOUT_MS },
+  );
 }
 
 /** SMS segments → the `sms_segments` meter (SPEC §9). */
 export async function reportSegmentUsage(
   env: Env,
   usage: SegmentUsage,
+  retry?: MeterRetry,
 ): Promise<void> {
-  return reportMeterEvent(env, env.STRIPE_SMS_METER_EVENT_NAME, usage);
+  return reportMeterEvent(env, env.STRIPE_SMS_METER_EVENT_NAME, usage, retry);
 }
 
 /**
@@ -71,9 +86,10 @@ export async function reportSegmentUsage(
 export async function reportVoiceSeconds(
   env: Env,
   usage: VoiceSecondsUsage,
+  retry?: MeterRetry,
 ): Promise<void> {
   if (!env.STRIPE_VOICE_METER_EVENT_NAME) {
     throw new Error("reportVoiceSeconds: STRIPE_VOICE_METER_EVENT_NAME is not set");
   }
-  return reportMeterEvent(env, env.STRIPE_VOICE_METER_EVENT_NAME, usage);
+  return reportMeterEvent(env, env.STRIPE_VOICE_METER_EVENT_NAME, usage, retry);
 }

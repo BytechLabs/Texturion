@@ -29,6 +29,8 @@ vi.mock(import("../observability/capture"), async () =>
 
 const TELNYX_ID = "40385f64-5717-4562-b3fc-2c963f66cccc";
 
+const METER_CREATED_AT = "2026-11-01T12:00:00.000Z";
+
 let env: Env;
 
 beforeEach(() => {
@@ -369,7 +371,9 @@ describe("reportUnreportedUsage — work done, not just execution (#333)", () =>
         id: "u-1",
         quantity: 2,
         meter_identifier: TELNYX_ID,
-        created_at: new Date().toISOString(),
+        company_id: "c-1",
+        created_at: METER_CREATED_AT,
+        report_attempts: 0,
         companies: { stripe_customer_id: "cus_123" },
       },
     ]).route;
@@ -391,6 +395,7 @@ describe("reportUnreportedUsage — work done, not just execution (#333)", () =>
     // The job runs hourly, succeeds hourly, and every Stripe call errors.
     stubFetch(
       outstanding(),
+      stubRoute(restMatch(env, "PATCH", "usage_events"), () => new Response(null, { status: 204 })).route,
       stubRoute(
         (url, request) =>
           request.method === "POST" &&
@@ -421,12 +426,18 @@ describe(reportUnreportedUsage, () => {
           id: "u-1",
           quantity: 2,
           meter_identifier: TELNYX_ID,
+          company_id: "c-1",
+          created_at: METER_CREATED_AT,
+          report_attempts: 0,
           companies: { stripe_customer_id: "cus_123" },
         },
         {
           id: "u-2",
           quantity: 3,
           meter_identifier: null,
+          company_id: "c-1",
+          created_at: METER_CREATED_AT,
+          report_attempts: 0,
           companies: { stripe_customer_id: null },
         },
       ],
@@ -444,10 +455,12 @@ describe(reportUnreportedUsage, () => {
 
     await reportUnreportedUsage(env);
 
-    // Selected by the local stamp gate.
-    expect(usageQuery.calls[0].url.searchParams.get("stripe_reported_at")).toBe(
-      "is.null",
-    );
+    const query = usageQuery.calls[0].url.searchParams;
+    expect(query.get("stripe_reported_at")).toBe("is.null");
+    expect(query.get("select")).toContain("companies!inner(stripe_customer_id)");
+    expect(query.get("companies.stripe_customer_id")).toBe("not.is.null");
+    expect(query.get("report_next_at")).toMatch(/^lte\./);
+    expect(query.get("order")).toBe("report_next_at.asc,created_at.asc");
 
     // One meter event (u-1); u-2 has no customer yet and is skipped.
     expect(meter.calls).toHaveLength(1);
@@ -455,6 +468,7 @@ describe(reportUnreportedUsage, () => {
     expect(form.get("identifier")).toBe(TELNYX_ID);
     expect(form.get("payload[stripe_customer_id]")).toBe("cus_123");
     expect(form.get("payload[value]")).toBe("2");
+    expect(form.get("timestamp")).toBe(String(Date.parse(METER_CREATED_AT) / 1000));
 
     expect(stamp.calls).toHaveLength(1);
     expect(stamp.calls[0].url.searchParams.get("id")).toBe("eq.u-1");
@@ -463,7 +477,7 @@ describe(reportUnreportedUsage, () => {
     );
   });
 
-  it("leaves rows unstamped when the meter call fails", async () => {
+  it("backs off and leaves rows unstamped when the meter call fails", async () => {
     const usageQuery = stubRoute(
       restMatch(env, "GET", "usage_events"),
       () => [
@@ -471,6 +485,9 @@ describe(reportUnreportedUsage, () => {
           id: "u-3",
           quantity: 1,
           meter_identifier: TELNYX_ID,
+          company_id: "c-1",
+          created_at: METER_CREATED_AT,
+          report_attempts: 2,
           companies: { stripe_customer_id: "cus_123" },
         },
       ],
@@ -481,11 +498,63 @@ describe(reportUnreportedUsage, () => {
         url.href === "https://api.stripe.com/v1/billing/meter_events",
       () => Response.json({ error: { message: "nope" } }, { status: 500 }),
     );
-    const stamp = stubRoute(restMatch(env, "PATCH", "usage_events"));
+    const stamp = stubRoute(restMatch(env, "PATCH", "usage_events"), () =>
+      new Response(null, { status: 204 }),
+    );
     stubFetch(usageQuery.route, meter.route, stamp.route);
 
+    const startedAt = Date.now();
     await reportUnreportedUsage(env);
-    expect(stamp.calls).toHaveLength(0);
+
+    expect(stamp.calls).toHaveLength(1);
+    const update = stamp.calls[0];
+    expect(update.url.searchParams.get("company_id")).toBe("eq.c-1");
+    expect(update.url.searchParams.get("report_attempts")).toBe("eq.2");
+    expect(update.url.searchParams.get("stripe_reported_at")).toBe("is.null");
+    expect(update.body).toEqual({
+      report_attempts: 3,
+      report_next_at: expect.any(String),
+    });
+    const nextAt = Date.parse((update.body as { report_next_at: string }).report_next_at);
+    expect(nextAt).toBeGreaterThanOrEqual(startedAt + 4 * 60 * 60 * 1000);
+  });
+
+  it("finishes the current row and leaves remaining rows for the next run when the budget expires", async () => {
+    const startedAt = Date.now();
+    const clock = vi.spyOn(Date, "now").mockReturnValue(startedAt);
+    const usageQuery = stubRoute(restMatch(env, "GET", "usage_events"), () =>
+      ["u-1", "u-2"].map((id) => ({
+        id,
+        quantity: 2,
+        meter_identifier: null,
+        company_id: "c-1",
+        created_at: METER_CREATED_AT,
+        report_attempts: 0,
+        companies: { stripe_customer_id: "cus_123" },
+      })),
+    );
+    const meter = stubRoute(
+      (url, request) =>
+        request.method === "POST" &&
+        url.href === "https://api.stripe.com/v1/billing/meter_events",
+      () => {
+        clock.mockReturnValue(startedAt + 60_000);
+        return { object: "billing.meter_event" };
+      },
+    );
+    const stamp = stubRoute(restMatch(env, "PATCH", "usage_events"), () =>
+      new Response(null, { status: 204 }),
+    );
+    stubFetch(usageQuery.route, meter.route, stamp.route);
+
+    try {
+      await reportUnreportedUsage(env);
+    } finally {
+      clock.mockRestore();
+    }
+
+    expect(meter.calls).toHaveLength(1);
+    expect(stamp.calls.map((call) => call.url.searchParams.get("id"))).toEqual(["eq.u-1"]);
   });
 
   it("treats Stripe's duplicate-identifier rejection as success and stamps (#53)", async () => {
@@ -496,6 +565,9 @@ describe(reportUnreportedUsage, () => {
           id: "u-4",
           quantity: 2,
           meter_identifier: TELNYX_ID,
+          company_id: "c-1",
+          created_at: METER_CREATED_AT,
+          report_attempts: 0,
           companies: { stripe_customer_id: "cus_123" },
         },
       ],
@@ -538,14 +610,20 @@ describe("reportUnreportedVoiceUsage (D36)", () => {
       () => [
         {
           id: "cr-1",
-          billable_seconds: 61, // reported verbatim — the gate's own measure
-          call_leg_id: "leg-1",
+          quantity: 61,
+          meter_identifier: "leg-1",
+          company_id: "c-1",
+          created_at: METER_CREATED_AT,
+          report_attempts: 0,
           companies: { stripe_customer_id: "cus_123" },
         },
         {
           id: "cr-2",
-          billable_seconds: 30,
-          call_leg_id: "leg-2",
+          quantity: 30,
+          meter_identifier: "leg-2",
+          company_id: "c-1",
+          created_at: METER_CREATED_AT,
+          report_attempts: 0,
           companies: { stripe_customer_id: null }, // no customer yet — skipped
         },
       ],
@@ -582,12 +660,15 @@ describe("reportUnreportedVoiceUsage (D36)", () => {
     expect(query.get("stripe_reported_at")).toBe("is.null");
     expect(query.get("leg")).toBe("in.(forward,out_customer,in_browser)");
     expect(query.get("billable_seconds")).toBe("gt.0");
+    expect(query.get("companies.stripe_customer_id")).toBe("not.is.null");
+    expect(query.get("report_next_at")).toMatch(/^lte\./);
 
     expect(meter.calls).toHaveLength(1);
     const form = new URLSearchParams(String(meter.calls[0].body));
     expect(form.get("event_name")).toBe("voice_seconds");
     expect(form.get("identifier")).toBe("leg-1");
     expect(form.get("payload[value]")).toBe("61");
+    expect(form.get("timestamp")).toBe(String(Date.parse(METER_CREATED_AT) / 1000));
 
     const rowStamps = stamp.calls.filter(
       (call) => call.url.searchParams.get("id") !== null,
@@ -615,8 +696,11 @@ describe("reportUnreportedVoiceUsage (D36)", () => {
       () => [
         {
           id: "cr-3",
-          billable_seconds: 120,
-          call_leg_id: "leg-3",
+          quantity: 120,
+          meter_identifier: "leg-3",
+          company_id: "c-1",
+          created_at: METER_CREATED_AT,
+          report_attempts: 0,
           companies: { stripe_customer_id: "cus_123" },
         },
       ],
@@ -656,8 +740,11 @@ describe("reportUnreportedVoiceUsage (D36)", () => {
       () => [
         {
           id: "cr-4",
-          billable_seconds: 90,
-          call_leg_id: "leg-4",
+          quantity: 90,
+          meter_identifier: "leg-4",
+          company_id: "c-1",
+          created_at: METER_CREATED_AT,
+          report_attempts: 0,
           companies: { stripe_customer_id: "cus_123" },
         },
       ],
@@ -674,11 +761,12 @@ describe("reportUnreportedVoiceUsage (D36)", () => {
     stubFetch(voiceQuery.route, meter.route, stamp.route);
 
     await reportUnreportedVoiceUsage(env);
-    // Only the hygiene sweep (no id filter) ran — the failed row keeps its
-    // NULL stamp for the next hourly retry.
-    expect(
-      stamp.calls.filter((call) => call.url.searchParams.get("id") !== null),
-    ).toHaveLength(0);
+    const rowUpdates = stamp.calls.filter((call) => call.url.searchParams.has("id"));
+    expect(rowUpdates).toHaveLength(1);
+    expect(rowUpdates[0].body).toEqual({
+      report_attempts: 1,
+      report_next_at: expect.any(String),
+    });
   });
 });
 

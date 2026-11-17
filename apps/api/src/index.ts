@@ -687,19 +687,12 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // later-added numbers, and settings-time enables that failed transiently).
     job("job:reconcile-voice-enablement", reconcileVoiceEnablement),
   ],
-  // Usage re-reporters (segments, then D36 voice minutes), then the static
-  // 80%/100% usage-alert check (§9 metering pipeline tail) over the
-  // freshly-reported state, then the #85 dynamic overage warning (once per
-  // period when a tenant is projected to cost more than they pay — the
-  // static alerts stay as the backstop).
   "0 * * * *": [
+    job("job:sweep-stale-calls", sweepStaleCalls),
     job("job:report-usage", reportUnreportedUsage),
     job("job:report-voice-usage", reportUnreportedVoiceUsage),
     job("job:usage-alerts", runUsageAlertsJob),
     job("job:overage-warning", runOverageWarningJob),
-    // #133: flip call sessions wedged in-flight >4h to 'missed' so /calls
-    // stays honest and the per-conversation dial guard re-opens.
-    job("job:sweep-stale-calls", sweepStaleCalls),
     // #224: retire payment requests past their expiry, so a thread stops
     // showing "Waiting" for a link that no longer opens.
     job("job:expire-payment-requests", expirePaymentRequests),
