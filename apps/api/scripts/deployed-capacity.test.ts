@@ -1,8 +1,9 @@
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { assertContentFreeEvidence, CAPACITY_RESULT_PREFIX, CapacityConfigError, CapacityRunError, expectedConfirmation, formatCapacityEvidence, initialRealtimeTransitionState, openSupabaseRealtimeConnection, parseRamp, performBoundedGet, PRODUCTION_SUPABASE_HOST, RealtimeCleanupFailure, RealtimeJoinFailure, runHostedCapacity, transitionRealtimeState, validateHostedCapacityInput } from './deployed-capacity-lib.ts';
-import type { CapacityEvidence, HostedCapacityConfig, HostedCapacityInput, OpenRealtimeInput, RealtimeConnection, RealtimeStateSnapshot } from './deployed-capacity-lib.ts';
+import type { CapacityEvidence, HostedCapacityConfig, HostedCapacityInput, OpenRealtimeConnection, OpenRealtimeInput, RealtimeConnection, RealtimeStateSnapshot } from './deployed-capacity-lib.ts';
+import * as realtimeBudget from './hosted-realtime-budget.ts';
 
 const NOW_SECONDS = 2_000_000_000;
 const COMPANY_ID = "51000000-0000-4000-8000-000000000251";
@@ -466,7 +467,77 @@ describe("bounded API ramp", () => {
   });
 });
 
+describe("hosted Realtime connection budget", () => {
+  const projectRef = "abcdefghijklmnopqrst";
+  const budget = {
+    projectRef,
+    connections: 100,
+    otherProjectConnections: 400,
+    expiresAt: new Date(Date.now() + 86_400_000).toISOString(),
+  };
+
+  it.each([
+    { ...budget, projectRef: "zyxwvutsrqponmlkjihg" },
+    { ...budget, expiresAt: "2000-01-01T00:00:00Z" },
+    { ...budget, otherProjectConnections: 401 },
+  ])("drops every level before fetching when the allocation is invalid", async (allocation) => {
+    const fetcher = vi.fn<typeof fetch>();
+    const warn = vi.fn();
+    await expect(realtimeBudget.hostedRealtimeLevels(SUPABASE_ORIGIN, [1], (level) => level, {
+      budget: allocation, token: "test-token", fetcher, warn,
+    })).resolves.toEqual([]);
+    expect(fetcher).not.toHaveBeenCalled();
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("no current connection allocation"));
+  });
+
+  it.each([undefined, 0, 101])("drops every level when the provider returns ceiling %s", async (ceiling) => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ max_concurrent_users: ceiling }));
+    const warn = vi.fn();
+    await expect(realtimeBudget.hostedRealtimeLevels(SUPABASE_ORIGIN, [1], (level) => level, {
+      budget, token: "test-token", fetcher, warn,
+    })).resolves.toEqual([]);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("could not be verified"));
+  });
+
+  it("warns before running levels near the provider ceiling and drops excess levels", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ max_concurrent_users: 50 }));
+    const warn = vi.fn();
+    const matrix = [{ sockets: 39, rate: 2 }, { sockets: 50, rate: 1 }, { sockets: 51, rate: 1 }];
+    await expect(realtimeBudget.hostedRealtimeLevels(SUPABASE_ORIGIN, matrix, (level) => level.sockets, {
+      budget, token: "test-token", fetcher, warn,
+    })).resolves.toEqual(matrix.slice(0, 2));
+    expect(fetcher).toHaveBeenCalledWith(
+      `https://api.supabase.com/v1/projects/${projectRef}/config/realtime`,
+      expect.objectContaining({ headers: { Authorization: "Bearer test-token" }, redirect: "error" }),
+    );
+    expect(warn).toHaveBeenNthCalledWith(1, expect.stringContaining("40-connection warning threshold"));
+    expect(warn).toHaveBeenNthCalledWith(2, "hosted Realtime levels dropped above the 50-connection ceiling: 1");
+  });
+
+  it("opens no socket without a budget while a combined run still measures HTTP", async () => {
+    const fetcher = vi.fn<typeof fetch>().mockImplementation(async () => response());
+    const openRealtime = vi.fn<OpenRealtimeConnection>();
+    const stderr = vi.spyOn(process.stderr, "write").mockReturnValue(true);
+    try {
+      await expect(runHostedCapacity(config({ scenario: "realtime" }), { fetch: fetcher, openRealtime }))
+        .rejects.toThrow(/no hosted Realtime levels fit/);
+      expect(fetcher).not.toHaveBeenCalled();
+      const evidence = await runHostedCapacity(config({ apiRamp: [1] }), { fetch: fetcher, openRealtime });
+      expect(evidence.map(({ scenario }) => scenario)).toEqual(["hosted-api-pooler-ramp"]);
+      expect(openRealtime).not.toHaveBeenCalled();
+    } finally {
+      stderr.mockRestore();
+    }
+  });
+});
+
 describe("hosted Realtime connection ramp", () => {
+  beforeEach(() => {
+    vi.spyOn(realtimeBudget, "hostedRealtimeLevels").mockImplementation(async (_origin, levels) => levels);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
   it("opens cumulative independent connections, dwells, reports, and closes every handle", async () => {
     const handles: RealtimeConnection[] = [];
     let joinedMs = 1;

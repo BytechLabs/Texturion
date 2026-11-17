@@ -28,6 +28,8 @@ instead: it seeds a workspace, signs in, and calls this driver with
 
 The command rejects live Loonext targets, loopback/private targets, HTTP,
 redirects, a mismatched JWT issuer, service-role keys, and failed preflights.
+Hosted Realtime levels require a current project connection allocation and a
+verified Supabase project ceiling. See docs/CAPACITY.md for the budget.
 The dwell/cooldown must be 1000-30000ms. A suspect level is reset, checked
 against a healthy serialized control, and repeated. Inconclusive/transient
 records are emitted aggregate-only but the command exits nonzero.
