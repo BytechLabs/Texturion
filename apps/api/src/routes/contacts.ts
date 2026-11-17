@@ -3241,6 +3241,7 @@ async function revokeOptOut(c: Context<AppEnv>) {
       .eq("company_id", companyId)
       .eq("phone_e164", phone)
       .is("revoked_at", null)
+      .in("source", ["manual", "import"])
       .select("id,phone_e164,source,created_at,revoked_at"),
     "opt-out revoke",
   );

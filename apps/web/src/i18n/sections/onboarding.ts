@@ -149,7 +149,7 @@ export const onboardingEn = {
   sample2Label: "One more example",
   sample2Hint: "Carriers just want to see everyday customer conversations.",
   textingDefaultMessageFlow:
-    "Customers text our business number first, or ask us in person / by phone to text them. We never send marketing blasts.",
+    "Customers text or call our business, ask us to text them in person or by phone, or request a text on our website. We never send marketing blasts.",
   textingDefaultSample1:
     "Hi, it's {name}. We can fit you in tomorrow between 9 and 11am. Does that still work for you?",
   textingDefaultSample2:
@@ -803,7 +803,7 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
     "Les opérateurs veulent simplement voir des conversations courantes avec des clients.",
   // Submitted verbatim to the US carrier registry; see the catalogue header.
   textingDefaultMessageFlow:
-    "Customers text our business number first, or ask us in person / by phone to text them. We never send marketing blasts.",
+    "Les clients nous écrivent ou nous appellent, nous demandent un texto en personne ou par téléphone, ou en font la demande sur notre site Web. Nous n'envoyons pas de textos promotionnels en masse.",
   textingDefaultSample1:
     "Hi, it's {name}. We can fit you in tomorrow between 9 and 11am. Does that still work for you?",
   textingDefaultSample2:

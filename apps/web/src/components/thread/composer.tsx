@@ -61,10 +61,13 @@ import {
   flushDraftOnExit,
   loadDraft,
   loadDraftMentions,
+  loadDraftMode,
+  loadDraftStartedAt,
   loadFailedSend,
+  onComposerDraftRestored,
+  restoreComposerDraft,
   saveDraft,
   saveDraftMentions,
-  saveFailedSend,
 } from "@/lib/messaging/composer-drafts";
 import {
   cacheSuggestions,
@@ -519,12 +522,15 @@ export function Composer({
   const t = useT();
   const send = useSendMessage(conversationId);
   const createNote = useCreateNote(conversationId);
+  const [mode, setMode] = useState(() =>
+    noteOnly ? "note" : loadDraftMode(conversationId),
+  );
   // Who the author PICKED. Ids never come from parsing the draft: two
   // teammates can share a display name, and the text cannot say which was
   // meant. Deleting the name from the draft still withdraws the mention.
   const [mentionOpen, setMentionOpen] = useState(false);
   const [picked, setPicked] = useState<PickedMention[]>(() =>
-    loadDraftMentions(conversationId),
+    mode === "note" ? loadDraftMentions(conversationId) : [],
   );
   const uploadNoteFiles = useUploadNoteFiles();
   /**
@@ -563,7 +569,6 @@ export function Composer({
   const [failedSignature, setFailedSignature] = useState<string | null>(
     () => loadFailedSend(conversationId)?.signature ?? null,
   );
-  const [mode, setMode] = useState<"sms" | "note">(noteOnly ? "note" : "sms");
   const isNote = noteOnly || mode === "note";
   const [quoteDraftOpen, setQuoteDraftOpen] = useState(false);
   const addToMessageRef = useRef<HTMLButtonElement>(null);
@@ -620,26 +625,14 @@ export function Composer({
   const messages = useMessages(conversationId);
   const members = useMembers();
   const me = useMe();
-  /**
-   * #408: when this draft began — the moment the composer first held text.
-   *
-   * Held in state rather than persisted, deliberately. A draft restored after
-   * a reload has no start moment we can honestly claim, and the predicate
-   * treats null as "do not warn": a confirmation we cannot justify is worse
-   * than none, because the first false one teaches people to dismiss the true
-   * ones.
-   */
-  const [draftStartedAt, setDraftStartedAt] = useState<string | null>(null);
+  const [draftStartedAt, setDraftStartedAt] = useState(() => loadDraftStartedAt(conversationId));
   useEffect(() => {
     setDraftStartedAt((current) => {
       if (text.trim() === "") return null;
       return current ?? new Date().toISOString();
     });
   }, [text]);
-  // Reset when the thread changes: a draft in another conversation says
-  // nothing about this one.
   useEffect(() => {
-    setDraftStartedAt(null);
     // #507: likewise a dictation. Carrying the snapshot across would report an
     // outcome for THIS thread's note about words spoken into another one.
     wrapUpInsert.current = null;
@@ -663,9 +656,12 @@ export function Composer({
   // one per keystroke. Sending clears `text`, which removes the entry; a failed
   // send restores it, which writes it back.
   useEffect(() => {
-    const timer = setTimeout(() => saveDraft(conversationId, text), 400);
+    const timer = setTimeout(
+      () => saveDraft(conversationId, text, isNote ? "note" : "sms", draftStartedAt),
+      400,
+    );
     return () => clearTimeout(timer);
-  }, [conversationId, text]);
+  }, [conversationId, draftStartedAt, isNote, text]);
 
   // The picks ride with the draft. Restoring text alone brought back a note
   // that still SAID "@Sam" and notified nobody, which is worse than losing the
@@ -679,8 +675,18 @@ export function Composer({
   // #299/#269: the debounce above cancels a pending write on cleanup, so a
   // reload or thread switch inside the window discarded what was typed. The
   // flush lives with the persistence module; the reasoning is there.
-  const draftRef = useRef({ conversationId, text, picked });
-  draftRef.current = { conversationId, text, picked };
+  const draftRef = useRef({ conversationId, text, mode, draftStartedAt, picked });
+  draftRef.current = { conversationId, text, mode: isNote ? "note" : "sms", draftStartedAt, picked };
+  useEffect(() => onComposerDraftRestored(conversationId, () => {
+    if (draftRef.current.text.trim() !== "") return;
+    const restoredMode = loadDraftMode(conversationId);
+    setText(loadDraft(conversationId));
+    setMode(restoredMode);
+    setPicked(restoredMode === "note" ? loadDraftMentions(conversationId) : []);
+    const failed = loadFailedSend(conversationId);
+    lastFailedSendRef.current = failed;
+    setFailedSignature(failed?.signature ?? null);
+  }), [conversationId]);
   // #690: `#` in a NOTE offers tasks, customers and conversations. The picker
   // below is rendered for notes only; a text to a customer never gets one.
   const noteRefs = useReferenceTrigger(() => draftRef.current.text, setText);
@@ -689,6 +695,8 @@ export function Composer({
       flushDraftOnExit(() => ({
         conversationId: draftRef.current.conversationId,
         text: draftRef.current.text,
+        mode: draftRef.current.mode,
+        startedAt: draftRef.current.draftStartedAt,
         mentions: draftRef.current.picked,
       })),
     [],
@@ -1000,7 +1008,7 @@ export function Composer({
           workPhase: draftPhase,
         });
       } catch (error) {
-        setText(draftText);
+        restoreComposerDraft(conversationId, draftText, "note", draftPicked);
         noteStage.restore(draftFiles);
         setPicked(draftPicked);
         setWorkPhase(draftPhase);
@@ -1057,7 +1065,7 @@ export function Composer({
         );
       }
     } catch {
-      setText(draftText);
+      restoreComposerDraft(conversationId, draftText, "sms");
       setAttachments(draftAttachments);
       toast.error(t("thread.fileReadFailed"));
       return;
@@ -1083,7 +1091,7 @@ export function Composer({
     const templateEdited = used !== null && used.body.trim() !== draftText.trim();
 
     send.mutate(
-      { body: draftText, media, idempotencyKey, templateId, templateEdited },
+      { body: draftText, media, idempotencyKey, draftSignature: signature, templateId, templateEdited },
       {
         onSuccess: () => {
           lastFailedSendRef.current = null;
@@ -1104,19 +1112,8 @@ export function Composer({
           }
           textareaRef.current?.focus();
         },
-        onError: (error) => {
-          lastFailedSendRef.current = { signature, key: idempotencyKey };
-          // #299: with the draft, not just in memory. The reload that follows a
-          // blip must not turn a safe retry into a second charge.
-          saveFailedSend(conversationId, { signature, key: idempotencyKey });
-          setFailedSignature(signature);
-          setText(draftText);
-          setAttachments(draftAttachments);
-          toast.error(
-            error instanceof ApiError
-              ? error.message
-              : t("thread.sendFailedConnection"),
-          );
+        onError: () => {
+          if (draftRef.current.text.trim() === "") setAttachments(draftAttachments);
         },
       },
     );
@@ -1259,6 +1256,10 @@ export function Composer({
    */
   const scheduleFor = useCallback(
     async (sendAtIso: string, quietHoursConfirmed = false) => {
+      if (attachments.length > 0) {
+        toast.error(t("thread.scheduledNoPhotos"));
+        return;
+      }
       const body = text.trim();
       if (body === "") return;
       try {
@@ -1290,7 +1291,7 @@ export function Composer({
         );
       }
     },
-    [conversationId, schedule, text, t],
+    [attachments.length, conversationId, schedule, text, t],
   );
 
   // #716: one Lou offer at a time, and only beside the orb, so not on a note

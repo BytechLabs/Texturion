@@ -394,7 +394,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     }
 
     const isViewing = (conversationId: string) =>
-      activeConversationRef.current === conversationId;
+      activeConversationRef.current === conversationId &&
+      document.visibilityState === "visible";
 
     async function handleMessageCreated(event: MessageCreatedEvent) {
       const { conversation_id, message_id, direction } = event;

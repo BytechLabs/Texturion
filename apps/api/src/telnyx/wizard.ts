@@ -228,26 +228,27 @@ export function buildReviewSample(businessName: string): string {
  * CREATE-ONLY: Telnyx's campaign UPDATE schema (`UpdateCampaignRequest`)
  * does not accept it, so it can never be migrated onto an already-registered
  * campaign ({@link buildCampaignContentUpdate} is the update-safe subset).
- * The `description` is the fixed ICP boilerplate restating the AUP
- * commitments (§5) plus the Step 0c declaration of post-service review asks;
- * `sample3` is the generated review-ask sample.
  */
 export function buildCampaignContent(options: {
   campaign: CampaignDraft;
   /** Business display name (brand `displayName`) for the review sample. */
   businessName: string;
 }): Record<string, unknown> {
+  const name = options.businessName.slice(0, 100);
   return {
     description:
-      "Conversational two-way customer service SMS for a home-service business. " +
-      "Customers text the business's number first, or ask the business in person " +
-      "or by phone to text them. Includes one-time post-service review requests " +
-      "with an embedded Google review link (search.google.com). No marketing " +
-      "blasts, no purchased lists, no SHAFT content.",
+      "Two-way customer service texts for a home-service business. Customers text or call " +
+      "the business, request a text in person or by phone, or ask to connect on its website. " +
+      "Traffic includes appointment reminders, missed-call texts, away replies, help replies, " +
+      "emergency acknowledgments, number-change notices, post-service ratings and review requests, " +
+      "quote and payment links, and website verification codes. " +
+      "No marketing blasts, purchased lists, or SHAFT content.",
     messageFlow: options.campaign.messageFlow,
     sample1: options.campaign.sample1,
     sample2: options.campaign.sample2,
     sample3: buildReviewSample(options.businessName),
+    sample4: `${name}: A reminder that your service visit is tomorrow at 10 a.m. Reply C to confirm.`,
+    sample5: `${name}: We missed your call. Tell us what you need help with and we'll get back to you.`,
   };
 }
 

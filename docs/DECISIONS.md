@@ -2259,6 +2259,11 @@ never asks produces a 3am text with no error anywhere — so the resolver is the
 only implementation, the compose gate uses it too, and a test enumerates the
 files allowed to decide quiet hours.
 
+**Amendment (#783).** Scheduled reminders and ratings check the destination
+clock again at release. A text scheduled by a person does the same if it is
+more than ten minutes late. When the destination is quiet, the worker tries
+again when the destination's send window opens.
+
 **Amendment, 2026-07-29 (#225 ask 5): the confirmation is a setting, and its
 NAME is the load-bearing part.** A 24-hour emergency trade starts new
 conversations at 2am as a matter of routine and lawfully, because the customer's
@@ -2462,6 +2467,11 @@ One is a risk we already carry. The other is unrecoverable and self-inflicted.
 So the product **warns loudly and a human decides**: the thread carries
 `opt_out_hint_at`, every composer on all three clients shows a destructive-toned
 banner before anyone replies, and nothing changes the contact's state.
+
+**Amendment (#810).** While a request is open, scheduled texts wait and the
+away reply is suppressed. A crew member can dismiss the hint or opt out the
+number on that conversation. Both decisions are recorded in History. A
+carrier opt-out can still be cleared only by the customer.
 
 **Why it matters more here than in a single-operator tool**, which is the part
 worth stating: the shared inbox is the product's whole point, and it is also

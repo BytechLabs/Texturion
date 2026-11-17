@@ -51,7 +51,7 @@ function world(options: WorldOptions = {}) {
     ],
   );
   sb.on("GET", "/rest/v1/opt_outs", () =>
-    (options.ours ?? []).map((phone) => ({ phone_e164: phone })),
+    (options.ours ?? []).map((phone) => ({ phone_e164: phone, source: "stop_keyword" })),
   );
   sb.on("PATCH", "/rest/v1/opt_outs", () => []);
   sb.on("POST", "/rest/v1/opt_outs", () => [{ id: "recorded" }]);

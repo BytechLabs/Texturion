@@ -534,7 +534,10 @@ export {
 } from "./support";
 export type { SupportContext, SupportTopic } from "./support";
 
-export { looksLikeOptOut } from "./opt-out-language";
+export {
+  looksLikeOptOut,
+  OPT_OUT_HINT_CARRIER_KEYWORDS,
+} from "./opt-out-language";
 
 // #239 — how a response time reads. One phrasing for four surfaces.
 export {

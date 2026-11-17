@@ -93,12 +93,8 @@ export function getDb(env: Env): SupabaseClient {
         /*
          * #251 — a DEADLINE, so a stalled pooler fails instead of hanging.
          *
-         * Every outbound call this API makes is bounded by an
-         * `AbortSignal.timeout` — Telnyx, Stripe's webhooks, PostHog,
-         * Nominatim, the probes. The database was the exception, and it is the
-         * one dependency on the hot path of every single request: without a
-         * deadline of its own, a request that reaches a pooler which stalls
-         * rather than refusing waits until something further out gives up.
+         * A stalled database connection can hold up any request until the
+         * caller disconnects. Bound the query and response body here.
          *
          * #251's third acceptance criterion is that crossing a ceiling
          * "produces a truthful failure rather than a hang". That is a property

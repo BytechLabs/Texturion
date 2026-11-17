@@ -17,10 +17,13 @@
  * Status webhooks whose telnyx_message_id matches no row are acked no-ops
  * (§8) — e.g. a `sent` racing the send route's telnyx_message_id persist.
  */
+import { classifySendFailure } from "@loonext/shared";
+
 import { reportSegmentUsage } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { captureEvent } from "../observability/capture";
+import { recordCarrierOptOut } from "./opt-out";
 import { phoneCountry } from "./delivery-by-country";
 import type { TelnyxEvent, TelnyxMessagePayload } from "./types";
 import { MMS_SEGMENTS } from "./media";
@@ -118,6 +121,9 @@ async function finalize(
     : (hasFailure
       ? "failed"
       : "sent");
+  const errorReason = finalStatus === "failed"
+    ? classifySendFailure(firstError?.code)
+    : null;
   const parts =
     typeof payload.parts === "number" && payload.parts > 0
       ? payload.parts
@@ -139,6 +145,7 @@ async function finalize(
       // 40300 (and friends) surfaced on the row — blocked sends are never
       // silent (§5).
       error_code: firstError?.code ?? null,
+      error_reason: errorReason,
       error_detail: firstError
         ? (firstError.detail || firstError.title || null)
         : null,
@@ -152,6 +159,17 @@ async function finalize(
   const entered = (moved ?? []).length > 0 && message.status !== finalStatus;
 
   if (message.direction !== "outbound") return;
+
+  const destination = payload.to?.[0]?.phone_number;
+  if (entered && errorReason === "opt_out" && destination) {
+    await recordCarrierOptOut(db, {
+      companyId: message.company_id,
+      conversationId: message.conversation_id,
+      phoneE164: destination,
+      signal: "send_rejected",
+      detail: firstError?.detail,
+    });
+  }
 
   // D146: the fleet's delivery rate per destination country, in PostHog. Once
   // per transition, so a replay of the same final status counts nothing.

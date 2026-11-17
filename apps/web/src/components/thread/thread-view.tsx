@@ -367,16 +367,22 @@ function ThreadLoaded({
   const windowHasNewer =  messages.hasPreviousPage;
   const markReadMutate = markRead.mutate;
   useEffect(() => {
-    const current =
-      !windowHasNewer &&
-      readIsCurrent({
-        row: findListRow(queryClient, companyId, conversationId),
-        newestIsMine,
-        otherAt,
-        otherFromCustomer,
-        coveredThrough: readCoveredThrough(conversationId, userId),
-      });
-    if (!current) markReadMutate(conversationId);
+    const markReadWhenVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      const current =
+        !windowHasNewer &&
+        readIsCurrent({
+          row: findListRow(queryClient, companyId, conversationId),
+          newestIsMine,
+          otherAt,
+          otherFromCustomer,
+          coveredThrough: readCoveredThrough(conversationId, userId),
+        });
+      if (!current) markReadMutate(conversationId);
+    };
+    markReadWhenVisible();
+    document.addEventListener("visibilitychange", markReadWhenVisible);
+    return () => document.removeEventListener("visibilitychange", markReadWhenVisible);
   }, [
     conversationId,
     newestMessageId,
@@ -480,9 +486,11 @@ function ThreadLoaded({
         {banner ? (
           <>
             <ComposerBannerCard
+              optOutHintAt={conversation.opt_out_hint_at}
               banner={banner}
               thread={{
                 conversationId,
+                contactId: conversation.contact_id,
                 contactName: contactDisplayName(conversation.contact),
                 canCall: conversation.viewer_level === "text",
               }}

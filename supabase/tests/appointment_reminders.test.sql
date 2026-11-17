@@ -32,10 +32,11 @@ insert into auth.users (id, email) values
   ('5e000000-0000-4000-8000-00000000000a'::uuid, 'remind-a@test.local');
 
 insert into public.companies
-  (id, name, owner_user_id, country, requested_area_code, aup_accepted_at)
+  (id, name, owner_user_id, country, requested_area_code, aup_accepted_at,
+   subscription_status, plan)
 values
   ('5e000000-0000-4000-8000-0000000000c1'::uuid, 'Remind Plumbing',
-   '5e000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now());
+   '5e000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now(), 'active', 'starter');
 
 insert into public.company_members (company_id, user_id, role) values
   ('5e000000-0000-4000-8000-0000000000c1'::uuid,

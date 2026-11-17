@@ -14,11 +14,12 @@ insert into auth.users (id, email) values
   ('ca000000-0000-4000-8000-00000000000b', 'calendar-member@test.local');
 
 insert into public.companies
-  (id, name, owner_user_id, country, requested_area_code, aup_accepted_at, timezone)
+  (id, name, owner_user_id, country, requested_area_code, aup_accepted_at, timezone,
+   subscription_status, plan)
 values
   ('ca000000-0000-4000-8000-0000000000c1', 'Calendar Heating',
    'ca000000-0000-4000-8000-00000000000a', 'CA', '780', now(),
-   'America/Edmonton');
+   'America/Edmonton', 'active', 'starter');
 
 insert into public.company_members (company_id, user_id, role) values
   ('ca000000-0000-4000-8000-0000000000c1',

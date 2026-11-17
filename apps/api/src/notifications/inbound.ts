@@ -259,7 +259,8 @@ export async function notifyInboundMessage(
 
   // EMAIL — addresses live in auth.users (GoTrue admin API, same credential
   // path as everywhere else); one email to all enabled recipients.
-  if (emailUsers.length > 0) {
+  const notifyEmail = async () => {
+    if (emailUsers.length === 0) return;
     try {
       // Resolve every recipient's email in ONE parallel fan-out — a serial loop
       // added a GoTrue round-trip per member to the inbound webhook's latency.
@@ -312,7 +313,7 @@ export async function notifyInboundMessage(
     } catch (error) {
       failures.push(error);
     }
-  }
+  };
 
   // WEB PUSH + NATIVE DEVICE PUSH: the §8 payload (contact display name,
   // 80-char snippet, deep link) to every push-enabled recipient. #162 iOS
@@ -391,7 +392,7 @@ export async function notifyInboundMessage(
     failures,
   };
   const assignee = conversation.assigned_user_id;
-  await Promise.all([
+  const results = await Promise.allSettled([
     deliverPush(env, db, {
       ...push,
       category: "messages_mine",
@@ -402,7 +403,11 @@ export async function notifyInboundMessage(
       category: "messages_all",
       userIds: pushUsers.filter((userId) => userId !== assignee),
     }),
+    notifyEmail(),
   ]);
+  for (const result of results) {
+    if (result.status === "rejected") failures.push(result.reason);
+  }
 
   if (failures.length > 0) {
     throw new AggregateError(

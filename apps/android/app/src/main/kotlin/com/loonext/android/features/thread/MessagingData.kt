@@ -286,6 +286,22 @@ class MessagingRepository(private val api: ApiClient) {
         api.delete("/v1/conversations/$conversationId/snooze", companyId = companyId)
     }
 
+    suspend fun resolveOptOutHint(
+        companyId: String,
+        conversationId: String,
+        hintAt: String,
+        optedOut: Boolean,
+    ) {
+        api.post<JsonObject, JsonObject>(
+            "/v1/conversations/$conversationId/opt-out-hint",
+            buildJsonObject {
+                put("hint_at", hintAt)
+                put("verdict", if (optedOut) "opted_out" else "not_an_opt_out")
+            },
+            companyId = companyId,
+        )
+    }
+
     /** #694: mute this thread for ME. [duration] is "1h", "8h", "1w" or "forever". */
     suspend fun muteConversation(
         companyId: String,

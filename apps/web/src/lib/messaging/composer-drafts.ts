@@ -9,6 +9,11 @@
  */
 
 const PREFIX = "loonext:composer-draft:";
+const DRAFT_RESTORED = "loonext:composer-draft-restored";
+const STARTED_AT_PREFIX = "loonext:composer-draft-started-at:";
+export const MODE_PREFIX = "loonext:composer-draft-mode:";
+
+export type ComposerDraftMode = "sms" | "note";
 
 /** The new-conversation screen's draft rides a fixed slot. */
 export const NEW_CONVERSATION_DRAFT = "new";
@@ -31,13 +36,40 @@ export function loadDraft(conversationId: string): string {
   }
 }
 
-export function saveDraft(conversationId: string, text: string): void {
+export function loadDraftMode(conversationId: string): ComposerDraftMode {
+  try {
+    return storage()?.getItem(MODE_PREFIX + conversationId) === "note"
+      ? "note"
+      : "sms";
+  } catch {
+    return "sms";
+  }
+}
+
+export function loadDraftStartedAt(conversationId: string): string | null {
+  try {
+    return storage()?.getItem(STARTED_AT_PREFIX + conversationId) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export function saveDraft(
+  conversationId: string,
+  text: string,
+  mode?: ComposerDraftMode,
+  startedAt?: string | null,
+): void {
   try {
     const store = storage();
     if (!store) return;
     if (text.trim() === "") {
       store.removeItem(PREFIX + conversationId);
+      store.removeItem(MODE_PREFIX + conversationId);
+      store.removeItem(STARTED_AT_PREFIX + conversationId);
     } else {
+      if (mode !== undefined) store.setItem(MODE_PREFIX + conversationId, mode);
+      if (startedAt) store.setItem(STARTED_AT_PREFIX + conversationId, startedAt);
       store.setItem(PREFIX + conversationId, text);
     }
   } catch {
@@ -46,11 +78,28 @@ export function saveDraft(conversationId: string, text: string): void {
 }
 
 export function clearDraft(conversationId: string): void {
-  try {
-    storage()?.removeItem(PREFIX + conversationId);
-  } catch {
-    // As above.
-  }
+  saveDraft(conversationId, "");
+}
+
+export function restoreComposerDraft(
+  conversationId: string,
+  text: string,
+  mode: ComposerDraftMode,
+  mentions: readonly StoredMention[] = [],
+): void {
+  const current = loadDraft(conversationId);
+  if (current.trim() !== "" && current !== text) return;
+  saveDraft(conversationId, text, mode);
+  saveDraftMentions(conversationId, mentions);
+  window.dispatchEvent(new CustomEvent(DRAFT_RESTORED, { detail: conversationId }));
+}
+
+export function onComposerDraftRestored(conversationId: string, listener: () => void): () => void {
+  const onRestore = (event: Event) => {
+    if (event instanceof CustomEvent && event.detail === conversationId) listener();
+  };
+  window.addEventListener(DRAFT_RESTORED, onRestore);
+  return () => window.removeEventListener(DRAFT_RESTORED, onRestore);
 }
 
 /**
@@ -223,13 +272,19 @@ export function clearFailedSend(conversationId: string): void {
  * that races the timer costs nothing.
  */
 export function flushDraftOnExit(
-  read: () => { conversationId: string; text: string; mentions: readonly StoredMention[] },
+  read: () => {
+    conversationId: string;
+    text: string;
+    mode?: ComposerDraftMode;
+    startedAt?: string | null;
+    mentions: readonly StoredMention[];
+  },
 ): () => void {
   if (typeof window === "undefined") return () => {};
 
   const flush = () => {
-    const { conversationId, text, mentions } = read();
-    saveDraft(conversationId, text);
+    const { conversationId, text, mode, startedAt, mentions } = read();
+    saveDraft(conversationId, text, mode, startedAt);
     saveDraftMentions(conversationId, mentions);
   };
   const onVisibility = () => {

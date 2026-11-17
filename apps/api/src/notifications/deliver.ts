@@ -566,6 +566,20 @@ async function readIosBadges(
   return badges;
 }
 
+async function sendPushTargets<T>(
+  targets: readonly T[],
+  send: (target: T) => Promise<void>,
+  failures: unknown[],
+): Promise<void> {
+  const batchSize = 10;
+  for (let start = 0; start < targets.length; start += batchSize) {
+    const results = await Promise.allSettled(targets.slice(start, start + batchSize).map(send));
+    for (const result of results) {
+      if (result.status === "rejected") failures.push(result.reason);
+    }
+  }
+}
+
 export async function deliverPush(
   env: Env,
   db: SupabaseClient,
@@ -688,57 +702,51 @@ async function fanOutPush(
   const preparedTokens = delivery.beforeDispatch && fcmConfigured ? await readDeviceTokens() : null;
   if (delivery.beforeDispatch && !(await delivery.beforeDispatch())) return;
 
-  for (const subscription of newestPerUser(
-    subscriptionRows,
-    MAX_TARGETS_PER_USER,
-  )) {
-    try {
-      // Web Push urgency is NOT metered (#452): no push service rations it,
-      // so degrading it would save nothing and cost a wake. The meter below
-      // covers the native sends, which are the ones Google and Apple count.
-      const priority = delivery.highPriority ? "high" : "normal";
-      const result = await timedPush(
-        attempts,
-        {
-          companyId: delivery.companyId,
-          userId: subscription.user_id,
-          callSessionId: null,
-          purpose: "alert",
-          channel: "webpush",
-          platform: "web",
+  const subscriptions = newestPerUser(subscriptionRows, MAX_TARGETS_PER_USER);
+  await sendPushTargets(subscriptions, async (subscription) => {
+    // Web Push urgency is NOT metered (#452): no push service rations it,
+    // so degrading it would save nothing and cost a wake. The meter below
+    // covers the native sends, which are the ones Google and Apple count.
+    const priority = delivery.highPriority ? "high" : "normal";
+    const result = await timedPush(
+      attempts,
+      {
+        companyId: delivery.companyId,
+        userId: subscription.user_id,
+        callSessionId: null,
+        purpose: "alert",
+        channel: "webpush",
+        platform: "web",
+        priority,
+      },
+      () =>
+        sendWebPush(
+          env,
+          subscription,
+          payloadFor(webPayloads, delivery.web, localeFor(subscription)),
+          undefined,
           priority,
-        },
-        () =>
-          sendWebPush(
-            env,
-            subscription,
-            payloadFor(webPayloads, delivery.web, localeFor(subscription)),
-            undefined,
-            priority,
-            delivery.collapseKey,
-          ),
-      );
-      if (result.gone) {
-        // Permanently dead endpoint (unsubscribed/expired): drop the row.
-        const { error } = await db
-          .from("push_subscriptions")
-          .delete()
-          .eq("id", subscription.id);
-        if (error) {
-          throw new Error(
-            `dead push subscription cleanup failed: ${error.message}`,
-          );
-        }
-      } else if (!result.ok) {
+          delivery.collapseKey,
+        ),
+    );
+    if (result.gone) {
+      // Permanently dead endpoint (unsubscribed/expired): drop the row.
+      const { error } = await db
+        .from("push_subscriptions")
+        .delete()
+        .eq("id", subscription.id);
+      if (error) {
         throw new Error(
-          `push delivery failed with HTTP ${result.status} for subscription ${subscription.id}` +
-            (result.errorBody ? ` — ${result.errorBody}` : ""),
+          `dead push subscription cleanup failed: ${error.message}`,
         );
       }
-    } catch (cause) {
-      delivery.failures.push(cause);
+    } else if (!result.ok) {
+      throw new Error(
+        `push delivery failed with HTTP ${result.status} for subscription ${subscription.id}` +
+          (result.errorBody ? ` — ${result.errorBody}` : ""),
+      );
     }
-  }
+  }, delivery.failures);
 
   // Native device push: skipped with one log line until Firebase is
   // provisioned (the secret is optional so deploys stay green).
@@ -761,65 +769,62 @@ async function fanOutPush(
     readIosBadges(env, db, delivery.companyId, devices),
   ]);
 
-  for (const device of devices) {
-    try {
-      const locale = localeFor(device);
-      const action = delivery.nativeAction?.(device.user_id);
-      const actionScope = { companyId: delivery.companyId, userId: device.user_id, locale };
-      // TTL rides the sender default: an ordinary alert is worth delivering
-      // late, unlike a ring. Urgency does NOT — #414 needs HIGH to wake a
-      // phone in Doze, which is the whole mechanism behind the emergency
-      // promise.
-      const result = await timedPush(
-        attempts,
-        {
-          companyId: delivery.companyId,
-          userId: device.user_id,
-          callSessionId: null,
-          purpose: "alert",
-          channel: "fcm",
-          platform: device.platform,
-          priority: urgency,
-        },
-        () =>
-          sendFcm(
-            env,
-            {
-              ...device,
-              actionScope,
-              threadAction: action ? { ...action, ...actionScope } : undefined,
-              badge: badges.get(device.user_id),
-            },
-            payloadFor(
-              nativePayloads,
-              delivery.native ?? delivery.web,
-              locale,
-            ),
-            undefined,
-            urgency,
-            delivery.collapseKey,
+  await sendPushTargets(devices, async (device) => {
+    const locale = localeFor(device);
+    const action = delivery.nativeAction?.(device.user_id);
+    const actionScope = { companyId: delivery.companyId, userId: device.user_id, locale };
+    // TTL rides the sender default: an ordinary alert is worth delivering
+    // late, unlike a ring. Urgency does NOT — #414 needs HIGH to wake a
+    // phone in Doze, which is the whole mechanism behind the emergency
+    // promise.
+    const result = await timedPush(
+      attempts,
+      {
+        companyId: delivery.companyId,
+        userId: device.user_id,
+        callSessionId: null,
+        purpose: "alert",
+        channel: "fcm",
+        platform: device.platform,
+        priority: urgency,
+      },
+      () =>
+        sendFcm(
+          env,
+          {
+            ...device,
+            actionScope,
+            threadAction: action ? { ...action, ...actionScope } : undefined,
+            badge: badges.get(device.user_id),
+          },
+          payloadFor(
+            nativePayloads,
+            delivery.native ?? delivery.web,
+            locale,
           ),
-      );
-      if (result.gone) {
-        // FCM says UNREGISTERED (app uninstalled / token rotated): drop the
-        // row, mirroring the Web Push 404/410 prune.
-        const { error } = await db
-          .from("device_push_tokens")
-          .delete()
-          .eq("id", device.id);
-        if (error) {
-          throw new Error(
-            `dead device push token cleanup failed: ${error.message}`,
-          );
-        }
-      } else if (!result.ok) {
+          ),
+          undefined,
+          urgency,
+          delivery.collapseKey,
+        ),
+    );
+    if (result.gone) {
+      // FCM says UNREGISTERED (app uninstalled / token rotated): drop the
+      // row, mirroring the Web Push 404/410 prune.
+      const { error } = await db
+        .from("device_push_tokens")
+        .delete()
+        .eq("id", device.id);
+      if (error) {
         throw new Error(
-          `native push delivery failed with HTTP ${result.status} for device token ${device.id}` +
-            (result.errorBody ? ` — ${result.errorBody}` : ""),
+          `dead device push token cleanup failed: ${error.message}`,
         );
       }
-    } catch (cause) {
-      delivery.failures.push(cause);
+    } else if (!result.ok) {
+      throw new Error(
+        `native push delivery failed with HTTP ${result.status} for device token ${device.id}` +
+          (result.errorBody ? ` — ${result.errorBody}` : ""),
+      );
     }
-  }
+  }, delivery.failures);
 }

@@ -1376,6 +1376,28 @@ describe("handleInboundMessage — a keyword with punctuation is still the keywo
     expect(away.claim.calls).toHaveLength(1);
   });
 
+  it("does not reply or page the crew when a blocked sender texts URGENT", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER_HOURS);
+    const blocked = stubRoute(restMatch(env, "GET", "blocked_senders"), () => [
+      { phone_e164: "+16135551000" },
+    ]);
+    const emergencyAck = stubRoute(rpcMatch(env, "claim_emergency_ack"), () => ({}));
+    const push = stubRoute(restMatch(env, "GET", "push_subscriptions"), () => []);
+    const away = awayLiveStubs();
+    serve(
+      numberStub(), threadStub({ notify: true }),
+      blocked, emergencyAck, push, ...away.stubs,
+    );
+
+    await handleInboundMessage(env, inboundEvent({ text: "URGENT" }));
+
+    expect(blocked.calls).toHaveLength(1);
+    expect(away.claim.calls).toHaveLength(0);
+    expect(emergencyAck.calls).toHaveLength(0);
+    expect(push.calls).toHaveLength(0);
+  });
+
   it("revokes an active opt-out on 'Yes!' and keeps it from the confirmation parser", async () => {
     const { optOutUpsert, optOutRevoke, events, reminderLookup } = keywordStubs([
       { id: "0f0f0f0f-0000-4000-8000-000000000001" },

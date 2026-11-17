@@ -327,6 +327,7 @@ describe("message.finalized", () => {
     expect(stubs.update.calls[0].body).toMatchObject({
       status: "failed",
       error_code: "40300",
+      error_reason: "opt_out",
       error_detail: "The recipient has opted out on the carrier side.",
     });
   });

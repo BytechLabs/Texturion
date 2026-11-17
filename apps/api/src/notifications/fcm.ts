@@ -26,6 +26,7 @@
 import { z } from "zod";
 
 import type { Env } from "../env";
+import { fetchWithDeadline } from "../http/deadline";
 import { fcmCredential } from '../environments/policy';
 import type { FcmCredential } from '../environments/policy';
 
@@ -211,14 +212,14 @@ async function getAccessToken(
   }
 
   const assertion = await signOauthJwt(account);
-  const response = await fetch(tokenUrl, {
+  const response = await fetchWithDeadline(tokenUrl, {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
     body: new URLSearchParams({
       grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer",
       assertion,
     }),
-  });
+  }, 10_000);
   if (!response.ok) {
     const detail = (await response.text().catch(() => ""))
       .slice(0, 300)
@@ -443,7 +444,7 @@ export async function sendFcm(
   const base = sendBaseFor(env, credential);
   const bearer = await bearerFor(env, account, credential);
 
-  const response = await fetch(
+  const response = await fetchWithDeadline(
     `${base}/v1/projects/${account.project_id}/messages:send`,
     {
       method: "POST",
@@ -453,6 +454,7 @@ export async function sendFcm(
       },
       body: JSON.stringify({ message }),
     },
+    10_000,
   );
   // Success needs no body — drain to release the socket. On failure keep a
   // bounded diagnostic snippet (mirrors webpush.ts #147).
