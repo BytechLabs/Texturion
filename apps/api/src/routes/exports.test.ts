@@ -54,7 +54,12 @@ function readyRow(overrides: Record<string, unknown> = {}) {
 }
 
 function world(
-  options: { role?: string; rows?: Record<string, unknown>[]; request?: Record<string, unknown> } = {},
+  options: {
+    role?: string;
+    rows?: Record<string, unknown>[];
+    request?: Record<string, unknown>;
+    files?: { id: string | null; name: string }[];
+  } = {},
 ): { sb: SupabaseStub; routes: FetchRoute[] } {
   const sb = supabaseStub(env);
   sb.on(
@@ -80,12 +85,20 @@ function world(
   );
   sb.on("POST", "/rest/v1/audit_log", () => []);
 
-  const storageRoute: FetchRoute = (url) => {
+  const storageRoute: FetchRoute = async (url, request) => {
     if (!url.pathname.startsWith("/storage/v1/object")) return undefined;
     if (url.pathname.includes("/list/")) {
-      return Response.json([{ name: "messages-0001.jsonl" }, { name: "manifest.json" }]);
+      const { limit, offset } = (await request.json()) as { limit: number; offset: number };
+      const files = options.files ?? [
+        { id: "part", name: "messages-0001.jsonl" },
+        { id: "manifest", name: "manifest.json" },
+      ];
+      return Response.json(files.slice(offset, offset + limit));
     }
-    return Response.json({ signedURL: "/object/sign/exports/x?token=sig" });
+    const { paths } = (await request.json()) as { paths: string[] };
+    return Response.json(paths.map((path) => ({
+      path, signedURL: `/object/sign/exports/${path}?token=sig`, error: null,
+    })));
   };
   return { sb, routes: [storageRoute, sb.route] };
 }
@@ -264,6 +277,21 @@ describe("GET /v1/exports", () => {
     };
     expect(body.data[0].files).toEqual([]);
     expect(body.data[0].allowed_actions).toEqual([]);
+  });
+
+  it("signs files past the old 200-file listing limit", async () => {
+    const files = Array.from({ length: 203 }, (_, index) => ({
+      id: String(index), name: `messages-${index}.jsonl`,
+    }));
+    const { routes } = world({ files: [{ id: null, name: "folder.with.dots" }, ...files] });
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), `/v1/exports/${EXPORT_ID}`, {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { files: { name: string }[] };
+    expect(body.files.map(({ name }) => name)).toEqual(files.map(({ name }) => name));
   });
 
   it("offers no links for one still building, and says why it failed", async () => {

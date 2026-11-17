@@ -49,6 +49,7 @@ interface WorldOptions {
   queue?: Record<string, unknown>[];
   /** Rows returned for this table, once; every other table is empty. */
   rowsFor?: { table: string; rows: Record<string, unknown>[] };
+  tablePage?: (table: string, query: URLSearchParams) => Record<string, unknown>[];
   uploadFails?: boolean;
   /** The write that marks the export ready fails. */
   readyStampFails?: boolean;
@@ -56,6 +57,15 @@ interface WorldOptions {
   queueFor?: (query: URLSearchParams) => Record<string, unknown>[];
   /** Sees every write to the export row. */
   onWrite?: (body: { status?: string }) => void;
+}
+
+function messagePages(table: string, query: URLSearchParams): { id: string }[] {
+  if (table !== "messages") return [];
+  const lastId = Number(query.get("id")?.slice(3) ?? "0");
+  const limit = Number(query.get("limit"));
+  return Array.from({ length: Math.min(limit, 61_000 - lastId) }, (_, index) => ({
+    id: String(lastId + index + 1),
+  }));
 }
 
 function world(options: WorldOptions = {}): {
@@ -84,8 +94,9 @@ function world(options: WorldOptions = {}): {
   });
   sb.on("POST", "/rest/v1/rpc/record_export_table", () => null);
   for (const table of TABLES) {
-    sb.on("GET", `/rest/v1/${table}`, () =>
-      options.rowsFor?.table === table ? options.rowsFor.rows : [],
+    sb.on("GET", `/rest/v1/${table}`, ({ url }) =>
+      options.tablePage?.(table, url.searchParams) ??
+      (options.rowsFor?.table === table ? options.rowsFor.rows : []),
     );
   }
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, () => ({
@@ -129,6 +140,14 @@ describe(buildDataExports, () => {
     expect(sb.find("POST", "/rest/v1/rpc/record_export_table")).toHaveLength(
       TABLES.length,
     );
+    const ready = sb.find("PATCH", "/rest/v1/data_exports")
+      .map(({ body }) => body as { status: string; completed_at: string; expires_at: string })
+      .find((patch) => patch.status === "ready");
+    const expiry = Date.parse(ready?.expires_at ?? "");
+    const completion = Date.parse(ready?.completed_at ?? "");
+    expect(expiry - completion).toBe(7 * 86_400_000);
+    expect(sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("select"))
+      .toContain("email,business_name,address,notes,custom_fields");
   });
 
   it("skips the tables a previous run finished", async () => {
@@ -157,6 +176,44 @@ describe(buildDataExports, () => {
     expect(sb.find("POST", "/rest/v1/rpc/record_export_table")).toHaveLength(
       TABLES.length - 3,
     );
+  });
+
+  it("resumes a 61-page table at its last exported row on the next run", async () => {
+    const row = {
+      id: EXPORT_ID,
+      company_id: COMPANY_ID,
+      requested_by: USER_ID,
+      storage_prefix: null,
+      completed_tables: [],
+      row_counts: {},
+    };
+    const first = world({
+      queue: [row],
+      onWrite: (patch) => Object.assign(row, patch),
+      tablePage: messagePages,
+    });
+    stubFetch(...first.routes);
+    expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 60, completed: 0 });
+    const completed = first.sb.find("POST", "/rest/v1/rpc/record_export_table");
+    const finishedTables = completed.map(({ body }) => (body as { p_table: string }).p_table);
+    expect(finishedTables).toEqual(["contacts", "conversations"]);
+    expect(first.uploaded).toHaveLength(60);
+    expect(first.uploaded.at(-1)).toMatch(/messages-0060\.jsonl$/);
+
+    const second = world({
+      queue: [{ ...row, completed_tables: finishedTables, row_counts: { contacts: 0, conversations: 0 } }],
+      tablePage: messagePages,
+    });
+    stubFetch(...second.routes);
+    expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 1, completed: 1 });
+    expect(second.uploaded.map((path) => path.split("/").at(-1))).toEqual([
+      "messages-0061.jsonl",
+      "manifest.json",
+    ]);
+    expect(second.sb.find("POST", "/rest/v1/rpc/record_export_table")[0].body).toMatchObject({
+      p_table: "messages",
+      p_rows: 61_000,
+    });
   });
 
   it("tells the customer when it fails instead of leaving them waiting", async () => {
@@ -287,7 +344,8 @@ describe("pruneExpiredExports (#378)", () => {
     const removed: string[][] = [];
     const route: FetchRoute = async (url, request) => {
       if (url.pathname === "/storage/v1/object/list/exports") {
-        return Response.json(files.map((name) => ({ name })));
+        const { limit, offset } = (await request.json()) as { limit: number; offset: number };
+        return Response.json(files.slice(offset, offset + limit).map((name) => ({ id: name, name })));
       }
       if (url.pathname === "/storage/v1/object/exports" && request.method === "DELETE") {
         const body = (await request.clone().json()) as { prefixes: string[] };
@@ -328,6 +386,19 @@ describe("pruneExpiredExports (#378)", () => {
       `${COMPANY_ID}/${EXPORT_ID}/contacts.csv`,
       `${COMPANY_ID}/${EXPORT_ID}/manifest.json`,
     ]);
+    expect(w.sb.find("GET", "/rest/v1/data_exports")[0].url.searchParams.get("status"))
+      .toBe("in.(ready,failed)");
+  });
+
+  it("removes all files of a large export before stamping it reaped", async () => {
+    const prefix = `${COMPANY_ID}/${EXPORT_ID}`;
+    const files = Array.from({ length: 203 }, (_, index) => `messages-${index}.jsonl`);
+    const w = world([{ id: EXPORT_ID, storage_prefix: prefix }], files);
+    stubFetch(...w.routes);
+
+    await expect(pruneExpiredExports(env, NOW)).resolves.toEqual({ reaped: 1, objectsRemoved: 203 });
+    expect(w.removed.flat()).toEqual(files.map((name) => `${prefix}/${name}`));
+    expect(w.stamped).toHaveLength(1);
   });
 
   it("stamps the row AFTER the objects are gone, never before", async () => {

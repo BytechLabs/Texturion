@@ -1411,6 +1411,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
 
 /** Max contacts a single export streams (bounds Worker memory/CPU). */
 const EXPORT_MAX_ROWS = 50_000;
+const EXPORT_PAGE_SIZE = 1_000;
 
 /** Max contacts one bulk action or one explicit export selection names. */
 const BULK_CONTACTS_MAX = 200;
@@ -1467,24 +1468,10 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
     }
   }
 
-  let query = db
-    .from("contacts")
-    .select(
-      byTag
-        ? "id,name,phone_e164,consent_source,consent_at,created_at,contact_tags!inner(tag_id)"
-        : "id,name,phone_e164,consent_source,consent_at,created_at",
-    )
-    .eq("company_id", companyId)
-    .is("deleted_at", null)
-    .is("merged_into", null);
-  if (byTag) query = query.eq("contact_tags.tag_id", tagFilter);
-  if (selectedIds) query = query.in("id", selectedIds);
-  if (rawQ !== undefined && rawQ !== "") {
-    if (rawQ.length > 200) {
-      throw new ApiError("validation_failed", "q: too long (max 200).");
-    }
-    query = query.or(contactSearchOr(rawQ));
+  if (rawQ && rawQ.length > 200) {
+    throw new ApiError("validation_failed", "q: too long (max 200).");
   }
+
   interface ExportRow {
     id: string;
     name: string | null;
@@ -1492,15 +1479,44 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
     consent_source: string | null;
     consent_at: string | null;
     created_at: string;
-    contact_tags?: unknown;
   }
-  const rows = unwrap<ExportRow[]>(
-    await query
-      .order("created_at", { ascending: false })
-      .order("id", { ascending: false })
-      .limit(EXPORT_MAX_ROWS),
-    "contacts export",
-  ).map(({ contact_tags: _join, ...row }) => row as ExportRow);
+  const rows: ExportRow[] = [];
+  let truncated = false;
+  for (;;) {
+    let query = db
+      .from("contacts")
+      .select(
+        byTag
+          ? "id,name,phone_e164,consent_source,consent_at,created_at,contact_tags!inner(tag_id)"
+          : "id,name,phone_e164,consent_source,consent_at,created_at",
+      )
+      .eq("company_id", companyId)
+      .is("deleted_at", null)
+      .is("merged_into", null);
+    if (byTag) query = query.eq("contact_tags.tag_id", tagFilter);
+    if (selectedIds) query = query.in("id", selectedIds);
+    if (rawQ) query = query.or(contactSearchOr(rawQ));
+
+    const last = rows.at(-1);
+    if (last) {
+      query = query.or(keysetFilter("created_at", { ts: last.created_at, id: last.id }));
+    }
+    const limit = Math.min(EXPORT_PAGE_SIZE, EXPORT_MAX_ROWS - rows.length + 1);
+    const page = unwrap<ExportRow[]>(
+      await query
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .limit(limit),
+      "contacts export",
+    );
+    rows.push(...page);
+    if (rows.length > EXPORT_MAX_ROWS) {
+      rows.pop();
+      truncated = true;
+      break;
+    }
+    if (page.length < limit) break;
+  }
 
   // A contact's tags = the tags on the contact itself (#695) plus the union of
   // tags across its conversations, so the column keeps meaning what it meant.
@@ -1576,7 +1592,11 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
   // The COUNT and whether a filter was applied — never the rows. This is the
   // one audit entry describing an action whose whole subject is customer data,
   // so it says how much moved and nothing about who.
-  const exportedCount = Math.max(table.length - 1, 0);
+  const exportedCount = rows.length;
+  if (truncated) {
+    const notice = `Export limited to ${EXPORT_MAX_ROWS} contacts. Apply a filter for a smaller export.`;
+    table.push([notice, ...EXPORT_HEADER.slice(1).map(() => null)]);
+  }
   await recordAuditFromRequest(db, c, {
     companyId,
     action: "contacts.exported",
@@ -2496,19 +2516,13 @@ contactsRoutes.post(
         });
         if (name !== null) row.name = name;
       }
-      if (addressCol !== -1) {
-        const address = cell(cells, addressCol);
+      const address = addressCol === -1 ? null : cell(cells, addressCol);
+      if (address !== null) {
         row.address = address;
-        // Writing an address must re-queue geocoding (D25), exactly as
-        // POST/PATCH /contacts do — the cron only re-scans rows with
-        // geocode_status IN ('pending','failed'), so without this a re-import
-        // that CHANGES an already-'ok' contact's address would keep the stale
-        // cached lat/lng and never re-geocode. `geocodeReset` always writes the
-        // same 4 keys, so a batch's rows keep identical key sets (the importer's
-        // batching invariant) whether the address is present or cleared.
         Object.assign(row, geocodeReset(address));
       }
-      if (notesCol !== -1) row.notes = cell(cells, notesCol);
+      const notes = notesCol === -1 ? null : cell(cells, notesCol);
+      if (notes !== null) row.notes = notes;
       return row;
     });
     // opted_out=true → opt_outs rows (source='import', SPEC §5) + events for
