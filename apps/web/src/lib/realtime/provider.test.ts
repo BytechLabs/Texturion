@@ -7,7 +7,7 @@
 import { readFileSync } from "node:fs";
 
 import { createClient } from "@supabase/supabase-js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { keys } from "@/lib/api/keys";
 
@@ -191,5 +191,21 @@ describe("realtime-js remove-then-reopen (premise)", () => {
       config: { private: true },
     });
     expect(second).not.toBe(first);
+  });
+
+  it("disconnects an idle socket after the final channel is removed", async () => {
+    vi.useFakeTimers();
+    try {
+      const client = createClient("https://project.supabase.co", "anon-key");
+      const disconnect = vi.spyOn(client.realtime, "disconnect");
+      const channel = client.channel(`company:${COMPANY}`, { config: { private: true } });
+
+      await client.removeChannel(channel);
+      await vi.runOnlyPendingTimersAsync();
+
+      expect(disconnect).toHaveBeenCalledOnce();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

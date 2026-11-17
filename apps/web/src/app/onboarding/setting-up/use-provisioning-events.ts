@@ -4,6 +4,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { keys } from "@/lib/api/keys";
+import { useRealtimePaused } from "@/lib/realtime/lifecycle";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /**
@@ -16,9 +17,10 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
  */
 export function useProvisioningEvents(companyId: string | null): void {
   const queryClient = useQueryClient();
+  const paused = useRealtimePaused();
 
   useEffect(() => {
-    if (!companyId) return;
+    if (paused || !companyId) return;
     const supabase = getSupabaseBrowser();
     let disposed = false;
 
@@ -65,6 +67,7 @@ export function useProvisioningEvents(companyId: string | null): void {
       if (data.session?.access_token) {
         await supabase.realtime.setAuth(data.session.access_token);
       }
+      if (disposed) return;
       channel.subscribe((status) => {
         // Anything missed while disconnected is re-read on resubscribe.
         if (status === "SUBSCRIBED") invalidate();
@@ -76,5 +79,5 @@ export function useProvisioningEvents(companyId: string | null): void {
       authSubscription.unsubscribe();
       void supabase.removeChannel(channel);
     };
-  }, [companyId, queryClient]);
+  }, [companyId, queryClient, paused]);
 }

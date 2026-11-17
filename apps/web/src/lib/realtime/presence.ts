@@ -2,9 +2,11 @@
 
 import { PRESENCE_HEARTBEAT_MS, presenceFor, TYPING_THROTTLE_MS, TYPING_TTL_MS } from '@loonext/shared';
 import type { PresenceEntry, Viewer } from '@loonext/shared';
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useContext, useEffect, useRef, useState } from "react";
 
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
+
+import { RealtimePausedContext } from "./lifecycle";
 
 /**
  * #302 — who else is on this conversation, and are they replying.
@@ -38,6 +40,7 @@ export function useConversationPresence(options: {
 }): { viewers: Viewer[]; onTyping: () => void } {
   const { companyId, phoneNumberId, conversationId, selfUserId, displayName } =
     options;
+  const paused = useContext(RealtimePausedContext);
 
   const [entries, setEntries] = useState<PresenceEntry[]>([]);
   const [healthy, setHealthy] = useState(false);
@@ -53,7 +56,7 @@ export function useConversationPresence(options: {
   const typingUntilRef = useRef(0);
 
   useEffect(() => {
-    if (!companyId || !phoneNumberId || !conversationId || !selfUserId) return;
+    if (paused || !companyId || !phoneNumberId || !conversationId || !selfUserId) return;
     // Captured after the guard: the closures below outlive this tick, and the
     // narrowing on the props does not travel into them.
     const conversation = conversationId;
@@ -118,7 +121,7 @@ export function useConversationPresence(options: {
       setEntries([]);
       setHealthy(false);
     };
-  }, [companyId, phoneNumberId, conversationId, selfUserId, displayName]);
+  }, [companyId, phoneNumberId, conversationId, selfUserId, displayName, paused]);
 
   /**
    * Re-evaluate on a timer as well as on channel events.

@@ -34,6 +34,7 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
 import { applyLiveThreadAppend } from "./apply";
 import { messageStatusPatch } from './events';
 import { patchQuietly } from "./for-you-notifications";
+import { RealtimePausedContext, useRealtimePaused } from "./lifecycle";
 import { activeConversationFromPath } from "./path";
 import { createSequenceTracker } from "./sequence";
 
@@ -221,6 +222,8 @@ const NUMBER_LIST_RETRY_DELAYS_MS = [1000, 4000, 12_000];
  */
 export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   const { companyId } = useActiveCompany();
+  const paused = useRealtimePaused();
+  const resumeBackfill = useRef(false);
   // undefined on a server that predates the field or after a failed read:
   // both mean "no statement", and the socket opens as it always did.
   const meCompany = useMeCompany();
@@ -358,6 +361,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
   }, [numberListFailed, queryClient]);
 
   useEffect(() => {
+    if (paused) {
+      resumeBackfill.current = true;
+      return;
+    }
     // #283: the realtime kill switch, and it can only be honoured here. The
     // Worker is not in this path — the browser holds its own Supabase token and
     // opens its own socket — so the switch travels on GET /v1/me and is obeyed
@@ -875,6 +882,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     function refetchFirstPages() {
       settleResync();
+      resumeBackfill.current = false;
       // Reconnect (G12): drop pages >1 of company-scoped infinite queries,
       // then refetch whatever is actively rendered.
       const predicate = resyncPredicate(companyId, Date.now());
@@ -949,6 +957,10 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     function scheduleResync(delay: number) {
       if (resyncTimer !== undefined) return;
       resyncTimer = setTimeout(() => {
+        if (resumeBackfill.current) {
+          refetchFirstPages();
+          return;
+        }
         settleResync();
         resyncActive();
       }, delay);
@@ -1171,12 +1183,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     const GIVE_UP_RETRY_MS = 60_000;
     let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
+    if (resumeBackfill.current) scheduleResync(RESYNC_REJOIN_GRACE_MS);
+
     void (async () => {
       const { data } = await supabase.auth.getSession();
       if (disposed) return;
       if (data.session?.access_token) {
         await supabase.realtime.setAuth(data.session.access_token);
       }
+      if (disposed) return;
       for (const { topic, channel } of channels) {
         const isCompanyTopic = topic === companyTopic;
         // Consecutive refusals of THIS topic. Per channel, because one number
@@ -1197,7 +1212,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
             // it — mounted queries stay fresh for thirty seconds and the
             // away-tab resync never fires for someone who never left. A clean
             // first join records no gap, so it still refetches nothing.
-            if (hadDrop) {
+            if (hadDrop || resumeBackfill.current) {
               refetchFirstPages();
             } else if (resyncOwed) {
               settleResync();
@@ -1271,7 +1286,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       authSubscription.unsubscribe();
       for (const { channel } of channels) void supabase.removeChannel(channel);
     };
-  }, [companyId, queryClient, realtimeEnabled, mePending, topicKey, retryGeneration]);
+  }, [companyId, queryClient, realtimeEnabled, mePending, topicKey, retryGeneration, paused]);
 
-  return <>{children}</>;
+  return <RealtimePausedContext.Provider value={paused}>{children}</RealtimePausedContext.Provider>;
 }

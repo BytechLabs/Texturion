@@ -26,6 +26,7 @@
  * this file would look fine while the real thing registered a second set of
  * handlers on a dying channel.
  */
+import { REALTIME_BACKGROUND_GRACE_MS } from "@loonext/shared";
 import {
   QueryClient,
   QueryClientProvider,
@@ -35,6 +36,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import { useProvisioningEvents } from "@/app/onboarding/setting-up/use-provisioning-events";
 import { eventSentence } from "@/components/thread/system-line";
 import { keys } from "@/lib/api/keys";
 import type { ConversationEvent } from "@/lib/api/types";
@@ -62,6 +64,9 @@ type FakeChannel = {
     handler: (message: { payload: unknown }) => void,
   ) => FakeChannel;
   subscribe: (callback: (status: SubscribeStatus) => void) => FakeChannel;
+  presenceState: () => Record<string, never>;
+  track: () => Promise<string>;
+  untrack: () => Promise<string>;
 };
 
 function createFakeSupabase() {
@@ -87,6 +92,9 @@ function createFakeSupabase() {
           channel.report = callback;
           return channel;
         },
+        presenceState: () => ({}),
+        track: () => Promise.resolve("ok"),
+        untrack: () => Promise.resolve("ok"),
       };
       live.set(topic, channel);
       opened.push(topic);
@@ -186,6 +194,7 @@ vi.mock("next/navigation", () => ({
 }));
 
 import { useForYouNotificationsRealtime } from "./for-you-notifications";
+import { useConversationPresence } from "./presence";
 import { RealtimeProvider } from "./provider";
 
 /** Let the effect's `getSession` → `setAuth` → `subscribe` chain settle. */
@@ -201,7 +210,23 @@ function ForYouListener() {
   return null;
 }
 
-function setup({ listener = false }: { listener?: boolean } = {}) {
+function ThreadPresence() {
+  useConversationPresence({
+    companyId: COMPANY,
+    phoneNumberId: "n1",
+    conversationId: CONVERSATION,
+    selfUserId: USER,
+    displayName: "Dana",
+  });
+  return null;
+}
+
+function ProvisioningEvents() {
+  useProvisioningEvents(COMPANY);
+  return null;
+}
+
+function setup({ listener = false, thread = false }: { listener?: boolean; thread?: boolean } = {}) {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false } },
   });
@@ -217,7 +242,10 @@ function setup({ listener = false }: { listener?: boolean } = {}) {
   // a re-render here is to let the effect re-read `visibleNumbers`.
   const tree = () => (
     <QueryClientProvider client={queryClient}>
-      <RealtimeProvider>{listener ? <ForYouListener /> : null}</RealtimeProvider>
+      <RealtimeProvider>
+        {listener ? <ForYouListener /> : null}
+        {thread ? <ThreadPresence /> : null}
+      </RealtimeProvider>
     </QueryClientProvider>
   );
   const view = render(tree());
@@ -1467,6 +1495,100 @@ describe("the away-tab resync", () => {
     } finally {
       vi.useRealTimers();
     }
+  });
+});
+
+describe("background Realtime subscriptions", () => {
+  let hidden: boolean;
+
+  function setHidden(value: boolean) {
+    hidden = value;
+    act(() => {
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    hidden = false;
+    vi.spyOn(document, "hidden", "get").mockImplementation(() => hidden);
+    vi.spyOn(document, "visibilityState", "get").mockImplementation(() => hidden ? "hidden" : "visible");
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.useRealTimers();
+  });
+
+  it("keeps subscriptions through a short tab switch", async () => {
+    setup();
+    await flush();
+
+    setHidden(true);
+    await act(() => vi.advanceTimersByTimeAsync(REALTIME_BACKGROUND_GRACE_MS - 1));
+    setHidden(false);
+    await act(() => vi.advanceTimersByTimeAsync(1));
+
+    expect(fake.opened).toEqual([COMPANY_TOPIC]);
+    expect(fake.removed).toEqual([]);
+  });
+
+  it("releases every channel, including presence, and backfills once on return", async () => {
+    visibleNumbers = [{ id: "n1" }];
+    const presenceTopic = `${numberTopic("n1")}:presence`;
+    const topics = new Set([presenceTopic, COMPANY_TOPIC, numberTopic("n1")]);
+    const { meInvalidations, report, resyncWaves } = setup({ thread: true });
+    await flush();
+    expect(new Set(fake.live.keys())).toEqual(topics);
+
+    setHidden(true);
+    await act(() => vi.advanceTimersByTimeAsync(REALTIME_BACKGROUND_GRACE_MS));
+    expect(fake.live.size).toBe(0);
+    expect(resyncWaves()).toBe(0);
+
+    setHidden(false);
+    await flush();
+    expect(new Set(fake.live.keys())).toEqual(topics);
+    report(COMPANY_TOPIC, "SUBSCRIBED");
+    report(numberTopic("n1"), "SUBSCRIBED");
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+    expect(resyncWaves()).toBe(1);
+    expect(meInvalidations()).toBe(1);
+  });
+
+  it("backfills through the API when the socket cannot rejoin", async () => {
+    const { meInvalidations, resyncWaves } = setup();
+    await flush();
+
+    setHidden(true);
+    await act(() => vi.advanceTimersByTimeAsync(REALTIME_BACKGROUND_GRACE_MS));
+    setHidden(false);
+    await act(() => vi.advanceTimersByTimeAsync(10_000));
+
+    expect(resyncWaves()).toBe(1);
+    expect(meInvalidations()).toBe(1);
+  });
+
+  it("pauses onboarding subscriptions and refreshes the checklist on rejoin", async () => {
+    const queryClient = new QueryClient();
+    const invalidate = vi.spyOn(queryClient, "invalidateQueries");
+    render(
+      <QueryClientProvider client={queryClient}>
+        <ProvisioningEvents />
+      </QueryClientProvider>,
+    );
+    await flush();
+    expect(fake.live.has(COMPANY_TOPIC)).toBe(true);
+
+    setHidden(true);
+    await act(() => vi.advanceTimersByTimeAsync(REALTIME_BACKGROUND_GRACE_MS));
+    expect(fake.live.size).toBe(0);
+
+    setHidden(false);
+    await flush();
+    expect(fake.live.has(COMPANY_TOPIC)).toBe(true);
+    fake.live.get(COMPANY_TOPIC)?.report?.("SUBSCRIBED");
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: keys.me });
   });
 });
 

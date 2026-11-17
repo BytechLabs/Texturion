@@ -1062,7 +1062,7 @@ for select to authenticated using (
 );
 ```
 
-Clients subscribe on inbox mount (`private: true`), apply events by refetching the referenced resources, and **refetch page 1 of the inbox on reconnect**. Capacity is a non-issue at MVP scale (Supabase Pro: 500 concurrent connections, 5M messages/mo included).
+Clients use private channels on one Realtime socket per app instance, apply events by refetching the referenced resources, and **refetch page 1 of the inbox on reconnect**. Native apps release the socket after 30 seconds in the background and keep it during calls. Web tabs remove their subscriptions after 30 seconds hidden, then the Supabase client closes the idle socket. Supabase Pro includes 500 peak connections and 5 million messages per month. The organization total adds each project's billing-cycle peak, so hosted capacity tests also count toward it. See [Supabase Realtime peak connections](https://supabase.com/docs/guides/platform/manage-your-usage/realtime-peak-connections).
 
 ### Send lifecycle (D9)
 
