@@ -340,8 +340,7 @@ private struct StatusNotices: View {
         }
         if company.subscriptionActive && company.cancel_at_period_end {
             let date = fullDate(company.current_period_end)
-            let release = numberReleaseAt(company.current_period_end)?
-                .formatted(date: .long, time: .omitted)
+            let release = numberReleaseDay(company.current_period_end, locale: appLocale)
             let message: String
             if let date, let release {
                 message = t("settings.noticeCancellingOn", ["date": date, "releaseDate": release])
