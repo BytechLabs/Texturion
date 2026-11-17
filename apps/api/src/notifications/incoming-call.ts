@@ -25,6 +25,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env";
 import { captureException, workerEnv } from "../observability/capture";
 
+import { CALL_PUSH_COPY, loadCallPushCopySettings } from "./call-push-copy";
 import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { claimHighPriority } from "./high-priority";
@@ -38,6 +39,7 @@ const MAX_TARGETS_PER_USER = 10;
 interface SubscriptionRow {
   id: string;
   user_id: string;
+  locale: string | null;
   endpoint: string;
   p256dh: string;
   auth: string;
@@ -46,6 +48,7 @@ interface SubscriptionRow {
 interface DeviceTokenRow {
   id: string;
   user_id: string;
+  locale: string | null;
   platform: "android" | "ios";
   token: string;
 }
@@ -190,9 +193,9 @@ async function deliverIncomingCallPush(
 
   const channels = new Map<string, UserChannels>();
 
-  const { data, error } = await db
+  const readSubscriptions = db
     .from("push_subscriptions")
-    .select("id,user_id,endpoint,p256dh,auth")
+    .select("id,user_id,endpoint,p256dh,auth,locale")
     .in("user_id", pushUserIds)
     // #30 defensive bound, PER RECIPIENT (#267): each user is capped at 10
     // live subscriptions, and bounding the whole fan-out at 50 instead meant a
@@ -200,20 +203,25 @@ async function deliverIncomingCallPush(
     // the sort is newest-first, so it was always the same people.
     .order("created_at", { ascending: false })
     .limit(pushUserIds.length * MAX_TARGETS_PER_USER);
+  const [{ data, error }, { localeFor }] = await Promise.all([
+    readSubscriptions,
+    loadCallPushCopySettings(db, input.companyId, pushUserIds),
+  ]);
   if (error) return { unreachableUserIds: [] }; // best-effort — never throw
   const subscriptions = newestPerUser(
     (data ?? []) as SubscriptionRow[],
     MAX_TARGETS_PER_USER,
   );
 
-  const payload = JSON.stringify({
-    kind: "call", // the service worker renders this as an urgent call alert
-    title: "Incoming call",
-    body: input.caller ?? "Someone is calling your business number",
-    // Land on /calls carrying the session — the app re-rings this member's
-    // now-awake browser for it (push-to-wake part 2).
-    url: `/calls?call=${encodeURIComponent(input.callSessionId)}`,
-  });
+  const payload = (target: SubscriptionRow | DeviceTokenRow) => {
+    const copy = CALL_PUSH_COPY[localeFor(target)].incoming;
+    return JSON.stringify({
+      kind: "call",
+      title: copy.title,
+      body: input.caller ?? copy.body,
+      url: `/calls?call=${encodeURIComponent(input.callSessionId)}`,
+    });
+  };
 
   await Promise.all(
     subscriptions.map(async (sub) => {
@@ -229,7 +237,7 @@ async function deliverIncomingCallPush(
             platform: "web",
             priority: "high",
           },
-          () => sendWebPush(env, sub, payload, CALL_PUSH_TTL_SECS, "high"),
+          () => sendWebPush(env, sub, payload(sub), CALL_PUSH_TTL_SECS, "high"),
         );
         if (result.gone) {
           await db.from("push_subscriptions").delete().eq("id", sub.id);
@@ -278,7 +286,7 @@ async function deliverIncomingCallPush(
   }
   const { data: tokenRows, error: tokenError } = await db
     .from("device_push_tokens")
-    .select("id,user_id,platform,token")
+    .select("id,user_id,platform,token,locale")
     .in("user_id", pushUserIds)
     // #30-style defensive bound, ten devices PER recipient (#267).
     .order("created_at", { ascending: false })
@@ -318,7 +326,7 @@ async function deliverIncomingCallPush(
             sendFcm(
               env,
               device,
-              payload,
+              payload(device),
               CALL_PUSH_TTL_SECS,
               "high",
               // #162/#149 iOS coalescing: per call SESSION — repeats for one

@@ -158,5 +158,13 @@ describe("notifyCallEnd — caps gating (§9.2)", () => {
       title: "Missed call",
       body: "Someone called and nobody picked up.",
     });
+    expect(callEndAlert("answered", null, "Sam Ruiz", "fr-CA")).toEqual({
+      title: "Appel pris",
+      body: "Sam Ruiz a répondu.",
+    });
+    expect(callEndAlert("missed", null, null, "fr-CA")).toEqual({
+      title: "Appel manqué",
+      body: "Quelqu’un a appelé. Personne n’a répondu.",
+    });
   });
 });

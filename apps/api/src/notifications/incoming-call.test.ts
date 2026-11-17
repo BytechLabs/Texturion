@@ -278,6 +278,29 @@ describe("notifyIncomingCall — native device push (#151)", () => {
     expect(exceptionsCaptured()).toEqual([]);
   });
 
+  it("uses each device or member's preferred language for the same ring", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const { sb } = nativeWorld([
+      { id: DEVICE_ROW_ID, user_id: USER_A, platform: "android", token: DEVICE_TOKEN, locale: "en" },
+      { id: "device-b", user_id: USER_B, platform: "ios", token: "token-b", locale: "en" },
+    ]);
+    sb.on("GET", "/rest/v1/companies", () => [{ locale: "fr-CA" }]);
+    sb.on("GET", "/rest/v1/profiles", () => [{ user_id: USER_A, locale: "fr-CA" }]);
+    stubFetch(sb.route, ...service.routes);
+    const env2 = fcmEnv(account);
+
+    await notifyIncomingCall(env2, getDb(env2), { ...INPUT, caller: null, userIds: [USER_A, USER_B] });
+
+    const byToken = Object.fromEntries(service.sends.map(({ message }) => [String(message.token), message.data]));
+    expect(byToken[DEVICE_TOKEN]).toMatchObject({
+      title: "Appel entrant",
+      body: "Quelqu’un appelle votre numéro professionnel",
+      url: "/calls?call=sess-1",
+    });
+    expect(byToken["token-b"]).toMatchObject({ title: "Incoming call", url: "/calls?call=sess-1" });
+  });
+
   it("prunes an UNREGISTERED token as a LOG (no error report), never the token value", async () => {
     const account = await makeServiceAccount();
     const service = fcmService({
