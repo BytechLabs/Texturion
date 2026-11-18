@@ -591,19 +591,19 @@ describe("delete-my-data — the store-facing deletion page", () => {
     expect(page.html).toMatch(/30 days/);
   });
 
-  it("says a deleted contact is hidden rather than sent to the Trash, here and on privacy", () => {
-    // DELETE /v1/contacts/:id only sets deleted_at, which an inbound text or call
-    // clears again; the Trash holds messages, conversations, calls and voicemails.
+  it("explains contact Trash retention and what stays after erasure", () => {
     const said = {
       en: [
-        "hides the contact from your lists without erasing it",
-        "its conversations stay",
-        "that number texts or calls you",
+        "Deleting a contact moves it to the Trash",
+        "restored for 30 days",
+        "Its conversations stay",
+        "keep its primary number and consent records",
       ],
       "fr-CA": [
-        "masque le contact dans vos listes sans l'effacer",
-        "ses conversations restent",
-        "ce numéro vous texte ou vous appelle",
+        "Un contact supprimé va dans la corbeille",
+        "restauré pendant 30 jours",
+        "Ses conversations restent",
+        "conservons son numéro principal et ses registres de consentement",
       ],
     } as const;
     for (const locale of ["en", "fr-CA"] as const) {
