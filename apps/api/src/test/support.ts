@@ -8,6 +8,7 @@ import type { JWK } from 'jose';
 import { vi } from "vitest";
 
 import type { Env } from "../env";
+import { schemaViolationResponse } from "./schema-columns";
 import { generateVapidPair } from "./vapid-keys";
 import type { SendClearance } from "../messaging/send";
 
@@ -289,6 +290,11 @@ export function stubFetch(...routes: FetchRoute[]): void {
         init,
       );
       const url = new URL(request.url);
+      if (url.pathname.startsWith("/rest/v1/")) {
+        const body = request.body ? await request.clone().json().catch(() => undefined) : undefined;
+        const violation = schemaViolationResponse(request.method, url, body);
+        if (violation) return violation;
+      }
       for (const route of [...routes, ...ambientEmailRoutes]) {
         const response = await route(url, request);
         if (response) return returnsNoRows(request, url) ? withoutRows(response, request.method) : response;

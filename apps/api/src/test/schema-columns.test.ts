@@ -1,6 +1,9 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { checkLogicalExpression, checkRestRequest, checkSelect } from "./schema-columns";
+import { stubFetch } from "./support";
+
+const REST = "https://example.test/rest/v1";
 
 describe("schema column checks (#750)", () => {
   it("accepts aliases, casts, embeds and computed columns", () => {
@@ -40,5 +43,59 @@ describe("schema column checks (#750)", () => {
     url.searchParams.set("or", "(name.ilike.*elm*,contact_addresses.eq.elm)");
     expect(checkRestRequest("GET", "contacts", url, undefined).map((problem) => problem.column))
       .toEqual(["contact_addresses"]);
+  });
+});
+
+describe("PostgREST request shape", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("accepts null filters on an embedded relation alias", async () => {
+    stubFetch(() => Response.json([]));
+    const url = new URL(`${REST}/tasks`);
+    url.searchParams.set("select", "id,calendar_hold:task_calendar_links()");
+    url.searchParams.set("calendar_hold", "is.null");
+    expect((await fetch(url)).status).toBe(200);
+
+    url.searchParams.set("calendar_hlod", "is.null");
+    expect((await fetch(url)).status).toBe(400);
+  });
+
+  it("checks required RPC arguments before a registered responder runs", async () => {
+    const responder = vi.fn(() => Response.json({ ok: true }));
+    stubFetch(responder);
+    const run = (rpc: string, args: Record<string, string>) => fetch(`${REST}/rpc/${rpc}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(args),
+    });
+
+    const valid = { p_user_id: "user", p_session_id: "session" };
+    expect((await run("api_authorize_request", valid)).status).toBe(200);
+    expect((await run("api_authorize_request", { ...valid, p_workspace_id: "workspace" })).status).toBe(404);
+    expect((await run("api_authorize_request", { p_user_id: "user" })).status).toBe(404);
+    const unknown = await run("api_does_not_exist", valid);
+    expect(unknown.status).toBe(404);
+    expect(await unknown.json()).toMatchObject({ code: "PGRST202" });
+    const trigger = await run("broadcast_conversation_change", {});
+    expect(trigger.status).toBe(404);
+    expect(await trigger.json()).toMatchObject({ code: "PGRST202" });
+    expect(responder).toHaveBeenCalledTimes(1);
+  });
+
+  it("rejects an upsert target with existing columns but no matching unique key", async () => {
+    stubFetch(() => Response.json({ ok: true }));
+    const upsert = (target: string) => fetch(`${REST}/phone_numbers?on_conflict=${target}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Prefer: "resolution=merge-duplicates,return=representation",
+      },
+      body: JSON.stringify({ provisioning_key: "test" }),
+    });
+
+    expect((await upsert("provisioning_key")).status).toBe(200);
+    const invalid = await upsert("id,provisioning_key");
+    expect(invalid.status).toBe(400);
+    expect(await invalid.json()).toMatchObject({ code: "42P10" });
   });
 });
