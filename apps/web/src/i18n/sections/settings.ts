@@ -153,7 +153,7 @@ export const settingsEn = {
   helpFaqNotGotQ: "A customer says they never got my text. What now?",
   helpFaqNotGotA: "Check whether they ever texted STOP: a carrier opt-out blocks us and only the customer can lift it, by texting START. If that is not it, email us the customer's number and roughly when you sent it, and we can trace the message with the carrier.",
   helpFaqPortQ: "How long does moving my existing number take?",
-  helpFaqPortA: "Porting takes 7 to 10 business days once the carrier accepts the request, and your old number keeps working the entire time. Nothing goes dark at any point.",
+  portTransferWindow: "Your number keeps working with your current carrier during the transfer, which usually takes a few business days to about two weeks in the US and is often faster in Canada.",
 
 
   /* Shared across the settings screens. */
@@ -908,7 +908,7 @@ export const settingsFr: Translated<typeof settingsEn> = {
   helpFaqNotGotQ: "Un client dit qu'il n'a jamais reçu mon texto. Que faire ?",
   helpFaqNotGotA: "Vérifiez s'il a déjà envoyé STOP : un désabonnement chez le fournisseur nous bloque et seul le client peut le lever, en textant START. Si ce n'est pas cela, écrivez-nous le numéro du client et le moment approximatif de l'envoi, et nous pourrons retracer le message avec le fournisseur.",
   helpFaqPortQ: "Combien de temps prend le transfert de mon numéro actuel ?",
-  helpFaqPortA: "Le transfert prend de 7 à 10 jours ouvrables une fois que le fournisseur accepte la demande, et votre ancien numéro continue de fonctionner pendant tout ce temps. Rien ne s'éteint à aucun moment.",
+  portTransferWindow: "Votre numéro continue de fonctionner chez votre fournisseur actuel pendant le transfert, qui prend généralement de quelques jours ouvrables à environ deux semaines aux États-Unis et se fait souvent plus rapidement au Canada.",
 
 
   saveFailed: "Impossible d'enregistrer. Réessayez.",

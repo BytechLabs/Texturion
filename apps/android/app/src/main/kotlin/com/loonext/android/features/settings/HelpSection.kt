@@ -129,7 +129,7 @@ private val SUPPORT_TOPIC_KEYS: List<Pair<String, String>> = listOf(
     "settings.helpFaqPendingQ" to "settings.helpFaqPendingA",
     "settings.helpFaqStoppedQ" to "settings.helpFaqStoppedA",
     "settings.helpFaqNotGotQ" to "settings.helpFaqNotGotA",
-    "settings.helpFaqPortQ" to "settings.helpFaqPortA",
+    "settings.helpFaqPortQ" to "settings.portTransferWindow",
 )
 
 /** The questions and their answers, in one language. */

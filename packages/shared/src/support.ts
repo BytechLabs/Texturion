@@ -266,5 +266,5 @@ export const SUPPORT_TOPICS: readonly SupportTopic[] = [
   { questionKey: "settings.helpFaqPendingQ", answerKey: "settings.helpFaqPendingA" },
   { questionKey: "settings.helpFaqStoppedQ", answerKey: "settings.helpFaqStoppedA" },
   { questionKey: "settings.helpFaqNotGotQ", answerKey: "settings.helpFaqNotGotA" },
-  { questionKey: "settings.helpFaqPortQ", answerKey: "settings.helpFaqPortA" },
+  { questionKey: "settings.helpFaqPortQ", answerKey: "settings.portTransferWindow" },
 ];

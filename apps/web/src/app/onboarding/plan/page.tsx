@@ -7,7 +7,7 @@ import { Suspense, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ModuleCard } from "@/components/billing/module-card";
-import { PORT_CHECKOUT_TIMELINE } from "@/components/porting/copy";
+import { PORT_CHECKOUT_TIMELINE_KEYS } from "@/components/porting/copy";
 import {
   HONEST_TIMELINE,
   HONEST_TIMELINE_CA_ONLY,
@@ -146,7 +146,7 @@ function PlanStep() {
     (p) => p.status !== "cancelled",
   );
   const timeline = porting
-    ? PORT_CHECKOUT_TIMELINE
+    ? PORT_CHECKOUT_TIMELINE_KEYS.map((key) => t(key))
     : owes
       ? HONEST_TIMELINE
       : HONEST_TIMELINE_CA_ONLY;

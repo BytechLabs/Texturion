@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 
+import { PORT_CHECKOUT_TIMELINE_KEYS } from "@/components/porting/copy";
+import { makeTranslate } from "@/i18n/translate";
 import type { PortRequest } from "@/lib/api/types";
 
-import { resolvePortChecklistItem } from './port-item';
+import { portChecklistCopy, resolvePortChecklistItem } from './port-item';
 import type { PortItemPhase } from './port-item';
 
 /** Minimal port row factory — only the fields the deriver reads matter. */
@@ -184,3 +186,18 @@ describe("resolvePortChecklistItem — the phase table (PORTING.md §1/§8.2)", 
     }
   });
 });
+
+it.each([
+  ["en", "a few business days to about two weeks"],
+  ["fr-CA", "quelques jours ouvrables à environ deux semaines"],
+] as const)(
+  "uses the same transfer window before and after payment in %s",
+  (locale, windowText) => {
+    const t = makeTranslate(locale);
+    const checkout = PORT_CHECKOUT_TIMELINE_KEYS.map((key) => t(key));
+    const reviewWindow = portChecklistCopy(t).inReviewWindow;
+
+    expect(reviewWindow).toContain(windowText);
+    expect(checkout.filter((line) => line.includes(windowText))).toEqual([reviewWindow]);
+  },
+);
