@@ -331,6 +331,7 @@ class ContactsRepository(private val api: ApiClient) {
         value: String? = null,
         /** #695: only contacts carrying this workspace tag. */
         tagId: String? = null,
+        sort: String? = null,
     ): Page<Contact> = api.get(
         "/v1/contacts",
         query = mapOf(
@@ -343,6 +344,7 @@ class ContactsRepository(private val api: ApiClient) {
             // dropping it would silently widen the list back to everybody.
             "value" to if (field != null) value.orEmpty() else null,
             "tag_id" to tagId,
+            "sort" to sort,
         ),
         companyId = companyId,
     )

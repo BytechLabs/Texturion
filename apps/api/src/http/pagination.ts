@@ -15,7 +15,7 @@ const cursorSchema = z.object({
 
 export type Cursor = z.infer<typeof cursorSchema>;
 
-function toBase64Url(text: string): string {
+export function toBase64Url(text: string): string {
   const bytes = new TextEncoder().encode(text);
   let binary = "";
   for (const byte of bytes) binary += String.fromCharCode(byte);
@@ -25,7 +25,7 @@ function toBase64Url(text: string): string {
     .replace(/[=]+$/, "");
 }
 
-function fromBase64Url(encoded: string): string {
+export function fromBase64Url(encoded: string): string {
   const base64 = encoded
     .replaceAll("-", "+")
     .replaceAll("_", "/")

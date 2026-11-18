@@ -434,7 +434,8 @@ struct ContactsApi: Sendable {
         field: String? = nil,
         value: String? = nil,
         /// #695: only contacts carrying this workspace tag.
-        tagId: String? = nil
+        tagId: String? = nil,
+        sort: String? = nil
     ) async throws -> Page<Contact> {
         try await api.get(
             "/v1/contacts",
@@ -448,7 +449,8 @@ struct ContactsApi: Sendable {
                 // and dropping it would silently widen the list back to
                 // everybody.
                 "value": field != nil ? (value ?? "") : nil,
-                "tag_id": tagId
+                "tag_id": tagId,
+                "sort": sort
             ],
             companyId: companyId
         )

@@ -39,7 +39,7 @@ suspend fun warmStoreCache(graph: AppGraph, companyId: String) = coroutineScope 
     }
     warm(CacheKeys.inbox(companyId)) { fetchInboxDefault(graph.api, companyId) }
     warm(CacheKeys.contacts(companyId)) {
-        graph.contactsRepo.contacts(companyId, limit = 50)
+        graph.contactsRepo.contacts(companyId, limit = 50, sort = "name")
             .let { ContactsSnapshot(it.data, it.next_cursor) }
     }
     warm(CacheKeys.tasks(companyId)) {
