@@ -104,6 +104,10 @@ function deferred(): { promise: Promise<void>; resolve: () => void } {
   return { promise, resolve };
 }
 
+function neverSettles<T>(): Promise<T> {
+  return new Promise(() => {});
+}
+
 describe("deployed capacity target safety", () => {
   it.each([
     "https://loonext.com",
@@ -252,9 +256,7 @@ describe("deployed capacity target safety", () => {
 
 describe("bounded API ramp", () => {
   it("aborts a request that never settles and labels it only as a deadline", async () => {
-    const never = vi.fn(
-      async () => await new Promise<Response>(() => undefined),
-    ) as unknown as typeof fetch;
+    const never = vi.fn(neverSettles<Response>) as unknown as typeof fetch;
     const outcome = await performBoundedGet(
       never,
       "https://api-staging.example.net/v1/for-you",
@@ -617,7 +619,7 @@ describe("hosted Realtime connection ramp", () => {
     const hangingProbe: RealtimeConnection = {
       joinedMs: 1,
       snapshot: () => subscribedSnapshot(),
-      close: async () => await new Promise<void>(() => undefined),
+      close: neverSettles<void>,
     };
     await expect(
       runHostedCapacity(cfg, {
@@ -633,8 +635,7 @@ describe("hosted Realtime connection ramp", () => {
     await expect(
       runHostedCapacity(cfg, {
         fetch: vi.fn(async () => response()) as unknown as typeof fetch,
-        openRealtime: async () =>
-          await new Promise<RealtimeConnection>(() => undefined),
+        openRealtime: neverSettles<RealtimeConnection>,
       }),
     ).rejects.toThrow(/topic preflight failed/);
   });
@@ -696,7 +697,7 @@ describe("hosted Realtime connection ramp", () => {
           return {
             joinedMs: 1,
             snapshot: () => subscribedSnapshot(),
-            close: async () => await new Promise<void>(() => undefined),
+            close: neverSettles<void>,
           };
         },
         onEvidence: (record) => emitted.push(record),

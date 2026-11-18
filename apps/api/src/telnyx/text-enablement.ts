@@ -585,14 +585,17 @@ export async function submitHostedVerificationCode(
   );
 }
 
+type TextEnablementPassResult =
+  | { kind: "return"; order: TextEnablementOrderRow }
+  | { kind: "reread" }
+  | { kind: "update"; patch: Record<string, unknown> };
+
 /**
  * S2+S3 for one order: create the hosted order (persist id first), attach the
- * documents when both are on the row, then read the order status; on
- * 'completed' activate the number. Never throws for a step failure — the
- * failure lands on the row (status/last_error/attempts) for the reconcile
- * cron; only infrastructure failures (DB unreachable) propagate. Every write
- * is cancel-guarded (see the module header): a cancel that lands mid-flight
- * wins, and the saga converges to the cancelled row instead of overwriting it.
+ * documents when both are on the row, then read the order status. On
+ * 'completed' activate the number. Record step failures for reconciliation.
+ * Hold the lease through the final read or write, whose failures propagate.
+ * Cancel-guarded writes let a concurrent cancellation win.
  */
 export async function resumeTextEnablement(
   env: Env,
@@ -607,8 +610,22 @@ export async function resumeTextEnablement(
   // crash mid-lease is healed by expiry + the persisted order id / idempotency key.
   const leased = await claimTextEnablementLease(db, order.id);
   if (!leased) return order;
-  order = leased;
 
+  try {
+    const result = await runTextEnablementPass(env, db, leased);
+    if (result.kind === "return") return result.order;
+    if (result.kind === "reread") return await readOrder(db, leased.id);
+    return await updateOrderUnlessCancelled(env, db, leased.id, result.patch);
+  } finally {
+    await releaseTextEnablementLease(db, leased.id);
+  }
+}
+
+async function runTextEnablementPass(
+  env: Env,
+  db: SupabaseClient,
+  order: TextEnablementOrderRow,
+): Promise<TextEnablementPassResult> {
   try {
     const company = await fetchProvisioningCompany(db, order.company_id);
 
@@ -621,10 +638,13 @@ export async function resumeTextEnablement(
       // Not a failure — no attempt consumed; the reconcile cron retries after
       // billing is restored.
       if (company.subscription_status !== "active") {
-        return updateOrderUnlessCancelled(env, db, order.id, {
-          last_error:
-            "Subscription is not active; the hosted-messaging order will be created once billing is restored.",
-        });
+        return {
+          kind: "update",
+          patch: {
+            last_error:
+              "Subscription is not active; the hosted-messaging order will be created once billing is restored.",
+          },
+        };
       }
       const profileId = await ensureMessagingProfile(env, db, company);
       // Deterministic key persisted BEFORE the POST — a crash-then-retry replays
@@ -663,7 +683,7 @@ export async function resumeTextEnablement(
       );
       // Cancelled mid-flight: the guarded write converged (fresh Telnyx order
       // deleted) — return the cancelled row untouched.
-      if (order.status === "cancelled") return order;
+      if (order.status === "cancelled") return { kind: "return", order };
       // S2b: documents uploaded before the order existed (an earlier create
       // failed) — attach them now the order is real (unless it is already dead).
       if (
@@ -675,12 +695,10 @@ export async function resumeTextEnablement(
       }
       // A synchronously-successful create can already be complete.
       if (order.status === "completed") {
-        if (!(await activateHostedNumber(db, order))) return readOrder(db, order.id);
-        return updateOrderUnlessCancelled(env, db, order.id, {
-          completed_at: new Date().toISOString(),
-        });
+        if (!(await activateHostedNumber(db, order))) return { kind: "reread" };
+        return { kind: "update", patch: { completed_at: new Date().toISOString() } };
       }
-      return order;
+      return { kind: "return", order };
     }
 
     // S3: poll the existing order; complete when the carrier finishes.
@@ -694,10 +712,10 @@ export async function resumeTextEnablement(
       // Telnyx reports the order 'deleted' (our cancel/release, or a portal-
       // side delete) — converge like cancel: free the slot, mark cancelled.
       await releaseHostedPhoneRow(db, order);
-      return updateOrderUnlessCancelled(env, db, order.id, {
-        status: "cancelled",
-        cancelled_at: new Date().toISOString(),
-      });
+      return {
+        kind: "update",
+        patch: { status: "cancelled", cancelled_at: new Date().toISOString() },
+      };
     }
     // Telnyx holds an order at action-required while the LOA/bill are missing
     // or invalid (incomplete_documentation / loa_file_invalid /
@@ -730,11 +748,11 @@ export async function resumeTextEnablement(
         // The number row left 'provisioning' out of band (released by a
         // concurrent cancel/release) — skip completion; that path owns
         // convergence of the order row.
-        return readOrder(db, order.id);
+        return { kind: "reread" };
       }
       patch.completed_at = new Date().toISOString();
     }
-    return updateOrderUnlessCancelled(env, db, order.id, patch);
+    return { kind: "update", patch };
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     void captureException(env, error, { source: "api" });
@@ -753,12 +771,7 @@ export async function resumeTextEnablement(
         { source: "api" },
       );
     }
-    return updateOrderUnlessCancelled(env, db, order.id, patch);
-  } finally {
-    // Release the saga lease on every pass (success, pending, or failure). The
-    // persisted telnyx_hosted_order_id guards a later create; a crash skips the
-    // finally and the lease expires on its own.
-    await releaseTextEnablementLease(db, order.id);
+    return { kind: "update", patch };
   }
 }
 
