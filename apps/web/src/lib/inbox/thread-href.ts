@@ -13,11 +13,13 @@ const INBOX_LIST_PARAMS = ["status", "assignee", "line", "tag", "unread", "spam"
  * - `callSessionId`: the same, for the call's line in the stream (a task
  *   promoted from a call anchors to the call, not to the top).
  * - `taskId`: open that task in the side panel instead of the contact panel.
+ * - `findQuery`: prefill the thread's search when opening a result.
  */
 export interface ThreadTarget {
   messageId?: string | null;
   callSessionId?: string | null;
   taskId?: string | null;
+  findQuery?: string | null;
 }
 
 interface InboxHrefOptions {
@@ -30,6 +32,7 @@ interface InboxHrefOptions {
 export const THREAD_MESSAGE_PARAM = "message";
 export const THREAD_CALL_PARAM = "call";
 export const THREAD_TASK_PARAM = "task";
+export const THREAD_FIND_PARAM = "find";
 
 export function threadHref(
   conversationId: string,
@@ -54,6 +57,8 @@ export function inboxHref({ conversationId, target = {}, listQuery = "", contact
   if (target.messageId) params.set(THREAD_MESSAGE_PARAM, target.messageId);
   else if (target.callSessionId) params.set(THREAD_CALL_PARAM, target.callSessionId);
   if (target.taskId) params.set(THREAD_TASK_PARAM, target.taskId);
+  const findQuery = target.findQuery?.trim();
+  if (findQuery) params.set(THREAD_FIND_PARAM, findQuery);
   if (contactId) params.set("contact", contactId);
   const pathname = conversationId ? `/inbox/${conversationId}` : "/inbox";
   const query = params.toString();

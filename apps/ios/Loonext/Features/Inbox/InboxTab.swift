@@ -1445,6 +1445,7 @@ private struct InboxList: View {
                     selection: $selection,
                     onOpenConversation: { id, highlight in
                         controller.markLocallyRead(id)
+                        AppRouter.shared.pendingFindQuery = highlight == nil ? nil : controller.query
                         onOpen(id, highlight)
                     },
                     onOpenTask: onOpenTask,

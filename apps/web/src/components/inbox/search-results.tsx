@@ -127,7 +127,7 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
               href={inboxHref({
                 conversationId: hit.id,
                 listQuery,
-                target: { messageId: hit.matched_message_id },
+                target: { messageId: hit.matched_message_id, findQuery: q },
               })}
               className="flex items-center gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >

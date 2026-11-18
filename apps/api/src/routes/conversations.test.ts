@@ -66,6 +66,35 @@ function conversationRow(overrides: Record<string, unknown> = {}) {
   };
 }
 
+describe("find messages in one conversation", () => {
+  const rpc = "/rest/v1/rpc/api_find_thread_messages";
+  const endpoint = `/v1/conversations/${CONV_ID}/messages/search?q=furn`;
+
+  it("passes a bounded search and signals the first omitted match", async () => {
+    const sb = memberStub();
+    sb.on("POST", rpc, () => Array.from({ length: 51 }, (_, index) => ({ id: String(index) })));
+    stubFetch(jwksRoute(auth), sb.route);
+    const response = await apiRequest(app, env, await auth.token(), endpoint, { companyId: COMPANY_ID });
+    expect(response.status).toBe(200);
+    const result = (await response.json()) as { data: { id: string }[]; truncated: boolean };
+    expect(result.data).toHaveLength(50);
+    expect(result.truncated).toBe(true);
+    expect(sb.find("POST", rpc)[0].body).toEqual({ p_company: COMPANY_ID, p_thread: CONV_ID, p_query: "furn" });
+  });
+
+  it("denies access to a hidden number before querying message content", async () => {
+    const sb = supabaseStub(env);
+    const row = conversationRow();
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [{ phone_number_id: row.phone_number_id, level: "none" }]);
+    sb.on("GET", "/rest/v1/conversations", () => [row]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const response = await apiRequest(app, env, await auth.token(), endpoint, { companyId: COMPANY_ID });
+    expect(response.status).toBe(404);
+    expect(sb.find("POST", rpc)).toHaveLength(0);
+  });
+});
+
 describe("GET /v1/conversations (cursor + filter composition)", () => {
   it("passes every filter and the decoded cursor to api_list_conversations", async () => {
     const sb = memberStub();
