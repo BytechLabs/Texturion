@@ -402,35 +402,21 @@ export const S06: ScenarioRunner = {
   },
 };
 
-export const S07_VARIANTS = ["blind", "decline", "timeout", "hop-cap"] as const;
+export const S07_VARIANTS = ["blind", "decline", "timeout"] as const;
 export type TransferVariant = (typeof S07_VARIANTS)[number];
 export const TRANSFER_AT_MS = 8000;
 const TARGET_RING_MS = 10_000;
-const SNAP_BACK_RING_MS = 15_000;
-/** apps/api/src/messaging/live-call.ts TRANSFER_TIMEOUT_SECS: how long an unanswered transfer rings before it snaps back. */
+/** Match the target leg timeout in apps/api/src/messaging/live-call.ts. */
 export const TRANSFER_RING_SECS = 25;
-/** Long enough for the voicemail greeting and its beep once the hop cap is reached. */
-const VOICEMAIL_LISTEN_MS = 25_000;
 
-/**
- * From the owner's answer: when the target must have rung, when a snap-back
- * must have rung the owner, and the window the robot then judges. Every wait
- * is bounded by these, so the window never opens before the answer it judges.
- */
-export function transferTimeline(variant: TransferVariant): { targetBy: number; snapBackBy?: number; after?: Segment; hangup: number } {
+export function transferTimeline(variant: TransferVariant) {
   const targetBy = TRANSFER_AT_MS + TARGET_RING_MS;
-  const snapBackBy = variant === "blind" ? undefined : targetBy + SNAP_BACK_RING_MS + (variant === "timeout" ? TRANSFER_RING_SECS * 1000 : 0);
-  const settledBy = snapBackBy ?? targetBy;
-  if (variant === "hop-cap") return { targetBy, snapBackBy, hangup: settledBy + VOICEMAIL_LISTEN_MS };
+  const ringing = segment("ringing_target", targetBy + MARGIN_MS, targetBy + MARGIN_MS + 4000);
+  const settledBy = variant === "timeout" ? targetBy + TRANSFER_RING_SECS * 1000 : ringing.end_ms;
   const after = segment("after", settledBy + RETURN_MS + MARGIN_MS, settledBy + RETURN_MS + MARGIN_MS + 8000);
-  return { targetBy, snapBackBy, after, hangup: after.end_ms + 4000 };
+  return { targetBy, ringing, after, hangup: after.end_ms + 4000 };
 }
 
-/**
- * S07: the owner blind-transfers ROBOT-1's call to the technician. The
- * variants miss the transfer: a decline or a timeout snaps the call back to
- * the owner, and missing the snap-back too (the hop cap) sends it to voicemail.
- */
 export const S07: ScenarioRunner = {
   id: "S07",
   async run(ctx) {
@@ -438,7 +424,7 @@ export const S07: ScenarioRunner = {
     if (!S07_VARIANTS.includes(variant)) return infra("runner", `S07 has no "${variant}" variant`);
     ctx.evidence.variant = variant;
     const timeline = transferTimeline(variant);
-    // In turn, the owner rings alone and answers before the technician joins: one ring dial, so a snap-back still fits S07's three.
+    // Keep the technician out of the initial ring so its audio belongs to the transfer leg.
     const unset = await changeCompany(ctx, "QA-W", { ring_strategy: "in_turn" });
     if (unset) return unset;
     const owner = await ctx.browser.open(OWNER, OWNER);
@@ -452,7 +438,7 @@ export const S07: ScenarioRunner = {
       to: "DEV-W2",
       expect: OWNER,
       window: { start_ms: 2000, end_ms: TRANSFER_AT_MS - MARGIN_MS },
-      segments: timeline.after ? [timeline.after] : undefined,
+      segments: [timeline.ringing, timeline.after],
       hangup_after_ms: timeline.hangup,
     });
     if (dialed.state === "failed") return dialFailure(dialed);
@@ -476,19 +462,9 @@ export const S07: ScenarioRunner = {
       await ctx.robot.wait(dialed.plan_id, 180_000);
       return fail("transfer_never_rang", "the technician's page did not ring for the transfer");
     }
-    if (variant === "blind") {
-      await technician.answer();
-    } else {
-      if (variant !== "timeout") await technician.decline();
-      const snapBack = await owner.waitForRing(left(timeline.snapBackBy!));
-      ctx.evidence.snap_back_ms = snapBack;
-      if (snapBack === undefined) {
-        await ctx.robot.wait(dialed.plan_id, 180_000);
-        return fail("no_snap_back", `after the ${variant} the owner's page never rang again`);
-      }
-      if (variant === "hop-cap") await owner.decline();
-      else await owner.answer();
-    }
+    await until(ctx, answeredAt + timeline.ringing.end_ms);
+    if (variant === "blind") await technician.answer();
+    if (variant === "decline") await technician.decline();
     const record = await ctx.robot.wait(dialed.plan_id, 180_000);
     ctx.evidence.call = robotEvidence(record);
     const robot = robotVerdict(record, OWNER);
@@ -499,10 +475,10 @@ export const S07: ScenarioRunner = {
     const legs = await ctx.app.callLegs({ tenant: "QA-W", callSessionId: row.call_session_id });
     ctx.evidence.legs = legs;
 
-    if (variant === "hop-cap") {
-      return row.outcome === "voicemail"
-        ? pass()
-        : fail("hop_cap_not_voicemail", `after a missed transfer and a missed snap-back the row reads ${row.outcome ?? "nothing"}`);
+    const during = membersIn(record, timeline.ringing.name);
+    if (!during) return infra("robot", "no verdict while the transfer target rang");
+    if (!during.includes(OWNER) || during.includes(TECHNICIAN)) {
+      return fail("lost_sender_during_transfer", `while the target was ringing the robot heard ${during.join(", ") || "no member"}`);
     }
     const heard = membersIn(record, "after");
     if (!heard) return infra("robot", "no verdict on the robot's window after the transfer");
@@ -516,7 +492,7 @@ export const S07: ScenarioRunner = {
       return pass();
     }
     if (!heard.includes(OWNER) || heard.includes(TECHNICIAN)) {
-      return fail("did_not_snap_back", `after the ${variant} the robot heard ${heard.join(", ") || "no member"}, not the owner`);
+      return fail("lost_sender_after_transfer", `after the ${variant} the robot heard ${heard.join(", ") || "no member"}`);
     }
     return pass();
   },
