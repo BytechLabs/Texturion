@@ -168,6 +168,16 @@ export function CloseWorkspaceCard({ company }: { company: CompanyView }) {
               {t("settings.closeWorkspaceConfirmDescription")}
             </DialogDescription>
           </DialogHeader>
+          <a
+            href="#export-data"
+            className="text-sm font-medium underline underline-offset-2"
+            onClick={() => {
+              setOpen(false);
+              setTyped("");
+            }}
+          >
+            {t("settings.closeWorkspaceExportFirst")}
+          </a>
           <div className="space-y-2">
             <Label htmlFor="close-confirm">
               {t("settings.typeToConfirmLead")}

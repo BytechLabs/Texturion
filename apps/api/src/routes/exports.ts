@@ -17,6 +17,7 @@ import { z } from "zod";
 import { roleHasCapability, stateMachines } from '@loonext/shared';
 import type { Capability, MemberRole } from '@loonext/shared';
 import { Hono } from "hono";
+import type { Context } from "hono";
 
 import { alarmOnBulkContactAccess } from "../audit/bulk-contact-alarm";
 import { recordAuditFromRequest } from "../audit/log";
@@ -27,7 +28,8 @@ import { getEnv } from "../env";
 import { ApiError,errorResponse } from "../http/errors";
 import { dispositionOptions } from "../storage/disposition";
 import { EXPORTS_BUCKET, listExportFileNames } from "../workspace/export";
-import { parseJsonBody,unwrap } from "./core/http";
+import { listWorkspaceMedia, signWorkspaceMedia } from "../workspace/export-media";
+import { parseJsonBody, parseWith, unwrap } from "./core/http";
 
 export const exportsRoutes = new Hono<AppEnv>();
 
@@ -338,6 +340,7 @@ exportsRoutes.get("/exports", requireCapability("workspace.access"), async (c) =
     rows.map(async (row) => ({
       ...exportActions(row, role),
       id: row.id,
+      kind: row.kind,
       status: row.status,
       row_counts: row.row_counts ?? {},
       error: row.error,
@@ -431,6 +434,7 @@ exportsRoutes.get("/exports/:id", requireCapability("workspace.access"), async (
   return c.json({
     ...exportActions(row, role),
     id: row.id,
+    kind: row.kind,
     status: row.status,
     row_counts: row.row_counts ?? {},
     error: row.error,
@@ -440,3 +444,26 @@ exportsRoutes.get("/exports/:id", requireCapability("workspace.access"), async (
     files: await signFiles(db, row, role),
   });
 });
+
+async function workspaceExportCutoff(c: Context<AppEnv>) {
+  const db = getDb(getEnv(c.env));
+  const id = parseWith(z.uuid(), c.req.param("id"));
+  const [row] = unwrap<ExportRow[]>(
+    await db.from("data_exports").select(EXPORT_COLUMNS)
+      .eq("company_id", c.get("companyId"))
+      .eq("id", id).eq("kind", "workspace").eq("status", "ready").limit(1),
+    "workspace export lookup",
+  );
+  if (!row?.completed_at || !exportActions(row, c.get("role")).allowed_actions.includes("download")) {
+    throw new ApiError("not_found", "No ready workspace export with that ID.");
+  }
+  return row.completed_at;
+}
+
+exportsRoutes.get("/exports/:id/media", requireCapability("contacts.bulk"), async (c) =>
+  listWorkspaceMedia(c, await workspaceExportCutoff(c)),
+);
+
+exportsRoutes.get("/exports/:id/media/:kind/:mediaId", requireCapability("contacts.bulk"), async (c) =>
+  signWorkspaceMedia(c, await workspaceExportCutoff(c)),
+);

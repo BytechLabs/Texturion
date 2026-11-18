@@ -180,7 +180,7 @@ gets overlooked.
 | `webhook_endpoints` | a **URL** the business chose, its **signing secret**, and the **user id** who added it. No contact data | Life of the endpoint; deleted with the workspace. The secret is readable by `service_role` alone — no policy and no grant reaches it from a client key, because anything that can read it can forge our signature |
 | `webhook_subscriptions` | opaque Google/Graph subscription and resource ids plus a client-state **hash**; no event body or customer content (#245) | Renewed for the live connection, revoked on disconnect/replacement, and purged with the workspace |
 | `api_keys` | a **name** the owner typed, a **token hash**, the **user id** who created it and the one who revoked it. No contact data, and the token itself is never stored (#243) | Life of the key. A revocation is a STAMP, not a delete: "when was that turned off, and by whom" is the first question after an incident and a deleted row cannot answer it. Rows go with the workspace in the teardown — a workspace that has been erased must not leave a live token that still resolves to its id |
-| `data_exports` | a notify-email id, and the export objects **contain everything above** | Expired exports deleted at 7 days (#378) |
+| `data_exports` | a notify-email id and copies of the records listed in [Workspace export coverage](#workspace-export-coverage) | Expired exports deleted at 7 days (#378) |
 | `usage_events`, `usage_alerts`, `egress_events`, `company_ai_usage`, `call_records`, `provider_costs`, `billing_disputes`, `prepayments`, `referrals` | volumes and Stripe ids; no names or bodies | Billing record |
 
 Push and ring evidence (D142) is not kept in the database. The API sends it to
@@ -249,6 +249,10 @@ they were left out rather than added "in case".
 The workspace download contains the active contact and work records described
 below. Member records include display names and role history. Data covered by
 a separate download remains available through that download.
+
+The export's files list contains eligible attachments, text message files and
+voicemail recordings. Each download checks the current file and charges the
+workspace's egress allowance before issuing a short-lived link.
 
 | Reason | Tables or fields |
 |---|---|
