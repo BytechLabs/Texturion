@@ -476,11 +476,13 @@ struct MessagingRepository: Sendable {
     /// #244: "I have this." Returns the outcome so the caller can name whose.
     func acknowledgeAlert(
         companyId: String,
-        alertId: String
+        alertId: String,
+        expectedUserId: String? = nil
     ) async throws -> AcknowledgeResult {
         try await api.post(
             "/v1/on-call/alerts/\(alertId)/acknowledge",
-            companyId: companyId
+            companyId: companyId,
+            expectedUserId: expectedUserId
         )
     }
 

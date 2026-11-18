@@ -6,6 +6,7 @@ import com.loonext.android.core.auth.SessionSource
 import com.loonext.android.core.auth.SupabaseAuth
 import com.loonext.android.core.auth.await
 import com.loonext.android.core.diag.RecentErrors
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
@@ -123,7 +124,11 @@ class ApiClient(
     suspend inline fun <reified T> post(
         path: String,
         companyId: String? = null,
-    ): T = decodeBody(path, raw("POST", path, body = "{}", companyId = companyId))
+        expectedUserId: String? = null,
+    ): T = decodeBody(
+        path,
+        raw("POST", path, body = "{}", companyId = companyId, expectedUserId = expectedUserId),
+    )
 
     suspend inline fun <reified T, reified B> patch(
         path: String,
@@ -196,6 +201,7 @@ class ApiClient(
         body: String? = null,
         companyId: String? = null,
         idempotencyKey: String? = null,
+        expectedUserId: String? = null,
     ): String {
         val session = freshSession() ?: throw ApiException(
             ApiErrorCode.UNAUTHORIZED,
@@ -204,7 +210,7 @@ class ApiClient(
             messageKey = "common.errSignedOut",
         )
         val first =
-            execute(method, path, query, body, session.accessToken, companyId, idempotencyKey)
+            execute(method, path, query, body, session.requireUser(expectedUserId), companyId, idempotencyKey)
         if (first.status != 401) return first.expectSuccess(json)
 
         // Access token rejected — refresh once (single-flight) and retry.
@@ -220,11 +226,18 @@ class ApiClient(
             )
         }
         val second =
-            execute(method, path, query, body, refreshed.accessToken, companyId, idempotencyKey)
+            execute(method, path, query, body, refreshed.requireUser(expectedUserId), companyId, idempotencyKey)
         if (second.status == 401) {
             _signedOut.tryEmit(Unit)
         }
         return second.expectSuccess(json)
+    }
+
+    private fun Session.requireUser(expectedUserId: String?): String {
+        if (expectedUserId != null && userId != expectedUserId) {
+            throw CancellationException()
+        }
+        return accessToken
     }
 
     /** Returns a session whose access token is not (about to be) expired. */

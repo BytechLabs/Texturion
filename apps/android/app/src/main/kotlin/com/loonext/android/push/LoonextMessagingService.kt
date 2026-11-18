@@ -194,6 +194,8 @@ fun postPushNotification(context: Context, content: PushContent, onlyAlertOnce: 
         // Coalesced repeats re-alert (web `renotify: true` parity).
         .setOnlyAlertOnce(onlyAlertOnce)
 
+    content.onCallAction?.addTo(builder, context, content.tag)
+
     if (content.isCall) {
         builder
             .setCategory(NotificationCompat.CATEGORY_CALL)

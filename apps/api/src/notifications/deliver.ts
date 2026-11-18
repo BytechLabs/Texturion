@@ -724,6 +724,7 @@ async function fanOutPush(
 
   for (const device of devices) {
     try {
+      const locale = localeFor(device);
       // TTL rides the sender default: an ordinary alert is worth delivering
       // late, unlike a ring. Urgency does NOT — #414 needs HIGH to wake a
       // phone in Doze, which is the whole mechanism behind the emergency
@@ -742,11 +743,14 @@ async function fanOutPush(
         () =>
           sendFcm(
             env,
-            device,
+            {
+              ...device,
+              actionScope: { companyId: delivery.companyId, userId: device.user_id, locale },
+            },
             payloadFor(
               nativePayloads,
               delivery.native ?? delivery.web,
-              localeFor(device),
+              locale,
             ),
             undefined,
             urgency,

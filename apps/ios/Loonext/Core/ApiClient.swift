@@ -65,7 +65,8 @@ actor ApiClient {
         _ path: String,
         body: (some Encodable & Sendable)? = nil as JSONValue?,
         companyId: String? = nil,
-        idempotencyKey: String? = nil
+        idempotencyKey: String? = nil,
+        expectedUserId: String? = nil
     ) async throws -> T {
         try Self.decode(
             path,
@@ -74,7 +75,8 @@ actor ApiClient {
                 path,
                 body: Self.encode(body),
                 companyId: companyId,
-                idempotencyKey: idempotencyKey
+                idempotencyKey: idempotencyKey,
+                expectedUserId: expectedUserId
             )
         )
     }
@@ -121,7 +123,8 @@ actor ApiClient {
         query: [String: String?] = [:],
         body: Data? = nil,
         companyId: String? = nil,
-        idempotencyKey: String? = nil
+        idempotencyKey: String? = nil,
+        expectedUserId: String? = nil
     ) async throws -> Data {
         guard let session = try await freshSession() else {
             throw ApiError(
@@ -133,7 +136,7 @@ actor ApiClient {
         }
         let first = try await execute(
             method, path,
-            query: query, body: body, token: session.accessToken,
+            query: query, body: body, token: scopedToken(session, expectedUserId),
             companyId: companyId, idempotencyKey: idempotencyKey
         )
         if first.status != 401 {
@@ -152,13 +155,20 @@ actor ApiClient {
         }
         let second = try await execute(
             method, path,
-            query: query, body: body, token: refreshed.accessToken,
+            query: query, body: body, token: scopedToken(refreshed, expectedUserId),
             companyId: companyId, idempotencyKey: idempotencyKey
         )
         if second.status == 401 {
             onSignedOut?()
         }
         return try second.expectSuccess()
+    }
+
+    private func scopedToken(_ session: Session, _ expectedUserId: String?) throws -> String {
+        if let expectedUserId, session.userId != expectedUserId {
+            throw CancellationError()
+        }
+        return session.accessToken
     }
 
     /// A request whose outcome nobody reads (ring beacons): one attempt, no

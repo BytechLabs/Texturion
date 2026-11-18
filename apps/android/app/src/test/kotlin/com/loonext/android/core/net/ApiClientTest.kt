@@ -3,6 +3,7 @@ package com.loonext.android.core.net
 import com.loonext.android.core.auth.Session
 import com.loonext.android.core.auth.SessionSource
 import com.loonext.android.core.auth.SupabaseAuth
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.test.runTest
@@ -138,6 +139,17 @@ class ApiClientTest {
         // unrecognised device — the exact row the feature teaches them to
         // worry about.
         assertEquals("android", recorded.headers["X-Client"])
+    }
+
+    @Test
+    fun `a scoped action cannot use a new account`() = runTest {
+        api.enqueue(MockResponse(body = """{"ok":true}"""))
+        try {
+            client().post<Pong>("/v1/on-call/alerts/alert-1/acknowledge", expectedUserId = "old-user")
+            fail("An old action must be cancelled")
+        } catch (_: CancellationException) {
+            assertEquals(0, api.requestCount)
+        }
     }
 
     @Test

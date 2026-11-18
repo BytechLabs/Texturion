@@ -170,6 +170,10 @@
             android:name=".telephony.CallActionReceiver"
             android:exported="false" />
 
+        <receiver
+            android:name=".push.OnCallActionReceiver"
+            android:exported="false" />
+
         <!-- #183 part 3 (Connected Apps): the Loonext device-side account +
              Contacts sync adapter that write the "Call/Text with Loonext" rows.
              Both are framework-bound (AccountManager / SyncManager) so they are
