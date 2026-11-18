@@ -34,8 +34,6 @@ const WORKSPACE_WEEK = {
   tue: { open: "08:00", close: "17:00" },
 };
 
-afterEach(cleanup);
-
 beforeEach(() => {
   save.mockReset();
   save.mockResolvedValue(undefined);
@@ -45,6 +43,8 @@ beforeEach(() => {
     business_hours_exceptions: { value: [], inherited: true },
   };
 });
+
+afterEach(cleanup);
 
 function open() {
   render(<NumberHoursDialog numberId="n1" open onOpenChange={() => {}} />);

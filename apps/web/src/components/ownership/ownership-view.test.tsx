@@ -211,7 +211,6 @@ function acceptTheOffer() {
   fireEvent.click(screen.getByRole("button", { name: "Accept ownership" }));
 }
 
-afterEach(cleanup);
 beforeEach(() => {
   state = OFFERED_TO_ME;
   mutate.mockReset();
@@ -221,6 +220,7 @@ beforeEach(() => {
     .mockResolvedValue({ data: { totp: [{ id: FACTOR }] }, error: null });
   challengeAndVerify.mockReset().mockResolvedValue({ data: {}, error: null });
 });
+afterEach(cleanup);
 
 describe("accepting a workspace when the server asks who is asking", () => {
   it("spends a stale-proof code on SUPABASE and retries with NO code", async () => {

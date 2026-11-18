@@ -195,8 +195,6 @@ function expectRefused(message: RegExp) {
 const DST_GAP = /does not exist because daylight saving time starts/i;
 const DST_FOLD = /happens twice because daylight saving time ends/i;
 
-afterEach(cleanup);
-
 beforeEach(() => {
   window.history.replaceState({}, "", "/settings/profile");
   mocks.authorize.mockReset();
@@ -213,6 +211,8 @@ beforeEach(() => {
   mocks.attentionView.isLoading = false;
   mocks.attentionView.isError = false;
 });
+
+afterEach(cleanup);
 
 describe("#245 two-way calendar settings", () => {
   it("states the write, invitation, and feed-revocation consequences before connect", () => {

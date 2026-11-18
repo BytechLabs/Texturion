@@ -129,12 +129,12 @@ function openTheDialog(): void {
   );
 }
 
-afterEach(cleanup);
 beforeEach(() => {
   roleRef.current = "owner";
   pauseRef.data = undefined;
   pauseRef.isError = false;
 });
+afterEach(cleanup);
 
 describe("#525 enabling US texting while the plan is paused", () => {
   it("ENUS-1: a paused owner is told the wait runs now, before the control", () => {

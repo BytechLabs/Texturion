@@ -98,10 +98,6 @@ function render(): string {
   return renderToStaticMarkup(<MemberOrientation />);
 }
 
-// This app's vitest does not set `globals`, so testing-library's automatic
-// cleanup never registers and renders stack across tests.
-afterEach(cleanup);
-
 beforeEach(() => {
   state.role = "member";
   state.firsts = { oriented: false };
@@ -118,6 +114,9 @@ beforeEach(() => {
   subscribe.mockClear();
   noteAsked.mockClear();
 });
+
+// Testing Library's automatic cleanup requires Vitest globals.
+afterEach(cleanup);
 
 describe("who it opens for", () => {
   it("opens for a new member, on the first screen", () => {

@@ -118,7 +118,7 @@ afterEach(() => {
   vi.unstubAllGlobals();
 });
 
-describe("mapHostedStatus", () => {
+describe(mapHostedStatus, () => {
   it("maps the REAL Telnyx hosted-order vocabulary (spec-verified enum)", () => {
     expect(mapHostedStatus("successful", "pending")).toBe("completed");
     expect(mapHostedStatus("pending", "in-progress")).toBe("pending");
@@ -476,7 +476,7 @@ describe("resumeTextEnablement — cancel-race + paid-first guards", () => {
   });
 });
 
-describe("cancelTextEnablement", () => {
+describe(cancelTextEnablement, () => {
   it("DELETEs the hosted order (tolerating 404), releases the row, marks cancelled", async () => {
     const { env, rest, telnyx } = setup();
     const { order, phone } = seedHosted(rest, {

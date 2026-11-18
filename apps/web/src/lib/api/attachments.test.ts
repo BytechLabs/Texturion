@@ -394,7 +394,6 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
   let minted = 0;
   let refuse = new Set<string>();
 
-  afterEach(cleanup);
   beforeEach(() => {
     minted = 0;
     refuse = new Set();
@@ -425,6 +424,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
       };
     });
   });
+  afterEach(cleanup);
 
   function harness() {
     const queryClient = new QueryClient({

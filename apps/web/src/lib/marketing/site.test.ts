@@ -7,7 +7,7 @@ import { APP_LINKS, appLinkBase } from "./site";
  * active, or the Next router RSC-prefetches /signup and /login on loonext.com,
  * follows the cross-host 30x, and fails CORS on every marketing page.
  */
-describe("appLinkBase", () => {
+describe(appLinkBase, () => {
   it("returns the origin when the app origin is configured", () => {
     expect(appLinkBase("https://app.loonext.com")).toBe(
       "https://app.loonext.com",
@@ -33,7 +33,7 @@ describe("appLinkBase", () => {
   });
 });
 
-describe("APP_LINKS", () => {
+describe("Application links", () => {
   it("always ends with the app paths, absolute or relative", () => {
     expect(APP_LINKS.login.endsWith("/login")).toBe(true);
     expect(APP_LINKS.signup.endsWith("/signup")).toBe(true);

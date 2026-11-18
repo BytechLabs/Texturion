@@ -73,11 +73,6 @@ function renderFields(custom: Record<string, string> = {}) {
   );
 }
 
-// This repo has no global setup file, so nothing unmounts between tests.
-// Without it the second render finds two "Boiler model" labels — the leftover
-// one from the first — and every query by label throws.
-afterEach(cleanup);
-
 beforeEach(() => {
   patched.mockClear();
   fieldDefs.mockReturnValue({
@@ -88,6 +83,9 @@ beforeEach(() => {
     ],
   });
 });
+
+// Testing Library's automatic cleanup requires Vitest globals.
+afterEach(cleanup);
 
 describe(ContactCustomFields, () => {
   it("CW-1: renders nothing at all until the workspace defines a field", async () => {

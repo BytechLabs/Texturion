@@ -242,7 +242,7 @@ describe("#233 whose clock it was", () => {
  * the key gets nothing at all). Both are silent, and both land on the one
  * screen where the product is delivering bad news.
  */
-describe("SCHEDULED_HOLD_REASON_KEYS", () => {
+describe("Scheduled hold reason keys", () => {
   it("covers exactly the reasons that have sentences, both directions", () => {
     // Set equality. A reason added to one map and not the other is the whole
     // failure mode, and `satisfies` only catches the missing-key half.
@@ -259,7 +259,7 @@ describe("SCHEDULED_HOLD_REASON_KEYS", () => {
   });
 });
 
-describe("scheduledHoldText", () => {
+describe(scheduledHoldText, () => {
   const words = (key: string) =>
     key === "domain.scheduledHoldExpired" ? "La fenêtre est passée." : key;
 

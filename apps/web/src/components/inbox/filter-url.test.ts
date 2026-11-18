@@ -25,7 +25,7 @@ import {
   unrepresentedStatus,
 } from "./filter-url";
 
-describe("parseInboxSearchParams", () => {
+describe(parseInboxSearchParams, () => {
   it("parses every supported param", () => {
     const params = new URLSearchParams(
       "status=waiting&assignee=me&tag=t-1&unread=true&spam=true&q=leak",
@@ -104,7 +104,7 @@ describe("segments", () => {
   });
 });
 
-describe("toConversationFilters", () => {
+describe(toConversationFilters, () => {
   it("resolves 'me' to the caller and never forwards q", () => {
     expect(
       toConversationFilters(
@@ -209,7 +209,7 @@ describe("#508 unanswered chip", () => {
   });
 });
 
-describe("hasActiveFilters", () => {
+describe(hasActiveFilters, () => {
   it("is false only for the bare All view", () => {
     expect(hasActiveFilters({})).toBe(false);
     expect(hasActiveFilters({ q: "  " })).toBe(false);
@@ -219,7 +219,7 @@ describe("hasActiveFilters", () => {
   });
 });
 
-describe("formatOpenCount", () => {
+describe(formatOpenCount, () => {
   it("hides zero and caps at 9+ (§2.1)", () => {
     expect(formatOpenCount(0)).toBe("");
     expect(formatOpenCount(-3)).toBe("");
@@ -230,7 +230,7 @@ describe("formatOpenCount", () => {
   });
 });
 
-describe("activeChips", () => {
+describe(activeChips, () => {
   it("lists only removable secondary filters, in a stable order", () => {
     expect(activeChips({})).toEqual([]);
     // The Mine segment owns the `me` assignee — it is never a chip.
@@ -253,7 +253,7 @@ describe("activeChips", () => {
   });
 });
 
-describe("clearSecondary", () => {
+describe(clearSecondary, () => {
   it("drops one dimension without touching the rest", () => {
     const base = { status: "open" as const, tag: "t-1", unread: true as const };
     expect(clearSecondary(base, "tag")).toEqual({
@@ -274,7 +274,7 @@ describe("clearSecondary", () => {
 // #548 — a status no segment can show, and the way back out
 // ---------------------------------------------------------------------------
 
-describe("unrepresentedStatus", () => {
+describe(unrepresentedStatus, () => {
   it("is null for the statuses the segments own", () => {
     expect(unrepresentedStatus({})).toBeNull();
     expect(unrepresentedStatus({ status: "open" })).toBeNull();
@@ -329,7 +329,7 @@ describe("activeChips with an unrepresented status", () => {
   });
 });
 
-describe("isSearchingInbox", () => {
+describe(isSearchingInbox, () => {
   it("takes the pane over only at the documented length", () => {
     expect(isSearchingInbox({})).toBe(false);
     expect(isSearchingInbox({ q: " " })).toBe(false);
@@ -353,7 +353,7 @@ describe("isSearchingInbox", () => {
   });
 });
 
-describe("clearAllFilters", () => {
+describe(clearAllFilters, () => {
   it("drops the status, every chip and the query", () => {
     const everything = {
       status: "waiting",
@@ -372,7 +372,7 @@ describe("clearAllFilters", () => {
   });
 });
 
-describe("toInboxFilterState", () => {
+describe(toInboxFilterState, () => {
   it("hands Mine to the segment and drops the named assignee", () => {
     // The request does the same (`assigned_user_id` becomes the viewer), and
     // the chip strip hides the assignee while Mine is lit.

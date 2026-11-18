@@ -49,8 +49,6 @@ vi.mock("sonner", () => ({
 
 import { VoiceGreetingCard } from "./voice-greeting-card";
 
-afterEach(cleanup);
-
 beforeEach(() => {
   recordMutate.mockReset().mockResolvedValue({});
   deleteMutate.mockReset().mockResolvedValue(undefined);
@@ -63,6 +61,8 @@ beforeEach(() => {
   toastError.mockReset();
   rows.current = [];
 });
+
+afterEach(cleanup);
 
 const GREETING = {
   id: "g1",

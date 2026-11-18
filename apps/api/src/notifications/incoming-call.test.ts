@@ -27,11 +27,11 @@ const USER_A = "aaaaaaaa-0000-4000-8000-00000000000a";
 const USER_B = "bbbbbbbb-0000-4000-8000-00000000000b";
 const PUSH_ORIGIN = "https://fcm.googleapis.com";
 
-afterEach(() => {
-  vi.unstubAllGlobals();
-});
 beforeEach(() => {
   resetCaptures();
+});
+afterEach(() => {
+  vi.unstubAllGlobals();
 });
 
 /** A stored subscription row with a REAL P-256 key pair (so encryptPushPayload

@@ -22,7 +22,7 @@ import { DEFAULT_AI_SETTINGS } from "./settings";
  * before anybody looked.
  */
 
-describe("shouldTranscribeWrapUp", () => {
+describe(shouldTranscribeWrapUp, () => {
   it("takes an ordinary wrap-up", () => {
     expect(shouldTranscribeWrapUp({ seconds: 18, bytes: 120_000 })).toBe(true);
   });
@@ -56,7 +56,7 @@ describe("shouldTranscribeWrapUp", () => {
   });
 });
 
-describe("sanitizeWrapUp", () => {
+describe(sanitizeWrapUp, () => {
   it("keeps the words exactly as spoken", () => {
     const spoken =
       "Quoted him $2,400 for the tank, parts Thursday, he's confirming with his wife.";
@@ -95,7 +95,7 @@ describe("sanitizeWrapUp", () => {
   });
 });
 
-describe("CALL_WRAPUP_FEATURE_SPEC", () => {
+describe("Call wrap-up feature spec", () => {
   // #380: the spec states its own price beside its own cap so the two are read
   // together, and this is what stops the duplication drifting.
   it("states the same unit cost the cost model prices", () => {

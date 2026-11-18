@@ -545,11 +545,6 @@ beforeAll(async () => {
   }
 });
 
-afterAll(async () => {
-  vi.unstubAllGlobals();
-  await fake.close();
-});
-
 beforeEach(() => {
   fake.reset();
   dbHalves = new Map();
@@ -557,6 +552,11 @@ beforeEach(() => {
   tables.call_member_legs.length = 0;
   tables.outbound_call_authorizations.length = 0;
   resetCaptures();
+});
+
+afterAll(async () => {
+  vi.unstubAllGlobals();
+  await fake.close();
 });
 
 function crewFor(journey: string): SeededCrew {

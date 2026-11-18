@@ -90,10 +90,6 @@ import { chooseOption, selectedValue } from "@/test/simple-select-driver";
 
 import TeamSettingsPage from "./page";
 
-// This app's vitest does not set `globals`, so testing-library's automatic
-// cleanup never registers and renders stack across tests.
-afterEach(cleanup);
-
 beforeEach(() => {
   createInvite.mockReset();
   updateRole.mockReset();
@@ -102,6 +98,9 @@ beforeEach(() => {
   session.role = "owner";
   session.userId = "u1";
 });
+
+// Testing Library's automatic cleanup requires Vitest globals.
+afterEach(cleanup);
 
 function noteField(): HTMLTextAreaElement {
   return screen.getByLabelText(

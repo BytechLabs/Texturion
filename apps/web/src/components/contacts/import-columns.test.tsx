@@ -83,11 +83,11 @@ vi.mock("papaparse", () => ({
 import { ImportWizard } from "./import-wizard";
 import { chooseOption, selectedValue } from "@/test/simple-select-driver";
 
-afterEach(cleanup);
 beforeEach(() => {
   csvMutate.mockReset();
   sheet.rows = [];
 });
+afterEach(cleanup);
 
 /** The bytes a sheet would have on disk, so "we post what they chose" is real. */
 function sheetText(rows: string[][]): string {

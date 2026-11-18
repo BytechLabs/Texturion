@@ -54,7 +54,7 @@ function stubAppPage(
   };
 }
 
-describe("whenTelemetryMayLoad", () => {
+describe(whenTelemetryMayLoad, () => {
   it("waits for the page to settle on a marketing page (#640)", async () => {
     for (const pathname of ["/", "/pricing", "/fr/tarifs", "/blog/some-post"]) {
       vi.stubGlobal("window", { location: { pathname } });

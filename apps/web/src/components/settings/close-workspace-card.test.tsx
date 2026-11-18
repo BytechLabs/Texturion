@@ -204,15 +204,6 @@ function retriedWith(): { code?: string } {
 }
 
 describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
-  afterEach(() => {
-    cleanup();
-    // Both dialogs render through a Radix portal onto `document.body` rather than
-    // into the container `cleanup` unmounts, so anything a portal leaves behind
-    // outlives the test that opened it — and every query in this file is a
-    // whole-body search for a code field. Cleared rather than trusted; no leak
-    // was observed, and this is here so one cannot start being tolerated.
-    document.body.innerHTML = "";
-  });
   beforeEach(() => {
     mutate.mockReset();
     requestCode.mockReset();
@@ -224,6 +215,11 @@ describe("CloseWorkspaceCard, when the server asks who is doing this", () => {
       .mockReset()
       .mockResolvedValue({ data: { totp: [{ id: FACTOR }] }, error: null });
     challengeAndVerify.mockReset().mockResolvedValue({ data: {}, error: null });
+  });
+  afterEach(() => {
+    cleanup();
+    // Clear any leftover Radix portal nodes before the next whole-body query.
+    document.body.innerHTML = "";
   });
 
   it("gives the digits somewhere to be typed", () => {

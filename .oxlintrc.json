@@ -202,11 +202,9 @@
     "react/jsx-handler-names": "off", // 66
     "typescript/restrict-template-expressions": "off", // 65
     "unicorn/no-array-for-each": "off", // 54
-    "vitest/prefer-hooks-in-order": "off", // 49
     "eslint/no-negated-condition": "off", // 48
     "unicorn/no-negated-condition": "off", // 48
     "typescript/no-deprecated": "off", // 47
-    "vitest/prefer-describe-function-title": "off", // 47
     "vitest/prefer-each": "off", // 46
     "unicorn/prefer-import-meta-properties": "off", // 45
     "unicorn/prefer-module": "off", // 39

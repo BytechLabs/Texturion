@@ -26,11 +26,11 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { ContactLanguage } from "./contact-language";
 
-afterEach(cleanup);
 beforeEach(() => {
   updateMutate.mockReset();
   companyData.current = { locale: "en" };
 });
+afterEach(cleanup);
 
 function contact(over: Record<string, unknown> = {}) {
   return { id: "ct1", locale: null, ...over } as never;

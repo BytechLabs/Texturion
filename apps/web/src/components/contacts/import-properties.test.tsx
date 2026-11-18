@@ -46,10 +46,10 @@ import { contactsEn } from "@/i18n/sections/contacts";
 
 const IMPORT_CONSENT_LABEL = { file: contactsEn.consentLabelFile } as const;
 
-afterEach(cleanup);
 beforeEach(() => {
   vcardMutate.mockReset();
 });
+afterEach(cleanup);
 
 const BOOK = [
   "BEGIN:VCARD",

@@ -369,13 +369,6 @@ async function answer(digits: string) {
   });
 }
 
-afterEach(() => {
-  cleanup();
-  // Radix renders both dialogs into a portal that outlives `cleanup`, and much of
-  // what is asserted here is the ABSENCE of a control.
-  document.body.innerHTML = "";
-});
-
 beforeEach(() => {
   role = "owner";
   releasePending = false;
@@ -396,6 +389,12 @@ beforeEach(() => {
   // card invalidates, so this also pins that the sweep is wide enough to reach it.
   client.setQueryData(keys.numbers(COMPANY), { data: [] });
   client.setQueryData(keys.textEnablements.list(COMPANY), { data: [] });
+});
+
+afterEach(() => {
+  cleanup();
+  // A leftover Radix portal can make an absent control appear present.
+  document.body.innerHTML = "";
 });
 
 describe("releasing a text-enabled number, when the server asks who is doing this", () => {

@@ -13,7 +13,7 @@ import type { MemberRole } from '@loonext/shared';
 
 import { navRowsFor } from "./sidebar";
 
-describe("navRowsFor", () => {
+describe(navRowsFor, () => {
   it("gives every role something to open", () => {
     // The property that matters most: whatever roles exist now or later, none
     // of them lands in an app with no navigation.

@@ -36,10 +36,10 @@ import { makeTranslate } from "@/i18n/translate";
  */
 const t = makeTranslate("en");
 
-afterEach(cleanup);
 beforeEach(() => {
   reportRef.current = null;
 });
+afterEach(cleanup);
 
 function source(name: string, total: number) {
   return {

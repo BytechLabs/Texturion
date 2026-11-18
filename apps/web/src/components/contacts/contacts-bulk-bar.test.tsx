@@ -49,7 +49,7 @@ function renderBar(canMerge: boolean) {
   );
 }
 
-describe("ContactsBulkBar", () => {
+describe(ContactsBulkBar, () => {
   it("offers one Tags control, not Tag and Untag", () => {
     renderBar(false);
     expect(screen.getByRole("button", { name: "Tags" })).toBeTruthy();

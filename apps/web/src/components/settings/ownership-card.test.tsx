@@ -344,7 +344,6 @@ function retriedWith(): { action?: string; code?: string; memberId?: string } {
 }
 
 describe("…and when the server asks who is doing this", () => {
-  afterEach(cleanup);
   beforeEach(() => {
     state = OFFER_TO_ME;
     mutate.mockReset();
@@ -354,6 +353,7 @@ describe("…and when the server asks who is doing this", () => {
       .mockResolvedValue({ data: { totp: [{ id: FACTOR }] }, error: null });
     challengeAndVerify.mockReset().mockResolvedValue({ data: {}, error: null });
   });
+  afterEach(cleanup);
 
   it("gives the digits somewhere to be typed", () => {
     // The visible half of the defect. Before this the refusal was a toast about a

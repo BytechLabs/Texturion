@@ -18,7 +18,7 @@ function renderHint() {
  * #716: the composer's catch-up offer. The hook decides when it shows
  * (`use-catch-up.test.tsx`); this is what the line itself must do.
  */
-describe("CatchUpHint", () => {
+describe(CatchUpHint, () => {
   it("is announced, and its two answers are real buttons", () => {
     renderHint();
     const status = screen.getByRole("status");

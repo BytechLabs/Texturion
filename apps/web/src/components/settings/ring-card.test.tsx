@@ -25,8 +25,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { phonesReached, RingCard, ringsIn } from "./ring-card";
 
-afterEach(cleanup);
 beforeEach(() => updateMutate.mockReset());
+afterEach(cleanup);
 
 function company(over: Record<string, unknown> = {}) {
   return { ring_strategy: "all", ring_seconds: 45, ...over } as never;

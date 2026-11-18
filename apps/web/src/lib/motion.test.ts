@@ -5,7 +5,7 @@ import {
   reducedMotionScrollBehavior,
 } from "./motion";
 
-describe("prefersReducedMotion", () => {
+describe(prefersReducedMotion, () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });

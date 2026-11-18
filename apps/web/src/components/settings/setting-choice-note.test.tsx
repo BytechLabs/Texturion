@@ -27,12 +27,12 @@ vi.mock("@/lib/company/provider", () => ({
 
 import { SettingChoiceNote } from "./setting-choice-note";
 
-afterEach(cleanup);
 beforeEach(() => {
   choices.current = [];
   role.current = "owner";
   enabledSeen.current = [];
 });
+afterEach(cleanup);
 
 describe("#749 SettingChoiceNote", () => {
   it("names who moved the setting off its default, when, and what the default is", () => {

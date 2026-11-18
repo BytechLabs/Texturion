@@ -41,7 +41,7 @@ function Probe({ phone }: { phone: string }) {
   );
 }
 
-describe("BlockNumberDialog", () => {
+describe(BlockNumberDialog, () => {
   it("says what a block does and that the crew can still text the number", () => {
     render(
       <BlockNumberDialog phone="+14165550182" open onOpenChange={vi.fn()} />,
@@ -75,7 +75,7 @@ describe("BlockNumberDialog", () => {
   });
 });
 
-describe("useBlockedNumber", () => {
+describe(useBlockedNumber, () => {
   it("is not blocked when the number is not on the list", () => {
     rows.current = [{ id: "b-1", phone_e164: "+14165559999" }];
     render(<Probe phone="+14165550182" />);

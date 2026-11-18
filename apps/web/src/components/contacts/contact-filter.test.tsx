@@ -28,8 +28,6 @@ vi.mock("@/lib/api/tags", () => ({
 
 import { ContactActiveFilters, ContactListFilter } from "./contact-filter";
 
-afterEach(cleanup);
-
 beforeEach(() => {
   onField.mockReset();
   onTag.mockReset();
@@ -43,6 +41,8 @@ beforeEach(() => {
     ],
   });
 });
+
+afterEach(cleanup);
 
 function openFilter(props: { field?: { key: string; value: string }; tag?: string } = {}) {
   render(<ContactListFilter {...props} onField={onField} onTag={onTag} />);

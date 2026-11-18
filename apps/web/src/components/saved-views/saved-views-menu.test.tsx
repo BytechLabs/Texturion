@@ -30,11 +30,11 @@ vi.mock("@/lib/company/provider", () => ({
 
 import { SavedViewsMenu } from "./saved-views-menu";
 
-afterEach(cleanup);
 beforeEach(() => {
   rows.current = [];
   useSavedViewCounts.mockClear();
 });
+afterEach(cleanup);
 
 function mountMenu(props: { current?: string; hasFilters?: boolean; onApply?: () => void } = {}) {
   render(

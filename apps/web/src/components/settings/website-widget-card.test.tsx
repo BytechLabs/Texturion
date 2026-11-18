@@ -32,10 +32,10 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { WebsiteWidgetCard } from "./website-widget-card";
 
-afterEach(cleanup);
 beforeEach(() => {
   companyData.current = { widget_number_id: null };
 });
+afterEach(cleanup);
 
 function lineOptions() {
   render(<WebsiteWidgetCard appOrigin="https://app.example.test" />);

@@ -82,12 +82,12 @@ async function refetchesAt(
   return apiFetch.mock.calls.length > 0;
 }
 
-afterEach(cleanup);
-
 beforeEach(() => {
   apiFetch.mockReset();
   apiFetch.mockResolvedValue({ data: [] });
 });
+
+afterEach(cleanup);
 
 describe("app defaults", () => {
   it("QC-1: unused data stays 30 minutes and a reconnect leaves freshness to realtime", () => {

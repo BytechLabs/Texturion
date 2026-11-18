@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { SUMMARY_TITLE, summaryLine } from "./notification-delivery";
 
-describe("summaryLine", () => {
+describe(summaryLine, () => {
   it("DS-1: leads with what is OWED, not with what happened", () => {
     // "12 texts came in" is a statistic; "3 people are still waiting on you"
     // is a to-do list, and only the second is worth opening the app for.
@@ -57,7 +57,7 @@ describe("summaryLine", () => {
   });
 });
 
-describe("SUMMARY_TITLE", () => {
+describe("Daily summary titles", () => {
   it("DS-7: the title a member recognises, in either language", () => {
     // It never varies within a language on purpose — that is what makes the
     // daily notification identifiable at a glance.

@@ -187,7 +187,6 @@ function retriedWith(): { numberId?: string; code?: string } {
 }
 
 describe("ReleaseNumberDialog — answering the proof the server asks for", () => {
-  afterEach(cleanup);
   beforeEach(() => {
     mutate.mockReset();
     requestCode.mockReset();
@@ -196,6 +195,7 @@ describe("ReleaseNumberDialog — answering the proof the server asks for", () =
       .mockResolvedValue({ data: { totp: [{ id: FACTOR }] }, error: null });
     challengeAndVerify.mockReset().mockResolvedValue({ data: {}, error: null });
   });
+  afterEach(cleanup);
 
   it("spends a stale-proof code on Supabase and retries with NO code", async () => {
     // THE ASSERTION THIS FILE EXISTS FOR. `mfa_reprove_required` is not checking a

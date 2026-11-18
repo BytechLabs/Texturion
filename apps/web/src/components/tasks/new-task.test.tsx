@@ -52,8 +52,6 @@ vi.mock("sonner", () => ({
 
 import { NewTaskDialog, openNewTask } from "./new-task";
 
-afterEach(cleanup);
-
 beforeEach(() => {
   addLabel.mockReset();
   addLabel.mockResolvedValue({ labels: [] });
@@ -62,6 +60,8 @@ beforeEach(() => {
   toastSuccess.mockReset();
   toastError.mockReset();
 });
+
+afterEach(cleanup);
 
 function openWith(context = {}) {
   render(<NewTaskDialog />);

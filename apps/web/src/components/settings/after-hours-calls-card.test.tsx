@@ -33,11 +33,11 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { AfterHoursCallsCard } from "./after-hours-calls-card";
 
-afterEach(cleanup);
 beforeEach(() => {
   updateMutate.mockReset();
   greetingRows.current = [];
 });
+afterEach(cleanup);
 
 const WEEKDAYS = {
   mon: { open: "08:00", close: "17:00" },

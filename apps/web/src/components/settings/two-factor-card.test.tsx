@@ -36,7 +36,7 @@ import { TwoFactorCard } from "./two-factor-card";
 
 const render = () => renderToStaticMarkup(<TwoFactorCard />);
 
-describe("TwoFactorCard", () => {
+describe(TwoFactorCard, () => {
   it("says what a stolen password actually costs, not that MFA is best practice", () => {
     state = { ...state, enrolled: false };
     // The reason to turn this on is specific to this product: somebody texting

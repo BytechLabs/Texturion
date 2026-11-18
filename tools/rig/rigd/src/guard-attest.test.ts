@@ -80,10 +80,6 @@ beforeAll(async () => {
   [cloudflare, github] = await Promise.all([stubServer(), stubServer()]);
 });
 
-afterAll(async () => {
-  await Promise.all([cloudflare, github].map((stub) => stub.close()));
-});
-
 const dirs: string[] = [];
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
@@ -91,6 +87,10 @@ afterEach(() => {
     stub.seen.length = 0;
     stub.answer = () => undefined;
   }
+});
+
+afterAll(async () => {
+  await Promise.all([cloudflare, github].map((stub) => stub.close()));
 });
 
 function storeWith(omit: string[] = []): SecretFiles {

@@ -24,12 +24,12 @@ vi.mock("@/lib/company/provider", () => ({
 
 import { CallEffectNote } from "./call-effect-note";
 
-afterEach(cleanup);
 beforeEach(() => {
   counts.current = {};
   role.current = "owner";
   enabledSeen.current = [];
 });
+afterEach(cleanup);
 
 describe("#725 CallEffectNote", () => {
   it("says how many calls a reason touched and links to them", () => {

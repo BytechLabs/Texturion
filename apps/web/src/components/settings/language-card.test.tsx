@@ -20,8 +20,8 @@ vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 import { LanguageCard } from "./language-card";
 
-afterEach(cleanup);
 beforeEach(() => updateMutate.mockReset());
+afterEach(cleanup);
 
 function company(over: Record<string, unknown> = {}) {
   return { name: "Reed Roofing", locale: "en", ...over } as never;

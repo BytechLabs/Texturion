@@ -62,7 +62,7 @@ afterEach(() => {
   cleanup();
 });
 
-describe("useCompany", () => {
+describe(useCompany, () => {
   it("joins the hydrated /v1/me in flight instead of asking /v1/company", async () => {
     let answer!: (value: Me) => void;
     api.mockImplementation((path) =>

@@ -41,7 +41,6 @@ import { LeadSourcePicker } from "./lead-source-picker";
 const TRUCK = "s-truck";
 const NEIGHBOUR = "s-neighbour";
 
-afterEach(cleanup);
 beforeEach(() => {
   updateMutate.mockReset();
   sourceRows.current = [
@@ -49,6 +48,7 @@ beforeEach(() => {
     { id: NEIGHBOUR, name: "Neighbour", archived_at: null },
   ];
 });
+afterEach(cleanup);
 
 function conversation(over: Record<string, unknown> = {}) {
   return {

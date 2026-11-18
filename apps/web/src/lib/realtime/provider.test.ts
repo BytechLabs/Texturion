@@ -15,7 +15,7 @@ import { numberTopicKey, REALTIME_FED, realtimeTopics } from "./provider";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
 
-describe("numberTopicKey", () => {
+describe(numberTopicKey, () => {
   it("is empty for a member with no visible numbers", () => {
     // Not a degenerate case: a member denied every number still joins the
     // company topic and works (realtimeTopics below).
@@ -54,7 +54,7 @@ describe("numberTopicKey", () => {
   });
 });
 
-describe("REALTIME_FED", () => {
+describe("Realtime feed topics", () => {
   it("holds every key root the provider writes, so a resync refetches what a broadcast feeds", () => {
     // A resync skips a fresh key outside the set, so a dropped frame there would stay wrong for 5 minutes.
     const source = readFileSync(new URL("provider.tsx", import.meta.url), "utf8");
@@ -85,7 +85,7 @@ describe("REALTIME_FED", () => {
   });
 });
 
-describe("realtimeTopics", () => {
+describe(realtimeTopics, () => {
   it("joins the company topic alone when there is no visible number", () => {
     expect(realtimeTopics(COMPANY, "")).toEqual([`company:${COMPANY}`]);
   });

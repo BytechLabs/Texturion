@@ -32,12 +32,12 @@ vi.mock("@/lib/company/provider", () => ({
 
 import { MyAccessCard } from "./my-access-card";
 
-afterEach(cleanup);
 beforeEach(() => {
   rowsRef.current = [];
   roleRef.current = "member";
   askedRef.current = undefined;
 });
+afterEach(cleanup);
 
 function row(
   level: "text" | "note" | "none",

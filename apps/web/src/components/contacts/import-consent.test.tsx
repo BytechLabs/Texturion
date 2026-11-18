@@ -105,13 +105,13 @@ const IMPORT_CONSENT_LABEL = {
   picked: contactsEn.consentLabelPicked,
 } as const;
 
-afterEach(cleanup);
 beforeEach(() => {
   csvMutate.mockReset();
   vcardMutate.mockReset();
   select.mockReset();
   download.mockReset();
 });
+afterEach(cleanup);
 
 /** The attestation control, found by the sentence it actually renders. */
 function consentBox(source: keyof typeof IMPORT_CONSENT_LABEL) {

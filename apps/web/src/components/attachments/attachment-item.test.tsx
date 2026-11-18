@@ -18,10 +18,6 @@ vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "co-1" }));
 import { AttachmentItem } from './attachment-item';
 import type { AttachmentLike } from './attachment-item';
 
-// This app's vitest does not set `globals`, so testing-library's automatic
-// cleanup never registers and renders stack across tests.
-afterEach(cleanup);
-
 type Item = { id: string; variant: AttachmentVariant };
 
 // Never reset: the loaded-thumbnail memory outlives a test, so every URL is new.
@@ -58,6 +54,9 @@ beforeEach(() => {
     };
   });
 });
+
+// Testing Library's automatic cleanup requires Vitest globals.
+afterEach(cleanup);
 
 const batches = () =>
   apiFetch.mock.calls.map(([, options]) => (options as RequestOptions).body);

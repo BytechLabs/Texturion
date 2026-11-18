@@ -47,8 +47,6 @@ const say = sayEnglish;
 import { ExportUsage } from "./export-usage";
 import { ApiError } from "@/lib/api/error";
 
-afterEach(cleanup);
-
 beforeEach(() => {
   role.current = "owner";
   requestExport.mockReset();
@@ -56,6 +54,8 @@ beforeEach(() => {
   toastSuccess.mockReset();
   toastError.mockReset();
 });
+
+afterEach(cleanup);
 
 describe("#304 exporting a period's usage", () => {
   it("EU-1: is absent for somebody who does not handle billing", () => {

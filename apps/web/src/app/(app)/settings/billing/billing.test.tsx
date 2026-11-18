@@ -525,8 +525,6 @@ function pausedNow(
   });
 }
 
-afterEach(cleanup);
-
 beforeEach(() => {
   portal.mutate.mockReset();
   portal.isPending = false;
@@ -553,6 +551,8 @@ beforeEach(() => {
   activeRole.current = "owner";
   companyQuery.data = undefined;
 });
+
+afterEach(cleanup);
 
 describe("#277 saying why, on the way out", () => {
   it("CR-1: the codes are the ones every client sends", () => {

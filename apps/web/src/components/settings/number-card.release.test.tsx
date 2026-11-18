@@ -106,10 +106,10 @@ function releaseControl(): HTMLElement | null {
   return screen.queryByRole("button", { name: /Release this number/ });
 }
 
-afterEach(cleanup);
 beforeEach(() => {
   state.role = "owner";
 });
+afterEach(cleanup);
 
 describe("NumberCard offers Release — the guard that did not exist", () => {
   it("renders it for an owner on a working number", () => {

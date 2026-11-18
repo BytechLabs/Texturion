@@ -18,7 +18,7 @@ vi.mock("@/components/ui/tooltip", () => ({
   ),
 }));
 
-describe("formatWrapUpClock", () => {
+describe(formatWrapUpClock, () => {
   it("reads as a recording clock, zero-padded", () => {
     expect(formatWrapUpClock(0)).toBe("0:00");
     expect(formatWrapUpClock(7)).toBe("0:07");
@@ -32,7 +32,7 @@ describe("formatWrapUpClock", () => {
   });
 });
 
-describe("WrapUpButton", () => {
+describe(WrapUpButton, () => {
   const noop = () => {};
 
   it("offers to dictate at rest, and to stop while recording", () => {
@@ -96,7 +96,7 @@ describe("WrapUpButton", () => {
   });
 });
 
-describe("WrapUpStrip", () => {
+describe(WrapUpStrip, () => {
   const noop = () => {};
 
   it("renders nothing at rest, so the composer does not grow a dead region", () => {

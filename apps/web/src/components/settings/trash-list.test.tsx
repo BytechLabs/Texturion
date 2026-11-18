@@ -57,7 +57,7 @@ beforeEach(() => {
   state.rows = [CONVERSATION];
 });
 
-describe("TrashList", () => {
+describe(TrashList, () => {
   it("says who, what, who deleted it, and how long is left", () => {
     render(<TrashList />);
     expect(screen.getByText("Dana Rivera")).toBeTruthy();

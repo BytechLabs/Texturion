@@ -88,8 +88,6 @@ vi.mock("sonner", () => ({
 import { NumberIdentityDialog, patchFrom } from "./number-identity-dialog";
 import { ApiError } from "@/lib/api/error";
 
-afterEach(cleanup);
-
 beforeEach(() => {
   save.mockReset();
   save.mockResolvedValue(identity.current);
@@ -111,6 +109,8 @@ beforeEach(() => {
     ring_seconds: { value: 45, inherited: true },
   };
 });
+
+afterEach(cleanup);
 
 function open() {
   render(<NumberIdentityDialog numberId="n1" open onOpenChange={() => {}} />);

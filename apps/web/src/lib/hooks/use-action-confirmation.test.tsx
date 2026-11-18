@@ -78,7 +78,6 @@ import { useActionConfirmation } from "./use-action-confirmation";
 
 const FACTOR = "totp-factor-id";
 
-afterEach(cleanup);
 beforeEach(() => {
   requestCode.mockClear();
   codeRequest.isPending = false;
@@ -87,6 +86,7 @@ beforeEach(() => {
     .mockResolvedValue({ data: { totp: [{ id: FACTOR }] }, error: null });
   challengeAndVerify.mockReset().mockResolvedValue({ data: {}, error: null });
 });
+afterEach(cleanup);
 
 function refusal(code: string, status = 403) {
   return new ApiError(code as never, "nope", status);

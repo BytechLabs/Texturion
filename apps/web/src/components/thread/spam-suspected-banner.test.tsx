@@ -62,7 +62,7 @@ const SUSPECTED = conversation({
   ],
 });
 
-describe("SpamSuspectedBanner", () => {
+describe(SpamSuspectedBanner, () => {
   it("renders nothing on an ordinary thread", () => {
     // Which is almost every thread. A banner that shows up empty would put a
     // spam question on every real customer's conversation.
