@@ -10,13 +10,6 @@
  * figures themselves are mono ink (the mono law, §3); Flare never carries
  * text below 24px bold.
  *
- * The per-user figure is REAL, labeled, and dated: a leading tool's published
- * monthly Starter seat price, $19/user/mo as of July 2026, sourced in full on
- * /compare/quo (that tool also bills texting separately, so the comparison is
- * conservative in Loonext's favor). Loonext follows SPEC §2: up to 3 people =
- * Starter $29, 4 and up = Pro $79 (Pro seats up to 15; unlimited is the
- * contact-sales Enterprise tier), both flat.
- *
  * Keyboard-accessible (native range input), tabular numerals, aria-live.
  */
 
@@ -28,9 +21,9 @@ import { formatMoney } from '@loonext/shared';
 import type { BillingCurrency } from '@loonext/shared';
 import { useId, useState } from "react";
 
-import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
+import { APP_LINKS } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
-import { compareAsOf } from "@/app/(marketing)/compare/verification";
+import { CrewSizeSliderSource, type SliderRival } from "./crew-size-slider-source";
 
 /** The published monthly Starter seat price of a leading per-user tool (July 2026). */
 /**
@@ -85,11 +78,13 @@ export interface RivalSeatPricing {
   perUserMonthly?: number;
   /** The fewest seats they will sell. A floor, not a discount. */
   minimumSeats?: number;
+  rival?: SliderRival;
 }
 
 export function CrewSizeSlider({
   perUserMonthly = DEFAULT_PER_USER_MONTHLY,
   minimumSeats = DEFAULT_MINIMUM_SEATS,
+  rival = "quo",
   locale = "en",
 }: RivalSeatPricing & { locale?: MarketingLocale } = {}) {
   const copy = homeCopy(locale);
@@ -202,16 +197,12 @@ export function CrewSizeSlider({
         {ui.startForBefore} {usd(loonext.price, audience)} {ui.startForAfter}
       </a>
 
-      <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-        {ui.sliderSourceBefore} {compareAsOf(locale)} {ui.sliderSourceAfter}{" "}
-        <a
-          href={locale === "fr-CA" ? "/fr/comparer/quo" : LIVE_ROUTES.compareQuo}
-          className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
-        >
-          {ui.sliderSourceLink}
-        </a>
-        .
-      </p>
+      <CrewSizeSliderSource
+        rival={rival}
+        perUserMonthly={perUserMonthly}
+        locale={locale}
+        audience={audience}
+      />
     </div>
   );
 }

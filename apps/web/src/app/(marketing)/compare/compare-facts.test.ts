@@ -1,8 +1,13 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
+import { formatMoney } from "@loonext/shared";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
+import { CompareHeymarketPageBody } from "@/components/marketing/compare-heymarket-page";
+import { CompareQuoPageBody } from "@/components/marketing/compare-quo-page";
 import type {
   LedgerColumn,
   LedgerTableRow,
@@ -361,5 +366,21 @@ describe("#370 the crew-size chart states THIS page's rival rate", () => {
     expect(HEYMARKET_SEAT_PRICING.perUserMonthly).not.toBe(
       QUO_SEAT_PRICING.perUserMonthly,
     );
+  });
+
+  it.each([
+    { Page: CompareHeymarketPageBody, name: "Heymarket", slug: "heymarket", pricing: HEYMARKET_SEAT_PRICING },
+    { Page: CompareQuoPageBody, name: "Quo", slug: "quo", pricing: QUO_SEAT_PRICING },
+  ])("renders $name's slider rate and source in both languages", ({ Page, name, slug, pricing }) => {
+    for (const locale of ["en", "fr-CA"] as const) {
+      const html = renderToStaticMarkup(createElement(Page, { locale }));
+      const rate = formatMoney(pricing.perUserMonthly * 100, "usd", "usd");
+      const lead = locale === "en"
+        ? `The ${name} plan shown costs ${rate}`
+        : `Le forfait ${name} présenté coûte ${rate}`;
+      const href = locale === "en" ? `/compare/${slug}` : `/fr/comparer/${slug}`;
+      const note = html.split("</p>").find((paragraph) => paragraph.includes(lead));
+      expect(note).toContain(`href="${href}"`);
+    }
   });
 });

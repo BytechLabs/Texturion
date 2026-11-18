@@ -89,6 +89,7 @@ export function CompareQuoPageBody({
         lead={copy.sliderLead}
         perUserMonthly={QUO_SEAT_PRICING.perUserMonthly}
         minimumSeats={QUO_SEAT_PRICING.minimumSeats}
+        rival="quo"
       />
 
       <HonestFit
