@@ -301,6 +301,34 @@ describe("notifyIncomingCall — native device push (#151)", () => {
     expect(byToken["token-b"]).toMatchObject({ title: "Incoming call", url: "/calls?call=sess-1" });
   });
 
+  it("names the sender in the target's language and carries the transfer marker", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const { sb } = nativeWorld([
+      { id: DEVICE_ROW_ID, user_id: USER_A, platform: "android", token: DEVICE_TOKEN, locale: "en" },
+    ]);
+    sb.on("GET", "/rest/v1/profiles", (call) =>
+      call.url.searchParams.get("select") === "display_name"
+        ? [{ display_name: " Caroline " }]
+        : [{ user_id: USER_A, locale: "fr-CA" }]);
+    stubFetch(sb.route, ...service.routes);
+    const env2 = fcmEnv(account);
+
+    await notifyIncomingCall(env2, getDb(env2), {
+      ...INPUT, caller: null, userIds: [USER_A], transfer: { id: "transfer-one", senderUserId: USER_B },
+    });
+
+    const deviceQuery = sb.find("GET", "/rest/v1/device_push_tokens")[0];
+    expect(deviceQuery.url.searchParams.get("user_id")).toBe(`in.(${USER_A})`);
+    expect(service.sends).toHaveLength(1);
+    expect(service.sends[0].message.data).toMatchObject({
+      kind: "call",
+      title: "Appel transféré par Caroline",
+      body: "Un membre de l’équipe vous transfère un appel",
+      url: "/calls?call=sess-1&transfer=transfer-one",
+    });
+  });
+
   it("prunes an UNREGISTERED token as a LOG (no error report), never the token value", async () => {
     const account = await makeServiceAccount();
     const service = fcmService({
