@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -191,9 +192,9 @@ export default function PortNumberPage() {
               <p className="text-sm">{portabilityFailCopy(result.reason)}</p>
             </div>
             <Button asChild variant="outline" size="sm">
-              <a href="/onboarding/number">
+              <Link href="/onboarding/number">
                 {t("onboarding.portGetNewInstead")}
-              </a>
+              </Link>
             </Button>
           </div>
         ) : null}

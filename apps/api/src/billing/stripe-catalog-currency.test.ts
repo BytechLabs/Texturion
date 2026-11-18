@@ -193,13 +193,13 @@ describe("the Stripe catalog script and the shared price book agree (#328)", () 
    * Canadian workspace could not add it at all.
    */
   it("keeps a sellable module chargeable in every currency", () => {
-    for (const module of SELLABLE_MODULES) {
-      const body = priceBody(`loonext_module_${module}_licensed`);
+    for (const moduleKey of SELLABLE_MODULES) {
+      const body = priceBody(`loonext_module_${moduleKey}_licensed`);
       for (const currency of BILLING_CURRENCIES) {
         if (currency === "usd") continue;
         expect(
           body.includes(`${currency}:`),
-          `the ${module} module is now sellable but its Stripe price files no ` +
+          `the ${moduleKey} module is now sellable but its Stripe price files no ` +
             `${currency} amount. A ${currency} subscription cannot take a price ` +
             `that has no ${currency} option — the add-on toggle fails outright ` +
             `for every workspace billed in it. Decide the figure, put it in ` +

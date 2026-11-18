@@ -26,11 +26,11 @@ export type BundleOpener = (privateKeyJwk: JsonWebKey, bundle: unknown) => Promi
 
 /** The edge's own opener, loaded where the repository has it. */
 export const edgeOpener: BundleOpener = async (privateKeyJwk, bundle) => {
-  const module = (await import(new URL("../../../edge/scripts/seal-bundle.mjs", import.meta.url).href)) as {
+  const sealer = (await import(new URL("../../../edge/scripts/seal-bundle.mjs", import.meta.url).href)) as {
     importRecipientKey(jwk: JsonWebKey): Promise<CryptoKey>;
     openBundle(key: CryptoKey, bundle: unknown): Promise<OpenedBundle>;
   };
-  return module.openBundle(await module.importRecipientKey(privateKeyJwk), bundle);
+  return sealer.openBundle(await sealer.importRecipientKey(privateKeyJwk), bundle);
 };
 
 export interface DeliveryResult {

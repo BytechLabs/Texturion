@@ -435,13 +435,13 @@ billingRoutes.post("/checkout", async (c) => {
   // whose Stripe price isn't provisioned in this environment is rejected
   // rather than silently dropped (the customer would be under-charged and
   // think they bought it). Enablement is written on checkout.completed.
-  for (const module of selectedModules) {
-    const price = modulePrice(env, module);
-    if (!isSellableModule(module) || !price) {
+  for (const moduleKey of selectedModules) {
+    const price = modulePrice(env, moduleKey);
+    if (!isSellableModule(moduleKey) || !price) {
       return errorResponse(
         c,
         "validation_failed",
-        `The ${MODULE_CATALOG[module].label} add-on isn't available yet.`,
+        `The ${MODULE_CATALOG[moduleKey].label} add-on isn't available yet.`,
       );
     }
     lineItems.push({ price, quantity: 1 });
@@ -2410,7 +2410,6 @@ billingRoutes.post("/modules", async (c) => {
       "Calling is included on every plan now — there's nothing to turn on or pay for. Reload the app to see the current plan.",
     );
   }
-  const module = requestedModule;
 
   const company = await fetchCompany(db, companyId);
   if (!company.stripe_subscription_id || company.plan === null) {
@@ -2430,14 +2429,14 @@ billingRoutes.post("/modules", async (c) => {
       "Your subscription is canceled — resubscribe to change add-ons.",
     );
   }
-  const price = modulePrice(env, module);
+  const price = modulePrice(env, requestedModule);
   // #41: refuse to sell what we can't deliver (regions_ca until multi-region
   // ships), and refuse a module with no provisioned price in this environment.
-  if (!isSellableModule(module) || !price) {
+  if (!isSellableModule(requestedModule) || !price) {
     return errorResponse(
       c,
       "validation_failed",
-      `The ${MODULE_CATALOG[module].label} add-on isn't available yet.`,
+      `The ${MODULE_CATALOG[requestedModule].label} add-on isn't available yet.`,
     );
   }
   /**
@@ -2480,7 +2479,7 @@ billingRoutes.post("/modules", async (c) => {
     return errorResponse(
       c,
       "conflict",
-      `Your plan is paused. Resume it first, then turn on ${MODULE_CATALOG[module].label} — ` +
+      `Your plan is paused. Resume it first, then turn on ${MODULE_CATALOG[requestedModule].label} — ` +
         "that way you start paying for it on the day you can use it.",
     );
   }
@@ -2523,7 +2522,7 @@ billingRoutes.post("/modules", async (c) => {
     const { error } = await db.from("company_modules").upsert(
       {
         company_id: companyId,
-        module,
+        module: requestedModule,
         enabled_at: new Date().toISOString(),
         disabled_at: null,
         // An explicit purchase — from here on the subscription is the truth
@@ -2539,9 +2538,9 @@ billingRoutes.post("/modules", async (c) => {
       action: "billing.module_changed",
       targetType: "company",
       targetId: companyId,
-      after: { module, enabled: true },
+      after: { module: requestedModule, enabled: true },
     });
-    return c.json({ module, enabled: true });
+    return c.json({ module: requestedModule, enabled: true });
   }
 
   // Disable: drop the line item, mark disabled, and clear the gated
@@ -2560,7 +2559,7 @@ billingRoutes.post("/modules", async (c) => {
     .from("company_modules")
     .update({ disabled_at: new Date().toISOString() })
     .eq("company_id", companyId)
-    .eq("module", module)
+    .eq("module", requestedModule)
     .is("disabled_at", null);
   if (error) throw new Error(`module disable failed: ${error.message}`);
   // #134: no voice arm — forwarding/MCTB are plan features now, never
@@ -2572,7 +2571,7 @@ billingRoutes.post("/modules", async (c) => {
     action: "billing.module_changed",
     targetType: "company",
     targetId: companyId,
-    after: { module, enabled: false },
+    after: { module: requestedModule, enabled: false },
   });
-  return c.json({ module, enabled: false });
+  return c.json({ module: requestedModule, enabled: false });
 });

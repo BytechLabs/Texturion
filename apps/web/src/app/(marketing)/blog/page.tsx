@@ -14,6 +14,8 @@ import {
 } from "@/lib/marketing/seo";
 import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
 
+const RSS_PATH = "/blog/rss.xml";
+
 /**
  * /blog index (#127, redesigned): a card grid in the standard 72rem band, the
  * compare-hub anatomy (FrCard p-0, one full-card Link, Reveal stagger). Every
@@ -39,7 +41,7 @@ export const metadata: Metadata = {
   ...base,
   alternates: {
     ...base.alternates,
-    types: { "application/rss+xml": absoluteUrl("/blog/rss.xml") },
+    types: { "application/rss+xml": absoluteUrl(RSS_PATH) },
   },
 };
 
@@ -69,7 +71,7 @@ export default function BlogIndexPage() {
               </p>
             </div>
             <a
-              href="/blog/rss.xml"
+              href={RSS_PATH}
               className="fr-mono-data text-[0.8125rem] text-[color:var(--fr-ink-55)] transition-colors duration-200 ease-out hover:text-[color:var(--fr-olive)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
             >
               RSS feed

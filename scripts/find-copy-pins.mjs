@@ -15,13 +15,13 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const R = "D:/projects/JobText";
-const module = process.argv[2];
-if (!module) {
+const moduleName = process.argv[2];
+if (!moduleName) {
   console.log("usage: node pins.mjs <module-basename>");
   process.exit(1);
 }
 
-const source = readFileSync(join(R, "packages/shared/src", `${module}.ts`), "utf8");
+const source = readFileSync(join(R, "packages/shared/src", `${moduleName}.ts`), "utf8");
 
 /* Sentences worth pinning: long enough that a test would quote them. */
 const sentences = [
@@ -71,9 +71,9 @@ for (const file of files) {
     continue;
   }
   const rel = file.replaceAll("\\", "/").replace(`${R}/`, "");
-  if (rel === `packages/shared/src/${module}.ts`) continue;
+  if (rel === `packages/shared/src/${moduleName}.ts`) continue;
 
-  if (text.includes(`packages/shared/src/${module}.ts`)) byPath.push(rel);
+  if (text.includes(`packages/shared/src/${moduleName}.ts`)) byPath.push(rel);
 
   for (const s of sentences) {
     if (!text.includes(s)) continue;
@@ -82,7 +82,7 @@ for (const file of files) {
   }
 }
 
-console.log(`--- ${module}.ts: ${sentences.length} sentence(s) worth pinning\n`);
+console.log(`--- ${moduleName}.ts: ${sentences.length} sentence(s) worth pinning\n`);
 console.log("READS THE FILE BY PATH:");
 console.log(byPath.length ? byPath.map((p) => `  ${p}`).join("\n") : "  (none)");
 console.log("\nQUOTES A SENTENCE:");

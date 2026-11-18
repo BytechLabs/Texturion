@@ -273,7 +273,6 @@
     "unicorn/filename-case": "off", // 9
     "unicorn/no-lonely-if": "off", // 9
     "unicorn/no-useless-fallback-in-spread": "off", // 9
-    "nextjs/no-assign-module-variable": "off", // 8
     "react/display-name": "off", // 8
     "typescript/no-implied-eval": "off", // 8
     "typescript/no-unnecessary-template-expression": "off", // 8
@@ -347,7 +346,6 @@
     "jsdoc/empty-tags": "off", // 2
     "jsx-a11y/interactive-supports-focus": "off", // 2
     "jsx-a11y/label-has-associated-control": "off", // 2
-    "nextjs/no-html-link-for-pages": "off", // 2
     "oxc/no-async-endpoint-handlers": "off", // 2
     "promise/no-promise-in-callback": "off", // 2
     "promise/no-return-wrap": "off", // 2

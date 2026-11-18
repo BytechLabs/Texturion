@@ -161,9 +161,9 @@ on conflict (company_id, user_id) do update set role = excluded.role, deactivate
     }
 
     // Every number is Canadian and takes calls. MMS is no longer a module.
-    for (const module of ["voice", "regions_ca"]) {
+    for (const moduleKey of ["voice", "regions_ca"]) {
       statements.push(`
-insert into public.company_modules (company_id, module) values (${lit(companyId)}, ${lit(module)})
+insert into public.company_modules (company_id, module) values (${lit(companyId)}, ${lit(moduleKey)})
 on conflict (company_id, module) do update set disabled_at = null;`);
     }
 
