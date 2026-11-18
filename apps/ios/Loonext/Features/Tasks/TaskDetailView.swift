@@ -227,8 +227,15 @@ struct TaskDetailView: View {
     // MARK: - Loading
 
     private func load() async {
+        if case .loading = state,
+           let cached: TaskDetail = await graph.api.cachedGet("/v1/tasks/\(taskId)", companyId: companyId),
+           !Task.isCancelled {
+            state = .ready(cached)
+        }
         do {
             state = .ready(try await mutations.detail(companyId: companyId, taskId: taskId))
+        } catch is CancellationError {
+            return
         } catch let error as ApiError where error.code == ApiErrorCode.notFound {
             // A teammate deleted it (task.changed → refetch → 404):
             // say so instead of showing a stale row forever.
@@ -237,7 +244,7 @@ struct TaskDetailView: View {
                 notFound: true
             )
         } catch {
-            if case .ready = state {
+            if case .ready = state, (error as? ApiError)?.invalidatesOfflineReads != true {
                 // Keep data on a quiet refresh failure.
             } else {
                 state = .failed(message: error.userMessage, notFound: false)

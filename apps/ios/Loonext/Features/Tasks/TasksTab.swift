@@ -814,6 +814,13 @@ struct TasksTab: View {
         let newLoader = TaskListLoader(arms: arms) { filters, cursor, limit in
             try await api.list(companyId: company, filters: filters, cursor: cursor, limit: limit)
         }
+        if rows.isEmpty, let first = arms.first,
+           let cached: Page<TaskItem> = await api.api.cachedGet(
+               "/v1/tasks", query: taskQueryParams(first, cursor: nil, limit: 25), companyId: company
+           ), !Task.isCancelled {
+            rows = cached.data
+            state = .ready(())
+        }
         let target = rows.count // preserve pagination depth on quiet refreshes
         var accumulated: [TaskItem] = []
         do {
@@ -826,8 +833,15 @@ struct TasksTab: View {
             hasMore = newLoader.hasMore
             loader = newLoader
             state = .ready(())
+        } catch is CancellationError {
+            return
         } catch {
-            if rows.isEmpty { state = .failed(error.userMessage) }
+            if rows.isEmpty || (error as? ApiError)?.invalidatesOfflineReads == true {
+                rows = []
+                hasMore = false
+                loader = nil
+                state = .failed(error.userMessage)
+            }
         }
     }
 

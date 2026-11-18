@@ -19,6 +19,7 @@ import com.loonext.android.core.data.ForYouRepository
 import com.loonext.android.core.data.InboxRepository
 import com.loonext.android.core.data.MeRepository
 import com.loonext.android.core.data.NotificationsRepository
+import com.loonext.android.core.data.OfflineReadCache
 import com.loonext.android.core.data.SearchRepository
 import com.loonext.android.core.data.TasksRepository
 import com.loonext.android.core.diag.Telemetry
@@ -112,7 +113,8 @@ class AppGraph(
         .pingInterval(30, TimeUnit.SECONDS) // realtime websocket keep-alive
         .build()
 
-    val sessionStore = SessionStore(app)
+    private val offlineReads = OfflineReadCache(app.noBackupFilesDir.resolve("offline-reads"))
+    val sessionStore = SessionStore(app, discardOfflineReads = offlineReads::clear)
     val prefs = AppPrefs(app)
     val supabaseAuth = SupabaseAuth(
         client = http,
@@ -124,6 +126,8 @@ class AppGraph(
         baseUrl = apiUrl,
         sessionStore = sessionStore,
         supabaseAuth = supabaseAuth,
+        offlineReads = offlineReads,
+        isOffline = { connectionWatch.offline.value },
     )
     /**
      * #339: the public update policy. Its own client-free repository on

@@ -326,6 +326,7 @@ struct ShellView: View {
         }
         .resyncOnForeground { countsKey &+= 1 }
         .task(id: companyId) { await wireSessionDevice() }
+        .task(id: companyId) { await warmDefaultReads() }
         // #289: one process-wide path observation, started once. NWPathMonitor
         // is a system resource with a real cost to start and stop, and the
         // answer is the same for every screen.
@@ -893,6 +894,18 @@ struct ShellView: View {
             Task { try? await manager.onIncomingCallPush(sessionId: sessionId, transferId: content.transferId) }
         }
         await PushCoordinator.shared.ensureRegistrar(api: graph.api).register()
+    }
+
+    private func warmDefaultReads() async {
+        let inbox = graph.inboxApi
+        let tasks = graph.tasksApi
+        let workspace = companyId
+        let filters = taskListArms(tab: .open, assigneeUserId: nil, unassigned: false, due: nil, q: nil)
+            .first ?? TaskListFilters()
+        async let rows = try? await inbox.conversations(companyId: workspace, status: "open", pinned: "exclude")
+        async let pins = try? await inbox.conversations(companyId: workspace, status: "open", pinned: "only", limit: 100)
+        async let openTasks = try? await tasks.list(companyId: workspace, filters: filters)
+        _ = await (rows, pins, openTasks)
     }
 
     /// Hydrate the company view (numbers etc.) + live nav counts. The numeric

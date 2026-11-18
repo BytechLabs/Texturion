@@ -276,7 +276,11 @@ struct ForYouTab: View {
     }
 
     private func reload() async {
-        if refreshKey == 0 { state = .loading }
+        if case .loading = state,
+           let cached: ForYou = await graph.api.cachedGet("/v1/for-you", companyId: companyId),
+           !Task.isCancelled {
+            state = .ready(cached)
+        }
         do {
             state = .ready(try await graph.forYouApi.forYou(companyId: companyId))
         } catch is CancellationError {
@@ -288,7 +292,7 @@ struct ForYouTab: View {
             // single revalidation blipped, even though good data was on screen.
             // Only the true first load has nothing better to show. Mirrors
             // reloadRecentCalls' quiet-refetch handling.
-            if case .ready = state { return }
+            if case .ready = state, (error as? ApiError)?.invalidatesOfflineReads != true { return }
             state = .failed(error.userMessage)
         }
     }

@@ -89,7 +89,10 @@ object SessionEnded {
  * sandbox is the protection boundary (current platform guidance — the old
  * security-crypto wrappers are deprecated).
  */
-class SessionStore(private val context: Context) : SessionSource {
+class SessionStore(
+    private val context: Context,
+    private val discardOfflineReads: suspend () -> Unit = {},
+) : SessionSource {
     private object Keys {
         val ACCESS = stringPreferencesKey("access_token")
         val REFRESH = stringPreferencesKey("refresh_token")
@@ -114,14 +117,18 @@ class SessionStore(private val context: Context) : SessionSource {
     override suspend fun current(): Session? = session.first()
 
     override suspend fun save(session: Session) {
+        var accountChanged = false
         context.sessionDataStore.edit { prefs ->
-            if (prefs[Keys.USER_ID] != session.userId) prefs.remove(Keys.CACHED_WORKSPACE)
+            val previous = prefs[Keys.USER_ID]
+            accountChanged = previous != null && previous != session.userId
+            if (previous != session.userId) prefs.remove(Keys.CACHED_WORKSPACE)
             prefs[Keys.ACCESS] = session.accessToken
             prefs[Keys.REFRESH] = session.refreshToken
             prefs[Keys.EXPIRES_AT] = session.expiresAt
             prefs[Keys.USER_ID] = session.userId
             prefs[Keys.EMAIL] = session.email
         }
+        if (accountChanged) discardOfflineReads()
     }
 
     suspend fun rememberReadyWorkspace(companyId: String, me: Me) {
@@ -154,6 +161,7 @@ class SessionStore(private val context: Context) : SessionSource {
 
     override suspend fun clear() {
         context.sessionDataStore.edit { it.clear() }
+        discardOfflineReads()
         // #330: the customer's data goes with the session, however it ended.
         SessionEnded.fire()
     }

@@ -128,7 +128,7 @@ enum InboxStatusSwipe {
 
 // MARK: - List state
 
-private enum InboxStatusTab: String, CaseIterable, Identifiable, Sendable {
+enum InboxStatusTab: String, CaseIterable, Identifiable, Sendable {
     case open = "Open"
     case mine = "Mine"
     case all = "All"
@@ -155,7 +155,7 @@ private enum InboxStatusTab: String, CaseIterable, Identifiable, Sendable {
 
 @MainActor
 @Observable
-private final class InboxController {
+final class InboxController {
     private let inboxApi: InboxApi
     private let savedViewsApi: SavedViewsApi
     private let searchApi: SearchApi
@@ -614,16 +614,35 @@ private final class InboxController {
         }
     }
 
-    func reload(showLoading: Bool) {
+    @discardableResult
+    func reload(showLoading: Bool) -> Task<Void, Never> {
         loadSeq += 1
         let seq = loadSeq
         let keepLoaded = if case .ready = state { !showLoading } else { false }
         if showLoading { state = .loading }
-        Task {
+        return Task {
+            var retainRows = keepLoaded
+            if showLoading, tab == .open, assigneeUserId == nil, tagId == nil,
+               !spamOnly, !unreadOnly, !snoozedOnly, !awaitingOnly,
+               let page: Page<ConversationListItem> = await inboxApi.api.cachedGet(
+                   "/v1/conversations", query: ["status": "open", "pinned": "exclude", "limit": "25"],
+                   companyId: companyId
+               ) {
+                let pinned: Page<ConversationListItem>? = await inboxApi.api.cachedGet(
+                    "/v1/conversations", query: ["status": "open", "pinned": "only", "limit": "100"],
+                    companyId: companyId
+                )
+                guard seq == loadSeq, !Task.isCancelled else { return }
+                rows = page.data
+                cursor = page.next_cursor
+                pinnedRows = pinned?.data ?? []
+                state = .ready(())
+                retainRows = true
+            }
             do {
                 let page = try await fetchPage(cursor: nil, pinned: "exclude")
                 let pinnedPage: Page<ConversationListItem>?
-                if keepLoaded {
+                if retainRows {
                     pinnedPage = try await fetchPage(cursor: nil, pinned: "only")
                 } else {
                     pinnedPage = try? await fetchPage(cursor: nil, pinned: "only")
@@ -637,7 +656,11 @@ private final class InboxController {
             } catch is CancellationError {
                 return
             } catch {
-                guard seq == loadSeq, !keepLoaded, !Task.isCancelled else { return }
+                guard seq == loadSeq, !Task.isCancelled,
+                      !retainRows || (error as? ApiError)?.invalidatesOfflineReads == true else { return }
+                rows = []
+                pinnedRows = []
+                cursor = nil
                 state = .failed(error.userMessage)
             }
         }
@@ -694,7 +717,8 @@ private final class InboxController {
     }
 
     /// Reconnect: trim to page 1 and refetch (SPEC §8).
-    func refreshAfterReconnect() {
+    @discardableResult
+    func refreshAfterReconnect() -> Task<Void, Never> {
         reload(showLoading: false)
     }
 
@@ -1348,7 +1372,7 @@ private struct InboxList: View {
         }
         // #215 Part A: re-sort/refetch page 1 on foreground so a row that moved
         // (or an unread that landed) while backgrounded is never stale.
-        .resyncOnForeground { controller?.refreshAfterReconnect() }
+        .resyncOnForeground { _ = controller?.refreshAfterReconnect() }
     }
 
     /// #508: land on a filter another surface asked for, once per token.
@@ -1421,7 +1445,7 @@ private struct InboxList: View {
                 case .loading:
                     ListSkeleton(rows: 7, avatar: true, lines: 2)
                 case .failed(let message):
-                    LoadError(message: message) { controller.reload(showLoading: true) }
+                    LoadError(message: message) { _ = controller.reload(showLoading: true) }
                 case .ready:
                     ConversationListPane(
                         controller: controller,
