@@ -3,6 +3,7 @@ import path from "node:path";
 
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import OnboardingLayout from "./onboarding/layout";
 
 /**
  * #207 LAW: every full-screen authenticated gate must mount the SHARED gate
@@ -122,7 +123,6 @@ vi.mock("@/components/shell/wordmark", () => ({
   Wordmark: () => <span data-testid="wordmark" />,
 }));
 
-import OnboardingLayout from "./onboarding/layout";
 
 describe("onboarding gate renders the escape hatch (#207)", () => {
   it("a multi-workspace member sees the workspace switcher and sign out on every wizard step", () => {

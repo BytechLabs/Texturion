@@ -5,6 +5,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { TaskBulkBar } from "./task-bulk-bar";
 
 afterEach(cleanup);
 
@@ -28,7 +29,6 @@ vi.mock("@/lib/api/tags", () => ({
   }),
 }));
 
-import { TaskBulkBar } from "./task-bulk-bar";
 
 beforeEach(() => {
   state.canDelete = true;

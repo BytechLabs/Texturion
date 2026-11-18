@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MyInvite } from "@/lib/api/types";
+import { InviteBanner } from "./invite-banner";
 
 /**
  * #109: the ambient "you've been invited — Join" banner. Pins the render
@@ -22,7 +23,6 @@ vi.mock("@/lib/api/team", () => ({
   }),
 }));
 
-import { InviteBanner } from "./invite-banner";
 
 function myInvite(overrides: Partial<MyInvite> = {}): MyInvite {
   return {

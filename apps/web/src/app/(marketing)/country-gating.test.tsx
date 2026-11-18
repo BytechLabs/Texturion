@@ -25,13 +25,7 @@ import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from "@loone
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-
-vi.mock("next/font/local", () => ({
-  default: () => ({ variable: "font-golos-mock", className: "font-golos-mock" }),
-}));
-
 import { CountryProvider } from "@/components/marketing/country";
-
 import SharedInboxPage from "@/app/(marketing)/features/shared-inbox/page";
 import TemplatesPage from "@/app/(marketing)/features/templates-and-tags/page";
 // #242: /status is now an async server component (it reads the live incident
@@ -44,6 +38,12 @@ import CompareIndexPage from "@/app/(marketing)/compare/page";
 import HeymarketPage from "@/app/(marketing)/compare/heymarket/page";
 import QuoPage from "@/app/(marketing)/compare/quo/page";
 import PricingPage from "@/app/(marketing)/pricing/page";
+
+vi.mock("next/font/local", () => ({
+  default: () => ({ variable: "font-golos-mock", className: "font-golos-mock" }),
+}));
+
+
 
 const us = (node: ReactNode) =>
   renderToStaticMarkup(

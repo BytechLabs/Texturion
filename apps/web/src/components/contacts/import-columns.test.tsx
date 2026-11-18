@@ -35,6 +35,8 @@ import {
 import { CONTACT_IMPORT_IGNORE, formatContactImportColumn, readContactFlag } from '@loonext/shared';
 import type { ContactImportColumnDeclaration } from '@loonext/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ImportWizard } from "./import-wizard";
+import { chooseOption, selectedValue } from "@/test/simple-select-driver";
 
 const { csvMutate, sheet } = vi.hoisted(() => ({
   csvMutate: vi.fn(),
@@ -80,8 +82,6 @@ vi.mock("papaparse", () => ({
   },
 }));
 
-import { ImportWizard } from "./import-wizard";
-import { chooseOption, selectedValue } from "@/test/simple-select-driver";
 
 afterEach(cleanup);
 beforeEach(() => {

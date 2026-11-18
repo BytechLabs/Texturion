@@ -11,6 +11,8 @@ import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { createElement } from 'react';
 import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { keys } from "./keys";
+import { useNotificationsFeed, useNotificationsUnreadCount } from "./notifications";
 
 const { BASE, fetchSpy } = vi.hoisted(() => ({
   BASE: "https://api.loonext.test",
@@ -29,8 +31,6 @@ vi.mock(import("./client"), async () => {
   };
 });
 
-import { keys } from "./keys";
-import { useNotificationsFeed, useNotificationsUnreadCount } from "./notifications";
 
 function json(body: unknown): Response {
   return Response.json(body, {

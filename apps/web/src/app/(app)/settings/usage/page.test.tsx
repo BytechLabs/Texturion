@@ -1,11 +1,12 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { Usage } from "@/lib/api/types";
+import UsageSettingsPage from "./page";
 
 // #725: the effect note reads company and query context these tests do not mount.
 vi.mock("@/components/settings/setting-choice-note", () => ({ SettingChoiceNote: () => null }));
 vi.mock("@/components/settings/call-effect-note", () => ({ CallEffectNote: () => null }));
 
-import type { Usage } from "@/lib/api/types";
 
 // Hoisted mock state the hooks read; each test seeds it before rendering.
 const state: { usage: Usage; role: string } = {
@@ -39,7 +40,6 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: state.role }),
 }));
 
-import UsageSettingsPage from "./page";
 
 function baseUsage(overrides: Partial<Usage> = {}): Usage {
   return {

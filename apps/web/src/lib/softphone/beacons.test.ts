@@ -4,6 +4,8 @@
  * beacon carries and that it can fail every way without the ring noticing.
  */
 import { describe, expect, it, vi } from "vitest";
+import { createRingBeaconSender, webOs } from './beacons';
+import type { WebDeviceState } from './beacons';
 
 vi.mock("@/env", () => ({
   publicEnv: { NEXT_PUBLIC_API_URL: "https://api.example.test" },
@@ -12,8 +14,6 @@ vi.mock("@/lib/supabase/browser", () => ({
   getAccessToken: async () => "token-1",
 }));
 
-import { createRingBeaconSender, webOs } from './beacons';
-import type { WebDeviceState } from './beacons';
 
 const DEVICE: WebDeviceState = {
   os: "web-windows",

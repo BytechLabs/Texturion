@@ -11,6 +11,7 @@
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { OnboardingSessionGate } from "./session-gate";
 
 const sessionState = vi.hoisted(() => ({ current: "ready" as string }));
 
@@ -23,7 +24,6 @@ vi.mock("@/components/shell/gate-escape", () => ({
   GateSignOut: () => <button type="button">Sign out</button>,
 }));
 
-import { OnboardingSessionGate } from "./session-gate";
 
 const SKELETON = "Picking up where you left off…";
 

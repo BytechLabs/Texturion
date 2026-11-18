@@ -12,6 +12,8 @@
  * happens to be roaming.
  */
 
+import type { SayKey } from "./support";
+
 export type OnCallPreset = "tonight" | "weekend" | "week";
 
 export interface OnCallWindow {
@@ -20,8 +22,6 @@ export interface OnCallWindow {
 }
 
 /** The choices, in the order a crew thinks of them. */
-import type { SayKey } from "./support";
-
 export const ON_CALL_PRESETS: {
   key: OnCallPreset;
   label: string;

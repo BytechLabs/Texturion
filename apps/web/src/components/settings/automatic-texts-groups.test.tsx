@@ -2,12 +2,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { CompanyView } from "@/lib/api/types";
+import { AutomaticTextsGroups } from "./automatic-texts-groups";
 
 vi.mock("@/lib/api/companies", () => ({
   useUpdateCompany: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 
-import { AutomaticTextsGroups } from "./automatic-texts-groups";
 
 function render(company: Partial<CompanyView>, canEdit = true): string {
   return renderToStaticMarkup(

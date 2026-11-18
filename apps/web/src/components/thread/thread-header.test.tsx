@@ -4,6 +4,7 @@ import { describe, expect, it, vi } from "vitest";
 import type { ContactDetail, ConversationDetail } from "@/lib/api/types";
 
 import { ALL_CATEGORIES_ON } from "./thread-filter";
+import { ThreadHeader } from "./thread-header";
 
 /**
  * #505 — the repeat-customer badge in the thread header.
@@ -57,7 +58,6 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "co-1", userId: "u-1", role: "owner" }),
 }));
 
-import { ThreadHeader } from "./thread-header";
 
 const CONVERSATION = {
   id: "conv-1",

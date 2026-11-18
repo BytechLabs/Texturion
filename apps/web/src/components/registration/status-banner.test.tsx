@@ -7,6 +7,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RegistrationUiState } from "./registration-ui-state";
+import { WorkspaceStatusBanner } from "./status-banner";
 
 const { registration, derived, company } = vi.hoisted(() => ({
   registration: vi.fn<(enabled?: boolean) => { data: undefined }>(() => ({
@@ -29,7 +30,6 @@ vi.mock("./registration-ui-state", () => ({
   deriveRegistrationUiState: () => derived.current,
 }));
 
-import { WorkspaceStatusBanner } from "./status-banner";
 
 const view = {
   country: "US",

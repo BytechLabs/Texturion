@@ -20,6 +20,9 @@ import { makeTranslate, useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import { formatCallDuration } from "@/lib/format/call";
 import { cn } from "@/lib/utils";
+import { doneEventSentence } from "./done";
+import { eventTarget } from "./event-target";
+import { paymentEventLine } from "./payment-line";
 
 /**
  * English, for a caller with no provider around it — the unit tests here and
@@ -28,9 +31,6 @@ import { cn } from "@/lib/utils";
  */
 const EN = makeTranslate(DEFAULT_LOCALE);
 
-import { doneEventSentence } from "./done";
-import { eventTarget } from "./event-target";
-import { paymentEventLine } from "./payment-line";
 
 /** Day divider (mockup .daymark): a centered bordered stone chip, not a rule. */
 export function DayDivider({ label }: { label: string }) {

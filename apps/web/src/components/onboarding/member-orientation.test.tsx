@@ -6,6 +6,7 @@
 import { cleanup, fireEvent, render as mount, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MemberOrientation, NotificationStep } from "./member-orientation";
 
 /**
  * #286 — "An invited member sees a short, skippable, member-specific
@@ -92,7 +93,6 @@ vi.mock("@/components/ui/dialog", () => ({
   ),
 }));
 
-import { MemberOrientation, NotificationStep } from "./member-orientation";
 
 function render(): string {
   return renderToStaticMarkup(<MemberOrientation />);

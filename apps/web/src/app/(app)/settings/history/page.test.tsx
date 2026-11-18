@@ -1,10 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
+import HistorySettingsRedirect from "./page";
+import TrashSettingsRedirect from "./trash/page";
 
 const { redirect } = vi.hoisted(() => ({ redirect: vi.fn() }));
 vi.mock("next/navigation", () => ({ redirect }));
 
-import HistorySettingsRedirect from "./page";
-import TrashSettingsRedirect from "./trash/page";
 
 describe("#755 the old History addresses still land somewhere", () => {
   it("sends /settings/history to the audit log", () => {

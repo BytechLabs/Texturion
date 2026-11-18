@@ -5,12 +5,12 @@
  * network error so task creation is never blocked.
  */
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock(import("./client"), () => ({ apiFetch: vi.fn() }));
-
 import { apiFetch } from "./client";
 import { enrichTaskFromMessage } from "./task-enrichment";
 import type { TaskEnrichment } from "./types";
+
+vi.mock(import("./client"), () => ({ apiFetch: vi.fn() }));
+
 
 const mockFetch = vi.mocked(apiFetch);
 

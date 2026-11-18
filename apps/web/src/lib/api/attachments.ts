@@ -14,8 +14,6 @@ import {
 } from "@/lib/attachments/validate";
 
 import {invalidateAfterNoteUpload} from "./attachment-invalidation";
-
-export { invalidateAfterNoteUpload } from "./attachment-invalidation";
 import { createAttachmentUrlBatcher } from "./attachment-url-batcher";
 import { apiFetch } from "./client";
 import type { ApiError } from "./error";
@@ -26,6 +24,8 @@ import type {
   AttachmentUrl,
   AttachmentVariant,
 } from "./types";
+
+export { invalidateAfterNoteUpload } from "./attachment-invalidation";
 
 // Re-exported for backwards compatibility — the pure invalidation helper now
 // lives in ./attachment-invalidation (importable without this module's heavy

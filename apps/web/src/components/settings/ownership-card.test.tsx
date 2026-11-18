@@ -28,6 +28,15 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Ownership } from "@/lib/api/ownership";
 import type { Member } from "@/lib/api/types";
+import {
+  HANDOVER_CONFIRM_FIELD,
+  HANDOVER_CONFIRM_REJECTED,
+  HANDOVER_CONFIRM_SUBMIT,
+} from "@loonext/shared";
+import { sayEnglish } from "@/i18n/translate";
+import { ApiError } from "@/lib/api/error";
+import { toast } from "sonner";
+import { OwnershipCard } from "./ownership-card";
 
 const members: Member[] = [
   {
@@ -105,18 +114,9 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "c-1", role: "owner" }),
 }));
 
-import {
-  HANDOVER_CONFIRM_FIELD,
-  HANDOVER_CONFIRM_REJECTED,
-  HANDOVER_CONFIRM_SUBMIT,
-} from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/translate";
 
-import { ApiError } from "@/lib/api/error";
-import { toast } from "sonner";
 
-import { OwnershipCard } from "./ownership-card";
 
 const render = () => renderToStaticMarkup(<OwnershipCard members={members} />);
 

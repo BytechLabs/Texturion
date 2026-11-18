@@ -18,6 +18,8 @@ import { keys } from "@/lib/api/keys";
 import { useMe } from "@/lib/api/me";
 import type { CompanyView, Me } from "@/lib/api/types";
 import type { SessionStatus } from "@/lib/auth/use-session-ready";
+import { CompanyProvider, LANDED_KEY, useActiveCompany } from "./provider";
+import { COMPANY_COOKIE } from "./cookie";
 
 const { api, session, nav } = vi.hoisted(() => ({
   api: vi.fn<(path: string, options?: { companyId?: string }) => Promise<unknown>>(),
@@ -38,8 +40,6 @@ vi.mock("@/components/shell/gate-escape", () => ({
   GateSignOut: () => <button type="button">Sign out</button>,
 }));
 
-import { CompanyProvider, LANDED_KEY, useActiveCompany } from "./provider";
-import { COMPANY_COOKIE } from "./cookie";
 
 /** What the (app) layout passes. */
 const SCOPE = "font-golos app-scope font-sans";

@@ -9,9 +9,9 @@
  * Pure and dependency-free so it unit-tests without React or the network.
  */
 import {MMS_MAX_MEDIA_BYTES, MMS_MAX_MEDIA_ITEMS, MMS_OUTBOUND_MEDIA_TYPES, mmsMediaTypeForFile} from '@loonext/shared';
+import type { MmsMediaType } from '@loonext/shared';
 
 export { MMS_MAX_MEDIA_BYTES, MMS_MAX_MEDIA_ITEMS } from '@loonext/shared';
-import type { MmsMediaType } from '@loonext/shared';
 
 
 export type { MmsMediaType };

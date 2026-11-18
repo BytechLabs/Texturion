@@ -18,6 +18,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CallInfo } from "@/lib/softphone/state";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { CallBar } from "./call-bar";
 
 // Hoisted mock state the hooks read; each test seeds it before rendering.
 const state: {
@@ -82,7 +83,6 @@ vi.mock("@/lib/softphone/provider", () => ({
   }),
 }));
 
-import { CallBar } from "./call-bar";
 
 function outboundCall(overrides: Partial<CallInfo> = {}): CallInfo {
   return {

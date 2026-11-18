@@ -14,6 +14,12 @@
  */
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  leadingSentence,
+  LeadSourcesCard,
+  visibleRows,
+} from "./lead-sources-card";
+import { makeTranslate } from "@/i18n/translate";
 
 const { reportRef } = vi.hoisted(() => ({
   reportRef: { current: null as unknown },
@@ -23,12 +29,6 @@ vi.mock("@/lib/api/reports", () => ({
   useLeadSourceReport: () => ({ isLoading: false, data: reportRef.current }),
 }));
 
-import {
-  leadingSentence,
-  LeadSourcesCard,
-  visibleRows,
-} from "./lead-sources-card";
-import { makeTranslate } from "@/i18n/translate";
 
 /**
  * #228: both helpers now compose their sentence through the catalogue, so the

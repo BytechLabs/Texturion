@@ -28,6 +28,10 @@ import {
 import { CONTACT_IMPORT_IGNORE, formatVCardProperty, vcardParameterProperty } from '@loonext/shared';
 import type { VCardPropertyDeclaration } from '@loonext/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { VCardImportDialog } from "./vcard-import-dialog";
+import { chooseOption, selectedValue } from "@/test/simple-select-driver";
+// #228: the attestation sentence moved into the catalogue, keyed by door.
+import { contactsEn } from "@/i18n/sections/contacts";
 
 const { vcardMutate } = vi.hoisted(() => ({ vcardMutate: vi.fn() }));
 
@@ -39,10 +43,6 @@ vi.mock("@/lib/api/contacts-vcard", () => ({
   }),
 }));
 
-import { VCardImportDialog } from "./vcard-import-dialog";
-import { chooseOption, selectedValue } from "@/test/simple-select-driver";
-// #228: the attestation sentence moved into the catalogue, keyed by door.
-import { contactsEn } from "@/i18n/sections/contacts";
 
 const IMPORT_CONSENT_LABEL = { file: contactsEn.consentLabelFile } as const;
 

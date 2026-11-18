@@ -41,6 +41,8 @@ import type { ConversationEvent } from "@/lib/api/types";
 
 import { PAYMENT_EVENT_TYPES, REALTIME_EVENTS } from "./events";
 import { REORDER_WINDOW_MS } from "./sequence";
+import { useForYouNotificationsRealtime } from "./for-you-notifications";
+import { RealtimeProvider } from "./provider";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
 const USER = "22222222-2222-2222-2222-222222222222";
@@ -185,8 +187,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push: () => {} }),
 }));
 
-import { useForYouNotificationsRealtime } from "./for-you-notifications";
-import { RealtimeProvider } from "./provider";
 
 /** Let the effect's `getSession` → `setAuth` → `subscribe` chain settle. */
 async function flush() {

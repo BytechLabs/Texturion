@@ -1,4 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
+import type { OnboardingSnapshot } from "../steps";
+import { portStepProgress } from "./use-port-wizard";
 
 // use-port-wizard is a "use client" module: its hook pulls next/navigation and
 // the onboarding-state chain (react-query → @/env). portStepProgress itself is
@@ -10,8 +12,6 @@ vi.mock("../use-onboarding-state", () => ({
   useOnboardingState: () => ({}),
 }));
 
-import type { OnboardingSnapshot } from "../steps";
-import { portStepProgress } from "./use-port-wizard";
 
 /** Minimal snapshot; only company country/US-texting + draft drive the count. */
 function snap(partial: Partial<OnboardingSnapshot>): OnboardingSnapshot {

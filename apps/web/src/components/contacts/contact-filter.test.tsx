@@ -11,6 +11,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ContactActiveFilters, ContactListFilter } from "./contact-filter";
 
 const { fieldDefs, tagRows, onField, onTag } = vi.hoisted(() => ({
   fieldDefs: vi.fn(),
@@ -26,7 +27,6 @@ vi.mock("@/lib/api/tags", () => ({
   useTags: () => ({ data: { data: tagRows.current } }),
 }));
 
-import { ContactActiveFilters, ContactListFilter } from "./contact-filter";
 
 afterEach(cleanup);
 

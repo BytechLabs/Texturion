@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ContactDetail } from "@/lib/api/types";
+import ContactDetailPage from "./page";
 
 /**
  * #73: the contact detail screen gains a "Message" action so a user can start
@@ -199,7 +200,6 @@ vi.mock("@/lib/api/calls", () => ({
   }),
 }));
 
-import ContactDetailPage from "./page";
 
 function contact(overrides: Partial<ContactDetail> = {}): ContactDetail {
   return {

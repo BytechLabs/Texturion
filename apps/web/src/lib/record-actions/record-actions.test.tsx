@@ -3,13 +3,6 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-
-// The builders live beside the surfaces that use them. Mocked so importing
-// them pulls in no data layer: only the action DEFINITIONS are under test.
-vi.mock(import("@/components/calls/call-button"), () => ({
-  usePlaceCall: () => ({ place: vi.fn(), busy: false }),
-}));
-
 import { buildCallActions } from "@/components/calls/call-actions";
 import { buildContactActions } from "@/components/contacts/contact-record-actions";
 import { buildScheduledActions } from "@/components/scheduled/scheduled-view";
@@ -24,9 +17,16 @@ import {
   RecordOverflowMenu,
 } from "@/components/ui/record-menu";
 import { makeTranslate } from "@/i18n/translate";
-
 import { actionIds, submenuItems } from './types';
 import type { RecordAction } from './types';
+
+// The builders live beside the surfaces that use them. Mocked so importing
+// them pulls in no data layer: only the action DEFINITIONS are under test.
+vi.mock(import("@/components/calls/call-button"), () => ({
+  usePlaceCall: () => ({ place: vi.fn(), busy: false }),
+}));
+
+
 
 afterEach(cleanup);
 

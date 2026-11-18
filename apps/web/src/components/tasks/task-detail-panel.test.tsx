@@ -11,6 +11,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { keys } from "@/lib/api/keys";
+import { TaskDetailPanel } from "./task-detail-panel";
 
 const { apiFetch, rowLookups } = vi.hoisted(() => ({
   apiFetch: vi.fn<(path: string) => Promise<unknown>>(),
@@ -34,7 +35,6 @@ vi.mock("@/lib/api/tasks", async (importOriginal) => {
   };
 });
 
-import { TaskDetailPanel } from "./task-detail-panel";
 
 const row = {
   id: "t1",

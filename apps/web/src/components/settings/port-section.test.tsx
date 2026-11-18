@@ -28,6 +28,7 @@ import type {
   PhoneNumberSummary,
   PortRequest,
 } from "@/lib/api/types";
+import { PortSection } from "./port-section";
 
 /**
  * realtime-js's channel registry: `channel(topic)` hands back the channel the
@@ -98,7 +99,6 @@ vi.mock("@/components/settings/port-card", () => ({
   },
 }));
 
-import { PortSection } from "./port-section";
 
 /** A completed transfer: the number moved, so a `phone_numbers` row carries it. */
 function port(): PortRequest {

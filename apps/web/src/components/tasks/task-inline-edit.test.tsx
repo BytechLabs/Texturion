@@ -9,6 +9,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EN } from "@/i18n/catalog";
+import { InlineDue } from "./task-inline-edit";
 
 const { mutate } = vi.hoisted(() => ({ mutate: vi.fn() }));
 
@@ -17,7 +18,6 @@ vi.mock("@/lib/api/tasks", () => ({
 }));
 vi.mock("./assignee-field", () => ({ AssigneeField: () => null }));
 
-import { InlineDue } from "./task-inline-edit";
 
 const task = {
   id: "t1",

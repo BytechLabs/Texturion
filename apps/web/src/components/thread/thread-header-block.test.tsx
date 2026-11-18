@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConversationDetail } from "@/lib/api/types";
 
 import { ALL_CATEGORIES_ON } from "./thread-filter";
+import { ThreadHeader } from "./thread-header";
 
 afterEach(cleanup);
 
@@ -51,7 +52,6 @@ vi.mock("@/lib/company/provider", () => ({
   }),
 }));
 
-import { ThreadHeader } from "./thread-header";
 
 const PHONE = "+12125550123";
 

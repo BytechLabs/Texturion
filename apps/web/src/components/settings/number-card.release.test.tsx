@@ -23,6 +23,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { NumberHoldState } from "./number-hold";
 import type { NumberStatus, PhoneNumberSummary } from "@/lib/api/types";
+import { NumberCard } from "./number-card";
+import { releaseNumberBody } from "./release-number";
 
 const state = vi.hoisted(() => ({ role: "owner" as string }));
 
@@ -63,8 +65,6 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import { NumberCard } from "./number-card";
-import { releaseNumberBody } from "./release-number";
 
 function numberRow(
   status: NumberStatus,

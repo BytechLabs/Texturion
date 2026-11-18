@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { DeviceSession, WorkspaceSession } from "@/lib/api/sessions";
+import DevicesSettingsPage from "./page";
 
 /**
  * #236 — the signed-in-devices screen.
@@ -82,7 +83,6 @@ vi.mock("@/lib/api/team", () => ({
   }),
 }));
 
-import DevicesSettingsPage from "./page";
 
 const render = () => renderToStaticMarkup(<DevicesSettingsPage />);
 

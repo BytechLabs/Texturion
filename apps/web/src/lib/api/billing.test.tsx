@@ -18,6 +18,7 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useRecordCancellationReason } from "./billing";
 
 const { BASE, fetchSpy } = vi.hoisted(() => ({
   BASE: "https://api.loonext.test",
@@ -40,7 +41,6 @@ vi.mock(import("./client"), async () => {
   };
 });
 
-import { useRecordCancellationReason } from "./billing";
 
 function renderRecorder() {
   const client = new QueryClient({

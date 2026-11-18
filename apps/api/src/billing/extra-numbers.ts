@@ -40,15 +40,15 @@ import { extraNumberBlockedReason } from '@loonext/shared';
 import type { BillingCurrency, ExtraNumberKey } from '@loonext/shared';
 
 import { EXTRA_NUMBER_REASONS_EN } from "./extra-number-copy";
-
-/** The wire's language. See the call site for why it is not the reader's. */
-const englishReason = (key: ExtraNumberKey): string => EXTRA_NUMBER_REASONS_EN[key];
-
 import type { Env } from "../env";
 import { idempotencyKey } from "./idempotency";
 import { PLAN_LIMITS } from './plans';
 import type { PlanId } from './plans';
 import type { Stripe } from "./stripe";
+
+/** The wire's language. See the call site for why it is not the reader's. */
+const englishReason = (key: ExtraNumberKey): string => EXTRA_NUMBER_REASONS_EN[key];
+
 
 /** Monthly price per extra number, in cents (#80: $5 Starter, $4 Pro). */
 export const EXTRA_NUMBER_MONTHLY_CENTS: Record<PlanId, number> = {

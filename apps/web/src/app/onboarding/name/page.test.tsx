@@ -16,11 +16,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CREW_SIZE_LABELS } from "@loonext/shared";
 
 import { sayEnglish } from "@/i18n/translate";
+import { readOnboardingDraft } from "../local-draft";
 
 /** #228 — the labels are catalogue KEYS now, so this says them. */
 const say = sayEnglish;
 
-import { readOnboardingDraft } from "../local-draft";
 
 const push = vi.fn();
 

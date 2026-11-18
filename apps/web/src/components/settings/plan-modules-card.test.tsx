@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { PlanModulesCard } from "./plan-modules-card";
 
 type ModulesQuery = {
   data: { modules: unknown[] } | undefined;
@@ -18,7 +19,6 @@ vi.mock("@/lib/api/billing", () => ({
   useSetModule: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-import { PlanModulesCard } from "./plan-modules-card";
 
 describe("PlanModulesCard loading", () => {
   it("draws nothing while the modules read is in flight", () => {

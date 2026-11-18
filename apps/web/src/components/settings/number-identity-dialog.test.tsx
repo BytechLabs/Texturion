@@ -18,6 +18,8 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NumberIdentityDialog, patchFrom } from "./number-identity-dialog";
+import { ApiError } from "@/lib/api/error";
 
 const { save, greetingRows, toastSuccess, toastError, identity } = vi.hoisted(
   () => ({
@@ -85,8 +87,6 @@ vi.mock("sonner", () => ({
   toast: { success: toastSuccess, error: toastError },
 }));
 
-import { NumberIdentityDialog, patchFrom } from "./number-identity-dialog";
-import { ApiError } from "@/lib/api/error";
 
 afterEach(cleanup);
 

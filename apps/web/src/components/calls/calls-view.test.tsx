@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { Call } from "@/lib/api/types";
+import { CallsView } from "./calls-view";
 
 // Hoisted mock state the hooks read; tests seed it before rendering.
 const state: {
@@ -106,7 +107,6 @@ vi.mock("next/navigation", () => ({
   usePathname: () => "/calls",
 }));
 
-import { CallsView } from "./calls-view";
 
 function call(overrides: Partial<Call> = {}): Call {
   return {

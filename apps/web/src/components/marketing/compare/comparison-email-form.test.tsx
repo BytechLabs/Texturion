@@ -3,6 +3,7 @@
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { ComparisonEmailForm } from "./comparison-email-form";
 
 vi.mock("@/env", () => ({
   publicEnv: { NEXT_PUBLIC_API_URL: "https://api.test" },
@@ -11,7 +12,6 @@ vi.mock("@/lib/analytics/events", () => ({
   trackComparisonRequested: vi.fn(),
 }));
 
-import { ComparisonEmailForm } from "./comparison-email-form";
 
 afterEach(cleanup);
 

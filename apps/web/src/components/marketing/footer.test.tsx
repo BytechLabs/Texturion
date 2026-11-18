@@ -1,6 +1,7 @@
 /** @vitest-environment happy-dom */
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { Footer } from "./footer";
 
 const { prefetchByHref } = vi.hoisted(() => ({
   prefetchByHref: new Map<string, boolean | null | undefined>(),
@@ -27,7 +28,6 @@ vi.mock("next/link", () => ({
   },
 }));
 
-import { Footer } from "./footer";
 
 afterEach(() => {
   cleanup();

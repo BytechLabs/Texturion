@@ -6,6 +6,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NewContactAction } from "./contacts-actions";
 
 afterEach(cleanup);
 
@@ -38,7 +39,6 @@ vi.mock("./new-contact-dialog", () => ({
     ) : null,
 }));
 
-import { NewContactAction } from "./contacts-actions";
 
 describe(NewContactAction, () => {
   beforeEach(() => {

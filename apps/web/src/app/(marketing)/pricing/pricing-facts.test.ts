@@ -1,6 +1,27 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from '@loonext/shared';
+import type { BillingCurrency } from '@loonext/shared';
+import {
+  PLAN_MODULE_CARDS,
+  PLAN_PRICING,
+  US_REGISTRATION_FEE_DOLLARS,
+} from "@/lib/api/types";
+import PricingPage from "./page";
+import { COMPARE_AS_OF } from "../compare/verification";
+import {
+  ELSEWHERE_COLUMNS,
+  ELSEWHERE_FOOTNOTE,
+  ELSEWHERE_ROWS,
+  FAQS,
+  LEDGER,
+  LEDGER_CA,
+  PLAN_FAIR_USE_NOTE,
+  PLANS,
+  PRICING_DATELINE,
+  PRICING_DATELINE_CA,
+} from "./pricing-data";
 
 // next/font/local needs the Next build plugin; in vitest we only need the
 // stable variable/class contract (AppSurface mounts --font-golos).
@@ -8,14 +29,7 @@ vi.mock("next/font/local", () => ({
   default: () => ({ variable: "font-golos-mock", className: "font-golos-mock" }),
 }));
 
-import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from '@loonext/shared';
-import type { BillingCurrency } from '@loonext/shared';
 
-import {
-  PLAN_MODULE_CARDS,
-  PLAN_PRICING,
-  US_REGISTRATION_FEE_DOLLARS,
-} from "@/lib/api/types";
 
 /**
  * #328 — the expected figures, read from the same book the page reads.
@@ -41,22 +55,8 @@ const firstMonth = (plan: "starter" | "pro", currency: BillingCurrency) =>
     currency,
   );
 
-import PricingPage from "./page";
 
-import { COMPARE_AS_OF } from "../compare/verification";
 
-import {
-  ELSEWHERE_COLUMNS,
-  ELSEWHERE_FOOTNOTE,
-  ELSEWHERE_ROWS,
-  FAQS,
-  LEDGER,
-  LEDGER_CA,
-  PLAN_FAIR_USE_NOTE,
-  PLANS,
-  PRICING_DATELINE,
-  PRICING_DATELINE_CA,
-} from "./pricing-data";
 
 /** Every customer-facing string this module exports, flattened. */
 function allStrings(): string[] {

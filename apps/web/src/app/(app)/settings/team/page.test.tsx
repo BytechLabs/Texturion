@@ -10,6 +10,8 @@
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { chooseOption, selectedValue } from "@/test/simple-select-driver";
+import TeamSettingsPage from "./page";
 
 // `vi.mock` is hoisted above every `const` in this file, so the spies have to
 // be created inside `vi.hoisted` — a plain `const` above the mock is still a
@@ -86,9 +88,7 @@ vi.mock("@/components/settings/member-access-dialog", () => ({
   MemberAccessDialog: () => null,
 }));
 
-import { chooseOption, selectedValue } from "@/test/simple-select-driver";
 
-import TeamSettingsPage from "./page";
 
 // This app's vitest does not set `globals`, so testing-library's automatic
 // cleanup never registers and renders stack across tests.

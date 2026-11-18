@@ -16,9 +16,9 @@ import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from "
 import { join } from "node:path";
 import { rigSettings as cliSettings, rigLayout } from "../../src/layout.mjs";
 import {secretStore} from "../../src/secrets.mjs";
+import { parseLocalStatus, supabaseCli } from "../../src/supabase.mjs";
 
 export { MissingSecret } from "../../src/secrets.mjs";
-import { parseLocalStatus, supabaseCli } from "../../src/supabase.mjs";
 
 
 

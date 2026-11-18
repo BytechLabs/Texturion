@@ -17,6 +17,12 @@
  */
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { billingRoutes } from "./billing";
+import type { AppEnv, MemberRole } from "../context";
+import { ApiError, errorResponse } from "../http/errors";
+import { endpoint, makeHarness } from '../test/billing-support';
+import type { Harness } from '../test/billing-support';
+import { completeEnv, stubFetch } from "../test/support";
 
 vi.mock(import("../billing/company-modules"), async (importOriginal) => {
   const actual =
@@ -26,12 +32,6 @@ vi.mock(import("../billing/company-modules"), async (importOriginal) => {
   return { ...actual, isSellableModule: () => true };
 });
 
-import { billingRoutes } from "./billing";
-import type { AppEnv, MemberRole } from "../context";
-import { ApiError, errorResponse } from "../http/errors";
-import { endpoint, makeHarness } from '../test/billing-support';
-import type { Harness } from '../test/billing-support';
-import { completeEnv, stubFetch } from "../test/support";
 
 const env = completeEnv();
 const COMPANY_ID = "7c9e6679-7425-40de-944b-e07fc1f90ae7";

@@ -6,6 +6,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { WebsiteWidgetCard } from "./website-widget-card";
 
 const { companyData } = vi.hoisted(() => ({
   companyData: { current: {} },
@@ -30,7 +31,6 @@ vi.mock("@/lib/api/numbers", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { WebsiteWidgetCard } from "./website-widget-card";
 
 afterEach(cleanup);
 beforeEach(() => {

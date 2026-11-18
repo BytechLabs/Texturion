@@ -15,6 +15,9 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { RequestOptions } from "@/lib/api/core";
 import type { AttachmentSummary, AttachmentVariant } from "@/lib/api/types";
+import { AttachmentAudio } from "./attachment-audio";
+import { AttachmentFileChip } from "./attachment-file";
+import { AttachmentImage } from "./attachment-image";
 
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({
@@ -22,9 +25,6 @@ vi.mock("@/lib/api/client", () => ({
 }));
 vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "co-1" }));
 
-import { AttachmentAudio } from "./attachment-audio";
-import { AttachmentFileChip } from "./attachment-file";
-import { AttachmentImage } from "./attachment-image";
 
 // This app's vitest does not set `globals`, so testing-library's automatic
 // cleanup never registers and renders stack across tests.

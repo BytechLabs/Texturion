@@ -32,6 +32,16 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Ownership } from "@/lib/api/ownership";
+import {
+  HANDOVER_CONFIRM_FIELD,
+  HANDOVER_CONFIRM_REJECTED,
+  HANDOVER_CONFIRM_SUBMIT,
+  HANDOVER_CONFIRM_SUBMITTING,
+} from "@loonext/shared";
+import { toast } from "sonner";
+import { sayEnglish } from "@/i18n/translate";
+import { ApiError } from "@/lib/api/error";
+import { OwnershipView } from "./ownership-view";
 
 /** An offer waiting for the person reading the page. */
 const OFFERED_TO_ME: Ownership = {
@@ -121,18 +131,8 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import {
-  HANDOVER_CONFIRM_FIELD,
-  HANDOVER_CONFIRM_REJECTED,
-  HANDOVER_CONFIRM_SUBMIT,
-  HANDOVER_CONFIRM_SUBMITTING,
-} from "@loonext/shared";
-import { toast } from "sonner";
-import { sayEnglish } from "@/i18n/translate";
 
-import { ApiError } from "@/lib/api/error";
 
-import { OwnershipView } from "./ownership-view";
 
 const FACTOR = "totp-factor-id";
 

@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Quote } from "@/lib/api/quotes";
+import { OutstandingQuotesSection } from "./outstanding-quotes-section";
 
 /**
  * #287 — the queue an owner opens every morning.
@@ -39,7 +40,6 @@ vi.mock("@/lib/company/provider", () => ({
   useCompanyId: () => "company-1",
 }));
 
-import { OutstandingQuotesSection } from "./outstanding-quotes-section";
 
 const quote = (over: Partial<Quote>): Quote =>
   ({

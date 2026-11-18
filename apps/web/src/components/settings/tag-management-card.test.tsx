@@ -10,6 +10,7 @@
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { TagManagementCard } from "./tag-management-card";
 
 type Row = {
   tag_id: string;
@@ -31,7 +32,6 @@ vi.mock("@/lib/api/companies", () => ({
   useUpdateCompany: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-import { TagManagementCard } from "./tag-management-card";
 
 function render(
   next: Partial<typeof state> & { canManage?: boolean } = {},

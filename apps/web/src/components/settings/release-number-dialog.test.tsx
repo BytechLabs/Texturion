@@ -32,6 +32,14 @@ import { useState } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PhoneNumberSummary } from "@/lib/api/types";
+import {
+  HANDOVER_CONFIRM_FIELD,
+  HANDOVER_CONFIRM_REJECTED,
+  HANDOVER_CONFIRM_SUBMIT,
+} from "@loonext/shared";
+import { sayEnglish } from "@/i18n/translate";
+import { ApiError } from "@/lib/api/error";
+import { ReleaseNumberDialog } from "./release-number-dialog";
 
 /** The release mutation, driven per test — including its callbacks. */
 const mutate = vi.fn();
@@ -78,17 +86,9 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "c-1", role: "owner" }),
 }));
 
-import {
-  HANDOVER_CONFIRM_FIELD,
-  HANDOVER_CONFIRM_REJECTED,
-  HANDOVER_CONFIRM_SUBMIT,
-} from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/translate";
 
-import { ApiError } from "@/lib/api/error";
 
-import { ReleaseNumberDialog } from "./release-number-dialog";
 
 const FACTOR = "totp-factor-id";
 const E164 = "+14155550142";

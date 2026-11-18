@@ -5,6 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { MfaState } from "@/lib/api/mfa";
+import { TwoFactorCard } from "./two-factor-card";
 
 /**
  * #314 — the two-factor card.
@@ -32,7 +33,6 @@ vi.mock("@/lib/supabase/browser", () => ({
   getSupabaseBrowser: () => ({ auth: { mfa: {} } }),
 }));
 
-import { TwoFactorCard } from "./two-factor-card";
 
 const render = () => renderToStaticMarkup(<TwoFactorCard />);
 

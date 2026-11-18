@@ -22,6 +22,17 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { AI_DISCLOSURES } from "@loonext/shared";
+import { AI_UNIT_COST_CENTS } from "../billing/costs";
+import { VOICEMAIL_INTAKE_MODEL } from "../calls/voicemail-intake";
+import { VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL, VOICEMAIL_TRANSCRIPT_MODEL } from "../calls/voicemail-transcript";
+import { DEFAULT_AI_SETTINGS } from "./settings";
+import { AI_USAGE_FEATURES } from "./usage";
+import { SUGGEST_REPLY_MODEL } from "../messaging/reply-suggestions";
+import {
+  THREAD_SUMMARY_CONTEXT_MESSAGES,
+  THREAD_SUMMARY_MODEL,
+} from "../messaging/thread-summary";
+import { ENRICHMENT_MODEL } from "../tasks/enrichment";
 
 /**
  * The English sentence behind a disclosure key.
@@ -49,17 +60,6 @@ function catalogueSentence(key: string): string {
 }
 
 
-import { AI_UNIT_COST_CENTS } from "../billing/costs";
-import { VOICEMAIL_INTAKE_MODEL } from "../calls/voicemail-intake";
-import { VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL, VOICEMAIL_TRANSCRIPT_MODEL } from "../calls/voicemail-transcript";
-import { DEFAULT_AI_SETTINGS } from "./settings";
-import { AI_USAGE_FEATURES } from "./usage";
-import { SUGGEST_REPLY_MODEL } from "../messaging/reply-suggestions";
-import {
-  THREAD_SUMMARY_CONTEXT_MESSAGES,
-  THREAD_SUMMARY_MODEL,
-} from "../messaging/thread-summary";
-import { ENRICHMENT_MODEL } from "../tasks/enrichment";
 
 describe("every AI feature is publicly disclosed", () => {
   it("discloses exactly the features the cost registry knows about", () => {

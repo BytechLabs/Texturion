@@ -9,6 +9,8 @@
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/error";
+import { ExportTasks } from "./export-tasks";
 
 const { download, toastSuccess, toastError, role } = vi.hoisted(() => ({
   download: vi.fn(),
@@ -28,9 +30,7 @@ vi.mock("sonner", () => ({
   toast: { success: toastSuccess, error: toastError },
 }));
 
-import { ApiError } from "@/lib/api/error";
 
-import { ExportTasks } from "./export-tasks";
 
 afterEach(cleanup);
 

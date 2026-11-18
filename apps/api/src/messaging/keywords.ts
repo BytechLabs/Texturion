@@ -1,3 +1,5 @@
+import { isEmergencyKeyword } from "@loonext/shared";
+
 /**
  * The §5 / D3 standalone opt-out / opt-in / help keyword lists — the single
  * canonical source used by BOTH the inbound opt-out handler (inbound.ts) and the
@@ -99,8 +101,6 @@ export function isFrenchHelpKeyword(body: string): boolean {
  * message still invites the reply. Two lists would drift apart in exactly the
  * way that caused the bug.
  */
-import { isEmergencyKeyword } from "@loonext/shared";
-
 export {
   EMERGENCY_KEYWORDS,
   effectiveEmergencyKeywords,

@@ -9,6 +9,7 @@ import { act, cleanup, render } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { keys } from "@/lib/api/keys";
+import { TaskRoutePanel } from "./task-route-panel";
 
 const { replace, panel } = vi.hoisted(() => ({
   replace: vi.fn(),
@@ -24,7 +25,6 @@ vi.mock("./task-detail-panel", () => ({
   },
 }));
 
-import { TaskRoutePanel } from "./task-route-panel";
 
 afterEach(cleanup);
 

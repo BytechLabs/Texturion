@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+// The Sheet wrapper is a Radix portal (renders nothing in SSR), so the tests
+// pin the BODY — the actual content contract.
+import { MobileAccountSheetBody } from "./mobile-account-sheet";
 
 /**
  * #100: the account sheet carries everything the retired mobile header did —
@@ -50,9 +53,6 @@ vi.mock("./workspace-bits", () => ({
   companyInitials: () => "BL",
 }));
 
-// The Sheet wrapper is a Radix portal (renders nothing in SSR), so the tests
-// pin the BODY — the actual content contract.
-import { MobileAccountSheetBody } from "./mobile-account-sheet";
 
 const noop = () => undefined;
 

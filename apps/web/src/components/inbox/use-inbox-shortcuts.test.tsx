@@ -5,6 +5,8 @@ import { act, cleanup, fireEvent, render, screen } from "@testing-library/react"
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ConversationListItem } from "@/lib/api/types";
+import { writeSingleKeyShortcuts } from "@/lib/inbox/shortcut-preference";
+import { useInboxShortcuts } from "./use-inbox-shortcuts";
 
 afterEach(cleanup);
 
@@ -19,9 +21,7 @@ vi.mock("@/lib/api/conversations", () => ({
 vi.mock("@/lib/api/tags", () => ({ useTags: () => ({ data: { data: [] } }) }));
 vi.mock("@/lib/api/team", () => ({ useMembers: () => ({ data: { data: [] } }) }));
 
-import { writeSingleKeyShortcuts } from "@/lib/inbox/shortcut-preference";
 
-import { useInboxShortcuts } from "./use-inbox-shortcuts";
 
 const ROWS = ["c-1", "c-2", "c-3"].map((id, index) => ({
   id,

@@ -5,15 +5,15 @@ import type { ReactNode } from "react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useUpdateContact } from "@/lib/api/contacts";
+import { ApiError } from "@/lib/api/error";
+import { useDebouncedAutosave } from "./use-debounced-autosave";
 
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 vi.mock(import("@/lib/api/client"), () => ({ apiFetch }));
 vi.mock(import("@/lib/company/provider"), () => ({ useCompanyId: () => "company-1" }));
 
-import { useUpdateContact } from "@/lib/api/contacts";
-import { ApiError } from "@/lib/api/error";
 
-import { useDebouncedAutosave } from "./use-debounced-autosave";
 
 type Init = { method?: string; body?: { notes?: string | null } };
 

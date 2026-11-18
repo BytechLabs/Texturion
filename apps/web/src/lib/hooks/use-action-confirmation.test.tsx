@@ -3,6 +3,8 @@
  */
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ApiError } from "@/lib/api/error";
+import { useActionConfirmation } from "./use-action-confirmation";
 
 /**
  * #537 audit — the fork four screens depend on.
@@ -72,9 +74,7 @@ vi.mock("@loonext/shared", async (importOriginal) => ({
   HANDOVER_CODE_DESTINATION: destinations,
 }));
 
-import { ApiError } from "@/lib/api/error";
 
-import { useActionConfirmation } from "./use-action-confirmation";
 
 const FACTOR = "totp-factor-id";
 

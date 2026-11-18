@@ -10,6 +10,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ContactLanguage } from "./contact-language";
 
 const { updateMutate, companyData } = vi.hoisted(() => ({
   updateMutate: vi.fn(),
@@ -24,7 +25,6 @@ vi.mock("@/lib/api/contacts", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { ContactLanguage } from "./contact-language";
 
 afterEach(cleanup);
 beforeEach(() => {

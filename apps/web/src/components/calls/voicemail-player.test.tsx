@@ -8,6 +8,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { VoicemailPlayer } from "./voicemail-player";
 
 const voicemail = vi.hoisted(() => ({
   data: undefined as { url: string; seconds: number; transcript: string | null } | undefined,
@@ -23,7 +24,6 @@ vi.mock("@/lib/api/calls", () => ({
   }),
 }));
 
-import { VoicemailPlayer } from "./voicemail-player";
 
 const player = () => <VoicemailPlayer callSessionId="sess-1" seconds={42} />;
 

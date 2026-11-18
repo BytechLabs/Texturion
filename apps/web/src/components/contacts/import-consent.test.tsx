@@ -39,6 +39,13 @@ import {
   VCARD_IMPORT_MAX_BYTES,
 } from "@loonext/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ImportResult } from "@/lib/api/types";
+import { CONSENT_REFUSALS_FILENAME } from "@/lib/contacts/import-summary";
+import { ImportWizard } from "./import-wizard";
+import { PhonePickerDialog } from "./phone-picker-dialog";
+import { VCardImportDialog } from "./vcard-import-dialog";
+// #228: the attestation sentence moved into the catalogue, keyed by door.
+import { contactsEn } from "@/i18n/sections/contacts";
 
 const { csvMutate, vcardMutate, select, download } = vi.hoisted(() => ({
   csvMutate: vi.fn(),
@@ -91,14 +98,7 @@ vi.mock("papaparse", () => ({
   },
 }));
 
-import type { ImportResult } from "@/lib/api/types";
-import { CONSENT_REFUSALS_FILENAME } from "@/lib/contacts/import-summary";
 
-import { ImportWizard } from "./import-wizard";
-import { PhonePickerDialog } from "./phone-picker-dialog";
-import { VCardImportDialog } from "./vcard-import-dialog";
-// #228: the attestation sentence moved into the catalogue, keyed by door.
-import { contactsEn } from "@/i18n/sections/contacts";
 
 const IMPORT_CONSENT_LABEL = {
   file: contactsEn.consentLabelFile,

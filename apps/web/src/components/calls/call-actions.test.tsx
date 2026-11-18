@@ -3,6 +3,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CallActions } from "./call-actions";
 
 afterEach(cleanup);
 
@@ -20,7 +21,6 @@ vi.mock("@/lib/api/trash", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { CallActions } from "./call-actions";
 
 beforeEach(() => {
   state.canDelete = true;

@@ -6,6 +6,7 @@
  */
 import { act, cleanup, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { useSession, whileEndingSessionHere } from "./use-session-ready";
 
 type AuthListener = (
   event: string,
@@ -31,7 +32,6 @@ vi.mock("@/lib/supabase/browser", () => ({
   }),
 }));
 
-import { useSession, whileEndingSessionHere } from "./use-session-ready";
 
 beforeEach(() => {
   auth.session = { user: { id: "user-1" } };

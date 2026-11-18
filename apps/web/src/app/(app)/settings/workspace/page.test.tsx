@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { capabilitiesOf, MEMBER_ROLES } from '@loonext/shared';
 import type { Capability, MemberRole } from '@loonext/shared';
+import WorkspaceSettingsPage from "./page";
 
 /**
  * A preset this build has never heard of, standing in for the next one #315
@@ -98,7 +99,6 @@ vi.mock("@/lib/api/exports", () => ({
   useRequestDataExport: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 
-import WorkspaceSettingsPage from "./page";
 
 function render(role: MemberRole): string {
   state.role = role;

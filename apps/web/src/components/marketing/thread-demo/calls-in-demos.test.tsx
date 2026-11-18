@@ -21,6 +21,15 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ConversationEvent } from "@/lib/api/types";
+import { eventSentence } from "@/components/thread/system-line";
+import * as tradeScriptModule from "../trades/scripts";
+import { TradeThread } from "../trades/trade-thread";
+import type { TradeCallBeat, TradeScript } from "../trades/scripts";
+import * as demoScriptModule from "./script";
+import type { CallBeat, ThreadScript } from "./script";
+import { StaticThread } from "./static-thread";
+import { DEEP_DIVE_CAPTIONS } from "./thread-deep-dive-static";
+import { callSentence, MISSED_CALL_TEXT_BACK_LINE } from "./thread-primitives";
 
 // SystemLine pulls in the voicemail player, whose data hook chains to the
 // env-validated API client. Mocked out so this stays a pure-sentence test
@@ -35,16 +44,7 @@ vi.mock("next/font/local", () => ({
   default: () => ({ variable: "font-golos-mock", className: "font-golos-mock" }),
 }));
 
-import { eventSentence } from "@/components/thread/system-line";
 
-import * as tradeScriptModule from "../trades/scripts";
-import { TradeThread } from "../trades/trade-thread";
-import type { TradeCallBeat, TradeScript } from "../trades/scripts";
-import * as demoScriptModule from "./script";
-import type { CallBeat, ThreadScript } from "./script";
-import { StaticThread } from "./static-thread";
-import { DEEP_DIVE_CAPTIONS } from "./thread-deep-dive-static";
-import { callSentence, MISSED_CALL_TEXT_BACK_LINE } from "./thread-primitives";
 
 /* -------------------------------------------------------------------------- */
 /* Collect every script the site ships, from the modules themselves.           */

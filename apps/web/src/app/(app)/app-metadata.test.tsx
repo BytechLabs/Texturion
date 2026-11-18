@@ -1,4 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
+import { metadata as appMetadata } from "./layout";
+import ContactsTitleLayout, {
+  metadata as contactsMetadata,
+} from "./contacts/layout";
 
 // The (app) group layout pulls in the shell, the realtime/company providers,
 // and the Golos next/font module (which cannot load in a node test). We only
@@ -27,10 +31,6 @@ vi.mock("../app-providers", () => ({
   AppProviders: ({ children }: { children: React.ReactNode }) => children,
 }));
 
-import { metadata as appMetadata } from "./layout";
-import ContactsTitleLayout, {
-  metadata as contactsMetadata,
-} from "./contacts/layout";
 
 describe("(app) group metadata", () => {
   it("pins the signed-in title template + a plain default, and stays crawlable-config", () => {

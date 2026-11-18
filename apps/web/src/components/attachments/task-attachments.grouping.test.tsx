@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import type { TaskAttachmentItem } from "@/lib/api/types";
+import { TaskAttachments } from "./task-attachments";
 
 /**
  * #294 — the task drawer's files, grouped into the visits they arrived on.
@@ -22,9 +24,7 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "c-1", role: "owner" }),
 }));
 
-import type { TaskAttachmentItem } from "@/lib/api/types";
 
-import { TaskAttachments } from "./task-attachments";
 
 function photo(over: Partial<TaskAttachmentItem> & { id: string }): TaskAttachmentItem {
   return {

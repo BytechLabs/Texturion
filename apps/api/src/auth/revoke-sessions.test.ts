@@ -3,6 +3,8 @@ import { join } from "node:path";
 
 import { describe, expect, it } from "vitest";
 
+import { stripComments } from "../test/source-tree";
+
 /**
  * #581/C7 — ending somebody's access has to end ALL of it, on every path.
  *
@@ -71,8 +73,6 @@ function sources(dir: string): string[] {
  * The floor below counts FILES OPENED, not text searched, so it could never
  * have noticed.
  */
-import { stripComments } from "../test/source-tree";
-
 describe("every path that ends access goes through the one that finishes the job", () => {
   it("nothing calls the wrapper that throws the credential ids away", () => {
     const offenders: string[] = [];

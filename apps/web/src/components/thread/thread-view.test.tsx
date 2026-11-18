@@ -19,6 +19,7 @@ import type {
   ConversationListItem,
   Message,
 } from "@/lib/api/types";
+import { ThreadView } from "./thread-view";
 
 const COMPANY_ID = "co-1";
 const VIEWER_ID = "u-1";
@@ -124,7 +125,6 @@ vi.mock("@/components/ui/sheet", () => ({
   SheetTitle: () => null,
 }));
 
-import { ThreadView } from "./thread-view";
 
 const CONVERSATION_FIELDS = {
   id: CONVERSATION_ID,

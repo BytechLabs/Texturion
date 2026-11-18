@@ -10,6 +10,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { DuplicatePair } from "@/lib/api/contacts";
+import { DuplicateContactsCard } from "./duplicate-contacts-card";
 
 const state: { pairs: DuplicatePair[] } = { pairs: [] };
 
@@ -19,7 +20,6 @@ vi.mock("@/lib/api/contacts", () => ({
   useUnmergeContact: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-import { DuplicateContactsCard } from "./duplicate-contacts-card";
 
 function pair(overrides: Partial<DuplicatePair> = {}): DuplicatePair {
   return {

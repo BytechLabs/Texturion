@@ -9,6 +9,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Call, ForYou, SpamReviewItem } from "@/lib/api/types";
+import { countDistinctWork, ForYouView } from "./for-you-view";
 
 // Hoisted mock state the hooks read; tests seed it before rendering.
 const state: {
@@ -135,7 +136,6 @@ vi.mock("@/components/tasks/use-task-drawer", () => ({
   useTaskDrawer: () => ({ openTask: vi.fn() }),
 }));
 
-import { countDistinctWork, ForYouView } from "./for-you-view";
 
 function call(overrides: Partial<Call> = {}): Call {
   return {

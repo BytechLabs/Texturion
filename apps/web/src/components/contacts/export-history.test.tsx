@@ -12,6 +12,12 @@
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { ExportHistory } from "./export-history";
+// #228: these sentences moved out of the component and into the catalogue.
+// Read through it rather than re-typed here, so a reworded export note still
+// has exactly one source and this test cannot drift from what ships.
+import { contactsEn } from "@/i18n/sections/contacts";
+import { ApiError } from "@/lib/api/error";
 
 const { requestExport, toastSuccess, toastError, role } = vi.hoisted(() => ({
   requestExport: vi.fn(),
@@ -34,15 +40,9 @@ vi.mock("sonner", () => ({
   toast: { success: toastSuccess, error: toastError },
 }));
 
-import { ExportHistory } from "./export-history";
-// #228: these sentences moved out of the component and into the catalogue.
-// Read through it rather than re-typed here, so a reworded export note still
-// has exactly one source and this test cannot drift from what ships.
-import { contactsEn } from "@/i18n/sections/contacts";
 
 const EXPORT_HISTORY_ACTION = contactsEn.exportHistoryAction;
 const EXPORT_HISTORY_NOTE = contactsEn.exportHistoryNote;
-import { ApiError } from "@/lib/api/error";
 
 afterEach(cleanup);
 

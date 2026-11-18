@@ -1,11 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { whenTelemetryMayLoad } from "./telemetry-gate";
 
 const { settle } = vi.hoisted(() => ({
   settle: vi.fn(() => new Promise<void>(() => {})),
 }));
 vi.mock("./after-lcp-and-load", () => ({ whenPageSettles: settle }));
 
-import { whenTelemetryMayLoad } from "./telemetry-gate";
 
 afterEach(() => {
   vi.unstubAllGlobals();

@@ -1,3 +1,6 @@
+import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
+import { cn } from "@/lib/utils";
+
 /**
  * A labeled section on the landing screen: small uppercase label + count, then
  * the calm card list.
@@ -36,5 +39,3 @@ export function Section({
     </section>
   );
 }
-import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
-import { cn } from "@/lib/utils";

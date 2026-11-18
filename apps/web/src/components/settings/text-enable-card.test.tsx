@@ -65,6 +65,17 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { MemberRole } from "@loonext/shared";
 
 import type { PhoneNumberSummary, TextEnablement } from "@/lib/api/types";
+import {
+  HANDOVER_CONFIRM_FIELD,
+  HANDOVER_CONFIRM_REJECTED,
+  HANDOVER_CONFIRM_RESEND,
+  HANDOVER_CONFIRM_SUBMIT,
+  HANDOVER_CONFIRM_SUBMITTING,
+} from "@loonext/shared";
+import { sayEnglish } from "@/i18n/translate";
+import { ApiError } from "@/lib/api/error";
+import { keys } from "@/lib/api/keys";
+import { TextEnableCard } from "./text-enable-card";
 
 /** The workspace every key below is scoped to. */
 const COMPANY = "c-1";
@@ -196,20 +207,9 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: COMPANY, role }),
 }));
 
-import {
-  HANDOVER_CONFIRM_FIELD,
-  HANDOVER_CONFIRM_REJECTED,
-  HANDOVER_CONFIRM_RESEND,
-  HANDOVER_CONFIRM_SUBMIT,
-  HANDOVER_CONFIRM_SUBMITTING,
-} from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/translate";
 
-import { ApiError } from "@/lib/api/error";
-import { keys } from "@/lib/api/keys";
 
-import { TextEnableCard } from "./text-enable-card";
 
 const FACTOR = "totp-factor-id";
 

@@ -11,6 +11,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LeadSourcePicker } from "./lead-source-picker";
 
 const { updateMutate, sourceRows, companyRole } = vi.hoisted(() => ({
   updateMutate: vi.fn(),
@@ -36,7 +37,6 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: companyRole.current }),
 }));
 
-import { LeadSourcePicker } from "./lead-source-picker";
 
 const TRUCK = "s-truck";
 const NEIGHBOUR = "s-neighbour";

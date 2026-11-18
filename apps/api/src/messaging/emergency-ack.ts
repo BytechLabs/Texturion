@@ -26,6 +26,11 @@
  * everything".
  */
 import { copyFor, emergencyReplyBody, estimateSegments, resolveLocale } from "@loonext/shared";
+import type { SupabaseClient } from "@supabase/supabase-js";
+import type { Env } from "../env";
+import { runPreSendGates } from "./send";
+import { guardedAutoSend } from "./auto-send";
+import type { AutoSendOutcome, EmergencyClaim } from "./auto-send";
 
 /**
  * Re-exported so the one sentence with a safety property has a home in the
@@ -33,11 +38,6 @@ import { copyFor, emergencyReplyBody, estimateSegments, resolveLocale } from "@l
  * owner wrote and no setting removes it (#414 ask 4, narrowed by #460).
  */
 export { EMERGENCY_SAFETY_LINE } from "@loonext/shared";
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-import type { Env } from "../env";
-import { runPreSendGates } from "./send";
-import { guardedAutoSend, type AutoSendOutcome, type EmergencyClaim } from "./auto-send";
 
 /**
  * The default reply, for a workspace that has not written its own. One GSM-7

@@ -11,6 +11,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { phonesReached, RingCard, ringsIn } from "./ring-card";
 
 // #725: the effect note reads company and query context these tests do not mount.
 vi.mock("@/components/settings/setting-choice-note", () => ({ SettingChoiceNote: () => null }));
@@ -23,7 +24,6 @@ vi.mock("@/lib/api/companies", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { phonesReached, RingCard, ringsIn } from "./ring-card";
 
 afterEach(cleanup);
 beforeEach(() => updateMutate.mockReset());

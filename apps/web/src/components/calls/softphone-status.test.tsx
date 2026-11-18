@@ -6,6 +6,7 @@
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { SoftphoneStatus } from "./softphone-status";
 
 // Hoisted mock state the hook reads; each test seeds it before rendering.
 const state: { ready: boolean; error: string | null } = {
@@ -17,7 +18,6 @@ vi.mock("@/lib/softphone/provider", () => ({
   useSoftphone: () => state,
 }));
 
-import { SoftphoneStatus } from "./softphone-status";
 
 function render(next: { ready: boolean; error: string | null }): string {
   state.ready = next.ready;

@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { MergeFieldPreview } from "./composer";
 
 // composer.tsx transitively reaches the Supabase browser client and the API
 // client, both of which validate public env at IMPORT time. This suite renders
@@ -13,7 +14,6 @@ vi.mock(import("@/env"), () => ({
   },
 }));
 
-import { MergeFieldPreview } from "./composer";
 
 /**
  * #393 — the "Sends as:" line must appear for a draft that is about to be

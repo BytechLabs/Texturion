@@ -9,19 +9,6 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
-
-const { apiFetch } = vi.hoisted(() => ({
-  apiFetch: vi.fn<
-    (path: string, options?: { method?: string; signal?: AbortSignal }) => Promise<unknown>
-  >(),
-}));
-
-vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "c-1" }));
-vi.mock("./client", () => ({
-  apiFetch: (path: string, options?: { method?: string; signal?: AbortSignal }) =>
-    apiFetch(path, options),
-}));
-
 import { useSaveContactFields } from "./contact-fields";
 import {
   contactDetailOptions,
@@ -35,6 +22,19 @@ import {
 } from "./contacts";
 import { useImportVCard } from "./contacts-vcard";
 import { keys } from "./keys";
+
+const { apiFetch } = vi.hoisted(() => ({
+  apiFetch: vi.fn<
+    (path: string, options?: { method?: string; signal?: AbortSignal }) => Promise<unknown>
+  >(),
+}));
+
+vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "c-1" }));
+vi.mock("./client", () => ({
+  apiFetch: (path: string, options?: { method?: string; signal?: AbortSignal }) =>
+    apiFetch(path, options),
+}));
+
 
 const C = "c-1";
 const MINUTE = 60_000;

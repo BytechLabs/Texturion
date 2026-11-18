@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TrashRow } from "@/lib/api/trash";
+import { TrashList } from "./trash-list";
 
 afterEach(cleanup);
 
@@ -33,7 +34,6 @@ vi.mock("@/lib/company/provider", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { TrashList } from "./trash-list";
 
 const inDays = (days: number) =>
   new Date(Date.now() + days * 86_400_000 + 3_600_000).toISOString();

@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EN } from "@/i18n/catalog";
+import { CalendarView } from "./calendar-view";
 
 type Query = Record<string, string | number | boolean | undefined>;
 
@@ -43,7 +44,6 @@ vi.mock("../use-task-drawer", () => ({
   },
 }));
 
-import { CalendarView } from "./calendar-view";
 
 const LOADED = { data: { timezone: "America/Toronto" }, isSuccess: true, isError: false };
 const STATE = { view: "calendar", tab: "all" };

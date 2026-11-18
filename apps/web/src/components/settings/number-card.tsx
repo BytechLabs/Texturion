@@ -25,6 +25,7 @@ import { provisioningWaitCopy } from "@/components/registration/copy";
 import { useNow } from "@/lib/use-now";
 
 import { ChooseNumberDialog } from "./choose-number-dialog";
+import { ringCeilingLine } from "./ring-ceiling";
 
 /**
  * A provision_failed number the automatic retry loop can't fix on its own — the
@@ -106,7 +107,6 @@ function StatusBadge({ number }: { number: PhoneNumberSummary }) {
   }
 }
 
-import { ringCeilingLine } from "./ring-ceiling";
 
 export function NumberCard({
   number,

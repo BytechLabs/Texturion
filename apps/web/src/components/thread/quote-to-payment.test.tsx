@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Quote } from "@/lib/api/quotes";
+import { QuoteStrip } from "./quote-strip";
 
 /**
  * #287 — accepted, then paid, without retyping the figure.
@@ -27,7 +28,6 @@ vi.mock("@/lib/company/provider", () => ({
   useCompanyId: () => "company-1",
 }));
 
-import { QuoteStrip } from "./quote-strip";
 
 const quote = (over: Partial<Quote>): Quote =>
   ({

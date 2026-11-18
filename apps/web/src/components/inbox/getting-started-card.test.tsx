@@ -19,6 +19,7 @@ import { cleanup, render as mount } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { MemberRole } from "@loonext/shared";
+import { GettingStartedCard } from "./getting-started-card";
 
 let role: MemberRole = "owner";
 
@@ -47,7 +48,6 @@ vi.mock("@/lib/api/me-company", () => ({
   useMemberFirsts: (enabled: boolean) => useMemberFirsts(enabled),
 }));
 
-import { GettingStartedCard } from "./getting-started-card";
 
 const render = (as: MemberRole) => {
   role = as;

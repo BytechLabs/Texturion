@@ -15,6 +15,12 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ForYou, ForYouTask } from "@/lib/api/types";
+import { useCompleteForYouTask } from "@/lib/api/for-you";
+import {
+  useForYouNavCount,
+  useInboxNavCount,
+  useTaskNavCount,
+} from "./use-nav-counts";
 
 const { BASE, fetchSpy } = vi.hoisted(() => ({
   BASE: "https://api.loonext.test",
@@ -36,13 +42,7 @@ vi.mock(import("@/lib/api/client"), async () => {
   };
 });
 
-import { useCompleteForYouTask } from "@/lib/api/for-you";
 
-import {
-  useForYouNavCount,
-  useInboxNavCount,
-  useTaskNavCount,
-} from "./use-nav-counts";
 
 function task(id: string): ForYouTask {
   return {

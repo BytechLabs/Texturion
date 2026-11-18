@@ -10,6 +10,7 @@ import { describe, expect, it, vi } from "vitest";
 import { canSeeSettingsSection, MEMBER_ROLES } from "@loonext/shared";
 
 import { SETTINGS_SECTIONS } from "@/components/settings/settings-nav";
+import { SettingsSectionGate } from "./section-gate";
 
 // Hoisted state the mocked hooks read; each render seeds it.
 const state: { pathname: string; role: string } = {
@@ -35,7 +36,6 @@ vi.mock("@/lib/api/ownership", () => ({
   },
 }));
 
-import { SettingsSectionGate } from "./section-gate";
 
 /** The thing a refused reader must never be shown. */
 const PAGE = "the-page-behind-the-gate";

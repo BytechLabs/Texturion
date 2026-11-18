@@ -2,13 +2,6 @@ import { SUBPROCESSORS } from "@loonext/shared";
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-
-// The cookies page mounts the consent preferences control (#124), which reads
-// publicEnv. Mock the env module (hoisted above the page imports) so the
-// suite runs without the required NEXT_PUBLIC_* build vars; GTM stays unset,
-// matching every non-production build.
-vi.mock("@/env", () => ({ publicEnv: { NEXT_PUBLIC_GTM_ID: undefined } }));
-
 import AupPage, { metadata as aupMetadata } from "./aup/page";
 import CookiesPage, { metadata as cookiesMetadata } from "./cookies/page";
 import DeleteMyDataPage, {
@@ -38,6 +31,13 @@ import {
   PLAN_PRICE_CENTS,
   US_REGISTRATION_FEE_CENTS,
 } from "@loonext/shared";
+
+// The cookies page mounts the consent preferences control (#124), which reads
+// publicEnv. Mock the env module (hoisted above the page imports) so the
+// suite runs without the required NEXT_PUBLIC_* build vars; GTM stays unset,
+// matching every non-production build.
+vi.mock("@/env", () => ({ publicEnv: { NEXT_PUBLIC_GTM_ID: undefined } }));
+
 
 /**
  * The seven legal pages (COPY-DECK v2, V4 coverage map): quiet register,

@@ -16,6 +16,13 @@ import {
 import { useSyncExternalStore } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { HANDOVER_CONFIRM_FIELD, HANDOVER_CONFIRM_REJECTED, HANDOVER_CONFIRM_RESEND, HANDOVER_CONFIRM_SUBMIT, HANDOVER_CONFIRM_SUBMITTING } from '@loonext/shared';
+import type { ApiErrorCode } from '@loonext/shared';
+import { sayEnglish } from "@/i18n/translate";
+import { ApiError } from "@/lib/api/error";
+import { formatAbsoluteDateTime } from "@/lib/format/time";
+import { toast } from "sonner";
+import { RequireTwoFactorCard } from "./require-two-factor-card";
 
 /**
  * #314 — the owner's workspace-wide switch.
@@ -111,16 +118,9 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "c-1", role: "owner" }),
 }));
 
-import { HANDOVER_CONFIRM_FIELD, HANDOVER_CONFIRM_REJECTED, HANDOVER_CONFIRM_RESEND, HANDOVER_CONFIRM_SUBMIT, HANDOVER_CONFIRM_SUBMITTING } from '@loonext/shared';
-import type { ApiErrorCode } from '@loonext/shared';
 
-import { sayEnglish } from "@/i18n/translate";
 
-import { ApiError } from "@/lib/api/error";
-import { formatAbsoluteDateTime } from "@/lib/format/time";
-import { toast } from "sonner";
 
-import { RequireTwoFactorCard } from "./require-two-factor-card";
 
 const future = new Date(Date.now() + 7 * 86_400_000).toISOString();
 const past = new Date(Date.now() - 86_400_000).toISOString();

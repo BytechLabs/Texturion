@@ -5,6 +5,7 @@ import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CompanyAiSettings } from "@/lib/api/types";
+import AiSettingsPage from "./page";
 
 // This app's vitest does not set `globals`, so testing-library's automatic
 // cleanup never registers and renders stack across tests.
@@ -42,7 +43,6 @@ vi.mock("@/lib/company/provider", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import AiSettingsPage from "./page";
 
 beforeEach(() => {
   mutate.mockReset();
