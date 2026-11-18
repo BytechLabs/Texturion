@@ -371,6 +371,7 @@ struct AlertPause: Codable, Sendable {
 
 struct UnreadCount: Codable, Sendable {
     let count: Int
+    var unread_conversations: Int? = nil
     /// #343. Nil from an older Worker - treat as nothing paused.
     ///
     /// Declared `var ... = nil`: a `let` optional becomes a REQUIRED parameter

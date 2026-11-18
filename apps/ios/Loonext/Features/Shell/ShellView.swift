@@ -36,6 +36,12 @@ struct ShellCounts: Equatable, Sendable {
     var forYou = 0
     var unreadConversations = 0
     var openTasks = 0
+
+    mutating func apply(forYou: Int?, unread: Int?, openTasks: Int?) {
+        self.forYou = forYou ?? self.forYou
+        self.unreadConversations = unread ?? self.unreadConversations
+        self.openTasks = openTasks ?? self.openTasks
+    }
 }
 
 /// Surfaces the shell presents over the tabs — the Android ReadyShell
@@ -290,12 +296,21 @@ struct ShellView: View {
                 router.viewedConversationId = nil
             }
         }
-        .task(id: countsKey) { await reloadCounts() }
+        .task(id: countsKey) {
+            if countsKey > 0 { try? await Task.sleep(for: .milliseconds(750)) }
+            guard !Task.isCancelled else { return }
+            await reloadCounts()
+        }
         .task(id: companyId) {
             for await event in await graph.realtime.events() {
-                countsKey &+= 1
-                if event.event == "read.conversation",
-                   event.payload["user_id"]?.stringValue == hydratedMe.user_id,
+                let myRead = event.event.hasPrefix("read.") &&
+                    event.payload["user_id"]?.stringValue == hydratedMe.user_id
+                if myRead || ["message.", "conversation.", "task.", "call."].contains(where: {
+                    event.event.hasPrefix($0)
+                }) {
+                    countsKey &+= 1
+                }
+                if myRead, event.event == "read.conversation",
                    event.payload["is_read"]?.boolValue == true,
                    let id = event.payload["conversation_id"]?.stringValue {
                     PushCoordinator.clearConversationNotifications(id)
@@ -881,29 +896,23 @@ struct ShellView: View {
     /// `CompanyReadState` (#201), primed here through its guard. Each read is
     /// quiet — a failure leaves the previous value rather than an error state.
     private func reloadCounts() async {
-        if let me = try? await graph.meApi.me(companyId: companyId) {
-            hydratedMe = me
-        }
+        let me = try? await graph.meApi.me(companyId: companyId)
         let forYou = try? await graph.forYouApi.forYou(companyId: companyId)
-        let unread = (try? await graph.inboxApi.conversations(
-            companyId: companyId, unread: true, limit: 100
-        ).data.count) ?? 0
-        let openTasks = (try? await graph.tasksApi.list(
+        let openTasks = try? await graph.tasksApi.list(
             companyId: companyId, limit: 100
-        ).data.count) ?? 0
+        ).data.count
+        let badges = try? await graph.notificationsApi.unreadCount(companyId: companyId)
+        guard !Task.isCancelled else { return }
+        if let me { hydratedMe = me }
         // The avatar dot reads the shared CompanyReadState, not `counts`: route
         // the server count through the guard so a fetch landing mid-mark can't
         // resurrect a just-cleared dot (#201).
-        if let notifCount = try? await graph.notificationsApi.unreadCount(companyId: companyId).count {
-            notifReadState.offerServerCount(notifCount)
-        }
-        counts = ShellCounts(
-            forYou: forYou.map { $0.waiting_on_you.count + $0.my_tasks.count + $0.unread.count } ?? 0,
-            unreadConversations: unread,
+        if let badges { notifReadState.offerServerCount(badges.count) }
+        counts.apply(
+            forYou: forYou.map { $0.waiting_on_you.count + $0.my_tasks.count + $0.unread.count },
+            unread: badges?.unread_conversations,
             openTasks: openTasks
         )
-        // App icon badge = unread conversations (the web's document-title
-        // unread prefix equivalent).
-        PushCoordinator.setAppBadge(unread)
+        if let unread = badges?.unread_conversations { PushCoordinator.setAppBadge(unread) }
     }
 }

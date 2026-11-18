@@ -366,6 +366,7 @@ data class UnreadCount(
     val count: Int,
     /** #343. Null from an older Worker - treat as nothing paused. */
     val alert_pause: AlertPause? = null,
+    val unread_conversations: Int? = null,
 )
 
 @Serializable

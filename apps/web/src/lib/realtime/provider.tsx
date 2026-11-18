@@ -409,6 +409,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
       // message fetch. An OPEN spam thread still live-appends (its thread cache
       // exists, so we fall through and patch it).
       if (cachedRow?.is_spam && !thread) return;
+      refreshSoon(keys.notifications.unreadCount(companyId));
 
       // This tab's own send, or a message a refetch already brought in.
       let message = threadMessage(thread, message_id);
@@ -585,6 +586,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     }
 
     function handleConversationUpdated(event: ConversationUpdatedEvent) {
+      refreshSoon(keys.notifications.unreadCount(companyId));
       const id = event.conversation_id;
       const existing = pendingUpdates.get(id);
       if (existing) clearTimeout(existing);
@@ -722,7 +724,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         refreshBell();
         return;
       }
-      // The focus queue counts unread threads; the bell has no conversation-read arm.
+      refreshSoon(keys.notifications.unreadCount(companyId));
       refreshSoon(keys.forYou(companyId));
       // Patched, not refetched: an unread-only list drops the row, the others clear its dot.
       patchQuietly(() => {

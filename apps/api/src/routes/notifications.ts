@@ -522,10 +522,13 @@ notificationsRoutes.get(
     // emailed — a tech's phone simply goes quiet and, from their side, the
     // business had a slow afternoon. This is the endpoint every client already
     // polls on a timer, so the signal rides it rather than adding a second one.
-    // Two RPCs in parallel: the pause read is one indexed join, and it must not
-    // add latency to a badge poll.
-    const [countResult, pauseResult] = await Promise.all([
+    const [countResult, unreadConversations, pauseResult] = await Promise.all([
       db.rpc("api_notifications_unread_count", {
+        p_company_id: c.get("companyId"),
+        p_user_id: c.get("userId"),
+        p_hidden_number_ids: access.hiddenNumberIds,
+      }),
+      db.rpc("api_unread_conversation_count", {
         p_company_id: c.get("companyId"),
         p_user_id: c.get("userId"),
         p_hidden_number_ids: access.hiddenNumberIds,
@@ -537,6 +540,7 @@ notificationsRoutes.get(
     );
     return c.json({
       count,
+      unread_conversations: Number(unwrap<number | string>(unreadConversations, "unread conversations")),
       alert_pause: unwrap<AlertPause>(pauseResult, "notification pause"),
     });
   },

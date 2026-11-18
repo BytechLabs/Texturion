@@ -48,6 +48,7 @@ declare
     'api_list_conversations',
     'api_notifications',
     'api_notifications_unread_count',
+    'api_unread_conversation_count',
     -- #581: the response-time report. It NAMES phone numbers, which is what
     -- makes it worth more than a row count: a restricted member saw a denied
     -- line's E.164 together with its lead and unanswered totals. Every sibling
@@ -310,6 +311,17 @@ begin
   if public.api_notifications_unread_count(co, usr, hidden)
      > public.api_notifications_unread_count(co, usr) then
     raise exception 'NA-3 FAILED: denying a number RAISED the unread badge';
+  end if;
+
+  if public.api_unread_conversation_count(co, usr) is distinct from 2
+     or public.api_unread_conversation_count(co, usr, hidden) is distinct from 1 then
+    raise exception 'NA-3 FAILED: the unread conversation badge must exclude only the denied line';
+  end if;
+
+  if (select unread_count from public.api_unread_push_badges(co, array[usr], array['owner']))
+     is distinct from 2
+     or exists (select from public.api_unread_push_badges(co, array[usr], array['member'])) then
+    raise exception 'NA-3 FAILED: native badges must count inbox messages only for eligible roles';
   end if;
 
   -- notification_feed — the shared definition both surfaces above read

@@ -1,13 +1,11 @@
 /**
  * G9 unread indicator logic: the `(3) Inbox — Loonext` title formatting, the
  * stateful title controller (which must never mangle page-authored titles),
- * favicon selection, and the deduplicated unread count over cached
- * conversation lists.
+ * and favicon selection.
  */
 import { describe, expect, it } from "vitest";
 
 import {
-  countUnreadConversations,
   createTitleController,
   faviconHref,
   formatUnreadTitle,
@@ -80,48 +78,5 @@ describe(faviconHref, () => {
   it("selects the dotted favicon only while unread exists", () => {
     expect(faviconHref(0)).toBe("/favicon.svg");
     expect(faviconHref(1)).toBe("/favicon-unread.svg");
-  });
-});
-
-describe(countUnreadConversations, () => {
-  const list = (rows: { id: string; unread?: boolean }[][]) => ({
-    pages: rows.map((data) => ({ data })),
-  });
-
-  it("counts unread rows across pages", () => {
-    expect(
-      countUnreadConversations([
-        list([
-          [
-            { id: "a", unread: true },
-            { id: "b", unread: false },
-          ],
-          [{ id: "c", unread: true }],
-        ]),
-      ]),
-    ).toBe(2);
-  });
-
-  it("dedupes the same conversation across filter lists", () => {
-    const rows = [
-      { id: "a", unread: true },
-      { id: "b", unread: true },
-    ];
-    expect(countUnreadConversations([list([rows]), list([rows])])).toBe(2);
-  });
-
-  it("treats any cached copy claiming unread as unread", () => {
-    expect(
-      countUnreadConversations([
-        list([[{ id: "a", unread: false }]]),
-        list([[{ id: "a", unread: true }]]),
-      ]),
-    ).toBe(1);
-  });
-
-  it("survives empty caches, missing pages, and undefined entries", () => {
-    expect(countUnreadConversations([])).toBe(0);
-    expect(countUnreadConversations([undefined, {}, { pages: [] }])).toBe(0);
-    expect(countUnreadConversations([{ pages: [{}] }])).toBe(0);
   });
 });

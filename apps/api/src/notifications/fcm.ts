@@ -36,6 +36,7 @@ export interface DevicePushTarget {
   platform: "android" | "ios";
   token: string;
   actionScope?: { companyId: string; userId: string; locale: "en" | "fr-CA" };
+  badge?: number;
 }
 
 export interface FcmResult {
@@ -304,6 +305,9 @@ function buildMessage(
   }
   // The #721 device check decides whether a call's sound doubles a live CallKit ring.
   const aps: Record<string, unknown> = { sound: "default" };
+  if (target.badge !== undefined && data.kind !== "call") {
+    aps.badge = target.badge;
+  }
   // #564: an URGENT text has to break through a Focus. `apns-priority: 10`
   // above only means "deliver now"; the INTERRUPTION LEVEL is what decides
   // whether a Focus lets it through, and its default (`active`) does not.

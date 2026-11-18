@@ -2738,6 +2738,7 @@ export interface AlertPause {
 /** GET /v1/notifications/unread-count. */
 export interface UnreadCount {
   count: number;
+  unread_conversations?: number;
   /** #343. Absent from an older Worker — treat as "nothing paused". */
   alert_pause?: AlertPause;
 }

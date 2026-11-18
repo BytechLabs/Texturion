@@ -1,4 +1,6 @@
-import { decideDelivery, DEFAULT_BATCH_WINDOW, isMemberQuietNow, resolveUiLocale } from '@loonext/shared';
+import {
+  decideDelivery, DEFAULT_BATCH_WINDOW, isMemberQuietNow, MEMBER_ROLES, resolveUiLocale, roleHasCapability,
+} from "@loonext/shared";
 import type { Locale, NotificationCategory } from '@loonext/shared';
 /**
  * The push fan-out shared by the notification pipelines that treat a delivery
@@ -21,6 +23,7 @@ import type { Locale, NotificationCategory } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { deadline } from "../http/deadline";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { resolveHighPriority } from './high-priority';
 import type { HighPriorityRequest } from './high-priority';
@@ -28,6 +31,9 @@ import { recordPushAttempts, timedPush } from './push-attempts';
 import type { PushAttempt } from './push-attempts';
 import { sendWebPush } from "./webpush";
 import { captureException, workerEnv } from "../observability/capture";
+
+const INBOX_ROLES = MEMBER_ROLES.filter((role) => roleHasCapability(role, "conversations.read"));
+const UNREAD_BADGE_TIMEOUT_MS = 750;
 
 /**
  * Defensive bound, applied PER RECIPIENT rather than across the audience.
@@ -533,6 +539,36 @@ export async function loadPushCopySettings(
   };
 }
 
+async function readIosBadges(db: SupabaseClient, companyId: string, devices: DeviceTokenRow[]) {
+  const userIds = [...new Set(devices
+    .filter((device) => device.platform === "ios")
+    .map((device) => device.user_id))];
+  const badges = new Map<string, number>();
+  if (userIds.length === 0) return badges;
+
+  const limit = deadline(UNREAD_BADGE_TIMEOUT_MS);
+  try {
+    const { data, error } = await db.rpc("api_unread_push_badges", {
+      p_company_id: companyId,
+      p_user_ids: userIds,
+      p_inbox_roles: INBOX_ROLES,
+    }).abortSignal(limit.signal);
+    if (error) {
+      console.error(`push unread count lookup failed: ${error.message}`);
+      return badges;
+    }
+    for (const row of (data ?? []) as { user_id: string; unread_count: number | string }[]) {
+      const count = Number(row.unread_count);
+      if (Number.isSafeInteger(count) && count >= 0) badges.set(row.user_id, count);
+    }
+  } catch (cause) {
+    console.error("push unread count lookup failed", cause);
+  } finally {
+    limit.clear();
+  }
+  return badges;
+}
+
 export async function deliverPush(
   env: Env,
   db: SupabaseClient,
@@ -718,9 +754,10 @@ async function fanOutPush(
   // the device count, because the device is what the platforms ration. Past
   // the ceiling this comes back "normal" and every device still gets the
   // alert — degraded, never dropped.
-  const urgency = delivery.highPriority
-    ? await resolveHighPriority(env, db, delivery.highPriority, devices.length)
-    : "normal";
+  const [urgency, badges] = await Promise.all([
+    delivery.highPriority ? resolveHighPriority(env, db, delivery.highPriority, devices.length) : "normal" as const,
+    readIosBadges(db, delivery.companyId, devices),
+  ]);
 
   for (const device of devices) {
     try {
@@ -746,6 +783,7 @@ async function fanOutPush(
             {
               ...device,
               actionScope: { companyId: delivery.companyId, userId: device.user_id, locale },
+              badge: badges.get(device.user_id),
             },
             payloadFor(
               nativePayloads,
