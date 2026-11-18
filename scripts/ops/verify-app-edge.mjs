@@ -53,7 +53,7 @@ if (login) {
   // Next writes the build id into the page's RSC payload as "b". Inside the
   // HTML that payload is a JS string, so the quotes may be escaped.
   if (BUILD_ID) {
-    const escaped = BUILD_ID.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escaped = BUILD_ID.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
     check(
       new RegExp(`\\\\?"b\\\\?":\\\\?"${escaped}\\\\?"`).test(html),
       `the login page carries build id ${BUILD_ID}`,
@@ -122,7 +122,7 @@ if (api) {
 }
 
 // 2. Every public token page answers a made-up token with a page, never a 5xx.
-const TOKEN = "release-check-" + "0000000000000000";
+const TOKEN = "release-check-0000000000000000";
 for (const url of [`${APP}/pay/${TOKEN}`, `${APP}/photos/${TOKEN}`, `${APP}/invite/${TOKEN}`, `${SITE}/q/${TOKEN}`]) {
   const response = await get(url);
   if (!response) continue;

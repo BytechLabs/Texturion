@@ -147,7 +147,7 @@ function toBase64Url(text: string): string {
   return btoa(binary)
     .replaceAll("+", "-")
     .replaceAll("/", "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 function fromBase64Url(encoded: string): string {

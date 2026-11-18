@@ -122,7 +122,7 @@ describe("#317 scanAttachment — ZIP containers", () => {
   });
 
   it("blocks zip-slip, including the backslash spelling", () => {
-    for (const name of ["../../etc/passwd", "..\\..\\windows\\system32\\x.xml", "/abs.xml"]) {
+    for (const name of ["../../etc/passwd", String.raw`..\..\windows\system32\x.xml`, "/abs.xml"]) {
       const result = scanAttachment(zip([{ name }]), DOCX);
       expect(result.verdict, name).toBe("blocked");
       expect(result.reason, name).toBe("zip_path_escape");
@@ -179,7 +179,7 @@ describe("#317 scanAttachment — PDF", () => {
 
   it("blocks JavaScript that runs on open", () => {
     const result = scanAttachment(
-      pdf("1 0 obj << /OpenAction << /S /JavaScript /JS (app.alert\\(1\\)) >> >> endobj"),
+      pdf(String.raw`1 0 obj << /OpenAction << /S /JavaScript /JS (app.alert\(1\)) >> >> endobj`),
       "application/pdf",
     );
     expect(result.verdict).toBe("blocked");

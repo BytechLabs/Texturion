@@ -294,7 +294,7 @@ function main() {
       .map((entry) => entry.trim())
       .filter(Boolean)
       .map((entry) => {
-        const sep = entry.indexOf("\x1f");
+        const sep = entry.indexOf("\u001F");
         const sha = entry.slice(0, sep).trim();
         return { message: entry.slice(sep + 1).trim(), sha };
       })

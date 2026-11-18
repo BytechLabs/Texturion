@@ -167,5 +167,5 @@ export const config = {
   // /rss.xml is the one dotted path that NEEDS middleware: the blog host
   // rewrites it to /blog/rss.xml (#130) — the dotted-file exclusion above
   // would otherwise skip it and 404 the feed on blog.loonext.com.
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)", "/rss.xml"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*[.].*).*)", "/rss.xml"],
 };

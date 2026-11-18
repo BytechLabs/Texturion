@@ -303,7 +303,7 @@ function referencedColumn(column: { index: number; header: string }): string {
   const header = column.header.trim();
   return header === ""
     ? `#${column.index + 1}`
-    : `#${column.index + 1} (\u201c${header}\u201d)`;
+    : `#${column.index + 1} (\u201C${header}\u201D)`;
 }
 
 /**
@@ -618,7 +618,7 @@ export function contactImportUnreadableFlagReference(
   header: string,
   values: readonly string[],
 ): ContactImportErrorReference {
-  const shown = values.slice(0, 5).map((value) => `\u201c${value}\u201d`);
+  const shown = values.slice(0, 5).map((value) => `\u201C${value}\u201D`);
   const more = values.length - shown.length;
   return {
     key:

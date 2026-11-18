@@ -335,7 +335,7 @@ export function stripeCustomersSql({ ids, customers }) {
 export function totpCode(secret, now = Date.now()) {
   const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ234567";
   let bits = "";
-  for (const char of secret.replace(/=+$/, "").toUpperCase()) {
+  for (const char of secret.replace(/[=]+$/, "").toUpperCase()) {
     const index = alphabet.indexOf(char);
     if (index === -1) throw new Error("rig seed: the TOTP secret is not base32");
     bits += index.toString(2).padStart(5, "0");

@@ -69,8 +69,11 @@ function problemsIn(data) {
 }
 
 const key = (entry, part) => `${entry.id}${part}`;
-const kotlin = (text) => `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"').replace(/\$/g, "\\$")}"`;
-const swift = (text) => `"${text.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`;
+const escapeQuotedText = (text) => text
+  .replaceAll("\\", String.raw`\\`)
+  .replaceAll('"', String.raw`\"`);
+const kotlin = (text) => `"${escapeQuotedText(text).replaceAll("$", String.raw`\$`)}"`;
+const swift = (text) => `"${escapeQuotedText(text)}"`;
 const ts = (text) => JSON.stringify(text);
 
 function render(shown) {

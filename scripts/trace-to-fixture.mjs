@@ -94,10 +94,10 @@ function standsAlone(text, index) {
 
 /** A client_state's text and how it was encoded, or null when it is not base64. */
 export function decodeClientState(value) {
-  const unpadded = value.replace(/=+$/, "");
+  const unpadded = value.replace(/[=]+$/, "");
   if (!BASE64.test(value) || unpadded.length % 4 === 1) return null;
   const bytes = Buffer.from(value, "base64");
-  if (bytes.toString("base64").replace(/=+$/, "") !== unpadded) return null;
+  if (bytes.toString("base64").replace(/[=]+$/, "") !== unpadded) return null;
   const utf8 = bytes.toString("utf8");
   // Bytes that are not UTF-8 are read one character each, which every byte
   // survives, so a number among them is still found and still renumbered.
@@ -109,7 +109,7 @@ export function decodeClientState(value) {
 function encodeClientState(text, encoding, original) {
   const encoded = Buffer.from(text, encoding).toString("base64");
   const cameUnpadded = !original.includes("=") && original.length % 4 !== 0;
-  return cameUnpadded ? encoded.replace(/=+$/, "") : encoded;
+  return cameUnpadded ? encoded.replace(/[=]+$/, "") : encoded;
 }
 
 /** Every string under a client_state key, wherever it sits. */

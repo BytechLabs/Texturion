@@ -84,7 +84,7 @@ export const MAX_SCANNABLE_BYTES = 26 * 1024 * 1024;
 
 /** Entry names that are executable whatever they are wrapped in. */
 const EXECUTABLE_ENTRY = new RegExp(
-  "\\.(exe|scr|com|pif|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|jar|msi|msp|dll|cpl|lnk|reg|sh|app|dmg|deb|rpm)$",
+  String.raw`\.(exe|scr|com|pif|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|jar|msi|msp|dll|cpl|lnk|reg|sh|app|dmg|deb|rpm)$`,
   "i",
 );
 

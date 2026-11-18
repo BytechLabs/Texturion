@@ -418,7 +418,7 @@ function assertErrorLocaleBridges() {
       const passed =
         /\blocale\b|LocalAppLocale/.test(call[2]) ||
         (heldName !== undefined &&
-          new RegExp("\\b" + heldName + "\\b").test(call[2]));
+          new RegExp(String.raw`\b${heldName}\b`).test(call[2]));
       if (passed) {
         /*
          * SWIFT WANTS THE LABEL, and forgetting it is a compile error a

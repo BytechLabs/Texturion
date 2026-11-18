@@ -208,7 +208,7 @@ const nextConfig: NextConfig = {
         // link still opening. Relying on the more specific rule below to win
         // would be relying on precedence nobody here has verified.
         source: `/:path((?!${UNCACHEABLE_PREFIX_GROUP}/).*)`,
-        has: [{ type: "host", value: "^loonext\\.com$" }],
+        has: [{ type: "host", value: String.raw`^loonext\.com$` }],
         headers: [
           {
             key: "Cache-Control",
