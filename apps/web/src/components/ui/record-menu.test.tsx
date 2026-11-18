@@ -123,7 +123,7 @@ describe("#712 RecordContextMenu", () => {
       getRangeAt: () => ({ commonAncestorContainer: elsewhere }),
     } as unknown as Selection);
     fireEvent.contextMenu(screen.getByTestId("row"));
-    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(screen.getByRole("menu")).toBeInstanceOf(Element);
   });
 
   it("opens from the menu key on a focused control inside the row and gives focus back on Escape", async () => {
@@ -133,7 +133,7 @@ describe("#712 RecordContextMenu", () => {
     // The menu key and Shift+F10 both make the browser dispatch `contextmenu`
     // at the focused element, which bubbles to the row.
     fireEvent.contextMenu(inside);
-    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(screen.getByRole("menu")).toBeInstanceOf(Element);
     fireEvent.keyDown(screen.getByRole("menu"), { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
     await waitFor(() => expect(document.activeElement).toBe(inside));

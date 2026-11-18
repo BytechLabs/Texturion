@@ -225,7 +225,7 @@ describe("resumeTextEnablement — double-order fail-safes (§4.3)", () => {
 
     const create = telnyx.callsTo("POST", /messaging_hosted_number_orders$/)[0];
     const sentKey = create.headers.get("Idempotency-Key");
-    expect(sentKey).toBeTruthy();
+    expect(Boolean(sentKey)).toBe(true);
     // The exact key the row claimed BEFORE the POST — a crash-retry replays it.
     expect(sentKey).toBe(
       rest.rows("text_enablement_orders")[0].telnyx_order_idempotency_key,
@@ -328,7 +328,7 @@ describe("resumeTextEnablement — S2b document attach", () => {
 
     const result = await resumeTextEnablement(env, order);
     expect(result.status).toBe("completed");
-    expect(result.completed_at).toBeTruthy();
+    expect(Boolean(result.completed_at)).toBe(true);
     expect(result.telnyx_hosted_number_id).toBe("hn-1");
     const phoneRow = rest.rows("phone_numbers").find((n) => n.id === phone.id);
     expect(phoneRow?.status).toBe("active");
@@ -365,7 +365,7 @@ describe("resumeTextEnablement — terminal carrier statuses", () => {
 
     const result = await resumeTextEnablement(env, order);
     expect(result.status).toBe("cancelled");
-    expect(result.cancelled_at).toBeTruthy();
+    expect(Boolean(result.cancelled_at)).toBe(true);
     const phoneRow = rest.rows("phone_numbers").find((n) => n.id === phone.id);
     expect(phoneRow?.status).toBe("released");
   });
@@ -489,7 +489,7 @@ describe("cancelTextEnablement", () => {
 
     const result = await cancelTextEnablement(env, order);
     expect(result.status).toBe("cancelled");
-    expect(result.cancelled_at).toBeTruthy();
+    expect(Boolean(result.cancelled_at)).toBe(true);
     const phoneRow = rest.rows("phone_numbers").find((n) => n.id === phone.id);
     expect(phoneRow?.status).toBe("released");
     expect(
@@ -517,7 +517,7 @@ describe("releaseNumberRow — hosted rows", () => {
       .rows("text_enablement_orders")
       .find((o) => o.id === order.id);
     expect(orderRow?.status).toBe("cancelled");
-    expect(orderRow?.cancelled_at).toBeTruthy();
+    expect(Boolean(orderRow?.cancelled_at)).toBe(true);
     // The hosted number was never Telnyx-owned inventory — no number DELETE.
     expect(telnyx.callsTo("DELETE", /^\/v2\/phone_numbers\//)).toHaveLength(0);
   });

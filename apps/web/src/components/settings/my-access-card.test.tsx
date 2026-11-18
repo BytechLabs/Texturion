@@ -64,9 +64,9 @@ describe("#286 what you can reach", () => {
       row("none", "role", "+12125559201", "member"),
     ];
     render(<MyAccessCard />);
-    expect(screen.getByText(/9201/)).toBeTruthy();
-    expect(screen.getByText("A rule for members")).toBeTruthy();
-    expect(screen.getByText("Hidden")).toBeTruthy();
+    expect(screen.getByText(/9201/)).toBeInstanceOf(Element);
+    expect(screen.getByText("A rule for members")).toBeInstanceOf(Element);
+    expect(screen.getByText("Hidden")).toBeInstanceOf(Element);
   });
 
   it("MA-2: the note says it is deliberate, because that is the whole doubt", () => {
@@ -95,7 +95,7 @@ describe("#286 what you can reach", () => {
       row("note", "all", "+12125559201"),
     ];
     render(<MyAccessCard />);
-    expect(screen.getByText("Read and notes only")).toBeTruthy();
+    expect(screen.getByText("Read and notes only")).toBeInstanceOf(Element);
     expect(screen.queryByText(/9200/)).toBeNull();
   });
 
@@ -125,6 +125,6 @@ describe("#286 what you can reach", () => {
     render(<MyAccessCard />);
     expect(
       screen.getByText("This number has rules, and none of them include you"),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 });

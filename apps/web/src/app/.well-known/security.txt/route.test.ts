@@ -48,7 +48,7 @@ describe("GET /.well-known/security.txt", () => {
       .split("\n")
       .find((line) => line.startsWith("Policy: "))
       ?.slice("Policy: ".length);
-    expect(policy, "security.txt lost its Policy field").toBeTruthy();
+    expect(Boolean(policy), "security.txt lost its Policy field").toBe(true);
     expect(
       Object.values(LIVE_ROUTES).map((path) => `https://loonext.com${path}`),
     ).toContain(policy);

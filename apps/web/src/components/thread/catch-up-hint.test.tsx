@@ -23,8 +23,8 @@ describe("CatchUpHint", () => {
     renderHint();
     const status = screen.getByRole("status");
     expect(status.textContent).toContain("Catch up on this conversation?");
-    expect(screen.getByRole("button", { name: "Recap" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Not now" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Recap" })).toBeInstanceOf(Element);
+    expect(screen.getByRole("button", { name: "Not now" })).toBeInstanceOf(Element);
   });
 
   it("says what Recap does before it is pressed, since pressing it is what costs", () => {

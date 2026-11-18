@@ -70,6 +70,6 @@ describe("TagChecklist", () => {
       />,
     );
     fireEvent.keyDown(screen.getByRole("button", { name: "Tags" }), { key: "Enter" });
-    expect(screen.getByText("No tags yet.")).toBeTruthy();
+    expect(screen.getByText("No tags yet.")).toBeInstanceOf(Element);
   });
 });

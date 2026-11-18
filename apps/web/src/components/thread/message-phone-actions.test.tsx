@@ -48,10 +48,10 @@ it("opens a prefilled business dialer before any call is placed", async () => {
   expect(container.textContent).toBe(body);
   fireEvent.click(screen.getByRole("button", { name: "(416) 555-0182" }));
   expect(screen.getByRole("link", { name: "shell.textAction" }).getAttribute("href")).toBe("/inbox/new?to=%2B14165550182");
-  expect(screen.getByRole("button", { name: "thread.copyPhoneNumber" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "thread.copyPhoneNumber" })).toBeInstanceOf(Element);
   fireEvent.click(screen.getByRole("button", { name: "thread.callWithLoonext" }));
-  expect(await screen.findByRole("dialog", { name: "shell.dialANumber" })).toBeTruthy();
-  expect(screen.getByText("+14165550182")).toBeTruthy();
+  expect(await screen.findByRole("dialog", { name: "shell.dialANumber" })).toBeInstanceOf(Element);
+  expect(screen.getByText("+14165550182")).toBeInstanceOf(Element);
   expect(document.querySelector('a[href^="tel:"]')).toBeNull();
   expect(placeCall).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "shell.call" }));

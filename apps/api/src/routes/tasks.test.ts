@@ -807,7 +807,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     );
     const b1 = (await r1.json()) as { data: unknown[]; next_cursor: string };
     expect(b1.data).toHaveLength(2);
-    expect(b1.next_cursor).toBeTruthy();
+    expect(Boolean(b1.next_cursor)).toBe(true);
     // Page 1 keyset order is (due_at NULLS LAST, id).
     expect(page1.calls[0].url.searchParams.get("order")).toBe(
       "due_at.asc.nullslast,id.asc",
@@ -885,7 +885,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     // default off the due path.
     const r1 = await request("GET", "/v1/tasks?assigned_user_id=me&limit=2");
     const b1 = (await r1.json()) as { next_cursor: string };
-    expect(b1.next_cursor).toBeTruthy();
+    expect(Boolean(b1.next_cursor)).toBe(true);
 
     vi.unstubAllGlobals();
     stubFetch(jwksRoute(auth), membersRoute());

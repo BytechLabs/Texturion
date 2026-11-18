@@ -133,7 +133,7 @@ describe("ThreadHeader mute and follow", () => {
 
   it("marks a muted thread and offers Unmute instead of the durations", () => {
     renderHeader({ muted: true, muted_until: null });
-    expect(screen.getByLabelText("Muted until you unmute")).toBeTruthy();
+    expect(screen.getByLabelText("Muted until you unmute")).toBeInstanceOf(Element);
     openOverflow();
     expect(screen.queryByText("Mute notifications")).toBeNull();
     fireEvent.click(screen.getByText("Unmute notifications"));
@@ -143,7 +143,7 @@ describe("ThreadHeader mute and follow", () => {
   it("offers the Mute submenu on an unmuted thread", () => {
     renderHeader();
     openOverflow();
-    expect(screen.getByText("Mute notifications")).toBeTruthy();
+    expect(screen.getByText("Mute notifications")).toBeInstanceOf(Element);
     expect(screen.queryByText("Unmute notifications")).toBeNull();
   });
 });

@@ -46,12 +46,12 @@ describe("BlockNumberDialog", () => {
     render(
       <BlockNumberDialog phone="+14165550182" open onOpenChange={vi.fn()} />,
     );
-    expect(screen.getByText("Block (416) 555-0182?")).toBeTruthy();
+    expect(screen.getByText("Block (416) 555-0182?")).toBeInstanceOf(Element);
     expect(
       screen.getByText(
         "Future texts and calls from this number go straight to spam. You can still text them.",
       ),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("blocks the E.164 number on confirm, and not before", () => {

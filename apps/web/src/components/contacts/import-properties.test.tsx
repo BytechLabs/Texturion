@@ -99,8 +99,8 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     await choose(BOOK);
 
     await screen.findByText(/on these cards/);
-    expect(screen.getByText("CATEGORIES")).toBeTruthy();
-    expect(screen.getByText("NOTE")).toBeTruthy();
+    expect(screen.getByText("CATEGORIES")).toBeInstanceOf(Element);
+    expect(screen.getByText("NOTE")).toBeInstanceOf(Element);
     expect(vcardMutate).not.toHaveBeenCalled();
     expect(importButton().disabled).toBe(true);
   });
@@ -112,10 +112,10 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     // The values are the whole design. A person who cannot see "DNC" cannot
     // skip it knowingly, and then the click is theatre. And the note is a
     // sentence: nothing here truncates a decision to a token.
-    expect(screen.getByText(/“DNC”/)).toBeTruthy();
+    expect(screen.getByText(/“DNC”/)).toBeInstanceOf(Element);
     expect(
       screen.getByText(/“DO NOT CONTACT - asked us to stop”/),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("VD-3: pre-answers nothing", async () => {
@@ -195,8 +195,8 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
 
     const label = vcardParameterProperty("TEL", "X-ABLABEL");
     // On screen with its own text, not the phone number beside it.
-    expect(screen.getByText(label)).toBeTruthy();
-    expect(screen.getByText(/“DO NOT CALL”/)).toBeTruthy();
+    expect(screen.getByText(label)).toBeInstanceOf(Element);
+    expect(screen.getByText(/“DO NOT CALL”/)).toBeInstanceOf(Element);
 
     chooseOption(propertySelect(label), "opted_out");
     chooseOption(propertySelect(vcardParameterProperty("TEL", "TYPE")), CONTACT_IMPORT_IGNORE);
@@ -220,7 +220,7 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     const bulk = screen.getByRole("button", {
       name: /None of these say who can be texted/,
     });
-    expect(screen.getByText(/“DNC”/)).toBeTruthy();
+    expect(screen.getByText(/“DNC”/)).toBeInstanceOf(Element);
 
     fireEvent.click(bulk);
 

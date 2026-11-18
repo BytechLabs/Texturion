@@ -71,7 +71,7 @@ describe("navRowsFor", () => {
     // row added without a capability.
     for (const role of MEMBER_ROLES) {
       for (const row of navRowsFor(role)) {
-        expect(row.needs, `${role} → ${row.href}`).toBeTruthy();
+        expect(Boolean(row.needs), `${role} → ${row.href}`).toBe(true);
       }
     }
   });

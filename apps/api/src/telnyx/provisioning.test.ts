@@ -878,7 +878,7 @@ describe("double-order fail-safes (§4.3)", () => {
     });
     const order = telnyx.callsTo("POST", /number_orders/)[0];
     const sentKey = order.headers.get("Idempotency-Key");
-    expect(sentKey).toBeTruthy();
+    expect(Boolean(sentKey)).toBe(true);
     // The exact key the row claimed BEFORE the POST — a crash-retry replays it.
     expect(sentKey).toBe(
       rest.rows("phone_numbers")[0].telnyx_order_idempotency_key,
@@ -920,8 +920,8 @@ describe("double-order fail-safes (§4.3)", () => {
     expect(orders).toHaveLength(2);
     const rejectedKey = orders[0].headers.get("Idempotency-Key");
     const fallbackKey = orders[1].headers.get("Idempotency-Key");
-    expect(rejectedKey).toBeTruthy();
-    expect(fallbackKey).toBeTruthy();
+    expect(Boolean(rejectedKey)).toBe(true);
+    expect(Boolean(fallbackKey)).toBe(true);
     // Distinct keys: the fallback is a genuinely new order, not a replay.
     expect(fallbackKey).not.toBe(rejectedKey);
   });
@@ -1212,7 +1212,7 @@ describe("suspend / release", () => {
     const suspended = await suspendCompanyNumbers(env, COMPANY_ID);
     expect(suspended).toHaveLength(1);
     expect(rest.rows("phone_numbers")[0].status).toBe("suspended");
-    expect(rest.rows("phone_numbers")[0].suspended_at).toBeTruthy();
+    expect(Boolean(rest.rows("phone_numbers")[0].suspended_at)).toBe(true);
     expect(telnyx.calls).toHaveLength(0);
   });
 
@@ -1268,7 +1268,7 @@ describe("suspend / release", () => {
     for (const dead of [ghost, withOrder, staleLease]) {
       const closed = rows.find((r) => r.id === dead.id);
       expect(closed?.status).toBe("released");
-      expect(closed?.released_at).toBeTruthy();
+      expect(Boolean(closed?.released_at)).toBe(true);
     }
     // The order that might still land keeps its pointer. It is what
     // adoptOrphanNumber matches on if the number arrives after all.
@@ -1382,7 +1382,7 @@ describe("suspend / release", () => {
     expect(released).toHaveLength(2);
     for (const row of rest.rows("phone_numbers")) {
       expect(row.status).toBe("released");
-      expect(row.released_at).toBeTruthy();
+      expect(Boolean(row.released_at)).toBe(true);
     }
   });
 

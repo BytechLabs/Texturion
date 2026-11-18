@@ -690,8 +690,8 @@ describe("#347 — a query against a tenant table carries its company scope", ()
       "utf8",
     );
     const block = /known text\[\] := array\[([\s\S]*?)\];/.exec(sql)?.[1];
-    expect(block, "could not find the `known` roster in tenant_scope.test.sql")
-      .toBeTruthy();
+    expect(Boolean(block), "could not find the `known` roster in tenant_scope.test.sql")
+      .toBe(true);
     const sqlTables = new Set(
       [...(block ?? "").matchAll(/'([a-z_]+)'/g)].map((match) => match[1]),
     );

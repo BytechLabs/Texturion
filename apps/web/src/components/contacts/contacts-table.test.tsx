@@ -209,7 +209,7 @@ describe("rows re-render only when they change", () => {
     mount();
     const before = new Map(actionsRendered);
     fireEvent.click(screen.getByRole("checkbox", { name: /Dana/ }));
-    expect(screen.getByText("1 selected")).toBeTruthy();
+    expect(screen.getByText("1 selected")).toBeInstanceOf(Element);
     expect(actionsRendered.get("ct-1")).toBe((before.get("ct-1") ?? 0) + 1);
     expect(actionsRendered.get("ct-2")).toBe(before.get("ct-2"));
   });

@@ -112,7 +112,7 @@ describe("thread media share one batched mint", () => {
       </>,
     );
 
-    await waitFor(() => expect(screen.getByRole("link", { name: "Open pdf" })).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("link", { name: "Open pdf" })).toBeInstanceOf(Element));
     await tick();
     expect(batches()).toEqual([
       {
@@ -170,7 +170,7 @@ describe("AttachmentImage", () => {
     fireEvent.load(container.querySelector("img")!);
 
     fireEvent.click(screen.getByRole("button", { name: "Open photo: Site photo" }));
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInstanceOf(Element));
     await tick();
 
     expect(batches()).toHaveLength(1);
@@ -232,7 +232,7 @@ describe("AttachmentFileChip", () => {
 
     await waitFor(() => expect(tab.close).toHaveBeenCalled());
     expect(tab.location.href).toBe("");
-    expect(await screen.findByRole("button", { name: "Didn't load. Retry" })).toBeTruthy();
+    expect(await screen.findByRole("button", { name: "Didn't load. Retry" })).toBeInstanceOf(Element);
   });
 });
 

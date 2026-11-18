@@ -311,7 +311,7 @@ describe("T1 — call.initiated branches", () => {
     // What matters here is what is ABSENT — nothing hangs the caller up, and
     // the session does not terminate.
     expect(answered.machine).not.toBeNull();
-    expect(answered.machine?.answerIntent).toBeTruthy();
+    expect(Boolean(answered.machine?.answerIntent)).toBe(true);
     expect(has(answered.effects, "telnyx-hangup")).toBe(false);
     expect(answered.effects.some((e) => e.kind === "terminal-merge")).toBe(false);
   });
@@ -329,7 +329,7 @@ describe("T1 — call.initiated branches", () => {
     expect(suspended.machine?.unattended).toBe(true);
 
     const paying = ringingMachine();
-    expect(paying.unattended).toBeFalsy();
+    expect(paying.unattended).toBe(false);
     // Every mid-call event, applied in turn. None may terminate the session for
     // a billing reason, because none of them can even observe billing.
     const events: Parameters<typeof reduce>[1][] = [
@@ -339,7 +339,7 @@ describe("T1 — call.initiated branches", () => {
     for (const event of events) {
       const next = reduce(current, event, 5_000, KEY);
       current = next.machine;
-      expect(current?.unattended).toBeFalsy();
+      expect(Boolean(current?.unattended)).toBe(false);
     }
   });
 

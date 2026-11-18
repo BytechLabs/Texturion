@@ -71,7 +71,7 @@ describe("#278 how the phones ring", () => {
     expect(screen.queryByText(/phones get a turn/i)).toBeNull();
     // It explains the ceiling instead, which is the question "all at once"
     // actually raises: why can't I ring for a minute?
-    expect(screen.getByText(/45 seconds isn't offered/i)).toBeTruthy();
+    expect(screen.getByText(/45 seconds isn't offered/i)).toBeInstanceOf(Element);
   });
 
   it("RC-4: the arithmetic behind both readings", () => {
@@ -107,6 +107,6 @@ describe("#278 how the phones ring", () => {
     for (const option of screen.getAllByRole("radio")) {
       expect((option as HTMLButtonElement).disabled).toBe(true);
     }
-    expect(screen.getByText(/only owners and admins/i)).toBeTruthy();
+    expect(screen.getByText(/only owners and admins/i)).toBeInstanceOf(Element);
   });
 });

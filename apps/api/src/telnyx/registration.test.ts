@@ -265,7 +265,7 @@ describe("submitRegistration — R1 (§4.4)", () => {
     expect(brand.status).toBe("submitted");
     expect(brand.telnyx_id).toBe("brand-1");
     expect(brand.submission_count).toBe(1);
-    expect(brand.submitted_at).toBeTruthy();
+    expect(Boolean(brand.submitted_at)).toBe(true);
     // Standard path: no OTP.
     expect(telnyx.callsTo("POST", /smsOtp/)).toHaveLength(0);
   });
@@ -475,7 +475,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     const key = telnyx
       .callsTo("POST", /campaignBuilder/)[0]
       .headers.get("Idempotency-Key");
-    expect(key, "a paid POST with no idempotency key").toBeTruthy();
+    expect(Boolean(key), "a paid POST with no idempotency key").toBe(true);
     // Derived from the row and its budget counts, so it is stable for one attempt and
     // different for the next one — a bare row id would make a rejected campaign's
     // resubmission a no-op at Telnyx, which is the opposite failure.
@@ -493,7 +493,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     await handle10dlcEvent(env, brandEvent({ identityStatus: "VERIFIED" }));
 
     expect(brandRowOf(rest).status).toBe("approved");
-    expect(brandRowOf(rest).approved_at).toBeTruthy();
+    expect(Boolean(brandRowOf(rest).approved_at)).toBe(true);
 
     const builder = telnyx.callsTo("POST", /campaignBuilder/)[0];
     expect(builder.body).toMatchObject({
@@ -563,7 +563,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     const brand = brandRowOf(rest);
     expect(brand.status).toBe("rejected");
     expect(brand.rejection_reason).toContain("EIN does not match records");
-    expect(brand.rejected_at).toBeTruthy();
+    expect(Boolean(brand.rejected_at)).toBe(true);
     expect(emails).toHaveLength(1);
     expect(emails[0].subject).toContain("needs a fix");
     expect(emails[0].text).toContain("EIN does not match records");
@@ -599,7 +599,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
 
     const campaign = campaignRowOf(rest);
     expect(campaign.status).toBe("approved");
-    expect(campaign.approved_at).toBeTruthy();
+    expect(Boolean(campaign.approved_at)).toBe(true);
 
     const assignment = telnyx.callsTo("POST", /phoneNumberCampaign/)[0];
     expect(assignment.body).toEqual({
@@ -1379,9 +1379,9 @@ describe("#40 lifetime campaign-submission budget (cap-and-drop)", () => {
     expect(emails).toHaveLength(1);
     expect(emails[0].subject).toBe("Your US texting registration needs our help");
     expect(
-      (campaignRowOf(rest).data as { submissionCapNotifiedAt?: string })
-        .submissionCapNotifiedAt,
-    ).toBeTruthy();
+      Boolean((campaignRowOf(rest).data as { submissionCapNotifiedAt?: string })
+        .submissionCapNotifiedAt),
+    ).toBe(true);
 
     const again = await submitRegistration(env, COMPANY_ID);
     expect(again.action).toBe("noop");
@@ -1433,9 +1433,9 @@ describe("#40 lifetime campaign-submission budget (cap-and-drop)", () => {
     expect(telnyx.callsTo("POST", /campaignBuilder/)).toHaveLength(0);
     expect(emails).toHaveLength(1);
     expect(
-      (campaignRowOf(rest).data as { reactivationCapNotifiedAt?: string })
-        .reactivationCapNotifiedAt,
-    ).toBeTruthy();
+      Boolean((campaignRowOf(rest).data as { reactivationCapNotifiedAt?: string })
+        .reactivationCapNotifiedAt),
+    ).toBe(true);
   });
 
   it("consumes the budget BEFORE the Telnyx call (fail closed on a failed POST)", async () => {
@@ -1471,8 +1471,8 @@ describe("#51 brand-create write-ahead marker + orphan adoption", () => {
     expect(brand.telnyx_id).toBeNull();
     expect(brand.status).toBe("draft");
     expect(
-      (brand.data as { brandSubmitAttemptedAt?: string }).brandSubmitAttemptedAt,
-    ).toBeTruthy();
+      Boolean((brand.data as { brandSubmitAttemptedAt?: string }).brandSubmitAttemptedAt),
+    ).toBe(true);
 
     // The marker never breaks the strict wizard schema: the retry still
     // parses the draft and reaches Telnyx again (a failed parse would have
@@ -1596,10 +1596,10 @@ describe("deactivateCampaign (§11 grace expiry)", () => {
     );
 
     const first = await deactivateCampaign(env, COMPANY_ID);
-    expect(first?.deactivated_at).toBeTruthy();
+    expect(Boolean(first?.deactivated_at)).toBe(true);
 
     const second = await deactivateCampaign(env, COMPANY_ID);
-    expect(second?.deactivated_at).toBeTruthy();
+    expect(Boolean(second?.deactivated_at)).toBe(true);
     expect(telnyx.callsTo("DELETE", /campaign/)).toHaveLength(1);
   });
 
@@ -1614,7 +1614,7 @@ describe("deactivateCampaign (§11 grace expiry)", () => {
       telnyxError(404, "10005"),
     );
     const result = await deactivateCampaign(env, COMPANY_ID);
-    expect(result?.deactivated_at).toBeTruthy();
+    expect(Boolean(result?.deactivated_at)).toBe(true);
   });
 
   it("returns null when there is no submitted campaign", async () => {
@@ -1741,7 +1741,7 @@ describe("nudgeSoleProprietorOtp (§4.2, §11)", () => {
     expect(await nudgeSoleProprietorOtp(env)).toBe(1);
     expect(emails).toHaveLength(1);
     expect(emails[0].subject).toContain("One step left");
-    expect(brandRowOf(rest).otp_nudged_at).toBeTruthy();
+    expect(Boolean(brandRowOf(rest).otp_nudged_at)).toBe(true);
 
     // Idempotent: the stamp blocks a second nudge.
     expect(await nudgeSoleProprietorOtp(env)).toBe(0);

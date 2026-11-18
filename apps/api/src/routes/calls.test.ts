@@ -479,8 +479,8 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(decoded).toHaveLength(4);
     expect(decoded[0]).toBe("oc_customer");
     expect(decoded[1]).toBe("+16135551000");
-    expect(decoded[2]).toBeTruthy(); // a nonce is present
-    expect(bodyOut.call_session_id).toBeTruthy();
+    expect(Boolean(decoded[2])).toBe(true); // a nonce is present
+    expect(Boolean(bodyOut.call_session_id)).toBe(true);
     expect(decoded[3]).toBe(bodyOut.call_session_id); // part-4 == S
     // The atomic line-claim RPC was called with that exact nonce + caller ID.
     const claim = sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line");
@@ -491,7 +491,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       p_customer: "+16135551000",
       p_call_session_id: bodyOut.call_session_id,
     });
-    expect((claim[0].body as { p_user_id?: string }).p_user_id).toBeTruthy();
+    expect(Boolean((claim[0].body as { p_user_id?: string }).p_user_id)).toBe(true);
     // #213: the SERVER dials the customer as a real Call-Control leg — the exact
     // oc tag + X-Loonext-Session=S so the leg's webhook flows to the DO keyed on S
     // and stamps customer_call_control_id = THIS controllable customer leg.

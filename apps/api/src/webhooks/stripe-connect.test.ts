@@ -292,7 +292,7 @@ describe("#224 what happens after the money moved", () => {
     // A refunded payment WAS paid. Collapsing that into the status would
     // destroy the fact the crew most needs.
     expect(row.status).toBe("paid");
-    expect(row.refunded_at).toBeTruthy();
+    expect(Boolean(row.refunded_at)).toBe(true);
     expect(row.amount_refunded_cents).toBe(25_000);
 
     const events = harness.rest.rows("conversation_events");
@@ -309,7 +309,7 @@ describe("#224 what happens after the money moved", () => {
     ]);
     await processStripeEvent(harness.env, disputeEvent(ACCOUNT_ID));
 
-    expect(harness.rest.rows("payment_requests")[0].disputed_at).toBeTruthy();
+    expect(Boolean(harness.rest.rows("payment_requests")[0].disputed_at)).toBe(true);
     expect(harness.rest.rows("conversation_events")[0].type).toBe("payment_disputed");
   });
 
@@ -323,7 +323,7 @@ describe("#224 what happens after the money moved", () => {
     ]);
     await processStripeEvent(harness.env, refundEvent(OTHER_ACCOUNT));
 
-    expect(harness.rest.rows("payment_requests")[0].refunded_at).toBeFalsy();
+    expect(Boolean(harness.rest.rows("payment_requests")[0].refunded_at)).toBe(false);
     expect(harness.rest.rows("conversation_events")).toHaveLength(0);
   });
 

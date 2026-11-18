@@ -151,8 +151,8 @@ it("offers a separate talk-first action and controls for a connected consult", a
   actions.endConsult.mockResolvedValue(undefined);
   const view = mount(<CallBar />);
   fireEvent.click(screen.getByRole("button", { name: "Transfer this call" }));
-  expect(screen.getByRole("button", { name: "Transfer to Sam" })).toBeTruthy();
-  expect(screen.getByText("Push alerts set up")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Transfer to Sam" })).toBeInstanceOf(Element);
+  expect(screen.getByText("Push alerts set up")).toBeInstanceOf(Element);
   fireEvent.click(screen.getByRole("button", { name: "Talk first with Sam" }));
   await waitFor(() => expect(actions.startConsult).toHaveBeenCalledWith("sess-out-1", "sam", "Sam"));
 

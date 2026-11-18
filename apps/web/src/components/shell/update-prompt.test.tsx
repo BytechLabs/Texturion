@@ -172,7 +172,7 @@ describe("#710 a different build reloads the tab only while nobody is looking", 
     show();
     vi.advanceTimersByTime(10 * 60_000);
     expect(reload).not.toHaveBeenCalled();
-    expect(screen.getByText("Reload now")).toBeTruthy();
+    expect(screen.getByText("Reload now")).toBeInstanceOf(Element);
   });
 
   it("reloads once the tab has been hidden for a minute", () => {

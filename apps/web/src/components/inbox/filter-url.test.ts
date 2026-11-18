@@ -304,10 +304,10 @@ describe("unrepresentedStatus", () => {
     // same defect wearing a different string, so both languages are checked.
     for (const status of ["new", "open", "waiting", "closed"] as const) {
       const key = STATUS_CHIP_KEYS[status];
-      expect(key).toBeTruthy();
+      expect(Boolean(key)).toBe(true);
       for (const locale of ["en", "fr-CA"] as const) {
         const label = makeTranslate(locale)(key);
-        expect(label, `${locale} ${status}`).toBeTruthy();
+        expect(Boolean(label), `${locale} ${status}`).toBe(true);
         expect(label, `${locale} ${status}`).not.toBe(key);
       }
     }

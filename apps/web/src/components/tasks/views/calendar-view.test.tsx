@@ -153,11 +153,11 @@ describe("Calendar reads", () => {
     hold = new Promise<void>((resolve) => (release = resolve));
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.calendarNextMonth }));
     await waitFor(() => expect(tasksRequests()).toHaveLength(2));
-    expect(screen.getByRole("link", { name: "Service the furnace" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Service the furnace" })).toBeInstanceOf(Element);
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
 
     release();
     await waitFor(() => expect(container.querySelector('[aria-busy="true"]')).toBeNull());
-    expect(screen.getByRole("link", { name: "Service the furnace" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Service the furnace" })).toBeInstanceOf(Element);
   });
 });

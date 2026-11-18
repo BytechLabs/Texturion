@@ -578,10 +578,10 @@ describe("#277 saying why, on the way out", () => {
     // beside the plan card that already offers the cheaper plan.
     const leave = renderCard();
     for (const { label } of CANCELLATION_REASONS) {
-      expect(screen.getByText(label), label).toBeTruthy();
+      expect(screen.getByText(label), label).toBeInstanceOf(Element);
     }
-    expect(screen.getByText(CANCEL_EXPORT_ACTION)).toBeTruthy();
-    expect(leave).toBeTruthy();
+    expect(screen.getByText(CANCEL_EXPORT_ACTION)).toBeInstanceOf(Element);
+    expect(leave).toBeInstanceOf(Element);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -752,7 +752,7 @@ describe("#277 saying why, on the way out", () => {
     // #421 split the portal by role: an admin lands on Stripe's card-update
     // flow, which has no cancellation surface at all.
     render(<CancelSubscriptionCard isOwner={false} company={company()} />);
-    expect(screen.getByText(CANCEL_ADMIN_NOTE)).toBeTruthy();
+    expect(screen.getByText(CANCEL_ADMIN_NOTE)).toBeInstanceOf(Element);
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
   });
@@ -902,8 +902,8 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     // response to somebody having cooperated with an optional question. So it
     // goes last, and this is what stops a later "it reads better up there".
     expect(
-      leave.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+      Boolean(leave.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
 
     // And leaving is unchanged: one press, and it lands.
     expect(screen.queryByRole("dialog")).toBeNull();
@@ -974,8 +974,8 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     renderCard();
     pick("Quiet season, I'll be back");
     const offer = offerFor({ reason: "seasonal", plan: "pro" });
-    expect(screen.getByText(offer.heading)).toBeTruthy();
-    expect(screen.getByText(offer.body)).toBeTruthy();
+    expect(screen.getByText(offer.heading)).toBeInstanceOf(Element);
+    expect(screen.getByText(offer.body)).toBeInstanceOf(Element);
     expect(
       screen.getAllByRole("button").map((b) => b.textContent?.trim()),
     ).toEqual(QUIET_CARD_BUTTONS);
@@ -1060,7 +1060,7 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     renderCard();
     pick("Too expensive");
     const { heading } = offerFor({ reason: "too_expensive", plan: "pro" });
-    expect(screen.getByText(heading)).toBeTruthy();
+    expect(screen.getByText(heading)).toBeInstanceOf(Element);
 
     fireEvent.click(screen.getByText("Clear"));
     expect(screen.queryByText(heading)).toBeNull();
@@ -1246,15 +1246,15 @@ describe("#277 the paid pause, on the cancel card", () => {
     renderCard();
     pick("Quiet season, I'll be back");
 
-    expect(screen.getByText(heading())).toBeTruthy();
-    expect(screen.getByText(pauseOfferBody(PAUSE_CENTS))).toBeTruthy();
+    expect(screen.getByText(heading())).toBeInstanceOf(Element);
+    expect(screen.getByText(pauseOfferBody(PAUSE_CENTS))).toBeInstanceOf(Element);
     expect(
       screen.queryByText(offerFor({ reason: "seasonal", plan: "pro" }).heading),
     ).toBeNull();
 
     // The amount is on the CONTROL, not only in the prose. Nobody agrees to a
     // recurring charge whose figure was a paragraph away from the button.
-    expect(screen.getByRole("button", { name: action() })).toBeTruthy();
+    expect(screen.getByRole("button", { name: action() })).toBeInstanceOf(Element);
   });
 
   it("PAUSE-3: THE EXIT DOES NOT MOVE — one action, still, with the offer up", () => {
@@ -1268,9 +1268,9 @@ describe("#277 the paid pause, on the cancel card", () => {
     pick("Quiet season, I'll be back");
 
     expect(
-      leave.compareDocumentPosition(screen.getByText(heading())) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+      Boolean(leave.compareDocumentPosition(screen.getByText(heading())) &
+        Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
     expect(screen.queryByRole("dialog")).toBeNull();
     expectTheExitLeaves(leave, "with the pause offered");
     expect(portal.mutate).toHaveBeenCalledTimes(1);
@@ -1388,7 +1388,7 @@ describe("#277 the paid pause, on the cancel card", () => {
     render(<CancelSubscriptionCard isOwner company={company({ plan: null })} />);
     // The card itself is on screen — this is a gate that closed, not a card that
     // never rendered.
-    expect(screen.getByRole("button", { name: new RegExp(CANCEL_ACTION) })).toBeTruthy();
+    expect(screen.getByRole("button", { name: new RegExp(CANCEL_ACTION) })).toBeInstanceOf(Element);
     expect(pause.asked).toBe(false);
   });
 
@@ -1417,7 +1417,7 @@ describe("#277 the paid pause, on the cancel card", () => {
 
     expect(
       screen.getByRole("button", { name: `Pause for ${ODD_PRICE} a month` }),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     // Stated in the prose AND again on the control — nobody agrees to a
     // recurring charge whose figure was a paragraph away from the button — and
     // no other figure, no bare "$", anywhere on the card.
@@ -1586,7 +1586,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
     // and dropping the answer entirely would leave somebody cancelling over $79
     // never hearing about the $29 plan they can have. What the API refuses is
     // the click, not the fact.
-    expect(screen.getByText(answer.body)).toBeTruthy();
+    expect(screen.getByText(answer.body)).toBeInstanceOf(Element);
     expect(document.body.textContent).toContain(
       "resume first, then switch plans",
     );
@@ -1605,7 +1605,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
     pick("Quiet season, I'll be back");
 
     const answer = offerFor({ reason: "seasonal", plan: "pro", paused: true });
-    expect(screen.getByText(answer.heading)).toBeTruthy();
+    expect(screen.getByText(answer.heading)).toBeInstanceOf(Element);
     expect(
       screen.queryByText(offerFor({ reason: "seasonal", plan: "pro" }).heading),
     ).toBeNull();
@@ -1654,7 +1654,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
       expect(
         screen.getByText(offerFor({ reason: "too_expensive", plan: "pro" }).body),
         name,
-      ).toBeTruthy();
+      ).toBeInstanceOf(Element);
       expect(
         screen.queryByRole("button", { name: "Switch to Starter" }),
         name,
@@ -1671,7 +1671,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
     pause.data = running();
     renderCard();
     pick("Too expensive");
-    expect(screen.getByRole("button", { name: "Switch to Starter" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Switch to Starter" })).toBeInstanceOf(Element);
   });
 
   it("OFFER-P4: a slow pause read does not take the help route away", () => {
@@ -1691,7 +1691,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
       expect(
         screen.getByRole("link", { name: offer.actionLabel ?? "" }),
         name,
-      ).toBeTruthy();
+      ).toBeInstanceOf(Element);
       cleanup();
     }
   });
@@ -1734,7 +1734,7 @@ describe("#277 the paused state, on the billing screen", () => {
     expect(copy).toContain("message history");
     // The fee, from the API rather than from a guess about what a pause costs.
     expect(document.body.textContent).toContain(`$${PAUSE_CENTS / 100} a month`);
-    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInstanceOf(Element);
   });
 
   it("PAUSED-2: renders nothing at all unless this workspace IS paused", () => {
@@ -1773,7 +1773,7 @@ describe("#277 the paused state, on the billing screen", () => {
     expect((document.body.textContent ?? "").toLowerCase()).toContain(
       "texting is off",
     );
-    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInstanceOf(Element);
   });
 
   it("PAUSED-4: Resume sends one request, and a refusal is the API's sentence", () => {
@@ -1927,8 +1927,8 @@ describe("#277 follow-up: the win-back inside the canceled-state card", () => {
       plan: "pro",
       phase: "grace",
     });
-    expect(screen.getByText(grace.heading)).toBeTruthy();
-    expect(screen.getByText(grace.body)).toBeTruthy();
+    expect(screen.getByText(grace.heading)).toBeInstanceOf(Element);
+    expect(screen.getByText(grace.body)).toBeInstanceOf(Element);
     // Not the cancel card's wording: the subscription is over, so the verb is
     // coming back rather than switching.
     expect(
@@ -1968,7 +1968,7 @@ describe("#277 follow-up: the win-back inside the canceled-state card", () => {
       screen.getByText(
         offerFor({ reason: "seasonal", plan: "pro", phase: "grace" }).heading,
       ),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("WIN-4: a dismissal belongs to ONE cancellation", () => {
@@ -2216,7 +2216,7 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
     // sharing #315 exists to end.
     renderPage("bookkeeper");
     expect(billingControlsVisible()).toBe(true);
-    expect(screen.getByRole("button", { name: "Resubscribe" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Resubscribe" })).toBeInstanceOf(Element);
   });
 
   it("BILL-2: and the win-back, which is served on the same capability", () => {
@@ -2230,7 +2230,7 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
       plan: "pro",
       phase: "grace",
     });
-    expect(screen.getByText(grace.heading)).toBeTruthy();
+    expect(screen.getByText(grace.heading)).toBeInstanceOf(Element);
   });
 
   it("BILL-3: owner and admin are unchanged, and a member still gets nothing", () => {
@@ -2290,7 +2290,7 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
     // being nothing to ask on behalf of.
     expect(
       screen.getByRole("button", { name: new RegExp(CANCEL_ACTION) }),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     expect(pause.asked).toBe(false);
   });
 
@@ -2411,7 +2411,7 @@ describe("#277 the billing screen while paused", () => {
     for (const [name, apply] of READ_STATES) {
       renderBilling(apply);
       if (name === "running") {
-        expect(screen.getByText("Active"), name).toBeTruthy();
+        expect(screen.getByText("Active"), name).toBeInstanceOf(Element);
       } else {
         expect(screen.queryByText("Active"), name).toBeNull();
       }
@@ -2423,13 +2423,13 @@ describe("#277 the billing screen while paused", () => {
     // neutral pill while we are still asking, and nothing at all after a read
     // that failed — because there is nothing to claim, in either direction.
     renderBilling(() => { pause.data = pausedNow(); });
-    expect(screen.getByText("Your plan is paused")).toBeTruthy();
-    expect(screen.getByText("Paused")).toBeTruthy();
+    expect(screen.getByText("Your plan is paused")).toBeInstanceOf(Element);
+    expect(screen.getByText("Paused")).toBeInstanceOf(Element);
     expect(screen.queryByText("Checking…")).toBeNull();
     cleanup();
 
     renderBilling(() => {});
-    expect(screen.getByText("Checking…")).toBeTruthy();
+    expect(screen.getByText("Checking…")).toBeInstanceOf(Element);
     cleanup();
 
     renderBilling(() => {
@@ -2506,7 +2506,7 @@ describe("#277 the billing screen while paused", () => {
     // reading it back at somebody looking at their own plan explains nothing
     // they can act on.
     expect(copy).not.toContain("Couldn't reach Stripe");
-    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInstanceOf(Element);
 
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
     expect(pause.refetch).toHaveBeenCalledTimes(1);
@@ -2546,7 +2546,7 @@ describe("#277 the billing screen while paused", () => {
       plan: "pro",
       paused: true,
     });
-    expect(screen.getByText(pausedAnswer.heading)).toBeTruthy();
+    expect(screen.getByText(pausedAnswer.heading)).toBeInstanceOf(Element);
     expect(
       screen.queryByText(offerFor({ reason: "seasonal", plan: "pro" }).heading),
     ).toBeNull();
@@ -2737,8 +2737,8 @@ describe("#277 the billing screen while paused", () => {
     });
 
     expect(
-      leave.compareDocumentPosition(offer) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+      Boolean(leave.compareDocumentPosition(offer) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
     expectTheExitLeaves(leave, "with the pause offer on the page");
   });
 });
@@ -3030,7 +3030,7 @@ describe("CR-#529: no other busy state can hold the exit shut", () => {
     portal.isPending = true;
     render(<CancelSubscriptionCard isOwner company={company()} />);
     const leave = screen.getByRole("button", { name: /Opening…/ });
-    expect(leave).toBeTruthy();
+    expect(leave).toBeInstanceOf(Element);
     expect((leave as HTMLButtonElement).disabled).toBe(true);
   });
 

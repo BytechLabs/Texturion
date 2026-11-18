@@ -144,7 +144,7 @@ describe("#248: a column nobody has answered stops the wizard", () => {
 
     // Named, not merely counted: "some column" is not something a person can
     // act on, and the whole point is that they recognise it from their file.
-    expect(screen.getByText(/Marketing Status/)).toBeTruthy();
+    expect(screen.getByText(/Marketing Status/)).toBeInstanceOf(Element);
     expect(previewButton().disabled).toBe(true);
   });
 
@@ -154,7 +154,7 @@ describe("#248: a column nobody has answered stops the wizard", () => {
     // A person cannot say what "Marketing Status" is without seeing what it
     // says. This is the difference between a question and an obstacle, and an
     // obstacle gets clicked through.
-    expect(screen.getByText(/“Unsubscribed”, “Subscribed”/)).toBeTruthy();
+    expect(screen.getByText(/“Unsubscribed”, “Subscribed”/)).toBeInstanceOf(Element);
   });
 
   it("CL-3: releases the import once a person answers for the column", async () => {
@@ -221,8 +221,8 @@ describe("#248: a column nobody has answered stops the wizard", () => {
     expect(previewButton().disabled).toBe(true);
     // Named by position, because the file gave it no name to quote — and the
     // API names it the same way in its own refusal.
-    expect(screen.getByText("Column 3 (no header)")).toBeTruthy();
-    expect(screen.getByText(/“DO NOT CALL”/)).toBeTruthy();
+    expect(screen.getByText("Column 3 (no header)")).toBeInstanceOf(Element);
+    expect(screen.getByText(/“DO NOT CALL”/)).toBeInstanceOf(Element);
   });
 
   it("CL-7: asks about a column that answers every row the same way", async () => {
@@ -238,7 +238,7 @@ describe("#248: a column nobody has answered stops the wizard", () => {
     ]);
 
     expect(previewButton().disabled).toBe(true);
-    expect(screen.getByText(/“Unsubscribed”/)).toBeTruthy();
+    expect(screen.getByText(/“Unsubscribed”/)).toBeInstanceOf(Element);
   });
 
   it("CL-8: asks about a four-row file with four different answers", async () => {
@@ -253,7 +253,7 @@ describe("#248: a column nobody has answered stops the wizard", () => {
     ]);
 
     expect(previewButton().disabled).toBe(true);
-    expect(screen.getByText(/“DNC”/)).toBeTruthy();
+    expect(screen.getByText(/“DNC”/)).toBeInstanceOf(Element);
   });
 
   it("CL-9: shows a whole sentence, because a decision is not a token", async () => {
@@ -265,7 +265,7 @@ describe("#248: a column nobody has answered stops the wizard", () => {
       ["416-555-0198", "Happy to hear from us"],
     ]);
 
-    expect(screen.getByText(/Do not text this customer/)).toBeTruthy();
+    expect(screen.getByText(/Do not text this customer/)).toBeInstanceOf(Element);
   });
 });
 
@@ -310,13 +310,13 @@ describe("#248 H1: a guess is not an answer, so a guessed column is on screen to
     // whole justification for the step existing: a person who cannot see "DO
     // NOT CALL" cannot be said to have confirmed anything about it.
     const values = screen.getByText(new RegExp(DO_NOT_CALL));
-    expect(values).toBeTruthy();
+    expect(values).toBeInstanceOf(Element);
     // BEFORE the way forward, not merely somewhere in the document.
     // DOCUMENT_POSITION_PRECEDING: the values come first.
     expect(
-      previewButton().compareDocumentPosition(values) &
-        Node.DOCUMENT_POSITION_PRECEDING,
-    ).toBeTruthy();
+      Boolean(previewButton().compareDocumentPosition(values) &
+        Node.DOCUMENT_POSITION_PRECEDING),
+    ).toBe(true);
   });
 
   it("CL-25: posts the guesses by index and header, once somebody has seen them", async () => {
@@ -357,8 +357,8 @@ describe("#248 H1: a guess is not an answer, so a guessed column is on screen to
       ["212-555-0100", "", "J-3"],
     ]);
 
-    expect(screen.getByText(new RegExp(DO_NOT_CALL))).toBeTruthy();
-    expect(screen.getByText(/“J-1”/)).toBeTruthy();
+    expect(screen.getByText(new RegExp(DO_NOT_CALL))).toBeInstanceOf(Element);
+    expect(screen.getByText(/“J-1”/)).toBeInstanceOf(Element);
     expect(previewButton().disabled).toBe(true);
 
     // Dismissing what nobody recognised must not touch what was guessed, and
@@ -372,7 +372,7 @@ describe("#248 H1: a guess is not an answer, so a guessed column is on screen to
     await waitFor(() => expect(previewButton().disabled).toBe(false));
     expect(selectedValue(columnSelect("Job #"))).toBe(CONTACT_IMPORT_IGNORE);
     expect(selectedValue(columnSelect("Notes"))).toBe("notes");
-    expect(screen.getByText(new RegExp(DO_NOT_CALL))).toBeTruthy();
+    expect(screen.getByText(new RegExp(DO_NOT_CALL))).toBeInstanceOf(Element);
 
     // Still a question, not a receipt: the guessed column can be re-answered
     // from where it is shown. Answering "do not text" over a column of
@@ -471,8 +471,8 @@ describe("#248: the answer travels with the file", () => {
     const bulk = screen.getByRole("button", {
       name: /None of these say who can be texted/,
     });
-    expect(screen.getByText(/“INV-1”/)).toBeTruthy();
-    expect(screen.getByText(/“Unsubscribed”/)).toBeTruthy();
+    expect(screen.getByText(/“INV-1”/)).toBeInstanceOf(Element);
+    expect(screen.getByText(/“Unsubscribed”/)).toBeInstanceOf(Element);
 
     // BELOW THEM, and that is the whole justification rather than a layout
     // preference: "the columns and their values are on screen when it is
@@ -484,9 +484,9 @@ describe("#248: the answer travels with the file", () => {
     const status = screen.getByText(/“Unsubscribed”/);
     expect(
       // DOCUMENT_POSITION_FOLLOWING: the button comes after the values.
-      bulk.compareDocumentPosition(status) &
-        Node.DOCUMENT_POSITION_PRECEDING,
-    ).toBeTruthy();
+      Boolean(bulk.compareDocumentPosition(status) &
+        Node.DOCUMENT_POSITION_PRECEDING),
+    ).toBe(true);
 
     fireEvent.click(bulk);
 
@@ -740,7 +740,7 @@ describe("#248 D2: the preview tells the truth about duplicates", () => {
     await screen.findByText("Check before importing");
 
     expect(screen.getAllByText("Imports, opted out")).toHaveLength(1);
-    expect(screen.getByText(/1 marked opted out/)).toBeTruthy();
+    expect(screen.getByText(/1 marked opted out/)).toBeInstanceOf(Element);
   });
 
   it("CL-23: a blank line does not shift the skip reasons onto other rows", async () => {

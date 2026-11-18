@@ -84,8 +84,8 @@ describe("#228 workspace language", () => {
   it("LC-5: a member sees the language, not the controls", () => {
     render(<LanguageCard company={company({ locale: "fr-CA" })} canEdit={false} />);
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
-    expect(screen.getByText("Francais (Canada)")).toBeTruthy();
-    expect(screen.getByText(/only owners and admins/i)).toBeTruthy();
+    expect(screen.getByText("Francais (Canada)")).toBeInstanceOf(Element);
+    expect(screen.getByText(/only owners and admins/i)).toBeInstanceOf(Element);
   });
 
   it("LC-6: a failed save says so and leaves the old answer showing", () => {

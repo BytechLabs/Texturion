@@ -59,7 +59,7 @@ describe("#228 the extra-number refusals the wire sends", () => {
       "settingsMore.extraNumberStarterCap",
       "settingsMore.extraNumberCurrency",
     ] as const) {
-      expect(EXTRA_NUMBER_REASONS_EN[key], key).toBeTruthy();
+      expect(Boolean(EXTRA_NUMBER_REASONS_EN[key]), key).toBe(true);
     }
   });
 

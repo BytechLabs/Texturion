@@ -96,7 +96,7 @@ describe("no page reads the filesystem while rendering", () => {
     ];
     for (const [rel, spec] of pages) {
       const path = files.find((f) => f.replace(/\\/g, "/").endsWith(rel));
-      expect(path, `${rel} is gone`).toBeTruthy();
+      expect(Boolean(path), `${rel} is gone`).toBe(true);
       expect(
         readFileSync(path!, "utf8"),
         `${rel} no longer imports ${spec}`,

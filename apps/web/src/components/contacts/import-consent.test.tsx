@@ -165,10 +165,10 @@ function answerWith(mutate: typeof csvMutate, result: ImportResult) {
 
 /** What the workspace has to end up reading — the server's own two sentences. */
 function expectRefusalReported() {
-  expect(screen.getByText(CONTACT_IMPORT_CONSENT_REFUSED_NOTE)).toBeTruthy();
+  expect(screen.getByText(CONTACT_IMPORT_CONSENT_REFUSED_NOTE)).toBeInstanceOf(Element);
   expect(
     screen.getByText(contactImportConsentRefusedReason(STOPPED)),
-  ).toBeTruthy();
+  ).toBeInstanceOf(Element);
 }
 
 describe("#248 the CSV wizard can satisfy the #226 gate", () => {
@@ -227,7 +227,7 @@ describe("#248 the CSV wizard can satisfy the #226 gate", () => {
         `Up to ${CONTACT_IMPORT_MAX_ROWS.toLocaleString()} rows / ` +
           `${CONTACT_IMPORT_MAX_BYTES / (1024 * 1024)} MB`,
       ),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("IC-4: previews the name that will land, not half of it", async () => {
@@ -235,8 +235,8 @@ describe("#248 the CSV wizard can satisfy the #226 gate", () => {
     // split columns were dropped again this cell would read "Sam" or "–".
     await reachPreview();
 
-    expect(screen.getByText("Sam Okafor")).toBeTruthy();
-    expect(screen.getByText("Dana Rivera")).toBeTruthy();
+    expect(screen.getByText("Sam Okafor")).toBeInstanceOf(Element);
+    expect(screen.getByText("Dana Rivera")).toBeInstanceOf(Element);
   });
 });
 
@@ -258,7 +258,7 @@ describe("#248 a .vcf is asked the same question", () => {
       screen.getByText(
         `Up to ${VCARD_IMPORT_MAX_BYTES / (1024 * 1024)} MB`,
       ),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("IC-6: sends the attestation with the card file", async () => {
@@ -448,7 +448,7 @@ describe("#248 every door reports what the attestation could not cover", () => {
     chooseFile("vCard file", "BEGIN:VCARD\r\nEND:VCARD", "phone.vcf");
     await screen.findByText("Import finished");
 
-    expect(screen.getByText("…and 40 more.")).toBeTruthy();
+    expect(screen.getByText("…and 40 more.")).toBeInstanceOf(Element);
     expect(
       screen.queryByRole("button", { name: "Download the refused rows" }),
     ).toBeNull();

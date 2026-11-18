@@ -60,10 +60,10 @@ beforeEach(() => {
 describe("TrashList", () => {
   it("says who, what, who deleted it, and how long is left", () => {
     render(<TrashList />);
-    expect(screen.getByText("Dana Rivera")).toBeTruthy();
-    expect(screen.getByText("4 messages")).toBeTruthy();
-    expect(screen.getByText(/by Priya Natarajan/)).toBeTruthy();
-    expect(screen.getByText(/30 days left/)).toBeTruthy();
+    expect(screen.getByText("Dana Rivera")).toBeInstanceOf(Element);
+    expect(screen.getByText("4 messages")).toBeInstanceOf(Element);
+    expect(screen.getByText(/by Priya Natarajan/)).toBeInstanceOf(Element);
+    expect(screen.getByText(/30 days left/)).toBeInstanceOf(Element);
   });
 
   it("restores the row's kind and id", () => {
@@ -112,8 +112,8 @@ describe("TrashList", () => {
     render(<TrashList />);
     fireEvent.click(screen.getByRole("button", { name: "Delete forever" }));
 
-    expect(screen.getByText("Delete this forever?")).toBeTruthy();
-    expect(screen.getByText(/can't be undone/)).toBeTruthy();
+    expect(screen.getByText("Delete this forever?")).toBeInstanceOf(Element);
+    expect(screen.getByText(/can't be undone/)).toBeInstanceOf(Element);
     const confirm = screen
       .getAllByRole("button", { name: "Delete forever" })
       .find((button) => button.closest("[role=dialog]")) as HTMLButtonElement;

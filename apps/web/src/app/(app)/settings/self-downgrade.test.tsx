@@ -67,9 +67,9 @@ describe("GiveUpAccessDialog (#538)", () => {
     // "Are you sure?" is the version of this dialog that teaches people to click
     // through. The sentence has to carry the consequence.
     open("member");
-    expect(screen.getByText(/You'll lose access to/)).toBeTruthy();
-    expect(screen.getByText(/change it back/)).toBeTruthy();
-    expect(screen.getByText(/only an owner can/)).toBeTruthy();
+    expect(screen.getByText(/You'll lose access to/)).toBeInstanceOf(Element);
+    expect(screen.getByText(/change it back/)).toBeInstanceOf(Element);
+    expect(screen.getByText(/only an owner can/)).toBeInstanceOf(Element);
   });
 
   it("says things in what they DO, not in permission names", () => {
@@ -82,8 +82,8 @@ describe("GiveUpAccessDialog (#538)", () => {
   it("names the outcome on the confirm button rather than saying OK", () => {
     // Somebody skimming the buttons still reads the decision.
     open("member");
-    expect(screen.getByRole("button", { name: "Make me a member" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Keep my access" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Make me a member" })).toBeInstanceOf(Element);
+    expect(screen.getByRole("button", { name: "Keep my access" })).toBeInstanceOf(Element);
   });
 
   it("confirms and cancels through the right handlers", () => {

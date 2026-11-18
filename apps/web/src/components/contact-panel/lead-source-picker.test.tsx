@@ -64,9 +64,9 @@ describe("#301 how did you hear about us", () => {
     // Chips and not a dropdown: if it is not one tap it will not happen, and
     // a source field empty 80% of the time is a misleading report.
     render(<LeadSourcePicker conversation={conversation()} />);
-    expect(screen.getByText(/ask them how they heard about you/i)).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Truck" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Neighbour" })).toBeTruthy();
+    expect(screen.getByText(/ask them how they heard about you/i)).toBeInstanceOf(Element);
+    expect(screen.getByRole("button", { name: "Truck" })).toBeInstanceOf(Element);
+    expect(screen.getByRole("button", { name: "Neighbour" })).toBeInstanceOf(Element);
   });
 
   it("LP-2: a thread the LINE attributed is told, not asked", () => {
@@ -81,7 +81,7 @@ describe("#301 how did you hear about us", () => {
       />,
     );
     expect(screen.queryByText(/how did you hear about us/i)).toBeNull();
-    expect(screen.getByText(/the number they called/i)).toBeTruthy();
+    expect(screen.getByText(/the number they called/i)).toBeInstanceOf(Element);
   });
 
   it("LP-3: a person's answer reads as a person's answer", () => {
@@ -95,7 +95,7 @@ describe("#301 how did you hear about us", () => {
         })}
       />,
     );
-    expect(screen.getByText(/somebody said so/i)).toBeTruthy();
+    expect(screen.getByText(/somebody said so/i)).toBeInstanceOf(Element);
     expect(screen.queryByText(/the number they called/i)).toBeNull();
   });
 
@@ -168,7 +168,7 @@ describe("#301 how did you hear about us", () => {
         })}
       />,
     );
-    expect(screen.getByText(/Yard sign/)).toBeTruthy();
+    expect(screen.getByText(/Yard sign/)).toBeInstanceOf(Element);
     // But it is not offered as a chip — the list has to be able to shrink.
     expect(screen.queryByRole("button", { name: "Yard sign" })).toBeNull();
   });
@@ -176,7 +176,7 @@ describe("#301 how did you hear about us", () => {
   it("LP-8 (#726): an unanswered source says so, and no chip reads as chosen", () => {
     sourceRows.current = [{ id: TRUCK, name: "Truck", archived_at: null }];
     render(<LeadSourcePicker conversation={conversation()} />);
-    expect(screen.getByText(/not asked yet/i)).toBeTruthy();
+    expect(screen.getByText(/not asked yet/i)).toBeInstanceOf(Element);
     expect(screen.getByRole("button", { name: "Truck" }).getAttribute("aria-pressed")).toBe("false");
   });
 
@@ -192,7 +192,7 @@ describe("#301 how did you hear about us", () => {
   it("LP-10 (#726): whoever can add a source is offered the way to", () => {
     companyRole.current = "owner";
     render(<LeadSourcePicker conversation={conversation()} />);
-    expect(screen.getByRole("link", { name: "Add a source" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "Add a source" })).toBeInstanceOf(Element);
     companyRole.current = "member";
   });
 });

@@ -58,8 +58,8 @@ describe("#291 the contacts filter", () => {
 
   it("CTF-2: offers only the fields with a closed set of answers", () => {
     openFilter();
-    expect(screen.getByText("System type")).toBeTruthy();
-    expect(screen.getByText("Dog on site")).toBeTruthy();
+    expect(screen.getByText("System type")).toBeInstanceOf(Element);
+    expect(screen.getByText("Dog on site")).toBeInstanceOf(Element);
     expect(screen.queryByText("Serial")).toBeNull();
   });
 
@@ -100,7 +100,7 @@ describe("#291 the contacts filter", () => {
         onTag={onTag}
       />,
     );
-    expect(screen.getByText("System type: Combi")).toBeTruthy();
+    expect(screen.getByText("System type: Combi")).toBeInstanceOf(Element);
     fireEvent.click(screen.getByRole("button", { name: "Remove System type: Combi filter" }));
     expect(onField).toHaveBeenCalledWith(undefined);
   });

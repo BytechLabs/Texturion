@@ -111,7 +111,7 @@ describe("ThreadHeader catch-up", () => {
 
   it("is absent when the thread does not offer one", () => {
     renderHeader(undefined);
-    expect(screen.getByText("Mark unread")).toBeTruthy();
+    expect(screen.getByText("Mark unread")).toBeInstanceOf(Element);
     expect(screen.queryByText("Catch me up")).toBeNull();
   });
 });

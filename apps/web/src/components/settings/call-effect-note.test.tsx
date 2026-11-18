@@ -35,7 +35,7 @@ describe("#725 CallEffectNote", () => {
   it("says how many calls a reason touched and links to them", () => {
     counts.current = { after_hours: 12 };
     render(<CallEffectNote reason="after_hours" />);
-    expect(screen.getByText(/touched 12 calls in the last 30 days/)).toBeTruthy();
+    expect(screen.getByText(/touched 12 calls in the last 30 days/)).toBeInstanceOf(Element);
     expect(screen.getByRole("link", { name: "See them" }).getAttribute("href")).toBe(
       "/calls?reason=after_hours",
     );

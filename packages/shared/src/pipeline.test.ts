@@ -41,7 +41,7 @@ const report = (over: Partial<PipelineReport> = {}): PipelineReport => ({
 describe("#354 stages", () => {
   it("names every stage it seeds", () => {
     for (const stage of PIPELINE_STAGES) {
-      expect(PIPELINE_SEED_NAMES[stage]).toBeTruthy();
+      expect(Boolean(PIPELINE_SEED_NAMES[stage])).toBe(true);
     }
   });
 

@@ -254,7 +254,7 @@ describe(payoutReadinessCopy, () => {
       "restricted",
       "ready",
     ] as const) {
-      expect(payoutReadinessCopy(readiness).action).toBeTruthy();
+      expect(Boolean(payoutReadinessCopy(readiness).action)).toBe(true);
     }
   });
 

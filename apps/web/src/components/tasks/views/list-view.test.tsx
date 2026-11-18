@@ -226,7 +226,7 @@ describe("what the List asks for", () => {
         name: EN.tasks.bulkSelectThese.replace("{count}", "101"),
       }),
     );
-    expect(screen.getByRole("button", { name: EN.tasks.bulkSelectAllMatching })).toBeTruthy();
+    expect(screen.getByRole("button", { name: EN.tasks.bulkSelectAllMatching })).toBeInstanceOf(Element);
   });
 
   it("keeps the last rows, dimmed and busy, while a changed tab loads", async () => {
@@ -239,7 +239,7 @@ describe("what the List asks for", () => {
     hold = { status: "done", release: new Promise<void>((resolve) => (release = resolve)) };
     rerender(DONE);
     await waitFor(() => expect(tasksRequests("done")).toHaveLength(1));
-    expect(screen.getByText("Call Ana")).toBeTruthy();
+    expect(screen.getByText("Call Ana")).toBeInstanceOf(Element);
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
 
     release();

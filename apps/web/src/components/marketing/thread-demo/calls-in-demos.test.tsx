@@ -193,7 +193,7 @@ describe("the home deep-dive walks the call, and its captions keep up", () => {
       (b) => b.kind === "event" && b.revealsAssignee,
     );
     expect(flagged).toHaveLength(1);
-    expect(script.assignee).toBeTruthy();
+    expect(Boolean(script.assignee)).toBe(true);
   });
 });
 

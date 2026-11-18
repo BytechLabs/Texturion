@@ -247,8 +247,8 @@ describe("DELETE /v1/api-keys/:id", () => {
 
     const call = sb.find("PATCH", "/rest/v1/api_keys")[0];
     const patch = call.body as { revoked_at: string; revoked_by: string };
-    expect(patch.revoked_at).toBeTruthy();
-    expect(patch.revoked_by).toBeTruthy();
+    expect(Boolean(patch.revoked_at)).toBe(true);
+    expect(Boolean(patch.revoked_by)).toBe(true);
     // Only a key that is still live. Revoking twice must not overwrite who did
     // it first — the FIRST revocation is the one an incident review cares
     // about.

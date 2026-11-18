@@ -154,7 +154,7 @@ describe("POST /conversations/:id/wrap-up-transcript (#507)", () => {
     // of the failures it was rather than "something went wrong".
     expect(res.status).toBe(200);
     expect(body.text).toBeNull();
-    expect(body.reason).toBeTruthy();
+    expect(Boolean(body.reason)).toBe(true);
   });
 
   it("404s a conversation that is not there", async () => {

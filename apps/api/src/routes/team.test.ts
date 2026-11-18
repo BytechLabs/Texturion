@@ -636,7 +636,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     const note = resend.find((mail) =>
       String(mail.text ?? "").includes("covering the north side"),
     );
-    expect(note, "the admin was never sent the note").toBeTruthy();
+    expect(Boolean(note), "the admin was never sent the note").toBe(true);
   });
 
   it("#521 does NOT email a member, who reads it on screen one instead", async () => {

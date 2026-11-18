@@ -110,7 +110,7 @@ describe("TaskDetailPanel while the detail loads", () => {
         pageParams: [undefined],
       }),
     );
-    expect(screen.getByText("Fix the kitchen sink")).toBeTruthy();
+    expect(screen.getByText("Fix the kitchen sink")).toBeInstanceOf(Element);
     expect(container.querySelector("textarea, input, button, a")).toBeNull();
   });
 

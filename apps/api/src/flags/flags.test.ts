@@ -40,7 +40,7 @@ describe("the registry is the roster", () => {
   it("declares an owner and a removal date for every flag", () => {
     for (const key of FLAG_KEYS) {
       const spec = FEATURE_FLAGS[key];
-      expect(spec.owner, key).toBeTruthy();
+      expect(Boolean(spec.owner), key).toBe(true);
       expect(spec.removeBy, key).toMatch(/^\d{4}-\d{2}-\d{2}$/);
       // A flag whose purpose cannot be stated in a sentence is a flag nobody
       // will dare remove.

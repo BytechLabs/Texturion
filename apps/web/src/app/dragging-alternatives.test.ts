@@ -166,7 +166,7 @@ describe("#238 every draggable operation has a way out (WCAG 2.2 2.5.7)", () => 
     // deleted it — sees a calendar that behaves exactly as before.
     for (const [rel, surface] of Object.entries(DRAG_SURFACES)) {
       const path = files.find((candidate) => relative(candidate) === rel);
-      expect(path, `${rel} is in DRAG_SURFACES but not in the tree`).toBeTruthy();
+      expect(Boolean(path), `${rel} is in DRAG_SURFACES but not in the tree`).toBe(true);
 
       const code = stripComments(sourceText(path!));
       for (const marker of surface.pointerAlternative) {
@@ -219,7 +219,7 @@ describe("#238 every draggable operation has a way out (WCAG 2.2 2.5.7)", () => 
     // drag it was meant to cover lives somewhere else entirely.
     for (const rel of Object.keys(DRAG_SURFACES)) {
       const path = files.find((candidate) => relative(candidate) === rel);
-      expect(path, `${rel} no longer exists — the roster is stale`).toBeTruthy();
+      expect(Boolean(path), `${rel} no longer exists — the roster is stale`).toBe(true);
       expect(
         DRAG_STARTERS.test(stripComments(sourceText(path!))),
         `${rel} no longer starts a drag. If dragging was removed, remove it ` +

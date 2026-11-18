@@ -183,17 +183,17 @@ describe("the invite note (#521)", () => {
     expect(screen.queryByText(/characters left/)).toBeNull();
 
     fireEvent.change(noteField(), { target: { value: "x".repeat(460) } });
-    expect(screen.getByText("40 characters left")).toBeTruthy();
+    expect(screen.getByText("40 characters left")).toBeInstanceOf(Element);
 
     fireEvent.change(noteField(), { target: { value: "x".repeat(499) } });
-    expect(screen.getByText("1 character left")).toBeTruthy();
+    expect(screen.getByText("1 character left")).toBeInstanceOf(Element);
   });
 
   it("says the note is read once on joining, and nothing about email", () => {
     render(<TeamSettingsPage />);
     expect(
       screen.getByText(/They see this once, when they join/),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     // A brand-new address is emailed by Supabase Auth from a template this
     // repo does not control, and it carries no note. Only the fallback for an
     // address that already has an account renders one, so promising the mail
@@ -209,7 +209,7 @@ describe("the invite note (#521)", () => {
     // Announced as it changes, and reachable from the field itself: the count
     // sits inside the one element `aria-describedby` points at.
     const region = count.closest("[aria-live]");
-    expect(region).toBeTruthy();
+    expect(region).toBeInstanceOf(Element);
     expect(noteField().getAttribute("aria-describedby")).toBe(region?.id);
   });
 
@@ -221,14 +221,14 @@ describe("the invite note (#521)", () => {
 
     expect(
       screen.getByText("Riverside jobs are yours this month."),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("adds nothing to a pending invite that was sent without one", () => {
     invites.rows = [pendingInvite(null)];
     render(<TeamSettingsPage />);
 
-    expect(screen.getByText("tech@example.com")).toBeTruthy();
+    expect(screen.getByText("tech@example.com")).toBeInstanceOf(Element);
     expect(document.querySelector("blockquote")).toBeNull();
   });
 });
@@ -265,7 +265,7 @@ describe("every role the picker offers (#789)", () => {
 
     expect(
       screen.getByRole("button", { name: "Make me a view only" }),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     // Nothing is sent until the admin confirms.
     expect(updateRole).not.toHaveBeenCalled();
   });

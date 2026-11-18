@@ -309,7 +309,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     expect(form.get("quantity")).toBe("1");
     expect(form.get("proration_behavior")).toBe("always_invoice");
     // Keyed on the request's Idempotency-Key, so a retry cannot double-charge.
-    expect(items[0].headers.get("Idempotency-Key")).toBeTruthy();
+    expect(Boolean(items[0].headers.get("Idempotency-Key"))).toBe(true);
 
     // The claim names the number being bought (so THAT one comes back, not the
     // oldest) and carries the fence epoch read before Stripe was ever asked.

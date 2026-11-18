@@ -1176,7 +1176,7 @@ describe("POST /v1/port-requests/:id/cancel", () => {
     // Completed, not parked in cancel-pending.
     const body = (await res.json()) as { status: string; cancelled_at: string };
     expect(body.status).toBe("cancelled");
-    expect(body.cancelled_at).toBeTruthy();
+    expect(Boolean(body.cancelled_at)).toBe(true);
     // No Telnyx cancel — there was no order to cancel.
     expect(harness.telnyx.callsTo("POST", /actions\/cancel/)).toHaveLength(0);
     // The linked number is released, freeing the company's slot.

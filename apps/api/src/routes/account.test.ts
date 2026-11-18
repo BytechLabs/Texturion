@@ -227,7 +227,7 @@ describe("DELETE /v1/account", () => {
       ban_duration: string;
     };
     expect(severed.email).toContain("@account.invalid");
-    expect(severed.ban_duration).toBeTruthy();
+    expect(Boolean(severed.ban_duration)).toBe(true);
   });
 
   it("#581/C7: deletes the softphone credential AT TELNYX, not just its row", async () => {

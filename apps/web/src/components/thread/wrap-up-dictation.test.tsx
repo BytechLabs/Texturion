@@ -124,9 +124,9 @@ describe("WrapUpStrip", () => {
         onCancel={noop}
       />,
     );
-    expect(screen.getByText("Recording your wrap-up")).toBeTruthy();
-    expect(screen.getByText("0:12 / 2:00")).toBeTruthy();
-    expect(screen.getByText("Cancel")).toBeTruthy();
+    expect(screen.getByText("Recording your wrap-up")).toBeInstanceOf(Element);
+    expect(screen.getByText("0:12 / 2:00")).toBeInstanceOf(Element);
+    expect(screen.getByText("Cancel")).toBeInstanceOf(Element);
   });
 
   it("states the D117 line while the mic is open", () => {

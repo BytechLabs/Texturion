@@ -48,7 +48,7 @@ describe("#749 SettingChoiceNote", () => {
     render(<SettingChoiceNote settingKey="after_hours_calls" defaultLabel="Ring everyone" />);
     expect(
       screen.getByText("Dana Whitcomb chose this on Aug 8, 2026. The default is Ring everyone."),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("still says it is not the default when no change on record names anyone", () => {
@@ -56,7 +56,7 @@ describe("#749 SettingChoiceNote", () => {
       { key: "away_enabled", value: true, default_value: false, chosen_by: null, chosen_at: null },
     ];
     render(<SettingChoiceNote settingKey="away_enabled" defaultLabel="off" />);
-    expect(screen.getByText("Changed from the default, which is off.")).toBeTruthy();
+    expect(screen.getByText("Changed from the default, which is off.")).toBeInstanceOf(Element);
   });
 
   it("is silent for a setting at its default", () => {

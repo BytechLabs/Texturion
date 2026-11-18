@@ -97,7 +97,7 @@ describe("wrangler.jsonc", () => {
     const source = readFileSync(join(GUARD_DIR, "wrangler.jsonc"), "utf8");
     expect(source).toContain("support.telnyx.com/en/articles/1130717, fetched 2026-10-31");
     expect(source).toMatch(/Raising the floor needs dated\s+(?:\/\/\s+)?evidence in a reviewed commit/);
-    expect(vars.SIGNAL_LATCH_RESET).toBeTruthy();
+    expect(Boolean(vars.SIGNAL_LATCH_RESET)).toBe(true);
   });
 
   it("commits no secret, edge origin or mailbox", () => {

@@ -265,7 +265,7 @@ describe("D31 golden path 3: cancel → grace → release", () => {
     const graceEmail = newEmails.find((e) =>
       e.to.includes(`${h.runId}-owner@lifecycle.test`),
     );
-    expect(graceEmail).toBeTruthy();
+    expect(Boolean(graceEmail)).toBe(true);
     expect(graceEmail?.subject).toMatch(/canceled/i);
     // Through RESEND_API_BASE, as the Worker sends it: its key, its sender,
     // and both parts of the body.
@@ -352,6 +352,6 @@ describe("D31 golden path 3: cancel → grace → release", () => {
     const finalEmail = h.emails.find((e) =>
       e.subject.includes("has been released"),
     );
-    expect(finalEmail).toBeTruthy();
+    expect(Boolean(finalEmail)).toBe(true);
   });
 });

@@ -305,7 +305,7 @@ describe("the catch-up card — what it costs", () => {
     };
     const view = render(cardAt(1));
     view.rerender(cardAt(1));
-    expect(screen.getByText(A_LINE)).toBeTruthy();
+    expect(screen.getByText(A_LINE)).toBeInstanceOf(Element);
 
     fireEvent.click(screen.getByText("Dismiss"));
     expect(onDismiss).toHaveBeenCalledTimes(1);
@@ -313,7 +313,7 @@ describe("the catch-up card — what it costs", () => {
 
     view.rerender(cardAt(2));
     expect(calls).toBe(2);
-    expect(screen.getByText(A_LINE)).toBeTruthy();
+    expect(screen.getByText(A_LINE)).toBeInstanceOf(Element);
   });
 });
 
@@ -355,7 +355,7 @@ describe("the catch-up card — never invent a fact", () => {
    */
   it("shows only the sections that came back with lines", () => {
     ask(result({ lines: [line(WE_SAID, "Quoted 2,400", "msg-a")] }));
-    expect(screen.getByText(say(WE_SAID.label))).toBeTruthy();
+    expect(screen.getByText(say(WE_SAID.label))).toBeInstanceOf(Element);
     expect(screen.queryByText(say(ASKED.label))).toBeNull();
     expect(screen.queryByText(say(OPEN.label))).toBeNull();
   });
@@ -372,10 +372,10 @@ describe("the catch-up card — never invent a fact", () => {
 
     view.newMessageArrives("m-newer");
     expect(bodyText().length).toBeGreaterThan(settled.length);
-    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.getByRole("status")).toBeInstanceOf(Element);
     // And it offers to ask again — the server answers an unchanged thread from
     // its cache, so re-asking a moved thread is the only press that costs.
-    expect(screen.getByText("Catch me up again")).toBeTruthy();
+    expect(screen.getByText("Catch me up again")).toBeInstanceOf(Element);
   });
 
   it("does not cry staleness on a thread that has not moved", () => {
@@ -401,7 +401,7 @@ describe("the catch-up card — never bury an opt-out", () => {
   it("puts the standing above everything Lou wrote", () => {
     ask(optedOut("stop_keyword"));
     const strip = standingNode();
-    expect(strip).toBeTruthy();
+    expect(strip).toBeInstanceOf(Element);
     // The card's very first child, so no line can be read before it.
     expect(strip).toBe(cardSection().firstElementChild);
 
@@ -435,8 +435,8 @@ describe("the catch-up card — never bury an opt-out", () => {
     ask(optedOut("manual"));
     const byHand = standingNode()?.textContent;
 
-    expect(carrier).toBeTruthy();
-    expect(byHand).toBeTruthy();
+    expect(Boolean(carrier)).toBe(true);
+    expect(Boolean(byHand)).toBe(true);
     expect(carrier).not.toBe(byHand);
   });
 
@@ -474,7 +474,7 @@ describe("the catch-up card — the standing survives a re-ask", () => {
 
   it("keeps the standing on screen while the re-ask is in flight", () => {
     const again = reAsk(optedOut("stop_keyword"));
-    expect(again.said).toBeTruthy();
+    expect(Boolean(again.said)).toBe(true);
     // Genuinely mid-request: Lou's own line went with the answer that carried
     // it, and the mark says so. That is the same clearing that used to take
     // the standing with it.
@@ -517,7 +517,7 @@ describe("the catch-up card — the standing survives a re-ask", () => {
    */
   it("drops the standing the moment an answer says it is gone", () => {
     const again = reAsk(optedOut("stop_keyword"));
-    expect(standingNode()).toBeTruthy();
+    expect(standingNode()).toBeInstanceOf(Element);
 
     again.lands(result({ lines: [line(ASKED, A_LINE, "msg-a")] }));
     expect(standingNode()).toBeNull();
@@ -555,7 +555,7 @@ describe("the catch-up card — a refusal is silence, not an error", () => {
     cleanup();
 
     ask(result({ reason: "model_error" }));
-    expect(screen.getByText("Try again")).toBeTruthy();
+    expect(screen.getByText("Try again")).toBeInstanceOf(Element);
   });
 });
 
@@ -574,7 +574,7 @@ describe("the catch-up card — a failed request is not a refusal", () => {
     askAndFail(offline);
     // Falling back to rest is what this used to do, which after #716 is
     // rendering nothing: an ask with no visible outcome at all.
-    expect(cardSection()).toBeTruthy();
+    expect(cardSection()).toBeInstanceOf(Element);
     expect(bodyText()).toContain(threadSummaryRequestFailure(offline).message);
   });
 
@@ -597,7 +597,7 @@ describe("the catch-up card — a failed request is not a refusal", () => {
 
   it("offers a second press only where a second press could work", () => {
     askAndFail(offline);
-    expect(screen.getByText("Try again")).toBeTruthy();
+    expect(screen.getByText("Try again")).toBeInstanceOf(Element);
     cleanup();
 
     askAndFail(role);

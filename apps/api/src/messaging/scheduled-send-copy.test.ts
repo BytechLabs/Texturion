@@ -104,7 +104,7 @@ describe("#228 the two titles", () => {
     // title for both states would promise a retry against a STOP.
     for (const locale of LOCALES) {
       const copy = SCHEDULED_DISCLOSURE_COPY[locale];
-      expect(copy.waitingTitle, `${locale} has no waiting title`).toBeTruthy();
+      expect(Boolean(copy.waitingTitle), `${locale} has no waiting title`).toBe(true);
       expect(
         copy.notSentTitle,
         `${locale} says the same thing whether or not it is coming`,

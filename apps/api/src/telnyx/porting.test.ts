@@ -193,7 +193,7 @@ describe("startPortSaga — §4 P1–P4 (create draft, do NOT confirm)", () => {
     // awaiting the customer's LOA + invoice upload + POST /:id/submit.
     expect(row?.status).toBe("draft");
     expect(row?.telnyx_porting_order_id).toBe(ORDER_ID);
-    expect(row?.submitted_at).toBeFalsy();
+    expect(Boolean(row?.submitted_at)).toBe(false);
     expect(row?.submission_count).toBe(0);
     expect(row?.messaging_port_status).toBe("not_applicable");
 
@@ -257,7 +257,7 @@ describe("startPortSaga — §4 P1–P4 (create draft, do NOT confirm)", () => {
     // Does not throw; the id is persisted, the error is recorded, status stays
     // resumable (draft) for the cron.
     expect(row?.telnyx_porting_order_id).toBe(ORDER_ID);
-    expect(portRow(rest).rejection_reason).toBeTruthy();
+    expect(Boolean(portRow(rest).rejection_reason)).toBe(true);
     expect(portRow(rest).status).toBe("draft");
   });
 });
@@ -308,7 +308,7 @@ describe("submitPortRequest — §3.5/§6 documents-gated confirm", () => {
     });
 
     expect(row?.status).toBe("in-process");
-    expect(row?.submitted_at).toBeTruthy();
+    expect(Boolean(row?.submitted_at)).toBe(true);
     expect(row?.submission_count).toBe(1);
     // Messaging track moves not_applicable → pending at submit.
     expect(row?.messaging_port_status).toBe("pending");
@@ -355,7 +355,7 @@ describe("readiness gate — number stays provisioning until messaging ported", 
     });
     expect(portRow(rest).status).toBe("ported");
     expect(phoneRow(rest).status).toBe("provisioning"); // still not sendable
-    expect(portRow(rest).ported_at).toBeFalsy();
+    expect(Boolean(portRow(rest).ported_at)).toBe(false);
   });
 
   it("flips the number to active only when messaging_changed → ported (P6)", async () => {
@@ -394,7 +394,7 @@ describe("readiness gate — number stays provisioning until messaging ported", 
       telnyx.callsTo("POST", /phoneNumberCampaign/),
     ).toHaveLength(1);
     // P6c: ported_at stamped; §9 "live" email.
-    expect(portRow(rest).ported_at).toBeTruthy();
+    expect(Boolean(portRow(rest).ported_at)).toBe(true);
     expect(emails.some((e) => e.subject.includes("live on Loonext"))).toBe(true);
   });
 });
@@ -786,7 +786,7 @@ describe("pollPortRequests — §5.2 reconcile", () => {
     expect(summary.messagingTransitioned).toBe(1);
     // The webhook-missed path drove P6: number is active now.
     expect(phoneRow(rest).status).toBe("active");
-    expect(portRow(rest).ported_at).toBeTruthy();
+    expect(Boolean(portRow(rest).ported_at)).toBe(true);
   });
 
   it("resumes a stalled pre-create saga (no order id) — creates the draft, does NOT confirm", async () => {

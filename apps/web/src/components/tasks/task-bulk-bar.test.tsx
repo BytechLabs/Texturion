@@ -104,7 +104,7 @@ describe("TaskBulkBar delete (#691)", () => {
   it("hides Delete from a member without records.delete", () => {
     state.canDelete = false;
     openMore();
-    expect(screen.getByText("Mark not done")).toBeTruthy();
+    expect(screen.getByText("Mark not done")).toBeInstanceOf(Element);
     expect(screen.queryByText("Delete")).toBeNull();
   });
 

@@ -307,10 +307,10 @@ describe("#307 how this line answers", () => {
   it("NI-13: the picker appears once there is something to pick, and offers the way out", () => {
     greetingRows.current = [{ id: "g1", name: "After hours" }];
     open();
-    expect(screen.getByLabelText("Voicemail voice")).toBeTruthy();
+    expect(screen.getByLabelText("Voicemail voice")).toBeInstanceOf(Element);
     // The written words are always an option, because they are the one thing
     // guaranteed to exist and the fallback the runtime uses anyway.
-    expect(screen.getByText("The written greeting, read aloud")).toBeTruthy();
+    expect(screen.getByText("The written greeting, read aloud")).toBeInstanceOf(Element);
   });
 
   it("NI-14: following the workspace names its answer, and that answer is not offered twice", () => {

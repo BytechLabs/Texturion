@@ -174,7 +174,7 @@ describe("eventSentence — #607 payment lines", () => {
     // product cannot be silently un-narrated here.
     for (const type of NARRATED_PAYMENT_EVENT_TYPES) {
       const sentence = eventSentence(payment(type, CHARGE, SAM), crew);
-      expect(sentence, type).toBeTruthy();
+      expect(Boolean(sentence), type).toBe(true);
       // And it is a SENTENCE, not the machine label the phones used to show.
       expect(sentence, type).not.toContain("_");
     }

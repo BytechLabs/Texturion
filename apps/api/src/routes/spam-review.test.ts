@@ -156,7 +156,7 @@ describe("PATCH /v1/conversations/:id — answering the review prompt (#342)", (
     const written = sb.find("PATCH", "/rest/v1/conversations")[0].body as {
       spam_reviewed_at?: string;
     };
-    expect(written.spam_reviewed_at).toBeTruthy();
+    expect(Boolean(written.spam_reviewed_at)).toBe(true);
     // No timeline row: "no change" is the answer, and a row per dismissal is
     // the noise this whole feature exists to avoid.
     expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);

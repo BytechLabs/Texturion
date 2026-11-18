@@ -73,7 +73,7 @@ describe("#285 the security policy and security.txt agree", () => {
    */
   it("names the served contact and no other address", async () => {
     const contact = (await served()).get("Contact");
-    expect(contact, "security.txt lost its Contact field").toBeTruthy();
+    expect(Boolean(contact), "security.txt lost its Contact field").toBe(true);
     const address = contact!.replace(/^mailto:/, "");
     expect(address).toMatch(/@/);
 
@@ -85,7 +85,7 @@ describe("#285 the security policy and security.txt agree", () => {
   /** Same rule for the policy URL: every `/security` link is the served one. */
   it("sends a researcher to the policy page security.txt points at", async () => {
     const url = (await served()).get("Policy");
-    expect(url, "security.txt lost its Policy field").toBeTruthy();
+    expect(Boolean(url), "security.txt lost its Policy field").toBe(true);
 
     const linked = new Set(
       (policy.match(/https:\/\/loonext\.com\/[\w./-]*/g) ?? []).filter(

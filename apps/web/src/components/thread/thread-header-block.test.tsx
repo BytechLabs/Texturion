@@ -119,7 +119,7 @@ describe("ThreadHeader block / unblock", () => {
       screen.getByText(
         "Future texts and calls from this number go straight to spam. You can still text them.",
       ),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     fireEvent.click(screen.getByRole("button", { name: "Block" }));
     expect(blockMutate.mock.calls[0][0]).toBe(PHONE);
   });
@@ -127,7 +127,7 @@ describe("ThreadHeader block / unblock", () => {
   it("offers Unblock number on a blocked thread, and marks the thread blocked", () => {
     rows.current = [{ id: "b-1", phone_e164: PHONE }];
     renderHeader();
-    expect(screen.getByLabelText("Blocked")).toBeTruthy();
+    expect(screen.getByLabelText("Blocked")).toBeInstanceOf(Element);
     openOverflow();
     expect(screen.queryByText("Block number")).toBeNull();
     fireEvent.click(screen.getByText("Unblock number"));

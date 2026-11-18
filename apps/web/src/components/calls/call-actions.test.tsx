@@ -48,7 +48,7 @@ describe("CallActions (#691)", () => {
     render(<CallActions callId="k-1" callerName="Dana" hasVoicemail={false} />);
     open();
     expect(screen.queryByText("Delete voicemail")).toBeNull();
-    expect(screen.getByText("Delete call")).toBeTruthy();
+    expect(screen.getByText("Delete call")).toBeInstanceOf(Element);
   });
 
   it("deletes by the call-log row id", () => {

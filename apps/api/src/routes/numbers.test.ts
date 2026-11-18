@@ -1526,7 +1526,7 @@ describe("DELETE /v1/numbers/:id", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.status).toBe("released");
-    expect(body.released_at).toBeTruthy();
+    expect(Boolean(body.released_at)).toBe(true);
     expect(harness.telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(1);
     expect(harness.rest.rows("phone_numbers")[0].status).toBe("released");
   });

@@ -230,7 +230,7 @@ describe("Stripe redelivers", () => {
     await handleChargeDispute(env, dispute({ status: "won" }), "charge.dispute.closed");
 
     expect(w.rpcCalls[0]).toMatchObject({ p_dispute_id: "dp_1" });
-    expect(w.rpcCalls[0].p_closed_at).toBeTruthy();
+    expect(Boolean(w.rpcCalls[0].p_closed_at)).toBe(true);
     expect(notices()).toEqual([]);
   });
 });

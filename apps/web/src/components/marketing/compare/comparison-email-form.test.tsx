@@ -30,7 +30,7 @@ async function submit(locale: "en" | "fr-CA") {
         ? /Envoyez-moi cette comparaison/
         : /Email me this comparison/,
     ),
-  ).toBeTruthy();
+  ).toBeInstanceOf(Element);
   fireEvent.change(screen.getByRole("textbox"), {
     target: { value: "dana@example.com" },
   });

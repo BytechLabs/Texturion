@@ -224,11 +224,11 @@ describe("the joining note", () => {
   it("shows it once, on the first screen only", () => {
     state.joining = { data: { note: NOTE, from: "Dana" }, isPending: false };
     mount(<MemberOrientation />);
-    expect(screen.getByText(NOTE)).toBeTruthy();
+    expect(screen.getByText(NOTE)).toBeInstanceOf(Element);
 
     fireEvent.click(screen.getByText("Next"));
 
-    expect(screen.getByText("You answer as the business")).toBeTruthy();
+    expect(screen.getByText("You answer as the business")).toBeInstanceOf(Element);
     expect(screen.queryByText(NOTE)).toBeNull();
   });
 

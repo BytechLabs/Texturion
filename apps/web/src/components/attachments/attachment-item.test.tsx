@@ -109,7 +109,7 @@ describe("AttachmentItem image row", () => {
     fireEvent.load(container.querySelector("img")!);
 
     fireEvent.click(screen.getByRole("button", { name: "Open site.jpg" }));
-    await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
+    await waitFor(() => expect(screen.getByRole("dialog")).toBeInstanceOf(Element));
     await new Promise((resolve) => setTimeout(resolve, 40));
 
     expect(batches()).toHaveLength(1);
@@ -149,7 +149,7 @@ describe("AttachmentItem file row", () => {
 
     expect(prevented).toBe(true);
     await waitFor(() => expect(tab.close).toHaveBeenCalled());
-    expect(await screen.findByText("This file was reported and is on hold.")).toBeTruthy();
+    expect(await screen.findByText("This file was reported and is on hold.")).toBeInstanceOf(Element);
     expect(batches()).toEqual([
       { items: [{ id: "quote", variant: "original" }] },
       { items: [{ id: "quote", variant: "original" }] },

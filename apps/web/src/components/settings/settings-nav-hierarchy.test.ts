@@ -14,8 +14,8 @@ describe("#731 settings navigation hierarchy", () => {
   it("headings and links differ in colour", () => {
     const heading = token(GROUP_HEADING_CLASS, /^text-(app-|muted|foreground)/);
     const link = token(NAV_LINK_CLASS, /^text-(app-|muted|foreground)/);
-    expect(heading).toBeTruthy();
-    expect(link).toBeTruthy();
+    expect(Boolean(heading)).toBe(true);
+    expect(Boolean(link)).toBe(true);
     expect(heading).not.toBe(link);
   });
 

@@ -62,14 +62,14 @@ const countsWanted = () => useSavedViewCounts.mock.lastCall?.[2];
 describe("#711 SavedViewsMenu", () => {
   it("SV-1: filters that match no view can be saved", () => {
     open();
-    expect(screen.getByRole("menuitem", { name: "Save these filters as a view…" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Save these filters as a view…" })).toBeInstanceOf(Element);
   });
 
   it("SV-2: filters that are already a view are not saved twice", () => {
     rows.current = [{ id: "v1", name: "Quote sent", shared: false, filters: { id: "v1" } }];
     open({ current: "v1" });
     expect(screen.queryByRole("menuitem", { name: "Save these filters as a view…" })).toBeNull();
-    expect(screen.getByRole("menuitem", { name: "Manage views" })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: "Manage views" })).toBeInstanceOf(Element);
   });
 
   it("SV-3: nothing filtered means nothing to save", () => {
@@ -112,7 +112,7 @@ describe("#711 SavedViewsMenu", () => {
   it("SV-8: an open menu asks for the badges", () => {
     rows.current = [{ id: "v1", name: "Quote sent", shared: false, filters: { id: "v1" } }];
     open();
-    expect(screen.getByRole("menuitem", { name: /Quote sent/ })).toBeTruthy();
+    expect(screen.getByRole("menuitem", { name: /Quote sent/ })).toBeInstanceOf(Element);
     expect(countsWanted()).toBe(true);
   });
 });

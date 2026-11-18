@@ -257,7 +257,7 @@ describe("#317 scanAttachment — the boundaries", () => {
     ];
     for (const result of results) {
       expect(result.verdict).not.toBe("clean");
-      expect(result.reason, JSON.stringify(result)).toBeTruthy();
+      expect(Boolean(result.reason), JSON.stringify(result)).toBe(true);
       expect(result.message!.length).toBeGreaterThan(30);
     }
   });

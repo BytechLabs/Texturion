@@ -75,7 +75,7 @@ describe("#304 exporting a period's usage", () => {
     // they do not hold — would hide it from them.
     role.current = "bookkeeper";
     render(<ExportUsage />);
-    expect(screen.getByText(say(EXPORT_USAGE_ACTION))).toBeTruthy();
+    expect(screen.getByText(say(EXPORT_USAGE_ACTION))).toBeInstanceOf(Element);
   });
 
   it("EU-3: opens with last month filled in, not empty", () => {

@@ -888,7 +888,7 @@ describe("payment.updated", () => {
         payload: { amount_cents: 25_000, currency: "usd" },
         created_at: "2026-08-11T10:00:00Z",
       };
-      expect(eventSentence(event, () => null), type).toBeTruthy();
+      expect(Boolean(eventSentence(event, () => null)), type).toBe(true);
     }
   });
 

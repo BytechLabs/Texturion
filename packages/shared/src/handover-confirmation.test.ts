@@ -67,9 +67,9 @@ describe("which prompt to show (#537)", () => {
       const kind = handoverConfirmationKind(code);
       expect(kind, `${code} maps to no kind`).not.toBeNull();
       expect(
-        HANDOVER_CONFIRM_WHERE[kind!],
+        Boolean(HANDOVER_CONFIRM_WHERE[kind!]),
         `${kind} has no sentence telling the reader where to find the code`,
-      ).toBeTruthy();
+      ).toBe(true);
     }
   });
 

@@ -154,7 +154,7 @@ describe("#307 the caller meets the LINE's identity", () => {
     const numberRead = routes.calls.find((call) =>
       call.url.pathname.includes("/phone_numbers"),
     );
-    expect(numberRead, "the number row was never read").toBeTruthy();
+    expect(Boolean(numberRead), "the number row was never read").toBe(true);
     const select = numberRead!.url.searchParams.get("select") ?? "";
     expect(select).toContain("label");
     expect(select).toContain("voicemail_greeting");

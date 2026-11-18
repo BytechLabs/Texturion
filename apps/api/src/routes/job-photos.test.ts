@@ -180,7 +180,7 @@ describe("minting a link (#294)", () => {
     });
     // An expiry is never null. A link nobody remembers is the failure D75 exists
     // to prevent, and it cannot be represented.
-    expect(mint.p_expires_at).toBeTruthy();
+    expect(Boolean(mint.p_expires_at)).toBe(true);
     // #294: the moment a record of the inside of somebody's home became reachable
     // without a login.
     expect(

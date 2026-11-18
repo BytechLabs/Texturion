@@ -37,7 +37,7 @@ describe("#323 the do-not-build table parses", () => {
     // A refusal with no decision behind it is an opinion, and somebody will
     // rightly overrule it.
     for (const { phrase, decidedBy } of refusals) {
-      expect(decidedBy, `"${phrase}" names no decision`).toBeTruthy();
+      expect(Boolean(decidedBy), `"${phrase}" names no decision`).toBe(true);
     }
   });
 

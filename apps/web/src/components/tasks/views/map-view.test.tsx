@@ -53,8 +53,8 @@ describe("Map view empty states (#752)", () => {
   it("says none has an address when tasks exist", () => {
     answer(page([]), page([{ id: "a" }]));
     render(<MapView state={state} />);
-    expect(screen.getByText(EN.tasks.mapNoMappedAddress)).toBeTruthy();
-    expect(screen.getByText(EN.tasks.mapAddAddressHow)).toBeTruthy();
+    expect(screen.getByText(EN.tasks.mapNoMappedAddress)).toBeInstanceOf(Element);
+    expect(screen.getByText(EN.tasks.mapAddAddressHow)).toBeInstanceOf(Element);
     expect(screen.queryByText(EN.tasks.emptyTitle)).toBeNull();
   });
 
@@ -71,7 +71,7 @@ describe("Map view empty states (#752)", () => {
   it("falls back to the plain empty state only when there are no tasks at all", () => {
     answer(page([]), page([]));
     render(<MapView state={state} />);
-    expect(screen.getByText(EN.tasks.emptyTitle)).toBeTruthy();
+    expect(screen.getByText(EN.tasks.emptyTitle)).toBeInstanceOf(Element);
   });
 
   it("shows no empty state while the probe is still loading", () => {

@@ -113,12 +113,12 @@ describe("Board columns (D25)", () => {
 
     expect(tasksRequests("done").map((query) => query.limit)).toEqual([100]);
     expect(tasksRequests("open").map((query) => query.limit)).toEqual([100]);
-    expect(screen.getByRole("region", { name: doneColumn("100+") })).toBeTruthy();
+    expect(screen.getByRole("region", { name: doneColumn("100+") })).toBeInstanceOf(Element);
     expect(screen.queryByText("done job 100")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.loadMore }));
     await screen.findByText("done job 100", undefined, SLOW);
-    expect(screen.getByRole("region", { name: doneColumn("101") })).toBeTruthy();
+    expect(screen.getByRole("region", { name: doneColumn("101") })).toBeInstanceOf(Element);
     expect(screen.queryByRole("button", { name: EN.tasks.loadMore })).toBeNull();
   });
 

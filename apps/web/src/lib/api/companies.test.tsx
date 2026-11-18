@@ -117,7 +117,7 @@ describe("useCompany", () => {
         </MfaGate>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText("enter your code")).toBeTruthy();
+    expect(await screen.findByText("enter your code")).toBeInstanceOf(Element);
     expect(screen.queryByText("the shell")).toBeNull();
     expect(calls()).toEqual([`/v1/me@${COMPANY}`, `/v1/company@${COMPANY}`]);
   });

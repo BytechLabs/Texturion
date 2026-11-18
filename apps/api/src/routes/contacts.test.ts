@@ -1156,7 +1156,7 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
     // SPEC §7/D10: base64url of the full (ts, id) sort key, not a raw
     // timestamp. A raw timestamptz carries a `+`, which URLComponents does not
     // escape and Hono decodes as a space — a 422 on every iOS "Show earlier".
-    expect(body.next_cursor).toBeTruthy();
+    expect(Boolean(body.next_cursor)).toBe(true);
     expect(body.next_cursor).not.toContain("+");
     expect(body.next_cursor).not.toContain(":");
     expect(decodeCursor(body.next_cursor as string)).toEqual({

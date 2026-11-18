@@ -248,7 +248,7 @@ describe("the app probe", () => {
     const { marker } = await probe.seedUsage({ tenant: "QA-W", type: "sms", quantity: 5 });
     const row = JSON.parse(requests.find((r) => r.method === "POST")!.body!);
     expect(row).toMatchObject({ company_id: COMPANY, type: "sms", quantity: 5, meter_identifier: marker });
-    expect(row.stripe_reported_at).toBeTruthy();
+    expect(Boolean(row.stripe_reported_at)).toBe(true);
     await probe.clearSeededUsage(marker);
     expect(requests.filter((r) => r.method === "DELETE").map((r) => decodeURIComponent(r.url.slice(`${SUPABASE}/rest/v1/`.length)))).toEqual([
       `usage_events?meter_identifier=eq.${marker}`,

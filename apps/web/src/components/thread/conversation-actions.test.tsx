@@ -75,7 +75,7 @@ describe("conversation snooze and follow-up submenus", () => {
       </RecordContextMenu>,
     );
     fireEvent.contextMenu(screen.getByTestId("row"));
-    expect(screen.getByRole("menu")).toBeTruthy();
+    expect(screen.getByRole("menu")).toBeInstanceOf(Element);
     expect(snoozePresets).not.toHaveBeenCalled();
     expect(followUpPresets).not.toHaveBeenCalled();
   });

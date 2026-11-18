@@ -46,14 +46,14 @@ function renderDialog(ids: string[], onDeleted = vi.fn()) {
 describe("DeleteConversationsDialog (#691)", () => {
   it("puts the count in the question and states what stays", () => {
     renderDialog(["a", "b", "c"]);
-    expect(screen.getByText("Delete 3 conversations?")).toBeTruthy();
-    expect(screen.getByText(/stay on the customer's phone/)).toBeTruthy();
-    expect(screen.getByText(/STOP/)).toBeTruthy();
+    expect(screen.getByText("Delete 3 conversations?")).toBeInstanceOf(Element);
+    expect(screen.getByText(/stay on the customer's phone/)).toBeInstanceOf(Element);
+    expect(screen.getByText(/STOP/)).toBeInstanceOf(Element);
   });
 
   it("asks about one conversation in the singular", () => {
     renderDialog(["a"]);
-    expect(screen.getByText("Delete this conversation?")).toBeTruthy();
+    expect(screen.getByText("Delete this conversation?")).toBeInstanceOf(Element);
   });
 
   it("builds the undo from what the server deleted, not from the selection", () => {

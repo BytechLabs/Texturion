@@ -123,7 +123,7 @@ describe("the D49 ladder", () => {
         phoneE164: phone,
         atUtc: new Date("2026-07-27T01:00:00Z"),
       });
-      expect(clock.timezone).toBeTruthy();
+      expect(Boolean(clock.timezone)).toBe(true);
       expect(clock.localHour).toBeGreaterThanOrEqual(0);
       expect(clock.localHour).toBeLessThanOrEqual(23);
     }

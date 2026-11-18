@@ -106,7 +106,7 @@ describe("every AI feature is publicly disclosed", () => {
     // into FRENCH is asserted in packages/shared/src/ai-disclosure.test.ts,
     // which can read the web catalogue; this package does not import it.
     const row = AI_DISCLOSURES.find((entry) => entry.key === "thread_summary");
-    expect(row, "the catch-up disclosure is missing").toBeTruthy();
+    expect(Boolean(row), "the catch-up disclosure is missing").toBe(true);
     const sends = catalogueSentence(row!.sends);
     expect(sends).toContain(String(THREAD_SUMMARY_CONTEXT_MESSAGES));
     // And it must say what does NOT leave. Notes are excluded by the route's

@@ -77,11 +77,11 @@ function typeTitle(value: string) {
 describe("#689 New task", () => {
   it("asks for a title and hides everything else under More", () => {
     openWith();
-    expect(screen.getByLabelText("What needs doing?")).toBeTruthy();
+    expect(screen.getByLabelText("What needs doing?")).toBeInstanceOf(Element);
     expect(screen.queryByLabelText("Assignee")).toBeNull();
     expect(screen.queryByLabelText("Due")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "More" }));
-    expect(screen.getByLabelText("Due")).toBeTruthy();
+    expect(screen.getByLabelText("Due")).toBeInstanceOf(Element);
     expect((screen.getByLabelText("Due") as HTMLInputElement).value).toBe("");
   });
 
@@ -128,7 +128,7 @@ describe("#689 New task", () => {
 
   it("links a contact when opened from a contact", async () => {
     openWith({ contactId: "c1", contactName: "Pat Plumber" });
-    expect(screen.getByText("For Pat Plumber")).toBeTruthy();
+    expect(screen.getByText("For Pat Plumber")).toBeInstanceOf(Element);
     typeTitle("Quote the boiler");
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
@@ -175,7 +175,7 @@ describe("#689 New task", () => {
     typeTitle("Monthly filter");
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     fireEvent.click(screen.getByLabelText("Repeat"));
-    expect(await screen.findByText(/needs a due date/)).toBeTruthy();
+    expect(await screen.findByText(/needs a due date/)).toBeInstanceOf(Element);
     expect(
       (screen.getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled,
     ).toBe(true);

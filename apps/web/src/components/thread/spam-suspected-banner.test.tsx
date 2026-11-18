@@ -74,21 +74,21 @@ describe("SpamSuspectedBanner", () => {
 
   it("says why, in the server's own sentences", () => {
     render(<SpamSuspectedBanner conversation={SUSPECTED} canAct />);
-    expect(screen.getByText("This looks like spam")).toBeTruthy();
+    expect(screen.getByText("This looks like spam")).toBeInstanceOf(Element);
     // A verdict somebody cannot check is one they learn to dismiss.
     expect(
       screen.getByText(/shortcode or a name, not a phone somebody could call back/),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     expect(
       screen.getByText(/unsubscribe footer a bulk sender is required to add/),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("promises that nothing was hidden", () => {
     // The load-bearing sentence. If a crew believes a suspected thread might
     // be hidden somewhere, the feature has cost them trust it never earned.
     render(<SpamSuspectedBanner conversation={SUSPECTED} canAct />);
-    expect(screen.getByText(/Nothing is hidden/)).toBeTruthy();
+    expect(screen.getByText(/Nothing is hidden/)).toBeInstanceOf(Element);
   });
 
   it("clears the suspicion in one tap, and only ever to false", () => {
@@ -103,7 +103,7 @@ describe("SpamSuspectedBanner", () => {
     // read_only cannot PATCH the thread, so offering the button would be a
     // control that always fails. The explanation is still theirs to read.
     render(<SpamSuspectedBanner conversation={SUSPECTED} canAct={false} />);
-    expect(screen.getByText("This looks like spam")).toBeTruthy();
+    expect(screen.getByText("This looks like spam")).toBeInstanceOf(Element);
     expect(screen.queryByRole("button", { name: "Not spam" })).toBeNull();
   });
 
@@ -116,6 +116,6 @@ describe("SpamSuspectedBanner", () => {
         canAct
       />,
     );
-    expect(screen.getByText("This looks like spam")).toBeTruthy();
+    expect(screen.getByText("This looks like spam")).toBeInstanceOf(Element);
   });
 });

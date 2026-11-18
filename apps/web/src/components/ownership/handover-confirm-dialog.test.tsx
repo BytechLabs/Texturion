@@ -122,7 +122,7 @@ describe("when the code came back refused", () => {
       />,
     );
 
-    expect(screen.getByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toBeTruthy();
+    expect(screen.getByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toBeInstanceOf(Element);
     expect(field().value).toBe("");
     expect(confirmButton().disabled).toBe(true);
   });
@@ -134,7 +134,7 @@ describe("what can be resent", () => {
     // button would imply we could send them one. Same for the stale-factor demand,
     // which reads identically on screen and is answered the same way.
     open({ kind: "email" });
-    expect(screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_RESEND) })).toBeTruthy();
+    expect(screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_RESEND) })).toBeInstanceOf(Element);
     cleanup();
 
     for (const kind of ["authenticator", "reprove"] as const) {

@@ -370,7 +370,7 @@ describe("#228 the emergency screen in French", () => {
     // sentence, still shipped, and wrong in the half nobody reads twice.
     for (const say of [sayEn, sayFr]) {
       const carrier = emergencyKeywordError("STOP", say);
-      expect(carrier).toBeTruthy();
+      expect(Boolean(carrier)).toBe(true);
       expect(carrier).toContain("STOP");
       expect(carrier, "a variable survived the fill").not.toMatch(/\{word\}/);
     }

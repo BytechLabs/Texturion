@@ -141,7 +141,7 @@ describe("#287 chasing an unanswered quote", () => {
     chase();
 
     expect(screen.queryByRole("button", { name: "Chase" })).toBeNull();
-    expect(screen.getByText("Chasing")).toBeTruthy();
+    expect(screen.getByText("Chasing")).toBeInstanceOf(Element);
   });
 
   it("puts the button back when the schedule did not take", () => {
@@ -153,7 +153,7 @@ describe("#287 chasing an unanswered quote", () => {
     render(<OutstandingQuotesSection />);
     chase();
 
-    expect(screen.getByRole("button", { name: "Chase" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Chase" })).toBeInstanceOf(Element);
   });
 
   it("does not offer it to somebody who cannot write on a thread", () => {
@@ -165,7 +165,7 @@ describe("#287 chasing an unanswered quote", () => {
     render(<OutstandingQuotesSection />);
 
     expect(screen.queryByRole("button", { name: "Chase" })).toBeNull();
-    expect(screen.getByText("Replace the water heater")).toBeTruthy();
+    expect(screen.getByText("Replace the water heater")).toBeInstanceOf(Element);
     role = "owner";
   });
 });
