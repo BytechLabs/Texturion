@@ -23,7 +23,7 @@
 import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { listConversationViewers } from "../auth/conversation-audience";
+import { canTextConversation, listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import {
@@ -130,6 +130,7 @@ async function notifyCallActivity(
     phoneNumberId: conversation.phone_number_id,
   });
   const members = viewers.map((row) => row.user_id);
+  const writers = new Set(viewers.filter(canTextConversation).map(({ user_id }) => user_id));
   const assigned =
     conversation.assigned_user_id !== null &&
     members.includes(conversation.assigned_user_id)
@@ -224,6 +225,11 @@ async function notifyCallActivity(
       kind: input.kind,
       ...alert(locale),
     }),
+    nativeAction: (userId) => !voicemail && writers.has(userId) ? {
+      kind: "missed_call",
+      conversationId: input.conversationId,
+      callbackNumber: input.callerE164,
+    } : undefined,
     collapseKey: `conversation:${input.conversationId}`,
     failures,
   } satisfies PushDelivery;

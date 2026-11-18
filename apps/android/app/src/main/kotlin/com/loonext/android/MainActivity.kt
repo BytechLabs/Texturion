@@ -125,6 +125,7 @@ import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.features.thread.ThreadScreen
 import com.loonext.android.features.thread.canAddLeadSource
 import com.loonext.android.push.APP_ORIGIN
+import com.loonext.android.push.CALLBACK_PATTERN
 import com.loonext.android.push.PushHooks
 import com.loonext.android.push.clearConversationNotifications
 import com.loonext.android.telephony.SoftphoneManager
@@ -190,7 +191,7 @@ sealed interface DeepLink {
      * #183 part 3 (Connected Apps): "Call with Loonext" on a system-Contacts
      * contact — open the dialer prefilled with [number] on the Calls tab.
      */
-    data class Dial(val number: String) : DeepLink
+    data class Dial(val number: String, val companyId: String? = null, val userId: String? = null) : DeepLink
 
     /**
      * #183 part 3 (Connected Apps): "Text with Loonext" on a system-Contacts
@@ -312,6 +313,16 @@ private fun parseDeepLink(uri: Uri?): DeepLink? {
     // for a query parameter throws, and an app link is always hierarchical, so
     // there is nothing here to read anyway.
     if (uri.isOpaque) return null
+    if (uri.pathSegments == listOf("calls")) {
+        val number = uri.getQueryParameter("dial")
+        val company = uri.getQueryParameter("workspace")
+        val member = uri.getQueryParameter("member")
+        if (number != null && CALLBACK_PATTERN.matches(number) &&
+            !company.isNullOrBlank() && !member.isNullOrBlank()
+        ) {
+            return DeepLink.Dial(number, company, member)
+        }
+    }
     return deepLinkFor(
         uri.pathSegments,
         taskParam = uri.getQueryParameter("task"),
@@ -761,7 +772,13 @@ private fun ReadyShell(
                 // #183 part 3: "Call with Loonext" — land on the Calls tab and
                 // hand the number to CallsScreen via the pendingDial bus, which
                 // opens the dialer prefilled.
-                is DeepLink.Dial -> openDialer(link.number)
+                is DeepLink.Dial -> {
+                    if ((link.companyId == null || link.companyId == companyId) &&
+                        (link.userId == null || link.userId == me.user_id)
+                    ) {
+                        openDialer(link.number)
+                    }
+                }
 
                 // #183 part 3: "Text with Loonext" — open the composer seeded
                 // with the number.

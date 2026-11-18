@@ -396,8 +396,12 @@ describe("sendFcm — iOS aps payload", () => {
       { platform: "ios", token: "ios-tok", actionScope: scope },
       JSON.stringify(payload),
     );
+    await sendFcm(fcmEnv(account), {
+      platform: "ios", token: "ios-tok", actionScope: scope, badge: 2,
+      threadAction: { ...scope, kind: "missed_call", conversationId: "thread-1", callbackNumber: "+16135551000" },
+    }, page);
 
-    const [ios, android, ordinary] = service.sends.map((send) => send.message);
+    const [ios, android, ordinary, combined] = service.sends.map((send) => send.message);
     expect(ios.apns).toMatchObject({ payload: { aps: { category: "ON_CALL_ALERT_FR", badge: 2 } } });
     for (const device of [ios, android]) {
       expect(device.data).toMatchObject({
@@ -410,6 +414,45 @@ describe("sendFcm — iOS aps payload", () => {
     expect(android).not.toHaveProperty("notification");
     expect(ordinary.data).not.toHaveProperty("action_user_id");
     expect(ordinary.apns).not.toHaveProperty("payload.aps.category");
+    expect(combined.data).toMatchObject({ alert_id: "alert-1", thread_action: "missed_call" });
+    expect(combined.apns).toMatchObject({ payload: { aps: { category: "ON_CALL_MISSED_CALL_FR", badge: 2 } } });
+  });
+
+  it("marks messages as actionable only for the recipient and its native locale", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    stubFetch(...service.routes);
+    const target = {
+      platform: "ios",
+      token: "ios-tok",
+      threadAction: {
+        kind: "message",
+        companyId: "company-1",
+        userId: "member-1",
+        conversationId: "thread-1",
+        messageId: "message-1",
+        sender: "Dana",
+        locale: "fr-CA",
+        canReply: true,
+      },
+    } as const;
+    await sendFcm(fcmEnv(account), target, MESSAGE_PAYLOAD);
+    await sendFcm(fcmEnv(account), {
+      ...target, threadAction: { ...target.threadAction, canReply: false },
+    }, MESSAGE_PAYLOAD);
+    expect(service.sends[0].message.data).toMatchObject({
+      action_company_id: "company-1",
+      action_user_id: "member-1",
+      action_conversation_id: "thread-1",
+      action_message_id: "message-1",
+      action_sender: "Dana",
+      can_reply: "true",
+    });
+    expect(service.sends[0].message.apns).toMatchObject({ payload: { aps: { category: "MESSAGE_FR" } } });
+    expect(service.sends[1].message.data).toMatchObject({ can_reply: "false" });
+    expect(service.sends[1].message.apns).toMatchObject({
+      payload: { aps: { category: "MESSAGE_READ_ONLY_FR" } },
+    });
   });
 
   it("thread-id is the bounded apns-collapse-id, and absent without one", async () => {

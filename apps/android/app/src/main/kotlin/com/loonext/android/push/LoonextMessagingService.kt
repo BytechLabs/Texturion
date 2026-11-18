@@ -195,6 +195,7 @@ fun postPushNotification(context: Context, content: PushContent, onlyAlertOnce: 
         .setOnlyAlertOnce(onlyAlertOnce)
 
     content.onCallAction?.addTo(builder, context, content.tag)
+    content.threadActions?.addTo(context, builder, content, pending)
 
     if (content.isCall) {
         builder

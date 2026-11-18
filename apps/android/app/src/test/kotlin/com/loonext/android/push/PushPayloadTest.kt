@@ -30,6 +30,29 @@ class PushPayloadTest {
         )
         assertNull(parsePush(data - "action_user_id").onCallAction)
         assertNull(parsePush(data + ("alert_id" to "1-1-1-1-1")).onCallAction)
+
+        val missedCall = parsePush(data + mapOf(
+            "thread_action" to "missed_call",
+            "action_conversation_id" to "dddddddd-1111-2222-3333-444455556666",
+            "action_callback_number" to "+16135551000",
+        ))
+        assertEquals(parsePush(data).onCallAction, missedCall.onCallAction)
+        assertEquals("+16135551000", (missedCall.threadActions as ThreadPushActions.MissedCall).number)
+    }
+
+    @Test
+    fun `reply requires both a scoped message and explicit permission`() {
+        val payload = mapOf(
+            "thread_action" to "message",
+            "action_company_id" to "aaaaaaaa-1111-2222-3333-444455556666",
+            "action_user_id" to "bbbbbbbb-1111-2222-3333-444455556666",
+            "action_conversation_id" to "cccccccc-1111-2222-3333-444455556666",
+            "action_message_id" to "dddddddd-1111-2222-3333-444455556666",
+            "action_sender" to "Dana",
+        )
+        assertFalse((parsePush(payload).threadActions as ThreadPushActions.Message).canReply)
+        assertTrue((parsePush(payload + ("can_reply" to "true")).threadActions as ThreadPushActions.Message).canReply)
+        assertNull(parsePush(payload - "action_user_id").threadActions)
     }
 
     // --- parsePush ---

@@ -273,6 +273,7 @@ enum PushRoute: Equatable, Sendable {
     /// A task with no thread behind it: its own page carries the same panel.
     case task(taskId: String)
     case calls(sessionId: String?, transferId: String? = nil)
+    case callback(number: String, companyId: String, userId: String)
     case settings(section: SettingsSection?)
     case forYou
 }

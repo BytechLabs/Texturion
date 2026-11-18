@@ -26,7 +26,7 @@
 import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import { listConversationViewers } from "../auth/conversation-audience";
+import { canTextConversation, listConversationViewers } from "../auth/conversation-audience";
 import { MAX_EMAIL_RECIPIENTS_PER_CLAIM } from "../billing/plans";
 import { getDb } from "../db";
 import { emailLayout, escapeHtml } from "../email/html";
@@ -51,6 +51,8 @@ export interface InboundNotificationInput {
   body: string;
   /** Count of media items on the inbound message (snippet fallback). */
   mediaCount: number;
+  messageId?: string;
+  optedOut?: boolean;
   /**
    * #343: which channels the daily budget still allows. Push is free at both
    * ends and gets a far higher ceiling, so a workspace that has exhausted its
@@ -229,6 +231,7 @@ export async function notifyInboundMessage(
   // because the fallback to the bare number is what keeps a brand-new lead's
   // alert usable and a private copy of it is a copy that can lose it.
   const contactName = contactDisplayName(conversation.contacts);
+  const writers = new Set(viewers.filter(canTextConversation).map(({ user_id }) => user_id));
   // #228: the email is composed once, in English, because this channel has no
   // reader language to compose in — an address in auth.users is not a person
   // whose `profiles.locale` we have resolved, and #228 types only the push
@@ -353,6 +356,13 @@ export async function notifyInboundMessage(
           kind: "emergency",
         })
       : undefined,
+    nativeAction: (userId) => input.messageId ? {
+      kind: "message",
+      conversationId: input.conversationId,
+      messageId: input.messageId,
+      sender: contactName,
+      canReply: !input.optedOut && writers.has(userId),
+    } : undefined,
     collapseKey: input.emergency
       ? // #414: an emergency must NOT be coalesced away by the ordinary texts
         // that follow it in the same thread. Its own key keeps it on the lock
