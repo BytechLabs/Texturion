@@ -34,6 +34,7 @@ import com.loonext.android.core.model.OutboundMedia
 import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.model.ScheduledMessageEnvelope
+import com.loonext.android.core.model.ScheduledCancellationReceipt
 import com.loonext.android.core.model.ScheduledMessagePage
 import com.loonext.android.core.model.SearchResult
 import com.loonext.android.core.model.Tag
@@ -362,6 +363,7 @@ class MessagingRepository(private val api: ApiClient) {
         body: String,
         sendAtIso: String,
         quietHoursConfirmed: Boolean = false,
+        idempotencyKey: String? = null,
     ): ScheduledMessage = api.post<ScheduledMessageEnvelope, JsonObject>(
         "/v1/scheduled-messages",
         buildJsonObject {
@@ -371,6 +373,7 @@ class MessagingRepository(private val api: ApiClient) {
             if (quietHoursConfirmed) put("quiet_hours_confirmed", true)
         },
         companyId = companyId,
+        idempotencyKey = idempotencyKey,
     ).scheduled_message
 
     /**
@@ -399,6 +402,17 @@ class MessagingRepository(private val api: ApiClient) {
     /** Cancel it. A message that has already gone is a 404, not a success. */
     suspend fun cancelScheduledMessage(companyId: String, id: String) {
         api.delete("/v1/scheduled-messages/$id", companyId = companyId)
+    }
+
+    suspend fun cancelScheduledWithReceipt(companyId: String, id: String): ScheduledCancellationReceipt =
+        api.deleteReturning("/v1/scheduled-messages/$id?undo_receipt=1", companyId)
+
+    suspend fun restoreScheduledMessage(companyId: String, id: String, canceledAt: String) {
+        api.post<JsonObject, JsonObject>(
+            "/v1/scheduled-messages/$id/restore",
+            buildJsonObject { put("canceled_at", canceledAt) },
+            companyId = companyId,
+        )
     }
 
     /** #244: "I have this." Returns the outcome so the caller can name whose. */

@@ -1091,6 +1091,8 @@ POST /v1/messages/send
 
 `POST /v1/scheduled-messages` accepts an optional `Idempotency-Key` up to 255 characters. A retry with the same workspace, member, key, conversation, text and send time returns the existing scheduled message with `200`, even if it was edited or canceled. Reusing the key for different content, time or conversation returns `409`. A new schedule still requires confirmation when the requested time falls in quiet hours.
 
+The scheduled strip lets members with text access expand the message, edit its wording or pick a new time. Rescheduling a held text releases its old claim and counts only later customer replies toward the reply hold. The member who canceled a text can undo that cancellation for five minutes while the original schedule is still valid and queue capacity is available.
+
 ### Notifications (D9)
 
 - **Channels (both MVP):** email via Resend, and **Web Push** (VAPID key pair as Worker secrets; service worker in `apps/web`; payload: contact display name + 80-char snippet + deep link).

@@ -1286,6 +1286,8 @@ private fun ThreadLoaded(
 
         ScheduledStrip(
             rows = controller.scheduled,
+            clock = detail.destination_clock,
+            onUpdate = controller::updateScheduled,
             onCancel = { controller.cancelScheduled(it) },
             modifier = Modifier.padding(bottom = 4.dp),
         )

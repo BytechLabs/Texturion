@@ -77,7 +77,7 @@ const CALENDAR_GUARDS = new Set([
 describe("#722 enforced machines", () => {
   it("scheduled_message: the trigger allows exactly the defined moves", () => {
     const edges = triggerEdges(
-      "20261111240000_scheduled_messages_enforce_their_lifecycle.sql",
+      "20261118004800_restore_canceled_scheduled_message.sql",
       "scheduled_messages_transition_guard",
     );
     expect(edges.size, "the trigger was not found or has no edges").toBeGreaterThan(0);

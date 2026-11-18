@@ -155,9 +155,10 @@ actor ApiClient {
     /// guessing.
     func deleteReturning<T: Decodable & Sendable>(
         _ path: String,
+        query: [String: String?] = [:],
         companyId: String? = nil
     ) async throws -> T {
-        try Self.decode(path, await raw("DELETE", path, companyId: companyId))
+        try Self.decode(path, await raw("DELETE", path, query: query, companyId: companyId))
     }
 
     // MARK: - Core

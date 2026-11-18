@@ -25,7 +25,7 @@ export const scheduledMessageMachine = defineMachine<ScheduledMessageState>({
     pending: ["pending", "held", "sent", "canceled", "expired", "failed"],
     held: ["held", "pending", "sent", "canceled", "expired", "failed"],
     sent: [],
-    canceled: [],
+    canceled: ["pending", "held"],
     expired: [],
     failed: [],
   },

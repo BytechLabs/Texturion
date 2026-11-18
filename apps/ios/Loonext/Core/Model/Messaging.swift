@@ -527,6 +527,10 @@ struct ScheduledMessageEnvelope: Codable, Sendable {
     let scheduled_message: ScheduledMessage
 }
 
+struct ScheduledCancellationReceipt: Decodable, Sendable {
+    let canceled_at: String
+}
+
 struct ConversationEvent: Codable, Sendable {
     let id: String
     let conversation_id: String

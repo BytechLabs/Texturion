@@ -564,6 +564,9 @@ data class ScheduledMessagePage(val scheduled_messages: List<ScheduledMessage> =
 data class ScheduledMessageEnvelope(val scheduled_message: ScheduledMessage)
 
 @Serializable
+data class ScheduledCancellationReceipt(val canceled_at: String)
+
+@Serializable
 data class ConversationEvent(
     val id: String,
     val conversation_id: String,

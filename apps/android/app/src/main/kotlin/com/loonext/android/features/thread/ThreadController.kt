@@ -199,6 +199,9 @@ class ThreadController(
     var scheduled by mutableStateOf<List<ScheduledMessage>>(emptyList())
         private set
 
+    private data class ScheduleAttempt(val body: String, val sendAt: String, val key: String)
+    private var scheduleAttempt: ScheduleAttempt? = null
+
     private val outbox = outboxCoordinator.store
     var members by mutableStateOf<List<Member>>(emptyList())
         private set
@@ -459,29 +462,44 @@ class ThreadController(
         body: String,
         sendAtIso: String,
         quietHoursConfirmed: Boolean,
+    ): ScheduleOutcome {
+        val attempt = scheduleAttempt?.takeIf { it.body == body && it.sendAt == sendAtIso }
+            ?: ScheduleAttempt(body, sendAtIso, UUID.randomUUID().toString()).also { scheduleAttempt = it }
+        try {
+            repo.scheduleMessage(companyId, conversationId, body, sendAtIso, quietHoursConfirmed, attempt.key)
+        } catch (cause: ApiDecodeException) {
+            // A decode failure follows a successful write.
+        } catch (cause: Exception) {
+            return if ((cause as? ApiException)?.code == ApiErrorCode.QUIET_HOURS_CONFIRMATION_REQUIRED) {
+                ScheduleOutcome.NeedsQuietHoursConfirm
+            } else {
+                notify(cause.userMessageForReader())
+                ScheduleOutcome.Failed
+            }
+        }
+        if (scheduleAttempt == attempt) scheduleAttempt = null
+        runCatching { refreshScheduled() }
+        return ScheduleOutcome.Scheduled
+    }
+
+    suspend fun updateScheduled(
+        id: String,
+        body: String?,
+        sendAtIso: String?,
+        quietHoursConfirmed: Boolean,
     ): ScheduleOutcome = try {
-        repo.scheduleMessage(
-            companyId,
-            conversationId,
-            body,
-            sendAtIso,
-            quietHoursConfirmed,
-        )
-        refreshScheduled()
+        repo.rescheduleMessage(companyId, id, sendAtIso, body, quietHoursConfirmed)
+        runCatching { refreshScheduled() }
         ScheduleOutcome.Scheduled
     } catch (cause: ApiDecodeException) {
-        // The row EXISTS — only our model of it disagreed. Treating this as a
-        // failure would leave a queued text on screen as an error and invite
-        // somebody to schedule a second one.
         runCatching { refreshScheduled() }
         ScheduleOutcome.Scheduled
     } catch (cause: Exception) {
-        if ((cause as? ApiException)?.code
-            == ApiErrorCode.QUIET_HOURS_CONFIRMATION_REQUIRED
-        ) {
+        if ((cause as? ApiException)?.code == ApiErrorCode.QUIET_HOURS_CONFIRMATION_REQUIRED) {
             ScheduleOutcome.NeedsQuietHoursConfirm
         } else {
-            notify(cause.userMessageForReader())
+            runCatching { refreshScheduled() }
+            notify(say("thread.scheduledUpdateFailed"))
             ScheduleOutcome.Failed
         }
     }
@@ -498,8 +516,10 @@ class ThreadController(
         scheduled = before.filterNot { it.id == id }
         scope.launch {
             try {
-                repo.cancelScheduledMessage(companyId, id)
-                notify(ScheduledSend.copy("canceled_confirmation"))
+                val receipt = repo.cancelScheduledWithReceipt(companyId, id)
+                notify(ScheduledSend.copy("canceled_confirmation"), actionLabel = say("thread.undo")) {
+                    restoreScheduled(id, receipt.canceled_at)
+                }
                 runCatching { refreshScheduled() }
             } catch (cause: Exception) {
                 // It is still queued. Putting it back is the only honest state:
@@ -508,6 +528,17 @@ class ThreadController(
                 scheduled = before
                 notify(cause.userMessageForReader())
             }
+        }
+    }
+
+    private fun restoreScheduled(id: String, canceledAt: String) {
+        scope.launch {
+            try {
+                repo.restoreScheduledMessage(companyId, id, canceledAt)
+            } catch (cause: Exception) {
+                notify(say("thread.scheduledRestoreFailed"))
+            }
+            runCatching { refreshScheduled() }
         }
     }
 

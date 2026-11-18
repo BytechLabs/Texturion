@@ -744,4 +744,35 @@ begin
 end $$;
 
 reset role;
+
+do $$
+declare
+  v_company constant uuid := '5d000000-0000-4000-8000-0000000000c2';
+  v_conversation constant uuid := '5d000000-0000-4000-8000-0000000000e2';
+  v_user constant uuid := '5d000000-0000-4000-8000-00000000000a';
+  v_id uuid;
+  v_receipt timestamptz;
+begin
+  v_id := (public.api_schedule_message(v_company, v_conversation, v_user, 'Undo cancellation',
+    now() + interval '3 hours', 'America/New_York', 'area_code', now() + interval '1 day')
+      #>> '{scheduled_message,id}')::uuid;
+  v_receipt := (public.api_cancel_scheduled_message(v_id, v_company, v_user)
+    #>> '{scheduled_message,canceled_at}')::timestamptz;
+
+  if public.api_restore_scheduled_message(v_id, v_company, v_user, v_receipt - interval '1 second')
+     or public.api_restore_scheduled_message(v_id, v_company, gen_random_uuid(), v_receipt) then
+    raise exception 'SM-undo: stale receipts and other members must not restore a canceled text';
+  end if;
+  if not public.api_restore_scheduled_message(v_id, v_company, v_user, v_receipt) then
+    raise exception 'SM-undo: the matching receipt was refused';
+  end if;
+  if not exists (select 1 from public.scheduled_messages
+                  where id = v_id and status = 'pending' and canceled_at is null) then
+    raise exception 'SM-undo: the matching receipt must restore the original text';
+  end if;
+  if public.api_restore_scheduled_message(v_id, v_company, v_user, v_receipt) then
+    raise exception 'SM-undo: restoring the same cancellation twice must have no effect';
+  end if;
+end $$;
+
 rollback;

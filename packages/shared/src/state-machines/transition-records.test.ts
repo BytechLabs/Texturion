@@ -28,6 +28,7 @@ import { ALL_MACHINES } from "./index";
 const ROOT = join(__dirname, "..", "..", "..", "..");
 const MIGRATIONS = join(ROOT, "supabase", "migrations");
 const CAPTURE_MIGRATION = "supabase/migrations/20261111420000_every_state_transition_is_recorded.sql";
+const SCHEDULE_UNDO_MIGRATION = join(MIGRATIONS, "20261118004800_restore_canceled_scheduled_message.sql");
 const ACTIVITY_MIGRATION = join(MIGRATIONS, "20261111230000_one_activity_for_every_record.sql");
 
 type Activity =
@@ -198,13 +199,13 @@ describe("every machine's transitions are recorded (#722 phase 4)", () => {
   });
 
   it("keeps the generated edge list equal to the definitions", () => {
-    const body = /from \(values([\s\S]*?)\) e\(machine, from_state, to_state\)/.exec(migration);
-    expect(body, "the edge list is missing from the migration").not.toBeNull();
-    const inMigration = new Set(
-      [...body![1].matchAll(/\('(\w+)', (null::text|'[\w-]+'), '([\w-]+)'\)/g)].map(
+    const inMigration = new Set([migration, readFileSync(SCHEDULE_UNDO_MIGRATION, "utf8")].flatMap((sql) => {
+      const body = /from \(values([\s\S]*?)\) e\(machine, from_state, to_state\)/.exec(sql);
+      expect(body, "the edge list is missing from the migration").not.toBeNull();
+      return [...body![1].matchAll(/\('(\w+)', (null::text|'[\w-]+'), '([\w-]+)'\)/g)].map(
         (m) => `${m[1]}|${m[2] === "null::text" ? "" : m[2].slice(1, -1)}|${m[3]}`,
-      ),
-    );
+      );
+    }));
     const fromDefinitions = new Set<string>();
     for (const machine of ALL_MACHINES) {
       for (const to of machine.initial) fromDefinitions.add(`${machine.id}||${to}`);

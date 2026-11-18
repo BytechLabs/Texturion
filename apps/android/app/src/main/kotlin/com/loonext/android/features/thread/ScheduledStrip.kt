@@ -3,7 +3,9 @@ package com.loonext.android.features.thread
 import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -12,13 +14,22 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.WarningAmber
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -29,13 +40,27 @@ import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.time.TwoClocks
 import com.loonext.android.core.model.allows
+import com.loonext.android.core.model.DestinationClock
 import com.loonext.android.core.model.ScheduledMessage
 import com.loonext.android.core.scheduled.ScheduledSend
 import com.loonext.android.features.compose.NoteAmber
+import com.loonext.android.features.compose.QuietHoursScheduleDialog
+import com.loonext.android.features.compose.ScheduleOutcome
+import com.loonext.android.features.compose.SendLaterPicker
 import com.loonext.android.features.compose.sendAtLabel
+import com.loonext.android.ui.common.ActionGroup
+import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.RecordAction
+import com.loonext.android.ui.common.RecordMenu
 import com.loonext.android.ui.common.rememberHaptics
 import java.time.Instant
 import java.time.ZoneId
+import kotlinx.coroutines.launch
+
+private val scheduledActions = listOf(
+    RecordAction("edit", "thread.scheduledEditText", ActionGroup.STATE),
+    RecordAction("change_time", "thread.scheduledChangeTime", ActionGroup.STATE),
+)
 
 /**
  * #233 — what this thread is about to say, before it says it.
@@ -47,23 +72,21 @@ import java.time.ZoneId
  *   one. Putting it in the transcript would mean a reader has to check a badge
  *   before believing that anything above the fold was actually sent, which is
  *   the failure the separate table exists to prevent.
- * - **Zen of Clarity.** One line each, and the strip disappears entirely when
- *   nothing is queued — which is almost always. A permanently-present empty
- *   panel would cost every reader attention to tell them nothing.
+ * - A row opens to show the full text. The strip hides when the queue is empty.
  * - **Disclosure is the point.** A held message says WHY in the API's own
  *   words, in the amber this product already uses for "needs a human".
  *   `docs/DECISIONS.md` makes that binding: silent disappearance is the one
  *   unacceptable option, and a strip showing only a time would be silent about
  *   the only state that matters.
- * - **No ethical friction.** Cancelling something that has not gone is
- *   reversible in the only sense that counts — you can schedule it again — so
- *   it is one tap and a snackbar, not a dialog.
+ * - Cancel takes effect immediately. The snackbar offers Undo.
  *
  * Mirrors apps/web/src/components/thread/scheduled-strip.tsx line for line.
  */
 @Composable
 fun ScheduledStrip(
     rows: List<ScheduledMessage>,
+    clock: DestinationClock?,
+    onUpdate: suspend (String, String?, String?, Boolean) -> ScheduleOutcome,
     onCancel: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -79,16 +102,52 @@ fun ScheduledStrip(
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         rows.forEach { row ->
-            ScheduledRow(row = row, onCancel = { onCancel(row.id) })
+            key(row.id) {
+                ScheduledRow(
+                    row,
+                    clock,
+                    onUpdate = { body, at, confirmed -> onUpdate(row.id, body, at, confirmed) },
+                    onCancel = { onCancel(row.id) },
+                )
+            }
         }
     }
 }
 
 @Composable
-private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
+private fun ScheduledRow(
+    row: ScheduledMessage,
+    clock: DestinationClock?,
+    onUpdate: suspend (String?, String?, Boolean) -> ScheduleOutcome,
+    onCancel: () -> Unit,
+) {
     val haptics = rememberHaptics()
+    val scope = rememberCoroutineScope()
     val held = row.status == "held"
+    val canEdit = row.allowed_actions.allows("edit")
     val accent = if (held) NoteAmber.ink() else MaterialTheme.colorScheme.onSurfaceVariant
+    var menu by remember { mutableStateOf(false) }
+    var expanded by remember { mutableStateOf(false) }
+    var draft by remember { mutableStateOf<String?>(null) }
+    var pickingTime by remember { mutableStateOf(false) }
+    var quietTime by remember { mutableStateOf<Instant?>(null) }
+    var saving by remember { mutableStateOf(false) }
+
+    fun save(body: String? = null, at: Instant? = null, confirmed: Boolean = false) {
+        if (saving) return
+        saving = true
+        scope.launch {
+            try {
+                when (onUpdate(body, at?.toString(), confirmed)) {
+                    ScheduleOutcome.Scheduled -> draft = null
+                    ScheduleOutcome.NeedsQuietHoursConfirm -> quietTime = at
+                    ScheduleOutcome.Failed -> Unit
+                }
+            } finally {
+                saving = false
+            }
+        }
+    }
 
     Row(
         Modifier
@@ -123,7 +182,8 @@ private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
                 },
                 style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
                 color = MaterialTheme.colorScheme.onSurface,
-                maxLines = 2,
+                modifier = Modifier.clickable { expanded = !expanded },
+                maxLines = if (expanded) Int.MAX_VALUE else 2,
                 overflow = TextOverflow.Ellipsis,
             )
             // The reason, in the API's own words. Not paraphrased here: three
@@ -147,9 +207,33 @@ private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            if (held && canEdit) {
+                TextButton(onClick = { pickingTime = true }, enabled = !saving) {
+                    Text(t("thread.pickAnotherTime"))
+                }
+            }
+        }
+        if (canEdit) {
+            Box {
+                IconButton(onClick = { menu = true }, enabled = !saving) {
+                    Icon(Icons.Filled.MoreVert, contentDescription = t("thread.scheduledActions"))
+                }
+                RecordMenu(
+                    expanded = menu,
+                    actions = scheduledActions,
+                    onDismiss = { menu = false },
+                    onSelect = { action, _ ->
+                        when (action) {
+                            "edit" -> draft = row.body
+                            "change_time" -> pickingTime = true
+                            else -> Unit
+                        }
+                    },
+                )
+            }
         }
         // #722: no cancel where the server will not take it.
-        if (row.allowed_actions.allows("cancel")) IconButton(onClick = {
+        if (row.allowed_actions.allows("cancel")) IconButton(enabled = !saving, onClick = {
             haptics.tap()
             onCancel()
         }) {
@@ -163,6 +247,44 @@ private fun ScheduledRow(row: ScheduledMessage, onCancel: () -> Unit) {
                 modifier = Modifier.size(IconSize.Small),
             )
         }
+    }
+
+    draft?.let { text ->
+        ConfirmDialog(
+            title = t("thread.scheduledEditText"),
+            body = "",
+            confirmLabel = t("common.save"),
+            confirmEnabled = text.isNotBlank(),
+            pending = saving,
+            onConfirm = { save(body = text) },
+            onDismiss = { draft = null },
+            extraContent = {
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { if (it.length <= ScheduledSend.BODY_MAX) draft = it },
+                    label = { Text(t("thread.scheduledEditText")) },
+                )
+            },
+        )
+    }
+    if (pickingTime) {
+        SendLaterPicker(clock, onConfirm = { at ->
+            pickingTime = false
+            save(at = at)
+        }, onDismiss = { pickingTime = false })
+    }
+    quietTime?.let { at ->
+        QuietHoursScheduleDialog(
+            localHour = null,
+            onConfirm = {
+                quietTime = null
+                save(at = at, confirmed = true)
+            },
+            onDismiss = {
+                quietTime = null
+                pickingTime = true
+            },
+        )
     }
 }
 

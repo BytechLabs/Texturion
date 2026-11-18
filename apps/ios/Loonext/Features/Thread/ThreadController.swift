@@ -87,6 +87,7 @@ final class ThreadController {
     /// timeline must not be able to see one — showing an unsent message as sent
     /// is the worst failure this feature has.
     private(set) var scheduled: [ScheduledMessage] = []
+    @ObservationIgnored private var scheduleAttempt: (body: String, sendAt: String, key: String)?
 
     private let outbox: Outbox
     private let requestOutboxFlush: () -> Void
@@ -436,12 +437,43 @@ final class ThreadController {
         sendAtISO: String,
         quietHoursConfirmed: Bool
     ) async -> ScheduleOutcome {
+        if scheduleAttempt?.body != body || scheduleAttempt?.sendAt != sendAtISO {
+            scheduleAttempt = (body, sendAtISO, UUID().uuidString)
+        }
+        let key = scheduleAttempt?.key
         do {
             _ = try await repo.scheduleMessage(
                 companyId: companyId,
                 conversationId: conversationId,
                 body: body,
                 sendAtISO: sendAtISO,
+                quietHoursConfirmed: quietHoursConfirmed,
+                idempotencyKey: key
+            )
+            if scheduleAttempt?.key == key { scheduleAttempt = nil }
+            try? await refreshScheduled()
+            return .scheduled
+        } catch let error as ApiError
+            where error.code == ApiErrorCode.quietHoursConfirmationRequired {
+            return .needsQuietHoursConfirm
+        } catch {
+            notify(error.userMessage)
+            return .failed
+        }
+    }
+
+    func updateScheduled(
+        id: String,
+        body: String?,
+        sendAtISO: String?,
+        quietHoursConfirmed: Bool
+    ) async -> ScheduleOutcome {
+        do {
+            _ = try await repo.rescheduleMessage(
+                companyId: companyId,
+                id: id,
+                sendAtISO: sendAtISO,
+                body: body,
                 quietHoursConfirmed: quietHoursConfirmed
             )
             try? await refreshScheduled()
@@ -450,7 +482,8 @@ final class ThreadController {
             where error.code == ApiErrorCode.quietHoursConfirmationRequired {
             return .needsQuietHoursConfirm
         } catch {
-            notify(error.userMessage)
+            try? await refreshScheduled()
+            notify(AppStrings.translate(locale, "thread.scheduledUpdateFailed"))
             return .failed
         }
     }
@@ -466,12 +499,15 @@ final class ThreadController {
         scheduled = before.filter { $0.id != id }
         Task {
             do {
-                try await repo.cancelScheduledMessage(companyId: companyId, id: id)
+                let receipt = try await repo.cancelScheduledWithReceipt(companyId: companyId, id: id)
                 notify(
                     ScheduledSend.copyLine(
                         "canceled_confirmation", locale: locale
-                    )
-                )
+                    ),
+                    actionLabel: AppStrings.translate(locale, "thread.undo")
+                ) {
+                    Task { await self.restoreScheduled(id, canceledAt: receipt.canceled_at) }
+                }
                 try? await refreshScheduled()
             } catch {
                 // It is still queued. Putting it back is the only honest state:
@@ -481,6 +517,15 @@ final class ThreadController {
                 notify(error.userMessage)
             }
         }
+    }
+
+    private func restoreScheduled(_ id: String, canceledAt: String) async {
+        do {
+            try await repo.restoreScheduledMessage(companyId: companyId, id: id, canceledAt: canceledAt)
+        } catch {
+            notify(AppStrings.translate(locale, "thread.scheduledRestoreFailed"))
+        }
+        try? await refreshScheduled()
     }
 
     /// #244 — "I have this."

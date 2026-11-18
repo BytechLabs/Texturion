@@ -36,6 +36,7 @@ import {
   stateMachines,
 } from "@loonext/shared";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
@@ -395,10 +396,17 @@ scheduledMessageRoutes.patch(
 
     if (patchBody.send_at !== undefined) {
       const sendAt = new Date(patchBody.send_at);
-      if (Number.isNaN(sendAt.getTime()) || sendAt <= new Date()) {
+      const now = Date.now();
+      if (Number.isNaN(sendAt.getTime()) || sendAt.getTime() <= now) {
         throw new ApiError(
           "validation_failed",
           "That time has already passed. Pick one in the future.",
+        );
+      }
+      if (sendAt.getTime() > now + SCHEDULED_HORIZON_DAYS * 86_400_000) {
+        throw new ApiError(
+          "validation_failed",
+          `We can hold a message for up to ${SCHEDULED_HORIZON_DAYS} days.`,
         );
       }
       const destination = existing.conversations?.contact_phone_e164;
@@ -423,6 +431,18 @@ scheduledMessageRoutes.patch(
       }
       patch.send_at = sendAt.toISOString();
       const settings = await loadAutomaticTextSettings(db, companyId);
+      const lastInbound = unwrapOptional<{ created_at: string }>(
+        await db.from("messages")
+          .select("created_at")
+          .eq("company_id", companyId)
+          .eq("conversation_id", existing.conversation_id)
+          .eq("direction", "inbound")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        "scheduled text's newest customer reply",
+      );
+      patch.inbound_watermark = lastInbound?.created_at ?? null;
       patch.expires_at = new Date(
         sendAt.getTime() + settings.scheduled_text_expiry_hours * 3_600_000,
       ).toISOString();
@@ -458,37 +478,40 @@ scheduledMessageRoutes.patch(
   },
 );
 
-/** Cancel it. Idempotent-ish: cancelling something already gone is a 404. */
+async function requireScheduledTextAccess(c: Context<AppEnv>) {
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const db = getDb(getEnv(c.env));
+  const id = pathUuid(c, "id");
+
+  const existing = unwrapOptional<{
+    conversations: { phone_number_id: string | null } | null;
+  }>(
+    await db
+      .from("scheduled_messages")
+      .select("conversations(phone_number_id)")
+      .eq("id", id)
+      .eq("company_id", companyId)
+      .maybeSingle(),
+    "scheduled message lookup",
+  );
+  if (!existing) throw new ApiError("not_found", "That message is not here.");
+  await assertNumberLevel(db, {
+    companyId,
+    userId,
+    role: c.get("role"),
+    phoneNumberId: existing.conversations?.phone_number_id ?? null,
+    need: "text",
+  });
+  return { companyId, userId, db, id };
+}
+
 scheduledMessageRoutes.delete(
   "/scheduled-messages/:id",
   requireCapability("conversations.send"),
   async (c) => {
-    const companyId = c.get("companyId");
-    const userId = c.get("userId");
-    const db = getDb(getEnv(c.env));
-    const id = pathUuid(c, "id");
-
-    const existing = unwrapOptional<{
-      conversations: { phone_number_id: string | null } | null;
-    }>(
-      await db
-        .from("scheduled_messages")
-        .select("conversations(phone_number_id)")
-        .eq("id", id)
-        .eq("company_id", companyId)
-        .maybeSingle(),
-      "scheduled message lookup",
-    );
-    if (!existing) throw new ApiError("not_found", "That message is not here.");
-    await assertNumberLevel(db, {
-      companyId,
-      userId,
-      role: c.get("role"),
-      phoneNumberId: existing.conversations?.phone_number_id ?? null,
-      need: "text",
-    });
-
-    const result = unwrap<{ outcome: string }>(
+    const { companyId, userId, db, id } = await requireScheduledTextAccess(c);
+    const result = unwrap<{ outcome: string; scheduled_message?: { canceled_at: string } }>(
       await db.rpc("api_cancel_scheduled_message", {
         p_id: id,
         p_company_id: companyId,
@@ -499,6 +522,31 @@ scheduledMessageRoutes.delete(
     if (result.outcome !== "canceled") {
       throw new ApiError("not_found", "That message is not waiting to send.");
     }
+    if (c.req.query("undo_receipt") === "1" && result.scheduled_message) {
+      return c.json({ canceled_at: result.scheduled_message.canceled_at });
+    }
     return c.body(null, 204);
+  },
+);
+
+const restoreSchema = z.object({ canceled_at: z.iso.datetime({ offset: true }) });
+
+scheduledMessageRoutes.post(
+  "/scheduled-messages/:id/restore",
+  requireCapability("conversations.send"),
+  async (c) => {
+    const { companyId, userId, db, id } = await requireScheduledTextAccess(c);
+    const { canceled_at } = await parseJsonBody(c, restoreSchema);
+    const restored = unwrap<boolean>(
+      await db.rpc("api_restore_scheduled_message", {
+        p_id: id,
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_canceled_at: canceled_at,
+      }),
+      "restore scheduled message",
+    );
+    if (!restored) throw new ApiError("conflict", "That scheduled text can no longer be restored.");
+    return c.json({ restored: true });
   },
 );

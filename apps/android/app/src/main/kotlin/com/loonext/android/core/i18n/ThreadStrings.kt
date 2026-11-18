@@ -445,6 +445,11 @@ object ThreadStrings : AppStrings.Section {
         // --- Send later (#233 / #539) ---------------------------------------------------
         "thread.scheduledConfirm" to "Sending {when}.",
         "thread.scheduledNoPhotos" to "A scheduled text can't carry photos yet.",
+        "thread.scheduledActions" to "Scheduled text actions",
+        "thread.scheduledEditText" to "Edit text",
+        "thread.scheduledChangeTime" to "Change time",
+        "thread.scheduledUpdateFailed" to "That scheduled text could not be updated. Try again.",
+        "thread.scheduledRestoreFailed" to "That scheduled text can no longer be restored.",
         "thread.optOutHintConfirm" to "Mark opted out",
         "thread.optOutHintDismiss" to "Dismiss request",
         "thread.optOutHintFailed" to "Could not resolve the opt-out request. Try again.",
@@ -1235,6 +1240,11 @@ object ThreadStrings : AppStrings.Section {
         // --- Send later (#233 / #539) ---------------------------------------------------
         "thread.scheduledConfirm" to "Envoi {when}.",
         "thread.scheduledNoPhotos" to "Un texto programmé ne peut pas encore contenir de photos.",
+        "thread.scheduledActions" to "Actions du texto programmé",
+        "thread.scheduledEditText" to "Modifier le texte",
+        "thread.scheduledChangeTime" to "Changer l’heure",
+        "thread.scheduledUpdateFailed" to "Impossible de modifier ce texto programmé. Réessayez.",
+        "thread.scheduledRestoreFailed" to "Ce texto programmé ne peut plus être rétabli.",
         "thread.optOutHintConfirm" to "Marquer comme désabonné",
         "thread.optOutHintDismiss" to "Écarter la demande",
         "thread.optOutHintFailed" to "Impossible de traiter la demande de désabonnement. Réessayez.",

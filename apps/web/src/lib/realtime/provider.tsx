@@ -19,6 +19,7 @@ import type { Translate } from '@/i18n/provider';
 import { keys } from "@/lib/api/keys";
 import { fetchMessagesPage } from "@/lib/api/messages";
 import { trimToFirstPage } from "@/lib/api/pagination";
+import { scheduledKeys } from "@/lib/api/scheduled-messages";
 import type { ConversationUpdatedEvent,MessageCreatedEvent,MessageStatusEvent,PaymentUpdatedEvent,ReadStateEvent,TaskChangedEvent } from "./events";
 import type {
   ConversationDetail,
@@ -399,6 +400,7 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
 
     async function handleMessageCreated(event: MessageCreatedEvent) {
       const { conversation_id, message_id, direction } = event;
+      refreshSoon(scheduledKeys.thread(companyId, conversation_id));
 
       const cachedRow = findListRow(queryClient, companyId, conversation_id);
       const thread = queryClient.getQueryData<ThreadData>(

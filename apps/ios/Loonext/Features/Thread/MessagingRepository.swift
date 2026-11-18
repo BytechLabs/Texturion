@@ -450,7 +450,8 @@ struct MessagingRepository: Sendable {
         conversationId: String,
         body: String,
         sendAtISO: String,
-        quietHoursConfirmed: Bool = false
+        quietHoursConfirmed: Bool = false,
+        idempotencyKey: String? = nil
     ) async throws -> ScheduledMessage {
         var payload: [String: JSONValue] = [
             "conversation_id": .string(conversationId),
@@ -461,7 +462,8 @@ struct MessagingRepository: Sendable {
         let envelope: ScheduledMessageEnvelope = try await api.post(
             "/v1/scheduled-messages",
             body: JSONValue.object(payload),
-            companyId: companyId
+            companyId: companyId,
+            idempotencyKey: idempotencyKey
         )
         return envelope.scheduled_message
     }
@@ -493,6 +495,22 @@ struct MessagingRepository: Sendable {
     /// Cancel it. A message that has already gone is a 404, not a success.
     func cancelScheduledMessage(companyId: String, id: String) async throws {
         try await api.delete("/v1/scheduled-messages/\(id)", companyId: companyId)
+    }
+
+    func cancelScheduledWithReceipt(companyId: String, id: String) async throws -> ScheduledCancellationReceipt {
+        try await api.deleteReturning(
+            "/v1/scheduled-messages/\(id)",
+            query: ["undo_receipt": "1"],
+            companyId: companyId
+        )
+    }
+
+    func restoreScheduledMessage(companyId: String, id: String, canceledAt: String) async throws {
+        let _: JSONValue = try await api.post(
+            "/v1/scheduled-messages/\(id)/restore",
+            body: JSONValue.object(["canceled_at": .string(canceledAt)]),
+            companyId: companyId
+        )
     }
 
     /// #244: "I have this." Returns the outcome so the caller can name whose.
