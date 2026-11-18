@@ -41,7 +41,8 @@ object CacheKeys {
     fun inboxMembers(companyId: String) = "inboxMembers/$companyId"
     fun inboxTags(companyId: String) = "inboxTags/$companyId"
     fun tasks(companyId: String, filterKey: String = "default") = "tasks/$companyId/$filterKey"
-    fun contacts(companyId: String, query: String = "") = "contacts/$companyId/q=$query"
+    fun contacts(companyId: String, query: String = "", sort: String = "name") =
+        "contacts/$companyId/q=$query/sort=$sort"
     fun contact(companyId: String, contactId: String) = "contact/$companyId/$contactId"
     fun contactCalls(companyId: String, contactId: String) = "contactCalls/$companyId/$contactId"
     fun calls(companyId: String, filterKey: String = "default") = "calls/$companyId/$filterKey"

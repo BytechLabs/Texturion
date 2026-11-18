@@ -701,6 +701,73 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  f record;
+  first_id uuid := '55000000-0000-4000-8000-000000000111';
+  second_id uuid := '55000000-0000-4000-8000-000000000112';
+  unnamed_id uuid := '55000000-0000-4000-8000-000000000113';
+  thread_number uuid;
+  new_thread uuid;
+  last_at timestamptz := '2026-11-12 13:30:00+00';
+  created timestamptz := '2026-10-01 12:00:00+00';
+  marker text := 'Aurora Survey';
+  result jsonb;
+begin
+  select * into f from gs_fixture;
+  select phone_number_id into thread_number from public.conversations where id = f.cv_a;
+  insert into public.contacts (id, company_id, phone_e164, name, business_name, created_at)
+  values (first_id, f.cid_a, '+14165550401', 'Zoë', marker, created),
+         (second_id, f.cid_a, '+14165550402', 'ZOË', marker, created),
+         (unnamed_id, f.cid_a, '+14165550403', null, marker, created);
+  insert into public.conversations (company_id, contact_id, phone_number_id, last_message_at)
+  values (f.cid_a, first_id, thread_number, last_at)
+  returning id into new_thread;
+  insert into public.conversations (company_id, contact_id, phone_number_id, last_message_at)
+  values (f.cid_a, second_id, thread_number, last_at);
+  insert into public.contact_phones (company_id, contact_id, phone_e164)
+  values (f.cid_a, first_id, '+14165550409');
+  insert into public.contacts (company_id, phone_e164, business_name, merged_into, merged_at)
+  values (f.cid_a, '+14165550404', marker, first_id, now());
+
+  if (select array_agg(c.id) from public.api_sorted_contacts(f.cid_a, 'name', 3, marker) c)
+       is distinct from array[first_id, second_id, unnamed_id]
+     or (select c.id from public.api_sorted_contacts(f.cid_a, 'name', 1, marker,
+       p_after_id => first_id, p_after_name => 'Zoë') c) is distinct from second_id
+     or (select c.id from public.api_sorted_contacts(f.cid_a, 'name', 1, marker,
+       p_after_id => second_id, p_after_name => 'ZOË') c) is distinct from unnamed_id then
+    raise exception 'Name sort lost a tie or ordered an unnamed contact ahead of a name';
+  end if;
+  if (select array_agg(c.id) from public.api_sorted_contacts(f.cid_a, 'recent', 3, marker) c)
+       is distinct from array[second_id, first_id, unnamed_id]
+     or (select c.id from public.api_sorted_contacts(f.cid_a, 'recent', 1, marker,
+       p_after_id => second_id, p_after_at => last_at) c) is distinct from first_id
+     or (select c.id from public.api_sorted_contacts(f.cid_a, 'recent', 1, marker,
+       p_after_id => first_id, p_after_at => last_at) c) is distinct from unnamed_id then
+    raise exception 'Activity sort lost a timestamp tie or did not page past active contacts';
+  end if;
+  if (select array_agg(c.id) from public.api_sorted_contacts(f.cid_a, 'added', 3, marker) c)
+       is distinct from array[unnamed_id, second_id, first_id]
+     or (select c.id from public.api_sorted_contacts(f.cid_a, 'added', 1, marker,
+       p_after_id => unnamed_id, p_after_at => created) c) is distinct from second_id then
+    raise exception 'Added sort lost a creation time tie';
+  end if;
+
+  result := public.api_search_v2(f.cid_a, marker, 0, 10, 0, 0, 0);
+  if (select array_agg((item->>'id')::uuid order by item->>'id') from jsonb_array_elements(result->'contacts') item)
+       is distinct from array[first_id, second_id, unnamed_id]
+     or exists (select 1 from public.api_sorted_contacts(f.cid_b, 'name', 3, marker))
+     or (select c.id from public.api_sorted_contacts(f.cid_a, 'name', 1, '(416) 555-0409') c)
+       is distinct from first_id then
+    raise exception 'Global and list search diverged, exposed a different workspace, or skipped an alternate number';
+  end if;
+
+  update public.conversations set deleted_at = now() where id = new_thread;
+  if (select c.last_activity_at from public.contacts c where c.id = first_id) is not null then
+    raise exception 'A trashed conversation still drives contact activity';
+  end if;
+end $$;
+
 rollback;
 
 select 'ALL GLOBAL SEARCH TESTS PASSED' as result;

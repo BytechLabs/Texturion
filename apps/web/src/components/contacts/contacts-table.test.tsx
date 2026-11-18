@@ -142,12 +142,12 @@ afterEach(() => {
 });
 
 describe("the view lives in the URL", () => {
-  it("CL-1: opens on the search, tag and field the URL names", () => {
-    window.history.pushState(null, "", "/contacts?q=smith&tag=t-1&field=system_type&value=Combi");
+  it("CL-1: restores search, tag, field and sort from the URL", () => {
+    window.history.pushState(null, "", "/contacts?q=smith&tag=t-1&field=system_type&value=Combi&sort=recent");
     mount();
     expect(contactsCalls.at(-1)).toEqual({
       q: "smith",
-      options: { field: { key: "system_type", value: "Combi" }, tagId: "t-1" },
+      options: { field: { key: "system_type", value: "Combi" }, tagId: "t-1", sort: "recent" },
     });
     expect(screen.getByRole("searchbox")).toHaveProperty("value", "smith");
   });
@@ -172,6 +172,7 @@ describe("the view lives in the URL", () => {
     expect(contactsCalls.at(-1)?.options).toEqual({
       field: { key: "has_dog", value: "" },
       tagId: "t-9",
+      sort: "name",
     });
   });
 

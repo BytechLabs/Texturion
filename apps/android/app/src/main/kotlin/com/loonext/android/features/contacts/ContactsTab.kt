@@ -269,8 +269,9 @@ private fun ContactListScreen(
     val haptics = rememberHaptics()
 
     var query by rememberSaveable(companyId) { mutableStateOf("") }
+    var sort by rememberSaveable(companyId) { mutableStateOf("name") }
     var debouncedQ by remember(companyId) { mutableStateOf("") }
-    var loadingMore by remember(companyId) { mutableStateOf(false) }
+    var loadingMore by remember(companyId, sort) { mutableStateOf(false) }
     var refreshing by remember(companyId) { mutableStateOf(false) }
 
     var createOpen by remember { mutableStateOf(false) }
@@ -353,16 +354,28 @@ private fun ContactListScreen(
     // StoreCache on every revisit; refreshKey bumps revalidate silently. The
     // revalidate re-walks cursors to the depth already cached so a background
     // refresh never truncates pages the user has loaded.
-    val defaultKey = CacheKeys.contacts(companyId)
+    val defaultKey = CacheKeys.contacts(companyId, sort = sort)
+    val useCachedList = debouncedQ.isEmpty() && !narrowed
+
+    suspend fun fetchPage(cursor: String? = null): Page<Contact> = graph.contactsRepo.contacts(
+        companyId,
+        q = debouncedQ.ifEmpty { null },
+        cursor = cursor,
+        limit = 50,
+        field = fieldFilter?.first,
+        value = fieldFilter?.second,
+        tagId = tagFilter,
+        sort = sort,
+    )
 
     // One fetch body shared by the cache-first revalidate and pull-to-refresh
     // so both re-walk cursors to the depth already cached.
     suspend fun fetchDefaultSnapshot(): ContactsSnapshot {
         val target = graph.storeCache.flowOf<ContactsSnapshot>(defaultKey).value?.rows?.size ?: 0
-        var page = graph.contactsRepo.contacts(companyId, limit = 50)
+        var page = graph.contactsRepo.contacts(companyId, limit = 50, sort = sort)
         var all = page.data
         while (page.next_cursor != null && all.size < target) {
-            page = graph.contactsRepo.contacts(companyId, cursor = page.next_cursor, limit = 50)
+            page = graph.contactsRepo.contacts(companyId, cursor = page.next_cursor, limit = 50, sort = sort)
             all = all + page.data
         }
         return ContactsSnapshot(all, page.next_cursor)
@@ -377,26 +390,19 @@ private fun ContactListScreen(
     // Typed searches stay live (never cached): results replace in place, and
     // the previously shown rows hold while a new query is in flight — same
     // semantics as before #176.
-    var searchSnapshot by remember(companyId) { mutableStateOf<ContactsSnapshot?>(null) }
-    var searchState by remember(companyId) { mutableStateOf<LoadState<Unit>>(LoadState.Loading) }
-    LaunchedEffect(companyId, debouncedQ, fieldFilter, tagFilter, refreshKey) {
+    var searchSnapshot by remember(companyId, sort, fieldFilter, tagFilter) { mutableStateOf<ContactsSnapshot?>(null) }
+    var searchState by remember(companyId, sort, fieldFilter, tagFilter) { mutableStateOf<LoadState<Unit>>(LoadState.Loading) }
+    LaunchedEffect(companyId, debouncedQ, fieldFilter, tagFilter, sort, refreshKey) {
         // #291: a FILTER is live too. The cached list is everybody, so serving
         // it under an active filter would show every contact as though they
         // matched — the same failure the search path guards against below.
-        if (debouncedQ.isEmpty() && !narrowed) {
+        if (useCachedList) {
             searchSnapshot = null
             searchState = LoadState.Loading
             return@LaunchedEffect
         }
         try {
-            val page = graph.contactsRepo.contacts(
-                companyId,
-                q = debouncedQ.ifEmpty { null },
-                limit = 50,
-                field = fieldFilter?.first,
-                value = fieldFilter?.second,
-                tagId = tagFilter,
-            )
+            val page = fetchPage()
             searchSnapshot = ContactsSnapshot(page.data, page.next_cursor)
             searchState = LoadState.Ready(Unit)
         } catch (cause: Exception) {
@@ -419,7 +425,7 @@ private fun ContactListScreen(
             searchSnapshot == null &&
             searchState is LoadState.Failed
     val snapshot = when {
-        debouncedQ.isEmpty() && !narrowed -> defaultSnapshot
+        useCachedList -> defaultSnapshot
         searchFailed -> null
         // #291: a FILTERED list never falls through to the unfiltered one,
         // even mid-flight. Holding the previous rows is right while somebody
@@ -432,15 +438,15 @@ private fun ContactListScreen(
     val nextCursor = snapshot?.nextCursor
     val state: LoadState<Unit> = when {
         snapshot != null -> LoadState.Ready(Unit)
-        debouncedQ.isNotEmpty() -> searchState
+        !useCachedList -> searchState
         defaultState is LoadState.Failed -> LoadState.Failed(defaultState.message)
         else -> LoadState.Loading
     }
 
     // Load-more appends into the cached snapshot (or the live search one) so
     // a return visit restores every loaded page.
-    fun appendPage(q: String, page: Page<Contact>) {
-        if (q.isEmpty()) {
+    fun appendPage(page: Page<Contact>) {
+        if (useCachedList) {
             val base = graph.storeCache.flowOf<ContactsSnapshot>(defaultKey).value?.rows.orEmpty()
             graph.storeCache.put(defaultKey, ContactsSnapshot(base + page.data, page.next_cursor))
         } else {
@@ -459,10 +465,10 @@ private fun ContactListScreen(
         refreshing = true
         scope.launch {
             try {
-                if (debouncedQ.isEmpty()) {
+                if (useCachedList) {
                     graph.storeCache.put(defaultKey, fetchDefaultSnapshot())
                 } else {
-                    val page = graph.contactsRepo.contacts(companyId, q = debouncedQ, limit = 50)
+                    val page = fetchPage()
                     searchSnapshot = ContactsSnapshot(page.data, page.next_cursor)
                     searchState = LoadState.Ready(Unit)
                 }
@@ -740,6 +746,16 @@ private fun ContactListScreen(
                     ListFilterButton(count = filterCount, onClick = { filterSheetOpen = true })
                 }
             }
+            SelectField(
+                options = listOf(
+                    SelectOption("name", t("contactsTasks.sortName")),
+                    SelectOption("recent", t("contactsTasks.sortRecent")),
+                    SelectOption("added", t("contactsTasks.sortAdded")),
+                ),
+                selected = sort,
+                label = t("contactsTasks.sort"),
+                onSelect = { sort = it },
+            )
             val fieldChipLabel = fieldFilter?.let { fieldFilterChipLabel(fieldDefs, it) }
             val tagChipLabel = tagFilter?.let { id ->
                 workspaceTags.firstOrNull { it.id == id }?.name ?: t("settingsMore.tagsTitle")
@@ -938,17 +954,9 @@ private fun ContactListScreen(
                                                 ),
                                                 onClick = {
                                                     loadingMore = true
-                                                    val q = debouncedQ
                                                     scope.launch {
                                                         try {
-                                                            val page =
-                                                                graph.contactsRepo.contacts(
-                                                                    companyId,
-                                                                    q = q.ifEmpty { null },
-                                                                    cursor = nextCursor,
-                                                                    limit = 50,
-                                                                )
-                                                            appendPage(q, page)
+                                                            appendPage(fetchPage(nextCursor))
                                                         } catch (cause: Exception) {
                                                             snackbar.showSnackbar(
                                                                 cause.userMessage(locale),
@@ -1334,6 +1342,7 @@ internal fun ContactRow(
             }
             val meta = timedText { time ->
                 listOfNotNull(
+                    contact.business_name,
                     formatPhone(contact.phone_e164),
                     contact.last_activity_at?.let { time(it) },
                 ).joinToString(" · ")

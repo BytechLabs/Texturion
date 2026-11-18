@@ -57,7 +57,7 @@ import { emitWebhookEvent } from "../webhooks/outbound";
 import { getEnv } from '../env';
 import type { Env } from '../env';
 import { ApiError, errorResponse } from "../http/errors";
-import { buildPage, encodeCursor } from "../http/pagination";
+import { buildPage, encodeCursor, fromBase64Url, toBase64Url } from "../http/pagination";
 import { csvResponse, csvSafeText, csvUnguardText, CsvUnterminatedQuoteError, parseCsvRows } from './core/csv';
 import type { CsvRow } from './core/csv';
 import { insertConversationEvents, latestConversationId } from './core/events';
@@ -133,6 +133,33 @@ const CONTACT_LIST_COLUMNS =
   // LIST rather than fetching each contact.
   "first_identification_sent_at," +
   "deleted_at,created_at,updated_at";
+
+const contactSortSchema = z.enum(["name", "recent", "added"]);
+const sortedContactCursor = z.object({
+  id: z.uuid(),
+  sort: contactSortSchema,
+  name: z.string().nullable(),
+  ts: z.iso.datetime({ offset: true }).nullable(),
+});
+
+type ContactListRow = {
+  id: string;
+  name: string | null;
+  created_at: string;
+  last_activity_at?: string | null;
+  phone_e164: string;
+  created_by_user_id: string | null;
+  updated_by_user_id: string | null;
+  contact_tags?: unknown;
+};
+
+type ContactListFilters = {
+  companyId: string;
+  rawQ?: string;
+  tagFilter?: string;
+  filterField?: string;
+  filterValue?: string;
+};
 
 /**
  * #291: an email, checked for shape rather than validated.
@@ -1242,66 +1269,66 @@ export function contactSearchOr(rawQ: string, t9 = false): string {
  */
 export const T9_MIN_DIGITS = 2;
 
-contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (c) => {
-  const limit = parseLimit(c, 25, 100);
-  const cursor = parseCursor(c);
-  const rawQ = c.req.query("q")?.trim();
-  const db = getDb(getEnv(c.env));
-
-  /**
-   * #291 — narrow the list to one answer in one of the workspace's own fields.
-   *
-   * "Everyone on a Combi system", before a parts order. One field at a time
-   * rather than a query builder: two conditions combined is a report, and a
-   * report is a different screen with different expectations about accuracy.
-   *
-   * The KEY IS CHECKED against the workspace's definitions. An unknown key
-   * filtered to nothing would look like a workspace with no matching
-   * customers, and an unknown key IGNORED would look like a filter that does
-   * not work — both are worse than a refusal that says which field is missing.
-   */
-  const filterField = c.req.query("field")?.trim();
-  const filterValue = c.req.query("value");
-  if (filterField !== undefined && filterField !== "") {
-    if (filterValue === undefined) {
-      throw new ApiError(
-        "validation_failed",
-        "field: needs a value to filter on.",
-      );
-    }
-    const defs = unwrap<{ key: string }[]>(
-      await db
-        .from("contact_field_defs")
-        .select("key")
-        .eq("company_id", c.get("companyId"))
-        .eq("key", filterField)
-        .limit(1),
-      "contact field definition",
-    );
-    if (defs.length === 0) {
-      throw new ApiError(
-        "validation_failed",
-        `There is no "${filterField}" field on your contacts.`,
-      );
+async function listSortedContacts(
+  db: Db,
+  { companyId, rawQ, tagFilter, filterField, filterValue }: ContactListFilters,
+  sort: z.infer<typeof contactSortSchema>,
+  rawCursor: string | undefined,
+  limit: number,
+) {
+  let cursor: z.infer<typeof sortedContactCursor> | undefined;
+  if (rawCursor !== undefined) {
+    try {
+      cursor = sortedContactCursor.parse(JSON.parse(fromBase64Url(rawCursor)));
+      if (cursor.sort !== sort || (sort === "added" && !cursor.ts)) throw new Error("sort does not match");
+    } catch {
+      throw new ApiError("validation_failed", "Invalid cursor.");
     }
   }
 
-  // #695: narrow to one tag. An inner join on the link table, so only contacts
-  // carrying the tag come back; the join itself is stripped before the response.
-  const tagFilter = c.req.query("tag_id")?.trim();
-  if (tagFilter !== undefined && tagFilter !== "" && !z.uuid().safeParse(tagFilter).success) {
-    throw new ApiError("validation_failed", "tag_id: not a valid id.");
-  }
-  const byTag = tagFilter !== undefined && tagFilter !== "";
-  const t9 = c.req.query("t9") === "1";
+  const rows = unwrap<ContactListRow[]>(
+    await db.rpc("api_sorted_contacts", {
+      p_company: companyId,
+      p_sort: sort,
+      p_limit: limit + 1,
+      p_q: rawQ || null,
+      p_tag: tagFilter ?? null,
+      p_field: filterField || null,
+      p_value: filterValue ?? null,
+      p_after_id: cursor?.id ?? null,
+      p_after_name: cursor?.name ?? null,
+      p_after_at: cursor?.ts ?? null,
+    }).select(CONTACT_LIST_COLUMNS + ",last_activity_at"),
+    "sorted contacts",
+  );
+  const last = rows[limit - 1];
+  return {
+    data: rows.slice(0, limit),
+    next_cursor: rows.length > limit ? toBase64Url(JSON.stringify({
+      id: last.id,
+      sort,
+      name: sort === "name" ? last.name : null,
+      ts: sort === "added" ? last.created_at : last.last_activity_at ?? null,
+    })) : null,
+  };
+}
+
+async function listLegacyContacts(
+  db: Db,
+  { companyId, rawQ, tagFilter, filterField, filterValue }: ContactListFilters,
+  cursor: ReturnType<typeof parseCursor>,
+  limit: number,
+  t9: boolean,
+) {
   const addressSearch = rawQ && !t9 ? orIlikeValue(rawQ) : "";
+  const byTag = tagFilter !== undefined && tagFilter !== "";
   const listTagJoin = byTag ? ",contact_tags!inner(tag_id)" : "";
   const listAddressJoin = addressSearch ? ",contact_addresses()" : "";
 
   let query = db
     .from("contacts")
     .select(`${CONTACT_LIST_COLUMNS}${listTagJoin}${listAddressJoin}`)
-    .eq("company_id", c.get("companyId"))
+    .eq("company_id", companyId)
     .is("deleted_at", null)
     .is("merged_into", null);
   if (byTag) query = query.eq("contact_tags.tag_id", tagFilter);
@@ -1312,15 +1339,12 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     query = query.eq(`custom_fields->>${filterField}`, filterValue);
   }
   if (rawQ !== undefined && rawQ !== "") {
-    if (rawQ.length > 200) {
-      throw new ApiError("validation_failed", "q: too long (max 200).");
-    }
     // #459: `t9=1` is the dialer saying "these digits may be a name". Opt-in so
     // the contacts search box keeps meaning exactly what it meant.
     const matches = contactSearchOr(rawQ, t9);
     query = addressSearch
       ? query
-          .eq("contact_addresses.company_id", c.get("companyId"))
+          .eq("contact_addresses.company_id", companyId)
           .ilike("contact_addresses.address", `*${addressSearch}*`)
           .or(`${matches},contact_addresses.not.is.null`)
       : query.or(matches);
@@ -1328,14 +1352,6 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
   if (cursor) {
     query = query.or(keysetFilter("created_at", cursor));
   }
-  type ContactListRow = {
-    id: string;
-    created_at: string;
-    phone_e164: string;
-    created_by_user_id: string | null;
-    updated_by_user_id: string | null;
-    contact_tags?: unknown;
-  };
   const rows = unwrap<ContactListRow[]>(
     await query
       .order("created_at", { ascending: false })
@@ -1371,7 +1387,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
           ? `${CONTACT_LIST_COLUMNS},contact_phones!inner(id),contact_tags!inner(tag_id)`
           : `${CONTACT_LIST_COLUMNS},contact_phones!inner(id)`,
       )
-      .eq("company_id", c.get("companyId"))
+      .eq("company_id", companyId)
       .is("deleted_at", null)
       .is("merged_into", null)
       .ilike("contact_phones.phone_e164", `*${searchDigits}*`);
@@ -1414,13 +1430,63 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     }
   }
 
-  const page = buildPage(merged, limit, "created_at");
+  return buildPage(merged, limit, "created_at");
+
+}
+
+contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (c) => {
+  const limit = parseLimit(c, 25, 100);
+  const rawQ = c.req.query("q")?.trim();
+  const companyId = c.get("companyId");
+  const db = getDb(getEnv(c.env));
+
+  // Check the field definition so a misspelled filter returns an error instead of an empty list.
+  const filterField = c.req.query("field")?.trim();
+  const filterValue = c.req.query("value");
+  if (filterField !== undefined && filterField !== "") {
+    if (filterValue === undefined) {
+      throw new ApiError(
+        "validation_failed",
+        "field: needs a value to filter on.",
+      );
+    }
+    const defs = unwrap<{ key: string }[]>(
+      await db
+        .from("contact_field_defs")
+        .select("key")
+        .eq("company_id", companyId)
+        .eq("key", filterField)
+        .limit(1),
+      "contact field definition",
+    );
+    if (defs.length === 0) {
+      throw new ApiError(
+        "validation_failed",
+        `There is no "${filterField}" field on your contacts.`,
+      );
+    }
+  }
+
+  const tagFilter = c.req.query("tag_id")?.trim();
+  if (tagFilter !== undefined && tagFilter !== "" && !z.uuid().safeParse(tagFilter).success) {
+    throw new ApiError("validation_failed", "tag_id: not a valid id.");
+  }
+  const byTag = tagFilter !== undefined && tagFilter !== "";
+  const parsedSort = contactSortSchema.safeParse(c.req.query("sort") ?? "added");
+  if (!parsedSort.success) throw new ApiError("validation_failed", "sort must be name, recent, or added.");
+  const sort = parsedSort.data;
+  const t9 = c.req.query("t9") === "1";
+  if (rawQ && rawQ.length > 200) throw new ApiError("validation_failed", "q: too long (max 200).");
+  const filters = { companyId, rawQ, tagFilter: byTag ? tagFilter : undefined, filterField, filterValue };
+  const sorted = !t9 && c.req.query("sort") !== undefined;
+  const page = sorted
+    ? await listSortedContacts(db, filters, sort, c.req.query("cursor"), limit)
+    : await listLegacyContacts(db, filters, parseCursor(c), limit, t9);
 
   // Three independent per-page decorations — the opted-out badge (G6), last
   // activity (G6), and #191 created/updated actor names — none depends on
   // another, so resolve them in ONE parallel round-trip instead of three
   // serial awaits.
-  const listCompanyId = c.get("companyId");
   const optedOutPhones = new Set<string>();
   const lastActivityByContact = new Map<string, string>();
   let actorNames = new Map<string, string>();
@@ -1431,17 +1497,17 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
       db
         .from("opt_outs")
         .select("phone_e164")
-        .eq("company_id", listCompanyId)
+        .eq("company_id", companyId)
         .is("revoked_at", null)
         .in("phone_e164", [
           ...new Set(page.data.map((row) => row.phone_e164)),
         ]),
       // "Last activity" = newest conversations.last_message_at per contact
       // (messages + notes both move it); DESC so first-seen per contact wins.
-      db
+      sorted ? { data: [], error: null } : db
         .from("conversations")
         .select("contact_id,last_message_at")
-        .eq("company_id", listCompanyId)
+        .eq("company_id", companyId)
         .in(
           "contact_id",
           page.data.map((row) => row.id),
@@ -1459,7 +1525,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
       // #695: the tags each row carries.
       tagsByContactIds(
         db,
-        listCompanyId,
+        companyId,
         page.data.map((row) => row.id),
       ),
     ]);
@@ -1486,7 +1552,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
       ...row,
       opted_out: optedOutPhones.has(row.phone_e164),
       tags: tagsByContact.get(row.id) ?? [],
-      last_activity_at: lastActivityByContact.get(row.id) ?? null,
+      last_activity_at: row.last_activity_at ?? lastActivityByContact.get(row.id) ?? null,
       created_by_name: row.created_by_user_id
         ? actorNames.get(row.created_by_user_id) ?? null
         : null,

@@ -23,7 +23,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { contactDetailOptions, useContacts } from '@/lib/api/contacts';
-import type { ContactFieldFilter } from '@/lib/api/contacts';
+import type { ContactSort } from '@/lib/api/contacts';
 import type { ContactListItem } from "@/lib/api/types";
 import { ContactActiveFilters, ContactListFilter } from "@/components/contacts/contact-filter";
 import { ContactsBulkBar } from "@/components/contacts/contacts-bulk-bar";
@@ -35,51 +35,11 @@ import { flattenPages } from "@/lib/api/pagination";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 import { SearchField } from "@/components/ui/search-field";
-import { updateSearch } from "@/lib/url/search-state";
+import { SimpleSelect } from "@/components/ui/simple-select";
+import { contactsViewFromSearch, writeField, writeQuery, writeSort, writeTag } from "@/lib/url/contact-list-url";
 
 const SEARCH_DEBOUNCE_MS = 250;
 const HOVER_PREFETCH_MS = 100;
-
-/** The list's view lives in the URL, so Back from a contact returns to the same search and filters. */
-export function contactsViewFromSearch(params: URLSearchParams): {
-  query: string;
-  tagId: string | undefined;
-  field: ContactFieldFilter | undefined;
-} {
-  const fieldKey = params.get("field");
-  return {
-    query: params.get("q") ?? "",
-    tagId: params.get("tag") ?? undefined,
-    // "" is a real answer on a custom field, so a missing value means "".
-    field: fieldKey ? { key: fieldKey, value: params.get("value") ?? "" } : undefined,
-  };
-}
-
-function writeQuery(query: string) {
-  updateSearch((params) => {
-    if (query === "") params.delete("q");
-    else params.set("q", query);
-  });
-}
-
-function writeTag(tagId: string | undefined) {
-  updateSearch((params) => {
-    if (tagId === undefined) params.delete("tag");
-    else params.set("tag", tagId);
-  });
-}
-
-function writeField(field: ContactFieldFilter | undefined) {
-  updateSearch((params) => {
-    if (field === undefined) {
-      params.delete("field");
-      params.delete("value");
-    } else {
-      params.set("field", field.key);
-      params.set("value", field.value);
-    }
-  });
-}
 
 /**
  * #712: right-click, long-press or the menu key on a contact row opens the
@@ -248,6 +208,9 @@ const ContactRow = memo(({
               </span>
             )}
           </span>
+          {contact.business_name && (
+            <div className="text-xs text-muted-foreground">{contact.business_name}</div>
+          )}
         </TableCell>
         <TableCell className="tabular-nums text-muted-foreground">
           {formatPhone(contact.phone_e164)}
@@ -290,13 +253,13 @@ export function ContactsTable({
   const canMerge = roleHasCapability(role, "settings.manage");
   // #291 / #695: the search, the tag and the one-field answer, from the URL.
   const searchParams = useSearchParams();
-  const { query, tagId: tagFilter, field: fieldFilter } =
+  const { query, tagId: tagFilter, field: fieldFilter, sort } =
     contactsViewFromSearch(searchParams);
 
   // #695: select rows to act on together.
   const [selectedIds, setSelectedIds] = useState<ReadonlySet<string>>(new Set());
 
-  const contacts = useContacts(query, { field: fieldFilter, tagId: tagFilter });
+  const contacts = useContacts(query, { field: fieldFilter, tagId: tagFilter, sort });
   const rows = useMemo(() => flattenPages(contacts.data), [contacts.data]);
   const searching = query.trim() !== "";
   const filtering = fieldFilter !== undefined;
@@ -321,6 +284,17 @@ export function ContactsTable({
     <div className="space-y-3">
       <div className="flex items-center gap-2">
         <ContactSearch query={query} onSettle={writeQuery} />
+        <SimpleSelect
+          ariaLabel={t("contacts.sort")}
+          className="w-auto"
+          value={sort}
+          onValueChange={(value) => writeSort(value as ContactSort)}
+          options={[
+            { value: "name", label: t("contacts.sortName") },
+            { value: "recent", label: t("contacts.sortRecent") },
+            { value: "added", label: t("contacts.sortAdded") },
+          ]}
+        />
         {/* #291 / #711: beside the search box, because both answer "show me
             less", behind the same Filter button every list uses. */}
         <ContactListFilter

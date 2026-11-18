@@ -40,6 +40,7 @@ export function fetchContactsPage(
   /** #695: only contacts carrying this workspace tag. */
   tagId?: string,
   signal?: AbortSignal,
+  sort?: ContactSort,
 ): Promise<Page<ContactListItem>> {
   // List rows carry `opted_out` (the G6 opted-out badge) and
   // `last_activity_at` (the G6 "Last activity" column — conversation
@@ -56,6 +57,7 @@ export function fetchContactsPage(
       // dropping it would silently widen the list back to everybody.
       value: field ? field.value : undefined,
       tag_id: tagId,
+      sort,
     },
   });
 }
@@ -66,6 +68,8 @@ export interface ContactFieldFilter {
   value: string;
 }
 
+export type ContactSort = "name" | "recent" | "added";
+
 /** Contacts table — trgm-backed search via `q` (G6), keypad letters via `t9`. */
 export function useContacts(
   q = "",
@@ -73,6 +77,7 @@ export function useContacts(
     t9?: boolean;
     field?: ContactFieldFilter;
     tagId?: string;
+    sort?: ContactSort;
     enabled?: boolean;
   } = {},
 ) {
@@ -80,7 +85,7 @@ export function useContacts(
   const trimmed = q.trim();
   const t9 = options.t9 === true;
   const {field} = options;
-  const {tagId} = options;
+  const { tagId, sort } = options;
   return useInfiniteQuery({
     // The flag is part of the key: the same digits mean a different result set
     // with names folded in, and sharing a cache entry would show one caller the
@@ -92,10 +97,11 @@ export function useContacts(
       t9 ? "t9" : "n",
       field ? `${field.key}=${field.value}` : "all",
       tagId ? `tag=${tagId}` : "any-tag",
+      sort ?? "default",
     ],
     // The signal lets a superseded search cancel its request.
     queryFn: ({ pageParam, signal }) =>
-      fetchContactsPage(companyId, trimmed, pageParam, t9, field, tagId, signal),
+      fetchContactsPage(companyId, trimmed, pageParam, t9, field, tagId, signal, sort),
     initialPageParam: undefined as string | undefined,
     getNextPageParam: nextCursorParam,
     enabled: options.enabled ?? true,

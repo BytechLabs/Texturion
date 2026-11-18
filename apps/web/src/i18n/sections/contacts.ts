@@ -181,7 +181,11 @@ export const contactsEn = {
   filterShowEveryone: "Show everyone again",
 
   // ── The contacts table ──────────────────────────────────────────────────
-  searchPlaceholder: "Search name or number",
+  searchPlaceholder: "Search name, number or address",
+  sort: "Sort contacts",
+  sortName: "Name",
+  sortRecent: "Recent activity",
+  sortAdded: "Recently added",
   searchLabel: "Search contacts",
   loadingContacts: "Loading contacts",
   noMatchesFor: "No matches for \"{query}\"",
@@ -656,7 +660,11 @@ export const contactsFr: Translated<typeof contactsEn> = {
   filterShowEveryone: "Afficher tout le monde",
 
   // ── Le tableau des clients ──────────────────────────────────────────────
-  searchPlaceholder: "Chercher un nom ou un numéro",
+  searchPlaceholder: "Chercher un nom, un numéro ou une adresse",
+  sort: "Trier les contacts",
+  sortName: "Nom",
+  sortRecent: "Activité récente",
+  sortAdded: "Ajouts récents",
   searchLabel: "Chercher des clients",
   loadingContacts: "Chargement des clients",
   noMatchesFor: "Aucun résultat pour « {query} »",

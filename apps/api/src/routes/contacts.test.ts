@@ -194,6 +194,36 @@ function importForm(
 }
 
 describe("GET /v1/contacts", () => {
+  it("round-trips a name cursor without losing Unicode and rejects it under a different sort", async () => {
+    const sb = stubWithRole("member");
+    const secondId = "eeeeeeee-1111-4222-8333-444444444444";
+    const rows = [contactRow({ name: "Zoë 李" }), contactRow({ id: secondId, name: null })];
+    const rpc = "/rest/v1/rpc/api_sorted_contacts";
+    sb.on("POST", rpc, (call) => (call.body as { p_after_id: string | null }).p_after_id ? rows.slice(1) : rows);
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const token = await auth.token();
+    const first = await apiRequest(app, env, token, "/v1/contacts?sort=name&limit=1", { companyId: COMPANY_ID });
+    expect(first.status).toBe(200);
+    const page = (await first.json()) as { data: { id: string }[]; next_cursor: string };
+    expect(page.data.map((row) => row.id)).toEqual([CONTACT_ID]);
+    expect(page.next_cursor).toBeTruthy();
+    const second = await apiRequest(app, env, token,
+      `/v1/contacts?sort=name&limit=1&cursor=${encodeURIComponent(page.next_cursor)}`, { companyId: COMPANY_ID });
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ data: [{ id: secondId }], next_cursor: null });
+    expect(sb.find("POST", rpc).at(-1)?.body).toMatchObject({
+      p_company: COMPANY_ID,
+      p_sort: "name",
+      p_after_id: CONTACT_ID,
+      p_after_name: "Zoë 李",
+    });
+    const wrongSort = await apiRequest(app, env, token,
+      `/v1/contacts?sort=recent&cursor=${encodeURIComponent(page.next_cursor)}`, { companyId: COMPANY_ID });
+    expect(wrongSort.status).toBe(422);
+  });
+
   it("searches profile fields and additional addresses within the contact list", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
