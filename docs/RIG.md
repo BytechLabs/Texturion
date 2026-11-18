@@ -683,7 +683,7 @@ R00 compares Play services with the minimum the installed nonprod build declares
 **Running scenarios on demand.** Nothing on the rig runs on a timer: no scenario timer, no cron timer, no health timer, and no unit that starts a run. An agent starts a scenario with `rig run <scenario>[-<variant>]` (a thin wrapper over rigd's `node tools/rig/rigd/src/cli.ts run`; a variant is a numbered run from the registry, such as `S25-2`), and rigd's `scenario.run` and triage's `triage.rerun` start one the same way. A run still takes the guard's lease, is judged by machine, and records its verdict, evidence and the SHA, whoever started it.
 - Paid dials run only inside the guard's window and under its caps (the room, the hourly and daily dial caps, the account-wide check). Texts and push-only checks run at any time.
 - The registry (`tools/rig/scenarios.json`) is the catalogue of what can be run, with each scenario's dials and room. It holds no schedule.
-- A scenario rigd cannot run yet is listed with its reason (`NOT_RUNNABLE_YET` in `tools/rig/rigd/src/scenarios/index.ts`), and `rig run` refuses it. Today these are G02, S08 and S26. A test keeps every scenario in the registry either runnable or listed.
+- A scenario rigd cannot run yet is listed with its reason (`NOT_RUNNABLE_YET` in `tools/rig/rigd/src/scenarios/index.ts`), and `rig run` refuses it. Today these are G02 and S26. A test keeps every scenario in the registry either runnable or listed.
 - A runner can read its own earlier attempts and their evidence from the verdict store, which is how E01 judges emulator audio across the runs an agent has made.
 
 **Reporting.**
@@ -751,7 +751,7 @@ There are none on the rig or in production's crons any more (D146), and none of 
 **The account-wide check.** Below that cap, the guard assumes the Paid level's limits for the whole account (section 3.5): the rig's dials in an hour plus production's peak hour come to at most 10, and a day's to at most 100. A stale measurement of production's peaks refuses. The guard's daily `measure` job and its limit probe keep those measurements fresh, so an on-demand run is not refused for a stale one.
 
 **Runs that do not fit the hourly cap.** A scenario whose single run needs more dials than the hourly cap of 3 admits cannot run until the cap or the room changes. That is a property of the run's dial cost, not of a schedule:
-- S07, S08, S10 and D01 need 4 dials in one run, and S09 needs 5. The hourly cap of 3 is final (below), so they are not runnable. S09 also needs two robot calls at once, and `nonprod-robot-ovp` allows one.
+- S07, S10 and D01 need 4 dials in one run. S08 and S09 need 5. The hourly cap of 3 refuses these runs. S09 also needs two robot calls at once, and `nonprod-robot-ovp` allows one.
 - K01 waits for Phase 4.
 - S28 and S29 are dropped (founder, 2026-11-01). Buying and releasing a number is Telnyx's work, and the hermetic suite covers the app's side of it.
 
@@ -762,7 +762,7 @@ There are none on the rig or in production's crons any more (D146), and none of 
 | Room | What runs | What is lost |
 |---|---|---|
 | 4 or more | Everything | Nothing |
-| 3 | Everything except D01 and S10 | Ringing every surface at once; X-to-Y calls in one workspace |
+| 3 | Everything except D01, S08 and S10 | Ringing every surface at once, consult transfers and X-to-Y calls in one workspace |
 | 2 | One-leg probes and single-surface calls only (G01, G02, K01, S01, S02, S04-S06, S11-S17, S24, S28, D07, D08), plus D02p, which needs no dial | Every paid Android wake test (D02-D04, D09-D12, E01), transfers and consults |
 | 1 or less | No paid calls. Texts, D02p, hermetic and local tests continue. | All paid call lanes |
 
@@ -787,7 +787,7 @@ R00 publishes the room and the scenarios it blocks. A room under 3 would also me
 | S05 | Caller hangs up while ringing | ROBOT-1 hangs up at 8 s | **Setup:** under the lease, QA-W escalates after 10 minutes on the destination clock with no business hours, so the call is after hours, and the owner is on call for DEV-W1. **Pass:** the call is missed; the text-back arrives within 60 s; a ring push is recorded; an escalation opens, and widens when the rig fires the minute cron 10.5 minutes later. | 2 |
 | S06 | Hold, mute, keypad | ROBOT-1 | **Pass:** the member's code is absent from the robot's recording during hold and mute and returns within 2 s; digits 1-2-3-# arrive in order. | 2 |
 | S07 | Blind transfer, decline and timeout | ROBOT-1 to DEV-W2 | QA-W rings in turn so the owner takes the original call. The robot hears the owner at 1,300 Hz while the target rings. After the transfer, it hears the technician at 1,700 Hz and the ledger records the answered transfer leg. **Variants:** decline and timeout. In both, the robot continues to hear the owner on the original connection. | 4 |
-| S08 | Consult transfer, inbound and outbound (the first live test of outbound transfer) | ROBOT-1 | **Pass:** during the consult the robot hears no member while the pages hear each other; after completion the robot hears the target and the sender's leg ends. Not runnable yet: the web call bar has no consult transfer control. Outbound also needs four Loonext dials (the browser call's two and the consult's two). Before S08 runs, in one change, this row's Dials per run becomes 5 and S08's `dials` in `scenarios.json` becomes 4. | 4 |
+| S08 | Consult transfer, inbound and outbound | ROBOT-1 | The owner selects Talk first. During the consult the robot hears no member and the pages hear each other. After Hand over, the robot hears the target and the sender's leg ends. **Variants:** outbound. That direction uses four Loonext dials. | 5 |
 | S09 | Busy line, second caller, self-dial | ROBOT-1, ROBOT-2 | **Pass:** the second caller reaches voicemail within 8 s; while the line is busy, the owner's dial shows "This line is on another call" and the guard's lease record shows no new app dial; after hang-up, a self-dial reaches voicemail. | 5 |
 | S10 | Number X calls number Y in one workspace; call waiting | DEV-W1 to DEV-W2 | **Pass:** the technician and the owner ring (DEV-W2's audience includes the owner); the owner's page shows call waiting; the pages hear each other; DEV-W1's inbound row is answered. | 4 |
 | S11 | After-hours, on-call, in-turn, ring length | ROBOT-1 | **Setup:** under the lease, today's hours are set two hours from now, so the shop is closed; after-hours calls are `on_call_only`, ringing is in turn with a 20 s ring, and the technician is on call for DEV-W2. **Pass:** only the on-call page rings, and the owner's stays idle for 15 s; voicemail answers at 20 s, plus or minus 2 s. | 2 |

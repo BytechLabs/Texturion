@@ -678,13 +678,18 @@ enum ContactsTasksStrings {
             "contactsTasks.addNoteAction": "Add a note in the conversation",
             "contactsTasks.transferThisCall": "Transfer this call",
             "contactsTasks.transferHoldNote":
-                "The customer stays on hold while we ring them.",
+                "Talk first puts the caller on hold during your consultation.",
             "contactsTasks.noTeammatesAvailable":
                 "No teammates can take this call right now.",
             "contactsTasks.transferAlertsAvailable": "Push alerts set up",
             "contactsTasks.transferNoAlerts": "No push alerts",
-            "contactsTasks.transferSnapBack":
-                "If they decline, the call snaps back to you.",
+            "contactsTasks.directTransferNote":
+                "The caller stays with you until your teammate answers a direct transfer.",
+            "contactsTasks.talkFirst": "Talk first",
+            "contactsTasks.consultingWith": "Consult with {who}",
+            "contactsTasks.handOver": "Hand over",
+            "contactsTasks.backToCaller": "Back to caller",
+            "contactsTasks.consultUnavailable": "Couldn't start the consult.",
             "contactsTasks.onACall": "On a call",
             "contactsTasks.available": "Available",
 
@@ -1463,12 +1468,18 @@ enum ContactsTasksStrings {
             "contactsTasks.addNoteAction": "Ajouter une note dans la conversation",
             "contactsTasks.transferThisCall": "Transférer cet appel",
             "contactsTasks.transferHoldNote":
-                "Le client reste en attente pendant que nous appelons cette personne.",
+                "L'appelant reste en attente pendant la consultation.",
             "contactsTasks.noTeammatesAvailable":
                 "Aucun coéquipier ne peut prendre cet appel en ce moment.",
             "contactsTasks.transferAlertsAvailable": "Alertes push configurées",
             "contactsTasks.transferNoAlerts": "Aucune alerte push",
-            "contactsTasks.transferSnapBack": "S'il refuse, l'appel vous revient.",
+            "contactsTasks.directTransferNote":
+                "Lors d'un transfert direct, l'appel reste avec vous jusqu'à la réponse de votre collègue.",
+            "contactsTasks.talkFirst": "Consulter d'abord",
+            "contactsTasks.consultingWith": "Consultation avec {who}",
+            "contactsTasks.handOver": "Confier l'appel",
+            "contactsTasks.backToCaller": "Reprendre l'appel",
+            "contactsTasks.consultUnavailable": "Impossible de démarrer la consultation.",
             "contactsTasks.onACall": "En appel",
             "contactsTasks.available": "Disponible",
 

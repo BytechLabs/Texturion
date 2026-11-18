@@ -320,6 +320,18 @@ export function useTransferCall() {
   });
 }
 
+export function requestConsult(companyId: string, sessionId: string, targetUserId: string) {
+  return apiFetch<{ status: string }>(`/v1/calls/live/${encodeURIComponent(sessionId)}/consult`, {
+    companyId, method: "POST", body: { target_user_id: targetUserId },
+  });
+}
+
+export function settleConsult(companyId: string, sessionId: string, action: "complete" | "cancel") {
+  return apiFetch<{ status: string }>(`/v1/calls/live/${encodeURIComponent(sessionId)}/consult/${action}`, {
+    companyId, method: "POST",
+  });
+}
+
 /**
  * D43: fetch a voicemail's signed playback URL on demand (the player mounts
  * it into an <audio>). Signed for an hour; the query cache mirrors that.

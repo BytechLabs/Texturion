@@ -20,6 +20,7 @@ struct InCallView: View {
 
     @State private var dtmfOpen = false
     @State private var transferOpen = false
+    @State private var transferSessionId: String?
     /// The route the OS says we are on. It owns routing — the picker in this
     /// same bar, a headset being plugged in, or CarPlay can all change it — so
     /// the old standalone bool went stale and lit the wrong button.
@@ -124,8 +125,8 @@ struct InCallView: View {
                 DtmfSheet { digit in manager.dtmf(featured.id, digit: digit) }
             }
         }
-        .sheet(isPresented: $transferOpen) {
-            if let featured, let session = featured.sessionId {
+        .sheet(isPresented: $transferOpen, onDismiss: { transferSessionId = nil }) {
+            if let session = transferSessionId {
                 TransferSheet(
                     manager: manager,
                     service: service,
@@ -184,7 +185,7 @@ struct InCallView: View {
             }
 
             // Other calls: held lines to swap back to, or a ringing 2nd call.
-            let others = snapshot.liveCalls.filter { $0.id != featured?.id }
+            let others = snapshot.liveCalls.filter { $0.id != featured?.id && $0.id != manager.consultation?.originalCallId }
             if !others.isEmpty {
                 Spacer().frame(height: 16)
                 VStack(spacing: 8) {
@@ -197,6 +198,14 @@ struct InCallView: View {
 
             Spacer(minLength: compactHeight ? 16 : 0)
 
+            if let consultation = manager.consultation {
+                ConsultActions(
+                    consultation: consultation,
+                    senderConnected: featured?.id == consultation.senderLegId && featured?.phase == .active,
+                    manager: manager
+                )
+                .padding(.horizontal, 22)
+            }
             if let featured, featured.phase != .ringing {
                 controls(for: featured)
             }
@@ -355,8 +364,9 @@ struct InCallView: View {
                     // Transfer needs the CUSTOMER session — resolved via
                     // by-leg for inbound answers — AND a live record the server
                     // can address; disabled until both land.
-                    enabled: serverAddressable && featured.phase == .active
+                    enabled: manager.consultation == nil && serverAddressable && featured.phase == .active
                 ) {
+                    transferSessionId = featured.sessionId
                     transferOpen = true
                 }
                 .frame(maxWidth: .infinity)
@@ -611,10 +621,48 @@ private struct DtmfSheet: View {
     }
 }
 
-/// Blind-transfer picker (spec 05): eligible teammates with honest presence
-/// dots — lime "Available", muted "On a call". Names come from
-/// GET /v1/members (targets are id-only). Decline/timeout recovery is
-/// server-side — the customer snaps back to us, never stranded.
+private struct ConsultActions: View {
+    let consultation: Consultation
+    let senderConnected: Bool
+    let manager: CallsManager
+
+    @Environment(\.appLocale) private var appLocale
+    @State private var pending = false
+    @State private var errorText: String?
+
+    var body: some View {
+        PaperCard {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(AppStrings.translate(appLocale, "contactsTasks.consultingWith", ["who": consultation.targetName]))
+                    .font(.golos(13, weight: .semibold))
+                if let errorText { Text(errorText).font(.golos(11)).foregroundStyle(BrandColor.muted500) }
+                HStack {
+                    Button(AppStrings.translate(appLocale, "contactsTasks.backToCaller")) { settle(complete: false) }
+                        .disabled(pending)
+                    Button(AppStrings.translate(appLocale, "contactsTasks.handOver")) { settle(complete: true) }
+                        .disabled(pending || !senderConnected)
+                }
+                .font(.golos(12, weight: .semibold))
+            }
+            .padding(12)
+        }
+    }
+
+    private func settle(complete: Bool) {
+        pending = true
+        errorText = nil
+        Task {
+            defer { pending = false }
+            do {
+                if complete { try await manager.completeConsult() }
+                else { try await manager.cancelConsult() }
+            } catch {
+                errorText = error.userMessage
+            }
+        }
+    }
+}
+
 private struct TransferSheet: View {
     let manager: CallsManager
     let service: CallsService
@@ -686,7 +734,7 @@ private struct TransferSheet: View {
                     .font(.golos(11.5))
                     .foregroundStyle(BrandColor.muted500)
             }
-            Text(t("contactsTasks.transferSnapBack"))
+            Text(t("contactsTasks.directTransferNote"))
                 .font(.golos(11))
                 .foregroundStyle(BrandColor.muted300)
                 .frame(maxWidth: .infinity)
@@ -722,18 +770,21 @@ private struct TransferSheet: View {
                 }
             }
             Spacer()
-            Button {
-                Haptics.confirm()
-                transfer(to: row.id)
-            } label: {
-                Text(t("contactsTasks.transfer"))
-                    .font(.golos(11.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.paper)
-                    .padding(.horizontal, 15)
-                    .padding(.vertical, 8)
-                    .background(BrandColor.ink, in: Capsule())
+            VStack(spacing: 4) {
+                Button {
+                    transfer(to: row, talkFirst: false)
+                } label: {
+                    Text(t("contactsTasks.transfer"))
+                        .font(.golos(11.5, weight: .semibold))
+                        .foregroundStyle(BrandColor.paper)
+                        .padding(.horizontal, 15)
+                        .padding(.vertical, 8)
+                        .background(BrandColor.ink, in: Capsule())
+                }
+                .buttonStyle(.plain)
+                Button(t("contactsTasks.talkFirst")) { transfer(to: row, talkFirst: true) }
+                    .font(.golos(12, weight: .semibold))
             }
-            .buttonStyle(.plain)
             .disabled(row.busy || transferring)
             .opacity(row.busy || transferring ? 0.45 : 1)
         }
@@ -756,7 +807,7 @@ private struct TransferSheet: View {
                     id: target.user_id,
                     name: {
                         let name = names[target.user_id] ?? ""
-                        return name.isBlank ? "Teammate" : name
+                        return name.isBlank ? t("contactsTasks.teammate") : name
                     }(),
                     busy: target.busy,
                     hasPushChannel: target.has_push_channel
@@ -767,16 +818,18 @@ private struct TransferSheet: View {
         }
     }
 
-    private func transfer(to userId: String) {
+    private func transfer(to row: Row, talkFirst: Bool) {
+        Haptics.confirm()
         transferring = true
         errorText = nil
         Task {
             defer { transferring = false }
             do {
-                _ = try await manager.blindTransfer(
-                    sessionId: sessionId,
-                    targetUserId: userId
-                )
+                if talkFirst {
+                    try await manager.startConsult(sessionId: sessionId, targetUserId: row.id, targetName: row.name)
+                } else {
+                    _ = try await manager.blindTransfer(sessionId: sessionId, targetUserId: row.id)
+                }
                 dismiss()
             } catch {
                 errorText = error.userMessage

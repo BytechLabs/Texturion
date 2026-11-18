@@ -115,6 +115,9 @@ protocol CallsBackend: Sendable {
     func liveFacts(companyId: String, sessionId: String) async throws -> LiveCallFacts
 
     func transferTargets(companyId: String, sessionId: String) async throws -> TransferTargets
+    func startConsult(companyId: String, sessionId: String, targetUserId: String) async throws -> TransferAck
+    func completeConsult(companyId: String, sessionId: String) async throws -> TransferAck
+    func cancelConsult(companyId: String, sessionId: String) async throws -> TransferAck
 
     func blindTransfer(
         companyId: String,
@@ -164,6 +167,22 @@ struct CallsService: CallsBackend {
 
     func transferTargets(companyId: String, sessionId: String) async throws -> TransferTargets {
         try await api.get("/v1/calls/live/\(sessionId)/targets", companyId: companyId)
+    }
+
+    func startConsult(companyId: String, sessionId: String, targetUserId: String) async throws -> TransferAck {
+        try await api.post(
+            "/v1/calls/live/\(sessionId)/consult",
+            body: TransferBody(target_user_id: targetUserId),
+            companyId: companyId
+        )
+    }
+
+    func completeConsult(companyId: String, sessionId: String) async throws -> TransferAck {
+        try await api.post("/v1/calls/live/\(sessionId)/consult/complete", companyId: companyId)
+    }
+
+    func cancelConsult(companyId: String, sessionId: String) async throws -> TransferAck {
+        try await api.post("/v1/calls/live/\(sessionId)/consult/cancel", companyId: companyId)
     }
 
     func blindTransfer(

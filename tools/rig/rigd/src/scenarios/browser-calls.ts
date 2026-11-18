@@ -574,7 +574,6 @@ export const S08: ScenarioRunner = {
     }
     const consultAnsweredAt = ctx.now();
     const refused = await transferring;
-    // The web call bar has blind transfer only today; a lane that cannot drive the consult is not a product failure.
     if (refused) return infra("browser-lane", refused.message);
     if (targetRing === undefined) {
       await ctx.robot.wait(started.plan_id, 120_000);

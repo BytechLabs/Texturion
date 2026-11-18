@@ -170,7 +170,8 @@ final class TelnyxSdkClient: NSObject, SoftphoneSdk {
             call: handle,
             callerName: resolved.name,
             callerNumber: resolved.number,
-            sessionHeader: sessionHeader
+            sessionHeader: sessionHeader,
+            legKind: CallerHeaders.legKind(from: call.inviteCustomHeaders)
         ))
     }
 

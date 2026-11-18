@@ -46,7 +46,7 @@ export const SELECTORS = {
   unmute: { role: "button", name: "Unmute" },
   keypad: { role: "button", name: "Keypad" },
   transfer: { role: "button", name: "Transfer this call" },
-  completeTransfer: { role: "button", name: "Complete transfer" },
+  completeTransfer: { role: "button", name: "Hand over" },
   /** apps/web/src/app/(auth)/signup. */
   signUpName: 'input[name="name"]',
   /** The onboarding wizard (apps/web/src/app/onboarding, English): its name step's field and the shared Continue button. */
@@ -645,15 +645,11 @@ export class MemberPage {
     await this.mark("keys");
   }
 
-  /**
-   * Transfers to a teammate the picker lists by name, or to a number's role.
-   * The web call bar has no consult control of its own yet, so a consult
-   * that never offers one throws rather than finishing as a blind transfer.
-   */
   async transfer(args: { to: string; mode: "blind" | "consult" }): Promise<void> {
     await this.page.getByRole(SELECTORS.transfer.role, { name: SELECTORS.transfer.name, exact: true }).click();
     const target = this.#numbers.number(args.to)?.replace(/^\+1/, "") ?? args.to;
-    await this.page.getByRole("button", { name: target }).first().click();
+    const action = args.mode === "consult" ? `Talk first with ${target}` : `Transfer to ${target}`;
+    await this.page.getByRole("button", { name: action, exact: true }).click();
     if (args.mode === "consult") {
       const complete = this.page.getByRole(SELECTORS.completeTransfer.role, { name: SELECTORS.completeTransfer.name, exact: true });
       try {

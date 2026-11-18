@@ -207,6 +207,12 @@ interface CallsApi {
 
     suspend fun transferTargets(companyId: String, sessionId: String): TransferTargets
 
+    suspend fun startConsult(companyId: String, sessionId: String, targetUserId: String): TransferAck
+
+    suspend fun completeConsult(companyId: String, sessionId: String): TransferAck
+
+    suspend fun cancelConsult(companyId: String, sessionId: String): TransferAck
+
     suspend fun blindTransfer(
         companyId: String,
         sessionId: String,
@@ -277,6 +283,15 @@ class HttpCallsApi(private val api: ApiClient) : CallsApi {
 
     override suspend fun transferTargets(companyId: String, sessionId: String): TransferTargets =
         api.get("/v1/calls/live/$sessionId/targets", companyId = companyId)
+
+    override suspend fun startConsult(companyId: String, sessionId: String, targetUserId: String): TransferAck =
+        api.post("/v1/calls/live/$sessionId/consult", TransferBody(targetUserId), companyId = companyId)
+
+    override suspend fun completeConsult(companyId: String, sessionId: String): TransferAck =
+        api.post("/v1/calls/live/$sessionId/consult/complete", companyId = companyId)
+
+    override suspend fun cancelConsult(companyId: String, sessionId: String): TransferAck =
+        api.post("/v1/calls/live/$sessionId/consult/cancel", companyId = companyId)
 
     override suspend fun blindTransfer(
         companyId: String,

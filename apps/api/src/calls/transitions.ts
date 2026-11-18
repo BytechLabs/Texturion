@@ -201,6 +201,8 @@ export interface SessionIntent {
   transferStartedAtMs?: number;
   wakeId?: string;
   transferLegEnded?: boolean;
+  consultSenderCcid?: string;
+  consultConnected?: boolean;
   memberCcid?: string;
 }
 
@@ -475,6 +477,8 @@ export type SessionEvent =
   | { type: "register-intent"; kind: "transfer" | "consult"; targetUserId: string; transferId?: string; senderUserId?: string }
   | { type: "reserve-transfer-wake"; wakeId: string }
   | { type: "end-first-transfer-leg" }
+  | { type: "bind-consult-sender"; memberCcid: string }
+  | { type: "connect-consult" }
   | { type: "bind-transfer-leg"; transferId: string; memberCcid: string }
   | { type: "complete-transfer"; transferId: string; memberCcid: string }
   | { type: "clear-intent" }
@@ -559,6 +563,8 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "register-intent",
   "reserve-transfer-wake",
   "end-first-transfer-leg",
+  "bind-consult-sender",
+  "connect-consult",
   "bind-transfer-leg",
   "complete-transfer",
   "clear-intent",
@@ -869,6 +875,9 @@ function terminalize(
     if (machine.intent.memberCcid) {
       effects.push({ kind: "telnyx-hangup", ccid: machine.intent.memberCcid, terminal: true });
     }
+    if (machine.intent.consultSenderCcid) {
+      effects.push({ kind: "telnyx-hangup", ccid: machine.intent.consultSenderCcid, terminal: true });
+    }
     effects.push({ kind: "clear-alarm", alarm: "intent-expiry" });
     machine.intent = null;
   }
@@ -1085,7 +1094,7 @@ export function reduce(
         ...(event.transferId ? { transferId: event.transferId } : {}),
         ...(event.senderUserId ? { senderUserId: event.senderUserId, transferStartedAtMs: nowMs } : {}),
       };
-      if (event.transferId) next.transferDialCount = (next.transferDialCount ?? 0) + 1;
+      if (event.transferId) next.transferDialCount = (next.transferDialCount ?? 0) + (event.kind === "consult" ? 2 : 1);
       effects.push({
         kind: "arm-alarm",
         alarm: "intent-expiry",
@@ -1111,6 +1120,16 @@ export function reduce(
       }
       return { machine: next, effects };
     }
+    case "bind-consult-sender": {
+      if (next.intent?.kind === "consult") next.intent.consultSenderCcid = event.memberCcid;
+      return { machine: next, effects };
+    }
+    case "connect-consult": {
+      if (next.intent?.kind !== "consult") return { machine: next, effects };
+      next.intent.consultConnected = true;
+      effects.push({ kind: "clear-alarm", alarm: "intent-expiry" });
+      return { machine: next, effects };
+    }
     case "bind-transfer-leg": {
       if (next.intent?.transferId === event.transferId) {
         next.intent.memberCcid = event.memberCcid;
@@ -1123,6 +1142,9 @@ export function reduce(
       }
       next.answeredByUserId = next.intent.targetUserId;
       next.lastTransfer = { id: event.transferId, memberCcid: event.memberCcid };
+      if (next.intent.consultSenderCcid) {
+        effects.push({ kind: "telnyx-hangup", ccid: next.intent.consultSenderCcid, terminal: true });
+      }
       next.intent = null;
       next.ownerLegDeadDuringIntent = null;
       effects.push(
@@ -1135,6 +1157,9 @@ export function reduce(
     case "alarm-intent-expiry": {
       if (next.intent?.memberCcid) {
         effects.push({ kind: "telnyx-hangup", ccid: next.intent.memberCcid, terminal: true });
+      }
+      if (next.intent?.consultSenderCcid) {
+        effects.push({ kind: "telnyx-hangup", ccid: next.intent.consultSenderCcid, terminal: true });
       }
       next.intent = null;
       effects.push({ kind: "clear-alarm", alarm: "intent-expiry" });
@@ -1911,7 +1936,7 @@ function reduceOutboundPlacerHangup(
   }
 
   if (next.state === "answered") {
-    if (next.intent !== null) {
+    if (next.intent && !next.intent.consultConnected) {
       // Stand-down: the placer dying mid-transfer is the EXPECTED shape of a
       // blind transfer; flag it so clearIntent/intent-expiry re-run teardown.
       next.ownerLegDeadDuringIntent = event.userId;
@@ -2152,7 +2177,7 @@ function reduceMemberHangup(
     if (next.answeredByUserId !== event.userId) {
       return { machine: next, effects }; // teammate takeover — not stranded
     }
-    if (next.intent !== null) {
+    if (next.intent && !next.intent.consultConnected) {
       // Stand-down is NOT a silent no-op (review R1-B4): flag it so
       // clearIntent()/the intent-expiry alarm re-run the teardown.
       next.ownerLegDeadDuringIntent = event.userId;

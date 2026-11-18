@@ -48,9 +48,12 @@ import { getDb } from "../db";
 import { getEnv } from '../env';
 import type { Env } from '../env';
 import { errorResponse } from "../http/errors";
-import { buildConsultState, consultLegs, insertJourneyEvent, issueTransfer, liveCallBySession,TRANSFER_TIMEOUT_SECS } from '../messaging/live-call';
+import {
+  closePendingConsultLeg, consultLegs, dialConsultLeg, insertJourneyEvent,
+  issueTransfer, liveCallBySession, registerConsultLegs,
+} from '../messaging/live-call';
 import type { LiveCallRow } from '../messaging/live-call';
-import { LOONEXT_SESSION_HEADER } from "../messaging/inbound-ring";
+import { hangupLiveLeg } from "../messaging/inbound-ring";
 import { isFcmConfigured } from "../notifications/fcm";
 import { notifyIncomingCall } from "../notifications/incoming-call";
 import { telnyxRequest } from "../telnyx/client";
@@ -79,6 +82,18 @@ function callSessionStub(env: Env, sessionId: string): CallSessionDO | null {
   return namespace.get(
     namespace.idFromName(sessionId),
   ) as unknown as CallSessionDO;
+}
+
+async function notifyTransferTarget(
+  c: Context<AppEnv>,
+  env: Env,
+  db: ReturnType<typeof getDb>,
+  input: Parameters<typeof notifyIncomingCall>[2],
+): Promise<void> {
+  const notice = notifyIncomingCall(env, db, input);
+  const ctx = executionCtxOf(c);
+  if (ctx) ctx.waitUntil(notice);
+  else await notice;
 }
 
 /** §8.1 row-derivation fallback (DEGRADED truth — cannot represent
@@ -664,16 +679,13 @@ liveCallsRoutes.post(
           waitForWake: true,
         });
       }
-      const notice = notifyIncomingCall(env, db, {
+      await notifyTransferTarget(c, env, db, {
         companyId,
         userIds: [body.target_user_id],
         caller: gate.call.caller_e164,
         callSessionId: sessionId,
         transfer: { id: transferId, senderUserId },
       });
-      const ctx = executionCtxOf(c);
-      if (ctx) ctx.waitUntil(notice);
-      else await notice;
     } else if (!issued) {
       return errorResponse(c, "conflict", "The call just ended.");
     }
@@ -703,26 +715,39 @@ liveCallsRoutes.post(
       return c.json({ ok: true, rang: false, state: reserved.state, reason: reserved.reason });
     }
     const { wakeId, senderUserId } = reserved;
+    const consult = reserved.kind === "consult"
+      ? { sessionId, userId, role: "t" as const, consultId: transferId, wakeId }
+      : null;
     let rang = false;
     try {
-      rang = await issueTransfer(env, db, {
-        companyId,
-        customerCcid: gate.call.customer_call_control_id!,
-        targetSipUsername: target.sipUsername,
-        callerNumberForTarget: gate.call.caller_e164 ?? gate.businessNumber,
-        direction: gate.call.direction === "outbound" ? "outbound" : "inbound",
-        state: {
-          sessionId,
-          targetUserId: userId,
-          senderUserId,
-          hops: 0,
-          caller: gate.call.caller_e164,
-          transferId,
-          wakeId,
-        },
-      });
+      if (consult) {
+        await registerConsultLegs(db, companyId, [consult]);
+        rang = Boolean(await dialConsultLeg(env, db, {
+          sipUsername: target.sipUsername, businessNumber: gate.businessNumber, state: consult,
+        }));
+      } else {
+        rang = await issueTransfer(env, db, {
+          companyId,
+          customerCcid: gate.call.customer_call_control_id!,
+          targetSipUsername: target.sipUsername,
+          callerNumberForTarget: gate.call.caller_e164 ?? gate.businessNumber,
+          direction: gate.call.direction === "outbound" ? "outbound" : "inbound",
+          state: {
+            sessionId,
+            targetUserId: userId,
+            senderUserId,
+            hops: 0,
+            caller: gate.call.caller_e164,
+            transferId,
+            wakeId,
+          },
+        });
+      }
     } finally {
-      if (!rang) await stub.endTransferAttempt({ transferId, wakeId, userId, waitForWake: false });
+      if (!rang) {
+        await stub.endTransferAttempt({ transferId, wakeId, userId, waitForWake: false });
+        if (consult) await closePendingConsultLeg(db, consult);
+      }
     }
     return c.json({ ok: true, rang, state: reserved.state, ...(rang ? {} : { reason: "dial_failed" }) });
   },
@@ -744,14 +769,19 @@ liveCallsRoutes.post(
     const gate = await requireLiveCall(c, db, sessionId);
     if (gate instanceof Response) return gate;
     const companyId = c.get("companyId");
+    const senderUserId = c.get("userId");
+    const consultStub = callSessionStub(env, sessionId);
 
-    const existing = await consultLegs(db, sessionId);
-    if (existing.some((leg) => leg.state !== "failed")) {
+    if (!consultStub && (await consultLegs(db, sessionId)).some((leg) => leg.state !== "failed")) {
       return errorResponse(
         c,
         "conflict",
         "A consult for this call is already running.",
       );
+    }
+
+    if (body.target_user_id === senderUserId) {
+      return errorResponse(c, "conflict", "Choose a teammate to consult with.");
     }
 
     const [target, sender] = await Promise.all([
@@ -765,7 +795,7 @@ liveCallsRoutes.post(
         db,
         companyId,
         gate.call.phone_number_id!,
-        c.get("userId"),
+        senderUserId,
       ),
     ]);
     if (!target) {
@@ -782,87 +812,68 @@ liveCallsRoutes.post(
     // #170 §7.4: intent BEFORE any Telnyx command (the consult route dials BOTH
     // legs; T7 must observe the intent already registered). Abort unless the
     // machine is still 'answered'.
-    const consultStub = callSessionStub(env, sessionId);
+    const consultId = crypto.randomUUID();
     if (consultStub) {
-      const { state, registered } = await consultStub.registerIntent({
+      const { state, registered, reason } = await consultStub.registerIntent({
         sessionId,
         kind: "consult",
         targetUserId: body.target_user_id,
+        transferId: consultId,
+        senderUserId,
       });
       if (state !== "answered") {
         return errorResponse(c, "conflict", "The call just ended.");
       }
       if (!registered) {
+        if (reason === "leg_limit") return errorResponse(c, "conflict", "This call has reached its transfer limit.");
         return errorResponse(c, "conflict", "A transfer or consult is already running.");
       }
     }
 
-    // Dial both browsers; per-leg try/catch so a half-failed consult tears
-    // down cleanly rather than ringing one side forever.
-    const dialed: { ccid: string; userId: string }[] = [];
-    const legsToDial = [
-      { userId: c.get("userId"), sip: sender.sipUsername, role: "s" as const },
-      { userId: body.target_user_id, sip: target.sipUsername, role: "t" as const },
-    ];
-    for (const leg of legsToDial) {
-      try {
-        const response = (await telnyxRequest(env, {
-          method: "POST",
-          path: "/v2/calls",
-          body: {
-            connection_id: env.TELNYX_VOICE_CONNECTION_ID,
-            to: `sip:${leg.sip}@sip.telnyx.com`,
-            from: gate.businessNumber,
-            timeout_secs: TRANSFER_TIMEOUT_SECS,
-            client_state: buildConsultState({
-              sessionId,
-              userId: leg.userId,
-              role: leg.role,
-            }),
-            // CALLS-CLIENT-V2 §3.2 (#208): consult legs carry the same
-            // session-correlation custom SIP header as ring legs (X- prefix
-            // mandatory), so both members' clients correlate the INVITE to the
-            // server session deterministically.
-            custom_headers: [
-              { name: LOONEXT_SESSION_HEADER, value: sessionId },
-            ],
-          },
-        })) as { data?: { call_control_id?: string } };
-        const ccid = response.data?.call_control_id;
-        if (ccid) dialed.push({ ccid, userId: leg.userId });
-      } catch (error_) {
-        console.error(
-          `consult dial failed (user ${leg.userId}):`,
-          error_ instanceof Error ? error_.message : String(error_),
-        );
+    const senderLeg = { sessionId, consultId, userId: senderUserId, role: "s" as const };
+    const targetLeg = { sessionId, consultId, userId: body.target_user_id, role: "t" as const };
+    let senderCcid: string | null = null;
+    let targetCcid: string | null = null;
+    const closeSetup = async () => {
+      if (consultStub) await consultStub.clearIntent(consultId);
+      else if (senderCcid) await hangupLiveLeg(env, senderCcid);
+      await Promise.all([closePendingConsultLeg(db, senderLeg), closePendingConsultLeg(db, targetLeg)]);
+    };
+    try {
+      // The sender may answer before Telnyx returns the dial response.
+      await registerConsultLegs(db, companyId, [senderLeg, targetLeg]);
+      senderCcid = await dialConsultLeg(env, db, {
+        sipUsername: sender.sipUsername, businessNumber: gate.businessNumber, state: senderLeg,
+      });
+      if (senderCcid) {
+        targetCcid = await dialConsultLeg(env, db, {
+          sipUsername: target.sipUsername, businessNumber: gate.businessNumber, state: targetLeg,
+        });
       }
+    } catch (error) {
+      await closeSetup();
+      throw error;
     }
-    if (dialed.length < 2) {
-      for (const leg of dialed) {
-        try {
-          await telnyxRequest(env, {
-            method: "POST",
-            path: `/v2/calls/${leg.ccid}/actions/hangup`,
-            body: {},
-          });
-        } catch {
-          /* already gone */
-        }
-      }
-      if (consultStub) await consultStub.clearIntent();
+    if (!senderCcid || (!targetCcid && !consultStub)) {
+      await closeSetup();
       return errorResponse(c, "conflict", "Couldn't start the consult.");
     }
-
-    const { error } = await db.from("call_member_legs").insert(
-      dialed.map((leg) => ({
-        call_session_id: sessionId,
-        call_control_id: leg.ccid,
-        company_id: companyId,
-        user_id: leg.userId,
-        kind: "consult",
-      })),
-    );
-    if (error) throw new Error(`consult ledger insert failed: ${error.message}`);
+    if (consultStub) {
+      if (!targetCcid) {
+        const ended = await consultStub.endTransferAttempt({
+          transferId: consultId, userId: targetLeg.userId, waitForWake: true,
+        });
+        await closePendingConsultLeg(db, targetLeg);
+        if (ended !== "waiting") return errorResponse(c, "conflict", "The consult just ended.");
+      }
+      await notifyTransferTarget(c, env, db, {
+        companyId,
+        userIds: [targetLeg.userId],
+        caller: gate.call.caller_e164,
+        callSessionId: sessionId,
+        transfer: { id: consultId, senderUserId },
+      });
+    }
     return c.json({ status: "consulting" }, 202);
   },
 );
@@ -918,70 +929,46 @@ liveCallsRoutes.post(
       );
     }
 
-    // #168 ORDERING: stamp the NEW owner BEFORE the bridge-steal. The steal
-    // unbridges the sender's answered ring leg, whose death drives the
-    // CallSessionDO owner-death teardown (T7 / intent-expiry, #208), which
-    // tears down "stranded" customers still owned by the dying leg's user -
-    // stamping first makes that teardown see the hand-off and stand down,
-    // closing the race where a completed consult transfer was killed as a
-    // stranded call. A failed bridge restores the
-    // sender (best-effort) before rethrowing.
-    const { error: ownerError } = await db
-      .from("calls")
-      .update({ answered_by_user_id: targetLeg.user_id })
-      .eq("call_session_id", sessionId);
-    if (ownerError) {
-      throw new Error(`transfer stamp failed: ${ownerError.message}`);
-    }
-    // #170 §7.4 + #208: the DO owner stamp moves WITH the DB stamp, BEFORE
-    // the bridge-steal and the sender-leg hangup (set-owner is idempotent, so
-    // a replay is safe). Stamping after the steal left a crash window where
-    // the machine still believed the SENDER owned the call: the sender's leg
-    // death during the steal would flag ownerLegDeadDuringIntent, and the
-    // re-armed intent expiry would then force-hang the transferred customer.
-    // Clearing the intent re-runs T7's stood-down recovery check, a no-op
-    // now that the owner changed.
     const completeStub = callSessionStub(env, sessionId);
-    if (completeStub) {
-      await completeStub.setOwner({ sessionId, userId: targetLeg.user_id });
-      await completeStub.clearIntent();
-    }
-    try {
-      await telnyxRequest(env, {
-        method: "POST",
-        path: `/v2/calls/${targetLeg.call_control_id}/actions/bridge`,
-        body: { call_control_id: gate.call.customer_call_control_id },
-      });
-    } catch (error) {
-      await db
-        .from("calls")
-        .update({ answered_by_user_id: c.get("userId") })
-        .eq("call_session_id", sessionId);
-      // #208: the machine's owner must follow the DB restore. The steal
-      // failed, so the SENDER still holds the customer (set-owner is
-      // idempotent; a stale target owner would misroute T7's stranded-call
-      // teardown at the sender's next leg death).
-      if (completeStub) {
-        await completeStub.setOwner({ sessionId, userId: c.get("userId") });
-      }
-      throw error;
+    const completion = await completeStub?.completeConsult({
+      userId: c.get("userId"), senderCcid: senderLeg.call_control_id, targetCcid: targetLeg.call_control_id,
+    }) ?? "legacy";
+    if (completion === "unavailable") {
+      return errorResponse(c, "conflict", "The consult isn't connected yet.");
     }
 
-    // CRITICAL ORDERING: remove the consult ledger rows BEFORE hanging up the
-    // sender leg. The sender-hangup fires call.hangup (still brc-tagged) →
-    // handleConsultLegEvent, which dismisses live sibling consult legs. With
-    // the rows gone it matches nothing, so it can never tear down the target
-    // leg that now carries the bridged customer. (The target's brc leg keeps
-    // ringing the customer; its own later hangup is a harmless no-op.)
+    if (completion === "legacy") {
+      // An older consult guards the customer with the owner stamp during bridge replacement.
+      const { error: ownerError } = await db.from("calls")
+        .update({ answered_by_user_id: targetLeg.user_id }).eq("call_session_id", sessionId);
+      if (ownerError) throw new Error(`transfer stamp failed: ${ownerError.message}`);
+      await completeStub?.setOwner({ sessionId, userId: targetLeg.user_id });
+      await completeStub?.clearIntent();
+      try {
+        await telnyxRequest(env, {
+          method: "POST",
+          path: `/v2/calls/${targetLeg.call_control_id}/actions/bridge`,
+          body: { call_control_id: gate.call.customer_call_control_id },
+        });
+      } catch (error) {
+        await db.from("calls").update({ answered_by_user_id: c.get("userId") })
+          .eq("call_session_id", sessionId);
+        await completeStub?.setOwner({ sessionId, userId: c.get("userId") });
+        throw error;
+      }
+    }
+
+    // The legacy hangup handler reaps siblings if the sender leg is still ledgered.
     const { error: clearError } = await db
       .from("call_member_legs")
       .delete()
       .eq("call_session_id", sessionId)
-      .eq("kind", "consult");
+      .eq("kind", "consult")
+      .in("call_control_id", [senderLeg.call_control_id, targetLeg.call_control_id]);
     if (clearError) {
       throw new Error(`consult ledger clear failed: ${clearError.message}`);
     }
-    if (senderLeg) {
+    if (completion === "legacy") {
       try {
         await telnyxRequest(env, {
           method: "POST",
@@ -1018,9 +1005,12 @@ liveCallsRoutes.post(
     const gate = await requireLiveCall(c, db, sessionId);
     if (gate instanceof Response) return gate;
 
+    const stub = callSessionStub(env, sessionId);
+    if (await stub?.cancelConsult()) return c.json({ status: "cancelled" });
+
     const legs = await consultLegs(db, sessionId);
     for (const leg of legs) {
-      if (leg.state === "failed") continue;
+      if (leg.state === "failed" || leg.call_control_id.startsWith("consult:")) continue;
       try {
         await telnyxRequest(env, {
           method: "POST",
@@ -1032,7 +1022,6 @@ liveCallsRoutes.post(
       }
     }
     // #170 §7.4: clear the consult intent (also re-runs T7's stood-down check).
-    const stub = callSessionStub(env, sessionId);
     if (stub) await stub.clearIntent();
     return c.json({ status: "cancelled" });
   },

@@ -50,7 +50,7 @@ export { JANITOR_MS, PURGE_DELAY_MS, RING_WINDOW_SECS } from './transitions';
 import type { AlarmKind, CallState, DeclineReply, Effect, MirrorSet, RingMeReply, SessionEvent, SessionMachine } from './transitions';
 
 type TransferWakeReservation =
-  | { state: "answered"; wakeId: string; senderUserId: string }
+  | { state: "answered"; wakeId: string; senderUserId: string; kind: "transfer" | "consult" }
   | { state: CallState; reason: "not_ringing" | "recent_leg" | "live_leg" | "dial_failed" };
 
 /** The freshest machine view the /state route serves (read-your-writes). */
@@ -428,7 +428,8 @@ export class CallSessionDO extends DurableObject<Env> {
       if (machine.intent?.transferId || transferCannotStart) {
         return { state: machine.state, registered: false };
       }
-      if (input.transferId && machine.legs.length + (machine.transferDialCount ?? 0) >= MAX_LEGS_PER_SESSION) {
+      const initialDials = input.kind === "consult" ? 2 : 1;
+      if (input.transferId && machine.legs.length + (machine.transferDialCount ?? 0) + initialDials > MAX_LEGS_PER_SESSION) {
         return { state: machine.state, registered: false, reason: "leg_limit" };
       }
       await this.admitAndDrain(
@@ -456,7 +457,7 @@ export class CallSessionDO extends DurableObject<Env> {
           intent.transferId !== input.transferId || intent.targetUserId !== input.userId) {
         return { state, reason: "not_ringing" };
       }
-      if (intent.wakeId) return { state, reason: "live_leg" };
+      if (intent.wakeId || intent.consultConnected) return { state, reason: "live_leg" };
       const elapsed = Date.now() - (intent.transferStartedAtMs ?? 0);
       if (elapsed > TRANSFER_WAKE_EXPIRY_MS - INTENT_EXPIRY_MS) return { state, reason: "not_ringing" };
       if (!intent.transferLegEnded && elapsed < RING_ME_DEBOUNCE_MS) {
@@ -467,7 +468,7 @@ export class CallSessionDO extends DurableObject<Env> {
       }
       const wakeId = crypto.randomUUID();
       await this.admitAndDrain({ type: "reserve-transfer-wake", wakeId }, null);
-      return { state, wakeId, senderUserId: intent.senderUserId };
+      return { state, wakeId, senderUserId: intent.senderUserId, kind: intent.kind };
     });
   }
 
@@ -489,7 +490,7 @@ export class CallSessionDO extends DurableObject<Env> {
           (intent.memberCcid && input.memberCcid && intent.memberCcid !== input.memberCcid)) {
         return "stale";
       }
-      if (input.waitForWake && intent.senderUserId && !intent.wakeId) {
+      if (input.waitForWake && intent.senderUserId && !intent.wakeId && !intent.consultConnected) {
         await this.admitAndDrain({ type: "end-first-transfer-leg" }, null);
         return "waiting";
       }
@@ -520,24 +521,24 @@ export class CallSessionDO extends DurableObject<Env> {
       const machine = await this.load();
       if (machine?.lastTransfer?.id === input.transferId &&
           machine.lastTransfer.memberCcid === input.memberCcid) return true;
-      if (machine?.state !== "answered" || !machine.customerCcid ||
-          machine.intent?.transferId !== input.transferId ||
+      if (machine?.state !== "answered" || machine.intent?.kind !== "transfer" ||
+          machine.intent.transferId !== input.transferId ||
           machine.intent.targetUserId !== input.targetUserId ||
           machine.intent.wakeId !== input.wakeId || machine.intent.transferLegEnded ||
           (machine.intent.memberCcid && machine.intent.memberCcid !== input.memberCcid)) return false;
 
-      const bridged = await this.rt.telnyx.bridgeTransfer(
-        input.memberCcid, machine.customerCcid, input.wakeId ?? input.transferId,
-      );
-      if (!bridged) {
-        await this.admitAndDrain({ type: "clear-intent" }, null);
-        return false;
-      }
-      await this.admitAndDrain({
-        type: "complete-transfer", transferId: input.transferId, memberCcid: input.memberCcid,
-      }, null);
-      return true;
+      return this.handoff(machine, input.transferId, input.memberCcid, input.wakeId ?? input.transferId);
     });
+  }
+
+  private async handoff(machine: SessionMachine, transferId: string, memberCcid: string, commandId: string): Promise<boolean> {
+    if (!machine.customerCcid) return false;
+    if (!(await this.rt.telnyx.bridgeTransfer(memberCcid, machine.customerCcid, commandId))) {
+      await this.admitAndDrain({ type: "clear-intent" }, null);
+      return false;
+    }
+    await this.admitAndDrain({ type: "complete-transfer", transferId, memberCcid }, null);
+    return true;
   }
 
   async bindTransferLeg(input: {
@@ -545,25 +546,97 @@ export class CallSessionDO extends DurableObject<Env> {
     wakeId?: string;
     targetUserId: string;
     memberCcid: string;
-  }): Promise<void> {
-    await this.enqueue(async () => {
+  }): Promise<boolean> {
+    return this.enqueue(async () => {
       await this.resumeJournalIfAny();
       const machine = await this.load();
       if (machine?.lastTransfer?.id === input.transferId &&
-          machine.lastTransfer.memberCcid === input.memberCcid) return;
+          machine.lastTransfer.memberCcid === input.memberCcid) return true;
       const intent = machine?.intent;
       if (machine?.state !== "answered" || intent?.transferId !== input.transferId ||
           intent.targetUserId !== input.targetUserId ||
           intent.wakeId !== input.wakeId || intent.transferLegEnded ||
           (intent.memberCcid && intent.memberCcid !== input.memberCcid)) {
         await this.rt.telnyx.hangup(input.memberCcid);
-        return;
+        return false;
       }
       if (!intent.memberCcid) {
         await this.admitAndDrain({
           type: "bind-transfer-leg", transferId: input.transferId, memberCcid: input.memberCcid,
         }, null);
       }
+      return true;
+    });
+  }
+
+  async bindConsultSender(input: { consultId: string; userId: string; memberCcid: string }): Promise<boolean> {
+    return this.enqueue(async () => {
+      await this.resumeJournalIfAny();
+      const machine = await this.load();
+      const intent = machine?.intent;
+      if (machine?.state !== "answered" || intent?.kind !== "consult" || intent.transferId !== input.consultId ||
+          intent.senderUserId !== input.userId || (intent.consultSenderCcid && intent.consultSenderCcid !== input.memberCcid)) {
+        await this.rt.telnyx.hangup(input.memberCcid);
+        return false;
+      }
+      if (!intent.consultSenderCcid) {
+        await this.admitAndDrain({ type: "bind-consult-sender", memberCcid: input.memberCcid }, null);
+      }
+      return true;
+    });
+  }
+
+  async connectConsult(input: { consultId: string; senderCcid: string; targetCcid: string }): Promise<void> {
+    await this.enqueue(async () => {
+      await this.resumeJournalIfAny();
+      const machine = await this.load();
+      const intent = machine?.intent;
+      if (machine?.state !== "answered" || intent?.kind !== "consult" || intent.transferId !== input.consultId ||
+          intent.consultSenderCcid !== input.senderCcid || intent.memberCcid !== input.targetCcid || intent.consultConnected) return;
+      if (machine.ownerLegDeadDuringIntent !== null) {
+        await this.admitAndDrain({ type: "clear-intent" }, null);
+        return;
+      }
+      const bridged = await this.rt.telnyx.bridge(input.targetCcid, input.senderCcid);
+      await this.admitAndDrain({ type: bridged === "ok" ? "connect-consult" : "clear-intent" }, null);
+    });
+  }
+
+  async completeConsult(input: { userId: string; senderCcid: string; targetCcid: string }): Promise<"completed" | "unavailable" | "legacy"> {
+    return this.enqueue(async () => {
+      await this.resumeJournalIfAny();
+      const machine = await this.load();
+      const intent = machine?.intent;
+      if (!machine || (intent?.kind === "consult" && !intent.transferId)) return "legacy";
+      if (machine.state !== "answered" || intent?.kind !== "consult" || !intent.consultConnected || !intent.transferId ||
+          intent.senderUserId !== input.userId || intent.consultSenderCcid !== input.senderCcid || intent.memberCcid !== input.targetCcid) return "unavailable";
+      const completed = await this.handoff(machine, intent.transferId, input.targetCcid, intent.wakeId ?? intent.transferId);
+      return completed ? "completed" : "unavailable";
+    });
+  }
+
+  async endConsultSender(input: { consultId: string; userId: string; memberCcid: string }): Promise<void> {
+    await this.enqueue(async () => {
+      await this.resumeJournalIfAny();
+      const intent = (await this.load())?.intent;
+      if (intent?.kind === "consult" && intent.transferId === input.consultId &&
+          intent.senderUserId === input.userId && (!intent.consultSenderCcid || intent.consultSenderCcid === input.memberCcid)) {
+        await this.admitAndDrain({ type: "clear-intent" }, null);
+      }
+    });
+  }
+
+  async cancelConsult(): Promise<boolean> {
+    return this.enqueue(async () => {
+      await this.resumeJournalIfAny();
+      const machine = await this.load();
+      if (!machine) return false;
+      const intent = machine.intent;
+      if (intent?.kind === "consult") {
+        if (!intent.transferId) return false;
+        await this.admitAndDrain({ type: "clear-intent" }, null);
+      }
+      return true;
     });
   }
 

@@ -1,6 +1,13 @@
 import Foundation
 import Observation
 
+struct Consultation: Sendable {
+    let sessionId: String
+    let originalCallId: String
+    let targetName: String
+    var senderLegId: String? = nil
+}
+
 /// Discrete moments the platform layer (CallKit + PushKit) reacts to.
 enum CoreEvent: Sendable, Equatable {
     case incomingRinging(CallSnapshot)
@@ -76,6 +83,11 @@ final class SoftphoneCore {
     private(set) var state = SoftphoneSnapshot() {
         didSet { onState?(state) }
     }
+    private(set) var consultation: Consultation?
+    @ObservationIgnored private var consultInviteWatchdog: Task<Void, Never>?
+    @ObservationIgnored private var consultSenderIds: Set<String> = []
+    @ObservationIgnored private var completingConsult = false
+    @ObservationIgnored private var resumeAfterConsult: String?
 
     /// Every state change, for the platform sync (CallKit reporting).
     @ObservationIgnored var onState: ((SoftphoneSnapshot) -> Void)?
@@ -366,12 +378,13 @@ final class SoftphoneCore {
                 : down
             scheduleRecover()
 
-        case .incoming(let call, let callerName, let callerNumber, let sessionHeader):
+        case .incoming(let call, let callerName, let callerNumber, let sessionHeader, let legKind):
             onIncoming(
                 call,
                 callerName: callerName,
                 callerNumber: callerNumber,
-                sessionHeader: sessionHeader
+                sessionHeader: sessionHeader,
+                legKind: legKind
             )
         }
     }
@@ -380,8 +393,15 @@ final class SoftphoneCore {
         _ handle: any SdkCallHandle,
         callerName: String?,
         callerNumber: String?,
-        sessionHeader: String?
+        sessionHeader: String?,
+        legKind: String?
     ) {
+        if legKind == "consult-s" {
+            if let pending = consultation, pending.sessionId == sessionHeader, pending.senderLegId == nil {
+                acceptConsultSender(handle, pending: pending)
+            }
+            return
+        }
         // #213: FIRST — is this THIS member's own server-dialed placer (op) leg
         // for a call they just placed? The server stamps X-Loonext-Session=S on
         // the placer dial; correlate it to the placement registered in placeCall.
@@ -417,7 +437,8 @@ final class SoftphoneCore {
             direction: .inbound,
             peerName: name,
             peerNumber: number,
-            phase: .ringing
+            phase: .ringing,
+            sessionId: legKind == "consult-t" ? sessionHeader : nil
         )
         handles[handle.id] = handle
         sdkPhases[handle.id] = .ringing
@@ -432,6 +453,27 @@ final class SoftphoneCore {
         watch(handle)
         ensureRingTtlSweep()
         onEvent?(.incomingRinging(snapshot))
+    }
+
+    private func acceptConsultSender(_ handle: any SdkCallHandle, pending: Consultation) {
+        guard let original = state.activeCall, original.id == pending.originalCallId else { return }
+        let snapshot = CallSnapshot(
+            id: handle.id,
+            direction: .outbound,
+            peerName: pending.targetName,
+            peerNumber: "",
+            phase: .connecting
+        )
+        handles[handle.id] = handle
+        sdkPhases[handle.id] = .connecting
+        consultSenderIds.insert(handle.id)
+        consultInviteWatchdog?.cancel()
+        consultation?.senderLegId = handle.id
+        requestHold(original.id, hold: true)
+        state = CallStateMachine.placing(state, snapshot)
+        watch(handle)
+        handle.answer()
+        onEvent?(.outgoingPlaced(snapshot))
     }
 
     /// The session an inbound ring's INVITE named, known from the moment it
@@ -513,6 +555,10 @@ final class SoftphoneCore {
         let before = state
         guard let prev = before.calls.first(where: { $0.id == id }) else { return }
         state = CallStateMachine.sdkPhase(state, id: id, phase: phase, now: now())
+        if resumeAfterConsult == id {
+            resumeAfterConsult = nil
+            if phase == .held { requestHold(id, hold: false) }
+        }
 
         if phase == .active {
             // #195 F2: an answered leg is no longer a ring — stop its TTL clock
@@ -526,12 +572,15 @@ final class SoftphoneCore {
             if prev.direction == .inbound && prev.sessionId == nil {
                 resolveSession(handle)
             }
-            if prev.direction == .outbound && prev.sessionId == nil,
+            if prev.direction == .outbound && prev.sessionId == nil && !consultSenderIds.contains(id),
                let session = handle.telnyxSessionId {
                 state = CallStateMachine.sessionKnown(state, id: id, sessionId: session)
             }
         }
         if phase == .ended {
+            if consultation?.senderLegId == id && !completingConsult { finishConsult(resumeCaller: true) }
+            if consultation?.originalCallId == id { finishConsult(resumeCaller: false) }
+            consultSenderIds.remove(id)
             handles.removeValue(forKey: id)
             sdkPhases.removeValue(forKey: id)
             resolvingLegs.remove(id)
@@ -869,6 +918,63 @@ final class SoftphoneCore {
         )
     }
 
+    func startConsult(sessionId: String, targetUserId: String, targetName: String) async throws {
+        let company = try requireCompany()
+        guard let original = state.activeCall, original.sessionId == sessionId, original.phase == .active,
+              state.liveCalls.count == 1, consultation == nil else {
+            throw ApiError(
+                code: ApiErrorCode.conflict,
+                message: t("contactsTasks.consultUnavailable"),
+                httpStatus: 409,
+                messageKey: "contactsTasks.consultUnavailable"
+            )
+        }
+        consultation = Consultation(sessionId: sessionId, originalCallId: original.id, targetName: targetName)
+        consultInviteWatchdog = Task { [weak self] in
+            do { try await Task.sleep(for: .seconds(28)) } catch { return }
+            guard let self, let pending = self.consultation, pending.sessionId == sessionId,
+                  pending.senderLegId == nil else { return }
+            self.finishConsult(resumeCaller: true)
+            self.state = CallStateMachine.error(self.state, self.t("contactsTasks.consultUnavailable"))
+        }
+        do {
+            _ = try await api.startConsult(companyId: company, sessionId: sessionId, targetUserId: targetUserId)
+        } catch {
+            finishConsult(resumeCaller: true)
+            throw error
+        }
+    }
+
+    func completeConsult() async throws {
+        guard let pending = consultation else { return }
+        completingConsult = true
+        defer { completingConsult = false }
+        do {
+            _ = try await api.completeConsult(companyId: requireCompany(), sessionId: pending.sessionId)
+            finishConsult(resumeCaller: false)
+        } catch {
+            if let id = pending.senderLegId, handles[id] == nil { finishConsult(resumeCaller: true) }
+            throw error
+        }
+    }
+
+    func cancelConsult() async throws {
+        guard let pending = consultation else { return }
+        _ = try await api.cancelConsult(companyId: requireCompany(), sessionId: pending.sessionId)
+        finishConsult(resumeCaller: true)
+    }
+
+    private func finishConsult(resumeCaller: Bool) {
+        guard let pending = consultation else { return }
+        consultInviteWatchdog?.cancel()
+        consultInviteWatchdog = nil
+        consultation = nil
+        if resumeCaller {
+            if pendingHold.contains(pending.originalCallId) { resumeAfterConsult = pending.originalCallId }
+            else { requestHold(pending.originalCallId, hold: false) }
+        }
+    }
+
     /// Push-to-wake part 2: ensure the softphone is registered, then ask the
     /// server to re-ring THIS member for the still-ringing call. A conflict
     /// (already answered/ended — someone beat us) or not_found (the push aged
@@ -947,6 +1053,11 @@ enum CallerHeaders {
     /// server-dialed op leg (auto-answer it), anything else is a genuine inbound
     /// ring resolved the existing way.
     static let sessionHeader = "X-Loonext-Session"
+    static let legHeader = "X-Loonext-Leg"
+
+    static func legKind(from headers: [String: String]?) -> String? {
+        value(headers, named: legHeader)
+    }
 
     /// The server session off `X-Loonext-Session`, or nil when absent/blank.
     /// Case-insensitive, forward-compatible — same discipline as `caller`.
