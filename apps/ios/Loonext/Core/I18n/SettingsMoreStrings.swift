@@ -20,8 +20,8 @@ import Foundation
 /// its own name, and the settings screens displayed the literal text
 /// `settingsMore.signOut`. Nothing threw and no test failed: the hardcoded-string
 /// ledger counts literals REMOVED, and a converted-but-undefined key is the
-/// absence of a literal. `SettingsMoreKeyParityTests` is the guard that now makes
-/// that state impossible, and it is the more important half of this change.
+/// absence of a literal. `scripts/check-ios-catalogue-keys.mjs` checks that
+/// each key used by a screen has a translation in both languages.
 ///
 /// ## Why the maps are assembled from per-surface pieces
 ///

@@ -1126,10 +1126,11 @@ struct VoicemailPlayerRow: View {
     let seconds: Int
     /// The row already shows the words, so the player must not repeat them.
     let transcriptShown: Bool
+    let storedTranscript: String?
 
     @State private var backfilledTranscript: String?
     @State private var player: AVPlayer?
-    @State private var preparing = false
+    @State private var preparation: Task<Void, Never>?
     @State private var playing = false
     @State private var positionMs = 0
     @State private var durationMs: Int
@@ -1143,13 +1144,15 @@ struct VoicemailPlayerRow: View {
         companyId: String,
         sessionId: String,
         seconds: Int,
-        transcriptShown: Bool
+        transcriptShown: Bool = false,
+        storedTranscript: String? = nil
     ) {
         self.service = service
         self.companyId = companyId
         self.sessionId = sessionId
         self.seconds = seconds
         self.transcriptShown = transcriptShown
+        self.storedTranscript = storedTranscript
         _durationMs = State(initialValue: max(1, seconds * 1000))
     }
 
@@ -1158,7 +1161,7 @@ struct VoicemailPlayerRow: View {
             HStack(spacing: 9) {
                 Button(action: togglePlayback) {
                     Group {
-                        if preparing {
+                        if preparation != nil {
                             ProgressView()
                                 .controlSize(.small)
                                 .tint(BrandColor.paper)
@@ -1210,14 +1213,14 @@ struct VoicemailPlayerRow: View {
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted500)
             }
-            if let backfilledTranscript {
-                VoicemailTranscript(text: backfilledTranscript)
+            if let words = storedTranscript ?? backfilledTranscript {
+                VoicemailTranscript(text: words)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .task(id: playing) {
             // Poll position while playing (the Android twin does the same).
-            while playing {
+            while playing && !Task.isCancelled {
                 if !scrubbing, let player {
                     let current = player.currentTime().seconds
                     if current.isFinite { positionMs = Int(current * 1000) }
@@ -1244,6 +1247,8 @@ struct VoicemailPlayerRow: View {
             }
         }
         .onDisappear {
+            preparation?.cancel()
+            preparation = nil
             player?.pause()
             if playing { releaseMediaPlayback() }
             player = nil
@@ -1252,10 +1257,11 @@ struct VoicemailPlayerRow: View {
     }
 
     private func togglePlayback() {
-        if preparing { return }
+        if preparation != nil { return }
         if playing {
             player?.pause()
             playing = false
+            releaseMediaPlayback()
             return
         }
         if let player {
@@ -1273,22 +1279,22 @@ struct VoicemailPlayerRow: View {
 
     private func beginPlayback() {
         errorText = nil
-        preparing = true
-        Task {
-            defer { preparing = false }
+        preparation = Task {
+            defer { if !Task.isCancelled { preparation = nil } }
             do {
                 // Signed URL minted per playback — NEVER cached (SPEC).
                 let playback = try await service.voicemail(
                     companyId: companyId,
                     sessionId: sessionId
                 )
+                guard !Task.isCancelled else { return }
                 guard let url = URL(string: playback.url) else {
                     errorText = AppStrings.translate(
                         appLocale, "contactsTasks.voicemailPlayFailed"
                     )
                     return
                 }
-                if !transcriptShown, let words = playback.transcript, !words.isBlank {
+                if !transcriptShown, storedTranscript == nil, let words = playback.transcript, !words.isBlank {
                     backfilledTranscript = words
                 }
                 let next = AVPlayer(url: url)
@@ -1297,7 +1303,7 @@ struct VoicemailPlayerRow: View {
                 next.play()
                 playing = true
             } catch {
-                errorText = error.userMessage
+                if !Task.isCancelled { errorText = error.userMessage }
             }
         }
     }

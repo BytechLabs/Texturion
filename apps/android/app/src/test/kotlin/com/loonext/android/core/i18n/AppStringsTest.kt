@@ -63,6 +63,37 @@ class AppStringsTest {
     }
 
     @Test
+    fun `every catalogue key written in the app exists`() {
+        val root = mainSources()
+        val sources = root.walkTopDown()
+            .filter { it.extension == "kt" && !it.relativeTo(root).invariantSeparatorsPath.startsWith("core/i18n/") }
+            .associate { it.relativeTo(root).invariantSeparatorsPath to it.readText() }
+        val defined = AppStrings.en.keys
+        val calls = Regex("""(?:\bt|translate)\(\s*(?:[^,()]+,\s*)?"([A-Za-z]\w*\.\w+)"""")
+        val used = sources.values.asSequence()
+            .flatMap { text -> calls.findAll(text).map { it.groupValues[1] } }
+            .toSet()
+        val prefixes = (defined + used).map { it.substringBefore('.') }.toSet()
+        val prefixPattern = prefixes.joinToString("|") { Regex.escape(it) }
+        val literal = Regex(""""((?:$prefixPattern)\.[A-Za-z]\w*)"""")
+        val capabilityNames = setOf("settings.manage")
+        val unknown = mutableListOf<String>()
+        var checked = 0
+        for ((path, source) in sources) {
+            for (match in literal.findAll(source)) {
+                checked++
+                val key = match.groupValues[1]
+                if (key !in defined && key !in capabilityNames) {
+                    val line = source.take(match.range.first).count { it == '\n' } + 1
+                    unknown.add("$path:$line references undefined catalogue key $key")
+                }
+            }
+        }
+        assertTrue("Only $checked key-shaped literals found", checked >= 300)
+        assertTrue(unknown.joinToString("\n"), unknown.isEmpty())
+    }
+
+    @Test
     fun `an unknown locale reads English rather than failing`() {
         assertEquals("Cancel", AppStrings.translate("de", "common.cancel"))
         assertEquals("Cancel", AppStrings.translate(null, "common.cancel"))
@@ -182,13 +213,11 @@ class AppStringsTest {
         assertTrue("FR does not name the admin: $french", french.contains("administrateur"))
     }
 
-    private fun mainSource(path: String): File {
-        var dir: File? = File("").absoluteFile
-        while (dir != null) {
-            val file = File(dir, "apps/android/app/src/main/kotlin/com/loonext/android/$path")
-            if (file.isFile) return file
-            dir = dir.parentFile
-        }
-        throw AssertionError("$path not found from ${File("").absolutePath}")
-    }
+    private fun mainSource(path: String): File = mainSources().resolve(path)
+
+    private fun mainSources(): File =
+        generateSequence(File("").absoluteFile) { it.parentFile }
+            .map { it.resolve("apps/android/app/src/main/kotlin/com/loonext/android") }
+            .firstOrNull(File::isDirectory)
+            ?: throw AssertionError("Android sources not found from ${File("").absolutePath}")
 }
