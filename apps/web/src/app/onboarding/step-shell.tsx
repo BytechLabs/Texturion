@@ -2,10 +2,15 @@
 
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
+import { useEffect } from "react";
 
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
+import {
+  trackOnboardingStepViewed,
+  type OnboardingStep,
+} from "@/lib/analytics/events";
 
 import { ProgressDots } from "./progress-dots";
 
@@ -17,6 +22,7 @@ import { ProgressDots } from "./progress-dots";
  */
 export function StepShell({
   backHref,
+  step,
   index,
   total,
   title,
@@ -25,6 +31,7 @@ export function StepShell({
 }: {
   /** Previous step; omit on the first screen. */
   backHref?: string;
+  step: OnboardingStep;
   index: number;
   total: number;
   title: string;
@@ -32,6 +39,9 @@ export function StepShell({
   children: React.ReactNode;
 }) {
   const t = useT();
+  useEffect(() => {
+    trackOnboardingStepViewed(step);
+  }, [step]);
   return (
     <div className="space-y-8">
       <div className="flex min-h-9 items-center justify-between">

@@ -91,7 +91,7 @@ export default function SignupPage() {
 
   async function onSubmit(values: FormValues) {
     setServerError(null);
-    trackSignupStarted(planIntent);
+    trackSignupStarted("email", planIntent);
     const { data, error } = await getSupabaseBrowser().auth.signUp({
       email: values.email,
       password: values.password,
@@ -113,7 +113,7 @@ export default function SignupPage() {
     }
     if (data.session) {
       // Email confirmation disabled: straight into onboarding (SPEC §4.1).
-      trackSignupCompleted();
+      trackSignupCompleted(data.session.user);
       router.replace(onboardingPath);
       router.refresh();
       return;
@@ -168,7 +168,10 @@ export default function SignupPage() {
           keeps today's behavior: the callback lands on the default surface and
           CompanyProvider forwards a zero-membership user to /onboarding
           (where the AUP is accepted). */}
-      <OAuthButtons next={planIntent ? onboardingPath : undefined} />
+      <OAuthButtons
+        next={planIntent ? onboardingPath : undefined}
+        onStart={(provider) => trackSignupStarted(provider, planIntent)}
+      />
       <Form {...form}>
         <form
           // Belt-and-suspenders: `handleSubmit` preventDefaults once hydrated,

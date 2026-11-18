@@ -10,6 +10,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/provider";
+import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { useCreatePortRequestForCompany } from "@/lib/api/porting";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -126,6 +127,7 @@ export default function PortTimingPage() {
       // local draft and hand off to the dispatcher → registration or plan.
       clearOnboardingDraft();
       await queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
+      trackOnboardingStepCompleted("port_timing");
       router.push("/onboarding");
     } catch (cause) {
       setError(
@@ -142,6 +144,7 @@ export default function PortTimingPage() {
 
   return (
     <StepShell
+      step="port_timing"
       backHref="/onboarding/port/address"
       index={progress.index}
       total={progress.total}

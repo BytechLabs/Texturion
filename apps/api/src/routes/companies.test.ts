@@ -4,6 +4,8 @@
 import { DEFAULT_MCTB_MESSAGE } from "@loonext/shared";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
+import { POSTHOG_CAPTURE_URL } from "../analytics/posthog";
+import { stubRoute } from "../test/messaging-support";
 import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../test/routes-harness';
 import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
@@ -57,7 +59,8 @@ async function errorCodeOf(response: Response): Promise<string> {
 
 describe("POST /v1/companies (company-exempt)", () => {
   it("creates the company via api_create_company and returns 201", async () => {
-    const sb = supabaseStub(env);
+    const analyticsEnv = { ...env, POSTHOG_API_KEY: "test-project-key" };
+    const sb = supabaseStub(analyticsEnv);
     const company = {
       id: COMPANY_ID,
       name: "Acme Plumbing",
@@ -65,15 +68,24 @@ describe("POST /v1/companies (company-exempt)", () => {
       subscription_status: "incomplete",
     };
     sb.on("POST", "/rest/v1/rpc/api_create_company", () => company);
-    stubFetch(jwksRoute(auth), sb.route);
+    const posthog = stubRoute((url) => url.href === POSTHOG_CAPTURE_URL);
+    stubFetch(jwksRoute(auth), sb.route, posthog.route);
 
-    const res = await apiRequest(app, env, await auth.token(), "/v1/companies", {
+    const res = await apiRequest(app, analyticsEnv, await auth.token(), "/v1/companies", {
       method: "POST",
       companyId: null,
       body: { ...validBody, requested_area_code: "212", country: "US" },
     });
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toEqual(company);
+    expect(posthog.calls.map((call) => call.body)).toEqual([
+      {
+        api_key: analyticsEnv.POSTHOG_API_KEY,
+        distinct_id: COMPANY_ID,
+        event: "company_created",
+        properties: { environment: "local" },
+      },
+    ]);
 
     const rpc = sb.find("POST", "/rest/v1/rpc/api_create_company")[0];
     expect(rpc.body).toEqual({

@@ -16,6 +16,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { CREW_SIZE_LABELS } from "@loonext/shared";
 
 import { sayEnglish } from "@/i18n/translate";
+import { trackOnboardingStepViewed } from "@/lib/analytics/events";
 import { readOnboardingDraft } from "../local-draft";
 
 /** #228 — the labels are catalogue KEYS now, so this says them. */
@@ -30,6 +31,7 @@ vi.mock("next/navigation", () => ({
 
 vi.mock("@/lib/analytics/events", () => ({
   trackOnboardingStepCompleted: vi.fn(),
+  trackOnboardingStepViewed: vi.fn(),
 }));
 
 const guard = vi.hoisted(() => ({ draft: {} as Record<string, unknown> }));
@@ -57,6 +59,7 @@ beforeEach(() => {
   guard.draft = {};
   window.localStorage.clear();
   push.mockClear();
+  vi.mocked(trackOnboardingStepViewed).mockClear();
 });
 
 afterEach(() => {
@@ -71,6 +74,11 @@ function typeName(value = "Mike's Plumbing") {
 }
 
 describe("#370 crew size on the name step", () => {
+  it("records a view when the name step renders", () => {
+    render(<CompanyNamePage />);
+    expect(trackOnboardingStepViewed).toHaveBeenCalledExactlyOnceWith("name");
+  });
+
   it("offers every bucket, in people rather than seats", () => {
     render(<CompanyNamePage />);
     for (const key of Object.values(CREW_SIZE_LABELS)) {

@@ -13,6 +13,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { useT } from "@/i18n/provider";
+import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { formatPhone } from "@/lib/format/phone";
 
 import { writeOnboardingPortDraft } from "../../local-draft";
@@ -83,11 +84,13 @@ export default function PortCarrierPage() {
       billingPhoneNumber: billingPhoneNumber.trim() || undefined,
       ssnSinLast4: isWireless ? ssnSinLast4.trim() : undefined,
     });
+    trackOnboardingStepCompleted("port_carrier");
     router.push("/onboarding/port/address");
   }
 
   return (
     <StepShell
+      step="port_carrier"
       backHref="/onboarding/port"
       index={progress.index}
       total={progress.total}

@@ -132,6 +132,7 @@ export default function TextingDetailsPage() {
   if (campaignLocked) {
     return (
       <StepShell
+        step="texting"
         backHref={previousStepHref("texting", state.snapshot) ?? undefined}
         index={progress.index}
         total={progress.total}
@@ -174,6 +175,7 @@ export default function TextingDetailsPage() {
 
   return (
     <StepShell
+      step="texting"
       backHref={previousStepHref("texting", state.snapshot) ?? undefined}
       index={progress.index}
       total={progress.total}

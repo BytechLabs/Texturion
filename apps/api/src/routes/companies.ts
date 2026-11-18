@@ -34,6 +34,7 @@ import { z } from "zod";
 
 import { loadAiSettings } from '../ai/settings';
 import type { CompanyAiSettings } from '../ai/settings';
+import { capture } from "../analytics/posthog";
 import { auditDiff } from "../audit/diff";
 import { recordAuditFromRequest } from "../audit/log";
 import { alertProhibitedCategory } from "../messaging/aup-signup-screen";
@@ -526,7 +527,8 @@ companiesRoutes.post("/companies", async (c) => {
   }
   if (body.timezone !== undefined) assertValidTimezone(body.timezone);
 
-  const db = getDb(getEnv(c.env));
+  const env = getEnv(c.env);
+  const db = getDb(env);
   const company = unwrap<Record<string, unknown>>(
     await db.rpc("api_create_company", {
       p_owner_user_id: c.get("userId"),
@@ -595,7 +597,7 @@ companiesRoutes.post("/companies", async (c) => {
   const flags = screenBusinessName(body.name);
   if (flags.length > 0) {
     try {
-      await alertProhibitedCategory(getEnv(c.env), {
+      await alertProhibitedCategory(env, {
         companyId: company.id as string,
         matches: flags,
       });
@@ -667,6 +669,12 @@ companiesRoutes.post("/companies", async (c) => {
     if (chosenError) {
       throw new Error(`chosen number persist failed: ${chosenError.message}`);
     }
+  }
+  if (typeof company.id === "string") {
+    const recorded = capture(env, "company_created", company.id);
+    const ctx = executionCtxOf(c);
+    if (ctx) ctx.waitUntil(recorded);
+    else await recorded;
   }
   return c.json(company, 201);
 });

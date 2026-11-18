@@ -273,6 +273,7 @@ export default function BusinessIdentityPage() {
   if (brandLocked) {
     return (
       <StepShell
+        step="business"
         backHref={previousStepHref("business", state.snapshot) ?? undefined}
         index={progress.index}
         total={progress.total}
@@ -383,6 +384,7 @@ export default function BusinessIdentityPage() {
 
   return (
     <StepShell
+      step="business"
       backHref={previousStepHref("business", state.snapshot) ?? undefined}
       index={progress.index}
       total={progress.total}

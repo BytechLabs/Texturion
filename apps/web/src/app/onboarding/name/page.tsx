@@ -133,6 +133,7 @@ export default function CompanyNamePage() {
 
   return (
     <StepShell
+      step="name"
       index={progress.index}
       total={progress.total}
       title={t("onboarding.nameTitle")}

@@ -29,7 +29,13 @@ import { getSupabaseBrowser } from "@/lib/supabase/browser";
  * (client id + secret) is a Supabase-dashboard config item, not shipped here —
  * see lib/auth/oauth.ts.
  */
-export function OAuthButtons({ next }: { next?: string | null }) {
+export function OAuthButtons({
+  next,
+  onStart,
+}: {
+  next?: string | null;
+  onStart?: (provider: OAuthProvider) => void;
+}) {
   const t = useT();
   const [pending, setPending] = useState<OAuthProvider | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -38,6 +44,7 @@ export function OAuthButtons({ next }: { next?: string | null }) {
   async function signIn(provider: OAuthProvider) {
     setError(null);
     setPending(provider);
+    onStart?.(provider);
     // Recorded before the redirect: signInWithOAuth navigates away on success,
     // so there is no "after" on this page to record it in. A failed attempt
     // rewrites nothing that matters — the hint names a method, not an outcome.

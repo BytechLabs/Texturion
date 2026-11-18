@@ -59,35 +59,61 @@ afterEach(() => {
 });
 
 describe("funnel event helpers (D8: enums only, silent no-op when analytics is off)", () => {
-  it("signup_started fires bare, and with plan/module enums when intent exists", async () => {
+  it("signup_started records the method and optional plan intent", async () => {
     const { trackSignupStarted } = await importEvents();
-    trackSignupStarted();
-    trackSignupStarted({ plan: "pro", modules: ["regions_ca"] });
+    trackSignupStarted("email");
+    trackSignupStarted("google", { plan: "pro", modules: ["regions_ca"] });
     await flush();
-    expect(captureSpy).toHaveBeenNthCalledWith(1, "signup_started", undefined);
+    expect(captureSpy).toHaveBeenNthCalledWith(1, "signup_started", {
+      method: "email",
+    });
     expect(captureSpy).toHaveBeenNthCalledWith(2, "signup_started", {
+      method: "google",
       plan: "pro",
       modules: ["regions_ca"],
     });
   });
 
-  it("signup_completed fires exactly once per browser (localStorage guard)", async () => {
+  it("counts each account under ten minutes old once per browser", async () => {
     const { trackSignupCompleted } = await importEvents();
-    trackSignupCompleted();
-    trackSignupCompleted();
-    trackSignupCompleted();
+    const now = Date.now();
+    trackSignupCompleted({
+      id: "old",
+      created_at: new Date(now - 10 * 60 * 1000).toISOString(),
+    });
+    trackSignupCompleted({
+      id: "future",
+      created_at: new Date(now + 60 * 1000).toISOString(),
+    });
+    trackSignupCompleted({ id: "invalid", created_at: "invalid" });
     await flush();
-    expect(captureSpy).toHaveBeenCalledExactlyOnceWith("signup_completed");
+    expect(captureSpy).not.toHaveBeenCalled();
+
+    const created_at = new Date(now - 1000).toISOString();
+    trackSignupCompleted({ id: "first", created_at });
+    trackSignupCompleted({ id: "first", created_at });
+    trackSignupCompleted({ id: "second", created_at });
+    await flush();
+    expect(captureSpy.mock.calls).toEqual([
+      ["signup_completed"],
+      ["signup_completed"],
+    ]);
   });
 
-  it("onboarding_step_completed carries the step enum", async () => {
-    const { trackOnboardingStepCompleted } = await importEvents();
+  it("wizard and port events carry the step enum", async () => {
+    const { trackOnboardingStepCompleted, trackOnboardingStepViewed } =
+      await importEvents();
     trackOnboardingStepCompleted("business");
+    trackOnboardingStepViewed("port_carrier");
     await flush();
-    expect(captureSpy).toHaveBeenCalledExactlyOnceWith(
+    expect(captureSpy).toHaveBeenNthCalledWith(
+      1,
       "onboarding_step_completed",
       { step: "business" },
     );
+    expect(captureSpy).toHaveBeenNthCalledWith(2, "onboarding_step_viewed", {
+      step: "port_carrier",
+    });
   });
 
   it("plan_selected and checkout_started carry plan + modules", async () => {
@@ -117,9 +143,13 @@ describe("funnel event helpers (D8: enums only, silent no-op when analytics is o
     initPostHogMock.mockImplementation(() => Promise.resolve(null));
     const events = await importEvents();
     expect(() => {
-      events.trackSignupStarted({ plan: "pro", modules: [] });
-      events.trackSignupCompleted();
+      events.trackSignupStarted("email", { plan: "pro", modules: [] });
+      events.trackSignupCompleted({
+        id: "new",
+        created_at: new Date().toISOString(),
+      });
       events.trackOnboardingStepCompleted("plan");
+      events.trackOnboardingStepViewed("plan");
       events.trackPlanSelected("pro", ["regions_ca"]);
       events.trackCheckoutStarted("pro", ["regions_ca"]);
       events.trackCheckoutCompleted();
@@ -132,7 +162,7 @@ describe("funnel event helpers (D8: enums only, silent no-op when analytics is o
     vi.unstubAllGlobals();
     const { trackCheckoutCompleted, trackSignupCompleted } =
       await importEvents();
-    trackSignupCompleted();
+    trackSignupCompleted({ id: "new", created_at: new Date().toISOString() });
     trackCheckoutCompleted();
     await flush();
     expect(captureSpy).toHaveBeenCalledWith("signup_completed");
