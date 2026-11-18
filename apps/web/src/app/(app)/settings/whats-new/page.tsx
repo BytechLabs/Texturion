@@ -2,7 +2,7 @@
 
 import { WHATS_NEW, unseenEntries } from "@loonext/shared";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef } from "react";
 
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
 import { sayWith, useT } from "@/i18n/provider";
@@ -48,7 +48,11 @@ export default function WhatsNewSettingsPage() {
 
   // Captured BEFORE the stamp below, so the entries that were new when they
   // arrived stay marked while they read them.
-  const [seenAtOpen] = useState(() => readWhatsNewSeen());
+  const seenAtOpenRef = useRef<string | null | undefined>(undefined);
+  if (seenAtOpenRef.current === undefined) {
+    seenAtOpenRef.current = readWhatsNewSeen();
+  }
+  const seenAtOpen = seenAtOpenRef.current;
   useEffect(() => {
     markWhatsNewSeen();
   }, []);

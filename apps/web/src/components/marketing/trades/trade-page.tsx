@@ -212,6 +212,7 @@ export function TradePage({
   locale?: MarketingLocale;
 }) {
   const copy = tradesCopy(locale);
+  const { useCases: examples } = content;
   return (
     <>
       {/* DATELINE HEADER (§5.1): the converged-arrival mark (the subpage's
@@ -283,7 +284,7 @@ export function TradePage({
           {content.useCasesH2}
         </h2>
         <div className="mt-12 grid gap-6 sm:grid-cols-2">
-          {content.useCases.map((uc, i) => (
+          {examples.map((uc, i) => (
             <FrCard key={uc.title} className="p-6 sm:p-7">
               <span
                 className="fr-mono-data flex size-8 items-center justify-center rounded-full bg-[color:var(--fr-olive)] text-[color:var(--fr-on-olive)]"

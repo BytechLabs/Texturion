@@ -32,7 +32,7 @@ export function useDebouncedAutosave<T>({
   normalize?: (draft: T) => T;
   delayMs?: number;
 }) {
-  const [draft, setDraftState] = useState(value);
+  const [draft, setDraft] = useState(value);
   const [state, setState] = useState<AutosaveState>("idle");
   const [error, setError] = useState<unknown>(null);
 
@@ -81,10 +81,10 @@ export function useDebouncedAutosave<T>({
     );
   }, []);
 
-  const setDraft = useCallback(
+  const updateDraft = useCallback(
     (next: T) => {
       draftRef.current = next;
-      setDraftState(next);
+      setDraft(next);
       clearTimer(savedTimer);
       setState((current) => (current === "saved" ? "idle" : current));
       clearTimer(timer);
@@ -104,7 +104,7 @@ export function useDebouncedAutosave<T>({
     lastSaved.current = incoming;
     lastSent.current = incoming;
     draftRef.current = value;
-    setDraftState(value);
+    setDraft(value);
   }, [value]);
 
   useEffect(() => {
@@ -118,5 +118,5 @@ export function useDebouncedAutosave<T>({
     };
   }, [flush]);
 
-  return { draft, setDraft, onBlur: flush, state, error };
+  return { draft, setDraft: updateDraft, onBlur: flush, state, error };
 }

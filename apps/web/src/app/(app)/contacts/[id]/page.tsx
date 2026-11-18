@@ -3,7 +3,7 @@
 import { ChevronLeft, Clock, Copy, Plus, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { use, useEffect, useState } from "react";
+import { use, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -359,9 +359,9 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   // #740: fields nobody has filled in sit behind "Add details". Decided when
   // the page opens, so clearing a field you are typing in does not make it
   // vanish under your cursor.
-  const [initiallyEmpty] = useState<DetailField[]>(() =>
-    emptyDetailFields(contact),
-  );
+  const initiallyEmptyRef = useRef<DetailField[] | null>(null);
+  initiallyEmptyRef.current ??= emptyDetailFields(contact);
+  const initiallyEmpty = initiallyEmptyRef.current;
   const [addingDetails, setAddingDetails] = useState(false);
   const emptyNow = emptyDetailFields(contact);
   const hidden = (field: DetailField) =>

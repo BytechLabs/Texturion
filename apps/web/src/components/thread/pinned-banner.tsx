@@ -1,12 +1,12 @@
 "use client";
 
 import { ChevronDown, Pin } from "lucide-react";
-import { useEffect, useState } from "react";
 import { mmsMediaKind } from "@loonext/shared";
 
 import { CountPill } from "@/components/ui/count-pill";
 import { useT } from "@/i18n/provider";
 import type { Message } from "@/lib/api/types";
+import { useLocalStorageFlag } from "@/lib/hooks/use-local-storage-flag";
 import { cn } from "@/lib/utils";
 
 /**
@@ -78,26 +78,11 @@ export function PinnedStack({
 }) {
   const t = useT();
   const storageKey = `jt-pins-open:${conversationId}`;
-  const [open, setOpen] = useState(false);
-  useEffect(() => {
-    try {
-      setOpen(localStorage.getItem(storageKey) === "1");
-    } catch {
-      // Remembering is a convenience; without storage it starts collapsed.
-    }
-  }, [storageKey]);
+  const [open, setOpen] = useLocalStorageFlag(storageKey, false);
   if (messages.length === 0) return null;
 
   const [newest, ...older] = messages;
-  const toggle = () =>
-    setOpen((wasOpen) => {
-      try {
-        localStorage.setItem(storageKey, wasOpen ? "0" : "1");
-      } catch {
-        // As above.
-      }
-      return !wasOpen;
-    });
+  const toggle = () => setOpen(!open);
 
   return (
     <section

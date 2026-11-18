@@ -75,11 +75,13 @@ import {
   seatUsage,
 } from "@/lib/settings/seat-line";
 
+const EMPTY_TEAMMATES: Member[] = [];
+
 function MemberRow({
   member,
   canManage,
   isSelf,
-  teammates = [],
+  teammates = EMPTY_TEAMMATES,
 }: {
   member: Member;
   canManage: boolean;

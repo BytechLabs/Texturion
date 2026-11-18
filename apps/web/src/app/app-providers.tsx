@@ -6,7 +6,7 @@ import {
   QueryClient,
   QueryClientProvider,
 } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef } from "react";
 
 import { ServiceWorkerRegistrar } from "@/components/notifications/service-worker-registrar";
 import { Toaster } from "@/components/ui/sonner";
@@ -76,10 +76,11 @@ function makeQueryClient(): QueryClient {
  * dark mode works on marketing pages too (the dark band, the theme toggle).
  */
 export function AppProviders({ children }: { children: React.ReactNode }) {
-  const [queryClient] = useState(makeQueryClient);
+  const queryClient = useRef<QueryClient | null>(null);
+  queryClient.current ??= makeQueryClient();
 
   return (
-    <QueryClientProvider client={queryClient}>
+    <QueryClientProvider client={queryClient.current}>
       <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
       {/* Sonner, quiet, bottom-left (G9/G12) — only for async outcomes not
           visible in place. */}

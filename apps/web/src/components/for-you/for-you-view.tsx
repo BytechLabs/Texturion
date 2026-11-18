@@ -663,8 +663,8 @@ export function ForYouView() {
   // in the section, so an under-report is possible and an over-report is not. A
   // signal that is never worse than the truth is the right direction for one that
   // decides where somebody looks first.
+  const { data } = forYou;
   const strip = useMemo(() => {
-    const {data} = forYou;
     if (!data) return [];
     const now = Date.now();
     const age = (iso: string) => Math.max(0, now - new Date(iso).getTime());
@@ -695,7 +695,7 @@ export function ForYouView() {
       unread: data.totals?.unread ?? data.unread.length,
     };
     return ordered.map((tile) => ({ ...tile, count: counts[tile.id] ?? tile.count }));
-  }, [forYou.data]);
+  }, [data]);
 
   return (
     <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8 lg:max-w-5xl xl:max-w-7xl">

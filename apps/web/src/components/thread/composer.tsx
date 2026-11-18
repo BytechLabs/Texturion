@@ -774,7 +774,7 @@ export function Composer({
    * crew member wanted to say something more personal — which is the product
    * working as intended. Only separate counters keep that readable.
    */
-  const reportSuggestionOutcome = (sentText: string) => {
+  const reportSuggestionOutcome = useCallback((sentText: string) => {
     const outcome = draftOutcome({
       shown: pickedSuggestion.current !== null || suggestionsWereShown.current,
       picked: pickedSuggestion.current,
@@ -784,7 +784,7 @@ export function Composer({
     pickedSuggestion.current = null;
     suggestionsWereShown.current = false;
     if (outcome) reportAiOutcome(companyId, "suggest_reply", outcome);
-  };
+  }, [companyId]);
   /**
    * #475: which saved reply is in the box, and what it said when it arrived.
    *
@@ -1102,12 +1102,15 @@ export function Composer({
     canSend,
     text,
     attachments,
+    conversationId,
+    picked,
     send,
     textareaRef,
     isNote,
     createNote,
     noteStage,
     uploadNoteFiles,
+    reportSuggestionOutcome,
     t,
     // #507: the wrap-up outcome is reported against this company.
     companyId,

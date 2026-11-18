@@ -228,16 +228,8 @@ export function buildMessageActions(input: MessageActionsInput): RecordAction[] 
   ];
 }
 
-interface MessageMenu {
-  actions: RecordAction[];
-}
-
 /** Outside a MessageMenuScope there is no list, so the ⋯ simply is not offered. */
-const MessageMenuContext = createContext<MessageMenu>({ actions: [] });
-
-function useMessageMenu(): MessageMenu {
-  return useContext(MessageMenuContext);
-}
+const MessageMenuContext = createContext<RecordAction[]>([]);
 
 /**
  * Owns one message's action list and the inline task form it can open, so the
@@ -314,7 +306,7 @@ export function MessageMenuScope({
   });
 
   return (
-    <MessageMenuContext.Provider value={{ actions }}>
+    <MessageMenuContext.Provider value={actions}>
       <Popover open={taskFormOpen} onOpenChange={setTaskFormOpen}>
         <PopoverAnchor asChild>
           <RecordContextMenu actions={actions}>{children}</RecordContextMenu>
@@ -341,7 +333,7 @@ export function MessageMenuScope({
  */
 function MessageOverflow() {
   const t = useT();
-  const { actions } = useMessageMenu();
+  const actions = useContext(MessageMenuContext);
   return (
     <RecordOverflowMenu
       actions={actions}
