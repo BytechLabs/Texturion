@@ -737,7 +737,7 @@ There are none on the rig or in production's crons any more (D146), and none of 
 
 ### 4.1 Dial caps, concurrency and window
 
-**Dials, not calls.** Telnyx limits count dials, and ring legs, transfers and ring-me legs are dials too. Each scenario's dials and peak concurrent outbound legs are taken from the hermetic journeys, which record them in `apps/api/e2e/call-journey-budget.json` and fail when the code disagrees with it. A rig run's dials are its `dials` plus its `far_end_legs`. For S01, S02, S04 and S07 the measured values equal the planning estimates; the numbers in 4.2 are planning estimates for the rest.
+**Dials, not calls.** Telnyx limits count dials, and ring legs, transfers and ring-me legs are dials too. Each scenario's dials and peak concurrent outbound legs are taken from the hermetic journeys, which record them in `apps/api/e2e/call-journey-budget.json` and fail when the code disagrees with it. A rig run's dials are its `dials` plus its `far_end_legs`. The measured values for S01, S02, S04, S05 and S07 match the planning estimates. The remaining numbers in 4.2 are planning estimates.
 
 **Every scenario is run on demand.** The registry holds no schedule and no monthly budget. What limits a run is its own dial cost and the guard's caps, which protect production whoever starts the run.
 

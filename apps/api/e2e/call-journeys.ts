@@ -1,6 +1,6 @@
 /**
- * The hermetic call journeys: inbound answered, voicemail, outbound answered
- * and blind transfer, written once and driven by two harnesses.
+ * Two harnesses run the same inbound answered, missed call, voicemail,
+ * outbound answered and blind transfer journeys.
  *
  *   - src/calls/call-journeys.test.ts runs them through the real routes, the
  *     session Durable Object and the real Telnyx command layer, over an
@@ -139,6 +139,32 @@ async function inboundAnswered(driver: JourneyDriver, crew: JourneyCrew): Promis
   return sessionId;
 }
 
+export async function inboundMissed(driver: JourneyDriver, crew: JourneyCrew): Promise<string> {
+  const [owner] = crew.members;
+  const customer = driver.voice.incoming({
+    from: crew.farEndE164,
+    to: crew.businessE164,
+  });
+  await settle(driver);
+  await expectSession(driver, customer.callSessionId, "ringing");
+  ringingLegTo(driver.voice, owner);
+
+  driver.voice.hangup(customer.callControlId);
+  const hangup = driver.voice.takeEvent();
+  if (!hangup || hangup.data.event_type !== "call.hangup") {
+    throw new Error("The caller hangup did not produce a terminal webhook");
+  }
+  await driver.deliver(hangup);
+  await settle(driver);
+  await expectSession(driver, customer.callSessionId, "ended_missed");
+  expect(driver.voice.live()).toEqual([]);
+
+  await driver.deliver(hangup);
+  await settle(driver);
+  await expectSession(driver, customer.callSessionId, "ended_missed");
+  return customer.callSessionId;
+}
+
 /** Nobody answers: the ring leg times out, the caller hears the greeting and leaves a message. */
 async function voicemail(driver: JourneyDriver, crew: JourneyCrew): Promise<string> {
   const [owner] = crew.members;
@@ -241,6 +267,7 @@ async function transferBlind(driver: JourneyDriver, crew: JourneyCrew): Promise<
 
 export const CALL_JOURNEYS: Record<string, JourneySpec> = {
   "inbound-answered": { rigScenario: "S02", crewSize: 1, run: inboundAnswered },
+  "inbound-missed": { rigScenario: "S05", crewSize: 1, run: inboundMissed },
   voicemail: { rigScenario: "S04", crewSize: 1, run: voicemail },
   "outbound-answered": { rigScenario: "S01", crewSize: 1, run: outboundAnswered },
   "transfer-blind": { rigScenario: "S07", crewSize: 2, run: transferBlind },

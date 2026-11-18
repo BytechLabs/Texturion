@@ -50,10 +50,20 @@ const STRIPE_WEBHOOK_SECRET = "whsec_e2e_launch_pass_secret";
 interface SupabaseStatus {
   apiUrl: string;
   secretKey: string;
+  dbContainer: string;
 }
 
-/** Resolve API_URL + SECRET_KEY from `supabase status -o json`, robustly. */
+/** Isolated runs supply the API and database settings together. */
 function resolveSupabase(): SupabaseStatus {
+  const isolatedUrl = process.env.LOONEXT_E2E_SUPABASE_URL;
+  const isolatedKey = process.env.LOONEXT_E2E_SUPABASE_SECRET_KEY;
+  const isolatedContainer = process.env.LOONEXT_E2E_DB_CONTAINER;
+  if (isolatedUrl || isolatedKey || isolatedContainer) {
+    if (!isolatedUrl || !isolatedKey || !isolatedContainer) {
+      throw new Error("An isolated E2E stack requires its Supabase URL, secret key, and database container");
+    }
+    return { apiUrl: isolatedUrl, secretKey: isolatedKey, dbContainer: isolatedContainer };
+  }
   try {
     const out = execFileSync("npx", ["supabase", "status", "-o", "json"], {
       cwd: new URL("../../..", import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, "$1"),
@@ -64,11 +74,11 @@ function resolveSupabase(): SupabaseStatus {
     const apiUrl = parsed.API_URL ?? parsed.api_url;
     const secretKey =
       parsed.SECRET_KEY ?? parsed.secret_key ?? parsed.SERVICE_ROLE_KEY;
-    if (apiUrl && secretKey) return { apiUrl, secretKey };
+    if (apiUrl && secretKey) return { apiUrl, secretKey, dbContainer: DB_CONTAINER };
   } catch {
     // fall through to literals
   }
-  return { apiUrl: FALLBACK_SUPABASE_URL, secretKey: FALLBACK_SECRET_KEY };
+  return { apiUrl: FALLBACK_SUPABASE_URL, secretKey: FALLBACK_SECRET_KEY, dbContainer: DB_CONTAINER };
 }
 
 export interface CallOptions {
@@ -181,6 +191,7 @@ async function signTelnyx(
 }
 
 export async function startHarness(): Promise<Harness> {
+  const { apiUrl, secretKey, dbContainer } = resolveSupabase();
   const [telnyx, stripe, resend, jwks] = await Promise.all([
     startFakeTelnyx(),
     startFakeStripe(),
@@ -188,7 +199,6 @@ export async function startHarness(): Promise<Harness> {
     startFakeJwks(),
   ]);
 
-  const { apiUrl, secretKey } = resolveSupabase();
   const runId = `e2e_${Date.now().toString(36)}_${Math.random()
     .toString(36)
     .slice(2, 8)}`;
@@ -342,7 +352,7 @@ export async function startHarness(): Promise<Harness> {
       [
         "exec",
         "-i",
-        DB_CONTAINER,
+        dbContainer,
         "psql",
         "-U",
         "postgres",

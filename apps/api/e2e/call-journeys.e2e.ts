@@ -16,7 +16,7 @@ import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import { CALL_JOURNEYS, journeyRegistryMismatch, runCallJourney } from './call-journeys';
+import { CALL_JOURNEYS, inboundMissed, journeyRegistryMismatch, runCallJourney } from './call-journeys';
 import type { JourneyCrew, JourneyDriver, JourneyMember } from './call-journeys';
 import { startHarness } from './harness';
 import type { Harness } from './harness';
@@ -26,6 +26,7 @@ let h: Harness;
 const FAR_END_E164 = "+16135550180";
 const LINES: Record<string, string> = {
   "inbound-answered": "+16135550170",
+  "inbound-missed": "+16135550174",
   voicemail: "+16135550171",
   "outbound-answered": "+16135550172",
   "transfer-blind": "+16135550173",
@@ -85,9 +86,9 @@ async function seedCrew(journey: string, size: number): Promise<SeededCrew> {
     insert into public.companies
       (id, name, owner_user_id, country, us_texting_enabled, requested_area_code,
        subscription_status, plan, current_period_start, current_period_end,
-       aup_accepted_at)
+       aup_accepted_at, mctb_enabled)
     values ('${companyId}', 'Journey ${journey}', '${userIds[0]}', 'CA', false, '613',
-            'active', 'starter', now(), now() + interval '30 days', now());
+            'active', 'starter', now(), now() + interval '30 days', now(), ${journey === "inbound-missed"});
 
     insert into public.company_members (company_id, user_id, role)
     values ${userIds.map((id, index) => `('${companyId}', '${id}', '${roles[index]}')`).join(", ")};
@@ -219,9 +220,32 @@ describe("hermetic call journeys (whole Worker, real database)", () => {
     });
   });
 
-  it("S04 voicemail: stored in our bucket, and Telnyx's copy is deleted", async () => {
+  it("S05 caller hangup while ringing: one missed call, text-back and crew alert after replay", async () => {
+    const crew = crewFor("inbound-missed");
+    const before = h.telnyx.callsTo("POST", /\/v2\/messages$/).length;
+    const { sessionId } = await runCallJourney("inbound-missed", "e2e", driver(), crew);
+    await expect(callRow(sessionId)).resolves.toMatchObject({
+      direction: "inbound",
+      outcome: "missed",
+      state: "ended_missed",
+      answered_by_user_id: null,
+    });
+    const sent = h.telnyx.callsTo("POST", /\/v2\/messages$/).slice(before);
+    expect(sent).toHaveLength(1);
+    expect(sent[0].body).toMatchObject({ from: crew.businessE164, to: crew.farEndE164 });
+
+    const feed = await h.call("GET", "/v1/notifications", tokenFor(crew, crew.members[0]));
+    expect(feed.status, feed.text).toBe(200);
+    const { data } = feed.json as { data: { type: string; contact: { phone_e164: string } | null }[] };
+    const missed = data.filter((item) => item.type === "missed_call");
+    expect(missed).toHaveLength(1);
+    expect(missed[0].contact?.phone_e164).toBe(crew.farEndE164);
+  });
+
+  it("S04 voicemail: stores the recording and the next call rings", async () => {
     const crew = crewFor("voicemail");
-    const { sessionId } = await runCallJourney("voicemail", "e2e", driver(), crew);
+    const callDriver = driver();
+    const { sessionId } = await runCallJourney("voicemail", "e2e", callDriver, crew);
     const row = await callRow(sessionId);
     expect(row).toMatchObject({
       direction: "inbound",
@@ -234,6 +258,7 @@ describe("hermetic call journeys (whole Worker, real database)", () => {
     expect(recording.deleted, "the Telnyx copy is gone").toBe(true);
     const media = await fetch(`${h.telnyx.origin}/media/recordings/${recording.id}.mp3`);
     expect(media.status).toBe(404);
+    await inboundMissed(callDriver, crew);
   });
 
   it("S01 outbound answered: one row under the server's session id, answered", async () => {
@@ -251,10 +276,11 @@ describe("hermetic call journeys (whole Worker, real database)", () => {
     });
   });
 
-  it("S07 blind transfer: the target owns the call and the ledger names the real leg", async () => {
+  it("S07 blind transfer: the target owns the call and the next call rings", async () => {
     const crew = crewFor("transfer-blind");
     const [, technician] = crew.members;
-    const { sessionId } = await runCallJourney("transfer-blind", "e2e", driver(), crew);
+    const callDriver = driver();
+    const { sessionId } = await runCallJourney("transfer-blind", "e2e", callDriver, crew);
     await expect(callRow(sessionId)).resolves.toMatchObject({
       outcome: "answered",
       state: "ended_answered",
@@ -271,5 +297,6 @@ describe("hermetic call journeys (whole Worker, real database)", () => {
     expect(data).toEqual([
       { call_control_id: target?.callControlId, user_id: technician.userId, state: "answered" },
     ]);
+    await inboundMissed(callDriver, crew);
   });
 });

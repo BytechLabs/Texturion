@@ -59,7 +59,6 @@ let orderSeq = 0;
 let numberSeq = 0;
 let profileSeq = 0;
 let documentSeq = 0;
-let messageSeq = 0;
 let brandSeq = 0;
 let campaignSeq = 0;
 let hostedSeq = 0;
@@ -254,18 +253,16 @@ function buildHandlers(): Handler[] {
     {
       method: "POST",
       pattern: /^\/v2\/messages$/,
-      respond: () => {
-        messageSeq += 1;
-        return {
-          body: {
-            data: {
-              id: `msg-e2e-${messageSeq}`,
-              to: [{ phone_number: "" }],
-              parts: 1,
-            },
+      respond: () => ({
+        body: {
+          data: {
+            // Separate Vitest processes persist vendor IDs in the same database.
+            id: crypto.randomUUID(),
+            to: [{ phone_number: "" }],
+            parts: 1,
           },
-        };
-      },
+        },
+      }),
     },
 
     // --- Hosted messaging (keep-your-number) ---
