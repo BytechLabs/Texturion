@@ -51,8 +51,6 @@ const json = (value: unknown): Response =>
 export class Switch {
   private readonly model = createVoiceModel();
 
-  constructor(_state: unknown, _env: unknown) {}
-
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     this.model.setOrigin(url.origin);

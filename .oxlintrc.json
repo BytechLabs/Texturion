@@ -359,20 +359,13 @@
     "unicorn/prefer-native-coercion-functions": "off", // 2
     "unicorn/require-array-join-separator": "off", // 2
     "eslint/accessor-pairs": "off", // 1
-    "eslint/no-script-url": "off", // 1
-    "eslint/no-template-curly-in-string": "off", // 1
-    "eslint/no-throw-literal": "off", // 1
     "eslint/no-unexpected-multiline": "off", // 1
-    "eslint/no-useless-constructor": "off", // 1
     "eslint/prefer-const": "off", // 1
     "import/no-commonjs": "off", // 1
     "import/no-dynamic-require": "off", // 1
     "import/no-empty-named-blocks": "off", // 1
     "jsx-a11y/control-has-associated-label": "off", // 1
-    "oxc/no-accumulating-spread": "off", // 1
-    "promise/no-nesting": "off", // 1
     "react/button-has-type": "off", // 1
-    "react/capitalized-calls": "off", // 1
     "react/hooks": "off", // 1
     "react/iframe-missing-sandbox": "off", // 1
     "typescript/dot-notation": "off", // 1
@@ -390,7 +383,6 @@
     "unicorn/prefer-regexp-test": "off", // 1
     "unicorn/prefer-structured-clone": "off", // 1
     "unicorn/require-module-specifiers": "off", // 1
-    "unicorn/require-post-message-target-origin": "off", // 1
     "vitest/no-duplicate-hooks": "off", // 1
     "vitest/prefer-comparison-matcher": "off", // 1
     "vitest/prefer-hooks-on-top": "off", // 1

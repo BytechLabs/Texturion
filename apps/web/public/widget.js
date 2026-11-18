@@ -285,21 +285,23 @@
     }
   });
 
+  function unpackResponse(response) {
+    return response
+      .json()
+      .catch(function () {
+        return {};
+      })
+      .then(function (payload) {
+        return { ok: response.ok, payload };
+      });
+  }
+
   function post(path, body) {
     return fetch(origin.replace("//app.", "//api.") + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then((response) => 
-      response
-        .json()
-        .catch(function () {
-          return {};
-        })
-        .then(function (payload) {
-          return { ok: response.ok, payload };
-        })
-    );
+    }).then(unpackResponse);
   }
 
   form.addEventListener("submit", (event) => {

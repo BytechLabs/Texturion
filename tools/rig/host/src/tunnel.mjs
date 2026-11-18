@@ -9,7 +9,7 @@ import { join } from "node:path";
 import { forwardedPorts, OPENSSH_DIR } from "./config.mjs";
 
 export const SSH = join(OPENSSH_DIR, "ssh.exe");
-export const VM_TOKEN_PATH = '"${RIG_HOME:-/var/lib/loonext-rig}/secrets/hostd-token"';
+export const VM_TOKEN_PATH = `"\${RIG_HOME:-/var/lib/loonext-rig}/secrets/hostd-token"`;
 
 const BACKOFF_MS = [1000, 2000, 5000, 10_000, 30_000, 60_000];
 const STABLE_MS = 60_000;

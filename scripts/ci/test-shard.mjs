@@ -96,6 +96,9 @@ for (const file of Object.values(files)) {
 rmSync(work, { recursive: true, force: true });
 
 writeFileSync(args.out, JSON.stringify({ shard: index, planned: shard.files, files }));
-const counts = Object.values(files).reduce((acc, f) => ({ ...acc, [f.state]: (acc[f.state] ?? 0) + 1 }), {});
+const counts = {};
+for (const { state } of Object.values(files)) {
+  counts[state] = (counts[state] ?? 0) + 1;
+}
 console.log(`\nshard ${index}: ${shard.files.length} planned, results ${JSON.stringify(counts)}`);
 process.exit(failed ? 1 : 0);

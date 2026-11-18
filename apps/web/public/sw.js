@@ -443,6 +443,7 @@ async function handlePushSubscriptionChange(event) {
   });
   for (const client of windows) {
     if (typeof client.postMessage === "function") {
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Service Worker clients have no target-origin argument.
       client.postMessage({ type: "loonext:push-subscription-changed" });
     }
   }
