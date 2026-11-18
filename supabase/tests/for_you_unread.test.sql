@@ -956,7 +956,7 @@ begin
       foreach lim in array array[2, 20] loop
         oldj := pg_temp.old_for_you(co, u, now(), lim, hidden);
         newj := public.api_for_you(co, u, now(), lim, hidden);
-        if oldj is distinct from newj then
+        if oldj is distinct from newj - 'text_alerts' then
           raise exception 'UB-3 FAILED: api_for_you differs for member % hidden % limit %:% old % new %',
             u, h, lim, E'\n', oldj, newj;
         end if;

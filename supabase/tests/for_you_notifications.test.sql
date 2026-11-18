@@ -1138,4 +1138,52 @@ begin
   raise notice 'FY-689 PASSED: every crew member has the task, and only through this workspace''s crew rows';
 end $$;
 
+do $$
+declare
+  co uuid := 'c0000000-0000-4000-8000-000000000001';
+  author uuid := 'a0000000-0000-4000-8000-000000000002';
+  owner_id uuid := 'a0000000-0000-4000-8000-000000000001';
+  line uuid := 'd0000000-0000-4000-8000-000000000001';
+  thread uuid := 'f0000000-0000-4000-8000-00000000000d';
+  failed_text uuid;
+  baseline int;
+  result jsonb;
+begin
+  baseline := (public.api_for_you(co, author, now(), 20)->'totals'->>'distinct_work')::int;
+  update public.conversations set opt_out_hint_at = now()
+   where company_id = co and id = thread;
+  insert into public.messages
+    (company_id, conversation_id, direction, body, status, sent_by_user_id)
+  values (co, thread, 'outbound', 'Delivery to confirm', 'queued', author)
+  returning id into failed_text;
+  update public.messages set status = 'failed', error_reason = 'unreachable'
+   where company_id = co and id = failed_text;
+  insert into public.conversation_reads (conversation_id, user_id, last_read_at)
+  values (thread, author, now() - interval '1 min')
+  on conflict (conversation_id, user_id) do update set last_read_at = excluded.last_read_at;
+
+  result := public.api_for_you(co, author, now(), 20);
+  if result->'text_alerts'->0->>'kind' is distinct from 'opt_out_hint'
+     or result->'text_alerts'->1->>'kind' is distinct from 'text_failed'
+     or (result->'totals'->>'distinct_work')::int <> baseline + 1 then
+    raise exception 'FY text alerts: the two alerts should count as one conversation: %', result->'text_alerts';
+  end if;
+  if public.api_for_you(co, owner_id, now(), 20)->'text_alerts' <> '[]'::jsonb
+     or public.api_for_you(co, author, now(), 20, array[line])->'text_alerts' <> '[]'::jsonb then
+    raise exception 'FY text alerts: the wrong member or a hidden line received an alert';
+  end if;
+
+  update public.conversation_reads set last_read_at = now()
+   where conversation_id = thread and user_id = author;
+  result := public.api_for_you(co, author, now(), 20)->'text_alerts';
+  if jsonb_array_length(result) <> 1 or result->0->>'kind' is distinct from 'opt_out_hint' then
+    raise exception 'FY text alerts: opening the thread should clear only its failed-send alert';
+  end if;
+
+  update public.conversations set opt_out_hint_at = null where company_id = co and id = thread;
+  if public.api_for_you(co, author, now(), 20)->'text_alerts' <> '[]'::jsonb then
+    raise exception 'FY text alerts: a resolved hint should leave the queue';
+  end if;
+end $$;
+
 rollback;

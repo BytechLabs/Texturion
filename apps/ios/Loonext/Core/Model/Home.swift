@@ -286,6 +286,14 @@ struct ResponseTimeReport: Codable, Sendable {
     var split_row_limit: Int = 0
 }
 
+struct ForYouTextAlert: Codable, Sendable, Identifiable {
+    let conversation_id: String
+    let kind: String
+    let contact: ContactSummary
+
+    var id: String { "\(conversation_id):\(kind)" }
+}
+
 struct ForYou: Codable, Sendable {
     /// #293. Empty from an older Worker, which is "no reminders" — the state
     /// every client written before this shipped was already rendering.
@@ -297,6 +305,7 @@ struct ForYou: Codable, Sendable {
     /// The default makes the parameter optional, so the NEXT field added here
     /// costs nobody a compile error.
     @Default<DefaultEmptyList<ForYouFollowUp>> var follow_ups: [ForYouFollowUp] = []
+    @Default<DefaultEmptyList<ForYouTextAlert>> var text_alerts: [ForYouTextAlert] = []
     @Default<DefaultEmptyList<ForYouWaiting>> var waiting_on_you: [ForYouWaiting]
     @Default<DefaultEmptyList<ForYouTask>> var my_tasks: [ForYouTask]
     @Default<DefaultEmptyList<ForYouUnread>> var unread: [ForYouUnread]
@@ -320,6 +329,7 @@ func forYouHeadlineWork(_ forYou: ForYou) -> Int {
     if let totals = forYou.totals { return totals.distinct_work }
     var conversations = Set<String>()
     for row in forYou.waiting_on_you { conversations.insert(row.conversation_id) }
+    for row in forYou.text_alerts { conversations.insert(row.conversation_id) }
     for row in forYou.unread { conversations.insert(row.conversation_id) }
     // #293: a due reminder is work. Leaving it out made the header say "all
     // caught up" while a section below listed a quote to chase — the count

@@ -2475,9 +2475,10 @@ So the product **warns loudly and a human decides**: the thread carries
 banner before anyone replies, and nothing changes the contact's state.
 
 **Amendment (#810).** While a request is open, scheduled texts wait and the
-away reply and missed-call text are skipped. A crew member can dismiss the
-hint or opt out the number on that conversation. Both decisions are recorded
-in History. A carrier opt-out can still be cleared only by the customer.
+away reply and missed-call text are skipped. For You keeps the request visible
+until a crew member dismisses it or opts out the number on that conversation.
+Both decisions are recorded in History. A carrier opt-out can still be cleared
+only by the customer.
 
 **Why it matters more here than in a single-operator tool**, which is the part
 worth stating: the shared inbox is the product's whole point, and it is also

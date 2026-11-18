@@ -126,6 +126,8 @@ import kotlinx.coroutines.launch
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.TextButton
 import kotlinx.coroutines.delay
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import java.time.Instant
 import com.loonext.android.ui.common.asButton
 import androidx.compose.ui.semantics.stateDescription
@@ -332,12 +334,14 @@ fun ForYouTab(
     }
     val unreadNotifications = (unreadState as? LoadState.Ready)?.value ?: 0
     // Any conversation/task/call movement can change the queue — refetch quietly.
-    LaunchedEffect(companyId) {
+    LaunchedEffect(companyId, me.user_id) {
         graph.realtime.events.collect { event ->
+            val ownRead = event.event == "read.conversation" &&
+                (event.payload["user_id"] as? JsonPrimitive)?.contentOrNull == me.user_id
             if (event.event.startsWith("message.") ||
                 event.event.startsWith("conversation.") ||
                 event.event.startsWith("task.") ||
-                event.event.startsWith("call.")
+                event.event.startsWith("call.") || ownRead
             ) {
                 refreshKey++
             }
@@ -692,6 +696,30 @@ internal fun ForYouList(
                             onAnswer = { notSpam ->
                                 onAnswerSpamReview(row.conversation_id, notSpam)
                             },
+                        )
+                    }
+                }
+            }
+        }
+
+        if (forYou.text_alerts.isNotEmpty()) {
+            item(key = "text-alerts") {
+                QueueSection(
+                    t("inbox.forYouTextAlerts"),
+                    count = forYou.text_alerts.size,
+                    modifier = Modifier.animateItem(),
+                ) {
+                    forYou.text_alerts.forEachIndexed { index, row ->
+                        if (index > 0) RowDivider()
+                        val reason = t(
+                            if (row.kind == "opt_out_hint") "inbox.forYouOptOutHint"
+                            else "inbox.forYouTextFailed",
+                        )
+                        PersonRow(
+                            name = row.contact.name ?: formatPhone(row.contact.phone_e164),
+                            why = TimedText(reason, reason),
+                            unread = false,
+                            onClick = { onOpenConversation(row.conversation_id) },
                         )
                     }
                 }

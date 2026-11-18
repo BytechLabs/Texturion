@@ -156,7 +156,7 @@ const CONVERSATION_COLUMNS =
   // whoever replies next, never an opt-out: only the contact can opt out, and
   // only they can lift it, so the product cannot afford to guess on their
   // behalf.
-  "opt_out_hint_at," +
+  "opt_out_hint_at,last_outbound_failed_at," +
   // #301 — where this customer came from, and how we came to believe it.
   //
   // The ORIGIN travels with the id and is not optional. A source shown without

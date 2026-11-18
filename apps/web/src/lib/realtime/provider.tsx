@@ -24,6 +24,7 @@ import type { ConversationUpdatedEvent,MessageCreatedEvent,MessageStatusEvent,Pa
 import type {
   ConversationDetail,
   ConversationListItem,
+  ForYou,
   Message,
   Page,
 } from "@/lib/api/types";
@@ -513,9 +514,8 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     async function applyConversationUpdate(conversationId: string) {
       const detailKey = keys.conversations.detail(companyId, conversationId);
       const threadKey = keys.thread(companyId, conversationId);
-      const previous =
-        queryClient.getQueryData<ConversationDetail>(detailKey) ??
-        findListRow(queryClient, companyId, conversationId);
+      const previousDetail = queryClient.getQueryData<ConversationDetail>(detailKey);
+      const previous = previousDetail ?? findListRow(queryClient, companyId, conversationId);
       if (!previous) {
         // An assignment to me still moves the queue and the bell, and a pin the supplement.
         refreshSoon(keys.forYou(companyId));
@@ -541,6 +541,15 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
         seedThreadFromDetail(queryClient, companyId, detail);
       }
       const cachedRow = findListRow(queryClient, companyId, conversationId);
+      const hasTextAlert = queryClient.getQueryData<ForYou>(keys.forYou(companyId))
+        ?.text_alerts?.some((row) => row.conversation_id === conversationId);
+      if (
+        (previous?.last_outbound_failed_at ?? null) !== (detail.last_outbound_failed_at ?? null) ||
+        (previousDetail?.opt_out_hint_at ?? null) !== (detail.opt_out_hint_at ?? null) ||
+        hasTextAlert
+      ) {
+        refreshSoon(keys.forYou(companyId));
+      }
       // Unread is per-viewer and the detail response does not carry it, so it
       // is only knowable from a row already on a loaded page. When there is no
       // such row, inserting one meant GUESSING read, and the guess stuck: it

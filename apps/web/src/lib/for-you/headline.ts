@@ -16,6 +16,7 @@ import type { ForYou } from "@/lib/api/types";
 export function countDistinctWork(data: ForYou): number {
   const conversations = new Set<string>();
   for (const row of data.waiting_on_you) conversations.add(row.conversation_id);
+  for (const row of data.text_alerts ?? []) conversations.add(row.conversation_id);
   for (const row of data.unread) conversations.add(row.conversation_id);
   // #293: a due reminder is work. Leaving it out here made the header say
   // "You're all caught up" while a section below it listed a quote to chase —

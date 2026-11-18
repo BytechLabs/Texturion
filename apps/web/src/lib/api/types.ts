@@ -902,6 +902,7 @@ export interface ConversationDetail
   messages: Page<Message>;
   /** Null only when a conversation somehow has no contact. */
   destination_clock: DestinationClock | null;
+  last_outbound_failed_at?: string | null;
   /** #106: the caller's access level on this conversation's number — 'note'
    *  means read + internal notes only (the composer hides its SMS mode). */
   viewer_level: "text" | "note";
@@ -2601,6 +2602,12 @@ export interface ForYouWaiting {
   urgency: number;
 }
 
+export interface ForYouTextAlert {
+  conversation_id: string;
+  kind: "opt_out_hint" | "text_failed";
+  contact: ContactSummary;
+}
+
 /**
  * #293 — one follow-up reminder that has come DUE, in the /for-you queue.
  *
@@ -2704,6 +2711,7 @@ export interface ForYou {
    * pre-#293 behaviour rather than a crash.
    */
   follow_ups?: ForYouFollowUp[];
+  text_alerts?: ForYouTextAlert[];
   waiting_on_you: ForYouWaiting[];
   my_tasks: ForYouTask[];
   unread: ForYouUnread[];
