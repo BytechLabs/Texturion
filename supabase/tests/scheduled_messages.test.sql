@@ -700,4 +700,48 @@ begin
   end if;
 end $$;
 
+set local role service_role;
+
+do $$
+declare
+  v_company constant uuid := '5d000000-0000-4000-8000-0000000000c2';
+  v_conversation constant uuid := '5d000000-0000-4000-8000-0000000000e2';
+  v_user constant uuid := '5d000000-0000-4000-8000-00000000000a';
+  v_send_at constant timestamptz := now() + interval '3 hours';
+  v_expires_at constant timestamptz := v_send_at + interval '1 day';
+  v_first jsonb;
+  v_replay jsonb;
+begin
+  v_first := public.api_schedule_message(v_company, v_conversation, v_user,
+    ' Check in ', v_send_at, 'America/New_York', 'area_code', v_expires_at, 'schedule-1', true);
+  if v_first->>'outcome' is distinct from 'quiet_confirmation' then
+    raise exception 'SM-idempotency: a new text still needs quiet-hours confirmation: %', v_first;
+  end if;
+
+  v_first := public.api_schedule_message(v_company, v_conversation, v_user,
+    ' Check in ', v_send_at, 'America/New_York', 'area_code', v_expires_at, 'schedule-1', false);
+  if v_first->>'outcome' is distinct from 'scheduled' then
+    raise exception 'SM-idempotency: expected newly scheduled text: %', v_first;
+  end if;
+
+  update public.scheduled_messages set body = 'Edited after scheduling', status = 'canceled'
+   where id = (v_first #>> '{scheduled_message,id}')::uuid;
+
+  v_replay := public.api_schedule_message(v_company, v_conversation, v_user,
+    'Check in', v_send_at, 'America/New_York', 'area_code', v_expires_at, 'schedule-1', true);
+  if v_replay->>'outcome' is distinct from 'replayed'
+     or v_replay #>> '{scheduled_message,id}' is distinct from v_first #>> '{scheduled_message,id}'
+     or v_replay #>> '{scheduled_message,status}' is distinct from 'canceled'
+     or (v_replay->'scheduled_message') ? 'create_key_hash' then
+    raise exception 'SM-idempotency: expected the existing canceled text: %', v_replay;
+  end if;
+
+  v_replay := public.api_schedule_message(v_company, v_conversation, v_user,
+    'Different text', v_send_at, 'America/New_York', 'area_code', v_expires_at, 'schedule-1', false);
+  if v_replay->>'outcome' is distinct from 'key_conflict' then
+    raise exception 'SM-idempotency: changed request should conflict: %', v_replay;
+  end if;
+end $$;
+
+reset role;
 rollback;

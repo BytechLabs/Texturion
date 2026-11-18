@@ -68,6 +68,36 @@ describe("POST /v1/scheduled-messages expiry", () => {
   });
 });
 
+it("returns a scheduled text on replay even when the destination clock now asks for confirmation", async () => {
+  const sb = supabaseStub(env);
+  sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
+  sb.on("GET", "/rest/v1/conversations", () => [
+    { contact_phone_e164: "+16135550142", contacts: { timezone: "America/Toronto" } },
+  ]);
+  sb.on("POST", "/rest/v1/rpc/api_schedule_message", () => ({
+    outcome: "replayed",
+    scheduled_message: { id: SCHEDULED_ID },
+  }));
+  sb.on("GET", /\/rest\/v1\//, () => []);
+  stubFetch(jwksRoute(auth), sb.route);
+
+  const sendAt = new Date(Date.now() + 3 * 24 * 3_600_000);
+  sendAt.setUTCHours(7, 0, 0, 0);
+  const response = await apiRequest(app, env, await auth.token(), "/v1/scheduled-messages", {
+    method: "POST",
+    companyId: COMPANY_ID,
+    headers: { "Idempotency-Key": "schedule-1" },
+    body: { conversation_id: CONVERSATION_ID, body: "Checking in", send_at: sendAt.toISOString() },
+  });
+
+  expect(response.status).toBe(200);
+  await expect(response.json()).resolves.toEqual({ scheduled_message: { id: SCHEDULED_ID } });
+  expect(sb.find("POST", "/rest/v1/rpc/api_schedule_message")[0].body).toMatchObject({
+    p_idempotency_key: "schedule-1",
+    p_needs_quiet_confirmation: true,
+  });
+});
+
 describe("GET /v1/scheduled-messages allowed actions (#722)", () => {
   async function listAs(role: string) {
     const sb = supabaseStub(env);

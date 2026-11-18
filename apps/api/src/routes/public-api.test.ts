@@ -615,9 +615,9 @@ describe("writes", () => {
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 
-  it("creates a task through the same RPC the first-party route uses", async () => {
+  it("creates a public task as the key's creator", async () => {
     const sb = stubWithKey(["tasks:write"]);
-    sb.on("POST", "/rest/v1/rpc/create_task", () => ({
+    sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => ({
       outcome: "created",
       task: { id: "tk-1", title: "Fix the boiler" },
     }));
@@ -632,26 +632,41 @@ describe("writes", () => {
     });
     expect(res.status).toBe(201);
 
-    // A public path that wrote the table directly would be a second way to
-    // create a task, and the second way is the one that forgets the audit row.
-    const call = sb.find("POST", "/rest/v1/rpc/create_task")[0];
+    const call = sb.find("POST", "/rest/v1/rpc/api_create_public_task")[0];
     expect(call.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_actor_user_id: CREATOR,
-      p_title: "Fix the boiler",
+      p_idempotency_key: null,
+      p_task: { title: "Fix the boiler" },
+    });
+  });
+
+  it("returns the existing task for an idempotent replay", async () => {
+    const sb = stubWithKey(["tasks:write"]);
+    sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => ({
+      outcome: "replayed",
+      task: { id: "tk-1", title: "Fix the boiler" },
+    }));
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      headers: { "Idempotency-Key": "task-create-1" },
+      body: JSON.stringify({ title: "Fix the boiler" }),
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ id: "tk-1" });
+    expect(sb.find("POST", "/rest/v1/rpc/api_create_public_task")[0].body).toMatchObject({
+      p_api_key_id: KEY_ID,
+      p_idempotency_key: "task-create-1",
     });
   });
 
   it("creates a task with a priority, labels and a repeat (#693)", async () => {
     const TAG = "66666666-0000-4000-8000-000000000066";
     const sb = stubWithKey(["tasks:write"], "owner", false);
-    sb.on("POST", "/rest/v1/rpc/create_task", () => ({
+    sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => ({
       outcome: "created",
-      task: { id: "tk-3", title: "Annual backflow test", priority: "high", series_id: null },
-    }));
-    sb.on("POST", "/rest/v1/rpc/api_set_task_tags", () => ({ outcome: "updated", labels: [] }));
-    sb.on("POST", "/rest/v1/rpc/api_set_task_repeat", () => ({
-      outcome: "set",
       task: { id: "tk-3", title: "Annual backflow test", priority: "high", series_id: "s-1" },
     }));
     sb.on("GET", "/rest/v1/task_assignees", () => []);
@@ -678,8 +693,9 @@ describe("writes", () => {
       }),
     });
     expect(res.status).toBe(201);
-    expect(sb.find("POST", "/rest/v1/rpc/create_task")[0].body).toMatchObject({ p_priority: "high" });
-    expect(sb.find("POST", "/rest/v1/rpc/api_set_task_tags")[0].body).toMatchObject({ p_add: [TAG] });
+    expect(sb.find("POST", "/rest/v1/rpc/api_create_public_task")[0].body).toMatchObject({
+      p_task: { priority: "high", label_ids: [TAG], repeat: { kind: "schedule", unit: "year" } },
+    });
     const body = (await res.json()) as {
       priority: string; labels: { name: string }[]; repeat: { unit: string }; series_id?: string;
     };
@@ -691,19 +707,19 @@ describe("writes", () => {
 
   it("a schedule needs a due_at, said before anything is created (#693)", async () => {
     const sb = stubWithKey(["tasks:write"]);
-    sb.on("POST", "/rest/v1/rpc/create_task", () => ({ outcome: "created", task: { id: "x" } }));
+    sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => ({ outcome: "created", task: { id: "x" } }));
     stubFetch(jwksRoute(auth), sb.route);
     const res = await publicRequest("/public/v1/tasks", {
       method: "POST",
       body: JSON.stringify({ title: "Weekly", repeat: { kind: "schedule", unit: "week" } }),
     });
     expect(res.status).toBe(422);
-    expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_create_public_task")).toHaveLength(0);
   });
 
   it("creates a standalone task from a title alone, with source null", async () => {
     const sb = stubWithKey(["tasks:write"]);
-    sb.on("POST", "/rest/v1/rpc/create_task", () => ({
+    sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => ({
       outcome: "created",
       task: { id: "tk-2", title: "Order a filter", message_id: null, source_call_id: null },
     }));
@@ -718,12 +734,8 @@ describe("writes", () => {
     });
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toMatchObject({ source: null, message_id: null });
-    expect(sb.find("POST", "/rest/v1/rpc/create_task")[0].body).toMatchObject({
-      p_message_id: null,
-      p_title: "Order a filter",
-      p_assigned_user_id: null,
-      p_contact_id: "22222222-2222-4222-8222-222222222222",
-      p_conversation_id: null,
+    expect(sb.find("POST", "/rest/v1/rpc/api_create_public_task")[0].body).toMatchObject({
+      p_task: { title: "Order a filter", contact_id: "22222222-2222-4222-8222-222222222222" },
     });
   });
 
@@ -731,7 +743,7 @@ describe("writes", () => {
     const A = "aaaaaaaa-0000-4000-8000-0000000000a1";
     const B = "bbbbbbbb-0000-4000-8000-0000000000b2";
     const sb = stubWithKey(["tasks:write"], "owner", false);
-    sb.on("POST", "/rest/v1/rpc/create_task", () => ({
+    sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => ({
       outcome: "created",
       task: { id: "tk-9", title: "Install", assigned_user_id: A, series_id: null },
     }));
@@ -752,8 +764,8 @@ describe("writes", () => {
       body: JSON.stringify({ title: "Install", assignee_ids: [A, B] }),
     });
     expect(res.status).toBe(201);
-    expect(sb.find("POST", "/rest/v1/rpc/create_task")[0].body).toMatchObject({
-      p_assignee_ids: [A, B],
+    expect(sb.find("POST", "/rest/v1/rpc/api_create_public_task")[0].body).toMatchObject({
+      p_task: { assignee_ids: [A, B] },
     });
     const body = (await res.json()) as Record<string, unknown>;
     expect(body.assigned_user_id).toBe(A);
@@ -785,7 +797,7 @@ describe("writes", () => {
 
   it("reports an already-promoted message as a conflict rather than a 500", async () => {
     const sb = stubWithKey(["tasks:write"]);
-    sb.on("POST", "/rest/v1/rpc/create_task", () => ({ outcome: "conflict" }));
+    sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => ({ outcome: "conflict" }));
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await publicRequest("/public/v1/tasks", {
@@ -1157,14 +1169,14 @@ describe("#581 a key cannot promote a message on a denied line", () => {
     // indistinguishable from one that does not exist.
     expect(res.status).toBe(404);
     // And nothing was written on the way to refusing.
-    expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_create_public_task")).toHaveLength(0);
   });
 
   it("lets an unrestricted key through", async () => {
     // A check that refuses everybody is an outage, not a check.
     const sb = stubWithKey(["tasks:write"], "member");
     sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
-    sb.on("POST", "/rest/v1/rpc/create_task", () => ({
+    sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => ({
       task: { id: "task-1", title: "Fix the sink" },
     }));
     stubFetch(jwksRoute(auth), sb.route);

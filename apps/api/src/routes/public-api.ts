@@ -62,10 +62,9 @@ import { errorResponse } from "../http/errors";
 import { buildPage } from "../http/pagination";
 import { sendTextToConversation } from "../messaging/send-text";
 import { prioritySchema, repeatSchema, withLabelsAndRepeat } from "../tasks/repeat";
-import { keysetFilter, parseCursor, parseJsonBody, pathUuid, unwrap } from "./core/http";
+import { keysetFilter, optionalIdempotencyKey, parseCursor, parseJsonBody, pathUuid, unwrap } from "./core/http";
 import { normalizeNanpPhone } from "./core/phone";
 import { contactNumberConflict, contactNumberOwner, contactNumberTaken } from "./core/contact-number";
-import { setTaskRepeat, setTaskTags } from "./tasks";
 
 /**
  * What a public read returns for a contact.
@@ -524,6 +523,7 @@ publicApiRoutes.post(
   requireCapability("conversations.note"),
   async (c) => {
     const body = await parseJsonBody(c, createTaskSchema);
+    const idempotencyKey = optionalIdempotencyKey(c);
     const db = getDb(getEnv(c.env));
     if (body.repeat?.kind === "schedule" && !body.due_at) {
       return errorResponse(
@@ -583,41 +583,16 @@ publicApiRoutes.post(
       }
     }
 
-    // The same security-definer RPC the first-party route uses, so the
-    // partial-unique conflict arbiter, the audit row and the broadcast trigger
-    // all behave identically. A public path that wrote the table directly
-    // would be a second way to create a task, and the second way is the one
-    // that forgets the audit.
-    const { data, error } = await db.rpc("create_task", {
+    const { data, error } = await db.rpc("api_create_public_task", {
       p_company_id: c.get("companyId"),
-      p_message_id: body.message_id ?? null,
-      p_title: body.title ?? null,
-      p_description: body.description ?? null,
-      // Unassigned unless the caller names someone: an integration's key is not
-      // a crew member to hand work to.
-      p_assigned_user_id: body.assigned_user_id ?? null,
-      p_assignee_ids: body.assignee_ids ?? null,
-      p_due_at: body.due_at ?? null,
+      p_api_key_id: c.get("apiKeyId"),
       p_actor_user_id: c.get("userId"),
-      // #214's address arguments, all null. Named explicitly rather than
-      // omitted because the RPC's signature is positional-by-name over
-      // PostgREST: a missing argument resolves to a DIFFERENT overload, which
-      // is the failure mode recorded on `purge_workspace_step`.
-      p_addr_street: null,
-      p_addr_unit: null,
-      p_addr_city: null,
-      p_addr_state: null,
-      p_addr_postal_code: null,
-      p_addr_country: null,
-      p_addr_provenance: null,
-      p_call_id: null,
-      p_contact_id: body.contact_id ?? null,
-      p_conversation_id: body.conversation_id ?? null,
-      p_priority: body.priority ?? "normal",
+      p_task: body,
+      p_idempotency_key: idempotencyKey,
     });
-    if (error) throw new Error(`public create_task failed: ${error.message}`);
+    if (error) throw new Error(`api_create_public_task failed: ${error.message}`);
 
-    const result = data as { outcome?: string; task?: Record<string, unknown> } | null;
+    const result = data as { outcome?: string; reason?: string; task?: Record<string, unknown> } | null;
     if (result?.outcome === "no_message") {
       return errorResponse(
         c,
@@ -627,6 +602,9 @@ publicApiRoutes.post(
     }
     if (result?.outcome === "conflict") {
       return errorResponse(c, "conflict", "This message is already a task.");
+    }
+    if (result?.outcome === "key_conflict") {
+      return errorResponse(c, "conflict", "Idempotency-Key was already used for a task.");
     }
     if (result?.outcome === "not_member") {
       return errorResponse(
@@ -666,18 +644,18 @@ publicApiRoutes.post(
     if (result?.outcome === "title_required") {
       return errorResponse(c, "validation_failed", "title: required without a message_id.");
     }
-    if (!result?.task) throw new Error("create_task returned no row");
-    const companyId = c.get("companyId");
-    const userId = c.get("userId");
-    const taskId = result.task.id as string;
-    if (body.label_ids && body.label_ids.length > 0) {
-      await setTaskTags(db, { companyId, taskId, userId, add: body.label_ids });
+    if (result?.outcome === "tag_not_found") {
+      return errorResponse(c, "validation_failed", "label: no such tag in this company.");
     }
-    const task = body.repeat
-      ? await setTaskRepeat(db, { companyId, taskId, userId, repeat: body.repeat })
-      : result.task;
-    const [decorated] = await withLabelsAndRepeat(db, companyId, [task]);
-    return c.json(publicTask(decorated), 201);
+    if (result?.outcome === "needs_due") {
+      return errorResponse(c, "validation_failed", "repeat: a schedule needs a due date to start from.");
+    }
+    if (result?.outcome === "invalid") {
+      return errorResponse(c, "validation_failed", `repeat: ${result.reason ?? "not a valid rule"}.`);
+    }
+    if (!result?.task) throw new Error("api_create_public_task returned no row");
+    const [decorated] = await withLabelsAndRepeat(db, c.get("companyId"), [result.task]);
+    return c.json(publicTask(decorated), result.outcome === "replayed" ? 200 : 201);
   },
 );
 

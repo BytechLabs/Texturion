@@ -879,4 +879,52 @@ begin
   raise notice 'RP-9 PASSED: timeline and grants';
 end $$;
 
+set local role service_role;
+
+do $$
+declare
+  v_company constant uuid := 'b7000000-0000-4000-8000-0000000000c1';
+  v_owner constant uuid := 'b7000000-0000-4000-8000-00000000000a';
+  v_key constant uuid := 'b7000000-0000-4000-8000-0000000000aa';
+  v_other_key constant uuid := 'b7000000-0000-4000-8000-0000000000ab';
+  v_task constant jsonb := '{"title":"Public task retry", "repeat":{"kind":"after_done","unit":"week"}}';
+  v_first jsonb;
+  v_replay jsonb;
+begin
+  v_first := public.api_create_public_task(v_company, v_key, v_owner,
+    v_task || '{"label_ids":["b7000000-0000-4000-8000-0000000000ff"]}', 'task-1');
+  if v_first->>'outcome' is distinct from 'tag_not_found'
+     or exists (select 1 from public.tasks where company_id = v_company and title = v_task->>'title') then
+    raise exception 'Task idempotency: invalid labels must roll back creation: %', v_first;
+  end if;
+
+  v_first := public.api_create_public_task(v_company, v_key, v_owner, v_task, 'task-1');
+  if v_first->>'outcome' is distinct from 'created' or v_first #>> '{task,series_id}' is null then
+    raise exception 'Task idempotency: expected a task with its repeat: %', v_first;
+  end if;
+
+  update public.tasks set title = 'Edited task' where id = (v_first #>> '{task,id}')::uuid;
+  v_replay := public.api_create_public_task(v_company, v_key, v_owner, v_task, 'task-1');
+  if v_replay->>'outcome' is distinct from 'replayed'
+     or v_replay #>> '{task,id}' is distinct from v_first #>> '{task,id}'
+     or v_replay #>> '{task,title}' is distinct from 'Edited task'
+     or v_replay #>> '{task,series_id}' is distinct from v_first #>> '{task,series_id}'
+     or (v_replay->'task') ? 'create_key_hash' then
+    raise exception 'Task idempotency: replay must return the edited task and its original repeat: %', v_replay;
+  end if;
+
+  v_replay := public.api_create_public_task(v_company, v_key, v_owner,
+    v_task || '{"title":"Different task"}', 'task-1');
+  if v_replay->>'outcome' is distinct from 'key_conflict' then
+    raise exception 'Task idempotency: changed request should conflict: %', v_replay;
+  end if;
+
+  v_replay := public.api_create_public_task(v_company, v_other_key, v_owner, v_task, 'task-1');
+  if v_replay->>'outcome' is distinct from 'created'
+     or v_replay #>> '{task,id}' = v_first #>> '{task,id}' then
+    raise exception 'Task idempotency: keys on different integrations are independent: %', v_replay;
+  end if;
+end $$;
+
+reset role;
 rollback;

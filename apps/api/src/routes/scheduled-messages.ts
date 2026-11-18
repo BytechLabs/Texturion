@@ -50,7 +50,7 @@ import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
 import { loadAutomaticTextSettings } from "../messaging/automatic-text-settings";
 import { resolveDestinationClock } from "../messaging/destination-clock";
-import { parseJsonBody, pathUuid, unwrap, unwrapOptional } from "./core/http";
+import { optionalIdempotencyKey, parseJsonBody, pathUuid, unwrap, unwrapOptional } from "./core/http";
 
 export const scheduledMessageRoutes = new Hono<AppEnv>();
 
@@ -91,6 +91,7 @@ scheduledMessageRoutes.post(
     const companyId = c.get("companyId");
     const userId = c.get("userId");
     const db = getDb(getEnv(c.env));
+    const idempotencyKey = optionalIdempotencyKey(c);
 
     // The shared parser, so a malformed body fails with the same envelope and
     // the same field-level summary as every other route rather than a sentence
@@ -142,13 +143,17 @@ scheduledMessageRoutes.post(
       contactTimezone: conversation?.contacts?.timezone ?? null,
     });
 
-    if (clock.quiet && !quiet_hours_confirmed) {
+    const needsQuietConfirmation = clock.quiet && !quiet_hours_confirmed;
+    const quietConfirmationError = () => {
       // Same code and envelope as compose, so a client shows the quiet-hours
       // dialog by CODE rather than by reading the sentence.
-      throw new ApiError(
+      return new ApiError(
         "quiet_hours_confirmation_required",
         `That lands at ${String(clock.localHour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to schedule it anyway.`,
       );
+    };
+    if (needsQuietConfirmation && idempotencyKey === null) {
+      throw quietConfirmationError();
     }
 
     const settings = await loadAutomaticTextSettings(db, companyId);
@@ -161,6 +166,8 @@ scheduledMessageRoutes.post(
         p_send_at: sendAt.toISOString(),
         p_clock_timezone: clock.timezone,
         p_clock_source: clock.source,
+        p_idempotency_key: idempotencyKey,
+        p_needs_quiet_confirmation: needsQuietConfirmation,
         p_expires_at: new Date(
           sendAt.getTime() + settings.scheduled_text_expiry_hours * 3_600_000,
         ).toISOString(),
@@ -169,8 +176,15 @@ scheduledMessageRoutes.post(
     );
 
     switch (result.outcome) {
-      case "scheduled": {
-        return c.json({ scheduled_message: result.scheduled_message }, 201);
+      case "scheduled":
+      case "replayed": {
+        return c.json({ scheduled_message: result.scheduled_message }, result.outcome === "replayed" ? 200 : 201);
+      }
+      case "quiet_confirmation": {
+        throw quietConfirmationError();
+      }
+      case "key_conflict": {
+        throw new ApiError("conflict", "Idempotency-Key was already used for a different scheduled text.");
       }
       case "not_found": {
         throw new ApiError("not_found", "That conversation is not here.");
