@@ -260,7 +260,9 @@ describe("hermetic call journeys (whole Worker, real database)", () => {
       state: "ended_answered",
       answered_by_user_id: technician.userId,
     });
-    const target = h.telnyx.voice.legs().find((leg) => leg.origin === "transfer");
+    const target = h.telnyx.voice.legs().findLast(
+      (leg) => leg.origin === "dial" && leg.to === `sip:${technician.sipUsername}@sip.telnyx.com`,
+    );
     const { data } = await h.db
       .from("call_member_legs")
       .select("call_control_id,user_id,state")

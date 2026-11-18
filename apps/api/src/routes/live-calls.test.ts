@@ -181,19 +181,20 @@ describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
   });
 
   it("#722: refuses a transfer when the call machine is no longer answered, and allows one that is", async () => {
-    for (const [machineState, expected] of [
-      ["ended_answered", 409],
-      ["answered", 202],
+    for (const [machineState, registered, expected] of [
+      ["ended_answered", false, 409],
+      ["answered", false, 409],
+      ["answered", true, 202],
     ] as const) {
       const sb = liveWorld({});
-      const transfer = telnyxTransfer();
+      const transfer = telnyxDialAndActions();
       stubFetch(jwksRoute(auth), sb.route, transfer.route);
       const doEnv: Env = {
         ...env,
         CALL_SESSIONS: {
           idFromName: (name: string) => name,
           get: () => ({
-            registerIntent: async () => ({ state: machineState }),
+            registerIntent: async () => ({ state: machineState, registered }),
             clearIntent: async () => undefined,
           }),
         } as unknown as Env["CALL_SESSIONS"],
@@ -207,6 +208,13 @@ describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
       );
       expect(res.status).toBe(expected);
       expect(transfer.calls).toHaveLength(expected === 202 ? 1 : 0);
+      if (expected === 202) {
+        expect(transfer.calls[0].url.pathname).toBe("/v2/calls");
+        const dial = transfer.calls[0].body as { client_state: string; command_id: string };
+        expect(atob(dial.client_state)).toBe(
+          `brt|${SESSION}|${TARGET_ID}|${auth.subject}|0|+16135551000|${dial.command_id}`,
+        );
+      }
     }
   });
 

@@ -544,7 +544,7 @@ liveCallsRoutes.get(
   },
 );
 
-/** Blind transfer: the customer leg re-rings at the target's browser. */
+/** Blind transfer: dial the target and move the customer when the target answers. */
 liveCallsRoutes.post(
   "/calls/live/:sessionId/transfer",
   requireCapability("conversations.send"),
@@ -576,11 +576,13 @@ liveCallsRoutes.post(
     // (dial nothing) unless it is 'answered' (review R1-m3 — requireLiveCall
     // can pass and T5/T8 land before this call).
     const transferStub = callSessionStub(env, sessionId);
+    const transferId = transferStub ? crypto.randomUUID() : undefined;
     if (transferStub) {
-      const { state } = await transferStub.registerIntent({
+      const { state, registered } = await transferStub.registerIntent({
         sessionId,
         kind: "transfer",
         targetUserId: body.target_user_id,
+        transferId,
       });
       // #722: the shared machine says whether this member may transfer a call
       // in the state the machine is in now.
@@ -589,6 +591,9 @@ liveCallsRoutes.post(
         .includes("transfer");
       if (!mayTransfer) {
         return errorResponse(c, "conflict", "The call just ended.");
+      }
+      if (!registered) {
+        return errorResponse(c, "conflict", "A transfer or consult is already running.");
       }
     }
 
@@ -599,9 +604,6 @@ liveCallsRoutes.post(
       // Present the customer to the target (who they're about to talk to),
       // falling back to the business number for an anonymous caller.
       callerNumberForTarget: gate.call.caller_e164 ?? gate.businessNumber,
-      // #211 (D11): outbound uses the consult-style dial+bridge-steal mechanic
-      // INSIDE issueTransfer (proven against customer ccids); inbound keeps the
-      // Telnyx transfer command. Same route, same intent discipline, same UX.
       direction: gate.call.direction === "outbound" ? "outbound" : "inbound",
       state: {
         sessionId,
@@ -609,10 +611,11 @@ liveCallsRoutes.post(
         senderUserId: c.get("userId"),
         hops: 0,
         caller: gate.call.caller_e164,
+        transferId,
       },
     });
     if (!issued) {
-      if (transferStub) await transferStub.clearIntent();
+      if (transferStub) await transferStub.clearIntent(transferId);
       return errorResponse(c, "conflict", "The call just ended.");
     }
     return c.json({ status: "transferring" }, 202);
@@ -675,13 +678,16 @@ liveCallsRoutes.post(
     // machine is still 'answered'.
     const consultStub = callSessionStub(env, sessionId);
     if (consultStub) {
-      const { state } = await consultStub.registerIntent({
+      const { state, registered } = await consultStub.registerIntent({
         sessionId,
         kind: "consult",
         targetUserId: body.target_user_id,
       });
       if (state !== "answered") {
         return errorResponse(c, "conflict", "The call just ended.");
+      }
+      if (!registered) {
+        return errorResponse(c, "conflict", "A transfer or consult is already running.");
       }
     }
 

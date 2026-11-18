@@ -122,6 +122,7 @@ export interface SessionRuntime {
     answerInbound(ccid: string, clientState: string): Promise<"ok" | "dead">;
     answerVm(ccid: string, clientState: string): Promise<"ok" | "dead">;
     bridge(memberCcid: string, inboundCcid: string): Promise<"ok" | "dead">;
+    bridgeTransfer(memberCcid: string, customerCcid: string, transferId: string): Promise<boolean>;
     /** 4xx-discriminated like answer/bridge (#208 F4): "ok" = the command
      *  landed (or the leg is still alive and its own hangup webhook will
      *  follow); "dead" = the leg was ALREADY gone/uncontrollable, so no
@@ -446,6 +447,19 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         commandWithDiscrimination(env, memberCcid, "bridge", {
           call_control_id: inboundCcid,
         }),
+      async bridgeTransfer(memberCcid, customerCcid, transferId) {
+        try {
+          await telnyxRequest(env, {
+            method: "POST",
+            path: `/v2/calls/${memberCcid}/actions/bridge`,
+            body: { call_control_id: customerCcid, command_id: transferId },
+          });
+          return true;
+        } catch (error) {
+          if (isDefiniteRefusal(error)) return false;
+          throw error;
+        }
+      },
       // #208 F4: hangup discriminates its 4xx (was swallow4xx) so the shell
       // can tell "already dead, no webhook coming" from the routine race.
       hangup: (ccid) => commandWithDiscrimination(env, ccid, "hangup", {}),

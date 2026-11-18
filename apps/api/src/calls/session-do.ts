@@ -408,26 +408,90 @@ export class CallSessionDO extends DurableObject<Env> {
     sessionId?: string;
     kind: "transfer" | "consult";
     targetUserId: string;
-  }): Promise<{ state: CallState }> {
+    transferId?: string;
+  }): Promise<{ state: CallState; registered: boolean }> {
     return this.enqueue(async () => {
       if (input.sessionId) await this.rememberSessionId(input.sessionId);
       await this.resumeJournalIfAny();
       const machine = await this.load();
-      if (!machine) return { state: "ended_missed" as CallState };
+      if (!machine) return { state: "ended_missed", registered: false };
+      const transferCannotStart = input.transferId && (machine.intent || machine.state !== "answered");
+      if (machine.intent?.transferId || transferCannotStart) {
+        return { state: machine.state, registered: false };
+      }
       await this.admitAndDrain(
-        { type: "register-intent", kind: input.kind, targetUserId: input.targetUserId },
+        {
+          type: "register-intent", kind: input.kind, targetUserId: input.targetUserId,
+          transferId: input.transferId,
+        },
         null,
       );
       const after = await this.load();
-      return { state: (after?.state ?? machine.state) };
+      return { state: after?.state ?? machine.state, registered: true };
     });
   }
 
-  async clearIntent(): Promise<void> {
+  async clearIntent(transferId?: string): Promise<"cleared" | "bridged" | "stale"> {
+    return this.enqueue(async () => {
+      await this.resumeJournalIfAny();
+      const machine = await this.load();
+      if (transferId && machine?.lastTransfer?.id === transferId) return "bridged";
+      if (!machine || machine.intent?.transferId !== transferId) return "stale";
+      await this.admitAndDrain({ type: "clear-intent" }, null);
+      return "cleared";
+    });
+  }
+
+  async completeTransfer(input: {
+    transferId: string;
+    targetUserId: string;
+    memberCcid: string;
+  }): Promise<boolean> {
+    return this.enqueue(async () => {
+      await this.resumeJournalIfAny();
+      const machine = await this.load();
+      if (machine?.lastTransfer?.id === input.transferId &&
+          machine.lastTransfer.memberCcid === input.memberCcid) return true;
+      if (machine?.state !== "answered" || !machine.customerCcid ||
+          machine.intent?.transferId !== input.transferId ||
+          machine.intent.targetUserId !== input.targetUserId ||
+          (machine.intent.memberCcid && machine.intent.memberCcid !== input.memberCcid)) return false;
+
+      // Keep the old owner until the bridge lands. Provider retries reuse the intent ID.
+      const bridged = await this.rt.telnyx.bridgeTransfer(input.memberCcid, machine.customerCcid, input.transferId);
+      if (!bridged) {
+        await this.admitAndDrain({ type: "clear-intent" }, null);
+        return false;
+      }
+      await this.admitAndDrain({
+        type: "complete-transfer", transferId: input.transferId, memberCcid: input.memberCcid,
+      }, null);
+      return true;
+    });
+  }
+
+  async bindTransferLeg(input: {
+    transferId: string;
+    targetUserId: string;
+    memberCcid: string;
+  }): Promise<void> {
     await this.enqueue(async () => {
       await this.resumeJournalIfAny();
-      if (!(await this.load())) return;
-      await this.admitAndDrain({ type: "clear-intent" }, null);
+      const machine = await this.load();
+      if (machine?.lastTransfer?.id === input.transferId &&
+          machine.lastTransfer.memberCcid === input.memberCcid) return;
+      const intent = machine?.intent;
+      if (machine?.state !== "answered" || intent?.transferId !== input.transferId ||
+          intent.targetUserId !== input.targetUserId ||
+          (intent.memberCcid && intent.memberCcid !== input.memberCcid)) {
+        await this.rt.telnyx.hangup(input.memberCcid);
+        return;
+      }
+      if (!intent.memberCcid) {
+        await this.admitAndDrain({
+          type: "bind-transfer-leg", transferId: input.transferId, memberCcid: input.memberCcid,
+        }, null);
+      }
     });
   }
 
