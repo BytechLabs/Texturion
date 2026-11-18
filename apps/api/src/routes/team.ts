@@ -673,6 +673,11 @@ type InviteRow = {
   expires_at: string | null;
 };
 
+type InviteCreation =
+  | { outcome: "created"; invite: { id: string; expires_at: string }; previous_expiration: string | null }
+  | { outcome: "seat_limit"; active: number; pending: number }
+  | { outcome: "not_found" | "plan_changed" | "duplicate" | "revoke_cooldown" | "daily_limit" };
+
 /** The derived invite state; the same rule as SQL invite_state(). */
 function inviteState(row: InviteRow, now: Date): stateMachines.InviteState {
   if (row.accepted_at !== null) return "accepted";
@@ -731,44 +736,43 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
 
   const plan = await companyPlan(db, companyId);
   const seats = seatLimit(plan);
-  const { active, pending } = await seatUsage(db, companyId);
-  if (active + pending + 1 > seats) {
+  const { email, role } = body;
+  const note = body.note ?? null;
+  const result = unwrap<InviteCreation>(await db.rpc("api_create_invite", {
+    p_company_id: companyId,
+    p_invited_by: invitedBy,
+    p_email: email,
+    p_role: role,
+    p_note: note,
+    p_plan: plan,
+    p_seats: seats,
+  }), "invite create");
+
+  if (result.outcome === "seat_limit") {
     return errorResponse(
       c,
       "conflict",
       `Seat limit reached: ${seats} seats on the ${plan ?? "starter"} plan ` +
-        `(${active} active members, ${pending} pending invites).`,
+        `(${result.active} active members, ${result.pending} pending invites).`,
     );
   }
+  if (result.outcome === "duplicate") {
+    return errorResponse(c, "conflict", "A pending invite for this email already exists.");
+  }
+  if (result.outcome === "not_found") return errorResponse(c, "not_found", "No such company.");
+  if (result.outcome === "plan_changed") {
+    return errorResponse(c, "conflict", "Your plan changed. Try the invite again.");
+  }
+  if (result.outcome === "revoke_cooldown" || result.outcome === "daily_limit") {
+    await capture(env, "team_invite_refused", companyId, { reason: result.outcome });
+    return errorResponse(c, "rate_limited", result.outcome === "revoke_cooldown"
+      ? "Wait 10 minutes after revoking an invite before inviting this address again."
+      : "Your workspace reached its invite limit for the past 24 hours.");
+  }
+  if (result.outcome !== "created") throw new Error("Unknown invite creation outcome.");
 
-  const { email, role } = body;
-  const note = body.note ?? null;
-  const inserted = await db
-    .from("invites")
-    .insert({ company_id: companyId, email, role, note, invited_by: invitedBy })
-    .select(INVITE_COLUMNS);
-
-  const now = new Date();
-  const refreshedExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
-  const refreshing = isUniqueViolation(inserted.error);
-  const rows = unwrap<Record<string, unknown>[]>(
-    refreshing
-      ? await db.from("invites")
-          .update({ role, note, invited_by: invitedBy, expires_at: refreshedExpiry })
-          .eq("company_id", companyId)
-          .eq("email", email)
-          .is("accepted_at", null)
-          .is("revoked_at", null)
-          .lte("expires_at", now.toISOString())
-          .select(INVITE_COLUMNS)
-      : inserted,
-    "invite create",
-    "A pending invite for this email already exists.",
-  );
-  const invite = rows[0];
-  if (!invite) return errorResponse(c, "conflict", "A pending invite for this email already exists.");
-
-  const inviteId = invite.id as string;
+  const invite = result.invite;
+  const inviteId = invite.id;
   const { data: linkData, error } = await db.auth.admin.generateLink({
     type: "invite",
     email,
@@ -795,12 +799,12 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
   }
   if (!alreadyRegistered && !emailSent) {
     expectOk(
-      refreshing
+      result.previous_expiration
         ? await db.from("invites")
-            .update({ expires_at: now.toISOString() })
+            .update({ expires_at: result.previous_expiration })
             .eq("company_id", companyId)
             .eq("id", inviteId)
-            .eq("expires_at", refreshedExpiry)
+            .eq("expires_at", invite.expires_at)
             .is("accepted_at", null)
         : await db.from("invites").delete().eq("company_id", companyId).eq("id", inviteId),
       "invite rollback",
