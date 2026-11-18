@@ -27,6 +27,7 @@ enum PushKind {
     static let callEnd = "call_end"
     static let missedCall = "missed_call"
     static let escalation = "escalation"
+    static let voicemail = "voicemail"
     /// A task the reader is assigned, shortly before (or after) its due date.
     static let taskDue = "task_due"
 
@@ -167,6 +168,8 @@ private func pushCategory(for kind: String?, alertId: String?) -> String {
         return PushCategory.payments
     case PushKind.missedCall:
         return alertId == nil ? PushCategory.missedCalls : PushCategory.emergency
+    case PushKind.voicemail:
+        return PushCategory.missedCalls
     case PushKind.taskDue:
         return PushCategory.taskReminders
     case PushKind.conversationAssigned, PushKind.taskAssigned, PushKind.taskUpdate:

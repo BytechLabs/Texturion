@@ -33,7 +33,7 @@ import type { PlanId } from '../billing/plans';
 import { getDb } from "../db";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
 import type { Env } from "../env";
-import { notifyMissedCall } from "../notifications/missed-call";
+import { notifyMissedCall, notifyVoicemail } from "../notifications/missed-call";
 import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
 import {
   BROWSER_INBOUND_STATE,
@@ -634,17 +634,21 @@ export async function handleVoicemailSaved(
     // first pass stored the audio and then threw before threading, which is
     // precisely the case the recovery was written for.
     if (wroteTheLine) {
-      await enqueueWebhookEvent(db, {
-        companyId: resolved.companyId,
-        type: "voicemail.received",
-        data: {
-          call_session_id: sessionId,
-          conversation_id: conversationId,
-          from: call?.caller_e164 ?? stored.caller,
-          duration_seconds: stored.seconds,
-          transcript: stored.transcript ?? null,
-        },
-      });
+      await Promise.all([
+        enqueueWebhookEvent(db, {
+          companyId: resolved.companyId,
+          type: "voicemail.received",
+          data: {
+            call_session_id: sessionId,
+            conversation_id: conversationId,
+            from: call?.caller_e164 ?? stored.caller,
+            duration_seconds: stored.seconds,
+            transcript: stored.transcript ?? null,
+          },
+        }),
+        notifyVoicemail(env, db, { companyId: resolved.companyId, conversationId })
+          .catch((error) => console.error(`voicemail alert failed for ${sessionId}:`, error)),
+      ]);
     }
   }
 

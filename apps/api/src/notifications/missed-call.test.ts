@@ -12,7 +12,8 @@ import { supabaseStub } from '../test/routes-harness';
 import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, stubFetch } from '../test/support';
 import type { FetchRoute } from '../test/support';
-import { notifyMissedCall } from "./missed-call";
+import { getDb } from "../db";
+import { notifyMissedCall, notifyVoicemail } from "./missed-call";
 
 const env = completeEnv();
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
@@ -35,6 +36,7 @@ function buildWorld(
     phoneNumberId?: string | null;
     accessRules?: Record<string, unknown>[];
     members?: { user_id: string; role: string }[];
+    notificationPrefs?: Record<string, unknown>[];
     assignedUserId?: string | null;
     /** #694: per-conversation mute and follow rows. */
     memberPrefs?: {
@@ -75,7 +77,7 @@ function buildWorld(
       level: "text",
     })),
   );
-  sb.on("GET", "/rest/v1/notification_prefs", () => []);
+  sb.on("GET", "/rest/v1/notification_prefs", () => options.notificationPrefs ?? []);
   sb.on("GET", "/rest/v1/conversation_member_prefs", () => options.memberPrefs ?? []);
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, (call) => {
@@ -100,6 +102,25 @@ const INPUT = {
   callerE164: "+16135551000",
   textStatus: "sent",
 } as const;
+
+it("uses the saved voicemail preference without sending a missed-call page", async () => {
+  const { sb, routes } = buildWorld({
+    notificationPrefs: [{
+      user_id: OWNER,
+      push_enabled: true,
+      delivery: { missed_calls: "immediate", voicemails: "summary" },
+    }],
+  });
+  sb.on("POST", "/rest/v1/pending_notifications", () => []);
+  stubFetch(...routes);
+
+  await notifyVoicemail(env, getDb(env), { companyId: COMPANY_ID, conversationId: CONVERSATION_ID });
+
+  expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(0);
+  expect(sb.find("POST", "/rest/v1/pending_notifications")[0]?.body).toEqual([
+    expect.objectContaining({ category: "voicemails", delivery_kind: "summary", conversation_id: CONVERSATION_ID }),
+  ]);
+});
 
 describe("notifyMissedCall — push-only (D45)", () => {
   it("sends NO email — the miss reaches the crew via push/bell/For You only", async () => {
