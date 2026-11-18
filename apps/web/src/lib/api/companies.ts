@@ -17,7 +17,7 @@ import type {
 
 import { apiFetch } from "./client";
 import { keys } from "./keys";
-import { meCompanyQueryOptions } from "./me-company";
+import { meCompanyQueryOptions } from "./me";
 import type {
   BusinessHours,
   CompanyView,

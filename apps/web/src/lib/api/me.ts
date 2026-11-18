@@ -1,9 +1,10 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { queryOptions, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import type { QueryClient } from "@tanstack/react-query";
 
 import { apiFetch } from "./client";
 import { ApiError } from "./error";
 import { keys } from "./keys";
-import type { Me } from "./types";
+import type { CompanyView, Me } from "./types";
 
 /** GET /v1/me — profile + memberships. Company-exempt (no X-Company-Id). */
 export function fetchMe(): Promise<Me> {
@@ -35,6 +36,35 @@ export function useUpdateDisplayName() {
  */
 export function fetchMeWithCompany(companyId: string): Promise<Me> {
   return apiFetch<Me>("/v1/me", { companyId });
+}
+
+/**
+ * Seed the company cache from /v1/me. AAL1 omits the embedded company so
+ * /v1/company can report the MFA challenge.
+ */
+export function meCompanyQueryOptions(
+  queryClient: QueryClient,
+  companyId: string,
+) {
+  return queryOptions({
+    queryKey: ["me", "company", companyId] as const,
+    queryFn: async () => {
+      const startedAt = Date.now();
+      const me = await fetchMeWithCompany(companyId);
+      if (me.company) {
+        const current = queryClient.getQueryState(keys.company(companyId));
+        // A settings save that landed while this was in flight is newer.
+        if (!current || current.dataUpdatedAt <= startedAt) {
+          queryClient.setQueryData<CompanyView>(
+            keys.company(companyId),
+            me.company,
+          );
+        }
+      }
+      return me;
+    },
+    staleTime: 60_000,
+  });
 }
 
 /**

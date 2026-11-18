@@ -19,8 +19,7 @@ import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { publicEnv } from "@/env";
 import { LocaleProvider, useT } from "@/i18n/provider";
-import { useMe } from "@/lib/api/me";
-import { meCompanyQueryOptions } from "@/lib/api/me-company";
+import { meCompanyQueryOptions, useMe } from "@/lib/api/me";
 import type { MemberRole, Membership } from "@/lib/api/types";
 import { useSession } from "@/lib/auth/use-session-ready";
 

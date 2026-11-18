@@ -14,7 +14,7 @@ import { MfaGate } from "@/components/shell/mfa-gate";
 import { useCompany } from "./companies";
 import { ApiError } from "./error";
 import { keys } from "./keys";
-import { meCompanyQueryOptions } from "./me-company";
+import { meCompanyQueryOptions } from "./me";
 import type { CompanyView, Me } from "./types";
 
 const { api } = vi.hoisted(() => ({

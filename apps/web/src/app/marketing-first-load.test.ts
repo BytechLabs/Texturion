@@ -456,7 +456,7 @@ describe("the hero loads the lean p5", () => {
     // `p5-modules.d.ts` gives the lean core the full build's type, so tsc
     // passes a call to an addon the lean module never registered. Only this
     // catches it before the first frame throws.
-    const { default: lean } = await import("@/components/marketing/hero/p5-lean");
+    const { p5: lean } = await import("@/components/marketing/hero/p5-lean");
     const proto = lean.prototype as unknown as Record<string, unknown>;
     const calls = sketches.flatMap(({ file }) =>
       p5MethodCalls(readFileSync(file, "utf8"), file).map((name) => ({ file, name })),
@@ -475,7 +475,7 @@ describe("the hero loads the lean p5", () => {
   });
 
   it("would report a call to an addon the lean module leaves out", async () => {
-    const { default: lean } = await import("@/components/marketing/hero/p5-lean");
+    const { p5: lean } = await import("@/components/marketing/hero/p5-lean");
     const proto = lean.prototype as unknown as Record<string, unknown>;
     const calls = p5MethodCalls(
       "const s = (p: p5) => { p.circle(1, 2, 3); p.text('9:04 PM', 0, 0); };\n" +

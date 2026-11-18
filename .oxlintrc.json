@@ -328,7 +328,6 @@
     "eslint/no-unmodified-loop-condition": "off", // 3
     "eslint/preserve-caught-error": "off", // 3
     "import/no-anonymous-default-export": "off", // 3
-    "import/no-default-export": "off", // 3
     "jsx-a11y/media-has-caption": "off", // 3
     "oxc/branches-sharing-code": "off", // 3
     "promise/catch-or-return": "off", // 3
@@ -343,7 +342,6 @@
     "eslint/no-new": "off", // 2
     "eslint/prefer-exponentiation-operator": "off", // 2
     "eslint/prefer-regex-literals": "off", // 2
-    "import/no-cycle": "off", // 2
     "jsdoc/empty-tags": "off", // 2
     "jsx-a11y/interactive-supports-focus": "off", // 2
     "jsx-a11y/label-has-associated-control": "off", // 2

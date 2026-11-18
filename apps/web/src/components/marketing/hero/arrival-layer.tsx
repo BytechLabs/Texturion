@@ -28,7 +28,10 @@ import { cn } from "@/lib/utils";
 
 import { ArrivalStatic } from "./arrival-static";
 
-const ArrivalField = dynamic(() => import("./arrival-field"), { ssr: false });
+const ArrivalField = dynamic(
+  () => import("./arrival-field").then((module) => module.ArrivalField),
+  { ssr: false },
+);
 
 export function ArrivalLayer() {
   const hostRef = useRef<HTMLDivElement>(null);

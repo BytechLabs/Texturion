@@ -85,7 +85,7 @@ function smoothstep(a: number, b: number, x: number): number {
   return t * t * (3 - 2 * t);
 }
 
-export default function ArrivalField({
+export function ArrivalField({
   onFirstFrame,
 }: {
   /** Fired after the first p5 frame renders (the static SVG crossfades out). */
@@ -106,7 +106,7 @@ export default function ArrivalField({
 
     void import("./p5-lean").then((mod) => {
       if (cancelled || !hostRef.current) return;
-      const P5 = mod.default;
+      const P5 = mod.p5;
 
       const sketch = (p: p5) => {
         const isMobile = window.innerWidth < 640;
