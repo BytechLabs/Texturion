@@ -53,7 +53,6 @@ import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { answerersByCall } from "../calls/answerers";
 import { getDb } from "../db";
-import { emitWebhookEvent } from "../webhooks/outbound";
 import { getEnv } from '../env';
 import type { Env } from '../env';
 import { ApiError, errorResponse } from "../http/errors";

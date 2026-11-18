@@ -83,7 +83,7 @@ import {
 } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import { emitWebhookEvent, enqueueWebhookEvent } from "../webhooks/outbound";
+import { enqueueWebhookEvent } from "../webhooks/outbound";
 import { askForJobRating } from "../messaging/job-ratings";
 import { getEnv } from "../env";
 import { companySettingDefault, roleHasCapability } from "@loonext/shared";
