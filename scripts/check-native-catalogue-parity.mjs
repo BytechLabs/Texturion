@@ -20,6 +20,8 @@ const platformCopy = new Set([
   "settingsMore.tfaPasskeyPitch",
   "shell.lockCannotEnable",
   "thread.micNeededForCalls",
+  // Android can retry after process exit. iOS resumes on the next launch.
+  "thread.queuedOffline",
 ]);
 
 // The screens display different amounts of detail for these actions.
