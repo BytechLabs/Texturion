@@ -145,7 +145,7 @@ describe("#228 automated SMS copy stays inside GSM-7", () => {
     // Name the offending characters. "This string is UCS-2" sends the reader
     // hunting through a sentence that looks entirely ordinary, because the
     // character that did it is a dash.
-    const offenders = [...body].filter((char) => estimateSegments(char).encoding === "UCS-2");
+    const offenders = Array.from(body).filter((char) => estimateSegments(char).encoding === "UCS-2");
     expect(
       estimate.encoding,
       `${label} forces UCS-2 on every segment because of ${JSON.stringify(offenders)}. ` +

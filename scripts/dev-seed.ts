@@ -110,7 +110,7 @@ function pngChunk(type: string, data: Uint8Array): Uint8Array {
   const out = new Uint8Array(12 + data.length);
   const dv = new DataView(out.buffer);
   dv.setUint32(0, data.length);
-  out.set([...type].map((ch) => ch.charCodeAt(0)), 4);
+  out.set(Array.from(type, (ch) => ch.charCodeAt(0)), 4);
   out.set(data, 8);
   const crcInput = out.subarray(4, 8 + data.length);
   dv.setUint32(8 + data.length, crc32(crcInput));

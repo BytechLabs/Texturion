@@ -65,6 +65,7 @@ function pnpmCommand() {
 
 const [PNPM, PNPM_PREFIX] = pnpmCommand();
 
+/** @type {[name: string, args: string[]][]} */
 const STEPS = [
   ["guards", ["check:guards"]],
   ["typecheck", ["-r", "typecheck"]],

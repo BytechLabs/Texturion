@@ -78,7 +78,7 @@ function googleUrl(path: string): string {
   return `${GOOGLE_API}${path}`;
 }
 
-function bearer(accessToken: string): HeadersInit {
+function bearer(accessToken: string): { Authorization: string } {
   return { Authorization: `Bearer ${accessToken}` };
 }
 
@@ -265,7 +265,7 @@ export async function normalizeGoogleEvent(
       inbound: { kind: "time_refused", reason: "invalid_range" },
     };
   }
-  if ([...description].length > 5000) {
+  if (Array.from(description).length > 5000) {
     return {
       ...common,
       inbound: { kind: "description_refused", reason: "too_long" },

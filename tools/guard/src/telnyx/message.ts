@@ -28,7 +28,7 @@ export function smsParts(text: string): number {
   const gsm = GSM.test(text);
   const single = gsm ? 160 : 70;
   const multi = gsm ? 153 : 67;
-  const {length} = [...text];
+  const {length} = Array.from(text);
   return length <= single ? 1 : Math.ceil(length / multi);
 }
 

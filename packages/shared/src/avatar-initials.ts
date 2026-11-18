@@ -47,7 +47,7 @@ function isGlyph(character: string): boolean {
 
 /** The first letter-or-digit in a word, or "" if it has none. */
 function firstGlyph(word: string): string {
-  return [...word].find(isGlyph) ?? "";
+  return Array.from(word).find(isGlyph) ?? "";
 }
 
 /**
@@ -65,10 +65,10 @@ export function avatarInitials(name: string): string {
   const words = name
     .trim()
     .split(/\s+/)
-    .filter((word) => [...word].some(isGlyph));
+    .filter((word) => Array.from(word).some(isGlyph));
   if (words.length === 0) return "?";
   if (words.length === 1) {
-    return [...words[0]].filter(isGlyph).slice(0, 2).join("").toUpperCase();
+    return Array.from(words[0]).filter(isGlyph).slice(0, 2).join("").toUpperCase();
   }
   return (
     firstGlyph(words[0]) + firstGlyph(words[words.length - 1])
