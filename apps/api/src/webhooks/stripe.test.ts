@@ -22,6 +22,7 @@ import {
 import { POSTHOG_CAPTURE_URL } from "../analytics/posthog";
 import type { AppEnv } from "../context";
 import type { Env } from "../env";
+import { sweepWebhookEvents } from "../messaging/crons";
 import { endpoint, makeExecutionContext, makeHarness } from '../test/billing-support';
 import type { Harness, StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
@@ -33,14 +34,6 @@ import {
 } from "../test/telnyx-doubles/provisioning";
 import { submitRegistration } from "../test/telnyx-doubles/registration";
 
-/**
- * #526: the reported exception is observable here because for one branch of
- * this handler it is the ONLY thing that exists: the held-number notice is
- * best-effort by design, so a failure leaves no email, no push, no retry and
- * no error. Without a spy on it, "never silent" is an unguarded sentence in a
- * comment (#526 R3: both captures could be deleted with all 51 tests still
- * green).
- */
 vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
 );
@@ -610,12 +603,9 @@ describe("§9 event → state table", () => {
     expect(email.text).toContain("paid extra number");
   });
 
-  it("#523 an email outage cannot stop a returning customer's provisioning", async () => {
-    // The notice used to be awaited with no guard, ahead of the port start, the
-    // number provisioning AND the §4.4 campaign reactivation — so a Resend
-    // outage left the one customer who had just paid to come back unable to
-    // text at all. A notice is how somebody LEARNS about the hold; it is not
-    // how the hold is applied.
+  it("retries a failed held-number email after checkout provisions the number", async () => {
+    const event = eventOf("checkout.session.completed", checkoutSessionFixture());
+    let resendAvailable = false;
     const held = {
       id: "b1f1f6a1-2c3d-4e5f-8a9b-0c1d2e3f4a5b",
       number_e164: "+14155550102",
@@ -634,14 +624,24 @@ describe("§9 event → state table", () => {
       endpoint("GET", /\/rest\/v1\/companies\?select=name/, () => [
         { name: "523 Roofing" },
       ]),
-      // Resend is down.
       endpoint(
         "POST",
         /api\.resend\.com\/emails/,
-        () => new Response("service unavailable", { status: 503 }),
+        () => resendAvailable
+          ? { id: "email_1" }
+          : new Response("service unavailable", { status: 503 }),
       ),
-      // The released claim (see below) is a DELETE on the same ledger.
       endpoint("DELETE", /\/rest\/v1\/email_ledger/, () => []),
+      endpoint("GET", /\/rest\/v1\/webhook_events\?select=provider/, () => [{
+        provider: "stripe",
+        event_id: event.id,
+        event_type: event.type,
+        payload: event,
+        attempts: 1,
+      }]),
+      endpoint("PATCH", /\/rest\/v1\/webhook_events.*select=event_id/, () => [
+        { event_id: event.id },
+      ]),
       ...ledgerEndpoints(),
       ...recipientEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
@@ -653,30 +653,29 @@ describe("§9 event → state table", () => {
         () => ({ object: "list", data: [] }),
       ),
     ]);
-    const response = await deliver(
-      eventOf("checkout.session.completed", checkoutSessionFixture()),
-      harness,
-    );
+    const response = await deliver(event, harness);
     expect(response.status).toBe(200);
 
-    // Everything the customer actually paid for still happened.
     expect(provisionCompanyNumber).toHaveBeenCalledExactlyOnceWith(env, {
       companyId: COMPANY_ID,
       checkoutSessionId: "cs_1",
     });
     expect(submitRegistration).toHaveBeenCalledExactlyOnceWith(env, COMPANY_ID);
-    // And the event is marked processed rather than left for the sweeper to
-    // replay for a reason it can never fix.
-    const stamps = harness.callsTo("PATCH", /webhook_events/);
-    expect(stamps).toHaveLength(1);
-    expect(stamps[0].json()).toEqual({ processed_at: expect.any(String) });
-
-    // The one-shot key is GIVEN BACK. Insert-first is what makes a replay
-    // unable to send twice; leaving it spent after a send that never left the
-    // building is what made the hold silent — nobody billed and nobody told.
+    expect(harness.callsTo("PATCH", /webhook_events/).map((call) => call.json())).toEqual([
+      { attempts: 1, last_error: expect.any(String) },
+    ]);
     const released = harness.callsTo("DELETE", /email_ledger/);
     expect(released).toHaveLength(1);
     expect(released[0].url.searchParams.get("email_key")).toBe("eq.numbers_held:cs_1");
+
+    resendAvailable = true;
+    await sweepWebhookEvents(env);
+
+    expect(harness.callsTo("POST", /api\.resend\.com\/emails/)).toHaveLength(2);
+    expect(harness.callsTo("DELETE", /email_ledger/)).toHaveLength(1);
+    expect(harness.callsTo("PATCH", /webhook_events/).at(-1)?.json()).toEqual({
+      processed_at: expect.any(String),
+    });
   });
 
   it("#526 the ghost rows are closed out while the workspace is still cancelled — BEFORE the activation claim", async () => {
@@ -728,12 +727,6 @@ describe("§9 event → state table", () => {
   });
 
   it("#526 a hold nobody could be told about is on the record, by name", async () => {
-    // The notice is best-effort, and that is right — it must never stop a
-    // customer who just paid to come back from being able to text. But the
-    // handler then stamps `processed_at`, so the sweeper will not replay it,
-    // and if the confirm-checkout poller already ran for this session the
-    // ledger key is spent. After that, this alert is the only thing in the
-    // product that would ever say the hold was applied and never announced.
     const held = {
       id: "b1f1f6a1-2c3d-4e5f-8a9b-0c1d2e3f4a5b",
       number_e164: "+14155550102",

@@ -807,49 +807,6 @@ export async function handleCheckoutCompleted(
         extra: { checkout_session_id: session.id },
       });
     }
-    if (allowance.held.length > 0 && plan) {
-      // BEST-EFFORT, like every other side effect on this path that is not the
-      // provisioning itself (the voice-metered convergence above, the duplicate
-      // subscription cancel below). A notice is how somebody LEARNS about the
-      // hold; it is not how the hold is applied, and it must never be the reason
-      // a customer who just paid to come back is left without a working number.
-      //
-      // It sits before the port start, the number provisioning and the §4.4
-      // campaign reactivation — so an unguarded throw here meant a Resend outage
-      // stopped a post-grace resubscriber from being able to text at all, and
-      // the sweeper's replay skipped the notice anyway (the ledger key was
-      // already spent), which is how the hold ended up costing us silently.
-      //
-      // Loud, though. The claim is given back so a replay can try again, and
-      // it is reported as an exception either way.
-      try {
-        await noticeHeldNumbers(env, db, {
-          companyId,
-          plan,
-          allowance: allowance.allowance ?? PLAN_LIMITS[plan].numbers,
-          held: allowance.held,
-          // One notice per checkout session: the webhook, the confirm-checkout
-          // poller and a sweeper replay all reach this line for the same session.
-          emailKey: `numbers_held:${session.id}`,
-        });
-      } catch (cause) {
-        void captureException(env, cause, { source: "api", company_id: companyId });
-        void captureException(
-          env,
-          heldNoticeUnannouncedAlert({
-            companyId,
-            sessionId: session.id,
-            held: allowance.held.length,
-          }),
-          { source: "api", company_id: companyId },
-        );
-        console.error(
-          `held-number notice failed for ${companyId} (${session.id}):`,
-          cause instanceof Error ? cause.message : String(cause),
-        );
-      }
-    }
-
     // PORTING.md §0/§4/D16: a port is a PARALLEL branch of this same paid
     // trigger — pay first, then port. If the company has a pending port
     // (row inserted with source='ported', status='provisioning' at
@@ -885,6 +842,30 @@ export async function handleCheckoutCompleted(
           return email.id !== null;
         },
       });
+    }
+    // The webhook sweeper can retry delivery after checkout has provisioned the number.
+    if (allowance.held.length > 0 && plan) {
+      try {
+        await noticeHeldNumbers(env, db, {
+          companyId,
+          plan,
+          allowance: allowance.allowance ?? PLAN_LIMITS[plan].numbers,
+          held: allowance.held,
+          emailKey: `numbers_held:${session.id}`,
+        });
+      } catch (cause) {
+        void captureException(env, cause, { source: "api", company_id: companyId });
+        void captureException(
+          env,
+          heldNoticeUnannouncedAlert({
+            companyId,
+            sessionId: session.id,
+            held: allowance.held.length,
+          }),
+          { source: "api", company_id: companyId },
+        );
+        throw cause;
+      }
     }
   }
 }
