@@ -19,23 +19,24 @@ describe(purgeTrash, () => {
     const order: string[] = [];
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/rpc/api_trash_due", () => [
-      { kind: "conversation", id: A, company_id: "c" },
-      { kind: "voicemail", id: B, company_id: "c" },
+      { kind: "task", id: A, company_id: "c" },
+      { kind: "task_comment", id: B, company_id: "c" },
     ]);
     sb.on("POST", "/rest/v1/rpc/api_trash_object_paths", (req) => {
       const id = (req.body as { p_id: string }).p_id;
       order.push(`paths ${id}`);
-      return [{ bucket: "voicemails", path: `co/${id}.mp3` }];
+      return [{ bucket: "attachments", path: `co/${id}.png` }];
     });
-    sb.on("DELETE", /^\/storage\/v1\/object\/voicemails$/, () => {
+    sb.on("DELETE", /^\/storage\/v1\/object\/attachments$/, () => {
       order.push("remove");
       return [];
     });
     sb.on("POST", "/rest/v1/rpc/api_purge_trash_item", (req) => {
-      const body = req.body as { p_id: string; p_actor: string | null };
+      const body = req.body as { p_id: string; p_kind: string; p_actor: string | null };
       order.push(`rows ${body.p_id}`);
       // The cron has no actor: the audit row says the expiry did it.
       expect(body.p_actor).toBeNull();
+      expect(body.p_kind).toBe(body.p_id === A ? "task" : "task_comment");
       return { outcome: "purged", company_id: "c" };
     });
     stubFetch(sb.route);

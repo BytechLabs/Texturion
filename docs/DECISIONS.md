@@ -10094,6 +10094,11 @@ activity history. The primary number and its consent evidence remain alongside
 the separate opt-out record. An inbound message after purge reopens a blank
 profile for that number.
 
+The daily sweep also expires independently deleted tasks and comments after
+30 days. A task keeps its reference number and loses its title, description,
+address, history values, comments and attached files. An expired comment loses
+its row and files. The sweep leaves either record alone under legal hold.
+
 **Audit and integrations.** `record.deleted`, `record.restored` and `record.purged`
 in the audit log (ids and kinds, never content, 12 months like the rest).
 Outbound webhooks gain `message.deleted`, `conversation.deleted` and
