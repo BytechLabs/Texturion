@@ -47,10 +47,14 @@ function parseColumnDefault(sql: string | null): unknown {
 }
 
 describe("every setting's default is written once (#749)", () => {
-  for (const { table, defaults, notSettings } of TABLES) {
+  const tableCases = TABLES.map(({ table, defaults, notSettings }) => {
     const columns = SNAPSHOT.defaults[table] ?? {};
+    return [table, defaults, notSettings, columns] as const;
+  });
 
-    it(`${table}: every column is a setting with a default or is named as not one`, () => {
+  it.each(tableCases)(
+    "%s: every column is a setting with a default or is named as not one",
+    (_table, defaults, notSettings, columns) => {
       const names = Object.keys(columns);
       expect(names.length).toBeGreaterThan(5);
       const unclassified = names.filter((name) => !(name in defaults) && !(name in notSettings));
@@ -61,15 +65,18 @@ describe("every setting's default is written once (#749)", () => {
         (name) => !(name in columns),
       );
       expect(gone, "these are no longer columns").toEqual([]);
-    });
+    },
+  );
 
-    it(`${table}: the database's defaults are the shared ones`, () => {
+  it.each(tableCases)(
+    "%s: the database's defaults are the shared ones",
+    (_table, defaults, _notSettings, columns) => {
       const differ = Object.entries(defaults)
         .map(([name, { value }]) => ({ name, shared: value, database: parseColumnDefault(columns[name] ?? null) }))
         .filter(({ shared, database }) => JSON.stringify(shared) !== JSON.stringify(database));
       expect(differ).toEqual([]);
-    });
-  }
+    },
+  );
 
   it("phone_numbers: a number's copy of a workspace setting starts empty, so it inherits", () => {
     const numberColumns = SNAPSHOT.defaults.phone_numbers ?? {};

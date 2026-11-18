@@ -498,8 +498,11 @@ describe("#537 — proving it is you before the business moves", () => {
     { path: "accept" },
   ];
 
-  for (const move of MOVES) {
-    it(`asks an enrolled owner for a code before ${move.path}`, async () => {
+  const ownershipMoves = MOVES.map(move => [move.path, move] as const);
+
+  it.each(ownershipMoves)(
+    "asks an enrolled owner for a code before %s",
+    async (_movePath, move) => {
       const sb = stub({ enrolled: true });
       stubFetch(jwksRoute(auth), sb.route);
 
@@ -531,9 +534,12 @@ describe("#537 — proving it is you before the business moves", () => {
       expect(
         sb.find("POST", `/rest/v1/rpc/api_${move.path}_ownership`),
       ).toHaveLength(0);
-    });
+    },
+  );
 
-    it(`lets them through once they have presented it: ${move.path}`, async () => {
+  it.each(ownershipMoves)(
+    "lets them through once they have presented it: %s",
+    async (_movePath, move) => {
       const sb = stub({ enrolled: true });
       sb.on("POST", `/rest/v1/rpc/api_${move.path}_ownership`, () => ({
         outcome: "forbidden",
@@ -561,8 +567,8 @@ describe("#537 — proving it is you before the business moves", () => {
       expect(
         sb.find("POST", `/rest/v1/rpc/api_${move.path}_ownership`),
       ).toHaveLength(1);
-    });
-  }
+    },
+  );
 
   it("NEVER asks for a code to cancel", async () => {
     // THE ONE THAT MATTERS MOST. Cancelling is the safe direction: it is how an

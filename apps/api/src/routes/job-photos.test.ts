@@ -310,8 +310,11 @@ describe("who may share a job's photos (#294)", () => {
     );
   }
 
-  for (const method of ["POST", "DELETE"] as const) {
-    it(`${method}: a member who can text on the job's line may`, async () => {
+  const linkMethods = ["POST", "DELETE"] as const;
+
+  it.each(linkMethods)(
+    "%s: a member who can text on the job's line may",
+    async (method) => {
       // The tech standing in front of the customer is the one who shares.
       const sb = crew({ role: "member", line: "text" });
 
@@ -319,27 +322,36 @@ describe("who may share a job's photos (#294)", () => {
 
       expect(res.status).toBe(200);
       expect(sb.find("POST", "/rest/v1/rpc/member_number_levels")).toHaveLength(1);
-    });
+    },
+  );
 
-    it(`${method}: a read-only observer may not`, async () => {
+  it.each(linkMethods)(
+    "%s: a read-only observer may not",
+    async (method) => {
       const sb = crew({ role: "read_only" });
 
       const res = await share(sb, method);
 
       expect(res.status).toBe(403);
       expect(linksTouched(sb)).toBe(0);
-    });
+    },
+  );
 
-    it(`${method}: a bookkeeper may not`, async () => {
+  it.each(linkMethods)(
+    "%s: a bookkeeper may not",
+    async (method) => {
       const sb = crew({ role: "bookkeeper" });
 
       const res = await share(sb, method);
 
       expect(res.status).toBe(403);
       expect(linksTouched(sb)).toBe(0);
-    });
+    },
+  );
 
-    it(`${method}: a member held to notes on the job's line may not`, async () => {
+  it.each(linkMethods)(
+    "%s: a member held to notes on the job's line may not",
+    async (method) => {
       const sb = crew({ role: "member", line: "note" });
 
       const res = await share(sb, method);
@@ -348,9 +360,12 @@ describe("who may share a job's photos (#294)", () => {
       const body = (await res.json()) as { error: { message: string } };
       expect(body.error.message).toBe(NOTE_ONLY_MESSAGE);
       expect(linksTouched(sb)).toBe(0);
-    });
+    },
+  );
 
-    it(`${method}: a member denied the job's line is told there is no such job`, async () => {
+  it.each(linkMethods)(
+    "%s: a member denied the job's line is told there is no such job",
+    async (method) => {
       // The same answer as a wrong id, so a hidden line cannot be found by probing.
       const sb = crew({ role: "member", line: "none" });
 
@@ -361,8 +376,8 @@ describe("who may share a job's photos (#294)", () => {
         error: { code: "not_found", message: "No such job." },
       });
       expect(linksTouched(sb)).toBe(0);
-    });
-  }
+    },
+  );
 
   it("a member sharing a job with no conversation is not asked about a line", async () => {
     const sb = crew({ role: "member" });
@@ -673,8 +688,9 @@ describe("a link that does not work (#294)", () => {
     ["never existed", { ok: false, outcome: "not_found" }],
   ] as const;
 
-  for (const [name, resolved] of failures) {
-    it(`says the same thing for a link that ${name}`, async () => {
+  it.each(failures)(
+    "says the same thing for a link that %s",
+    async (_value1, resolved) => {
       // A holder who can tell these apart has been handed an oracle (D75).
       const sb = visitor({ resolved: resolved as Record<string, unknown> });
       stubFetch(sb.route);
@@ -686,8 +702,8 @@ describe("a link that does not work (#294)", () => {
       // And nothing was read about a workspace it could not verify access to.
       expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
       expect(sb.find("GET", "/rest/v1/attachments")).toHaveLength(0);
-    });
-  }
+    },
+  );
 
   it("never asks the database about a token of the wrong shape", async () => {
     // Hashing arbitrary input to run a query is free work an attacker controls

@@ -1703,8 +1703,9 @@ describe("getSendGates truth table (contract)", () => {
     },
   ];
 
-  for (const testCase of CASES) {
-    it(testCase.name, async () => {
+  it.each(CASES.map((testCase) => [testCase.name, testCase] as const))(
+    "%s",
+    async (_name, testCase) => {
       const { env, rest } = setup(testCase.company);
       if (testCase.campaign) {
         rest.insert("messaging_registrations", {
@@ -1719,8 +1720,8 @@ describe("getSendGates truth table (contract)", () => {
       expect(gates.usApproved).toBe(testCase.expected.usApproved);
       // §4.2: CA-bound sends carry no registration gate — always true.
       expect(gates.caAllowed).toBe(true);
-    });
-  }
+    },
+  );
 });
 
 describe("nudgeSoleProprietorOtp (§4.2, §11)", () => {

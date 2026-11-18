@@ -101,15 +101,15 @@ describe("LegalRichText fills slots inside marks", () => {
 describe("every legal page renders with no slot left in braces", () => {
   const rendered: string[] = [];
 
-  for (const [name, body] of Object.entries(BODIES)) {
-    for (const locale of ["en", "fr-CA"] as const) {
-      it(`${name} (${locale})`, () => {
-        const html = render(body(locale));
-        expect(html.match(SLOT_PATTERN) ?? []).toEqual([]);
-        rendered.push(`${name} ${locale}`);
-      });
-    }
-  }
+  const localizedBodies = Object.entries(BODIES).flatMap(([name, body]) =>
+    (["en", "fr-CA"] as const).map((locale) => [name, locale, body] as const),
+  );
+
+  it.each(localizedBodies)("%s (%s)", (name, locale, body) => {
+    const html = render(body(locale));
+    expect(html.match(SLOT_PATTERN) ?? []).toEqual([]);
+    rendered.push(`${name} ${locale}`);
+  });
 
   it("names the Law 25 officer in bold on the privacy page", () => {
     expect(render(BODIES.privacy("en"))).toContain("<strong>our Privacy Officer</strong>");

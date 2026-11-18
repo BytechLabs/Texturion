@@ -181,17 +181,24 @@ describe("#286 the joining orientation reads the same on every client", () => {
     }
   });
 
-  for (const line of ORIENTATION_COPY) {
-    it(`all three say: "${line.slice(0, 44)}${line.length > 44 ? "…" : ""}"`, () => {
+  it.each(
+    ORIENTATION_COPY.map((line) => [
+      `all three say: "${line.slice(0, 44)}${line.length > 44 ? "…" : ""}"`,
+      line,
+    ] as const),
+  )(
+    "%s",
+    (_name, line) => {
       const missing = Object.entries(sources)
         .filter(([, text]) => !text.includes(line))
         .map(([client]) => client);
       expect(missing).toEqual([]);
-    });
-  }
+    },
+  );
 
-  for (const action of ACTIONS) {
-    it(`all three label a button "${action}"`, () => {
+  it.each(ACTIONS)(
+    "all three label a button \"%s\"",
+    (action) => {
       const missing = Object.entries(sources)
         .filter(([, text]) => {
           // JSX puts the label between tags, and the formatter puts it on its
@@ -205,17 +212,18 @@ describe("#286 the joining orientation reads the same on every client", () => {
         })
         .map(([client]) => client);
       expect(missing).toEqual([]);
-    });
-  }
+    },
+  );
 
-  for (const line of JOINING_NOTE_COPY) {
-    it(`#521 all three orientations say: "${line}"`, () => {
+  it.each(JOINING_NOTE_COPY)(
+    "#521 all three orientations say: \"%s\"",
+    (line) => {
       const missing = Object.entries(sources)
         .filter(([, text]) => !text.includes(line))
         .map(([client]) => client);
       expect(missing).toEqual([]);
-    });
-  }
+    },
+  );
 
   it("ends on the notification ask, on every client", () => {
     /*
@@ -264,14 +272,20 @@ describe("#286 the standalone primer reads the same on both phones", () => {
     }
   });
 
-  for (const line of PRIMER_COPY) {
-    it(`both say: "${line.slice(0, 44)}${line.length > 44 ? "…" : ""}"`, () => {
+  it.each(
+    PRIMER_COPY.map((line) => [
+      `both say: "${line.slice(0, 44)}${line.length > 44 ? "…" : ""}"`,
+      line,
+    ] as const),
+  )(
+    "%s",
+    (_name, line) => {
       const missing = Object.entries(primers)
         .filter(([, text]) => !text.includes(line))
         .map(([client]) => client);
       expect(missing).toEqual([]);
-    });
-  }
+    },
+  );
 
   it("no client asks for the permission on mount any more", () => {
     // The bug #286 names: "the first thing the product does is ring their
@@ -310,14 +324,20 @@ describe("#521 the invite note asks for the same thing on all three clients", ()
     }
   });
 
-  for (const line of INVITE_NOTE_COPY) {
-    it(`all three say: "${line.slice(0, 44)}${line.length > 44 ? "…" : ""}"`, () => {
+  it.each(
+    INVITE_NOTE_COPY.map((line) => [
+      `all three say: "${line.slice(0, 44)}${line.length > 44 ? "…" : ""}"`,
+      line,
+    ] as const),
+  )(
+    "%s",
+    (_name, line) => {
       const missing = Object.entries(teamSources)
         .filter(([, text]) => !text.includes(line))
         .map(([client]) => client);
       expect(missing).toEqual([]);
-    });
-  }
+    },
+  );
 
   it("no client promises the note reaches the invite email", () => {
     // The claim is false for the ordinary invite. A brand-new address is

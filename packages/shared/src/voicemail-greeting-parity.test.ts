@@ -85,17 +85,19 @@ describe("#228 the voicemail preview matches what is spoken", () => {
     expect(server).toContain('export function defaultGreeting');
   });
 
-  for (const [locale, sentence] of Object.entries(SPOKEN)) {
-    it(`the server still speaks the ${locale} greeting this file pins`, () => {
+  it.each(Object.entries(SPOKEN))(
+    "the server still speaks the %s greeting this file pins",
+    (_value1, sentence) => {
       // If this fails, the SERVER changed its wording. That is allowed — but
       // the three mirrors have to move with it, which is the rest of this file,
       // so the sentence here is updated last rather than first.
       expect(server).toContain(sentence);
-    });
-  }
+    },
+  );
 
-  for (const [client, path] of Object.entries(MIRRORS)) {
-    it(`${client} shows the same greeting the server speaks, in both languages`, () => {
+  it.each(Object.entries(MIRRORS))(
+    "%s shows the same greeting the server speaks, in both languages",
+    (_value1, path) => {
       const mirror = saidIn(read(path));
       for (const [_locale, sentence] of Object.entries(SPOKEN)) {
         // A boolean, not `toContain`: these files are tens of thousands of
@@ -103,8 +105,8 @@ describe("#228 the voicemail preview matches what is spoken", () => {
         // the one line somebody needs.
         expect(mirror).toContain(sentence);
       }
-    });
-  }
+    },
+  );
 
   it("no client still hard-codes the greeting outside its catalogue", () => {
     // The extraction is only finished if the old inline copy is gone. A file

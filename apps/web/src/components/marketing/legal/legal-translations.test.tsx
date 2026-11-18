@@ -77,8 +77,14 @@ describe("#228 the seven non-contract legal documents render in French", () => {
     },
   ];
 
-  for (const page of pages) {
-    it(`${page.name} carries French body copy and French legal chrome`, () => {
+  it.each(
+    pages.map((page) => [
+      `${page.name} carries French body copy and French legal chrome`,
+      page,
+    ] as const),
+  )(
+    "%s",
+    (_name, page) => {
       const html = page.html();
       expect(html).toContain(page.expected);
       expect(html).toContain("Dernière mise à jour");
@@ -86,8 +92,8 @@ describe("#228 the seven non-contract legal documents render in French", () => {
       expect(html).toContain('aria-label="Table des matières"');
       expect(html).not.toContain("Plain English summary");
       expect(html).not.toContain(page.englishHeading);
-    });
-  }
+    },
+  );
 
   it("translates the source-backed accessibility evidence table", () => {
     const html = render(

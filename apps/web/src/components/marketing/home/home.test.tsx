@@ -305,15 +305,16 @@ describe("the Arrival Field contract (P5-SPEC v1)", () => {
 });
 
 describe("product embeds keep APP tokens (Law 2)", () => {
-  for (const [name, html] of Object.entries(EMBEDS)) {
-    it(`${name}: no marketing tokens inside the product surface`, () => {
+  it.each(Object.entries(EMBEDS))(
+    "%s: no marketing tokens inside the product surface",
+    (_value1, html) => {
       expect(html).not.toContain("--fr-olive");
       expect(html).not.toContain("--fr-ink");
       expect(html).not.toContain("--fr-frost");
       expect(html).not.toContain("--fr-flare");
       expect(html).not.toContain("—");
-    });
-  }
+    },
+  );
 
   it("the embeds draw with the app's own utility tokens", () => {
     expect(EMBEDS.assignTrack).toMatch(/text-app-ink/);

@@ -80,8 +80,9 @@ describe("no shortcut fires while typing", () => {
     "a menu": '<div role="menu"><div role="menuitem">x</div></div>',
   };
 
-  for (const [name, html] of Object.entries(targets)) {
-    it(`stays silent in ${name}`, () => {
+  it.each(Object.entries(targets))(
+    "stays silent in %s",
+    (_value1, html) => {
       const root = mount(html);
       const target =
         root.querySelector<HTMLElement>("input, textarea, select, span, button, [role=menuitem]") ??
@@ -89,8 +90,8 @@ describe("no shortcut fires while typing", () => {
       for (const action of Object.keys(INBOX_KEYMAP) as ShortcutAction[]) {
         expect(press(INBOX_KEYMAP[action].key, target)).toBeNull();
       }
-    });
-  }
+    },
+  );
 
   it("leaves Enter to a focused link or button", () => {
     const button = mount("<button>Open</button>");

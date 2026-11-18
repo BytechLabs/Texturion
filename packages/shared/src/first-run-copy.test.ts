@@ -120,23 +120,30 @@ describe("#476 the first-run checklist reads the same on every client", () => {
     }
   });
 
-  for (const line of [...OWNER_COPY, ...MEMBER_COPY]) {
-    it(`all three say: "${line.slice(0, 48)}${line.length > 48 ? "…" : ""}"`, () => {
+  it.each(
+    [...OWNER_COPY, ...MEMBER_COPY].map((line) => [
+      `all three say: "${line.slice(0, 48)}${line.length > 48 ? "…" : ""}"`,
+      line,
+    ] as const),
+  )(
+    "%s",
+    (_name, line) => {
       const missing = Object.entries(copySources)
         .filter(([, text]) => !text.includes(line))
         .map(([client]) => client);
       expect(missing).toEqual([]);
-    });
-  }
+    },
+  );
 
-  for (const title of TITLES) {
-    it(`all three title a card "${title}"`, () => {
+  it.each(TITLES)(
+    "all three title a card \"%s\"",
+    (title) => {
       const missing = Object.entries(titleSources)
         .filter(([, text]) => !text.includes(title))
         .map(([client]) => client);
       expect(missing).toEqual([]);
-    });
-  }
+    },
+  );
 
   it("gates the member list on the axis its items actually need", () => {
     // #405's argument is that these are two audiences arriving differently,

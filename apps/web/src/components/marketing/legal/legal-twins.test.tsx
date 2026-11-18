@@ -84,8 +84,9 @@ describe("#228 every English legal document has a French twin", () => {
     expect(documents.length).toBeGreaterThanOrEqual(12);
   });
 
-  for (const name of documents) {
-    describe(`/legal/${name}`, () => {
+  describe.each(documents)(
+    "/legal/%s",
+    (name) => {
       it("is registered with a French route that exists", () => {
         const row = TRANSLATED_PAGES.find((p) => p.en === `/legal/${name}`);
         expect(row, `/legal/${name} has no French twin in TRANSLATED_PAGES`).toBeDefined();
@@ -108,8 +109,8 @@ describe("#228 every English legal document has a French twin", () => {
         expect(en.length, `/legal/${name} rendered no sections`).toBeGreaterThan(0);
         expect(fr).toEqual(en);
       });
-    });
-  }
+    },
+  );
 });
 
 describe("#228 the contract documents keep the same obligations in French", () => {

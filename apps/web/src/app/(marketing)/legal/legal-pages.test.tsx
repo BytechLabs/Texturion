@@ -281,16 +281,22 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
     "fr-CA": `${AI_DISCLOSURES.length} fonctions envoient du contenu à un modèle d'IA`,
   } as const;
 
-  for (const locale of ["en", "fr-CA"] as const) {
-    it(`${locale}: counts and names every AI feature the disclosure list holds`, () => {
+  const disclosureLocales = ["en", "fr-CA"] as const;
+
+  it.each(disclosureLocales)(
+    "%s: counts and names every AI feature the disclosure list holds",
+    (locale) => {
       const ai = visibleText(section(PRIVACY[locale], "ai"));
       expect(ai).toContain(counted[locale]);
       for (const row of AI_DISCLOSURES) {
         expect(ai).toContain(say(locale, row.label));
       }
-    });
+    },
+  );
 
-    it(`${locale}: names every vendor on the sub-processors ledger`, () => {
+  it.each(disclosureLocales)(
+    "%s: names every vendor on the sub-processors ledger",
+    (locale) => {
       const vendors = [
         "Telnyx",
         "Stripe",
@@ -306,9 +312,12 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
       for (const vendor of vendors) {
         expect(sharing).toContain(vendor);
       }
-    });
+    },
+  );
 
-    it(`${locale}: discloses public geocoding regions and links the map privacy policy`, () => {
+  it.each(disclosureLocales)(
+    "%s: discloses public geocoding regions and links the map privacy policy",
+    (locale) => {
       const where = section(PRIVACY[locale], "where");
       expect(where).toContain("https://osmfoundation.org/wiki/Privacy_Policy");
       expect(visibleText(where)).toContain(
@@ -316,8 +325,8 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
           ? "United Kingdom and the European Union"
           : "Royaume-Uni et dans l’Union européenne",
       );
-    });
-  }
+    },
+  );
 });
 
 describe("aup — the consent rules survive", () => {

@@ -222,8 +222,9 @@ describe("the person who made the change is never told about it", () => {
     "mentioned",
   ];
 
-  for (const kind of kinds) {
-    it(`${kind}: the actor follows the task and is still left out`, async () => {
+  it.each(kinds)(
+    "%s: the actor follows the task and is still left out",
+    async (kind) => {
       world({ followers: [ACTOR] });
       await run({
         kind,
@@ -232,8 +233,8 @@ describe("the person who made the change is never told about it", () => {
         commentBody: "note to self",
       });
       expect(sent()).toHaveLength(0);
-    });
-  }
+    },
+  );
 
   it("a comment that names the actor does not tell them either", async () => {
     world({ followers: [ACTOR, SAM] });

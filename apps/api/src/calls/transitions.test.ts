@@ -1104,25 +1104,31 @@ describe("T17 — inbound-hangup totality (§15.1, the founder's 4h-busy-line ho
   const nonTerminal: CallState[] = ["ringing", "answered", "voicemail_greeting", "voicemail_recording"];
   const tags: ("untagged" | "bri" | "vmi")[] = ["untagged", "bri", "vmi"];
 
-  for (const state of nonTerminal) {
-    for (const tag of tags) {
-      it(`inbound hangup (${tag}) in ${state} reaches a terminal state — never a no-op`, () => {
-        const machine = ringingMachine();
-        machine.state = state;
-        if (state === "answered") {
-          machine.answeredByUserId = "u1";
-          machine.answeredAtIso = new Date(2_000).toISOString();
-        }
-        const r = reduce(
-          machine,
-          { type: "inbound-hangup", tag, briAnsweredAtIso: tag === "bri" ? new Date(2_000).toISOString() : null, payload: {} },
-          3_000,
-          KEY,
-        );
-        expect(isTerminal(r.machine?.state as CallState)).toBe(true);
-      });
-    }
-  }
+  const hangupCases = nonTerminal.flatMap((state) => tags.map((tag) => [tag, state] as const));
+
+  it.each(hangupCases)(
+    "inbound hangup (%s) in %s reaches a terminal state — never a no-op",
+    (tag, state) => {
+      const machine = ringingMachine();
+      machine.state = state;
+      if (state === "answered") {
+        machine.answeredByUserId = "u1";
+        machine.answeredAtIso = new Date(2000).toISOString();
+      }
+      const r = reduce(
+        machine,
+        {
+          type: "inbound-hangup",
+          tag,
+          briAnsweredAtIso: tag === "bri" ? new Date(2000).toISOString() : null,
+          payload: {},
+        },
+        3000,
+        KEY,
+      );
+      expect(r.machine !== null && isTerminal(r.machine.state)).toBe(true);
+    },
+  );
 
   it("§3 upgrade: bri-tagged hangup in ended_missed → ended_answered with the retained stamp", () => {
     const machine = ringingMachine();
@@ -1148,15 +1154,17 @@ describe("T16 — janitor forced resolution per state", () => {
     ["voicemail_greeting", "ended_missed"],
     ["voicemail_recording", "ended_missed"],
   ];
-  for (const [from, to] of cases) {
-    it(`${from} → ${to}`, () => {
+
+  it.each(cases)(
+    "%s → %s",
+    (from, to) => {
       const machine = ringingMachine();
       machine.state = from;
       if (from === "answered") machine.answeredAtIso = new Date(2_000).toISOString();
       const r = reduce(machine, { type: "alarm-janitor" }, 4 * 60 * 60_000, KEY);
       expect(r.machine?.state).toBe(to);
-    });
-  }
+    },
+  );
 
   it("T14: a second inbound hangup after the call ended fires no second merge, text-back or crew alert", () => {
     const hangup = { type: "inbound-hangup", tag: "untagged", briAnsweredAtIso: null, payload: {} } as const;
@@ -1208,17 +1216,21 @@ describe("§15.1 no-op matrix — internal events in every non-driving state", (
     { type: "push-fanout-settled", unreachableUserIds: [] },
     { type: "member-probe-outcome", ccid: "x", userId: "u1", alive: true },
   ];
-  for (const state of CALL_STATES) {
-    for (const event of internalEvents) {
-      it(`${event.type} in ${state} does not throw and never leaves a terminal`, () => {
-        const machine = ringingMachine();
-        machine.state = state;
-        const r = reduce(machine, event, 5_000, KEY);
-        // A terminal state must stay terminal (no resurrection).
-        if (isTerminal(state)) expect(r.machine?.state).toBe(state);
-      });
-    }
-  }
+  const eventCases = CALL_STATES.flatMap((state) =>
+    internalEvents.map((event) => [event.type, state, event] as const),
+  );
+
+  it.each(eventCases)(
+    "%s in %s does not throw and never leaves a terminal",
+    (_eventType, state, event) => {
+      const machine = ringingMachine();
+      machine.state = state;
+      const r = reduce(machine, event, 5000, KEY);
+      expect(r).toBeDefined();
+      // Late completions must never reopen a terminal call.
+      if (isTerminal(state)) expect(r.machine?.state).toBe(state);
+    },
+  );
 });
 
 // ---- FUZZED founder property ----------------------------------------------
