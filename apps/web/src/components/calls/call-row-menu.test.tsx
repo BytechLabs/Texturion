@@ -58,8 +58,8 @@ const call = {
 } as unknown as Call;
 
 function listed(): string[] {
-  return Array.from(document.querySelectorAll('[role="menu"] [data-action]')).map(
-    (el) => el.getAttribute("data-action") ?? "",
+  return Array.from(document.querySelectorAll<HTMLElement>('[role="menu"] [data-action]')).map(
+    (el) => el.dataset.action ?? "",
   );
 }
 

@@ -29,7 +29,7 @@ function svgFaviconLink(): HTMLLinkElement {
     link = document.createElement("link");
     link.rel = "icon";
     link.type = "image/svg+xml";
-    document.head.appendChild(link);
+    document.head.append(link);
   }
   return link;
 }

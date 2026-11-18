@@ -140,10 +140,10 @@ describe("triggerBlobDownload (browser download side effect)", () => {
     const click = vi.fn();
     const remove = vi.fn();
     const anchor: Record<string, unknown> = { click, remove };
-    const appendChild = vi.fn();
+    const append = vi.fn();
     vi.stubGlobal("document", {
       createElement: vi.fn(() => anchor),
-      body: { appendChild },
+      body: { append },
     });
     const createObjectURL = vi.fn(() => "blob:fake");
     const revokeObjectURL = vi.fn();
@@ -156,7 +156,7 @@ describe("triggerBlobDownload (browser download side effect)", () => {
     expect(createObjectURL).toHaveBeenCalledWith(blob);
     expect(anchor.download).toBe("my-contacts.csv");
     expect(anchor.href).toBe("blob:fake");
-    expect(appendChild).toHaveBeenCalledWith(anchor);
+    expect(append).toHaveBeenCalledWith(anchor);
     expect(click).toHaveBeenCalledTimes(1);
     expect(remove).toHaveBeenCalledTimes(1);
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:fake");

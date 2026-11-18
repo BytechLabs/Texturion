@@ -204,7 +204,7 @@ try {
       const scaleLoaded = await page.evaluate(() => {
         const probe = document.createElement("input");
         probe.className = "text-base";
-        document.body.appendChild(probe);
+        document.body.append(probe);
         const size = getComputedStyle(probe).fontSize;
         probe.remove();
         return size;
@@ -292,8 +292,8 @@ try {
       const reducedTransitionDuration = await page.evaluate(() => {
         const probe = document.createElement("div");
         probe.style.transition = "opacity 1s linear";
-        probe.setAttribute("data-a11y-probe", "");
-        document.body.appendChild(probe);
+        probe.dataset.a11yProbe = "";
+        document.body.append(probe);
         const raw = getComputedStyle(probe).transitionDuration;
         probe.remove();
         return raw;

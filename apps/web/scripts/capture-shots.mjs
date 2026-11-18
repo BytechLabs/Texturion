@@ -260,7 +260,7 @@ async function capture(browser, storageState, shot, theme, outPng) {
       const style = document.createElement("style");
       style.textContent =
         "nextjs-portal,[data-nextjs-toast],#__next-build-watcher{display:none !important}";
-      document.documentElement.appendChild(style);
+      document.documentElement.append(style);
     } catch {}
   }, theme);
 

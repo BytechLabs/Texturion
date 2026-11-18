@@ -141,7 +141,7 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
   anchor.href = objectUrl;
   anchor.download = filename;
   anchor.rel = "noopener";
-  document.body.appendChild(anchor);
+  document.body.append(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(objectUrl);

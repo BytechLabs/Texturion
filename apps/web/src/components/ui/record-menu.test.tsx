@@ -34,8 +34,8 @@ function actions(overrides: Partial<Record<string, boolean>> = {}): RecordAction
 
 function menuIds(): string[] {
   return Array.from(
-    document.querySelectorAll('[role="menu"] [data-action]'),
-  ).map((el) => el.getAttribute("data-action") ?? "");
+    document.querySelectorAll<HTMLElement>('[role="menu"] [data-action]'),
+  ).map((el) => el.dataset.action ?? "");
 }
 
 function Row({ list }: { list: RecordAction[] }) {
@@ -54,8 +54,8 @@ describe("#712 RecordContextMenu", () => {
     render(<Row list={actions()} />);
     fireEvent.contextMenu(screen.getByTestId("row"));
     expect(menuIds()).toEqual(["open", "copy", "pin", "delete"]);
-    const last = document.querySelector('[data-action="delete"]');
-    expect(last?.getAttribute("data-variant")).toBe("destructive");
+    const last = document.querySelector<HTMLElement>('[data-action="delete"]');
+    expect(last?.dataset.variant).toBe("destructive");
   });
 
   it("draws a toggle as a checkbox item that carries its state", () => {

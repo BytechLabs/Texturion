@@ -93,7 +93,7 @@ export function focusSettingsAnchor(anchor: string): () => void {
   let marked: HTMLElement | null = null;
 
   const apply = () => {
-    const el = document.getElementById(anchor);
+    const el = anchor ? document.querySelector<HTMLElement>(`#${CSS.escape(anchor)}`) : null;
     if (!el) return false;
     const calm = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     el.scrollIntoView({ behavior: calm ? "auto" : "smooth", block: "center" });

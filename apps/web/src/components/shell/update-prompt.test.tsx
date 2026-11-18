@@ -208,7 +208,7 @@ describe("#710 a different build reloads the tab only while nobody is looking", 
   it("does not reload over an open dialog or a save in flight", () => {
     const dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");
-    dialog.setAttribute("data-state", "open");
+    dialog.dataset.state = "open";
     document.body.append(dialog);
     show();
     setVisibility("hidden");

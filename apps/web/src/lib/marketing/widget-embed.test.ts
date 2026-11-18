@@ -28,7 +28,7 @@ function mount(attrs: Record<string, string> = {}): ShadowRoot {
   for (const [name, value] of Object.entries(attrs)) {
     script.setAttribute(name, value);
   }
-  document.head.appendChild(script);
+  document.head.append(script);
   // `document.currentScript` is null outside real script evaluation, so it is
   // stubbed to the tag we just added — which is what the browser would report.
   Object.defineProperty(document, "currentScript", {
@@ -60,7 +60,7 @@ describe("the embed", () => {
     document.body.innerHTML = "";
     const script = document.createElement("script");
     script.src = "https://app.loonext.com/widget.js";
-    document.head.appendChild(script);
+    document.head.append(script);
     Object.defineProperty(document, "currentScript", {
       value: script,
       configurable: true,

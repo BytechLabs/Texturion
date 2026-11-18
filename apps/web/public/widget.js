@@ -113,7 +113,7 @@
   var host = document.createElement("div");
   host.dataset.loonextWidget = "";
   var root = host.attachShadow({ mode: "open" });
-  document.body.appendChild(host);
+  document.body.append(host);
 
   var style = document.createElement("style");
   style.textContent = [
@@ -159,7 +159,7 @@
     ".panel{animation:pop .16s ease-out}",
     "@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}}",
   ].join("");
-  root.appendChild(style);
+  root.append(style);
 
   var wrap = document.createElement("div");
   wrap.className = "wrap";
@@ -212,7 +212,7 @@
     `<p class="by"><a href="https://loonext.com/?ref=widget" target="_blank" ` +
     `rel="noopener">${  t.poweredBy  }</a></p>` +
     `</div></div>`;
-  root.appendChild(wrap);
+  root.append(wrap);
 
   var launcher = root.querySelector(".launch");
   var panel = root.querySelector(".panel");

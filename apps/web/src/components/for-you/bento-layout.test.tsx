@@ -43,13 +43,13 @@ beforeEach(() => {
   vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
     this: HTMLElement,
   ) {
-    const node = this.firstElementChild?.firstElementChild;
-    const name = node?.getAttribute("data-panel");
+    const node = this.firstElementChild?.firstElementChild as HTMLDivElement | null | undefined;
+    const name = node?.dataset.panel;
     let width = 0;
     let height = 0;
     if (name) {
       (measuredAt[name] ??= []).push(this.style.width);
-      height = Number(node!.getAttribute("data-height"));
+      height = Number(node!.dataset.height ?? null);
     } else if (this.querySelector("[data-panel]")) {
       width = CONTAINER_WIDTH;
     }

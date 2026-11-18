@@ -696,14 +696,14 @@ describe("#277 saying why, on the way out", () => {
     // way out is the only primary here; the export beside it is an outline,
     // and nothing at all competes with the confirm.
     const leave = renderCard();
-    expect(leave.getAttribute("data-variant")).toBe("default");
+    expect(leave.dataset.variant).toBe("default");
     expect(
-      screen.getByText(CANCEL_EXPORT_ACTION).getAttribute("data-variant"),
+      screen.getByText(CANCEL_EXPORT_ACTION).dataset.variant,
     ).toBe("outline");
     expect(
       screen
         .getAllByRole("button")
-        .filter((button) => button.getAttribute("data-variant") === "default"),
+        .filter((button) => button.dataset.variant === "default"),
     ).toHaveLength(1);
   });
 
@@ -1024,7 +1024,7 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
       const primaries = [
         ...screen.getAllByRole("button"),
         ...screen.queryAllByRole("link"),
-      ].filter((node) => node.getAttribute("data-variant") === "default");
+      ].filter((node) => node.dataset.variant === "default");
       expect(primaries.map((n) => n.textContent?.trim()), label).toEqual([
         CANCEL_ACTION,
       ]);
@@ -1052,7 +1052,7 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
       name: offer.actionLabel ?? "",
     });
     expect(control.getAttribute("aria-haspopup")).toBe("dialog");
-    expect(control.getAttribute("data-state")).toBe("closed");
+    expect(control.dataset.state).toBe("closed");
     expect(changePlan.mutate).not.toHaveBeenCalled();
   });
 
@@ -1285,12 +1285,12 @@ describe("#277 the paid pause, on the cancel card", () => {
     renderCard();
     pick("Quiet season, I'll be back");
 
-    expect(screen.getByRole("button", { name: action() }).getAttribute("data-variant")).toBe(
+    expect(screen.getByRole("button", { name: action() }).dataset.variant).toBe(
       "outline",
     );
     expect(
       [...screen.getAllByRole("button"), ...screen.queryAllByRole("link")]
-        .filter((node) => node.getAttribute("data-variant") === "default")
+        .filter((node) => node.dataset.variant === "default")
         .map((node) => node.textContent?.trim()),
     ).toEqual([CANCEL_ACTION]);
   });

@@ -38,8 +38,8 @@ function revealAllInstant() {
   document
     .querySelectorAll<HTMLElement>("[data-reveal]:not([data-revealed])")
     .forEach((el) => {
-      el.setAttribute("data-reveal-instant", REVEALED);
-      el.setAttribute("data-revealed", REVEALED);
+      el.dataset.revealInstant = REVEALED;
+      el.dataset.revealed = REVEALED;
     });
 }
 
@@ -57,7 +57,7 @@ export function RevealActivator() {
       (entries, obs) => {
         for (const entry of entries) {
           if (entry.isIntersecting) {
-            entry.target.setAttribute("data-revealed", REVEALED);
+            (entry.target as HTMLElement).dataset.revealed = REVEALED;
             obs.unobserve(entry.target); // once-only
           }
         }

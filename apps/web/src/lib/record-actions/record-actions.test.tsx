@@ -39,8 +39,8 @@ function noopRun<T>(): T {
 
 function ids(menuRoot: ParentNode = document): string[] {
   return Array.from(
-    menuRoot.querySelectorAll('[role="menu"] [data-action]'),
-  ).map((el) => el.getAttribute("data-action") ?? "");
+    menuRoot.querySelectorAll<HTMLElement>('[role="menu"] [data-action]'),
+  ).map((el) => el.dataset.action ?? "");
 }
 
 /** What the ⋯ button lists. */

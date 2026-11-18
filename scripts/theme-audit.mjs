@@ -168,7 +168,7 @@ const AUDIT = () => {
     const asRgb = (value) => {
       const probe = document.createElement("span");
       probe.style.color = value;
-      document.body.appendChild(probe);
+      document.body.append(probe);
       const out = getComputedStyle(probe).color;
       probe.remove();
       return out;
@@ -357,7 +357,8 @@ const A11Y = (checkTapSize) => {
     if (labelledby) {
       const text = labelledby
         .split(/\s+/)
-        .map((id) => document.getElementById(id)?.textContent?.trim() ?? "")
+        .filter(Boolean)
+        .map((id) => document.querySelector(`#${CSS.escape(id)}`)?.textContent?.trim() ?? "")
         .join(" ")
         .trim();
       if (text) return text;
@@ -722,8 +723,8 @@ const FOCUS_WALK = (maxStops) => {
     el instanceof HTMLInputElement &&
     ["date", "time", "datetime-local", "month", "week"].includes(el.type);
   const already =
-    el.hasAttribute("data-audit-stop") && !(segmented && window.__auditLastStop === el);
-  el.setAttribute("data-audit-stop", "1");
+    el.dataset.auditStop !== undefined && !(segmented && window.__auditLastStop === el);
+  el.dataset.auditStop = "1";
   window.__auditLastStop = el;
 
   return {
@@ -916,7 +917,7 @@ for (const theme of ["light", "dark"]) {
       // and dragged the whole app, sidebar included, up with it.
       if (surface.auth) {
         const overflow = await page.evaluate(() => {
-          const main = document.getElementById("main-content");
+          const main = document.querySelector("#main-content");
           main?.scrollTo(0, main.scrollHeight);
           const doc = document.scrollingElement;
           return doc ? doc.scrollHeight - doc.clientHeight : 0;
@@ -1078,7 +1079,7 @@ if (needsAuth) {
         await page.goto(`${base}${route}`, { waitUntil: "networkidle", timeout: 45_000 });
         await page.waitForTimeout(300);
         const overflow = await page.evaluate(() => {
-          const main = document.getElementById("main-content");
+          const main = document.querySelector("#main-content");
           main?.scrollTo(0, main.scrollHeight);
           const doc = document.scrollingElement;
           return doc ? doc.scrollHeight - doc.clientHeight : 0;

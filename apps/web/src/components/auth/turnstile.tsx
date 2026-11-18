@@ -59,7 +59,7 @@ function loadTurnstileScript(): Promise<void> {
       scriptPromise = null;
       reject(new Error("Failed to load the Turnstile script."));
     };
-    document.head.appendChild(script);
+    document.head.append(script);
   });
   return scriptPromise;
 }

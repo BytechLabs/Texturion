@@ -315,7 +315,7 @@ describe("#307 how this line answers", () => {
 
   it("NI-14: following the workspace names its answer, and that answer is not offered twice", () => {
     open();
-    fireEvent.keyDown(document.getElementById("identity-ring")!, { key: "ArrowDown" });
+    fireEvent.keyDown(document.querySelector("#identity-ring")!, { key: "ArrowDown" });
     expect(screen.getAllByRole("option").map((option) => option.textContent)).toEqual([
       "Same as your workspace (All at once)",
       "One at a time",
@@ -326,7 +326,7 @@ describe("#307 how this line answers", () => {
     // Hiding it would hide the state in force.
     identity.current.ring_strategy = { value: "all", inherited: false };
     open();
-    fireEvent.keyDown(document.getElementById("identity-ring")!, { key: "ArrowDown" });
+    fireEvent.keyDown(document.querySelector("#identity-ring")!, { key: "ArrowDown" });
     expect(screen.getAllByRole("option")).toHaveLength(3);
   });
 

@@ -230,7 +230,6 @@
     "unicorn/prefer-export-from": "off", // 25
     "react/no-array-index-key": "off", // 24
     "promise/param-names": "off", // 23
-    "unicorn/prefer-dom-node-dataset": "off", // 23
     "unicorn/prefer-string-raw": "off", // 22
     "eslint/no-useless-assignment": "off", // 21
     "typescript/parameter-properties": "off", // 21
@@ -255,7 +254,6 @@
     "import/no-duplicates": "off", // 13
     "react/function-component-definition": "off", // 13
     "unicorn/consistent-existence-index-check": "off", // 13
-    "unicorn/prefer-dom-node-append": "off", // 13
     "unicorn/prefer-type-error": "off", // 13
     "eslint/no-useless-concat": "off", // 12
     "react/jsx-no-useless-fragment": "off", // 12
@@ -294,7 +292,6 @@
     "unicorn/no-immediate-mutation": "off", // 6
     "unicorn/no-useless-collection-argument": "off", // 6
     "unicorn/prefer-event-target": "off", // 6
-    "unicorn/prefer-query-selector": "off", // 6
     "vitest/prefer-to-contain": "off", // 6
     "eslint/logical-assignment-operators": "off", // 5
     "eslint/no-empty": "off", // 5

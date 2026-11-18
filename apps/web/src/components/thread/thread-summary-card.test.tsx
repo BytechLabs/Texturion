@@ -179,7 +179,7 @@ const standingNode = () =>
   screen.queryByRole("status") ?? screen.queryByRole("alert");
 /** The mark's own word for what it is doing, from the shipped `AiOrbState`. */
 const orbState = () =>
-  document.querySelector(".ai-orb")?.getAttribute("data-state");
+  document.querySelector<HTMLElement>(".ai-orb")?.dataset.state;
 
 /**
  * Ask, get an answer, then press the card's own re-ask control and stop with
@@ -610,11 +610,11 @@ describe("the catch-up card — a failed request is not a refusal", () => {
    */
   it("does not wear the answered mark for a request nothing answered", () => {
     askAndFail(offline);
-    const failed = document.querySelector(".ai-orb")?.getAttribute("data-state");
+    const failed = document.querySelector<HTMLElement>(".ai-orb")?.dataset.state;
     cleanup();
 
     ask(result({ reason: "model_error" }));
-    const refused = document.querySelector(".ai-orb")?.getAttribute("data-state");
+    const refused = document.querySelector<HTMLElement>(".ai-orb")?.dataset.state;
 
     expect(failed).not.toBe(refused);
   });

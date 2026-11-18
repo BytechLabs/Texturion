@@ -26,7 +26,7 @@ function press(key: string, target: EventTarget | null = document.body, extra = 
 function mount(html: string): HTMLElement {
   const host = document.createElement("div");
   host.innerHTML = html;
-  document.body.appendChild(host);
+  document.body.append(host);
   return host.firstElementChild as HTMLElement;
 }
 
