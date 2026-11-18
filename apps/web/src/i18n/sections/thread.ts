@@ -542,13 +542,12 @@ export const threadEn = {
   markedOptedInAgain: "Marked opted in again.",
   optOutUpdateFailed: "Couldn't update opt-out.",
   optOutContact: "Opt out contact",
-  optOutTitle: "Opt out {name}?",
+  optOutTitle: "Stop texts to {name} at this number?",
   optOutDescription:
-    "They won't receive texts from you anymore. Use this when a customer " +
-    "asks to stop hearing from you in any words.",
+    "This blocks future texts to this number and records the opt-out in the thread.",
   optingOut: "Opting out…",
   optOut: "Opt out",
-  contactOptedOut: "Contact opted out.",
+  contactOptedOut: "Number opted out.",
   optOutFailed: "Couldn't opt out the contact.",
 
   // --- The thread screen (thread-view.tsx) ----------------------------------
@@ -1342,13 +1341,12 @@ export const threadFr: Translated<typeof threadEn> = {
   markedOptedInAgain: "Marqué comme réabonné.",
   optOutUpdateFailed: "Impossible de mettre à jour le désabonnement.",
   optOutContact: "Désabonner le contact",
-  optOutTitle: "Désabonner {name} ?",
+  optOutTitle: "Arrêter les textos à ce numéro pour {name} ?",
   optOutDescription:
-    "Ce client ne recevra plus vos textos. Utilisez ceci lorsqu'un client " +
-    "demande de ne plus avoir de vos nouvelles, peu importe la formulation.",
+    "Les prochains textos à ce numéro seront bloqués. Le désabonnement sera inscrit dans la conversation.",
   optingOut: "Désabonnement…",
   optOut: "Désabonner",
-  contactOptedOut: "Contact désabonné.",
+  contactOptedOut: "Numéro désabonné.",
   optOutFailed: "Impossible de désabonner le contact.",
 
   // --- The thread screen ----------------------------------------------------

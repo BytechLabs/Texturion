@@ -142,10 +142,9 @@ object ThreadStrings : AppStrings.Section {
         "thread.attached" to "Attached",
 
         // --- Opt-out (#407) --------------------------------------------------
-        "thread.optOutTitle" to "Opt this customer out?",
+        "thread.optOutTitle" to "Stop texts to this number?",
         "thread.optOutBody" to
-            "They won't receive texts from you until the opt-out is removed. " +
-            "This is recorded in the conversation timeline.",
+            "This blocks future texts to this number and records the opt-out in the thread.",
         "thread.optOut" to "Opt out",
         "thread.optOutOfTexts" to "Opt out of texts",
 
@@ -928,10 +927,9 @@ object ThreadStrings : AppStrings.Section {
         "thread.attached" to "Attachée",
 
         // --- Opt-out (#407) --------------------------------------------------
-        "thread.optOutTitle" to "Désabonner ce client ?",
+        "thread.optOutTitle" to "Arrêter les textos à ce numéro ?",
         "thread.optOutBody" to
-            "Il ne recevra plus vos textos tant que le désabonnement n'est pas " +
-            "retiré. C'est inscrit dans l'historique de la conversation.",
+            "Les prochains textos à ce numéro seront bloqués. Le désabonnement sera inscrit dans la conversation.",
         "thread.optOut" to "Désabonner",
         "thread.optOutOfTexts" to "Désabonner des textos",
 

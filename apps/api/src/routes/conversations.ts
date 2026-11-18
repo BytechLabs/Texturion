@@ -126,6 +126,7 @@ import {
   unwrap,
   unwrapOptional,
 } from "./core/http";
+import { changeManualOptOut } from "./core/manual-opt-out";
 import {
   assertConversationPatchAllowed,
   conversationAllowedActions,
@@ -141,7 +142,7 @@ const MMS_BUCKET = "mms-media";
 const MMS_SIGNED_URL_TTL_SECONDS = 3600;
 
 const CONVERSATION_COLUMNS =
-  "id,company_id,contact_id,phone_number_id,status,is_spam,assigned_user_id," +
+  "id,company_id,contact_id,contact_phone_e164,phone_number_id,status,is_spam,assigned_user_id," +
   "pinned_at,pinned_by_user_id,last_message_at,closed_at,created_at,updated_at," +
   // #250: the classifier's suspicion and its reasons. A badge that cannot
   // say WHY is one people learn to ignore, so the signals travel with it.
@@ -880,7 +881,11 @@ conversationsRoutes.get(
       | null;
     const pagedUserId = openAlerts[0]?.on_call_user_id;
 
-    const [promoted, taskLinks, clock, pagedProfiles] = await Promise.all([
+    const threadPhone = typeof conversation.contact_phone_e164 === "string"
+      ? conversation.contact_phone_e164
+      : null;
+    const destination = threadPhone ?? contact?.phone_e164;
+    const [promoted, taskLinks, clock, pagedProfiles, optOutState] = await Promise.all([
       // D17/T5.1: which messages have a live task over them (the stone task
       // indicator). TASKS-V2 D-D: the linked task { id, title } for task-linked
       // notes (the "on: <title>" chip).
@@ -901,11 +906,11 @@ conversationsRoutes.get(
       // deciding whether a send needs confirming must not be able to disagree:
       // a hint that says one thing while the gate does another is worse than no
       // hint, because the person stops believing the next one.
-      contact?.phone_e164
+      destination
         ? resolveDestinationClock(db, {
             companyId,
-            phoneE164: contact.phone_e164,
-            contactTimezone: contact.timezone ?? null,
+            phoneE164: destination,
+            contactTimezone: contact?.timezone ?? null,
             companyTimezone: companies?.timezone ?? undefined,
           })
         : null,
@@ -922,6 +927,7 @@ conversationsRoutes.get(
             .eq("user_id", pagedUserId)
             .limit(1)
         : null,
+      threadPhone ? readPhoneOptOutState(db, companyId, threadPhone) : null,
     ]);
     const onCallName = pagedProfiles
       ? unwrap<{ display_name: string }[]>(
@@ -932,6 +938,9 @@ conversationsRoutes.get(
 
     return c.json({
       ...conversation,
+      ...(optOutState?.ok
+        ? { opted_out: optOutState.optOut !== null, opt_out_source: optOutState.optOut?.source ?? null }
+        : {}),
       viewer_level: viewerLevel,
       // #722: the status moves and the spam/trash actions this member may
       // make now, from the shared machines.
@@ -2046,6 +2055,10 @@ conversationsRoutes.post(
   },
 );
 
+type OptOutStanding =
+  | { ok: true; optOut: { source: string; at: string } | null }
+  | { ok: false };
+
 /**
  * The opt-out standing for this thread's contact, as a FACT.
  *
@@ -2058,10 +2071,10 @@ async function readOptOutState(
   db: Db,
   companyId: string,
   conversation: Record<string, unknown>,
-): Promise<
-  | { ok: true; optOut: { source: string; at: string } | null }
-  | { ok: false }
-> {
+): Promise<OptOutStanding> {
+  if (typeof conversation.contact_phone_e164 === "string") {
+    return readPhoneOptOutState(db, companyId, conversation.contact_phone_e164);
+  }
   const contact = await db
     .from("contacts")
     .select("phone_e164")
@@ -2076,7 +2089,14 @@ async function readOptOutState(
   // No phone on the contact is not an unknown standing, it is a thread that
   // cannot have one. Nothing to warn about, so the summary proceeds.
   if (!phone) return { ok: true, optOut: null };
+  return readPhoneOptOutState(db, companyId, phone);
+}
 
+async function readPhoneOptOutState(
+  db: Db,
+  companyId: string,
+  phone: string,
+): Promise<OptOutStanding> {
   const rows = await db
     .from("opt_outs")
     .select("source,created_at")
@@ -2085,7 +2105,7 @@ async function readOptOutState(
     .is("revoked_at", null)
     .limit(1);
   if (rows.error) {
-    console.error("thread summary opt-out lookup:", rows.error.message);
+    console.error("thread opt-out lookup:", rows.error.message);
     return { ok: false };
   }
   const row = rows.data?.[0] as { source: string; created_at: string } | undefined;
@@ -2867,6 +2887,24 @@ async function withAnswerers(
       : row;
   });
 }
+
+conversationsRoutes.on(
+  ["POST", "DELETE"],
+  "/conversations/:id/opt-out",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const conversationId = pathUuid(c, "id");
+    const db = getDb(getEnv(c.env));
+    await requireConversationAccess(db, {
+      companyId: c.get("companyId"),
+      userId: c.get("userId"),
+      role: c.get("role"),
+      conversationId,
+      need: "note",
+    });
+    return changeManualOptOut(c, db, { type: "conversation", id: conversationId }, c.req.method === "POST");
+  },
+);
 
 conversationsRoutes.post(
   "/conversations/:id/opt-out-hint",

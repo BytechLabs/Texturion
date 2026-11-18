@@ -430,11 +430,13 @@ function ThreadLoaded({
           // restrictive wins. An observer is read-only on every number; a
           // note-level member is note-only on this one.
           viewerReadOnly: role === "read_only",
-          contactOptedOut: contact.data.opted_out,
-          contactOptOutSource: contact.data.opt_out_source,
+          contactOptedOut: conversation.opted_out ?? contact.data.opted_out,
+          contactOptOutSource: conversation.opted_out === undefined
+            ? contact.data.opt_out_source
+            : conversation.opt_out_source ?? null,
           subscriptionStatus: company.data.subscription_status,
           destinationCountry: destinationCountry(
-            conversation.contact.phone_e164,
+            conversation.contact_phone_e164 ?? conversation.contact.phone_e164,
           ),
           usApproved: usSendApproved(company.data),
           usTextingOff: usTextingOff(company.data),

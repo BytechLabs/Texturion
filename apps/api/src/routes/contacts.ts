@@ -75,6 +75,7 @@ import {
   pathUuid,
   unwrap,
 } from "./core/http";
+import { changeManualOptOut } from "./core/manual-opt-out";
 import { resolveActorNames } from "./core/attribution";
 import { CONTACT_FIELD_KINDS, CONTACT_FIELD_OPTIONS_CAP, CONTACT_FIELD_VALUE_MAX, CONTACT_FIELDS_CAP, CONTACT_IMPORT_COLUMN_FIELD, CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_REFUSED_NOTE, CONTACT_IMPORT_CONSENT_REQUIRED, CONTACT_IMPORT_CONSENT_VALUE, CONTACT_IMPORT_IGNORE, CONTACT_IMPORT_MAX_BYTES, CONTACT_IMPORT_MAX_ROWS, CONTACT_IMPORT_UNREADABLE_ENCODING, CONTACT_IMPORT_VCARD_PROPERTY_FIELD, contactFieldValueError, contactImportColumnCount, contactImportColumnMismatchMessage, contactImportConsentRefusedReason, contactImportUndeclaredColumnsMessage, contactImportUndeclaredColumnsReference, contactImportUndeclaredPropertiesMessage, contactImportUndeclaredPropertiesReference, contactImportUnreadableFlagMessage, contactImportUnreadableFlagReference, contactImportUnterminatedQuoteMessage, contactImportVCardMergedCardMessage, contactImportVCardNamelessPropertyMessage, formatContactImportColumn, formatVCardProperty, joinContactName, LOCALES, mappingFromDeclarations, parseContactImportColumn, parseVCardProperty, readContactFlag, roleHasCapability, TAGS_PER_WORKSPACE, unreadableFlagValues, VCARD_IMPORT_MAX_BYTES, VCARD_IMPORT_MAX_CARDS, VCARD_MAPPED_PROPERTIES } from '@loonext/shared';
 import type { ContactFieldKind, ContactImportColumnDeclaration, ContactImportMapping, VCardPropertyDeclaration } from '@loonext/shared';
@@ -3169,176 +3170,11 @@ contactsRoutes.post(
 contactsRoutes.post(
   "/contacts/:id/opt-out",
   requireCapability("conversations.note"),
-  async (c) => {
-    const id = pathUuid(c, "id");
-    const companyId = c.get("companyId");
-    const userId = c.get("userId");
-    const db = getDb(getEnv(c.env));
-
-    const contact = await findContact(db, companyId, id);
-    if (!contact) {
-      return errorResponse(c, "not_found", "No such contact.");
-    }
-    const phone = contact.phone_e164 as string;
-
-    const optOutCols = "id,phone_e164,source,created_at,revoked_at";
-    // Make the STATE TRANSITION the arbiter for the timeline event, so a
-    // concurrent double-submit can't write duplicate `opted_out` events (the
-    // old check-then-write raced: two requests both passed the "already active?"
-    // read, both upserted the idempotent row, and both inserted the event).
-    // (1) Resurrect a REVOKED opt-out — only a genuine revoked→active change.
-    const revived = unwrap<Record<string, unknown>[]>(
-      await db
-        .from("opt_outs")
-        .update({ source: "manual", created_by: userId, revoked_at: null })
-        .eq("company_id", companyId)
-        .eq("phone_e164", phone)
-        .not("revoked_at", "is", null)
-        .select(optOutCols),
-      "opt-out revive",
-    );
-    let transitioned = revived[0];
-    if (!transitioned) {
-      // (2) No revoked row to revive → try a brand-new opt-out. ON CONFLICT DO
-      // NOTHING (ignoreDuplicates) so a concurrent insert OR an already-active
-      // row yields zero rows — only the winner transitions.
-      const inserted = unwrap<Record<string, unknown>[]>(
-        await db
-          .from("opt_outs")
-          .upsert(
-            {
-              company_id: companyId,
-              phone_e164: phone,
-              source: "manual",
-              created_by: userId,
-              revoked_at: null,
-            },
-            { onConflict: "company_id,phone_e164", ignoreDuplicates: true },
-          )
-          .select(optOutCols),
-        "opt-out insert",
-      );
-      transitioned = inserted[0];
-    }
-    if (!transitioned) {
-      // Already opted out (active), or lost the concurrent insert — idempotent,
-      // NO duplicate event. Return the current active row.
-      const current = unwrap<Record<string, unknown>[]>(
-        await db
-          .from("opt_outs")
-          .select(optOutCols)
-          .eq("company_id", companyId)
-          .eq("phone_e164", phone)
-          .is("revoked_at", null)
-          .limit(1),
-        "opt-out current",
-      );
-      return c.json(current[0]);
-    }
-
-    await insertConversationEvents(db, [
-      {
-        company_id: companyId,
-        conversation_id: await latestConversationId(db, companyId, id),
-        actor_user_id: userId,
-        type: "opted_out",
-        payload: { phone_e164: phone, source: "manual" },
-      },
-    ]);
-    // #331/#231: who this business may still contact, on the timeline an
-    // incident is reconstructed from. The conversation event covers the thread;
-    // this covers the workspace, and outlives the conversation.
-    await recordAuditFromRequest(db, c, {
-      companyId,
-      action: "opt_out.recorded",
-      targetType: "contact",
-      targetId: id,
-      after: { source: "manual" },
-    });
-    return c.json(transitioned, 201);
-  },
+  (c) => changeManualOptOut(c, getDb(getEnv(c.env)), { type: "contact", id: pathUuid(c, "id") }, true),
 );
 
-async function revokeOptOut(c: Context<AppEnv>) {
-  const id = pathUuid(c, "id");
-  const companyId = c.get("companyId");
-  const userId = c.get("userId");
-  const db = getDb(getEnv(c.env));
-
-  const contact = await findContact(db, companyId, id);
-  if (!contact) {
-    return errorResponse(c, "not_found", "No such contact.");
-  }
-  const phone = contact.phone_e164 as string;
-
-  // A STOP the customer sent is a CARRIER block, not a row in our table.
-  // Clearing our row would not clear theirs: the next send still comes back
-  // 40300, while the contact page says the person can be texted. That
-  // contradiction was reachable in production (revoke at 08:38:44, send
-  // rejected at 08:38:53), and no amount of retrying resolves it, because the
-  // only thing that lifts a carrier block is the customer texting START.
-  // Refusing here is what makes the contradiction impossible.
-  const active = unwrap<{ id: string; source: string }[]>(
-    await db
-      .from("opt_outs")
-      .select("id,source")
-      .eq("company_id", companyId)
-      .eq("phone_e164", phone)
-      .is("revoked_at", null)
-      .limit(1),
-    "opt-out lookup",
-  );
-  if (active.length === 0) {
-    return errorResponse(c, "not_found", "Contact is not opted out.");
-  }
-  // #331: `carrier` is the same fact arriving by a different route — Telnyx
-  // refused a send with 40300, or the nightly reconciliation found the number
-  // on their list and not ours. Either way the block lives at the carrier, so
-  // it refuses for exactly the reason `stop_keyword` does.
-  if (active[0].source === "stop_keyword" || active[0].source === "carrier") {
-    return errorResponse(
-      c,
-      "conflict",
-      "This customer texted STOP, so their carrier is blocking your texts. " +
-        "Only they can undo it, by texting START to your number.",
-    );
-  }
-
-  const rows = unwrap<Record<string, unknown>[]>(
-    await db
-      .from("opt_outs")
-      .update({ revoked_at: new Date().toISOString() })
-      .eq("company_id", companyId)
-      .eq("phone_e164", phone)
-      .is("revoked_at", null)
-      .in("source", ["manual", "import"])
-      .select("id,phone_e164,source,created_at,revoked_at"),
-    "opt-out revoke",
-  );
-  if (rows.length === 0) {
-    return errorResponse(c, "not_found", "Contact is not opted out.");
-  }
-
-  await insertConversationEvents(db, [
-    {
-      company_id: companyId,
-      conversation_id: await latestConversationId(db, companyId, id),
-      actor_user_id: userId,
-      type: "opt_out_revoked",
-      payload: { phone_e164: phone },
-    },
-  ]);
-  // #331/#231: the one that matters most. Texting someone who had asked not to
-  // be texted starts with somebody lifting their opt-out, and this is the row
-  // that says who.
-  await recordAuditFromRequest(db, c, {
-    companyId,
-    action: "opt_out.revoked",
-    targetType: "contact",
-    targetId: id,
-    before: { source: active[0].source },
-  });
-  return c.json(rows[0]);
+function revokeOptOut(c: Context<AppEnv>) {
+  return changeManualOptOut(c, getDb(getEnv(c.env)), { type: "contact", id: pathUuid(c, "id") }, false);
 }
 
 contactsRoutes.post(

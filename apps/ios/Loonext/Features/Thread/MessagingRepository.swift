@@ -995,12 +995,10 @@ struct MessagingRepository: Sendable {
 
     // MARK: - Opt-out
 
-    func optOut(companyId: String, contactId: String) async throws -> OptOut {
-        try await api.post("/v1/contacts/\(contactId)/opt-out", companyId: companyId)
-    }
-
-    func revokeOptOut(companyId: String, contactId: String) async throws -> OptOut {
-        try await api.post("/v1/contacts/\(contactId)/opt-out/revoke", companyId: companyId)
+    func setThreadOptOut(companyId: String, conversationId: String, enabled: Bool) async throws -> OptOut {
+        let path = "/v1/conversations/\(conversationId)/opt-out"
+        if enabled { return try await api.post(path, companyId: companyId) }
+        return try await api.deleteReturning(path, companyId: companyId)
     }
 
     // MARK: - Attachments

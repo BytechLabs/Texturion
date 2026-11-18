@@ -159,10 +159,9 @@ enum ThreadStrings {
             "thread.noTagsAdmin": "No tags yet. An admin adds the first one.",
 
             // --- Opt-out (#407) ---------------------------------------------
-            "thread.optOutTitle": "Opt this customer out?",
+            "thread.optOutTitle": "Stop texts to this number?",
             "thread.optOutBody":
-                "They won't receive texts from you until the opt-out is removed. "
-                + "This is recorded in the conversation timeline.",
+                "This blocks future texts to this number and records the opt-out in the thread.",
             "thread.optOut": "Opt out",
             "thread.optOutOfTexts": "Opt out of texts",
             "thread.blockNumber": "Block number",
@@ -934,10 +933,9 @@ enum ThreadStrings {
                 "Aucune étiquette pour l'instant. Un administrateur ajoute la première.",
 
             // --- Opt-out (#407) ---------------------------------------------
-            "thread.optOutTitle": "Désabonner ce client ?",
+            "thread.optOutTitle": "Arrêter les textos à ce numéro ?",
             "thread.optOutBody":
-                "Il ne recevra plus vos textos tant que le désabonnement n'est pas "
-                + "retiré. C'est inscrit dans l'historique de la conversation.",
+                "Les prochains textos à ce numéro seront bloqués. Le désabonnement sera inscrit dans la conversation.",
             "thread.optOut": "Désabonner",
             "thread.optOutOfTexts": "Désabonner des textos",
             "thread.blockNumber": "Bloquer ce numéro",

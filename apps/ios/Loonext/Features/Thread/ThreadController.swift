@@ -94,6 +94,10 @@ final class ThreadController {
 
     private(set) var members: [Member] = []
     private(set) var contact: Contact?
+    var threadOptedOut: Bool? { conversation?.opted_out ?? contact?.opted_out }
+    var threadOptOutSource: String? {
+        conversation?.opted_out != nil ? conversation?.opt_out_source : contact?.opt_out_source
+    }
     /// #696: this thread's number on the block list, or nil when it is not.
     private(set) var blockedSender: BlockedSender?
     private var checkedSenderPhone: String?
@@ -1620,24 +1624,11 @@ final class ThreadController {
         }
     }
 
-    func optOutContact() {
-        guard let contactId = conversation?.contact_id else { return }
+    func setThreadOptOut(enabled: Bool) {
         Task {
             do {
-                _ = try await repo.optOut(companyId: companyId, contactId: contactId)
-                try? await refreshContact()
-                try? await refreshEvents()
-            } catch {
-                notify(error.userMessage)
-            }
-        }
-    }
-
-    func revokeOptOut() {
-        guard let contactId = conversation?.contact_id else { return }
-        Task {
-            do {
-                _ = try await repo.revokeOptOut(companyId: companyId, contactId: contactId)
+                _ = try await repo.setThreadOptOut(companyId: companyId, conversationId: conversationId, enabled: enabled)
+                try? await refreshConversationDetail()
                 try? await refreshContact()
                 try? await refreshEvents()
             } catch {

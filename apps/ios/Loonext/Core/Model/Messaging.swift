@@ -370,6 +370,9 @@ struct ConversationDetail: Codable, Sendable {
     /// gate's decision cannot disagree. `var … = nil` so it does not become a
     /// required memberwise-init parameter in every fixture.
     var destination_clock: DestinationClock? = nil
+    var contact_phone_e164: String? = nil
+    var opted_out: Bool? = nil
+    var opt_out_source: String? = nil
     /// #250: when the inbound classifier last scored this thread above the
     /// threshold. Never set by a person, and never a reason to hide the
     /// thread — it suppressed the notification and nothing else.

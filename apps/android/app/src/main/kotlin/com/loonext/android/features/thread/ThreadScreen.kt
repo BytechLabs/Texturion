@@ -1247,11 +1247,11 @@ private fun ThreadLoaded(
         val drafts = remember { ComposerDrafts(context.applicationContext) }
         val composer = rememberComposerState(controller.conversationId, drafts)
         val banner = selectComposerBanner(
-            contactOptedOut = controller.contact?.opted_out == true,
-            contactOptOutSource = controller.contact?.opt_out_source,
+            contactOptedOut = controller.threadOptedOut == true,
+            contactOptOutSource = controller.threadOptOutSource,
             subscriptionStatus = controller.company?.subscription_status
                 ?: com.loonext.android.core.model.SubscriptionStatus.ACTIVE,
-            destinationCountry = Nanp.destinationCountry(detail.contact.phone_e164),
+            destinationCountry = Nanp.destinationCountry(detail.contact_phone_e164 ?: detail.contact.phone_e164),
             usApproved = controller.company?.let { usSendApproved(it) } ?: true,
             usTextingOff = controller.company?.let { usTextingOff(it) } ?: false,
             usage = controller.usage,
@@ -1901,7 +1901,7 @@ private fun ThreadHeader(
                             append(statusLabel(detail.status, locale))
                             append(" · ")
                             append(assigneeName ?: phoneLabel)
-                            if (controller.contact?.opted_out == true) {
+                            if (controller.threadOptedOut == true) {
                                 append(" · ")
                                 append(optedOutWord)
                             }
@@ -2119,7 +2119,7 @@ private fun ThreadHeader(
             onConfirm = {
                 haptics.reject()
                 confirmOptOut = false
-                controller.optOutContact()
+                controller.setThreadOptOut(enabled = true)
             },
             onDismiss = {
                 confirmOptOut = false
@@ -2165,7 +2165,7 @@ private fun ThreadHeader(
             onConfirm = {
                 haptics.confirm()
                 confirmRevoke = false
-                controller.revokeOptOut()
+                controller.setThreadOptOut(enabled = false)
             },
             onDismiss = {
                 confirmRevoke = false
@@ -2390,10 +2390,10 @@ private fun ConversationSheet(
             followed = detail.followed,
             spam = detail.is_spam,
             blocked = controller.blockedSender != null,
-            optOut = contact?.let {
+            optOut = controller.threadOptedOut?.let {
                 OptOutState(
-                    optedOut = it.opted_out == true,
-                    carrierEnforced = isCarrierEnforcedOptOut(it.opt_out_source),
+                    optedOut = it,
+                    carrierEnforced = isCarrierEnforcedOptOut(controller.threadOptOutSource),
                 )
             },
             viewer = RecordViewer(canWrite = canWrite, canDelete = onDeleteConversation != null),

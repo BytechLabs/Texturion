@@ -40,8 +40,8 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
-import { useOptOutContact, useRevokeOptOut } from "@/lib/api/contacts";
 import {
+  useChangeConversationOptOut,
   useFollowConversation,
   useMarkConversationRead,
   useMarkConversationUnread,
@@ -511,8 +511,7 @@ export function useConversationActions({
   const mute = useMuteConversation();
   const unmute = useUnmuteConversation();
   const follow = useFollowConversation();
-  const optOutContact = useOptOutContact();
-  const revokeOptOut = useRevokeOptOut();
+  const changeOptOut = useChangeConversationOptOut();
   const members = useMembers();
   const memberNames = useMemberNames();
   const { userId, role } = useActiveCompany();
@@ -750,7 +749,7 @@ export function useConversationActions({
       askDelete: () => setConfirmDelete(true),
       askOptOut: () => setConfirmOptOut(true),
       optIn: () =>
-        revokeOptOut.mutate(conversation.contact_id, {
+        changeOptOut.mutate({ conversationId: conversation.id, contactId: conversation.contact_id, enabled: false }, {
           onSuccess: () => toast.success(t("thread.markedOptedInAgain")),
           onError: (e) => onApiError(e, t("thread.optOutUpdateFailed")),
         }),
@@ -792,9 +791,9 @@ export function useConversationActions({
           description={t("thread.optOutDescription")}
           confirmLabel={t("thread.optOut")}
           pendingLabel={t("thread.optingOut")}
-          pending={optOutContact.isPending}
+          pending={changeOptOut.isPending}
           onConfirm={() =>
-            optOutContact.mutate(conversation.contact_id, {
+            changeOptOut.mutate({ conversationId: conversation.id, contactId: conversation.contact_id, enabled: true }, {
               onSuccess: () => {
                 setConfirmOptOut(false);
                 toast.success(t("thread.contactOptedOut"));

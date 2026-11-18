@@ -456,6 +456,35 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
 });
 
 describe("GET /v1/conversations/:id (embedded first message page)", () => {
+  it("looks up opt-out standing for the actual thread number", async () => {
+    const sb = memberStub();
+    const secondary = "+16135551000";
+    sb.on("GET", "/rest/v1/conversations", () => [
+      conversationRow({
+        contact_phone_e164: secondary,
+        contacts: { name: "Jo", phone_e164: "+14155550100" },
+        conversation_tags: [],
+      }),
+    ]);
+    sb.on("GET", "/rest/v1/messages", () => []);
+    sb.on("GET", "/rest/v1/opt_outs", () => [{ source: "carrier", created_at: "2026-11-01T09:00:00Z" }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/conversations/${CONV_ID}`, {
+      companyId: COMPANY_ID,
+    });
+
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      opted_out: true,
+      opt_out_source: "carrier",
+      destination_clock: { timezone: "America/Toronto" },
+    });
+    const lookup = sb.find("GET", "/rest/v1/opt_outs")[0].url.searchParams;
+    expect(lookup.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(lookup.get("phone_e164")).toBe(`eq.${secondary}`);
+  });
+
   // #225: the composer needs to know what time it is where they are, and it
   // must get that answer from the SAME module the send gate uses. A hint that
   // says one thing while the gate does another is worse than no hint, because
@@ -1550,6 +1579,30 @@ describe("POST /v1/conversations/:id/notes", () => {
       { method: "POST", companyId: COMPANY_ID, body: {} },
     );
     expect(res.status).toBe(422);
+  });
+});
+
+it("marks the thread opted out through the conversation-scoped write", async () => {
+  const sb = memberStub();
+  sb.on("GET", "/rest/v1/conversations", () => [conversationRow()]);
+  const path = "/rest/v1/rpc/api_change_manual_opt_out";
+  sb.on("POST", path, () => ({
+    outcome: "changed",
+    opt_out: { source: "manual", phone_e164: "+16135551000" },
+  }));
+  stubFetch(jwksRoute(auth), sb.route);
+
+  const response = await apiRequest(app, env, await auth.token(), `/v1/conversations/${CONV_ID}/opt-out`, {
+    method: "POST",
+    companyId: COMPANY_ID,
+  });
+  expect(response.status).toBe(201);
+  expect(sb.find("POST", path)[0].body).toEqual({
+    p_company_id: COMPANY_ID,
+    p_user_id: auth.subject,
+    p_conversation_id: CONV_ID,
+    p_contact_id: null,
+    p_enabled: true,
   });
 });
 

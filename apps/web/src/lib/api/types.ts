@@ -894,6 +894,9 @@ export interface ConversationDetail
   extends Conversation,
     SnoozeState,
     MemberThreadState {
+  contact_phone_e164?: string | null;
+  opted_out?: boolean;
+  opt_out_source?: OptOutSource | null;
   contact: ConversationDetailContact;
   tags: Tag[];
   messages: Page<Message>;

@@ -103,9 +103,9 @@ export function ThreadHeader({
   const { actions, dialogs, setStatus, statusChoices, assignTo, bringBack, updating } =
     useConversationActions({
       conversation,
-      optOut: contact
-        ? { optedOut: contact.opted_out, source: contact.opt_out_source ?? null }
-        : undefined,
+      optOut: conversation.opted_out === undefined
+        ? contact && { optedOut: contact.opted_out, source: contact.opt_out_source }
+        : { optedOut: conversation.opted_out, source: conversation.opt_out_source ?? null },
       onOpenGallery,
       onCatchUp,
       onDeleted: () => navigate(backHref, { replace: true }),
@@ -124,7 +124,7 @@ export function ThreadHeader({
   const assigneeName = conversation.assigned_user_id
     ? memberNames.get(conversation.assigned_user_id) ?? t("thread.teammate")
     : null;
-  const phone = conversation.contact.phone_e164;
+  const phone = conversation.contact_phone_e164 ?? conversation.contact.phone_e164;
   // #696: the number this thread is with, so a blocked thread says it is one.
   const blockedNumber = useBlockedNumber(phone);
   const blocked = blockedNumber.blocked !== undefined;

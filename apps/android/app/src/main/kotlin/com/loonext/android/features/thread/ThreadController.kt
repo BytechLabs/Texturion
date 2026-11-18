@@ -207,6 +207,9 @@ class ThreadController(
         private set
     var contact by mutableStateOf<Contact?>(null)
         private set
+    val threadOptedOut: Boolean? get() = conversation?.opted_out ?: contact?.opted_out
+    val threadOptOutSource: String?
+        get() = if (conversation?.opted_out != null) conversation?.opt_out_source else contact?.opt_out_source
     var company by mutableStateOf<CompanyView?>(null)
         private set
 
@@ -1529,24 +1532,11 @@ class ThreadController(
         }
     }
 
-    fun optOutContact() {
-        val contactId = conversation?.contact_id ?: return
+    fun setThreadOptOut(enabled: Boolean) {
         scope.launch {
             try {
-                repo.optOut(companyId, contactId)
-                runCatching { refreshContact() }
-                runCatching { refreshEvents() }
-            } catch (cause: Exception) {
-                notify(cause.userMessageForReader())
-            }
-        }
-    }
-
-    fun revokeOptOut() {
-        val contactId = conversation?.contact_id ?: return
-        scope.launch {
-            try {
-                repo.revokeOptOut(companyId, contactId)
+                repo.setThreadOptOut(companyId, conversationId, enabled)
+                runCatching { refreshConversationDetail() }
                 runCatching { refreshContact() }
                 runCatching { refreshEvents() }
             } catch (cause: Exception) {

@@ -3960,146 +3960,83 @@ describe("#248 what an import says about the rows it refused", () => {
 });
 
 describe("opt-out mark/revoke (SPEC §5)", () => {
-  it("POST /v1/contacts/:id/opt-out writes a manual opt-out + event", async () => {
+  const rpcPath = "/rest/v1/rpc/api_change_manual_opt_out";
+  const optOutPath = `/v1/contacts/${CONTACT_ID}/opt-out`;
+  const optOut = { id: "0abc0abc-1111-4222-8333-444444444444", phone_e164: "+14165550199", source: "manual" };
+
+  it("marks the contact opted out through the company-scoped operation", async () => {
     const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
-    sb.on("PATCH", "/rest/v1/opt_outs", () => []); // no revoked row to revive
-    sb.on("POST", "/rest/v1/opt_outs", (call) => [
-      { id: "0abc0abc-1111-4222-8333-444444444444", ...(call.body as object) },
-    ]); // brand-new opt-out wins the insert
-    sb.on("GET", "/rest/v1/conversations", () => [
-      { id: "aaaaaaaa-1111-4222-8333-444444444444" },
-    ]);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    sb.on("POST", rpcPath, () => ({ outcome: "changed", opt_out: optOut }));
     stubFetch(jwksRoute(auth), sb.route);
 
-    const res = await apiRequest(
-      app,
-      env,
-      await auth.token(),
-      `/v1/contacts/${CONTACT_ID}/opt-out`,
-      { method: "POST", companyId: COMPANY_ID },
-    );
-    expect(res.status).toBe(201);
-    const upsert = sb.find("POST", "/rest/v1/opt_outs")[0];
-    expect(upsert.body).toMatchObject({
-      phone_e164: "+14165550199",
-      source: "manual",
-      created_by: auth.subject,
-      revoked_at: null,
+    const res = await apiRequest(app, env, await auth.token(), optOutPath, {
+      method: "POST",
+      companyId: COMPANY_ID,
     });
-    const events = sb.find("POST", "/rest/v1/conversation_events")[0]
-      .body as unknown[];
-    expect(events).toEqual([
-      expect.objectContaining({
-        type: "opted_out",
-        // attaches to the contact's most recent conversation
-        conversation_id: "aaaaaaaa-1111-4222-8333-444444444444",
-        payload: { phone_e164: "+14165550199", source: "manual" },
-      }),
-    ]);
+    expect(res.status).toBe(201);
+    await expect(res.json()).resolves.toEqual(optOut);
+    expect(sb.find("POST", rpcPath)[0].body).toEqual({
+      p_company_id: COMPANY_ID,
+      p_user_id: auth.subject,
+      p_contact_id: CONTACT_ID,
+      p_conversation_id: null,
+      p_enabled: true,
+    });
   });
 
-  it("is idempotent: an active opt-out returns 200 with no new event", async () => {
+  it("returns 200 and skips the audit when the opt-out was already active", async () => {
     const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
-    sb.on("PATCH", "/rest/v1/opt_outs", () => []); // nothing revoked to revive
-    sb.on("POST", "/rest/v1/opt_outs", () => []); // ON CONFLICT DO NOTHING → no-op
-    sb.on("GET", "/rest/v1/opt_outs", () => [
-      { id: "0abc0abc-1111-4222-8333-444444444444", phone_e164: "+14165550199" },
-    ]); // the current active row, returned unchanged
+    sb.on("POST", rpcPath, () => ({ outcome: "unchanged", opt_out: optOut }));
     stubFetch(jwksRoute(auth), sb.route);
 
-    const res = await apiRequest(
-      app,
-      env,
-      await auth.token(),
-      `/v1/contacts/${CONTACT_ID}/opt-out`,
-      { method: "POST", companyId: COMPANY_ID },
-    );
+    const res = await apiRequest(app, env, await auth.token(), optOutPath, {
+      method: "POST",
+      companyId: COMPANY_ID,
+    });
     expect(res.status).toBe(200);
-    // The insert was attempted but conflicted (no-op); the KEY invariant is no
-    // duplicate timeline event.
-    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(0);
   });
 
-  it("revoke (POST …/opt-out/revoke and DELETE …/opt-out) sets revoked_at + event; 404 when not opted out", async () => {
-    for (const [method, path] of [
-      ["POST", `/v1/contacts/${CONTACT_ID}/opt-out/revoke`],
-      ["DELETE", `/v1/contacts/${CONTACT_ID}/opt-out`],
-    ] as const) {
+  it.each([["POST", `${optOutPath}/revoke`], ["DELETE", optOutPath]] as const)(
+    "revokes a manual opt-out through %s %s",
+    async (method, path) => {
       const sb = stubWithRole("member");
-      sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
-      // A manually recorded opt-out: someone in the office wrote it down, so
-      // there is no carrier block and undoing it here is the whole truth.
-      sb.on("GET", "/rest/v1/opt_outs", () => [
-        { id: "0abc0abc-1111-4222-8333-444444444444", source: "manual" },
-      ]);
-      sb.on("PATCH", "/rest/v1/opt_outs", (call) => [
-        { id: "0abc0abc-1111-4222-8333-444444444444", ...(call.body as object) },
-      ]);
-      sb.on("GET", "/rest/v1/conversations", () => []);
-      sb.on("POST", "/rest/v1/conversation_events", () => []);
+      const revoked = { ...optOut, revoked_at: new Date().toISOString() };
+      sb.on("POST", rpcPath, () => ({ outcome: "changed", opt_out: revoked }));
       stubFetch(jwksRoute(auth), sb.route);
 
       const res = await apiRequest(app, env, await auth.token(), path, {
         method,
         companyId: COMPANY_ID,
       });
-      expect(res.status, `${method} ${path}`).toBe(200);
-      const update = sb.find("PATCH", "/rest/v1/opt_outs")[0];
-      expect(
-        typeof (update.body as Record<string, unknown>).revoked_at,
-      ).toBe("string");
-      expect(update.url.searchParams.get("revoked_at")).toBe("is.null");
-      const events = sb.find("POST", "/rest/v1/conversation_events")[0]
-        .body as { type: string }[];
-      expect(events.map((e) => e.type)).toEqual(["opt_out_revoked"]);
-      vi.unstubAllGlobals();
-    }
+      expect(res.status).toBe(200);
+      await expect(res.json()).resolves.toEqual(revoked);
+      expect(sb.find("POST", rpcPath)[0].body).toMatchObject({ p_enabled: false });
+    },
+  );
 
+  it("returns 404 when the contact is not opted out", async () => {
     const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
-    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", rpcPath, () => ({ outcome: "not_opted_out" }));
     stubFetch(jwksRoute(auth), sb.route);
-    const res = await apiRequest(
-      app,
-      env,
-      await auth.token(),
-      `/v1/contacts/${CONTACT_ID}/opt-out/revoke`,
-      { method: "POST", companyId: COMPANY_ID },
-    );
+    const res = await apiRequest(app, env, await auth.token(), `${optOutPath}/revoke`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+    });
     expect(res.status).toBe(404);
   });
 
-  it("refuses to revoke a STOP the customer sent, and writes nothing", async () => {
-    // A STOP is a CARRIER block. Clearing our row would not clear theirs: the
-    // next send still comes back 40300 while the contact page says the person
-    // can be texted. Production hit exactly that (revoke at 08:38:44, send
-    // rejected at 08:38:53), so the revoke is refused instead.
+  it("tells the member only the customer can lift a carrier opt-out", async () => {
     const sb = stubWithRole("member");
-    sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
-    sb.on("GET", "/rest/v1/opt_outs", () => [
-      { id: "0abc0abc-1111-4222-8333-444444444444", source: "stop_keyword" },
-    ]);
-    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
-    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    sb.on("POST", rpcPath, () => ({ outcome: "carrier" }));
     stubFetch(jwksRoute(auth), sb.route);
-
-    const res = await apiRequest(
-      app,
-      env,
-      await auth.token(),
-      `/v1/contacts/${CONTACT_ID}/opt-out/revoke`,
-      { method: "POST", companyId: COMPANY_ID },
-    );
+    const res = await apiRequest(app, env, await auth.token(), `${optOutPath}/revoke`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+    });
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
-    expect(body.error.message).toContain("texting START");
-    // The ledger and the timeline are both untouched — a refusal that still
-    // wrote would leave the same contradiction it exists to prevent.
-    expect(sb.find("PATCH", "/rest/v1/opt_outs")).toHaveLength(0);
-    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+    await expect(res.json()).resolves.toMatchObject({ error: { message: expect.stringContaining("texting START") } });
+    expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(0);
   });
 
   it("reports which kind of opt-out a contact has", async () => {
