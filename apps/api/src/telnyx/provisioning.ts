@@ -1209,7 +1209,7 @@ export async function releaseNumberRow(
         `the release of row ${row.id}`,
       );
       // Kept un-released: "released" would claim a number we did not give up.
-      throw new TelnyxPartitionRefusal(row.telnyx_phone_number_id, row.id);
+      throw new TelnyxPartitionRefusalError(row.telnyx_phone_number_id, row.id);
     }
     if (current) {
       try {
@@ -1238,7 +1238,7 @@ export async function releaseNumberRow(
  * number's billing group in the portal. The mismatch alert has already been
  * raised by the time this is thrown.
  */
-export class TelnyxPartitionRefusal extends Error {
+class TelnyxPartitionRefusalError extends Error {
   readonly telnyxPhoneNumberId: string;
   readonly rowId: string;
 
@@ -1247,11 +1247,13 @@ export class TelnyxPartitionRefusal extends Error {
       `release refused: Telnyx number ${telnyxPhoneNumberId} is outside ` +
         `this environment's partition (D142); row ${rowId} stays un-released`,
     );
-    this.name = "TelnyxPartitionRefusal";
+    this.name = "TelnyxPartitionRefusalError";
     this.telnyxPhoneNumberId = telnyxPhoneNumberId;
     this.rowId = rowId;
   }
 }
+
+export { TelnyxPartitionRefusalError as TelnyxPartitionRefusal };
 
 /**
  * One Telnyx phone-number resource by id, or null when Telnyx says it no longer
@@ -1319,7 +1321,7 @@ export async function releaseCompanyNumbers(
     try {
       released.push(await releaseNumberRow(env, row));
     } catch (error_) {
-      if (error_ instanceof TelnyxPartitionRefusal) {
+      if (error_ instanceof TelnyxPartitionRefusalError) {
         console.warn(error_.message);
         continue;
       }

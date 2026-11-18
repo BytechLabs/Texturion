@@ -87,7 +87,9 @@ export interface AttestOptions {
   now?: () => number;
 }
 
-class Unreadable extends Error {}
+class UnreadableError extends Error {
+  override name = "UnreadableError";
+}
 
 /** The repository whose guard.yml is attested; RIG_REPO names another. */
 export function rigRepo(env: NodeJS.ProcessEnv): string {
@@ -111,7 +113,7 @@ export async function attestGuard(options: AttestOptions): Promise<Attestation> 
     });
     return compare(history, deploys, now);
   } catch (error) {
-    if (error instanceof Unreadable) return { outcome: "infra", reason: error.message };
+    if (error instanceof UnreadableError) return { outcome: "infra", reason: error.message };
     return { outcome: "infra", reason: `the attestation failed: ${error instanceof Error ? error.message : "error"}` };
   }
 }
@@ -157,12 +159,12 @@ function isSecretChange(deployment: Deployment): boolean {
 }
 
 async function deployments(doFetch: typeof fetch, account: string, token: string): Promise<Deployment[]> {
-  if (!/^[0-9a-f]{32}$/.test(account)) throw new Unreadable("cloudflare-account-id is not a Cloudflare account id");
+  if (!/^[0-9a-f]{32}$/.test(account)) throw new UnreadableError("cloudflare-account-id is not a Cloudflare account id");
   const response = await doFetch(`${CLOUDFLARE_API}/accounts/${account}/workers/scripts/${GUARD_SCRIPT}/deployments`, {
     headers: { authorization: `Bearer ${token}` },
     signal: AbortSignal.timeout(20_000),
   }).catch((error: unknown) => {
-    throw new Unreadable(`Cloudflare's deployments API did not answer: ${error instanceof Error ? error.message : "error"}`);
+    throw new UnreadableError(`Cloudflare's deployments API did not answer: ${error instanceof Error ? error.message : "error"}`);
   });
   const body = (await response.json().catch(() => null)) as {
     success?: unknown;
@@ -171,15 +173,15 @@ async function deployments(doFetch: typeof fetch, account: string, token: string
   } | null;
   if (!response.ok || body?.success !== true) {
     const code = body?.errors?.[0]?.code;
-    throw new Unreadable(`Cloudflare's deployments API answered ${response.status}${typeof code === "number" ? ` (error ${code})` : ""}`);
+    throw new UnreadableError(`Cloudflare's deployments API answered ${response.status}${typeof code === "number" ? ` (error ${code})` : ""}`);
   }
   const listed = Array.isArray(body.result?.deployments) ? (body.result.deployments as Record<string, unknown>[]) : [];
-  if (listed.length === 0) throw new Unreadable(`Cloudflare lists no deployment of ${GUARD_SCRIPT}`);
+  if (listed.length === 0) throw new UnreadableError(`Cloudflare lists no deployment of ${GUARD_SCRIPT}`);
   return listed.map((deployment) => {
     const annotations = (deployment.annotations ?? {}) as Record<string, unknown>;
     const versions = Array.isArray(deployment.versions) ? (deployment.versions as Record<string, unknown>[]) : [];
     if (typeof deployment.id !== "string" || typeof deployment.created_on !== "string" || !Number.isFinite(Date.parse(deployment.created_on))) {
-      throw new Unreadable(`Cloudflare lists a deployment of ${GUARD_SCRIPT} with no id or creation time`);
+      throw new UnreadableError(`Cloudflare lists a deployment of ${GUARD_SCRIPT} with no id or creation time`);
     }
     return {
       id: deployment.id,
@@ -210,16 +212,16 @@ interface Step {
 async function mainDeploys(doFetch: typeof fetch, app: { appId: string; privateKey: string; repo: string }): Promise<MainDeploy[]> {
   const [owner, name] = splitRepo(app.repo);
   const token = await installationToken(app, { fetch: doFetch, permissions: { actions: "read" } }).catch((error: unknown) => {
-    throw new Unreadable(`the rig's GitHub App could not read Actions: ${error instanceof Error ? error.message : "error"}`);
+    throw new UnreadableError(`the rig's GitHub App could not read Actions: ${error instanceof Error ? error.message : "error"}`);
   });
   const get = async <T>(path: string): Promise<T> => {
     const response = await doFetch(`${GITHUB_API}/repos/${owner}/${name}${path}`, {
       headers: githubHeaders(token),
       signal: AbortSignal.timeout(20_000),
     }).catch((error: unknown) => {
-      throw new Unreadable(`GitHub did not answer: ${error instanceof Error ? error.message : "error"}`);
+      throw new UnreadableError(`GitHub did not answer: ${error instanceof Error ? error.message : "error"}`);
     });
-    if (!response.ok) throw new Unreadable(`GitHub answered ${response.status} for ${path.split("?")[0]}`);
+    if (!response.ok) throw new UnreadableError(`GitHub answered ${response.status} for ${path.split("?")[0]}`);
     return (await response.json()) as T;
   };
 
@@ -255,7 +257,7 @@ async function mainDeploys(doFetch: typeof fetch, app: { appId: string; privateK
     }
   }
   if (newestSuccess === -Infinity) {
-    throw new Unreadable(`no Deploy step of ${GUARD_WORKFLOW} on main succeeded in its newest ${RUNS_READ} pushes and ${RUNS_READ} dispatches`);
+    throw new UnreadableError(`no Deploy step of ${GUARD_WORKFLOW} on main succeeded in its newest ${RUNS_READ} pushes and ${RUNS_READ} dispatches`);
   }
   return deploys
     .filter((deploy) => Date.parse(deploy.started_at) >= newestSuccess)

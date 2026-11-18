@@ -9,7 +9,11 @@ import { join } from "node:path";
 
 const NAME = /^[a-z0-9][a-z0-9.-]*$/;
 
-export class MissingSecret extends Error {}
+class MissingSecretError extends Error {
+  name = "MissingSecretError";
+}
+
+export { MissingSecretError as MissingSecret };
 
 export function secretStore(dir) {
   const pathOf = (name) => {
@@ -23,7 +27,7 @@ export function secretStore(dir) {
     read(name) {
       const path = pathOf(name);
       if (!existsSync(path)) {
-        throw new MissingSecret(`rig secrets: ${name} is not in the store (${dir})`);
+        throw new MissingSecretError(`rig secrets: ${name} is not in the store (${dir})`);
       }
       return readFileSync(path, "utf8").trim();
     },
@@ -32,7 +36,7 @@ export function secretStore(dir) {
       try {
         return JSON.parse(store.read(name));
       } catch (error) {
-        if (error instanceof MissingSecret) throw error;
+        if (error instanceof MissingSecretError) throw error;
         throw new Error(`rig secrets: ${name} is not valid JSON`, { cause: error });
       }
     },

@@ -178,22 +178,26 @@ export type OpenRealtimeConnection = (
   input: OpenRealtimeInput,
 ) => Promise<RealtimeConnection>;
 
-export class RealtimeJoinFailure extends Error {
+class RealtimeJoinFailureError extends Error {
   readonly code: Exclude<RealtimeConnectionState, "subscribed">;
 
   constructor(code: Exclude<RealtimeConnectionState, "subscribed">) {
     super("Realtime connection did not subscribe");
-    this.name = "RealtimeJoinFailure";
+    this.name = "RealtimeJoinFailureError";
     this.code = code;
   }
 }
 
-export class RealtimeCleanupFailure extends CapacityRunError {
+export { RealtimeJoinFailureError as RealtimeJoinFailure };
+
+class RealtimeCleanupFailureError extends CapacityRunError {
   constructor() {
     super("Realtime cleanup did not complete successfully");
-    this.name = "RealtimeCleanupFailure";
+    this.name = "RealtimeCleanupFailureError";
   }
 }
+
+export { RealtimeCleanupFailureError as RealtimeCleanupFailure };
 
 export interface HostedCapacityDependencies {
   fetch?: typeof globalThis.fetch;
@@ -818,7 +822,7 @@ async function openBefore(
         );
       }),
     ]);
-    if (result === DEADLINE) throw new RealtimeJoinFailure("deadline");
+    if (result === DEADLINE) throw new RealtimeJoinFailureError("deadline");
     if (!result.ok) throw result.cause;
     return result.connection;
   } finally {
@@ -913,7 +917,7 @@ export async function openSupabaseRealtimeConnection(
         failed ||=
           disconnected.state !== "fulfilled" || disconnected.value !== "ok";
       }
-      if (failed) throw new RealtimeCleanupFailure();
+      if (failed) throw new RealtimeCleanupFailureError();
     })();
     return cleanupPromise;
   };
@@ -945,7 +949,7 @@ export async function openSupabaseRealtimeConnection(
     }
     if (authSet !== "set") {
       await cleanup(cleanupReserveMs);
-      throw new RealtimeJoinFailure(authSet === "deadline" ? "deadline" : "network_error");
+      throw new RealtimeJoinFailureError(authSet === "deadline" ? "deadline" : "network_error");
     }
     channel = client.channel(input.topic, { config: { private: true } });
 
@@ -960,10 +964,10 @@ export async function openSupabaseRealtimeConnection(
         try {
           await cleanup(cleanupReserveMs);
         } catch {
-          reject(new RealtimeCleanupFailure());
+          reject(new RealtimeCleanupFailureError());
           return;
         }
-        reject(new RealtimeJoinFailure(code));
+        reject(new RealtimeJoinFailureError(code));
       };
       const deadline = setTimeout(() => {
         if (settled) return;
@@ -1014,15 +1018,15 @@ export async function openSupabaseRealtimeConnection(
     } catch {
       cleanupFailed = true;
     }
-    if (cleanupFailed) throw new RealtimeCleanupFailure();
-    if (cause instanceof RealtimeCleanupFailure) throw cause;
-    if (cause instanceof RealtimeJoinFailure) throw cause;
-    throw new RealtimeJoinFailure("network_error");
+    if (cleanupFailed) throw new RealtimeCleanupFailureError();
+    if (cause instanceof RealtimeCleanupFailureError) throw cause;
+    if (cause instanceof RealtimeJoinFailureError) throw cause;
+    throw new RealtimeJoinFailureError("network_error");
   }
 }
 
 function realtimeFailureCode(cause: unknown): Exclude<RealtimeConnectionState, "subscribed"> {
-  return cause instanceof RealtimeJoinFailure ? cause.code : "network_error";
+  return cause instanceof RealtimeJoinFailureError ? cause.code : "network_error";
 }
 
 interface RealtimeAssessment {
@@ -1158,7 +1162,7 @@ async function openRealtimeBatch(
         });
         return { kind: "opened" as const, connection };
       } catch (cause) {
-        if (cause instanceof RealtimeCleanupFailure) {
+        if (cause instanceof RealtimeCleanupFailureError) {
           return { kind: "cleanup_failure" as const };
         }
         return { kind: "join_failure" as const, code: realtimeFailureCode(cause) };
@@ -1178,9 +1182,9 @@ async function openRealtimeBatch(
     // failure must not reject early and lose a handle that subscribes a moment
     // later; close every successful sibling before propagating the invalid run.
     if (!(await closeConnections(handles, config.deadlineMs))) {
-      throw new RealtimeCleanupFailure();
+      throw new RealtimeCleanupFailureError();
     }
-    throw new RealtimeCleanupFailure();
+    throw new RealtimeCleanupFailureError();
   }
   const failures: Record<string, number> = {};
   for (const attempt of attempts) {

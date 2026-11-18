@@ -146,15 +146,17 @@ export function statusFor(rule: RuleName): 403 | 429 {
     : 403;
 }
 
-export class Refusal extends Error {
+class RefusalError extends Error {
   readonly rule: RuleName;
 
   constructor(rule: RuleName) {
     super(`guard refused: ${rule}`);
-    this.name = "Refusal";
+    this.name = "RefusalError";
     this.rule = rule;
   }
 }
+
+export { RefusalError as Refusal };
 
 /** The response for a refusal: a {@link GuardRefusal} body and the refused-by header. */
 export function refuse(rule: RuleName): Response {

@@ -146,7 +146,9 @@ const LASTING_REFUSALS: ReadonlySet<string> = new Set([
  * with no prompt) always rendered the generic "Couldn't start the call. Try
  * again.", which tells the user to do the one thing that cannot work.
  */
-export class MicPermissionError extends Error {}
+export class MicPermissionError extends Error {
+  override name = "MicPermissionError";
+}
 
 /**
  * Prove we can capture the microphone BEFORE any server-side effect (the line

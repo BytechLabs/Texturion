@@ -16,7 +16,9 @@ vi.mock("@/lib/hooks/use-records-delete", () => ({
 }));
 vi.mock("@/lib/softphone/provider", () => ({
   useSoftphone: () => null,
-  MicPermissionError: class MicPermissionError extends Error {},
+  MicPermissionError: class MicPermissionError extends Error {
+    override name = "MicPermissionError";
+  },
 }));
 vi.mock("@/components/calls/voicemail-player", () => ({
   screeningLabel: () => null,
