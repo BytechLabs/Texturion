@@ -26,10 +26,13 @@ final class OfflineReadCacheTests: XCTestCase {
 
     private actor InboxTransport: HTTPClient {
         private var reconnecting = false
+        private var offline = false
 
         func failPinnedRefresh() { reconnecting = true }
+        func goOffline() { offline = true }
 
         func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+            if offline { throw URLError(.notConnectedToInternet) }
             let url = try XCTUnwrap(request.url)
             let pinned = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
                 .contains(URLQueryItem(name: "pinned", value: "only")) == true
@@ -133,8 +136,8 @@ final class OfflineReadCacheTests: XCTestCase {
             expiresAt: Date().timeIntervalSince1970 + 3600, userId: "member", email: "viewer@example.com"
         ))
         let transport = InboxTransport()
-        let graph = AppGraph(sessionStore: sessions, transport: transport)
-        let controller = InboxController(graph: graph, companyId: "workspace", meUserId: "member")
+        let api = ApiClient(sessionStore: sessions, auth: SupabaseAuth(), transport: transport)
+        let controller = InboxController(api: api, companyId: "workspace", meUserId: "member")
         await controller.reload(showLoading: true).value
         XCTAssertEqual(controller.rows.map(\.id), ["original"])
         XCTAssertEqual(controller.pinnedRows.map(\.id), ["pin"])
@@ -147,5 +150,43 @@ final class OfflineReadCacheTests: XCTestCase {
         XCTAssertEqual(controller.pinnedRows.map(\.id), ["pin"])
         XCTAssertEqual(controller.cursor, "original-next")
         XCTAssertNil(controller.notice)
+    }
+
+    @MainActor
+    func testInboxFiltersDoNotPreloadTheUnfilteredOfflineInbox() async {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = StoreCache(directory: directory, diskKey: SymmetricKey(size: .bits256))
+        let sessions = SessionStore(storage: InMemorySessionStorage())
+        sessions.save(Session(
+            accessToken: "offline-fixture", refreshToken: "offline-refresh",
+            expiresAt: Date().timeIntervalSince1970 + 3600, userId: "member", email: "viewer@example.com"
+        ))
+        let transport = InboxTransport()
+        let api = ApiClient(sessionStore: sessions, auth: SupabaseAuth(), transport: transport, offlineReads: cache)
+        let home = InboxController(api: api, companyId: "workspace", meUserId: "member")
+        await home.reload(showLoading: true).value
+        let cached: Page<ConversationListItem>? = await api.cachedGet(
+            "/v1/conversations", query: ["status": "open", "pinned": "exclude", "limit": "25"],
+            companyId: "workspace"
+        )
+        XCTAssertEqual(cached?.data.map(\.id), ["original"])
+        await transport.goOffline()
+
+        let filters: [(name: String, apply: @MainActor (InboxController) -> Void)] = [
+            ("Unassigned", { $0.setUnassignedFilter() }),
+            ("Line", { $0.setLineFilter("another-line") }),
+        ]
+        for filter in filters {
+            let controller = InboxController(api: api, companyId: "workspace", meUserId: "member")
+            filter.apply(controller)
+            await controller.reload(showLoading: true).value
+            guard case .failed = controller.state else {
+                XCTFail("\(filter.name) must show a load failure when offline")
+                continue
+            }
+            XCTAssertTrue(controller.rows.isEmpty, filter.name)
+            XCTAssertTrue(controller.pinnedRows.isEmpty, filter.name)
+        }
     }
 }

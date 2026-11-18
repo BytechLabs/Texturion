@@ -34,6 +34,7 @@ package com.loonext.android.features.inbox
 internal enum class InboxFilterDimension {
     SEGMENT,
     ASSIGNEE,
+    LINE,
     TAG,
     UNREAD,
     SPAM,
@@ -53,6 +54,8 @@ internal data class InboxFilterState(
     val spamOnly: Boolean,
     val snoozedOnly: Boolean,
     val awaitingOnly: Boolean,
+    val unassignedOnly: Boolean = false,
+    val lineId: String? = null,
 )
 
 /**
@@ -68,9 +71,10 @@ internal fun activeInboxFilters(state: InboxFilterState): List<InboxFilterDimens
     // viewer's own id and drops this field, and the sheet hides the assignee
     // section while Mine is lit — so counting it here is how an empty "Mine" tab
     // came to blame a filter the person had no way to un-set.
-    if (!state.assignedToMe && state.assigneeUserId != null) {
+    if (!state.assignedToMe && (state.assigneeUserId != null || state.unassignedOnly)) {
         active += InboxFilterDimension.ASSIGNEE
     }
+    if (state.lineId != null) active += InboxFilterDimension.LINE
     if (state.tagId != null) active += InboxFilterDimension.TAG
     if (state.unreadOnly) active += InboxFilterDimension.UNREAD
     if (state.spamOnly) active += InboxFilterDimension.SPAM

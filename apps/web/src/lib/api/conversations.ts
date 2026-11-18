@@ -48,6 +48,8 @@ export function fetchConversationPage(
     searchParams: {
       status: filters.status,
       assigned_user_id: filters.assigned_user_id,
+      unassigned: filters.unassigned,
+      phone_number_id: filters.phone_number_id,
       tag_id: filters.tag_id,
       is_spam: filters.is_spam,
       unread: filters.unread,
@@ -82,6 +84,8 @@ export function fetchPinnedConversations(
     searchParams: {
       status: filters.status,
       assigned_user_id: filters.assigned_user_id,
+      unassigned: filters.unassigned,
+      phone_number_id: filters.phone_number_id,
       tag_id: filters.tag_id,
       is_spam: filters.is_spam,
       unread: filters.unread,

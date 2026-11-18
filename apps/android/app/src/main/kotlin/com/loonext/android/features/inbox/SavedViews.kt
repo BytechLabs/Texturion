@@ -98,9 +98,8 @@ fun sanitizeConversationFilters(raw: JsonObject): JsonObject {
         val bool = (value as? JsonPrimitive)?.let { if (it.isString) null else it.booleanOrNull }
         val keep: Boolean = when (key) {
             "status" -> text != null && text in CONVERSATION_STATUSES
-            "assigned_user_id" -> text != null && UUID_RE.matches(text)
-            "tag_id" -> text != null && UUID_RE.matches(text)
-            "assigned_to_me", "is_spam", "unread" -> bool != null
+            "assigned_user_id", "tag_id", "phone_number_id" -> text != null && UUID_RE.matches(text)
+            "assigned_to_me", "unassigned", "is_spam", "unread" -> bool != null
             "pinned" -> text != null && text in PINNED_VALUES
             "snoozed" -> text != null && text in SNOOZED_VALUES
             "awaiting" -> text != null && text in AWAITING_VALUES
@@ -115,6 +114,14 @@ fun sanitizeConversationFilters(raw: JsonObject): JsonObject {
         out.remove("assigned_user_id")
     } else {
         out.remove("assigned_to_me")
+    }
+    if (out.containsKey("assigned_to_me") || out.containsKey("assigned_user_id") ||
+        out["unassigned"] != JsonPrimitive(true)
+    ) {
+        out.remove("unassigned")
+    }
+    (out["phone_number_id"] as? JsonPrimitive)?.contentOrNull?.let {
+        out["phone_number_id"] = JsonPrimitive(it.lowercase())
     }
     return JsonObject(out)
 }
@@ -146,6 +153,8 @@ internal data class ViewSelection(
     val snoozedOnly: Boolean,
     /** #508: threads nobody has replied to yet (the #388 lead clock). */
     val awaitingOnly: Boolean,
+    val unassignedOnly: Boolean = false,
+    val lineId: String? = null,
 )
 
 /**
@@ -174,6 +183,8 @@ internal fun viewToSelection(filters: JsonObject): ViewSelection {
         spamOnly = clean.bool("is_spam"),
         snoozedOnly = clean.str("snoozed") == "only",
         awaitingOnly = clean.str("awaiting") == "only",
+        unassignedOnly = clean.bool("unassigned"),
+        lineId = clean.str("phone_number_id"),
     )
 }
 
@@ -187,6 +198,8 @@ internal fun selectionToView(selection: ViewSelection): JsonObject {
             InboxStatusTab.All -> Unit
         }
         selection.assigneeUserId?.let { put("assigned_user_id", JsonPrimitive(it)) }
+        if (selection.unassignedOnly) put("unassigned", JsonPrimitive(true))
+        selection.lineId?.let { put("phone_number_id", JsonPrimitive(it)) }
         selection.tagId?.let { put("tag_id", JsonPrimitive(it)) }
         if (selection.unreadOnly) put("unread", JsonPrimitive(true))
         if (selection.spamOnly) put("is_spam", JsonPrimitive(true))
@@ -218,6 +231,7 @@ internal fun suggestViewName(
     locale: String,
     assignee: Member? = null,
     tag: Tag? = null,
+    lineLabel: String? = null,
 ): String {
     fun say(key: String) = AppStrings.translate(locale, key)
     val parts = mutableListOf<String>()
@@ -232,6 +246,8 @@ internal fun suggestViewName(
             parts.add(it.display_name.ifBlank { say("inbox.viewNameAssigned") })
         }
     }
+    if (selection.unassignedOnly) parts.add(say("inbox.forYouSectionUnassigned"))
+    if (selection.lineId != null) parts.add(lineLabel ?: say("inbox.filterGroupLine"))
     tag?.let { if (selection.tagId != null) parts.add(it.name) }
     if (selection.unreadOnly) parts.add(say("inbox.viewNameUnread"))
     if (selection.spamOnly) parts.add(say("inbox.viewNameSpam"))

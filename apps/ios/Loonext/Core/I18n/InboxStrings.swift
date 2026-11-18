@@ -120,6 +120,8 @@ enum InboxStrings {
             "inbox.filterByAssigneeTitle": "Filter by assignee",
             "inbox.filterByTagTitle": "Filter by tag",
             "inbox.filterAnyone": "Anyone",
+            "inbox.filterGroupLine": "Line",
+            "inbox.filterAnyLine": "Any line",
             "inbox.filterAnyTag": "Any tag",
             "inbox.filterNoTags":
                 "No tags yet. Add tags from a conversation on the web.",
@@ -581,6 +583,8 @@ enum InboxStrings {
             "inbox.filterByAssigneeTitle": "Filtrer par responsable",
             "inbox.filterByTagTitle": "Filtrer par étiquette",
             "inbox.filterAnyone": "N'importe qui",
+            "inbox.filterGroupLine": "Ligne",
+            "inbox.filterAnyLine": "Toutes les lignes",
             "inbox.filterAnyTag": "Toute étiquette",
             "inbox.filterNoTags":
                 "Aucune étiquette pour l'instant. Ajoutez-en depuis une "

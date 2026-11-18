@@ -121,6 +121,7 @@ import {
   parseWith,
   pathUuid,
   unwrap,
+  unwrapOptional,
 } from "./core/http";
 import {
   assertConversationPatchAllowed,
@@ -170,6 +171,8 @@ const MESSAGE_COLUMNS =
 const listQuerySchema = z.object({
   status: z.enum(["new", "open", "waiting", "closed"]).optional(),
   assigned_user_id: z.uuid().optional(),
+  unassigned: z.enum(["true", "false"]).optional(),
+  phone_number_id: z.uuid().toLowerCase().optional(),
   tag_id: z.uuid().optional(),
   is_spam: z.enum(["true", "false"]).optional(),
   unread: z.enum(["true", "false"]).optional(),
@@ -322,6 +325,8 @@ conversationsRoutes.get("/conversations", requireCapability("conversations.read"
   const query = parseWith(listQuerySchema, {
     status: c.req.query("status"),
     assigned_user_id: c.req.query("assigned_user_id"),
+    unassigned: c.req.query("unassigned"),
+    phone_number_id: c.req.query("phone_number_id"),
     tag_id: c.req.query("tag_id"),
     is_spam: c.req.query("is_spam"),
     unread: c.req.query("unread"),
@@ -330,24 +335,47 @@ conversationsRoutes.get("/conversations", requireCapability("conversations.read"
     snoozed: c.req.query("snoozed"),
     awaiting: c.req.query("awaiting"),
   });
+  const unassigned = query.unassigned === "true";
+  if (unassigned && query.assigned_user_id !== undefined) {
+    throw new ApiError("validation_failed", "Choose an assignee or Unassigned.");
+  }
   const limit = parseLimit(c, 25, 100);
   const cursor = parseCursor(c);
 
   const db = getDb(getEnv(c.env));
+  const companyId = c.get("companyId");
   // #106: a restricted member's inbox only lists conversations on numbers they
   // can see (null = unrestricted, the common owner/admin/no-rules path).
   const access = await resolveNumberAccess(db, {
-    companyId: c.get("companyId"),
+    companyId,
     userId: c.get("userId"),
     role: c.get("role"),
   });
+  const lineId = query.phone_number_id;
+  if (lineId !== undefined) {
+    const line = access.levelFor(lineId) === "none"
+      ? null
+      : unwrapOptional<{ id: string }>(
+          await db.from("phone_numbers")
+            .select("id")
+            .eq("company_id", companyId)
+            .eq("id", lineId)
+            .maybeSingle(),
+          "conversations line",
+        );
+    if (line === null) {
+      throw new ApiError("validation_failed", "Choose a line you can access.");
+    }
+  }
   const rows = unwrap<Record<string, unknown>[]>(
     await db.rpc("api_list_conversations", {
-      p_company_id: c.get("companyId"),
+      p_company_id: companyId,
       p_user_id: c.get("userId"),
       p_limit: limit + 1,
       p_status: query.status ?? null,
       p_assigned_user_id: query.assigned_user_id ?? null,
+      p_unassigned: unassigned,
+      p_phone_number_id: lineId ?? null,
       p_tag_id: query.tag_id ?? null,
       p_is_spam: query.is_spam === "true",
       p_unread: query.unread === "true",

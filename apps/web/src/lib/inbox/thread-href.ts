@@ -1,4 +1,4 @@
-const INBOX_LIST_PARAMS = ["status", "assignee", "tag", "unread", "spam", "snoozed", "awaiting", "q"];
+const INBOX_LIST_PARAMS = ["status", "assignee", "line", "tag", "unread", "spam", "snoozed", "awaiting", "q"];
 
 /**
  * The ONE builder for "open this thread, here" (#718).

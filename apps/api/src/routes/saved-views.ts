@@ -477,6 +477,8 @@ savedViewsRoutes.get(
           p_limit: COUNT_PROBE_LIMIT,
           p_status: filters.status ?? null,
           p_assigned_user_id: assignee ?? null,
+          p_unassigned: filters.unassigned === "true",
+          p_phone_number_id: filters.phone_number_id ?? null,
           p_tag_id: filters.tag_id ?? null,
           p_is_spam: filters.is_spam === "true",
           p_unread: filters.unread === "true",

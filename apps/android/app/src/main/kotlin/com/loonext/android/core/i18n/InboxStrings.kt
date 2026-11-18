@@ -121,6 +121,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.filterGroupStatus" to "Status",
         "inbox.filterGroupAssignee" to "Assignee",
         "inbox.filterAnyone" to "Anyone",
+        "inbox.filterGroupLine" to "Line",
+        "inbox.filterAnyLine" to "Any line",
         "inbox.filterMe" to "Me",
         "inbox.filterGroupTags" to "Tags",
         "inbox.filterNoTags" to
@@ -523,6 +525,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.filterGroupStatus" to "Statut",
         "inbox.filterGroupAssignee" to "Responsable",
         "inbox.filterAnyone" to "N'importe qui",
+        "inbox.filterGroupLine" to "Ligne",
+        "inbox.filterAnyLine" to "Toutes les lignes",
         "inbox.filterMe" to "Moi",
         "inbox.filterGroupTags" to "Étiquettes",
         "inbox.filterNoTags" to

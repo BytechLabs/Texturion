@@ -71,6 +71,15 @@ final class InboxFiltersTests: XCTestCase {
         XCTAssertEqual(activeInboxFilters(home(awaitingOnly: true)), [.awaiting])
     }
 
+    func testUnassignedAndLineCountAlongsideOtherFilters() {
+        var filtered = home(unreadOnly: true)
+        filtered.unassignedOnly = true
+        filtered.lineId = "line-1"
+        XCTAssertEqual(activeInboxFilters(filtered), [.assignee, .line, .unread])
+        filtered.assignedToMe = true
+        XCTAssertEqual(activeInboxFilters(filtered), [.segment, .line, .unread])
+    }
+
     func testEverythingAtOnceInTheDeclaredOrder() {
         XCTAssertEqual(
             activeInboxFilters(
@@ -134,7 +143,7 @@ final class InboxFiltersTests: XCTestCase {
         )
     }
 
-    /// The same seven dimensions, in the same order, as the shared module.
+    /// The same dimensions, in the same order, as the shared module.
     ///
     /// Order is asserted rather than membership alone: `activeInboxFilters` returns
     /// a list, so a client rendering "arranged by" chips from it would show them in
@@ -161,7 +170,7 @@ final class InboxFiltersTests: XCTestCase {
     func testTheSharedModuleStillSubsumesANamedAssigneeUnderMine() throws {
         XCTAssertTrue(
             try sharedSource()
-                .contains("!state.assignedToMe && state.assigneeUserId !== null"),
+                .contains("!state.assignedToMe && (state.assigneeUserId !== null || state.unassignedOnly)"),
             "the Mine-subsumes-assignee guard has gone from the shared module"
         )
     }

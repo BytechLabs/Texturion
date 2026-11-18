@@ -29,7 +29,9 @@ export function urlFiltersToView(filters: InboxUrlFilters): SavedViewFilters {
   const raw: Record<string, unknown> = {};
   if (filters.status) raw.status = filters.status;
   if (filters.assignee === "me") raw.assigned_to_me = true;
+  else if (filters.assignee === "none") raw.unassigned = true;
   else if (filters.assignee) raw.assigned_user_id = filters.assignee;
+  if (filters.line) raw.phone_number_id = filters.line;
   if (filters.tag) raw.tag_id = filters.tag;
   if (filters.unread) raw.unread = true;
   if (filters.spam) raw.is_spam = true;
@@ -61,9 +63,11 @@ export function viewFiltersToUrl(
     out.status = status as InboxUrlFilters["status"];
   }
   if (clean.assigned_to_me === true) out.assignee = "me";
+  else if (clean.unassigned === true) out.assignee = "none";
   else if (typeof clean.assigned_user_id === "string") {
     out.assignee = clean.assigned_user_id;
   }
+  if (typeof clean.phone_number_id === "string") out.line = clean.phone_number_id;
   if (typeof clean.tag_id === "string") out.tag = clean.tag_id;
   if (clean.unread === true) out.unread = true;
   if (clean.is_spam === true) out.spam = true;
@@ -105,14 +109,18 @@ export function viewMatchesUrl(
  */
 export function suggestViewName(
   filters: InboxUrlFilters,
-  labels: { tag?: string; assignee?: string } = {},
+  labels: { tag?: string; assignee?: string; unassigned?: string; line?: string } = {},
 ): string {
   const parts: string[] = [];
   if (filters.status) {
     parts.push(filters.status.charAt(0).toUpperCase() + filters.status.slice(1));
   }
   if (filters.assignee === "me") parts.push("Mine");
-  else if (filters.assignee && labels.assignee) parts.push(labels.assignee);
+  else if (filters.assignee) {
+    const label = filters.assignee === "none" ? labels.unassigned : labels.assignee;
+    if (label) parts.push(label);
+  }
+  if (filters.line && labels.line) parts.push(labels.line);
   if (filters.tag && labels.tag) parts.push(labels.tag);
   if (filters.unread) parts.push("Unread");
   if (filters.spam) parts.push("Spam");

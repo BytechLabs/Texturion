@@ -38,6 +38,13 @@ function item(overrides: Partial<ConversationListItem> = {}): ConversationListIt
 
 const NOW = Date.parse("2026-08-05T10:00:00.000Z");
 
+it("keeps only unassigned rows on the selected line in cached lists", () => {
+  const filters = { unassigned: true, phone_number_id: "number-1" };
+  expect(conversationMatchesFilters(item(), filters)).toBe(true);
+  expect(conversationMatchesFilters(item({ assigned_user_id: "user-1" }), filters)).toBe(false);
+  expect(conversationMatchesFilters(item({ phone_number_id: "number-2" }), filters)).toBe(false);
+});
+
 describe(isSnoozed, () => {
   it("is computed from the return time, never from the field's presence", () => {
     expect(isSnoozed(item(), NOW)).toBe(false);

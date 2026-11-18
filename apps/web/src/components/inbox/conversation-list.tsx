@@ -161,6 +161,7 @@ export function ConversationList({
   const loadedIds = rows.map((row) => row.id);
   const [selection, setSelection] = useState<BulkSelection>(EMPTY_SELECTION);
   const bulk = useBulkConversations();
+  const canSelectAllMatching = filters.unassigned !== true && filters.phone_number_id === undefined;
   // #691: delete takes named ids, so it is offered for a pointed-at selection
   // only, and only to members who hold records.delete.
   const canDelete = useCanDeleteRecords();
@@ -200,6 +201,7 @@ export function ConversationList({
   };
   const runBulk = (body: Omit<BulkConversationsBody, "ids" | "filter">, verb: string) => {
     const ids = selectionIds(selection);
+    if (ids === null && !canSelectAllMatching) return;
     runBulkRequest({ ...body, ...(ids ? { ids } : { filter: filters }) }, verb);
   };
   /** #694: a keyboard shortcut acting on one named row. */
@@ -301,7 +303,7 @@ export function ConversationList({
           hasMore={query.hasNextPage}
           pending={bulk.isPending}
           onSelectLoaded={() => setSelection(selectLoaded(loadedIds))}
-          onSelectAllMatching={() => setSelection(selectAllMatching())}
+          onSelectAllMatching={canSelectAllMatching ? () => setSelection(selectAllMatching()) : undefined}
           onClear={() => setSelection(EMPTY_SELECTION)}
           onMarkRead={() => runBulk({ action: "mark_read" }, "Marked read")}
           onClose={() =>

@@ -19,8 +19,9 @@ import type { ConversationStatus } from "@/lib/api/types";
 
 export interface InboxUrlFilters {
   status?: ConversationStatus;
-  /** `"me"` (the Mine segment) or a member user id from the `+ Filter` popover. */
+  /** `"me"`, `"none"` (Unassigned), or a member user id. */
   assignee?: string;
+  line?: string;
   tag?: string;
   unread?: boolean;
   /** Spam never shows in the default list — this chip reveals it (§2.2). */
@@ -62,6 +63,8 @@ export function parseInboxSearchParams(
   if (status !== null && isStatus(status)) filters.status = status;
   const assignee = params.get("assignee");
   if (assignee) filters.assignee = assignee;
+  const line = params.get("line");
+  if (line) filters.line = line.toLowerCase();
   const tag = params.get("tag");
   if (tag) filters.tag = tag;
   // Accept both "true" (what the app writes) and "1" (the documented shorthand)
@@ -84,6 +87,7 @@ export function serializeInboxFilters(filters: InboxUrlFilters): string {
   const params = new URLSearchParams();
   if (filters.status) params.set("status", filters.status);
   if (filters.assignee) params.set("assignee", filters.assignee);
+  if (filters.line) params.set("line", filters.line.toLowerCase());
   if (filters.tag) params.set("tag", filters.tag);
   if (filters.unread) params.set("unread", "true");
   if (filters.spam) params.set("spam", "true");
@@ -152,9 +156,12 @@ export function toConversationFilters(
 ): ConversationFilters {
   const out: ConversationFilters = {};
   if (filters.status) out.status = filters.status;
-  if (filters.assignee) {
+  if (filters.assignee === "none") {
+    out.unassigned = true;
+  } else if (filters.assignee) {
     out.assigned_user_id = filters.assignee === "me" ? userId : filters.assignee;
   }
+  if (filters.line) out.phone_number_id = filters.line;
   if (filters.tag) out.tag_id = filters.tag;
   if (filters.unread) out.unread = true;
   if (filters.spam) out.is_spam = true;
@@ -179,7 +186,7 @@ export function toConversationFilters(
  */
 export function toInboxFilterState(filters: InboxUrlFilters): InboxFilterState {
   const named =
-    filters.assignee !== undefined && filters.assignee !== "me"
+    filters.assignee !== undefined && filters.assignee !== "me" && filters.assignee !== "none"
       ? filters.assignee
       : null;
   return {
@@ -188,6 +195,8 @@ export function toInboxFilterState(filters: InboxUrlFilters): InboxFilterState {
     segment: filters.status ?? null,
     assignedToMe: filters.assignee === "me",
     assigneeUserId: named,
+    unassignedOnly: filters.assignee === "none",
+    lineId: filters.line ?? null,
     tagId: filters.tag ?? null,
     unreadOnly: filters.unread === true,
     spamOnly: filters.spam === true,
@@ -267,6 +276,7 @@ export function formatOpenCount(count: number): string {
 export type SecondaryFilterKey =
   | "status"
   | "assignee"
+  | "line"
   | "tag"
   | "unread"
   | "spam"
@@ -299,6 +309,7 @@ export function activeChips(filters: InboxUrlFilters): ActiveChip[] {
   if (filters.assignee && filters.assignee !== "me") {
     chips.push({ key: "assignee", value: filters.assignee });
   }
+  if (filters.line) chips.push({ key: "line", value: filters.line });
   if (filters.tag) chips.push({ key: "tag", value: filters.tag });
   if (filters.unread) chips.push({ key: "unread" });
   if (filters.spam) chips.push({ key: "spam" });

@@ -74,7 +74,7 @@ export function BulkBar({
   hasMore: boolean;
   pending: boolean;
   onSelectLoaded: () => void;
-  onSelectAllMatching: () => void;
+  onSelectAllMatching?: () => void;
   onClear: () => void;
   onMarkRead: () => void;
   onClose: () => void;
@@ -134,7 +134,7 @@ export function BulkBar({
         </Button>
       )}
 
-      {showEscalate && (
+      {showEscalate && onSelectAllMatching && (
         // Explicit, and it says what it will do rather than "Select all".
         <Button
           type="button"

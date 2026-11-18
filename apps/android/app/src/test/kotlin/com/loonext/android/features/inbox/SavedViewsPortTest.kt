@@ -145,6 +145,14 @@ class SavedViewsPortTest {
     }
 
     @Test
+    fun `round trips an unread unassigned view for one line`() {
+        val filters = obj("unassigned" to true, "phone_number_id" to me, "unread" to true)
+        val selection = viewToSelection(obj("unassigned" to true, "phone_number_id" to me.uppercase(), "unread" to true))
+        assertEquals(filters, selectionToView(selection))
+        assertFalse(viewToSelection(obj("assigned_to_me" to true, "unassigned" to true)).unassignedOnly)
+    }
+
+    @Test
     fun `Mine is a tab, not an assignee chip`() {
         // The tab and the assignee are entangled the same way on web. A view
         // holding assigned_to_me must select the tab, or it would set a chip

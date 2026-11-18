@@ -46,6 +46,7 @@
 export const INBOX_FILTER_DIMENSIONS = [
   "segment",
   "assignee",
+  "line",
   "tag",
   "unread",
   "spam",
@@ -62,6 +63,8 @@ export interface InboxFilterState {
   assignedToMe: boolean;
   /** A named teammate. Ignored while `assignedToMe` — the request ignores it too. */
   assigneeUserId: string | null;
+  unassignedOnly: boolean;
+  lineId: string | null;
   tagId: string | null;
   unreadOnly: boolean;
   spamOnly: boolean;
@@ -84,9 +87,10 @@ export function activeInboxFilters(
   // the viewer's own id and drops this field, and every client hides the
   // assignee control while Mine is lit — so counting it here is how an empty
   // "Mine" tab came to blame a filter the person had no way to un-set.
-  if (!state.assignedToMe && state.assigneeUserId !== null) {
+  if (!state.assignedToMe && (state.assigneeUserId !== null || state.unassignedOnly)) {
     active.push("assignee");
   }
+  if (state.lineId !== null) active.push("line");
   if (state.tagId !== null) active.push("tag");
   if (state.unreadOnly) active.push("unread");
   if (state.spamOnly) active.push("spam");

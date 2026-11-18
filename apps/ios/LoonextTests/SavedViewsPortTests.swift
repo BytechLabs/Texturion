@@ -112,6 +112,16 @@ final class SavedViewsPortTests: XCTestCase {
         XCTAssertEqual(viewToSelection(selectionToView(selection)), selection)
     }
 
+    func testRoundTripsAnUnreadUnassignedViewForOneLine() {
+        let filters: [String: JSONValue] = [
+            "unassigned": .bool(true), "phone_number_id": .string(me), "unread": .bool(true),
+        ]
+        var input = filters
+        input["phone_number_id"] = .string(me.uppercased())
+        XCTAssertEqual(selectionToView(viewToSelection(input)), filters)
+        XCTAssertFalse(viewToSelection(["assigned_to_me": .bool(true), "unassigned": .bool(true)]).unassignedOnly)
+    }
+
     func testMineIsATabNotAnAssigneeChip() {
         // The tab and the assignee are entangled the same way on web and
         // Android. A view holding assigned_to_me must select the tab, or it

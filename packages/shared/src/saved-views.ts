@@ -124,6 +124,8 @@ const FILTERS: Record<
      */
     assigned_to_me: isBool,
     assigned_user_id: isUuid,
+    unassigned: isBool,
+    phone_number_id: isUuid,
     tag_id: isUuid,
     is_spam: isBool,
     unread: isBool,
@@ -205,6 +207,14 @@ export function sanitizeFilters(
   // intent — somebody set it deliberately — so it takes the slot.
   if (out.assigned_to_me === true) delete out.assigned_user_id;
   if (out.assigned_to_me === false) delete out.assigned_to_me;
+  if (surface === "conversations") {
+    if (out.assigned_to_me === true || out.assigned_user_id !== undefined || out.unassigned === false) {
+      delete out.unassigned;
+    }
+    if (typeof out.phone_number_id === "string") {
+      out.phone_number_id = out.phone_number_id.toLowerCase();
+    }
+  }
   return out;
 }
 

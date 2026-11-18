@@ -4,6 +4,8 @@ import type { ConversationListItem, ConversationStatus } from "./types";
 export interface ConversationFilters {
   status?: ConversationStatus;
   assigned_user_id?: string;
+  unassigned?: boolean;
+  phone_number_id?: string;
   tag_id?: string;
   is_spam?: boolean;
   unread?: boolean;
@@ -34,6 +36,10 @@ export function normalizeFilters(
   if (filters.status !== undefined) out.status = filters.status;
   if (filters.assigned_user_id !== undefined) {
     out.assigned_user_id = filters.assigned_user_id;
+  }
+  if (filters.unassigned === true) out.unassigned = true;
+  if (filters.phone_number_id !== undefined) {
+    out.phone_number_id = filters.phone_number_id.toLowerCase();
   }
   if (filters.tag_id !== undefined) out.tag_id = filters.tag_id;
   if (filters.is_spam !== undefined) out.is_spam = filters.is_spam;
@@ -94,6 +100,11 @@ export function conversationMatchesFilters(
   ) {
     return false;
   }
+  if (filters.unassigned === true && item.assigned_user_id !== null) return false;
+  if (
+    filters.phone_number_id !== undefined &&
+    item.phone_number_id !== filters.phone_number_id
+  ) return false;
   if (
     filters.tag_id !== undefined &&
     !item.tags.some((tag) => tag.id === filters.tag_id)
