@@ -357,6 +357,9 @@ export const contactsEn = {
 
   // ── The shared import summary ───────────────────────────────────────────
   importFinished: "Import finished",
+  replaceExistingDetails: "Replace existing details",
+  importKept: "Existing details kept for {count} contacts",
+  importDetailWarnings: "Details that could not be imported",
   importFailed: "The import didn't go through. Try again.",
   importAnother: "Import another",
 
@@ -418,6 +421,11 @@ export const contactsEn = {
   answerLastName: "Last name",
   answerAddress: "Address",
   answerNotes: "Notes",
+  answerOtherPhone: "Other phone numbers",
+  answerEmail: "Email",
+  answerBusinessName: "Business name",
+  answerTags: "Tags",
+  answerCustomFields: "Custom fields",
   answerOptedOut: "Do not text (opted out)",
   answerIgnore: "Skip this column",
   chooseWhatThisIs: "Choose what this is",
@@ -849,6 +857,9 @@ export const contactsFr: Translated<typeof contactsEn> = {
 
   // ── Le sommaire d'importation partagé ───────────────────────────────────
   importFinished: "Importation terminée",
+  replaceExistingDetails: "Remplacer les renseignements existants",
+  importKept: "Renseignements existants conservés pour {count} contacts",
+  importDetailWarnings: "Renseignements qui n’ont pas pu être importés",
   importFailed: "L'importation a échoué. Réessayez.",
   importAnother: "Importer un autre fichier",
 
@@ -916,6 +927,11 @@ export const contactsFr: Translated<typeof contactsEn> = {
   answerLastName: "Nom de famille",
   answerAddress: "Adresse",
   answerNotes: "Notes",
+  answerOtherPhone: "Autres numéros de téléphone",
+  answerEmail: "Courriel",
+  answerBusinessName: "Nom de l'entreprise",
+  answerTags: "Étiquettes",
+  answerCustomFields: "Champs personnalisés",
   answerOptedOut: "Ne pas texter (désabonné)",
   answerIgnore: "Ignorer cette colonne",
   chooseWhatThisIs: "Choisissez ce que c'est",

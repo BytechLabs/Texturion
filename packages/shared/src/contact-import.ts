@@ -175,6 +175,11 @@ const COLUMN_ACTIONS = new Set<string>([
   "last_name",
   "address",
   "notes",
+  "other_phone",
+  "email",
+  "business_name",
+  "tags",
+  "custom_fields",
   "opted_out",
 ]);
 

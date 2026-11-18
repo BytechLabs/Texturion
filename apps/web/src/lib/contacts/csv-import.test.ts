@@ -394,7 +394,7 @@ describe("csvRows: the rows the server will see, numbered as it numbers them", (
       [{ row: 4, reason: "invalid phone: nope" }],
       preview,
     );
-    expect(csv.split("\r\n")[1]).toBe("nope,,,,,,,invalid phone: nope");
+    expect(csv.split("\r\n")[1]).toBe("nope,,,,,,,,,,,,invalid phone: nope");
   });
 });
 
@@ -617,7 +617,7 @@ describe(skippedRowsCsv, () => {
     // Every mappable field plus the reason — the download is the person's own
     // rows handed back, so it carries the raw cells rather than our joined name.
     expect(lines[0]).toBe([...IMPORT_FIELDS, "reason"].join(","));
-    expect(lines[1]).toBe("nope,Pat,,,,,,invalid phone: nope");
+    expect(lines[1]).toBe("nope,Pat,,,,,,,,,,,invalid phone: nope");
   });
 
   it("escapes a reason that carries the delimiter", () => {
@@ -633,7 +633,7 @@ describe(skippedRowsCsv, () => {
     );
 
     expect(csv.split("\r\n")[1]).toBe(
-      'nope,Pat,,,,,,"invalid phone: ""nope, really"""',
+      'nope,Pat,,,,,,,,,,,"invalid phone: ""nope, really"""',
     );
   });
 });

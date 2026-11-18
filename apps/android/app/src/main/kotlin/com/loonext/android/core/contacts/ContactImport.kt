@@ -90,9 +90,10 @@ object ContactImport {
      * with no readable header row, or one over the row cap, reaches the server
      * and comes back with the sentence that actually explains it.
      */
-    fun csvFields(attested: Boolean, columns: List<String>): List<Pair<String, String>> =
+    fun csvFields(attested: Boolean, columns: List<String>, replaceDetails: Boolean = false): List<Pair<String, String>> =
         buildList {
             if (attested) add(CONSENT_FIELD to CONSENT_VALUE)
+            if (replaceDetails) add("replace_existing_details" to "true")
             columns.forEach { add(COLUMN_FIELD to it) }
         }
 
@@ -476,6 +477,11 @@ object ContactImport {
                 AppStrings.translate(locale, "contactsTasks.importActionLastName")
             "address" -> AppStrings.translate(locale, "contactsTasks.address")
             "notes" -> AppStrings.translate(locale, "contactsTasks.notesField")
+            "other_phone" -> AppStrings.translate(locale, "contactsTasks.importActionOtherPhone")
+            "email" -> AppStrings.translate(locale, "contactsTasks.importActionEmail")
+            "business_name" -> AppStrings.translate(locale, "contactsTasks.importActionBusinessName")
+            "tags" -> AppStrings.translate(locale, "contactsTasks.importActionTags")
+            "custom_fields" -> AppStrings.translate(locale, "contactsTasks.importActionCustomFields")
             "opted_out" ->
                 AppStrings.translate(locale, "contactsTasks.importActionOptedOut")
             ImportColumns.ACTION_IGNORE ->

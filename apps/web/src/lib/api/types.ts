@@ -1670,6 +1670,8 @@ export interface OptOut {
 export interface ImportResult {
   imported: number;
   updated: number;
+  kept?: number;
+  detail_warnings?: { row: number; reason: string }[];
   skipped: number;
   errors: { row: number; reason: string }[];
   /**

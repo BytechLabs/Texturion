@@ -332,6 +332,7 @@ export interface ContactImportRequest {
   file: File | Blob;
   /** True only when a human ticked the attestation on this screen. */
   consentAttested: boolean;
+  replaceExistingDetails?: boolean;
   /**
    * #248 round 3 — one answer per COLUMN of the attached file, complete.
    *
@@ -362,11 +363,13 @@ export interface ContactImportRequest {
 export function importFormData({
   file,
   consentAttested,
+  replaceExistingDetails,
   columns = [],
   properties = [],
 }: ContactImportRequest): FormData {
   const formData = new FormData();
   formData.append("file", file);
+  if (replaceExistingDetails) formData.append("replace_existing_details", "true");
   // Absent, not "false", when unattested: the server's gate is a strict
   // equality against the one passing value, so an omitted field and a false one
   // fail identically — and omitting keeps this function from ever writing an

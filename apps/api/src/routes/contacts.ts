@@ -941,6 +941,7 @@ async function upsertImportedContacts(
   operation: string,
 ) {
   const ids = new Map<string, string>();
+  const created = new Set<string>();
   const skipped = new Map<string, string>();
   const excludeAlternateNumbers = async (rows: ImportedContact[]) => {
     const phones = rows.map((row) => row.phone_e164);
@@ -961,7 +962,10 @@ async function upsertImportedContacts(
       if (writable.length < rows.length) return save(writable, createOnly);
     }
     const saved = unwrap<{ id: string; phone_e164: string }[]>(result, operation);
-    for (const row of saved) ids.set(row.phone_e164, row.id);
+    for (const row of saved) {
+      ids.set(row.phone_e164, row.id);
+      if (createOnly) created.add(row.phone_e164);
+    }
   };
 
   for (const group of groupByKeySet(contacts)) {
@@ -975,18 +979,56 @@ async function upsertImportedContacts(
       // A concurrent insert may have recorded a creator and consent.
       const conflicts = batch
         .filter((row) => !ids.has(row.phone_e164))
-        .map(({
-          created_by_user_id: _creator,
-          creation_origin: _creationOrigin,
-          consent_source: _consentSource,
-          consent_at: _consentAt,
-          consent_attested_by: _consentActor,
-          ...row
-        }) => row);
+        .map(({ company_id, phone_e164, deleted_at }) => ({ company_id, phone_e164, deleted_at }));
       if (conflicts.length > 0) await save(conflicts, false);
     }
   }
-  return { ids, skipped };
+  return { ids, created, skipped };
+}
+
+type ImportContactDetails = {
+  row: number;
+  profile: Record<string, unknown>;
+  other_phones: string[];
+  tags: string[];
+};
+
+async function mergeImportedContactDetails(
+  db: Db,
+  companyId: string,
+  { ids, created, skipped }: Awaited<ReturnType<typeof upsertImportedContacts>>,
+  details: Map<string, ImportContactDetails>,
+  options: { replace: boolean; mayCreateTags: boolean },
+  warnings: { row: number; reason: string }[],
+): Promise<number> {
+  const rows = [...details].flatMap(([phone, detail]) => {
+    const contactId = ids.get(phone);
+    if (!contactId || skipped.has(phone)) return [];
+    const profile = created.has(phone) ? {} : detail.profile;
+    if (!Object.keys(profile).length && !detail.other_phones.length && !detail.tags.length) return [];
+    return [{ contact_id: contactId, row: detail.row, profile, other_phones: detail.other_phones, tags: detail.tags }];
+  });
+  let kept = 0;
+  for (let offset = 0; offset < rows.length; offset += IMPORT_CHUNK) {
+    const batch = rows.slice(offset, offset + IMPORT_CHUNK);
+    const lines = new Map(batch.map(({ contact_id, row }) => [contact_id, row]));
+    const results = unwrap<{ contact_id: string; kept: boolean; refused_phones: string[]; refused_tags: string[] }[]>(
+      await db.rpc("api_merge_import_contact_details", {
+        p_company: companyId,
+        p_rows: batch.map(({ row: _row, ...details }) => details),
+        p_replace: options.replace,
+        p_may_create_tags: options.mayCreateTags,
+      }),
+      "merge imported contact details",
+    );
+    for (const result of results) {
+      if (result.kept) kept++;
+      const row = lines.get(result.contact_id)!;
+      for (const phone of result.refused_phones) warnings.push({ row, reason: `Could not add other phone ${phone}.` });
+      for (const tag of result.refused_tags) warnings.push({ row, reason: `Could not add tag ${tag}.` });
+    }
+  }
+  return kept;
 }
 
 function reportImportNumberSkips(
@@ -1583,6 +1625,13 @@ export const EXPORT_HEADER = [
   "consent_source",
   "consent_at",
   "created_at",
+  "email",
+  "business_name",
+  "address",
+  "notes",
+  "other_phones",
+  "opted_out",
+  "custom_fields",
 ] as const;
 
 /**
@@ -1637,13 +1686,19 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
     consent_source: string | null;
     consent_at: string | null;
     created_at: string;
+    email: string | null;
+    business_name: string | null;
+    address: string | null;
+    notes: string | null;
+    contact_phones?: { phone_e164: string }[];
+    custom_fields?: Record<string, string>;
   }
   const rows: ExportRow[] = [];
   let truncated = false;
   for (;;) {
     let query = db
       .from("contacts")
-      .select(`id,name,phone_e164,consent_source,consent_at,created_at${exportTagJoin}${exportAddressJoin}`)
+      .select(`id,name,phone_e164,consent_source,consent_at,created_at,email,business_name,address,notes,custom_fields,contact_phones(phone_e164)${exportTagJoin}${exportAddressJoin}`)
       .eq("company_id", companyId)
       .is("deleted_at", null)
       .is("merged_into", null);
@@ -1712,7 +1767,10 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
     }
   }
 
-  const ownTags = await tagsByContactIds(db, companyId, exportContactIds);
+  const [ownTags, optedOut] = await Promise.all([
+    tagsByContactIds(db, companyId, exportContactIds),
+    standingOptOuts(db, companyId, rows.map((row) => row.phone_e164)),
+  ]);
   for (const [contactId, list] of ownTags) {
     const set = tagsByContact.get(contactId) ?? new Set<string>();
     for (const tag of list) set.add(tag.name);
@@ -1740,6 +1798,13 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
       row.consent_source,
       row.consent_at,
       row.created_at,
+      csvSafeText(row.email ?? null),
+      csvSafeText(row.business_name ?? null),
+      csvSafeText(row.address ?? null),
+      csvSafeText(row.notes ?? null),
+      csvSafeText((row.contact_phones ?? []).map(({ phone_e164 }) => phone_e164).sort().join(";")),
+      optedOut.has(row.phone_e164) ? "true" : null,
+      row.custom_fields && Object.keys(row.custom_fields).length ? csvSafeText(JSON.stringify(row.custom_fields)) : null,
     ]),
   ];
   // #587: the byte-order mark and the download headers now come from
@@ -2211,9 +2276,12 @@ async function validateCustomFields(
   companyId: string,
   values: Record<string, string>,
 ): Promise<Record<string, string>> {
-  const keys = Object.keys(values);
-  if (keys.length === 0) return {};
+  if (!Object.keys(values).length) return {};
 
+  return checkCustomFields(await contactFieldDefinitions(db, companyId), values);
+}
+
+async function contactFieldDefinitions(db: Db, companyId: string) {
   const defs = unwrap<Record<string, unknown>[]>(
     await db
       .from("contact_field_defs")
@@ -2221,9 +2289,11 @@ async function validateCustomFields(
       .eq("company_id", companyId),
     "contact field definitions",
   );
-  const byKey = new Map(defs.map((def) => [def.key as string, def]));
+  return new Map(defs.map((def) => [def.key as string, def]));
+}
 
-  for (const key of keys) {
+function checkCustomFields(byKey: Map<string, Record<string, unknown>>, values: Record<string, string>) {
+  for (const key of Object.keys(values)) {
     const def = byKey.get(key);
     if (!def) {
       throw new ApiError(
@@ -2242,6 +2312,15 @@ async function validateCustomFields(
     if (reason) throw new ApiError("validation_failed", `${reason}.`);
   }
   return values;
+}
+
+function importCustomFields(raw: string, definitions: Map<string, Record<string, unknown>>) {
+  const parsed = z.record(z.string(), z.string()).safeParse(JSON.parse(raw));
+  if (!parsed.success) throw new ApiError("validation_failed", "Custom fields must be a JSON object of text values.");
+  const values = Object.fromEntries(Object.entries(parsed.data)
+    .map(([key, value]) => [key, value.trim()])
+    .filter(([, value]) => value !== ""));
+  return checkCustomFields(definitions, values);
 }
 
 contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), async (c) => {
@@ -2548,20 +2627,23 @@ contactsRoutes.post(
     const addressCol = mapping.address ?? -1;
     const notesCol = mapping.notes ?? -1;
     const optedOutCol = mapping.opted_out ?? -1;
+    const replace = form.get("replace_existing_details") === "true";
 
     const companyId = c.get("companyId");
     const userId = c.get("userId");
     const db = getDb(getEnv(c.env));
 
     const errors: { row: number; reason: string }[] = [];
+    const warnings: { row: number; reason: string }[] = [];
     interface ImportRow {
       /** The line in the uploaded file this contact's kept row came from. */
       row: number;
       phone: string;
       cells: string[];
-      optedOut: boolean;
+      otherPhones: string[];
     }
     const byPhone = new Map<string, ImportRow>();
+    const optedOutNumbers = new Set<string>();
 
     dataRows.forEach(({ line, cells }) => {
       // The row's TRUE line in the uploaded file. Numbering by position instead
@@ -2592,22 +2674,36 @@ contactsRoutes.post(
       // cell in this column is unreadable.
       const optedOut =
         optedOutCol !== -1 && readContactFlag(cells[optedOutCol]) === true;
-      const seen = byPhone.get(phone);
-      if (seen) {
+      const otherPhones = new Set<string>();
+      const alternateValues = (cells[mapping.other_phone ?? -1] ?? "").split(";", CONTACT_PHONE_CAP + 1);
+      if (alternateValues.length > CONTACT_PHONE_CAP) {
+        throw new ApiError("validation_failed", `Row ${rowNumber} exceeds ${CONTACT_PHONE_CAP} other phone numbers.`);
+      }
+      for (const raw of alternateValues) {
+        const value = csvUnguardText(raw.trim());
+        if (!value) continue;
+        const otherPhone = normalizeNanpPhone(value);
+        if (!otherPhone) warnings.push({ row: rowNumber, reason: `Invalid other phone: ${value}` });
+        if (otherPhone && otherPhone !== phone) otherPhones.add(otherPhone);
+      }
+      if (optedOut) {
+        optedOutNumbers.add(phone);
+        for (const otherPhone of otherPhones) optedOutNumbers.add(otherPhone);
+      }
+      if (byPhone.has(phone)) {
         // The extra ROW is still discarded, and still reported: which of two
         // spellings of a name to keep is a judgement we should not make
         // silently. The RESTRICTION is not the row's, though — it is the
         // person's, and an opt-out anywhere in the file is true of them
         // whichever row happened to carry it. Never the reverse: a later plain
         // row cannot clear a flag an earlier one set.
-        if (optedOut) seen.optedOut = true;
         errors.push({
           row: rowNumber,
           reason: `duplicate phone in file: ${phone}`,
         });
         return;
       }
-      byPhone.set(phone, { row: rowNumber, phone, cells, optedOut });
+      byPhone.set(phone, { row: rowNumber, phone, cells, otherPhones: [...otherPhones] });
     });
 
     const entries = [...byPhone.values()];
@@ -2625,9 +2721,12 @@ contactsRoutes.post(
     // Parallel rather than sequential because neither informs the other and
     // this is the request's whole latency budget: 2000 rows is ten chunks of
     // each.
-    const [existingBasis, standing] = await Promise.all([
+    const [existingBasis, standing, fieldDefinitions] = await Promise.all([
       existingConsentBasis(db, companyId, phones),
-      standingOptOuts(db, companyId, phones),
+      standingOptOuts(db, companyId, [...new Set([...phones, ...optedOutNumbers])]),
+      entries.some(({ cells }) => cells[mapping.custom_fields ?? -1]?.trim())
+        ? contactFieldDefinitions(db, companyId)
+        : new Map<string, Record<string, unknown>>(),
     ]);
     const existingPhones = new Set(existingBasis.keys());
 
@@ -2657,7 +2756,7 @@ contactsRoutes.post(
     for (const entry of entries) {
       const decision = importConsent(
         existingBasis.get(entry.phone),
-        { standing: standing.has(entry.phone), inFile: entry.optedOut },
+        { standing: standing.has(entry.phone), inFile: optedOutNumbers.has(entry.phone) },
         importedAt,
         userId,
       );
@@ -2670,7 +2769,8 @@ contactsRoutes.post(
       }
     }
 
-    const upsertRows = entries.map(({ phone, cells }) => {
+    const details = new Map<string, ImportContactDetails>();
+    const upsertRows = entries.map(({ phone, cells, otherPhones, row: rowNumber }) => {
       const row: ImportedContact = {
         company_id: companyId,
         phone_e164: phone,
@@ -2685,6 +2785,7 @@ contactsRoutes.post(
       // `inbound_sms` and the date they did it, however many times the
       // spreadsheet is re-uploaded; a contact who texted STOP gets nothing.
       Object.assign(row, consentByPhone.get(phone) ?? {});
+      const profile: Record<string, unknown> = {};
       // A blank name cell means "this file says nothing about the name", never
       // "erase the name you already have". The column is decided for the whole
       // file, so one nameless row among named ones used to null out an existing
@@ -2702,22 +2803,41 @@ contactsRoutes.post(
           last: lastNameCol === -1 ? null : unguard(cell(cells, lastNameCol)),
           full: nameCol === -1 ? null : unguard(cell(cells, nameCol)),
         });
-        if (name !== null) row.name = name;
+        if (name !== null) profile.name = name;
       }
-      const address = addressCol === -1 ? null : cell(cells, addressCol);
-      if (address !== null) {
-        row.address = address;
-        Object.assign(row, geocodeReset(address));
+      const address = unguard(cell(cells, addressCol));
+      if (address) profile.address = address;
+      const notes = unguard(cell(cells, notesCol));
+      if (notes) profile.notes = notes;
+      const email = unguard(cell(cells, mapping.email ?? -1));
+      if (email && emailField.safeParse(email).success) profile.email = email;
+      else if (email) warnings.push({ row: rowNumber, reason: "Invalid email address." });
+      const business = unguard(cell(cells, mapping.business_name ?? -1));
+      if (business && business.length <= 200) profile.business_name = business;
+      else if (business) warnings.push({ row: rowNumber, reason: "Business name exceeds 200 characters." });
+      const rawCustom = unguard(cell(cells, mapping.custom_fields ?? -1));
+      if (rawCustom) {
+        try {
+          const custom = importCustomFields(rawCustom, fieldDefinitions);
+          if (Object.keys(custom).length) profile.custom_fields = custom;
+        } catch (error) {
+          if (!(error instanceof SyntaxError) && !(error instanceof ApiError)) throw error;
+          warnings.push({ row: rowNumber, reason: error instanceof ApiError ? error.message : "Invalid custom fields JSON." });
+        }
       }
-      const notes = notesCol === -1 ? null : cell(cells, notesCol);
-      if (notes !== null) row.notes = notes;
+      const tags = (unguard(cell(cells, mapping.tags ?? -1)) ?? "").split(";").map((tag) => tag.trim()).filter(Boolean);
+      const validTags = tags.filter((tag) => tag.length <= 80);
+      if (tags.length !== validTags.length) warnings.push({ row: rowNumber, reason: "A tag exceeds 80 characters." });
+      details.set(phone, { row: rowNumber, profile, other_phones: otherPhones, tags: validTags });
+      if (row.created_by_user_id !== undefined) {
+        Object.assign(row, profile);
+        if (address) Object.assign(row, geocodeReset(address));
+      }
       return row;
     });
     // opted_out=true → opt_outs rows (source='import', SPEC §5) + events for
     // numbers that were not already actively opted out.
-    const optedOutPhones = entries
-      .filter((entry) => entry.optedOut)
-      .map((entry) => entry.phone);
+    const optedOutPhones = [...optedOutNumbers];
     // Which of them this import has to ANNOUNCE on the timeline.
     //
     // Not "which ones changed": that was read from the state before this run's
@@ -2737,6 +2857,7 @@ contactsRoutes.post(
     );
 
     let writtenPhones = phones;
+    let kept = 0;
     try {
       // ===================================================================
       // RESTRICTIONS FIRST (#248).
@@ -2755,9 +2876,14 @@ contactsRoutes.post(
       // ===================================================================
       await writeImportOptOuts(db, companyId, userId, optedOutPhones);
 
-      const { ids, skipped } = await upsertImportedContacts(db, companyId, upsertRows, "import upsert");
+      const saved = await upsertImportedContacts(db, companyId, upsertRows, "import upsert");
+      const { ids, skipped } = saved;
       reportImportNumberSkips(skipped, byPhone, errors, refusals);
       writtenPhones = phones.filter((phone) => !skipped.has(phone));
+      kept = await mergeImportedContactDetails(db, companyId, saved, details, {
+        replace,
+        mayCreateTags: roleHasCapability(c.get("role"), "settings.manage"),
+      }, warnings);
 
       // The timeline entries come LAST because they are the only part that
       // needs the contact ids — a record of the block, after the block itself.
@@ -2822,6 +2948,7 @@ contactsRoutes.post(
       after: {
         imported,
         updated,
+        kept,
         skipped: errors.length,
         // #248: the rows whose attestation was refused. On the audit row as
         // well as in the response, because this is the number a carrier audit
@@ -2841,8 +2968,10 @@ contactsRoutes.post(
     return c.json({
       imported,
       updated,
+      kept,
       skipped: errors.length,
       errors,
+      detail_warnings: warnings,
       // #248: what the file's attestation did NOT cover, and which rows. Named
       // separately from `skipped` because these rows were imported — calling
       // them skipped would be a second wrong answer.

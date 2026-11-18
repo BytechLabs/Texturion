@@ -534,6 +534,7 @@ private fun ContactListScreen(
          * second parameter would be a second thing to get wrong.
          */
         declarations: List<String>,
+        replaceDetails: Boolean = false,
     ) {
         importing = true
         try {
@@ -544,6 +545,7 @@ private fun ContactListScreen(
                     bytes,
                     attested = true,
                     columns = declarations,
+                    replaceDetails = replaceDetails,
                 )
                 ContactImportKind.VCARD -> mutations.importVcard(
                     companyId,
@@ -1150,10 +1152,10 @@ private fun ContactListScreen(
         ImportColumnsSheet(
             step = step,
             onDismiss = { columnStep = null },
-            onConfirm = { declarations ->
+            onConfirm = { declarations, replaceDetails ->
                 columnStep = null
                 scope.launch {
-                    upload(ContactImportKind.CSV, step.fileName, step.bytes, declarations)
+                    upload(ContactImportKind.CSV, step.fileName, step.bytes, declarations, replaceDetails)
                 }
             },
         )
@@ -1823,7 +1825,7 @@ private fun ImportRefusedSheet(
 private fun ImportColumnsSheet(
     step: ColumnStep,
     onDismiss: () -> Unit,
-    onConfirm: (List<String>) -> Unit,
+    onConfirm: (List<String>, Boolean) -> Unit,
 ) {
     val columns = step.plan.columns
     // Keyed on the step: a different file starts from its own guess, and nothing
@@ -1831,6 +1833,7 @@ private fun ImportColumnsSheet(
     var answers by remember(step) {
         mutableStateOf(columns.associate { it.index to it.guess })
     }
+    var replaceDetails by remember(step) { mutableStateOf(false) }
     val answered = columns.count { answers[it.index] != null }
     // The one mistake a person can make here that the server will certainly
     // refuse: two columns declared the same field, and a contact has one address.
@@ -1930,6 +1933,13 @@ private fun ImportColumnsSheet(
             }
 
             Row(
+                Modifier.fillMaxWidth().toggleable(replaceDetails, role = Role.Checkbox) { replaceDetails = it },
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Checkbox(checked = replaceDetails, onCheckedChange = null)
+                Text(t("contactsTasks.replaceExistingDetails"))
+            }
+            Row(
                 Modifier
                     .fillMaxWidth()
                     .padding(top = 16.dp),
@@ -1961,6 +1971,7 @@ private fun ImportColumnsSheet(
                                     )
                                 }
                             },
+                            replaceDetails,
                         )
                     },
                 ) {
@@ -2340,6 +2351,13 @@ private fun ImportReportSheet(report: ImportReport, onDismiss: () -> Unit) {
                     modifier = Modifier.padding(bottom = 4.dp),
                 )
                 ImportRowList(rows = result.errors, rowWord = report.kind.rowWord)
+            }
+            if (result.kept > 0) {
+                Text(t("contactsTasks.importKept", "count" to "${result.kept}"))
+            }
+            if (result.detail_warnings.isNotEmpty()) {
+                Text(t("contactsTasks.importDetailWarnings"))
+                ImportRowList(rows = result.detail_warnings, rowWord = report.kind.rowWord)
             }
             Box(
                 Modifier

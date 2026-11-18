@@ -963,11 +963,15 @@ deliberately *parallel to but separate from* the existing `message_attachments` 
 already exist, UNIQUE(company_id, phone_e164), D7).
 
 - **CSV export — `GET /v1/contacts/export`.** Streams a UTF-8 CSV (BOM for Excel) of the company's contacts
-  (name, phone_e164, tags, consent_source/consent_at, created_at), respecting the *current filter/search*
+  with name, phone, tags, consent source and date, creation date, email, business name, address,
+  notes, other phone numbers, primary phone opt-out, and custom fields. It respects the *current filter/search*
   so "export what I'm looking at" works. Owner/admin or any member (read-only, same visibility as the list).
   Round-trips with the import columns so export→edit→import is lossless. Excludes soft-deleted contacts.
   Exports page through contacts in creation order, up to 50,000 rows. A final notice identifies a capped export.
-  An empty CSV cell for a name, address or note preserves the stored value.
+  CSV imports preserve stored details by default and report how many contacts kept existing values.
+  **Replace existing details** applies populated cells only. Tags and other numbers add to existing
+  entries, with semicolon-separated values and unique phone ownership. Custom fields are a JSON
+  object with text values for the workspace’s current field keys. Blank values preserve saved data.
   CSV and vCard imports keep the original creator on existing contacts.
 - **vCard (.vcf) import — `POST /v1/contacts/import-vcard`.** Accepts one .vcf containing one or many
   `VCARD` blocks (the format phones/Google/Apple export). Parse **vCard 3.0 and 4.0** (`FN`/`N` → name,

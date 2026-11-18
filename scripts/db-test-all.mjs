@@ -137,6 +137,7 @@ const SUITES = [
   "customer_erasure_exports",
   "business_webhook_events",
   "creation_webhook_events",
+  "merge_import_contact_details",
   "usage_window",
   "aup_enforcement",
   "abuse_intake",

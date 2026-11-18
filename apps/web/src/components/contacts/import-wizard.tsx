@@ -45,6 +45,7 @@ import {
 
 import { ImportConsentCheck } from "./import-consent-check";
 import { ImportConsentRefused } from "./import-consent-refused";
+import { ImportDetailsReport } from "./import-summary-view";
 import { decideWizardDismissal } from "./import-wizard-dismissal";
 
 /**
@@ -63,6 +64,11 @@ const ANSWER_LABEL_KEYS: Record<ImportField | "ignore", MessageKey> = {
   last_name: "contacts.answerLastName",
   address: "contacts.answerAddress",
   notes: "contacts.answerNotes",
+  other_phone: "contacts.answerOtherPhone",
+  email: "contacts.answerEmail",
+  business_name: "contacts.answerBusinessName",
+  tags: "contacts.answerTags",
+  custom_fields: "contacts.answerCustomFields",
   opted_out: "contacts.answerOptedOut",
   ignore: "contacts.answerIgnore",
 };
@@ -320,6 +326,7 @@ export function ImportWizard({
   // in the same session has to be attested again rather than inheriting the
   // first one's answer about a different file.
   const [consentAttested, setConsentAttested] = useState(false);
+  const [replaceExistingDetails, setReplaceExistingDetails] = useState(false);
 
   const decision = useMemo(() => decideColumns(columns), [columns]);
   const answered = columns.length - decision.unanswered.length;
@@ -367,6 +374,7 @@ export function ImportWizard({
     setImportError(null);
     setResult(null);
     setConsentAttested(false);
+    setReplaceExistingDetails(false);
   }
 
   // While the import request is in flight, dismissal is swallowed (issue
@@ -433,7 +441,7 @@ export function ImportWizard({
     // that is round two's defect exactly.
     if (file === null || decision.declarations === null) return;
     importContacts.mutate(
-      { file, consentAttested, columns: decision.declarations },
+      { file, consentAttested, replaceExistingDetails, columns: decision.declarations },
       {
         onSuccess: (summaryResult) => {
           setResult(summaryResult);
@@ -830,6 +838,15 @@ export function ImportWizard({
               disabled={importContacts.isPending}
               onCheckedChange={setConsentAttested}
             />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={replaceExistingDetails}
+                disabled={importContacts.isPending}
+                onChange={(event) => setReplaceExistingDetails(event.target.checked)}
+              />
+              {t("contacts.replaceExistingDetails")}
+            </label>
             {importError && (
               <p role="alert" className="text-sm text-destructive">
                 {importError}
@@ -899,6 +916,7 @@ export function ImportWizard({
                 shows. Above the skipped-rows download for the same reason it
                 leads there: it is the unexpected half. */}
             <ImportConsentRefused result={result} />
+            <ImportDetailsReport result={result} />
             {result.errors.length > 0 && (
               <div className="space-y-2">
                 <p className="text-sm text-muted-foreground">

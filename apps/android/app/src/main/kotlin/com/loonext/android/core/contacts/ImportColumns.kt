@@ -58,6 +58,11 @@ object ImportColumns {
         "last_name",
         "address",
         "notes",
+        "other_phone",
+        "email",
+        "business_name",
+        "tags",
+        "custom_fields",
         FIELD_OPTED_OUT,
         ACTION_IGNORE,
     )
@@ -85,6 +90,11 @@ object ImportColumns {
         // the label comes FIRST. Patterns are tried in order and each scans the
         // columns left to right, so the loose one claimed the labels: every row's
         // number read "Mobile" and every row was unusable.
+        "other_phone" to listOf("^otherphones?$", "^alternatephones?$", "^secondaryphone$"),
+        "email" to listOf("^email$", "^emailaddress$", "^email[0-9]*value$"),
+        "business_name" to listOf("^businessname$", "^companyname$", "^company$", "^organization$"),
+        "tags" to listOf("^tags?$", "^labels?$", "^categories$"),
+        "custom_fields" to listOf("^customfields$"),
         FIELD_PHONE to listOf(
             "^phone$",
             "^phone[0-9]*value$",

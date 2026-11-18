@@ -279,11 +279,12 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
         bytes: ByteArray,
         attested: Boolean,
         columns: List<String>,
+        replaceDetails: Boolean = false,
     ): ImportResult = api.json.decodeFromString(
         multipart.postFile(
             path = "/v1/contacts/import",
             companyId = companyId,
-            fields = ContactImport.csvFields(attested, columns),
+            fields = ContactImport.csvFields(attested, columns, replaceDetails),
             fileField = "file",
             fileName = fileName,
             contentType = "text/csv",
