@@ -29,10 +29,10 @@ import {
   scheduledClockProvenance,
   scheduledReasonRecovers,
 } from "@loonext/shared";
+import { EN } from "@/i18n/catalog";
 
 const REPO_ROOT = join(import.meta.dirname, "..", "..", "..", "..", "..");
 
-import { EN } from "@/i18n/catalog";
 
 const SOURCES: Record<string, string> = {
   android: join(

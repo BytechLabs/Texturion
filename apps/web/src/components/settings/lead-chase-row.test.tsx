@@ -11,6 +11,7 @@
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { LeadChaseRow } from "./lead-chase-row";
 
 const state: { role: string; lead_chase_crew_enabled: boolean } = {
   role: "owner",
@@ -34,7 +35,6 @@ vi.mock("@/lib/api/companies", () => ({
   useUpdateCompany: () => ({ mutate, isPending: false }),
 }));
 
-import { LeadChaseRow } from "./lead-chase-row";
 
 function render(next: Partial<typeof state> = {}): string {
   Object.assign(state, {

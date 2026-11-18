@@ -9,6 +9,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EN } from "@/i18n/catalog";
+import { MapView } from "./map-view";
 
 const { useAllTasks, useTasks } = vi.hoisted(() => ({
   useAllTasks: vi.fn(),
@@ -25,7 +26,6 @@ vi.mock("../task-empty", () => ({
   EmptyTasks: () => <p>{EN.tasks.emptyTitle}</p>,
 }));
 
-import { MapView } from "./map-view";
 
 const state = { tab: "all", chips: {} } as never;
 const page = (rows: unknown[]) => ({

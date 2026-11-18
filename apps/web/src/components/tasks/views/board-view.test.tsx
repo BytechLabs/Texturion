@@ -12,6 +12,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EN } from "@/i18n/catalog";
+import { BoardView } from "./board-view";
 
 type Query = Record<string, string | number | boolean | undefined>;
 
@@ -41,7 +42,6 @@ vi.mock("../use-task-drawer", () => ({
   },
 }));
 
-import { BoardView } from "./board-view";
 
 function task(id: string, title: string, done: boolean) {
   return {

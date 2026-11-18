@@ -5,6 +5,7 @@ import { makeTranslate } from "@/i18n/translate";
 import type { ActivityItem } from "@/lib/api/record-activity";
 
 import { activityLine } from "./activity-line";
+import { ActivityTimeline, groupByDay } from "./activity-timeline";
 
 vi.mock("next/link", () => ({
   default: ({ href, children, ...props }: { href: string; children: React.ReactNode }) => (
@@ -24,7 +25,6 @@ vi.mock("@/lib/api/record-activity", async (importOriginal) => ({
   useRecordActivity: (...args: unknown[]) => hook(...args),
 }));
 
-import { ActivityTimeline, groupByDay } from "./activity-timeline";
 
 const t = makeTranslate("en");
 const tFr = makeTranslate("fr-CA");

@@ -26,13 +26,6 @@ import {
   PLAN_PRICE_CENTS,
   US_REGISTRATION_FEE_CENTS,
 } from "@loonext/shared";
-
-// next/font/local needs the Next build plugin; in vitest we only need the
-// stable variable/class contract (AppSurface mounts --font-golos).
-vi.mock("next/font/local", () => ({
-  default: () => ({ variable: "font-golos-mock", className: "font-golos-mock" }),
-}));
-
 import HomePage, { metadata } from "@/app/(marketing)/page";
 import { CountryProvider } from "@/components/marketing/country";
 import {
@@ -45,7 +38,6 @@ import { DARK_BAND_SCRIPT } from "@/components/marketing/thread-demo/script";
 import { StaticThread } from "@/components/marketing/thread-demo/static-thread";
 import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
 import { PLAN_MODULE_CARDS } from "@/lib/api/types";
-
 import {
   AssignTrackEmbed,
   NotesEmbed,
@@ -60,6 +52,14 @@ import { RulesCanada } from "./rules-canada";
 import { HOME_PLANS, planItemText, TheDeal } from "./the-deal";
 import { TruthBar } from "./truth-bar";
 import { UsageMeterEmbed } from "./usage-meter";
+
+// next/font/local needs the Next build plugin; in vitest we only need the
+// stable variable/class contract (AppSurface mounts --font-golos).
+vi.mock("next/font/local", () => ({
+  default: () => ({ variable: "font-golos-mock", className: "font-golos-mock" }),
+}));
+
+
 
 const PAGE = renderToStaticMarkup(<HomePage />);
 

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ConversationDetail } from "@/lib/api/types";
 
 import { ALL_CATEGORIES_ON } from "./thread-filter";
+import { ThreadHeader } from "./thread-header";
 
 afterEach(cleanup);
 
@@ -46,7 +47,6 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "co-1", userId: "u-1", role: "member" }),
 }));
 
-import { ThreadHeader } from "./thread-header";
 
 function conversation(extra: Record<string, unknown> = {}) {
   return {

@@ -3,6 +3,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import BlockedNumbersPage from "./page";
 
 // #725: the effect note reads company and query context these tests do not mount.
 vi.mock("@/components/settings/call-effect-note", () => ({ CallEffectNote: () => null }));
@@ -39,7 +40,6 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import BlockedNumbersPage from "./page";
 
 beforeEach(() => {
   unblockMutate.mockReset();

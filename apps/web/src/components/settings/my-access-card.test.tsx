@@ -11,6 +11,7 @@
  */
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { MyAccessCard } from "./my-access-card";
 
 const { rowsRef, roleRef, askedRef } = vi.hoisted(() => ({
   rowsRef: { current: [] as unknown[] },
@@ -30,7 +31,6 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "c-1", role: roleRef.current }),
 }));
 
-import { MyAccessCard } from "./my-access-card";
 
 afterEach(cleanup);
 beforeEach(() => {

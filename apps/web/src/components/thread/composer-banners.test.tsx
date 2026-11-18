@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { ComposerBanner } from "./composer-banner";
+import { ComposerBannerCard } from "./composer-banners";
 
 /**
  * The banner that REPLACES the composer. Pins the rule that every kind names
@@ -41,7 +42,6 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import { ComposerBannerCard } from "./composer-banners";
 
 const THREAD = {
   conversationId: "3f1a6c2e-8b4d-4f19-9a70-2c5e8d1b4a63",

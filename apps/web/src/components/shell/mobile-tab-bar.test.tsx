@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { MobileTabBar } from "./mobile-tab-bar";
 
 /**
  * #100: the mobile shell is the bottom tab bar alone — no top header. The
@@ -41,7 +42,6 @@ vi.mock("./mobile-account-sheet", () => ({
   MobileAccountSheet: () => <div data-sheet>sheet</div>,
 }));
 
-import { MobileTabBar } from "./mobile-tab-bar";
 
 beforeEach(() => {
   state.unread = 0;

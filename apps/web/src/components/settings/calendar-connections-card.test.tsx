@@ -13,6 +13,9 @@ import type {
   CalendarConnection,
   CalendarConnectionsView,
 } from "@/lib/api/calendar";
+import { LocaleProvider } from "@/i18n/provider";
+import { TZDATA_ERA, TZDATA_RELEASE } from "@/test/tzdata-era";
+import { CalendarConnectionsCard } from "./calendar-connections-card";
 
 const mocks = vi.hoisted(() => ({
   authorize: vi.fn(),
@@ -64,10 +67,7 @@ vi.mock("sonner", () => ({
   toast: { error: mocks.toastError, success: mocks.toastSuccess },
 }));
 
-import { LocaleProvider } from "@/i18n/provider";
-import { TZDATA_ERA, TZDATA_RELEASE } from "@/test/tzdata-era";
 
-import { CalendarConnectionsCard } from "./calendar-connections-card";
 
 function connection(
   patch: Partial<CalendarConnection> = {},

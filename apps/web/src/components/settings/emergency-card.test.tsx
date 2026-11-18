@@ -7,6 +7,7 @@ import {
   emergencyReplyBody,
 } from "@loonext/shared";
 import type { CompanyView } from "@/lib/api/types";
+import { EmergencyCard } from "./emergency-card";
 
 /**
  * #460 — the founder's complaint was that the product assumes a trade. The
@@ -32,7 +33,6 @@ vi.mock("@/lib/api/companies", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { EmergencyCard } from "./emergency-card";
 
 function companyWith(overrides: Partial<CompanyView>): CompanyView {
   return {

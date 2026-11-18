@@ -1,5 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { AddressList } from "./address-list";
+import type { ContactDetail } from "@/lib/api/types";
 
 vi.mock("@/lib/api/contacts", () => ({
   useAddContactAddress: () => ({ isPending: false, mutateAsync: vi.fn() }),
@@ -7,8 +9,6 @@ vi.mock("@/lib/api/contacts", () => ({
   useRemoveContactAddress: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 
-import { AddressList } from "./address-list";
-import type { ContactDetail } from "@/lib/api/types";
 
 function contact(addresses: ContactDetail["addresses"]): ContactDetail {
   return { id: "c1", addresses } as ContactDetail;

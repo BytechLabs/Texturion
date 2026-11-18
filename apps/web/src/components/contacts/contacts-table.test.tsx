@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { MockInstance } from 'vitest';
 
 import type { ContactListItem } from "@/lib/api/types";
+import { ContactsTable } from "./contacts-table";
 
 const { router, contactsCalls, actionsRendered, listData } = vi.hoisted(() => ({
   router: { push: vi.fn(), replace: vi.fn() },
@@ -94,7 +95,6 @@ vi.mock("@/components/contacts/contact-filter", () => ({
   ContactActiveFilters: () => null,
 }));
 
-import { ContactsTable } from "./contacts-table";
 
 function contact(id: string, name: string): ContactListItem {
   return {

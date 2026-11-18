@@ -13,6 +13,8 @@ import type { ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { ForYou, ForYouTask } from "./types";
+import { forYouWithoutTask, useForYou, useSpamReview } from "./for-you";
+import { keys } from "./keys";
 
 const { BASE, fetchSpy } = vi.hoisted(() => ({
   BASE: "https://api.loonext.test",
@@ -31,8 +33,6 @@ vi.mock(import("./client"), async () => {
   };
 });
 
-import { forYouWithoutTask, useForYou, useSpamReview } from "./for-you";
-import { keys } from "./keys";
 
 function task(id: string): ForYouTask {
   return {

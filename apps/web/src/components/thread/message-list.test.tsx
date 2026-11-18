@@ -13,6 +13,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "@/lib/api/types";
 
 import { ALL_CATEGORIES_ON } from "./thread-filter";
+import { MessageList } from "./message-list";
 
 const SCROLL_HEIGHT = 4000;
 
@@ -42,7 +43,6 @@ vi.mock("./thread-summary-card", () => ({ ThreadSummaryCard: () => null }));
 vi.mock("./thread-filter-bar", () => ({ ThreadFilterBar: () => null }));
 vi.mock("./anchor-missing-notice", () => ({ AnchorMissingNotice: () => null }));
 
-import { MessageList } from "./message-list";
 
 function message(overrides: Partial<Message>): Message {
   return {

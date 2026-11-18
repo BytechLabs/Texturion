@@ -1,18 +1,5 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-
-// The (auth) group layout pulls in the app shell providers (TanStack Query,
-// the wordmark), and the invite segment layout mounts the shared gate escape
-// cluster. We only assert static `metadata` and layout shape, so stub those
-// imports to keep this a node-only unit test.
-vi.mock("@/components/shell/wordmark", () => ({ Wordmark: () => null }));
-vi.mock("@/components/shell/gate-header", () => ({
-  GateEscape: () => <div data-testid="gate-escape" />,
-}));
-vi.mock("../app-providers", () => ({
-  AppProviders: ({ children }: { children: React.ReactNode }) => children,
-}));
-
 import { metadata as authMetadata } from "./layout";
 import InviteTitleLayout, {
   metadata as inviteMetadata,
@@ -27,6 +14,19 @@ import SignupTitleLayout, {
 import UpdateTitleLayout, {
   metadata as updateMetadata,
 } from "./update-password/layout";
+
+// The (auth) group layout pulls in the app shell providers (TanStack Query,
+// the wordmark), and the invite segment layout mounts the shared gate escape
+// cluster. We only assert static `metadata` and layout shape, so stub those
+// imports to keep this a node-only unit test.
+vi.mock("@/components/shell/wordmark", () => ({ Wordmark: () => null }));
+vi.mock("@/components/shell/gate-header", () => ({
+  GateEscape: () => <div data-testid="gate-escape" />,
+}));
+vi.mock("../app-providers", () => ({
+  AppProviders: ({ children }: { children: React.ReactNode }) => children,
+}));
+
 
 describe("(auth) group metadata", () => {
   it("takes the whole auth surface out of search indexes", () => {

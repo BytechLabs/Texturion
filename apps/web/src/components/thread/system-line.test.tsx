@@ -6,6 +6,8 @@
 import { describe, expect, it, vi } from "vitest";
 
 import type { ConversationEvent } from "@/lib/api/types";
+import { NARRATED_PAYMENT_EVENT_TYPES } from "./payment-line";
+import { eventSentence } from "./system-line";
 
 // D43: SystemLine renders the voicemail player, whose data hook chains to the
 // env-validated API client — mocked out so this stays a pure-sentence test.
@@ -13,8 +15,6 @@ vi.mock("@/components/calls/voicemail-player", () => ({
   VoicemailPlayer: () => null,
 }));
 
-import { NARRATED_PAYMENT_EVENT_TYPES } from "./payment-line";
-import { eventSentence } from "./system-line";
 
 function event(
   type: string,

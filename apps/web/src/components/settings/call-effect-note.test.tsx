@@ -5,6 +5,7 @@
  */
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CallEffectNote } from "./call-effect-note";
 
 const { counts, role, enabledSeen } = vi.hoisted(() => ({
   counts: { current: {} as Record<string, number> },
@@ -22,7 +23,6 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: role.current }),
 }));
 
-import { CallEffectNote } from "./call-effect-note";
 
 afterEach(cleanup);
 beforeEach(() => {

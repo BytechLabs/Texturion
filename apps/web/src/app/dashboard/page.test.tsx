@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
+import DashboardRedirectPage from "./page";
 
 // next/navigation.redirect throws a special control-flow error in the real
 // runtime; here we record the target and throw so the function stops, exactly
@@ -10,7 +11,6 @@ vi.mock(import("next/navigation"), () => ({
   redirect: (url: string) => redirected(url),
 }));
 
-import DashboardRedirectPage from "./page";
 
 async function run(
   params: { checkout?: string; session_id?: string },

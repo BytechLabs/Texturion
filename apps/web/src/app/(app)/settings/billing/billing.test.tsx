@@ -3,23 +3,23 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-// #725: the effect note reads company and query context these tests do not mount.
-vi.mock("@/components/settings/call-effect-note", () => ({ CallEffectNote: () => null }));
-
 import {
   CANCELLATION_GRACE_DAYS,
   cancellationOffer,
   formatMoney,
   PLAN_PRICE_CENTS,
 } from "@loonext/shared";
-
 import { sayEnglish } from "@/i18n/translate";
 import { ApiError } from "@/lib/api/error";
 import { PLAN_PRICING } from '@/lib/api/types';
 import type { CompanyView } from '@/lib/api/types';
-
 import { PLAN_FACTS } from "./plan-facts";
+
+// #725: the effect note reads company and query context these tests do not mount.
+vi.mock("@/components/settings/call-effect-note", () => ({ CallEffectNote: () => null }));
+
+
+
 
 describe("billing plan facts trace to PLAN_PRICING (findings 6 + 9)", () => {
   it("derives every plan's price from the shared constant", () => {

@@ -11,22 +11,7 @@
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { act, cleanup, render, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-
-const { apiFetch } = vi.hoisted(() => ({
-  apiFetch: vi.fn<(path: string, options?: { method?: string }) => Promise<unknown>>(),
-}));
-
-vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "c-1" }));
-vi.mock("./client", () => ({
-  apiFetch: (path: string, options?: { method?: string }) => apiFetch(path, options),
-}));
-vi.mock("@/components/notifications/service-worker-registrar", () => ({
-  ServiceWorkerRegistrar: () => null,
-}));
-vi.mock("@/components/ui/sonner", () => ({ Toaster: () => null }));
-
 import { AppProviders } from "@/app/app-providers";
-
 import { useReferralMoment } from "./billing";
 import { useBlockedSenders } from "./blocked-senders";
 import { useDataExports } from "./exports";
@@ -48,6 +33,21 @@ import { useTags } from "./tags";
 import { useTemplates } from "./templates";
 import { useMembers } from "./team";
 import { useUsage } from "./usage";
+
+const { apiFetch } = vi.hoisted(() => ({
+  apiFetch: vi.fn<(path: string, options?: { method?: string }) => Promise<unknown>>(),
+}));
+
+vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "c-1" }));
+vi.mock("./client", () => ({
+  apiFetch: (path: string, options?: { method?: string }) => apiFetch(path, options),
+}));
+vi.mock("@/components/notifications/service-worker-registrar", () => ({
+  ServiceWorkerRegistrar: () => null,
+}));
+vi.mock("@/components/ui/sonner", () => ({ Toaster: () => null }));
+
+
 
 const MINUTE = 60_000;
 const C = "c-1";

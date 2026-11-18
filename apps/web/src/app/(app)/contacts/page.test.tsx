@@ -4,6 +4,7 @@
  */
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import ContactsPage from "./page";
 
 const url = { search: "" };
 
@@ -29,7 +30,6 @@ vi.mock("@/components/contacts/contacts-table", async (importOriginal) => ({
   ContactsTable: () => null,
 }));
 
-import ContactsPage from "./page";
 
 describe("/contacts export toolbar", () => {
   it("exports the search and tag the URL names", () => {

@@ -3,6 +3,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { BlockNumberDialog, useBlockedNumber } from "./block-number";
 
 afterEach(cleanup);
 
@@ -21,7 +22,6 @@ vi.mock("@/lib/company/provider", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { BlockNumberDialog, useBlockedNumber } from "./block-number";
 
 beforeEach(() => {
   blockMutate.mockReset();

@@ -4,13 +4,13 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AutoSaveNotes } from "./inline-field";
 
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 vi.mock("@/lib/api/client", () => ({ apiFetch }));
 vi.mock("@/lib/company/provider", () => ({ useCompanyId: () => "company-1" }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { AutoSaveNotes } from "./inline-field";
 
 type Init = { method?: string; body?: unknown };
 

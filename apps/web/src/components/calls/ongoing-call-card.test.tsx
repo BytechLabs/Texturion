@@ -9,6 +9,12 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { Call, Member, PhoneNumberSummary } from "@/lib/api/types";
+import {
+  isOngoingCall,
+  liveDurationLabel,
+  OngoingCalls,
+  ongoingPhase,
+} from "./ongoing-call-card";
 
 // The card resolves member names from the roster the app already fetches and
 // lines from the numbers query; both are seeded per test. The transitive
@@ -33,12 +39,6 @@ vi.mock("@/lib/company/provider", () => ({
   useCompanyId: () => "co-1",
 }));
 
-import {
-  isOngoingCall,
-  liveDurationLabel,
-  OngoingCalls,
-  ongoingPhase,
-} from "./ongoing-call-card";
 
 function liveCall(overrides: Partial<Call> = {}): Call {
   return {

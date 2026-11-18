@@ -47,13 +47,12 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { keysetFilter, unwrap } from "./core/http";
+import { buildLeadSourceReport, coverageNote } from '../reports/lead-sources';
+import type { LeadSourceRollupRow } from '../reports/lead-sources';
 
 export const reportsRoutes = new Hono<AppEnv>();
 
 /** Windows the clients offer. Bounded so one request cannot scan all history. */
-import { buildLeadSourceReport, coverageNote } from '../reports/lead-sources';
-import type { LeadSourceRollupRow } from '../reports/lead-sources';
-
 const ALLOWED_DAYS = [7, 30, 90] as const;
 const DEFAULT_DAYS = 30;
 

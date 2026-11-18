@@ -6,12 +6,13 @@ import { act, cleanup, fireEvent, render as mount } from "@testing-library/react
 import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { CompanyView, Usage } from "@/lib/api/types";
+import CallingSettingsPage from "./page";
 
 // #725: the effect note reads company and query context these tests do not mount.
 vi.mock("@/components/settings/setting-choice-note", () => ({ SettingChoiceNote: () => null }));
 vi.mock("@/components/settings/call-effect-note", () => ({ CallEffectNote: () => null }));
 
-import type { CompanyView, Usage } from "@/lib/api/types";
 
 // Hoisted mock state the hooks read; tests seed it before rendering.
 type QueryShape = "ready" | "pending" | "error";
@@ -133,7 +134,6 @@ vi.mock("@/lib/api/voicemail-greetings", async () => {
   };
 });
 
-import CallingSettingsPage from "./page";
 
 function withClient(children: ReactNode) {
   const client = new QueryClient({

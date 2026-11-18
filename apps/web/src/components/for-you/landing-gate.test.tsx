@@ -6,6 +6,7 @@
  */
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LandingGate } from "./landing-gate";
 
 
 const { active, replace } = vi.hoisted(() => ({
@@ -26,7 +27,6 @@ vi.mock("@/lib/company/provider", async (importOriginal) => ({
   }),
 }));
 
-import { LandingGate } from "./landing-gate";
 
 const HINT = "loonext:landing-role:user-1:company-1";
 

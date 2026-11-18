@@ -12,11 +12,11 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { patchQuietly, useForYouNotificationsRealtime } from "./for-you-notifications";
 
 let companyId = "company-a";
 vi.mock(import("@/lib/company/provider"), () => ({ useCompanyId: () => companyId }));
 
-import { patchQuietly, useForYouNotificationsRealtime } from "./for-you-notifications";
 
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 

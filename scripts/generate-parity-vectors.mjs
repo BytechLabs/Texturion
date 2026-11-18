@@ -92,16 +92,6 @@ import { prepaidConversionCopy } from "../packages/shared/src/prepaid-conversion
  * honest one.
  */
 import { settingsEn } from "../apps/web/src/i18n/sections/settings.ts";
-
-/** The English half of the catalogue, for the vectors above. */
-const englishPrepaidCopy = (key) => {
-  const [section, name] = key.split(".");
-  const value = section === "settings" ? settingsEn[name] : undefined;
-  if (typeof value !== "string") {
-    throw new Error(`no English for ${key} — the vectors cannot be generated`);
-  }
-  return value;
-};
 import { lastCompleteMonth } from "../packages/shared/src/usage-export.ts";
 import { parseQuickAdd } from "../packages/shared/src/quick-add.ts";
 import { parseReferenceTokens, referenceQueryAt } from "../packages/shared/src/task-references.ts";
@@ -118,6 +108,16 @@ import {
   paymentRequestState,
   payoutReadiness,
 } from "../packages/shared/src/payments.ts";
+
+/** The English half of the catalogue, for the vectors above. */
+const englishPrepaidCopy = (key) => {
+  const [section, name] = key.split(".");
+  const value = section === "settings" ? settingsEn[name] : undefined;
+  if (typeof value !== "string") {
+    throw new Error(`no English for ${key} — the vectors cannot be generated`);
+  }
+  return value;
+};
 
 const OUT_DIR = join("packages", "shared", "vectors");
 

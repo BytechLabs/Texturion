@@ -37,6 +37,7 @@ import type {
 } from "@/lib/api/types";
 
 import type { NumberHoldState } from "./number-hold";
+import { PortCard } from "./port-card";
 
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 vi.mock("@/lib/company/provider", () => ({
@@ -76,7 +77,6 @@ vi.mock("@/lib/api/numbers", () => ({
   useReleaseNumber: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 
-import { PortCard } from "./port-card";
 
 /**
  * #228 — the shared catalogue names a key, so the assertions resolve it.

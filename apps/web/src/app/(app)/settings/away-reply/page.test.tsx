@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CompanyView } from "@/lib/api/types";
+import AwayReplySettingsPage from "./page";
 
 /**
  * The away reply is best-effort: when the send gates refuse a destination it
@@ -79,7 +80,6 @@ vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({ data: { data: [] } }),
 }));
 
-import AwayReplySettingsPage from "./page";
 
 const render = () => renderToStaticMarkup(<AwayReplySettingsPage />);
 

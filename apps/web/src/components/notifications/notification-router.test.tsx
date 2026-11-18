@@ -4,6 +4,7 @@ import { join } from "node:path";
 
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { inAppPath, NotificationRouter } from "./notification-router";
 
 const { push } = vi.hoisted(() => ({ push: vi.fn() }));
 
@@ -11,7 +12,6 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ push, replace: vi.fn() }),
 }));
 
-import { inAppPath, NotificationRouter } from "./notification-router";
 
 const ORIGIN = window.location.origin;
 

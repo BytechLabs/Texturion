@@ -3,6 +3,8 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type { Call } from "@/lib/api/types";
+import { CallRow } from "./call-row";
 
 const state = { canDelete: true };
 
@@ -30,9 +32,7 @@ vi.mock("next/link", () => ({
   ),
 }));
 
-import type { Call } from "@/lib/api/types";
 
-import { CallRow } from "./call-row";
 
 afterEach(() => {
   cleanup();

@@ -6,6 +6,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { SavedViewsMenu } from "./saved-views-menu";
 
 const { rows, useSavedViewCounts } = vi.hoisted(() => ({
   rows: { current: [] as { id: string; name: string; shared: boolean; filters: object }[] },
@@ -28,7 +29,6 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: "owner", userId: "u1" }),
 }));
 
-import { SavedViewsMenu } from "./saved-views-menu";
 
 afterEach(cleanup);
 beforeEach(() => {

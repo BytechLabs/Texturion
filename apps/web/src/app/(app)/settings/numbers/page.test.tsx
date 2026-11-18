@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CompanyView, PhoneNumberSummary } from "@/lib/api/types";
+import NumbersSettingsPage from "./page";
 
 /**
  * #74: a plan-included number can be (re)provisioned in-app whenever a slot is
@@ -126,7 +127,6 @@ vi.mock("@/components/settings/registration-section", () => ({
   RegistrationSection: () => null,
 }));
 
-import NumbersSettingsPage from "./page";
 
 function company(overrides: Partial<CompanyView> = {}): CompanyView {
   return {

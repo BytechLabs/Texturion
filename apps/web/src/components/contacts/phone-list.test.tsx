@@ -12,6 +12,13 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { PhoneList } from "./phone-list";
+// #228: the two sentences this surface owns now live in the catalogue rather
+// than as exported constants on the component. Read from there so the test
+// still asserts the words that actually render.
+import { contactsEn } from "@/i18n/sections/contacts";
+import { ApiError } from "@/lib/api/error";
+import type { ContactDetail } from "@/lib/api/types";
 
 // `vi.mock` is hoisted above every `const` in this file, so the spies have to
 // be created inside `vi.hoisted` — a plain `const` above the mock is still a
@@ -31,16 +38,9 @@ vi.mock("sonner", () => ({
   toast: { error: toastError, success: vi.fn() },
 }));
 
-import { PhoneList } from "./phone-list";
-// #228: the two sentences this surface owns now live in the catalogue rather
-// than as exported constants on the component. Read from there so the test
-// still asserts the words that actually render.
-import { contactsEn } from "@/i18n/sections/contacts";
 
 const PHONE_ADD_LABEL = contactsEn.phoneAddLabel;
 const PHONE_MATCH_NOTE = contactsEn.phoneMatchNote;
-import { ApiError } from "@/lib/api/error";
-import type { ContactDetail } from "@/lib/api/types";
 
 function contact(phones: ContactDetail["phones"]): ContactDetail {
   return { id: "c1", phones } as ContactDetail;

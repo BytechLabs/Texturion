@@ -8,6 +8,7 @@ import { followUpPresets } from "@loonext/shared";
 
 import type { Quote } from "@/lib/api/quotes";
 import type { SnoozeConversationInput } from "@/lib/api/conversations";
+import { OutstandingQuotesSection } from "./outstanding-quotes-section";
 
 /**
  * #287 — "outstanding quotes are a queue WITH FOLLOW-UP".
@@ -58,7 +59,6 @@ vi.mock("@/lib/company/provider", () => ({
   useCompanyId: () => "company-1",
 }));
 
-import { OutstandingQuotesSection } from "./outstanding-quotes-section";
 
 const quote = (over: Partial<Quote> = {}): Quote =>
   ({

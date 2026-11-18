@@ -8,6 +8,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AppShell } from "./app-shell";
 
 const drawn = vi.hoisted((): boolean[] => []);
 
@@ -46,7 +47,6 @@ vi.mock("./sidebar", () => ({
   },
 }));
 
-import { AppShell } from "./app-shell";
 
 const KEY = "loonext:sidebar-collapsed";
 

@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { PhoneNumberSummary } from "@/lib/api/types";
+import { WorkspaceNumbers } from "./workspace-bits";
 
 /**
  * The sidebar and the account sheet show the workspace's number from the
@@ -21,7 +22,6 @@ vi.mock("@/lib/api/me-company", () => ({
       : { isPending: false, data: { company: { numbers: state.numbers } } },
 }));
 
-import { WorkspaceNumbers } from "./workspace-bits";
 
 beforeEach(() => {
   state.pending = false;

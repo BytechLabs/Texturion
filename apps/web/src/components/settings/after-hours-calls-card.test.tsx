@@ -11,6 +11,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { AfterHoursCallsCard } from "./after-hours-calls-card";
 
 // #725: the effect note reads company and query context these tests do not mount.
 vi.mock("@/components/settings/setting-choice-note", () => ({ SettingChoiceNote: () => null }));
@@ -31,7 +32,6 @@ vi.mock("@/lib/api/voicemail-greetings", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { AfterHoursCallsCard } from "./after-hours-calls-card";
 
 afterEach(cleanup);
 beforeEach(() => {

@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 
 import type { PushPhase } from "@/lib/push/use-push-subscription";
+import { NotificationFeed } from "./notification-bell";
 
 /**
  * The offer to turn on browser notifications, made inside the notification
@@ -36,7 +37,6 @@ vi.mock("@/lib/realtime/for-you-notifications", () => ({
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
-import { NotificationFeed } from "./notification-bell";
 
 const render = (phase: PushPhase) => {
   state.phase = phase;

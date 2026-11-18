@@ -12,6 +12,8 @@
  */
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NumberHoursDialog, patchFrom } from "./number-hours-dialog";
+import { toFormState } from "@/lib/settings/business-hours-form";
 
 const { save, identity } = vi.hoisted(() => ({
   save: vi.fn(),
@@ -26,8 +28,6 @@ vi.mock("@/lib/api/numbers", () => ({
 }));
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
-import { NumberHoursDialog, patchFrom } from "./number-hours-dialog";
-import { toFormState } from "@/lib/settings/business-hours-form";
 
 const WORKSPACE_WEEK = {
   mon: { open: "08:00", close: "17:00" },

@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { ConversationActions } from "./command-palette";
 
 /**
  * The "Actions on this conversation" group must never advertise an action it
@@ -49,7 +50,6 @@ vi.mock("@/lib/api/search", () => ({
   useSearch: () => ({ data: undefined, isFetching: false }),
 }));
 
-import { ConversationActions } from "./command-palette";
 
 function render() {
   return renderToStaticMarkup(

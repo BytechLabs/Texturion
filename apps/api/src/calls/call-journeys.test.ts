@@ -22,11 +22,6 @@
 import { randomUUID } from "node:crypto";
 
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
-
-vi.mock(import("../observability/capture"), async () =>
-  (await import("../test/capture-mock")).captureModuleMock(),
-);
-
 import type { Env } from "../env";
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
 import { callsRoutes } from "../routes/calls";
@@ -36,7 +31,6 @@ import { captured, resetCaptures } from "../test/capture-mock";
 import { apiRequest, buildTestApp } from "../test/routes-harness";
 import { completeEnv, createTestAuth } from '../test/support';
 import type { TestAuth } from '../test/support';
-
 import { drainCallEvents } from '../../e2e/call-budget';
 import { createCallSessions } from '../../e2e/call-sessions';
 import type { CallSessionsDouble } from '../../e2e/call-sessions';
@@ -48,6 +42,12 @@ import { createSessionRuntime } from './runtime';
 import type { SessionRuntime } from './runtime';
 import type { CallSessionDO } from "./session-do";
 import { makeRuntime } from "./session-do-fake";
+
+vi.mock(import("../observability/capture"), async () =>
+  (await import("../test/capture-mock")).captureModuleMock(),
+);
+
+
 
 const FAR_END_E164 = "+16135550160";
 /** One workspace and line per journey, as the e2e layer seeds them. */

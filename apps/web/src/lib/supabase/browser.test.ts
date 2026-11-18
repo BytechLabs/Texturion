@@ -14,6 +14,9 @@
 import { AuthApiError, AuthRetryableFetchError } from "@supabase/supabase-js";
 import { describe, expect, it, vi } from 'vitest';
 import type { Mock } from 'vitest';
+import { getAccessToken, getSupabaseBrowser } from "./browser";
+import { SUPABASE_COOKIE_OPTIONS } from "./cookie-options";
+import { getSupabaseServer } from "./server";
 
 /** Both @supabase/ssr factories, narrowed to the argument this suite reads. */
 type ClientFactory = (
@@ -52,9 +55,6 @@ vi.mock("next/headers", () => ({
   cookies: async () => ({ getAll: () => [], set: () => {} }),
 }));
 
-import { getAccessToken, getSupabaseBrowser } from "./browser";
-import { SUPABASE_COOKIE_OPTIONS } from "./cookie-options";
-import { getSupabaseServer } from "./server";
 
 /** The `cookieOptions` a mocked factory was constructed with. */
 function cookieOptionsOf(

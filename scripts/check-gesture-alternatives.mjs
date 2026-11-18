@@ -40,6 +40,8 @@
  * notice.
  */
 import { readFileSync, existsSync } from "node:fs";
+import { readdirSync, statSync } from "node:fs";
+import { join } from "node:path";
 
 /**
  * Every phone file allowed to start a custom drag, and the single-pointer path
@@ -158,8 +160,6 @@ const STARTS_A_DRAG = [
   { pattern: /\.onDrag\s*[({]/, ext: ".swift" },
 ];
 
-import { readdirSync, statSync } from "node:fs";
-import { join } from "node:path";
 
 function walk(dir, out = []) {
   for (const entry of readdirSync(dir, { withFileTypes: true })) {

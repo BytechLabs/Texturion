@@ -5,6 +5,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { CalendarView } from "./calendar-view";
 
 const { openNewTask, tz } = vi.hoisted(() => ({
   openNewTask: vi.fn(),
@@ -34,7 +35,6 @@ vi.mock("../use-task-drawer", () => ({
   useTaskDrawer: () => ({ hrefForTask: () => "/tasks" }),
 }));
 
-import { CalendarView } from "./calendar-view";
 
 const STATE = {
   view: "calendar",

@@ -8,6 +8,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { SettingChoice } from "@/lib/api/companies";
+import { SettingChoiceNote } from "./setting-choice-note";
 
 const { choices, role, enabledSeen } = vi.hoisted(() => ({
   choices: { current: [] as SettingChoice[] },
@@ -25,7 +26,6 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ role: role.current }),
 }));
 
-import { SettingChoiceNote } from "./setting-choice-note";
 
 afterEach(cleanup);
 beforeEach(() => {

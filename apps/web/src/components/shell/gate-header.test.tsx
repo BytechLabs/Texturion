@@ -1,5 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { writeCompanyCookie } from "@/lib/company/cookie";
+import {
+  GateEscape,
+  GateHeader,
+  switchWorkspaceFromGate,
+} from "./gate-header";
 
 /**
  * #207: gates (onboarding wizard, checkout step, setting-up, invite accept)
@@ -51,13 +57,7 @@ vi.mock("@/lib/company/cookie", async (importOriginal) => {
   };
 });
 
-import { writeCompanyCookie } from "@/lib/company/cookie";
 
-import {
-  GateEscape,
-  GateHeader,
-  switchWorkspaceFromGate,
-} from "./gate-header";
 
 const TWO_WORKSPACES: FakeMembership[] = [
   { company_id: "co-a", name: "Rivera Plumbing" },

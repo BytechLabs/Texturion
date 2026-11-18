@@ -4,9 +4,6 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
-
-const REPO = join(import.meta.dirname, "..", "..", "..");
-
 import {
   CARRIER_OPT_OUT_ERROR_CODE,
   GENERIC_SEND_FAILURE_KEY,
@@ -14,6 +11,9 @@ import {
   SEND_FAILURE_MESSAGE_KEYS,
   sendFailureMessageKey,
 } from "./send-failures";
+
+const REPO = join(import.meta.dirname, "..", "..", "..");
+
 
 describe(sendFailureMessageKey, () => {
   it("keeps the opt-out wording the clients already shipped", () => {

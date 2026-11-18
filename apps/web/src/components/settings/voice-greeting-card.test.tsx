@@ -11,6 +11,7 @@
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { VoiceGreetingCard } from "./voice-greeting-card";
 
 const {
   recordMutate,
@@ -47,7 +48,6 @@ vi.mock("sonner", () => ({
   toast: { success: toastSuccess, error: toastError },
 }));
 
-import { VoiceGreetingCard } from "./voice-greeting-card";
 
 afterEach(cleanup);
 

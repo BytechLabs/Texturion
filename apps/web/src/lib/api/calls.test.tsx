@@ -10,6 +10,8 @@ import { act, renderHook, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Call, Page } from "./types";
+import { useCall, useCalls, useVoicemailUrl } from "./calls";
+import { keys } from "./keys";
 
 const { apiFetch } = vi.hoisted(() => ({
   apiFetch: vi.fn<(path: string, options?: { signal?: AbortSignal }) => Promise<unknown>>(),
@@ -20,8 +22,6 @@ vi.mock("./client", () => ({
   apiFetch: (path: string, options?: { signal?: AbortSignal }) => apiFetch(path, options),
 }));
 
-import { useCall, useCalls, useVoicemailUrl } from "./calls";
-import { keys } from "./keys";
 
 const C = "c-1";
 

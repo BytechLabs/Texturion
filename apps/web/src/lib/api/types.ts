@@ -16,6 +16,7 @@ import type {
   CrewSizeBucket,
   HoursException,
   Locale,
+  MemberRole,
   MmsMediaKind,
   NumberAccessExplanation,
   VoicemailIntake,
@@ -42,8 +43,6 @@ export type SubscriptionStatus =
  * web app used to keep its own copy, which is how it came to disagree with the
  * server about which roles exist the moment a preset was added.
  */
-import type {MemberRole} from "@loonext/shared";
-
 export { type MemberRole } from "@loonext/shared";
 
 export type PlanId = "starter" | "pro";

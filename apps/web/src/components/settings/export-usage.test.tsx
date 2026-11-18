@@ -11,6 +11,14 @@
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  EXPORT_USAGE_ACTION,
+  EXPORT_USAGE_NOTE,
+  lastCompleteMonth,
+} from "@loonext/shared";
+import { sayEnglish } from "@/i18n/translate";
+import { ExportUsage } from "./export-usage";
+import { ApiError } from "@/lib/api/error";
 
 const { requestExport, toastSuccess, toastError, role } = vi.hoisted(() => ({
   requestExport: vi.fn(),
@@ -30,13 +38,7 @@ vi.mock("sonner", () => ({
   toast: { success: toastSuccess, error: toastError },
 }));
 
-import {
-  EXPORT_USAGE_ACTION,
-  EXPORT_USAGE_NOTE,
-  lastCompleteMonth,
-} from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/translate";
 
 /**
  * #228 — the shared module names catalogue KEYS now, so a test looking for the
@@ -44,8 +46,6 @@ import { sayEnglish } from "@/i18n/translate";
  */
 const say = sayEnglish;
 
-import { ExportUsage } from "./export-usage";
-import { ApiError } from "@/lib/api/error";
 
 afterEach(cleanup);
 

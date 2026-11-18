@@ -20,6 +20,7 @@ import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EN } from "@/i18n/catalog";
+import { ListView } from "./list-view";
 
 type Query = Record<string, string | number | boolean | undefined>;
 
@@ -53,7 +54,6 @@ vi.mock("../use-task-drawer", () => ({
 vi.mock("@/lib/use-is-xl", () => ({ useIsXl: () => true }));
 vi.mock("@/components/ui/optimistic-undo", () => ({ undoableToast: undoToast }));
 
-import { ListView } from "./list-view";
 
 function task(id: string, title: string, done: boolean) {
   return {

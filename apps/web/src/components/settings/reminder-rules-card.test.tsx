@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ReminderRule } from "@/lib/api/appointment-reminders";
+import { ReminderRulesCard } from "./reminder-rules-card";
 
 const query: {
   data: { rules: ReminderRule[]; suggested: []; cap: number } | undefined;
@@ -16,7 +17,6 @@ vi.mock("@/lib/api/appointment-reminders", () => ({
   useSaveReminderRules: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-import { ReminderRulesCard } from "./reminder-rules-card";
 
 function rules(body: string) {
   return {

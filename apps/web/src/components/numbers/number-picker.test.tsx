@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AvailableNumbersResult } from "@/lib/api/types";
 import { LocaleProvider } from "@/i18n/provider";
+import { NumberPicker } from "./number-picker";
 
 /** Hoisted mock the hook reads; each test seeds it before rendering. */
 const listState: {
@@ -16,7 +17,6 @@ vi.mock("@/lib/api/numbers", () => ({
   useAvailableNumbers: () => ({ ...listState, refetch: vi.fn() }),
 }));
 
-import { NumberPicker } from "./number-picker";
 
 beforeEach(() => {
   listState.data = null;

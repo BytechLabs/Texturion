@@ -7,6 +7,8 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { ContactListItem } from "@/lib/api/types";
+import { ContactsBulkBar } from "./contacts-bulk-bar";
 
 afterEach(cleanup);
 
@@ -28,9 +30,7 @@ vi.mock("@/components/contacts/duplicate-contacts-card", () => ({
   MergeDialog: () => null,
 }));
 
-import type { ContactListItem } from "@/lib/api/types";
 
-import { ContactsBulkBar } from "./contacts-bulk-bar";
 
 beforeEach(() => {
   state.canDelete = false;

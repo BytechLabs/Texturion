@@ -7,6 +7,7 @@
  */
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { NewTaskDialog, openNewTask } from "./new-task";
 
 const { mutateAsync, toastSuccess, toastError } = vi.hoisted(() => ({
   mutateAsync: vi.fn(),
@@ -50,7 +51,6 @@ vi.mock("sonner", () => ({
   toast: { success: toastSuccess, error: toastError },
 }));
 
-import { NewTaskDialog, openNewTask } from "./new-task";
 
 afterEach(cleanup);
 

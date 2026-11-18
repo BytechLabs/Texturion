@@ -5,12 +5,12 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 import {canonicalMmsType, MMS_MAX_MEDIA_BYTES, MMS_MAX_MEDIA_ITEMS, MMS_OUTBOUND_MEDIA_TYPES} from "@loonext/shared";
-
-export { MMS_OUTBOUND_MEDIA_TYPES as INBOUND_MEDIA_TYPES } from "@loonext/shared";
 import { ApiError } from "../http/errors";
 import { scanAttachment } from "../attachments/scan";
 import { EXECUTABLE_SNIFF, sniffContentType } from "../routes/core/attachments";
 import type { AttachmentSummary } from "./types";
+
+export { MMS_OUTBOUND_MEDIA_TYPES as INBOUND_MEDIA_TYPES } from "@loonext/shared";
 
 export const MMS_BUCKET = "mms-media";
 

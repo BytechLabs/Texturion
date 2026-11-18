@@ -3,6 +3,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { DeleteConversationsDialog } from "./delete-conversations-dialog";
 
 afterEach(cleanup);
 
@@ -22,7 +23,6 @@ vi.mock("@/lib/hooks/use-records-delete", () => ({
 }));
 vi.mock("sonner", () => ({ toast: toastApi }));
 
-import { DeleteConversationsDialog } from "./delete-conversations-dialog";
 
 beforeEach(() => {
   mutate.mockReset();

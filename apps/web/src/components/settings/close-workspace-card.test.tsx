@@ -26,6 +26,15 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { CompanyView } from "@/lib/api/types";
+import {
+  HANDOVER_CONFIRM_FIELD,
+  HANDOVER_CONFIRM_REJECTED,
+  HANDOVER_CONFIRM_SUBMIT,
+} from "@loonext/shared";
+import { sayEnglish } from "@/i18n/translate";
+import { ApiError } from "@/lib/api/error";
+import { toast } from "sonner";
+import { CloseWorkspaceCard } from "./close-workspace-card";
 
 /** DELETE /v1/company. Driven per test, including its callbacks. */
 const mutate = vi.fn();
@@ -97,18 +106,9 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ companyId: "c-1", role: "owner" }),
 }));
 
-import {
-  HANDOVER_CONFIRM_FIELD,
-  HANDOVER_CONFIRM_REJECTED,
-  HANDOVER_CONFIRM_SUBMIT,
-} from "@loonext/shared";
 
-import { sayEnglish } from "@/i18n/translate";
 
-import { ApiError } from "@/lib/api/error";
-import { toast } from "sonner";
 
-import { CloseWorkspaceCard } from "./close-workspace-card";
 
 const FACTOR = "totp-factor-id";
 

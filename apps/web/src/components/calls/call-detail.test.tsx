@@ -8,6 +8,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { makeTranslate } from "@/i18n/translate";
 import type { CallDetail as CallDetailRow } from "@/lib/api/types";
+import { CallDetail } from "./call-detail";
 
 const t = makeTranslate("en");
 
@@ -31,7 +32,6 @@ vi.mock("@/components/activity/activity-timeline", () => ({
   ),
 }));
 
-import { CallDetail } from "./call-detail";
 
 function detail(overrides: Partial<CallDetailRow> = {}): CallDetailRow {
   return {

@@ -6,6 +6,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { ContactFieldDef } from "@/lib/api/contact-fields";
+import { ContactFieldsCard } from "./contact-fields-card";
 
 const query: { data: { data: ContactFieldDef[]; cap: number } | undefined } = {
   data: undefined,
@@ -16,7 +17,6 @@ vi.mock("@/lib/api/contact-fields", () => ({
   useSaveContactFields: () => ({ mutateAsync: vi.fn(), isPending: false }),
 }));
 
-import { ContactFieldsCard } from "./contact-fields-card";
 
 function fields(label: string, key: string) {
   return { data: [{ key, label, kind: "text" as const }], cap: 10 };

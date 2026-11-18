@@ -6,6 +6,13 @@ import {
 } from "@tanstack/react-query";
 import { act, renderHook, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  useAuthorizeCalendarConnection,
+  useCalendarAttention,
+  useCalendarConnections,
+  useDisconnectCalendarConnection,
+  useResolveCalendarAttention,
+} from "./calendar";
 
 const { apiFetch } = vi.hoisted(() => ({ apiFetch: vi.fn() }));
 
@@ -14,13 +21,6 @@ vi.mock("@/lib/company/provider", () => ({
   useCompanyId: () => "company-245",
 }));
 
-import {
-  useAuthorizeCalendarConnection,
-  useCalendarAttention,
-  useCalendarConnections,
-  useDisconnectCalendarConnection,
-  useResolveCalendarAttention,
-} from "./calendar";
 
 function harness() {
   const client = new QueryClient({

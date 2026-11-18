@@ -1,6 +1,8 @@
 /** @vitest-environment happy-dom */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { LocaleProvider } from "@/i18n/provider";
+import { CalendarSection } from "./calendar-section";
 
 const mocks = vi.hoisted(() => ({
   connections: [] as { id: string; provider: string; status: string }[],
@@ -55,9 +57,7 @@ vi.mock("@/lib/calendar/check-feed-link", () => ({
 
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
-import { LocaleProvider } from "@/i18n/provider";
 
-import { CalendarSection } from "./calendar-section";
 
 function renderSection(locale: "en" | "fr-CA" = "en") {
   return render(
