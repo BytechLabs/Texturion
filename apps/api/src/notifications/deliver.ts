@@ -561,8 +561,8 @@ async function readIosBadges(db: SupabaseClient, companyId: string, devices: Dev
       const count = Number(row.unread_count);
       if (Number.isSafeInteger(count) && count >= 0) badges.set(row.user_id, count);
     }
-  } catch (cause) {
-    console.error("push unread count lookup failed", cause);
+  } catch (error) {
+    console.error("push unread count lookup failed", error);
   } finally {
     limit.clear();
   }
