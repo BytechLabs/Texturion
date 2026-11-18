@@ -6,7 +6,7 @@ import Link from "next/link";
 
 import { initPostHog } from "@/lib/analytics/posthog";
 
-import { boundaryCopy as copy, boundaryReference } from "./boundary-copy";
+import { boundaryReference, boundaryCopy as copy } from "./boundary-copy";
 
 /**
  * Root error boundary: catches any render throw outside the (app) group's own

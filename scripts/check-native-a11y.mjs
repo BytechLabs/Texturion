@@ -32,7 +32,7 @@
  *
  * Usage:  node scripts/check-native-a11y.mjs
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const IOS_ROOT = join("apps", "ios");

@@ -1,4 +1,4 @@
-import { formatMoney, type BillingCurrency } from "@loonext/shared";
+import { type BillingCurrency, formatMoney } from "@loonext/shared";
 
 import { compareAsOf } from "@/app/(marketing)/compare/verification";
 import { compareUiCopy } from "@/i18n/marketing/compare-ui";

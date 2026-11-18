@@ -16,8 +16,8 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { EDGE_PATHS, GUARD_ROUTES, HEADER, LEASE_MAX_MS, type GuardRefusal, type LeaseGrant } from "@loonext/rig-protocol";
-import { GuardRefusedError, systemClock, type Clock } from "@loonext/rig-robot";
+import { EDGE_PATHS, GUARD_ROUTES, type GuardRefusal, HEADER, LEASE_MAX_MS, type LeaseGrant } from "@loonext/rig-protocol";
+import { type Clock, GuardRefusedError, systemClock } from "@loonext/rig-robot";
 
 export interface UndoAction {
   /** A handler name, e.g. `robot.sms`. */

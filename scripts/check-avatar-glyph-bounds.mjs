@@ -52,7 +52,7 @@
  * claimed the call log's dial-back control had this bug; it does not, and reading the
  * code is what settled it.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const ROOT = "apps/android/app/src/main/kotlin";

@@ -26,7 +26,7 @@
  *   node scripts/db-test-all.mjs --only ai_outcomes,marketing_contacts
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const CONTAINER = "supabase_db_Loonext";

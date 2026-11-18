@@ -19,7 +19,7 @@
 import type { KeyObject } from "node:crypto";
 import { CALL_EVENT_RELAY_TIMEOUT_MS, EDGE_PATHS, TELNYX_SIGNATURE_WINDOW_S } from "@loonext/rig-protocol";
 import { ROBOT_TOKEN_HEADER } from "@loonext/rig-robot";
-import { messageText, signatureAge, signedByTelnyx, textHash, type LateDelivery } from "./late.ts";
+import { type LateDelivery, messageText, signatureAge, signedByTelnyx, textHash } from "./late.ts";
 import type { WebhookFrame, WebhookResult } from "./uplink.ts";
 
 export const RIG_PATH_HEADER = "x-rig-path";

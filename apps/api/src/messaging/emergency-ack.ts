@@ -37,7 +37,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { runPreSendGates } from "./send";
-import { guardedAutoSend, type AutoSendOutcome, type EmergencyClaim } from "./auto-send";
+import { type AutoSendOutcome, type EmergencyClaim, guardedAutoSend } from "./auto-send";
 
 /**
  * The default reply, for a workspace that has not written its own. One GSM-7

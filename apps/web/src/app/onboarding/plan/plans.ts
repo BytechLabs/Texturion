@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE, formatMoney, type BillingCurrency } from "@loonext/shared";
+import { type BillingCurrency, DEFAULT_LOCALE, formatMoney } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/translate";
 import { PLAN_PRICING } from "@/lib/api/types";

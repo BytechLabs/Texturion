@@ -15,7 +15,7 @@ import { useNow } from "@/lib/use-now";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { NumberReveal } from "@/components/ui/number-reveal";
-import { useT, type Translate } from "@/i18n/provider";
+import { type Translate, useT } from "@/i18n/provider";
 import { trackCheckoutCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
@@ -34,8 +34,8 @@ import { useOnboardingState } from "../use-onboarding-state";
 import { setupHeadline } from "./headline";
 import {
   portChecklistCopy,
-  resolvePortChecklistItem,
   type PortChecklistItem,
+  resolvePortChecklistItem,
 } from "./port-item";
 import { useProvisioningEvents } from "./use-provisioning-events";
 

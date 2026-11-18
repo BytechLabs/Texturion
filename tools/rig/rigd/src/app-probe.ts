@@ -20,19 +20,19 @@ import { stableUuid as seedStableUuid } from "../../../../scripts/rig/seed.mjs";
 import { totpCode } from "../../../../scripts/rig/seed.mjs";
 import { MemberSessions, memberSessionsFile } from "../../src/member-sessions.mjs";
 import {
-  COMPANY_FIELDS,
-  isFictional,
   type ApiAnswer,
   type AppApi,
   type AutomatedText,
   type CallRow,
   type CallStart,
+  type CheckoutEvent,
+  COMPANY_FIELDS,
   type CompanyField,
   type Destination,
   type GraceState,
+  isFictional,
   type MessageRow,
   type NumberRow,
-  type CheckoutEvent,
   type SendResult,
   type SignUpNumber,
   type SignUpNumberRow,

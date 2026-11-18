@@ -29,7 +29,7 @@
  * inclusive: a false positive costs one line of reading, a miss costs a refund
  * request. #334's asymmetry, applied to its own audit.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { argv } from "node:process";
 import { join, relative } from "node:path";
 

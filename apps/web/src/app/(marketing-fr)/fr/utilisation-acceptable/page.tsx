@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { AupPageBody, AUP_FR_PATH } from "@/components/marketing/legal/aup-page";
+import { AUP_FR_PATH, AupPageBody } from "@/components/marketing/legal/aup-page";
 import { legalAupFr } from "@/i18n/marketing/legal-aup";
 import { buildMetadata } from "@/lib/marketing/seo";
 

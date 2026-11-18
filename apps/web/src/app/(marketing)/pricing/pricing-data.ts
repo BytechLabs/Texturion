@@ -19,10 +19,10 @@ import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/home";
 import { pricingCopy } from "@/i18n/marketing/pricing";
 import {
+  type BillingCurrency,
   formatMoney,
   PLAN_PRICE_CENTS,
   US_REGISTRATION_FEE_CENTS,
-  type BillingCurrency,
 } from "@loonext/shared";
 
 import { PLAN_MODULE_CARDS, PLAN_PRICING, type PlanId } from "@/lib/api/types";

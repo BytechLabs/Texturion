@@ -7,7 +7,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { Inbox, WebhookSink } from "./inbox.ts";
 import type { ProbeSource } from "./probe.ts";
 import type { CallControlApi, RequestContext } from "./telnyx.ts";
-import { isRobotRole, type CallPlan, type NumberBook, type Robot } from "./robot.ts";
+import { type CallPlan, isRobotRole, type NumberBook, type Robot } from "./robot.ts";
 
 export const ROBOT_TOKEN_HEADER = "x-robot-token";
 const MAX_BODY_BYTES = 1024 * 1024;

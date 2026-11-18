@@ -8,7 +8,7 @@ import {
   US_REGISTRATION_FEE_CENTS,
 } from "@loonext/shared";
 
-import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
+import { isFullNumber, NumberPicker } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";

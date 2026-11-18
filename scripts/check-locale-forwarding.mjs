@@ -34,7 +34,7 @@
  * English on purpose — three different right answers, and a guard that cannot
  * tell them apart would be noise. Those are tracked on #228 as wiring.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 /**

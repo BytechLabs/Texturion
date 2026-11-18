@@ -6,8 +6,8 @@ import { AlertTriangle, Check, Copy, KeyRound } from "lucide-react";
 
 import {
   API_KEY_SCOPES,
-  apiKeyScopeLabelKey,
   type ApiKeyScope,
+  apiKeyScopeLabelKey,
 } from "@loonext/shared";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -18,13 +18,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { type MessageKey, useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
+  type ApiKey,
   useApiKeys,
   useCreateApiKey,
   useRevokeApiKey,
-  type ApiKey,
 } from "@/lib/api/api-keys";
 
 /**

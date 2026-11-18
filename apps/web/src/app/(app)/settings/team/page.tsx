@@ -21,9 +21,9 @@ import {
   roleChangeNeedsConfirming,
 } from "@/components/settings/give-up-access-dialog";
 import {
-  RoleSelect,
   roleBlurbs,
   roleLabels,
+  RoleSelect,
 } from "@/components/settings/role-select";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { OwnershipCard } from "@/components/settings/ownership-card";
@@ -53,15 +53,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { useT, type Translate } from "@/i18n/provider";
+import { type Translate, useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { MemberAccessDialog } from "@/components/settings/member-access-dialog";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateInvite,
   useDeactivateMember,
-  useMemberHoldings,
   useInvites,
+  useMemberHoldings,
   useMembers,
   useRevokeInvite,
   useUpdateMemberRole,

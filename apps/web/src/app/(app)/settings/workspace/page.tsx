@@ -29,7 +29,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
-import { useT, type Translate } from "@/i18n/provider";
+import { type Translate, useT } from "@/i18n/provider";
 import { companyAllows } from "@/lib/api/company-actions";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";

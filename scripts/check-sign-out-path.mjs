@@ -38,7 +38,7 @@
  * inventing a shared helper for a single call site would be ceremony, but a
  * silently-dropped revoke would look identical to the bug.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const WEB_ROOT = "apps/web/src";

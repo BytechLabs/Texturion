@@ -17,7 +17,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { Textarea } from "@/components/ui/textarea";
-import { useT, type Translate } from "@/i18n/provider";
+import { type Translate, useT } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 import { ApiError } from "@/lib/api/error";
 import { useSaveOnboardingRegistration } from "@/lib/api/onboarding";

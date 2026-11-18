@@ -11,7 +11,7 @@ import {
   US_REGISTRATION_FEE_CENTS,
 } from "@loonext/shared";
 
-import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
+import { isFullNumber, NumberPicker } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { ChoiceCards } from "@/components/ui/choice-cards";
@@ -38,9 +38,9 @@ import { clearOnboardingDraft, writeOnboardingDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
 import {
   draftOwesUsRegistration,
+  type NumberMode,
   previousStepHref,
   stepProgress,
-  type NumberMode,
 } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 

@@ -39,7 +39,7 @@
  * catching, because the drag continuing to work is precisely why nobody would
  * notice.
  */
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 /**
  * Every phone file allowed to start a custom drag, and the single-pointer path

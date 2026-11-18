@@ -3,7 +3,7 @@
 import type { CSSProperties } from "react";
 import { useEffect } from "react";
 
-import { boundaryCopy as copy, boundaryReference } from "./boundary-copy";
+import { boundaryReference, boundaryCopy as copy } from "./boundary-copy";
 import { reportBoundaryError } from "./error";
 
 /**

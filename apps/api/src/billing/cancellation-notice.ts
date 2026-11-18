@@ -12,7 +12,7 @@
  * everybody needs; it is one person's decision to make and unmake, and paging
  * a crew about their employer's billing would be a different mistake.
  */
-import { numberReleaseAt, type Locale } from "@loonext/shared";
+import { type Locale, numberReleaseAt } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 

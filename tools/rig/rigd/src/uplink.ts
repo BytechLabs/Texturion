@@ -18,7 +18,7 @@ import {
   type RigToEdge,
   WEBHOOK_KINDS,
 } from "@loonext/rig-protocol";
-import { systemClock, type Clock } from "@loonext/rig-robot";
+import { type Clock, systemClock } from "@loonext/rig-robot";
 
 export type WebhookFrame = Extract<EdgeToRig, { t: "webhook" }>;
 export type MediaFrame = Extract<EdgeToRig, { t: "media" }>;

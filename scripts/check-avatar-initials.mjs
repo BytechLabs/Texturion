@@ -33,7 +33,7 @@
  * a stream of false positives, and a guard people switch off protects nothing. What
  * catches that one is the parity vectors disagreeing, or review.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /**

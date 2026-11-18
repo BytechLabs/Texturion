@@ -16,8 +16,8 @@ import {
   AI_INFERENCE_RETENTION_STATEMENT,
   AI_TRAINING_STATEMENT,
   AI_VENDOR_NAMES,
-  SUBPROCESSORS,
   aiModelsByVendor,
+  SUBPROCESSORS,
 } from "@loonext/shared";
 
 const EN_PATH = "/legal/subprocessors";

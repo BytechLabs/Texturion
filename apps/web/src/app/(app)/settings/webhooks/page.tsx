@@ -31,7 +31,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { type MessageKey, useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateWebhookEndpoint,

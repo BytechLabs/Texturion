@@ -2,7 +2,7 @@ import type { MetadataRoute } from "next";
 import { TRANSLATED_PAGES } from "@/lib/marketing/translated-pages";
 
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
-import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
+import { absoluteUrl, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
  * Marketing sitemap (BLUEPRINT §11.3) — generated from LIVE_ROUTES, the same

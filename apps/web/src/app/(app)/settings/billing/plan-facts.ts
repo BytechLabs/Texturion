@@ -1,9 +1,9 @@
 import {
+  type BillingCurrency,
   billingCurrencyOf,
   DEFAULT_LOCALE,
   formatMoney,
   PLAN_PRICE_CENTS,
-  type BillingCurrency,
 } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/translate";

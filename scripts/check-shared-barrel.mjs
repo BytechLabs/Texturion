@@ -50,7 +50,7 @@
  * For every non-test module in `packages/shared/src`: it is referenced by the barrel,
  * and every `export`ed name in it is either forwarded or marked `@internal`.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const SRC = "packages/shared/src";

@@ -10,11 +10,11 @@ import { trackContactSubmitted } from "@/lib/analytics/events";
 
 import {
   buildMailto,
+  type ContactFieldErrors,
+  type ContactFormValues,
   hasFieldErrors,
   submitContact,
   validateContactForm,
-  type ContactFieldErrors,
-  type ContactFormValues,
 } from "./contact-form-logic";
 
 /**

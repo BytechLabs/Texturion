@@ -29,7 +29,7 @@
  * between them, in either direction. If a second one is genuinely needed, the
  * embeds have to carry the `!constraint_name` hint and this list has to say so.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const MIGRATIONS = "supabase/migrations";

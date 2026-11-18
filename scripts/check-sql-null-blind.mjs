@@ -78,7 +78,7 @@
  * Runs over `supabase/tests/*.sql` only. A migration is product code, where
  * three-valued logic is often exactly what is wanted.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 

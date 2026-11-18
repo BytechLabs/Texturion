@@ -18,7 +18,7 @@
  * is listed in SERIAL with its reason; a name there that no longer matches a
  * called workflow fails too.
  */
-import { existsSync, readFileSync, readdirSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const SERIAL = {

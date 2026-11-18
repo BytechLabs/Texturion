@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { publicEnv } from "@/env";
-import { useT, type Translate } from "@/i18n/provider";
+import { type Translate, useT } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 

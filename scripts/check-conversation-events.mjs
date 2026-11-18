@@ -47,7 +47,7 @@
  * also means this guard runs with no Docker and no credentials, which is what
  * lets it sit in the cheap guard step rather than the SQL job.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const MIGRATIONS = "supabase/migrations";
 const UNION_FILE = "apps/api/src/routes/core/events.ts";

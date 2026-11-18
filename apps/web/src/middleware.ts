@@ -1,5 +1,5 @@
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import { type NextRequest, NextResponse } from "next/server";
 
 import {
   decideAuthRedirect,
@@ -8,8 +8,8 @@ import {
 } from "@/lib/auth/redirects";
 import { decideBlogRoute, decideHostRedirect } from "@/lib/hosts";
 import {
-  CSP_HEADER,
   createNonce,
+  CSP_HEADER,
   cspStagingEnabled,
   nonceContentSecurityPolicy,
   reportingEndpointsHeader,

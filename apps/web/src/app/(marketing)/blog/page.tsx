@@ -8,11 +8,11 @@ import { JsonLd } from "@/components/marketing/ui/json-ld";
 import { Reveal } from "@/components/marketing/ui/reveal";
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
 import {
+  type Breadcrumb,
   breadcrumbJsonLd,
   buildMetadata,
-  type Breadcrumb,
 } from "@/lib/marketing/seo";
-import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
+import { absoluteUrl, LIVE_ROUTES } from "@/lib/marketing/site";
 
 /**
  * /blog index (#127, redesigned): a card grid in the standard 72rem band, the

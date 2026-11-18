@@ -5,7 +5,7 @@
  * (developers.telnyx.com, the spec in telnyx-spec3.json): dial is
  * `POST /v2/calls`, every leg command `POST /v2/calls/<id>/actions/<name>`.
  */
-import { EDGE_PATHS, GUARD_ROUTES, HEADER, type GuardRefusal, type LevelEvidence } from "@loonext/rig-protocol";
+import { EDGE_PATHS, GUARD_ROUTES, type GuardRefusal, HEADER, type LevelEvidence } from "@loonext/rig-protocol";
 
 export interface CallIds {
   call_control_id: string;

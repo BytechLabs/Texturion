@@ -13,14 +13,14 @@ import { memberEmail } from "../../../../../scripts/rig/tenants.mjs";
 import { signUpNumberKey } from "../app-probe.ts";
 import { deleteStripeObject, STRIPE_DELETE_UNDO } from "../stripe-sandbox.ts";
 import {
+  type ApiAnswer,
   fail,
   infra,
-  pass,
-  poll,
-  type ApiAnswer,
   type MailMessage,
   type NumberHandoff,
   type NumberRow,
+  pass,
+  poll,
   type PublicPageApi,
   type ScenarioContext,
   type ScenarioResult,

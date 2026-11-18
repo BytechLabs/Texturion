@@ -1,4 +1,4 @@
-import { CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT, CONTACT_IMPORT_IGNORE, contactImportAllColumnValues, contactImportColumnCount, defaultContactImportColumns, joinContactName, normalizeNanpInput, mappingFromDeclarations, readContactFlag } from '@loonext/shared';
+import { CONTACT_IMPORT_COLUMN_SAMPLE_LIMIT, CONTACT_IMPORT_IGNORE, contactImportAllColumnValues, contactImportColumnCount, defaultContactImportColumns, joinContactName, mappingFromDeclarations, normalizeNanpInput, readContactFlag } from '@loonext/shared';
 import type { ContactImportColumnAction, ContactImportColumnDeclaration } from '@loonext/shared';
 
 /**

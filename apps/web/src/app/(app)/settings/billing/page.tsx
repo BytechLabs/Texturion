@@ -26,8 +26,8 @@ import {
   pauseQueryEnabled,
 } from "@/components/settings/pause-plan";
 import {
-  type PlanBadge,
   pauseReadOf,
+  type PlanBadge,
   planBadge,
   planStateUnknownNote,
   readSaysRunning,

@@ -73,7 +73,7 @@
  * is asked here rather than left to a guard nobody wrote. It would read better as
  * its own `check-workflow-trust.mjs`; splitting it is a rename, not a rethink.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { basename, join } from "node:path";
 
 const WORKFLOW_DIR = ".github/workflows";

@@ -19,11 +19,11 @@ import {
 
 import { readOnboardingDraft } from "./local-draft";
 import {
+  type OnboardingDraft,
+  type OnboardingSnapshot,
   pathForLocation,
   resolveOnboardingLocation,
   stepAllowed,
-  type OnboardingDraft,
-  type OnboardingSnapshot,
   type WizardStep,
 } from "./steps";
 

@@ -21,16 +21,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { publicEnv } from "@/env";
-import { useT, type Translate } from "@/i18n/provider";
+import { type Translate, useT } from "@/i18n/provider";
 import {
   trackSignupCompleted,
   trackSignupStarted,
 } from "@/lib/analytics/events";
 import { authErrorMessage } from "@/lib/auth/messages";
 import {
+  type PlanIntent,
   planIntentSearch,
   stashPlanIntentFromSearch,
-  type PlanIntent,
 } from "@/lib/marketing/plan-intent";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 

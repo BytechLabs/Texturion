@@ -31,7 +31,7 @@
  * vocabulary is DERIVED rather than listed, so a type added next year is
  * covered without anybody remembering this file exists.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const APP = "apps/ios/Loonext";

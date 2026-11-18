@@ -44,7 +44,7 @@
     "eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
     "eslint/no-plusplus": ["off", { "allowForLoopAfterthoughts": true }], // not yet clean: 66 (#822)
         "eslint/no-use-before-define": ["off", { "functions": false, "classes": true, "variables": false, "typedefs": false }], // not yet clean: 12 (#822)
-    "eslint/sort-imports": ["off", { "ignoreCase": true, "ignoreDeclarationSort": true }], // not yet clean: 112 (#822)
+    "eslint/sort-imports": ["error", { "ignoreCase": true, "ignoreDeclarationSort": true }],
     "eslint/new-cap": ["error", { "capIsNew": false }],
     "import/consistent-type-specifier-style": ["off", "prefer-top-level"], // not yet clean: 148 (#822)
     "eslint/no-duplicate-imports": ["off", { "allowSeparateTypeImports": true }], // not yet clean: 10 (#822)

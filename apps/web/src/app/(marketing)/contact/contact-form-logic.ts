@@ -10,7 +10,7 @@
  * sees inline feedback before a round trip. It is a PUBLIC endpoint, so the
  * submit uses a plain fetch (never apiFetch, which attaches auth headers).
  */
-import { contactEn, type ContactCopy } from "@/i18n/marketing/contact";
+import { type ContactCopy, contactEn } from "@/i18n/marketing/contact";
 import { SUPPORT_EMAIL } from "@/lib/marketing/business";
 
 /** Minimum message length the server enforces (contactBodySchema, min(10)). */

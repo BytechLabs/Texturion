@@ -1,6 +1,6 @@
 "use client";
 
-import { WHATS_NEW, unseenEntries } from "@loonext/shared";
+import { unseenEntries, WHATS_NEW } from "@loonext/shared";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 

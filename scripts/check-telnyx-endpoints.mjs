@@ -22,7 +22,7 @@
  * guard that silently stopped seeing a call site is worse than one that refuses
  * to guess.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";

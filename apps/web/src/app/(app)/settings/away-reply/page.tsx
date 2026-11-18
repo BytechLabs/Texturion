@@ -32,10 +32,10 @@ import {
 import { useT } from "@/i18n/provider";
 import { previewAwayMessage } from "@/lib/settings/away-preview";
 import {
+  type DayFormState,
   isDirty,
   toBusinessHours,
   toFormState,
-  type DayFormState,
 } from "@/lib/settings/business-hours-form";
 import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";

@@ -23,15 +23,15 @@ import { ContactCustomFields } from "@/components/contacts/custom-fields";
 import { ContactHistory } from "@/components/contacts/contact-history";
 import {
   CONTACT_PANES,
-  PHONE_ACTIVITY_PANES,
-  emptyDetailFields,
-  paneOf,
-  parseContactTab,
-  phoneTabOf,
   type ContactPane,
   type ContactTab,
   type DetailField,
+  emptyDetailFields,
+  paneOf,
+  parseContactTab,
+  PHONE_ACTIVITY_PANES,
   type PhoneTab,
+  phoneTabOf,
 } from "@/components/contacts/contact-tabs";
 import { ContactTags } from "@/components/contacts/contact-tags";
 import { MergedFrom } from "@/components/contacts/merged-from";
@@ -50,12 +50,12 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n/provider";
 import {
+  type ContactPatch,
   useContact,
   useDeleteContact,
   useOptOutContact,
   useRevokeOptOut,
   useUpdateContact,
-  type ContactPatch,
 } from "@/lib/api/contacts";
 import { useConversations } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
@@ -66,8 +66,8 @@ import type { ContactDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 import {
-  useDebouncedAutosave,
   type AutosaveState,
+  useDebouncedAutosave,
 } from "@/lib/hooks/use-debounced-autosave";
 import { useCanDeleteRecords, useDeletedToast } from "@/lib/hooks/use-records-delete";
 import { formatTimestamp } from "@/lib/format/time";

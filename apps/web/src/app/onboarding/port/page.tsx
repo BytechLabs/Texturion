@@ -28,7 +28,7 @@ import {
 
 import { writeOnboardingPortDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
-import { areaCodeOf, apiFetchCheck, toE164 } from "./port-shared";
+import { apiFetchCheck, areaCodeOf, toE164 } from "./port-shared";
 import { portStepProgress, usePortWizardGuard } from "./use-port-wizard";
 
 /**

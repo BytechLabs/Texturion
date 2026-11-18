@@ -1,8 +1,8 @@
 import {
+  type CrewSizeBucket,
   DEFAULT_LOCALE,
   isBeyondSupportedCrew,
   planFitForCrew,
-  type CrewSizeBucket,
 } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/translate";

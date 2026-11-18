@@ -6,8 +6,8 @@ import { compareHeymarketCopy } from "@/i18n/marketing/compare-heymarket";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 
 import {
-  compareAsOf,
   COMPARE_VERIFIED_ON,
+  compareAsOf,
 } from "../verification";
 
 export const HEYMARKET_SEAT_PRICING = {

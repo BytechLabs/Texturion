@@ -33,7 +33,7 @@
  *   node scripts/dev-shot.mjs --click "[aria-label='Conversation info']" /inbox/<id>
  *   node scripts/dev-shot.mjs --mobile --click "[aria-label='Conversation info']" /inbox/<id>
  */
-import { mkdirSync, existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
 

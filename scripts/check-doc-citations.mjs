@@ -35,7 +35,7 @@
  * Usage: node scripts/check-doc-citations.mjs
  */
 import { execFileSync } from "node:child_process";
-import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, sep } from "node:path";
 
 /** Roots to scan. PRODUCTION.md and the deploy set are the operator-facing ones. */

@@ -1,7 +1,7 @@
 "use client";
 
 import { CallEffectNote } from "@/components/settings/call-effect-note";
-import { DEFAULT_LOCALE, type BillingCurrency } from "@loonext/shared";
+import { type BillingCurrency, DEFAULT_LOCALE } from "@loonext/shared";
 import { Gauge, OctagonPause, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
@@ -14,7 +14,7 @@ import { SettingsCard, SettingsPage } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type Translate } from "@/i18n/provider";
+import { type Translate, useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useUsage } from "@/lib/api/usage";
 import type { Usage, UsageMonth } from "@/lib/api/types";

@@ -108,7 +108,7 @@
  * prose is one function for all three, because "is this a sentence or an
  * identifier" is not a platform question.
  */
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
