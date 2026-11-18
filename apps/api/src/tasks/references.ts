@@ -15,6 +15,7 @@ import type { Context } from "hono";
 import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import type { getDb } from "../db";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 
 type Db = ReturnType<typeof getDb>;
 
@@ -44,8 +45,8 @@ export async function syncReferences(
       p_actor_user_id: c.get("userId"),
       p_hidden_number_ids: access.hiddenNumberIds,
     });
-    if (error) console.error("reference sync failed:", error.message);
+    if (error) throw new Error(error.message);
   } catch (error) {
-    console.error("reference sync failed:", error);
+    void reportHandledFailure(workerEnv(), "reference-sync", error);
   }
 }

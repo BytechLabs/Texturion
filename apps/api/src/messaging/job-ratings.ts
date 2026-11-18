@@ -24,6 +24,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { listConversationViewers } from "../auth/conversation-audience";
 import { insertConversationEvents } from "../routes/core/events";
 import type { Env } from "../env";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 import { deliverPush } from "../notifications/deliver";
 import { expectOk, unwrap, unwrapOptional } from "../routes/core/http";
 import {
@@ -234,7 +235,7 @@ export async function recordRatingFromReply(
       },
     ]);
   } catch (error) {
-    console.error("job_rated event failed, rating still recorded:", error);
+    void reportHandledFailure(workerEnv(), "job-rating-event", error);
   }
 
   return {

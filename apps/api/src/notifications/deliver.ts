@@ -31,7 +31,7 @@ import type { HighPriorityRequest } from './high-priority';
 import { recordPushAttempts, timedPush } from './push-attempts';
 import type { PushAttempt } from './push-attempts';
 import { sendWebPush } from "./webpush";
-import { captureException, workerEnv } from "../observability/capture";
+import { captureException, errorLogText, reportHandledFailure, workerEnv } from "../observability/capture";
 
 const INBOX_ROLES = MEMBER_ROLES.filter((role) => roleHasCapability(role, "conversations.read"));
 const UNREAD_BADGE_TIMEOUT_MS = 750;
@@ -530,7 +530,12 @@ export async function loadPushCopySettings(
   };
 }
 
-async function readIosBadges(db: SupabaseClient, companyId: string, devices: DeviceTokenRow[]) {
+async function readIosBadges(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+  devices: DeviceTokenRow[],
+) {
   const userIds = [...new Set(devices
     .filter((device) => device.platform === "ios")
     .map((device) => device.user_id))];
@@ -544,16 +549,17 @@ async function readIosBadges(db: SupabaseClient, companyId: string, devices: Dev
       p_user_ids: userIds,
       p_inbox_roles: INBOX_ROLES,
     }).abortSignal(limit.signal);
-    if (error) {
-      console.error(`push unread count lookup failed: ${error.message}`);
-      return badges;
-    }
+    if (error) throw error;
     for (const row of (data ?? []) as { user_id: string; unread_count: number | string }[]) {
       const count = Number(row.unread_count);
       if (Number.isSafeInteger(count) && count >= 0) badges.set(row.user_id, count);
     }
   } catch (cause) {
-    console.error("push unread count lookup failed", cause);
+    if (limit.signal.aborted) {
+      console.error("push unread count lookup timed out:", errorLogText(cause));
+    } else {
+      void reportHandledFailure(env, "push-unread-count-lookup", cause);
+    }
   } finally {
     limit.clear();
   }
@@ -752,7 +758,7 @@ async function fanOutPush(
   // alert — degraded, never dropped.
   const [urgency, badges] = await Promise.all([
     delivery.highPriority ? resolveHighPriority(env, db, delivery.highPriority, devices.length) : "normal" as const,
-    readIosBadges(db, delivery.companyId, devices),
+    readIosBadges(env, db, delivery.companyId, devices),
   ]);
 
   for (const device of devices) {

@@ -102,6 +102,7 @@ import { buildSuggestionMessages, envelopeShape, parseSuggestionOutput, sanitize
 import type { SuggestionMessage } from '../messaging/reply-suggestions';
 import { buildSummaryMessages, parseSummaryOutput, sanitizeSummary, selectSummaryWindow, summaryEnvelopeShape, THREAD_SUMMARY_CONTEXT_MESSAGES, THREAD_SUMMARY_FEATURE_SPEC, THREAD_SUMMARY_MAX_OUTPUT_TOKENS, THREAD_SUMMARY_MODEL } from '../messaging/thread-summary';
 import type { SummaryLine, SummaryMessage } from '../messaging/thread-summary';
+import { reportHandledFailure } from "../observability/capture";
 import {
   ATTACHMENT_SIGNED_URL_TTL_SECONDS,
   ATTACHMENTS_BUCKET,
@@ -522,15 +523,14 @@ conversationsRoutes.post(
     // were given 6 is worse than saying nothing.
     if (body.action === "assign" && body.target_user_id) {
       const applied = result?.applied?.length ?? 0;
-      const notify = notifyAssigned(getEnv(c.env), {
+      const env = getEnv(c.env);
+      const notify = notifyAssigned(env, {
         kind: "conversation_bulk",
         companyId: c.get("companyId"),
         count: applied,
         actorUserId: c.get("userId"),
         assigneeUserId: body.target_user_id,
-      }).catch((error: unknown) => {
-        console.error("bulk assignment alert failed:", error);
-      });
+      }).catch((error: unknown) => reportHandledFailure(env, "bulk-assignment-alert", error));
       const ctx = executionCtxOf(c);
       if (ctx) ctx.waitUntil(notify);
       else await notify;
@@ -1111,15 +1111,14 @@ conversationsRoutes.patch(
     // hand-off that did not land — and best-effort, because a dead push
     // subscription is not a reason to tell the assigner their change failed.
     if (handedTo !== null) {
-      const notify = notifyAssigned(getEnv(c.env), {
+      const env = getEnv(c.env);
+      const notify = notifyAssigned(env, {
         kind: "conversation",
         companyId,
         conversationId: id,
         actorUserId: userId,
         assigneeUserId: handedTo,
-      }).catch((error: unknown) => {
-        console.error("conversation assignment alert failed:", error);
-      });
+      }).catch((error: unknown) => reportHandledFailure(env, "conversation-assignment-alert", error));
       const ctx = executionCtxOf(c);
       if (ctx) ctx.waitUntil(notify);
       else await notify;
@@ -1362,16 +1361,15 @@ conversationsRoutes.post(
     // note into an error for its author: a dead push subscription is not the
     // author's problem.
     if (mentionIds.length > 0) {
-      const notify = notifyNoteMention(getEnv(c.env), {
+      const env = getEnv(c.env);
+      const notify = notifyNoteMention(env, {
         companyId,
         conversationId: id,
         messageId: note.id as string,
         authorUserId: c.get("userId"),
         mentionedUserIds: mentionIds,
         body: body.body,
-      }).catch((error: unknown) => {
-        console.error("note mention alert failed:", error);
-      });
+      }).catch((error: unknown) => reportHandledFailure(env, "note-mention-alert", error));
       const ctx = executionCtxOf(c);
       if (ctx) ctx.waitUntil(notify);
       else await notify;
@@ -1962,9 +1960,10 @@ conversationsRoutes.post(
       // lines it could not point at, which is precisely the failure the
       // citation rule exists to catch. Worth distinguishing from an unreachable
       // model: it means the prompt or the rules are what need work.
-      console.error(
-        `thread summary unusable: ${parsed.length} candidate(s), 0 passed ` +
-          `(${JSON.stringify(report.dropped)})`,
+      void reportHandledFailure(
+        env,
+        "thread-summary-unusable",
+        new Error(`${parsed.length} candidate(s), 0 passed (${JSON.stringify(report.dropped)})`),
       );
       // CACHED, exactly like a success. This used to return before the write,
       // so the most expensive call this product makes was the only one with no

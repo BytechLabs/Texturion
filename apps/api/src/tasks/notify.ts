@@ -29,6 +29,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { deliverPush } from "../notifications/deliver";
 import { notificationSnippet } from "../notifications/inbound";
 import { THREAD_PUSH_COPY } from "../notifications/thread-copy";
@@ -303,9 +304,9 @@ export function notifyTaskChangeSafely(
   change: TaskChange,
   db: SupabaseClient = getDb(env),
 ): Promise<void> {
-  return notifyTaskChange(env, change, db).catch((error: unknown) => {
-    console.error(`task ${change.kind} alert failed:`, error);
-  });
+  return notifyTaskChange(env, change, db).catch((error: unknown) =>
+    reportHandledFailure(env, `task-${change.kind}-alert`, error),
+  );
 }
 
 /**

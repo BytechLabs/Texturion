@@ -10,7 +10,7 @@ import { jwtAuth } from "./auth/jwt";
 import { runGraceJob } from "./billing/grace";
 import { sweepUncreditedConversions } from "./billing/prepay";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
-import { captureException } from './observability/capture';
+import { captureException, errorLogText } from './observability/capture';
 import type { ExceptionContext, WaitUntil } from './observability/capture';
 import { isCronSchedule } from './crons/schedules';
 import type { CronSchedule } from './crons/schedules';
@@ -497,7 +497,7 @@ const handleAppError: ErrorHandler<AppEnv> = (error, c) => {
     },
     waitUntilOf(c),
   );
-  console.error(`[500] ${method} ${path} ray=${rayId ?? "-"}:`, error);
+  console.error(`[500] ${method} ${path} ray=${rayId ?? "-"}:`, errorLogText(error));
   // The client-facing half is shared with the test harness (#251), so a route
   // suite cannot pass against an error response production does not send.
   // Reading the env is wrapped because onError must never itself throw.
@@ -836,7 +836,7 @@ export const handler = {
       console.error(
         `[fetch-guard] uncaught ${request.method} ${new URL(request.url).pathname} ` +
           `ray=${rayId ?? "-"}:`,
-        error,
+        errorLogText(error),
       );
       const res = Response.json(
         {
@@ -935,9 +935,7 @@ export async function runScheduledJobs(
       // Name the culprit in the run's own logs: the platform serializes only
       // the AggregateError's top-level message (child errors vanish), which
       // made "1 of 5 job(s) failed" undiagnosable from the dashboard.
-      const detail =
-        error instanceof Error ? (error.stack ?? error.message) : String(error);
-      console.error(`cron job ${entry.key} failed: ${detail}`);
+      console.error(`cron job ${entry.key} failed: ${errorLogText(error)}`);
       for (const failure of failuresIn(error)) {
         void captureException(env, failure, { source: "cron", cron, job: entry.key }, waitUntil);
       }
