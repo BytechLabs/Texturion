@@ -678,6 +678,8 @@ enum ContactsTasksStrings {
                 "The customer stays on hold while we ring them.",
             "contactsTasks.noTeammatesAvailable":
                 "No teammates can take this call right now.",
+            "contactsTasks.transferAlertsAvailable": "Push alerts set up",
+            "contactsTasks.transferNoAlerts": "No push alerts",
             "contactsTasks.transferSnapBack":
                 "If they decline, the call snaps back to you.",
             "contactsTasks.onACall": "On a call",
@@ -1458,6 +1460,8 @@ enum ContactsTasksStrings {
                 "Le client reste en attente pendant que nous appelons cette personne.",
             "contactsTasks.noTeammatesAvailable":
                 "Aucun coéquipier ne peut prendre cet appel en ce moment.",
+            "contactsTasks.transferAlertsAvailable": "Alertes push configurées",
+            "contactsTasks.transferNoAlerts": "Aucune alerte push",
             "contactsTasks.transferSnapBack": "S'il refuse, l'appel vous revient.",
             "contactsTasks.onACall": "En appel",
             "contactsTasks.available": "Disponible",

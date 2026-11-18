@@ -915,6 +915,7 @@ private fun TransferSheet(
                         ?.takeIf { it.isNotBlank() }
                         ?: teammateLabel,
                     busy = target.busy,
+                    hasPushChannel = target.has_push_channel,
                 )
             }
         } catch (cause: Exception) {
@@ -1036,6 +1037,13 @@ private fun TransferTargetRow(
                 },
                 modifier = Modifier.padding(top = 2.dp),
             )
+            row.hasPushChannel?.let { available ->
+                Text(
+                    if (available) t("contactsTasks.transferAlertsAvailable") else t("contactsTasks.transferNoAlerts"),
+                    fontSize = 11.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
         val transferInteraction = remember { MutableInteractionSource() }
         Surface(
@@ -1059,7 +1067,12 @@ private fun TransferTargetRow(
     }
 }
 
-private data class TransferRow(val userId: String, val name: String, val busy: Boolean)
+private data class TransferRow(
+    val userId: String,
+    val name: String,
+    val busy: Boolean,
+    val hasPushChannel: Boolean?,
+)
 
 /**
  * #180 responsive proof: the active-call surface laid out at every ratio, in the

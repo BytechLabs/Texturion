@@ -630,6 +630,7 @@ private struct TransferSheet: View {
         let id: String
         let name: String
         let busy: Bool
+        let hasPushChannel: Bool?
     }
 
     @State private var state: LoadState<[Row]> = .loading
@@ -714,6 +715,11 @@ private struct TransferSheet: View {
                         .font(.golos(11, weight: row.busy ? .regular : .semibold))
                         .foregroundStyle(row.busy ? BrandColor.muted500 : BrandColor.olive)
                 }
+                if let available = row.hasPushChannel {
+                    Text(available ? t("contactsTasks.transferAlertsAvailable") : t("contactsTasks.transferNoAlerts"))
+                        .font(.golos(11))
+                        .foregroundStyle(BrandColor.muted500)
+                }
             }
             Spacer()
             Button {
@@ -752,7 +758,8 @@ private struct TransferSheet: View {
                         let name = names[target.user_id] ?? ""
                         return name.isBlank ? "Teammate" : name
                     }(),
-                    busy: target.busy
+                    busy: target.busy,
+                    hasPushChannel: target.has_push_channel
                 )
             })
         } catch {

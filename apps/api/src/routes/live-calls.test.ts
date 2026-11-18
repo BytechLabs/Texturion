@@ -119,6 +119,62 @@ function telnyxDialAndActions(): Stub {
   );
 }
 
+describe("GET /v1/calls/live/:id/targets", () => {
+  const offlineId = "4a37d313-2f0e-4ad3-98a5-31e20edf122b";
+  const notesOnlyId = "5fe14edc-3c35-4148-8e1f-8097c90d25da";
+  const pushPath = "/rest/v1/rpc/api_transfer_target_push_users";
+
+  it("looks up push channels only for teammates who can take the call", async () => {
+    const sb = liveWorld({
+      call: { answered_by_user_id: TARGET_ID },
+      credentials: () => [auth.subject, TARGET_ID, offlineId, notesOnlyId].map(
+        (user_id) => ({ user_id, sip_username: "gencred" }),
+      ),
+    });
+    sb.on("POST", "/rest/v1/rpc/number_member_levels", () => [
+      { user_id: auth.subject, level: "text" },
+      { user_id: TARGET_ID, level: "text" },
+      { user_id: offlineId, level: "text" },
+      { user_id: notesOnlyId, level: "notes" },
+    ]);
+    sb.on("POST", pushPath, () => [{ user_id: TARGET_ID }]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), `/v1/calls/live/${SESSION}/targets`, {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      targets: [
+        { user_id: TARGET_ID, busy: true, has_push_channel: true },
+        { user_id: offlineId, busy: false, has_push_channel: false },
+      ],
+    });
+    expect(sb.find("POST", pushPath).map((call) => call.body)).toEqual([{
+      p_company_id: COMPANY_ID,
+      p_user_ids: [TARGET_ID, offlineId],
+      p_allow_native: false,
+    }]);
+  });
+
+  it("still shows eligible teammates when the push lookup fails", async () => {
+    const sb = liveWorld({});
+    sb.on("POST", "/rest/v1/rpc/number_member_levels", () => [
+      { user_id: TARGET_ID, level: "text" },
+    ]);
+    sb.on("POST", pushPath, () => Response.json({ message: "lookup failed" }, { status: 400 }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), `/v1/calls/live/${SESSION}/targets`, {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ targets: [{ user_id: TARGET_ID, busy: false }] });
+  });
+});
+
 describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
   it("issues the Telnyx transfer on the CUSTOMER leg with the brt tag and NO client_state", async () => {
     const sb = liveWorld({});
