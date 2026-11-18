@@ -63,6 +63,7 @@ import { buildPage } from "../http/pagination";
 import { sendTextToConversation } from "../messaging/send-text";
 import { prioritySchema, repeatSchema, withLabelsAndRepeat } from "../tasks/repeat";
 import { keysetFilter, parseCursor, parseJsonBody, pathUuid, unwrap } from "./core/http";
+import { composeConversation } from "./compose";
 import { normalizeNanpPhone } from "./core/phone";
 import { contactNumberConflict, contactNumberOwner, contactNumberTaken } from "./core/contact-number";
 import { setTaskRepeat, setTaskTags } from "./tasks";
@@ -125,12 +126,21 @@ const createContactSchema = z.object({
 });
 
 const sendMessageSchema = z.object({
-  conversation_id: z.uuid(),
-  // Text only in v1. Media means an upload, a signed URL and a size budget,
-  // and every one of those is a shape we would be promising forever — the
-  // honest way to add it is to add it, once somebody has asked.
+  conversation_id: z.uuid().optional(),
+  to: z.string().trim().min(1).max(32)
+    .refine((value) => normalizeNanpPhone(value) !== null, "Use a valid US or Canadian phone number.")
+    .optional(),
+  phone_number_id: z.uuid().optional(),
+  consent_attested: z.literal(true).optional(),
+  quiet_hours_confirmed: z.boolean().optional(),
   body: z.string().trim().min(1).max(1600),
-});
+}).refine(
+  (body) => (body.conversation_id === undefined) !== (body.to === undefined),
+  { message: "Provide exactly one of conversation_id or to." },
+).refine(
+  (body) => !body.to || body.consent_attested === true,
+  { message: "consent_attested must be true when sending to a phone number." },
+);
 
 const subscribeSchema = z.object({
   url: z.string().trim().min(1).max(2000),
@@ -212,7 +222,10 @@ publicApiRoutes.get(
       if (!phone) {
         return errorResponse(c, "validation_failed", "phone: use a valid US or Canadian phone number.");
       }
-      query = query.eq("phone_e164", phone);
+      const owner = await contactNumberOwner(db, c.get("companyId"), phone);
+      query = owner && owner.phone_e164 !== phone
+        ? query.eq("id", owner.id)
+        : query.eq("phone_e164", phone);
     }
     if (cursor) query = query.or(keysetFilter("created_at", cursor));
     const rows = unwrap<PublicListRow[]>(
@@ -432,22 +445,25 @@ publicApiRoutes.post(
       );
     }
 
-    // The SAME sequence the thread send runs, from the same function: number
-    // level, the pre-send gates, merge fields, then the atomic
-    // opt-out/rate/cap insert, then dispatch. There is no second copy of that
-    // order, which is the whole reason it was extracted.
-    const { message, existing } = await sendTextToConversation(
-      env,
-      getDb(env),
-      {
-        companyId: c.get("companyId"),
-        conversationId: body.conversation_id,
+    const db = getDb(env);
+    const companyId = c.get("companyId");
+    const result = body.to
+      ? await composeConversation(c, {
+        phone_e164: body.to,
+        phone_number_id: body.phone_number_id,
+        body: body.body,
+        consent_attested: true,
+        quiet_hours_confirmed: body.quiet_hours_confirmed,
+      }, idempotencyKey)
+      : await sendTextToConversation(env, db, {
+        companyId,
+        conversationId: body.conversation_id!,
         userId: c.get("userId"),
         role: c.get("role"),
         body: body.body,
         idempotencyKey,
-      },
-    );
+      });
+    const { message, existing } = result;
 
     return c.json(
       {

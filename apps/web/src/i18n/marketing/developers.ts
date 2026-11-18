@@ -29,7 +29,7 @@ export const developersEn = {
   routeConversations: "The conversation list.",
   routeMessagesGet: "One conversation's messages.",
   routeMessagesPost:
-    "Send a text into an existing conversation. Requires an Idempotency-Key header.",
+    "Send a text using conversation_id or to. Sending by number requires consent_attested: true. Both require an Idempotency-Key header.",
   routeTasksGet: "The job list. Use contact_id to see work linked to a customer.",
   routeTasksPost: "Turn a message into a job.",
   routeWebhooksPost:
@@ -114,7 +114,7 @@ export const developersFr: Translated<typeof developersEn> = {
   routeConversations: "La liste des fils de discussion.",
   routeMessagesGet: "Les messages d'un fil de discussion.",
   routeMessagesPost:
-    "Envoie un texto dans un fil existant. L'en-tête Idempotency-Key est obligatoire.",
+    "Envoie un texto avec conversation_id ou to. L'envoi par numéro exige consent_attested à true. L'en-tête Idempotency-Key est obligatoire dans les deux cas.",
   routeTasksGet: "La liste des travaux. Utilisez contact_id pour voir ceux qui sont liés à un client.",
   routeTasksPost: "Transforme un message en travail.",
   routeWebhooksPost:

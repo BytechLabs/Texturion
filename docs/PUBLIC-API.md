@@ -41,13 +41,24 @@ Pass `next_cursor` unchanged as `cursor` on the next request and repeat any
 filters. A null cursor marks the last page. Conversations are ordered by most
 recent activity. The other lists are ordered by creation time, newest first.
 
-Filter contacts by their primary number with `phone`, conversations by `status`,
+Filter contacts by a primary or alternate number with `phone`, conversations by `status`,
 and tasks by `contact_id`, including tasks linked through the contact's visible
 conversations.
 
 A contact row carries `tags`, the names of the workspace tags it has, sorted (empty when none).
 Contact writes accept US and Canadian numbers in `phone_e164`, including formatted numbers.
 The API normalizes the number before looking up or creating a contact and returns `422` for an invalid number.
+
+`POST /public/v1/messages` accepts `{ "conversation_id": "…", "body": "…" }` for
+an existing conversation or `{ "to": "+16135550123", "body": "…", "consent_attested": true }`
+to send by phone number. The phone-number form accepts formatted US and Canadian
+numbers, reuses the owning contact, and creates a contact and conversation when
+needed. Set `phone_number_id` to choose the sending line. Otherwise, the oldest
+active line the key's creator can text from is used. A send by number can include
+`quiet_hours_confirmed` when the workspace requires confirmation.
+
+Both forms require `Idempotency-Key`. Reuse the key when retrying the same send.
+A new message returns `201` and a replay returns `200`.
 
 A task row names what it came from in `source` (`{ "kind": "message" | "call", "id": "…" }`).
 `message_id` is kept for existing integrations and is `null` for a task promoted from a call. A task with no message or call is a standalone task: `source` is `null`, and `POST` takes a required `title` with an optional `assigned_user_id`, `contact_id` and `conversation_id` (a task with no conversation is visible to every member).
