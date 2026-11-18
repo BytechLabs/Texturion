@@ -701,16 +701,16 @@ fun planAllowanceLines(facts: PlanFacts, locale: String? = null): List<String> =
     AppStrings.translate(locale, "settings.planLineTexting"),
     AppStrings.translate(locale, "settings.planLineCalling"),
     AppStrings.translate(locale, "settings.planLineExtraTexts"),
-    AppStrings.translate(locale, "settings.planLineSeats", mapOf("count" to facts.seats.toString())),
+    AppStrings.translate(locale, "settings.planLineSeats", mapOf("seats" to facts.seats.toString())),
     // #228: the plural is TWO KEYS rather than an English "s" appended to a
     // translated stem. French forms this one the same way, which is exactly why
     // the append looks safe and is not — the next language to arrive would get
     // an English suffix welded onto its own noun, and nothing would fail.
-    AppStrings.translate(
-        locale,
-        if (facts.numbers == 1) "settings.planLineNumberOne" else "settings.planLineNumbers",
-        mapOf("count" to facts.numbers.toString()),
-    ),
+    if (facts.numbers == 1) {
+        AppStrings.translate(locale, "settings.planLineNumberOne")
+    } else {
+        AppStrings.translate(locale, "settings.planLineNumbers", mapOf("numbers" to facts.numbers.toString()))
+    },
 )
 
 /** Included outbound segments (SPEC §2) — for downgrade checklists only;
@@ -1619,9 +1619,10 @@ fun pauseOfferCopy(pause: PauseState?, locale: String? = null): PauseOfferCopy? 
     val cents = pause.monthly_cents ?: return null
     val price = formatMonthlyCents(cents)
     val money = mapOf("price" to price)
+    val amount = mapOf("amount" to price)
 
     return PauseOfferCopy(
-        heading = AppStrings.translate(locale, "settings.pauseOfferHeading", money),
+        heading = AppStrings.translate(locale, "settings.pauseOfferHeading", amount),
         // The contrast with the sentence at the top of this card is the whole
         // argument, so it is made explicitly: cancelling starts a clock that a
         // trades quiet season outruns, and pausing starts no clock at all.
@@ -1634,7 +1635,7 @@ fun pauseOfferCopy(pause: PauseState?, locale: String? = null): PauseOfferCopy? 
             "settings.pauseOfferNoClock",
             mapOf("days" to CANCELLATION_GRACE_DAYS.toString()),
         ),
-        actionLabel = AppStrings.translate(locale, "settings.pauseOfferAction", money),
+        actionLabel = AppStrings.translate(locale, "settings.pauseOfferAction", amount),
         confirmTitle = AppStrings.translate(locale, "settings.pauseOfferConfirmTitle"),
         // Says "every month until you resume" rather than naming a term,
         // because there is no term: the swap holds until somebody presses
@@ -1685,7 +1686,7 @@ fun pausedStateCopy(
     // a grammatical slot, and French does not put it where English does — a
     // single template with a hole would translate one of the two badly.
     val back = if (resumePlanName != null) {
-        AppStrings.translate(locale, "settings.pauseResumeNamed", mapOf("plan" to resumePlanName))
+        AppStrings.translate(locale, "settings.pauseResumeBodyNamed", mapOf("plan" to resumePlanName))
     } else {
         AppStrings.translate(locale, "settings.pauseResumeAny")
     }

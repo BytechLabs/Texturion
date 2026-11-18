@@ -23,20 +23,12 @@ import Foundation
 ///
 /// ## Where iOS deliberately says something Android does not
 ///
-/// Three keys hold a different English from their Android twin, each for a
+/// Two keys hold a different English from their Android twin, each for a
 /// reason written down in the file it came from rather than as a preference:
 ///
 ///   `settings.devicesAppLockHelp`   names Face ID and Touch ID. Android names
 ///                                   a fingerprint and a screen lock. Neither
 ///                                   phone has the other's hardware.
-///   `settings.holdEndedOn`          may not say "resubscribing now sets you up
-///                                   with a new number" — see the docblock on
-///                                   `holdSentence` in BillingSection.swift. The
-///                                   release is a once-daily cron, so for up to
-///                                   a day after the deadline the number is
-///                                   still ours, and that sentence is a promise
-///                                   in the wrong direction. Android's copy
-///                                   still carries it.
 ///   `settings.cancelExportIntro`    names AirDrop and Files, because the iOS
 ///                                   card hands the CSV to the system share
 ///                                   sheet rather than to a downloads folder.
@@ -1298,9 +1290,6 @@ private let settingsHeldFr: [String: String] = [
 /// proven against fifteen mutations, so it is reported rather than attempted
 /// under an extraction.
 ///
-/// `settings.holdEndedOn` deliberately does NOT match its Android twin — see the
-/// note at the top of this file, and the docblock on `holdSentence`.
-///
 /// Not here either, and named in the extraction report: `pausedStateLines`,
 /// `prepaidConversionCopy`, `cancellationOffer`, `planFacts`,
 /// `pauseOfferBody`, `pauseConfirmMessage`, `pausedConfirmationMessage`,
@@ -1341,15 +1330,15 @@ private let settingsBillingEn: [String: String] = [
     "settings.winbackNoThanks": "No thanks",
     "settings.winbackDismissFailed": "Couldn't save that — you may see this again.",
     "settings.holdRule":
-        "We hold your number for {days} days from the day you cancel. Resubscribe "
-        + "before then and everything picks up where it left off.",
+        "We hold your number for {days} days from the day you cancel. Resubscribe before "
+        + "then and everything picks up where it left off.",
     "settings.holdUntil":
-        "We hold your number until {date}. Resubscribe before then and everything "
-        + "picks up where it left off.",
+        "We hold your number until {date}. Resubscribe before then and everything picks up "
+        + "where it left off.",
     "settings.holdEndedOn":
-        "The {days}-day hold on your number ended on {date}. We can't promise it any "
-        + "more — once it goes back to the phone company, resubscribing sets you up "
-        + "with a new number. Your message history is still here either way.",
+        "The {days}-day hold on your number ended on {date}. We are not keeping it for you "
+        + "any more, so plan on a new number if you resubscribe — your message history is "
+        + "still here either way.",
 
     "settings.planTitle": "Plan",
     "settings.planNone":
@@ -1375,8 +1364,8 @@ private let settingsBillingEn: [String: String] = [
     "settings.pauseResuming": "Resuming…",
     "settings.pauseResumedOn": "You're back on {name}.",
     "settings.pauseResumedPlain": "Your plan is back on.",
-    "settings.pauseOfferHeading": "Pause instead — the number stays, the texting stops",
-    "settings.pauseOfferAction": "Pause for {price}/mo",
+    "settings.pauseOfferHeading": "Pause instead — keep the number for {amount} a month",
+    "settings.pauseOfferAction": "Pause for {amount} a month",
     "settings.pauseConfirmTitle": "Pause your plan?",
     "settings.pauseConfirmAction": "Pause my plan",
 
@@ -1513,17 +1502,16 @@ private let settingsBillingFr: [String: String] = [
     "settings.winbackDismissFailed":
         "Impossible d'enregistrer — ceci pourrait réapparaître.",
     "settings.holdRule":
-        "Nous conservons votre numéro {days} jours à compter du jour de l'annulation. "
-        + "Réabonnez-vous avant la fin de ce délai et tout reprend là où vous l'avez "
+        "Nous conservons votre numéro pendant {days} jours à compter du jour de "
+        + "l'annulation. Réabonnez-vous avant cette date et tout reprend là où vous l'aviez "
         + "laissé.",
     "settings.holdUntil":
-        "Nous conservons votre numéro jusqu'au {date}. Réabonnez-vous avant cette "
-        + "date et tout reprend là où vous l'avez laissé.",
+        "Nous conservons votre numéro jusqu'au {date}. Réabonnez-vous avant cette date et "
+        + "tout reprend là où vous l'aviez laissé.",
     "settings.holdEndedOn":
-        "La conservation de {days} jours de votre numéro a pris fin le {date}. Nous "
-        + "ne pouvons plus vous le promettre — une fois qu'il retourne à la compagnie "
-        + "de téléphone, vous réabonner vous donne un nouveau numéro. Votre historique "
-        + "de textos reste là dans tous les cas.",
+        "La conservation de votre numéro pendant {days} jours a pris fin le {date}. Nous ne "
+        + "le gardons plus pour vous : prévoyez un nouveau numéro si vous vous réabonnez — "
+        + "votre historique de messages reste ici dans tous les cas.",
 
     "settings.planTitle": "Forfait",
     "settings.planNone":
@@ -1541,7 +1529,7 @@ private let settingsBillingFr: [String: String] = [
     "settings.planLineExtraTexts":
         "Les textos supplémentaires sont facturés selon l'usage raisonnable, jusqu'à "
         + "un plafond que vous fixez",
-    "settings.planLineSeats": "{seats} membres d'équipe",
+    "settings.planLineSeats": "{seats} membres de l'équipe",
     "settings.planLineNumberOne": "1 numéro de téléphone",
     "settings.planLineNumbers": "{numbers} numéros de téléphone",
     "settings.planFairUse":
@@ -1554,9 +1542,8 @@ private let settingsBillingFr: [String: String] = [
     "settings.pauseResuming": "Reprise…",
     "settings.pauseResumedOn": "Vous êtes de retour sur {name}.",
     "settings.pauseResumedPlain": "Votre forfait est réactivé.",
-    "settings.pauseOfferHeading":
-        "Mettre en pause plutôt — le numéro reste, les textos s'arrêtent",
-    "settings.pauseOfferAction": "Mettre en pause pour {price}/mois",
+    "settings.pauseOfferHeading": "Faites plutôt une pause — gardez le numéro pour {amount} par mois",
+    "settings.pauseOfferAction": "Mettre en pause pour {amount} par mois",
     "settings.pauseConfirmTitle": "Mettre votre forfait en pause ?",
     "settings.pauseConfirmAction": "Mettre mon forfait en pause",
 
@@ -1697,19 +1684,8 @@ private let settingsBillingFr: [String: String] = [
 /// `AppStringsTests` checks that no two sections claim the same key, which is
 /// the property that actually matters.
 ///
-/// ## Three keys hold iOS's English rather than Android's, and each is pinned
-///
-///   `settings.cancelConsequence`     iOS says "nothing changes until the end of
-///   `settings.cancelOwnerOnly`       your billing period" where Android says
-///                                    the plan "runs to" it. #524 rewrote this
-///                                    pair so it is true for a PAUSED workspace
-///                                    as well — see the docblock on
-///                                    `CancelCard.consequence`.
-///   `settings.enableUsStartedPaused` must OPEN with the whole unpaused receipt
-///                                    and then add to it; `RegistrationPauseTests`
-///                                    asserts exactly that, so the news is never
-///                                    traded away for the caveat. Android's twin
-///                                    rewrites the middle of the sentence.
+/// `settings.enableUsStartedPaused` starts with the full registration receipt
+/// before it mentions the pause. RegistrationPauseTests covers the order.
 ///
 /// ## The English here is the English that shipped
 ///
@@ -1747,11 +1723,10 @@ private let settingsCoreEn: [String: String] = [
             + "watches for. Use {words} instead, add {word} to your emergency "
             + "words, or take the offer out of the message.",
     "settings.cancelConsequence":
-        "Cancel anytime. Nothing changes until the end of your billing "
-            + "period — if your texting is on, it stays on until then. Your "
-            + "number is held for {days} days from the day you cancel — not from "
-            + "the day your plan ends — so it can go back to the phone company "
-            + "soon after. After that it is released for good.",
+        "Cancel anytime. Your plan runs to the end of the billing period and does not renew "
+        + "— texting stops then, if it has not stopped already. We hold your number for "
+        + "{days} days from the day you cancel, not from the day the plan ends, so the hold "
+        + "can run out soon afterwards. After that the number is released for good.",
     "settings.cancelExitAction": "Continue to cancel",
     "settings.cancelExportHeading": "Take your contacts with you",
     "settings.cancelNotInPortal":
@@ -1759,12 +1734,11 @@ private let settingsCoreEn: [String: String] = [
             + "cancellation on it, so this is not something to go looking for "
             + "there.",
     "settings.cancelOwnerOnly":
-        "Only the owner can cancel this plan. When they do, nothing "
-            + "changes until the end of the billing period — if your texting is "
-            + "on, it stays on until then. The number is held for {days} days "
-            + "from the day they cancel — not from the day the plan ends — so it "
-            + "can go back to the phone company soon after. After that it is "
-            + "released for good.",
+        "Only the owner can cancel this plan. When they do, the plan runs to the end of the "
+        + "billing period and does not renew — texting stops then, if it has not stopped "
+        + "already. We hold the number for {days} days from the day they cancel, not from the "
+        + "day the plan ends, so the hold can run out soon afterwards. After that the number "
+        + "is released for good.",
     "settings.cancelReasonMissingFeature": "Missing something I need",
     "settings.cancelReasonNotUsing": "Not using it",
     "settings.cancelReasonOther": "Something else",
@@ -1944,7 +1918,7 @@ private let settingsCoreEn: [String: String] = [
             + "waiting for you, and anything you scheduled is held rather than "
             + "cancelled.",
     "settings.pauseResume": "Resume",
-    "settings.pauseResumeNamed": "Resume {plan}",
+    "settings.pauseResumeLabelNamed": "Resume {plan}",
     "settings.pausedConfirmPlain": "Paused. Texting is off until you resume.",
     "settings.pausedConfirmPriced":
         "Paused. You're billed {price} a month until you resume.",
@@ -2284,12 +2258,11 @@ private let settingsCoreFr: [String: String] = [
             + "mot que rien ne surveille. Utilisez plutôt {words}, ajoutez "
             + "{word} à vos mots d'urgence, ou retirez cette offre du message.",
     "settings.cancelConsequence":
-        "Annulez quand vous voulez. Rien ne change avant la fin de votre "
-            + "période de facturation — si vos textos sont actifs, ils le "
-            + "restent jusque-là. Votre numéro est conservé {days} jours à "
-            + "compter du jour de l'annulation — et non du jour où votre forfait "
-            + "se termine — il peut donc retourner à la compagnie de téléphone "
-            + "peu après. Après quoi il est libéré définitivement.",
+        "Annulez à tout moment. Votre forfait se poursuit jusqu'à la fin de la période de "
+        + "facturation et ne se renouvelle pas — les textos s'arrêtent alors, s'ils ne se "
+        + "sont pas déjà arrêtés. Nous conservons votre numéro pendant {days} jours à compter "
+        + "du jour de l'annulation, et non à compter de la fin du forfait : la conservation "
+        + "peut donc prendre fin peu après. Ensuite, le numéro est libéré définitivement.",
     "settings.cancelExitAction": "Continuer vers l'annulation",
     "settings.cancelExportHeading": "Partez avec vos clients",
     "settings.cancelNotInPortal":
@@ -2297,13 +2270,12 @@ private let settingsCoreFr: [String: String] = [
             + "et ne contient aucune annulation : ce n'est donc pas là qu'il "
             + "faut la chercher.",
     "settings.cancelOwnerOnly":
-        "Seul le propriétaire peut annuler ce forfait. Quand il le fait, "
-            + "rien ne change avant la fin de la période de facturation — si vos "
-            + "textos sont actifs, ils le restent jusque-là. Le numéro est "
-            + "conservé {days} jours à compter du jour de l'annulation — et non "
-            + "du jour où le forfait se termine — il peut donc retourner à la "
-            + "compagnie de téléphone peu après. Après quoi il est libéré "
-            + "définitivement.",
+        "Seul le propriétaire peut annuler ce forfait. Lorsqu'il le fait, le forfait se "
+        + "poursuit jusqu'à la fin de la période de facturation et ne se renouvelle pas — les "
+        + "textos s'arrêtent alors, s'ils ne se sont pas déjà arrêtés. Nous conservons le "
+        + "numéro pendant {days} jours à compter du jour de l'annulation, et non à compter de "
+        + "la fin du forfait : la conservation peut donc prendre fin peu après. Ensuite, le "
+        + "numéro est libéré définitivement.",
     "settings.cancelReasonMissingFeature": "Il manque quelque chose dont j'ai besoin",
     "settings.cancelReasonNotUsing": "Je ne m'en sers pas",
     "settings.cancelReasonOther": "Autre chose",
@@ -2506,7 +2478,7 @@ private let settingsCoreFr: [String: String] = [
             + "toujours et vous attendent, et tout ce que vous aviez planifié "
             + "est conservé plutôt qu'annulé.",
     "settings.pauseResume": "Reprendre",
-    "settings.pauseResumeNamed": "Reprendre {plan}",
+    "settings.pauseResumeLabelNamed": "Reprendre le forfait {plan}",
     "settings.pausedConfirmPlain":
         "En pause. Les textos sont désactivés jusqu'à votre reprise.",
     "settings.pausedConfirmPriced":

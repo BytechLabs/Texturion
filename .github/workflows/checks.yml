@@ -802,6 +802,9 @@ jobs:
       - name: Guard iOS catalogue keys
         run: node scripts/check-ios-catalogue-keys.mjs
 
+      - name: Guard native catalogue parity
+        run: node scripts/check-native-catalogue-parity.mjs
+
       # #376: `packages/shared` is shared by two of four clients, so every rule
       # Android and iOS need exists three times. The generated vectors are what
       # the Kotlin and Swift suites assert against — if a shared rule changes and

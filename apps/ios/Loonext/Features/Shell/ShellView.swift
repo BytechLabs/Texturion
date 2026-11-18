@@ -158,6 +158,17 @@ struct ShellView: View {
                 billingOnlyRoot
             }
         }
+        .safeAreaInset(edge: .top, spacing: 0) {
+            if ConnectionWatch.shared.offline {
+                Text(AppStrings.translate(appLocale, "shell.offline"))
+                    .font(.footnote)
+                    .foregroundStyle(BrandColor.ink)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 8)
+                    .background(BrandColor.amberBg)
+            }
+        }
         .tint(BrandColor.olive)
         .overlay(alignment: .bottom) {
             if let notice = contactDeletionNotice {

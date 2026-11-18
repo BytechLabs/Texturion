@@ -1986,7 +1986,7 @@ private struct PauseOfferNote: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(t("settings.pauseOfferHeading"))
+            Text(t("settings.pauseOfferHeading", ["amount": price]))
                 .font(.golos(13.5, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
                 .fixedSize(horizontal: false, vertical: true)
@@ -2004,7 +2004,7 @@ private struct PauseOfferNote: View {
             // Outline, never the prominent olive. That is reserved for "Continue
             // to cancel" on this card: a loud stay above a quiet leave is the
             // asymmetry the card's own docblock exists to avoid.
-            Button(t("settings.pauseOfferAction", ["price": price])) { confirming = true }
+            Button(t("settings.pauseOfferAction", ["amount": price])) { confirming = true }
                 .buttonStyle(.bordered)
                 .disabled(pending)
                 .padding(.top, 10)

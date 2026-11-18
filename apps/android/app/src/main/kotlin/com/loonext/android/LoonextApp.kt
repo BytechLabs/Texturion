@@ -25,6 +25,7 @@ import com.loonext.android.core.diag.Telemetry
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.net.ApiClient
+import com.loonext.android.core.net.ConnectionWatch
 import com.loonext.android.core.realtime.RealtimeClient
 import com.loonext.android.core.update.UpdateRepository
 import com.loonext.android.features.tasks.CreatedTaskNotice
@@ -92,6 +93,8 @@ class AppGraph(
                 Telemetry.captureNonFatal("app", error)
             },
     )
+
+    val connectionWatch by lazy { ConnectionWatch(app, appScope) }
 
     /** #724: "Task created, Open" confirmations, shown by one host at the app root. */
     val createdTaskNotices = MutableSharedFlow<CreatedTaskNotice>(extraBufferCapacity = 4)

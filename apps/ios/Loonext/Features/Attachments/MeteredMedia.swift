@@ -85,6 +85,7 @@ final class ConnectionWatch {
     static let shared = ConnectionWatch()
 
     private(set) var connection: MeteredMedia.Connection = .unknown
+    private(set) var offline = false
 
     @ObservationIgnored private let monitor = NWPathMonitor()
     @ObservationIgnored private var started = false
@@ -96,6 +97,7 @@ final class ConnectionWatch {
         monitor.pathUpdateHandler = { [weak self] path in
             Task { @MainActor in
                 self?.connection = MeteredMedia.connection(from: path)
+                self?.offline = path.status == .unsatisfied
             }
         }
         monitor.start(queue: .global(qos: .utility))

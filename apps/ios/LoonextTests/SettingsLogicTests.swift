@@ -1757,9 +1757,8 @@ final class SettingsLogicTests: XCTestCase {
             "the expired branch no longer says the hold ended"
         )
         XCTAssertTrue(
-            rendered.contains("can't promise it any more"),
-            "...nor that the number is no longer promised, which is the whole "
-                + "honest content of that sentence"
+            rendered.contains("plan on a new number if you resubscribe"),
+            "the expired branch should prepare returning customers for a new number"
         )
     }
 

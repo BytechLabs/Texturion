@@ -262,6 +262,7 @@ object ShellStrings : AppStrings.Section {
         "shell.meteredHint" to "You're on mobile data. Tap to load the full-size photo.",
         "shell.meteredLoad" to "Load",
         "shell.wifiOnlyLabel" to "Full-size photos on Wi-Fi only",
+        "shell.offline" to "You’re offline.",
         "shell.wifiOnlyDescription" to
             "Conversations and galleries always load. Only full-size photos and downloads " +
             "wait for Wi-Fi — tap one to load it anyway.",
@@ -503,6 +504,7 @@ object ShellStrings : AppStrings.Section {
             "en pleine résolution.",
         "shell.meteredLoad" to "Charger",
         "shell.wifiOnlyLabel" to "Photos en pleine résolution sur Wi-Fi seulement",
+        "shell.offline" to "Vous êtes hors ligne.",
         "shell.wifiOnlyDescription" to
             "Les conversations et les galeries se chargent toujours. Seules les " +
             "photos en pleine résolution et les téléchargements attendent le " +

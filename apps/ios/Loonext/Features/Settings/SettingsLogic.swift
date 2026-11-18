@@ -2114,7 +2114,7 @@ func pausedStateLines(price: String?, locale: String? = nil) -> [String] {
 /// so naming it is naming what they are getting back, not a guess.
 func pauseResumeLabel(planName: String?, locale: String? = nil) -> String {
     planName.map {
-        AppStrings.translate(locale, "settings.pauseResumeNamed", ["plan": $0])
+        AppStrings.translate(locale, "settings.pauseResumeLabelNamed", ["plan": $0])
     } ?? AppStrings.translate(locale, "settings.pauseResume")
 }
 
