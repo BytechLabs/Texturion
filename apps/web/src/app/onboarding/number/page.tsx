@@ -6,7 +6,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import {
-  billingCurrencyOf,
   currencyForCountry,
   formatMoney,
   US_REGISTRATION_FEE_CENTS,
@@ -108,29 +107,6 @@ export default function NumberStepPage() {
     draft: { ...draft, country, usTexting },
   });
   const skipsRegistration = !draftOwesUsRegistration({ country, usTexting });
-  /**
-   * #328 — what the US registration fee will cost THIS workspace.
-   *
-   * The company row is the authority when there is one: `billing_currency` is
-   * the decision, set at creation and pinned once Stripe has a subscription,
-   * and a screen that inferred a currency from a country would be a second
-   * opinion about a fact we already store. It matters here specifically because
-   * `api_create_company` writes the currency once and nothing updates it
-   * afterwards, so a workspace that was created as US and then stepped Back to
-   * Canada is still billed in USD. Reading the row is what keeps this sentence
-   * agreeing with that invoice.
-   *
-   * Before the company exists this step is still a local draft, so the fallback
-   * is the country the user just picked, which is the exact expression
-   * `api_create_company` will evaluate a moment later. Not a guess: the same
-   * rule, run early.
-   *
-   * NOT the marketing country signal. That one is for visitors; this person has
-   * a workspace.
-   */
-  const feeCurrency = company
-    ? billingCurrencyOf(company.billing_currency)
-    : currencyForCountry(country);
   const busy = submitting || createCompany.isPending || updateCompany.isPending;
   // Honest Back: the nearest still-editable preceding step, or none (name locks
   // at creation, so an editing user has nothing reachable behind this step).
@@ -356,8 +332,9 @@ export default function NumberStepPage() {
             <p className="text-[13px] text-muted-foreground">
               {t("onboarding.usTextingFeeNote", {
                 fee: formatMoney(
-                  US_REGISTRATION_FEE_CENTS[feeCurrency],
-                  feeCurrency,
+                  US_REGISTRATION_FEE_CENTS.usd,
+                  "usd",
+                  currencyForCountry(country),
                 ),
               })}
             </p>

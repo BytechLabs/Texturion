@@ -149,14 +149,14 @@ describe("the headline price carries its crew size", () => {
     expect(rendering.length).toBeGreaterThanOrEqual(2);
   });
 
-  it("resolves one figure per currency, and one suffix for both (#328)", () => {
+  it("labels the USD price for both audiences with the same suffix", () => {
     // The qualifier is a seat count rather than money, so the same sentence
     // sits beside either figure. A currency baked into the suffix is how the
     // Canadian price ends up wearing a US one.
     expect(HEADLINE_PRICE_SUFFIX).not.toMatch(/\$/);
     for (const currency of BILLING_CURRENCIES) {
       expect(headlinePrice(currency)).toBe(
-        formatMoney(PLAN_PRICE_CENTS[currency].starter, currency),
+        formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", currency),
       );
     }
     // No two currencies share a figure, so a resolver that ignored its

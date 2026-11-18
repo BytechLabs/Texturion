@@ -8,11 +8,8 @@ export const compareUiEn = {
   people: "people",
   startForBefore: "Start for",
   startForAfter: "flat →",
-  sliderSourceBefore:
-    "The $19/user figure is the published monthly Starter seat price of a leading per-user business-texting tool",
-  sliderSourceAfter:
-    "(that tool bills texting separately, so real totals run higher). See the named, sourced math on",
-  sliderSourceLink: "our comparison pages",
+  sliderSourceRate: "The {rival} plan shown costs {rate} per person per month {asOf}.",
+  sliderSourceLink: "See the comparison.",
   lineItem: "Line item",
   ctaMicrocopy: "$29/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK",
   formInvalid: "Enter an email address we can send it to.",
@@ -39,11 +36,8 @@ export const compareUiFr: Translated<typeof compareUiEn> = {
   people: "personnes",
   startForBefore: "Commencez à",
   startForAfter: "au prix fixe →",
-  sliderSourceBefore:
-    "Le montant de 19 $ US par personne est le prix mensuel publié d'une place Starter chez un important outil de textos d'entreprise facturé par personne",
-  sliderSourceAfter:
-    "(cet outil facture les textos séparément, donc le total réel est plus élevé). Consultez le calcul nommé et sourcé sur",
-  sliderSourceLink: "nos pages de comparaison",
+  sliderSourceRate: "Le forfait {rival} présenté coûte {rate} par personne par mois {asOf}.",
+  sliderSourceLink: "Voir la comparaison.",
   lineItem: "Poste",
   ctaMicrocopy: "29 $ US/MOIS · DE MOIS EN MOIS · REMBOURSÉ SOUS 30 JOURS",
   formInvalid: "Entrez une adresse courriel où nous pouvons l'envoyer.",

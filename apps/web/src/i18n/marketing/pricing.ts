@@ -60,7 +60,7 @@ export const pricingEn = {
     ", the same as every month after, and texting Canadian customers works the same day.",
   builderTaxUs: "Prices in USD, plus sales tax where it applies.",
   builderTaxCa:
-    "Prices in Canadian dollars, plus sales tax where it applies. Your card is charged in CAD, so the amount does not move with the exchange rate.",
+    "Prices in US dollars, plus sales tax where it applies. Your card issuer may convert the charge to Canadian dollars.",
   builderCtaAria: "{cta}: start with {plan} at {price} a month",
 
   toggleTitle: "Where are your customers?",
@@ -111,7 +111,7 @@ export const pricingEn = {
 
   buildTitle: "Build your plan. The total updates as you go.",
   buildSub:
-    "Pick a plan, switch on only what you need, and see the whole bill before you ever type a card number. What you build here is exactly what checkout starts from.",
+    "Pick a plan and see its price before you enter a card number. Checkout opens with the plan you chose.",
   fairUseLink: "See our fair use policy.",
 
   enterpriseTitle: "More than 15 on your crew?",
@@ -199,7 +199,7 @@ export const pricingEn = {
   ledgerTaxDetailUs:
     "Prices are in US dollars, plus sales tax where it applies, calculated at checkout.",
   ledgerTaxDetailCa:
-    "Your plan is priced and billed in Canadian dollars, plus tax where it applies, calculated at checkout. The amount on your statement doesn't move with the exchange rate.",
+    "Your plan is priced and billed in US dollars. Applicable sales tax is calculated at checkout. Your card issuer may convert the charge to Canadian dollars.",
   ledgerWholeListTerm: "That's the whole list.",
   ledgerWholeListDetailUs:
     'Two plans, one optional add-on, one registration fee, and overage you cap. No setup fees, no per-user fees, no storage fees, no monthly "compliance" or "carrier" line items, no fee for canceling.',
@@ -234,7 +234,7 @@ export const pricingEn = {
   elsewhereFlat: "{starter} flat",
   elsewhereQuoTotal: "~$59 + extra numbers at $5 ea.",
   elsewhereFootnote:
-    "Competitor prices from their public pricing pages, November 2026; each figure is sourced on the matching comparison page. Every figure in this table is in US dollars, which is what Heymarket and Quo publish in, so the Loonext row is our US price; Canadian workspaces are quoted and billed in Canadian dollars. Heymarket's texting total assumes 500 single-segment texts at their published 3¢/segment plus their $10/mo per-campaign carrier fee. Quo's total is $57 in seats plus their published $1.50 to $3 monthly carrier maintenance. Quo includes US and Canada texting under its fair usage policy and meters only automated texts (1¢/segment), and extra numbers are $5 each. One-time registration fees excluded for all (ours is {fee}; Quo discloses $19.50; others don't say). If any number changes, tell us and we'll fix it.",
+    "Competitor prices are from their public pricing pages as of November 2026. Each figure is sourced on the matching comparison page. Every figure in this table is in US dollars. Loonext bills in US dollars in the US and Canada. Heymarket's texting total assumes 500 single-segment texts at their published 3¢/segment plus their $10/mo per-campaign carrier fee. Quo's total is $57 in seats plus their published $1.50 to $3 monthly carrier maintenance. Quo includes US and Canada texting under its fair usage policy and meters only automated texts (1¢/segment), and extra numbers are $5 each. The totals exclude one-time registration fees. Ours is {fee}, Quo discloses $19.50, and others don't say. If any number changes, tell us and we'll fix it.",
 
   faqTrialQ: "Is there a free trial?",
   faqTrialA:
@@ -259,7 +259,7 @@ export const pricingEn = {
     "Yes, transfer it to Loonext. At signup, choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers and typically take 1 to 7 business days, and your number keeps working on your current carrier the whole time, switching to Loonext on the transfer date. Want to text sooner? Get a new local number now and transfer your old one alongside it.",
   faqCurrencyQ: "What currency am I billed in?",
   faqCurrencyA:
-    "Whichever your business is in. A Canadian workspace is priced and charged in Canadian dollars, so the amount doesn't move with the exchange rate and your bank has no conversion to add on top. A US workspace is charged in US dollars. The country you pick at signup decides it, and it's fixed once your subscription starts, so tell us before you pay if you picked the wrong one.",
+    "Loonext prices and bills subscriptions in US dollars in both the United States and Canada. If you pay with a Canadian card, your card issuer may convert the charge to Canadian dollars.",
   faqNotGettingQ: "What am I not getting at these prices?",
   faqNotGettingA:
     "Loonext is your business number and the work that comes out of it, not a call center: no mass text blasts, no review management, no phone menus, no queues, and no desk phones or SIP handsets. Calling is included on every plan: the app itself is the phone, so incoming calls ring the whole crew inside Loonext and whoever is free answers, you call customers back on that same business number, and callers you miss leave a voicemail we write down and get an automatic text back, so the lead still lands in your inbox. The minutes are generous under fair use, with the exact mechanics in our fair use policy. If you need blasts or review tools, a bigger platform might fit better; our comparison pages say so honestly.",
@@ -302,7 +302,7 @@ export const pricingFr: Translated<typeof pricingEn> = {
   builderTaxUs:
     "Prix en dollars américains, plus les taxes de vente là où elles s'appliquent.",
   builderTaxCa:
-    "Prix en dollars canadiens, plus les taxes de vente là où elles s'appliquent. Votre carte est débitée en CAD, alors le montant ne bouge pas avec le taux de change.",
+    "Prix en dollars américains, plus les taxes de vente applicables. L’émetteur de votre carte peut convertir le montant en dollars canadiens.",
   builderCtaAria: "{cta} : commencer avec {plan} à {price} par mois",
 
   toggleTitle: "Où sont vos clients ?",
@@ -353,7 +353,7 @@ export const pricingFr: Translated<typeof pricingEn> = {
 
   buildTitle: "Bâtissez votre forfait. Le total se met à jour au fur et à mesure.",
   buildSub:
-    "Choisissez un forfait, activez seulement ce dont vous avez besoin, et voyez toute la facture avant même de taper un numéro de carte. Ce que vous bâtissez ici est exactement ce par quoi le paiement commence.",
+    "Choisissez un forfait et voyez son prix avant de saisir un numéro de carte. Le paiement s’ouvre avec le forfait choisi.",
   fairUseLink: "Voyez notre politique d'utilisation équitable.",
 
   enterpriseTitle: "Plus de 15 personnes dans votre équipe ?",
@@ -441,7 +441,7 @@ export const pricingFr: Translated<typeof pricingEn> = {
   ledgerTaxDetailUs:
     "Les prix sont en dollars américains, plus les taxes de vente là où elles s'appliquent, calculées au paiement.",
   ledgerTaxDetailCa:
-    "Votre forfait est établi et facturé en dollars canadiens, plus les taxes là où elles s'appliquent, calculées au paiement. Le montant sur votre relevé ne bouge pas avec le taux de change.",
+    "Votre forfait est établi et facturé en dollars américains. Les taxes de vente applicables sont calculées au paiement. L’émetteur de votre carte peut convertir le montant en dollars canadiens.",
   ledgerWholeListTerm: "C'est toute la liste.",
   ledgerWholeListDetailUs:
     "Deux forfaits, un supplément optionnel, des frais d'enregistrement et un dépassement que vous plafonnez. Aucuns frais d'installation, aucuns frais par personne, aucuns frais de stockage, aucune ligne mensuelle de « conformité » ou d'« opérateur », aucuns frais d'annulation.",
@@ -477,7 +477,7 @@ export const pricingFr: Translated<typeof pricingEn> = {
   elsewhereFlat: "{starter} prix fixe",
   elsewhereQuoTotal: "~59 $ + numéros supplémentaires à 5 $ ch.",
   elsewhereFootnote:
-    "Prix des concurrents tirés de leurs pages de prix publiques, novembre 2026 ; chaque chiffre est sourcé sur la page de comparaison correspondante. Chaque chiffre de ce tableau est en dollars américains, ce qui est la monnaie dans laquelle Heymarket et Quo publient, alors la ligne Loonext est notre prix américain ; les espaces de travail canadiens sont établis et facturés en dollars canadiens. Le total de textos de Heymarket suppose 500 textos d'un seul segment à leur tarif publié de 3 ¢/segment plus leurs frais d'opérateur de 10 $/mois par campagne. Le total de Quo est de 57 $ en sièges plus leur entretien d'opérateur publié de 1,50 $ à 3 $ par mois. Quo inclut les textos aux États-Unis et au Canada sous sa politique d'utilisation équitable et ne facture à l'unité que les textos automatisés (1 ¢/segment), et les numéros supplémentaires sont à 5 $ chacun. Frais d'enregistrement uniques exclus pour tous (les nôtres sont de {fee} ; Quo déclare 19,50 $ ; les autres ne le disent pas). Si un chiffre change, dites-le-nous et on le corrigera.",
+    "Prix des concurrents tirés de leurs pages publiques en novembre 2026. Chaque chiffre est sourcé sur la page de comparaison correspondante. Tous les montants du tableau sont en dollars américains. Loonext facture en dollars américains aux États-Unis et au Canada. Le total de textos de Heymarket suppose 500 textos d'un seul segment à leur tarif publié de 3 ¢/segment plus leurs frais d'opérateur de 10 $/mois par campagne. Le total de Quo est de 57 $ en sièges plus leur entretien d'opérateur publié de 1,50 $ à 3 $ par mois. Quo inclut les textos aux États-Unis et au Canada sous sa politique d'utilisation équitable et ne facture à l'unité que les textos automatisés (1 ¢/segment), et les numéros supplémentaires sont à 5 $ chacun. Les totaux excluent les frais d'enregistrement uniques. Les nôtres sont de {fee}, Quo déclare 19,50 $ et les autres ne précisent pas de montant. Si un chiffre change, dites-le-nous et on le corrigera.",
 
   faqTrialQ: "Y a-t-il un essai gratuit ?",
   faqTrialA:
@@ -503,7 +503,7 @@ export const pricingFr: Translated<typeof pricingEn> = {
     "Oui, transférez-le vers Loonext. À l'inscription, choisissez « Amener mon numéro », donnez-nous les détails de votre fournisseur actuel et téléversez une facture récente ; on s'occupe de la paperasse avec les compagnies de téléphone à partir de là. Les transferts sont gratuits pour les numéros américains et canadiens et prennent habituellement de 1 à 7 jours ouvrables, et votre numéro continue de fonctionner chez votre fournisseur actuel tout du long, basculant sur Loonext à la date du transfert. Vous voulez écrire plus tôt ? Prenez un nouveau numéro local maintenant et transférez l'ancien à côté.",
   faqCurrencyQ: "Dans quelle monnaie suis-je facturé ?",
   faqCurrencyA:
-    "Celle de votre entreprise. Un espace de travail canadien est établi et facturé en dollars canadiens, alors le montant ne bouge pas avec le taux de change et votre banque n'a aucune conversion à ajouter par-dessus. Un espace de travail américain est facturé en dollars américains. Le pays que vous choisissez à l'inscription le décide, et c'est fixé une fois votre abonnement commencé, alors dites-le-nous avant de payer si vous vous êtes trompé.",
+    "Loonext établit et facture ses abonnements en dollars américains aux États-Unis et au Canada. Si vous payez avec une carte canadienne, l’émetteur de votre carte peut convertir le montant en dollars canadiens.",
   faqNotGettingQ: "Qu'est-ce que je n'ai pas à ces prix ?",
   faqNotGettingA:
     "Loonext est votre ligne d'affaires et le travail qui en sort, pas un centre d'appels : aucun envoi de textos en masse, aucune gestion d'avis, aucun menu téléphonique, aucune file d'attente, et aucun téléphone de bureau ni combiné SIP. Les appels sont inclus sur tous les forfaits : l'application elle-même est le téléphone, alors les appels entrants font sonner toute l'équipe dans Loonext et celui qui est libre répond, vous rappelez les clients sur ce même numéro d'entreprise, et ceux que vous manquez laissent un message vocal qu'on met par écrit et reçoivent un texto automatique en retour, alors le client potentiel atterrit quand même dans votre boîte. Les minutes sont généreuses sous l'utilisation équitable, avec les mécaniques exactes dans notre politique d'utilisation équitable. Si vous avez besoin d'envois en masse ou d'outils d'avis, une plus grosse plateforme conviendra peut-être mieux ; nos pages de comparaison le disent honnêtement.",

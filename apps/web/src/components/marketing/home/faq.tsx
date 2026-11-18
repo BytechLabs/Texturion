@@ -20,13 +20,6 @@ import { FrSection } from "@/components/marketing/fr";
  * fee and wait honestly do apply). Neither list shows the other country's
  * timeline.
  *
- * #328: the country branch IS the currency branch. This list is built by a
- * function of currency and each country's list fixes that argument, which is
- * not an assumption about the reader: `faqsForCountry` is the only thing that
- * builds one, the two lists never render together, and the answers a Canadian
- * reads are therefore only ever built with CAD. That matters most in the
- * pricing answer, which is the one a reader checks against their card.
- *
  * Native <details>/<summary> disclosures (§7: the FAQ works with zero JS),
  * drawn as white cards on the Frost band, separated by space and radius, no
  * hairline rules anywhere (Law 10). Numbers inside FAQ prose stay in the
@@ -46,33 +39,23 @@ interface HomeFaq {
   aCa?: string;
 }
 
-/**
- * Somebody else's prices, which stay literal because they are not ours to
- * derive: these are the published per-user rates the comparison pages source.
- *
- * They are US dollars, and for a Canadian reader they now SAY so. The sentence
- * sets a rival's monthly total beside ours, so once our half is CAD the two
- * halves stopped being the same money. The comparison still holds with the
- * label on (their US$90 floor is well past our CAD Pro price at any rate this
- * decade has seen); without it, the sentence was our argument plus an
- * accidental exchange rate, which is the exact defect #328 is about.
- */
 const crewElsewhere = (currency: BillingCurrency, copy: HomeCopy) =>
   currency === "cad" ? copy.faqCrewElsewhereCad : copy.faqCrewElsewhereUsd;
 
 /** The question list for one currency; `faqsForCountry` picks which. */
 function homeFaqs(
-  currency: BillingCurrency,
+  audience: BillingCurrency,
   copy: HomeCopy,
 ): readonly HomeFaq[] {
-  const starter = formatMoney(PLAN_PRICE_CENTS[currency].starter, currency);
-  const pro = formatMoney(PLAN_PRICE_CENTS[currency].pro, currency);
-  const registration = formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
+  const starter = formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", audience);
+  const pro = formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", audience);
+  const registration = formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", audience);
   // The first month is a SUM, so it is the figure that can go wrong while both
   // of its parts stay right. Added here rather than written down.
   const firstMonth = formatMoney(
-    PLAN_PRICE_CENTS[currency].starter + US_REGISTRATION_FEE_CENTS[currency],
-    currency,
+    PLAN_PRICE_CENTS.usd.starter + US_REGISTRATION_FEE_CENTS.usd,
+    "usd",
+    audience,
   );
   return [
     {
@@ -95,12 +78,12 @@ function homeFaqs(
         pro,
         registration,
         firstMonth,
-        crew: crewElsewhere(currency, copy),
+        crew: crewElsewhere(audience, copy),
       }),
       aCa: fill(copy.faqPriceACa, {
         starter,
         pro,
-        crew: crewElsewhere(currency, copy),
+        crew: crewElsewhere(audience, copy),
       }),
     },
     {
@@ -119,9 +102,6 @@ function homeFaqs(
     },
     {
       q: copy.faqUsQ,
-      // The fee lands on a CANADIAN invoice here, which is why it is read with
-      // this list's currency and not fixed to USD: a Canadian workspace that
-      // turns on US texting is charged US_REGISTRATION_FEE_CENTS.cad.
       a: fill(copy.faqUsA, { registration }),
       only: "ca",
     },
@@ -145,19 +125,8 @@ function homeFaqs(
   ];
 }
 
-/**
- * The US list, which is the SSR default (country-context.tsx).
- *
- * #328 note, the same one pricing-data.ts carries about `PLANS`: this is built
- * with USD, so the Canada-only entries inside it hold US figures. Nothing
- * renders it — `faqsForCountry` rebuilds the list in the reader's own currency
- * — and it is exported for the tests that read the country-neutral answers.
- */
 export const HOME_FAQS: readonly HomeFaq[] = homeFaqs("usd", homeEn);
 
-/** The visible question/answer list for one country: build it in the currency
- *  that country is billed in, filter the single-country entries out of the
- *  other country, then apply any Canada wording override. */
 export function faqsForCountry(
   country: Country,
   locale: MarketingLocale = "en",

@@ -8,7 +8,7 @@ export const legalTermsEn = {
     "The Loonext terms of service: a month-to-month subscription, no annual contract, plain-language cancellation with a 30-day number hold, and the money-back guarantee.",
   title: "Terms of service",
   breadcrumbLabel: "Terms of service",
-  lastUpdated: "November 10, 2026",
+  lastUpdated: "November 17, 2026",
   summary:
     "Loonext is a month-to-month subscription with no annual contract: cancel anytime from your billing settings, and we hold your number for 30 days in case you come back. Your first 30 days carry a full money-back guarantee, registration fee included. Text only people who have agreed to hear from you. That is most of what follows.",
 
@@ -32,9 +32,6 @@ export const legalTermsEn = {
   statusLink: "status page",
   contactLink: "contact page",
 
-  currencyUs: "US dollars",
-  currencyCa: "Canadian dollars",
-
   agreement:
     "By creating a Loonext account or using the service, you agree to these terms on behalf of your business. If you don't agree, don't use Loonext. \"Loonext,\" \"we,\" and \"us\" mean the company that operates Loonext; \"you\" means the business that holds the account and the people it authorizes to use it.",
   eligibility:
@@ -44,7 +41,7 @@ export const legalTermsEn = {
   subscriptionTwo:
     "US businesses (and Canadian businesses that turn on US texting) also pay a one-time {fee} fee to register with the phone companies. It is charged once, ever, cancel and come back later and you won't pay it again.",
   subscriptionThree:
-    "Prices are in {currency}, plus sales tax where it applies, calculated at checkout by Stripe Tax. Your currency follows the country of your business: it is set when your workspace is created and fixed once you subscribe, because Stripe pins the currency to the subscription. Changing it later means cancelling and signing up again, so email us and we will walk you through it. If you send more than your plan's included texts, extra texts are billed at your plan's overage rate up to a spending cap you control. We email you at 80% and 100% of your included texts. Your subscription renews automatically each month until you cancel.",
+    "Prices are in US dollars for new subscriptions in the United States and Canada. Stripe Tax calculates applicable sales tax at checkout. If you send more than your plan's included texts, extra texts are billed at your plan's overage rate up to a spending cap you control. We email you at 80% and 100% of your included texts. Your subscription renews automatically each month until you cancel.",
   numbersOne:
     "The local number Loonext provisions belongs to your business account while your subscription is active. You can send to Canadian numbers as soon as the number is live; sending to US numbers turns on after the phone companies approve your registration (typically 3 to 7 business days). Receiving texts works right away.",
   numbersTwo:
@@ -75,7 +72,7 @@ export const legalTermsFr: Translated<typeof legalTermsEn> = {
     "Les conditions d'utilisation de Loonext : un abonnement mensuel sans engagement annuel, une annulation en langage clair avec une retenue du numéro de 30 jours, et la garantie de remboursement.",
   title: "Conditions d'utilisation",
   breadcrumbLabel: "Conditions d'utilisation",
-  lastUpdated: "10 novembre 2026",
+  lastUpdated: "17 novembre 2026",
   summary:
     "Loonext est un abonnement mensuel sans engagement annuel : annulez en tout temps dans les paramètres de facturation, et nous gardons votre numéro pendant 30 jours au cas où vous reviendriez. Vos 30 premiers jours sont couverts par une garantie de remboursement complète, frais d'enregistrement compris. N'envoyez des textos qu'aux personnes qui ont accepté d'en recevoir. C'est l'essentiel de ce qui suit.",
 
@@ -99,9 +96,6 @@ export const legalTermsFr: Translated<typeof legalTermsEn> = {
   statusLink: "page sur l'état du service",
   contactLink: "page de contact",
 
-  currencyUs: "dollars américains",
-  currencyCa: "dollars canadiens",
-
   agreement:
     "En créant un compte Loonext ou en utilisant le service, vous acceptez les présentes conditions au nom de votre entreprise. Si vous êtes en désaccord, n'utilisez pas Loonext. « Loonext », « nous » et « notre » désignent l'entreprise qui exploite Loonext; « vous » désigne l'entreprise titulaire du compte et les personnes qu'elle autorise à l'utiliser.",
   eligibility:
@@ -111,7 +105,7 @@ export const legalTermsFr: Translated<typeof legalTermsEn> = {
   subscriptionTwo:
     "Les entreprises américaines (et les entreprises canadiennes qui activent les textos vers les États-Unis) paient aussi des frais uniques de {fee} pour l'enregistrement auprès des compagnies de téléphone. Ils sont facturés une seule fois, pour toujours : si vous annulez et revenez plus tard, vous ne les payez pas de nouveau.",
   subscriptionThree:
-    "Les prix sont en {currency}, taxes de vente en sus lorsqu'elles s'appliquent, calculées au moment du paiement par Stripe Tax. Votre devise suit le pays de votre entreprise : elle est établie à la création de votre espace de travail et fixée dès que vous vous abonnez, parce que Stripe associe la devise à l'abonnement. La changer plus tard exige d'annuler puis de vous inscrire de nouveau; écrivez-nous et nous vous guiderons. Si vous envoyez plus de textos que ceux inclus dans votre forfait, les textos supplémentaires sont facturés au tarif de dépassement de votre forfait, jusqu'à un plafond de dépenses que vous contrôlez. Nous vous écrivons par courriel lorsque vous atteignez 80 % et 100 % des textos inclus. Votre abonnement se renouvelle automatiquement chaque mois jusqu'à ce que vous l'annuliez.",
+    "Les prix des nouveaux abonnements sont en dollars américains aux États-Unis et au Canada. Stripe Tax calcule les taxes de vente applicables au moment du paiement. Si vous envoyez plus de textos que ceux inclus dans votre forfait, les textos supplémentaires sont facturés au tarif de dépassement de votre forfait, jusqu'à un plafond de dépenses que vous contrôlez. Nous vous écrivons par courriel lorsque vous atteignez 80 % et 100 % des textos inclus. Votre abonnement se renouvelle automatiquement chaque mois jusqu'à ce que vous l'annuliez.",
   numbersOne:
     "Le numéro local que Loonext attribue appartient au compte de votre entreprise tant que votre abonnement est actif. Vous pouvez envoyer des textos à des numéros canadiens dès que le numéro est en service; l'envoi vers des numéros américains est activé après l'approbation de votre enregistrement par les compagnies de téléphone (habituellement de 3 à 7 jours ouvrables). La réception de textos fonctionne tout de suite.",
   numbersTwo:

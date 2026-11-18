@@ -1,4 +1,4 @@
-import { DEFAULT_LOCALE } from "@loonext/shared";
+import { DEFAULT_LOCALE, formatMoney, type BillingCurrency } from "@loonext/shared";
 
 import { makeTranslate, type Translate } from "@/i18n/translate";
 import { PLAN_PRICING } from "@/lib/api/types";
@@ -37,17 +37,18 @@ function planCard(
   name: string,
   crewLine: string,
   t: Translate,
+  audience: BillingCurrency,
 ): PlanCard {
   const p = PLAN_PRICING[id];
   return {
     id,
     name,
-    price: `$${p.monthlyDollars}`,
+    price: formatMoney(p.monthlyDollars * 100, "usd", audience),
     // 30 days, not 30.44: a round month is what somebody checks on their
     // fingers, and being a cent optimistic about our own price is the wrong
     // direction to be imprecise in.
     daily: t("onboarding.planCardDaily", {
-      amount: `$${(p.monthlyDollars / 30).toFixed(2)}`,
+      amount: formatMoney(Math.round(p.monthlyDollars * 100 / 30), "usd", audience),
     }),
     lines: [
       t("onboarding.planCardTextingIncluded"),
@@ -71,7 +72,10 @@ function planCard(
  * language happened to load the module first for everybody after. "Starter" and
  * "Pro" stay literals — they are product names, identical in both.
  */
-export function planCards(t: Translate = EN): PlanCard[] {
+export function planCards(
+  t: Translate = EN,
+  audience: BillingCurrency = "usd",
+): PlanCard[] {
   return [
     planCard(
       "starter",
@@ -80,12 +84,14 @@ export function planCards(t: Translate = EN): PlanCard[] {
         seats: PLAN_PRICING.starter.seats,
       }),
       t,
+      audience,
     ),
     planCard(
       "pro",
       "Pro",
       t("onboarding.planCardCrewPro", { seats: PLAN_PRICING.pro.seats }),
       t,
+      audience,
     ),
   ];
 }

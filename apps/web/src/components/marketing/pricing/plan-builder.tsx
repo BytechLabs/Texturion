@@ -28,9 +28,7 @@
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/fill";
 import { pricingCopy } from "@/i18n/marketing/pricing";
-import { currencyForCountry,
-  PLAN_PRICE_CENTS,
-  US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
+import { formatMoney, PLAN_PRICE_CENTS, US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
 import { useEffect, useRef, useState } from 'react';
 import type { KeyboardEvent } from 'react';
 import {
@@ -53,7 +51,6 @@ import {
   monthlyTotalDollars,
   SELLABLE_ADDON_CARDS,
   signupHref,
-  usd,
 } from "./plan-math";
 
 function InkTick() {
@@ -139,21 +136,14 @@ export function PlanBuilder({
   }, []);
 
   const selection = { plan, addons };
-  // #328: the receipt is denominated in what this visitor will actually be
-  // charged. The country toggle above is already the signal — a Canadian who
-  // has told us where they are should not also have to pick a currency.
-  const currency = currencyForCountry(country === "ca" ? "CA" : "US");
-  // The plan CARDS come from a prop the caller built once, in USD. Their
-  // names and feature lists are currency-neutral; their prices are not, and a
-  // card reading $29 above a receipt reading $39 is the page contradicting its
-  // own toggle. Repriced here rather than asking every caller to pass two
-  // lists.
+  const audience = country === "ca" ? "cad" : "usd";
+  const price = (dollars: number) => formatMoney(Math.round(dollars * 100), "usd", audience);
   const plans = plansProp.map((p) => ({
     ...p,
-    price: usd(PLAN_PRICE_CENTS[currency][p.id] / 100, currency),
+    price: price(PLAN_PRICE_CENTS.usd[p.id] / 100),
   }));
-  const monthly = monthlyTotalDollars(selection, currency);
-  const firstMonth = firstMonthTotalDollars(selection, currency);
+  const monthly = monthlyTotalDollars(selection);
+  const firstMonth = firstMonthTotalDollars(selection);
   const chosenPlan = plans.find((p) => p.id === plan) ?? plans[0];
 
   function toggleAddon(id: PlanModule) {
@@ -371,7 +361,7 @@ export function PlanBuilder({
                   {card.label}
                 </dt>
                 <dd className="fr-mono-data text-[color:var(--fr-ink)]">
-                  + {usd(addonMonthlyDollars(card), currency)}/mo
+                  + {price(addonMonthlyDollars(card))}/mo
                 </dd>
               </div>
             ))}
@@ -382,7 +372,7 @@ export function PlanBuilder({
               {copy.builderEveryMonth}
             </span>
             <span className="fr-figure text-[color:var(--fr-ink)]">
-              {usd(monthly, currency)}
+              {price(monthly)}
               <span className="fr-mono-data ml-1 text-[color:var(--fr-ink-55)]">
                 /mo
               </span>
@@ -402,7 +392,7 @@ export function PlanBuilder({
                   {copy.builderRegLine}
                 </dt>
                 <dd className="fr-mono-data text-[color:var(--fr-ink)]">
-                  + {usd(US_REGISTRATION_FEE_CENTS[currency] / 100, currency)}
+                  + {price(US_REGISTRATION_FEE_CENTS.usd / 100)}
                 </dd>
               </div>
               <div className="flex items-baseline justify-between gap-4">
@@ -410,7 +400,7 @@ export function PlanBuilder({
                   {copy.builderFirstMonth}
                 </dt>
                 <dd className="fr-mono-data font-medium text-[color:var(--fr-ink)]">
-                  {usd(firstMonth, currency)}
+                  {price(firstMonth)}
                 </dd>
               </div>
             </dl>
@@ -418,7 +408,7 @@ export function PlanBuilder({
             <div className="mt-4 flex items-start gap-2 rounded-[10px] bg-[color:var(--fr-frost)] px-4 py-3.5">
               <GreenTick />
               <p className="text-[0.875rem] leading-relaxed text-[color:var(--fr-ink)]">
-                {copy.builderCaBefore} {usd(monthly, currency)}
+                {copy.builderCaBefore} {price(monthly)}
                 {copy.builderCaAfter}
               </p>
             </div>
@@ -431,7 +421,6 @@ export function PlanBuilder({
           </p>
         ) : (
           <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-            {/* #328: this used to say CAD billing wasn't here yet. It is. */}
             {copy.builderTaxCa}
           </p>
         )}
@@ -442,7 +431,7 @@ export function PlanBuilder({
           ariaLabel={fill(copy.builderCtaAria, {
             cta: PRIMARY_CTA_LABEL,
             plan: chosenPlan.name,
-            price: usd(monthly, currency),
+            price: price(monthly),
           })}
         >
           {PRIMARY_CTA_LABEL}

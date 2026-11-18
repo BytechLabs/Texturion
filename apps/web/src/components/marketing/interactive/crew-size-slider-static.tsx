@@ -7,10 +7,8 @@
  *
  * Values and color law mirror the interactive slider exactly (cobalt flat
  * Loonext line, Flare rival climbing line per whitelist §3.4.5, mono ink
- * figures): Loonext is flat (Starter up to 3 people, Pro for 4 and up); the
- * per-user figure is the dated, sourced $19/user/mo (July 2026), linked to
- * /compare/quo. At the default 6 people that is one flat Pro price against
- * 6 × $19, so the island swap is seamless.
+ * figures). The chart starts at six people and uses the same per-seat rate
+ * and source as the interactive slider.
  *
  * #328 — EVERY figure on this card is USD, on purpose. The rival's rate is a
  * published US price, so quoting our side in CAD to a Canadian reader would
@@ -24,9 +22,10 @@ import { compareUiCopy } from "@/i18n/marketing/compare-ui";
 import { homeCopy } from "@/i18n/marketing/home";
 import { formatMoney } from '@loonext/shared';
 import type { BillingCurrency } from '@loonext/shared';
-import { APP_LINKS, LIVE_ROUTES } from "@/lib/marketing/site";
+import { APP_LINKS } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
-import { compareAsOf } from "@/app/(marketing)/compare/verification";
+import { CrewSizeSliderSource } from "./crew-size-slider-source";
+import type { RivalSeatPricing } from "./crew-size-slider";
 
 /**
  * #370 — the rival's seat rate is a PROP, not a constant.
@@ -77,13 +76,12 @@ function usd(n: number, audience: BillingCurrency): string {
 export function CrewSizeSliderStatic({
   perUserMonthly = DEFAULT_PER_USER_MONTHLY,
   minimumSeats = 1,
+  rival = "quo",
   // The currency the READER thinks in, so a US figure can be marked as foreign
   // when it is. Defaults to usd, which is a no-op for a US visitor.
   audience = "usd",
   locale = "en",
-}: {
-  perUserMonthly?: number;
-  minimumSeats?: number;
+}: RivalSeatPricing & {
   audience?: BillingCurrency;
   locale?: MarketingLocale;
 } = {}) {
@@ -179,16 +177,12 @@ export function CrewSizeSliderStatic({
         {ui.startForBefore} {usd(LOONEXT_PRICE, audience)} {ui.startForAfter}
       </a>
 
-      <p className="mt-3 text-[0.8125rem] leading-relaxed text-[color:var(--fr-ink-55)]">
-        {ui.sliderSourceBefore} {compareAsOf(locale)} {ui.sliderSourceAfter}{" "}
-        <a
-          href={locale === "fr-CA" ? "/fr/comparer/quo" : LIVE_ROUTES.compareQuo}
-          className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
-        >
-          {ui.sliderSourceLink}
-        </a>
-        .
-      </p>
+      <CrewSizeSliderSource
+        rival={rival}
+        perUserMonthly={perUserMonthly}
+        locale={locale}
+        audience={audience}
+      />
     </div>
   );
 }

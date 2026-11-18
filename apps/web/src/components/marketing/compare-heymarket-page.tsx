@@ -89,6 +89,7 @@ export function CompareHeymarketPageBody({
         lead={copy.sliderLead}
         perUserMonthly={HEYMARKET_SEAT_PRICING.perUserMonthly}
         minimumSeats={HEYMARKET_SEAT_PRICING.minimumSeats}
+        rival="heymarket"
       />
 
       <HonestFit

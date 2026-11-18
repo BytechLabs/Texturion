@@ -22,6 +22,7 @@ import {
   FrSection,
 } from "@/components/marketing/fr";
 import { CrewSizeSliderStatic } from "@/components/marketing/interactive/crew-size-slider-static";
+import type { RivalSeatPricing } from "@/components/marketing/interactive/crew-size-slider";
 import { LazyCrewSizeSlider } from "@/components/marketing/lazy/lazy-crew-size-slider";
 import { TruthStrip } from '@/components/marketing/pricing/truth-strip';
 import type { TruthStripItem } from '@/components/marketing/pricing/truth-strip';
@@ -113,19 +114,11 @@ export function SliderBand({
   lead,
   perUserMonthly,
   minimumSeats,
+  rival,
   locale = "en",
-}: {
+}: RivalSeatPricing & {
   heading: string;
   lead: ReactNode;
-  /**
-   * #370: THIS page's rival seat rate, from the ledger beside it. Required in
-   * practice — it was a shared constant, so the Heymarket page drew Quo's $19
-   * line under prose that correctly said $98, understating a competitor by
-   * 2.6x while arguing against itself.
-   */
-  perUserMonthly?: number;
-  /** The fewest seats they will sell. A floor, not a discount. */
-  minimumSeats?: number;
   locale?: MarketingLocale;
 }) {
   return (
@@ -140,11 +133,13 @@ export function SliderBand({
             <CrewSizeSliderStatic
               perUserMonthly={perUserMonthly}
               minimumSeats={minimumSeats}
+              rival={rival}
               locale={locale}
             />
           }
           perUserMonthly={perUserMonthly}
           minimumSeats={minimumSeats}
+          rival={rival}
           locale={locale}
         />
       </Reveal>

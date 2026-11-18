@@ -6,12 +6,6 @@
  * country context (see country-context.tsx): the registration-fee line, the
  * "first month" math, and the activation-timeline card.
  *
- * Since #328 the same signal also picks the billing currency, so every figure
- * that reads it (<PlanPrice/>, and the fee in the helper below) moves with this
- * control. That is why there is still only one control: a currency selector
- * beside a country selector is a second thing that can disagree with the first,
- * and the visitor has already told us where they are.
- *
  * A real segmented radiogroup: arrow keys move the selection, the active
  * segment is a cobalt pill (marketing chrome, §2), and a short helper line
  * states the one fact that actually changes so the choice is legible before
@@ -28,7 +22,6 @@ import { formatMoney, US_REGISTRATION_FEE_CENTS } from "@loonext/shared";
 
 import { cn } from "@/lib/utils";
 
-import { useMarketingCurrency } from "./plan-price";
 import { COUNTRY_OPTIONS, useCountry } from './country-context';
 import type { Country } from './country-context';
 
@@ -58,8 +51,7 @@ export function CountryToggle({
 }) {
   const copy = pricingCopy(locale);
   const { country, setCountry } = useCountry();
-  const currency = useMarketingCurrency();
-  const fee = formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
+  const fee = formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd");
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {

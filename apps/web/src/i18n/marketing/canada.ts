@@ -41,10 +41,10 @@ export const canadaEn = {
   truthFeeBefore:
     "A Canadian business texting Canadian customers pays no registration fee and waits for nothing. The one-time",
   truthFeeAfter:
-    "fee and the 3 to 7 business day approval only ever apply if you choose to enable US texting later. A Canadian workspace is billed in Canadian dollars, plus sales tax where it applies.",
+    "fee and the 3 to 7 business day approval only ever apply if you choose to enable US texting later. A Canadian workspace is billed in US dollars, plus sales tax where it applies.",
   metaTitle: "Business texting in Canada: text customers today",
   metaDescription:
-    "Canadian crews text customers the day they sign up. No US carrier registration to wait on, local numbers in every province, CASL-aware consent records. Billed in Canadian dollars, one flat price for the crew.",
+    "Canadian crews text customers the day they sign up. No US carrier registration to wait on, local numbers in every province, CASL-aware consent records. One flat price for the crew, billed in US dollars.",
 
   breadcrumbHome: "Home",
   breadcrumbSelf: "Canada",
@@ -106,7 +106,7 @@ export const canadaEn = {
   truthDayOne:
     "Texting Canadian customers works day one. No registration, no fee, no wait.",
   truthBilling:
-    "A Canadian workspace is billed in Canadian dollars, plus tax. The price doesn't move with the exchange rate, and a Canadian card picks up no foreign-transaction fee.",
+    "Canadian workspaces are billed in US dollars, plus tax where it applies. Your card issuer may convert the charge to Canadian dollars.",
   truthData:
     "Your data is stored in the United States, and the privacy policy says so plainly.",
 
@@ -138,9 +138,9 @@ export const canadaEn = {
   faqDataQ: "Where is my data stored?",
   faqDataA:
     "In the United States. We state this plainly and disclose the cross-border transfer in our privacy policy, the way PIPEDA and Quebec's Law 25 expect. Message content is also kept out of our analytics and error logs; the details are on our security page.",
-  faqCurrencyQ: "I bill in Canada. Can I pay in Canadian dollars?",
+  faqCurrencyQ: "What currency will I pay in from Canada?",
   faqCurrencyA:
-    "Yes. A Canadian workspace is billed in Canadian dollars, so the amount on your statement is the amount on the page, your bank isn't converting anything, and the bill doesn't drift up and down with the exchange rate. The currency comes from your country when you subscribe and is fixed on the subscription from then on, so switching it later is a support conversation rather than a setting.",
+    "Loonext bills in US dollars. Your card issuer may convert the charge to Canadian dollars, so the amount on your statement can depend on the exchange rate.",
 
   ctaTitle: "Text your Canadian customers today.",
   ctaBody:
@@ -166,10 +166,10 @@ export const canadaFr: Translated<typeof canadaEn> = {
   truthFeeBefore:
     "Une entreprise canadienne qui écrit à des clients canadiens ne paie aucuns frais d'inscription et n'attend rien. Les frais uniques de",
   truthFeeAfter:
-    "et l'approbation des transporteurs de 3 à 7 jours ouvrables ne s'appliquent que si vous choisissez d'activer la messagerie texte américaine plus tard. Un espace de travail canadien est facturé en dollars canadiens, plus les taxes de vente là où elles s'appliquent.",
+    "et l'approbation des transporteurs de 3 à 7 jours ouvrables ne s'appliquent que si vous choisissez d'activer la messagerie texte américaine plus tard. Un espace de travail canadien est facturé en dollars américains, plus les taxes de vente là où elles s'appliquent.",
   metaTitle: "Textos d'entreprise au Canada : écrivez à vos clients dès aujourd'hui",
   metaDescription:
-    "Les équipes canadiennes écrivent à leurs clients le jour de leur inscription. Aucune inscription auprès des transporteurs américains à attendre, des numéros locaux dans chaque province, des consentements notés selon la LCAP. Facturé en dollars canadiens, un seul prix fixe pour toute l'équipe.",
+    "Les équipes canadiennes écrivent à leurs clients le jour de leur inscription. Aucune inscription auprès des transporteurs américains à attendre, des numéros locaux dans chaque province, des consentements notés selon la LCAP. Un seul prix fixe pour toute l’équipe, facturé en dollars américains.",
 
   breadcrumbHome: "Accueil",
   breadcrumbSelf: "Canada",
@@ -231,7 +231,7 @@ export const canadaFr: Translated<typeof canadaEn> = {
   truthDayOne:
     "Écrire à des clients canadiens fonctionne dès le premier jour. Aucune inscription, aucuns frais, aucune attente.",
   truthBilling:
-    "Un espace de travail canadien est facturé en dollars canadiens, plus les taxes. Le prix ne bouge pas avec le taux de change, et une carte canadienne n'attrape aucuns frais de transaction à l'étranger.",
+    "Les espaces de travail canadiens sont facturés en dollars américains, plus les taxes applicables. L’émetteur de votre carte peut convertir le montant en dollars canadiens.",
   truthData:
     "Vos données sont stockées aux États-Unis, et la politique de confidentialité le dit clairement.",
 
@@ -264,9 +264,9 @@ export const canadaFr: Translated<typeof canadaEn> = {
   faqDataQ: "Où sont stockées mes données ?",
   faqDataA:
     "Aux États-Unis. Nous le disons clairement et nous divulguons le transfert transfrontalier dans notre politique de confidentialité, comme la LPRPDE (PIPEDA) et la Loi 25 du Québec l'exigent. Le contenu des messages est aussi tenu à l'écart de nos statistiques et de nos journaux d'erreurs ; les détails se trouvent sur notre page sur la sécurité.",
-  faqCurrencyQ: "Je facture au Canada. Puis-je payer en dollars canadiens ?",
+  faqCurrencyQ: "Dans quelle devise vais-je payer depuis le Canada ?",
   faqCurrencyA:
-    "Oui. Un espace de travail canadien est facturé en dollars canadiens : le montant sur votre relevé est le montant affiché sur la page, votre banque ne convertit rien, et la facture ne monte ni ne descend avec le taux de change. La devise vient de votre pays au moment de l'abonnement et reste fixée sur l'abonnement par la suite, alors en changer plus tard passe par le soutien plutôt que par un réglage.",
+    "Loonext facture en dollars américains. L’émetteur de votre carte peut convertir le montant en dollars canadiens. Le montant sur votre relevé peut donc varier selon le taux de change.",
 
   ctaTitle: "Écrivez à vos clients canadiens dès aujourd'hui.",
   ctaBody:

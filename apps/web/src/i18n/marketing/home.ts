@@ -211,7 +211,7 @@ export const homeEn = {
     "Canadian shops: {starter} a month, flat. No registration, no setup fee, no first-month bump; {starter} is {starter} from month one.",
   dealTaxUs: "Prices in USD, plus sales tax where it applies. That's the whole list.",
   dealTaxCa:
-    "Prices in Canadian dollars, plus tax where it applies. That's the whole list.",
+    "Prices in US dollars, plus tax where it applies. Your card issuer may convert the charge to Canadian dollars.",
   dealFairUse: "The concrete numbers live in our fair use policy.",
   dealEnterprise: "Talk to us about Enterprise",
   sliderCrew: "People on your crew",
@@ -522,7 +522,7 @@ export const homeFr: Translated<typeof homeEn> = {
   dealTaxUs:
     "Prix en dollars américains, plus les taxes de vente là où elles s'appliquent. C'est toute la liste.",
   dealTaxCa:
-    "Prix en dollars canadiens, plus les taxes là où elles s'appliquent. C'est toute la liste.",
+    "Prix en dollars américains, plus les taxes applicables. L’émetteur de votre carte peut convertir le montant en dollars canadiens.",
   dealFairUse:
     "Les chiffres concrets vivent dans notre politique d'utilisation équitable.",
   dealEnterprise: "Parlez-nous d'Enterprise",

@@ -1,12 +1,11 @@
 "use client";
 
 import { HEADLINE_PRICE_SUFFIX, headlinePrice } from "@/lib/marketing/headline-price";
-import { useMarketingCurrency } from "@/components/marketing/pricing/plan-price";
+import { usePriceAudience } from "@/components/marketing/pricing/plan-price";
 import { MonoFigure } from "@/components/marketing/fr/mono-figure";
 
 /**
- * #328/#385 — the headline price, in the visitor's currency, with its
- * qualifier attached.
+ * The USD headline price and the number of seats it covers.
  *
  * # Why a component rather than a string
  *
@@ -34,10 +33,10 @@ export function HeadlinePriceFigure({
   size?: "data" | "stat" | "display";
   tone?: "ink" | "cobalt" | "green" | "flare";
 }) {
-  const currency = useMarketingCurrency();
+  const audience = usePriceAudience();
   return (
     <MonoFigure
-      value={headlinePrice(currency)}
+      value={headlinePrice(audience)}
       suffix={HEADLINE_PRICE_SUFFIX}
       size={size}
       {...(tone ? { tone } : {})}

@@ -182,11 +182,14 @@ answerable work.
 
 ### How the pricing works
 
-The price is flat and per company, never per seat. Starter is $29 a month and
-covers up to three people on one local number. Pro is $79 a month and covers up
-to fifteen people on two numbers, which suits two locations or an office line
+The price is flat and per company, never per seat. Loonext bills in US dollars
+in both the United States and Canada. Starter is US$29 a month and covers up to
+three people on one local number. Pro is US$79 a month and covers up to fifteen
+people on two numbers, which suits two locations or an office line
 and a field line. Bigger crews use a contact-sales Enterprise tier that keeps
-the same flat, no-per-user philosophy at a larger scale.
+the same flat, no-per-user philosophy at a larger scale. Canadian pricing
+surfaces label amounts in USD. A Canadian card issuer may convert the charge
+to Canadian dollars.
 
 Everything is transparent and self-serve. You see the price, pay, and start
 working the line the same session. There is no demo to schedule, no sales call, no annual

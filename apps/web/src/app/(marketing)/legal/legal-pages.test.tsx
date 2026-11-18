@@ -65,10 +65,10 @@ const USD = {
   pro: formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd"),
   fee: formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd"),
 };
-const CAD = {
-  starter: formatMoney(PLAN_PRICE_CENTS.cad.starter, "cad"),
-  pro: formatMoney(PLAN_PRICE_CENTS.cad.pro, "cad"),
-  fee: formatMoney(US_REGISTRATION_FEE_CENTS.cad, "cad"),
+const CANADA = {
+  starter: formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", "cad"),
+  pro: formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", "cad"),
+  fee: formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", "cad"),
 };
 
 /** Render a legal page under the site-wide country pinned to Canada. */
@@ -511,33 +511,21 @@ describe("#328 — the legal pages quote the reader's own currency", () => {
   const refunds = ca(<RefundsPage />);
   const fairUse = ca(<FairUsePage />);
 
-  it("shows a Canadian the CAD plan prices on terms and fair-use", () => {
-    expect(terms).toContain(`${CAD.starter}/mo`);
-    expect(terms).toContain(`${CAD.pro}/mo`);
-    expect(fairUse).toContain(`${CAD.starter}/mo`);
-    expect(fairUse).toContain(`${CAD.pro}/mo`);
-  });
-
-  it("shows a Canadian NO USD plan price on those pages", () => {
-    // The failure this catches is the quiet one: a page that renders the CAD
-    // figure in one sentence and a leftover literal in the next.
-    for (const html of [terms, fairUse, refunds]) {
-      expect(html).not.toContain(`${USD.starter}/mo`);
-      expect(html).not.toContain(`${USD.pro}/mo`);
+  it("labels the USD plan prices on terms and fair use in Canada", () => {
+    for (const html of [terms, fairUse]) {
+      expect(html).toContain(`${CANADA.starter}/mo`);
+      expect(html).toContain(`${CANADA.pro}/mo`);
     }
   });
 
-  it("prices the US registration fee in the currency it is charged in", () => {
-    // A Canadian workspace CAN enable US texting, and then the fee lands on a
-    // Canadian invoice — which is why US_REGISTRATION_FEE_CENTS has a cad key
-    // at all, and why "if you paid it" is the only branch this needs.
-    expect(terms).toContain(`one-time ${CAD.fee} fee`);
-    expect(refunds).toContain(`one-time ${CAD.fee} registration fee`);
+  it("labels the USD registration fee in Canada", () => {
+    expect(terms).toContain(`one-time ${CANADA.fee} fee`);
+    expect(refunds).toContain(`one-time ${CANADA.fee} registration fee`);
   });
 
-  it("names Canadian dollars on the terms page, and drops the USD line", () => {
-    expect(terms).toContain("Canadian dollars");
-    expect(terms).not.toContain("US dollars");
+  it("states the billing currency in the terms", () => {
+    expect(terms).toContain("US dollars");
+    expect(terms).not.toContain("Canadian dollars");
   });
 });
 
