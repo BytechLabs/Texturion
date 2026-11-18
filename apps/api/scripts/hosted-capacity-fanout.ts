@@ -186,7 +186,7 @@ async function main(): Promise<void> {
     if (!conversationId) return out;
     let cursor: string | null = null;
     for (let page = 0; page < 40; page += 1) {
-      const url: string = `${apiOrigin}/v1/conversations/${conversationId}/messages?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+      const url = `${apiOrigin}/v1/conversations/${conversationId}/messages?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
       const response = await fetch(url, {
         headers: { authorization: `Bearer ${token}`, "x-company-id": companyId },
       });

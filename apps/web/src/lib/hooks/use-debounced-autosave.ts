@@ -56,7 +56,8 @@ export function useDebouncedAutosave<T>({
     const next = normalizeRef.current(draftRef.current);
     if (Object.is(next, lastSent.current)) return;
     lastSent.current = next;
-    const id = requestId.current += 1;
+    requestId.current += 1;
+    const id = requestId.current;
     clearTimer(savedTimer);
     setState("saving");
     setError(null);

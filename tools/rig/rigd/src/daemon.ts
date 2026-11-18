@@ -45,9 +45,7 @@ export interface Daemon {
   stop(): void;
 }
 
-export interface RunStarter {
-  (scenario: string): StartedRun;
-}
+export type RunStarter = (scenario: string) => StartedRun;
 
 /**
  * Starts a scenario run in its own process and returns at once; its verdicts

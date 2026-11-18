@@ -83,10 +83,8 @@ function unscannable(reason: string, message: string): ScanResult {
 export const MAX_SCANNABLE_BYTES = 26 * 1024 * 1024;
 
 /** Entry names that are executable whatever they are wrapped in. */
-const EXECUTABLE_ENTRY = new RegExp(
-  "\\.(exe|scr|com|pif|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|jar|msi|msp|dll|cpl|lnk|reg|sh|app|dmg|deb|rpm)$",
-  "i",
-);
+const EXECUTABLE_ENTRY =
+  /\.(exe|scr|com|pif|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|jar|msi|msp|dll|cpl|lnk|reg|sh|app|dmg|deb|rpm)$/i;
 
 /**
  * A ZIP container's expansion ratio above which it is a bomb rather than a
@@ -248,12 +246,13 @@ function contains(haystack: Uint8Array, needle: string): boolean {
   const n = needle.length;
   if (n === 0 || haystack.length < n) return false;
   const first = needle.charCodeAt(0);
-  outer: for (let i = 0; i <= haystack.length - n; i++) {
+  for (let i = 0; i <= haystack.length - n; i++) {
     if (haystack[i] !== first) continue;
-    for (let j = 1; j < n; j++) {
-      if (haystack[i + j] !== needle.charCodeAt(j)) continue outer;
+    let matched = 1;
+    while (matched < n && haystack[i + matched] === needle.charCodeAt(matched)) {
+      matched += 1;
     }
-    return true;
+    if (matched === n) return true;
   }
   return false;
 }

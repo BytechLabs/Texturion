@@ -80,7 +80,7 @@ const AUDIT = () => {
   const lum = ({ r, g, b }) => {
     const ch = (c) => {
       const v = c / 255;
-      return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
     };
     return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
   };
@@ -99,7 +99,7 @@ const AUDIT = () => {
 
   /** The colour actually behind `el`, walking up until something paints. */
   const backdrop = (el) => {
-    let layers = [];
+    const layers = [];
     let node = el;
     while (node && node !== document.documentElement.parentNode) {
       const bg = parse(getComputedStyle(node).backgroundColor);
@@ -542,7 +542,7 @@ const FOCUS_WALK = (maxStops) => {
   const lum = ({ r, g, b }) => {
     const ch = (c) => {
       const v = c / 255;
-      return v <= 0.04045 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+      return v <= 0.04045 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4;
     };
     return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
   };

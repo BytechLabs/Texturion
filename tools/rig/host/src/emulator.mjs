@@ -183,7 +183,7 @@ export function consoleCommand(port, token, command, timeoutMs = 10_000) {
       if (step === 2) resolve();
     });
     socket.on("data", (chunk) => {
-      buffer += chunk;
+      buffer += chunk.toString();
       if (/^KO\b/m.test(buffer)) return fail(step === 0 ? "refused the token" : `refused ${command}`);
       if (!/^OK\s*$/m.test(buffer)) return;
       buffer = "";

@@ -130,7 +130,7 @@ const CLIENTS = {
      * lifted OUT of a component stayed English.
      */
     exts: [".tsx", ".ts"],
-    find: findWebLiterals,
+    findLiterals: findWebLiterals,
     fix:
       "route them through useT()/makeTranslate and add the keys to a file in " +
       "apps/web/src/i18n/sections/ (both languages — tsc enforces it)",
@@ -139,7 +139,7 @@ const CLIENTS = {
     root: "apps/android/app/src/main/kotlin",
     ledger: "scripts/hardcoded-strings.android.json",
     exts: [".kt"],
-    find: findKotlinLiterals,
+    findLiterals: findKotlinLiterals,
     fix: "move them into res/values/strings.xml and read them with stringResource()",
   },
   /*
@@ -157,7 +157,7 @@ const CLIENTS = {
     root: "packages/shared/src",
     ledger: "scripts/hardcoded-strings.shared.json",
     exts: [".ts"],
-    find: findWebLiterals,
+    findLiterals: findWebLiterals,
     fix:
       "give the function a locale parameter and move the sentences into a " +
       "catalogue the three clients share, the way cancellation-offers.ts will",
@@ -166,7 +166,7 @@ const CLIENTS = {
     root: "apps/ios/Loonext",
     ledger: "scripts/hardcoded-strings.ios.json",
     exts: [".swift"],
-    find: findSwiftLiterals,
+    findLiterals: findSwiftLiterals,
     fix:
       "move them into the String Catalog and read them with a LocalizedStringKey",
   },
@@ -1179,7 +1179,7 @@ function scan(client, clientName) {
     if (!isScannable(file, client.exts, source)) continue;
     const rel = relative(client.root, file).replaceAll("\\", "/");
     const excused = new Set(exemptForClient[rel]?.literals ?? []);
-    const literals = client.find(source, file).filter((text) => {
+    const literals = client.findLiterals(source, file).filter((text) => {
       if (!excused.has(text)) return true;
       exemptionsUsed.add(`${clientName}\u0000${rel}\u0000${text}`);
       return false;

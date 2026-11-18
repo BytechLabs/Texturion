@@ -103,6 +103,9 @@ Package name=com.loonext.android.nonprod id=7f
 
 describe("the adb wrappers (commands only; no device has run them)", () => {
   const PKG = "com.loonext.android.nonprod";
+  const dir = mkdtempSync(join(tmpdir(), "rig-apk-test-"));
+
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
   it("kills the app as memory pressure would, apart from force-stop", async () => {
     const { exec, calls } = fakeExec();
@@ -156,10 +159,6 @@ describe("the adb wrappers (commands only; no device has run them)", () => {
     await rigAdb("PIXEL123", exec).reboot();
     expect(calls.slice(0, 2)).toEqual([`${ADB} -s PIXEL123 reboot`, `${ADB} -s PIXEL123 wait-for-device`]);
   });
-
-  const dir = mkdtempSync(join(tmpdir(), "rig-apk-test-"));
-
-  afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
   it("installs a .nonprod build, from a copy, and confirms it is listed", async () => {
     const apk = join(dir, "app-nonprod.apk");

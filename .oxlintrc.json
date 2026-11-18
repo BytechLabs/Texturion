@@ -324,7 +324,6 @@
     "unicorn/no-hex-escape": "off", // 4
     "unicorn/no-unreadable-array-destructuring": "off", // 4
     "eslint/arrow-body-style": "off", // 3
-    "eslint/no-multi-assign": "off", // 3
     "eslint/no-unmodified-loop-condition": "off", // 3
     "eslint/preserve-caught-error": "off", // 3
     "import/no-anonymous-default-export": "off", // 3
@@ -338,11 +337,6 @@
     "unicorn/relative-url-style": "off", // 3
     "vitest/no-standalone-expect": "off", // 3
     "vitest/padding-around-test-blocks": "off", // 3
-    "vitest/prefer-mock-promise-shorthand": "off", // 3
-    "eslint/no-labels": "off", // 2
-    "eslint/no-new": "off", // 2
-    "eslint/prefer-exponentiation-operator": "off", // 2
-    "eslint/prefer-regex-literals": "off", // 2
     "import/no-cycle": "off", // 2
     "jsdoc/empty-tags": "off", // 2
     "jsx-a11y/interactive-supports-focus": "off", // 2
@@ -357,10 +351,8 @@
     "unicorn/no-document-cookie": "off", // 2
     "unicorn/prefer-math-trunc": "off", // 2
     "unicorn/prefer-native-coercion-functions": "off", // 2
-    "unicorn/require-array-join-separator": "off", // 2
     "eslint/accessor-pairs": "off", // 1
     "eslint/no-unexpected-multiline": "off", // 1
-    "eslint/prefer-const": "off", // 1
     "import/no-commonjs": "off", // 1
     "import/no-dynamic-require": "off", // 1
     "import/no-empty-named-blocks": "off", // 1
@@ -369,24 +361,14 @@
     "react/hooks": "off", // 1
     "react/iframe-missing-sandbox": "off", // 1
     "typescript/dot-notation": "off", // 1
-    "typescript/no-inferrable-types": "off", // 1
     "typescript/no-non-null-asserted-optional-chain": "off", // 1
     "typescript/prefer-for-of": "off", // 1
-    "typescript/prefer-function-type": "off", // 1
-    "typescript/restrict-plus-operands": "off", // 1
-    "unicorn/no-array-method-this-argument": "off", // 1
     "unicorn/no-unnecessary-array-splice-count": "off", // 1
     "unicorn/no-zero-fractions": "off", // 1
-    "unicorn/prefer-array-index-of": "off", // 1
     "unicorn/prefer-dom-node-text-content": "off", // 1
-    "unicorn/prefer-logical-operator-over-ternary": "off", // 1
-    "unicorn/prefer-regexp-test": "off", // 1
     "unicorn/prefer-structured-clone": "off", // 1
     "unicorn/require-module-specifiers": "off", // 1
     "vitest/no-duplicate-hooks": "off", // 1
-    "vitest/prefer-comparison-matcher": "off", // 1
-    "vitest/prefer-hooks-on-top": "off", // 1
-    "vitest/prefer-spy-on": "off", // 1
     "vitest/prefer-to-be": "off", // 1
 
     // Off by design: React effects, Hono middleware and test fetch fakes return

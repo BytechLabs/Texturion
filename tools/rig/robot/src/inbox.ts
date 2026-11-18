@@ -34,24 +34,24 @@ const MAX_ITEMS = 500;
 
 class Waitable<T> {
   readonly items: T[] = [];
-  readonly #waiters: { match: (item: T) => boolean; resolve: (item: T) => void }[] = [];
+  readonly #waiters: { matches: (item: T) => boolean; resolve: (item: T) => void }[] = [];
 
   push(item: T): void {
     this.items.push(item);
     if (this.items.length > MAX_ITEMS) this.items.splice(0, this.items.length - MAX_ITEMS);
     for (const waiter of [...this.#waiters]) {
-      if (waiter.match(item)) {
+      if (waiter.matches(item)) {
         this.#waiters.splice(this.#waiters.indexOf(waiter), 1);
         waiter.resolve(item);
       }
     }
   }
 
-  waitFor(match: (item: T) => boolean, timeoutMs: number): Promise<T | undefined> {
-    const existing = this.items.find(match);
+  waitFor(matches: (item: T) => boolean, timeoutMs: number): Promise<T | undefined> {
+    const existing = this.items.find(matches);
     if (existing) return Promise.resolve(existing);
     return new Promise((resolve) => {
-      const waiter = { match, resolve: (item: T) => (clearTimeout(timer), resolve(item)) };
+      const waiter = { matches, resolve: (item: T) => (clearTimeout(timer), resolve(item)) };
       const timer = setTimeout(() => {
         const index = this.#waiters.indexOf(waiter);
         if (index !== -1) this.#waiters.splice(index, 1);

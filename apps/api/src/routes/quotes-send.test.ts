@@ -179,7 +179,7 @@ describe("#287 POST /quotes/:id/send", () => {
      * the text is not something a stub can dictate — which is the property that
      * makes the link safe in the first place.
      */
-    expect(body).toMatch(new RegExp("/q/[A-Za-z0-9_-]{20,}"));
+    expect(body).toMatch(/\/q\/[A-Za-z0-9_-]{20,}/);
   });
 
   it("hands it to the carrier rather than only writing a row", async () => {

@@ -190,7 +190,7 @@ function identify(status, bodyText) {
 }
 
 function baseFromArgv() {
-  const flag = process.argv.findIndex((arg) => arg === "--base");
+  const flag = process.argv.indexOf("--base");
   if (flag === -1) return DEFAULT_BASE;
   const value = process.argv[flag + 1];
   if (!value || value.startsWith("--")) {

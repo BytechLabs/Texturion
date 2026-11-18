@@ -364,7 +364,7 @@ beforeEach(() => {
   visibleNumbers = [];
   numberListRead = "ok";
   api.fetch.mockReset();
-  api.fetch.mockImplementation(() => Promise.reject(new Error("no answer")));
+  api.fetch.mockRejectedValue(new Error("no answer"));
 });
 afterEach(cleanup);
 

@@ -122,7 +122,7 @@ export function derivedProblems(file, config, derived) {
       if (limiter.remote) problems.push(`${file}  derived ${label}${limiter.name} is remote, so its counter is the account's`);
     }
     const keys = kept.map(key).sort();
-    if (keys.join() !== source.join()) {
+    if (keys.join(",") !== source.join(",")) {
       problems.push(
         `${file}  derived ${label || "top-level "}limiters are [${keys.join(", ")}], not the ref's ` +
           `[${source.join(", ")}]; the rig keeps them as they are, emulated by wrangler dev`,
