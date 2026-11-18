@@ -18,7 +18,7 @@ export const legalTermsEn = {
   sectionNumbers: "Your phone number",
   emergencyCallingTitle: "Emergency calls",
   emergencyCalling:
-    "Loonext can't place emergency calls. To reach emergency services, dial 911 from a mobile phone or landline. Make sure everyone who uses your workspace knows how to call 911 from another phone.",
+    "Loonext does not provide 911 or E911. To reach emergency services, dial 911 from a mobile phone or landline. Make sure everyone who uses your workspace knows how to call 911 from another phone.",
   sectionAcceptableUse: "Acceptable use",
   sectionCancellation: "Cancellation and number hold",
   sectionGuarantee: "30-day money-back guarantee",
@@ -82,7 +82,7 @@ export const legalTermsFr: Translated<typeof legalTermsEn> = {
   sectionNumbers: "Votre numéro de téléphone",
   emergencyCallingTitle: "Appels d’urgence",
   emergencyCalling:
-    "Loonext ne peut pas passer d’appels d’urgence. Pour joindre les services d’urgence, composez le 911 à partir d’un téléphone mobile ou fixe. Assurez-vous que chaque membre de votre espace de travail sait comment composer le 911 sur un autre téléphone.",
+    "Loonext ne fournit pas de service 911 ou E911. Pour joindre les services d’urgence, composez le 911 à partir d’un téléphone mobile ou fixe. Assurez-vous que chaque membre de votre espace de travail sait comment composer le 911 sur un autre téléphone.",
   sectionAcceptableUse: "Utilisation acceptable",
   sectionCancellation: "Annulation et retenue du numéro",
   sectionGuarantee: "Garantie de remboursement de 30 jours",

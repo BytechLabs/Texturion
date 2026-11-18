@@ -67,6 +67,7 @@ struct DialerSheet: View {
     init(
         manager: CallsManager,
         numbers: [PhoneNumberSummary],
+        initialNumber: String = "",
         lookupMatches: (@MainActor (String) async -> [DialerMatch])? = nil,
         onAddContact: (@MainActor (String) -> Void)? = nil,
         onMessage: (@MainActor (String) -> Void)? = nil,
@@ -80,6 +81,7 @@ struct DialerSheet: View {
         self.onMessage = onMessage
         self.onOpenContact = onOpenContact
         self.onOpenContacts = onOpenContacts
+        _digits = State(initialValue: initialNumber)
         _fromId = State(initialValue: numbers.first?.id)
     }
 
@@ -275,7 +277,7 @@ struct DialerSheet: View {
                         Link(t("contactsTasks.callWithPhone"), destination: url)
                             .font(.golos(14, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
-                        if code == "911" {
+                        if code == "911" || code == "112" {
                             Text(t("contactsTasks.emergencyCallsUnavailable"))
                                 .font(.golos(11))
                                 .foregroundStyle(BrandColor.muted500)

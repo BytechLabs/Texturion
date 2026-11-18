@@ -6,6 +6,7 @@ import com.loonext.android.ui.common.showUndo
 import android.Manifest
 import com.loonext.android.ui.common.EmptyState
 import com.loonext.android.ui.common.ConfirmDialog
+import android.content.ClipData
 import android.content.Intent
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -72,7 +73,6 @@ import androidx.compose.material.icons.outlined.MarkEmailUnread
 import androidx.compose.material.icons.outlined.Report
 import androidx.compose.material.icons.outlined.Schedule
 import androidx.compose.material.icons.outlined.Undo
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
@@ -99,6 +99,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.toggleableState
@@ -220,6 +222,8 @@ fun ThreadScreen(
     me: Me,
     conversationId: String,
     onBack: () -> Unit,
+    onDialPhone: (String) -> Unit,
+    onTextPhone: (String) -> Unit,
     modifier: Modifier = Modifier,
     onOpenConversation: ((conversationId: String) -> Unit)? = null,
     /** #217: open a message/checklist task's detail (MainActivity Overlay.Task). */
@@ -394,6 +398,8 @@ fun ThreadScreen(
                         onOpenAiSettings = onOpenAiSettings,
                         onOpenContact = onOpenContact,
                         onAddLeadSource = onAddLeadSource,
+                        onDialPhone = onDialPhone,
+                        onTextPhone = onTextPhone,
                         onBack = onBack,
                         onOpenFile = { attachment ->
                             scope.launch {
@@ -479,6 +485,8 @@ private fun ThreadLoaded(
     companyId: String,
     me: Me,
     onBack: () -> Unit,
+    onDialPhone: (String) -> Unit,
+    onTextPhone: (String) -> Unit,
     onOpenFile: (Attachment) -> Unit,
     onOpenAttachment: (AttachmentSummary) -> Unit,
     onNotice: (String) -> Unit,
@@ -494,6 +502,16 @@ private fun ThreadLoaded(
     val scope = rememberCoroutineScope()
     val haptics = rememberHaptics()
     val detail = controller.conversation ?: return
+    val canLinkPhones = controller.canLinkMessagePhones && !detail.is_spam && detail.spam_suspected_at == null
+    val viewerReadOnly = me.memberships.firstOrNull { it.company_id == companyId }?.role == MemberRole.READ_ONLY
+    val canContactPhone = detail.viewer_level == "text" && !viewerReadOnly
+    val clipboard = LocalClipboard.current
+    var messagePhone by remember { mutableStateOf<String?>(null) }
+    val selectMessagePhone: (String) -> Unit = remember { { messagePhone = it } }
+
+    LaunchedEffect(canLinkPhones) {
+        if (!canLinkPhones) messagePhone = null
+    }
     // Read in composition; the callbacks and `remember` blocks below run
     // outside it, where a @Composable lookup cannot go.
     val locale = LocalAppLocale.current
@@ -912,6 +930,7 @@ private fun ThreadLoaded(
                                 MessageBubble(
                                     message = message,
                                     references = references,
+                                    onSelectPhone = selectMessagePhone.takeIf { canLinkPhones },
                                     // #101 shared-inbox attribution: in a shared
                                     // inbox the first question about an
                                     // outbound text is who already answered
@@ -1192,12 +1211,6 @@ private fun ThreadLoaded(
         // Composer (or gate banner + notes-only).
         val drafts = remember { ComposerDrafts(context.applicationContext) }
         val composer = rememberComposerState(controller.conversationId, drafts)
-        // #315: a view-only observer may read this thread and change nothing in
-        // it. Resolved from the membership, the same way the settings index
-        // does it.
-        val viewerReadOnly =
-            me.memberships.firstOrNull { it.company_id == companyId }?.role ==
-                MemberRole.READ_ONLY
         val banner = selectComposerBanner(
             contactOptedOut = controller.contact?.opted_out == true,
             contactOptOutSource = controller.contact?.opt_out_source,
@@ -1482,6 +1495,31 @@ private fun ThreadLoaded(
             },
             onDismiss = { actionsFor = null },
         )
+    }
+    messagePhone?.takeIf { canLinkPhones }?.let { number ->
+        val copyLabel = t("contactsTasks.copyNumber")
+        AppSheet(onDismissRequest = { messagePhone = null }) {
+            Column(Modifier.fillMaxWidth().verticalScroll(rememberScrollState()).padding(20.dp)) {
+                Text(formatPhone(number), style = MaterialTheme.typography.titleMedium)
+                if (canContactPhone) {
+                    TextButton(onClick = {
+                        messagePhone = null
+                        onDialPhone(number)
+                    }) { Text(t("thread.callWithLoonext")) }
+                    TextButton(onClick = {
+                        messagePhone = null
+                        onTextPhone(number)
+                    }) { Text(t("thread.textPhoneNumber")) }
+                }
+                TextButton(onClick = {
+                    messagePhone = null
+                    scope.launch {
+                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(copyLabel, number)))
+                        onNotice(copiedCopy)
+                    }
+                }) { Text(copyLabel) }
+            }
+        }
     }
     confirmDeleteText?.let { message ->
         ConfirmDialog(

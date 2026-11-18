@@ -59,6 +59,10 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.text.LinkAnnotation
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.TextLinkStyles
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextDecoration
@@ -150,6 +154,7 @@ fun MessageBubble(
     onOpenTask: ((taskId: String) -> Unit)? = null,
     /** #690: draws `#T-142` and friends as chips. Only an internal note uses it. */
     references: ReferenceSource? = null,
+    onSelectPhone: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
@@ -271,8 +276,27 @@ fun MessageBubble(
                         ),
                     )
                 } else if (message.body.isNotBlank()) {
+                    val body = message.body
+                    val annotated = remember(body, onSelectPhone) {
+                        buildAnnotatedString {
+                            append(body)
+                            if (onSelectPhone != null) {
+                                for (phone in messagePhones(body)) {
+                                    addLink(
+                                        LinkAnnotation.Clickable(
+                                            tag = phone.e164,
+                                            styles = TextLinkStyles(style = SpanStyle(textDecoration = TextDecoration.Underline)),
+                                            linkInteractionListener = { onSelectPhone(phone.e164) },
+                                        ),
+                                        phone.start,
+                                        phone.end,
+                                    )
+                                }
+                            }
+                        }
+                    }
                     Text(
-                        message.body,
+                        annotated,
                         style = MaterialTheme.typography.bodyMedium.copy(
                             fontSize = 14.sp,
                             lineHeight = 20.sp,

@@ -78,6 +78,7 @@ struct InboxDestination: Equatable, Sendable {
     // number rather than a contact id, because the point of dialing a stranger
     // is that we have never met them.
     @Published var composeTo: String?
+    @Published var dialTo: String?
     // command: open settings AT one section, for a surface offering a specific
     // setting as the fix for what the reader is looking at (shell opens the
     // sheet seeded with it, then clears)

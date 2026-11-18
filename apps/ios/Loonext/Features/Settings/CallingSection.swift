@@ -58,6 +58,11 @@ struct CallingSectionView: View {
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
+        Text(AppStrings.translate(appLocale, "settings.emergencyCallingDisclosure"))
+            .font(.footnote)
+            .foregroundStyle(.secondary)
+            .padding(.horizontal, 20)
+            .padding(.vertical, 6)
         if onlyHostedNumbers(company) {
             Text(AppStrings.translate(appLocale, "settings.callingHostedOnly"))
                 .font(.footnote)

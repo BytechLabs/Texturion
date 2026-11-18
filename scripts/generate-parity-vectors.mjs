@@ -80,7 +80,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { estimateSegments } from "../packages/shared/src/segments.ts";
-import { emergencyOrServiceCode, isUsCaDestination, lookupAreaCode, NANP_AREA_CODES, normalizeNanpInput } from "../packages/shared/src/nanp.ts";
+import { emergencyOrServiceCode, isUsCaDestination, lookupAreaCode, messagePhones, NANP_AREA_CODES, normalizeNanpInput } from "../packages/shared/src/nanp.ts";
 import { explainRejection } from "../packages/shared/src/rejection-guidance.ts";
 import { avatarInitials } from "../packages/shared/src/avatar-initials.ts";
 import { prepaidConversionCopy } from "../packages/shared/src/prepaid-conversion-copy.ts";
@@ -182,9 +182,27 @@ const PHONE_INPUTS = [
     .map(([npa]) => npa + "5550123"),
   ...["800", "833", "844", "855", "866", "877", "888"].map((npa) => npa + "5550123"),
   ...["211", "311", "411", "511", "611", "711", "811", "911"],
+  "112",
+  "988",
+  " 988 ",
   "+911",
   " 911 ",
   "9112",
+];
+
+const MESSAGE_PHONE_BODIES = [
+  "Call (416) 555-0182 or +1 800-555-0182.",
+  "📞 212.555.0182, please.",
+  "Numbers: 4165550182\n2125550199",
+  "(4165550182) and (+14165550182)",
+  "Phone:4165550182.",
+  "The number is +44 7700 900123 or 011 44 7700 900123.",
+  "Overlong: 1234165550182 or 416-555-018299.",
+  "Unsupported: 876-555-0182 or 900-555-0182 or 911.",
+  "Parts ABC4165550182 and 4165550182X and é4165550182.",
+  "https://example.test/quote?number=4165550182 and www.example.test/2125550182",
+  "Message 4165550182@example.test or example.test/4165550182",
+  "No number here",
 ];
 
 const NANP_INPUTS = [
@@ -219,6 +237,10 @@ function phoneInputVectors() {
     normalized: normalizeNanpInput(raw),
     serviceCode: emergencyOrServiceCode(raw),
   }));
+}
+
+function messagePhoneVectors() {
+  return MESSAGE_PHONE_BODIES.map((body) => ({ body, phones: messagePhones(body) }));
 }
 
 function nanpVectors() {
@@ -849,6 +871,7 @@ const FILES = {
   "segments.json": segmentVectors,
   "nanp.json": nanpVectors,
   "phone-input.json": phoneInputVectors,
+  "message-phones.json": messagePhoneVectors,
   "rejections.json": rejectionVectors,
   "avatar-initials.json": avatarInitialsVectors,
   "prepaid-conversion-copy.json": prepaidConversionCopyVectors,

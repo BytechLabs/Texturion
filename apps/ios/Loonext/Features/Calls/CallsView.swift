@@ -135,17 +135,23 @@ struct CallsView: View {
         // #215 Part A: a call.updated missed while backgrounded self-heals on
         // foreground — the same first-page refetch the re-JOIN runs.
         .resyncOnForeground { refreshKey += 1 }
+        .onReceive(AppRouter.shared.$dialTo) { number in
+            guard let number else { return }
+            activeSheet = .dialer(initialNumber: number)
+            AppRouter.shared.dialTo = nil
+        }
         // ONE presentation for the dialer and its "Add contact" create sheet:
         // swapping the item swaps content in place, so B never presents while A
         // is still dismissing (the dropped-second-sheet race).
         .sheet(item: $activeSheet) { sheet in
             switch sheet {
-            case .dialer:
+            case .dialer(let initialNumber):
                 DialerSheet(
                     manager: manager,
                     numbers: (me.company?.numbers ?? []).filter {
                         $0.status == NumberStatus.active && $0.number_e164 != nil
                     },
+                    initialNumber: initialNumber,
                     lookupMatches: { typed in await lookupMatches(typed) },
                     onAddContact: { e164 in activeSheet = .addContact(prefill: e164) },
                     // #459: the dialer's other three exits. A raw number for the
@@ -181,12 +187,12 @@ struct CallsView: View {
     /// The single calls-surface presentation (#186 item 5): the dialer and the
     /// create sheet it swaps to — never two simultaneous `.sheet` toggles.
     private enum CallsSheet: Identifiable {
-        case dialer
+        case dialer(initialNumber: String)
         case addContact(prefill: String)
 
         var id: String {
             switch self {
-            case .dialer: "dialer"
+            case .dialer(let initialNumber): "dialer:\(initialNumber)"
             case .addContact(let prefill): "add:\(prefill)"
             }
         }
@@ -292,7 +298,7 @@ struct CallsView: View {
             systemImage: "circle.grid.3x3",
             label: t("contactsTasks.dialANumber")
         ) {
-            activeSheet = .dialer
+            activeSheet = .dialer(initialNumber: "")
         }
     }
 

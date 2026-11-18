@@ -1,11 +1,40 @@
 import { describe, expect, it } from "vitest";
 import {
   destinationLocalHour,
+  emergencyOrServiceCode,
   isUsCaDestination,
   lookupAreaCode,
+  messagePhones,
   NANP_AREA_CODES,
   NANP_TIMEZONES,
 } from "./nanp";
+
+describe("message phone links", () => {
+  it("preserves the formatted number and separates distinct destinations", () => {
+    const body = "📞 Call (416) 555-0182 or +1 800-555-0182.";
+    expect(messagePhones(body).map(({ start, end, e164 }) => [body.slice(start, end), e164])).toEqual([
+      ["(416) 555-0182", "+14165550182"],
+      ["+1 800-555-0182", "+18005550182"],
+    ]);
+  });
+
+  it.each([
+    "+44 7700 900123",
+    "011 44 7700 900123",
+    "416555018299",
+    "ABC4165550182",
+    "https://example.test/quote?number=4165550182",
+    "4165550182@example.test",
+    "876-555-0182",
+    "911 or 112 or 988",
+  ])("leaves %s as plain message text", (body) => {
+    expect(messagePhones(body)).toEqual([]);
+  });
+
+  it.each(["911", "112", "988", "811"])("hands off dialed %s", (code) => {
+    expect(emergencyOrServiceCode(code)).toBe(code);
+  });
+});
 
 describe("NANP_AREA_CODES table", () => {
   it("carries every in-service US/CA code from the NANPA report (446 as of 07/01/2026)", () => {

@@ -27,6 +27,7 @@ import {
 } from "@/components/ui/sheet";
 import { useT } from "@/i18n/provider";
 import { findListRow } from "@/lib/api/cache";
+import { useBlockedSenders } from "@/lib/api/blocked-senders";
 import { useCompany } from "@/lib/api/companies";
 import { useActiveCompany,useCompanyId } from "@/lib/company/provider";
 import { useMe } from "@/lib/api/me";
@@ -72,6 +73,7 @@ import { AlertBanner } from "./alert-banner";
 import { ScheduledStrip } from "./scheduled-strip";
 import { TheirTime } from "./their-time";
 import { MessageList } from "./message-list";
+import { MessagePhoneActions } from "./message-phone-actions";
 import { parseThreadFilter, serializeThreadFilter } from './thread-filter';
 import type { ThreadFilter } from './thread-filter';
 import { ThreadHeader } from "./thread-header";
@@ -268,6 +270,14 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   const queryClient = useQueryClient();
   const companyId = useCompanyId();
   const { userId, role } = useActiveCompany();
+  const blockedSenders = useBlockedSenders(conversation.contact.phone_e164);
+  const canLinkPhones = !conversation.is_spam && !conversation.spam_suspected_at &&
+    blockedSenders.isSuccess && !blockedSenders.data.data.some((row) => row.phone_e164 === conversation.contact.phone_e164);
+  const [messagePhone, setMessagePhone] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!canLinkPhones) setMessagePhone(null);
+  }, [canLinkPhones]);
 
   // #302: who else is on this thread, and whether they are replying. The hook
   // owns its own realtime channel (see lib/realtime/presence.ts for why it is
@@ -441,6 +451,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
           onFilterChange={writeThreadFilter}
           callSessionId={callSessionId}
           onJumpToLatest={jumpToLatest}
+          onSelectPhone={canLinkPhones ? setMessagePhone : undefined}
           catchUp={{
             offered: catchUp.offered,
             askToken: catchUp.askToken,
@@ -448,6 +459,13 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
             onDismiss: catchUp.recapClosed,
           }}
         />
+        {canLinkPhones && messagePhone && (
+          <MessagePhoneActions
+            number={messagePhone}
+            canContact={conversation.viewer_level === "text" && role !== "read_only"}
+            onClose={() => setMessagePhone(null)}
+          />
+        )}
         {banner ? (
           <>
             <ComposerBannerCard

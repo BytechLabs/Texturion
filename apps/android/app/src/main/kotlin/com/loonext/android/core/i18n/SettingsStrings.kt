@@ -924,6 +924,8 @@ private val CALLING_EN = mapOf(
     "settings.defaultVoicemailGreeting" to
         "You've reached {name}. We can't take your call right now. " +
         "Please leave a message after the beep, or hang up and text us at this number.",
+    "settings.emergencyCallingDisclosure" to
+        "Loonext does not provide 911 or E911. Use a mobile phone or landline to call emergency services.",
     "settings.callingHostedOnly" to
         "In-app calling needs a number whose calls come through Loonext. Calls to " +
         "your text-enabled landline stay with your existing carrier, so these " +
@@ -1105,6 +1107,8 @@ private val CALLING_FR = mapOf(
     "settings.defaultVoicemailGreeting" to
         "Vous avez joint {name}. Nous ne pouvons pas répondre pour le moment. " +
         "Laissez un message après le signal, ou raccrochez et écrivez-nous à ce numéro.",
+    "settings.emergencyCallingDisclosure" to
+        "Loonext ne fournit pas de service 911 ou E911. Utilisez un téléphone mobile ou fixe pour joindre les services d’urgence.",
     "settings.callingHostedOnly" to
         "Les appels dans l'application exigent un numéro dont les appels passent par " +
         "Loonext. Les appels vers votre ligne fixe compatible texto restent chez " +

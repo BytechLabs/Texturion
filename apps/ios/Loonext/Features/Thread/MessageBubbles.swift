@@ -31,7 +31,9 @@ struct MessageBubble: View {
     /// #240: (attachmentId, variant) — see AttachmentMedia.
     let mintAttachmentUrl: @MainActor (String, String) async throws -> String
     let actions: MessageBubbleActions
+    var onSelectPhone: (@MainActor (String) -> Void)? = nil
 
+    @State private var selectingText = false
     @Environment(\.appLocale) private var appLocale
 
     private var outbound: Bool { message.direction == MessageDirection.outbound }
@@ -61,6 +63,21 @@ struct MessageBubble: View {
         .frame(maxWidth: .infinity, alignment: frameAlignment)
         .padding(.horizontal, 16)
         .padding(.vertical, 3)
+        .sheet(isPresented: $selectingText) {
+            NavigationStack {
+                SelectableMessageText(text: message.body)
+                    .padding(16)
+                    .navigationTitle(AppStrings.translate(appLocale, "thread.selectMessageText"))
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(AppStrings.translate(appLocale, "common.close")) {
+                                selectingText = false
+                            }
+                        }
+                    }
+            }
+        }
     }
 
     private var horizontalAlignment: HorizontalAlignment {
@@ -122,10 +139,19 @@ struct MessageBubble: View {
                         strikethrough: done
                     )
                 } else {
-                    Text(message.body)
+                    Text(phoneBody)
                         .font(.golos(14))
                         .foregroundStyle(bodyColor)
+                        .tint(bodyColor)
                         .strikethrough(done)
+                        .environment(\.openURL, OpenURLAction { url in
+                            guard url.scheme == "loonext-message-phone", url.host == "dial",
+                                  let onSelectPhone,
+                                  let number = Nanp.normalize(String(url.path.dropFirst()))
+                            else { return .discarded }
+                            MainActor.assumeIsolated { onSelectPhone(number) }
+                            return .handled
+                        })
                 }
             }
 
@@ -172,6 +198,25 @@ struct MessageBubble: View {
 
     private var imageAttachments: [AttachmentSummary] {
         message.attachments.filter { MediaKind.of($0.content_type) == .image }
+    }
+
+    private var phoneBody: AttributedString {
+        let body = message.body
+        guard onSelectPhone != nil else { return AttributedString(body) }
+        let text = body as NSString
+        var rendered = AttributedString()
+        var offset = 0
+        for phone in MessagePhones.find(in: body) {
+            rendered += AttributedString(text.substring(with: NSRange(location: offset, length: phone.start - offset)))
+            let range = NSRange(location: phone.start, length: phone.end - phone.start)
+            var number = AttributedString(text.substring(with: range))
+            number.link = URL(string: "loonext-message-phone://dial/\(phone.e164)")
+            number.underlineStyle = .single
+            rendered += number
+            offset = phone.end
+        }
+        rendered += AttributedString(text.substring(from: offset))
+        return rendered
     }
 
     private var audioAttachments: [AttachmentSummary] {
@@ -230,6 +275,8 @@ struct MessageBubble: View {
             Haptics.tap()
             UIPasteboard.general.string = message.body
             actions.onCopied()
+        case MessageActionId.selectText:
+            selectingText = true
         case MessageActionId.done:
             // Marking done COMMITS and unmarking is a light touch — the same split
             // the tasks list makes, because it is the same act from another surface.
@@ -251,6 +298,25 @@ struct MessageBubble: View {
         default:
             break
         }
+    }
+}
+
+private struct SelectableMessageText: UIViewRepresentable {
+    let text: String
+
+    func makeUIView(context: Context) -> UITextView {
+        let view = UITextView()
+        view.isEditable = false
+        view.isSelectable = true
+        view.dataDetectorTypes = []
+        view.font = .preferredFont(forTextStyle: .body)
+        view.adjustsFontForContentSizeCategory = true
+        view.backgroundColor = .clear
+        return view
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        if view.text != text { view.text = text }
     }
 }
 

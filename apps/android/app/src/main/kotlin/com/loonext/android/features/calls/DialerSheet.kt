@@ -449,7 +449,7 @@ fun DialerSheet(
                             }) {
                                 Text(t("contactsTasks.callWithPhone"))
                             }
-                            if (serviceCode == "911") {
+                            if (serviceCode == "911" || serviceCode == "112") {
                                 Text(
                                     t("contactsTasks.emergencyCallsUnavailable"),
                                     style = MaterialTheme.typography.bodySmall,

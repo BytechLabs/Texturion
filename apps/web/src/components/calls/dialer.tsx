@@ -63,7 +63,9 @@ const KEYS = [
   "#",
 ] as const;
 
-export function Dialer({ trigger }: { trigger: ReactNode }) {
+type DialerProps = { trigger: ReactNode } | { initialNumber: string; onClose: () => void };
+
+export function Dialer(props: DialerProps) {
   const t = useT();
   const router = useRouter();
   const softphone = useSoftphone();
@@ -73,8 +75,8 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
       n.status === "active" && Boolean(n.number_e164),
   );
 
-  const [open, setOpen] = useState(false);
-  const [digits, setDigits] = useState("");
+  const [open, setOpen] = useState("initialNumber" in props);
+  const [digits, setDigits] = useState("initialNumber" in props ? props.initialNumber : "");
   const [fromId, setFromId] = useState<string | undefined>(undefined);
   const [calling, setCalling] = useState(false);
 
@@ -145,10 +147,18 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
     setDigits(match.number);
   }
 
+  function changeOpen(next: boolean) {
+    setOpen(next);
+    if (next) return;
+    setDigits("");
+    setPicked(null);
+    if ("onClose" in props) props.onClose();
+  }
+
   /** #459: the same person, the other verb. */
   function message() {
     if (!destination) return;
-    setOpen(false);
+    changeOpen(false);
     // The contact when we know them, the raw number when we do not — compose
     // resolves both, and passing the id means the thread opens on the person
     // rather than find-or-creating a second contact for a number we already
@@ -178,8 +188,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
         // person rather than a number.
         contactName: matchedName ?? formatPhone(destination),
       });
-      setOpen(false);
-      setDigits("");
+      changeOpen(false);
     } catch (error) {
       toast.error(
         // See call-button.tsx: a blocked mic and the concurrency ceiling both
@@ -194,17 +203,8 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
   }
 
   return (
-    <Dialog
-      open={open}
-      onOpenChange={(next) => {
-        setOpen(next);
-        if (!next) {
-          setDigits("");
-          setPicked(null);
-        }
-      }}
-    >
-      <DialogTrigger asChild>{trigger}</DialogTrigger>
+    <Dialog open={open} onOpenChange={changeOpen}>
+      {"trigger" in props && <DialogTrigger asChild>{props.trigger}</DialogTrigger>}
       <DialogContent
         className="max-w-xs"
         // Physical-keyboard parity with the on-screen keypad: type digits/*/#
@@ -247,8 +247,8 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
           </div>
           {serviceCode && (
             <p role="status" className="text-sm text-app-muted">
-              {serviceCode === "911"
-                ? t("shell.emergencyCallsUnavailable")
+              {serviceCode === "911" || serviceCode === "112"
+                ? t("shell.emergencyCallsUnavailable", { code: serviceCode })
                 : t("shell.usePhoneForServiceCode", { code: serviceCode })}
             </p>
           )}
@@ -354,7 +354,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
           <div className="flex items-center justify-between gap-2 border-t border-app-line pt-3 text-sm">
             <Link
               href="/contacts"
-              onClick={() => setOpen(false)}
+              onClick={() => changeOpen(false)}
               className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-app-muted-2 transition-colors duration-100 hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             >
               <Users strokeWidth={1.75} className="size-4" />
@@ -363,7 +363,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
             {target?.contactId ? (
               <Link
                 href={`/contacts/${target.contactId}`}
-                onClick={() => setOpen(false)}
+                onClick={() => changeOpen(false)}
                 className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-primary transition-colors duration-100 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {t("shell.openContact")}
@@ -371,7 +371,7 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
             ) : (canCall ? (
               <Link
                 href={`/contacts?new=${encodeURIComponent(digits)}`}
-                onClick={() => setOpen(false)}
+                onClick={() => changeOpen(false)}
                 className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-1 font-medium text-primary transition-colors duration-100 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 <UserPlus strokeWidth={1.75} className="size-4" />

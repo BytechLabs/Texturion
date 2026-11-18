@@ -501,6 +501,7 @@ export const appShellEn = {
     "Calls ring right in the app for your whole team. Unanswered calls take a " +
     "voicemail, and the caller gets your text-back.",
   callingLoading: "Loading calling settings",
+  emergencyCallingDisclosure: "Loonext does not provide 911 or E911. Use a mobile phone or landline to call emergency services.",
   callingHostedOnly:
     "In-app calling needs a number whose calls come through Loonext. Calls to " +
     "your text-enabled landline stay with your existing carrier, so these " +
@@ -1570,6 +1571,7 @@ export const appShellFr: Translated<typeof appShellEn> = {
     "équipe. Les appels sans réponse prennent un message vocal, et l'appelant " +
     "reçoit votre texto de rappel.",
   callingLoading: "Chargement des paramètres d'appel",
+  emergencyCallingDisclosure: "Loonext ne fournit pas de service 911 ou E911. Utilisez un téléphone mobile ou fixe pour joindre les services d’urgence.",
   callingHostedOnly:
     "Les appels dans l'application exigent un numéro dont les appels passent " +
     "par Loonext. Les appels vers votre ligne fixe activée pour les textos " +

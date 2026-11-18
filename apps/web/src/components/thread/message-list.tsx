@@ -101,6 +101,7 @@ export function MessageList({
   catchUp,
   callSessionId = null,
   onJumpToLatest,
+  onSelectPhone,
 }: {
   conversationId: string;
   contact: { name: string | null; phone_e164: string };
@@ -114,6 +115,7 @@ export function MessageList({
   callSessionId?: string | null;
   /** #718: leave an anchored window for the newest messages. */
   onJumpToLatest?: () => void;
+  onSelectPhone?: (number: string) => void;
   /** #716: the thread view's catch-up (`useCatchUp`), answered here. */
   catchUp: {
     offered: boolean;
@@ -685,6 +687,7 @@ export function MessageList({
                             conversationId={conversationId}
                             contactName={contactName}
                             contactTimeZone={contactTimeZone}
+                            onSelectPhone={onSelectPhone}
                             // #101: clusters split per author (clusters.ts), so
                             // one name is honest for the whole run. Null for
                             // inbound and for system sends.

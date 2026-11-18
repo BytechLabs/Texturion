@@ -57,13 +57,17 @@ blockedSendersRoutes.get(
   requireCapability("conversations.read"),
   async (c) => {
     const db = getDb(getEnv(c.env));
+    const digits = c.req.query("phone_digits");
+    const query = db.from("blocked_senders")
+      .select("id,phone_e164,reason,blocked_by,created_at")
+      .eq("company_id", c.get("companyId"));
+    if (digits !== undefined) {
+      const phone = blockSchema.shape.phone_e164.safeParse(`+${digits}`);
+      if (!phone.success) return errorResponse(c, "validation_failed", "Enter a complete phone number.");
+      query.eq("phone_e164", phone.data);
+    }
     const rows = unwrap<Record<string, unknown>[]>(
-      await db
-        .from("blocked_senders")
-        .select("id,phone_e164,reason,blocked_by,created_at")
-        .eq("company_id", c.get("companyId"))
-        .order("created_at", { ascending: false })
-        .limit(MAX_BLOCKED),
+      await query.order("created_at", { ascending: false }).limit(digits === undefined ? MAX_BLOCKED : 1),
       "blocked senders",
     );
     return c.json({ data: rows });

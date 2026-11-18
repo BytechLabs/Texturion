@@ -294,6 +294,7 @@ func conversationActions(_ input: ConversationActionsInput) -> [RecordAction] {
 
 enum MessageActionId {
     static let copyText = "copy-text"
+    static let selectText = "select-text"
     static let retry = "retry"
     static let done = "done"
     static let makeTask = "make-task"
@@ -311,6 +312,10 @@ func messageActions(_ message: Message, viewer: RecordViewer) -> [RecordAction] 
         RecordAction(
             id: MessageActionId.retry, labelKey: "recordMenu.retry",
             group: .primary, allowed: message.retryable
+        ),
+        RecordAction(
+            id: MessageActionId.selectText, labelKey: "thread.selectMessageText",
+            group: .primary, allowed: !message.body.isBlank
         ),
         // Phones only: the web bubble keeps "done" as its own check at the edge.
         RecordAction(

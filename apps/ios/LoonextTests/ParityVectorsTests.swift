@@ -33,6 +33,11 @@ final class ParityVectorsTests: XCTestCase {
         let serviceCode: String?
     }
 
+    private struct MessagePhoneVector: Decodable {
+        let body: String
+        let phones: [MessagePhone]
+    }
+
     private struct NanpVector: Decodable {
         let e164: String
         let is_us_ca: Bool
@@ -180,6 +185,14 @@ final class ParityVectorsTests: XCTestCase {
         for c in cases {
             XCTAssertEqual(Nanp.normalize(c.raw), c.normalized, c.raw)
             XCTAssertEqual(Nanp.emergencyOrServiceCode(c.raw), c.serviceCode, c.raw)
+        }
+    }
+
+    func testMessagePhoneOffsetsAgreeWithTheTypeScript() throws {
+        let cases = try vectors("message-phones.json", as: [MessagePhoneVector].self)
+        XCTAssertFalse(cases.isEmpty)
+        for c in cases {
+            XCTAssertEqual(MessagePhones.find(in: c.body), c.phones, c.body)
         }
     }
 

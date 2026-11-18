@@ -200,12 +200,12 @@ final class RecordActionsTests: XCTestCase {
     func testAMessageOffersCopyDoneMakeATaskAndPinWithDeleteLastForOwnersOnly() {
         XCTAssertEqual(
             messageActions(message(), viewer: viewer(MemberRole.owner)).visibleIds,
-            ["copy-text", "done", "make-task", "pin", "delete"]
+            ["copy-text", "select-text", "done", "make-task", "pin", "delete"]
         )
         for role in [MemberRole.member, MemberRole.readOnly] {
             XCTAssertEqual(
                 messageActions(message(), viewer: viewer(role)).visibleIds,
-                ["copy-text", "done", "make-task", "pin"],
+                ["copy-text", "select-text", "done", "make-task", "pin"],
                 role
             )
         }
@@ -228,6 +228,10 @@ final class RecordActionsTests: XCTestCase {
         XCTAssertFalse(
             messageActions(message(body: " "), viewer: viewer(MemberRole.owner))
                 .visibleIds.contains("copy-text")
+        )
+        XCTAssertFalse(
+            messageActions(message(body: " "), viewer: viewer(MemberRole.owner))
+                .visibleIds.contains("select-text")
         )
         XCTAssertFalse(
             messageActions(message(hasTask: true), viewer: viewer(MemberRole.owner))

@@ -262,9 +262,10 @@ struct MessagingRepository: Sendable {
 
     // MARK: - Blocked numbers (#696)
 
-    func blockedSenders(companyId: String) async throws -> [BlockedSender] {
+    func blockedSenders(companyId: String, phoneE164: String? = nil) async throws -> [BlockedSender] {
         let page: Page<BlockedSender> = try await api.get(
             "/v1/blocked-senders",
+            query: ["phone_digits": phoneE164.map { String($0.dropFirst()) }],
             companyId: companyId
         )
         return page.data

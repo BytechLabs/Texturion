@@ -15,7 +15,7 @@ package com.loonext.android.features.contacts
 object Nanp {
     private val phoneInput = Regex("""\+?[0-9\s().-]*""")
     private val tollFree = Regex("""\+1(?:800|833|844|855|866|877|888)[2-9][0-9]{6}""")
-    private val serviceCode = Regex("[2-9]11")
+    private val serviceCode = Regex("(?:[2-9]11|112|988)")
     private val nonGeographic5xx = setOf("521", "523", "524", "525", "526", "527", "528", "529", "532")
 
 

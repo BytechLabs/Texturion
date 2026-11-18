@@ -353,6 +353,8 @@ export const threadEn = {
   copyText: "Copy text",
   retrySend: "Retry send",
   copied: "Copied to clipboard.",
+  callWithLoonext: "Call with Loonext",
+  copyPhoneNumber: "Copy number",
   copyFailed: "Couldn't copy. Your browser blocked clipboard access.",
 
   // --- Promoting a message to a task (make-task-form.tsx) ------------------
@@ -1140,6 +1142,8 @@ export const threadFr: Translated<typeof threadEn> = {
   copyText: "Copier le texte",
   retrySend: "Renvoyer",
   copied: "Copié dans le presse-papiers.",
+  callWithLoonext: "Appeler avec Loonext",
+  copyPhoneNumber: "Copier le numéro",
   copyFailed:
     "Impossible de copier. Votre navigateur a bloqué l'accès au " +
     "presse-papiers.",

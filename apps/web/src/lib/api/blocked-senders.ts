@@ -14,12 +14,16 @@ export interface BlockedSender {
 }
 
 /** GET /v1/blocked-senders — the numbers this workspace sends straight to spam. */
-export function useBlockedSenders() {
+export function useBlockedSenders(phone?: string) {
   const companyId = useCompanyId();
+  const listKey = keys.blockedSenders(companyId);
   return useQuery({
-    queryKey: keys.blockedSenders(companyId),
+    queryKey: phone ? [...listKey, phone] : listKey,
     queryFn: () =>
-      apiFetch<{ data: BlockedSender[] }>("/v1/blocked-senders", { companyId }),
+      apiFetch<{ data: BlockedSender[] }>("/v1/blocked-senders", {
+        companyId,
+        searchParams: { phone_digits: phone?.slice(1) },
+      }),
     staleTime: 5 * 60_000,
   });
 }
