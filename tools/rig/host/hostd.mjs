@@ -26,6 +26,11 @@ import { MARKER, vmControls } from "./src/vmrun.mjs";
 
 const FACTS_EVERY_MS = 5 * 60 * 1000;
 
+/** @param {unknown} error */
+function errorMessage(error) {
+  return error instanceof Error ? error.message : String(error);
+}
+
 /** Runs a program to completion; never throws on a non-zero exit. */
 function run(file, args, { env, input, timeoutMs = 120_000 } = {}) {
   return new Promise((resolve, reject) => {
@@ -91,7 +96,8 @@ async function serve({ contract, root, sdk, paths }) {
   }
 
   const adbPort = contract.adb.server_port;
-  const started = await run(adbBinary(sdk), startServerArgs(adbPort), { env: adbEnv(adbPort) }).catch((error) => ({ code: -1, stderr: error.message }));
+  const started = await run(adbBinary(sdk), startServerArgs(adbPort), { env: adbEnv(adbPort) })
+    .catch((/** @type {unknown} */ error) => ({ code: -1, stderr: errorMessage(error) }));
   log(`adb: start-server on ${adbPort} (${started.code})`);
 
   const audioMuter = createAudioMuter({ helper: persistentHelper({ spawn, log }), log });
@@ -103,7 +109,8 @@ async function serve({ contract, root, sdk, paths }) {
 
   let facts = { whpx: { usable: false, detail: "not read yet" }, host: null };
   const refresh = async () => {
-    facts = await readHostFacts({ exec: run, sdk, root }).catch((error) => ({ whpx: { usable: false, detail: error.message }, host: null }));
+    facts = await readHostFacts({ exec: run, sdk, root })
+      .catch((/** @type {unknown} */ error) => ({ whpx: { usable: false, detail: errorMessage(error) }, host: null }));
   };
   await refresh();
   const timer = setInterval(refresh, FACTS_EVERY_MS);
@@ -186,7 +193,8 @@ async function doctor({ contract, root, sdk, paths }) {
   for (const device of contract.devices) check(existsSync(join(paths.avd, `${device.avd}.ini`)), `AVD ${device.avd} in ${paths.avd}`);
 
   const vm = vmControls({ vmx: paths.vmx, root, exec: run });
-  const status = await vm.status().catch((error) => ({ state: "unknown", detail: error.message }));
+  const status = await vm.status()
+    .catch((/** @type {unknown} */ error) => ({ state: "unknown", detail: errorMessage(error) }));
   check(status.state === "running", `vm ${status.state}${status.address ? ` at ${status.address}` : ""}${status.detail ? `: ${status.detail}` : ""}`);
 
   const facts = await readHostFacts({ exec: run, sdk, root });
@@ -220,7 +228,8 @@ async function doctor({ contract, root, sdk, paths }) {
     const found = findDiscovery(device, discoveryDirs(paths));
     const info = found ? await readProcessInfo(run, found.pid) : null;
     if (!found || !info || !EMULATOR_IMAGE.test(info.image)) continue;
-    const result = await muter.sweep([found.pid], { mute: false }).catch((error) => ({ state: "error", error: error.message }));
+    const result = await muter.sweep([found.pid], { mute: false })
+      .catch((/** @type {unknown} */ error) => ({ state: "error", error: errorMessage(error) }));
     if (result.state === "error") check(false, `${device.name} audio session unreadable: ${result.error}`);
     else if (result.state === "waiting") note(`${device.name} has no Windows audio session yet, so it cannot be heard`);
     else check(result.state === "muted", `${device.name} audio ${result.state}: ${result.muted}/${result.sessions} Windows sessions muted`);
@@ -249,8 +258,8 @@ async function main(argv) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
-  main(process.argv.slice(2)).catch((error) => {
-    console.error(error.message);
+  main(process.argv.slice(2)).catch((/** @type {unknown} */ error) => {
+    console.error(errorMessage(error));
     process.exit(1);
   });
 }

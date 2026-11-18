@@ -5,7 +5,7 @@
  * `telnyxRequest` is judged here before a request exists; the census in
  * `environments/destination-gate.test.ts` proves no site goes around it.
  */
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, assert, describe, expect, it, vi } from "vitest";
 
 import { getEnv } from '../env';
 import type { Env } from '../env';
@@ -180,11 +180,10 @@ describe("the destination gate in the client", () => {
   it.each(cases)("refuses %s to a stranger on the rig, before any request", async (_l, path, body) => {
     const sent = recordTelnyx();
     const attempt = telnyxRequest(getEnv(rigEnv()), { method: "POST", path, body });
-    await expect(attempt).rejects.toBeInstanceOf(TelnyxApiError);
-    await attempt.catch((error: TelnyxApiError) => {
-      expect(error.status).toBe(403);
-      expect(error.hasCode(RIG_DESTINATION_REFUSED)).toBe(true);
-    });
+    const refusal = await attempt.catch((error: unknown) => error);
+    assert(refusal instanceof TelnyxApiError);
+    expect(refusal.status).toBe(403);
+    expect(refusal.hasCode(RIG_DESTINATION_REFUSED)).toBe(true);
     expect(sent).toEqual([]);
   });
 
@@ -271,11 +270,10 @@ describe("the endpoints the guard never forwards, in the client", () => {
   };
 
   async function expectRefused(attempt: Promise<unknown>): Promise<void> {
-    await expect(attempt).rejects.toBeInstanceOf(TelnyxApiError);
-    await attempt.catch((error: TelnyxApiError) => {
-      expect(error.status).toBe(403);
-      expect(error.hasCode(RIG_ENDPOINT_REFUSED)).toBe(true);
-    });
+    const refusal = await attempt.catch((error: unknown) => error);
+    assert(refusal instanceof TelnyxApiError);
+    expect(refusal.status).toBe(403);
+    expect(refusal.hasCode(RIG_ENDPOINT_REFUSED)).toBe(true);
   }
 
   it("are refused on the rig before any request, through either entry", async () => {

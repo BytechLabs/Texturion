@@ -210,7 +210,6 @@
     "vitest/prefer-each": "off", // 46
     "unicorn/prefer-import-meta-properties": "off", // 45
     "unicorn/prefer-module": "off", // 39
-    "typescript/use-unknown-in-catch-callback-variable": "off", // 38
     "typescript/consistent-type-imports": "off", // 35
     "typescript/switch-exhaustiveness-check": "off", // 35
     "vitest/require-to-throw-message": "off", // 34

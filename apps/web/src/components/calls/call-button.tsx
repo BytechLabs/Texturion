@@ -45,7 +45,7 @@ export function usePlaceCall() {
     }
     void softphone
       .placeCall(args)
-      .catch((error) =>
+      .catch((error: unknown) =>
         toast.error(
           // MicPermissionError carries the only actionable copy in this path
           // ("Microphone access is blocked. Click the 🎤 or 🔒 icon…"), and the

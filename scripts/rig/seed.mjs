@@ -470,8 +470,8 @@ if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   const at = process.argv.indexOf("--workdir");
   const layout = rigLayout();
   const workdir = at === -1 ? layout.supabaseWorkdir : process.argv[at + 1];
-  seed({ workdir, store: secretStore(layout.secrets) }).catch((error) => {
-    console.error(error.message);
+  seed({ workdir, store: secretStore(layout.secrets) }).catch((/** @type {unknown} */ error) => {
+    console.error(error instanceof Error ? error.message : String(error));
     process.exit(1);
   });
 }

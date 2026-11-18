@@ -223,7 +223,7 @@ export async function runAiFeature(
         label: spec.label,
         cap: spec.cap,
         stops: spec.stops,
-      }).catch((error) => {
+      }).catch((error: unknown) => {
         console.error(
           `ai cap notice failed for ${companyId}/${spec.key}:`,
           error instanceof Error ? error.message : String(error),

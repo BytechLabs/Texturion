@@ -429,7 +429,7 @@ async function main() {
   rmSync(WORK_DIR, { recursive: true, force: true });
 }
 
-main().catch((error) => {
+main().catch((/** @type {unknown} */ error) => {
   console.error(error);
   rmSync(WORK_DIR, { recursive: true, force: true });
   throw error;

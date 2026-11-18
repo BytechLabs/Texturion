@@ -154,8 +154,8 @@ function loadPostHog(key: string): Promise<PostHog | null> {
       });
       return posthog;
     })
-    .catch((cause) => {
-      console.error("PostHog init failed:", cause);
+    .catch((error: unknown) => {
+      console.error("PostHog init failed:", error);
       return null;
     });
 }

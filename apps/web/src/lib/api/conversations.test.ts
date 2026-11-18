@@ -460,7 +460,7 @@ describe("useConversationPatch", () => {
     await waitFor(() => expect(onSuccess).toHaveBeenCalledWith(reopened));
   });
 
-  it("reports a refusal to the caller and reconciles", async () => {
+  it.each([new ApiError("conflict", "No.", 409), { reason: "aborted" }])("forwards a rejection and reconciles (%j)", async (reason) => {
     const client = newClient();
     seedInbox(client);
     const { result } = renderHook(() => useConversationPatch(), {
@@ -470,9 +470,9 @@ describe("useConversationPatch", () => {
 
     act(() => result.current.mutate({ id: "c1", patch: { status: "closed" } }, { onError }));
     await waitFor(() => expect(ids(client.getQueryData(OPEN))).toEqual(["c2"]));
-    await act(async () => calls[0].reject(new ApiError("conflict", "No.", 409)));
+    await act(async () => calls[0].reject(reason));
 
-    await waitFor(() => expect(onError).toHaveBeenCalled());
+    await waitFor(() => expect(onError.mock.calls[0]?.[0]).toBe(reason));
     expect(client.getQueryState(OPEN)?.isInvalidated).toBe(true);
   });
 });
