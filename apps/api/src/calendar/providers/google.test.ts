@@ -431,7 +431,9 @@ describe("Google calendar provider", () => {
     expect(recovered.instanceId).toBe(eventIds[0]);
     expect(mock).toHaveBeenCalledTimes(3);
     expect(String(mock.mock.calls[2]?.[0])).toContain(`/events/${eventIds[0]}`);
-    expect((mock.mock.calls[2]?.[1]!).method).toBeUndefined();
+    const init = mock.mock.calls[2]?.[1];
+    expect(init).toBeDefined();
+    expect(init?.method).toBeUndefined();
   });
 
   it("does not replay a failed conditional patch", async () => {

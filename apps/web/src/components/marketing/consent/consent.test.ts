@@ -136,6 +136,7 @@ describe("saveConsentChoice (#124)", () => {
   it("still updates the dataLayer when the cookie write throws", () => {
     const win = fakeWindow("https:");
     Object.defineProperty(win.document, "cookie", {
+      get: () => "",
       set() {
         throw new Error("blocked");
       },

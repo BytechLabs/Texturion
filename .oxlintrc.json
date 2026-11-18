@@ -54,7 +54,7 @@
     "unicorn/import-style": ["off", { "extendDefaultStyles": false, "styles": { "node:path": { "named": true }, "node:fs": { "named": true }, "node:url": { "named": true }, "node:util": { "named": true } } }], // not yet clean: 10 (#822)
     "import/no-unassigned-import": ["off", { "allow": ["**/*.css", "server-only", "client-only"] }], // not yet clean: 1 (#822)
     "vitest/valid-expect": ["off", { "maxArgs": 2 }], // not yet clean: 2 (#822)
-    "vitest/valid-title": ["off", { "allowArguments": true }], // not yet clean: 1 (#822)
+    "vitest/valid-title": ["error", { "allowArguments": true }],
     "eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
     "vitest/consistent-test-it": ["error", { "fn": "it", "withinDescribe": "it" }],
     "vitest/expect-expect": ["off", { "assertFunctionNames": ["expect", "expect*", "assert*", "*.expect*"] }], // not yet clean: 8 (#822)
@@ -337,43 +337,31 @@
     "unicorn/prefer-math-trunc": "off", // 2
     "unicorn/prefer-native-coercion-functions": "off", // 2
     "unicorn/require-array-join-separator": "off", // 2
-    "eslint/accessor-pairs": "off", // 1
     "eslint/no-script-url": "off", // 1
     "eslint/no-template-curly-in-string": "off", // 1
     "eslint/no-throw-literal": "off", // 1
-    "eslint/no-unexpected-multiline": "off", // 1
     "eslint/no-useless-constructor": "off", // 1
     "eslint/prefer-const": "off", // 1
     "import/no-commonjs": "off", // 1
     "import/no-dynamic-require": "off", // 1
-    "import/no-empty-named-blocks": "off", // 1
-    "jsx-a11y/control-has-associated-label": "off", // 1
     "oxc/no-accumulating-spread": "off", // 1
     "promise/no-nesting": "off", // 1
-    "react/button-has-type": "off", // 1
     "react/capitalized-calls": "off", // 1
     "react/hooks": "off", // 1
     "react/iframe-missing-sandbox": "off", // 1
-    "typescript/dot-notation": "off", // 1
     "typescript/no-inferrable-types": "off", // 1
-    "typescript/no-non-null-asserted-optional-chain": "off", // 1
     "typescript/prefer-function-type": "off", // 1
     "typescript/restrict-plus-operands": "off", // 1
     "unicorn/no-array-method-this-argument": "off", // 1
-    "unicorn/no-unnecessary-array-splice-count": "off", // 1
-    "unicorn/no-zero-fractions": "off", // 1
     "unicorn/prefer-array-index-of": "off", // 1
     "unicorn/prefer-dom-node-text-content": "off", // 1
     "unicorn/prefer-logical-operator-over-ternary": "off", // 1
     "unicorn/prefer-regexp-test": "off", // 1
     "unicorn/prefer-structured-clone": "off", // 1
-    "unicorn/require-module-specifiers": "off", // 1
     "unicorn/require-post-message-target-origin": "off", // 1
-    "vitest/no-duplicate-hooks": "off", // 1
     "vitest/prefer-comparison-matcher": "off", // 1
     "vitest/prefer-hooks-on-top": "off", // 1
     "vitest/prefer-spy-on": "off", // 1
-    "vitest/prefer-to-be": "off", // 1
 
     // Off by design: React effects, Hono middleware and test fetch fakes return
     // on some branches, and their types (void | Destructor, Response | void) allow it.

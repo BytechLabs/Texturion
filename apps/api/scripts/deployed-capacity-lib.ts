@@ -1469,7 +1469,7 @@ export async function runHostedCapacity(
             "Realtime suspect-wave cleanup exceeded its deadline; the candidate level is invalid",
           );
         }
-        active.splice(0, active.length);
+        active.splice(0);
         await waitForDwell(sleep, config.dwellMs);
 
         const baselineBatch = await openRealtimeBatch(config, openRealtime, 1);

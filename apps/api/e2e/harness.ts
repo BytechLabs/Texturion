@@ -254,7 +254,7 @@ export async function startHarness(): Promise<Harness> {
   ): Promise<CallResult> {
     const { ctx, flush } = makeCtx();
     const headers: Record<string, string> = { ...options.headers };
-    if (options.token) headers["Authorization"] = `Bearer ${options.token}`;
+    if (options.token) headers.Authorization = `Bearer ${options.token}`;
     if (options.companyId) headers["X-Company-Id"] = options.companyId;
     if (options.idempotencyKey)
       {headers["Idempotency-Key"] = options.idempotencyKey;}
