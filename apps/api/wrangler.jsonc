@@ -269,6 +269,12 @@
         "simple": { "limit": 10, "period": 60 }
       },
       {
+        "name": "INVITE_RATE_LIMITER",
+        "type": "ratelimit",
+        "namespace_id": "1017",
+        "simple": { "limit": 6, "period": 60 }
+      },
+      {
         // #243 item 4: the public API's per-KEY ceiling. "An integration that
         // polls every second must cost the workspace something or it costs
         // us."

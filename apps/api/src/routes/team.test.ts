@@ -150,6 +150,26 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(res.status).toBe(403);
   });
 
+  it.each(["workspace", "inviter"])("refuses a burst from the %s before sending mail", async (exhausted) => {
+    const sb = stubWithRole("owner");
+    const limit = vi.fn(async ({ key }: { key: string }) => ({ success: !key.startsWith(`${exhausted}:`) }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, { ...env, INVITE_RATE_LIMITER: { limit } }, await auth.token(), "/v1/invites", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { email: "new@crew.example", role: "member" },
+    });
+
+    expect(res.status).toBe(429);
+    expect(limit.mock.calls.map(([input]) => input.key)).toEqual([
+      `workspace:${COMPANY_ID}`,
+      `inviter:${auth.subject}`,
+    ]);
+    expect(sb.find("POST", "/rest/v1/invites")).toEqual([]);
+    expect(sb.find("POST", "/auth/v1/admin/generate_link")).toEqual([]);
+  });
+
   it("409s when active members + pending invites would exceed plan seats", async () => {
     // Starter = 3 seats; 2 active + 1 pending = full (a 4th would exceed).
     const sb = stubWithRole("owner");

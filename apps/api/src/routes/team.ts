@@ -710,9 +710,23 @@ teamRoutes.get("/invites", requireCapability("team.manage"), async (c) => {
 });
 
 teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
-  const body = await parseJsonBody(c, inviteSchema);
   const companyId = c.get("companyId");
+  const invitedBy = c.get("userId");
   const env = getEnv(c.env);
+  const limiter = env.INVITE_RATE_LIMITER;
+  if (limiter) {
+    const [workspace, inviter] = await Promise.all([
+      limiter.limit({ key: `workspace:${companyId}` }),
+      limiter.limit({ key: `inviter:${invitedBy}` }),
+    ]);
+    if (!workspace.success || !inviter.success) {
+      await capture(env, "team_invite_refused", companyId, {
+        reason: workspace.success ? "inviter_rate_limit" : "workspace_rate_limit",
+      });
+      return errorResponse(c, "rate_limited", "Too many invite attempts. Wait a minute and try again.");
+    }
+  }
+  const body = await parseJsonBody(c, inviteSchema);
   const db = getDb(env);
 
   const plan = await companyPlan(db, companyId);
@@ -729,7 +743,6 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
 
   const { email, role } = body;
   const note = body.note ?? null;
-  const invitedBy = c.get("userId");
   const inserted = await db
     .from("invites")
     .insert({ company_id: companyId, email, role, note, invited_by: invitedBy })
