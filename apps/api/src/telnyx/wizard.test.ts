@@ -1,3 +1,4 @@
+import { MESSAGE_AUTOMATIONS, type MessageAutomation } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
 import { buildCampaignContent, buildCampaignContentUpdate, buildReviewSample, REVIEW_SAMPLE_LINK, TCR_UPDATE_SAMPLE_MAX_LENGTH } from './wizard';
@@ -20,6 +21,16 @@ const DRAFT: CampaignDraft = {
   sample2:
     "Your appointment is confirmed for tomorrow at 9am. Reply STOP to opt out.",
 };
+
+const AUTOMATION_SAMPLES = {
+  away_reply: "sample5",
+  help_reply: "sample5",
+  off_ramp: "sample5",
+  emergency_ack: "sample5",
+  missed_call_text: "sample5",
+  job_rating: "sample3",
+  reminder: "sample4",
+} satisfies Record<MessageAutomation, "sample3" | "sample4" | "sample5">;
 
 describe(buildReviewSample, () => {
   it("embeds the business name and the review deep link", () => {
@@ -89,5 +100,14 @@ describe("buildCampaignContent — create-path block", () => {
     expect(body.sample3.length).toBeLessThanOrEqual(
       TCR_UPDATE_SAMPLE_MAX_LENGTH,
     );
+  });
+
+  it("registers a sample for each message automation", () => {
+    const businessName = "Acme Plumbing";
+    const body = buildCampaignContent({ campaign: DRAFT, businessName });
+
+    for (const automation of MESSAGE_AUTOMATIONS) {
+      expect(body[AUTOMATION_SAMPLES[automation]], automation).toContain(businessName);
+    }
   });
 });
