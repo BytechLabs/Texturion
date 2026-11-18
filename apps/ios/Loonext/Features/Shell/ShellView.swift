@@ -165,7 +165,7 @@ struct ShellView: View {
             }
         }
         .safeAreaInset(edge: .top, spacing: 0) {
-            if ConnectionWatch.shared.offline {
+            if ConnectionWatch.shared.offline || root.usingCachedWorkspace {
                 Text(AppStrings.translate(appLocale, "shell.offline"))
                     .font(.footnote)
                     .foregroundStyle(BrandColor.ink)

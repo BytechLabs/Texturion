@@ -15,12 +15,15 @@ import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
 import com.loonext.android.features.settings.SettingsRepository
 import com.loonext.android.core.realtime.RealtimeLifecycle
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Mirrors the web's CompanyProvider bootstrap: session → GET /v1/me →
@@ -44,7 +47,7 @@ sealed interface RootState {
      */
     data class NeedsMfa(val enrolmentRequired: Boolean) : RootState
 
-    data class Ready(val me: Me, val companyId: String) : RootState
+    data class Ready(val me: Me, val companyId: String, val stale: Boolean = false) : RootState
 
     data class Failed(val message: String) : RootState
 }
@@ -78,6 +81,7 @@ internal suspend fun retryNumberList(attempt: suspend () -> Boolean): Boolean {
 class RootViewModel(private val graph: AppGraph) : ViewModel() {
     private val _state = MutableStateFlow<RootState>(RootState.Loading)
     val state: StateFlow<RootState> = _state
+    private val bootstrapLock = Mutex()
 
     /** #483: the in-flight [retryNumberList], so bootstraps cannot stack them. */
     private var numberListRetry: Job? = null
@@ -109,6 +113,11 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
                 ) {
                     bootstrap()
                 }
+            }
+        }
+        viewModelScope.launch {
+            graph.connectionWatch.offline.collect { offline ->
+                if (!offline) bootstrap(staleOnly = true)
             }
         }
         // #289: the socket a backgrounded phone should not be holding.
@@ -305,7 +314,14 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
         return true
     }
 
-    private suspend fun bootstrap() {
+    private suspend fun bootstrap(staleOnly: Boolean = false) {
+        bootstrapLock.withLock {
+            if (staleOnly && (_state.value as? RootState.Ready)?.stale != true) return
+            refreshWorkspace()
+        }
+    }
+
+    private suspend fun refreshWorkspace() {
         try {
             val me = graph.meRepo.me()
             // #228: the server has just answered the first two thirds of "what
@@ -315,6 +331,7 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             // at a French crew while this call is in flight.
             graph.prefs.setUiLocale(me.locale)
             if (me.memberships.isEmpty()) {
+                graph.sessionStore.forgetReadyWorkspace()
                 _state.value = RootState.NeedsWorkspace(me)
                 return
             }
@@ -330,6 +347,7 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             val incomplete = membership.subscription_status == SubscriptionStatus.INCOMPLETE ||
                 membership.subscription_status == SubscriptionStatus.INCOMPLETE_EXPIRED
             if (incomplete && MemberRole.atLeast(membership.role, MemberRole.ADMIN)) {
+                graph.sessionStore.forgetReadyWorkspace()
                 _state.value = RootState.NeedsCheckout(me, membership.company_id)
                 return
             }
@@ -360,8 +378,13 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             // rather than shrug at.
             val hydration = runCatching { graph.meRepo.me(membership.company_id) }
             val hydrated = hydration.getOrNull()
-            val refusal = (hydration.exceptionOrNull() as? ApiException)?.code
+            val hydrationError = hydration.exceptionOrNull()
+            if (hydrationError is CancellationException) throw hydrationError
+            val refusal = (hydrationError as? ApiException)?.code
             val view = hydrated ?: me
+            if (refusal == ApiErrorCode.UNAUTHORIZED || refusal == ApiErrorCode.FORBIDDEN || refusal == ApiErrorCode.NOT_FOUND) {
+                throw requireNotNull(hydrationError)
+            }
 
             // Connect realtime for the active workspace.
             //
@@ -398,21 +421,35 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             // company-exempt, so it answers even for a session every other route
             // is refusing, which is exactly the session that needs the answer.
             if (refusal == ApiErrorCode.MFA_CHALLENGE_REQUIRED) {
+                graph.sessionStore.forgetReadyWorkspace()
                 _state.value = RootState.NeedsMfa(enrolmentRequired = false)
                 return
             }
             if (refusal == ApiErrorCode.MFA_REQUIRED) {
+                graph.sessionStore.forgetReadyWorkspace()
                 _state.value = RootState.NeedsMfa(enrolmentRequired = true)
                 return
             }
-            val mfa = runCatching { graph.settingsRepo.mfa() }.getOrNull()
+            val mfaResult = runCatching { graph.settingsRepo.mfa() }
+            val mfaError = mfaResult.exceptionOrNull()
+            if (mfaError is CancellationException) throw mfaError
+            if (mfaError is ApiException && mfaError.code == ApiErrorCode.UNAUTHORIZED) throw mfaError
+            val mfa = mfaResult.getOrNull()
             if (mfa != null && mfa.enrolled && mfa.aal != "aal2") {
+                graph.sessionStore.forgetReadyWorkspace()
                 _state.value = RootState.NeedsMfa(enrolmentRequired = false)
                 return
             }
 
+            if (graph.sessionStore.current()?.userId != view.user_id) {
+                _state.value = RootState.SignedOut
+                return
+            }
             _state.value = RootState.Ready(view, membership.company_id)
             graph.flushOutbox()
+            if (hydrated != null && mfa != null) {
+                graph.sessionStore.rememberReadyWorkspace(membership.company_id, hydrated)
+            }
 
             // #483: one transient 5xx on the hydrated read must not cost a whole
             // session of per-number realtime. Retried OFF the bootstrap path —
@@ -430,11 +467,23 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
                 null
             }
         } catch (cause: ApiException) {
-            if (cause.code == ApiErrorCode.UNAUTHORIZED) {
-                _state.value = RootState.SignedOut
-            } else {
-                _state.value = RootState.Failed(cause.message)
+            if (cause.code == ApiErrorCode.NETWORK) {
+                val companyId = graph.prefs.currentCompanyId()
+                val cached = companyId?.let { graph.sessionStore.cachedWorkspace(it) }
+                if (companyId != null && cached != null && graph.sessionStore.current()?.userId == cached.user_id) {
+                    _state.value = RootState.Ready(cached, companyId, stale = true)
+                    return
+                }
             }
+            if (cause.code != ApiErrorCode.NETWORK) graph.sessionStore.forgetReadyWorkspace()
+            _state.value = when (cause.code) {
+                ApiErrorCode.UNAUTHORIZED -> RootState.SignedOut
+                ApiErrorCode.MFA_CHALLENGE_REQUIRED -> RootState.NeedsMfa(enrolmentRequired = false)
+                ApiErrorCode.MFA_REQUIRED -> RootState.NeedsMfa(enrolmentRequired = true)
+                else -> RootState.Failed(cause.message)
+            }
+        } catch (cause: CancellationException) {
+            throw cause
         } catch (cause: Exception) {
             _state.value = RootState.Failed(
                 AppStrings.translate(uiLocale(), "shell.bootstrapFailed"),

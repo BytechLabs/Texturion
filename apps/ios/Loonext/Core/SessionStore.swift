@@ -1,6 +1,8 @@
 import Foundation
 import Security
 
+private let workspaceCacheMaxBytes = 5 * 1024 * 1024
+
 /// The persisted Supabase session.
 struct Session: Codable, Sendable {
     let accessToken: String
@@ -78,7 +80,13 @@ protocol SessionStorage: Sendable {
 /// The real one, and the default. Same item, same accessibility, this-device-only.
 struct KeychainSessionStorage: SessionStorage {
     private let service = "com.loonext.ios.session"
-    private let account = "supabase"
+    private let account: String
+    private let unlockedOnly: Bool
+
+    init(account: String = "supabase", unlockedOnly: Bool = false) {
+        self.account = account
+        self.unlockedOnly = unlockedOnly
+    }
 
     private var baseQuery: [String: Any] {
         [
@@ -102,7 +110,9 @@ struct KeychainSessionStorage: SessionStorage {
     func write(_ data: Data) {
         let attributes: [String: Any] = [
             kSecValueData as String: data,
-            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
+            kSecAttrAccessible as String: unlockedOnly
+                ? kSecAttrAccessibleWhenUnlockedThisDeviceOnly
+                : kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly,
         ]
         let status = SecItemUpdate(baseQuery as CFDictionary, attributes as CFDictionary)
         if status == errSecItemNotFound {
@@ -117,6 +127,11 @@ struct KeychainSessionStorage: SessionStorage {
     }
 }
 
+private struct CachedWorkspace: Codable {
+    let companyId: String
+    let me: Me
+}
+
 /// Session persistence, keychain-backed by default.
 ///
 /// `changes` broadcasts every save/clear (a refresh save included) so the root
@@ -124,17 +139,30 @@ struct KeychainSessionStorage: SessionStorage {
 /// observation API.
 final class SessionStore: @unchecked Sendable {
     private let storage: SessionStorage
+    private let workspaceStorage: SessionStorage?
     private let lock = NSLock()
     private var observers: [UUID: AsyncStream<Session?>.Continuation] = [:]
 
     /// #599: defaulted, so every production call site is unchanged.
-    init(storage: SessionStorage = KeychainSessionStorage()) {
+    convenience init() {
+        self.init(
+            storage: KeychainSessionStorage(),
+            workspaceStorage: KeychainSessionStorage(account: "ready-workspace", unlockedOnly: true)
+        )
+    }
+
+    init(storage: SessionStorage, workspaceStorage: SessionStorage? = nil) {
         self.storage = storage
+        self.workspaceStorage = workspaceStorage
     }
 
     func current() -> Session? {
         lock.lock()
         defer { lock.unlock() }
+        return storedSession()
+    }
+
+    private func storedSession() -> Session? {
         guard let data = storage.read() else { return nil }
         return try? JSONDecoder().decode(Session.self, from: data)
     }
@@ -145,14 +173,41 @@ final class SessionStore: @unchecked Sendable {
             lock.unlock()
             return
         }
+        if storedSession()?.userId != session.userId { workspaceStorage?.remove() }
         storage.write(data)
         let continuations = Array(observers.values)
         lock.unlock()
         for continuation in continuations { continuation.yield(session) }
     }
 
+    func rememberReadyWorkspace(companyId: String, me: Me) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard storedSession()?.userId == me.user_id,
+              let encoded = try? JSONEncoder().encode(CachedWorkspace(companyId: companyId, me: me)),
+              encoded.count <= workspaceCacheMaxBytes else { return }
+        workspaceStorage?.write(encoded)
+    }
+
+    func cachedWorkspace(companyId: String) -> Me? {
+        lock.lock()
+        defer { lock.unlock() }
+        guard let userId = storedSession()?.userId,
+              let data = workspaceStorage?.read(),
+              let cached = try? JSONDecoder().decode(CachedWorkspace.self, from: data),
+              cached.companyId == companyId, cached.me.user_id == userId else { return nil }
+        return cached.me
+    }
+
+    func forgetReadyWorkspace() {
+        lock.lock()
+        defer { lock.unlock() }
+        workspaceStorage?.remove()
+    }
+
     func clear() {
         lock.lock()
+        workspaceStorage?.remove()
         storage.remove()
         let continuations = Array(observers.values)
         lock.unlock()

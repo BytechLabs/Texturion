@@ -5,9 +5,16 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.loonext.android.core.model.Me
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.Json
+import java.io.IOException
 
 /** The persisted Supabase session. */
 data class Session(
@@ -24,6 +31,9 @@ data class Session(
 }
 
 private val Context.sessionDataStore by preferencesDataStore(name = "session")
+
+@Serializable
+private data class CachedWorkspace(val companyId: String, val me: Me)
 
 /** Session persistence seam — [SessionStore] in the app, in-memory in tests. */
 interface SessionSource {
@@ -86,6 +96,7 @@ class SessionStore(private val context: Context) : SessionSource {
         val EXPIRES_AT = longPreferencesKey("expires_at")
         val USER_ID = stringPreferencesKey("user_id")
         val EMAIL = stringPreferencesKey("email")
+        val CACHED_WORKSPACE = stringPreferencesKey("cached_workspace")
     }
 
     override val session: Flow<Session?> = context.sessionDataStore.data.map { prefs ->
@@ -98,18 +109,47 @@ class SessionStore(private val context: Context) : SessionSource {
             userId = prefs[Keys.USER_ID] ?: "",
             email = prefs[Keys.EMAIL] ?: "",
         )
-    }
+    }.distinctUntilChanged()
 
     override suspend fun current(): Session? = session.first()
 
     override suspend fun save(session: Session) {
         context.sessionDataStore.edit { prefs ->
+            if (prefs[Keys.USER_ID] != session.userId) prefs.remove(Keys.CACHED_WORKSPACE)
             prefs[Keys.ACCESS] = session.accessToken
             prefs[Keys.REFRESH] = session.refreshToken
             prefs[Keys.EXPIRES_AT] = session.expiresAt
             prefs[Keys.USER_ID] = session.userId
             prefs[Keys.EMAIL] = session.email
         }
+    }
+
+    suspend fun rememberReadyWorkspace(companyId: String, me: Me) {
+        withContext(Dispatchers.IO) {
+            try {
+                context.sessionDataStore.edit { prefs ->
+                    if (prefs[Keys.USER_ID] != me.user_id || prefs[Keys.ACCESS].isNullOrBlank()) return@edit
+                    runCatching { WorkspaceCacheCipher.encrypt(Json.encodeToString(CachedWorkspace(companyId, me))) }
+                        .onSuccess { prefs[Keys.CACHED_WORKSPACE] = it }
+                }
+            } catch (_: IOException) {
+                // The live workspace remains available if saving its offline copy fails.
+            }
+        }
+    }
+
+    suspend fun cachedWorkspace(companyId: String): Me? = withContext(Dispatchers.IO) {
+        val prefs = context.sessionDataStore.data.first()
+        if (prefs[Keys.ACCESS].isNullOrBlank()) return@withContext null
+        val encrypted = prefs[Keys.CACHED_WORKSPACE] ?: return@withContext null
+        val cached = runCatching {
+            WorkspaceCacheCipher.decrypt(encrypted)?.let { Json.decodeFromString<CachedWorkspace>(it) }
+        }.getOrNull()
+        cached?.me?.takeIf { cached.companyId == companyId && it.user_id == prefs[Keys.USER_ID] }
+    }
+
+    suspend fun forgetReadyWorkspace() {
+        context.sessionDataStore.edit { it.remove(Keys.CACHED_WORKSPACE) }
     }
 
     override suspend fun clear() {
