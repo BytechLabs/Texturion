@@ -38,6 +38,7 @@ describe("#733 search fields", () => {
         "components/inbox/filter-bar.tsx",
         "components/settings/settings-search.tsx",
         "components/tasks/task-filter-bar.tsx",
+        "components/thread/thread-find-bar.tsx",
       ].toSorted(),
     );
   });
