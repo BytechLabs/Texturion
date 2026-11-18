@@ -1,3 +1,4 @@
+import { SUBPROCESSORS } from "@loonext/shared";
 import securityPolicy from "@root/SECURITY.md";
 import accessibilityStatement from "@root/docs/ACCESSIBILITY.md";
 import dpaEn from "@root/docs/DPA.md";
@@ -132,6 +133,17 @@ describe("#228 the contract documents keep the same obligations in French", () =
         .filter((line) => line.startsWith("> "))
         .map((line) => line.trim());
     expect(sources(dpaFr)).toEqual(sources(dpaEn));
+  });
+
+  it.each([
+    { locale: "en", document: dpaEn },
+    { locale: "fr-CA", document: dpaFr },
+  ])("matches the $locale DPA vendor names to the public list", ({ document }) => {
+    const clause = /^## 6\.[^\n]*\n([\s\S]+?)^## 7\./m.exec(document)?.[1];
+    expect(clause?.match(/\*\*([^*]+)\*\*/)?.[1].split(", "))
+      .toEqual(SUBPROCESSORS.map(({ name }) => name));
+    expect(clause).toContain("OpenStreetMap");
+    expect(clause).toContain("Nominatim");
   });
 
   it("the French DPA keeps the three promises it deliberately under-makes", () => {

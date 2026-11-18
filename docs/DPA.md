@@ -119,6 +119,10 @@ for this contract to disclose to one.
 
 Current list, kept public and current: **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google, PostHog**
 
+Web and Android maps load tiles from the OpenStreetMap Foundation. Geocoding
+sends saved street addresses to the foundation’s public Nominatim service to
+look up coordinates. Its public service terms apply to those requests.
+
 > Source: `/legal/subprocessors`
 
 We will publish changes to that list on the same page. A customer who objects

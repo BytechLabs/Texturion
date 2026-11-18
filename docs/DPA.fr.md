@@ -108,6 +108,11 @@ divulguer dans le cadre du présent contrat.
 
 Liste actuelle, tenue publique et à jour : **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google, PostHog**
 
+Sur le Web et Android, les cartes chargent des tuiles de l’OpenStreetMap
+Foundation. Le géocodage transmet les adresses postales enregistrées à son
+service public Nominatim pour obtenir des coordonnées. Les conditions du
+service public s’appliquent à ces requêtes.
+
 > Source: `/legal/subprocessors`
 
 Nous publierons les changements à cette liste sur la même page. Un client qui
