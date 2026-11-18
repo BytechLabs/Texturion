@@ -498,6 +498,26 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     expect(sb.find("GET", "/rest/v1/contact_addresses")).toHaveLength(0);
   });
 
+  it("does not serve or edit a contact in Trash", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/contacts", (call) => {
+      expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
+      return [];
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+    const path = `/v1/contacts/${CONTACT_ID}`;
+    const token = await auth.token();
+
+    const detail = await apiRequest(app, env, token, path, { companyId: COMPANY_ID });
+    expect(detail.status).toBe(404);
+
+    const edit = await apiRequest(app, env, token, path, {
+      method: "PATCH", companyId: COMPANY_ID, body: { name: "Edited" },
+    });
+    expect(edit.status).toBe(404);
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
   it("refuses to edit or delete a merged profile", async () => {
     const sb = stubWithRole("admin");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow({ merged_into: SURVIVOR })]);

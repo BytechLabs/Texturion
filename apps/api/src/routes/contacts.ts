@@ -969,6 +969,7 @@ async function findContact(
       .select(`${CONTACT_COLUMNS},merged_into`)
       .eq("company_id", companyId)
       .eq("id", id)
+      .is("deleted_at", null)
       .limit(1),
     "contact lookup",
   );
@@ -2209,6 +2210,7 @@ contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), a
       .update(patch)
       .eq("company_id", companyId)
       .eq("id", id)
+      .is("deleted_at", null)
       .is("merged_into", null)
       .select(CONTACT_COLUMNS),
     "contact update",
