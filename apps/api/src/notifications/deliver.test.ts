@@ -143,6 +143,44 @@ describe(deliverPush, () => {
     } | undefined)?.payload.aps.badge)).toEqual([undefined, 4, 4, 0]);
   });
 
+  it("logs a failed badge lookup as text and still sends the push", async () => {
+    const fcm = fcmEnv(await makeServiceAccount());
+    const service = fcmService();
+    const sb = supabaseStub(fcm);
+    sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+    sb.on("GET", "/rest/v1/device_push_tokens", () => [{ ...DEVICE, platform: "ios" }]);
+    sb.on("GET", "/rest/v1/companies", () => []);
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_unread_push_badges", () =>
+      Response.json({ code: "XX000", message: "badge count unavailable" }, { status: 500 }),
+    );
+    stubFetch(sb.route, ...service.routes);
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    try {
+      await deliverPush(fcm, getDb(fcm), {
+        category: "messages_all",
+        companyId: "c0000000-0000-4000-8000-00000000000c",
+        content: { written: "us" },
+        userIds: [USER],
+        web: ALERT,
+        collapseKey: "conversation:x",
+        failures: [],
+      });
+
+      expect(log).toHaveBeenCalledWith(
+        "push-unread-count-lookup:",
+        expect.stringContaining("badge count unavailable"),
+      );
+      expect(service.sends).toHaveLength(1);
+      const apns = service.sends[0]?.message.apns;
+      expect(apns).toBeDefined();
+      expect(apns).not.toHaveProperty("payload.aps.badge");
+    } finally {
+      log.mockRestore();
+    }
+  });
+
   it("holds a once-a-day alert for the daily summary", async () => {
     const { sb, routes } = world();
     sb.on("GET", "/rest/v1/notification_prefs", () => [{

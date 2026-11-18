@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Env } from "../env";
 import { completeEnv } from "../test/support";
-import { captureEvent, captureException, opsNotice, scrubbedError } from "./capture";
+import { captureEvent, captureException, errorLogText, opsNotice, reportHandledFailure, scrubbedError } from "./capture";
 
 const PHONE = "+16135551234";
 const EMAIL = "a@b.co";
@@ -144,6 +144,45 @@ describe(captureException, () => {
     ).resolves.toBeUndefined();
     expect(log).toHaveBeenCalled();
     log.mockRestore();
+  });
+});
+
+describe(errorLogText, () => {
+  it("keeps the exception message when the stack contains only frames", () => {
+    const error = new Error(`Lookup failed for ${PHONE}`);
+    error.stack = "    at load (worker.js:1:2)";
+
+    expect(errorLogText(error)).toBe("Error: Lookup failed for [phone redacted]\n    at load (worker.js:1:2)");
+  });
+
+  it("keeps a normal stack without repeating the message", () => {
+    const error = new TypeError("Invalid result");
+    expect(errorLogText(error)).toBe(error.stack);
+  });
+});
+
+describe(reportHandledFailure, () => {
+  it("logs text and sends a PostHog warning grouped by operation", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const { waitUntil, pending } = invocation();
+    try {
+      await reportHandledFailure(env(), "task-completion-follow-up", new Error("Database unavailable"), waitUntil);
+
+      expect(log).toHaveBeenCalledExactlyOnceWith(
+        "task-completion-follow-up:",
+        expect.stringContaining("Error: Database unavailable"),
+      );
+      expect(pending).toHaveLength(1);
+      expect(sent).toHaveLength(1);
+      expect(sent[0]?.event.properties).toMatchObject({
+        source: "api",
+        operation: "task-completion-follow-up",
+        $exception_level: "warning",
+        $exception_fingerprint: "handled:task-completion-follow-up",
+      });
+    } finally {
+      log.mockRestore();
+    }
   });
 });
 

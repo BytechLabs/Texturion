@@ -34,6 +34,7 @@ import { getDb } from "../db";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
 import type { Env } from "../env";
 import { notifyMissedCall, notifyVoicemail } from "../notifications/missed-call";
+import { captureException, errorLogText } from "../observability/capture";
 import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
 import {
   BROWSER_INBOUND_STATE,
@@ -630,7 +631,15 @@ export async function handleVoicemailSaved(
           },
         }),
         notifyVoicemail(env, db, { companyId: resolved.companyId, conversationId })
-          .catch((error) => console.error(`voicemail alert failed for ${sessionId}:`, error)),
+          .catch((error) => {
+            console.error(`voicemail-alert (${sessionId}):`, errorLogText(error));
+            void captureException(env, error, {
+              source: "api",
+              level: "warning",
+              operation: "voicemail-alert",
+              extra: { call_session_id: sessionId },
+            });
+          }),
       ]);
     }
   }
@@ -711,8 +720,14 @@ async function telnyxRejectLeg(
     if (isDefiniteRefusal(error)) return;
     console.error(
       `outbound leg reject hangup failed for ${callControlId}:`,
-      error instanceof Error ? error.message : String(error),
+      errorLogText(error),
     );
+    void captureException(env, error, {
+      source: "api",
+      level: "warning",
+      operation: "outbound-leg-reject-hangup",
+      extra: { call_control_id: callControlId },
+    });
   }
 }
 

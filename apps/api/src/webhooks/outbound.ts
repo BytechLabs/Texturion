@@ -3,6 +3,8 @@ import type { WebhookEventType } from '@loonext/shared';
 
 import type { SupabaseClient } from "@supabase/supabase-js";
 
+import { reportHandledFailure, workerEnv } from "../observability/capture";
+
 /**
  * #243 — one place events leave the building.
  *
@@ -54,7 +56,7 @@ export async function enqueueWebhookEvent(
     // `dispatchOutbound` would turn a text that already left the building into
     // a 500, and a workspace's integration preference must never be able to do
     // that. The event is lost and the message is not.
-    console.error("webhook enqueue failed:", error);
+    void reportHandledFailure(workerEnv(), "webhook-enqueue", error);
     return 0;
   }
 }

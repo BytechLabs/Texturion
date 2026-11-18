@@ -47,6 +47,8 @@ export interface ExceptionContext {
   company_id?: string;
   /** Defaults to "error". A warning is a handled condition worth a look. */
   level?: "error" | "warning";
+  /** A fixed operation name for grouping handled failures in PostHog. */
+  operation?: string;
   /** Ids and measurements that help; scrubbed like everything else. */
   extra?: Record<string, unknown>;
 }
@@ -136,6 +138,21 @@ export function scrubbedError(value: unknown, depth = 0): unknown {
   return copy;
 }
 
+export function errorLogText(error: unknown): string {
+  if (error instanceof Error) {
+    const heading = `${error.name}: ${error.message}`;
+    const stack = error.stack;
+    if (stack?.startsWith(heading)) return scrubText(stack);
+    return scrubText(stack ? `${heading}\n${stack}` : heading);
+  }
+  if (typeof error === "object" && error !== null) {
+    return "message" in error && typeof error.message === "string"
+      ? scrubText(error.message)
+      : "Unknown error";
+  }
+  return scrubText(String(error));
+}
+
 function send(
   name: string,
   sending: () => Promise<void>,
@@ -160,7 +177,7 @@ export function captureException(
 ): Promise<void> {
   const posthog = client(env);
   if (posthog === null) return Promise.resolve();
-  const { level = "error", extra, ...where } = context;
+  const { level = "error", extra, operation, ...where } = context;
   return send(
     "exception capture",
     () =>
@@ -168,10 +185,25 @@ export function captureException(
         ...baseProperties(env),
         ...where,
         ...(extra === undefined ? {} : { extra }),
+        ...(operation === undefined ? {} : { operation, $exception_fingerprint: `handled:${operation}` }),
         $exception_level: level,
       }),
     waitUntil,
   );
+}
+
+export async function reportHandledFailure(
+  env: Env,
+  operation: string,
+  error: unknown,
+  waitUntil?: WaitUntil,
+): Promise<void> {
+  console.error(`${operation}:`, errorLogText(error));
+  try {
+    await captureException(env, error, { source: "api", level: "warning", operation }, waitUntil);
+  } catch (reportError) {
+    console.error("PostHog warning capture failed:", errorLogText(reportError));
+  }
 }
 
 /**

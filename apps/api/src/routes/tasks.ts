@@ -89,6 +89,7 @@ import { getEnv } from "../env";
 import { companySettingDefault, roleHasCapability } from "@loonext/shared";
 import { doneToggleAction, taskAllowedActions } from "./task-actions";
 import { ApiError, errorResponse } from "../http/errors";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
 import { mayHoldReference, syncReferences } from "../tasks/references";
@@ -1126,7 +1127,8 @@ function notifyAssignedTask(
     taskId: string;
   },
 ): Promise<void> {
-  const notify = notifyAssigned(getEnv(c.env), {
+  const env = getEnv(c.env);
+  const notify = notifyAssigned(env, {
     kind: "task",
     companyId: input.companyId,
     taskId: input.taskId,
@@ -1135,9 +1137,7 @@ function notifyAssignedTask(
       (input.task?.conversation_id as string | null | undefined) ?? null,
     actorUserId: input.actorUserId,
     assigneeUserId: input.assigneeUserId,
-  }).catch((cause: unknown) => {
-    console.error("task assignment alert failed:", cause);
-  });
+  }).catch((error: unknown) => reportHandledFailure(env, "task-assignment-alert", error));
   const ctx = executionCtxOf(c);
   if (ctx) {
     ctx.waitUntil(notify);
@@ -1175,8 +1175,8 @@ async function readTaskBefore(
       assigned_user_id: (row.assigned_user_id as string | null) ?? null,
       due_at: (row.due_at as string | null) ?? null,
     };
-  } catch (cause) {
-    console.error("task pre-read failed:", cause);
+  } catch (error) {
+    void reportHandledFailure(workerEnv(), "task-pre-read", error);
     return null;
   }
 }
@@ -1227,11 +1227,10 @@ function syncRemindersAfterWrite(
   c: Context<AppEnv>,
   input: { companyId: string; taskId: string; userId: string },
 ): Promise<void> {
-  const work = syncTaskReminders(getDb(getEnv(c.env)), input)
+  const env = getEnv(c.env);
+  const work = syncTaskReminders(getDb(env), input)
     .then(() => undefined)
-    .catch((cause: unknown) => {
-      console.error("task reminder sync failed:", cause);
-    });
+    .catch((error: unknown) => reportHandledFailure(env, "task-reminder-sync", error));
   const ctx = executionCtxOf(c);
   if (ctx) {
     ctx.waitUntil(work);
@@ -2756,7 +2755,8 @@ function onCallTaskDone(
     };
   },
 ): void {
-  const db = getDb(getEnv(c.env));
+  const env = getEnv(c.env);
+  const db = getDb(env);
   const work = (async () => {
     await enqueueWebhookEvent(db, {
       companyId: input.companyId,
@@ -2777,9 +2777,7 @@ function onCallTaskDone(
         userId: input.userId,
       });
     }
-  })().catch((cause: unknown) => {
-    console.error("job rating ask failed:", cause);
-  });
+  })().catch((error: unknown) => reportHandledFailure(env, "task-completion-follow-up", error));
   executionCtxOf(c)?.waitUntil(work);
 }
 
@@ -3249,7 +3247,8 @@ tasksRoutes.put(
     const id = pathUuid(c, "id");
     const companyId = c.get("companyId");
     const userId = c.get("userId");
-    const db = getDb(getEnv(c.env));
+    const env = getEnv(c.env);
+    const db = getDb(env);
 
     const { off } = await parseJsonBody(c, z.object({ off: z.boolean() }));
 
@@ -3268,8 +3267,8 @@ tasksRoutes.put(
     }
 
     await syncTaskReminders(db, { companyId, taskId: id, userId }).catch(
-      (cause: unknown) => {
-        console.error("task reminder sync failed:", cause);
+      (error: unknown) => {
+        void reportHandledFailure(env, "task-reminder-sync", error);
       },
     );
 

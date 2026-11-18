@@ -51,6 +51,7 @@ import { getEnv } from "../env";
 import { notifyPromotedMessageDone } from "../tasks/notify";
 import { askForJobRating } from "../messaging/job-ratings";
 import { ApiError } from "../http/errors";
+import { reportHandledFailure } from "../observability/capture";
 import { encodeCursor } from '../http/pagination';
 import type { Cursor } from '../http/pagination';
 import {
@@ -643,7 +644,8 @@ function onPromotedMessageDone(
   c: Context<AppEnv>,
   input: { companyId: string; messageId: string; userId: string },
 ): void {
-  const db = getDb(getEnv(c.env));
+  const env = getEnv(c.env);
+  const db = getDb(env);
   const work = (async () => {
     const tasks = unwrap<{ id: string; title: string | null }[]>(
       await db
@@ -672,9 +674,7 @@ function onPromotedMessageDone(
       taskId: task.id,
       userId: input.userId,
     });
-  })().catch((error: unknown) => {
-    console.error("job rating ask failed:", error);
-  });
+  })().catch((error: unknown) => reportHandledFailure(env, "task-completion-follow-up", error));
   executionCtxOf(c)?.waitUntil(work);
 }
 
