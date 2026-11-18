@@ -462,7 +462,7 @@ export async function readPaidCapacityEpoch(
   }
   const row = (data ?? [])[0] as { paid_capacity_epoch?: number } | undefined;
   if (typeof row?.paid_capacity_epoch !== "number") {
-    throw new Error("paid_capacity_epoch read returned no row");
+    throw new TypeError("paid_capacity_epoch read returned no row");
   }
   return row.paid_capacity_epoch;
 }
@@ -495,7 +495,7 @@ async function claimExtraLower(
     typeof row?.count !== "number" ||
     typeof row?.epoch !== "number"
   ) {
-    throw new Error("claim_extra_lower returned an unexpected shape");
+    throw new TypeError("claim_extra_lower returned an unexpected shape");
   }
   return {
     allowed: row.allowed,
@@ -528,7 +528,7 @@ export async function syncPaidExtraCapacity(
   }
   const row = data as { applied?: boolean };
   if (typeof row?.applied !== "boolean") {
-    throw new Error("sync_paid_extra_capacity returned an unexpected shape");
+    throw new TypeError("sync_paid_extra_capacity returned an unexpected shape");
   }
   return { applied: row.applied };
 }

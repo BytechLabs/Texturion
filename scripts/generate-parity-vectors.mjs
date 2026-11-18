@@ -98,7 +98,7 @@ const englishPrepaidCopy = (key) => {
   const [section, name] = key.split(".");
   const value = section === "settings" ? settingsEn[name] : undefined;
   if (typeof value !== "string") {
-    throw new Error(`no English for ${key} — the vectors cannot be generated`);
+    throw new TypeError(`no English for ${key} — the vectors cannot be generated`);
   }
   return value;
 };

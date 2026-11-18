@@ -172,7 +172,7 @@ export async function sendEmail(
 
   const payload = (await response.json()) as { id?: unknown };
   if (typeof payload.id !== "string") {
-    throw new Error("Resend send failed: response carried no email id.");
+    throw new TypeError("Resend send failed: response carried no email id.");
   }
 
   // The denominator for PostHog's bounce and complaint rates: one event per

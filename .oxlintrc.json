@@ -256,7 +256,6 @@
     "react/function-component-definition": "off", // 13
     "unicorn/consistent-existence-index-check": "off", // 13
     "unicorn/prefer-dom-node-append": "off", // 13
-    "unicorn/prefer-type-error": "off", // 13
     "eslint/no-useless-concat": "off", // 12
     "react/jsx-no-useless-fragment": "off", // 12
     "typescript/no-unnecessary-type-parameters": "off", // 11

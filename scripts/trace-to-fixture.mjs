@@ -360,7 +360,7 @@ export function parseTrace(text) {
   );
   events.forEach((event, index) => {
     if (typeof event?.data?.event_type !== "string") {
-      throw new Error(`entry ${index + 1} is not a Telnyx webhook envelope (no data.event_type)`);
+      throw new TypeError(`entry ${index + 1} is not a Telnyx webhook envelope (no data.event_type)`);
     }
   });
   return events;
