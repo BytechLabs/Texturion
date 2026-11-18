@@ -260,7 +260,7 @@ ${AI_DISCLOSURES.map(({ key, defaultOn }) => {
 
 ## Keep your existing number (porting)
 - Porting in is free and self-serve for US and Canadian local numbers: choose "Bring my number" at signup, or start a port later from Settings → Numbers. Loonext handles the carrier paperwork and shows the port's status the whole way.
-- Your number keeps working on your old carrier during the transfer and switches to Loonext on a scheduled cutover date, typically 1 to 7 business days.
+- Your number keeps working on your old carrier during the transfer and switches to Loonext on a scheduled cutover date.
 - An optional temporary Loonext number is offered to text from while the port completes (off by default).
 
 ## The honest US timeline (a trust feature, stated before payment)
@@ -302,5 +302,5 @@ ${AI_DISCLOSURES.map(({ key, defaultOn }) => {
 - Data is processed in the United States (Supabase on AWS us-east-1).
 
 ## Contact
-- Support is by email only ([support@loonext.com](mailto:support@loonext.com)), usually within one business day.`;
+- Support is by email only ([support@loonext.com](mailto:support@loonext.com)).`;
 

@@ -6,7 +6,6 @@ import { useId, useState } from "react";
 import { toast } from "sonner";
 
 import {
-  PORT_HONEST_WINDOW,
   portabilityFailCopy,
   portabilityOkCopy,
 } from "@/components/porting/copy";
@@ -178,7 +177,7 @@ export function StartPortDialog({ country }: { country: Country }) {
       <DialogContent className="max-h-[85vh] overflow-y-auto sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>{t("settingsMore.portBringNumberTitle")}</DialogTitle>
-          <DialogDescription>{PORT_HONEST_WINDOW}</DialogDescription>
+          <DialogDescription>{t("settings.portTransferWindow")}</DialogDescription>
         </DialogHeader>
 
         <div className="space-y-5">

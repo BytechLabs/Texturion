@@ -112,7 +112,7 @@ private let supportTopicKeys: [(question: String, answer: String)] = [
     ("settings.helpFaqPendingQ", "settings.helpFaqPendingA"),
     ("settings.helpFaqStoppedQ", "settings.helpFaqStoppedA"),
     ("settings.helpFaqNotGotQ", "settings.helpFaqNotGotA"),
-    ("settings.helpFaqPortQ", "settings.helpFaqPortA"),
+    ("settings.helpFaqPortQ", "settings.portTransferWindow"),
 ]
 
 /// The questions and their answers, in one language.

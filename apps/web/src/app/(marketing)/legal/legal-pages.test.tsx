@@ -170,9 +170,9 @@ describe("terms — billing and cancellation facts survive", () => {
     expect(html).not.toContain("Canadian dollars");
   });
 
-  it("keeps the carrier wait and porting windows in 'to' phrasing", () => {
+  it("gives the registration estimate and explains when a number transfers", () => {
     expect(html).toContain("3 to 7 business");
-    expect(html).toContain("1 to 7 business days");
+    expect(html).toContain("on the scheduled transfer date");
   });
 
   it("keeps the 30-day number hold and the guarantee", () => {

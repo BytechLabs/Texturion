@@ -165,6 +165,7 @@ describe("POST /contact — happy path", () => {
     const ack = world.resend.calls[1];
     expect(ack.to).toEqual(["dana@example.com"]);
     expect(ack.subject).toBe("We received your message");
+    expect(ack.text).toContain("will reply to this address.");
     // The ack never echoes the (attacker-writable) message body — this
     // endpoint must not be usable as a spam relay to arbitrary inboxes.
     expect(ack.text).not.toContain("teams of five");

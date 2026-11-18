@@ -115,7 +115,7 @@ final class SupportPortTests: XCTestCase {
             .map { "\($0.question) \($0.answer)" }
             .joined(separator: " ")
             .lowercased()
-        for subject in ["registration", "spending cap", "stop", "port"] {
+        for subject in ["registration", "spending cap", "stop", "transfer"] {
             XCTAssertTrue(all.contains(subject), "no answer mentions \(subject)")
         }
     }

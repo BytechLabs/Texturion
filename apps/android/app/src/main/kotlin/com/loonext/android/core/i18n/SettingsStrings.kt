@@ -2170,9 +2170,10 @@ private val SUPPORT_EN = mapOf(
         "customer can lift it, by texting START. If that is not it, email us the customer's " +
         "number and roughly when you sent it, and we can trace the message with the carrier.",
     "settings.helpFaqPortQ" to "How long does moving my existing number take?",
-    "settings.helpFaqPortA" to
-        "Porting takes 7 to 10 business days once the carrier accepts the request, and your " +
-        "old number keeps working the entire time. Nothing goes dark at any point.",
+    "settings.portTransferWindow" to
+        "Your number keeps working with your current carrier during the transfer, " +
+        "which usually takes a few business days to about two weeks in the US " +
+        "and is often faster in Canada.",
 )
 
 private val SUPPORT_FR = mapOf(
@@ -2253,10 +2254,10 @@ private val SUPPORT_FR = mapOf(
         "de l'envoi, et nous pourrons retracer le message avec le fournisseur.",
     "settings.helpFaqPortQ" to
         "Combien de temps prend le transfert de mon numéro actuel ?",
-    "settings.helpFaqPortA" to
-        "Le transfert prend de 7 à 10 jours ouvrables une fois que le fournisseur " +
-        "accepte la demande, et votre ancien numéro continue de fonctionner pendant tout " +
-        "ce temps. Rien ne s'éteint à aucun moment.",
+    "settings.portTransferWindow" to
+        "Votre numéro continue de fonctionner chez votre fournisseur actuel pendant le transfert, " +
+        "qui prend généralement de quelques jours ouvrables à environ deux semaines aux États-Unis " +
+        "et se fait souvent plus rapidement au Canada.",
 )
 
 // ---------------------------------------------------------------------------

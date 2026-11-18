@@ -1,14 +1,10 @@
 "use client";
 
 import { useQueryClient } from "@tanstack/react-query";
-import { ArrowRight, Check, FileText } from "lucide-react";
+import { ArrowRight, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
-import {
-  PORT_CHECKOUT_TIMELINE,
-  PORT_HONEST_WINDOW,
-} from "@/components/porting/copy";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
@@ -176,23 +172,8 @@ export default function PortTimingPage() {
             {t("onboarding.portHowItWorks")}
           </h2>
           <p className="mt-1.5 text-sm text-muted-foreground">
-            {PORT_HONEST_WINDOW}
+            {t("settings.portTransferWindow")}
           </p>
-          <ul className="mt-3 space-y-2">
-            {PORT_CHECKOUT_TIMELINE.map((line) => (
-              <li
-                key={line}
-                className="flex items-start gap-2.5 text-sm text-muted-foreground"
-              >
-                <Check
-                  className="mt-0.5 size-4 shrink-0 text-success"
-                  strokeWidth={1.75}
-                  aria-hidden
-                />
-                {line}
-              </li>
-            ))}
-          </ul>
         </div>
 
         {/* Documents are a post-payment step (§3.2 / D16) — set the expectation

@@ -49,7 +49,7 @@ export const contactEn = {
 
   sentHeading: "Thanks, your message was sent.",
   sentBody:
-    "We read every message and reply within one business day. If it is urgent, you can also email us at",
+    "We'll reply to the email address you provided. You can also reach us at",
 
   nameLabel: "Your name",
   emailLabel: "Your email",
@@ -101,7 +101,7 @@ export const contactFr: Translated<typeof contactEn> = {
 
   sentHeading: "Merci, votre message est parti.",
   sentBody:
-    "Nous lisons chaque message et répondons en un jour ouvrable. Si c'est urgent, vous pouvez aussi nous écrire à",
+    "Nous répondrons à l'adresse courriel que vous avez indiquée. Vous pouvez aussi nous écrire à",
 
   nameLabel: "Votre nom",
   emailLabel: "Votre courriel",

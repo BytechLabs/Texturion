@@ -515,9 +515,6 @@ export const onboardingEn = {
   portChecklistMemberDocuments:
     "Your account owner or an admin uploads the signed authorization (LOA) " +
     "and a recent phone bill to start the transfer.",
-  portChecklistInReviewWindow:
-    "The whole transfer usually takes a few business days to about two weeks " +
-    "(US), often faster in Canada.",
   portChecklistTrackLink: "Track it in Settings → Numbers",
 
   // ── Sign up ───────────────────────────────────────────────────────────────
@@ -1142,9 +1139,6 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   portChecklistMemberDocuments:
     "Le propriétaire du compte ou un administrateur téléverse l'autorisation " +
     "signée (LOA) et une facture de téléphone récente pour lancer le transfert.",
-  portChecklistInReviewWindow:
-    "Le transfert complet prend habituellement de quelques jours ouvrables à " +
-    "environ deux semaines (É.-U.), souvent plus vite au Canada.",
   portChecklistTrackLink: "Suivez-le dans Réglages → Numéros",
 
   // ── Sign up ───────────────────────────────────────────────────────────────

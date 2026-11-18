@@ -119,7 +119,7 @@ class SupportPortTest {
     @Test
     fun `the answers cover the confusions the issue names`() {
         val all = SUPPORT_TOPICS.joinToString(" ") { "${it.first} ${it.second}" }.lowercase()
-        for (subject in listOf("registration", "spending cap", "stop", "port")) {
+        for (subject in listOf("registration", "spending cap", "stop", "transfer")) {
             assertTrue("no answer mentions $subject", all.contains(subject))
         }
     }

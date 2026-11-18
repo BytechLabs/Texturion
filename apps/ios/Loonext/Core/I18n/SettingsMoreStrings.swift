@@ -1151,10 +1151,10 @@ private let settingsMoreIosHelpEn: [String: String] = [
         + "answered yet. It is a queue, not a review of anything you did. You "
         + "will get an email the moment it clears.",
     "settings.helpFaqPendingQ": "What does “registration pending” actually mean?",
-    "settings.helpFaqPortA":
-        "Porting takes 7 to 10 business days once the carrier accepts the "
-        + "request, and your old number keeps working the entire time. "
-        + "Nothing goes dark at any point.",
+    "settings.portTransferWindow":
+        "Your number keeps working with your current carrier during the transfer, "
+        + "which usually takes a few business days to about two weeks in the US "
+        + "and is often faster in Canada.",
     "settings.helpFaqPortQ": "How long does moving my existing number take?",
     "settings.helpFaqStoppedA":
         "Two things do that. A carrier can suspend an approved "
@@ -1216,11 +1216,10 @@ private let settingsMoreIosHelpFr: [String: String] = [
         + "quoi que ce soit que vous auriez fait. Vous recevrez un courriel "
         + "dès que ce sera réglé.",
     "settings.helpFaqPendingQ": "Que veut dire « inscription en attente », au juste ?",
-    "settings.helpFaqPortA":
-        "Le transfert prend de 7 à 10 jours ouvrables une fois que le "
-        + "fournisseur accepte la demande, et votre ancien numéro continue de "
-        + "fonctionner pendant tout ce temps. Rien ne s'éteint à aucun "
-        + "moment.",
+    "settings.portTransferWindow":
+        "Votre numéro continue de fonctionner chez votre fournisseur actuel pendant le transfert, "
+        + "qui prend généralement de quelques jours ouvrables à environ deux semaines aux États-Unis "
+        + "et se fait souvent plus rapidement au Canada.",
     "settings.helpFaqPortQ": "Combien de temps prend le transfert de mon numéro actuel ?",
     "settings.helpFaqStoppedA":
         "Deux choses causent cela. Un fournisseur peut suspendre une "

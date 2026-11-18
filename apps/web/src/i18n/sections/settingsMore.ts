@@ -475,13 +475,6 @@ export const settingsMoreEn = {
   portabilityFail:
     "We can't transfer this number: {reason}. You can start with a new local number instead.",
 
-  /* The honest window, and the three lines of it shown before payment. */
-  portHonestWindow:
-    "Your number keeps working with your current provider until the switch completes, usually 1 to 7 business days. We'll email you when it's ready.",
-  portTimelineKeepsWorking:
-    "Your number keeps working on your current carrier the whole time.",
-  portTimelineSwitchDate:
-    "It switches to Loonext on the transfer date, usually a few business days to about two weeks (US), often faster in Canada.",
   portTimelineTextingStarts:
     "Texting through Loonext starts once the switch completes. We'll show you exactly where it is and email you at each step.",
 
@@ -1736,12 +1729,6 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
   portabilityFail:
     "Nous ne pouvons pas transférer ce numéro : {reason}. Vous pouvez commencer avec un nouveau numéro local.",
 
-  portHonestWindow:
-    "Votre numéro continue de fonctionner chez votre fournisseur actuel jusqu'à la fin du basculement, généralement de 1 à 7 jours ouvrables. Nous vous écrirons dès qu'il sera prêt.",
-  portTimelineKeepsWorking:
-    "Votre numéro continue de fonctionner chez votre fournisseur actuel pendant tout ce temps.",
-  portTimelineSwitchDate:
-    "Il passe à Loonext à la date du transfert, généralement de quelques jours ouvrables à environ deux semaines (États-Unis), souvent plus vite au Canada.",
   portTimelineTextingStarts:
     "Les textos par Loonext commencent une fois le basculement terminé. Nous vous montrerons exactement où en est la demande et nous vous écrirons à chaque étape.",
 

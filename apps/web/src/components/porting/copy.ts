@@ -27,6 +27,11 @@ import type { PortStepKey } from "./port-ui-state";
  */
 const EN = makeTranslate(DEFAULT_LOCALE);
 
+export const PORT_CHECKOUT_TIMELINE_KEYS = [
+  "settings.portTransferWindow",
+  "settingsMore.portTimelineTextingStarts",
+] as const;
+
 /** The 4-step tracker labels + owner-facing meaning (PORTING.md §8.2 table). */
 export const PORT_STEP_COPY: Record<
   PortStepKey,
@@ -64,20 +69,6 @@ export function portabilityFailCopy(
     : t("settingsMore.portabilityFailReasonUnknown");
   return t("settingsMore.portabilityFail", { reason: why });
 }
-
-/**
- * The honest window shown before payment / on the port wizard (PORTING.md §8.1
- * checkout copy, plain-language distillation). Kept short — the wizard shows one
- * warm sentence, not a wall of compliance text.
- */
-export const PORT_HONEST_WINDOW = EN("settingsMore.portHonestWindow");
-
-/** The pre-payment checkout expectation card lines (PORTING.md §8.1). */
-export const PORT_CHECKOUT_TIMELINE = [
-  EN("settingsMore.portTimelineKeepsWorking"),
-  EN("settingsMore.portTimelineSwitchDate"),
-  EN("settingsMore.portTimelineTextingStarts"),
-] as const;
 
 /**
  * Per-state banner copy for the Settings port card (PORTING.md §9).

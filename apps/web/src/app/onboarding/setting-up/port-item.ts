@@ -103,7 +103,7 @@ export function portChecklistCopy(t: Translate = EN) {
     /** Shown to members, who can't upload — mirrors the OTP row's member line. */
     memberDocuments: t("onboarding.portChecklistMemberDocuments"),
     /** Appended to the §9 "submitted" banner — the honest end-to-end window. */
-    inReviewWindow: t("onboarding.portChecklistInReviewWindow"),
+    inReviewWindow: t("settings.portTransferWindow"),
     trackLink: t("onboarding.portChecklistTrackLink"),
   };
 }

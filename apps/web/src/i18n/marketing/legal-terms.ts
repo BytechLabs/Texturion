@@ -8,7 +8,7 @@ export const legalTermsEn = {
     "The Loonext terms of service: a month-to-month subscription, no annual contract, plain-language cancellation with a 30-day number hold, and the money-back guarantee.",
   title: "Terms of service",
   breadcrumbLabel: "Terms of service",
-  lastUpdated: "November 17, 2026",
+  lastUpdated: "November 18, 2026",
   summary:
     "Loonext is a month-to-month subscription with no annual contract: cancel anytime from your billing settings, and we hold your number for 30 days in case you come back. Your first 30 days carry a full money-back guarantee, registration fee included. Text only people who have agreed to hear from you. That is most of what follows.",
 
@@ -45,7 +45,7 @@ export const legalTermsEn = {
   numbersOne:
     "The local number Loonext provisions belongs to your business account while your subscription is active. You can send to Canadian numbers as soon as the number is live; sending to US numbers turns on after the phone companies approve your registration (typically 3 to 7 business days). Receiving texts works right away.",
   numbersTwo:
-    "You can bring your existing US or Canadian number to Loonext instead of getting a new one, the transfer is free. Your number keeps working on your current carrier the whole time and switches to Loonext on the transfer date, which typically takes about 1 to 7 business days. Texting through Loonext turns on once the transfer completes. We show you where the transfer is at every step.",
+    "You can bring your existing US or Canadian number to Loonext instead of getting a new one, the transfer is free. Your number keeps working on your current carrier the whole time and switches to Loonext on the scheduled transfer date. Texting through Loonext turns on once the transfer completes. We show you where the transfer is at every step.",
   acceptableUse:
     "Your use of Loonext is subject to our {aup}. In short: text only people who have agreed to hear from you, no purchased or harvested lists, no SHAFT content (sex, hate, alcohol, firearms, tobacco), and honor every opt-out immediately. We may suspend or terminate accounts that break these rules or put message delivery at risk for everyone on the network.",
   cancellationOne:
@@ -72,7 +72,7 @@ export const legalTermsFr: Translated<typeof legalTermsEn> = {
     "Les conditions d'utilisation de Loonext : un abonnement mensuel sans engagement annuel, une annulation en langage clair avec une retenue du numéro de 30 jours, et la garantie de remboursement.",
   title: "Conditions d'utilisation",
   breadcrumbLabel: "Conditions d'utilisation",
-  lastUpdated: "17 novembre 2026",
+  lastUpdated: "18 novembre 2026",
   summary:
     "Loonext est un abonnement mensuel sans engagement annuel : annulez en tout temps dans les paramètres de facturation, et nous gardons votre numéro pendant 30 jours au cas où vous reviendriez. Vos 30 premiers jours sont couverts par une garantie de remboursement complète, frais d'enregistrement compris. N'envoyez des textos qu'aux personnes qui ont accepté d'en recevoir. C'est l'essentiel de ce qui suit.",
 
@@ -109,7 +109,7 @@ export const legalTermsFr: Translated<typeof legalTermsEn> = {
   numbersOne:
     "Le numéro local que Loonext attribue appartient au compte de votre entreprise tant que votre abonnement est actif. Vous pouvez envoyer des textos à des numéros canadiens dès que le numéro est en service; l'envoi vers des numéros américains est activé après l'approbation de votre enregistrement par les compagnies de téléphone (habituellement de 3 à 7 jours ouvrables). La réception de textos fonctionne tout de suite.",
   numbersTwo:
-    "Vous pouvez apporter votre numéro américain ou canadien existant chez Loonext au lieu d'en obtenir un nouveau; le transfert est gratuit. Votre numéro continue de fonctionner chez votre fournisseur actuel pendant tout ce temps et passe à Loonext à la date du transfert, ce qui prend habituellement de 1 à 7 jours ouvrables. L'envoi de textos par Loonext est activé une fois le transfert terminé. Nous vous indiquons où en est le transfert à chaque étape.",
+    "Vous pouvez apporter votre numéro américain ou canadien existant chez Loonext au lieu d'en obtenir un nouveau; le transfert est gratuit. Votre numéro continue de fonctionner chez votre fournisseur actuel pendant tout ce temps et passe à Loonext à la date de transfert prévue. L'envoi de textos par Loonext est activé une fois le transfert terminé. Nous vous indiquons où en est le transfert à chaque étape.",
   acceptableUse:
     "Votre utilisation de Loonext est assujettie à notre {aup}. En bref : n'envoyez des textos qu'aux personnes qui ont accepté d'en recevoir, aucune liste achetée ou récoltée, aucun contenu SHAFT (sexe, haine, alcool, armes à feu, tabac), et respectez immédiatement chaque retrait. Nous pouvons suspendre ou résilier les comptes qui enfreignent ces règles ou qui compromettent la livraison des messages pour tous les utilisateurs du réseau.",
   cancellationOne:

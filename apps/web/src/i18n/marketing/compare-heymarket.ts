@@ -50,7 +50,7 @@ export const compareHeymarketEn = {
   switchLead:
     "Start Loonext alongside Heymarket, move your texting over at your own pace, and cancel Heymarket when your conversations live here. There's no exit window on our side to plan around.",
   switchNumber:
-    "Keep your number: transfers from your current provider are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+    "Keep your number with free self-service transfers and live status.",
   switchLive:
     "Your number keeps working where it is today until the scheduled switch, so there's no dead air while it moves.",
   switchUsGuarantee:
@@ -171,7 +171,7 @@ export const compareHeymarketFr: Translated<typeof compareHeymarketEn> = {
   switchLead:
     "Démarrez Loonext à côté de Heymarket, déplacez vos textos à votre rythme et annulez Heymarket lorsque vos conversations sont ici. Aucun délai de sortie n'est à prévoir chez nous.",
   switchNumber:
-    "Gardez votre numéro : les transferts sont gratuits, libre-service à l'inscription ou plus tard, et prennent habituellement de 1 à 7 jours ouvrables.",
+    "Gardez votre numéro. Le transfert est gratuit et vous pouvez le suivre en temps réel.",
   switchLive:
     "Votre numéro continue de fonctionner chez son fournisseur actuel jusqu'au transfert prévu; aucune période morte pendant le déplacement.",
   switchUsGuarantee:

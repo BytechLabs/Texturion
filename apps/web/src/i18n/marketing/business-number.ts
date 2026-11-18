@@ -7,13 +7,6 @@ import type { MarketingLocale } from "./footer";
  *
  * ## The page is mostly about limits, and the limits are dated
  *
- * A port takes days to two weeks. US texting turns on after 3 to 7 business
- * days. A sole proprietor without an EIN gets one number whatever they pay.
- * Every one of those is a constraint somebody else imposes on us, and the page
- * exists to state them before a buyer discovers them. The French says each as
- * plainly: *personne ne peut honnêtement promettre un transfert instantané,
- * alors nous ne le faisons pas*.
- *
  * `EIN` stays. It is the name of a US federal number a Canadian reader will
  * either not need or will meet spelled that way on the IRS's own forms.
  *
@@ -52,7 +45,7 @@ export const businessNumberEn = {
   portBodyOne:
     'Already have a number your customers know, the one on your trucks, your yard signs, and your Google listing? Bring it. Porting is free and self-serve: choose "Bring my number" at signup or start it later from settings, answer a few questions about your current carrier, and we handle the carrier paperwork and show you where the transfer is the whole way.',
   portBodyTwo:
-    "Your number keeps working on your old carrier while it moves, usually a few days to two weeks for US numbers and often faster in Canada, then switches to Loonext on a scheduled date. Nothing on your trucks or your listing has to change, and if you want to start texting today, get a new local number now and port your existing one alongside it.",
+    "Your number keeps working on your old carrier while it moves, then switches to Loonext on a scheduled date. Nothing on your trucks or your listing has to change, and if you want to start texting today, get a new local number now and port your existing one alongside it.",
 
   fixesEyebrow: "What the number fixes",
   fixesTitle: "Three problems that end the day the business owns its number.",
@@ -81,9 +74,9 @@ export const businessNumberEn = {
   edgesEyebrow: "The precise edges",
   edgesTitle:
     "A phone number is a serious thing to hand your customers, so here is exactly how Loonext numbers work, including the limits.",
-  edgesPortTitle: "A port takes days, not minutes.",
+  edgesPortTitle: "Follow your transfer.",
   edgesPortBody:
-    "Moving a number between carriers is a real telecom process, usually a few days to two weeks for US numbers and often faster in Canada. Your number keeps working on your current carrier the whole time and switches to Loonext on the scheduled transfer date. Nobody can truthfully promise an instant port, so we don't.",
+    "You can follow your transfer in Loonext. Your number keeps working on your current carrier until it switches on the scheduled transfer date.",
   edgesPaidTitle: "A number requires a paid plan.",
   edgesPaidBody:
     "The phone companies charge for every number, and free numbers attract the spam that wrecks delivery for everyone. A number is provisioned only after you subscribe, usually within a minute or two.",
@@ -125,7 +118,7 @@ export const businessNumberEn = {
     "Yes. Tell us a city or an area code when you sign up and we find you a local number to match, drawn from real numbering data. If the exact code you asked for has no inventory at that moment, we fall back to another local number in the same region.",
   faqPortQ: "Can I keep the number already on my trucks and my Google listing?",
   faqPortA:
-    "Yes. Porting is free and self-serve: choose 'Bring my number' at signup or start it later from settings, answer a few questions, and we handle the carrier paperwork and show you where the transfer is the whole way. Your number keeps working on your old carrier while it moves, usually a few days to two weeks for US numbers and often faster in Canada, then switches to Loonext on a scheduled date. Nothing on your trucks or your listing has to change.",
+    "Yes. Porting is free and self-serve: choose 'Bring my number' at signup or start it later from settings, answer a few questions, and we handle the carrier paperwork and show you where the transfer is the whole way. Your number keeps working on your old carrier while it moves, then switches to Loonext on a scheduled date. Nothing on your trucks or your listing has to change.",
   faqTwoQ: "What do the two numbers on Pro actually get me?",
   faqTwoA:
     "Two separate local numbers, each with its own inbox conversation inside the same shared workspace. Common setups are an office number and a field number, or one number per location. Your whole team still works from one inbox; the conversations stay grouped by which number they came in on.",
@@ -180,7 +173,7 @@ export const businessNumberFr: Translated<typeof businessNumberEn> = {
   portBodyOne:
     "Vous avez déjà un numéro que vos clients connaissent, celui qui est sur vos camions, vos pancartes et votre fiche Google ? Apportez-le. Le transfert est gratuit et se fait tout seul : choisissez « Apporter mon numéro » à l'inscription ou lancez-le plus tard dans les réglages, répondez à quelques questions sur votre transporteur actuel, et nous nous occupons de la paperasse et vous montrons où en est le transfert tout du long.",
   portBodyTwo:
-    "Votre numéro continue de fonctionner chez votre ancien transporteur pendant le déménagement, en général de quelques jours à deux semaines pour les numéros américains et souvent plus vite au Canada, puis il bascule chez Loonext à une date prévue. Rien sur vos camions ni sur votre fiche n'a à changer, et si vous voulez commencer à écrire aujourd'hui, prenez un nouveau numéro local maintenant et transférez le vôtre à côté.",
+    "Votre numéro continue de fonctionner chez votre ancien transporteur pendant le transfert, puis il bascule chez Loonext à une date prévue. Rien sur vos camions ni sur votre fiche n'a à changer, et si vous voulez commencer à écrire aujourd'hui, prenez un nouveau numéro local maintenant et transférez le vôtre à côté.",
 
   fixesEyebrow: "Ce que le numéro règle",
   fixesTitle: "Trois problèmes qui finissent le jour où l'entreprise possède son numéro.",
@@ -209,9 +202,9 @@ export const businessNumberFr: Translated<typeof businessNumberEn> = {
   edgesEyebrow: "Les limites précises",
   edgesTitle:
     "Un numéro de téléphone est une chose sérieuse à donner à vos clients, alors voici exactement comment fonctionnent les numéros Loonext, limites comprises.",
-  edgesPortTitle: "Un transfert prend des jours, pas des minutes.",
+  edgesPortTitle: "Suivez votre transfert.",
   edgesPortBody:
-    "Déplacer un numéro d'un transporteur à l'autre est un vrai processus de télécom, en général de quelques jours à deux semaines pour les numéros américains et souvent plus vite au Canada. Votre numéro continue de fonctionner chez votre transporteur actuel tout ce temps et bascule chez Loonext à la date de transfert prévue. Personne ne peut honnêtement promettre un transfert instantané, alors nous ne le faisons pas.",
+    "Suivez le transfert dans Loonext. Votre numéro continue de fonctionner chez votre fournisseur actuel jusqu'à la date de transfert prévue.",
   edgesPaidTitle: "Un numéro exige un forfait payant.",
   edgesPaidBody:
     "Les compagnies de téléphone facturent chaque numéro, et les numéros gratuits attirent le pourriel qui ruine la livraison pour tout le monde. Un numéro n'est attribué qu'après votre abonnement, en général en une minute ou deux.",
@@ -255,7 +248,7 @@ export const businessNumberFr: Translated<typeof businessNumberEn> = {
   faqPortQ:
     "Puis-je garder le numéro déjà sur mes camions et sur ma fiche Google ?",
   faqPortA:
-    "Oui. Le transfert est gratuit et se fait tout seul : choisissez « Apporter mon numéro » à l'inscription ou lancez-le plus tard dans les réglages, répondez à quelques questions, et nous nous occupons de la paperasse et vous montrons où en est le transfert tout du long. Votre numéro continue de fonctionner chez votre ancien transporteur pendant le déménagement, en général de quelques jours à deux semaines pour les numéros américains et souvent plus vite au Canada, puis il bascule chez Loonext à une date prévue. Rien sur vos camions ni sur votre fiche n'a à changer.",
+    "Oui. Le transfert est gratuit et se fait tout seul : choisissez « Apporter mon numéro » à l'inscription ou lancez-le plus tard dans les réglages, répondez à quelques questions, et nous nous occupons de la paperasse et vous montrons où en est le transfert tout du long. Votre numéro continue de fonctionner chez votre ancien transporteur pendant le transfert, puis il bascule chez Loonext à une date prévue. Rien sur vos camions ni sur votre fiche n'a à changer.",
   faqTwoQ: "Que me donnent vraiment les deux numéros de Pro ?",
   faqTwoA:
     "Deux numéros locaux distincts, chacun avec son propre fil dans le même espace de travail partagé. Les montages courants sont une ligne de bureau et une ligne de terrain, ou un numéro par adresse. Toute votre équipe travaille encore depuis une seule boîte ; les conversations restent groupées selon le numéro par lequel elles sont arrivées.",
