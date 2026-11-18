@@ -86,7 +86,7 @@ function loadServiceWorker(
     URL,
     ...WORKER_TIMERS,
     ...(messageChannel ? { MessageChannel } : {}),
-    Response: class {},
+    Response,
     caches: {
       open: vi.fn(() =>
         Promise.resolve({
@@ -689,7 +689,7 @@ describe("offline fallback wiring", () => {
       self: sandboxSelf,
       console,
       URL,
-      Response: class {},
+      Response,
       caches: {
         open: vi.fn(() => Promise.resolve({ addAll })),
         keys: vi.fn(() => Promise.resolve([])),
@@ -726,7 +726,7 @@ describe("offline fallback wiring", () => {
       },
       console,
       URL,
-      Response: class {},
+      Response,
       caches: {
         open: vi.fn(() => Promise.resolve(cache)),
         keys: vi.fn(() => Promise.resolve([])),
@@ -765,7 +765,7 @@ describe("offline fallback wiring", () => {
       },
       console,
       URL,
-      Response: class {},
+      Response,
       caches: { open: vi.fn(), keys: vi.fn(() => Promise.resolve([])), delete: vi.fn() },
       fetch,
     };
@@ -799,7 +799,7 @@ describe("offline fallback wiring", () => {
       },
       console,
       URL,
-      Response: class {},
+      Response,
       caches: {
         open: vi.fn(),
         keys: vi.fn(() => Promise.resolve(["loonext-shell-v2"])),
@@ -839,7 +839,7 @@ describe("offline fallback wiring", () => {
         console,
         URL,
         ...WORKER_TIMERS,
-        Response: class {},
+        Response,
         caches: {
           open: vi.fn(() => Promise.resolve(cache)),
           keys: vi.fn(() => Promise.resolve([])),
