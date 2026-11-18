@@ -181,6 +181,21 @@ Stripe dashboard → **Settings → Billing → Customer portal**:
 - You can disable "switch plans" in the portal since the app drives plan changes
   itself.
 
+Use `STRIPE_OWNER_PORTAL_CONFIG_ID` for the configuration
+with invoice history, card updates, and cancellation at period end. When the
+setting is absent, the Worker resolves the account default and verifies that
+it supports the owner actions before passing its ID to Stripe.
+
+Create a separate [Customer Portal configuration](https://docs.stripe.com/api/customer_portal/configurations/create)
+with invoice history and payment method updates enabled. Disable customer
+details updates, subscription cancellation, plan updates, and subscription
+pauses. Use `STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID` for its ID. Put both
+live IDs in the GitHub `production` environment variables so the release
+workflow sends them to the API Worker on every deployment. For local testing,
+use the test-mode IDs in `apps/api/.dev.vars`. Both roles require a verified
+configuration ID before the Worker starts a session. Verify that the owner can
+cancel at period end and that the bookkeeper can see invoices and update the card.
+
 ---
 
 ## 5. Dunning (Smart Retries) — set the post-exhaustion action
@@ -203,7 +218,7 @@ The **runtime** `STRIPE_SECRET_KEY` (the one you put on the Worker) may be a
 `apps/api/src/billing/meter.ts:33`):
 
 - **Checkout Sessions** (write)
-- **Billing Portal sessions** (write)
+- **Customer portal** (write, including configuration reads and session creation)
 - **Customers / Subscriptions** (read + write)
 - **Billing Meter Events** (write)
 

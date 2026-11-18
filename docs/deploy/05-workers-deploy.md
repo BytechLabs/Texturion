@@ -140,14 +140,19 @@ The pipeline does this when the release PR merges, not on every push to `main` (
 ### API Worker (`loonext-api`)
 
 ```bash
-pnpm --filter @loonext/api exec wrangler deploy   --var GIT_SHA:"$(git rev-parse HEAD)"   --var DEPLOY_ENV:production
+pnpm --filter @loonext/api exec wrangler deploy \
+  --var GIT_SHA:"$(git rev-parse HEAD)" \
+  --var DEPLOY_ENV:production \
+  --var "STRIPE_OWNER_PORTAL_CONFIG_ID:${STRIPE_OWNER_PORTAL_CONFIG_ID:?Set the live owner portal ID}" \
+  --var "STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID:${STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID:?Set the live bookkeeper portal ID}"
 ```
 
 This runs `wrangler deploy` (`apps/api/package.json:8`), which also **registers the
 cron triggers** (§6) — no dashboard action needed.
 
-**Keep both `--var` flags, exactly as `ship.yml` passes them.** `wrangler.jsonc`
-declares no vars, so a deploy without them drops what the last one stamped.
+**Keep the `--var` flags that `ship.yml` passes.** `wrangler.jsonc` declares no
+vars, so a deploy without them drops what the last one stamped. The release
+workflow reads both Stripe portal IDs from the GitHub `production` environment.
 Without `DEPLOY_ENV` the Worker runs as `local` (D142): production's start-up
 refusals (a stub `TELNYX_API_BASE`, a database on the rig) stop applying, and
 PostHog files its events under `local`, which no alert reads. Without `GIT_SHA`
@@ -275,8 +280,8 @@ Steps in the deploy itself (`.github/workflows/ship.yml` → the `backend` job):
    `posthog-cli sourcemap inject` and `upload` give it chunk ids and upload its
    maps (a warning instead when `POSTHOG_CLI_TOKEN` is unset; a failed upload
    with a bad token is an annotation, not a red job), and
-   `wrangler deploy dist/index.js --no-bundle --var GIT_SHA:<sha> --var DEPLOY_ENV:production`
-   deploys it as built.
+   `wrangler deploy dist/index.js --no-bundle` deploys it as built with the Git
+   SHA, deployment environment, and both Stripe portal IDs as Worker variables.
 5. `pnpm --filter @loonext/web run deploy` (OpenNext build + deploy).
 6. Purge the Cloudflare cache — the marketing apex is edge-cached for an hour, so
    a deploy stays hidden behind stale HTML without it.

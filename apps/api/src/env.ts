@@ -85,6 +85,8 @@ const envSchema = z.object({
   TELNYX_WEBRTC_CONNECTION_ID: z.string().min(1).optional(),
   STRIPE_SECRET_KEY: z.string().min(1),
   STRIPE_WEBHOOK_SECRET: z.string().min(1),
+  STRIPE_OWNER_PORTAL_CONFIG_ID: z.string().startsWith("bpc_").optional(),
+  STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID: z.string().startsWith("bpc_").optional(),
   /**
    * #224/D133: the signing secret for the CONNECT endpoint — events about a
    * customer's own Stripe account rather than about ours.

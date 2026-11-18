@@ -57,8 +57,7 @@ import {
   applyPriceToSchedulePhases,
 } from "../billing/schedule-phases";
 import { payPendingReferralRewards } from "../referrals/referrals";
-import { getStripe } from '../billing/stripe';
-import type { Stripe } from '../billing/stripe';
+import { getStripe, Stripe } from '../billing/stripe';
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { callerIp } from "../public-links/guard";
@@ -618,35 +617,6 @@ billingRoutes.post("/confirm-checkout", async (c) => {
 });
 
 /**
- * POST /v1/billing/portal — hosted portal session (payment methods, invoices,
- * cancellation only; plan switching happens in-app — SPEC §9).
- *
- * #421 — THE BUNDLE IS SPLIT BY ROLE.
- *
- * Closing the workspace is owner-only. Cancelling the subscription ends in the
- * same place — `grace.ts` releases the number 30 days later, and a released
- * number goes back to carrier inventory and is reassigned to another business
- * (#413) — but it happened on Stripe's domain and so was never gated. An admin
- * could start an irreversible clock ending with the company's phone number
- * belonging to somebody else.
- *
- * Admin-level billing is still right for the ordinary case: a bookkeeper
- * updating an expiring card should not have to be the owner, and forcing that
- * through the single untransferable owner role (#332) would be worse. The
- * problem was only that Stripe's portal bundles "update the card" with "cancel
- * the subscription" behind one link.
- *
- * It turns out we CAN split it. `flow_data.type = "payment_method_update"`
- * lands the caller directly on the card screen with no route to cancellation,
- * and it needs no account-level portal configuration. So:
- *
- *   owner  → the full portal, cancellation included
- *   admin  → the card-update flow, and nothing else
- *
- * The route stays admin-reachable, which keeps the routine case working; what
- * changes is what an admin can reach once inside.
- */
-/**
  * POST /v1/billing/cancellation-reason — #277. Why this workspace is leaving,
  * asked before the handoff to Stripe.
  *
@@ -773,6 +743,39 @@ billingRoutes.post("/dismiss-winback", async (c) => {
   return c.body(null, 204);
 });
 
+async function portalConfiguration(env: Env, isOwner: boolean): Promise<string | null> {
+  const id = isOwner
+    ? env.STRIPE_OWNER_PORTAL_CONFIG_ID
+    : env.STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID;
+  if (!id && !isOwner) return null;
+
+  const configurations = getStripe(env).billingPortal.configurations;
+  const configuration = id
+    ? await configurations.retrieve(id)
+    : (await configurations.list({ active: true, is_default: true, limit: 1 })).data[0];
+  if (
+    !configuration?.active ||
+    !configuration.features.invoice_history.enabled ||
+    !configuration.features.payment_method_update.enabled
+  ) {
+    return null;
+  }
+
+  const features = configuration.features;
+  if (isOwner) {
+    return features.subscription_cancel.enabled && features.subscription_cancel.mode === "at_period_end"
+      ? configuration.id
+      : null;
+  }
+
+  return features.subscription_cancel.enabled === false &&
+    features.subscription_update.enabled === false &&
+    !features.subscription_pause?.enabled &&
+    features.customer_update.enabled === false
+    ? configuration.id
+    : null;
+}
+
 billingRoutes.post("/portal", async (c) => {
   const env = getEnv(c.env);
   const company = await fetchCompany(getDb(env), c.get("companyId"));
@@ -786,20 +789,38 @@ billingRoutes.post("/portal", async (c) => {
   }
 
   const isOwner = c.get("role") === "owner";
-  const returnUrl = `${env.APP_ORIGIN}/settings/billing`;
-  const session = await getStripe(env).billingPortal.sessions.create(
-    isOwner
-      ? { customer: company.stripe_customer_id, return_url: returnUrl }
-      : {
-          customer: company.stripe_customer_id,
-          return_url: returnUrl,
-          // Not a lesser portal — a DIFFERENT one. The card-update flow has no
-          // cancellation surface at all, so this is a structural limit rather
-          // than a hidden button.
-          flow_data: { type: "payment_method_update" },
-        },
+  const scope = isOwner ? "full" : "payment_and_invoices";
+  let operation = "read_configuration";
+  try {
+    const configuration = await portalConfiguration(env, isOwner);
+    if (configuration) {
+      operation = "create_session";
+      const session = await getStripe(env).billingPortal.sessions.create({
+        configuration,
+        customer: company.stripe_customer_id,
+        return_url: `${env.APP_ORIGIN}/settings/billing`,
+      });
+      return c.json({ url: session.url, scope });
+    }
+    console.error("stripe_billing_portal_failed", {
+      scope,
+      operation,
+      reason: "configuration_unavailable",
+    });
+  } catch (error) {
+    const stripeStatus = error instanceof Stripe.errors.StripeError ? error.statusCode : undefined;
+    console.error("stripe_billing_portal_failed", {
+      scope,
+      operation,
+      reason: stripeStatus === 403 ? "stripe_permission_denied" : "stripe_request_failed",
+      stripe_status: stripeStatus,
+    });
+  }
+  return errorResponse(
+    c,
+    "service_unavailable",
+    "The billing portal is unavailable. Please try again later.",
   );
-  return c.json({ url: session.url, scope: isOwner ? "full" : "payment_method" });
 });
 
 /**
