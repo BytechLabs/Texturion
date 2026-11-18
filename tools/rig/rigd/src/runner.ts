@@ -368,7 +368,10 @@ async function attemptHeld(
     let settled = false;
     const preparing = runner
       .prepare({ ...base, ...lanes, lease: unleased })
-      .then((value) => ((returned = { value }), value))
+      .then((value) => {
+        returned = { value };
+        return value;
+      })
       .finally(() => (settled = true));
     try {
       prepared = await withLimit(preparing, PREPARE_LIMIT_MS, deps);

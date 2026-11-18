@@ -307,7 +307,9 @@ export async function runRoutine(
   routine: Routine,
   post: Post,
   inputs: Measurements = {},
-  wait: (ms: number) => Promise<void> = (ms) => new Promise((done) => setTimeout(done, ms)),
+  wait: (ms: number) => Promise<void> = (ms) => new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  }),
   resume: Resume = {},
 ): Promise<Outcome> {
   switch (routine) {

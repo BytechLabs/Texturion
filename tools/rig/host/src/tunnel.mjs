@@ -91,7 +91,9 @@ export function createTunnel({
   run,
   readFile = readFileSync,
   now = () => Date.now(),
-  sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
+  sleep = (ms) => new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  }),
   log = () => {},
 }) {
   const state = { up: false, since: null };
@@ -112,9 +114,9 @@ export function createTunnel({
       state.since = new Date(now()).toISOString();
       log("tunnel: up");
     }, UP_AFTER_MS);
-    const code = await new Promise((done) => {
-      child.once("exit", (exitCode) => done(exitCode));
-      child.once("error", (cause) => done(cause.code ?? "error"));
+    const code = await new Promise((resolve) => {
+      child.once("exit", (exitCode) => resolve(exitCode));
+      child.once("error", (cause) => resolve(cause.code ?? "error"));
     });
     clearTimeout(upTimer);
     child = null;

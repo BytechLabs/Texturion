@@ -166,7 +166,10 @@ describe("adb through hostd's tunnel", () => {
     const adb = new Adb({
       serial: SERIAL,
       exec,
-      portCheck: async (host, port, timeoutMs) => (asked.push(`${host}:${port}/${timeoutMs}`), false),
+      portCheck: async (host, port, timeoutMs) => {
+        asked.push(`${host}:${port}/${timeoutMs}`);
+        return false;
+      },
     });
     const refusal = "adb: the rig's adb server (hostd tunnel 127.0.0.1:15037) is not answering";
     await expect(adb.shell("getprop", "sys.boot_completed")).rejects.toThrow(refusal);
@@ -477,7 +480,12 @@ async function fakeConsole(options: { ko?: RegExp } = {}) {
     new EmulatorConsole({
       port: 5560,
       token: () => token,
-      adb: { shell: async (...args: string[]) => (shells.push(args.join(" ")), shell ? shell(args) : "") },
+      adb: {
+        shell: async (...args: string[]) => {
+          shells.push(args.join(" "));
+          return shell ? shell(args) : "";
+        },
+      },
       connect: () => connect({ host: "127.0.0.1", port }),
       sleep: async () => undefined,
     });
@@ -590,11 +598,17 @@ async function fakeController() {
   const server = new grpc.Server();
   server.addService(emulatorController().service, {
     getStatus(call: grpc.ServerUnaryCall<object, object>, callback: grpc.sendUnaryData<object>) {
-      if (!authorized(call.metadata)) return callback(denied);
+      if (!authorized(call.metadata)) {
+        callback(denied);
+        return;
+      }
       callback(null, { version: "37.2.13", booted: true });
     },
     injectAudio(call: grpc.ServerReadableStream<AudioPacket, object>, callback: grpc.sendUnaryData<object>) {
-      if (!authorized(call.metadata)) return callback(denied);
+      if (!authorized(call.metadata)) {
+        callback(denied);
+        return;
+      }
       call.on("data", (packet: AudioPacket) => {
         injected.push(packet);
         echo.push(Buffer.from(packet.audio));
@@ -627,10 +641,20 @@ function audioLink(port: number, options: { proof?: string; dump?: () => string;
   const link = new EmulatorAudioLink({
     port: 8560,
     token: () => options.token ?? GRPC_TOKEN,
-    adb: { shell: async (...args: string[]) => (shells.push(args.join(" ")), options.dump ? options.dump() : RECORDING) },
+    adb: {
+      shell: async (...args: string[]) => {
+        shells.push(args.join(" "));
+        return options.dump ? options.dump() : RECORDING;
+      },
+    },
     proof: () => ("proof" in options ? options.proof : PROVEN),
     client,
-    transcriber: { transcribe: async (wav) => (options.transcribed?.push(wav), "hello this is the rig robot") },
+    transcriber: {
+      transcribe: async (wav) => {
+        options.transcribed?.push(wav);
+        return "hello this is the rig robot";
+      },
+    },
     sleep: () => new Promise((resolve) => setImmediate(resolve)),
     micWaitMs: 2000,
   });

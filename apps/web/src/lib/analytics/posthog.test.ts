@@ -292,7 +292,9 @@ describe("the SDK waits for the page to settle (#640)", () => {
     settle.gate = new Promise<void>((resolve) => (open = resolve));
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     const ready = initPostHog();
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((resolve) => {
+      setTimeout(resolve, 0);
+    });
     expect(initSpy).not.toHaveBeenCalled();
     open();
     expect(await ready).not.toBeNull();

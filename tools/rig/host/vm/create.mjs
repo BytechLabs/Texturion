@@ -100,7 +100,7 @@ function step(number, what) {
 }
 
 function run(file, args, { env, input, verbatim = false, quiet = false } = {}) {
-  return new Promise((done, fail) => {
+  return new Promise((resolve, reject) => {
     const child = spawn(file, args, {
       env,
       windowsHide: true,
@@ -117,8 +117,8 @@ function run(file, args, { env, input, verbatim = false, quiet = false } = {}) {
       stderr += chunk;
       if (!quiet) process.stderr.write(chunk);
     });
-    child.once("error", fail);
-    child.once("close", (code) => done({ code: code ?? -1, stdout, stderr }));
+    child.once("error", reject);
+    child.once("close", (code) => resolve({ code: code ?? -1, stdout, stderr }));
     if (input !== undefined) child.stdin.end(input);
   });
 }
@@ -150,7 +150,9 @@ async function sha256File(path) {
 }
 
 const slashed = (path) => path.replaceAll('\\', "/");
-const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+const sleep = (ms) => new Promise((resolve) => {
+  setTimeout(resolve, ms);
+});
 
 /**
  * Git's gpg is an MSYS program: it reads a drive path in an argument, but

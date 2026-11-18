@@ -54,11 +54,11 @@ export function foreignSerials(stdout, allowed) {
 }
 
 export function isListening(port, host = "127.0.0.1", timeoutMs = 1000) {
-  return new Promise((done) => {
+  return new Promise((resolve) => {
     const socket = connect({ port, host });
     const finish = (up) => {
       socket.destroy();
-      done(up);
+      resolve(up);
     };
     socket.setTimeout(timeoutMs, () => finish(false));
     socket.once("connect", () => finish(true));

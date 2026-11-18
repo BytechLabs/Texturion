@@ -257,7 +257,10 @@ test("the adb tunnel check connects to the tunnel's port, and fails naming it wh
   await withRig(async (context) => {
     const asked = [];
     let open = true;
-    context.portAnswers = async (host, port, timeoutMs) => (asked.push([host, port, timeoutMs]), open);
+    context.portAnswers = async (host, port, timeoutMs) => {
+      asked.push([host, port, timeoutMs]);
+      return open;
+    };
     assert.equal(await healthChecks(context).adbTunnel(), null);
     open = false;
     assert.equal(await healthChecks(context).adbTunnel(), "no adb server answers on 127.0.0.1:15037, the tunnel to the host's adb server");

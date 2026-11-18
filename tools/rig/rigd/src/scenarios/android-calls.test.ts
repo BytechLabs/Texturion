@@ -16,7 +16,10 @@ describe("R00, rig health", () => {
   it("passes when every check does, publishes the room and hostd's report, and boots no emulator", async () => {
     const { ctx, devices } = healthWorld();
     const asked: number[] = [];
-    ctx.blockedAt = (room) => (asked.push(room), room < 4 ? ["D01"] : []);
+    ctx.blockedAt = (room) => {
+      asked.push(room);
+      return room < 4 ? ["D01"] : [];
+    };
     await expect(R00.run(ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     expect(ctx.evidence.room).toBe(4);
     expect(ctx.evidence.blocked_by_room).toEqual([]);
@@ -958,7 +961,10 @@ describe("D14, in-app voicemail playback", () => {
     const { ctx, app, pixel, undo, robot } = d14World();
     const copies: number[] = [];
     const copy = app.copyVoicemail.bind(app);
-    app.copyVoicemail = async (args) => (copies.push(undo.length), copy(args));
+    app.copyVoicemail = async (args) => {
+      copies.push(undo.length);
+      return copy(args);
+    };
     await expect(D14.run(ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
     const sessionId = `rig-d14-${ctx.nonce}`;
     expect([...app.copiedVoicemails]).toEqual([[sessionId, { from: "QA-W", tenant: "QA-A", role: "DEV-A1", callerRole: "ROBOT-1" }]]);

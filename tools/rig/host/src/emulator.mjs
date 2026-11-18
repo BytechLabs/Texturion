@@ -187,7 +187,10 @@ export function consoleCommand(port, token, command, timeoutMs = 10_000) {
     });
     socket.on("data", (chunk) => {
       buffer += chunk;
-      if (/^KO\b/m.test(buffer)) return fail(step === 0 ? "refused the token" : `refused ${command}`);
+      if (/^KO\b/m.test(buffer)) {
+        fail(step === 0 ? "refused the token" : `refused ${command}`);
+        return;
+      }
       if (!/^OK\s*$/m.test(buffer)) return;
       buffer = "";
       if (step === 0) {
@@ -216,7 +219,9 @@ export function createDevices({
   spawn,
   exec,
   env = process.env,
-  sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
+  sleep = (ms) => new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  }),
   now = () => Date.now(),
   isAlive = (pid) => {
     try {

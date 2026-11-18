@@ -109,7 +109,10 @@ export function persistentHelper({ spawn, script = AUDIO_SCRIPT, log = () => {},
     };
     createInterface({ input: proc.stdout }).on("line", (line) => {
       if (!line.trim()) return;
-      if (line.startsWith("event ")) return log(`audio: ${line.slice(6)}`);
+      if (line.startsWith("event ")) {
+        log(`audio: ${line.slice(6)}`);
+        return;
+      }
       settle((current) => {
         try {
           current.resolve(parseHelperLine(line));
@@ -184,7 +187,9 @@ export function createAudioMuter({
   helper = oneShotHelper({ exec, script }),
   log = () => {},
   now = () => Date.now(),
-  sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
+  sleep = (ms) => new Promise((resolve) => {
+    setTimeout(resolve, ms);
+  }),
   fastMs = FAST_SWEEP_MS,
   steadyMs = STEADY_SWEEP_MS,
   treeTtlMs = TREE_TTL_MS,

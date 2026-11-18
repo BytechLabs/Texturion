@@ -279,7 +279,17 @@ describe(runScenario, () => {
   it("holds the guard's lease for a scenario that dials nothing when its runner asks, at any hour, spending no dials", async () => {
     const { deps, requests } = setup([], { at: Date.UTC(2026, 9, 31, 20, 0) });
     const leases: string[] = [];
-    deps.runners = { ...deps.runners, S20: { id: "S20", guardLease: true, run: async (ctx) => (leases.push(ctx.lease.id), { outcome: "pass" }) } };
+    deps.runners = {
+      ...deps.runners,
+      S20: {
+        id: "S20",
+        guardLease: true,
+        run: async (ctx) => {
+          leases.push(ctx.lease.id);
+          return { outcome: "pass" };
+        },
+      },
+    };
     const summary = await runScenario(deps, "S20");
     expect(summary.status).toBe("pass");
     expect(summary.verdicts[0]).toMatchObject({ dials: 0 });
@@ -369,7 +379,14 @@ describe(runScenario, () => {
     let leased = "";
     ready.deps.runners = {
       ...ready.deps.runners,
-      S02: { id: "S02", prepare: async () => undefined, run: async (ctx) => ((leased = ctx.lease.id), { outcome: "pass" }) },
+      S02: {
+        id: "S02",
+        prepare: async () => undefined,
+        run: async (ctx) => {
+          leased = ctx.lease.id;
+          return { outcome: "pass" };
+        },
+      },
     };
     expect((await runScenario(ready.deps, "S02")).status).toBe("pass");
     expect(leased).toMatch(/^lease-/);
@@ -385,7 +402,13 @@ describe(runScenario, () => {
     let ran = 0;
     deps.runners = {
       ...deps.runners,
-      S04: { id: "S04", run: async () => (ran++, { outcome: "pass" }) },
+      S04: {
+        id: "S04",
+        run: async () => {
+          ran += 1;
+          return { outcome: "pass" };
+        },
+      },
       S02: {
         id: "S02",
         async prepare(ctx) {
@@ -435,7 +458,12 @@ describe(runScenario, () => {
     const closing = setup([], { at: Date.UTC(2026, 10, 1, 9, 0) });
     closing.deps.runners = {
       ...closing.deps.runners,
-      S02: { ...preparing(undefined), prepare: async () => void closing.clock.advance(50 * 60_000) },
+      S02: {
+        ...preparing(undefined),
+        prepare: async () => {
+          closing.clock.advance(50 * 60_000);
+        },
+      },
     };
     await expect(runScenario(closing.deps, "S02")).resolves.toMatchObject({ status: "skipped", detail: "the dial window closed while the run prepared" });
     expect(abandoned).toHaveLength(4);
@@ -478,7 +506,10 @@ describe(runScenario, () => {
           events.length > 0
             ? Promise.resolve(undefined)
             : new Promise<undefined>((resolve) => {
-                finishPrepare = () => (events.push("prepare done"), resolve(undefined));
+                finishPrepare = () => {
+                  events.push("prepare done");
+                  resolve(undefined);
+                };
               }),
         abandon: async () => void events.push("abandon"),
         run: async () => ({ outcome: "pass" }),
@@ -513,7 +544,13 @@ describe(runScenario, () => {
     const blocked: Record<number, string[]> = {};
     deps.runners = {
       ...deps.runners,
-      S20: { id: "S20", run: async (ctx) => (Object.assign(blocked, { 1: ctx.blockedAt(1), 4: ctx.blockedAt(4) }), { outcome: "pass" }) },
+      S20: {
+        id: "S20",
+        run: async (ctx) => {
+          Object.assign(blocked, { 1: ctx.blockedAt(1), 4: ctx.blockedAt(4) });
+          return { outcome: "pass" };
+        },
+      },
     };
     await runScenario(deps, "S20");
     expect(blocked).toEqual({ 1: ["S02", "S04"], 4: [] });

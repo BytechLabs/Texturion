@@ -73,11 +73,13 @@ export function createHostdServer({ token, devices, health, log = () => {} }) {
     try {
       if (!bearerMatches(request.headers.authorization, token)) {
         status = 401;
-        return send(response, status, { error: "unauthorized" });
+        send(response, status, { error: "unauthorized" });
+        return;
       }
       if (request.method === "GET" && path === "/v1/health") {
         status = 200;
-        return send(response, status, await health());
+        send(response, status, await health());
+        return;
       }
       const route = DEVICE_ROUTE.exec(path);
       const action = route?.[2];
@@ -90,7 +92,8 @@ export function createHostdServer({ token, devices, health, log = () => {} }) {
       const method = action === "tokens" ? "GET" : "POST";
       if (!route || request.method !== method || !devices.has(name)) {
         status = 404;
-        return send(response, status, { error: "not_found" });
+        send(response, status, { error: "not_found" });
+        return;
       }
       let result;
       if (action === "tokens") {
@@ -99,15 +102,16 @@ export function createHostdServer({ token, devices, health, log = () => {} }) {
         const flags = parseFlags(await readBody(request), action === "boot" ? BOOT_KEYS : KILL_KEYS);
         if (!flags) {
           status = 400;
-          return send(response, status, { error: "bad_body" });
+          send(response, status, { error: "bad_body" });
+          return;
         }
         result = action === "boot" ? await devices.boot(name, flags) : await devices.kill(name, flags);
       }
       status = result.status;
-      return send(response, status, result.body);
+      send(response, status, result.body);
     } catch (error) {
       status = error.status ?? 500;
-      return send(response, status, { error: status === 413 ? "body_too_large" : "internal" });
+      send(response, status, { error: status === 413 ? "body_too_large" : "internal" });
     } finally {
       log(`${request.method} ${path} ${status}`);
     }

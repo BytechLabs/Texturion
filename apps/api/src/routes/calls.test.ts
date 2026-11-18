@@ -708,7 +708,7 @@ describe("POST /v1/calls/browser (D43)", () => {
 
   it("#213: a 4xx customer-dial refusal RELEASES the line reservation (no wedged 'on another call')", async () => {
     const sb = browserWorld();
-    const del = sb.on("DELETE", "/rest/v1/outbound_call_authorizations", () => []);
+    sb.on("DELETE", "/rest/v1/outbound_call_authorizations", () => []);
     const dial = stubRoute(
       (url, request) =>
         request.method === "POST" && url.href === "https://api.telnyx.com/v2/calls",
@@ -724,7 +724,6 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(res.status).toBe(500); // no SPEC §7 code for a carrier fault → framework 500
     // The reservation was released so a retry isn't blocked as "on another call".
     expect(sb.find("DELETE", "/rest/v1/outbound_call_authorizations")).toHaveLength(1);
-    void del;
   });
 
   it("#213: a 5xx customer-dial fault does NOT release the line (a leg may exist; the webhook path self-heals)", async () => {
