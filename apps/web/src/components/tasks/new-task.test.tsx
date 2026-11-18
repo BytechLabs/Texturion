@@ -107,7 +107,7 @@ describe("#689 New task", () => {
     openWith();
     typeTitle("Two-person install");
     fireEvent.click(screen.getByRole("button", { name: "More" }));
-    fireEvent.click(screen.getByRole("button", { name: "Assignee" }));
+    fireEvent.click(screen.getByRole("button", { name: "Assignee, Sam" }));
     expect(screen.getByRole("option", { name: /Sam/ }).getAttribute("aria-selected")).toBe("true");
     fireEvent.click(screen.getByRole("option", { name: "Ben" }));
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });

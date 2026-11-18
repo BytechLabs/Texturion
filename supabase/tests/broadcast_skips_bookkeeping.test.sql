@@ -9,6 +9,7 @@
 --   QB-6  a first read sends one read.conversation, a re-read of a read thread none
 --   QB-7  a read after a new inbound sends one; the reader's own text does not count
 --   QB-8  a watermark moved back over an unread message sends one
+--   QB-9  STOP and START refresh only threads for the affected contact
 --
 -- One transaction, rolled back. Fixtures use a '3b' id prefix.
 
@@ -277,6 +278,59 @@ begin
     raise exception 'QB-8 FAILED: a thread marked unread must keep its notifications';
   end if;
   raise notice 'QB-8 PASSED: a read that makes the thread unread again is heard';
+end $$;
+
+do $$
+declare
+  v_company constant uuid := '3b000000-0000-4000-8000-0000000000c1';
+  v_contact constant uuid := '3b000000-0000-4000-8000-0000000000a1';
+  v_first_line constant uuid := '3b000000-0000-4000-8000-0000000000f1';
+  v_second_line constant uuid := '3b000000-0000-4000-8000-0000000000f2';
+  v_phone constant text := '+14155550632';
+  v_topics text[];
+begin
+  insert into public.phone_numbers
+    (id, company_id, number_e164, status, country, provisioning_key)
+  values (v_second_line, v_company, '+14155550634', 'active', 'US', 'qb-2');
+
+  insert into public.conversations (company_id, contact_id, phone_number_id, status)
+  values (v_company, v_contact, v_second_line, 'open');
+
+  delete from realtime.messages;
+  insert into public.opt_outs (company_id, phone_e164, source)
+  values (v_company, v_phone, 'stop_keyword');
+
+  select array_agg(topic order by topic) into v_topics
+    from realtime.messages where event = 'conversation.updated';
+  if v_topics is distinct from array[
+    'company:' || v_company || ':number:' || v_first_line,
+    'company:' || v_company || ':number:' || v_second_line
+  ] then
+    raise exception 'QB-9 FAILED: opt-out went to unexpected topics %', v_topics;
+  end if;
+  if exists (
+    select 1 from realtime.messages
+    where event = 'conversation.updated'
+      and (payload ->> 'contact_id' is distinct from v_contact::text
+        or payload ->> 'conversation_id' is null
+        or payload - 'id' - 'seq' - 'contact_id' - 'conversation_id' is distinct from '{}'::jsonb)
+  ) then
+    raise exception 'QB-9 FAILED: opt-out payload contained unexpected data';
+  end if;
+
+  delete from realtime.messages;
+  update public.opt_outs set source = 'stop_keyword'
+    where company_id = v_company and phone_e164 = v_phone;
+  if pg_temp.sends('conversation.updated') is distinct from 0 then
+    raise exception 'QB-9 FAILED: a replay broadcast unchanged opt-out state';
+  end if;
+
+  update public.opt_outs set revoked_at = now()
+    where company_id = v_company and phone_e164 = v_phone;
+  if pg_temp.sends('conversation.updated') is distinct from 2 then
+    raise exception 'QB-9 FAILED: START did not refresh both threads';
+  end if;
+  raise notice 'QB-9 PASSED: consent state changes reach both lines by ID';
 end $$;
 
 rollback;

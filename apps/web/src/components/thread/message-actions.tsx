@@ -25,13 +25,7 @@ import {
   RecordContextMenu,
   RecordOverflowMenu,
 } from "@/components/ui/record-menu";
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
-} from "@/components/ui/popover";
+import { Dialog } from "@/components/ui/dialog";
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import {
@@ -57,7 +51,7 @@ import {
   isUnsentOutbound,
   shouldPopDone,
 } from "./done";
-import { MakeTaskForm } from "./make-task-form";
+import { MakeTaskDialogContent, MakeTaskForm } from "./make-task-form";
 
 /** A failed outbound with no carrier id assigned can be retried (SPEC §7). */
 function isRetryable(message: Message): boolean {
@@ -290,9 +284,7 @@ export function MessageMenuScope({
         }
       },
       retry: () => retry.mutate(message.id),
-      // Open the form on the NEXT TICK: the menu is closing, and opening a
-      // popover in the same tick lets the menu's dismiss/focus event reach it
-      // and close it again (it flashed open then vanished).
+      // Let the menu finish restoring focus before opening the dialog.
       makeTask: () => {
         setTimeout(() => setTaskFormOpen(true), 0);
       },
@@ -318,21 +310,16 @@ export function MessageMenuScope({
 
   return (
     <MessageMenuContext.Provider value={{ actions }}>
-      <Popover open={taskFormOpen} onOpenChange={setTaskFormOpen}>
-        <PopoverAnchor asChild>
-          <RecordContextMenu actions={actions}>{children}</RecordContextMenu>
-        </PopoverAnchor>
-        <PopoverContent align="end" className="w-80">
-          <PopoverHeader className="mb-3">
-            <PopoverTitle>{t("thread.makeATask")}</PopoverTitle>
-          </PopoverHeader>
+      <Dialog open={taskFormOpen} onOpenChange={setTaskFormOpen}>
+        <RecordContextMenu actions={actions}>{children}</RecordContextMenu>
+        <MakeTaskDialogContent>
           <MakeTaskForm
             message={message}
             conversationId={conversationId}
             onDone={() => setTaskFormOpen(false)}
           />
-        </PopoverContent>
-      </Popover>
+        </MakeTaskDialogContent>
+      </Dialog>
     </MessageMenuContext.Provider>
   );
 }

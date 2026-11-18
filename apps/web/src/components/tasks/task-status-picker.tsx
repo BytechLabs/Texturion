@@ -64,15 +64,19 @@ export function TaskStatusPicker({ task }: { task: Task }) {
             title: task.title,
             status: labels[current],
           })}
-          className={cn(
-            "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 transition-colors duration-150 ease-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            task.done
-              ? "bg-success/10 text-emerald-700 hover:bg-success/20 dark:bg-success/15 dark:text-success"
-              : "bg-secondary text-stone-600 hover:bg-secondary/70 dark:text-muted-foreground",
-          )}
+          className="group/status inline-flex min-h-11 min-w-11 items-center rounded-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring md:min-h-0 md:min-w-0"
         >
-          {labels[current]}
-          <ChevronDown className="size-3" strokeWidth={2} aria-hidden />
+          <span
+            className={cn(
+              "inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium leading-4 transition-colors duration-150 ease-out",
+              task.done
+                ? "bg-success/10 text-emerald-700 group-hover/status:bg-success/20 dark:bg-success/15 dark:text-success"
+                : "bg-secondary text-stone-600 group-hover/status:bg-secondary/70 dark:text-muted-foreground",
+            )}
+          >
+            {labels[current]}
+            <ChevronDown className="size-3" strokeWidth={2} aria-hidden />
+          </span>
         </button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="start">

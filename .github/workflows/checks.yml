@@ -1416,6 +1416,9 @@ jobs:
         # carries Chrome's system libraries, so the browser alone is enough.
         run: timeout 300 pnpm exec playwright install --with-deps chromium || pnpm exec playwright install chromium
 
+      - name: Run the web inbox journey
+        run: pnpm exec bun scripts/web-journey.mjs
+
       - name: Start the Worker and the web app
         run: |
           pnpm --filter @loonext/api exec wrangler dev --config wrangler.ci.jsonc --port 8787 --ip 127.0.0.1 &

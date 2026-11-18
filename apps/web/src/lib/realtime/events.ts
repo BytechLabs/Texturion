@@ -59,6 +59,7 @@ export function messageStatusPatch(event: MessageStatusEvent): Partial<Message> 
 
 export interface ConversationUpdatedEvent {
   conversation_id: string;
+  contact_id?: string;
 }
 
 /**

@@ -40,6 +40,7 @@ import { createSequenceTracker } from "./sequence";
 /** Key roots a broadcast keeps current; a resync skips the rest until their data is 5 minutes old. */
 export const REALTIME_FED: ReadonlySet<string> = new Set([
   "conversations",
+  "contacts",
   "messages",
   "tasks",
   "for-you",
@@ -588,6 +589,12 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     function handleConversationUpdated(event: ConversationUpdatedEvent) {
       refreshSoon(keys.notifications.unreadCount(companyId));
       const id = event.conversation_id;
+      if (event.contact_id) {
+        refreshSoon(keys.contacts.detail(companyId, event.contact_id));
+        refreshSoon(keys.contacts.lists(companyId));
+        refreshSoon(keys.conversations.events(companyId, id));
+        return;
+      }
       const existing = pendingUpdates.get(id);
       if (existing) clearTimeout(existing);
       pendingUpdates.set(
