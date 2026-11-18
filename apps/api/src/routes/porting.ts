@@ -5,6 +5,7 @@ import type { Context } from 'hono';
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
+import { PENDING_PLAN_NUMBER_LIMIT } from "../billing/pending-plan";
 import { PLAN_LIMITS } from '../billing/plans';
 import type { PlanId } from '../billing/plans';
 import type { AppEnv, MemberRole } from "../context";
@@ -520,6 +521,9 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
     p_country: local.country,
     p_included_numbers: included,
   });
+  if (slotError?.code === PENDING_PLAN_NUMBER_LIMIT) {
+    return errorResponse(c, "conflict", "Your scheduled plan has no room for another phone number.");
+  }
   if (slotError) throw new Error(`claim_port_slot failed: ${slotError.message}`);
   const slot = parseWith(
     z.object({

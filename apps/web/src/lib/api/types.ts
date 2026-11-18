@@ -397,6 +397,8 @@ export interface CompanyView {
    */
   mfa_required_at?: string | null;
   mfa_grace_until?: string | null;
+  pending_plan?: "starter" | null;
+  pending_plan_effective_at?: string | null;
   mfa_setup?: {
     enrolled: boolean;
     grace_until: string | null;

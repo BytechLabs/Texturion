@@ -1396,6 +1396,7 @@ private fun PlanCard(
     // was true of both.
     val running = pause.isRunning
     val badge = planBadge(pause, company.subscriptionActive, company.cancel_at_period_end)
+    var keepingPro by remember(company.id) { mutableStateOf(false) }
 
     SettingsCard(title = t("settings.planTitle")) {
         Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
@@ -1504,13 +1505,35 @@ private fun PlanCard(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        val starterDate = fullDate(company.pending_plan_effective_at)
+        if (canManage && company.pending_plan == "starter" && starterDate != null) {
+            val keptPro = t("settings.keepingPro")
+            Text(t("settings.starterStarts", "date" to starterDate))
+            OutlinedButton(
+                enabled = !keepingPro,
+                onClick = {
+                    keepingPro = true
+                    coroutines.launch {
+                        try {
+                            scope.repo.cancelPlanChange(scope.companyId)
+                            scope.showMessage(keptPro)
+                            onRefreshCompany()
+                        } catch (cause: Exception) {
+                            scope.showMessage(cause.userMessage(locale))
+                        } finally {
+                            keepingPro = false
+                        }
+                    }
+                },
+            ) { Text(t("settings.keepPro")) }
+        }
         // Only on a plan we have been TOLD is running. POST /v1/billing/change-plan
         // answers 409 for a paused workspace on purpose ("resume it first, then
         // switch plans"), so a switch control here would be a button whose only
         // outcome is an error — and that was equally true of the window before
         // the read landed, which is why the gate is `running` rather than "no
         // pause in hand". The paused note says the same thing in advance.
-        if (canManage && company.subscriptionActive && running) {
+        if (canManage && company.subscriptionActive && running && company.pending_plan == null) {
             ChangePlanControl(scope, company, onRefreshCompany)
         }
     }

@@ -1202,6 +1202,7 @@ describe("POST /v1/billing/portal", () => {
 });
 
 describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
+  const recordDowngrade = endpoint("POST", /\/rest\/v1\/rpc\/api_record_pending_downgrade/, () => "scheduled");
   const activeStarter = () =>
     companyRow({
       plan: "starter",
@@ -1621,6 +1622,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     // needs no second rule.
     const harness = makeHarness([
       companyEndpoint(activePro()),
+      recordDowngrade,
       endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => prepaidYear("pro")),
       previewEndpoint(
         conversionPreviewRow({ plan: "pro", amount_cents: 79000, credit_cents: 59250 }),
@@ -1782,6 +1784,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
   it("downgrade within limits schedules Starter at period end (no immediate change)", async () => {
     const harness = makeHarness([
       companyEndpoint(activePro()),
+      recordDowngrade,
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         proSubscription(),
       ),
@@ -1841,13 +1844,20 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     );
     expect(update.has("phases[1][items][1][quantity]")).toBe(false);
 
-    // Plan mirror waits for the rollover webhook — no immediate write.
+    expect(harness.callsTo("POST", /api_record_pending_downgrade/)[0].json()).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_schedule_id: "sub_sched_1",
+      p_check_capacity: true,
+      p_seats: 3,
+      p_numbers: 1,
+    });
     expect(harness.callsTo("PATCH", /companies/)).toHaveLength(0);
   });
 
   it("downgrade preserves purchased add-on modules in the period-end phase (#12), dropping retired ones (#134)", async () => {
     const harness = makeHarness([
       companyEndpoint(activePro()),
+      recordDowngrade,
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture({
           licensed: env.STRIPE_PRO_PRICE_ID,
@@ -1921,6 +1931,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
   it("downgrade reuses an existing schedule instead of creating one", async () => {
     const harness = makeHarness([
       companyEndpoint(activePro()),
+      recordDowngrade,
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         proSubscription("sub_sched_9"),
       ),
@@ -1952,6 +1963,33 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     expect(
       harness.callsTo("POST", /subscription_schedules\/sub_sched_9/),
     ).toHaveLength(1);
+  });
+
+  it("keeps Pro by releasing the pending schedule and clearing its mirror", async () => {
+    const date = Math.floor(Date.now() / 1000) + 86_400;
+    const harness = makeHarness([
+      companyEndpoint({
+        ...activePro(),
+        pending_plan_schedule_id: "sub_sched_1",
+        pending_plan_effective_at: new Date(date * 1000).toISOString(),
+      }),
+      endpoint("GET", /subscription_schedules\/sub_sched_1$/, () => ({
+        id: "sub_sched_1",
+        status: "active",
+        current_phase: { start_date: date - 86_400, end_date: date },
+        phases: [{ start_date: date, items: [{ price: env.STRIPE_STARTER_PRICE_ID }] }],
+      })),
+      endpoint("POST", /subscription_schedules\/sub_sched_1\/release$/, () => ({ id: "sub_sched_1", status: "released" })),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
+    ]);
+
+    const response = await post("/v1/billing/cancel-plan-change", undefined, harness, "bookkeeper");
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ pending_plan: null });
+    expect(harness.callsTo("POST", /subscription_schedules\/sub_sched_1\/release$/)).toHaveLength(1);
+    const mirror = harness.callsTo("PATCH", /\/rest\/v1\/companies/)[0];
+    expect(mirror.url.searchParams.get("pending_plan_schedule_id")).toBe("eq.sub_sched_1");
+    expect(mirror.json()).toMatchObject({ pending_plan: null, pending_plan_effective_at: null });
   });
 });
 

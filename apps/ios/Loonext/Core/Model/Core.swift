@@ -505,6 +505,8 @@ struct CompanyView: Codable, Sendable {
     let offramp_message: String?
     let offramp_opted_in_at: String?
     @Default<DefaultFalse> var cancel_at_period_end: Bool
+    var pending_plan: String? = nil
+    var pending_plan_effective_at: String? = nil
     /// #163 store-rules kill-switch: false = hide in-app billing WRITES (plan
     /// change, module toggles) and route them to the external-browser Stripe
     /// surfaces. Defaults TRUE so a lagging server never strips affordances.

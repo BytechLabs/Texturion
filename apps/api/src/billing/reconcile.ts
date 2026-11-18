@@ -209,13 +209,27 @@ export async function runSubscriptionReconcileJob(
     "paused re-mirror",
   );
 
+  const { data: activePro, error: activeProError } = await db
+    .from("companies")
+    .select("id,stripe_subscription_id")
+    .eq("subscription_status", "active")
+    .eq("plan", "pro")
+    .not("stripe_subscription_id", "is", null)
+    .is("deleted_at", null)
+    .order("updated_at", { ascending: true })
+    .limit(RECONCILE_REMIRROR_BATCH);
+  if (activeProError) {
+    throw new Error(`pending plan discovery failed: ${activeProError.message}`);
+  }
+  warnIfScanAtCapacity((activePro ?? []).length, RECONCILE_REMIRROR_BATCH, "pending plan discovery");
+
   // One target list, de-duplicated by company id: the scans deliberately
   // overlap (a paused workspace whose period also expired is in two of them),
   // and syncSubscription is convergent, so a repeat would be correct but would
   // pay a second Stripe retrieve and a second write to say the same thing.
   const seenIds = new Set<string>();
   const remirrorTargets: { id: string; stripe_subscription_id: string }[] = [];
-  for (const scan of [data, staleActive, pausedActive]) {
+  for (const scan of [data, staleActive, pausedActive, activePro]) {
     for (const row of (scan ?? []) as {
       id: string;
       stripe_subscription_id: string;

@@ -532,6 +532,8 @@ data class CompanyView(
     val offramp_message: String? = null,
     val offramp_opted_in_at: String? = null,
     val cancel_at_period_end: Boolean = false,
+    val pending_plan: String? = null,
+    val pending_plan_effective_at: String? = null,
     /** weekday (mon..sun) -> window; missing/null weekday = closed all day. */
     val business_hours: Map<String, DayHours?> = emptyMap(),
     /** #402: dates that override the weekly loop — Christmas is not a Thursday. */

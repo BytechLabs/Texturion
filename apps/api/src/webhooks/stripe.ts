@@ -19,6 +19,7 @@ import { allVoiceOveragePrices, moduleForPrice, modulePrice, PLAN_MODULES, voice
 import type { PlanModule } from '../billing/modules';
 import { hasLiveSubscription, isPauseLicensedPrice, mirrorSubscriptionStatus, PLAN_LIMITS, planForLicensedPrice } from '../billing/plans';
 import type { LocalSubscriptionStatus, PlanId } from '../billing/plans';
+import { clearPendingDowngrade, pendingDowngrade, recordPendingDowngrade } from "../billing/pending-plan";
 import { readPaidCapacityEpoch } from "../billing/extra-numbers";
 import { billedExtraQuantity, claimNumberAllowance, heldNoticeNoRecipientsAlert, heldNoticeUnannouncedAlert, heldNumbersCopy } from '../billing/number-allowance';
 import type { HeldNumber } from '../billing/number-allowance';
@@ -974,7 +975,8 @@ export async function syncSubscription(
   subscriptionId: string,
   db: SupabaseClient = getDb(env),
 ): Promise<{ id: string; name: string; status: LocalSubscriptionStatus }[]> {
-  const subscription = await getStripe(env).subscriptions.retrieve(
+  const stripe = getStripe(env);
+  const subscription = await stripe.subscriptions.retrieve(
     subscriptionId,
   );
   const status = mirrorSubscriptionStatus(subscription.status);
@@ -1009,7 +1011,7 @@ export async function syncSubscription(
     // #277: paused_at + paused_price_cents ride along so the pause convergence
     // below can tell "already correct" from "needs a write" without a read of
     // its own — see the note there for why that distinction matters.
-    .select("id,name,owner_user_id,canceled_at,deleted_at,paused_at,paused_price_cents,company_modules(module,disabled_at,grandfathered)");
+    .select("id,name,owner_user_id,canceled_at,deleted_at,paused_at,paused_price_cents,pending_plan_schedule_id,company_modules(module,disabled_at,grandfathered)");
   if (error) throw new Error(`subscription mirror failed: ${error.message}`);
   const companies = (data ?? []) as {
     id: string;
@@ -1019,8 +1021,23 @@ export async function syncSubscription(
     deleted_at: string | null;
     paused_at: string | null;
     paused_price_cents: number | null;
+    pending_plan_schedule_id?: string | null;
     company_modules?: CompanyModuleRow[];
   }[];
+
+  const attachedSchedule = subscription.schedule;
+  const downgrade = plan === "pro" && hasLiveSubscription(status) && attachedSchedule
+    ? pendingDowngrade(env, typeof attachedSchedule === "string"
+        ? await stripe.subscriptionSchedules.retrieve(attachedSchedule)
+        : attachedSchedule)
+    : null;
+  for (const company of companies) {
+    if (downgrade) {
+      await recordPendingDowngrade(db, company.id, subscriptionId, downgrade, false);
+    } else if (company.pending_plan_schedule_id) {
+      await clearPendingDowngrade(db, company.id, company.pending_plan_schedule_id);
+    }
+  }
 
   /**
    * #277 — the pause fact, converged from the subscription's own licensed item.
@@ -1259,7 +1276,7 @@ async function handleSubscriptionDeleted(
       cancel_at_period_end: false,
     })
     .eq("stripe_subscription_id", subscription.id)
-    .select("id,name,canceled_at,deleted_at");
+    .select("id,name,canceled_at,deleted_at,pending_plan_schedule_id");
   if (error) throw new Error(`cancellation mirror failed: ${error.message}`);
   const company = (data ?? [])[0] as
     | {
@@ -1267,11 +1284,15 @@ async function handleSubscriptionDeleted(
         name: string;
         canceled_at: string | null;
         deleted_at: string | null;
+        pending_plan_schedule_id?: string | null;
       }
     | undefined;
   if (!company) return; // unknown subscription — nothing of ours to cancel
 
   if ((company.deleted_at ?? null) !== null) return;
+  if (company.pending_plan_schedule_id) {
+    await clearPendingDowngrade(db, company.id, company.pending_plan_schedule_id);
+  }
   await startCancellationLifecycle(env, db, company, subscription, eventCreated);
   await confirmCancellationReason(db, company.id);
 }

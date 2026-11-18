@@ -397,6 +397,7 @@ private struct PlanCard: View {
     @State private var opening = false
     @State private var error: String?
     @State private var changingPlan = false
+    @State private var keepingPro = false
     @State private var resuming = false
     @State private var resumeError: String?
 
@@ -543,7 +544,20 @@ private struct PlanCard: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                if canManage && company.subscriptionActive {
+                if canManage && company.pending_plan == "starter",
+                   let date = fullDate(company.pending_plan_effective_at) {
+                    Text(t("settings.starterStarts", ["date": date]))
+                    Button(t("settings.keepPro")) {
+                        if company.billing_writes_enabled {
+                            keepPro()
+                        } else {
+                            openExternal(AppConfig.appOrigin.appending(path: "settings/billing").absoluteString)
+                        }
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(keepingPro)
+                }
+                if canManage && company.subscriptionActive && company.pending_plan == nil {
                     if company.billing_writes_enabled {
                         Button(
                             t(
@@ -815,6 +829,20 @@ private struct PlanCard: View {
             return t("settings.holdEndedOn", ["days": days, "date": day])
         }
         return t("settings.holdUntil", ["date": day])
+    }
+
+    private func keepPro() {
+        keepingPro = true
+        Task {
+            defer { keepingPro = false }
+            do {
+                try await scope.repo.cancelPlanChange(scope.companyId)
+                scope.showMessage(t("settings.keepingPro"))
+                onRefreshCompany()
+            } catch {
+                scope.showMessage(error.userMessage)
+            }
+        }
     }
 
     private func resubscribe(plan: String) {

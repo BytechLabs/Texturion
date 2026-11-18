@@ -31,6 +31,7 @@ import {
   maxTotalNumbers,
 } from "../billing/number-allowance";
 import { cartSignature, idempotencyKey } from "../billing/idempotency";
+import { clearPendingDowngrade, pendingDowngrade, recordPendingDowngrade } from "../billing/pending-plan";
 import {
   conversionPreview,
   convertPrepaidYear,
@@ -119,6 +120,8 @@ const confirmCheckoutSchema = z.object({
 interface BillingCompany {
   id: string;
   plan: PlanId | null;
+  pending_plan_effective_at?: string | null;
+  pending_plan_schedule_id?: string | null;
   country: string;
   us_texting_enabled: boolean;
   subscription_status: LocalSubscriptionStatus;
@@ -155,7 +158,7 @@ async function fetchCompany(
         // #523: what the plan's included numbers are topped up by, and the
         // #110 fence that makes raising it safe. Read HERE, before any route
         // touches Stripe, which is the order the fence requires.
-        "paid_extra_numbers,paid_capacity_epoch",
+        "paid_extra_numbers,paid_capacity_epoch,pending_plan_effective_at,pending_plan_schedule_id",
     )
     .eq("id", companyId)
     // A soft-deleted company is not billable — match usage.ts + the billing
@@ -902,6 +905,10 @@ billingRoutes.post("/change-plan", async (c) => {
       "Your subscription is canceled — resubscribe to change plans.",
     );
   }
+  if (target === "starter" && company.pending_plan_effective_at &&
+      Date.parse(company.pending_plan_effective_at) > Date.now()) {
+    return c.json({ plan: "starter", effective: "period_end", effective_at: company.pending_plan_effective_at });
+  }
   /**
    * #277 — a paused workspace changing plans gets a sentence, not a 500.
    *
@@ -1230,6 +1237,24 @@ billingRoutes.post("/change-plan", async (c) => {
     ],
   });
 
+  const effectiveAt = new Date(currentPeriodEnd * 1000).toISOString();
+  const saved = await recordPendingDowngrade(
+    db, company.id, subscription.id, { id: schedule.id, effectiveAt }, true,
+  );
+  if (saved !== "scheduled") {
+    await stripe.subscriptionSchedules.release(schedule.id, {}, {
+      idempotencyKey: idempotencyKey(company.id, "release_plan_schedule", schedule.id),
+    });
+    await clearPendingDowngrade(db, company.id, schedule.id);
+    if (saved === "seat_limit") {
+      return errorResponse(c, "conflict", `Starter allows ${starterSeats} seats. Revoke extra invites or remove members before downgrading.`);
+    }
+    if (saved === "number_limit") {
+      return errorResponse(c, "conflict", "Release your extra phone number before downgrading to Starter.");
+    }
+    return errorResponse(c, "conflict", "Your subscription just changed. Refresh Billing and try again.");
+  }
+
   // #345: a downgrade is the half worth having most. It takes effect at the
   // period end, so the person who notices the smaller allowance is rarely the
   // person who chose it, and often weeks later.
@@ -1242,14 +1267,47 @@ billingRoutes.post("/change-plan", async (c) => {
     after: {
       plan: "starter",
       effective: "period_end",
-      effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
+      effective_at: effectiveAt,
     },
   });
   return c.json({
     plan: "starter",
     effective: "period_end",
-    effective_at: new Date(currentPeriodEnd * 1000).toISOString(),
+    effective_at: effectiveAt,
   });
+});
+
+billingRoutes.post("/cancel-plan-change", async (c) => {
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const company = await fetchCompany(db, c.get("companyId"));
+  const scheduleId = company.pending_plan_schedule_id;
+  if (!scheduleId) return c.json({ pending_plan: null });
+  if (company.plan !== "pro" || !company.pending_plan_effective_at ||
+      Date.parse(company.pending_plan_effective_at) <= Date.now()) {
+    return errorResponse(c, "conflict", "The plan change has already taken effect. Refresh Billing.");
+  }
+
+  const stripe = getStripe(env);
+  const schedule = await stripe.subscriptionSchedules.retrieve(scheduleId);
+  const downgrade = pendingDowngrade(env, schedule);
+  if (downgrade) {
+    if (Date.parse(downgrade.effectiveAt) <= Date.now()) {
+      return errorResponse(c, "conflict", "The plan change has already taken effect. Refresh Billing.");
+    }
+    await stripe.subscriptionSchedules.release(scheduleId, {}, {
+      idempotencyKey: idempotencyKey(company.id, "release_plan_schedule", scheduleId),
+    });
+  }
+  await clearPendingDowngrade(db, company.id, scheduleId);
+  await recordAuditFromRequest(db, c, {
+    companyId: company.id,
+    action: "billing.plan_changed",
+    targetType: "company",
+    targetId: company.id,
+    after: { plan: company.plan, pending_plan: null },
+  });
+  return c.json({ pending_plan: null });
 });
 
 /**
