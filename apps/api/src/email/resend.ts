@@ -170,7 +170,7 @@ export async function sendEmail(
     );
   }
 
-  const payload = (await response.json()) as { id?: unknown };
+  const payload = await response.json<{ id?: unknown }>();
   if (typeof payload.id !== "string") {
     throw new Error("Resend send failed: response carried no email id.");
   }
@@ -204,7 +204,7 @@ async function filterSuppressed(env: Env, to: string[]): Promise<string[]> {
       .in("email", to.map((address) => address.trim().toLowerCase()))
       .is("cleared_at", null);
     if (error) throw new Error(error.message);
-    const blocked = new Set((data ?? []).map((row) => (row as { email: string }).email));
+    const blocked = new Set((data ?? []).map((row) => row.email));
     return to.filter((address) => !blocked.has(address.trim().toLowerCase()));
   } catch (cause) {
     console.error(`email suppression lookup failed, sending anyway: ${String(cause)}`);

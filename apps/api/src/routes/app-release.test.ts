@@ -101,7 +101,7 @@ describe("GET /app-release", () => {
     );
 
     const res = await app.request("/app-release?platform=android", {}, env);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
 
     expect(body.minimum_version).toBe("2.0.0");
     // A demand with no reason reads as an ad for our own convenience.
@@ -171,7 +171,7 @@ describe("GET /app-release", () => {
   it("normalises the platform rather than treating case as unknown", async () => {
     stubFetch(policyRoute({ platform: "ios", recommended_version: "1.4.0", minimum_version: null, message: null, update_url: null }));
     const res = await app.request("/app-release?platform=iOS", {}, env);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.recommended_version).toBe("1.4.0");
   });
 

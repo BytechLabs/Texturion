@@ -151,7 +151,7 @@ function listRow(overrides: Partial<ConversationListItem> = {}): ConversationLis
     unread: false,
     last_message: null,
     ...overrides,
-  } as ConversationListItem;
+  };
 }
 
 function message(overrides: Partial<Message>): Message {

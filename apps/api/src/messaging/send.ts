@@ -571,9 +571,9 @@ async function telnyxCreateMessage(
     let errorCode: string | null = null;
     let errorDetail = `Telnyx API error (HTTP ${response.status})`;
     try {
-      const body = (await response.json()) as {
+      const body = await response.json<{
         errors?: { code?: string; title?: string; detail?: string }[];
-      };
+      }>();
       const first = body.errors?.[0];
       if (first) {
         errorCode = typeof first.code === "string" ? first.code : null;
@@ -585,7 +585,7 @@ async function telnyxCreateMessage(
     return { ok: false, errorCode, errorDetail };
   }
 
-  const body = (await response.json()) as { data?: { id?: string } };
+  const body = await response.json<{ data?: { id?: string } }>();
   const telnyxMessageId = body.data?.id;
   if (typeof telnyxMessageId !== "string" || telnyxMessageId.length === 0) {
     return {

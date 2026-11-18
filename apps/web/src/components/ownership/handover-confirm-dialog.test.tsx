@@ -42,7 +42,7 @@ function open(
   return { ...props, rerender: view.rerender };
 }
 
-const field = () => screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)) as HTMLInputElement;
+const field = () => screen.getByLabelText<HTMLInputElement>(sayEnglish(HANDOVER_CONFIRM_FIELD));
 /**
  * Radix renders the real attribute, and this project has no jest-dom matchers.
  *
@@ -51,9 +51,9 @@ const field = () => screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)) as
  * turns any rewording of the button into a red suite with nothing behind it.
  */
 const confirmButton = () =>
-  screen.getByRole("button", {
+  screen.getByRole<HTMLButtonElement>("button", {
     name: sayEnglish(HANDOVER_CONFIRM_SUBMIT),
-  }) as HTMLButtonElement;
+  });
 
 describe("answering the demand", () => {
   it("keeps Confirm quiet until there is something worth sending", () => {

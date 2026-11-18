@@ -75,7 +75,7 @@ function world(options: { company?: boolean; firstSeen?: boolean } = {}) {
   const emails: Record<string, unknown>[] = [];
   const resend: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
-    emails.push((await request.clone().json()) as Record<string, unknown>);
+    emails.push(await request.clone().json<Record<string, unknown>>());
     return Response.json({ id: "email_1" });
   };
   return { sb, rpcCalls, audits, emails, routes: [sb.route, resend] };

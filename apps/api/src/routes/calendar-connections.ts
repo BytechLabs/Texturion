@@ -569,7 +569,7 @@ calendarConnectionRoutes.get(
         allowed_actions: stateMachines.allowedActions(
           stateMachines.calendarConnectionMachine,
           connection.status as stateMachines.CalendarConnectionState,
-          c.get("role") as MemberRole,
+          c.get("role"),
         ),
       })),
       disclosures,
@@ -594,7 +594,7 @@ calendarConnectionRoutes.get(
       }),
       "calendar attention list",
     );
-    return c.json({ attention: rows.map((row) => attentionView(row, c.get("role") as MemberRole)) });
+    return c.json({ attention: rows.map((row) => attentionView(row, c.get("role"))) });
   },
 );
 
@@ -610,7 +610,7 @@ calendarConnectionRoutes.get(
       pathUuid(c, "id"),
     );
     return c.json({
-      attention: attentionView(attention, c.get("role") as MemberRole),
+      attention: attentionView(attention, c.get("role")),
     });
   },
 );
@@ -631,7 +631,7 @@ calendarConnectionRoutes.post(
     const offered = stateMachines.allowedActions(
       stateMachines.calendarLinkMachine,
       attention.link_state,
-      c.get("role") as MemberRole,
+      c.get("role"),
     );
     const resolveAction =
       attention.link_state === "conflict"
@@ -914,7 +914,7 @@ calendarConnectionRoutes.delete(
         .allowedActions(
           stateMachines.calendarConnectionMachine,
           owned[0].status as stateMachines.CalendarConnectionState,
-          c.get("role") as MemberRole,
+          c.get("role"),
         )
         .includes("disconnect")
     ) {

@@ -173,7 +173,7 @@ describe("the wrap-up burst gates (#581)", () => {
       AI_MEMBER_RATE_LIMITER: member,
     } as unknown as Env);
 
-    expect((await res.json()) as unknown).toEqual({
+    expect(await res.json<unknown>()).toEqual({
       text: null,
       reason: "rate_limited",
     });

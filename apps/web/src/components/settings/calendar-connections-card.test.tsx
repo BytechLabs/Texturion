@@ -247,9 +247,9 @@ describe("#245 two-way calendar settings", () => {
       }),
     );
     expect(
-      (screen.getByRole("button", {
+      screen.getByRole<HTMLButtonElement>("button", {
         name: "Connect Microsoft 365",
-      }) as HTMLButtonElement).disabled,
+      }).disabled,
     ).toBe(true);
     const unavailable = screen.getByText(/Microsoft 365 is not available/i);
     expect(unavailable).toBeTruthy();

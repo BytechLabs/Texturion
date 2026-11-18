@@ -658,10 +658,10 @@ describe("GET /v1/notifications", () => {
       "/v1/notifications?limit=1",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: unknown[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.data).toEqual([NOTIF_A]);
     expect(body.next_cursor).not.toBeNull();
 
@@ -694,7 +694,7 @@ describe("GET /v1/notifications", () => {
       "/v1/notifications",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { data: { unread: boolean }[] };
+    const body = await res.json<{ data: { unread: boolean }[] }>();
     expect(body.data.map((n) => n.unread)).toEqual([true, false]);
   });
 

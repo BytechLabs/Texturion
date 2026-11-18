@@ -62,8 +62,8 @@ function scriptsIn(mod: Record<string, unknown>): [string, AnyScript][] {
   );
 }
 
-const DEMO_SCRIPTS = scriptsIn(demoScriptModule as Record<string, unknown>);
-const TRADE_SCRIPTS = scriptsIn(tradeScriptModule as Record<string, unknown>);
+const DEMO_SCRIPTS = scriptsIn(demoScriptModule);
+const TRADE_SCRIPTS = scriptsIn(tradeScriptModule);
 const ALL_SCRIPTS = [...DEMO_SCRIPTS, ...TRADE_SCRIPTS];
 
 function callsIn(script: AnyScript): AnyCallBeat[] {
@@ -84,7 +84,7 @@ function eventFor(beat: AnyCallBeat): ConversationEvent {
     id: `e-${beat.id}`,
     conversation_id: "c-1",
     actor_user_id: null,
-    type: "call_completed" as ConversationEvent["type"],
+    type: "call_completed",
     payload,
     created_at: "2026-07-31T15:00:00Z",
   };
@@ -97,7 +97,7 @@ describe("the demos speak the product's own call language", () => {
     const seen: string[] = [];
     for (const [name, script] of ALL_SCRIPTS) {
       for (const beat of callsIn(script)) {
-        const mine = callSentence(beat as CallBeat);
+        const mine = callSentence(beat);
         const theirs = eventSentence(eventFor(beat), () => null);
         expect(mine, `${name}/${beat.id} drifted from the product`).toBe(
           theirs,
@@ -117,7 +117,7 @@ describe("the demos speak the product's own call language", () => {
           id: "e-1",
           conversation_id: "c-1",
           actor_user_id: null,
-          type: "missed_call" as ConversationEvent["type"],
+          type: "missed_call",
           payload: {},
           created_at: "2026-07-31T15:00:00Z",
         },

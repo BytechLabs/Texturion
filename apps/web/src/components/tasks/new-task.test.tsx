@@ -82,7 +82,7 @@ describe("#689 New task", () => {
     expect(screen.queryByLabelText("Due")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     expect(screen.getByLabelText("Due")).toBeTruthy();
-    expect((screen.getByLabelText("Due") as HTMLInputElement).value).toBe("");
+    expect(screen.getByLabelText<HTMLInputElement>("Due").value).toBe("");
   });
 
   it("creates from the title alone: assigned to me, no due, no link", async () => {
@@ -177,7 +177,7 @@ describe("#689 New task", () => {
     fireEvent.click(screen.getByLabelText("Repeat"));
     expect(await screen.findByText(/needs a due date/)).toBeTruthy();
     expect(
-      (screen.getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled,
+      screen.getByRole<HTMLButtonElement>("button", { name: "Apply" }).disabled,
     ).toBe(true);
   });
 });
@@ -185,12 +185,12 @@ describe("#689 New task", () => {
 describe("#739 New task from the calendar", () => {
   it("opens with the clicked due on screen and reads it in the workspace zone", async () => {
     openWith({ due: "2026-11-12T09:00", timeZone: "America/Toronto" });
-    const field = screen.getByLabelText("Due") as HTMLInputElement;
+    const field = screen.getByLabelText<HTMLInputElement>("Due");
     expect(field.value).toBe("2026-11-12T09:00");
     typeTitle("Fix the boiler");
     fireEvent.submit(field.closest("form")!);
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
-    expect(mutateAsync.mock.calls[0]![0].due_at).toBe("2026-11-12T14:00:00.000Z");
+    expect(mutateAsync.mock.calls[0][0].due_at).toBe("2026-11-12T14:00:00.000Z");
   });
 
   it("does the same in Los Angeles", async () => {
@@ -198,6 +198,6 @@ describe("#739 New task from the calendar", () => {
     typeTitle("Fix the boiler");
     fireEvent.submit(screen.getByLabelText("Due").closest("form")!);
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
-    expect(mutateAsync.mock.calls[0]![0].due_at).toBe("2026-11-12T17:00:00.000Z");
+    expect(mutateAsync.mock.calls[0][0].due_at).toBe("2026-11-12T17:00:00.000Z");
   });
 });

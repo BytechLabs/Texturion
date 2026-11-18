@@ -291,12 +291,12 @@ describe("what the List asks for", () => {
 
     vi.useFakeTimers();
     const rows = container.querySelectorAll("li > div");
-    fireEvent.pointerEnter(rows[1]!);
-    fireEvent.pointerLeave(rows[1]!);
+    fireEvent.pointerEnter(rows[1]);
+    fireEvent.pointerLeave(rows[1]);
     await vi.advanceTimersByTimeAsync(200);
     expect(detailReads()).toEqual(["/v1/tasks/t1"]);
 
-    fireEvent.pointerEnter(rows[1]!);
+    fireEvent.pointerEnter(rows[1]);
     await vi.advanceTimersByTimeAsync(99);
     expect(detailReads()).toEqual(["/v1/tasks/t1"]);
     await vi.advanceTimersByTimeAsync(1);

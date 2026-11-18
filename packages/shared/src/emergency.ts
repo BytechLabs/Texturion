@@ -376,13 +376,13 @@ export function emergencyWordList(
 
 function listWords(words: readonly string[], say: SayEmergency): string {
   if (words.length === 0) return say("settings.wordListNothing");
-  if (words.length === 1) return words[0]!;
+  if (words.length === 1) return words[0];
   // The conjunction is a key rather than " or ": French joins the last pair
   // with "ou", and the spaces around it belong to the word.
   return (
     words.slice(0, -1).join(", ") +
     say("settings.wordListOr") +
-    words[words.length - 1]!
+    words[words.length - 1]
   );
 }
 

@@ -76,10 +76,10 @@ describe("GET /v1/saved-views", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { shared: boolean; filters: unknown }[];
       defaults: Record<string, string | null>;
-    };
+    }>();
     expect(body.data[0].shared).toBe(false);
     expect(body.defaults).toEqual({ conversations: VIEW_ID, tasks: null });
 
@@ -106,7 +106,7 @@ describe("GET /v1/saved-views", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { filters: unknown }[] };
+    const body = await res.json<{ data: { filters: unknown }[] }>();
     expect(body.data[0].filters).toEqual({ status: "open" });
   });
 });

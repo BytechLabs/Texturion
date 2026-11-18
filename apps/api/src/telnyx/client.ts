@@ -305,7 +305,7 @@ export async function telnyxRequest<T = unknown>(
   if (!response.ok) {
     let errors: TelnyxErrorItem[] = [];
     try {
-      const parsed = (await response.json()) as { errors?: unknown };
+      const parsed = await response.json<{ errors?: unknown }>();
       if (Array.isArray(parsed.errors)) {
         errors = parsed.errors.filter(
           (item): item is TelnyxErrorItem =>
@@ -358,7 +358,7 @@ export async function telnyxUpload<T = unknown>(
   const blob =
     options.file instanceof Blob
       ? options.file
-      : new Blob([options.file as ArrayBuffer | Uint8Array], {
+      : new Blob([options.file], {
           type: options.contentType,
         });
   form.append("file", blob, options.filename);
@@ -387,7 +387,7 @@ export async function telnyxUpload<T = unknown>(
   if (!response.ok) {
     let errors: TelnyxErrorItem[] = [];
     try {
-      const parsed = (await response.json()) as { errors?: unknown };
+      const parsed = await response.json<{ errors?: unknown }>();
       if (Array.isArray(parsed.errors)) {
         errors = parsed.errors.filter(
           (item): item is TelnyxErrorItem =>

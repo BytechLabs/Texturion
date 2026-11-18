@@ -41,7 +41,7 @@ describe("the calendar feed link", () => {
     });
 
     expect(res.status).toBe(201);
-    const { url } = (await res.json()) as { url: string };
+    const { url } = await res.json<{ url: string }>();
     expect(url.startsWith(`${env.API_ORIGIN}/calendar/`)).toBe(true);
     expect(url.endsWith("/schedule.ics")).toBe(true);
     expect(url.startsWith(env.APP_ORIGIN)).toBe(false);

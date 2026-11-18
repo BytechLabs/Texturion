@@ -696,7 +696,7 @@ teamRoutes.get("/invites", requireCapability("team.manage"), async (c) => {
       .order("created_at", { ascending: false }),
     "invites list",
   );
-  const role = c.get("role") as MemberRole;
+  const role = c.get("role");
   const now = new Date();
   return c.json({
     data: rows.map((row) => ({

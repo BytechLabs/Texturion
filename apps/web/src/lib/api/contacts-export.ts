@@ -22,7 +22,7 @@ import { ApiError, parseErrorBody } from "./error";
 const EXPORT_FILENAME = "contacts.csv";
 
 export interface ExportDeps {
-  fetch: typeof fetch;
+  fetch: (url: string, init: RequestInit) => Promise<Response>;
   getToken: () => Promise<string | null>;
   baseUrl: string;
   /**

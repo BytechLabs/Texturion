@@ -95,7 +95,7 @@ describe("GET /q/:token", () => {
 
     const res = await call(`/q/${TOKEN}`);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.business_name).toBe("Apex Plumbing");
     expect(body.amount_cents).toBe(45_000);
     expect(body.can_accept).toBe(true);
@@ -112,7 +112,7 @@ describe("GET /q/:token", () => {
     stubFetch(sb.route);
 
     const res = await call(`/q/${TOKEN}`);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.status).toBe("expired");
     expect(body.can_accept).toBe(false);
   });
@@ -423,10 +423,10 @@ describe("#581 the view token is not the accept token", () => {
     stubFetch(sb.route);
 
     const response = await call(`/q/${TOKEN}`);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       can_accept: boolean;
       accept_token: string | null;
-    };
+    }>();
 
     expect(response.status).toBe(200);
     expect(body.can_accept).toBe(true);
@@ -461,10 +461,10 @@ describe("#581 the view token is not the accept token", () => {
     stubFetch(sb.route);
 
     const response = await call(`/q/${TOKEN}`);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       can_accept: boolean;
       accept_token: string | null;
-    };
+    }>();
 
     expect(body.can_accept).toBe(false);
     expect(body.accept_token).toBeNull();

@@ -106,9 +106,9 @@ export function fcmService(
 
   const sendRoute: FetchRoute = async (url, request) => {
     if (url.hostname !== "fcm.googleapis.com") return undefined;
-    const body = (await request.clone().json()) as {
+    const body = await request.clone().json<{
       message: Record<string, unknown>;
-    };
+    }>();
     sends.push({
       url,
       authorization: request.headers.get("authorization"),

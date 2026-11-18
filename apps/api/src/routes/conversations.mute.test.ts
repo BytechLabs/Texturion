@@ -216,9 +216,9 @@ describe("#694 list flags", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/conversations", {
       companyId: COMPANY_ID,
     });
-    const page = (await res.json()) as {
+    const page = await res.json<{
       data: { id: string; muted: boolean; followed: boolean }[];
-    };
+    }>();
     expect(page.data.map((r) => [r.id, r.muted, r.followed])).toEqual([
       [CONV_ID, true, false],
       [other, false, false],

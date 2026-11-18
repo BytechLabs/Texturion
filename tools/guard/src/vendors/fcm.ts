@@ -133,7 +133,7 @@ export async function handleFcm(ctx: Ctx, request: Request, path: string): Promi
 
   let body: Item;
   try {
-    body = (await request.json()) as Item;
+    body = await request.json<Item>();
   } catch {
     throw new Refusal("request.body_invalid");
   }

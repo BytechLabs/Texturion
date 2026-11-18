@@ -293,10 +293,10 @@ export interface SessionRuntime {
  *  re-creation of legacy's durable 'already' verdict. */
 async function legAlive(env: Env, ccid: string): Promise<boolean> {
   try {
-    const response = (await telnyxRequest(env, {
+    const response = await telnyxRequest<{ data?: { is_alive?: boolean } }>(env, {
       method: "GET",
       path: `/v2/calls/${ccid}`,
-    })) as { data?: { is_alive?: boolean } };
+    });
     return response.data?.is_alive === true;
   } catch (error) {
     // #616: a 429 must not answer "not alive" — it is about our own request
@@ -432,7 +432,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       async dial(input): Promise<DialResult> {
         try {
           const name = input.caller ? sipCallerName(input.callerName) : null;
-          const response = (await telnyxRequest(env, {
+          const response = await telnyxRequest<{ data?: { call_control_id?: string } }>(env, {
             method: "POST",
             path: "/v2/calls",
             body: {
@@ -463,7 +463,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
                 ...(name ? [{ name: LOONEXT_CALLER_NAME_HEADER, value: name }] : []),
               ],
             },
-          })) as { data?: { call_control_id?: string } };
+          });
           const ccid = response.data?.call_control_id;
           if (!ccid) return { failure: "ambiguous" };
           return { ccid };

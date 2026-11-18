@@ -135,7 +135,7 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/conversations", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as { data: { allowed_actions: string[] }[] };
+    const body = await res.json<{ data: { allowed_actions: string[] }[] }>();
     expect(body.data[0].allowed_actions).toEqual(
       expect.arrayContaining(["reopen", "mark_waiting", "mark_spam"]),
     );
@@ -283,9 +283,9 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string; attachments: unknown[]; body_tsv?: unknown }[];
-    };
+    }>();
     expect(body.data.map((m) => m.id)).toEqual(["m2", "m1"]);
     expect(body.data[0].attachments).toEqual([]);
     expect(body.data[0]).not.toHaveProperty("body_tsv");
@@ -323,10 +323,10 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       "/v1/conversations",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string }[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.data).toHaveLength(25);
     expect(body.next_cursor).toBe(
       encodeCursor({
@@ -394,7 +394,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     const clock = body.destination_clock as Record<string, unknown>;
     expect(clock).toMatchObject({
       timezone: "America/Toronto",
@@ -449,7 +449,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.contact).toMatchObject({ name: "Jo" });
     expect(body.tags).toEqual([{ id: TAG_ID, name: "Won", color: null }]);
     const messages = body.messages as {
@@ -581,7 +581,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       expect(probe.together("/rest/v1/conversations", path), path).toBe(true);
     }
     expect(probe.together("/rest/v1/tasks", "/rest/v1/profiles")).toBe(true);
-    expect(((await res.json()) as { open_alert: unknown }).open_alert).toMatchObject({
+    expect((await res.json<{ open_alert: unknown }>()).open_alert).toMatchObject({
       on_call_name: "Dana",
     });
   });
@@ -598,7 +598,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.destination_clock).toMatchObject({
       timezone: "America/Vancouver",
       source: "company",
@@ -622,7 +622,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(404);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error).toEqual({ code: "not_found", message: "No such conversation." });
     expect(JSON.stringify(body)).not.toContain(MESSAGE_ID);
     // No message id reached loadMessageTaskFlags, and nothing was looked up
@@ -1335,9 +1335,9 @@ describe("POST /v1/conversations/:id/notes", () => {
       );
 
       expect(res.status).toBe(200);
-      const page = (await res.json()) as {
+      const page = await res.json<{
         data: { user_id: string; display_name: string }[];
-      };
+      }>();
       expect(page.data).toContainEqual({
         user_id: TEAMMATE,
         role: "member",
@@ -1405,7 +1405,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       },
     );
     expect(res.status).toBe(201);
-    const json = (await res.json()) as { task: unknown; task_id: string };
+    const json = await res.json<{ task: unknown; task_id: string }>();
     expect(json.task).toEqual({ id: TASK_ID, title: "Fix the sink" });
     expect(json.task_id).toBe(TASK_ID);
 
@@ -1489,7 +1489,7 @@ describe("GET /v1/conversations/:id/events", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: unknown[]; next_cursor: null };
+    const body = await res.json<{ data: unknown[]; next_cursor: null }>();
     expect(body.data).toHaveLength(1);
     expect(body.next_cursor).toBeNull();
 
@@ -1541,9 +1541,9 @@ describe("GET /v1/conversations/:id/events", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { type: string; payload: Record<string, unknown> }[];
-    };
+    }>();
     const call = body.data.find((row) => row.type === "call_completed");
     expect(call?.payload.answered_by_user_id).toBe(ASSIGNEE);
     // The rest of the payload survives the rewrite untouched.
@@ -1587,7 +1587,7 @@ describe("GET /v1/conversations/:id/events", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { payload: { call_session_id: string } }[] };
+    const body = await res.json<{ data: { payload: { call_session_id: string } }[] }>();
     expect(body.data.map((row) => row.payload.call_session_id)).toEqual(["kept"]);
   });
 
@@ -1624,9 +1624,9 @@ describe("GET /v1/conversations/:id/events", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { payload: Record<string, unknown> }[];
-    };
+    }>();
     expect(body.data[0].payload).not.toHaveProperty("answered_by_user_id");
     expect(body.data[0].payload.outcome).toBe("answered");
   });
@@ -1951,11 +1951,11 @@ describe("POST /v1/conversations/bulk (#275)", () => {
       ids: [CONV_ID],
       target_status: "closed",
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       applied: { id: string; previous: { status: string } }[];
       failed: { id: string; reason: string }[];
       matched: number;
-    };
+    }>();
     expect(body.applied).toHaveLength(2);
     expect(body.applied[0].previous.status).toBe("open");
     expect(body.applied[1].previous.status).toBe("waiting");
@@ -2307,7 +2307,7 @@ describe("#298 a locked tag list restricts CREATION, never attachment", () => {
       { method: "POST", companyId: COMPANY_ID, body: { name: "Two hundred and one" } },
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("200-tag limit");
     // Nothing was attached on a refusal.
     expect(sb.find("POST", "/rest/v1/conversation_tags")).toHaveLength(0);
@@ -2379,7 +2379,7 @@ describe("#244 an unclaimed after-hours page on the thread", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    return (await res.json()) as Record<string, unknown>;
+    return await res.json<Record<string, unknown>>();
   }
 
   it("AL-1: carries the alert, so any member who opens the thread can claim it", async () => {

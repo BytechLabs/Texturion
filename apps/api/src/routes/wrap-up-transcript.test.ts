@@ -128,7 +128,7 @@ describe("POST /conversations/:id/wrap-up-transcript (#507)", () => {
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await post(env, wrapUpForm(12));
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
 
     // Nothing was written anywhere it could be read back from.
     expect(sb.find("POST", "/rest/v1/attachments")).toHaveLength(0);
@@ -148,7 +148,7 @@ describe("POST /conversations/:id/wrap-up-transcript (#507)", () => {
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await post(env, wrapUpForm(15));
-    const body = (await res.json()) as { text: null; reason: string };
+    const body = await res.json<{ text: null; reason: string }>();
 
     // The member is left in the note composer with a keyboard, and told which
     // of the failures it was rather than "something went wrong".

@@ -130,7 +130,7 @@ describe("POST /v1/tasks/enrich", () => {
 
     const res = await enrich({ text: "fix the sink" }, env);
     expect(res.status).toBe(200);
-    const json = (await res.json()) as Record<string, unknown>;
+    const json = await res.json<Record<string, unknown>>();
     expect(json.enrichment_disabled).toBe(true);
     expect(json.address).toBeNull();
     expect(run).not.toHaveBeenCalled();
@@ -152,11 +152,11 @@ describe("POST /v1/tasks/enrich", () => {
 
     const res = await enrich({ text: "fix sink at 5 King St W tomorrow 2pm" }, env);
     expect(res.status).toBe(200);
-    const json = (await res.json()) as {
+    const json = await res.json<{
       address: { street: string } | null;
       address_provenance: string | null;
       due_at: string | null;
-    };
+    }>();
     expect(run).toHaveBeenCalledOnce();
     expect(json.address?.street).toBe("5 King St W");
     expect(json.address_provenance).toBe("message");
@@ -203,7 +203,7 @@ describe("POST /v1/tasks/enrich", () => {
     // Signal-bearing text so it reaches the cap (a no-signal task skips earlier).
     const res = await enrich({ text: "fix sink at 5 King St by Friday" }, env);
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { address: unknown };
+    const json = await res.json<{ address: unknown }>();
     expect(json.address).toBeNull();
     expect(run).not.toHaveBeenCalled();
   });
@@ -221,10 +221,10 @@ describe("POST /v1/tasks/enrich", () => {
 
     const res = await enrich({ text: "fix sink at 5 King St by Friday" }, env);
     expect(res.status).toBe(200);
-    const json = (await res.json()) as {
+    const json = await res.json<{
       address: unknown;
       due_at: unknown;
-    };
+    }>();
     expect(json.address).toBeNull();
     expect(json.due_at).toBeNull();
   });
@@ -267,7 +267,7 @@ describe("POST /v1/tasks/enrich", () => {
 
     const res = await enrich({ text: "call the customer back" }, env);
     expect(res.status).toBe(200);
-    const json = (await res.json()) as { address: unknown; due_at: unknown };
+    const json = await res.json<{ address: unknown; due_at: unknown }>();
     expect(json.address).toBeNull();
     expect(json.due_at).toBeNull();
     expect(run).not.toHaveBeenCalled();
@@ -301,10 +301,10 @@ describe("POST /v1/tasks/enrich", () => {
       env,
     );
     expect(res.status).toBe(200);
-    const json = (await res.json()) as {
+    const json = await res.json<{
       address: { street: string } | null;
       address_provenance: string | null;
-    };
+    }>();
     expect(json.address?.street).toBe("88 Bay St, Toronto");
     expect(json.address_provenance).toBe("contact");
     expect(run).not.toHaveBeenCalled();

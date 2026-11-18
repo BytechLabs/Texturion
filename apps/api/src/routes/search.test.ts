@@ -95,14 +95,14 @@ describe("GET /v1/search", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       conversations: { snippet: string; direction: string }[];
       contacts: unknown[];
       tasks: { id: string; done: boolean }[];
       attachments: { id: string; owner_type: string }[];
       templates: { id: string; snippet: string }[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.conversations[0].snippet).toContain("<b>quote</b>");
     // Note hits are labelable: the matched message's direction passes through.
     expect(body.conversations[0].direction).toBe("note");
@@ -197,10 +197,10 @@ describe("GET /v1/search", () => {
       "/v1/search?q=quote&limit=2",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       conversations: unknown[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.conversations).toHaveLength(2);
     expect(body.next_cursor).toBe(
       encodeCursor({

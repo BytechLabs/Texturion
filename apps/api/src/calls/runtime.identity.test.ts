@@ -83,7 +83,7 @@ async function identityFor(
     call_control_id: "ccid-307",
     from: "+14155559001",
     to: "+14155550001",
-  } as never);
+  });
 }
 
 describe("#307 the caller meets the LINE's identity", () => {
@@ -149,7 +149,7 @@ describe("#307 the caller meets the LINE's identity", () => {
       call_control_id: "ccid-307",
       from: "+14155559001",
       to: "+14155550001",
-    } as never);
+    });
 
     const numberRead = routes.calls.find((call) =>
       call.url.pathname.includes("/phone_numbers"),
@@ -193,7 +193,7 @@ describe("inbound caller display names", () => {
       from: caller,
       to: "+14155550001",
       caller_id_name: "Network name",
-    } as never);
+    });
 
     expect(ctx).toMatchObject({ callerName: expected });
     const searches = routes.calls.filter((call) =>

@@ -15,7 +15,7 @@ describe("the guard on workerd", () => {
   it("serves /health from the Durable Object, saying the Telnyx key is absent", async () => {
     const response = await SELF.fetch("https://guard.internal/health", as("robot"));
     expect(response.status).toBe(200);
-    const body = (await response.json()) as { ok: boolean; telnyx: { key: string; rule: string } };
+    const body = await response.json<{ ok: boolean; telnyx: { key: string; rule: string } }>();
     expect(body.ok).toBe(false);
     expect(body.telnyx).toMatchObject({ key: "absent", rule: "telnyx.key_missing" });
   });
@@ -37,7 +37,7 @@ describe("the guard on workerd", () => {
     expect(first.status).toBe(201);
     const second = await acquire("S04");
     expect(second.headers.get(HEADER.refusedBy)).toBe("lease.busy");
-    const current = (await (await SELF.fetch("https://guard.internal/lease", as("rig-api"))).json()) as { scenario: string };
+    const current = await (await SELF.fetch("https://guard.internal/lease", as("rig-api"))).json<{ scenario: string }>();
     expect(current.scenario).toBe("S02");
   });
 

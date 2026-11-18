@@ -71,7 +71,7 @@ describe("GET /v1/webhooks", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { endpoints: unknown[]; cap: number };
+    const body = await res.json<{ endpoints: unknown[]; cap: number }>();
     expect(body.endpoints).toHaveLength(1);
     expect(body.cap).toBe(10);
 
@@ -111,7 +111,7 @@ describe("POST /v1/webhooks", () => {
       },
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { secret_once: string; endpoint: Record<string, unknown> };
+    const body = await res.json<{ secret_once: string; endpoint: Record<string, unknown> }>();
     expect(body.secret_once).toMatch(/^whsec_[0-9a-f]{64}$/);
     // Nothing in the endpoint object repeats it.
     expect(JSON.stringify(body.endpoint)).not.toContain(body.secret_once);
@@ -142,7 +142,7 @@ describe("POST /v1/webhooks", () => {
       body: { url: "https://169.254.169.254/latest/meta-data/", events: ["message.sent"] },
     });
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // A catalogue key, so all three clients can say which rule bit in the
     // reader's own language.
     expect(body.error.message).toBe("webhooks.urlError.privateHost");
@@ -160,7 +160,7 @@ describe("POST /v1/webhooks", () => {
       body: { url: "http://hooks.example.com/x", events: ["message.sent"] },
     });
     expect(res.status).toBe(422);
-    expect(((await res.json()) as { error: { message: string } }).error.message).toBe(
+    expect((await res.json<{ error: { message: string } }>()).error.message).toBe(
       "webhooks.urlError.notHttps",
     );
   });
@@ -201,7 +201,7 @@ describe("POST /v1/webhooks", () => {
       body: { url: "https://hooks.example.com/x", events: ["message.sent"] },
     });
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { message: string } }).error.message).toContain("10");
+    expect((await res.json<{ error: { message: string } }>()).error.message).toContain("10");
   });
 });
 
@@ -267,7 +267,7 @@ describe("POST /v1/webhooks/:id/secret", () => {
       method: "POST",
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { secret_once: string };
+    const body = await res.json<{ secret_once: string }>();
     expect(body.secret_once).toMatch(/^whsec_[0-9a-f]{64}$/);
 
     const patch = sb.find("PATCH", "/rest/v1/webhook_endpoints")[0].body as { secret: string };

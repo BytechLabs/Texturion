@@ -344,11 +344,11 @@ describe("pruneExpiredExports (#378)", () => {
     const removed: string[][] = [];
     const route: FetchRoute = async (url, request) => {
       if (url.pathname === "/storage/v1/object/list/exports") {
-        const { limit, offset } = (await request.json()) as { limit: number; offset: number };
+        const { limit, offset } = await request.json<{ limit: number; offset: number }>();
         return Response.json(files.slice(offset, offset + limit).map((name) => ({ id: name, name })));
       }
       if (url.pathname === "/storage/v1/object/exports" && request.method === "DELETE") {
-        const body = (await request.clone().json()) as { prefixes: string[] };
+        const body = await request.clone().json<{ prefixes: string[] }>();
         removed.push(body.prefixes);
         return Response.json([]);
       }

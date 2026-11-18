@@ -759,7 +759,7 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { calls: Record<string, unknown>[] };
+    const body = await res.json<{ calls: Record<string, unknown>[] }>();
     expect(body.calls).toHaveLength(1);
     expect(body.calls[0]).toMatchObject({
       call_session_id: SESSION,
@@ -798,7 +798,7 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { calls: unknown[] }).calls).toHaveLength(0);
+    expect((await res.json<{ calls: unknown[] }>()).calls).toHaveLength(0);
   });
 
   it("returns an empty list when no call is live (the relaunch found nothing to recover)", async () => {
@@ -809,7 +809,7 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { calls: unknown[] }).calls).toHaveLength(0);
+    expect((await res.json<{ calls: unknown[] }>()).calls).toHaveLength(0);
   });
 });
 
@@ -930,7 +930,7 @@ describe("POST /v1/calls/live/:id/decline (#171)", () => {
     const sb = liveWorld({ call: { answered_at: null, outcome: null } });
     const res = await post(sb);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { declined: boolean; state: string; reason?: string };
+    const body = await res.json<{ declined: boolean; state: string; reason?: string }>();
     expect(body).toMatchObject({ declined: false, reason: "not_ringing" });
     expect(body.state).toBe("ringing");
   });
@@ -939,7 +939,7 @@ describe("POST /v1/calls/live/:id/decline (#171)", () => {
     const sb = liveWorld({ call: { answered_at: null, outcome: "missed" } });
     const res = await post(sb);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { declined: boolean; state: string };
+    const body = await res.json<{ declined: boolean; state: string }>();
     expect(body).toMatchObject({ declined: false, state: "ended_missed" });
   });
 
@@ -1050,10 +1050,10 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       declined: boolean;
       sessions: { session_id: string; state: string }[];
-    };
+    }>();
     expect(body.declined).toBe(true);
     expect(body.sessions).toEqual([
       { session_id: SESSION, state: "voicemail_greeting" },
@@ -1099,10 +1099,10 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       declined: boolean;
       sessions: { session_id: string }[];
-    };
+    }>();
     expect(body.sessions).toEqual([
       { session_id: SESSION, state: "voicemail_greeting" },
     ]);
@@ -1129,10 +1129,10 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       declined: boolean;
       sessions: unknown[];
-    };
+    }>();
     expect(body).toEqual({ declined: false, sessions: [] });
     // It DID route the no-op decline (the DO is the authority on membership)…
     expect(routed).toEqual([{ sessionId: OTHER, userId: auth.subject }]);
@@ -1159,10 +1159,10 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       declined: boolean;
       sessions: { session_id: string }[];
-    };
+    }>();
     expect(body.declined).toBe(true);
     expect(body.sessions).toEqual([
       { session_id: MINE, state: "voicemail_greeting" },
@@ -1221,10 +1221,10 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       declined: boolean;
       sessions: { session_id: string }[];
-    };
+    }>();
     expect(body.declined).toBe(true);
     expect(body.sessions).toEqual([
       { session_id: GOOD, state: "voicemail_greeting" },

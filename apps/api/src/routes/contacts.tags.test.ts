@@ -81,7 +81,7 @@ describe("GET /v1/contacts with a tag", () => {
     expect(call.url.searchParams.get("contact_tags.tag_id")).toBe(`eq.${TAG_ID}`);
     expect(call.url.searchParams.get("merged_into")).toBe("is.null");
 
-    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    const body = await res.json<{ data: Record<string, unknown>[] }>();
     expect(body.data[0]).not.toHaveProperty("contact_tags");
     expect(body.data[0].tags).toEqual([
       { id: TAG_ID, name: "Warranty", color: null },
@@ -198,7 +198,7 @@ describe("GET /v1/contacts/:id", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.merged_from).toMatchObject({ id: CONTACT_B, name: "Jane Smith" });
     expect(body.tags).toEqual([]);
   });
@@ -369,10 +369,10 @@ describe("POST /v1/contacts/bulk", () => {
       body: { action: "add_tag", ids: [CONTACT_A, CONTACT_B], tag_id: TAG_ID },
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       applied: { id: string; previous: unknown }[];
       failed: unknown[];
-    };
+    }>();
     // A is already tagged, so it is not "applied": an undo built from this
     // response must never strip a tag somebody already had.
     expect(body.applied).toEqual([{ id: CONTACT_B, previous: { tagged: false } }]);
@@ -394,7 +394,7 @@ describe("POST /v1/contacts/bulk", () => {
       companyId: COMPANY_ID,
       body: { action: "remove_tag", ids: [CONTACT_A, CONTACT_B], tag_id: TAG_ID },
     });
-    const body = (await res.json()) as { applied: { id: string }[] };
+    const body = await res.json<{ applied: { id: string }[] }>();
     expect(body.applied.map((row) => row.id)).toEqual([CONTACT_A]);
     const call = sb.find("DELETE", "/rest/v1/contact_tags")[0];
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
@@ -416,10 +416,10 @@ describe("POST /v1/contacts/bulk", () => {
       companyId: COMPANY_ID,
       body: { action: "add_tag", ids: [CONTACT_A, STRANGER], tag_id: TAG_ID },
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       applied: { id: string }[];
       failed: { id: string; reason: string }[];
-    };
+    }>();
     expect(body.failed).toEqual([{ id: STRANGER, reason: "not_found" }]);
     expect(body.applied.map((row) => row.id)).toEqual([CONTACT_A]);
     expect(
@@ -453,10 +453,10 @@ describe("POST /v1/contacts/bulk", () => {
       body: { action: "delete", ids: [CONTACT_A, STRANGER] },
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       applied: { id: string }[];
       failed: { id: string }[];
-    };
+    }>();
     expect(body.applied.map((row) => row.id)).toEqual([CONTACT_A]);
     expect(body.failed.map((row) => row.id)).toEqual([STRANGER]);
     const patch = sb.find("PATCH", "/rest/v1/contacts")[0];

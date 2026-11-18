@@ -157,7 +157,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: {
         id: string;
         source: string;
@@ -166,7 +166,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
         content_type: string;
       }[];
       next_cursor: string | null;
-    };
+    }>();
 
     // Sorted (created_at, id) DESC: task(11:00) → note(10:00) → mms(09:00).
     expect(body.data.map((item) => item.source)).toEqual([
@@ -309,7 +309,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(402);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("usage_cap_reached");
     expect(sb.find("POST", /^\/storage\//)).toHaveLength(0);
   });
@@ -398,10 +398,10 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string }[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.data).toHaveLength(2);
     expect(body.next_cursor).not.toBeNull();
     const cursor = decodeCursor(body.next_cursor!);
@@ -514,7 +514,7 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { url: string }[] };
+    const body = await res.json<{ data: { url: string }[] }>();
     expect(body.data).toHaveLength(2);
     expect(body.data[0].url).toBe(body.data[1].url);
     expect(signedObjects(sb)).toEqual([`attachments/${COMPANY_ID}/note/n/same.png`]);
@@ -586,9 +586,9 @@ describe("the gallery serves derivatives", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { url: string; variant: string; size_bytes: number }[];
-    };
+    }>();
     expect(body.data[0].variant).toBe("preview");
     expect(body.data[0].url).toContain("preview-uuid-roof.jpg");
     // `size_bytes` stays the ORIGINAL's. It is what a "20 MB" label means and
@@ -637,9 +637,9 @@ describe("the gallery serves derivatives", () => {
       `/v1/conversations/${CONV_ID}/attachments`,
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { url: string; variant: string }[];
-    };
+    }>();
     expect(body.data[0].variant).toBe("original");
     expect(body.data[0].url).toContain("uuid-quote.pdf");
   });
@@ -668,7 +668,7 @@ describe("the gallery serves derivatives", () => {
       `/v1/conversations/${CONV_ID}/attachments`,
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { data: { variant: string }[] };
+    const body = await res.json<{ data: { variant: string }[] }>();
     expect(body.data[0].variant).toBe("original");
   });
 });

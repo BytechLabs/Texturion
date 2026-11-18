@@ -116,7 +116,7 @@ describe("GET /v1/tasks: the #690 filters", () => {
     ]);
     stubFetch(jwksRoute(auth), members(), noRules(), list.route, ...tail());
     const response = await request("GET", "/v1/tasks?status=open");
-    const body = (await response.json()) as { data: Record<string, unknown>[] };
+    const body = await response.json<{ data: Record<string, unknown>[] }>();
     expect(body.data[0]).toMatchObject({
       number: 142,
       contact: { id: CONTACT_ID, name: "Jane Smith" },
@@ -182,7 +182,7 @@ describe("GET /v1/tasks: the #690 filters", () => {
       "record_references!target_task_id!inner(id)",
     );
     expect(list.calls[0].url.searchParams.get("record_references.or")).toBeNull();
-    const body = (await open.json()) as { data: Record<string, unknown>[] };
+    const body = await open.json<{ data: Record<string, unknown>[] }>();
     expect(body.data[0]).not.toHaveProperty("record_references");
 
     const hiddenList = stubRoute(restMatch(env, "GET", "tasks"), () => []);
@@ -219,7 +219,7 @@ describe("GET /v1/tasks: the #690 filters", () => {
     const list = stubRoute(restMatch(env, "GET", "tasks"), () => rows);
     stubFetch(jwksRoute(auth), members(), noRules(), list.route, ...tail());
     const first = await request("GET", "/v1/tasks?sort=updated&status=open&limit=1");
-    const body = (await first.json()) as { data: { id: string }[]; next_cursor: string | null };
+    const body = await first.json<{ data: { id: string }[]; next_cursor: string | null }>();
     expect(list.calls[0].url.searchParams.get("order")).toBe("updated_at.desc,id.desc");
     expect(body.next_cursor).not.toBeNull();
 

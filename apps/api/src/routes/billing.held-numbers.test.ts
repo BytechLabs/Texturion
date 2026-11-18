@@ -207,21 +207,21 @@ describe("GET /v1/billing/held-numbers (#523)", () => {
       companyEndpoint(companyRow({ subscription_status: "canceled" })),
       heldRows([HELD]),
     ]);
-    const body = (await (await get("/v1/billing/held-numbers", harness)).json()) as {
+    const body = await (await get("/v1/billing/held-numbers", harness)).json<{
       reason: string;
       can_reinstate: boolean;
-    };
+    }>();
     expect(body.reason).toBe("subscription_inactive");
     expect(body.can_reinstate).toBe(false);
   });
 
   it("holds nothing: null reason, and no offer to buy anything", async () => {
     const harness = makeHarness([companyEndpoint(companyRow()), heldRows([])]);
-    const body = (await (await get("/v1/billing/held-numbers", harness)).json()) as {
+    const body = await (await get("/v1/billing/held-numbers", harness)).json<{
       reason: string | null;
       held: unknown[];
       can_reinstate: boolean;
-    };
+    }>();
     expect(body.reason).toBeNull();
     expect(body.held).toEqual([]);
     expect(body.can_reinstate).toBe(false);
@@ -232,11 +232,11 @@ describe("GET /v1/billing/held-numbers (#523)", () => {
       companyEndpoint(companyRow({ paid_extra_numbers: 1 })),
       heldRows([HELD]),
     ]);
-    const body = (await (await get("/v1/billing/held-numbers", harness)).json()) as {
+    const body = await (await get("/v1/billing/held-numbers", harness)).json<{
       can_reinstate: boolean;
       can_upgrade: boolean;
       allowance: number;
-    };
+    }>();
     expect(body.allowance).toBe(2);
     expect(body.can_reinstate).toBe(false);
     expect(body.can_upgrade).toBe(true);
@@ -247,9 +247,9 @@ describe("GET /v1/billing/held-numbers (#523)", () => {
       companyEndpoint(companyRow({ paused_at: "2026-11-04T00:00:00.000Z" })),
       heldRows([HELD]),
     ]);
-    const body = (await (await get("/v1/billing/held-numbers", harness)).json()) as {
+    const body = await (await get("/v1/billing/held-numbers", harness)).json<{
       can_reinstate: boolean;
-    };
+    }>();
     expect(body.can_reinstate).toBe(false);
   });
 
@@ -397,7 +397,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toMatch(/try again/i);
     expect(harness.callsTo("POST", /subscription_items/)).toHaveLength(0);
   });
@@ -416,7 +416,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toMatch(/still being set up/i);
     expect(harness.callsTo("POST", /subscription_items/)).toHaveLength(0);
   });
@@ -548,7 +548,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toMatch(/2 numbers/);
     expect(body.error.message).toMatch(/Pro/);
     expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
@@ -562,7 +562,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     // `workspace_paused` carries its own status (402) — the same one every
     // other paused refusal in the product answers with.
     expect(response.status).toBe(402);
-    const body = (await response.json()) as { error: { code: string } };
+    const body = await response.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("workspace_paused");
     expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
   });
@@ -586,7 +586,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toMatch(/subscription again/i);
   });
 

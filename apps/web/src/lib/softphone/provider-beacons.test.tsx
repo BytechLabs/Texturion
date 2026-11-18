@@ -104,7 +104,7 @@ function Probe() {
 }
 
 function notify(call: FakeCall) {
-  const handler = sdk.clients[0]!.handlers.get("telnyx.notification")!;
+  const handler = sdk.clients[0].handlers.get("telnyx.notification")!;
   act(() => handler({ type: "callUpdate", call }));
 }
 

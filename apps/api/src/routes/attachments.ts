@@ -701,7 +701,7 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
       .from("attachments")
       .delete()
       .eq("company_id", companyId)
-      .eq("id", claim.attachment.id as string);
+      .eq("id", claim.attachment.id);
     if (release.error) {
       console.error(
         `attachment claim release failed (${objectPath}): ${release.error.message}`,
@@ -730,7 +730,7 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
         preview_bytes: twin.preview_bytes,
       })
       .eq("company_id", companyId)
-      .eq("id", claim.attachment.id as string);
+      .eq("id", claim.attachment.id);
     if (stamp.error) {
       // The row still points at a real object; it has simply lost its preview
       // and its place in the dedup index. It serves its original, like every
@@ -761,7 +761,7 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
           content_sha256: contentSha256,
         })
         .eq("company_id", companyId)
-        .eq("id", claim.attachment.id as string);
+        .eq("id", claim.attachment.id);
       if (stamp.error) {
         console.error(
           `attachment preview stamp failed (${target}): ${stamp.error.message}`,
@@ -777,7 +777,7 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
       .from("attachments")
       .update({ content_sha256: contentSha256 })
       .eq("company_id", companyId)
-      .eq("id", claim.attachment.id as string);
+      .eq("id", claim.attachment.id);
     if (stamp.error) {
       console.error(
         `attachment hash stamp failed (${objectPath}): ${stamp.error.message}`,

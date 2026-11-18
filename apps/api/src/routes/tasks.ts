@@ -303,7 +303,7 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
       { referencedTable: "record_references" },
     );
   }
-  return q as never as T;
+  return q as never;
 }
 
 /**
@@ -332,7 +332,7 @@ function excludeCalendarAttentionHolds<T>(query: T, companyId: string): T {
     .eq("calendar_hold.company_id", companyId)
     .in("calendar_hold.link_state", CALENDAR_HOLD_STATES)
     .is("calendar_hold", null);
-  return q as never as T;
+  return q as never;
 }
 
 /** The #690 filters as a list request or a bulk filter spells them. */
@@ -842,7 +842,7 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
                 .from("calls")
                 .select("conversation_id")
                 .eq("company_id", companyId)
-                .eq("id", body.source_call_id as string)
+                .eq("id", body.source_call_id)
                 .limit(1),
               "task call source lookup",
             );
@@ -1874,7 +1874,7 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
         dueBefore: q.dueBefore,
         dueAfter: q.dueAfter,
         overdue: q.overdue,
-        priorities: q.priorities as TaskPriority[] | undefined,
+        priorities: q.priorities,
         tagId: q.tagId,
         ...extra,
       });
@@ -1886,10 +1886,10 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
         };
         next =
           asNumber === null
-            ? (search.ilike("title", `%${escapeLike(q.rawQ)}%`) as never as typeof next)
+            ? (search.ilike("title", `%${escapeLike(q.rawQ)}%`) as never)
             : (search.or(
                 `title.ilike.%${asNumber[1]}%,number.eq.${Number(asNumber[1])}`,
-              ) as never as typeof next);
+              ) as never);
       }
       return next;
     },

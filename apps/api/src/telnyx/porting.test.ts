@@ -5,7 +5,6 @@ import type { PortRequestRow } from './porting';
 import { FakeRest, resendRoute, TelnyxMock } from './test-support';
 import type { SentEmailCapture } from './test-support';
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
-import type { TelnyxEvent } from "../messaging/types";
 import { completeEnv, stubFetch } from "../test/support";
 
 const COMPANY_ID = "11111111-1111-4111-8111-111111111111";
@@ -866,7 +865,7 @@ describe("dispatchTelnyxEvent routes porting_order.* (sweeper-replay path)", () 
           },
         },
       },
-    } as unknown as TelnyxEvent);
+    });
 
     expect(portRow(rest).status).toBe("exception");
     expect(portRow(rest).rejection_reason).toContain("LOCATION_MISMATCH");

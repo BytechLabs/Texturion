@@ -70,7 +70,7 @@ describe("GET /v1/api-keys", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { keys: unknown[]; cap: number; live: number };
+    const body = await res.json<{ keys: unknown[]; cap: number; live: number }>();
     expect(body.keys).toHaveLength(1);
     expect(body.cap).toBe(10);
     expect(body.live).toBe(1);
@@ -93,7 +93,7 @@ describe("GET /v1/api-keys", () => {
     const res = await apiRequest(app, env, await token(), "/v1/api-keys", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as { keys: unknown[]; live: number };
+    const body = await res.json<{ keys: unknown[]; live: number }>();
     // Both listed — "what did we turn off, and when" is an incident question.
     expect(body.keys).toHaveLength(2);
     // One live. A cap that counted revoked keys would punish the very thing we
@@ -124,7 +124,7 @@ describe("POST /v1/api-keys", () => {
       body: { name: "Scheduling tool", scopes: ["contacts:read", "contacts:read"] },
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { token_once: string; key: Record<string, unknown> };
+    const body = await res.json<{ token_once: string; key: Record<string, unknown> }>();
 
     expect(body.token_once.startsWith(API_KEY_PREFIX)).toBe(true);
     // 32 bytes of base64url, unpadded.
@@ -164,8 +164,8 @@ describe("POST /v1/api-keys", () => {
       body: { name: "two", scopes: ["contacts:read"] },
     });
 
-    const a = (await first.json()) as { token_once: string };
-    const b = (await second.json()) as { token_once: string };
+    const a = await first.json<{ token_once: string }>();
+    const b = await second.json<{ token_once: string }>();
     expect(a.token_once).not.toBe(b.token_once);
   });
 
@@ -179,7 +179,7 @@ describe("POST /v1/api-keys", () => {
       method: "POST",
       body: { name: "Scheduling tool", scopes: ["tasks:write"] },
     });
-    const body = (await res.json()) as { token_once: string };
+    const body = await res.json<{ token_once: string }>();
 
     const entry = sb.find("POST", "/rest/v1/audit_log")[0].body as {
       action: string;
@@ -225,7 +225,7 @@ describe("POST /v1/api-keys", () => {
       body: { name: "x", scopes: ["contacts:read"] },
     });
     expect(res.status).toBe(409);
-    expect(((await res.json()) as { error: { message: string } }).error.message).toContain(
+    expect((await res.json<{ error: { message: string } }>()).error.message).toContain(
       "10",
     );
   });

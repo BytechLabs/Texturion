@@ -202,10 +202,10 @@ describe("GET /v1/registration", () => {
 
     const adminRes = await harness.request("/v1/registration");
     expect(adminRes.status).toBe(200);
-    const adminBody = (await adminRes.json()) as {
+    const adminBody = await adminRes.json<{
       brand: Record<string, unknown>;
       campaign: unknown;
-    };
+    }>();
     expect(adminBody.brand.status).toBe("pending");
     expect(adminBody.brand.data).toMatchObject({ ein: "12-3456789" });
     expect(adminBody.campaign).toBeNull();
@@ -214,9 +214,9 @@ describe("GET /v1/registration", () => {
 
     harness.state.role = "member";
     const memberRes = await harness.request("/v1/registration");
-    const memberBody = (await memberRes.json()) as {
+    const memberBody = await memberRes.json<{
       brand: Record<string, unknown>;
-    };
+    }>();
     expect(memberBody.brand.status).toBe("pending");
     expect(memberBody.brand.data).toBeUndefined();
   });
@@ -238,17 +238,17 @@ describe("GET /v1/registration allowed actions (#722)", () => {
       status: "pending",
       data: CAMPAIGN_BODY,
     });
-    const body = (await (await harness.request("/v1/registration")).json()) as {
+    const body = await (await harness.request("/v1/registration")).json<{
       brand: { allowed_actions: string[] };
       campaign: { allowed_actions: string[] };
-    };
+    }>();
     expect(body.brand.allowed_actions).toEqual(["edit", "submit"]);
     expect(body.campaign.allowed_actions).toEqual([]);
 
     harness.state.role = "member";
-    const member = (await (await harness.request("/v1/registration")).json()) as {
+    const member = await (await harness.request("/v1/registration")).json<{
       brand: { allowed_actions: string[] };
-    };
+    }>();
     expect(member.brand.allowed_actions).toEqual([]);
   });
 });
@@ -325,7 +325,7 @@ describe("PUT /v1/registration", () => {
       }),
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("validation_failed");
   });
 
@@ -419,10 +419,10 @@ describe("POST /v1/registration/submit", () => {
       method: "POST",
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       action: string;
       brand: { status: string };
-    };
+    }>();
     expect(body.action).toBe("brand_submitted");
     expect(body.brand.status).toBe("submitted");
   });
@@ -489,10 +489,10 @@ describe("POST /v1/registration/otp and /otp/resend", () => {
       jsonInit("POST", { code: "123456" }),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       brand: { status: string };
       campaign: { status: string };
-    };
+    }>();
     expect(body.brand.status).toBe("approved");
     expect(body.campaign.status).toBe("submitted");
   });
@@ -508,7 +508,7 @@ describe("POST /v1/registration/otp and /otp/resend", () => {
       jsonInit("POST", { code: "000000" }),
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("validation_failed");
   });
 
@@ -566,7 +566,7 @@ describe("POST /v1/registration/otp and /otp/resend", () => {
       method: "POST",
     });
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("conflict");
     expect(harness.telnyx.calls).toHaveLength(0);
   });
@@ -583,7 +583,7 @@ describe("POST /v1/registration/otp and /otp/resend", () => {
       method: "POST",
     });
     expect(res.status).toBe(429);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("rate_limited");
     // Keyed on the sole-prop mobile the PIN is delivered to (SOLE_PROP_BODY),
     // never the brand/company id — cancel-and-recreate can't reset it.
@@ -611,7 +611,7 @@ describe("POST /v1/registration/otp and /otp/resend", () => {
       jsonInit("POST", { code: "000000" }),
     );
     expect(res.status).toBe(429);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("rate_limited");
     // Same TARGET key as resend, but a DISTINCT action prefix: a 6-digit PIN
     // is 10^6 guesses, and the send/check budgets must not consume each other.
@@ -758,10 +758,10 @@ describe("POST /v1/registration/enable-us", () => {
       method: "POST",
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       us_texting_enabled: boolean;
       invoice_id: string;
-    };
+    }>();
     expect(body.us_texting_enabled).toBe(true);
     expect(body.invoice_id).toBe("in_1");
 
@@ -941,7 +941,7 @@ describe("POST /v1/registration/enable-us", () => {
       method: "POST",
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { action: string; invoice_id: null };
+    const body = await res.json<{ action: string; invoice_id: null }>();
     expect(body.invoice_id).toBeNull();
     expect(body.action).toBe("brand_submitted");
     expect(harness.telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(1);
@@ -966,7 +966,7 @@ describe("POST /v1/registration/enable-us", () => {
       method: "POST",
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { action: string; invoice_id: null };
+    const body = await res.json<{ action: string; invoice_id: null }>();
     expect(body.action).toBe("charge_in_progress");
     expect(body.invoice_id).toBeNull();
     // The whole point: NO second invoice was created.
@@ -1011,10 +1011,10 @@ describe("POST /v1/registration/enable-us", () => {
       res.status,
       "a paused workspace must not be refused — #525 rule 1",
     ).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       us_texting_enabled: boolean;
       invoice_id: string;
-    };
+    }>();
     expect(body.us_texting_enabled).toBe(true);
     expect(body.invoice_id).toBe("in_1");
     // The money half: the $29 is not merely permitted, it is actually
@@ -1052,7 +1052,7 @@ describe("POST /v1/registration/enable-us", () => {
       method: "POST",
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { action: string };
+    const body = await res.json<{ action: string }>();
     expect(body.action).toBe("brand_submitted");
     expect(
       harness.telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/),

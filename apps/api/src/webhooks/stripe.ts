@@ -1226,7 +1226,7 @@ function reportSubscriptionMove(
   const previous = (event.data as { previous_attributes?: { status?: unknown } })
     .previous_attributes?.status;
   if (typeof previous !== "string") return;
-  const from = mirrorSubscriptionStatus(previous as Stripe.Subscription.Status);
+  const from = mirrorSubscriptionStatus(previous);
   for (const company of synced) {
     if (from === null || from === company.status) continue;
     void capture(

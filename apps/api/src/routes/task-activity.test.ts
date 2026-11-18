@@ -110,10 +110,10 @@ describe("GET /v1/tasks/:id/activity", () => {
       { companyId: COMPANY_ID },
     );
     expect(response.status).toBe(200);
-    const json = (await response.json()) as {
+    const json = await response.json<{
       data: Record<string, unknown>[];
       next_cursor: string | null;
-    };
+    }>();
     expect(json.data.map((d) => d.kind)).toEqual(["event", "comment"]);
     expect(json.data[1]).toMatchObject({
       body: "On my way",
@@ -169,7 +169,7 @@ describe("GET /v1/tasks/:id/activity", () => {
     const response = await apiRequest(app, env, await auth.token(), `/v1/tasks/${TASK_ID}/activity`, {
       companyId: COMPANY_ID,
     });
-    const json = (await response.json()) as { data: Record<string, unknown>[] };
+    const json = await response.json<{ data: Record<string, unknown>[] }>();
     expect(json.data[1]).toMatchObject({
       kind: "reference",
       direction: "in",
@@ -215,7 +215,7 @@ describe("GET /v1/tasks/:id/activity", () => {
       `/v1/tasks/${TASK_ID}/activity`,
       { companyId: COMPANY_ID },
     );
-    const json = (await response.json()) as { data: Record<string, unknown>[] };
+    const json = await response.json<{ data: Record<string, unknown>[] }>();
     expect(json.data[0]).toMatchObject({
       event: "assignee_added",
       to_user: { display_name: "Sam" },

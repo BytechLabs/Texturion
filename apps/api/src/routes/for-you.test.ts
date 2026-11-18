@@ -175,7 +175,7 @@ describe("GET /v1/for-you", () => {
         companyId: COMPANY_ID,
       });
       expect(res.status).toBe(200);
-      const body = (await res.json()) as typeof LEAD_PAYLOAD;
+      const body = await res.json<typeof LEAD_PAYLOAD>();
       expect(body.triage).not.toBeNull();
       expect(body.triage.conversations).toHaveLength(1);
       expect(body.triage.tasks).toHaveLength(1);
@@ -197,7 +197,7 @@ describe("GET /v1/for-you", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/for-you", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as typeof MEMBER_PAYLOAD;
+    const body = await res.json<typeof MEMBER_PAYLOAD>();
     expect(body.triage).not.toBeNull();
     expect(body.triage.conversations).toHaveLength(1);
     expect(body.triage.tasks).toHaveLength(1);
@@ -218,7 +218,7 @@ describe("GET /v1/for-you", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/for-you", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as typeof MEMBER_PAYLOAD;
+    const body = await res.json<typeof MEMBER_PAYLOAD>();
     expect(body.waiting_on_you[0].urgency).toBe(0);
     expect(body.waiting_on_you[0].has_overdue_task).toBe(true);
     // my_tasks: the overdue task surfaces with overdue=true (pinned top).

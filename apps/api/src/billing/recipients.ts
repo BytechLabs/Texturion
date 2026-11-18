@@ -27,7 +27,7 @@ export async function billingRecipients(
 
   const emails: string[] = [];
   for (const row of data ?? []) {
-    const userId = (row as { user_id: string }).user_id;
+    const userId = row.user_id;
     const { data: userData, error: userError } =
       await db.auth.admin.getUserById(userId);
     if (userError) {

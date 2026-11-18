@@ -47,10 +47,10 @@ export async function isDatabaseOverload(response: Response): Promise<boolean> {
   if ([502, 503, 504].includes(response.status)) return true;
   if (response.status !== 500) return false;
   try {
-    const body = (await response.clone().json()) as {
+    const body = await response.clone().json<{
       code?: unknown;
       message?: unknown;
-    } | null;
+    } | null>();
     if (body?.code === "53300") return true;
     return body?.code === undefined && body?.message === GATEWAY_FAILURE_MESSAGE;
   } catch {

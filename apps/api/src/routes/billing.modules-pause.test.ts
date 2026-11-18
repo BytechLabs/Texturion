@@ -166,7 +166,7 @@ describe("#277 POST /v1/billing/modules — a paused workspace does not buy add-
     const response = await toggle({ module: "regions_ca", enabled: true }, harness);
 
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { code: string; message: string } };
+    const body = await response.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("conflict");
     expect(body.error.message).toMatch(/paused/i);
     expect(body.error.message).toMatch(/resume/i);
@@ -232,7 +232,7 @@ describe("#277 POST /v1/billing/modules — a paused workspace does not buy add-
     );
 
     expect(response.status).toBe(422);
-    const body = (await response.json()) as { error: { code: string; message: string } };
+    const body = await response.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("validation_failed");
     expect(body.error.message).toContain("isn't available yet");
     expect(body.error.message).not.toMatch(/resume/i);

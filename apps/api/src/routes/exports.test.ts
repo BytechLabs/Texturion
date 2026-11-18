@@ -88,14 +88,14 @@ function world(
   const storageRoute: FetchRoute = async (url, request) => {
     if (!url.pathname.startsWith("/storage/v1/object")) return undefined;
     if (url.pathname.includes("/list/")) {
-      const { limit, offset } = (await request.json()) as { limit: number; offset: number };
+      const { limit, offset } = await request.json<{ limit: number; offset: number }>();
       const files = options.files ?? [
         { id: "part", name: "messages-0001.jsonl" },
         { id: "manifest", name: "manifest.json" },
       ];
       return Response.json(files.slice(offset, offset + limit));
     }
-    const { paths } = (await request.json()) as { paths: string[] };
+    const { paths } = await request.json<{ paths: string[] }>();
     return Response.json(paths.map((path) => ({
       path, signedURL: `/object/sign/exports/${path}?token=sig`, error: null,
     })));
@@ -170,9 +170,9 @@ describe("GET /v1/exports", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { status: string; files: { name: string }[] }[];
-    };
+    }>();
     expect(body.data[0].status).toBe("ready");
     expect(
       (body.data[0] as unknown as { allowed_actions: string[] }).allowed_actions,
@@ -205,9 +205,9 @@ describe("GET /v1/exports", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string; files: { name: string }[] }[];
-    };
+    }>();
     expect(body.data).toHaveLength(1);
     expect(body.data[0].files.length).toBeGreaterThan(0);
   });
@@ -228,7 +228,7 @@ describe("GET /v1/exports", () => {
         companyId: COMPANY_ID,
       });
       expect(list.status, kind).toBe(200);
-      expect((await list.json()) as { data: unknown[] }, kind).toMatchObject({
+      expect(await list.json<{ data: unknown[] }>(), kind).toMatchObject({
         data: [],
       });
 
@@ -272,9 +272,9 @@ describe("GET /v1/exports", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/exports", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { files: unknown[]; allowed_actions: string[] }[];
-    };
+    }>();
     expect(body.data[0].files).toEqual([]);
     expect(body.data[0].allowed_actions).toEqual([]);
   });
@@ -290,7 +290,7 @@ describe("GET /v1/exports", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { files: { name: string }[] };
+    const body = await res.json<{ files: { name: string }[] }>();
     expect(body.files.map(({ name }) => name)).toEqual(files.map(({ name }) => name));
   });
 
@@ -306,14 +306,14 @@ describe("GET /v1/exports", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/exports", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: {
         status: string;
         error: string | null;
         files: unknown[];
         allowed_actions: string[];
       }[];
-    };
+    }>();
     expect(body.data[0].files).toEqual([]);
     expect(body.data.map((row) => row.allowed_actions)).toEqual([[], []]);
     expect(body.data[1].error).toBe("messages read failed");

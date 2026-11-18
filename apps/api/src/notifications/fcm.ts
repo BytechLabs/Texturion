@@ -131,7 +131,7 @@ const encoder = new TextEncoder();
 async function signOauthJwt(account: ServiceAccount): Promise<string> {
   const key = await crypto.subtle.importKey(
     "pkcs8",
-    pemToPkcs8(account.private_key) as BufferSource,
+    pemToPkcs8(account.private_key),
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"],
@@ -207,10 +207,10 @@ async function getAccessToken(
         (detail ? ` — ${detail}` : ""),
     );
   }
-  const body = (await response.json()) as {
+  const body = await response.json<{
     access_token?: string;
     expires_in?: number;
-  };
+  }>();
   if (typeof body.access_token !== "string" || body.access_token.length === 0) {
     throw new Error("FCM OAuth token exchange returned no access_token");
   }

@@ -104,9 +104,9 @@ beforeEach(() => {
 });
 
 function noteField(): HTMLTextAreaElement {
-  return screen.getByLabelText(
+  return screen.getByLabelText<HTMLTextAreaElement>(
     "What to tell them (optional)",
-  ) as HTMLTextAreaElement;
+  );
 }
 
 /** A pending invite, as GET /v1/invites returns one. */

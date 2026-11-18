@@ -117,7 +117,9 @@ describe("the validation check", () => {
     h.telnyx.profileLimit = { mode: "refuse-above", limit: 6 };
     const realHandle = h.telnyx.handle.bind(h.telnyx);
     h.telnyx.handle = async (request) => {
-      const body = request.method === "PATCH" ? ((await request.clone().json()) as { concurrent_call_limit?: number }) : {};
+      const body = request.method === "PATCH"
+        ? await request.clone().json<{ concurrent_call_limit?: number }>()
+        : {};
       if (body.concurrent_call_limit === 4999) {
         return Response.json({ errors: [{ code: "10099", source: { pointer: "/concurrent_call_limit" } }] }, { status: 422 });
       }

@@ -289,7 +289,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     const calls: Record<string, unknown>[] = [];
     const route: FetchRoute = async (url, request) => {
       if (url.href !== "https://api.resend.com/emails") return undefined;
-      calls.push((await request.clone().json()) as Record<string, unknown>);
+      calls.push(await request.clone().json<Record<string, unknown>>());
       return Response.json(
         status === 200 ? { id: "email_1" } : { message: "smtp down" },
         { status },
@@ -448,9 +448,9 @@ describe("GET /v1/invites/mine (company-exempt, #109)", () => {
       companyId: null,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string; company_name: string | null; companies?: unknown }[];
-    };
+    }>();
     expect(body.data).toHaveLength(1);
     expect(body.data[0]).toMatchObject({
       id: INVITE_ID,
@@ -561,7 +561,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     const resend: Record<string, unknown>[] = [];
     const resendRoute: FetchRoute = async (url, request) => {
       if (url.href !== "https://api.resend.com/emails") return undefined;
-      resend.push((await request.clone().json()) as Record<string, unknown>);
+      resend.push(await request.clone().json<Record<string, unknown>>());
       return Response.json({ id: "email_1" });
     };
     // The invite row the route reads is the one the accept stamp updates.
@@ -608,7 +608,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     const resend: Record<string, unknown>[] = [];
     const resendRoute: FetchRoute = async (url, request) => {
       if (url.href !== "https://api.resend.com/emails") return undefined;
-      resend.push((await request.clone().json()) as Record<string, unknown>);
+      resend.push(await request.clone().json<Record<string, unknown>>());
       return Response.json({ id: "email_1" });
     };
     const sb = acceptStub(
@@ -645,7 +645,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     const resend: Record<string, unknown>[] = [];
     const resendRoute: FetchRoute = async (url, request) => {
       if (url.href !== "https://api.resend.com/emails") return undefined;
-      resend.push((await request.clone().json()) as Record<string, unknown>);
+      resend.push(await request.clone().json<Record<string, unknown>>());
       return Response.json({ id: "email_1" });
     };
     const sb = acceptStub(
@@ -1444,7 +1444,7 @@ describe("GET /v1/invites + DELETE /v1/invites/:id (O/A)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as { data: { allowed_actions: string[] }[] };
+    const body = await res.json<{ data: { allowed_actions: string[] }[] }>();
     expect(body.data.map((r) => r.allowed_actions)).toEqual([
       ["revoke"],
       ["revoke"],

@@ -336,11 +336,9 @@ describe("accepting a workspace when the server asks who is asking", () => {
     // at both ends, and rewording the dialog's `"Confirming…"` reddened this line —
     // a failure with no customer behind it, in a test about a double submit.
     expect(
-      (
-        screen.getByRole("button", {
+      screen.getByRole<HTMLButtonElement>("button", {
           name: HANDOVER_CONFIRM_SUBMITTING,
-        }) as HTMLButtonElement
-      ).disabled,
+        }).disabled,
     ).toBe(true);
 
     await act(async () => settle({ data: {}, error: null }));

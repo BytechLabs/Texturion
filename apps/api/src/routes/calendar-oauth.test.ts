@@ -127,7 +127,7 @@ describe("calendar OAuth callback", () => {
         url.href ===
         "https://www.googleapis.com/calendar/v3/calendars/primary/events/watch"
       ) {
-        watchBody = (await request.clone().json()) as Record<string, unknown>;
+        watchBody = await request.clone().json<Record<string, unknown>>();
         expect(watchBody.address).toBe(
           "https://api.loonext.com/calendar/webhooks/google",
         );
@@ -262,7 +262,7 @@ describe("calendar OAuth callback", () => {
         });
       }
       if (url.href === "https://graph.microsoft.com/v1.0/subscriptions") {
-        subscriptionBody = (await request.clone().json()) as Record<string, unknown>;
+        subscriptionBody = await request.clone().json<Record<string, unknown>>();
         return Response.json({
           id: "graph-subscription",
           resource: "/me/events",
@@ -349,7 +349,7 @@ describe("calendar OAuth callback", () => {
         "https://www.googleapis.com/calendar/v3/calendars/primary/events/watch"
       ) {
         watchStarted = true;
-        const body = (await request.clone().json()) as Record<string, unknown>;
+        const body = await request.clone().json<Record<string, unknown>>();
         return Response.json({
           id: body.id,
           resourceId: "provisional-resource",
@@ -357,7 +357,7 @@ describe("calendar OAuth callback", () => {
         });
       }
       if (url.href === "https://www.googleapis.com/calendar/v3/channels/stop") {
-        stopBody = (await request.clone().json()) as Record<string, unknown>;
+        stopBody = await request.clone().json<Record<string, unknown>>();
         return new Response(null, { status: 204 });
       }
       return undefined;

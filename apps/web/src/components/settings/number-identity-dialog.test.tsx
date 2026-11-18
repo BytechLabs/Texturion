@@ -18,43 +18,34 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { NumberIdentity } from "@/lib/api/types";
 
-const { save, greetingRows, toastSuccess, toastError, identity } = vi.hoisted(
-  () => ({
+const { save, greetingRows, toastSuccess, toastError, identity } = vi.hoisted(() => {
+  const defaultIdentity: Partial<NumberIdentity> = {
+    label: { value: "Reed Roofing", inherited: true },
+    voicemail_greeting: {
+      value: "You have reached Reed Roofing.",
+      inherited: true,
+    },
+    away_message: { value: "We are closed.", inherited: true },
+    mctb_enabled: { value: true, inherited: true },
+    mctb_message: { value: "Sorry we missed you.", inherited: true },
+    voicemail_greeting_id: { value: null, inherited: true },
+    after_hours_calls: { value: "ring_everyone", inherited: true },
+    after_hours_greeting_id: { value: null, inherited: true },
+    ring_strategy: { value: "all", inherited: true },
+    ring_seconds: { value: 45, inherited: true },
+    lead_source_id: null,
+  };
+
+  return {
     save: vi.fn(),
     greetingRows: { current: [] as { id: string; name: string }[] },
     toastSuccess: vi.fn(),
     toastError: vi.fn(),
-    identity: {
-      current: {
-        label: { value: "Reed Roofing", inherited: true },
-        voicemail_greeting: {
-          value: "You have reached Reed Roofing.",
-          inherited: true,
-        },
-        away_message: { value: "We are closed.", inherited: true },
-        mctb_enabled: { value: true, inherited: true },
-        mctb_message: { value: "Sorry we missed you.", inherited: true },
-        voicemail_greeting_id: { value: null, inherited: true },
-        after_hours_calls: { value: "ring_everyone", inherited: true },
-        after_hours_greeting_id: { value: null, inherited: true },
-        ring_strategy: { value: "all", inherited: true },
-        ring_seconds: { value: 45, inherited: true },
-      lead_source_id: null,
-      } as Record<
-        string,
-        // #278 widened this once and #301 widened it again, which is the
-        // lesson: the identity is NOT uniformly `{ value, inherited }`. #301's
-        // lead_source_id is a bare value because it does not inherit, so the
-        // fixture describes both shapes rather than pinning the one that
-        // happened to exist.
-        | { value: string | number | boolean | null; inherited: boolean }
-        | string
-        | null
-      >,
-    },
-  }),
-);
+    identity: { current: defaultIdentity },
+  };
+});
 
 // #301: the dialog now offers a per-line source. Mocked like the greeting
 // list beside it — an empty list hides the picker, which is every workspace
@@ -122,10 +113,10 @@ describe("#307 how this line answers", () => {
     // today, and showing that before it changes is this screen's whole job.
     open();
     expect(
-      (screen.getByLabelText("Name for this number") as HTMLInputElement).value,
+      screen.getByLabelText<HTMLInputElement>("Name for this number").value,
     ).toBe("Reed Roofing");
     expect(
-      (screen.getByLabelText("Voicemail greeting") as HTMLTextAreaElement)
+      screen.getByLabelText<HTMLTextAreaElement>("Voicemail greeting")
         .value,
     ).toBe("You have reached Reed Roofing.");
   });
@@ -252,9 +243,7 @@ describe("#307 how this line answers", () => {
     // silently stop following the workspace from then on.
     open();
     expect(
-      (
-        screen.getByLabelText("Text back a missed caller") as HTMLInputElement
-      ).getAttribute("aria-checked"),
+      screen.getByLabelText<HTMLInputElement>("Text back a missed caller").getAttribute("aria-checked"),
     ).toBe("true");
   });
 

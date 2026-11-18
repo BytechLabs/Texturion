@@ -7,7 +7,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { counts, role, enabledSeen } = vi.hoisted(() => ({
-  counts: { current: {} as Record<string, number> },
+  counts: { current: {} },
   role: { current: "owner" },
   enabledSeen: { current: [] as boolean[] },
 }));

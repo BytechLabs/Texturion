@@ -347,7 +347,7 @@ async function postCompose(
 }
 
 async function errorCode(response: Response): Promise<string> {
-  const body = (await response.json()) as { error: { code: string } };
+  const body = await response.json<{ error: { code: string } }>();
   return body.error.code;
 }
 
@@ -410,10 +410,10 @@ describe("POST /v1/conversations — consent attestation (§5, D4)", () => {
     });
     expect(stubs.telnyx.calls).toHaveLength(1);
 
-    const body = (await response.json()) as {
+    const body = await response.json<{
       conversation: { id: string; status: string };
       message: { id: string };
-    };
+    }>();
     expect(body.conversation.id).toBe(CONVERSATION_ID);
     expect(body.conversation.status).toBe("open");
     expect(body.message.id).toBe(MESSAGE_ID);
@@ -762,10 +762,10 @@ describe("POST /v1/conversations — conflict append + idempotency (§7)", () =>
     const response = await postCompose(VALID_BODY);
     expect(response.status).toBe(200);
 
-    const body = (await response.json()) as {
+    const body = await response.json<{
       conversation: { id: string };
       message: { id: string };
-    };
+    }>();
     expect(body.conversation.id).toBe(CONVERSATION_ID);
     expect(body.message.id).toBe(MESSAGE_ID);
 
@@ -945,9 +945,9 @@ describe("POST /v1/conversations — MMS (§7, §8, #12)", () => {
     expect(stubs.sign.calls[0].body).toMatchObject({ expiresIn: 86_400 });
 
     // The compose response carries the attachment summary.
-    const body = (await response.json()) as {
+    const body = await response.json<{
       message: { attachments: unknown[] };
-    };
+    }>();
     expect(body.message.attachments).toHaveLength(1);
   });
 
@@ -1052,9 +1052,9 @@ describe("POST /v1/conversations — MMS (§7, §8, #12)", () => {
     });
     expect(response.status).toBe(200);
 
-    const body = (await response.json()) as {
+    const body = await response.json<{
       message: { id: string; attachments: unknown[] };
-    };
+    }>();
     expect(body.message.id).toBe(MESSAGE_ID);
     expect(body.message.attachments).toEqual([
       { id: "att-1", content_type: "image/jpeg", size_bytes: 4 },

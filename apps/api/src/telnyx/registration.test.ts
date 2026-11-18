@@ -1814,7 +1814,7 @@ describe("PostHog north-star events (§12 step 18)", () => {
     const posthog: PosthogCapture[] = [];
     const posthogRoute: FetchRoute = async (url, request) => {
       if (url.href !== POSTHOG_CAPTURE_URL) return undefined;
-      posthog.push((await request.clone().json()) as PosthogCapture);
+      posthog.push(await request.clone().json<PosthogCapture>());
       return Response.json({ status: 1 });
     };
     stubFetch(rest.route(), telnyx.route(), resendRoute(emails), posthogRoute);

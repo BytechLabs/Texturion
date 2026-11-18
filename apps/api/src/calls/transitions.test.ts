@@ -84,9 +84,7 @@ function has(effects: Effect[], kind: Effect["kind"]): boolean {
 }
 
 function mirrorState(effects: Effect[]): CallState | undefined {
-  const m = effects.find((e) => e.kind === "mirror") as
-    | Extract<Effect, { kind: "mirror" }>
-    | undefined;
+  const m = effects.find((e) => e.kind === "mirror");
   return m?.set.state;
 }
 
@@ -100,7 +98,7 @@ describe("T1 — call.initiated branches", () => {
     expect(r.machine?.state).toBe("ringing");
     expect(has(r.effects, "telnyx-dial")).toBe(true);
     expect(has(r.effects, "push-fanout")).toBe(true);
-    const alarms = r.effects.filter((e) => e.kind === "arm-alarm") as Extract<Effect, { kind: "arm-alarm" }>[];
+    const alarms = r.effects.filter((e) => e.kind === "arm-alarm");
     const kinds = alarms.map((a) => a.alarm);
     expect(kinds).toContain("ring");
     expect(kinds).toContain("janitor");
@@ -158,7 +156,7 @@ describe("T1 — call.initiated branches", () => {
     expect(r.machine?.state).toBe("ringing");
     expect(r.machine?.unattended).toBe(true);
     expect(has(r.effects, "telnyx-dial")).toBe(false);
-    const alarms = r.effects.filter((e) => e.kind === "arm-alarm") as Extract<Effect, { kind: "arm-alarm" }>[];
+    const alarms = r.effects.filter((e) => e.kind === "arm-alarm");
     expect(alarms.map((a) => a.alarm)).not.toContain("ring");
     expect(alarms.map((a) => a.alarm)).toContain("janitor");
   });
@@ -190,7 +188,7 @@ describe("T1 — call.initiated branches", () => {
       // behaviour #490 replaced, so spending the ceiling degrades rather than
       // breaks. The janitor still guarantees the ring cannot be immortal.
       expect(r.machine?.unattended).toBe(true);
-      const alarms = r.effects.filter((e) => e.kind === "arm-alarm") as Extract<Effect, { kind: "arm-alarm" }>[];
+      const alarms = r.effects.filter((e) => e.kind === "arm-alarm");
       expect(alarms.map((a) => a.alarm)).toContain("janitor");
     });
 
@@ -201,7 +199,7 @@ describe("T1 — call.initiated branches", () => {
       for (const allowed of [true, false]) {
         const mirrors = suspended(allowed).effects.filter(
           (e) => e.kind === "mirror",
-        ) as Extract<Effect, { kind: "mirror" }>[];
+        );
         expect(mirrors.some((m) => m.set.unattended === true), String(allowed)).toBe(true);
       }
     });
@@ -216,9 +214,7 @@ describe("T1 — call.initiated branches", () => {
         1_100,
         keyGen(),
       );
-      const speak = r.effects.find((e) => e.kind === "telnyx-speak") as
-        | Extract<Effect, { kind: "telnyx-speak" }>
-        | undefined;
+      const speak = r.effects.find((e) => e.kind === "telnyx-speak");
       expect(speak?.script).toBe("unavailable-notice");
     });
 
@@ -240,10 +236,7 @@ describe("T1 — call.initiated branches", () => {
         keyGen(),
       );
       const r = reduce(answered.machine, { type: "speak-ended" }, 1_200, keyGen());
-      const hangups = r.effects.filter((e) => e.kind === "telnyx-hangup") as Extract<
-        Effect,
-        { kind: "telnyx-hangup" }
-      >[];
+      const hangups = r.effects.filter((e) => e.kind === "telnyx-hangup");
       expect(hangups.length).toBeGreaterThan(0);
       // NOT the voicemail path: there is no mailbox on a suspended line, so a
       // recording would be a message that is never delivered and still billed.
@@ -435,9 +428,7 @@ describe("T2 — member answer", () => {
     expect(r.machine?.answeredByUserId).toBe("u1");
     expect(r.machine?.answerIntent).toBeNull();
     expect(has(r.effects, "telnyx-bridge")).toBe(true);
-    const callEnd = r.effects.find((e) => e.kind === "push-call-end") as
-      | Extract<Effect, { kind: "push-call-end" }>
-      | undefined;
+    const callEnd = r.effects.find((e) => e.kind === "push-call-end");
     expect(callEnd?.reason).toBe("answered");
   });
 
@@ -648,10 +639,7 @@ describe("#171 — decline (first-class avenue removal)", () => {
     const machine = ringingMachine(); // solo u1: one leg + push [u1]
     const r = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY);
     // The decliner's ring leg is hung up...
-    const hangups = r.effects.filter((e) => e.kind === "telnyx-hangup") as Extract<
-      Effect,
-      { kind: "telnyx-hangup" }
-    >[];
+    const hangups = r.effects.filter((e) => e.kind === "telnyx-hangup");
     expect(hangups.map((h) => h.ccid)).toContain("leg-u1");
     // ...they're removed from the push avenue, and with no avenue left the
     // ladder resolves to voicemail immediately (the whole #171 bug).
@@ -667,7 +655,7 @@ describe("#171 — decline (first-class avenue removal)", () => {
     const r = reduce(machine, { type: "decline", userId: "u1" }, 2_000, KEY);
     // u1's leg is canceled + they leave the audience...
     expect(
-      (r.effects.filter((e) => e.kind === "telnyx-hangup") as Extract<Effect, { kind: "telnyx-hangup" }>[]).map(
+      r.effects.filter((e) => e.kind === "telnyx-hangup").map(
         (h) => h.ccid,
       ),
     ).toContain("leg-u1");
@@ -1012,7 +1000,7 @@ describe("T7 — owner death / intent stand-down", () => {
     const cleared = reduce(machine, { type: "clear-intent" }, 3_200, KEY);
     expect(has(cleared.effects, "telnyx-hangup")).toBe(false);
     const expired = reduce(
-      cleared.machine as SessionMachine,
+      cleared.machine,
       { type: "alarm-intent-expiry" },
       43_000,
       KEY,
@@ -1025,9 +1013,7 @@ describe("T7 — owner death / intent stand-down", () => {
     const machine = answeredMachine();
     const r = reduce(machine, { type: "inbound-leg-gone" }, 4_000, KEY);
     expect(r.machine?.state).toBe("ended_answered");
-    const merge = r.effects.find((e) => e.kind === "terminal-merge") as
-      | Extract<Effect, { kind: "terminal-merge" }>
-      | undefined;
+    const merge = r.effects.find((e) => e.kind === "terminal-merge");
     expect(merge).toMatchObject({
       mode: "synthetic",
       outcome: "answered",
@@ -1164,7 +1150,7 @@ describe("T16 — janitor forced resolution per state", () => {
     expect(first.machine?.state).toBe("ended_missed");
     expect(terminalMerge(first.effects)).toBeDefined();
 
-    const second = reduce(first.machine as SessionMachine, hangup, 4_000, KEY);
+    const second = reduce(first.machine, hangup, 4_000, KEY);
     expect(second.machine?.state).toBe("ended_missed");
     expect(second.effects).toEqual([]);
   });
@@ -1298,9 +1284,7 @@ function answeredOutbound(): SessionMachine {
 }
 
 function terminalMerge(effects: Effect[]): Extract<Effect, { kind: "terminal-merge" }> | undefined {
-  return effects.find((e) => e.kind === "terminal-merge") as
-    | Extract<Effect, { kind: "terminal-merge" }>
-    | undefined;
+  return effects.find((e) => e.kind === "terminal-merge");
 }
 
 describe("#211 outbound — T-O1 mint", () => {
@@ -1316,7 +1300,7 @@ describe("#211 outbound — T-O1 mint", () => {
     const mirror = r.effects.find((e) => e.kind === "mirror") as Extract<Effect, { kind: "mirror" }>;
     expect(mirror.set).toMatchObject({ state: "dialing", answered_by_user_id: "placer" });
     // Owner-from-start, NO ring/fanout/dial alarms — only the 4h janitor.
-    const alarms = r.effects.filter((e) => e.kind === "arm-alarm") as Extract<Effect, { kind: "arm-alarm" }>[];
+    const alarms = r.effects.filter((e) => e.kind === "arm-alarm");
     expect(alarms.map((a) => a.alarm)).toEqual(["janitor"]);
     expect(has(r.effects, "telnyx-dial")).toBe(false);
     expect(has(r.effects, "push-fanout")).toBe(false);
@@ -1407,9 +1391,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
 
   it("mint dials the PLACER (op) leg to their SIP credential + tracks a pending leg", () => {
     const r = reduce(null, { type: "outbound-initiated", context: ocContext() }, 1_000, keyGen());
-    const dial = r.effects.find((e) => e.kind === "telnyx-dial-placer") as
-      | Extract<Effect, { kind: "telnyx-dial-placer" }>
-      | undefined;
+    const dial = r.effects.find((e) => e.kind === "telnyx-dial-placer");
     expect(dial).toBeDefined();
     expect(dial?.userId).toBe("placer");
     expect(dial?.sipTarget).toBe("sip:placer-sip@sip.telnyx.com");
@@ -1429,9 +1411,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
     const r = placerAnswered(machine, opCcid, 2_000);
     // Early bridge: the placer's leg is bridged to the still-ringing customer so
     // Telnyx relays ringback AND the customer's hangup will tear the placer leg.
-    const bridge = r.effects.find((e) => e.kind === "telnyx-bridge") as
-      | Extract<Effect, { kind: "telnyx-bridge" }>
-      | undefined;
+    const bridge = r.effects.find((e) => e.kind === "telnyx-bridge");
     expect(bridge).toMatchObject({ memberCcid: "op-ccid", customerCcid: "oc-cust" });
     expect(r.machine?.legs[0].status).toBe("answered");
     expect(r.machine?.state).toBe("dialing"); // not 'answered' until the customer picks up
@@ -1443,9 +1423,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
     const r = reduce(opUp, { type: "outbound-answered" }, 2_500, keyGen());
     // The fallback bridge (both answered) — covers the case Telnyx refused the
     // early ring-bridge, so the pair is guaranteed connected.
-    const bridge = r.effects.find((e) => e.kind === "telnyx-bridge") as
-      | Extract<Effect, { kind: "telnyx-bridge" }>
-      | undefined;
+    const bridge = r.effects.find((e) => e.kind === "telnyx-bridge");
     expect(bridge).toMatchObject({ memberCcid: "op-ccid", customerCcid: "oc-cust" });
     expect(r.machine?.state).toBe("answered");
   });
@@ -1455,9 +1433,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
     const ocUp = reduce(machine, { type: "outbound-answered" }, 2_000, keyGen()).machine as SessionMachine;
     expect(ocUp.state).toBe("answered");
     const r = placerAnswered(ocUp, opCcid, 2_500);
-    const bridge = r.effects.find((e) => e.kind === "telnyx-bridge") as
-      | Extract<Effect, { kind: "telnyx-bridge" }>
-      | undefined;
+    const bridge = r.effects.find((e) => e.kind === "telnyx-bridge");
     expect(bridge).toMatchObject({ memberCcid: "op-ccid", customerCcid: "oc-cust" });
   });
 
@@ -1496,9 +1472,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
     const bridged = placerAnswered(machine, opCcid, 2_000).machine as SessionMachine;
     const answered = reduce(bridged, { type: "outbound-answered" }, 2_500, keyGen()).machine as SessionMachine;
     const r = reduce(answered, { type: "outbound-placer-hangup", ccid: opCcid, userId: "placer" }, 3_000, keyGen());
-    const hangup = r.effects.find((e) => e.kind === "telnyx-hangup") as
-      | Extract<Effect, { kind: "telnyx-hangup" }>
-      | undefined;
+    const hangup = r.effects.find((e) => e.kind === "telnyx-hangup");
     expect(hangup).toMatchObject({ ccid: "oc-cust", terminal: true });
     expect(r.machine?.state).toBe("answered"); // the oc hangup webhook runs T-O3
   });
@@ -1506,7 +1480,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
   it("placer hangup mid-transfer (intent live) flags stand-down, does NOT hang up the customer", () => {
     const { machine, opCcid } = opDialedMachine();
     const answered = reduce(
-      placerAnswered(machine, opCcid, 2_000).machine as SessionMachine,
+      placerAnswered(machine, opCcid, 2_000).machine,
       { type: "outbound-answered" },
       2_500,
       keyGen(),
@@ -1520,7 +1494,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
   it("placer hangup after ownership moved to the teammate is bookkeeping only", () => {
     const { machine, opCcid } = opDialedMachine();
     const answered = reduce(
-      placerAnswered(machine, opCcid, 2_000).machine as SessionMachine,
+      placerAnswered(machine, opCcid, 2_000).machine,
       { type: "outbound-answered" },
       2_500,
       keyGen(),

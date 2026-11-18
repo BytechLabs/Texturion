@@ -108,9 +108,9 @@ describe("#545 a password-only session cannot mint recovery codes", () => {
     // were closing their account.
     const sb = world({ enrolled: true });
 
-    const body = (await (await mint(sb, "aal1")).json()) as {
+    const body = await (await mint(sb, "aal1")).json<{
       error: { message: string };
-    };
+    }>();
 
     expect(body.error.message).toContain("issuing new recovery codes");
     expect(body.error.message).not.toContain("deleting your account");
@@ -122,7 +122,7 @@ describe("#545 a password-only session cannot mint recovery codes", () => {
     const res = await mint(sb, "aal2");
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { codes: string[] };
+    const body = await res.json<{ codes: string[] }>();
     expect(body.codes).toHaveLength(10);
     expect(sb.find("POST", "/rest/v1/rpc/api_mfa_set_recovery_codes")).toHaveLength(1);
   });

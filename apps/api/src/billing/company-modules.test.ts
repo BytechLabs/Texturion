@@ -11,7 +11,6 @@ import type { PlanModule } from './modules';
 import { restMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
 import { completeEnv, stubFetch } from '../test/support';
-import type { FetchRoute } from '../test/support';
 import { getDb } from "../db";
 
 const env = completeEnv();
@@ -23,7 +22,7 @@ afterEach(() => {
 });
 
 function serve(...stubs: Stub[]) {
-  stubFetch(...(stubs.map((s) => s.route) as FetchRoute[]));
+  stubFetch(...stubs.map((s) => s.route));
 }
 
 function modulesStub(rows: { module: string }[]): Stub {

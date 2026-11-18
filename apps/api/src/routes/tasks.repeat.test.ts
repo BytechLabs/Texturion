@@ -155,7 +155,7 @@ describe("GET /v1/tasks: priority, labels, repeat", () => {
     const list = stubRoute(restMatch(env, "GET", "tasks"), () => rows);
     stubFetch(jwksRoute(auth), members(), list.route, ...tail());
     const first = await request("GET", "/v1/tasks?sort=priority&status=open&limit=1");
-    const body = (await first.json()) as { data: { id: string }[]; next_cursor: string | null };
+    const body = await first.json<{ data: { id: string }[]; next_cursor: string | null }>();
     expect(list.calls[0].url.searchParams.get("order")).toBe(
       "priority_rank.desc,created_at.desc,id.desc",
     );
@@ -194,9 +194,9 @@ describe("GET /v1/tasks: priority, labels, repeat", () => {
       }),
     );
     const response = await request("GET", "/v1/tasks?status=open");
-    const body = (await response.json()) as {
+    const body = await response.json<{
       data: { id: string; labels: { name: string }[]; repeat: unknown; priority: string }[];
-    };
+    }>();
     expect(body.data[0].labels.map((l) => l.name)).toEqual(["parts needed", "warranty"]);
     expect(body.data[0].repeat).toEqual({
       id: SERIES_ID,
@@ -256,7 +256,7 @@ describe("POST /v1/tasks: priority, labels, repeat", () => {
       p_task_id: TASK_ID,
       p_repeat: { kind: "after_done", unit: "month", every: 6 },
     });
-    const body = (await response.json()) as { repeat: { kind: string }; series_id: string };
+    const body = await response.json<{ repeat: { kind: string }; series_id: string }>();
     expect(body.repeat.kind).toBe("after_done");
   });
 
@@ -320,7 +320,7 @@ describe("PATCH /v1/tasks/:id: priority, repeat, scope", () => {
     const response = await request("PATCH", `/v1/tasks/${TASK_ID}`, { priority: "high" });
     expect(response.status).toBe(200);
     expect(update.calls[0].body).toMatchObject({ p_priority: "high" });
-    expect(((await response.json()) as { priority: string }).priority).toBe("high");
+    expect((await response.json<{ priority: string }>()).priority).toBe("high");
   });
 
   it("clears a repeat with null and sets one with an object", async () => {
@@ -437,7 +437,7 @@ describe("task labels", () => {
     const response = await request("POST", `/v1/tasks/${TASK_ID}/tags`, { tag_id: TAG_ID });
     expect(response.status).toBe(201);
     expect(set.calls[0].body).toMatchObject({ p_add: [TAG_ID], p_remove: null });
-    const body = (await response.json()) as { labels: unknown[] };
+    const body = await response.json<{ labels: unknown[] }>();
     expect(body.labels).toHaveLength(1);
   });
 

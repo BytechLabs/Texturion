@@ -18,7 +18,6 @@ import type { Env } from "../env";
 import { messageRow, restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
 import { completeEnv, stubFetch } from '../test/support';
-import type { FetchRoute } from '../test/support';
 import {
   buildOutboundPlacerState,
   buildOutboundState,
@@ -336,9 +335,9 @@ function serve(...stubs: Stub[]) {
     stubRoute(restMatch(env, "GET", "calls"), () => [{ id: "existing-row" }]),
   ];
   stubFetch(
-    ...([...stubs, ...callsModelStubs(), ...d43Defaults].map(
+    ...[...stubs, ...callsModelStubs(), ...d43Defaults].map(
       (s) => s.route,
-    ) as FetchRoute[]),
+    ),
   );
 }
 

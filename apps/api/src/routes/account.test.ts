@@ -90,11 +90,11 @@ function mailbox(sb: SupabaseStub, options: { fails?: boolean } = {}) {
     [];
   const route: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
-    const body = (await request.clone().json()) as {
+    const body = await request.clone().json<{
       to: string[];
       subject: string;
       text: string;
-    };
+    }>();
     sent.push({
       ...body,
       severedBefore: sb.find("PUT", /^\/auth\/v1\/admin\/users\//).length,
@@ -317,7 +317,7 @@ describe("DELETE /v1/account", () => {
       method: "DELETE",
     });
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("Brightside Plumbing");
     // Nothing was touched.
     expect(sb.find("POST", "/rest/v1/rpc/offboard_member")).toHaveLength(0);

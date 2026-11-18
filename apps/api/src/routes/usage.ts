@@ -35,7 +35,6 @@
  * empty history and zero storage — it cannot own files or media yet.
  */
 import { roleHasCapability } from '@loonext/shared';
-import type { MemberRole } from '@loonext/shared';
 import { Hono } from "hono";
 
 import { summarize } from "../messaging/delivery-by-country";
@@ -315,7 +314,7 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
    *
    * Owners hold it. So does the bookkeeper, whose whole preset is the books.
    */
-  const seesMoney = roleHasCapability(c.get("role") as MemberRole, "billing.manage");
+  const seesMoney = roleHasCapability(c.get("role"), "billing.manage");
 
   return c.json({
     status,

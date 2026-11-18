@@ -207,7 +207,7 @@ async function request(
 }
 
 async function errorCode(response: Response): Promise<string> {
-  const body = (await response.json()) as { error: { code: string } };
+  const body = await response.json<{ error: { code: string } }>();
   return body.error.code;
 }
 
@@ -242,7 +242,7 @@ describe("POST /v1/tasks — promote a message", () => {
           options.task ??
           taskRow({
             title,
-            description: (params.p_description as string | null) ?? "",
+            description: params.p_description ?? "",
             assigned_user_id: (params.p_assignee_ids as string[] | undefined)?.[0] ?? null,
             due_at: params.p_due_at ?? null,
             created_by_user_id: params.p_actor_user_id,
@@ -287,7 +287,7 @@ describe("POST /v1/tasks — promote a message", () => {
 
     // The returned task (the RPC's row) is echoed to the client with the
     // snippet default applied.
-    const body = (await response.json()) as { title: string };
+    const body = await response.json<{ title: string }>();
     expect(body.title).toBe("Hey the kitchen sink is leaking again");
   });
 
@@ -361,7 +361,7 @@ describe("POST /v1/tasks — promote a message", () => {
         p_contact_id: null,
         p_conversation_id: null,
       });
-      const body = (await response.json()) as Record<string, unknown>;
+      const body = await response.json<Record<string, unknown>>();
       expect(body).toMatchObject({ message_id: null, source: null });
     });
 
@@ -548,7 +548,7 @@ describe("POST /v1/tasks — promote a message", () => {
       p_title: "Call from Pat Plumber",
       p_actor_user_id: auth.subject,
     });
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body).toMatchObject({
       message_id: null,
       source_call_id: CALL_ID,
@@ -690,9 +690,9 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     stubFetch(jwksRoute(auth), membersRoute(), list.route);
 
     const response = await request("GET", "/v1/tasks?status=done");
-    const body = (await response.json()) as {
+    const body = await response.json<{
       data: { id: string; done: boolean; status: string; messages?: unknown }[];
-    };
+    }>();
     // Row 1: done_at null → open. Row 2: done_at set → done. The join artifact
     // is stripped from the response (completion is derived, not stored).
     expect(body.data[0]).toMatchObject({ done: false, status: "open" });
@@ -712,7 +712,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     stubFetch(jwksRoute(auth), membersRoute(), tasks.route, notes.route);
 
     const response = await request("GET", "/v1/tasks");
-    const body = (await response.json()) as { data: { source: unknown }[] };
+    const body = await response.json<{ data: { source: unknown }[] }>();
     expect(body.data[0].source).toEqual({ kind: "message", id: MESSAGE_ID, direction: "note" });
   });
 
@@ -742,9 +742,9 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     stubFetch(jwksRoute(auth), membersRoute(), list.route);
 
     const response = await request("GET", "/v1/tasks?status=done");
-    const body = (await response.json()) as {
+    const body = await response.json<{
       data: Record<string, unknown>[];
-    };
+    }>();
     expect(body.data[0]).toMatchObject({
       message_id: null,
       done: true,
@@ -805,7 +805,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
       "GET",
       "/v1/tasks?due_before=2026-12-01T00:00:00.000Z&limit=2",
     );
-    const b1 = (await r1.json()) as { data: unknown[]; next_cursor: string };
+    const b1 = await r1.json<{ data: unknown[]; next_cursor: string }>();
     expect(b1.data).toHaveLength(2);
     expect(b1.next_cursor).toBeTruthy();
     // Page 1 keyset order is (due_at NULLS LAST, id).
@@ -856,7 +856,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     const page1 = listStub([nullDue, nullDue2, nullDue3]);
     stubFetch(jwksRoute(auth), membersRoute(), page1.route);
     const r1 = await request("GET", "/v1/tasks?due_after=2026-01-01T00:00:00.000Z&limit=2");
-    const b1 = (await r1.json()) as { next_cursor: string };
+    const b1 = await r1.json<{ next_cursor: string }>();
 
     vi.unstubAllGlobals();
     const page2 = listStub([]);
@@ -884,7 +884,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     // Created-sorted page 1 (a filter that is NOT due-sorted): q= keeps status
     // default off the due path.
     const r1 = await request("GET", "/v1/tasks?assigned_user_id=me&limit=2");
-    const b1 = (await r1.json()) as { next_cursor: string };
+    const b1 = await r1.json<{ next_cursor: string }>();
     expect(b1.next_cursor).toBeTruthy();
 
     vi.unstubAllGlobals();
@@ -962,7 +962,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     ]);
     stubFetch(jwksRoute(auth), membersRoute(), list.route, crew.route, people.route);
     const response = await request("GET", `/v1/tasks?assigned_user_id=${OTHER_USER}`);
-    const body = (await response.json()) as { data: Record<string, unknown>[] };
+    const body = await response.json<{ data: Record<string, unknown>[] }>();
     expect(body.data[0].assignee_ids).toEqual([OTHER_USER, NOTE_AUTHOR]);
     expect(body.data[0].assignees).toEqual([
       { user_id: OTHER_USER, display_name: "Ana" },
@@ -1044,9 +1044,9 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), list.route);
     const response = await request("GET", "/v1/tasks?has_location=true");
     expect(response.status).toBe(200);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       data: Record<string, unknown>[];
-    };
+    }>();
     const row = body.data[0];
     // Derived + projected fields.
     expect(row.done).toBe(false);
@@ -1186,10 +1186,10 @@ describe("GET /v1/conversations/:id/tasks — checklist", () => {
       `/v1/conversations/${CONVERSATION_ID}/tasks`,
     );
     expect(response.status).toBe(200);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       data: { id: string; done: boolean; attachment_count: number }[];
       next_cursor?: string;
-    };
+    }>();
     expect(body).not.toHaveProperty("next_cursor");
     // attachment_count = the DERIVED union (1 MMS + 1 note file + 1 legacy
     // task row = 3), NOT just owner_type='task' rows (D28).
@@ -1298,10 +1298,10 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
 
     const response = await request("GET", `/v1/tasks/${TASK_ID}`);
     expect(response.status).toBe(200);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       activity: { kind: string; id: string; created_at: string }[];
       source_message: { id: string } | null;
-    };
+    }>();
     expect(body.source_message).toMatchObject({ id: MESSAGE_ID });
     // Merged + sorted oldest-first: the create event (12:00) then the note (13:00).
     expect(body.activity.map((a) => a.kind)).toEqual(["event", "note"]);
@@ -1353,7 +1353,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
     );
     const response = await request("GET", `/v1/tasks/${TASK_ID}`);
     expect(response.status).toBe(200);
-    expect(((await response.json()) as { contact: unknown }).contact).toBeNull();
+    expect((await response.json<{ contact: unknown }>()).contact).toBeNull();
   });
 
   it("a standalone task with no conversation: source null, linked contact, full access for a restricted member (#689)", async () => {
@@ -1388,7 +1388,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
 
     const response = await request("GET", `/v1/tasks/${TASK_ID}`);
     expect(response.status).toBe(200);
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body).toMatchObject({
       source: null,
       source_message: null,
@@ -1441,9 +1441,9 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
 
     const response = await request("GET", `/v1/tasks/${TASK_ID}`);
     expect(response.status).toBe(200);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       attachments: Record<string, unknown>[];
-    };
+    }>();
     // Three arms merged, (created_at, id) ASC: MMS 12:05 → legacy 13:00 →
     // note file 14:00. Gallery item shape, file_name null for carrier media,
     // and NO pre-signed url (the web mints one per item via /attachments/:id/url).
@@ -1599,9 +1599,9 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
 
     const response = await request("GET", `/v1/tasks/${TASK_ID}`);
     expect(response.status).toBe(200);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       attachments: { id: string; source: string; file_name: string }[];
-    };
+    }>();
     // The promoted note's own file is present (source 'note').
     expect(body.attachments).toEqual([
       {
@@ -1744,7 +1744,7 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
       p_assignee_ids: [OTHER_USER],
       p_actor_user_id: auth.subject,
     });
-    const body = (await response.json()) as { assigned_user_id: string };
+    const body = await response.json<{ assigned_user_id: string }>();
     expect(body.assigned_user_id).toBe(OTHER_USER);
   });
 
@@ -1830,7 +1830,7 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
     expect(stubs.update.calls).toHaveLength(1);
     expect(stubs.assign.calls).toHaveLength(1);
     // The freshest row (assign_task ran last) carries the assignee.
-    const body = (await response.json()) as { assigned_user_id: string };
+    const body = await response.json<{ assigned_user_id: string }>();
     expect(body.assigned_user_id).toBe(OTHER_USER);
   });
 
@@ -1931,7 +1931,7 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
     expect(response.status).toBe(200);
     // The RPC still runs (it is the atomic no-op guard), but returns the row.
     expect(stubs.update.calls).toHaveLength(1);
-    const body = (await response.json()) as { id: string };
+    const body = await response.json<{ id: string }>();
     expect(body.id).toBe(TASK_ID);
   });
 
@@ -2304,14 +2304,14 @@ describe("#106/#107 number access on tasks", () => {
 
     const response = await request("GET", `/v1/tasks/${TASK_ID}`);
     expect(response.status).toBe(200);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       id: string;
       title: string;
       viewer_level: string;
       source_message: unknown;
       attachments: unknown[];
       activity: unknown[];
-    };
+    }>();
     // Identity survives (global task); conversation content is withheld.
     expect(body).toMatchObject({
       id: TASK_ID,
@@ -2374,10 +2374,10 @@ describe("#106/#107 number access on tasks", () => {
 
     const response = await request("GET", `/v1/tasks/${TASK_ID}`);
     expect(response.status).toBe(200);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       viewer_level: string;
       source_message: { id: string } | null;
-    };
+    }>();
     expect(body.viewer_level).toBe("note");
     expect(body.source_message).toMatchObject({ id: MESSAGE_ID });
   });
@@ -2611,9 +2611,9 @@ describe("#689 D subscriber alerts raised by the task routes", () => {
       );
     };
     const subscribed = async () =>
-      ((await (await request("GET", `/v1/tasks/${TASK_ID}`)).json()) as {
+      (await (await request("GET", `/v1/tasks/${TASK_ID}`)).json<{
         subscribed: boolean;
-      }).subscribed;
+      }>()).subscribed;
 
     detail({ unsubscribed_at: null });
     expect(await subscribed()).toBe(true);

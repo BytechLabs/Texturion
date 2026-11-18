@@ -11,10 +11,10 @@ import type { Harness } from './support';
 async function setup(h: Harness) {
   const response = await h.call("/admin/setup", { caller: "admin", method: "POST" });
   expect(response.status).toBe(200);
-  return (await response.json()) as {
+  return await response.json<{
     steps: { resource: string; name: string; action: string; reason?: string }[];
     safety: { state: string; reasons: string[] };
-  };
+  }>();
 }
 
 function seedNotifications(h: Harness) {

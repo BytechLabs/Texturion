@@ -56,10 +56,10 @@ describe("#307 when this line is open", () => {
     // open today, and showing that before it changes is this dialog's job.
     open();
     expect(
-      (screen.getByLabelText("Monday open time") as HTMLInputElement).value,
+      screen.getByLabelText<HTMLInputElement>("Monday open time").value,
     ).toBe("08:00");
     expect(
-      (screen.getByLabelText("Monday close time") as HTMLInputElement).value,
+      screen.getByLabelText<HTMLInputElement>("Monday close time").value,
     ).toBe("17:00");
   });
 

@@ -53,7 +53,7 @@ describe("PUT /v1/appointment-reminders", () => {
     const { res, sb } = await save(rules);
 
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { rules: unknown[] }).rules).toHaveLength(2);
+    expect((await res.json<{ rules: unknown[] }>()).rules).toHaveLength(2);
     expect(sb.find("DELETE", "/rest/v1/appointment_reminder_rules")).toHaveLength(1);
     const inserted = sb.find("POST", "/rest/v1/appointment_reminder_rules")[0].body as {
       offset_minutes: number;

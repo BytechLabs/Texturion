@@ -223,7 +223,7 @@ function DestinationClock({ contact }: { contact: ContactDetail }) {
         : t("appShell.contactClockUnknown");
 
   function save(next: string | null) {
-    update.mutate({ timezone: next } as ContactPatch, {
+    update.mutate({ timezone: next }, {
       onSuccess: () => {
         setEditing(false);
         toast.success(

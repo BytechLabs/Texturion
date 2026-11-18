@@ -183,7 +183,7 @@ describe("#354 deleting a pipeline stage", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("stop counting");
     // Nothing was deleted while the question was being asked.
     expect(sb.find("DELETE", "/rest/v1/tags")).toHaveLength(0);
@@ -246,7 +246,7 @@ describe("#298 GET /v1/tags/usage", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { uses: number }[] };
+    const body = await res.json<{ data: { uses: number }[] }>();
     expect(body.data[0].uses).toBe(40);
   });
 });
@@ -309,7 +309,7 @@ describe("#298 POST /v1/tags/:id/merge", () => {
       { method: "POST", companyId: COMPANY_ID, body: { into_tag_id: INTO } },
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("win-rate");
   });
 

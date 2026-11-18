@@ -149,7 +149,7 @@ describe("the door", () => {
 
     const res = await publicRequest("/public/v1/me");
     expect(res.status).toBe(401);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // Nothing in the answer says which of the three it was — a public endpoint
     // that distinguishes them tells whoever is guessing which guess was real.
     expect(body.error.message).toBe("That API key is not valid.");
@@ -178,7 +178,7 @@ describe("the door", () => {
     // disabled — the capability gate downstream refused a caller with no role
     // and produced the same 403. A guard whose answer is indistinguishable
     // from its neighbour's is measuring the neighbour.
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("no longer active in this workspace");
   });
 
@@ -235,7 +235,7 @@ describe("scopes are the second gate", () => {
 
     const res = await publicRequest("/public/v1/contacts");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: unknown[]; limit: number };
+    const body = await res.json<{ data: unknown[]; limit: number }>();
     expect(body.data).toHaveLength(1);
     expect(body.limit).toBe(25);
 
@@ -259,7 +259,7 @@ describe("scopes are the second gate", () => {
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await publicRequest("/public/v1/contacts");
-    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    const body = await res.json<{ data: Record<string, unknown>[] }>();
     expect(body.data[0].tags).toEqual(["Commercial", "Warranty"]);
     expect(body.data[0]).not.toHaveProperty("contact_tags");
     expect(body.data[1].tags).toEqual([]);
@@ -680,9 +680,9 @@ describe("writes", () => {
     expect(res.status).toBe(201);
     expect(sb.find("POST", "/rest/v1/rpc/create_task")[0].body).toMatchObject({ p_priority: "high" });
     expect(sb.find("POST", "/rest/v1/rpc/api_set_task_tags")[0].body).toMatchObject({ p_add: [TAG] });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       priority: string; labels: { name: string }[]; repeat: { unit: string }; series_id?: string;
-    };
+    }>();
     expect(body.priority).toBe("high");
     expect(body.labels[0].name).toBe("inspection");
     expect(body.repeat.unit).toBe("year");
@@ -755,7 +755,7 @@ describe("writes", () => {
     expect(sb.find("POST", "/rest/v1/rpc/create_task")[0].body).toMatchObject({
       p_assignee_ids: [A, B],
     });
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.assigned_user_id).toBe(A);
     expect(body.assignee_ids).toEqual([A, B]);
     // Names stay internal.
@@ -804,7 +804,7 @@ describe("writes", () => {
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await publicRequest("/public/v1/tasks");
-    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    const body = await res.json<{ data: Record<string, unknown>[] }>();
     expect(body.data[0]).toMatchObject({
       message_id: "m1",
       source: { kind: "message", id: "m1" },
@@ -823,7 +823,7 @@ describe("writes", () => {
 
     const res = await publicRequest("/public/v1/tasks?limit=100000");
     expect(res.status).toBe(200);
-    expect((await res.json()) as { limit: number }).toMatchObject({ limit: 100 });
+    expect(await res.json<{ limit: number }>()).toMatchObject({ limit: 100 });
   });
 });
 
@@ -843,7 +843,7 @@ describe("REST hooks — how Zapier and Make actually work", () => {
       }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { secret_once: string };
+    const body = await res.json<{ secret_once: string }>();
     expect(body.secret_once.startsWith("whsec_")).toBe(true);
 
     const insert = sb.find("POST", "/rest/v1/webhook_endpoints")[0].body as {
@@ -1050,7 +1050,7 @@ describe("#581 a key cannot subscribe past its own scopes", () => {
     expect(res.status).toBe(403);
     // The refusal NAMES the scope. A connector author reading "forbidden"
     // learns nothing, and the next thing they try is a broader key.
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("messages:read");
     // And nothing was created on the way to refusing.
     expect(sb.find("POST", "/rest/v1/webhook_endpoints")).toHaveLength(0);
@@ -1072,7 +1072,7 @@ describe("#581 a key cannot subscribe past its own scopes", () => {
 
     expect(res.status).toBe(403);
     expect(
-      ((await res.json()) as { error: { message: string } }).error.message,
+      (await res.json<{ error: { message: string } }>()).error.message,
     ).toContain("conversations:read");
   });
 

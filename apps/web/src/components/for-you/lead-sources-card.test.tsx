@@ -16,7 +16,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { reportRef } = vi.hoisted(() => ({
-  reportRef: { current: null as unknown },
+  reportRef: { current: null },
 }));
 
 vi.mock("@/lib/api/reports", () => ({

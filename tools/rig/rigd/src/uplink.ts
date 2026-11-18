@@ -226,7 +226,7 @@ export class Uplink {
   }
 
   async #media(frame: MediaFrame): Promise<void> {
-    const result = await this.#o.handlers.media(frame).catch(() => ({ status: 502 }) as MediaResult);
+    const result = await this.#o.handlers.media(frame).catch(() => ({ status: 502 }));
     this.#send({ t: "media-result", id: frame.id, ...result });
   }
 

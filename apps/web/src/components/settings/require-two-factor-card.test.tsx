@@ -351,9 +351,9 @@ async function answer(digits: string) {
 
 /** The submit, once it has stopped offering to submit. */
 function busySubmit(): HTMLButtonElement {
-  return screen.getByRole("button", {
+  return screen.getByRole<HTMLButtonElement>("button", {
     name: HANDOVER_CONFIRM_SUBMITTING,
-  }) as HTMLButtonElement;
+  });
 }
 
 /** The input the save was retried with, or undefined if it never was. */
@@ -514,11 +514,9 @@ describe("…and when the server asks who is doing this", () => {
     // the old one invalidates the digits in flight — the same lockout, from the
     // other end.
     expect(
-      (
-        screen.getByRole("button", {
+      screen.getByRole<HTMLButtonElement>("button", {
           name: sayEnglish(HANDOVER_CONFIRM_RESEND),
-        }) as HTMLButtonElement
-      ).disabled,
+        }).disabled,
     ).toBe(true);
   });
 
@@ -670,9 +668,9 @@ describe("…and the second press before the first save lands", () => {
     expect(mutate).toHaveBeenCalledOnce();
 
     const toggle = () =>
-      screen.getByRole("switch", {
+      screen.getByRole<HTMLButtonElement>("switch", {
         name: "Require two-factor authentication",
-      }) as HTMLButtonElement;
+      });
     expect(toggle().disabled).toBe(true);
 
     // And it has to absorb the press, not merely look spent. `disabled` on a Radix
@@ -693,7 +691,7 @@ describe("…and the second press before the first save lands", () => {
     flipTheSwitch();
 
     const requireIt = () =>
-      screen.getByRole("button", { name: "Require it" }) as HTMLButtonElement;
+      screen.getByRole<HTMLButtonElement>("button", { name: "Require it" });
 
     fireEvent.click(requireIt());
     expect(mutate).toHaveBeenCalledOnce();

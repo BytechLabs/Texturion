@@ -19,9 +19,11 @@ import { useMe } from "@/lib/api/me";
 import type { CompanyView, Me } from "@/lib/api/types";
 import type { SessionStatus } from "@/lib/auth/use-session-ready";
 
-const { api, session, nav } = vi.hoisted(() => ({
+const session = vi.hoisted<{ current: SessionStatus }>(() => ({
+  current: { state: "ready", userId: "user-1" },
+}));
+const { api, nav } = vi.hoisted(() => ({
   api: vi.fn<(path: string, options?: { companyId?: string }) => Promise<unknown>>(),
-  session: { current: { state: "ready", userId: "user-1" } as SessionStatus },
   nav: { pathname: "/inbox", replace: vi.fn() },
 }));
 
@@ -57,7 +59,7 @@ const me: Me = {
       name: "Rivera Plumbing",
       role: "member",
       subscription_status: "active",
-    } as Me["memberships"][number],
+    },
   ],
 };
 

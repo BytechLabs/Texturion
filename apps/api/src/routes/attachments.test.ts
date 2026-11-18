@@ -204,11 +204,11 @@ describe("GET /v1/attachments/:id/url", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       url: string;
       expires_at: string;
       ttl_seconds: number;
-    };
+    }>();
     expect(body.url).toContain("token=sig");
     // Generic TTL is 300s (D19 §2.5), said beside the URL so a client can
     // cache it for exactly as long as it works.
@@ -434,7 +434,7 @@ describe("GET /v1/attachments/:id/url", () => {
     async function mintedUrl(sb: SupabaseStub): Promise<string> {
       const res = await mint(sb);
       expect(res.status).toBe(200);
-      return ((await res.json()) as { url: string }).url;
+      return (await res.json<{ url: string }>()).url;
     }
 
     async function mint(sb: SupabaseStub): Promise<Response> {
@@ -529,11 +529,11 @@ describe("GET /v1/attachments/:id/url", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       url: string;
       expires_at: string;
       ttl_seconds: number;
-    };
+    }>();
     expect(body.url).toContain("token=sig");
     expect(body.ttl_seconds).toBe(3600);
     const expires = new Date(body.expires_at).getTime();
@@ -587,9 +587,9 @@ describe("GET /v1/attachments/:id/url", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(402);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       error: { code: string; message: string };
-    };
+    }>();
     expect(body.error.code).toBe("usage_cap_reached");
     expect(body.error.message).toContain("200 GB");
     // Cap-and-drop: over the allowance, NOTHING is signed.
@@ -855,10 +855,10 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     stubSigning(sb);
     const res = await mintBatch(sb, everything);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: Record<string, unknown>[];
       errors: { id: string; code: string; message: string }[];
-    };
+    }>();
 
     expect(body.data).toEqual([
       expect.objectContaining({
@@ -957,10 +957,10 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     stubSigning(sb);
     const res = await mintBatch(sb, [{ id: PHOTO, variant: "original" }, { id: TEXTED }]);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string }[];
       errors: { id: string; requested_variant: string; code: string }[];
-    };
+    }>();
     expect(body.data.map((item) => item.id)).toEqual([TEXTED]);
     expect(body.errors).toEqual([
       expect.objectContaining({
@@ -985,7 +985,7 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     const res = await mintBatch(
       sb,
       [{ id: PHOTO }, { id: TEXTED }, { id: MISSING }],
-      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter } as typeof env,
+      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter },
     );
     expect(res.status).toBe(200);
     expect(keys).toEqual(
@@ -999,7 +999,7 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     const res = await mintBatch(
       sb,
       [{ id: PHOTO }],
-      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter } as typeof env,
+      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter },
     );
     expect(res.status).toBe(429);
     expect(sb.find("GET", "/rest/v1/attachments")).toHaveLength(0);
@@ -1018,10 +1018,10 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     });
     const res = await mintBatch(sb, [{ id: PHOTO }, { id: TEXTED }]);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string }[];
       errors: { id: string; code: string }[];
-    };
+    }>();
     expect(body.data.map((item) => item.id)).toEqual([PHOTO]);
     expect(body.errors).toEqual([
       expect.objectContaining({ id: TEXTED, code: "internal_error" }),
@@ -1048,7 +1048,7 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     const signs = sb.find("POST", /^\/storage\/v1\/object\/sign\//);
     // Two images inline in one call, the PDF as a download in another.
     expect(signs).toHaveLength(2);
-    const body = (await res.json()) as { data: { id: string; url: string }[] };
+    const body = await res.json<{ data: { id: string; url: string }[] }>();
     const pdf = body.data.find((item) => item.id === HIDDEN);
     expect(pdf?.url).toMatch(/[?&]download(=|$)/);
     const photo = body.data.find((item) => item.id === PHOTO);
@@ -1281,7 +1281,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => {
         write += 1;
         return write === 1
-          ? ({ Key: "attachments/x" } as unknown as Record<string, unknown>)
+          ? ({ Key: "attachments/x" })
           : new Response(JSON.stringify({ message: "storage is having a day" }), {
               status: 500,
             });
@@ -1503,7 +1503,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       },
     );
     expect(res.status).toBe(201);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body).toMatchObject({ owner_type: "note", owner_id: NOTE_ID });
     // Never leaks storage_path (the RPC returns to_jsonb of the full row; the
     // route projects to the API columns).
@@ -1587,9 +1587,9 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       error: { code: string; message: string };
-    };
+    }>();
     expect(body.error.code).toBe("validation_failed");
     expect(body.error.message).toContain("attach them to a note");
     // Rejected before any owner lookup, storage, or insert work.
@@ -1835,7 +1835,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
     acceptUpload(sb);
     const res = await uploadPng(sb);
     expect(res.status).toBe(201);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body).toMatchObject({ id: ATTACHMENT_ID, owner_type: "note" });
     // Claim → upload → audit event, all landed.
     const claim = sb.find("POST", "/rest/v1/rpc/claim_attachment_storage")[0];
@@ -1959,7 +1959,7 @@ describe("GET /v1/attachments (list one owner)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: unknown[] };
+    const body = await res.json<{ data: unknown[] }>();
     expect(body.data).toHaveLength(1);
     const call = sb.find("GET", "/rest/v1/attachments")[0];
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
@@ -2414,7 +2414,7 @@ describe("POST /v1/attachments/:id/report — a member pulls a file back for eve
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(403);
-    const held = (await res.json()) as { error: { message: string } };
+    const held = await res.json<{ error: { message: string } }>();
     expect(held.error.message).toContain("on hold");
     // Refused BEFORE signing: no URL was ever minted for a held file.
     expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)).toHaveLength(0);

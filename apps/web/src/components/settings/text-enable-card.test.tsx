@@ -326,11 +326,11 @@ function retriedWith(): { numberId?: string; code?: string } {
 
 /** The one control that ends texting for good, inside the release dialog. */
 const removeTexting = () =>
-  screen.getByRole("button", { name: "Remove texting" }) as HTMLButtonElement;
+  screen.getByRole<HTMLButtonElement>("button", { name: "Remove texting" });
 
 /** The box the number is typed into. */
 const confirmBox = () =>
-  screen.getByLabelText(/to confirm/) as HTMLInputElement;
+  screen.getByLabelText<HTMLInputElement>(/to confirm/);
 
 /** Mount the card, open the release dialog, and stop there. */
 function openTheDialog(order: TextEnablement = ORDER) {
@@ -793,9 +793,9 @@ describe("what keeps the release two presses deep", () => {
     // Found by the in-flight label, and PRESSED — "disabled" is the mechanism and
     // the second DELETE is the consequence, and it is the consequence that is
     // irreversible.
-    const inFlight = screen.getByRole("button", {
+    const inFlight = screen.getByRole<HTMLButtonElement>("button", {
       name: "Releasing…",
-    }) as HTMLButtonElement;
+    });
     fireEvent.click(inFlight);
 
     expect(
@@ -899,9 +899,9 @@ describe("withdrawing a text-enablement order", () => {
 
   /** The control that actually sends it. */
   const withdraw = () =>
-    screen.getByRole("button", {
+    screen.getByRole<HTMLButtonElement>("button", {
       name: /^(Cancel text-enablement|Cancelling…)$/,
-    }) as HTMLButtonElement;
+    });
 
   it("sends one withdrawal however many times it is pressed", () => {
     openCancel();

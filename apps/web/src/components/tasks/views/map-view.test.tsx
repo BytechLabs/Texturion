@@ -61,11 +61,11 @@ describe("Map view empty states (#752)", () => {
   it("asks for one row without the location filter, and only once nothing is located", () => {
     answer(page([]), page([{ id: "a" }]));
     render(<MapView state={state} />);
-    const [filters, options] = useTasks.mock.calls[0]!;
+    const [filters, options] = useTasks.mock.calls[0];
     expect(filters).toMatchObject({ limit: 1 });
     expect(filters.has_location).toBeUndefined();
     expect(options).toEqual({ enabled: true });
-    expect(useAllTasks.mock.calls[0]![0]).toMatchObject({ has_location: true });
+    expect(useAllTasks.mock.calls[0][0]).toMatchObject({ has_location: true });
   });
 
   it("falls back to the plain empty state only when there are no tasks at all", () => {

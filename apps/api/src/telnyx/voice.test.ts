@@ -12,7 +12,6 @@ import type { Env } from "../env";
 import { restMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
 import { completeEnv, stubFetch } from '../test/support';
-import type { FetchRoute } from '../test/support';
 import { effectiveCnamDisplayName, enableVoiceOnNumber, reconcileVoiceEnablement, sanitizeCnamDisplayName, syncCallSettingsForCompany } from './voice';
 import type { VoiceNumberRow } from './voice';
 
@@ -98,7 +97,7 @@ function voiceSettingsPatch(): Stub {
 }
 
 function serve(...stubs: Stub[]) {
-  stubFetch(...(stubs.map((s) => s.route) as FetchRoute[]));
+  stubFetch(...stubs.map((s) => s.route));
 }
 
 describe(enableVoiceOnNumber, () => {

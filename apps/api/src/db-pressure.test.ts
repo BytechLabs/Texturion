@@ -127,9 +127,9 @@ describe("#251 a request that saw the database refuse stops asking it", () => {
 
     expect(res.status).toBe(503);
     expect(Number(res.headers.get("Retry-After"))).toBeGreaterThan(0);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       error: { code: string; message: string; request_id?: string };
-    };
+    }>();
     expect(body.error.code).toBe("service_unavailable");
     expect(body.error.request_id).toBe("ray-abc-YYZ");
     // The sentence is ours. It never carries the driver's words.

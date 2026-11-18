@@ -68,7 +68,7 @@ describe("GET /v1/audit-log", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: unknown[]; next_cursor: null };
+    const body = await res.json<{ data: unknown[]; next_cursor: null }>();
     expect(body.data).toHaveLength(1);
     expect(body.next_cursor).toBeNull();
 
@@ -106,10 +106,10 @@ describe("GET /v1/audit-log", () => {
       "/v1/audit-log?limit=1",
       { companyId: COMPANY_ID },
     );
-    const body = (await first.json()) as {
+    const body = await first.json<{
       data: { id: string }[];
       next_cursor: string;
-    };
+    }>();
     expect(body.data).toHaveLength(1);
     expect(body.next_cursor).toBe(
       "2026-07-20T15:04:05+00:00|aaaaaaaa-0000-4000-8000-000000000001",

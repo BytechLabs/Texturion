@@ -87,7 +87,7 @@ describe("conversation snooze and follow-up submenus", () => {
     expect(snoozePresets).toHaveBeenCalledTimes(1);
     expect(followUpPresets).toHaveBeenCalledTimes(1);
 
-    const presets = snoozePresets.mock.results[0]!.value as { id: string; at: number }[];
+    const presets = snoozePresets.mock.results[0].value as { id: string; at: number }[];
     expect(snooze.map((item) => item.id)).toEqual([
       ...presets.map((preset) => preset.id),
       "custom",

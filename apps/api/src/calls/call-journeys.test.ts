@@ -140,7 +140,7 @@ function inMemoryPostgrest(tables: Record<string, Row[]>, rpcs: Record<string, R
         surprises.push(`${request.method} ${url.pathname}`);
         throw new Error(`in-memory PostgREST: unexpected ${request.method} ${url.pathname}`);
       }
-      return Response.json(rpc((await request.json()) as Row));
+      return Response.json(rpc(await request.json<Row>()));
     }
 
     const rows = tables[path];
@@ -160,7 +160,7 @@ function inMemoryPostgrest(tables: Record<string, Row[]>, rpcs: Record<string, R
         : Response.json(project(limited, select), { headers });
     }
     if (request.method === "POST") {
-      const body = (await request.json()) as Row | Row[];
+      const body = await request.json<Row | Row[]>();
       const conflict = (url.searchParams.get("on_conflict") ?? "").split(",").filter(Boolean);
       const ignore = prefer.includes("ignore-duplicates");
       const written: Row[] = [];
@@ -184,7 +184,7 @@ function inMemoryPostgrest(tables: Record<string, Row[]>, rpcs: Record<string, R
         : new Response(null, { status: 201 });
     }
     if (request.method === "PATCH") {
-      const body = (await request.json()) as Row;
+      const body = await request.json<Row>();
       const updated = rows.filter((row) => matches(row, url.searchParams));
       for (const row of updated) Object.assign(row, body);
       return representation ? Response.json(project(updated, select)) : new Response(null, { status: 204 });
@@ -437,7 +437,7 @@ const driver = (): JourneyDriver => ({
       phone_number_id: (crew as SeededCrew).phoneNumberId,
     });
     expect(placed.status, await placed.clone().text()).toBe(200);
-    return ((await placed.json()) as { call_session_id: string }).call_session_id;
+    return (await placed.json<{ call_session_id: string }>()).call_session_id;
   },
   async transfer(crew, sessionId, sender, target) {
     const transferred = await as(sender, crew, `/v1/calls/live/${sessionId}/transfer`, {
@@ -513,7 +513,7 @@ async function seedCrew(journey: string, size: number): Promise<SeededCrew> {
   for (const userId of userIds) {
     const minted = await as({ userId, sipUsername: "" }, crew, "/v1/webrtc/token");
     expect(minted.status, await minted.clone().text()).toBe(200);
-    const { sip_username: sipUsername } = (await minted.json()) as { sip_username: string };
+    const { sip_username: sipUsername } = await minted.json<{ sip_username: string }>();
     crew.members.push({ userId, sipUsername });
   }
   return crew;

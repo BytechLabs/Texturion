@@ -292,9 +292,9 @@ describe("GET /v1/contacts", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string; opted_out: boolean; last_activity_at: string | null }[];
-    };
+    }>();
     expect(body.data).toEqual([
       expect.objectContaining({
         id: CONTACT_ID,
@@ -584,7 +584,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.first_conversation_at).toBe("2026-03-04T10:00:00+00:00");
     expect(body).toHaveProperty("conversation_count");
 
@@ -660,10 +660,10 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       { method: "PATCH", companyId: COMPANY_ID, body: { name: "Jo S." } },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       opted_out: boolean;
       opt_out_source: string | null;
-    };
+    }>();
     expect(body.opted_out).toBe(true);
     expect(body.opt_out_source).toBe("stop_keyword");
   });
@@ -794,7 +794,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONSENT_ATTEST_REFUSED_OPTED_OUT);
     // Whole request or nothing: a saved name beside a refused attestation is a
     // response that looks like success while the one thing they asked for did
@@ -835,7 +835,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONSENT_ATTEST_ALREADY_RECORDED);
     expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
   });
@@ -880,7 +880,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONSENT_ATTEST_REFUSED_OPTED_OUT);
     expect(body.error.message).not.toBe(CONSENT_ATTEST_ALREADY_RECORDED);
     expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
@@ -1143,10 +1143,10 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       entries: { kind: string; answered_by_user_id?: string }[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.entries.map((e) => e.kind)).toEqual(["conversation", "call"]);
     // #517: the call row carries its answerer; the conversation row does not
     // grow a field it has no meaning for.
@@ -1208,7 +1208,7 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
       `/v1/contacts/${CONTACT_ID}/timeline?limit=50`,
       { companyId: COMPANY_ID },
     );
-    expect(((await res.json()) as { next_cursor: string | null }).next_cursor).toBeNull();
+    expect((await res.json<{ next_cursor: string | null }>()).next_cursor).toBeNull();
   });
 
   it("404s an unknown contact BEFORE reading the timeline", async () => {
@@ -1390,7 +1390,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.created_by_name).toBeNull();
     expect(body.updated_by_name).toBeNull();
     // No actor ids → no profiles round-trip.
@@ -1416,7 +1416,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect((await res.json()) as Record<string, unknown>).toMatchObject({
+    expect(await res.json<Record<string, unknown>>()).toMatchObject({
       created_by_user_id: auth.subject,
       created_by_name: null,
     });
@@ -1558,9 +1558,9 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { created_by_name: string | null }[];
-    };
+    }>();
     expect(body.data[0].created_by_name).toBe("Casey Owner");
   });
 });
@@ -1588,7 +1588,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     );
 
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("validation_failed");
     expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
   });
@@ -1612,7 +1612,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
 
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
   });
 
@@ -1821,7 +1821,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
     expect(res.status).toBe(429);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("rate_limited");
     expect(keys).toEqual([`contact-import:${COMPANY_ID}`]);
     // Refused before the body was read: no contacts were touched.
@@ -2630,7 +2630,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("validation_failed");
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
@@ -2661,7 +2661,7 @@ describe("import row numbering", () => {
     );
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { errors: { row: number; reason: string }[] };
+    const body = await res.json<{ errors: { row: number; reason: string }[] }>();
     expect(body.errors).toEqual([
       { row: 3, reason: "invalid phone: not-a-phone" },
     ]);
@@ -2852,7 +2852,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // The shipped sentence, so a reworded refusal is rewritten in one place
     // rather than agreed with in two. `phone` and `name` are named too: this
     // gate does not ask which columns look suspicious, it asks whether every
@@ -2904,7 +2904,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUndeclaredColumnsMessage(
         [{ index: 2, header: "Marketing Status" }],
@@ -3009,7 +3009,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUndeclaredColumnsMessage([{ index: 2, header: "" }], 3),
     );
@@ -3043,7 +3043,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUndeclaredColumnsMessage([{ index: 3, header: "" }], 4),
     );
@@ -3120,7 +3120,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportColumnMismatchMessage(
         `column 3 was declared as "Marketing status" and this file calls it "Marketing Status"`,
@@ -3159,7 +3159,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // Named by POSITION, and the first one wrong is the one reported.
     expect(body.error.message).toBe(
       contactImportColumnMismatchMessage(
@@ -3215,7 +3215,7 @@ describe("#248 every column of the file is answered for", () => {
         },
       );
       expect(res.status, detail).toBe(422);
-      const body = (await res.json()) as { error: { message: string } };
+      const body = await res.json<{ error: { message: string } }>();
       expect(body.error.message).toBe(contactImportColumnMismatchMessage(detail));
       expect(sb.find("POST", "/rest/v1/contacts"), detail).toHaveLength(0);
     }
@@ -3298,7 +3298,7 @@ describe("#248 every column of the file is answered for", () => {
         { method: "POST", companyId: COMPANY_ID, rawBody: form },
       );
       expect(res.status, raw).toBe(422);
-      const body = (await res.json()) as { error: { message: string } };
+      const body = await res.json<{ error: { message: string } }>();
       // The exact sentence, so a lenient parser that reads it as SOME column is
       // caught by the message even when it still ends in a 422.
       expect(body.error.message, raw).toBe(
@@ -3408,7 +3408,7 @@ describe("#248 every column of the file is answered for", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUnreadableFlagMessage("Do Not Contact", [
         "Subscribed",
@@ -3476,7 +3476,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       `file: too many rows (max ${CONTACT_IMPORT_MAX_ROWS}).`,
     );
@@ -3528,7 +3528,7 @@ describe("#248 H5 a file that cannot be read is refused, not half-read", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // The shipped sentence, naming the line the quote OPENED on — by EOF the
     // position is the one place in the file that looks fine.
     expect(body.error.message).toBe(contactImportUnterminatedQuoteMessage(3));
@@ -3563,7 +3563,7 @@ describe("#248 H5 a file that cannot be read is refused, not half-read", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: form },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONTACT_IMPORT_UNREADABLE_ENCODING);
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
@@ -3590,7 +3590,7 @@ describe("#248 H5 a file that cannot be read is refused, not half-read", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: form },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONTACT_IMPORT_UNREADABLE_ENCODING);
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
@@ -3664,7 +3664,7 @@ describe("#248 the import bounds a file has to stay inside", () => {
       },
     );
     expect(over.status).toBe(422);
-    const body = (await over.json()) as { error: { message: string } };
+    const body = await over.json<{ error: { message: string } }>();
     expect(body.error.message).toContain(String(CONTACT_IMPORT_MAX_ROWS));
 
     const atCap = await apiRequest(
@@ -3700,7 +3700,7 @@ describe("#248 the import bounds a file has to stay inside", () => {
         { method: "POST", companyId: COMPANY_ID, rawBody: form },
       );
       expect(res.status).toBe(422);
-      const body = (await res.json()) as { error: { message: string } };
+      const body = await res.json<{ error: { message: string } }>();
       expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
     }
   });
@@ -3792,10 +3792,10 @@ describe("#248 what an import says about the rows it refused", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       consent_refused: number;
       consent_refusals: { row: number; reason: string }[];
-    };
+    }>();
     expect(body.consent_refusals).toHaveLength(stopped.length);
     expect(body.consent_refused).toBe(body.consent_refusals.length);
     expect(body.consent_refusals.map((r) => r.reason)).toEqual(
@@ -4003,7 +4003,7 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("texting START");
     // The ledger and the timeline are both untouched — a refusal that still
     // wrote would leave the same contradiction it exists to prevent.
@@ -4028,10 +4028,10 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       opted_out: boolean;
       opt_out_source: string | null;
-    };
+    }>();
     expect(body.opted_out).toBe(true);
     expect(body.opt_out_source).toBe("stop_keyword");
   });
@@ -4396,7 +4396,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("validation_failed");
     // The same sentence the CSV route answers with — one gate, one wording.
     expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
@@ -4566,12 +4566,12 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       imported: number;
       updated: number;
       skipped: number;
       errors: { row: number; reason: string }[];
-    };
+    }>();
     // Three distinct valid numbers across the cards (Alice ×1, Bob ×2).
     expect(body.imported).toBe(3);
     expect(body.updated).toBe(0);
@@ -4614,7 +4614,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { imported: number; updated: number };
+    const body = await res.json<{ imported: number; updated: number }>();
     expect(body.imported).toBe(0);
     expect(body.updated).toBe(1);
   });
@@ -4648,11 +4648,11 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       imported: number;
       skipped: number;
       errors: { row: number; reason: string }[];
-    };
+    }>();
     expect(body.imported).toBe(1); // only +14165550111, once
     const reasons = body.errors.map((e) => e.reason);
     expect(reasons.some((r) => r.startsWith("invalid phone"))).toBe(true);
@@ -4712,7 +4712,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("validation_failed");
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
@@ -4763,7 +4763,7 @@ describe("#248 every property on the cards is answered for", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUndeclaredPropertiesMessage(["CATEGORIES", "NOTE"]),
     );
@@ -5034,7 +5034,7 @@ describe("#248 every property on the cards is answered for", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // Both parameters, under the shared token shape — a client that enumerated
     // fewer than the server does is refused forever, so the two have to agree
     // on the string as well as on the rule.
@@ -5141,7 +5141,7 @@ describe("#248 every property on the cards is answered for", () => {
         { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
       );
       expect(res.status, line).toBe(422);
-      const body = (await res.json()) as { error: { message: string } };
+      const body = await res.json<{ error: { message: string } }>();
       expect(body.error.message, line).toBe(
         contactImportUndeclaredPropertiesMessage(expected),
       );
@@ -5180,7 +5180,7 @@ describe("#248 every property on the cards is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUndeclaredPropertiesMessage(["X-DNC"]),
     );
@@ -5434,7 +5434,7 @@ describe("#246 merging two contacts for the same customer", () => {
       },
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("surviving contact");
   });
 
@@ -5507,7 +5507,7 @@ describe("#246 merging two contacts for the same customer", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { reason: string }[] };
+    const body = await res.json<{ data: { reason: string }[] }>();
     expect(body.data[0].reason).toBe("same digits");
   });
 });
@@ -5763,7 +5763,7 @@ describe("#291 contact addresses", () => {
     );
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { addresses: unknown[] };
+    const body = await res.json<{ addresses: unknown[] }>();
     expect(body.addresses).toHaveLength(1);
   });
 });
@@ -5798,7 +5798,7 @@ describe("contact field definitions", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { key: string }[]; cap: number };
+    const body = await res.json<{ data: { key: string }[]; cap: number }>();
     expect(body.data.map((f) => f.key)).toEqual(["boiler_model", "gate_code"]);
     // The cap travels with the list so the UI can say "that is all 10" without
     // hardcoding a number that then drifts from the server's.
@@ -6367,7 +6367,7 @@ describe("searching a customer's other numbers", () => {
       "/v1/contacts?q=555",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { data: { id: string }[] };
+    const body = await res.json<{ data: { id: string }[] }>();
     expect(body.data.map((row) => row.id).sort()).toEqual(
       [CONTACT_ID, OTHER_ID].sort(),
     );
@@ -6391,7 +6391,7 @@ describe("searching a customer's other numbers", () => {
       "/v1/contacts?q=555",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { data: { id: string }[] };
+    const body = await res.json<{ data: { id: string }[] }>();
     expect(body.data).toHaveLength(1);
   });
 
@@ -6466,7 +6466,7 @@ describe("searching a customer's other numbers", () => {
       "/v1/contacts?q=555",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { data: { id: string }[] };
+    const body = await res.json<{ data: { id: string }[] }>();
     expect(body.data.map((row) => row.id)).toEqual([OTHER_ID, CONTACT_ID]);
   });
 });

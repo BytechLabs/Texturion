@@ -24,7 +24,7 @@ const NOW = new Date("2026-08-05T12:00:00.000Z");
 
 function thread(
   count: number,
-  { idleMs = 0, direction = "inbound" as MessageDirection } = {},
+  { idleMs = 0, direction = "inbound" }: { idleMs?: number; direction?: MessageDirection } = {},
 ): { direction: MessageDirection; created_at: string }[] {
   const newest = NOW.getTime() - idleMs;
   return Array.from({ length: count }, (_, index) => ({

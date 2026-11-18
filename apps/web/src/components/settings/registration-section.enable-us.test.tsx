@@ -202,8 +202,7 @@ describe("#525 enabling US texting while the plan is paused", () => {
       expect((button as HTMLButtonElement).disabled).toBe(false);
       openTheDialog();
       expect(
-        (screen.getByRole("button", { name: "Enable US texting" }) as
-          HTMLButtonElement).disabled,
+        screen.getByRole<HTMLButtonElement>("button", { name: "Enable US texting" }).disabled,
       ).toBe(false);
       cleanup();
     }

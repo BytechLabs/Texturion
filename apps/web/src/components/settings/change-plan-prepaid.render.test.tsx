@@ -202,6 +202,6 @@ describe("#583 consent", () => {
     fireEvent.click(screen.getByRole("button", { name: "Upgrade to Pro" }));
 
     expect(switchButton().disabled).toBe(true);
-    expect((screen.getByRole("checkbox") as HTMLInputElement).checked).toBe(false);
+    expect(screen.getByRole<HTMLInputElement>("checkbox").checked).toBe(false);
   });
 });

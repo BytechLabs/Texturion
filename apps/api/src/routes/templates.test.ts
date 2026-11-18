@@ -74,9 +74,9 @@ describe("templates CRUD (#461: read is a member's, curating is admin's)", () =>
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string; updated_by_name: string | null }[];
-    };
+    }>();
     expect(body.data[0].updated_by_name).toBe("Sam");
     expect(body.data[1].updated_by_name).toBeNull();
 

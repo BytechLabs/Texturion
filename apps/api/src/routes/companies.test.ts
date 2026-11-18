@@ -51,7 +51,7 @@ const validBody = {
 };
 
 async function errorCodeOf(response: Response): Promise<string> {
-  const body = (await response.json()) as { error: { code: string } };
+  const body = await response.json<{ error: { code: string } }>();
   return body.error.code;
 }
 
@@ -583,7 +583,7 @@ describe("GET /v1/company", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { numbers: { id: string }[] };
+    const body = await res.json<{ numbers: { id: string }[] }>();
     expect(body.numbers.map((n) => n.id)).toEqual([VISIBLE]);
   });
 
@@ -760,7 +760,7 @@ describe("GET /v1/company — billing fields follow billing.manage (#515)", () =
       companyId: COMPANY_ID,
     });
     expect(res.status, role).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     vi.unstubAllGlobals();
     return body;
   }
@@ -956,7 +956,7 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       { method: "PATCH", companyId: COMPANY_ID, body: { name: "New Name" } },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { billing_writes_enabled: boolean };
+    const body = await res.json<{ billing_writes_enabled: boolean }>();
     expect(body.billing_writes_enabled).toBe(false);
   });
 

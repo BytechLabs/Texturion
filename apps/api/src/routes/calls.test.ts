@@ -101,7 +101,7 @@ describe("GET /v1/calls", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { answered_by_name: string | null }[] };
+    const body = await res.json<{ data: { answered_by_name: string | null }[] }>();
     expect(body.data[0].answered_by_name).toBe("Sam Owner");
     // The lookup was scoped to the page's actor ids.
     const lookup = sb.find("GET", "/rest/v1/profiles");
@@ -116,7 +116,7 @@ describe("GET /v1/calls", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { answered_by_name: string | null }[] };
+    const body = await res.json<{ data: { answered_by_name: string | null }[] }>();
     expect(body.data[0].answered_by_name).toBeNull();
     // No actor ids on the page → the profiles lookup is skipped entirely.
     expect(sb.find("GET", "/rest/v1/profiles")).toHaveLength(0);
@@ -133,7 +133,7 @@ describe("GET /v1/calls", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/calls", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as { data: { allowed_actions?: string[] }[] };
+    const body = await res.json<{ data: { allowed_actions?: string[] }[] }>();
     expect(body.data[0].allowed_actions).toEqual(["call_back"]);
     expect(body.data[1].allowed_actions).toEqual(["hang_up", "transfer"]);
     expect(body.data[2].allowed_actions).toBeUndefined();
@@ -212,7 +212,7 @@ describe("GET /v1/calls", () => {
       { companyId: COMPANY_ID },
     );
     expect(ok.status).toBe(200);
-    const body = (await ok.json()) as { data: { contact_id: string }[] };
+    const body = await ok.json<{ data: { contact_id: string }[] }>();
     expect(body.data).toHaveLength(1);
     expect(body.data[0].contact_id).toBe(contactId);
     expect(
@@ -296,10 +296,10 @@ describe("GET /v1/calls", () => {
       { companyId: COMPANY_ID },
     );
     expect(first.status).toBe(200);
-    const page = (await first.json()) as {
+    const page = await first.json<{
       data: unknown[];
       next_cursor: string | null;
-    };
+    }>();
     expect(page.data).toHaveLength(1);
     expect(page.next_cursor).toEqual(expect.any(String));
 
@@ -339,10 +339,10 @@ describe("GET /v1/calls", () => {
       "/v1/calls?limit=1",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: unknown[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.data).toHaveLength(1);
     expect(body.next_cursor).toEqual(expect.any(String));
   });
@@ -464,12 +464,12 @@ describe("POST /v1/calls/browser (D43)", () => {
       { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
     );
     expect(res.status).toBe(200);
-    const bodyOut = (await res.json()) as {
+    const bodyOut = await res.json<{
       from: string;
       to: string;
       client_state: string;
       call_session_id: string | null;
-    };
+    }>();
     expect(bodyOut.from).toBe("+16135550100");
     expect(bodyOut.to).toBe("+16135551000");
     // #211: the tag is the 4-part base64("oc_customer|<customer>|<nonce>|<S>").
@@ -645,7 +645,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { contact_id: CONTACT_ID },
     });
     expect(res.status).toBe(200);
-    const out = (await res.json()) as { from: string; to: string };
+    const out = await res.json<{ from: string; to: string }>();
     expect(out.from).toBe("+16135550100"); // the company's sole active number
     expect(out.to).toBe("+16475551234"); // the contact's stored number
     const claim = sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line");
@@ -666,7 +666,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { to: "(418) 655-3839" }, // human-typed → normalized to +1418…
     });
     expect(res.status).toBe(200);
-    const out = (await res.json()) as { from: string; to: string };
+    const out = await res.json<{ from: string; to: string }>();
     expect(out.from).toBe("+16135550100");
     expect(out.to).toBe("+14186553839");
   });
@@ -765,7 +765,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       },
     });
     expect(res.status).toBe(200);
-    const out = (await res.json()) as { from: string };
+    const out = await res.json<{ from: string }>();
     expect(out.from).toBe("+14165550200"); // the chosen number
   });
 
@@ -821,7 +821,7 @@ describe("POST /v1/calls/browser (D43)", () => {
         method: "POST",
         body: { conversation_id: CONVERSATION },
       });
-      const body = (await res.json()) as { error: { code: string; message: string } };
+      const body = await res.json<{ error: { code: string; message: string } }>();
       expect(body.error.code).not.toBe("subscription_inactive");
       expect(body.error.code).not.toBe("sending_suspended");
       const message = body.error.message.toLowerCase();
@@ -976,7 +976,7 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.call_session_id).toBe(SESSION);
     expect(body.voicemail_transcript).toBe("Leaking tap upstairs.");
     expect(body.outcome).toBe("voicemail");
@@ -996,7 +996,7 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
       `/v1/calls/${SESSION}`,
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.has_voicemail).toBe(true);
     expect(body.voicemail_path).toBeUndefined();
     expect(JSON.stringify(body)).not.toContain(".mp3");
@@ -1058,7 +1058,7 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
       `/v1/calls/${SESSION}`,
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.voicemail_transcript).toBeNull();
     expect(body.voicemail_transcript_attempted_at).toBe("2026-07-29T10:01:00.000Z");
     expect(body.has_voicemail).toBe(true);

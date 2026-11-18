@@ -24,7 +24,7 @@ function order(h: Harness, body: Record<string, unknown> = {}) {
 async function signUpLease(h: Harness): Promise<string> {
   const response = await h.call("/lease", { caller: "robot", body: { scenario: "S32", dials: false } });
   if (response.status !== 201) throw new Error(`lease refused: ${await response.text()}`);
-  return ((await response.json()) as { lease_id: string }).lease_id;
+  return (await response.json<{ lease_id: string }>()).lease_id;
 }
 
 const SEARCH_PATH = "/telnyx/v2/available_phone_numbers?filter[country_code]=CA";
@@ -318,14 +318,14 @@ describe("messaging profiles", () => {
     const h = await ready();
     const first = await create(h, {});
     expect(first.status).toBe(201);
-    const {id} = ((await first.json()) as { data: { id: string } }).data;
+    const {id} = (await first.json<{ data: { id: string } }>()).data;
     await expect(h.store.get<string[]>("partition:app-profiles")).resolves.toContain(id);
     await expect(ruleOf(await create(h, { name: "company-y" }))).resolves.toBe("provisioning.profile_count");
   });
 
   it("returns the new profile without its v1 secret", async () => {
     const h = await ready();
-    const body = (await (await create(h, {})).json()) as { data: Record<string, unknown> };
+    const body = await (await create(h, {})).json<{ data: Record<string, unknown> }>();
     expect(body.data).toMatchObject({ name: "company-x" });
     expect(body.data).not.toHaveProperty("v1_secret");
     expect(h.telnyx.lists.messaging_profiles.at(-1)).toHaveProperty("v1_secret");
@@ -343,7 +343,7 @@ describe("telephony credentials", () => {
     );
     const created = await h.call("/telnyx/v2/telephony_credentials", { body: { connection_id: "conn-webrtc", name: "m1" } });
     expect(created.status).toBe(201);
-    const {data} = ((await created.json()) as { data: Record<string, unknown> });
+    const {data} = (await created.json<{ data: Record<string, unknown> }>());
     expect(data.sip_username).toMatch(/^gencred/);
     expect(data).not.toHaveProperty("sip_password");
   });

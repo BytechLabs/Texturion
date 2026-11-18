@@ -25,7 +25,6 @@ import type {
   TaskDetail,
   TaskLabel,
   TaskPriority,
-  TaskStatus,
 } from "./types";
 
 /** #214 a task address in a create/update body — the fields + their provenance. */
@@ -764,14 +763,14 @@ function checklistPatchDone(
 ): { data: ChecklistTask[] } | undefined {
   if (!data) return data;
   let changed = false;
-  const next = data.data.map((task) => {
+  const next = data.data.map<ChecklistTask>((task) => {
     const same =
       match.messageId === null
         ? task.id === match.taskId
         : task.message_id === match.messageId;
     if (!same) return task;
     changed = true;
-    return { ...task, done, status: (done ? "done" : "open") as TaskStatus };
+    return { ...task, done, status: done ? "done" : "open" };
   });
   if (!changed) return data;
   return { data: next };

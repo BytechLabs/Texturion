@@ -408,7 +408,7 @@ async function telnyxApiErrorFrom(
 ): Promise<TelnyxApiError> {
   let errors: TelnyxErrorItem[] = [];
   try {
-    const parsed = (await response.json()) as { errors?: unknown };
+    const parsed = await response.json<{ errors?: unknown }>();
     if (Array.isArray(parsed.errors)) {
       errors = parsed.errors.filter(
         (item): item is TelnyxErrorItem =>

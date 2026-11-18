@@ -107,18 +107,18 @@ async function openWith(rows: string[][]) {
 }
 
 function previewButton() {
-  return screen.getByRole("button", {
+  return screen.getByRole<HTMLButtonElement>("button", {
     name: "Preview import",
-  }) as HTMLButtonElement;
+  });
 }
 
 /** The select for one column, found the way a screen reader would. */
 function columnSelect(name: string | RegExp): HTMLElement {
-  return screen.getByLabelText(
+  return screen.getByLabelText<HTMLSelectElement>(
     typeof name === "string"
       ? new RegExp(`What is .${name}`)
       : name,
-  ) as HTMLSelectElement;
+  );
 }
 
 function answer(name: string | RegExp, value: string) {

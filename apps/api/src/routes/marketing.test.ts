@@ -119,7 +119,7 @@ function buildWorld(
   const resendCalls: Record<string, unknown>[] = [];
   const resendRoute: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
-    resendCalls.push((await request.clone().json()) as Record<string, unknown>);
+    resendCalls.push(await request.clone().json<Record<string, unknown>>());
     return Response.json({ id: `email_${resendCalls.length}` });
   };
 

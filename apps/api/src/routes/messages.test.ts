@@ -297,7 +297,7 @@ async function postSend(
 }
 
 async function errorCode(response: Response): Promise<string> {
-  const body = (await response.json()) as { error: { code: string } };
+  const body = await response.json<{ error: { code: string } }>();
   return body.error.code;
 }
 
@@ -499,9 +499,9 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
     expect(stubs.persist.calls[0].body).toEqual({
       telnyx_message_id: TELNYX_ID,
     });
-    const body = (await response.json()) as MessageRow & {
+    const body = await response.json<MessageRow & {
       attachments: unknown[];
-    };
+    }>();
     expect(body.telnyx_message_id).toBe(TELNYX_ID);
     expect(body.status).toBe("queued");
     expect(body.attachments).toEqual([]);
@@ -618,7 +618,7 @@ describe("POST /v1/messages/send — happy path + idempotency (§7, §8)", () =>
       error_code: "40310",
       error_detail: "Unreachable destination",
     });
-    const body = (await response.json()) as MessageRow;
+    const body = await response.json<MessageRow>();
     expect(body.status).toBe("failed");
     expect(body.error_code).toBe("40310");
   });
@@ -775,7 +775,7 @@ describe("POST /v1/messages/send — MMS (§7, §8)", () => {
     expect(telnyxBody.media_urls[0]).toContain("token=test-token");
     expect(stubs.sign.calls[0].body).toMatchObject({ expiresIn: 86_400 });
 
-    const body = (await response.json()) as { attachments: unknown[] };
+    const body = await response.json<{ attachments: unknown[] }>();
     expect(body.attachments).toHaveLength(1);
   });
 
@@ -967,7 +967,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
 
     const response = await postRetry();
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("1 of 3");
     // The refusal must come BEFORE the claim: a requeued row with no send is
     // the stuck state #20 exists to prevent.
@@ -989,7 +989,7 @@ describe("POST /v1/messages/:id/retry (§7)", () => {
 
     const response = await postRetry();
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toMatch(/photos.*weren't saved/i);
     expect(body.error.message).toMatch(/re-attach/i);
     expect(stubs.base.telnyx.calls).toHaveLength(0);
@@ -1345,7 +1345,7 @@ describe("PATCH /v1/messages/:id — done state (D14)", () => {
       p_actor_user_id: auth.subject,
     });
 
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body).toMatchObject({
       id: MESSAGE_ID,
       done_at: expect.any(String),
@@ -1560,7 +1560,7 @@ describe("PATCH /v1/messages/:id — pin state (#3)", () => {
       p_actor_user_id: auth.subject,
     });
 
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body).toMatchObject({
       id: MESSAGE_ID,
       pinned_at: expect.any(String),
@@ -1708,7 +1708,7 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
     expect(query.get("select")).toContain("done_at");
     expect(query.get("select")).toContain("done_by_user_id");
 
-    const body = (await response.json()) as {
+    const body = await response.json<{
       data: {
         id: string;
         attachments: unknown[];
@@ -1716,7 +1716,7 @@ describe("GET /v1/conversations/:id/messages (§7)", () => {
         promoted_task: { id: string; title: string } | null;
       }[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.data).toHaveLength(2);
     expect(body.data[0].attachments).toEqual([
       { id: "at-1", content_type: "image/jpeg", size_bytes: 4 },
@@ -1843,13 +1843,13 @@ describe("GET /v1/conversations/:id/messages — anchored (#718)", () => {
       ),
       env,
     );
-    const json = (await response.json()) as {
+    const json = await response.json<{
       data?: { id: string }[];
       next_cursor?: string | null;
       newer_cursor?: string | null;
       anchor_id?: string | null;
       anchor_missing?: boolean;
-    };
+    }>();
     return {
       status: response.status,
       listCalls,

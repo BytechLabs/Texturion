@@ -332,7 +332,7 @@ exportsRoutes.get("/exports", requireCapability("workspace.access"), async (c) =
     "data export list",
   );
 
-  const role = c.get("role") as MemberRole;
+  const role = c.get("role");
   const data = await Promise.all(
     rows.map(async (row) => ({
       ...exportActions(row, role),
@@ -422,7 +422,7 @@ exportsRoutes.get("/exports/:id", requireCapability("workspace.access"), async (
   );
   const row = rows[0];
   if (!row) return errorResponse(c, "not_found", "No such export.");
-  const role = c.get("role") as MemberRole;
+  const role = c.get("role");
   return c.json({
     ...exportActions(row, role),
     id: row.id,

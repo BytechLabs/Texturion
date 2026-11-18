@@ -559,7 +559,7 @@ describe("GET /v1/usage — what a member may not see (#515)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
 
     expect(res.status).toBe(200);
     // The commercial picture: gone.
@@ -602,7 +602,7 @@ describe("GET /v1/usage — what a member may not see (#515)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
 
     // The positive control. Without it, "member sees null" would pass even if
     // the field had been deleted outright.
@@ -631,10 +631,10 @@ describe("GET /v1/usage prices in the workspace's own currency (#522)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       currency: string;
       projected_overage_cents: number;
-    };
+    }>();
 
     expect(body.currency).toBe("cad");
     // 120 over × 4¢ CAD = 480. At the USD rate it would read 360, which is the
@@ -649,10 +649,10 @@ describe("GET /v1/usage prices in the workspace's own currency (#522)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       currency: string;
       projected_overage_cents: number;
-    };
+    }>();
 
     expect(body.currency).toBe("usd");
     expect(body.projected_overage_cents).toBe(360); // 120 × 3¢
@@ -668,10 +668,10 @@ describe("GET /v1/usage prices in the workspace's own currency (#522)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       currency: string;
       projected_overage_cents: number;
-    };
+    }>();
 
     expect(body.currency).toBe("usd");
     expect(body.projected_overage_cents).toBe(360);
@@ -687,18 +687,18 @@ describe("GET /v1/usage prices in the workspace's own currency (#522)", () => {
     const cadRes = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const cadBody = (await cadRes.json()) as {
+    const cadBody = await cadRes.json<{
       overage_projection: { projected_overage_cents: number };
-    };
+    }>();
 
     const usd = usageStub({ ...starterCompany, billing_currency: "usd" }, 900);
     stubFetch(jwksRoute(auth), usd.route);
     const usdRes = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const usdBody = (await usdRes.json()) as {
+    const usdBody = await usdRes.json<{
       overage_projection: { projected_overage_cents: number };
-    };
+    }>();
 
     // Both are the same volume extrapolated the same way; only the price book
     // differs, and CAD is dearer on every tier. Asserted as a RATIO rather than

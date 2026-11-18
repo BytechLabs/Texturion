@@ -594,7 +594,7 @@ export async function grantPrepaidYear(
             id: licensed.id,
             ...(resumePrice ? { price: resumePrice } : {}),
             discounts: [...carriedReferral, { coupon: couponId }],
-          } as Stripe.SubscriptionUpdateParams.Item,
+          },
         ],
         // Only on the resume path, and `none` rather than the pause routes'
         // `create_prorations`: prorating would invoice the balance of the month
@@ -711,7 +711,7 @@ function clearItemDiscounts(
         id: itemId,
         // "" is the clear. [] is a no-op. See above — this is not a style choice.
         discounts: "",
-      } as Stripe.SubscriptionUpdateParams.Item,
+      },
     ],
   });
 }
@@ -1052,7 +1052,7 @@ export async function ensurePrepaidDiscount(
           {
             id: licensed.id,
             discounts: [...carriedReferral, { coupon: couponId }],
-          } as Stripe.SubscriptionUpdateParams.Item,
+          },
         ],
       },
       {

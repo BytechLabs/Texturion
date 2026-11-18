@@ -181,7 +181,7 @@ export async function dialConsultLeg(
   const { state } = input;
   let ccid: string | undefined;
   try {
-    const response = await telnyxRequest(env, {
+    const response = await telnyxRequest<{ data?: { call_control_id?: string } }>(env, {
       method: "POST",
       path: "/v2/calls",
       body: {
@@ -196,7 +196,7 @@ export async function dialConsultLeg(
           { name: LOONEXT_LEG_HEADER, value: `consult-${state.role}` },
         ],
       },
-    }) as { data?: { call_control_id?: string } };
+    });
     ccid = response.data?.call_control_id;
   } catch (error) {
     if (isDefiniteRefusal(error)) return null;

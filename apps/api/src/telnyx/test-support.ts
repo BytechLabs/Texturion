@@ -264,7 +264,7 @@ export class FakeRest {
       }
 
       if (request.method === "POST") {
-        const body = (await request.clone().json()) as Row | Row[];
+        const body = await request.clone().json<Row | Row[]>();
         const incoming = Array.isArray(body) ? body : [body];
         const prefer = parsePrefer(request);
         const conflictColumns = (url.searchParams.get("on_conflict") ?? "")
@@ -319,7 +319,7 @@ export class FakeRest {
       }
 
       if (request.method === "PATCH") {
-        const patch = (await request.clone().json()) as Row;
+        const patch = await request.clone().json<Row>();
         const prefer = parsePrefer(request);
         const matched = spec.rows.filter((row) => rowMatches(row, url));
         for (const row of matched) {
@@ -580,7 +580,7 @@ export interface SentEmailCapture {
 export function resendRoute(sent: SentEmailCapture[]): FetchRoute {
   return async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
-    const body = (await request.clone().json()) as SentEmailCapture;
+    const body = await request.clone().json<SentEmailCapture>();
     sent.push(body);
     return Response.json({ id: `email_${sent.length}` });
   };

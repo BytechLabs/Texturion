@@ -238,7 +238,7 @@ function subscriptionAllows(
   return stateMachines
     .allowedActions(
       stateMachines.subscriptionMachine,
-      company.subscription_status as stateMachines.SubscriptionState,
+      company.subscription_status,
       role,
     )
     .includes(action);

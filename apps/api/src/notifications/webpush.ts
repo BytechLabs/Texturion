@@ -165,7 +165,7 @@ async function hkdf(
   info: Uint8Array,
   length: number,
 ): Promise<Uint8Array> {
-  const key = await crypto.subtle.importKey("raw", ikm as BufferSource, "HKDF", false, [
+  const key = await crypto.subtle.importKey("raw", ikm, "HKDF", false, [
     "deriveBits",
   ]);
   const bits = await crypto.subtle.deriveBits(
@@ -191,7 +191,7 @@ export async function encryptPushPayload(
 
   const subscriberKey = await crypto.subtle.importKey(
     "raw",
-    subscriberKeyBytes as BufferSource,
+    subscriberKeyBytes,
     { name: "ECDH", namedCurve: "P-256" },
     false,
     [],
@@ -241,13 +241,13 @@ export async function encryptPushPayload(
   const record = concatBytes(encoder.encode(payload), new Uint8Array([0x02]));
   const aesKey = await crypto.subtle.importKey(
     "raw",
-    contentKey as BufferSource,
+    contentKey,
     "AES-GCM",
     false,
     ["encrypt"],
   );
   const ciphertext = new Uint8Array(
-    await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce as BufferSource }, aesKey, record as BufferSource),
+    await crypto.subtle.encrypt({ name: "AES-GCM", iv: nonce as BufferSource }, aesKey, record),
   );
 
   // RFC 8188 header: salt(16) | rs(4, big-endian) | idlen(1) | keyid(65).
@@ -327,7 +327,7 @@ export async function vapidAuthorization(
 export async function pushTopic(collapseKey: string): Promise<string> {
   const digest = await crypto.subtle.digest(
     "SHA-256",
-    encoder.encode(collapseKey) as BufferSource,
+    encoder.encode(collapseKey),
   );
   return encodeBase64Url(new Uint8Array(digest)).slice(0, 32);
 }

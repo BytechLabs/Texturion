@@ -43,7 +43,7 @@ function conversation(over: Partial<Conversation> = {}): Conversation {
     created_at: "2026-08-02T09:00:00Z",
     updated_at: "2026-08-02T10:00:00Z",
     ...over,
-  } as Conversation;
+  };
 }
 
 const SUSPECTED = conversation({

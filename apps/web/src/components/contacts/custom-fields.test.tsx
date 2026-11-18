@@ -102,11 +102,11 @@ describe(ContactCustomFields, () => {
     // The unanswered ones are the point — an empty "Warranty expiry" is the
     // prompt to go and find out.
     renderFields({ boiler_model: "Worcester 8000" });
-    const model = (await screen.findByLabelText("Boiler model")) as HTMLInputElement;
+    const model = await screen.findByLabelText<HTMLInputElement>("Boiler model");
     expect(model.value).toBe("Worcester 8000");
-    const warranty = (await screen.findByLabelText(
+    const warranty = await screen.findByLabelText<HTMLInputElement>(
       "Warranty expiry",
-    )) as HTMLInputElement;
+    );
     expect(warranty.value).toBe("");
   });
 

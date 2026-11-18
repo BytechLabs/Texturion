@@ -282,8 +282,8 @@ export function webhookUrlRejection(raw: string): WebhookUrlRejection | null {
     // `::ffff:a00:1`. Matching the form somebody TYPES would match nothing.
     const mapped = /^::ffff:([0-9a-f]{1,4}):([0-9a-f]{1,4})$/.exec(host);
     if (mapped) {
-      const high = Number.parseInt(mapped[1]!, 16);
-      const low = Number.parseInt(mapped[2]!, 16);
+      const high = Number.parseInt(mapped[1], 16);
+      const low = Number.parseInt(mapped[2], 16);
       const dotted = [high >> 8, high & 0xff, low >> 8, low & 0xff].join(".");
       const inner = privateIpv4Reason(dotted);
       if (inner) return inner;

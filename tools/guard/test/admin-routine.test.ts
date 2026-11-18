@@ -223,7 +223,7 @@ describe("guard.yml's admin routines", () => {
         'filed window: {"start_hour":5}',
       ],
     });
-    const health = (await (await h.call("/health", { caller: "admin" })).json()) as GuardHealth;
+    const health = await (await h.call("/health", { caller: "admin" })).json<GuardHealth>();
     expect(health.paid_dials).toMatchObject({
       blockers: [],
       room: 2,
@@ -297,7 +297,9 @@ describe("guard.yml's limit-probe and health routines", () => {
     h.telnyx.profileLimit = { mode: "refuse-above", limit: 6 };
     const realHandle = h.telnyx.handle.bind(h.telnyx);
     h.telnyx.handle = async (request) => {
-      const body = request.method === "PATCH" ? ((await request.clone().json()) as { concurrent_call_limit?: number }) : {};
+      const body = request.method === "PATCH"
+        ? await request.clone().json<{ concurrent_call_limit?: number }>()
+        : {};
       if (body.concurrent_call_limit === 4999) {
         return Response.json({ errors: [{ code: "10099", detail: "private words", source: { pointer: "/concurrent_call_limit" } }] }, { status: 429 });
       }

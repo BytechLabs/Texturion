@@ -89,9 +89,9 @@ function propertySelect(property: string): HTMLElement {
 }
 
 function importButton() {
-  return screen.getByRole("button", {
+  return screen.getByRole<HTMLButtonElement>("button", {
     name: /^Import \d+ cards$/,
-  }) as HTMLButtonElement;
+  });
 }
 
 describe("#248: a .vcf cannot import past a property nobody has answered", () => {

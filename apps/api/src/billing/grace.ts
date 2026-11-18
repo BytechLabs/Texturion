@@ -525,7 +525,7 @@ export async function runGraceJob(
   // Bounded by OUTSTANDING WORK rather than by age, so it stays small: a
   // company appears here only while it still owns something to release.
   const stragglers = await companiesWithUnreleasedResources(db, graceCutoff);
-  const seen = new Set((data ?? []).map((row) => (row as CanceledCompany).id));
+  const seen = new Set((data ?? []).map((row) => row.id));
   const queue = [
     ...((data ?? []) as CanceledCompany[]),
     ...stragglers.filter((row) => !seen.has(row.id)),

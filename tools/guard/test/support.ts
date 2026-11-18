@@ -301,7 +301,7 @@ export async function ready(options: HarnessOptions = {}): Promise<Harness> {
 export async function lease(h: Harness, scenario = "S02", caller = "robot"): Promise<string> {
   const response = await h.call("/lease", { caller, body: { scenario } });
   if (response.status !== 201) throw new Error(`lease refused: ${await response.text()}`);
-  return ((await response.json()) as { lease_id: string }).lease_id;
+  return (await response.json<{ lease_id: string }>()).lease_id;
 }
 
 /** A mailbox the edge reports alive just now, with these `+tag` arrivals. */
@@ -323,7 +323,7 @@ export async function registerViaEdge(h: Harness, ccid: string, connection = "co
 /** The refusal's rule, after checking its shape: status, body and header agree. */
 export async function ruleOf(response: Response): Promise<string | null> {
   if (response.status !== 403 && response.status !== 429) return null;
-  const body = (await response.clone().json()) as { error?: string; rule?: string };
+  const body = await response.clone().json<{ error?: string; rule?: string }>();
   if (body.error !== "guard_refused" || !body.rule) return null;
   if (response.headers.get(HEADER.refusedBy) !== body.rule) throw new Error("refused-by header disagrees with body");
   return body.rule;

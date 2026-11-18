@@ -46,7 +46,7 @@ function stubGeocodeWorld(
       captured.scans.push(url);
       return (async () => {
         captured.scanBodies.push(
-          (await request.clone().json()) as Record<string, unknown>,
+          await request.clone().json<Record<string, unknown>>(),
         );
         return Response.json(scanRows);
       })();

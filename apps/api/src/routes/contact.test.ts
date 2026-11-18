@@ -76,7 +76,7 @@ function buildWorld(
   const resendRoute: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
     const index = resendCalls.length;
-    resendCalls.push((await request.clone().json()) as Record<string, unknown>);
+    resendCalls.push(await request.clone().json<Record<string, unknown>>());
     const status = options.resendStatuses?.[index] ?? 200;
     return status >= 400
       ? Response.json({ message: "boom" }, { status })

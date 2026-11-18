@@ -133,7 +133,7 @@ describe("a simulated incoming call never dials", () => {
       body: JSON.stringify({ caller: "Robot" }),
     });
     expect(simulated.status).toBe(201);
-    const { session_id: sessionId } = (await simulated.json()) as { session_id: string };
+    const { session_id: sessionId } = await simulated.json<{ session_id: string }>();
     expect(sessionId).toMatch(/^[0-9a-f-]{36}$/);
 
     const ringMe = await dispatch(rigEnv(), `/v1/calls/live/${sessionId}/ring-me`, {

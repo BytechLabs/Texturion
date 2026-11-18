@@ -98,7 +98,7 @@ describe("GET /v1/sessions — your own devices", () => {
     const res = await apiRequest(app, env, token, "/v1/sessions", {
       companyId: null,
     });
-    const body = (await res.json()) as { data: { current: boolean }[] };
+    const body = await res.json<{ data: { current: boolean }[] }>();
     expect(body.data[0].current).toBe(true);
   });
 
@@ -110,7 +110,7 @@ describe("GET /v1/sessions — your own devices", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/sessions", {
       companyId: null,
     });
-    const body = (await res.json()) as { data: { location: null }[] };
+    const body = await res.json<{ data: { location: null }[] }>();
     expect(body.data[0].location).toBeNull();
   });
 });

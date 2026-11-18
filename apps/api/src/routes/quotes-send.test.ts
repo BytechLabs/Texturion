@@ -204,7 +204,7 @@ describe("#287 POST /quotes/:id/send", () => {
     // copy back to the sender is a credential with nothing to do — and it is
     // what made the old shape look finished while nothing was delivered.
     const harness = buildHarness();
-    const body = (await (await harness.send()).json()) as Record<string, unknown>;
+    const body = await (await harness.send()).json<Record<string, unknown>>();
     expect(Object.keys(body)).not.toContain("view_token");
     expect(Object.keys(body)).not.toContain("accept_token");
     expect(body.effective_status).toBe("sent");

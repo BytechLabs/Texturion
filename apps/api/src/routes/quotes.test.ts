@@ -76,7 +76,7 @@ describe("GET /v1/quotes", () => {
       const res = await apiRequest(app, env, await auth.token(), "/v1/quotes", {
         companyId: COMPANY_ID,
       });
-      const body = (await res.json()) as { data: { allowed_actions: string[] }[] };
+      const body = await res.json<{ data: { allowed_actions: string[] }[] }>();
       expect(body.data[0].allowed_actions, role).toEqual(draftActions);
       expect(body.data[1].allowed_actions, `${role}, sent`).toEqual([]);
       vi.unstubAllGlobals();
@@ -92,7 +92,7 @@ describe("GET /v1/quotes", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    const body = await res.json<{ data: Record<string, unknown>[] }>();
     // Both, deliberately: the stored one is what a transition is checked
     // against, the effective one is what a person is shown.
     expect(body.data[0].status).toBe("sent");
@@ -122,7 +122,7 @@ describe("GET /v1/quotes", () => {
       "/v1/quotes?status=outstanding",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { data: { id: string }[] };
+    const body = await res.json<{ data: { id: string }[] }>();
     expect(body.data).toHaveLength(1);
     expect(body.data[0].id).not.toBe(QUOTE_ID);
   });

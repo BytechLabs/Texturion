@@ -163,9 +163,9 @@ describe("GET /v1/reports/response-time", () => {
         numbers: twoNumbers,
         current: statsPayload([], { by_number: breakdown }),
       });
-      const body = (await (await get(sb)).json()) as {
+      const body = await (await get(sb)).json<{
         by_number: { number_e164: string; median_seconds: number | null }[];
-      };
+      }>();
       expect(body.by_number.map((r) => r.number_e164)).toEqual([
         "+14165550222",
         "+14165550111",
@@ -179,9 +179,9 @@ describe("GET /v1/reports/response-time", () => {
         numbers: twoNumbers,
         current: statsPayload([], { by_number: breakdown }),
       });
-      const body = (await (await get(sb)).json()) as {
+      const body = await (await get(sb)).json<{
         by_number: { median_seconds: number | null }[];
-      };
+      }>();
       expect(body.by_number[0].median_seconds).toBe(900);
     });
 
@@ -196,9 +196,9 @@ describe("GET /v1/reports/response-time", () => {
           ],
         }),
       });
-      const body = (await (await get(sb)).json()) as {
+      const body = await (await get(sb)).json<{
         by_number: { number_e164: string }[];
-      };
+      }>();
       expect(body.by_number[0].number_e164).toBe("+14165550222");
     });
 
@@ -210,7 +210,7 @@ describe("GET /v1/reports/response-time", () => {
         numbers: twoNumbers,
         current: statsPayload([], { by_number: [breakdown[0]] }),
       });
-      const body = (await (await get(sb)).json()) as { by_number: unknown[] };
+      const body = await (await get(sb)).json<{ by_number: unknown[] }>();
       expect(body.by_number).toEqual([]);
     });
 
@@ -221,7 +221,7 @@ describe("GET /v1/reports/response-time", () => {
         numbers: [twoNumbers[0]],
         current: statsPayload([], { by_number: breakdown }),
       });
-      const body = (await (await get(sb)).json()) as { by_number: unknown[] };
+      const body = await (await get(sb)).json<{ by_number: unknown[] }>();
       // And with only one left it is the headline again, so: nothing.
       expect(body.by_number).toEqual([]);
     });
@@ -249,7 +249,7 @@ describe("GET /v1/reports/response-time", () => {
     });
     const res = await get(sb);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body).toMatchObject({
       leads: 3,
       answered: 2,
@@ -271,10 +271,10 @@ describe("GET /v1/reports/response-time", () => {
         { opened_at: "2026-07-01T18:00:00Z", response_seconds: 120 },
       ]),
     });
-    const body = (await (await get(sb)).json()) as {
+    const body = await (await get(sb)).json<{
       business_hours: { leads: number; median_seconds: number | null };
       after_hours: { leads: number; median_seconds: number | null };
-    };
+    }>();
     expect(body.after_hours).toMatchObject({
       leads: 1,
       median_seconds: 32_400,
@@ -295,10 +295,10 @@ describe("GET /v1/reports/response-time", () => {
         { opened_at: "2026-07-05T15:00:00Z", response_seconds: 600 },
       ]),
     });
-    const body = (await (await get(sb)).json()) as {
+    const body = await (await get(sb)).json<{
       after_hours: { leads: number };
       business_hours: { leads: number };
-    };
+    }>();
     expect(body.after_hours.leads).toBe(2);
     expect(body.business_hours.leads).toBe(0);
   });
@@ -315,10 +315,10 @@ describe("GET /v1/reports/response-time", () => {
         { opened_at: "2026-07-04T15:00:00Z", response_seconds: 600 },
       ]),
     });
-    const body = (await (await get(sb)).json()) as {
+    const body = await (await get(sb)).json<{
       business_hours: { leads: number };
       after_hours: { leads: number };
-    };
+    }>();
     expect(body.business_hours.leads).toBe(1);
     expect(body.after_hours.leads).toBe(0);
   });
@@ -334,7 +334,7 @@ describe("GET /v1/reports/response-time", () => {
         { opened_at: "2026-07-01T14:00:00Z", response_seconds: 120 },
       ]),
     });
-    const body = (await (await get(sb)).json()) as Record<string, unknown>;
+    const body = await (await get(sb)).json<Record<string, unknown>>();
     expect(body.baseline).toBeNull();
     expect(body.baseline_unavailable).toBe("too_new");
     expect(body.improved_by_seconds).toBeNull();
@@ -349,7 +349,7 @@ describe("GET /v1/reports/response-time", () => {
         { opened_at: "2025-01-02T14:00:00Z", response_seconds: 10_800 },
       ]),
     });
-    const body = (await (await get(sb)).json()) as Record<string, unknown>;
+    const body = await (await get(sb)).json<Record<string, unknown>>();
     expect(body.baseline).toMatchObject({ median_seconds: 10_800, answered: 1 });
     // Three hours to four minutes. Positive means faster now, which is the
     // sentence the customer repeats to other contractors.
@@ -367,7 +367,7 @@ describe("GET /v1/reports/response-time", () => {
         { opened_at: "2025-01-02T14:00:00Z", response_seconds: null },
       ]),
     });
-    const body = (await (await get(sb)).json()) as Record<string, unknown>;
+    const body = await (await get(sb)).json<Record<string, unknown>>();
     expect(body.baseline).toBeNull();
     expect(body.baseline_unavailable).toBe("no_answered_leads");
     expect(body.improved_by_seconds).toBeNull();
@@ -382,7 +382,7 @@ describe("GET /v1/reports/response-time", () => {
         { by_member: byMember },
       ),
     });
-    const offBody = (await (await get(off)).json()) as Record<string, unknown>;
+    const offBody = await (await get(off)).json<Record<string, unknown>>();
     // Null rather than [] — "the owner has not opted in" and "nobody has
     // answered anything" are different facts, and the clients say different
     // things about them.
@@ -399,7 +399,7 @@ describe("GET /v1/reports/response-time", () => {
         { by_member: byMember },
       ),
     });
-    const onBody = (await (await get(on)).json()) as Record<string, unknown>;
+    const onBody = await (await get(on)).json<Record<string, unknown>>();
     expect(onBody.by_member).toEqual(byMember);
     expect(onBody.per_member_enabled).toBe(true);
   });
@@ -413,7 +413,7 @@ describe("GET /v1/reports/response-time", () => {
         { leads: 9000, truncated: true, row_limit: 5000 },
       ),
     });
-    const body = (await (await get(sb)).json()) as Record<string, unknown>;
+    const body = await (await get(sb)).json<Record<string, unknown>>();
     expect(body.leads).toBe(9000);
     expect(body.split_truncated).toBe(true);
     expect(body.split_row_limit).toBe(5000);
@@ -421,9 +421,9 @@ describe("GET /v1/reports/response-time", () => {
 
   it("clamps an unknown window rather than scanning all of history", async () => {
     const sb = stub({ current: statsPayload([]) });
-    const body = (await (await get(sb, "?days=99999")).json()) as {
+    const body = await (await get(sb, "?days=99999")).json<{
       window: { days: number };
-    };
+    }>();
     expect(body.window.days).toBe(30);
 
     const current = sb
@@ -440,9 +440,9 @@ describe("GET /v1/reports/response-time", () => {
   it("accepts the windows the clients offer", async () => {
     for (const days of [7, 30, 90]) {
       const sb = stub({ current: statsPayload([]) });
-      const body = (await (await get(sb, `?days=${days}`)).json()) as {
+      const body = await (await get(sb, `?days=${days}`)).json<{
         window: { days: number };
-      };
+      }>();
       expect(body.window.days, String(days)).toBe(days);
       vi.unstubAllGlobals();
     }
@@ -450,7 +450,7 @@ describe("GET /v1/reports/response-time", () => {
 
   it("reports an empty window without inventing a median", async () => {
     const sb = stub({ current: statsPayload([]) });
-    const body = (await (await get(sb)).json()) as Record<string, unknown>;
+    const body = await (await get(sb)).json<Record<string, unknown>>();
     expect(body).toMatchObject({ leads: 0, answered: 0, unanswered: 0 });
     expect(body.median_seconds).toBeNull();
     expect(body.p90_seconds).toBeNull();
@@ -499,7 +499,7 @@ describe("#354 GET /v1/reports/pipeline", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.win_rate).toBe(75);
     expect(body.previous_win_rate).toBe(25);
     expect(body.stages).toEqual([
@@ -523,7 +523,7 @@ describe("#354 GET /v1/reports/pipeline", () => {
       "/v1/reports/pipeline",
       { companyId: COMPANY_ID },
     );
-    expect(((await res.json()) as { win_rate: number }).win_rate).toBe(75);
+    expect((await res.json<{ win_rate: number }>()).win_rate).toBe(75);
   });
 
   it("says nothing rather than a confident number off two jobs", async () => {
@@ -537,7 +537,7 @@ describe("#354 GET /v1/reports/pipeline", () => {
       "/v1/reports/pipeline",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { insight: string | null };
+    const body = await res.json<{ insight: string | null }>();
     expect(body.insight).toBeNull();
   });
 });
@@ -618,7 +618,7 @@ async function satisfaction(
     { companyId: COMPANY_ID },
   );
   expect(res.status).toBe(200);
-  return (await res.json()) as Record<string, unknown>;
+  return await res.json<Record<string, unknown>>();
 }
 
 describe("#313 satisfaction reporting", () => {

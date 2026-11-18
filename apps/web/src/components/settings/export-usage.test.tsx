@@ -16,7 +16,7 @@ const { requestExport, toastSuccess, toastError, role } = vi.hoisted(() => ({
   requestExport: vi.fn(),
   toastSuccess: vi.fn(),
   toastError: vi.fn(),
-  role: { current: "owner" as string },
+  role: { current: "owner" },
 }));
 
 vi.mock("@/lib/api/exports", () => ({
@@ -84,8 +84,8 @@ describe("#304 exporting a period's usage", () => {
     render(<ExportUsage />);
     fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
 
-    const from = screen.getByLabelText("From") as HTMLInputElement;
-    const to = screen.getByLabelText("To") as HTMLInputElement;
+    const from = screen.getByLabelText<HTMLInputElement>("From");
+    const to = screen.getByLabelText<HTMLInputElement>("To");
     expect(from.value).not.toBe("");
     expect(to.value).not.toBe("");
     const today = new Date();

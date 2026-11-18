@@ -26,7 +26,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
   it("sends the auth + company headers and honors the current search q", async () => {
     const fetchSpy = vi.fn(async () => csvResponse(`${BOM}name,phone\nAda,+14165550100\n`));
     const { blob, filename } = await fetchContactsExport("company-1", "  ada  ", {
-      fetch: fetchSpy as unknown as typeof fetch,
+      fetch: fetchSpy,
       getToken: async () => "test-token",
       baseUrl: BASE,
     });
@@ -54,7 +54,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
   it("omits q when the search is empty (exports everything)", async () => {
     const fetchSpy = vi.fn(async () => csvResponse("name,phone\n"));
     await fetchContactsExport("company-1", "   ", {
-      fetch: fetchSpy as unknown as typeof fetch,
+      fetch: fetchSpy,
       getToken: async () => "test-token",
       baseUrl: BASE,
     });
@@ -68,7 +68,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
       "company-1",
       "",
       {
-        fetch: fetchSpy as unknown as typeof fetch,
+        fetch: fetchSpy,
         getToken: async () => "test-token",
         baseUrl: BASE,
       },
@@ -83,7 +83,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
     const fetchSpy = vi.fn(async () => csvResponse("x"));
     await expect(
       fetchContactsExport("company-1", "", {
-        fetch: fetchSpy as unknown as typeof fetch,
+        fetch: fetchSpy,
         getToken: async () => null,
         baseUrl: BASE,
       }),
@@ -102,7 +102,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
     );
     await expect(
       fetchContactsExport("company-1", "", {
-        fetch: fetchSpy as unknown as typeof fetch,
+        fetch: fetchSpy,
         getToken: async () => "test-token",
         baseUrl: BASE,
       }),
@@ -123,7 +123,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
         }),
     );
     const { filename } = await fetchContactsExport("company-1", "", {
-      fetch: fetchSpy as unknown as typeof fetch,
+      fetch: fetchSpy,
       getToken: async () => "test-token",
       baseUrl: BASE,
     });

@@ -171,16 +171,16 @@ describe("#309 your own voice", () => {
     fireEvent.click(screen.getByRole("button", { name: /rather do it on the phone/i }));
 
     const name = await waitFor(() =>
-      screen.getByLabelText("Name it") as HTMLInputElement,
+      screen.getByLabelText<HTMLInputElement>("Name it"),
     );
     expect(name.value).toBe("After hours");
 
-    const to = screen.getByLabelText("Your number") as HTMLInputElement;
+    const to = screen.getByLabelText<HTMLInputElement>("Your number");
     // Typed, so the browser offers the number it already knows.
     expect(to.type).toBe("tel");
     // And there is nothing to call until they say where.
     expect(
-      (screen.getByRole("button", { name: /call me/i }) as HTMLButtonElement).disabled,
+      screen.getByRole<HTMLButtonElement>("button", { name: /call me/i }).disabled,
     ).toBe(true);
 
     fireEvent.change(to, { target: { value: "613 555 0199" } });

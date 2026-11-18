@@ -513,7 +513,7 @@ describe("resuming ordering after number_unreadable", () => {
 
 async function ruleOfOrderStanding(h: Harness): Promise<string | undefined> {
   const response = await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
-  return ((await response.json()) as { rule?: string }).rule;
+  return (await response.json<{ rule?: string }>()).rule;
 }
 
 describe("ordering's gate", () => {

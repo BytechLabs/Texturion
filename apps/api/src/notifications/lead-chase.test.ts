@@ -102,11 +102,11 @@ function buildWorld(
   const resend: Record<string, unknown>[] = [];
   const extra: FetchRoute = async (url, request) => {
     if (url.href === "https://api.resend.com/emails") {
-      resend.push((await request.clone().json()) as Record<string, unknown>);
+      resend.push(await request.clone().json<Record<string, unknown>>());
       return Response.json({ id: "email_1" });
     }
     if (url.hostname.endsWith("googleapis.com")) {
-      pushes.push((await request.clone().json()) as Record<string, unknown>);
+      pushes.push(await request.clone().json<Record<string, unknown>>());
       return Response.json({ name: "sent" });
     }
     return undefined;

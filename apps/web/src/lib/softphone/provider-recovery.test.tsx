@@ -139,7 +139,7 @@ function tree() {
 
 async function registered(count: number): Promise<FakeClient> {
   await vi.waitFor(() => expect(sdk.clients).toHaveLength(count));
-  return sdk.clients[count - 1]!;
+  return sdk.clients[count - 1];
 }
 
 function emit(client: FakeClient, event: string, payload?: unknown) {
@@ -461,7 +461,7 @@ describe("softphone workspace switch", () => {
     await act(async () => release());
 
     const second = await registered(2);
-    expect(sdk.clients[0]!.disconnected).toBe(true);
+    expect(sdk.clients[0].disconnected).toBe(true);
     expect(second.disconnected).toBe(false);
     expect(api.state.mints).toEqual(["company-1", "company-2"]);
   });

@@ -121,7 +121,7 @@ describe("Calendar reads", () => {
     rerender();
     await waitFor(() => expect(tasksRequests()).toHaveLength(1));
     // Midnight on Sunday 1 November in Toronto.
-    expect(tasksRequests()[0]!.due_after).toBe("2026-11-01T04:00:00.000Z");
+    expect(tasksRequests()[0].due_after).toBe("2026-11-01T04:00:00.000Z");
   });
 
   it("does not say the next month is empty while it loads", async () => {

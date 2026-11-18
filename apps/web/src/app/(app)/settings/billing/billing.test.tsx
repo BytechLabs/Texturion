@@ -73,6 +73,18 @@ describe("billing plan facts trace to PLAN_PRICING (findings 6 + 9)", () => {
  * subscribed. Every one of those is a property of the screen that a later
  * "small copy change" could quietly remove, so each is pinned here.
  */
+const companyQuery = vi.hoisted<{
+  data: CompanyView | undefined;
+  isPending: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+}>(() => ({
+  data: undefined,
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+}));
+
 const {
   portal,
   record,
@@ -86,7 +98,6 @@ const {
   resumePlan,
   toasted,
   activeRole,
-  companyQuery,
   heldNumbers,
 } = vi.hoisted(() => ({
   portal: { mutate: vi.fn(), isPending: false },
@@ -97,7 +108,7 @@ const {
    * property under test, not decoration.
    */
   heldNumbers: {
-    data: undefined as unknown,
+    data: undefined,
     asked: undefined as boolean | undefined,
   },
   /**
@@ -159,13 +170,6 @@ const {
   toasted: vi.fn(),
   /** The role the page renders for. Only the page-level tests move it. */
   activeRole: { current: "owner" },
-  /** What `useCompany()` answers the PAGE with (the card tests pass props). */
-  companyQuery: {
-    data: undefined as unknown,
-    isPending: false,
-    isError: false,
-    refetch: vi.fn(),
-  },
 }));
 
 vi.mock("@/lib/api/billing", () => ({

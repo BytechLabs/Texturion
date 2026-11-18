@@ -164,7 +164,7 @@ describe("minting a link (#294)", () => {
     );
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { url: string; expires_at: string };
+    const body = await res.json<{ url: string; expires_at: string }>();
     expect(body.url).toContain("/photos/");
     expect(new Date(body.expires_at).getTime()).toBeGreaterThan(Date.now());
 
@@ -345,7 +345,7 @@ describe("who may share a job's photos (#294)", () => {
       const res = await share(sb, method);
 
       expect(res.status).toBe(403);
-      const body = (await res.json()) as { error: { message: string } };
+      const body = await res.json<{ error: { message: string } }>();
       expect(body.error.message).toBe(NOTE_ONLY_MESSAGE);
       expect(linksTouched(sb)).toBe(0);
     });
@@ -385,10 +385,10 @@ describe("what the customer's page contains (#294)", () => {
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       business_name: string;
       photos: { work_phase: string | null; url: string }[];
-    };
+    }>();
     expect(body.business_name).toBe("Acme Plumbing");
     expect(body.photos).toHaveLength(1);
     expect(body.photos[0].work_phase).toBe("after");
@@ -431,7 +431,7 @@ describe("what the customer's page contains (#294)", () => {
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { photos: { id: string }[] };
+    const body = await res.json<{ photos: { id: string }[] }>();
     expect(body.photos.map((photo) => photo.id)).toEqual(["att-clean"]);
   });
 
@@ -493,7 +493,7 @@ describe("what the customer's page contains (#294)", () => {
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
     expect(res.status).toBe(404);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("not_found");
     // Not one word about a plan, an allowance, or a period.
     for (const leak of ["plan", "allowance", "billing", "GB", "period"]) {
@@ -524,10 +524,10 @@ describe("what the customer's page contains (#294)", () => {
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       photos: unknown[];
       truncated: boolean;
-    };
+    }>();
     expect(body.photos).toHaveLength(200);
     expect(body.truncated).toBe(true);
 
@@ -599,7 +599,7 @@ describe("what the customer's page contains (#294)", () => {
 
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
-    const body = (await res.json()) as { photos: { id: string }[] };
+    const body = await res.json<{ photos: { id: string }[] }>();
     expect(body.photos.map((photo) => photo.id)).toEqual(["att-img"]);
   });
 
@@ -659,7 +659,7 @@ describe("what the customer's page contains (#294)", () => {
 
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
-    const body = (await res.json()) as { photos: { id: string }[] };
+    const body = await res.json<{ photos: { id: string }[] }>();
     expect(body.photos.map((photo) => photo.id)).toEqual(["att-before", "att-after"]);
   });
 });
@@ -676,7 +676,7 @@ describe("a link that does not work (#294)", () => {
   for (const [name, resolved] of failures) {
     it(`says the same thing for a link that ${name}`, async () => {
       // A holder who can tell these apart has been handed an oracle (D75).
-      const sb = visitor({ resolved: resolved as Record<string, unknown> });
+      const sb = visitor({ resolved });
       stubFetch(sb.route);
 
       const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);

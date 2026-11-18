@@ -51,18 +51,18 @@ export async function processConnectEvent(
 
   switch (event.type) {
     case "account.updated":
-      return handleAccountUpdated(env, event.data.object as Stripe.Account, account);
+      return handleAccountUpdated(env, event.data.object, account);
     case "checkout.session.completed":
     case "checkout.session.async_payment_succeeded":
       return handleConnectCheckout(
         env,
-        event.data.object as Stripe.Checkout.Session,
+        event.data.object,
         account,
       );
     case "charge.refunded":
-      return handleChargeRefunded(env, event.data.object as Stripe.Charge, account);
+      return handleChargeRefunded(env, event.data.object, account);
     case "charge.dispute.created":
-      return handleConnectDispute(env, event.data.object as Stripe.Dispute, account);
+      return handleConnectDispute(env, event.data.object, account);
     default:
       return;
   }

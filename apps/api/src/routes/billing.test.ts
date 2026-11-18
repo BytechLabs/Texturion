@@ -695,7 +695,7 @@ describe("POST /v1/billing/checkout — the seats it brings with it (#523)", () 
       harness,
     );
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     // The count is the actionable part: "deactivate 5", not "too many members".
     expect(body.error.message).toContain("Starter");
     expect(body.error.message).toContain("5");
@@ -711,7 +711,7 @@ describe("POST /v1/billing/checkout — the seats it brings with it (#523)", () 
       { plan: "starter" },
       harness,
     );
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("Pro allows 15");
   });
 
@@ -1242,7 +1242,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     ]);
     const response = await post("/v1/billing/change-plan", { plan: "pro" }, harness);
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { code: string; message: string } };
+    const body = await response.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("conflict");
     expect(body.error.message).toMatch(/paused/i);
     expect(body.error.message).toMatch(/resume/i);
@@ -1480,7 +1480,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     ]);
     const response = await post("/v1/billing/change-plan", { plan: "pro" }, harness);
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { code: string; message: string } };
+    const body = await response.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("conflict");
     // Names the date, so "wait" is an instruction rather than a shrug...
     expect(body.error.message).toMatch(/2027-03-01/);
@@ -1535,7 +1535,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     ]);
     const response = await post("/v1/billing/change-plan", { plan: "pro" }, harness);
     expect(response.status).toBe(409);
-    expect(((await response.json()) as { error: { message: string } }).error.message)
+    expect((await response.json<{ error: { message: string } }>()).error.message)
       .toMatch(/prepaid year/i);
     expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
   });
@@ -1699,7 +1699,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       harness,
     );
     expect(response.status).toBe(409);
-    const message = ((await response.json()) as { error: { message: string } }).error
+    const message = (await response.json<{ error: { message: string } }>()).error
       .message;
     expect(message).toMatch(/CAD/);
     expect(message).toMatch(/won't lose it/i);
@@ -1955,14 +1955,14 @@ describe("plan-builder modules (#12)", () => {
     ]);
     const response = await get("/v1/billing/modules", harness);
     expect(response.status).toBe(200);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       modules: {
         id: string;
         enabled: boolean;
         monthly_cents: number;
         currency: string;
       }[];
-    };
+    }>();
     const regions = body.modules.find((m) => m.id === "regions_ca");
     expect(regions?.enabled).toBe(true);
     // #522: the module price says which money it is in. It is genuinely USD —
@@ -2002,11 +2002,11 @@ describe("plan-builder modules (#12)", () => {
       ]);
       const response = await get("/v1/billing/missed-while-off", harness);
       expect(response.status).toBe(200);
-      const body = (await response.json()) as {
+      const body = await response.json<{
         count: number;
         since: string;
         last_at: string | null;
-      };
+      }>();
       expect(body.count).toBe(7);
       // Says WHEN, not only how many: "someone rang yesterday" is a different
       // sentence from "someone rang in April", and only one is worth acting on.
@@ -2094,9 +2094,9 @@ describe("plan-builder modules (#12)", () => {
     expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);
 
     const catalog = await get("/v1/billing/modules", harness);
-    const body = (await catalog.json()) as {
+    const body = await catalog.json<{
       modules: { id: string; available: boolean }[];
-    };
+    }>();
     expect(body.modules.find((m) => m.id === "regions_ca")?.available).toBe(false);
     // #103: mms is retired — not merely unavailable, absent from the catalog.
     expect(body.modules.find((m) => m.id === "mms")).toBeUndefined();
@@ -2119,7 +2119,7 @@ describe("plan-builder modules (#12)", () => {
     );
     expect(voiceToggle.status).toBe(409);
     expect(
-      ((await voiceToggle.json()) as { error: { message: string } }).error
+      (await voiceToggle.json<{ error: { message: string } }>()).error
         .message,
     ).toContain("included on every plan");
   });
@@ -2311,7 +2311,7 @@ describe("#277 the seasonal pause", () => {
     ]);
     const response = await post("/v1/billing/resume", {}, harness);
     expect(response.status).toBe(409);
-    expect(((await response.json()) as { error: { message: string } }).error.message)
+    expect((await response.json<{ error: { message: string } }>()).error.message)
       .toMatch(/hasn't come back/i);
     // And no audit entry claiming a resume that did not happen.
     expect(harness.callsTo("POST", /\/rest\/v1\/audit_log/)).toHaveLength(0);
@@ -2546,7 +2546,7 @@ describe("#277 the seasonal pause", () => {
     ]);
     const response = await post("/v1/billing/pause", {}, harness);
     expect(response.status).toBe(409);
-    expect(((await response.json()) as { error: { message: string } }).error.message)
+    expect((await response.json<{ error: { message: string } }>()).error.message)
       .toMatch(/hasn't paused yet/i);
     // And no audit entry claiming a pause that did not happen.
     expect(harness.callsTo("POST", /\/rest\/v1\/audit_log/)).toHaveLength(0);
@@ -2648,7 +2648,7 @@ describe("#277 the seasonal pause", () => {
     ]);
     const response = await post("/v1/billing/pause", {}, harness);
     expect(response.status).toBe(409);
-    expect(((await response.json()) as { error: { message: string } }).error.message)
+    expect((await response.json<{ error: { message: string } }>()).error.message)
       .toMatch(/free month/i);
     expect(harness.callsTo("POST", /subscriptions\/sub_1/)).toHaveLength(0);
   });

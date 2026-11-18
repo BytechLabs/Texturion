@@ -68,7 +68,7 @@ async function moment(sb: SupabaseStub) {
   const res = await apiRequest(app, env, await auth.token(), "/v1/moment", {
     companyId: COMPANY_ID,
   });
-  return { res, body: (await res.json()) as Record<string, unknown> };
+  return { res, body: await res.json<Record<string, unknown>>() };
 }
 
 describe("GET /v1/referrals/moment", () => {

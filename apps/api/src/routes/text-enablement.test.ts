@@ -296,7 +296,7 @@ describe("POST /v1/text-enablements", () => {
       jsonInit("POST", { phone_e164: NUMBER_E164 }, KEY),
     );
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { phone_e164: string; status: string };
+    const body = await res.json<{ phone_e164: string; status: string }>();
     expect(body.phone_e164).toBe(NUMBER_E164);
     expect(body.status).toBe("pending");
     // A source='hosted' phone_numbers row + a text_enablement_orders row exist.
@@ -379,7 +379,7 @@ describe("POST /v1/text-enablements", () => {
       jsonInit("POST", { phone_e164: NUMBER_E164 }, KEY),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("already in service");
     // No slot was claimed and no Telnyx order created.
     expect(h.rest.rows("text_enablement_orders")).toHaveLength(0);
@@ -426,7 +426,7 @@ describe("POST /v1/text-enablements", () => {
       jsonInit("POST", { phone_e164: NUMBER_E164 }, KEY),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("using all 3");
     expect(h.rest.rows("text_enablement_orders")).toHaveLength(0);
   });
@@ -441,7 +441,7 @@ describe("GET + cancel", () => {
     );
     const res = await h.request("/v1/text-enablements");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { created_at: unknown }[] };
+    const body = await res.json<{ data: { created_at: unknown }[] }>();
     expect(body.data).toHaveLength(1);
     // created_at is part of the response (the UI sorts/labels by it).
     expect(body.data[0].created_at).toBeTypeOf("string");
@@ -453,7 +453,7 @@ describe("GET + cancel", () => {
       "/v1/text-enablements",
       jsonInit("POST", { phone_e164: NUMBER_E164 }, KEY),
     );
-    const { id } = (await created.json()) as { id: string };
+    const { id } = await created.json<{ id: string }>();
 
     // Cancel is owner-only.
     h.state.role = "owner";
@@ -462,7 +462,7 @@ describe("GET + cancel", () => {
       jsonInit("POST", undefined),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { status: string };
+    const body = await res.json<{ status: string }>();
     expect(body.status).toBe("cancelled");
     // The phone_numbers row is released (slot freed).
     const number = h.rest
@@ -486,7 +486,7 @@ describe("PUT /v1/text-enablements/:id/documents", () => {
       body: docForm(["loa", "bill"]),
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { has_loa: boolean; has_bill: boolean };
+    const body = await res.json<{ has_loa: boolean; has_bill: boolean }>();
     expect(body.has_loa).toBe(true);
     expect(body.has_bill).toBe(true);
 
@@ -510,7 +510,7 @@ describe("PUT /v1/text-enablements/:id/documents", () => {
       body: docForm(["loa"]),
     });
     expect(first.status).toBe(200);
-    expect(((await first.json()) as { has_bill: boolean }).has_bill).toBe(false);
+    expect((await first.json<{ has_bill: boolean }>()).has_bill).toBe(false);
     expect(h.telnyx.callsTo("POST", /\/actions\/file_upload$/)).toHaveLength(0);
 
     const second = await h.request(`/v1/text-enablements/${order.id}/documents`, {
@@ -518,7 +518,7 @@ describe("PUT /v1/text-enablements/:id/documents", () => {
       body: docForm(["bill"]),
     });
     expect(second.status).toBe(200);
-    expect(((await second.json()) as { has_bill: boolean }).has_bill).toBe(true);
+    expect((await second.json<{ has_bill: boolean }>()).has_bill).toBe(true);
     expect(h.telnyx.callsTo("POST", /\/actions\/file_upload$/)).toHaveLength(1);
   });
 
@@ -532,7 +532,7 @@ describe("PUT /v1/text-enablements/:id/documents", () => {
       headers: { "Content-Length": String(64 * 1024 * 1024) },
     });
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("upload limit");
     expect(h.telnyx.calls).toHaveLength(0);
   });
@@ -697,7 +697,7 @@ describe("verification codes (number-ownership check)", () => {
       jsonInit("POST", { verification_method: "sms" }),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { requested: boolean };
+    const body = await res.json<{ requested: boolean }>();
     expect(body.requested).toBe(true);
     const calls = h.telnyx.callsTo("POST", /\/verification_codes$/);
     expect(calls).toHaveLength(1);
@@ -721,7 +721,7 @@ describe("verification codes (number-ownership check)", () => {
       jsonInit("POST", { verification_method: "sms" }),
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("landline cannot receive sms");
   });
 
@@ -740,7 +740,7 @@ describe("verification codes (number-ownership check)", () => {
       jsonInit("POST", { code: "123456" }),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { verified: boolean };
+    const body = await res.json<{ verified: boolean }>();
     expect(body.verified).toBe(true);
     const calls = h.telnyx.callsTo("POST", /\/validation_codes$/);
     expect(calls).toHaveLength(1);
@@ -817,7 +817,7 @@ describe("verification rate limit (VERIFY_RATE_LIMITER, per workspace and target
       jsonInit("POST", { verification_method: "call" }),
     );
     expect(res.status).toBe(429);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("rate_limited");
     // Keyed on the WORKSPACE and the TARGET number, never the order id — a
     // cancel-and-recreate cycle can never reset the budget, and #576 (4) added
@@ -935,9 +935,9 @@ describe("lifetime caps (durable per-order budgets, §10)", () => {
       jsonInit("POST", { verification_method: "sms" }),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       error: { code: string; message: string };
-    };
+    }>();
     expect(body.error.code).toBe("conflict");
     expect(body.error.message).toContain(
       "Too many verification attempts for this order",
@@ -977,9 +977,9 @@ describe("lifetime caps (durable per-order budgets, §10)", () => {
       jsonInit("POST", undefined),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       error: { code: string; message: string };
-    };
+    }>();
     expect(body.error.code).toBe("conflict");
     expect(body.error.message).toContain("resubmitted too many times");
     // No Telnyx side effects, no reset: the dead order stays exactly as it was.
@@ -1020,7 +1020,7 @@ describe("lifetime caps (durable per-order budgets, §10)", () => {
       jsonInit("POST", { phone_e164: NUMBER_E164 }, KEY),
     );
     expect(created.status).toBe(201);
-    const { id: freshId } = (await created.json()) as { id: string };
+    const { id: freshId } = await created.json<{ id: string }>();
 
     // The fresh order's budget starts at 0 (by design — per order row) and
     // this send consumes its first unit; the old row stays at its cap.
@@ -1053,9 +1053,9 @@ describe("allowed actions (#722)", () => {
     const inProgress = seedOrder(h, { status: "in-progress" });
     const completed = seedOrder(h, { status: "completed" });
     const actionsOf = async () => {
-      const body = (await (await h.request("/v1/text-enablements")).json()) as {
+      const body = await (await h.request("/v1/text-enablements")).json<{
         data: { id: string; allowed_actions: string[] }[];
-      };
+      }>();
       return Object.fromEntries(body.data.map((row) => [row.id, row.allowed_actions]));
     };
     h.state.role = "owner";

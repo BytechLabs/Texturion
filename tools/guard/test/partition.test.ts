@@ -17,7 +17,7 @@ interface Wire {
 }
 
 async function partition(h: Harness, caller = "robot"): Promise<Wire> {
-  return (await (await h.call("/partition", { caller })).json()) as Wire;
+  return await (await h.call("/partition", { caller })).json<Wire>();
 }
 
 describe("GET /partition", () => {

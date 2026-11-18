@@ -410,7 +410,7 @@ export async function reconcileVoiceEnablement(
   if (companiesError) {
     throw new Error(`companies lookup failed: ${companiesError.message}`);
   }
-  const companyIds = (companies ?? []).map((row) => (row as { id: string }).id);
+  const companyIds = (companies ?? []).map((row) => row.id);
   if (companyIds.length === 0) return summary;
 
   // Chunk the company-id filter: a single .in() over every active company would

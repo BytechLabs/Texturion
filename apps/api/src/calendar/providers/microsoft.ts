@@ -550,9 +550,9 @@ function oauthTokens(
   }
   return {
     accessToken: token.access_token,
-    refreshToken: (token.refresh_token as string | undefined) ?? fallbackRefreshToken,
-    expiresInSeconds: (token.expires_in as number | undefined) ?? null,
-    scope: (token.scope as string | undefined) ?? null,
+    refreshToken: token.refresh_token ?? fallbackRefreshToken,
+    expiresInSeconds: token.expires_in ?? null,
+    scope: token.scope ?? null,
   };
 }
 

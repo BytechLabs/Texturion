@@ -18,7 +18,6 @@ import type { Env } from "../env";
 import { messageReceivedEvent, restMatch, rpcMatch, storageUploadMatch, stubRoute } from '../test/messaging-support';
 import type { Stub, StubCall } from '../test/messaging-support';
 import { completeEnv, stubFetch } from '../test/support';
-import type { FetchRoute } from '../test/support';
 import { handleInboundMessage } from "./inbound";
 import type { TelnyxEvent } from "./types";
 
@@ -95,7 +94,7 @@ function spamDefaults(): Stub[] {
 
 function serve(...stubs: Stub[]) {
   stubFetch(
-    ...([...stubs, ...spamDefaults()].map((s) => s.route) as FetchRoute[]),
+    ...[...stubs, ...spamDefaults()].map((s) => s.route),
   );
 }
 

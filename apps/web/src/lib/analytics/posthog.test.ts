@@ -210,7 +210,7 @@ describe("exception capture (D146)", () => {
         ],
         $current_url: "https://app.loonext.com/inbox?q=Jane",
       },
-    } as never);
+    });
 
     expect(JSON.stringify(out)).not.toContain("6135551234");
     expect(JSON.stringify(out)).not.toContain("a@b.co");
@@ -229,7 +229,7 @@ describe("exception capture (D146)", () => {
       uuid: "u",
       event: "$exception",
       properties: { $exception_list: [{ type: "Error", value: "boom" }], source: "mutation" },
-    } as never);
+    });
     expect(out?.properties.source).toBe("mutation");
   });
 
@@ -240,7 +240,7 @@ describe("exception capture (D146)", () => {
         uuid: "u",
         event: "$exception",
         properties: { $exception_list: [{ type: "TypeError", value: "Failed to fetch" }] },
-      } as never),
+      }),
     ).toBeNull();
   });
 
@@ -254,7 +254,7 @@ describe("exception capture (D146)", () => {
         uuid: "u",
         event: "$exception",
         properties: { $exception_list: [{ type: "Error", value }] },
-      } as never),
+      }),
     ).toBeNull();
   });
 
@@ -265,7 +265,7 @@ describe("exception capture (D146)", () => {
         uuid: "u",
         event: "$exception",
         properties: { $exception_list: [{ type: "TypeError", value: "ResizeObserver is not defined" }] },
-      } as never),
+      }),
     ).not.toBeNull();
   });
 
@@ -324,7 +324,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
       $pathname: "/",
     });
     expect(registerSpy.mock.invocationCallOrder[0]).toBeLessThan(
-      captureSpy.mock.invocationCallOrder[0]!,
+      captureSpy.mock.invocationCallOrder[0],
     );
   });
 

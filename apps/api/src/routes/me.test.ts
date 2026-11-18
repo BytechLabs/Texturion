@@ -163,7 +163,7 @@ describe("GET /v1/me", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       company: {
         plan: string;
         subscription_status: string;
@@ -171,7 +171,7 @@ describe("GET /v1/me", () => {
         billing_writes_enabled: boolean;
         registration: { brand: unknown; campaign: unknown };
       };
-    };
+    }>();
     expect(body.company.plan).toBe("starter");
     expect(body.company.subscription_status).toBe("active");
     expect(body.company.numbers).toHaveLength(1);
@@ -215,9 +215,9 @@ describe("GET /v1/me", () => {
         { companyId: COMPANY_ID },
       );
       expect(res.status, flag).toBe(200);
-      const body = (await res.json()) as {
+      const body = await res.json<{
         company: { billing_writes_enabled: boolean };
-      };
+      }>();
       expect(body.company.billing_writes_enabled, flag).toBe(false);
     }
 
@@ -229,9 +229,9 @@ describe("GET /v1/me", () => {
       "/v1/me",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       company: { billing_writes_enabled: boolean };
-    };
+    }>();
     expect(body.company.billing_writes_enabled).toBe(true);
   });
 
@@ -312,7 +312,7 @@ describe("GET /v1/me withholds the workspace at aal1 (#581)", () => {
     // from this response, so refusing it would lock somebody out of the flow
     // that satisfies the challenge.
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.company).toBeUndefined();
     expect(body.flags).toBeUndefined();
     // The half that MUST survive: the memberships the switcher reads, and the
@@ -330,7 +330,7 @@ describe("GET /v1/me withholds the workspace at aal1 (#581)", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.company).toBeUndefined();
   });
 
@@ -346,7 +346,7 @@ describe("GET /v1/me withholds the workspace at aal1 (#581)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { company?: { plan: string } };
+    const body = await res.json<{ company?: { plan: string } }>();
     expect(body.company?.plan).toBe("starter");
     // No posture can produce a demand at aal2, so neither lookup is paid for on
     // the hottest route in the product.
@@ -364,7 +364,7 @@ describe("GET /v1/me withholds the workspace at aal1 (#581)", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { company?: { plan: string } };
+    const body = await res.json<{ company?: { plan: string } }>();
     expect(body.company?.plan).toBe("starter");
   });
 });
@@ -831,9 +831,9 @@ describe("GET /v1/me carries the dashboard preference (#540)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
       companyId: null,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       memberships: { dashboard_hidden: string[] }[];
-    };
+    }>();
     // Normalised on the way out: the stale id is DROPPED rather than handed to
     // three clients to defend against, and the order is the declared one.
     expect(body.memberships[0].dashboard_hidden).toEqual([
@@ -864,9 +864,9 @@ describe("GET /v1/me carries the dashboard preference (#540)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
       companyId: null,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       memberships: { dashboard_hidden: string[] }[];
-    };
+    }>();
     expect(body.memberships[0].dashboard_hidden).toEqual([]);
   });
 });

@@ -13,11 +13,11 @@ import type { MockInstance } from 'vitest';
 
 import type { ContactListItem } from "@/lib/api/types";
 
-const { router, contactsCalls, actionsRendered, listData } = vi.hoisted(() => ({
+const listData = vi.hoisted<{ current: unknown }>(() => ({ current: undefined }));
+const { router, contactsCalls, actionsRendered } = vi.hoisted(() => ({
   router: { push: vi.fn(), replace: vi.fn() },
   contactsCalls: [] as { q: string; options: unknown }[],
   actionsRendered: new Map<string, number>(),
-  listData: { current: undefined as unknown },
 }));
 
 /** Next follows history writes; this stands in for its patched replaceState. */
@@ -108,7 +108,7 @@ function contact(id: string, name: string): ContactListItem {
 }
 
 let client: QueryClient;
-let prefetch: MockInstance<(options: { queryKey: unknown }) => Promise<void>>;
+let prefetch: MockInstance<QueryClient["prefetchQuery"]>;
 
 function mount() {
   return render(
@@ -127,7 +127,7 @@ beforeEach(() => {
     pageParams: [undefined],
   };
   client = new QueryClient();
-  prefetch = vi.spyOn(client, "prefetchQuery") as unknown as typeof prefetch;
+  prefetch = vi.spyOn(client, "prefetchQuery");
   const replace = window.history.replaceState.bind(window.history);
   vi.spyOn(window.history, "replaceState").mockImplementation((data, unused, url) => {
     replace(data, unused, url);

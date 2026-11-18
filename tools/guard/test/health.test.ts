@@ -15,7 +15,7 @@ type Health = GuardHealth & {
 };
 
 async function healthOf(h: Harness, caller: string): Promise<Health> {
-  return (await (await h.call("/health", { caller })).json()) as Health;
+  return await (await h.call("/health", { caller })).json<Health>();
 }
 
 describe("without the Telnyx key", () => {

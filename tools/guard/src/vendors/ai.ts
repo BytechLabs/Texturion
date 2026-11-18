@@ -49,7 +49,7 @@ export async function handleAi(ctx: Ctx, request: Request, path: string): Promis
 
   let inputs: Inputs;
   try {
-    inputs = (await request.json()) as Inputs;
+    inputs = await request.json<Inputs>();
   } catch {
     throw new Refusal("request.body_invalid");
   }
