@@ -14,6 +14,7 @@ struct ThreadView: View {
     /// Search-result jump target: scroll to + flash this message once it is in
     /// the timeline (#186 item 2). Nil for an ordinary open.
     var highlightMessageId: String? = nil
+    var findQuery: String? = nil
     let onBack: @MainActor () -> Void
 
     @State private var controller: ThreadController?
@@ -30,6 +31,7 @@ struct ThreadView: View {
                     composer: composer,
                     me: me,
                     highlightMessageId: highlightMessageId,
+                    findQuery: findQuery,
                     onBack: onBack
                 )
             } else {
@@ -116,6 +118,7 @@ private struct ThreadBody: View {
     let composer: ComposerState
     let me: Me
     let highlightMessageId: String?
+    let findQuery: String?
     let onBack: @MainActor () -> Void
 
     /// #520: is there a job on this thread due TODAY?
@@ -147,6 +150,8 @@ private struct ThreadBody: View {
     @State private var lastTypingSentMs = 0
     @State private var isAtBottom = true
     @State private var jumpToMessageId: String?
+    @State private var findOpen: Bool?
+    @State private var findTarget: String?
     /// The message to FLASH (search-result indication); cleared after ~2.2s.
     @State private var flashMessageId: String?
     @State private var visibleNotice: ThreadNotice?
@@ -400,8 +405,36 @@ private struct ThreadBody: View {
                     calling: placingCall,
                     onBack: onBack,
                     onOpenSheet: { detailSheet = .conversation },
+                    onFind: { findOpen = true },
                     onCall: { startCall(detail: detail, contactName: contactName) }
                 )
+
+                if findOpen ?? (findQuery?.isBlank == false) {
+                    ThreadFindBar(
+                        initialQuery: findQuery ?? "",
+                        initialMessage: highlightMessageId,
+                        find: { query in
+                            try await MessagingRepository(api: graph.api)
+                                .findMessages(companyId: companyId, conversationId: detail.id, query: query)
+                        },
+                        onJump: { findTarget = $0 },
+                        onClose: {
+                            findOpen = false
+                            findTarget = nil
+                        }
+                    )
+                    .task(id: findTarget) {
+                        guard let target = findTarget else { return }
+                        let loaded = await controller.ensureMessageLoaded(target)
+                        guard !Task.isCancelled else { return }
+                        if loaded {
+                            controller.filter = ThreadFilter()
+                            jumpToMessageId = target
+                            flashMessageId = target
+                        }
+                        findTarget = nil
+                    }
+                }
 
                 ThreadTagsRow(
                     tags: detail.tags,
@@ -1611,6 +1644,7 @@ private struct ThreadHeader: View {
     let calling: Bool
     let onBack: @MainActor () -> Void
     let onOpenSheet: @MainActor () -> Void
+    let onFind: @MainActor () -> Void
     let onCall: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
@@ -1742,6 +1776,13 @@ private struct ThreadHeader: View {
             ) {
                 UrgentBadge()
             }
+
+            Button(action: onFind) {
+                Image(systemName: "magnifyingglass")
+                    .font(.scaled(IconSize.standard, weight: .medium))
+                    .frame(width: 40, height: 44)
+            }
+            .accessibilityLabel(AppStrings.translate(appLocale, "thread.findInThread"))
 
             // Call — enabled even for opted-out contacts (voice ≠ SMS
             // consent); #106: outreach like texting, so note-level viewers

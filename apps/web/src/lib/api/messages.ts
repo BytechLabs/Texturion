@@ -128,6 +128,18 @@ export function useThreadAnchor(): string | null {
   return useSearchParams().get(THREAD_MESSAGE_PARAM);
 }
 
+export function useFindThreadMessages(conversationId: string, query: string) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "thread-find", conversationId, query],
+    queryFn: ({ signal }) => apiFetch<{ data: { id: string; created_at: string }[]; truncated: boolean }>(
+      `/v1/conversations/${conversationId}/messages/search`,
+      { companyId, signal, searchParams: { q: query } },
+    ),
+    enabled: query !== "",
+  });
+}
+
 /**
  * Thread messages — newest-first cursor pages (SPEC §7: (created_at, id)
  * DESC, default 50). Rendering reverses for display; `flattenPages` dedupes.

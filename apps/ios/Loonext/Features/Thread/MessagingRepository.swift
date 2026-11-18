@@ -74,6 +74,10 @@ struct MessagingRepository: Sendable {
         try await api.get("/v1/conversations/\(conversationId)", companyId: companyId)
     }
 
+    func findMessages(companyId: String, conversationId: String, query: String) async throws -> ThreadFindResults {
+        try await api.get("/v1/conversations/\(conversationId)/messages/search", query: ["q": query], companyId: companyId)
+    }
+
     func messages(
         companyId: String,
         conversationId: String,

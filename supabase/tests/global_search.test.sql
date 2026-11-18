@@ -768,6 +768,29 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  f record;
+  note_id uuid;
+begin
+  select * into f from gs_fixture;
+  select id into note_id from public.messages
+   where company_id = f.cid_a and conversation_id = f.cv_a and direction = 'note';
+
+  insert into public.messages (company_id, conversation_id, direction, body, status, deleted_at)
+  values (f.cid_a, f.cv_a, 'inbound', 'Furnace service', 'received', now());
+  insert into public.messages (company_id, conversation_id, direction, body, status, reaction_to_message_id, reaction_emoji)
+  values (f.cid_a, f.cv_a, 'inbound', 'Liked furnace service', 'received', note_id, '👍');
+  insert into public.messages (company_id, conversation_id, direction, body, status)
+  values (f.cid_b, f.cv_b, 'inbound', 'Furnace service', 'received');
+
+  if (select array_agg(id) from public.api_find_thread_messages(f.cid_a, f.cv_a, 'furn'))
+       is distinct from array[note_id]
+     or exists (select 1 from public.api_find_thread_messages(f.cid_a, f.cv_b, 'furn')) then
+    raise exception 'Find in thread missed the note or returned hidden or unrelated messages';
+  end if;
+end $$;
+
 rollback;
 
 select 'ALL GLOBAL SEARCH TESTS PASSED' as result;

@@ -26,7 +26,9 @@ import { flattenPages } from "@/lib/api/pagination";
 import type { Message } from "@/lib/api/types";
 import { sentAutomaticallyLabel } from "@/lib/format/message-automation";
 import { contactDisplayName } from "@/lib/format/phone";
+import { THREAD_MESSAGE_PARAM } from "@/lib/inbox/thread-href";
 import { reducedMotionScrollBehavior } from "@/lib/motion";
+import { updateSearch } from "@/lib/url/search-state";
 import { cn } from "@/lib/utils";
 
 import { buildThreadItems } from './clusters';
@@ -102,6 +104,7 @@ export function MessageList({
   callSessionId = null,
   onJumpToLatest,
   onSelectPhone,
+  findHit,
 }: {
   conversationId: string;
   contact: { name: string | null; phone_e164: string };
@@ -116,6 +119,7 @@ export function MessageList({
   /** #718: leave an anchored window for the newest messages. */
   onJumpToLatest?: () => void;
   onSelectPhone?: (number: string) => void;
+  findHit?: { id: string } | null;
   /** #716: the thread view's catch-up (`useCatchUp`), answered here. */
   catchUp: {
     offered: boolean;
@@ -332,21 +336,33 @@ export function MessageList({
     [scrollToTarget],
   );
 
+  const lastFindHit = useRef<typeof findHit>(null);
+  useEffect(() => {
+    if (!findHit || findHit === lastFindHit.current || !messagesQuery.data) return;
+    lastFindHit.current = findHit;
+    const target = { kind: "message", id: findHit.id } as const;
+    if (allItems.some((item) => itemHasTarget(item, target))) {
+      scrollToMessage(findHit.id);
+    } else {
+      updateSearch((params) => params.set(THREAD_MESSAGE_PARAM, findHit.id));
+    }
+  }, [allItems, findHit, messagesQuery.data, scrollToMessage]);
+
   // #718: opened at a message (or a call) by a link. The window the API sent
   // is already the first page, so this is the same jump as a pin's, just
   // started once the first page lands — and the thread does not open at the
   // bottom, which is where it would otherwise go.
-  const openedAtTarget = useRef(false);
+  const openedAtTarget = useRef<string | null>(null);
   useEffect(() => {
-    if (openedAtTarget.current || !messagesQuery.data) return;
+    if (!messagesQuery.data) return;
     const target: JumpTarget | null =
       anchorId !== null && !anchorMissing
         ? { kind: "message", id: anchorId }
         : (callSessionId === null
           ? null
           : { kind: "call", id: callSessionId });
-    if (target === null) return;
-    openedAtTarget.current = true;
+    if (target === null || openedAtTarget.current === target.id) return;
+    openedAtTarget.current = target.id;
     didInitialScroll.current = true;
     atBottomRef.current = false;
     setAtBottom(false);

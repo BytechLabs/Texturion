@@ -57,6 +57,7 @@ struct InboxDestination: Equatable, Sendable {
     static let shared = AppRouter()
     @Published var openConversationId: String?   // command: open this thread (shell pushes a thread route, then clears)
     @Published var pendingHighlightMessageId: String?  // set alongside openConversationId by search hits only
+    var pendingFindQuery: String?
     @Published var openTaskId: String?           // command: open this task's detail (shell pushes, then clears)
     @Published var openContactId: String?        // command: open this contact's detail (shell pushes, then clears)
     @Published var openCallSessionId: String?    // command (#734): open this call's own page by carrier session id (shell pushes, then clears)

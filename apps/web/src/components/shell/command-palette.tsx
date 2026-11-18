@@ -356,7 +356,7 @@ export function CommandPalette() {
                 key={hit.id}
                 value={`conversation-${hit.id}`}
                 onSelect={() =>
-                  go(threadHref(hit.id, { messageId: hit.matched_message_id }))
+                  go(threadHref(hit.id, { messageId: hit.matched_message_id, findQuery: query }))
                 }
               >
                 <Inbox className="size-4" strokeWidth={1.75} />

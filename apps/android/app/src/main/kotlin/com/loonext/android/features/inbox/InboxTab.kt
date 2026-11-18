@@ -286,7 +286,7 @@ fun InboxTab(
      * cannot tell "nobody passed this" from "deliberately inert", so the dead
      * tap only surfaces on somebody's phone.
      */
-    onOpenThread: (conversationId: String, highlightMessageId: String?) -> Unit,
+    onOpenThread: (conversationId: String, highlightMessageId: String?, findQuery: String?) -> Unit,
     onOpenTask: (taskId: String) -> Unit,
     onComposeNew: (prefillContactId: String?) -> Unit,
     modifier: Modifier = Modifier,
@@ -300,10 +300,8 @@ fun InboxTab(
         me = me,
         destination = destination,
         onDestinationConsumed = onDestinationConsumed,
-        onOpen = { onOpenThread(it, null) },
-        onOpenMessage = { conversationId, messageId ->
-            onOpenThread(conversationId, messageId)
-        },
+        onOpen = { onOpenThread(it, null, null) },
+        onOpenMessage = onOpenThread,
         onOpenTask = onOpenTask,
         onCompose = { onComposeNew(null) },
         onTextContact = { contactId -> onComposeNew(contactId) },
@@ -1424,7 +1422,7 @@ private fun InboxList(
     destination: InboxDestination?,
     onDestinationConsumed: () -> Unit,
     onOpen: (String) -> Unit,
-    onOpenMessage: (conversationId: String, messageId: String) -> Unit,
+    onOpenMessage: (conversationId: String, messageId: String, query: String) -> Unit,
     onOpenTask: (taskId: String) -> Unit,
     onCompose: () -> Unit,
     onTextContact: (String) -> Unit,
@@ -1533,7 +1531,7 @@ private fun InboxList(
                 },
                 onOpenMessage = { conversationId, messageId ->
                     controller.markLocallyRead(conversationId)
-                    onOpenMessage(conversationId, messageId)
+                    onOpenMessage(conversationId, messageId, controller.query.trim())
                 },
                 onOpenTask = onOpenTask,
                 onTextContact = onTextContact,

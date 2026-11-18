@@ -350,6 +350,14 @@ export const threadEn = {
 
   // --- Per-message actions (message-actions.tsx) ----------------------------
   moreActions: "More actions",
+  findInThread: "Find in conversation",
+  findSearching: "Searching…",
+  findError: "Search failed",
+  findMatches: "{count} matches",
+  findPosition: "{position} of {count}",
+  findPrevious: "Previous match",
+  findNext: "Next match",
+  findClose: "Close search",
   makeATask: "Make a task",
   copyText: "Copy text",
   retrySend: "Retry send",
@@ -1140,6 +1148,14 @@ export const threadFr: Translated<typeof threadEn> = {
 
   // --- Per-message actions --------------------------------------------------
   moreActions: "Plus d'actions",
+  findInThread: "Rechercher dans la conversation",
+  findSearching: "Recherche…",
+  findError: "Échec de la recherche",
+  findMatches: "{count} résultats",
+  findPosition: "{position} sur {count}",
+  findPrevious: "Résultat précédent",
+  findNext: "Résultat suivant",
+  findClose: "Fermer la recherche",
   makeATask: "Créer une tâche",
   copyText: "Copier le texte",
   retrySend: "Renvoyer",

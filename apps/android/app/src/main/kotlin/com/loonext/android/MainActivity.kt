@@ -585,6 +585,7 @@ private sealed interface Overlay {
         val conversationId: String,
         /** Search-result jump target: scroll to + flash this message. */
         val highlightMessageId: String? = null,
+        val findQuery: String? = null,
     ) : Overlay
     @Serializable
     data class Task(val taskId: String) : Overlay
@@ -907,8 +908,8 @@ private fun ReadyShell(
             ) { activeTab, modifier ->
                 ShellContent(
                     activeTab, graph, hydratedMe, companyId, modifier,
-                    onOpenThread = { conversationId, highlightMessageId ->
-                        push(Overlay.Thread(conversationId, highlightMessageId))
+                    onOpenThread = { conversationId, highlightMessageId, findQuery ->
+                        push(Overlay.Thread(conversationId, highlightMessageId, findQuery))
                     },
                     onOpenTask = { push(Overlay.Task(it)) },
                     onOpenContact = { push(Overlay.Contact(it)) },
@@ -1025,6 +1026,7 @@ private fun ReadyShell(
                         me = hydratedMe,
                         conversationId = active.conversationId,
                         highlightMessageId = active.highlightMessageId,
+                        findQuery = active.findQuery,
                         onBack = { pop() },
                         onOpenConversation = { push(Overlay.Thread(it)) },
                         onOpenTask = { push(Overlay.Task(it)) },
