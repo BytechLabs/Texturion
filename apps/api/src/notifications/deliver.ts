@@ -311,12 +311,14 @@ interface CompanyPushSettings {
 async function companyPushSettings(
   db: SupabaseClient,
   companyId: string,
+  signal?: AbortSignal,
 ): Promise<CompanyPushSettings> {
-  const { data, error } = await db
+  const read = db
     .from("companies")
     .select("push_include_content,locale")
-    .eq("id", companyId)
-    .maybeSingle();
+    .eq("id", companyId);
+  const query = signal ? read.abortSignal(signal) : read;
+  const { data, error } = await query.maybeSingle();
   if (error) {
     console.error(`push company settings lookup failed: ${error.message}`);
     return { includeContent: false, locale: null, unknown: true };
@@ -362,11 +364,13 @@ function withheldFields(
 async function readerLocales(
   db: SupabaseClient,
   userIds: string[],
+  signal?: AbortSignal,
 ): Promise<Map<string, string | null>> {
-  const { data, error } = await db
+  const read = db
     .from("profiles")
     .select("user_id,locale")
     .in("user_id", userIds);
+  const { data, error } = await (signal ? read.abortSignal(signal) : read);
   if (error) {
     console.error(`push reader locale lookup failed: ${error.message}`);
     return new Map();
@@ -512,6 +516,23 @@ async function queueForBatch(
   }
 }
 
+export async function loadPushCopySettings(
+  db: SupabaseClient,
+  companyId: string,
+  userIds: string[],
+  signal?: AbortSignal,
+) {
+  const [company, profileLocales] = await Promise.all([
+    companyPushSettings(db, companyId, signal),
+    readerLocales(db, userIds, signal),
+  ]);
+  return {
+    company,
+    localeFor: (row: { user_id: string; locale: string | null }): Locale =>
+      resolveUiLocale(profileLocales.get(row.user_id) ?? null, row.locale, company.locale),
+  };
+}
+
 export async function deliverPush(
   env: Env,
   db: SupabaseClient,
@@ -568,10 +589,7 @@ async function fanOutPush(
    * skips resolveAudience still gets them: an override means quiet hours do not
    * apply, not that the alert should arrive in the wrong language.
    */
-  const [company, profileLocales] = await Promise.all([
-    companyPushSettings(db, delivery.companyId),
-    readerLocales(db, audience),
-  ]);
+  const { company, localeFor } = await loadPushCopySettings(db, delivery.companyId, audience);
 
   /*
    * One serialized payload per DISTINCT LANGUAGE present in this audience, not
@@ -606,21 +624,6 @@ async function fanOutPush(
     cache.set(locale, serialized);
     return serialized;
   };
-
-  /**
-   * The full ladder, per device: what the person chose, then what the device
-   * reports, then the workspace's, then English.
-   *
-   * The device rung is the one that has never had a value on the server before
-   * — see the migration. It is read off the row we are about to send TO, which
-   * is why push is the one channel where it is a fact rather than a guess.
-   */
-  const localeFor = (row: { user_id: string; locale: string | null }): Locale =>
-    resolveUiLocale(
-      profileLocales.get(row.user_id) ?? null,
-      row.locale,
-      company.locale,
-    );
 
   const ceiling = audience.length * MAX_TARGETS_PER_USER;
 

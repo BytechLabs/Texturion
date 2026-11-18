@@ -28,11 +28,13 @@
  * path, so it never throws. No pruning here — the ring fan-out (incoming-call)
  * owns channel liveness; a call_end to a dead channel is a harmless no-op.
  */
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { captureException } from "../observability/capture";
 
+import { CALL_PUSH_COPY, loadCallPushCopySettings } from "./call-push-copy";
 import { newestPerUser } from "./deliver";
 import { isFcmConfigured, sendFcm } from "./fcm";
 import { claimHighPriority } from "./high-priority";
@@ -54,25 +56,20 @@ export function callEndAlert(
   reason: "answered" | "voicemail" | "missed",
   caller: string | null,
   answeredBy: string | null,
+  locale: Locale = "en",
 ): { title: string; body: string } {
-  const who = caller?.trim() || "Someone";
-  if (reason === "answered") {
-    return {
-      title: "Call answered",
-      body: answeredBy?.trim()
-        ? `${answeredBy.trim()} picked it up.`
-        : "A teammate picked it up.",
-    };
-  }
-  if (reason === "voicemail") {
-    return { title: "New voicemail", body: `${who} left a message.` };
-  }
-  return { title: "Missed call", body: `${who} called and nobody picked up.` };
+  const copy = CALL_PUSH_COPY[locale];
+  const outcome = copy[reason];
+  const body = reason === "answered"
+    ? copy.answered.body(answeredBy?.trim() || null)
+    : copy[reason].body(caller?.trim() || copy.unknownCaller);
+  return { title: outcome.title, body };
 }
 
 interface SubscriptionRow {
   id: string;
   user_id: string;
+  locale: string | null;
   endpoint: string;
   p256dh: string;
   auth: string;
@@ -81,6 +78,7 @@ interface SubscriptionRow {
 interface DeviceTokenRow {
   id: string;
   user_id: string;
+  locale: string | null;
   platform: "android" | "ios";
   token: string;
 }
@@ -142,6 +140,7 @@ async function deliverCallEnd(
   );
   if (userIds.length === 0) return;
 
+  const copySettings = loadCallPushCopySettings(db, input.companyId, userIds);
   let answeredBy: string | null = null;
   if (input.reason === "answered" && input.answeredByUserId) {
     const { data } = await db
@@ -154,28 +153,28 @@ async function deliverCallEnd(
         ?.display_name ?? null;
   }
 
-  const alert = callEndAlert(input.reason, input.caller ?? null, answeredBy);
-  const payload = JSON.stringify({
+  const payload = (locale: Locale) => JSON.stringify({
     kind: "call_end",
     // The v3 client keys its cancel-by-tag on the session (§10.2).
     url: `/calls?call=${encodeURIComponent(input.callSessionId)}`,
     reason: input.reason,
     call_session_id: input.callSessionId,
-    ...alert,
+    ...callEndAlert(input.reason, input.caller ?? null, answeredBy, locale),
   });
 
   const ceiling = userIds.length * MAX_TARGETS_PER_USER;
 
   // Web: caps-gated subscriptions only. `caps @> {call_end}` (Postgrest `cs`).
-  const { data: subData, error: subError } = await db
+  const subQuery = db
     .from("push_subscriptions")
-    .select("id,user_id,endpoint,p256dh,auth")
+    .select("id,user_id,endpoint,p256dh,auth,locale")
     .in("user_id", userIds)
     .contains("caps", [CALL_END_CAP])
     // Ten devices PER recipient (#267) — a single ceiling across the audience
     // always cut the same longest-tenured members.
     .order("created_at", { ascending: false })
     .limit(ceiling);
+  const [{ data: subData, error: subError }, { localeFor }] = await Promise.all([subQuery, copySettings]);
   if (!subError) {
     const subscriptions = newestPerUser(
       (subData ?? []) as SubscriptionRow[],
@@ -199,7 +198,7 @@ async function deliverCallEnd(
               sendWebPush(
                 env,
                 sub,
-                payload,
+                payload(localeFor(sub)),
                 CALL_END_TTL_SECS,
                 "high",
                 // The ring's own collapse identity: the outcome card REPLACES
@@ -221,7 +220,7 @@ async function deliverCallEnd(
   if (!isFcmConfigured(env)) return;
   const { data: tokenData, error: tokenError } = await db
     .from("device_push_tokens")
-    .select("id,user_id,platform,token")
+    .select("id,user_id,platform,token,locale")
     .in("user_id", userIds)
     .contains("caps", [CALL_END_CAP])
     .order("created_at", { ascending: false })
@@ -258,7 +257,7 @@ async function deliverCallEnd(
             sendFcm(
               env,
               device,
-              payload,
+              payload(localeFor(device)),
               CALL_END_TTL_SECS,
               "high",
               `call:${input.callSessionId}`,
