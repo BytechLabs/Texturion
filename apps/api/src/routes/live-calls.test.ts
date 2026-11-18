@@ -87,6 +87,7 @@ function liveWorld(opts: {
   sb.on("POST", "/rest/v1/call_member_legs", () =>
     Response.json([], { status: 201 }),
   );
+  sb.on("PATCH", "/rest/v1/call_member_legs", () => new Response(null, { status: 204 }));
   sb.on("DELETE", "/rest/v1/call_member_legs", () =>
     new Response(null, { status: 204 }),
   );
@@ -415,17 +416,22 @@ describe("POST /v1/calls/live/:id/consult + complete (D43 phase 3)", () => {
     ]);
     // CALLS-CLIENT-V2 §3.2 (#208): both consult legs carry the session-
     // correlation custom SIP header, exactly like ring legs.
-    for (const dial of dials) {
+    for (const [index, dial] of dials.entries()) {
       expect(
         (dial.body as { custom_headers: { name: string; value: string }[] })
           .custom_headers,
-      ).toEqual([{ name: "X-Loonext-Session", value: SESSION }]);
+      ).toEqual([
+        { name: "X-Loonext-Session", value: SESSION },
+        { name: "X-Loonext-Leg", value: index === 0 ? "consult-s" : "consult-t" },
+      ]);
     }
     const ledger = sb.find("POST", "/rest/v1/call_member_legs");
     expect(ledger).toHaveLength(1);
-    const rows = ledger[0].body as { kind: string }[];
-    expect(rows).toHaveLength(2);
-    expect(rows.every((row) => row.kind === "consult")).toBe(true);
+    expect(ledger[0].body).toEqual([
+      expect.objectContaining({ kind: "consult", state: "ringing", call_control_id: expect.stringMatching(/^consult:[\w-]+:s$/) }),
+      expect.objectContaining({ kind: "consult", state: "ringing", call_control_id: expect.stringMatching(/^consult:[\w-]+:t$/) }),
+    ]);
+    expect(sb.find("PATCH", "/rest/v1/call_member_legs")).toHaveLength(2);
   });
 
   it("409s a second consult while one is running", async () => {
@@ -579,6 +585,7 @@ describe("POST /v1/calls/live/:id/consult + complete (D43 phase 3)", () => {
         setOwner: async (input: { sessionId: string; userId: string }) => {
           ops.push(`setOwner:${input.userId}`);
         },
+        completeConsult: async () => "legacy",
         clearIntent: async () => {
           ops.push("clearIntent");
         },

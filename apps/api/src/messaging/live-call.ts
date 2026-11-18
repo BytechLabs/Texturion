@@ -94,20 +94,18 @@ function transferLegToken(state: TransferState): string {
   return state.wakeId ? `transfer:${id}:${state.wakeId}` : `transfer:${id}`;
 }
 
-export function buildConsultState(input: {
-  sessionId: string;
-  userId: string;
-  role: "s" | "t";
-}): string {
-  return b64encode(
-    `${CONSULT_LEG_STATE}|${input.sessionId}|${input.userId}|${input.role}`,
-  );
-}
-
 export interface ConsultState {
   sessionId: string;
   userId: string;
   role: "s" | "t";
+  consultId?: string;
+  wakeId?: string;
+}
+
+export function buildConsultState(input: ConsultState): string {
+  const id = input.consultId ? `|${input.consultId}` : "";
+  const wake = input.consultId && input.wakeId ? `|${input.wakeId}` : "";
+  return b64encode(`${CONSULT_LEG_STATE}|${input.sessionId}|${input.userId}|${input.role}${id}${wake}`);
 }
 
 export function parseConsultState(
@@ -116,10 +114,101 @@ export function parseConsultState(
   const decoded = b64decode(raw);
   if (!decoded) return null;
   const parts = decoded.split("|");
-  if (parts[0] !== CONSULT_LEG_STATE || parts.length < 4) return null;
-  const [, sessionId, userId, role] = parts;
+  if (parts[0] !== CONSULT_LEG_STATE || parts.length < 4 || parts.length > 6) return null;
+  const [, sessionId, userId, role, consultId, wakeId] = parts;
   if (!sessionId || !userId || (role !== "s" && role !== "t")) return null;
-  return { sessionId, userId, role };
+  if (consultId !== undefined && !TRANSFER_ID.test(consultId)) return null;
+  if (wakeId !== undefined && (role !== "t" || !TRANSFER_ID.test(wakeId))) return null;
+  return { sessionId, userId, role, ...(consultId ? { consultId } : {}), ...(wakeId ? { wakeId } : {}) };
+}
+
+function consultLegToken(consultId: string, role: "s" | "t", wakeId?: string): string {
+  return wakeId ? `consult:${consultId}:${role}:${wakeId}` : `consult:${consultId}:${role}`;
+}
+
+export async function registerConsultLegs(
+  db: SupabaseClient,
+  companyId: string,
+  legs: (ConsultState & { consultId: string })[],
+): Promise<void> {
+  const { error } = await db.from("call_member_legs").insert(legs.map((leg) => ({
+    call_session_id: leg.sessionId,
+    call_control_id: consultLegToken(leg.consultId, leg.role, leg.wakeId),
+    company_id: companyId,
+    user_id: leg.userId,
+    kind: "consult",
+    state: "ringing",
+  })));
+  if (error) throw new Error(`consult ledger insert failed: ${error.message}`);
+}
+
+export async function closePendingConsultLeg(
+  db: SupabaseClient,
+  state: ConsultState & { consultId: string },
+): Promise<void> {
+  const { error } = await db.from("call_member_legs").update({ state: "failed" })
+    .eq("call_session_id", state.sessionId).eq("kind", "consult")
+    .eq("call_control_id", consultLegToken(state.consultId, state.role, state.wakeId))
+    .eq("state", "ringing");
+  if (error) throw new Error(`consult ledger close failed: ${error.message}`);
+}
+
+async function writeConsultLegId(db: SupabaseClient, state: ConsultState, ccid: string): Promise<void> {
+  if (!state.consultId) return;
+  const { error } = await db.from("call_member_legs").update({ call_control_id: ccid })
+    .eq("call_session_id", state.sessionId).eq("call_control_id", consultLegToken(state.consultId, state.role, state.wakeId))
+    .eq("user_id", state.userId).eq("kind", "consult").eq("state", "ringing");
+  if (error) throw new Error(`consult leg bind failed: ${error.message}`);
+}
+
+async function bindConsultLeg(env: Env, db: SupabaseClient, state: ConsultState, ccid: string): Promise<boolean> {
+  const stub = state.consultId ? callSessionStub(env, state.sessionId) : null;
+  if (stub && state.consultId) {
+    const bound = state.role === "s"
+      ? await stub.bindConsultSender({ consultId: state.consultId, userId: state.userId, memberCcid: ccid })
+      : await stub.bindTransferLeg({ transferId: state.consultId, wakeId: state.wakeId, targetUserId: state.userId, memberCcid: ccid });
+    if (!bound) return false;
+  }
+  await writeConsultLegId(db, state, ccid);
+  return true;
+}
+
+export async function dialConsultLeg(
+  env: Env,
+  db: SupabaseClient,
+  input: { sipUsername: string; businessNumber: string; state: ConsultState },
+): Promise<string | null> {
+  const { state } = input;
+  let ccid: string | undefined;
+  try {
+    const response = await telnyxRequest(env, {
+      method: "POST",
+      path: "/v2/calls",
+      body: {
+        connection_id: env.TELNYX_VOICE_CONNECTION_ID,
+        to: `sip:${input.sipUsername}@sip.telnyx.com`,
+        from: input.businessNumber,
+        timeout_secs: TRANSFER_TIMEOUT_SECS,
+        client_state: buildConsultState(state),
+        ...(state.wakeId ? { command_id: state.wakeId } : {}),
+        custom_headers: [
+          { name: LOONEXT_SESSION_HEADER, value: state.sessionId },
+          { name: LOONEXT_LEG_HEADER, value: `consult-${state.role}` },
+        ],
+      },
+    }) as { data?: { call_control_id?: string } };
+    ccid = response.data?.call_control_id;
+  } catch (error) {
+    if (isDefiniteRefusal(error)) return null;
+    throw error;
+  }
+  if (!ccid) return null;
+  try {
+    return await bindConsultLeg(env, db, state, ccid) ? ccid : null;
+  } catch (error) {
+    await hangupLiveLeg(env, ccid);
+    throw error;
+  }
 }
 
 /** Commands on legs that may already be dead 4xx — that's telephony, not a
@@ -563,7 +652,14 @@ export async function handleConsultLegEvent(
   eventType: string,
   ccid: string,
   state: ConsultState,
+  explicitlyDeclined = false,
 ): Promise<void> {
+  const stub = state.consultId ? callSessionStub(env, state.sessionId) : null;
+  if (eventType === "call.hangup") {
+    await writeConsultLegId(db, state, ccid);
+  } else if (!(await bindConsultLeg(env, db, state, ccid))) {
+    return;
+  }
   if (eventType === "call.answered") {
     // Only proceed if THIS is a ledgered consult leg of the session (the
     // update matched a real row) — mirrors handleTransferAnswered and the
@@ -574,7 +670,9 @@ export async function handleConsultLegEvent(
       .update({ state: "answered" })
       .eq("call_session_id", state.sessionId)
       .eq("call_control_id", ccid)
+      .eq("user_id", state.userId)
       .eq("kind", "consult")
+      .neq("state", "failed")
       .select("call_control_id");
     if (error) throw new Error(`consult stamp failed: ${error.message}`);
     if ((claimed?.length ?? 0) === 0) return;
@@ -583,6 +681,17 @@ export async function handleConsultLegEvent(
     const legs = await consultLegs(db, state.sessionId);
     const answered = legs.filter((leg) => leg.state === "answered");
     if (answered.length >= 2) {
+      if (stub && state.consultId) {
+        const otherCcid = answered.find((leg) => leg.call_control_id !== ccid)?.call_control_id;
+        if (otherCcid) {
+          await stub.connectConsult({
+            consultId: state.consultId,
+            senderCcid: state.role === "s" ? ccid : otherCcid,
+            targetCcid: state.role === "t" ? ccid : otherCcid,
+          });
+        }
+        return;
+      }
       await telnyxOnLiveLeg(env, `/v2/calls/${ccid}/actions/bridge`, {
         call_control_id:
           answered.find((leg) => leg.call_control_id !== ccid)
@@ -593,6 +702,19 @@ export async function handleConsultLegEvent(
   }
 
   if (eventType === "call.hangup") {
+    if (stub && state.consultId) {
+      if (state.role === "s") {
+        await stub.endConsultSender({ consultId: state.consultId, userId: state.userId, memberCcid: ccid });
+      } else {
+        await stub.endTransferAttempt({
+          transferId: state.consultId,
+          wakeId: state.wakeId,
+          userId: state.userId,
+          memberCcid: ccid,
+          waitForWake: !explicitlyDeclined,
+        });
+      }
+    }
     // Only dismiss the sibling if THIS was a live consult leg of the session
     // (the update matched a real ledger row). A FORGED brc tag naming a
     // victim's session — or a hangup arriving AFTER /consult/complete deleted
@@ -603,11 +725,12 @@ export async function handleConsultLegEvent(
       .update({ state: "failed" })
       .eq("call_session_id", state.sessionId)
       .eq("call_control_id", ccid)
+      .eq("user_id", state.userId)
       .eq("kind", "consult")
       .neq("state", "failed")
       .select("call_control_id");
     if (error) throw new Error(`consult hangup stamp failed: ${error.message}`);
-    if ((closed?.length ?? 0) === 0) return;
+    if ((closed?.length ?? 0) === 0 || stub) return;
 
     // Dismiss any still-live sibling consult leg (a member declined the
     // consult before it completed — never leave the other listening to

@@ -446,13 +446,15 @@ export async function handleCallEvent(
     }
     const state = parseConsultState(payload.client_state);
     if (!state || !payload.call_control_id) return;
-    if (eventType === "call.answered" || eventType === "call.hangup") {
+    if (eventType === "call.initiated" || eventType === "call.answered" || eventType === "call.hangup") {
+      const cause = payload.hangup_cause?.toLowerCase();
       return handleConsultLegEvent(
         env,
         db,
         eventType,
         payload.call_control_id,
         state,
+        cause === "call_rejected" || cause === "user_busy" || cause === "busy",
       );
     }
     return;

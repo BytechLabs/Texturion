@@ -754,4 +754,71 @@ describe("hermetic call journeys (session layer)", () => {
     expect(fake.voice.live()).toEqual([]);
     expectQuietSession(sessionId);
   });
+
+  it.each([
+    { action: "complete", wake: false },
+    { action: "cancel", wake: false },
+    { action: "complete", wake: true },
+    { action: "sender-hangup", wake: false },
+  ] as const)("S08 $action with wake=$wake preserves the expected bridge", async ({ action, wake }) => {
+    const crew = crewFor("transfer-blind");
+    const [owner, technician] = crew.members;
+    const client = driver();
+    const settle = () => drainCallEvents(client.voice, client.deliver, client.idle);
+    const customer = fake.voice.incoming({ from: crew.farEndE164, to: crew.businessE164 });
+    const sessionId = customer.callSessionId;
+    await settle();
+    const dialedTo = (member: JourneyMember) => fake.voice.live()
+      .findLast((leg) => leg.to === `sip:${member.sipUsername}@sip.telnyx.com`)!;
+    const original = dialedTo(owner);
+    fake.voice.answer(original.callControlId);
+    await settle();
+
+    const path = `/v1/calls/live/${sessionId}/consult`;
+    const created = await as(owner, crew, path, { target_user_id: technician.userId });
+    expect(created.status, await created.clone().text()).toBe(202);
+    await settle();
+    const senderLeg = dialedTo(owner);
+    let targetLeg = dialedTo(technician);
+    fake.voice.answer(senderLeg.callControlId);
+    if (wake) {
+      const consultId = atob(targetLeg.clientState!).split("|").at(-1);
+      fake.voice.hangup(targetLeg.callControlId, "user_not_registered");
+      await settle();
+      const ringPath = `/v1/calls/live/${sessionId}/transfer/ring-me`;
+      const ring = () => as(technician, crew, ringPath, { transfer_id: consultId, no_local_leg: true });
+      expect(await (await ring()).json()).toMatchObject({ rang: true });
+      expect(await (await ring()).json()).toMatchObject({ rang: false, reason: "live_leg" });
+      await settle();
+      const secondLeg = dialedTo(technician);
+      expect(secondLeg.callControlId).not.toBe(targetLeg.callControlId);
+      targetLeg = secondLeg;
+      expect(dialedTo(owner).callControlId).toBe(senderLeg.callControlId);
+    }
+    fake.voice.answer(targetLeg.callControlId);
+    await settle();
+    expect(senderLeg.callControlId).not.toBe(original.callControlId);
+    expect(fake.voice.leg(senderLeg.callControlId)?.bridgedWith).toBe(targetLeg.callControlId);
+    expect(fake.voice.leg(customer.callControlId)?.bridgedWith).toBe(original.callControlId);
+
+    if (action === "sender-hangup") {
+      fake.voice.hangup(original.callControlId);
+      await settle();
+      expect(fake.voice.live()).toEqual([]);
+      expectQuietSession(sessionId);
+      return;
+    }
+
+    const settled = await as(owner, crew, `${path}/${action}`);
+    expect(settled.status, await settled.clone().text()).toBe(200);
+    await settle();
+    const newOwner = action === "complete" ? technician : owner;
+    const peer = action === "complete" ? targetLeg : original;
+    expect(fake.voice.leg(customer.callControlId)?.bridgedWith).toBe(peer.callControlId);
+    await expect(client.answeredBy(sessionId)).resolves.toBe(newOwner.userId);
+    expect(fake.voice.live().map((leg) => leg.callControlId).sort()).toEqual([customer.callControlId, peer.callControlId].sort());
+    fake.voice.hangup(customer.callControlId);
+    await settle();
+    expectQuietSession(sessionId);
+  });
 });

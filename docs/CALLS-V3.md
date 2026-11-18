@@ -1671,8 +1671,12 @@ hangup from the replaced leg cannot settle the replacement.
 The `X-Loonext-Leg: transfer` SIP header lets Android keep presenting that
 leg while the original customer call is still answered.
 
-`consult/complete` uses the same customer leg identifier to hand over a call
-after both consult participants join.
+Talk first dials separate consult legs for the sender and target. The sender's
+device holds the customer and answers its `consult-s` leg. The target's
+`consult-t` leg uses the same one-time wake and replacement path as a blind
+transfer. Once both parties join, Hand over moves the customer's bridge to the
+target. Back to caller closes the two consult legs and resumes the original
+connection on the sender's device.
 
 Owner-death teardown relies on the existing **4h janitor (T16)** as the
 correctness backstop, so a slow or absent oc `call.hangup` is a latency issue,
