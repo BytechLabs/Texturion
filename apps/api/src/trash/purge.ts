@@ -28,6 +28,7 @@ export const TRASH_KINDS = [
 ] as const;
 
 export type TrashKind = (typeof TRASH_KINDS)[number];
+type PurgeableKind = TrashKind | "task" | "task_comment";
 
 /** Items per run. A backlog drains over the next days rather than in one request. */
 const MAX_ITEMS_PER_RUN = 200;
@@ -42,7 +43,7 @@ export type PurgeOutcome =
 
 export async function purgeTrashItem(
   db: SupabaseClient,
-  kind: TrashKind,
+  kind: PurgeableKind,
   id: string,
   actorUserId: string | null,
   /**
@@ -125,7 +126,7 @@ export async function purgeTrash(
   if (error) throw new Error(`trash due scan failed: ${error.message}`);
 
   const failures: unknown[] = [];
-  for (const row of (data ?? []) as { kind: TrashKind; id: string }[]) {
+  for (const row of (data ?? []) as { kind: PurgeableKind; id: string }[]) {
     summary.due += 1;
     try {
       const result = await purgeTrashItem(db, row.kind, row.id, null);

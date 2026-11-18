@@ -31,13 +31,11 @@ begin
   with inventory(table_name) as (
     values
       -- api_trash_due and api_purge_trash_item.
-      ('calls'), ('contacts'), ('conversations'), ('messages'),
+      ('calls'), ('contacts'), ('conversations'), ('messages'), ('tasks'), ('task_comments'),
       -- The attachment sweep removes objects and rows after the signed URL grace period.
       ('attachments'),
       -- purgeClosedWorkspaces clears the company profile after closure.
       ('companies'),
-      -- Source-record purge clears derived tasks. Independent task and comment expiry is open in #803.
-      ('tasks'), ('task_comments'),
       -- Template expiry is a separate decision in #419.
       ('templates')
   ), soft_deleted_tables as (
@@ -737,6 +735,91 @@ begin
   end if;
 
   raise notice 'DT-9 PASSED: 30-day window enforced; audit rows are attributed and content-free';
+end $$;
+
+do $$
+declare
+  company uuid := 'd1000000-0000-4000-8000-000000000002';
+  actor uuid := 'd1000000-0000-4000-8000-000000000001';
+  expired_task uuid := gen_random_uuid();
+  recent_task uuid := gen_random_uuid();
+  active_task uuid := gen_random_uuid();
+  expired_comment uuid := gen_random_uuid();
+  recent_comment uuid := gen_random_uuid();
+  child_comment uuid := gen_random_uuid();
+  shared_path text := company || '/shared.jpg';
+  preview_path text := company || '/preview.webp';
+begin
+  insert into public.tasks (id, company_id, created_by_user_id, title, description, addr_street, deleted_at)
+  values (expired_task, company, actor, 'Replace lock', 'Gate code 5102', 'Maple Road', now() - interval '31 days'),
+         (recent_task, company, actor, 'Fix gate', 'Get replacement', 'Elm Lane', now() - interval '29 days'),
+         (active_task, company, actor, 'Review options', '', null, null);
+  insert into public.task_comments (id, company_id, task_id, author_user_id, body, deleted_at)
+  values (expired_comment, company, active_task, actor, 'Old customer note', now() - interval '31 days'),
+         (recent_comment, company, active_task, actor, 'Recent customer note', now() - interval '29 days'),
+         (child_comment, company, expired_task, actor, 'Parking instructions', null);
+  insert into public.attachments (company_id, owner_type, owner_id, storage_path, file_name, content_type)
+  values (company, 'task_comment', child_comment, shared_path, 'shared.jpg', 'image/jpeg'),
+         (company, 'task', active_task, shared_path, 'shared.jpg', 'image/jpeg');
+  insert into public.attachments (company_id, owner_type, owner_id, storage_path, preview_path, file_name, content_type)
+  values (company, 'task', expired_task, company || '/task.jpg', preview_path, 'task.jpg', 'image/jpeg');
+
+  if (select count(*) from public.api_trash_due(200)
+       where (kind, id) in (('task', expired_task), ('task_comment', expired_comment))) is distinct from 2
+     or exists (select 1 from public.api_trash_due(200) where id in (recent_task, recent_comment, active_task))
+  then
+    raise exception 'Task expiry selected the wrong records';
+  end if;
+  if (select array_agg(path order by path) from public.api_trash_object_paths('task', expired_task))
+       is distinct from array[preview_path, company || '/task.jpg'] then
+    raise exception 'Task expiry missed a file or included a shared file';
+  end if;
+  if public.api_purge_trash_item('task', expired_task, actor, company) ->> 'outcome' is distinct from 'not_found' then
+    raise exception 'Task expiry is available outside cron';
+  end if;
+
+  update public.companies set legal_hold_at = now(), legal_hold_reason = 'dt'
+   where id = company;
+  if exists (select 1 from public.api_trash_due(200) where id in (expired_task, expired_comment))
+     or exists (select 1 from public.api_trash_object_paths('task', expired_task))
+     or public.api_purge_trash_item('task', expired_task) ->> 'outcome' is distinct from 'legal_hold'
+     or public.api_purge_trash_item('task_comment', expired_comment) ->> 'outcome' is distinct from 'legal_hold' then
+    raise exception 'Task expiry bypassed legal hold';
+  end if;
+  update public.companies set legal_hold_at = null, legal_hold_reason = null
+   where id = company;
+
+  if public.api_purge_trash_item('task', expired_task) ->> 'outcome' is distinct from 'purged'
+     or public.api_purge_trash_item('task_comment', expired_comment) ->> 'outcome' is distinct from 'purged'
+     or public.api_purge_trash_item('task', expired_task) ->> 'outcome' is distinct from 'not_found' then
+    raise exception 'Task expiry did not erase both records exactly once';
+  end if;
+  if not exists (
+    select 1 from public.tasks
+     where id = expired_task and title = 'Removed' and description = '' and addr_street is null
+       and deleted_at is not null and purged_at is not null
+  ) or exists (
+    select 1 from public.task_events where task_id = expired_task
+     and (from_value is not null or to_value is not null)
+  ) or exists (
+    select 1 from public.record_activity where source_type = 'task' and source_id = expired_task
+     and payload <> '{}'::jsonb
+  ) then
+    raise exception 'Task text survived expiry';
+  end if;
+  if exists (select 1 from public.task_comments where id in (expired_comment, child_comment))
+     or exists (select 1 from public.attachments where owner_id in (expired_task, child_comment))
+     or not exists (select 1 from public.attachments where owner_id = active_task and storage_path = shared_path)
+     or not exists (select 1 from public.tasks where id = recent_task and title = 'Fix gate')
+     or not exists (select 1 from public.task_comments where id = recent_comment) then
+    raise exception 'Task expiry erased the wrong comments or attachments';
+  end if;
+  if (select count(*) from public.audit_log where company_id = company
+       and target_id in (expired_task::text, expired_comment::text)
+       and action = 'record.purged' and before = '{}'::jsonb
+       and after = '{"by":"trash_expiry"}'::jsonb) is distinct from 2 then
+    raise exception 'Task expiry did not audit both records without their content';
+  end if;
 end $$;
 
 rollback;
