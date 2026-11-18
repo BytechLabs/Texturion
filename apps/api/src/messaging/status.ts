@@ -14,8 +14,7 @@
  *                       (identifier = telnyx_message_id) → stamp
  *                       stripe_reported_at.
  *
- * Status webhooks whose telnyx_message_id matches no row are acked no-ops
- * (§8) — e.g. a `sent` racing the send route's telnyx_message_id persist.
+ * Revisit recent finalized receipts if the send has yet to save its carrier ID.
  */
 import { classifySendFailure } from "@loonext/shared";
 
@@ -29,6 +28,9 @@ import { phoneCountry } from "./delivery-by-country";
 import type { TelnyxEvent, TelnyxMessagePayload } from "./types";
 import { MMS_SEGMENTS } from "./media";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
+
+const FINALIZED_LOOKUP_RETRY_MS = 15 * 60 * 1000;
+const FINALIZED_CLOCK_SKEW_MS = 60 * 1000;
 
 /** message.sent / message.finalized entry point (dispatched from §7 route). */
 export async function handleStatusEvent(
@@ -48,7 +50,7 @@ export async function handleStatusEvent(
     return;
   }
   if (eventType === "message.finalized") {
-    await finalize(env, telnyxMessageId, payload);
+    await finalize(env, telnyxMessageId, payload, event.data?.occurred_at);
   }
 }
 
@@ -76,6 +78,7 @@ async function finalize(
   env: Env,
   telnyxMessageId: string,
   payload: TelnyxMessagePayload,
+  occurredAt?: string,
 ): Promise<void> {
   const db = getDb(env);
 
@@ -102,7 +105,24 @@ async function finalize(
         automated: boolean;
       }
     | undefined;
-  if (!message) return; // unknown id → acked no-op (§8)
+  if (!message) {
+    const age = Date.now() - Date.parse(occurredAt ?? "");
+    if (
+      payload.direction !== "inbound" &&
+      age >= -FINALIZED_CLOCK_SKEW_MS &&
+      age < FINALIZED_LOOKUP_RETRY_MS
+    ) {
+      const { data: systemTexts, error } = await db.from("widget_verifications")
+        .select("id")
+        .eq("telnyx_message_id", telnyxMessageId)
+        .limit(1);
+      if (error) throw new Error(`finalized widget lookup failed: ${error.message}`);
+      if ((systemTexts ?? []).length === 0) {
+        throw new Error("Finalized receipt arrived before the carrier message ID was saved.");
+      }
+    }
+    return;
+  }
 
   const delivered =
     payload.to?.some((recipient) => recipient.status === "delivered") === true;

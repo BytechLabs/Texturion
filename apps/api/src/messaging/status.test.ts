@@ -37,6 +37,7 @@ afterEach(() => {
 });
 
 function finalizedEvent(overrides: {
+  occurredAt?: string;
   toStatus?: string;
   parts?: number;
   type?: "SMS" | "MMS";
@@ -47,6 +48,7 @@ function finalizedEvent(overrides: {
     data: {
       event_type: "message.finalized",
       id: "f1f1f1f1-0000-4000-8000-000000000001",
+      occurred_at: overrides.occurredAt,
       payload: {
         id: TELNYX_ID,
         type: overrides.type ?? "SMS",
@@ -391,13 +393,57 @@ describe("message.finalized", () => {
     expect(stubs.meter.calls).toHaveLength(0);
   });
 
-  it("acks an unknown telnyx_message_id as a no-op (§8)", async () => {
+  it("ignores an old unrecognized carrier message ID", async () => {
     const lookup = stubRoute(restMatch(env, "GET", "messages"), () => []);
     const update = stubRoute(restMatch(env, "PATCH", "messages"));
     stubFetch(lookup.route, update.route);
 
-    await handleStatusEvent(env, finalizedEvent());
+    await handleStatusEvent(env, finalizedEvent({
+      occurredAt: new Date(Date.now() - 30 * 60_000).toISOString(),
+    }));
     expect(update.calls).toHaveLength(0);
+  });
+
+  it("replays a recent receipt after the carrier ID is saved", async () => {
+    const stubs = baseStubs();
+    let carrierIdSaved = false;
+    const unknownMessage = stubRoute(restMatch(env, "GET", "messages"), () =>
+      carrierIdSaved ? [{ id: MESSAGE_ID, company_id: COMPANY_ID, direction: "outbound", status: "sent" }] : [],
+    );
+    const knownSystemTexts = stubRoute(restMatch(env, "GET", "widget_verifications"), () => []);
+    stubFetch(
+      unknownMessage.route,
+      knownSystemTexts.route,
+      stubs.update.route,
+      stubs.usageInsert.route,
+      stubs.companyLookup.route,
+      stubs.usageStamp.route,
+      stubs.meter.route,
+    );
+    const event = finalizedEvent({ occurredAt: new Date(Date.now() - 1000).toISOString() });
+
+    await expect(handleStatusEvent(env, event)).rejects.toThrow("carrier message ID was saved");
+    expect(stubs.update.calls).toHaveLength(0);
+    expect(stubs.usageInsert.calls).toHaveLength(0);
+
+    carrierIdSaved = true;
+    await handleStatusEvent(env, event);
+    expect(stubs.update.calls).toHaveLength(1);
+    expect(stubs.usageInsert.calls).toHaveLength(1);
+    expect(knownSystemTexts.calls).toHaveLength(1);
+  });
+
+  it("finishes a widget code receipt without touching conversation messages", async () => {
+    const unknownMessage = stubRoute(restMatch(env, "GET", "messages"), () => []);
+    const widgetCode = stubRoute(restMatch(env, "GET", "widget_verifications"), () => [
+      { id: "ac20ecf5-16f1-4ab9-9428-66c7e57d8988" },
+    ]);
+    stubFetch(unknownMessage.route, widgetCode.route);
+
+    await handleStatusEvent(env, finalizedEvent({
+      occurredAt: new Date(Date.now() - 1000).toISOString(),
+    }));
+    expect(widgetCode.calls[0].url.searchParams.get("telnyx_message_id")).toBe(`eq.${TELNYX_ID}`);
   });
 
   it("leaves stripe_reported_at NULL when the meter call fails (cron re-reports)", async () => {

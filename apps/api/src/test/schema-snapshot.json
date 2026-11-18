@@ -116,7 +116,7 @@
     "webhook_endpoints": {"kind":"table","columns":["active","company_id","consecutive_failures","created_at","created_by","created_by_api_key_id","description","disabled_at","disabled_reason","events","id","last_failure_at","last_success_at","secret","url"],"computed":[]},
     "webhook_events": {"kind":"table","columns":["attempts","claimed_at","event_id","event_type","last_error","payload","processed_at","provider","received_at"],"computed":[]},
     "webhook_subscriptions": {"kind":"table","columns":["client_state_hash","company_id","connection_id","created_at","expires_at","id","last_error_code","last_error_detail","last_notification_at","last_renewed_at","provider_calendar_id","provider_resource_id","provider_subscription_id","renewal_attempts","renewal_available_at","renewal_generation","renewal_lease_expires_at","renewal_lease_owner","revoked_at","status","updated_at"],"computed":[]},
-    "widget_verifications": {"kind":"table","columns":["attempts","code_hash","company_id","created_at","expires_at","id","ip","phone_e164","verified_at"],"computed":[]}
+    "widget_verifications": {"kind":"table","columns":["attempts","code_hash","company_id","created_at","expires_at","id","ip","phone_e164","telnyx_message_id","verified_at"],"computed":[]}
   },
   "foreignKeys": [
     {"name":"alert_escalations_acknowledged_by_fkey","table":"alert_escalations","columns":["acknowledged_by"],"refTable":"users"},
