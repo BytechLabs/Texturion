@@ -264,7 +264,7 @@ export const canadaFr: Translated<typeof canadaEn> = {
   faqDataQ: "Où sont stockées mes données ?",
   faqDataA:
     "Aux États-Unis. Nous le disons clairement et nous divulguons le transfert transfrontalier dans notre politique de confidentialité, comme la LPRPDE (PIPEDA) et la Loi 25 du Québec l'exigent. Le contenu des messages est aussi tenu à l'écart de nos statistiques et de nos journaux d'erreurs ; les détails se trouvent sur notre page sur la sécurité.",
-  faqCurrencyQ: "Dans quelle devise vais-je payer depuis le Canada?",
+  faqCurrencyQ: "Dans quelle devise vais-je payer depuis le Canada ?",
   faqCurrencyA:
     "Loonext facture en dollars américains. L’émetteur de votre carte peut convertir le montant en dollars canadiens. Le montant sur votre relevé peut donc varier selon le taux de change.",
 
