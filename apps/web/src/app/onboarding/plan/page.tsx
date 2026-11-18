@@ -129,25 +129,11 @@ function PlanStep() {
   const companyId = state.companyId;
   const progress = stepProgress("plan", state.snapshot);
   const owes = owesUsRegistration(company);
-  /**
-   * #522: the same fee, resolved the same way the summary above resolves it.
-   *
-   * This line printed `US_REGISTRATION_FEE_CENTS.usd` while `WorkspaceSummary`
-   * on this very screen resolved through the country and printed the CAD
-   * figure, so a Canadian reader was shown two different prices for one fee,
-   * inches apart, on the last screen before paying.
-   *
-   * WHICH ONE IS TRUE IS NOT SETTLED HERE, and that is worth being plain
-   * about: before a checkout exists Stripe has not pinned a currency, and the
-   * catalog decides it (`checkoutCurrency` degrades to USD for a price with no
-   * CAD amount, and the row is corrected to match once the session is made).
-   * What this screen can guarantee is that it does not contradict itself, and
-   * that it quotes the higher of the two rather than the lower, because being
-   * charged less than quoted is the recoverable direction.
-   */
+  const priceAudience = currencyForCountry(company.country);
   const registrationFee = formatMoney(
-    US_REGISTRATION_FEE_CENTS[currencyForCountry(company?.country ?? null)],
-    currencyForCountry(company?.country ?? null),
+    US_REGISTRATION_FEE_CENTS.usd,
+    "usd",
+    priceAudience,
   );
 
   const owesFee = owes && company.registration_fee_paid_at === null;
@@ -244,7 +230,7 @@ function PlanStep() {
           aria-label={t("onboarding.planGroupAria")}
           className="grid gap-4 sm:grid-cols-2"
         >
-          {planCards(t).map((plan) => {
+          {planCards(t, priceAudience).map((plan) => {
             const selected = selectedPlan === plan.id;
             return (
               <button

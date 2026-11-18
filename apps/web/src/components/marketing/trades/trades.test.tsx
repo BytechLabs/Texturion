@@ -46,18 +46,19 @@ import { TradeThread } from "./trade-thread";
  */
 function money(currency: "usd" | "cad") {
   return {
-    starter: formatMoney(PLAN_PRICE_CENTS[currency].starter, currency),
-    pro: formatMoney(PLAN_PRICE_CENTS[currency].pro, currency),
-    fee: formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency),
+    starter: formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", currency),
+    pro: formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", currency),
+    fee: formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", currency),
     /** Plan plus the one-time US fee: the only figure here that is a sum. */
     firstMonth: formatMoney(
-      PLAN_PRICE_CENTS[currency].starter + US_REGISTRATION_FEE_CENTS[currency],
+      PLAN_PRICE_CENTS.usd.starter + US_REGISTRATION_FEE_CENTS.usd,
+      "usd",
       currency,
     ),
   };
 }
 const USD = money("usd");
-const CAD = money("cad");
+const CANADA = money("cad");
 
 /** React's static-markup escaping, so deck strings compare verbatim. */
 function esc(s: string): string {
@@ -286,37 +287,30 @@ describe("factual claims (Law 7): the billing truths render on every page", () =
     );
     expect(html).toContain(
       "Text your Canadian customers the same day your number is active. No registration, no fee, no wait, just a flat " +
-        `${CAD.starter} a month.`,
+        `${CANADA.starter} a month.`,
     );
-    // The US registration wait and the one-time fee never reach a Canadian, in
-    // either currency: not the USD sum (a leaked literal) and not the CAD one
-    // (a US-only sentence that escaped its CountryOnly and got localised on the
-    // way out, which is the more convincing failure of the two).
     expect(html).not.toContain("3 to 7 business days");
     expect(html).not.toContain(USD.firstMonth);
-    expect(html).not.toContain(CAD.firstMonth);
+    expect(html).not.toContain(CANADA.firstMonth);
     expect(html).not.toContain("EIN");
     // Still dash-free in the Canada branch.
     expect(html).not.toContain("—");
     expect(html).not.toContain("–");
   });
 
-  it("every page quotes the Canadian price to a Canadian, never the US one", () => {
-    // The failure this closes was invisible by construction: a literal cannot
-    // disagree with itself, so the six pages looked consistent right up until
-    // the invoice. Rendering both branches is what makes it visible here.
+  it("labels USD prices on trade pages for Canadian visitors", () => {
     for (const page of PAGES) {
       const html = renderToStaticMarkup(
         <CountryProvider initialCountry="ca">{page.node}</CountryProvider>,
       );
-      expect(html, `${page.name}: shows the CAD Starter price`).toContain(
-        CAD.starter,
+      expect(html, `${page.name}: labels the USD Starter price`).toContain(
+        CANADA.starter,
       );
-      expect(html, `${page.name}: shows the CAD Pro price`).toContain(CAD.pro);
-      expect(html, `${page.name}: leaks the USD Starter price`).not.toContain(
+      expect(html, `${page.name}: labels the USD Pro price`).toContain(CANADA.pro);
+      expect(html.replaceAll(CANADA.starter, ""), page.name).not.toContain(
         USD.starter,
       );
-      expect(html, `${page.name}: leaks the USD Pro price`).not.toContain(
+      expect(html.replaceAll(CANADA.pro, ""), page.name).not.toContain(
         USD.pro,
       );
     }

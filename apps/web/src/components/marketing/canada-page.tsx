@@ -14,32 +14,7 @@
  * "Helps you follow CASL", never "CASL-compliant". US data residency stated,
  * not buried. Every number is a verified product/billing fact.
  *
- * # #328: this page does NOT force CAD, and the figures are not typed
- *
- * Every price here renders through `<PlanPrice>` / `<RegistrationFee>`, which
- * read the ONE site-wide country context. That context is what the nav
- * selector moves, and it is deliberately not overridden here even though this
- * page's reader is definitionally Canadian.
- *
- * The reason is that the nav CountrySelector is on screen while this page is.
- * Pinning the body to CAD would put a page-local currency in plain view of a
- * control reading "US", and the shared `PricingSnippet` around the CTAs would
- * still branch its guarantee microcopy on the context, so a single card would
- * carry Canadian figures beside the US registration-fee sentence. Owner ruling
- * v1 is one country for the whole marketing app, and a second, page-local
- * source of truth is the exact disagreement that ruling exists to prevent.
- *
- * A visitor who arrived by typing /canada has told us something the context
- * does not know, and the home for that is the country signal itself (adopting
- * "ca" for a visitor who has not chosen yet), not a currency override in this
- * file. That is a change to site-wide behaviour and belongs to whoever owns
- * the context.
- *
- * The billing STATEMENTS below are therefore worded as facts about Canadian
- * workspaces rather than about "you", so they read true in either branch and
- * need no CountryText split. That also fixes what was here before: this page
- * said "Billing is in USD for now, CAD billing is coming", in three places,
- * which #328 has now made false.
+ * The billing disclosure applies to Canadian workspaces regardless of the selected audience.
  */
 
 import { canadaCopy } from '@/i18n/marketing/canada';
@@ -282,10 +257,6 @@ export function CanadaPageBody({ locale = "en" }: { locale?: MarketingLocale }) 
             good: true,
           },
           {
-            // #328 replaced the "billing is in USD for now, CAD is coming"
-            // line this strip used to carry. It is stated about a Canadian
-            // workspace rather than about "you", so it stays true whichever
-            // branch the site-wide country toggle is on.
             text: copy.truthBilling,
             good: true,
           },

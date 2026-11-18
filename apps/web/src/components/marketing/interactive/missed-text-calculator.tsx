@@ -25,7 +25,7 @@ import type { BillingCurrency } from '@loonext/shared';
 import { MonoFigure } from "@/components/marketing/fr";
 import {
   PlanPrice,
-  useMarketingCurrency,
+  usePriceAudience,
 } from "@/components/marketing/pricing/plan-price";
 
 const WEEKS_PER_MONTH = 4.33;
@@ -116,7 +116,7 @@ export function MissedTextCalculator({
   const [missed, setMissed] = useState(5);
   const [ratePct, setRatePct] = useState(25);
   const [value, setValue] = useState(250);
-  const currency = useMarketingCurrency();
+  const currency = usePriceAudience();
 
   const rate = ratePct / 100;
   const weekly = missed * rate * value;

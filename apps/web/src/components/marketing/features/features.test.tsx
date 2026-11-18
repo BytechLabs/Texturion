@@ -43,6 +43,7 @@ import { CountryProvider } from "@/components/marketing/country";
 import { BrowserFrame } from "@/components/marketing/frame/browser-frame";
 import { PhoneFrame } from "@/components/marketing/frame/phone-frame";
 import { ConsentVisual } from "./consent-visual";
+import { CanadaPageBody } from "../canada-page";
 import {
   FeatureCta,
   PricingSnippet,
@@ -73,18 +74,19 @@ import { TagsDoneVisual } from "./tags-done-visual";
  */
 function money(currency: "usd" | "cad") {
   return {
-    starter: formatMoney(PLAN_PRICE_CENTS[currency].starter, currency),
-    pro: formatMoney(PLAN_PRICE_CENTS[currency].pro, currency),
-    fee: formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency),
+    starter: formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", currency),
+    pro: formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", currency),
+    fee: formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", currency),
     /** Plan plus the one-time US fee: the sum that can drift on its own. */
     firstMonth: formatMoney(
-      PLAN_PRICE_CENTS[currency].starter + US_REGISTRATION_FEE_CENTS[currency],
+      PLAN_PRICE_CENTS.usd.starter + US_REGISTRATION_FEE_CENTS.usd,
+      "usd",
       currency,
     ),
   };
 }
 const USD = money("usd");
-const CAD = money("cad");
+const CANADA = money("cad");
 
 const PAGES: Record<string, string> = {
   "shared-inbox": renderToStaticMarkup(<SharedInboxPage />),
@@ -300,7 +302,7 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     expect(html).toContain(`first month is ${USD.firstMonth}`);
   });
 
-  it("canada: day-one texting, CAD billing, US data residency, the later-US path", () => {
+  it("canada: day-one texting, USD billing, US data residency, the later-US path", () => {
     const html = PAGES.canada;
     expect(html).toMatch(/text customers today/i);
     expect(html).toMatch(/stored (and processed )?in the United States/i);
@@ -308,13 +310,8 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     expect(html).toMatch(/3 to 7\s*business day/);
     expect(html).toMatch(/helps you follow/i);
 
-    // #328 REVERSED THE FACT THIS TEST USED TO PIN. It asserted /USD/, because
-    // the page said "billing is in USD for now, CAD billing is coming" in three
-    // places. CAD billing shipped, so that assertion was guarding a promise we
-    // had already broken in the other direction, and the page now states the
-    // currency as a fact about a Canadian workspace.
-    expect(html).toMatch(/billed in Canadian dollars/);
-    expect(html).not.toMatch(/CAD billing is coming|in USD for now|Prices in USD/);
+    expect(html).toMatch(/billed in US dollars/);
+    expect(html).toMatch(/card issuer may convert/);
   });
 
   it("canada: the province ledger is generated from the app's NANP table", () => {
@@ -333,6 +330,17 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     for (const code of ["604", "403", "416", "514", "902", "867"]) {
       expect(html).toContain(code);
     }
+  });
+
+  it("labels English and French Canadian subscription prices in USD", () => {
+    const french = renderToStaticMarkup(
+      <CountryProvider initialCountry="ca">
+        <CanadaPageBody locale="fr-CA" />
+      </CountryProvider>,
+    );
+    expect(french).toContain(CANADA.starter);
+    expect(french).toContain(CANADA.pro);
+    expect(french).toContain("facturés en dollars américains");
   });
 });
 
@@ -360,33 +368,17 @@ describe("country branching: a Canadian sees only the Canada story (owner ruling
     }
   });
 
-  /**
-   * #328 — the reason this file exists for prices at all.
-   *
-   * Every page above quotes a plan price, and a Canadian workspace is billed
-   * $39/$109 in CAD. A literal on the page could not disagree with itself, so
-   * the drift was invisible: it only showed up on the invoice, months later,
-   * in front of somebody holding a card. Asserting BOTH branches is what makes
-   * it visible here instead.
-   */
-  it("every page that quotes a price quotes the Canadian one to a Canadian", () => {
+  it("labels subscription prices in USD for Canadian visitors", () => {
     for (const [name, html] of Object.entries(CA_PAGES)) {
-      expect(html, `${name}: shows the CAD plan price`).toContain(CAD.starter);
-      // And never the US figure, which is the failure this closes.
-      expect(html, `${name}: leaks the USD plan price`).not.toContain(
+      expect(html, name).toContain(CANADA.starter);
+      expect(html.replaceAll(CANADA.starter, ""), name).not.toContain(
         `${USD.starter}/mo`,
       );
     }
-    // The Pro figure, wherever the page names both plans.
     for (const name of ["shared-inbox", "business-number", "compliance", "canada"]) {
-      expect(CA_PAGES[name], `${name}: shows the CAD Pro price`).toContain(
-        CAD.pro,
-      );
+      expect(CA_PAGES[name], name).toContain(CANADA.pro);
     }
-    // The one-time US registration fee is charged to a Canadian workspace only
-    // if it enables US texting, and then it lands on a Canadian invoice, so
-    // /canada quotes it in CAD rather than skipping the currency.
-    expect(CA_PAGES.canada).toContain(`one-time ${CAD.fee}`);
+    expect(CA_PAGES.canada).toContain(`one-time ${CANADA.fee}`);
   });
 
   it("business-number (CA): same-day, no-fee, no-registration facts, no US wait/fee/EIN", () => {
@@ -402,9 +394,9 @@ describe("country branching: a Canadian sees only the Canada story (owner ruling
     // The US-only wait, fee, and 10DLC sole-prop cap never reach a Canadian.
     expect(html).not.toMatch(/3 to 7 business days/);
     expect(html).not.toContain(`first month is ${USD.firstMonth}`);
-    expect(html).not.toContain(`first month is ${CAD.firstMonth}`);
+    expect(html).not.toContain(`first month is ${CANADA.firstMonth}`);
     expect(html).not.toContain(`one-time ${USD.fee}`);
-    expect(html).not.toContain(`one-time ${CAD.fee}`);
+    expect(html).not.toContain(`one-time ${CANADA.fee}`);
     expect(html).not.toMatch(/without an EIN/);
     expect(html).not.toMatch(/single number regardless of plan/);
   });
@@ -421,9 +413,9 @@ describe("country branching: a Canadian sees only the Canada story (owner ruling
     // No US wait, fee, or carrier-registration obligation, in copy OR the embed.
     expect(html).not.toMatch(/3 to 7 business days/);
     expect(html).not.toContain(`first month is ${USD.firstMonth}`);
-    expect(html).not.toContain(`first month is ${CAD.firstMonth}`);
+    expect(html).not.toContain(`first month is ${CANADA.firstMonth}`);
     expect(html).not.toContain(`one-time ${USD.fee}`);
-    expect(html).not.toContain(`one-time ${CAD.fee}`);
+    expect(html).not.toContain(`one-time ${CANADA.fee}`);
     expect(html).not.toContain("carrier approval");
     expect(html).not.toContain("carrier paperwork"); // the closing-CTA leak, now branched
     expect(html).not.toContain("Registration filed for you"); // the closing-CTA leak

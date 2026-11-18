@@ -223,6 +223,7 @@ Website: https://loonext.com
 - Canada-first: Canadian businesses can text Canadian customers the same day they sign up (no US carrier registration needed for Canada-to-Canada).
 
 ## Pricing (USD, plus sales tax where applicable)
+- Subscriptions in Canada and the United States are billed in US dollars.
 - Starter, $${PLAN_PRICING.starter.monthlyDollars}/mo: ${PLAN_PRICING.starter.seats} teammates, ${PLAN_PRICING.starter.numbers} local number, texting included under an automated fair-use policy, receiving texts free and unlimited. There is no hard message cap: almost every crew stays well inside fair use, and if a month runs hot, extra texts bill at a small per-text rate, only up to a spending cap you control, with email alerts at 80% and 100% first. The concrete numbers live at https://loonext.com/legal/fair-use.
 - Pro, $${PLAN_PRICING.pro.monthlyDollars}/mo: ${PLAN_PRICING.pro.seats} teammates, ${PLAN_PRICING.pro.numbers} local numbers, more texting for a bigger crew on the same fair-use basis, receiving texts free and unlimited.
 - Enterprise: unlimited teammates for crews larger than ${PLAN_PRICING.pro.seats}. Contact-sales only (talk to us at support@loonext.com or the contact page); not a self-serve plan, same flat, no-per-user philosophy priced to your size.
@@ -284,7 +285,6 @@ Website: https://loonext.com
 ## What Loonext does NOT do
 - No mass/broadcast texting, no scheduled campaigns or blast marketing, no review management.
 - No cell forwarding and no desk-phone/SIP hardware: calls ring and are placed in the Loonext app itself (the app is the phone, on any phone or computer, mic permission required). No phone menus, queues, or call-center features.
-- No CAD billing yet (charged in USD).
 
 ## Security & data
 - Tenant isolation via row-level security; encryption in transit and at rest.

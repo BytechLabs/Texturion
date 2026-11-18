@@ -1,4 +1,3 @@
-import { CountryText } from "@/components/marketing/country";
 import {
   LegalLink,
   LegalPage,
@@ -24,7 +23,7 @@ import { localizedPath } from "@/lib/marketing/translated-pages";
 
 export const TERMS_EN_PATH = "/legal/terms";
 export const TERMS_FR_PATH = "/fr/conditions-utilisation";
-export const TERMS_LAST_UPDATED_ISO = "2026-11-10";
+export const TERMS_LAST_UPDATED_ISO = "2026-11-17";
 
 export function TermsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
   const copy = legalTermsCopy(locale);
@@ -78,14 +77,7 @@ export function TermsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
         <p>
           <LegalRichText text={copy.subscriptionTwo} slots={{ fee: <RegistrationFee /> }} />
         </p>
-        <p>
-          <LegalRichText
-            text={copy.subscriptionThree}
-            slots={{
-              currency: <CountryText us={copy.currencyUs} ca={copy.currencyCa} />,
-            }}
-          />
-        </p>
+        <p>{copy.subscriptionThree}</p>
       </LegalSectionBlock>
 
       <LegalSectionBlock id="numbers" number="4" heading={copy.sectionNumbers}>

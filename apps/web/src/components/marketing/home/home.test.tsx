@@ -73,18 +73,19 @@ const PAGE = renderToStaticMarkup(<HomePage />);
  */
 function money(currency: "usd" | "cad") {
   return {
-    starter: formatMoney(PLAN_PRICE_CENTS[currency].starter, currency),
-    pro: formatMoney(PLAN_PRICE_CENTS[currency].pro, currency),
-    fee: formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency),
+    starter: formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", currency),
+    pro: formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", currency),
+    fee: formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", currency),
     /** Plan plus the one-time US fee: the only figure here that is a sum. */
     firstMonth: formatMoney(
-      PLAN_PRICE_CENTS[currency].starter + US_REGISTRATION_FEE_CENTS[currency],
+      PLAN_PRICE_CENTS.usd.starter + US_REGISTRATION_FEE_CENTS.usd,
+      "usd",
       currency,
     ),
   };
 }
 const USD = money("usd");
-const CAD = money("cad");
+const CANADA = money("cad");
 
 /** A component rendered inside the site-wide provider, pinned to a country. */
 const ca = (node: ReactNode) =>
@@ -357,7 +358,7 @@ describe("the one cobalt band (Laws 3 and 5)", () => {
     );
     // The same eyebrow, in the money a Canadian reader is actually charged.
     expect(ca(<FinalCta />)).toContain(
-      `${CAD.starter}/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK`,
+      `${CANADA.starter}/MO FLAT · MONTH TO MONTH · 30-DAY MONEY-BACK`,
     );
     // No live canvas anywhere in the server markup (the p5 layer is a lazy
     // client chunk that only ever mounts on the hero).
@@ -402,11 +403,11 @@ describe("country branching: the home never pairs the two stories (owner ruling 
     // USD figures (a leaked literal), and not the CAD ones (a US-only sentence
     // that escaped its CountryOnly and got localised on the way out).
     expect(caD).not.toContain(USD.firstMonth);
-    expect(caD).not.toContain(CAD.firstMonth);
+    expect(caD).not.toContain(CANADA.firstMonth);
     expect(caD).not.toContain(`one-time ${USD.fee} to register`);
-    expect(caD).not.toContain(`one-time ${CAD.fee} to register`);
+    expect(caD).not.toContain(`one-time ${CANADA.fee} to register`);
     expect(caD).not.toContain("including the registration fee");
-    expect(caD).toContain(`${CAD.starter} a month, flat`);
+    expect(caD).toContain(`${CANADA.starter} a month, flat`);
   });
 
   it("the deal: the plan cards quote the price the reader will be charged", () => {
@@ -418,10 +419,10 @@ describe("country branching: the home never pairs the two stories (owner ruling 
     expect(usD).toContain(USD.pro);
 
     const caD = ca(<TheDeal />);
-    expect(caD).toContain(CAD.starter);
-    expect(caD).toContain(CAD.pro);
-    expect(caD).not.toContain(`${USD.starter}/mo`);
-    expect(caD).not.toContain(`${USD.starter} a month`);
+    expect(caD).toContain(CANADA.starter);
+    expect(caD).toContain(CANADA.pro);
+    expect(caD.replaceAll(CANADA.starter, "")).not.toContain(`${USD.starter}/mo`);
+    expect(caD.replaceAll(CANADA.starter, "")).not.toContain(`${USD.starter} a month`);
   });
 
   it("FAQ: US answers the carrier wait and the fee; CA answers neither as a default", () => {
@@ -441,20 +442,20 @@ describe("country branching: the home never pairs the two stories (owner ruling 
     expect(caF).not.toContain("Why does texting US customers take about a week?");
     expect(caF).not.toMatch(/What&#x27;s the one-time [^<]*fee\?/);
     expect(caF).not.toContain(`your first month is ${USD.firstMonth}`);
-    expect(caF).not.toContain(`your first month is ${CAD.firstMonth}`);
+    expect(caF).not.toContain(`your first month is ${CANADA.firstMonth}`);
   });
 
-  it("FAQ: a Canadian reads Canadian figures, in every answer that names one", () => {
+  it("FAQ: labels prices and the registration fee in USD for Canada", () => {
     // The plan answer ("is it really X for the whole team?") quotes both plans
     // and is the most-read money sentence on the page. The later-US-texting
     // answer legitimately names the registration fee, so it is quoted in the
     // currency a Canadian workspace would be charged it in, not skipped.
     const caF = ca(<Faq />);
-    expect(caF).toContain(CAD.starter);
-    expect(caF).toContain(CAD.pro);
-    expect(caF).not.toContain(USD.starter);
-    expect(caF).not.toContain(USD.pro);
-    expect(caF).toContain(`one-time ${CAD.fee}`);
+    expect(caF).toContain(CANADA.starter);
+    expect(caF).toContain(CANADA.pro);
+    expect(caF.replaceAll(CANADA.starter, "")).not.toContain(USD.starter);
+    expect(caF.replaceAll(CANADA.pro, "")).not.toContain(USD.pro);
+    expect(caF).toContain(`one-time ${CANADA.fee}`);
   });
 
   it("rules band: US shows the carrier proof + registration-tracked card; CA shows CASL + the day-one card, never the other's", () => {
@@ -484,7 +485,7 @@ describe("country branching: the home never pairs the two stories (owner ruling 
     expect(caR).not.toContain("about a week");
     expect(caR).not.toContain("carrier approval");
     expect(caR).not.toContain(`one-time ${USD.fee}`);
-    expect(caR).not.toContain(`one-time ${CAD.fee}`);
+    expect(caR).not.toContain(`one-time ${CANADA.fee}`);
     expect(caR).not.toContain("10DLC");
   });
 

@@ -12,9 +12,7 @@
  * lib/api/types.ts), never a retyped number. Numbers inside prose sentences
  * keep the deck's exact wording; pricing-facts.test.ts pins each of those to
  * the same constants so prose can't silently drift either.
- *
- * #328: and every one of those figures now carries a CURRENCY. See the note on
- * `price()` below for why picking one per export is not a guess.
+
  */
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
@@ -52,29 +50,12 @@ function moduleCard(id: "regions_ca") {
 // left in the catalog is Canada numbers.
 const CANADA_NUMBERS = moduleCard("regions_ca");
 
-/**
- * #328 — "$29" / "$39", read from the price book rather than typed.
- *
- * # Why a currency argument and not a currency SELECTOR
- *
- * Everything money-bearing in this module is built by a function of currency,
- * and each export below fixes that argument to the branch it belongs to. That
- * is not an assumption about the reader: this page renders the US story and the
- * Canada story as two separate subtrees (`CountryOnly` / `CountryText`, the
- * single site-wide country the nav selector and the pricing toggle both move),
- * so a string in the `us` branch is only ever read by somebody billed in USD.
- * The country control the page already has IS the currency control, and a
- * second one could only ever disagree with the first.
- *
- * The two figures are DECIDED, not converted (see billing-currency.ts); this
- * module only routes to them.
- */
-const price = (plan: PlanId, currency: BillingCurrency) =>
-  formatMoney(PLAN_PRICE_CENTS[currency][plan], currency);
+const price = (plan: PlanId, audience: BillingCurrency) =>
+  formatMoney(PLAN_PRICE_CENTS.usd[plan], "usd", audience);
 
 /** The one-time US texting registration fee, on the invoice it lands on. */
-const registrationFee = (currency: BillingCurrency) =>
-  formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
+const registrationFee = (audience: BillingCurrency) =>
+  formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", audience);
 
 /**
  * Plan plus the one-time fee: what a US shop actually pays in month one.
@@ -82,10 +63,11 @@ const registrationFee = (currency: BillingCurrency) =>
  * Derived rather than written. It is the only figure on the page that is a SUM,
  * so it is the only one that can go wrong while both of its parts stay right.
  */
-const firstMonth = (plan: PlanId, currency: BillingCurrency) =>
+const firstMonth = (plan: PlanId, audience: BillingCurrency) =>
   formatMoney(
-    PLAN_PRICE_CENTS[currency][plan] + US_REGISTRATION_FEE_CENTS[currency],
-    currency,
+    PLAN_PRICE_CENTS.usd[plan] + US_REGISTRATION_FEE_CENTS.usd,
+    "usd",
+    audience,
   );
 
 /** The dateline chip: the page's load-bearing fact (§5.1). US default. */
@@ -98,16 +80,7 @@ export const pricingDateline = (locale: MarketingLocale = "en") =>
 /** The English dateline, for tests and any English-only surface. */
 export const PRICING_DATELINE = pricingDateline("en");
 
-/**
- * The Canada dateline. A Canadian business texting Canadian customers has no
- * registration fee and no carrier wait, so its load-bearing pricing fact is the
- * flat monthly price with nothing added the first month. The page swaps to this
- * for a visitor who chose Canada; the US visitor never sees it (no mixing).
- *
- * #328: and it is the CANADIAN monthly price, which is the whole point. This
- * chip is the largest thing a Canadian reader sees on the page, and it used to
- * quote a figure their card would never be charged.
- */
+/** Canadian businesses texting Canadian customers skip registration. */
 export const pricingDatelineCa = (locale: MarketingLocale = "en") =>
   fill(pricingCopy(locale).datelineCa, { starter: price("starter", "cad") });
 
@@ -195,17 +168,6 @@ export const planFairUseNote = (locale: MarketingLocale = "en") =>
 /** The English note, for tests and any English-only surface. */
 export const PLAN_FAIR_USE_NOTE = planFairUseNote("en");
 
-/* Honesty Ledger (§5.3): every cost, before you pay. Add-on price mirrors
-   apps/api/src/billing/modules.ts (regions_ca $5). #97/#103: pictures are
-   included on every plan, so they appear under "Extra texts", not as an
-   add-on. #134/D42: calling is included on every plan too, so the add-on row
-   states that and names the one add-on left, Canada numbers. #121: no
-   per-text rates, allowance figures, or minute figures here; the concrete
-   mechanics live only on /legal/fair-use. Storage is free.
-
-   #328: built per currency. The page renders LEDGER inside the `us` branch and
-   LEDGER_CA inside the `ca` branch, so each list is read only by people billed
-   in the currency it was built with. */
 function ledgerFor(
   currency: BillingCurrency,
   locale: MarketingLocale = "en",
@@ -247,11 +209,6 @@ function ledgerFor(
     {
       id: "add-ons",
       term: copy.ledgerAddOnsTerm,
-      // #328 GAP, stated rather than papered over: PLAN_MODULE_CARDS has no CAD
-      // column, so the one add-on is quoted in USD to a Canadian reader. It is
-      // also not sellable yet (the row says so), which is why this is a note and
-      // not a blocker. The fix is a currency in the module catalog, not a
-      // conversion here.
       figure: `${CANADA_NUMBERS.price}/mo`,
       detail: fill(copy.ledgerAddOnsDetail, { addOn: CANADA_NUMBERS.price }),
     },
@@ -276,37 +233,26 @@ export const ledger = (locale: MarketingLocale = "en"): LedgerEntry[] =>
 /** The English US ledger, for tests and any English-only surface. */
 export const LEDGER: LedgerEntry[] = ledger("en");
 
-/* The Canada Honesty Ledger. A Canadian business texting Canadian customers has
-   no registration and no fee, so this list never shows the US $29 / $58-first-
-   month story (owner ruling v1, 2026-07-08: a Canadian visitor never reads a US
-   fee that doesn't apply). It shares the country-neutral rows with LEDGER (plan
-   prices, extra texts, add-ons, tax) and swaps only the two rows that carry the
-   registration fact. The FirstWeekTimeline card in the same band carries the
-   "if you later text US customers" edge case, so this stays clean.
-
-   #328: it now starts from the CAD ledger rather than the USD one. The rows it
-   shares with the US list are the same SENTENCES, not the same figures, because
-   a Canadian workspace is billed in Canadian dollars. */
 export const ledgerCa = (locale: MarketingLocale = "en"): LedgerEntry[] => {
   const copy = pricingCopy(locale);
-  return ledgerFor("cad", locale).map((entry) => {
-    // Matched on `id`, not on `term`. The term is a label now and changes with
-    // the language; the row it names does not.
-    if (entry.id === "registration") {
-      return {
-        id: entry.id,
-        term: copy.ledgerNoRegisterTerm,
-        figure: fill(copy.ledgerNoRegisterFigure, {
-          zero: formatMoney(0, "cad"),
-        }),
-        detail: copy.ledgerNoRegisterDetail,
-      };
-    }
-    if (entry.id === "whole-list") {
-      return { ...entry, detail: copy.ledgerWholeListDetailCa };
-    }
-    return entry;
-  });
+  return ledgerFor("cad", locale)
+    .filter((entry) => entry.id !== "add-ons")
+    .map((entry) => {
+      if (entry.id === "registration") {
+        return {
+          id: entry.id,
+          term: copy.ledgerNoRegisterTerm,
+          figure: fill(copy.ledgerNoRegisterFigure, {
+            zero: formatMoney(0, "usd", "cad"),
+          }),
+          detail: copy.ledgerNoRegisterDetail,
+        };
+      }
+      if (entry.id === "whole-list") {
+        return { ...entry, detail: copy.ledgerWholeListDetailCa };
+      }
+      return entry;
+    });
 };
 
 /** The English Canadian ledger, for tests and any English-only surface. */

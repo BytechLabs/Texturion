@@ -31,12 +31,13 @@ import {
  * the Canada surfaces never quote a US figure.
  */
 const planPrice = (plan: "starter" | "pro", currency: BillingCurrency) =>
-  formatMoney(PLAN_PRICE_CENTS[currency][plan], currency);
+  formatMoney(PLAN_PRICE_CENTS.usd[plan], "usd", currency);
 const registrationFee = (currency: BillingCurrency) =>
-  formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
+  formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", currency);
 const firstMonth = (plan: "starter" | "pro", currency: BillingCurrency) =>
   formatMoney(
-    PLAN_PRICE_CENTS[currency][plan] + US_REGISTRATION_FEE_CENTS[currency],
+    PLAN_PRICE_CENTS.usd[plan] + US_REGISTRATION_FEE_CENTS.usd,
+    "usd",
     currency,
   );
 
@@ -297,7 +298,7 @@ describe("/pricing figures trace to the shared constants (QA gate 8)", () => {
 });
 
 describe("/pricing country split (owner ruling v1: no mixing, no US fee shown to Canada)", () => {
-  it("the US dateline keeps the first-month arithmetic; the Canada dateline is the flat CANADIAN monthly price with no registration fee", () => {
+  it("the US dateline keeps the first-month arithmetic; the Canada dateline labels the flat USD monthly price with no registration fee", () => {
     expect(PRICING_DATELINE).toBe(
       `${firstMonth("starter", "usd")} FIRST MONTH (US) · ${planPrice("starter", "usd")} AFTER`,
     );
@@ -306,7 +307,6 @@ describe("/pricing country split (owner ruling v1: no mixing, no US fee shown to
     expect(PRICING_DATELINE_CA).toBe(
       `${planPrice("starter", "cad")}/MO · NO REGISTRATION FEE`,
     );
-    expect(PRICING_DATELINE_CA).not.toContain(planPrice("starter", "usd"));
     // The Canada dateline never surfaces the US-only first-month figure.
     expect(PRICING_DATELINE_CA).not.toContain(
       `$${PLAN_PRICING.starter.monthlyDollars + US_REGISTRATION_FEE_DOLLARS}`,
@@ -321,7 +321,7 @@ describe("/pricing country split (owner ruling v1: no mixing, no US fee shown to
     expect(terms).toContain("Your plan");
     expect(terms).toContain("Extra texts");
     expect(terms).toContain("Storage");
-    expect(terms).toContain("Optional add-ons, if you turn them on");
+    expect(terms).not.toContain("Optional add-ons, if you turn them on");
     expect(terms).toContain("Tax");
     expect(terms).toContain("That's the whole list.");
 
@@ -345,44 +345,22 @@ describe("/pricing country split (owner ruling v1: no mixing, no US fee shown to
     expect(whole?.detail).toContain("No registration fee");
   });
 
-  /**
-   * #328 narrowed this. It used to require FIVE rows to be byte-for-byte equal
-   * across the two ledgers, which encoded "the price is the same in both
-   * countries" as a structural invariant. That was true and is now false, and a
-   * test asserting it would have made the correct change look like a break.
-   *
-   * The rows that carry no money still have to match exactly, because a
-   * divergence there IS a drift: nobody should be rewriting the storage
-   * sentence for one country. The rows that carry money are asserted below
-   * instead, on the property that actually matters.
-   */
   it("the Canada ledger keeps the money-free rows byte-for-byte identical to the US ledger", () => {
-    for (const term of [
-      "Extra texts",
-      "Storage",
-      "Optional add-ons, if you turn them on",
-    ]) {
+    for (const term of ["Extra texts", "Storage"]) {
       expect(LEDGER_CA.find((e) => e.term === term)).toEqual(
         LEDGER.find((e) => e.term === term),
       );
     }
   });
 
-  it("prices the Canada ledger in Canadian dollars, and never in US ones (#328)", () => {
-    const plan = LEDGER_CA.find((e) => e.term === "Your plan");
+  it("labels the Canada ledger in US dollars", () => {
+    const plan = LEDGER_CA.find((entry) => entry.id === "plan");
     expect(plan?.figure).toBe(
       `${planPrice("starter", "cad")} or ${planPrice("pro", "cad")}/mo`,
     );
-    // The whole point: no US plan figure survives anywhere in the CA branch.
-    for (const entry of LEDGER_CA) {
-      const row = `${entry.term} ${entry.figure ?? ""} ${entry.detail}`;
-      expect(row, entry.term).not.toContain(planPrice("starter", "usd"));
-      expect(row, entry.term).not.toContain(planPrice("pro", "usd"));
-    }
-    // And the tax row says which money, rather than apologising for USD.
-    const tax = LEDGER_CA.find((e) => e.term === "Tax");
-    expect(tax?.detail).toContain("Canadian dollars");
-    expect(tax?.detail).not.toContain("CAD billing isn't here yet");
+    const tax = LEDGER_CA.find((entry) => entry.id === "tax");
+    expect(tax?.detail).toContain("billed in US dollars");
+    expect(tax?.detail).toContain("may convert the charge to Canadian dollars");
   });
 });
 

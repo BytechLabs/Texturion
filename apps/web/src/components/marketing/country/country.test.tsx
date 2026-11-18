@@ -51,18 +51,19 @@ import { HeroCountryChooser } from "./hero-country-chooser";
  */
 function money(currency: "usd" | "cad") {
   return {
-    starter: formatMoney(PLAN_PRICE_CENTS[currency].starter, currency),
-    pro: formatMoney(PLAN_PRICE_CENTS[currency].pro, currency),
-    fee: formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency),
+    starter: formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", currency),
+    pro: formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", currency),
+    fee: formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", currency),
     /** Plan plus the one-time US fee: the sum that can drift on its own. */
     firstMonth: formatMoney(
-      PLAN_PRICE_CENTS[currency].starter + US_REGISTRATION_FEE_CENTS[currency],
+      PLAN_PRICE_CENTS.usd.starter + US_REGISTRATION_FEE_CENTS.usd,
+      "usd",
       currency,
     ),
   };
 }
 const USD = money("usd");
-const CAD = money("cad");
+const CANADA = money("cad");
 
 /** A subtree rendered under the site-wide provider, pinned to one country. */
 const us = (node: ReactNode) =>
@@ -243,23 +244,11 @@ describe("the money branches on the same signal as the copy (#328)", () => {
     expect(us(<FirstMonthTotal plan="starter" />)).toBe(USD.firstMonth);
   });
 
-  it("quotes a Canadian visitor in Canadian dollars", () => {
-    // THE ONE THAT MATTERS. Every one of these used to be the US figure on a
-    // Canada-first page, and a literal never disagrees with itself: the drift
-    // only surfaced on the invoice, in front of somebody holding a card.
-    expect(ca(<PlanPrice plan="starter" />)).toBe(CAD.starter);
-    expect(ca(<PlanPrice plan="pro" />)).toBe(CAD.pro);
-    // A Canadian workspace CAN turn on US texting, and then the one-time fee
-    // lands on a Canadian invoice, so it carries a currency too.
-    expect(ca(<RegistrationFee />)).toBe(CAD.fee);
-    expect(ca(<FirstMonthTotal plan="starter" />)).toBe(CAD.firstMonth);
-  });
-
-  it("the two countries are actually different figures", () => {
-    // Without this the pair of tests above would both pass on a resolver that
-    // ignored the country entirely.
-    expect(CAD.starter).not.toBe(USD.starter);
-    expect(CAD.pro).not.toBe(USD.pro);
+  it("labels the USD prices and registration fee for a Canadian visitor", () => {
+    expect(ca(<PlanPrice plan="starter" />)).toBe(CANADA.starter);
+    expect(ca(<PlanPrice plan="pro" />)).toBe(CANADA.pro);
+    expect(ca(<RegistrationFee />)).toBe(CANADA.fee);
+    expect(ca(<FirstMonthTotal plan="starter" />)).toBe(CANADA.firstMonth);
   });
 
   it("defaults to the US figure with no provider above it (SSR)", () => {

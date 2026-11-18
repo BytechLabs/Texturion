@@ -15,11 +15,6 @@ const LAST_UPDATED_ISO = "2026-07-03";
 /**
  * The 30-day guarantee, composed once for both languages.
  *
- * #328 — the one figure here is the registration fee, and it is the figure a
- * refund promise is measured against. `<RegistrationFee />` follows the
- * site-wide country, so a Canadian workspace that turned on US texting reads
- * the CAD amount it actually paid.
- *
  * The links to `/legal/terms` follow the reader's language: since D157 the
  * Terms have a French twin, and `localizedPath` sends a French reader to it.
  */

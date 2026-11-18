@@ -63,9 +63,8 @@ export interface HomePlan {
   cta: string;
 }
 
-/** "$29" / "$39", from the price book. */
-const price = (plan: PlanId, currency: BillingCurrency) =>
-  formatMoney(PLAN_PRICE_CENTS[currency][plan], currency);
+const price = (plan: PlanId, audience: BillingCurrency) =>
+  formatMoney(PLAN_PRICE_CENTS.usd[plan], "usd", audience);
 
 /** The one-time US registration fee, on the invoice it actually lands on. */
 const registrationFee = (currency: BillingCurrency) =>
@@ -154,10 +153,6 @@ export const dealTruthLinesCa = (copy: HomeCopy) =>
       text: fill(copy.dealTruthCaPrice, { starter: price("starter", "cad") }),
     },
     { text: copy.dealActivationCa, tick: true },
-    // #328 rewrote this line rather than reprinting it. A strip that quoted a
-    // Canadian price and then said "prices in USD" would be the same four
-    // inches of the page contradicting itself, and the USD sentence is the half
-    // that stopped being true when CAD billing shipped.
     { text: copy.dealTaxCa },
   ] as const;
 
@@ -306,13 +301,6 @@ export function TheDeal({ locale = "en" }: { locale?: MarketingLocale } = {}) {
           <p className="font-body-mkt max-w-[52ch] text-[15px] leading-[1.65] text-[color:var(--fr-ink-70)]">
             {copy.dealSliderCaption}
           </p>
-          {/* #328: the slider's figures stay USD — the rival's rate is a
-              published US price, and converting our half would subtract two
-              currencies and print a saving nobody gets. What changes for a
-              Canadian is the LABEL: an unlabelled "$79" sitting under a $109
-              plan card made our own price look self-contradictory. The
-              interactive twin reads the country itself; the static fallback
-              cannot, so it is told. */}
           <div className="mt-5">
             <CountryOnly country="us">
               <LazyCrewSizeSlider

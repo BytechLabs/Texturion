@@ -35,19 +35,11 @@ import type { BillingCurrency } from '@loonext/shared';
  * competitor still wins on the arithmetic our own page already does — we were
  * risking credibility for margin we already had.
  */
-export function headlinePrice(currency: BillingCurrency): string {
-  return formatMoney(PLAN_PRICE_CENTS[currency].starter, currency);
+export function headlinePrice(audience: BillingCurrency): string {
+  return formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", audience);
 }
 
-/**
- * The USD figure, for the surfaces that genuinely cannot branch.
- *
- * #328: an OpenGraph image is rendered to a PNG at build time, once per URL,
- * with no visitor and therefore no country. It has to name A currency, and USD
- * is the one every workspace was on before this shipped. Everything that CAN
- * see a country must call `headlinePrice()` instead — a static fallback used
- * where a live signal exists is how a Canadian ends up reading a US price.
- */
+/** The USD figure for metadata and other surfaces without a selected country. */
 export const HEADLINE_PRICE = headlinePrice("usd");
 
 /**
