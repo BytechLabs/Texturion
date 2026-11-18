@@ -47,6 +47,7 @@ const CLASSIFIED: Record<string, Classification> = {
   "contacts#POST /contacts": "trigger:contacts",
   "contacts#PATCH /contacts/:id": "trigger:contacts",
   "contacts#DELETE /contacts/:id": "trigger:contacts",
+  "contacts#POST /contacts/:id/erase": "trigger:contacts",
   "contacts#POST /contacts/import": "trigger:contacts",
   "contacts#POST /contacts/import-vcard": "trigger:contacts",
   "contacts#POST /contacts/:id/opt-out": "trigger:conversation_events",
