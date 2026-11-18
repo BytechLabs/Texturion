@@ -71,6 +71,11 @@ enum ShellStrings {
                 "Confirm your account from the email we just sent, then sign in.",
             "shell.authCheckEmailNote":
                 "Check your email to confirm your account, then sign in.",
+            "shell.authCheckEmailSpam": "Check your spam folder if you don’t see the email.",
+            "shell.authConfirmResend": "Resend confirmation email",
+            "shell.authConfirmResent": "We requested another confirmation email.",
+            "shell.authConfirmWait": "You can ask for another email after one minute.",
+            "shell.authConfirmResendFailed": "The confirmation email could not be sent. Try again shortly.",
             "shell.authBackToSignIn": "Back to sign in",
             "shell.authResetTitle": "Reset your password",
             "shell.authResetSub": "We'll email you a reset link. It works for an hour.",
@@ -507,6 +512,11 @@ enum ShellStrings {
                 + "d'envoyer, puis connectez-vous.",
             "shell.authCheckEmailNote":
                 "Vérifiez vos courriels pour confirmer votre compte, puis connectez-vous.",
+            "shell.authCheckEmailSpam": "Vérifiez le dossier des courriels indésirables si le message n’apparaît pas.",
+            "shell.authConfirmResend": "Renvoyer le courriel de confirmation",
+            "shell.authConfirmResent": "Nous avons demandé un autre courriel de confirmation.",
+            "shell.authConfirmWait": "Vous pouvez demander un autre courriel après une minute.",
+            "shell.authConfirmResendFailed": "L’envoi du courriel de confirmation a échoué. Réessayez dans un instant.",
             "shell.authBackToSignIn": "Retour à la connexion",
             "shell.authResetTitle": "Réinitialisez votre mot de passe",
             "shell.authResetSub":

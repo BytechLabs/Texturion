@@ -505,6 +505,11 @@ export const onboardingEn = {
   checkYourEmail: "Check your email",
   confirmationSentPrefix: "We sent a confirmation link to",
   confirmationSentSuffix: ". Open it to finish creating your account.",
+  confirmationCheckSpam: "Check your spam folder if you don’t see the email.",
+  confirmationResend: "Resend confirmation email",
+  confirmationResent: "We requested another confirmation email.",
+  confirmationWait: "You can ask for another email after one minute.",
+  confirmationResendFailed: "The confirmation email could not be sent. Try again shortly.",
   wrongAddress: "Wrong address?",
   startOver: "Start over",
 
@@ -1114,6 +1119,11 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   checkYourEmail: "Vérifiez vos courriels",
   confirmationSentPrefix: "Nous avons envoyé un lien de confirmation à",
   confirmationSentSuffix: ". Ouvrez-le pour terminer la création de votre compte.",
+  confirmationCheckSpam: "Vérifiez le dossier des courriels indésirables si le message n’apparaît pas.",
+  confirmationResend: "Renvoyer le courriel de confirmation",
+  confirmationResent: "Nous avons demandé un autre courriel de confirmation.",
+  confirmationWait: "Vous pouvez demander un autre courriel après une minute.",
+  confirmationResendFailed: "L’envoi du courriel de confirmation a échoué. Réessayez dans un instant.",
   wrongAddress: "Mauvaise adresse ?",
   startOver: "Recommencer",
 

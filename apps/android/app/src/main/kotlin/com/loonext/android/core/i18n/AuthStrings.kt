@@ -69,6 +69,11 @@ object AuthStrings : AppStrings.Section {
         "auth.confirmTitle" to "Check your email",
         "auth.confirmBody" to
             "Confirm your account from the email we just sent, then sign in.",
+        "auth.confirmSpam" to "Check your spam folder if you don’t see the email.",
+        "auth.confirmResend" to "Resend confirmation email",
+        "auth.confirmResent" to "We requested another confirmation email.",
+        "auth.confirmWait" to "You can ask for another email after one minute.",
+        "auth.confirmResendFailed" to "The confirmation email could not be sent. Try again shortly.",
         "auth.doneConfirming" to "Done confirming?",
 
         // ── Password reset ───────────────────────────────────────────────────
@@ -180,6 +185,11 @@ object AuthStrings : AppStrings.Section {
         "auth.confirmBody" to
             "Confirmez votre compte à partir du courriel que nous venons " +
             "d'envoyer, puis connectez-vous.",
+        "auth.confirmSpam" to "Vérifiez le dossier des courriels indésirables si le message n’apparaît pas.",
+        "auth.confirmResend" to "Renvoyer le courriel de confirmation",
+        "auth.confirmResent" to "Nous avons demandé un autre courriel de confirmation.",
+        "auth.confirmWait" to "Vous pouvez demander un autre courriel après une minute.",
+        "auth.confirmResendFailed" to "L’envoi du courriel de confirmation a échoué. Réessayez dans un instant.",
         "auth.doneConfirming" to "C'est confirmé ?",
 
         // ── Password reset ───────────────────────────────────────────────────

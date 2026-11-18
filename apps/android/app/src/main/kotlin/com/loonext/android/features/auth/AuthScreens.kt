@@ -78,6 +78,8 @@ import com.loonext.android.ui.common.isCompactHeight
 import com.loonext.android.ui.common.loonextWordmark
 import com.loonext.android.ui.common.touchTarget
 import com.loonext.android.ui.common.userMessage
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
@@ -85,11 +87,15 @@ import com.loonext.android.ui.common.asButton
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.hideFromAccessibility
 
+private const val CONFIRMATION_RESEND_COOLDOWN_MS = 60_000L
+
 data class AuthUiState(
     val busy: Boolean = false,
     val error: AuthError? = null,
     /** Signup ended with "check your email" instead of a session. */
     val confirmationSent: Boolean = false,
+    val confirmationResendReady: Boolean = false,
+    val confirmationResent: Boolean = false,
     /** Password-reset email fired. */
     val resetSent: Boolean = false,
     /** Supabase demanded a captcha — the sheet is up minting a token (#166). */
@@ -127,6 +133,10 @@ private sealed interface PendingAuthAction {
 
     data class Reset(val email: String) : PendingAuthAction {
         override val fallbackKey get() = "auth.resetEmailFailed"
+    }
+
+    data class ResendConfirmation(val email: String) : PendingAuthAction {
+        override val fallbackKey get() = "auth.confirmResendFailed"
     }
 }
 
@@ -176,6 +186,8 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
     )
 
     private var pendingCaptcha: PendingCaptcha? = null
+    private var confirmationEmail: String? = null
+    private var confirmationCooldown: Job? = null
 
     fun signIn(email: String, password: String, locale: String) =
         attempt(PendingAuthAction.SignIn(email.trim(), password), captchaToken = null, locale)
@@ -189,6 +201,22 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
 
     fun sendReset(email: String, locale: String) =
         attempt(PendingAuthAction.Reset(email.trim()), captchaToken = null, locale)
+
+    fun resendConfirmation(locale: String) {
+        val email = confirmationEmail ?: return
+        if (!_state.value.confirmationResendReady || _state.value.busy) return
+        startConfirmationCooldown()
+        attempt(PendingAuthAction.ResendConfirmation(email), captchaToken = null, locale)
+    }
+
+    private fun startConfirmationCooldown() {
+        _state.value = _state.value.copy(confirmationResendReady = false, confirmationResent = false)
+        confirmationCooldown?.cancel()
+        confirmationCooldown = viewModelScope.launch {
+            delay(CONFIRMATION_RESEND_COOLDOWN_MS)
+            _state.value = _state.value.copy(confirmationResendReady = true)
+        }
+    }
 
     /** Token from the captcha sheet; null = the user dismissed it. */
     fun onCaptchaResult(token: String?) {
@@ -293,13 +321,20 @@ class AuthViewModel(private val authManager: AuthManager) : ViewModel() {
                             action.email, action.password, action.name, captchaToken,
                         )
                         if (!signedIn) {
+                            confirmationEmail = action.email
                             _state.value = _state.value.copy(confirmationSent = true)
+                            startConfirmationCooldown()
                         }
                     }
 
                     is PendingAuthAction.Reset -> {
                         authManager.sendPasswordReset(action.email, captchaToken)
                         _state.value = _state.value.copy(resetSent = true)
+                    }
+
+                    is PendingAuthAction.ResendConfirmation -> {
+                        authManager.resendSignupConfirmation(action.email, captchaToken)
+                        _state.value = _state.value.copy(confirmationResent = true)
                     }
                 }
                 pendingCaptcha = null
@@ -393,6 +428,9 @@ fun AuthFlow(viewModel: AuthViewModel) {
                 busy = state.busy,
                 error = state.error,
                 confirmationSent = state.confirmationSent,
+                confirmationResendReady = state.confirmationResendReady,
+                confirmationResent = state.confirmationResent,
+                onResend = { viewModel.resendConfirmation(locale) },
                 onSubmit = { name, email, password ->
                     viewModel.signUp(name, email, password, locale)
                 },
@@ -754,6 +792,9 @@ private fun SignUpForm(
     busy: Boolean,
     error: AuthError?,
     confirmationSent: Boolean,
+    confirmationResendReady: Boolean,
+    confirmationResent: Boolean,
+    onResend: () -> Unit,
     onSubmit: (String, String, String) -> Unit,
     onGoogle: () -> Unit,
     onLogin: () -> Unit,
@@ -765,6 +806,21 @@ private fun SignUpForm(
         Headline(title = t("auth.confirmTitle"), body = null)
         Spacer(Modifier.height(16.dp))
         SuccessBanner(t("auth.confirmBody"))
+        Spacer(Modifier.height(12.dp))
+        Text(t("auth.confirmSpam"), style = MaterialTheme.typography.bodySmall)
+        ErrorLine(error)
+        Spacer(Modifier.height(12.dp))
+        InkPillButton(
+            text = t("auth.confirmResend"),
+            enabled = confirmationResendReady && !busy,
+            onClick = onResend,
+        )
+        if (confirmationResent) {
+            SuccessBanner(t("auth.confirmResent"))
+        }
+        if (!confirmationResendReady) {
+            Text(t("auth.confirmWait"), style = MaterialTheme.typography.bodySmall)
+        }
         Spacer(Modifier.height(18.dp))
         FooterLink(t("auth.doneConfirming"), t("auth.backToSignIn"), onClick = onLogin)
         return
@@ -940,6 +996,9 @@ internal fun AuthFrontDoorPreviewBody(screen: AuthScreen = AuthScreen.Login) {
                 busy = false,
                 error = null,
                 confirmationSent = false,
+                confirmationResendReady = false,
+                confirmationResent = false,
+                onResend = {},
                 onSubmit = { _, _, _ -> },
                 onGoogle = {},
                 onLogin = {},

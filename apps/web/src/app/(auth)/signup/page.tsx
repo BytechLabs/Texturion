@@ -34,6 +34,8 @@ import {
 } from "@/lib/marketing/plan-intent";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
+const RESEND_COOLDOWN_MS = 60_000;
+
 /*
  * A factory rather than a module-level constant: every message below is read
  * UNDER the field by the person filling it in, so it is copy and belongs in the
@@ -57,6 +59,17 @@ export default function SignupPage() {
   const [confirmationEmail, setConfirmationEmail] = useState<string | null>(
     null,
   );
+  const [resendAvailableAt, setResendAvailableAt] = useState<number | null>(null);
+  const [resendSending, setResendSending] = useState(false);
+  const [resent, setResent] = useState(false);
+  useEffect(() => {
+    if (resendAvailableAt === null) return;
+    const timeout = window.setTimeout(
+      () => setResendAvailableAt(null),
+      Math.max(0, resendAvailableAt - Date.now()),
+    );
+    return () => window.clearTimeout(timeout);
+  }, [resendAvailableAt]);
 
   // Optional Turnstile gate (SPEC §10 front door). When the site key is
   // configured, Supabase Auth verifies the token server-side, so submit stays
@@ -65,6 +78,7 @@ export default function SignupPage() {
   const siteKey = publicEnv.NEXT_PUBLIC_TURNSTILE_SITE_KEY;
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const turnstileRef = useRef<TurnstileHandle>(null);
+  const canResend = !resendSending && resendAvailableAt === null && (!siteKey || captchaToken !== null);
 
   // The /pricing plan builder lands here with ?plan=…&modules=… and promises
   // "what you build here is exactly what checkout starts from". Validate +
@@ -120,7 +134,34 @@ export default function SignupPage() {
     }
     // The token was consumed; "Start over" remounts the widget for a new one.
     setCaptchaToken(null);
+    setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
     setConfirmationEmail(values.email);
+  }
+
+  async function resendConfirmation() {
+    if (!confirmationEmail || !canResend) return;
+    setResendSending(true);
+    setServerError(null);
+    setResent(false);
+    const token = captchaToken;
+    setCaptchaToken(null);
+    setResendAvailableAt(Date.now() + RESEND_COOLDOWN_MS);
+    try {
+      const { error } = await getSupabaseBrowser().auth.resend({
+        type: "signup",
+        email: confirmationEmail,
+        options: {
+          emailRedirectTo: `${window.location.origin}${onboardingPath}`,
+          captchaToken: token ?? undefined,
+        },
+      });
+      if (error) setServerError(authErrorMessage(error));
+      else setResent(true);
+    } catch {
+      setServerError(t("onboarding.confirmationResendFailed"));
+    } finally {
+      setResendSending(false);
+    }
   }
 
   if (confirmationEmail) {
@@ -136,11 +177,35 @@ export default function SignupPage() {
           </span>
           {t("onboarding.confirmationSentSuffix")}
         </p>
+        <p className="text-sm text-muted-foreground">{t("onboarding.confirmationCheckSpam")}</p>
+        {siteKey && resendAvailableAt === null && (
+          <Turnstile siteKey={siteKey} onToken={setCaptchaToken} />
+        )}
+        <Button
+          type="button"
+          variant="outline"
+          disabled={!canResend}
+          onClick={() => void resendConfirmation()}
+        >
+          {t("onboarding.confirmationResend")}
+        </Button>
+        {resent && <p role="status" className="text-sm">{t("onboarding.confirmationResent")}</p>}
+        {resendAvailableAt !== null && (
+          <p className="text-sm text-muted-foreground">{t("onboarding.confirmationWait")}</p>
+        )}
+        {serverError && <p role="alert" className="text-sm text-destructive">{serverError}</p>}
         <p className="text-sm text-muted-foreground">
           {t("onboarding.wrongAddress")}{" "}
           <button
             type="button"
-            onClick={() => setConfirmationEmail(null)}
+            disabled={resendSending}
+            onClick={() => {
+              setConfirmationEmail(null);
+              setResendAvailableAt(null);
+              setCaptchaToken(null);
+              setResent(false);
+              setServerError(null);
+            }}
             className="font-medium text-primary underline-offset-4 hover:underline"
           >
             {t("onboarding.startOver")}

@@ -86,6 +86,10 @@ struct SupabaseAuth: Sendable {
         _ = try await request("recover", body: authBody(["email": email], captchaToken: captchaToken))
     }
 
+    func resendSignupConfirmation(email: String, captchaToken: String? = nil) async throws {
+        _ = try await request("resend", body: authBody(["type": "signup", "email": email], captchaToken: captchaToken))
+    }
+
     /// PKCE code exchange (#166): the auth code from the OAuth browser leg
     /// plus this attempt's verifier become a session. apikey only — NO bearer.
     func exchangePkce(authCode: String, codeVerifier: String) async throws -> AuthSession {

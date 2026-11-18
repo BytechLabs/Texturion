@@ -202,6 +202,16 @@ class SupabaseAuth(
         request("recover", body)
     }
 
+    suspend fun resendSignupConfirmation(email: String, captchaToken: String? = null) {
+        request("resend", buildJsonObject {
+            put("type", "signup")
+            put("email", email)
+            if (captchaToken != null) {
+                putJsonObject("gotrue_meta_security") { put("captcha_token", captchaToken) }
+            }
+        })
+    }
+
     /** Best-effort server-side revocation; local sign-out never depends on it. */
     suspend fun signOut(accessToken: String) {
         try {
