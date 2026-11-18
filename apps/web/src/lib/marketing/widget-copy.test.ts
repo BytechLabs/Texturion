@@ -39,7 +39,7 @@ const WIDGET = join(
 /** The `COPY = { … }` literal, parsed as the object it is. */
 function copyTable(): Record<string, Record<string, string>> {
   const source = readFileSync(WIDGET, "utf8");
-  const open = source.indexOf("var COPY = {");
+  const open = source.indexOf("const COPY = {");
   expect(open, "widget.js no longer declares a COPY table").toBeGreaterThan(-1);
 
   // Brace-match from the opening brace: the table holds nested objects, so a

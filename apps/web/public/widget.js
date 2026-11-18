@@ -32,13 +32,13 @@
  * front of their customers; the only data that leaves is what the visitor typed
  * into this form.
  */
-(function () {
+(function mountWidget() {
   "use strict";
 
-  var script = document.currentScript;
+  const script = document.currentScript;
   if (!script) return;
 
-  var {key} = script.dataset;
+  const {key} = script.dataset;
   if (!key) {
     // A missing key is the one error worth saying out loud: the snippet was
     // pasted without the half that identifies the business, and the widget
@@ -64,7 +64,7 @@
    * Anything but a known locale falls back to English: a visitor cannot fix a
    * bad attribute.
    */
-  var COPY = {
+  const COPY = {
     en: {
       launch: "Text us",
       close: "Close",
@@ -102,20 +102,20 @@
       poweredBy: "Propulsé par Loonext"
     }
   };
-  var {lang} = script.dataset;
-  var t = COPY[lang] || COPY.en;
+  const {lang} = script.dataset;
+  const t = COPY[lang] || COPY.en;
 
-  var {origin} = new URL(script.src, location.href);
-  var accent = script.dataset.accent || "#1f2421";
-  var label = script.dataset.label || t.launch;
-  var side = script.dataset.side === "left" ? "left" : "right";
+  const {origin} = new URL(script.src, location.href);
+  const accent = script.dataset.accent || "#1f2421";
+  const label = script.dataset.label || t.launch;
+  const side = script.dataset.side === "left" ? "left" : "right";
 
-  var host = document.createElement("div");
+  const host = document.createElement("div");
   host.dataset.loonextWidget = "";
-  var root = host.attachShadow({ mode: "open" });
+  const root = host.attachShadow({ mode: "open" });
   document.body.appendChild(host);
 
-  var style = document.createElement("style");
+  const style = document.createElement("style");
   style.textContent = [
     ":host{all:initial}",
     "*{box-sizing:border-box;font-family:system-ui,-apple-system,Segoe UI,sans-serif}",
@@ -161,7 +161,7 @@
   ].join("");
   root.appendChild(style);
 
-  var wrap = document.createElement("div");
+  const wrap = document.createElement("div");
   wrap.className = "wrap";
   wrap.innerHTML =
     `<button class="launch" type="button" aria-haspopup="dialog" aria-expanded="false">` +
@@ -214,22 +214,22 @@
     `</div></div>`;
   root.appendChild(wrap);
 
-  var launcher = root.querySelector(".launch");
-  var panel = root.querySelector(".panel");
-  var form = root.querySelector("form");
-  var stepOne = root.querySelector(".step-one");
-  var stepTwo = root.querySelector(".step-two");
-  var send = root.querySelector(".send");
-  var note = root.querySelector(".note");
-  var err = root.querySelector(".err");
-  var title = root.querySelector("h2");
-  var sub = root.querySelector(".sub");
+  const launcher = root.querySelector(".launch");
+  const panel = root.querySelector(".panel");
+  const form = root.querySelector("form");
+  const stepOne = root.querySelector(".step-one");
+  const stepTwo = root.querySelector(".step-two");
+  const send = root.querySelector(".send");
+  const note = root.querySelector(".note");
+  const err = root.querySelector(".err");
+  const title = root.querySelector("h2");
+  const sub = root.querySelector(".sub");
 
   launcher.querySelector("span").textContent = label;
-  var verificationId = null;
+  let verificationId = null;
 
   function paint() {
-    var coding = verificationId !== null;
+    const coding = verificationId !== null;
     stepOne.hidden = coding;
     stepTwo.hidden = !coding;
     title.textContent = coding ? t.codeTitle : label;
@@ -243,7 +243,7 @@
     paint();
     // The first thing a keyboard or screen-reader user needs is to BE in the
     // dialog they just opened.
-    var first = panel.querySelector("input:not([tabindex='-1'])");
+    const first = panel.querySelector("input:not([tabindex='-1'])");
     if (first) first.focus();
   }
 
@@ -269,13 +269,13 @@
     if (event.key !== "Tab") return;
     // The trap. Without it, Tab walks out of the dialog and into the host
     // page's own links behind it, which for a screen-reader user is silent.
-    var focusable = panel.querySelectorAll(
+    const focusable = panel.querySelectorAll(
       "button, input:not([tabindex='-1']), textarea",
     );
     if (focusable.length === 0) return;
-    var first = focusable[0];
-    var last = focusable[focusable.length - 1];
-    var active = root.activeElement;
+    const { 0: first } = focusable;
+    const last = focusable[focusable.length - 1];
+    const active = root.activeElement;
     if (event.shiftKey && active === first) {
       event.preventDefault();
       last.focus();
@@ -290,15 +290,11 @@
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then((response) => 
+    }).then((response) =>
       response
         .json()
-        .catch(function () {
-          return {};
-        })
-        .then(function (payload) {
-          return { ok: response.ok, payload };
-        })
+        .catch(() => ({}))
+        .then((payload) => ({ ok: response.ok, payload })),
     );
   }
 
@@ -306,9 +302,9 @@
     event.preventDefault();
     err.textContent = "";
     send.disabled = true;
-    var data = new FormData(form);
+    const data = new FormData(form);
 
-    var request =
+    const request =
       verificationId === null
         ? post("/widget/start", {
             widgetKey: key,
@@ -325,7 +321,7 @@
           });
 
     request
-      .then(function (result) {
+      .then((result) => {
         send.disabled = false;
         if (!result.ok) {
           err.textContent =
@@ -336,14 +332,14 @@
           verificationId = result.payload.verificationId;
           paint();
           note.textContent = t.sentCode;
-          var code = root.querySelector("#lx-code");
+          const code = root.querySelector("#lx-code");
           if (code) code.focus();
           return;
         }
         form.hidden = true;
         note.textContent = t.sentMessage;
       })
-      .catch(function () {
+      .catch(() => {
         send.disabled = false;
         err.textContent = t.failed;
       });

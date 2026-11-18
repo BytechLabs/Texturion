@@ -39,7 +39,7 @@
   "rules": {
     // Configured to the conventions the code already follows.
     "eslint/curly": ["error", "multi-line"],
-    "eslint/func-style": ["off", "declaration", { "allowArrowFunctions": true }], // not yet clean: 1 (#822)
+    "eslint/func-style": ["error", "declaration", { "allowArrowFunctions": true }],
     "eslint/one-var": ["error", "never"],
     "eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
     "eslint/no-plusplus": ["off", { "allowForLoopAfterthoughts": true }], // not yet clean: 66 (#822)
@@ -214,8 +214,6 @@
     "typescript/consistent-type-imports": "off", // 35
     "typescript/switch-exhaustiveness-check": "off", // 35
     "vitest/require-to-throw-message": "off", // 34
-    "eslint/no-var": "off", // 33
-    "eslint/vars-on-top": "off", // 31
     "import/no-namespace": "off", // 30
     "promise/always-return": "off", // 30
     "typescript/prefer-regexp-exec": "off", // 29
@@ -263,7 +261,6 @@
     "typescript/return-await": "off", // 11
     "unicorn/prefer-number-coercion": "off", // 11
     "unicorn/prefer-number-properties": "off", // 11
-    "eslint/func-names": "off", // 10
     "typescript/no-redundant-type-constituents": "off", // 10
     "typescript/no-unnecessary-boolean-literal-compare": "off", // 10
     "typescript/no-unnecessary-type-conversion": "off", // 10
