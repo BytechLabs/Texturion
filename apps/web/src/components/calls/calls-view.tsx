@@ -19,7 +19,7 @@ import { isCallEndReason, isCallRouting } from "@loonext/shared";
 import { Grid3x3, PhoneIncoming, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { CallRow } from "@/components/calls/call-row";
 import { Dialer } from "@/components/calls/dialer";
@@ -36,7 +36,7 @@ import { useCalls, useRingMe } from '@/lib/api/calls';
 import type { CallOutcomeFilter } from '@/lib/api/calls';
 import { callEndReason, callRoutingReason } from "@/lib/format/call";
 import { useSoftphone } from "@/lib/softphone/provider";
-import { replaceSearch } from "@/lib/url/search-state";
+import { replaceSearch, updateSearch } from "@/lib/url/search-state";
 import { cn } from "@/lib/utils";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 
@@ -51,11 +51,10 @@ const FILTERS: { labelKey: MessageKey; value: CallOutcomeFilter | undefined }[] 
 
 export function CallsView() {
   const t = useT();
-  const [outcome, setOutcome] = useState<CallOutcomeFilter | undefined>(
-    undefined,
-  );
-  // #725: a setting's "See them" link narrows the log to one reason.
   const searchParams = useSearchParams();
+  const selectedOutcome = searchParams.get("outcome");
+  const outcome = FILTERS.find(({ value }) => value === selectedOutcome)?.value;
+  // #725: a setting's "See them" link narrows the log to one reason.
   const rawReason = searchParams.get("reason");
   const reason =
     rawReason && (isCallRouting(rawReason) || isCallEndReason(rawReason)) ? rawReason : undefined;
@@ -80,7 +79,7 @@ export function CallsView() {
   // spam Telnyx).
   const softphone = useSoftphone();
   const ringMe = useRingMe();
-  const pendingCall = useSearchParams().get("call");
+  const pendingCall = searchParams.get("call");
   const rungRef = useRef<string | null>(null);
   const ready = softphone?.ready ?? false;
   // #170 CALLS-V3 §10.1.3: ring-me only when this device holds no live leg
@@ -137,7 +136,10 @@ export function CallsView() {
           ariaLabel={t("shell.filterCalls")}
           value={outcome ?? "all"}
           options={FILTERS.map((filter) => ({ value: filter.value ?? "all", label: t(filter.labelKey) }))}
-          onChange={(next) => setOutcome(next === "all" ? undefined : next)}
+          onChange={(next) => updateSearch((params) => {
+            if (next === "all") params.delete("outcome");
+            else params.set("outcome", next);
+          })}
         />
       </div>
       {reason && (
