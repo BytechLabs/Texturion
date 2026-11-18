@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import type { ScheduledMessageStatus } from "@loonext/shared";
 
+import { undoableToast } from "@/components/ui/optimistic-undo";
 import { useT } from "@/i18n/provider";
 
 import { apiFetch } from "./client";
@@ -193,11 +194,15 @@ export function useCancelScheduledMessage() {
       }),
     onSuccess: (receipt, id) => {
       void refresh();
-      toast.success(t("thread.scheduledCancelled"), receipt && {
-        action: {
-          label: t("thread.undo"),
-          onClick: () => restore.mutate({ id, canceled_at: receipt.canceled_at }),
-        },
+      const message = t("thread.scheduledCancelled");
+      if (!receipt) {
+        toast.success(message);
+        return;
+      }
+      undoableToast({
+        message,
+        undoLabel: t("thread.undo"),
+        onUndo: () => restore.mutate({ id, canceled_at: receipt.canceled_at }),
       });
     },
   });

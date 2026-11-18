@@ -92,6 +92,7 @@ const CLASSIFIED: Record<string, Classification> = {
   "scheduled-messages#POST /scheduled-messages": "trigger:scheduled_messages",
   "scheduled-messages#PATCH /scheduled-messages/:id": "trigger:scheduled_messages",
   "scheduled-messages#DELETE /scheduled-messages/:id": "trigger:scheduled_messages",
+  "scheduled-messages#POST /scheduled-messages/:id/restore": "none: only requeues the existing scheduled text",
   "blocked-senders#POST /blocked-senders": "trigger:blocked_senders",
   "blocked-senders#DELETE /blocked-senders/:id": "records",
   // ---- trash -------------------------------------------------------------

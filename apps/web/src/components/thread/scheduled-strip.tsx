@@ -7,7 +7,7 @@ import { toast } from "sonner";
 import { SCHEDULED_BODY_MAX, scheduledClockProvenance, scheduledHoldText } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Textarea } from "@/components/ui/textarea";
 import { useT } from '@/i18n/provider';
@@ -197,27 +197,23 @@ function ScheduledRow({
           <X className="size-3.5" strokeWidth={1.75} />
         </button>
       )}
-      <Dialog open={draft !== null} onOpenChange={(open) => { if (!open) setDraft(null); }}>
-        <DialogContent aria-describedby={undefined}>
-          <DialogHeader><DialogTitle>{t("thread.scheduledEditText")}</DialogTitle></DialogHeader>
-          <Textarea
-            aria-label={t("thread.scheduledEditText")}
-            value={draft ?? ""}
-            maxLength={SCHEDULED_BODY_MAX}
-            onChange={(event) => setDraft(event.target.value)}
-          />
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setDraft(null)}>{t("common.cancel")}</Button>
-            <Button
-              type="button"
-              disabled={!draft?.trim() || update.isPending}
-              onClick={() => { if (draft) void save({ body: draft }); }}
-            >
-              {t("common.save")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={draft !== null}
+        onOpenChange={(open) => { if (!open) setDraft(null); }}
+        title={t("thread.scheduledEditText")}
+        confirmLabel={t("common.save")}
+        tone="default"
+        pending={update.isPending}
+        confirmDisabled={!draft?.trim()}
+        onConfirm={() => { if (draft) void save({ body: draft }); }}
+      >
+        <Textarea
+          aria-label={t("thread.scheduledEditText")}
+          value={draft ?? ""}
+          maxLength={SCHEDULED_BODY_MAX}
+          onChange={(event) => setDraft(event.target.value)}
+        />
+      </ConfirmDialog>
       {pickingTime && (
         <SendLaterDialog
           open
