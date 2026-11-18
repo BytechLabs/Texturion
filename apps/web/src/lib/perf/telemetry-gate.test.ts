@@ -15,7 +15,7 @@ afterEach(() => {
 async function resolvesAtOnce(gate: Promise<void>): Promise<boolean> {
   let done = false;
   void gate.then(() => (done = true));
-  await new Promise((r) => setTimeout(r, 0));
+  await new Promise((r) => { setTimeout(r, 0); });
   return done;
 }
 

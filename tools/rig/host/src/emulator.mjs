@@ -213,7 +213,7 @@ export function createDevices({
   spawn,
   exec,
   env = process.env,
-  sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
+  sleep = (ms) => new Promise((done) => { setTimeout(done, ms); }),
   now = () => Date.now(),
   isAlive = (pid) => {
     try {

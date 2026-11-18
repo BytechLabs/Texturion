@@ -276,7 +276,7 @@ describe("#251 local Realtime fan-out", () => {
     `);
     const completed = await completesBefore(allDelivered, DELIVERY_DEADLINE_MS);
     // Give a duplicate frame a chance to reveal itself after the expected count.
-    if (completed) await new Promise((resolve) => setTimeout(resolve, 100));
+    if (completed) await new Promise((resolve) => { setTimeout(resolve, 100); });
 
     const expectedFrames = SUBSCRIBERS * BROADCASTS;
     const perSubscriber = arrivals.map((received) => received.size);

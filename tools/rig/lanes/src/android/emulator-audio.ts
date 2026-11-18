@@ -170,7 +170,7 @@ export class EmulatorAudioLink {
     this.port = options.port;
     this.#o = options;
     this.#now = options.now ?? Date.now;
-    this.#sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.#sleep = options.sleep ?? ((ms) => new Promise((resolve) => { setTimeout(resolve, ms); }));
   }
 
   async proven(): Promise<boolean> {
@@ -279,7 +279,7 @@ export class EmulatorAudioLink {
       const offset = (packet * packetBytes) % code.length;
       const audio = code.subarray(offset, offset + packetBytes);
       const sent = stream.write({ ...(packet === 0 ? { format } : {}), timestamp: Math.round(this.#now() * 1000), audio });
-      if (!sent) await new Promise((resolve) => stream.once("drain", resolve));
+      if (!sent) await new Promise((resolve) => { stream.once("drain", resolve); });
       await this.#sleep(Math.max(0, started + (packet + 1) * PACKET_MS - this.#now()));
     }
   }

@@ -480,7 +480,7 @@ async function navigationResponse(event) {
   }
   const waits = event.request.method === "GET" ? [0, ...NAVIGATION_RETRY_MS] : [0];
   for (const wait of waits) {
-    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    if (wait > 0) await new Promise((resolve) => { setTimeout(resolve, wait); });
     try {
       return await fetch(event.request);
     } catch {

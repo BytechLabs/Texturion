@@ -67,7 +67,7 @@ describe("useCompany", () => {
     let answer!: (value: Me) => void;
     api.mockImplementation((path) =>
       path === "/v1/me"
-        ? new Promise<Me>((resolve) => (answer = resolve))
+        ? new Promise<Me>((resolve) => { answer = resolve; })
         : Promise.resolve(fromCompany),
     );
     const queryClient = newClient();

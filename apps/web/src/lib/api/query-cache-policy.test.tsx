@@ -77,7 +77,7 @@ async function refetchesAt(
   client.setQueryData(queryKey, { data: [] }, { updatedAt: Date.now() - ageMs });
   mount(client, hook);
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
   });
   return apiFetch.mock.calls.length > 0;
 }
@@ -174,7 +174,7 @@ describe("reads nobody is looking at are not made", () => {
     const client = makeClient();
     mount(client, () => useTemplates("use", { enabled: false }));
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
     });
     expect(apiFetch).not.toHaveBeenCalled();
   });
@@ -183,7 +183,7 @@ describe("reads nobody is looking at are not made", () => {
     const client = makeClient();
     mount(client, () => useUsage({ enabled: false }));
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
     });
     expect(apiFetch).not.toHaveBeenCalled();
   });

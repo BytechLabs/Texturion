@@ -79,7 +79,7 @@ describe("contact search", () => {
     const client = makeClient();
     mount(client, () => useContacts("", { t9: true, enabled: false }));
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
     });
     expect(apiFetch).not.toHaveBeenCalled();
   });
@@ -106,7 +106,7 @@ describe("the duplicates check", () => {
     });
     mount(client, () => useDuplicateContacts());
     await act(async () => {
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
     });
     return apiFetch.mock.calls.some(([path]) => path === "/v1/contacts/duplicates");
   }

@@ -289,10 +289,10 @@ describe("the SDK waits for the page to settle (#640)", () => {
 
   it("downloads and starts only once the page has settled", async () => {
     let open = () => {};
-    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    settle.gate = new Promise<void>((resolve) => { open = resolve; });
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     const ready = initPostHog();
-    await new Promise((r) => setTimeout(r, 0));
+    await new Promise((r) => { setTimeout(r, 0); });
     expect(initSpy).not.toHaveBeenCalled();
     open();
     expect(await ready).not.toBeNull();
@@ -304,7 +304,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
       "https://loonext.com/?utm_source=google&utm_campaign=crew&gclid=TESTGCLID&q=1",
     );
     let open = () => {};
-    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    settle.gate = new Promise<void>((resolve) => { open = resolve; });
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     const ready = initPostHog();
     navigate("https://loonext.com/pricing");
@@ -331,7 +331,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
   it("adds no pageview for an in-page anchor, which the SDK does not count as a new page", async () => {
     const navigate = stubLocation("https://loonext.com/legal/privacy?utm_source=google");
     let open = () => {};
-    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    settle.gate = new Promise<void>((resolve) => { open = resolve; });
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     const ready = initPostHog();
     navigate("https://loonext.com/legal/privacy?utm_source=google#scope");
@@ -343,7 +343,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
   it("adds no pageview for a query change on the same path, but keeps the campaign", async () => {
     const navigate = stubLocation("https://loonext.com/?utm_source=google");
     let open = () => {};
-    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    settle.gate = new Promise<void>((resolve) => { open = resolve; });
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     const ready = initPostHog();
     navigate("https://loonext.com/?plan=crew");

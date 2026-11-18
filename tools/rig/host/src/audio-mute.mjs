@@ -184,7 +184,7 @@ export function createAudioMuter({
   helper = oneShotHelper({ exec, script }),
   log = () => {},
   now = () => Date.now(),
-  sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
+  sleep = (ms) => new Promise((done) => { setTimeout(done, ms); }),
   fastMs = FAST_SWEEP_MS,
   steadyMs = STEADY_SWEEP_MS,
   treeTtlMs = TREE_TTL_MS,

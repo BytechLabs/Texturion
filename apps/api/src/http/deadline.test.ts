@@ -57,7 +57,7 @@ describe(deadline, () => {
   it("does not abort after clear", async () => {
     const limit = deadline(5);
     limit.clear();
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await new Promise((resolve) => { setTimeout(resolve, 30); });
     expect(limit.signal.aborted).toBe(false);
   });
 });

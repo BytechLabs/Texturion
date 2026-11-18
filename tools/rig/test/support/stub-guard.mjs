@@ -91,7 +91,7 @@ export function startStubGuard({ port = 0, aiAnswer = () => ({ response: "stub" 
   return new Promise((resolve) => {
     server.listen(port, "127.0.0.1", () => {
       const { port: bound } = server.address();
-      resolve({ origin: `http://127.0.0.1:${bound}`, requests, close: () => new Promise((done) => server.close(done)) });
+      resolve({ origin: `http://127.0.0.1:${bound}`, requests, close: () => new Promise((done) => { server.close(done); }) });
     });
   });
 }

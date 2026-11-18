@@ -91,7 +91,7 @@ export function createTunnel({
   run,
   readFile = readFileSync,
   now = () => Date.now(),
-  sleep = (ms) => new Promise((done) => setTimeout(done, ms)),
+  sleep = (ms) => new Promise((done) => { setTimeout(done, ms); }),
   log = () => {},
 }) {
   const state = { up: false, since: null };

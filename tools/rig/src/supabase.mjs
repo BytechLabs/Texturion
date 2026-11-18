@@ -154,7 +154,7 @@ export function notReadyBecause(container) {
  */
 export async function waitForStack(
   projectId,
-  { timeoutMs = STACK_READY_MS, intervalMs = 2_000, list = listStackContainers, sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)), now = Date.now, log = () => {} } = {},
+  { timeoutMs = STACK_READY_MS, intervalMs = 2_000, list = listStackContainers, sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); }), now = Date.now, log = () => {} } = {},
 ) {
   const deadline = now() + timeoutMs;
   const database = `supabase_db_${projectId}`;

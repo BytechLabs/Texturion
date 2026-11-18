@@ -105,7 +105,7 @@ describe("robotd's HTTP face and its client", () => {
     const inbox = new Inbox(TEST_NUMBERS);
     const sink = new WebhookSink();
     const server = robotServer({ robot, inbox, sink, telnyx, numbers: TEST_NUMBERS, token: "local-token" });
-    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
     close = () => server.close();
     const base = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
     return { telnyx, robot, base, client: new RobotClient({ base, token: "local-token" }) };

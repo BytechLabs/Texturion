@@ -316,7 +316,7 @@ describe("softphone registration", () => {
     void queryClient
       .fetchQuery({
         queryKey: ["boot"],
-        queryFn: () => new Promise<string>((resolve) => (finish = resolve)),
+        queryFn: () => new Promise<string>((resolve) => { finish = resolve; }),
       })
       .catch(() => {});
     render(tree());
@@ -449,7 +449,7 @@ describe("softphone workspace switch", () => {
     let release: () => void = () => {};
     api.mint.mockImplementationOnce(async () => {
       api.state.mints.push(company.id);
-      await new Promise<void>((resolve) => (release = resolve));
+      await new Promise<void>((resolve) => { release = resolve; });
       return { token: "jwt" };
     });
     window.history.replaceState(null, "", "/calls?call=v3:ring-1");

@@ -178,7 +178,7 @@ describe("adb through hostd's tunnel", () => {
 
   it("counts only adb's OKAY as an answer, not a tunnel end that accepts and closes", async () => {
     const listen = async (server: ReturnType<typeof createServer>) => {
-      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
       return (server.address() as AddressInfo).port;
     };
     const adb = createServer((socket) => socket.once("data", () => socket.end("OKAY00040029")));
@@ -187,8 +187,8 @@ describe("adb through hostd's tunnel", () => {
     const tunnelPort = await listen(tunnelOnly);
     await expect(adbAnswers("127.0.0.1", adbPort, 2000)).resolves.toBe(true);
     await expect(adbAnswers("127.0.0.1", tunnelPort, 2000)).resolves.toBe(false);
-    await new Promise((resolve) => adb.close(resolve));
-    await new Promise((resolve) => tunnelOnly.close(resolve));
+    await new Promise((resolve) => { adb.close(resolve); });
+    await new Promise((resolve) => { tunnelOnly.close(resolve); });
     await expect(adbAnswers("127.0.0.1", adbPort, 2000)).resolves.toBe(false);
   });
 
@@ -469,8 +469,8 @@ async function fakeConsole(options: { ko?: RegExp } = {}) {
     });
     socket.on("error", () => undefined);
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
+  cleanups.push(() => new Promise<void>((resolve) => { server.close(() => resolve()); }));
   const { port } = server.address() as AddressInfo;
   const shells: string[] = [];
   const make = (token = CONSOLE_TOKEN, shell?: (args: string[]) => Promise<string>) =>
@@ -614,10 +614,14 @@ async function fakeController() {
       call.on("close", () => clearInterval(timer));
     },
   });
-  const port = await new Promise<number>((resolve, reject) =>
-    server.bindAsync("127.0.0.1:0", grpc.ServerCredentials.createInsecure(), (error, bound) => (error ? reject(error) : resolve(bound))),
-  );
-  cleanups.push(() => new Promise<void>((resolve) => server.tryShutdown(() => resolve())));
+  const port = await new Promise<number>((resolve, reject) => {
+    server.bindAsync(
+      "127.0.0.1:0",
+      grpc.ServerCredentials.createInsecure(),
+      (error, bound) => (error ? reject(error) : resolve(bound)),
+    );
+  });
+  cleanups.push(() => new Promise<void>((resolve) => { server.tryShutdown(() => resolve()); }));
   return { port, injected, auth };
 }
 
@@ -631,7 +635,7 @@ function audioLink(port: number, options: { proof?: string; dump?: () => string;
     proof: () => ("proof" in options ? options.proof : PROVEN),
     client,
     transcriber: { transcribe: async (wav) => (options.transcribed?.push(wav), "hello this is the rig robot") },
-    sleep: () => new Promise((resolve) => setImmediate(resolve)),
+    sleep: () => new Promise((resolve) => { setImmediate(resolve); }),
     micWaitMs: 2000,
   });
   cleanups.push(() => link.close());
@@ -661,7 +665,7 @@ describe("the emulator's gRPC audio", () => {
     const sleeps: number[] = [];
     const writes: { at: number; packet: AudioPacket }[] = [];
     let finished!: () => void;
-    const done = new Promise<void>((resolve) => (finished = resolve));
+    const done = new Promise<void>((resolve) => { finished = resolve; });
     const stream = {
       write(packet: AudioPacket) {
         writes.push({ at: clock, packet });
@@ -705,11 +709,11 @@ describe("the emulator's gRPC audio", () => {
     let open = false;
     const { link, shells } = audioLink(controller.port, { dump: () => (open ? RECORDING : "RecordActivityMonitor dump time: 3:00:04 PM\n\n") });
     await link.playCode("pixel");
-    await new Promise((resolve) => setTimeout(resolve, 50));
+    await new Promise((resolve) => { setTimeout(resolve, 50); });
     expect(controller.injected).toEqual([]);
     expect(shells.every((line) => line === "dumpsys audio")).toBe(true);
     open = true;
-    await new Promise((resolve) => setTimeout(resolve, 300));
+    await new Promise((resolve) => { setTimeout(resolve, 300); });
     expect(controller.injected.length).toBeGreaterThan(0);
     link.stop();
   });
@@ -769,8 +773,8 @@ async function fakeHostd(answers: Record<string, { status?: number; body?: unkno
     response.writeHead(answer?.status ?? (answer ? 200 : 404), { "content-type": "application/json" });
     response.end(answer?.body === undefined ? "" : JSON.stringify(answer.body));
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
-  cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
+  cleanups.push(() => new Promise<void>((resolve) => { server.close(() => resolve()); }));
   const { port } = server.address() as AddressInfo;
   return { requests, client: (token = HOSTD_TOKEN) => new HostdClient({ origin: `http://127.0.0.1:${port}`, token: () => token }) };
 }
@@ -817,7 +821,7 @@ describe("the hostd client", () => {
     const health = async () => healthReport({ facts, adbUp: true, tunnel: { up: true, since: null }, devices: devices.list() });
     const server = createHostdServer({ token: HOSTD_TOKEN, devices, health });
     const { port } = await listen(server, 0);
-    cleanups.push(() => new Promise<void>((resolve) => server.close(() => resolve())));
+    cleanups.push(() => new Promise<void>((resolve) => { server.close(() => resolve()); }));
     const client = new HostdClient({ origin: `http://127.0.0.1:${port}`, token: () => HOSTD_TOKEN });
     await client.boot("pixel", { cold: false, wipe: false });
     await expect(client.tokens("pixel")).resolves.toEqual({ console: CONSOLE_TOKEN, grpc: GRPC_TOKEN });
@@ -830,7 +834,7 @@ describe("the hostd client", () => {
 
   it("waits out a boot that outlasts its ordinary timeout", async () => {
     const slow = (async (_url: string | URL | Request, init?: RequestInit) => {
-      await new Promise((resolve) => setTimeout(resolve, 120));
+      await new Promise((resolve) => { setTimeout(resolve, 120); });
       if (init?.signal?.aborted) throw new DOMException("timed out", "TimeoutError");
       return new Response("", { status: 200 });
     }) as typeof fetch;

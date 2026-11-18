@@ -74,7 +74,7 @@ describe("#251 the database call cannot hang forever", () => {
     // test does not wait ten seconds.
     const { signal } = deadline(5);
     expect(signal.aborted).toBe(false);
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => { setTimeout(resolve, 40); });
     expect(signal.aborted, "the deadline never fired").toBe(true);
     expect((signal.reason as Error).name).toBe("TimeoutError");
   });

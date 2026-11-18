@@ -134,7 +134,7 @@ describe("Calendar reads", () => {
     await screen.findByText(EN.tasks.calendarEmptyDueDate);
 
     let release = () => {};
-    hold = new Promise<void>((resolve) => (release = resolve));
+    hold = new Promise<void>((resolve) => { release = resolve; });
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.calendarNextMonth }));
     await waitFor(() => expect(tasksRequests()).toHaveLength(2));
     expect(screen.queryByText(EN.tasks.calendarEmptyDueDate)).toBeNull();
@@ -150,7 +150,7 @@ describe("Calendar reads", () => {
     expect(onChipClick).toHaveBeenCalledWith("t-dec");
 
     let release = () => {};
-    hold = new Promise<void>((resolve) => (release = resolve));
+    hold = new Promise<void>((resolve) => { release = resolve; });
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.calendarNextMonth }));
     await waitFor(() => expect(tasksRequests()).toHaveLength(2));
     expect(screen.getByRole("link", { name: "Service the furnace" })).toBeTruthy();

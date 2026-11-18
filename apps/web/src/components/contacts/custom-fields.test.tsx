@@ -153,7 +153,7 @@ describe(ContactCustomFields, () => {
     renderFields({ boiler_model: "Worcester 8000" });
     const input = await screen.findByLabelText("Boiler model");
     fireEvent.blur(input);
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => { setTimeout(resolve, 20); });
     expect(patched).not.toHaveBeenCalled();
   });
 

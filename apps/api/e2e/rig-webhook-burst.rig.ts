@@ -160,7 +160,7 @@ async function settle(target: number, startedAt: number): Promise<{ count: numbe
     if (Date.now() - lastChange > STALL_MS || Date.now() - startedAt > LEVEL_DEADLINE_MS) {
       return { count, ms: Date.now() - startedAt };
     }
-    await new Promise((resolve) => setTimeout(resolve, 250));
+    await new Promise((resolve) => { setTimeout(resolve, 250); });
   }
 }
 
@@ -174,7 +174,7 @@ describe("#251 webhook burst on the rig, ramped", () => {
     console.log(line(report));
     const settled = await settle(before + 1, Date.now() - report.totalMs);
     // A further beat, so a late duplicate would be counted rather than missed.
-    await new Promise((resolve) => setTimeout(resolve, 3000));
+    await new Promise((resolve) => { setTimeout(resolve, 3000); });
     const after = await messageCount();
 
     expect(after - before, "duplicates or drops from one event").toBe(1);
@@ -242,12 +242,12 @@ describe("#251 webhook burst on the rig, ramped", () => {
       const settled = await settle(before + level, Date.now() - report.totalMs);
       // A beat for late duplicates, then until the ledger says every acked event
       // was finished with: the row lands before the ledger is marked.
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => { setTimeout(resolve, 2000); });
       const landed = (await messageCount()) - before;
       const drainStart = Date.now();
       let rows = await ledger(prefix);
       while (rows.unprocessed > 0 && Date.now() - drainStart < STALL_MS) {
-        await new Promise((resolve) => setTimeout(resolve, 250));
+        await new Promise((resolve) => { setTimeout(resolve, 250); });
         rows = await ledger(prefix);
       }
       const ledgerDrainedMs = Date.now() - drainStart;

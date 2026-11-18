@@ -146,7 +146,7 @@ describe("#251 the API under database saturation answers honestly, ramped", () =
       let recoveredMs: number | null = null;
       let polls = 0;
       while (Date.now() - recoveryStart < RECOVERY_DEADLINE_MS) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => { setTimeout(resolve, 500); });
         polls += 1;
         if ((await forYou()).status === 200) {
           recoveredMs = Date.now() - recoveryStart;
@@ -157,7 +157,7 @@ describe("#251 the API under database saturation answers honestly, ramped", () =
       // What the Worker says it finished, to tell a request stuck inside it
       // from one lost between the driver and it.
       // wrangler prints its access log a little behind the response.
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => { setTimeout(resolve, 2000); });
       const servedAfter = stack.servedTotals();
       const workerFinished: Record<string, number> = {};
       for (const [key, total] of Object.entries(servedAfter)) {

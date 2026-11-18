@@ -40,7 +40,7 @@ export async function releasePushOnThisDevice(
 ): Promise<void> {
   await Promise.race([
     release(companyId),
-    new Promise<void>((resolve) => setTimeout(resolve, RELEASE_TIMEOUT_MS)),
+    new Promise<void>((resolve) => { setTimeout(resolve, RELEASE_TIMEOUT_MS); }),
   ]);
 }
 

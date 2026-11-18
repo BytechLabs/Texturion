@@ -25,7 +25,7 @@ export async function waitForStackUnit({
   state = stackUnitState,
   timeoutMs = STACK_UNIT_WAIT_MS,
   intervalMs = 3_000,
-  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); }),
   now = Date.now,
   log = () => {},
 } = {}) {

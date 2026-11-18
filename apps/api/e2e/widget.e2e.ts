@@ -39,7 +39,7 @@ let customerOrigin: string;
 let loonextOrigin: string;
 
 async function listen(server: Server): Promise<string> {
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
   const address = server.address();
   if (address === null || typeof address === "string") throw new Error("no port");
   return `http://127.0.0.1:${address.port}`;
@@ -127,8 +127,8 @@ ${widgetSnippet(loonextOrigin, widgetKey)}
 
 afterAll(async () => {
   await browser?.close();
-  await new Promise((resolve) => customerSite?.close(resolve));
-  await new Promise((resolve) => loonext?.close(resolve));
+  await new Promise((resolve) => { customerSite?.close(resolve); });
+  await new Promise((resolve) => { loonext?.close(resolve); });
   if (h) {
     cleanup();
     await h.close();

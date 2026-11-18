@@ -68,13 +68,13 @@ beforeAll(async () => {
       response.writeHead(200, { "content-type": "text/html" }).end(`<!doctype html><title>app</title><p>Signed in at ${url.pathname}</p>`);
     }
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   writeFakeMicWavs(join(dir, "mic"));
 });
 
 afterAll(async () => {
-  await new Promise((resolve) => server.close(resolve));
+  await new Promise((resolve) => { server.close(resolve); });
   rmSync(dir, { recursive: true, force: true });
 });
 

@@ -279,7 +279,7 @@ export function buildRig(config: RigdConfig): Rig {
       dialWindow: () => windows().current(),
       caps: config.capsOverride ?? registry().caps,
       clock: systemClock,
-      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      sleep: (ms) => new Promise((resolve) => { setTimeout(resolve, ms); }),
       lateDeliveries: (query) => late.matching(query).length,
       holds,
       deployHold: () => {

@@ -99,7 +99,7 @@ function overlapProbe(route: FetchRoute) {
     inFlight.set(path, (inFlight.get(path) ?? 0) + 1);
     try {
       const response = await answer;
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await new Promise((resolve) => { setTimeout(resolve, 5); });
       return response;
     } finally {
       const left = (inFlight.get(path) ?? 1) - 1;

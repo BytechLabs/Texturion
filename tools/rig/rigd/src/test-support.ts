@@ -128,7 +128,7 @@ export class TinyWsServer {
   }
 
   listen(): Promise<number> {
-    return new Promise((resolve) => this.server.listen(0, "127.0.0.1", () => resolve((this.server.address() as { port: number }).port)));
+    return new Promise((resolve) => { this.server.listen(0, "127.0.0.1", () => resolve((this.server.address() as { port: number }).port)); });
   }
 
   onMessage(listener: (frame: unknown) => void): void {
@@ -151,7 +151,7 @@ export class TinyWsServer {
 
   close(): Promise<void> {
     this.dropAll();
-    return new Promise((resolve) => this.server.close(() => resolve()));
+    return new Promise((resolve) => { this.server.close(() => resolve()); });
   }
 }
 

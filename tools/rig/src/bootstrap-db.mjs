@@ -66,7 +66,7 @@ async function waitForPostgrest(apiUrl, secretKey, timeoutMs = 90_000) {
       // still starting
     }
     if (Date.now() > deadline) throw new Error("rig bootstrap-db: PostgREST did not come back");
-    await new Promise((resolve) => setTimeout(resolve, 1000));
+    await new Promise((resolve) => { setTimeout(resolve, 1000); });
   }
 }
 

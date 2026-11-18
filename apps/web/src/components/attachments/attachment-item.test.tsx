@@ -110,7 +110,7 @@ describe("AttachmentItem image row", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Open site.jpg" }));
     await waitFor(() => expect(screen.getByRole("dialog")).toBeTruthy());
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => { setTimeout(resolve, 40); });
 
     expect(batches()).toHaveLength(1);
   });

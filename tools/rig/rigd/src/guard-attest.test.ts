@@ -58,9 +58,9 @@ async function stubServer(): Promise<Stub> {
       response.writeHead(answer.status, { "content-type": "application/json" }).end(JSON.stringify(answer.body));
     });
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
   stub.origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  stub.close = () => new Promise((resolve) => server.close(() => resolve()));
+  stub.close = () => new Promise((resolve) => { server.close(() => resolve()); });
   return stub;
 }
 

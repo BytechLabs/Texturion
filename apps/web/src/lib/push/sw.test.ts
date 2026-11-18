@@ -908,7 +908,7 @@ describe("offline.html", () => {
     return { listeners, intervals, reload };
   }
 
-  const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
+  const settle = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 
   it("asks the app every 3 s and reloads once it answers", async () => {
     const fetch = vi

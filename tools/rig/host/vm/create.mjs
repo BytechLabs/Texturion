@@ -150,7 +150,7 @@ async function sha256File(path) {
 }
 
 const slashed = (path) => path.replaceAll('\\', "/");
-const sleep = (ms) => new Promise((done) => setTimeout(done, ms));
+const sleep = (ms) => new Promise((done) => { setTimeout(done, ms); });
 
 /**
  * Git's gpg is an MSYS program: it reads a drive path in an argument, but

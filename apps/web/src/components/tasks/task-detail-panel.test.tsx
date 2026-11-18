@@ -99,7 +99,7 @@ describe("TaskDetailPanel while the detail loads", () => {
     await waitFor(() =>
       expect(client.getQueryState(keys.tasks.activity("c-1", "t1"))?.status).toBe("success"),
     );
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => { setTimeout(resolve, 20); });
     expect(rowLookups.count).toBe(before);
   });
 

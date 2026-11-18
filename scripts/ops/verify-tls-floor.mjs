@@ -100,7 +100,8 @@ function handshake(host, version) {
     } catch (cause) {
       // Thrown synchronously when this OpenSSL build has the version compiled
       // out. NOT a refusal by the server.
-      return done({ state: "untestable", reason: String(cause?.message ?? cause) });
+      done({ state: "untestable", reason: String(cause?.message ?? cause) });
+      return;
     }
     socket.setTimeout(10_000, () => {
       socket.destroy();

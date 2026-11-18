@@ -1265,7 +1265,7 @@ export async function runHostedCapacity(
 ): Promise<CapacityEvidence[]> {
   const fetcher = dependencies.fetch ?? globalThis.fetch;
   const nowMs = dependencies.nowMs ?? (() => performance.now());
-  const sleep = dependencies.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const sleep = dependencies.sleep ?? ((ms: number) => new Promise((resolve) => { setTimeout(resolve, ms); }));
   const openRealtime = dependencies.openRealtime ?? openSupabaseRealtimeConnection;
   const results: CapacityEvidence[] = [];
   const emit = (evidence: CapacityEvidence): void => {

@@ -137,7 +137,7 @@ describe("Board columns (D25)", () => {
 
     server.open = [task("o1", "Fix sink", false)];
     let release = () => {};
-    hold = new Promise<void>((resolve) => (release = resolve));
+    hold = new Promise<void>((resolve) => { release = resolve; });
     rerender({ view: "board", tab: "all" });
     await waitFor(() => expect(screen.queryByText(EN.tasks.emptyMineAny)).toBeNull());
     expect(screen.queryByText(EN.tasks.emptyTitle)).toBeNull();
@@ -153,7 +153,7 @@ describe("Board columns (D25)", () => {
     expect(container.querySelector("article")?.getAttribute("draggable")).toBe("true");
 
     let release = () => {};
-    hold = new Promise<void>((resolve) => (release = resolve));
+    hold = new Promise<void>((resolve) => { release = resolve; });
     rerender({ view: "board", tab: "all" });
     await waitFor(() =>
       expect(container.querySelector("article")?.getAttribute("draggable")).toBe("false"),

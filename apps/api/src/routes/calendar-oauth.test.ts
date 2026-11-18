@@ -540,7 +540,7 @@ describe("calendar provider webhooks", () => {
         active += 1;
         calls += 1;
         maximumActive = Math.max(maximumActive, active);
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        await new Promise((resolve) => { setTimeout(resolve, 5); });
         active -= 1;
         return Response.json({ outcome: "queued" });
       }

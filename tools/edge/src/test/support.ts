@@ -91,7 +91,7 @@ export function fakeGuard(): FakeGuard {
       };
       guard.calls.push(call);
       const wait = guard.latency[url.pathname];
-      if (wait) await new Promise((resolve) => setTimeout(resolve, wait));
+      if (wait) await new Promise((resolve) => { setTimeout(resolve, wait); });
       const custom = guard.respond(call);
       if (custom) return custom;
       if (url.pathname === "/partition") {

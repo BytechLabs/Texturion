@@ -268,7 +268,7 @@ export class Adb {
     while (Date.now() < deadline) {
       const booted = await this.shell("getprop", "sys.boot_completed").catch(() => "");
       if (booted.trim() === "1") return;
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => { setTimeout(resolve, 2000); });
     }
     throw new Error("adb: the device did not finish booting");
   }

@@ -62,7 +62,7 @@ export async function endSessionOnThisDevice(
   await releasePushOnThisDevice(companyId);
   await Promise.race([
     revokeThisSession(),
-    new Promise<void>((resolve) => setTimeout(resolve, REVOKE_TIMEOUT_MS)),
+    new Promise<void>((resolve) => { setTimeout(resolve, REVOKE_TIMEOUT_MS); }),
   ]);
   // Returned rather than swallowed, and deliberately not wrapped in a try: two
   // callers (the member menu and the mobile account sheet) read `{ error }` to

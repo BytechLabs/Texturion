@@ -253,7 +253,7 @@ describe("deployed capacity target safety", () => {
 describe("bounded API ramp", () => {
   it("aborts a request that never settles and labels it only as a deadline", async () => {
     const never = vi.fn(
-      async () => await new Promise<Response>(() => undefined),
+      async () => await new Promise<Response>(() => {}),
     ) as unknown as typeof fetch;
     const outcome = await performBoundedGet(
       never,
@@ -617,7 +617,7 @@ describe("hosted Realtime connection ramp", () => {
     const hangingProbe: RealtimeConnection = {
       joinedMs: 1,
       snapshot: () => subscribedSnapshot(),
-      close: async () => await new Promise<void>(() => undefined),
+      close: async () => await new Promise<void>(() => {}),
     };
     await expect(
       runHostedCapacity(cfg, {
@@ -634,7 +634,7 @@ describe("hosted Realtime connection ramp", () => {
       runHostedCapacity(cfg, {
         fetch: vi.fn(async () => response()) as unknown as typeof fetch,
         openRealtime: async () =>
-          await new Promise<RealtimeConnection>(() => undefined),
+          await new Promise<RealtimeConnection>(() => {}),
       }),
     ).rejects.toThrow(/topic preflight failed/);
   });
@@ -696,7 +696,7 @@ describe("hosted Realtime connection ramp", () => {
           return {
             joinedMs: 1,
             snapshot: () => subscribedSnapshot(),
-            close: async () => await new Promise<void>(() => undefined),
+            close: async () => await new Promise<void>(() => {}),
           };
         },
         onEvidence: (record) => emitted.push(record),
@@ -802,7 +802,7 @@ describe("Supabase Realtime adapter lifecycle", () => {
   it("orders and bounds both cleanup phases when provider promises hang", async () => {
     let subscriber: ((status: string) => void) | undefined;
     const events: string[] = [];
-    const never = new Promise<void>(() => undefined);
+    const never = new Promise<void>(() => {});
     const channel = {
       subscribe: vi.fn((callback: (status: string) => void) => {
         subscriber = callback;

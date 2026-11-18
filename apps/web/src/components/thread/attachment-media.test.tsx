@@ -85,7 +85,7 @@ const PHOTO: AttachmentSummary = { id: "img", content_type: "image/jpeg", size_b
 const PDF: AttachmentSummary = { id: "pdf", content_type: "application/pdf", size_bytes: 2048 };
 const CLIP: AttachmentSummary = { id: "clip", content_type: "audio/mpeg", size_bytes: 2048 };
 
-const tick = () => new Promise((resolve) => setTimeout(resolve, 40));
+const tick = () => new Promise((resolve) => { setTimeout(resolve, 40); });
 
 /** Whether a click got past the page's own handlers, without letting happy-dom navigate. */
 function clickPassedThrough(target: Element): boolean {

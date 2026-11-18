@@ -129,7 +129,7 @@ export class EmulatorConsole {
     }
     this.port = options.port;
     this.#o = options;
-    this.#sleep = options.sleep ?? ((ms) => new Promise((resolve) => setTimeout(resolve, ms)));
+    this.#sleep = options.sleep ?? ((ms) => new Promise((resolve) => { setTimeout(resolve, ms); }));
   }
 
   /** Sends commands on one authenticated connection; a KO stops there and throws. */

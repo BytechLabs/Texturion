@@ -212,13 +212,13 @@ test("it stops when the emulator is gone, and asks nothing of Windows with no pi
 test("stop ends the loop, and nothing is reported after it", async () => {
   const results = [];
   const shell = fakeShell({ sessions: () => [{ pid: 200, muted: true }] });
-  const muter = createAudioMuter({ exec: shell.exec, sleep: () => new Promise((done) => setImmediate(done)) });
+  const muter = createAudioMuter({ exec: shell.exec, sleep: () => new Promise((done) => { setImmediate(done); }) });
   const watcher = muter.watch({ roots: () => [100], onResult: (result) => results.push(result) });
-  while (results.length < 2) await new Promise((done) => setImmediate(done));
+  while (results.length < 2) await new Promise((done) => { setImmediate(done); });
   await watcher.stop();
   const seen = results.length;
   const sweeps = shell.calls.length;
-  for (let i = 0; i < 5; i += 1) await new Promise((done) => setImmediate(done));
+  for (let i = 0; i < 5; i += 1) await new Promise((done) => { setImmediate(done); });
   assert.equal(results.length, seen);
   assert.equal(shell.calls.length, sweeps);
 });
@@ -248,7 +248,7 @@ function deviceHarness(overrides = {}) {
     exec: shell.exec,
     sleep: async () => {
       round += 1;
-      await new Promise((done) => setImmediate(done));
+      await new Promise((done) => { setImmediate(done); });
     },
   });
   const devices = createDevices({
@@ -274,7 +274,7 @@ function deviceHarness(overrides = {}) {
 }
 
 const settleLoops = async () => {
-  for (let i = 0; i < 12; i += 1) await new Promise((done) => setImmediate(done));
+  for (let i = 0; i < 12; i += 1) await new Promise((done) => { setImmediate(done); });
 };
 
 test("a device that boots has its emulator's audio session muted, and the status says so", async () => {
@@ -354,7 +354,7 @@ function fakeServe() {
     procs.push(proc);
     return proc;
   };
-  const tick = () => new Promise((done) => setImmediate(done));
+  const tick = () => new Promise((done) => { setImmediate(done); });
   return { spawn, procs, tick, say: async (proc, line) => (proc.stdout.write(`${line}\r\n`), tick()) };
 }
 

@@ -37,7 +37,7 @@ export function summarize(values: number[]): Summary {
 }
 
 export const sleep = (ms: number): Promise<void> =>
-  new Promise((resolve) => setTimeout(resolve, ms));
+  new Promise((resolve) => { setTimeout(resolve, ms); });
 
 export function requiredEnv(name: string): string {
   const value = process.env[name]?.trim();

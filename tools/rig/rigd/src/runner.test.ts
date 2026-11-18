@@ -490,9 +490,9 @@ describe(runScenario, () => {
       release: () => void events.push("hold released"),
     };
     const running = runScenario(slow.deps, "S02");
-    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => { setImmediate(resolve); });
     slow.clock.advance(2 * 60 * 60_000);
-    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => { setImmediate(resolve); });
     expect(events).toEqual([]);
     finishPrepare();
     const summary = await running;
@@ -590,10 +590,10 @@ describe(runScenario, () => {
 
   it("stops an attempt that runs past the lease, before the watchdog would reap it", async () => {
     const { deps } = setup([]);
-    deps.runners = { ...deps.runners, S02: { id: "S02", run: () => new Promise(() => undefined) } };
+    deps.runners = { ...deps.runners, S02: { id: "S02", run: () => new Promise(() => {}) } };
     const running = runScenario(deps, "S02");
     for (let i = 0; i < 400; i++) {
-      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => { setImmediate(resolve); });
       (deps.clock as ManualClock).advance(60_000);
     }
     await expect(running).resolves.toMatchObject({ status: "infra" });

@@ -187,7 +187,6 @@
     "unicorn/prefer-string-replace-all": "off", // 199
     "vitest/prefer-expect-resolves": "off", // 160
     "unicorn/number-literal-case": "off", // 151
-    "eslint/no-promise-executor-return": "off", // 133
     "typescript/non-nullable-type-assertion-style": "off", // 127
     "unicorn/no-nested-ternary": "off", // 124
     "unicorn/switch-case-braces": "off", // 114

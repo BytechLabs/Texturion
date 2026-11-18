@@ -191,7 +191,7 @@ describe("what the List asks for", () => {
     renderList(OPEN);
     await screen.findByText("o job 0");
     // A second read here would be a page nobody asked for.
-    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    await act(() => new Promise((resolve) => { setTimeout(resolve, 20); }));
     expect(tasksRequests()).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.loadMore }));
@@ -236,7 +236,7 @@ describe("what the List asks for", () => {
     await screen.findByText("Call Ana");
 
     let release = () => {};
-    hold = { status: "done", release: new Promise<void>((resolve) => (release = resolve)) };
+    hold = { status: "done", release: new Promise<void>((resolve) => { release = resolve; }) };
     rerender(DONE);
     await waitFor(() => expect(tasksRequests("done")).toHaveLength(1));
     expect(screen.getByText("Call Ana")).toBeTruthy();
@@ -254,7 +254,7 @@ describe("what the List asks for", () => {
     await screen.findByText(EN.tasks.emptyMine);
 
     let release = () => {};
-    hold = { status: "done", release: new Promise<void>((resolve) => (release = resolve)) };
+    hold = { status: "done", release: new Promise<void>((resolve) => { release = resolve; }) };
     rerender(DONE);
     await waitFor(() => expect(tasksRequests("done")).toHaveLength(1));
     expect(screen.queryByText(EN.tasks.emptyMineDone)).toBeNull();

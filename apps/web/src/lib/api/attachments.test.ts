@@ -245,7 +245,7 @@ describe("uploadFilesSequentially (the staged-note-upload chain, D28)", () => {
     const uploadOne = async () => {
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
       inFlight -= 1;
     };
 
@@ -464,7 +464,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
 
     expect(result.current.data?.url).toBe("https://storage.test/cached");
     expect(result.current.isStale).toBe(false);
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => { setTimeout(resolve, 40); });
     expect(batchCalls()).toHaveLength(0);
     expect(
       queryClient.getQueryCache().find({ queryKey: keys.attachmentUrl(COMPANY, "att-1") })
@@ -545,7 +545,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
     );
 
     await waitFor(() => expect(result.current.error).toMatchObject({ code: "forbidden" }));
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => { setTimeout(resolve, 1500); });
     expect(batchCalls()).toHaveLength(1);
   });
 
@@ -626,7 +626,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
     await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
     first.unmount();
     const again = renderHook(() => useAttachmentGallery("conv-3"), { wrapper });
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => { setTimeout(resolve, 40); });
 
     expect(again.result.current.isSuccess).toBe(true);
     expect(apiFetch).toHaveBeenCalledOnce();
