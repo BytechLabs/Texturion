@@ -1165,23 +1165,23 @@ begin
   result := public.api_for_you(co, author, now(), 20);
   if result->'text_alerts'->0->>'kind' is distinct from 'opt_out_hint'
      or result->'text_alerts'->1->>'kind' is distinct from 'text_failed'
-     or (result->'totals'->>'distinct_work')::int <> baseline + 1 then
+     or (result->'totals'->>'distinct_work')::int is distinct from baseline + 1 then
     raise exception 'FY text alerts: the two alerts should count as one conversation: %', result->'text_alerts';
   end if;
-  if public.api_for_you(co, owner_id, now(), 20)->'text_alerts' <> '[]'::jsonb
-     or public.api_for_you(co, author, now(), 20, array[line])->'text_alerts' <> '[]'::jsonb then
+  if public.api_for_you(co, owner_id, now(), 20)->'text_alerts' is distinct from '[]'::jsonb
+     or public.api_for_you(co, author, now(), 20, array[line])->'text_alerts' is distinct from '[]'::jsonb then
     raise exception 'FY text alerts: the wrong member or a hidden line received an alert';
   end if;
 
   update public.conversation_reads set last_read_at = now()
    where conversation_id = thread and user_id = author;
   result := public.api_for_you(co, author, now(), 20)->'text_alerts';
-  if jsonb_array_length(result) <> 1 or result->0->>'kind' is distinct from 'opt_out_hint' then
+  if jsonb_array_length(result) is distinct from 1 or result->0->>'kind' is distinct from 'opt_out_hint' then
     raise exception 'FY text alerts: opening the thread should clear only its failed-send alert';
   end if;
 
   update public.conversations set opt_out_hint_at = null where company_id = co and id = thread;
-  if public.api_for_you(co, author, now(), 20)->'text_alerts' <> '[]'::jsonb then
+  if public.api_for_you(co, author, now(), 20)->'text_alerts' is distinct from '[]'::jsonb then
     raise exception 'FY text alerts: a resolved hint should leave the queue';
   end if;
 end $$;

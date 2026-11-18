@@ -930,7 +930,7 @@ begin
   if repeat_hint->'crew_notify_verdict'->>'notify_reason' = 'opt_out_hint'
      or (select count(*) from public.audit_log
           where company_id = co and target_id = thread::text
-            and action = 'opt_out.language_detected') <> 1
+            and action = 'opt_out.language_detected') is distinct from 1
      or not exists (
        select 1 from public.conversations
         where company_id = co and id = thread and opt_out_hint_at is not null

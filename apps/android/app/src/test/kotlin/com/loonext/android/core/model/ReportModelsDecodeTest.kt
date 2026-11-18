@@ -71,7 +71,7 @@ class ReportModelsDecodeTest {
         val localOnly = setOf(
             "VoicemailIntakeLine", "RegistrationProgress", "RegistrationStage",
             "RejectionGuidance", "RejectionDomain", "CarrierFailureReason",
-            "TaskAddressInput", "CarrierStanding",
+            "TaskAddressInput", "CarrierStanding", "SendFailureAction",
         )
         val declaration = Regex("""^(?:data class|enum class|sealed class|sealed interface|class)\s+(\w+)""")
         val offenders = mutableListOf<String>()
