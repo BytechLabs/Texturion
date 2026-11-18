@@ -75,7 +75,13 @@ function makeQueryClient(): QueryClient {
  * ThemeProvider is deliberately NOT here: it stays global in the root layout so
  * dark mode works on marketing pages too (the dark band, the theme toggle).
  */
-export function AppProviders({ children }: { children: React.ReactNode }) {
+export function AppProviders({
+  children,
+  showToaster = true,
+}: {
+  children: React.ReactNode;
+  showToaster?: boolean;
+}) {
   const [queryClient] = useState(makeQueryClient);
 
   return (
@@ -83,7 +89,7 @@ export function AppProviders({ children }: { children: React.ReactNode }) {
       <TooltipProvider delayDuration={300}>{children}</TooltipProvider>
       {/* Sonner, quiet, bottom-left (G9/G12) — only for async outcomes not
           visible in place. */}
-      <Toaster position="bottom-left" />
+      {showToaster && <Toaster position="bottom-left" />}
       {/* /sw.js registration (G9: push + offline shell). Render-null and
           prompt-free — permission requests stay in settings (G8). PWA is an
           app concern; marketing pages don't register a worker. */}

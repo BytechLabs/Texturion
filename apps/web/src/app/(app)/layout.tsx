@@ -10,6 +10,7 @@ import { MfaGate } from "@/components/shell/mfa-gate";
 import { PortalScope } from "@/components/shell/portal-scope";
 import { UpdatePrompt } from "@/components/shell/update-prompt";
 import { InertWhileAriaHidden } from "@/components/a11y/inert-while-aria-hidden";
+import { Toaster } from "@/components/ui/sonner";
 import { golosText } from "@/lib/app/fonts";
 import { CompanyProvider } from "@/lib/company/provider";
 import { RealtimeProvider } from "@/lib/realtime/provider";
@@ -49,8 +50,9 @@ export default function AppLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   return (
-    <AppProviders>
+    <AppProviders showToaster={false}>
       <CompanyProvider scopeClassName={`${golosText.variable} app-scope font-sans`}>
+        <Toaster position="bottom-left" />
         <RealtimeProvider>
           {/* D23: send members to /for-you on their first app screen. */}
           <LandingGate />

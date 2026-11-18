@@ -159,6 +159,12 @@ on Android and iOS (#735).
 | Android | `SnackbarDuration.Long` (~10s) | `Short` (~4s) |
 | iOS | 10s ³ | 3s |
 
+On web, press Alt+T to focus recent notifications, then Tab to reach Undo.
+The timer pauses while focus is inside the notifications and resumes with
+the remaining time when focus leaves. Escape returns focus to the previous
+control. `apps/web/src/components/ui/sonner.test.tsx` exercises the timer
+and the keyboard shortcut.
+
 ³ Was 3s for everything before this audit, because the inbox's `notify` was a
 text-only variant that could not carry an action at all — which is *why* the
 swipe had no undo.

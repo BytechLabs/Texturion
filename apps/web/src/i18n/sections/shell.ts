@@ -31,6 +31,7 @@ export const shellEn = {
 
   // ── The frame ────────────────────────────────────────────────────────────
   skipToContent: "Skip to content",
+  recentNotifications: "Recent notifications",
   offline:
     "You’re offline. What’s already open stays readable, and Loonext will " +
     "catch up on its own once you’re back.",
@@ -433,6 +434,7 @@ export const shellFr: Translated<typeof shellEn> = {
 
 
   skipToContent: "Aller au contenu",
+  recentNotifications: "Notifications récentes",
   offline:
     "Vous êtes hors ligne. Ce qui est déjà ouvert reste lisible, et Loonext " +
     "se remettra à jour tout seul dès votre retour.",

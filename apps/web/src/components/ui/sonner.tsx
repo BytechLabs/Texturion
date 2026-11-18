@@ -11,12 +11,24 @@ import { useTheme } from "next-themes"
 import { Toaster as Sonner } from 'sonner';
 import type { ToasterProps } from 'sonner';
 
+import { useT } from "@/i18n/provider";
+
+export const TOAST_SHORTCUT = {
+  hotkey: ["altKey", "KeyT"],
+  cap: "Alt+T",
+};
+
 const Toaster = ({ ...props }: ToasterProps) => {
   const { theme = "system" } = useTheme()
+  const t = useT();
+  const label = t("shell.recentNotifications");
 
   return (
     <Sonner
       theme={theme as ToasterProps["theme"]}
+      hotkey={TOAST_SHORTCUT.hotkey}
+      containerAriaLabel={label}
+      customAriaLabel={`${label} (${TOAST_SHORTCUT.cap})`}
       className="toaster group"
       icons={{
         success: <CircleCheckIcon className="size-4" />,
