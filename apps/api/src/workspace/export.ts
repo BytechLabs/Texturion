@@ -23,6 +23,9 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
+import { resolveActorNames } from "../routes/core/attribution";
+import { EXPORT_TABLES } from "./export-tables";
+import type { ExportTable } from "./export-tables";
 import { buildConversationHistory } from './history-export';
 import { buildUsageExport } from './usage-export';
 import { buildTaskExport } from './tasks-export';
@@ -49,77 +52,6 @@ const MAX_PARTS_PER_RUN = 60;
 /** Exports built per run. */
 const MAX_EXPORTS_PER_RUN = 3;
 
-/**
- * The tables an export covers, in the order a reader would want them, with the
- * columns that carry meaning. Explicit rather than `select *`: an export is a
- * published contract, and a column added later should not silently start
- * leaving the building.
- */
-const EXPORT_TABLES = [
-  {
-    table: "contacts",
-    columns:
-      "id,phone_e164,name,email,business_name,address,notes,custom_fields,consent_source,consent_at,created_at,updated_at",
-    liveOnly: true,
-  },
-  {
-    table: "conversations",
-    columns:
-      "id,contact_id,phone_number_id,assigned_user_id,status,is_spam,last_message_at,closed_at,created_at",
-    // #691: liveOnly also keeps what is in the Trash out of the file.
-    liveOnly: true,
-  },
-  {
-    table: "messages",
-    columns:
-      "id,conversation_id,direction,body,status,sent_by_user_id,done_at,created_at",
-    // #691: liveOnly also keeps what is in the Trash out of the file.
-    liveOnly: true,
-  },
-  {
-    table: "tasks",
-    columns:
-      "id,conversation_id,message_id,title,description,assigned_user_id,due_at," +
-      "addr_street,addr_unit,addr_city,addr_state,addr_postal_code,addr_country," +
-      "created_at,updated_at",
-    liveOnly: true,
-  },
-  {
-    table: "calls",
-    columns:
-      "id,conversation_id,caller_e164,direction,outcome,answered_by_user_id," +
-      "voicemail_seconds,voicemail_transcript,started_at,ended_at",
-    liveOnly: true,
-  },
-  {
-    // #419: `liveOnly` stays false — a soft-deleted saved reply is still data
-    // we hold, and an export that omitted it would be answering the wrong
-    // question. But `deleted_at` now rides with it, or the export would
-    // present a deleted template as a live one.
-    table: "templates",
-    columns: "id,name,body,created_at,updated_at,deleted_at",
-    liveOnly: false,
-  },
-  { table: "tags", columns: "id,name,color,created_at", liveOnly: false },
-  {
-    table: "opt_outs",
-    columns: "id,phone_e164,source,created_at,revoked_at",
-    liveOnly: false,
-  },
-  // The attachments manifest: what exists and where, not the bytes.
-  {
-    table: "attachments",
-    columns:
-      "id,conversation_id,owner_type,owner_id,file_name,content_type,size_bytes,storage_path,created_at",
-    liveOnly: true,
-  },
-  {
-    table: "message_attachments",
-    columns: "id,message_id,content_type,size_bytes,storage_path,created_at",
-    liveOnly: false,
-  },
-] as const;
-
 export interface ExportSummary {
   exports: number;
   parts: number;
@@ -128,6 +60,7 @@ export interface ExportSummary {
 
 interface ExportCursor {
   afterId: string;
+  afterSecondId?: string;
   parts: number;
   rows: number;
 }
@@ -274,25 +207,9 @@ async function buildOne(
     let written = cursor?.rows ?? 0;
     let page = cursor?.parts ?? 0;
     let afterId = cursor?.afterId;
+    let afterSecondId = cursor?.afterSecondId;
     for (;;) {
-      // Soft-deleted rows stay out: the customer deleted them, and an export
-      // that hands them back is not a copy of their workspace, it is a copy of
-      // things they thought were gone.
-      let query = db
-        .from(spec.table)
-        .select(spec.columns)
-        .eq("company_id", row.company_id);
-      if (spec.liveOnly) query = query.is("deleted_at", null);
-      if (afterId) query = query.gt("id", afterId);
-      const { data, error } = await query
-        .order("id", { ascending: true })
-        .limit(PAGE);
-      if (error) {
-        throw new Error(`export ${spec.table} read failed: ${error.message}`);
-      }
-      // supabase-js parses `select()` at the type level; a column list held in
-      // a const table is opaque to it, so the cast goes through `unknown`.
-      const rows = (data ?? []) as unknown as Array<{ id: string }>;
+      const rows = await readWorkspaceExportPage(db, row.company_id, spec, afterId, afterSecondId);
       if (rows.length === 0) break;
 
       const body = rows.map((entry) => JSON.stringify(entry)).join("\n");
@@ -305,9 +222,11 @@ async function buildOne(
       parts += 1;
       page += 1;
       if (rows.length < PAGE) break;
-      afterId = rows[rows.length - 1].id;
+      const last = rows[rows.length - 1];
+      afterId = last[spec.key?.[0] ?? "id"] as string;
+      afterSecondId = spec.key ? last[spec.key[1]] as string : undefined;
       if (parts >= MAX_PARTS_PER_RUN) {
-        cursors.set(spec.table, { afterId, parts: page, rows: written });
+        cursors.set(spec.table, { afterId, afterSecondId, parts: page, rows: written });
         await updateClaimedExport(db, row, {
           table_cursors: Object.fromEntries(cursors),
           stored_files: files,
@@ -350,6 +269,44 @@ async function buildOne(
   await markExportReady(db, row, counts, files);
   await notifyReady(env, db, row);
   return { parts, completed: true };
+}
+
+async function readWorkspaceExportPage(
+  db: SupabaseClient,
+  companyId: string,
+  spec: ExportTable,
+  afterId: string | undefined,
+  afterSecondId: string | undefined,
+): Promise<Record<string, unknown>[]> {
+  const [firstKey, secondKey] = spec.key ?? ["id"];
+  const projection = spec.parent ? `${spec.columns},active_parent:${spec.parent}!inner(id)` : spec.columns;
+  let query = db.from(spec.table).select(projection).eq("company_id", companyId);
+  if (spec.liveOnly) query = query.is("deleted_at", null);
+  if (spec.parent) {
+    query = query.eq("active_parent.company_id", companyId).is("active_parent.deleted_at", null);
+  }
+  if (afterId) {
+    query = secondKey && afterSecondId
+      ? query.or(`${firstKey}.gt.${afterId},and(${firstKey}.eq.${afterId},${secondKey}.gt.${afterSecondId})`)
+      : query.gt(firstKey, afterId);
+  }
+  query = query.order(firstKey);
+  if (secondKey) query = query.order(secondKey);
+  const { data, error } = await query.limit(PAGE);
+  if (error) throw new Error(`export ${spec.table} read failed: ${error.message}`);
+
+  const rows = (data ?? []) as unknown as Record<string, unknown>[];
+  if (spec.parent) {
+    for (const row of rows) delete row.active_parent;
+  }
+  if (spec.table === "company_members") {
+    for (let start = 0; start < rows.length; start += 100) {
+      const batch = rows.slice(start, start + 100);
+      const names = await resolveActorNames(db, batch.map((row) => row.user_id as string));
+      for (const row of batch) row.display_name = names.get(row.user_id as string) ?? null;
+    }
+  }
+  return rows;
 }
 
 /**

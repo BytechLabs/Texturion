@@ -15,6 +15,7 @@ import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, stubFetch } from '../test/support';
 import type { FetchRoute } from '../test/support';
 import { buildDataExports, pruneExpiredExports } from "./export";
+import { EXPORT_TABLES } from "./export-tables";
 
 vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
@@ -39,18 +40,7 @@ afterEach(() => {
 });
 
 /** Every table the export walks, so an unstubbed read never fails a test. */
-const TABLES = [
-  "contacts",
-  "conversations",
-  "messages",
-  "tasks",
-  "calls",
-  "templates",
-  "tags",
-  "opt_outs",
-  "attachments",
-  "message_attachments",
-];
+const TABLES = EXPORT_TABLES.map(({ table }) => table);
 
 interface WorldOptions {
   queue?: Record<string, unknown>[];
@@ -64,6 +54,7 @@ interface WorldOptions {
   lease?: string;
   leaseLost?: boolean;
   onWrite?: (body: { status?: string }) => void;
+  onUpload?: (path: string, body: string) => void;
 }
 
 function messagePages(table: string, query: URLSearchParams): { id: string }[] {
@@ -107,6 +98,7 @@ function world(options: WorldOptions = {}): {
       (options.rowsFor?.table === table ? options.rowsFor.rows : []),
     );
   }
+  sb.on("GET", "/rest/v1/profiles", () => [{ user_id: USER_ID, display_name: "Owner" }]);
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, () => ({
     id: USER_ID,
     email: "owner@crew.example",
@@ -114,12 +106,17 @@ function world(options: WorldOptions = {}): {
 
   const uploaded: string[] = [];
   // Storage first: the Supabase stub claims every URL on that origin.
-  const storageRoute: FetchRoute = (url) => {
+  const storageRoute: FetchRoute = async (url, request) => {
     if (!url.pathname.startsWith("/storage/v1/object")) return undefined;
     if (options.uploadFails) {
       return Response.json({ message: "nope" }, { status: 500 });
     }
     uploaded.push(url.pathname.replace("/storage/v1/object/exports/", ""));
+    if (options.onUpload) {
+      const object: unknown = (await request.formData()).get("");
+      if (!(object instanceof Blob)) throw new Error("Expected an export file upload");
+      options.onUpload(url.pathname, await object.text());
+    }
     return Response.json({ Key: url.pathname });
   };
   const resendRoute: FetchRoute = (url) =>
@@ -193,6 +190,45 @@ describe(buildDataExports, () => {
     });
   });
 
+  it("pages tag links by both keys without reading links under deleted contacts", async () => {
+    const tags = Array.from({ length: 1_001 }, (_, index) => ({
+      contact_id: "same-contact",
+      tag_id: String(index + 1).padStart(4, "0"),
+    }));
+    const { sb, routes, uploaded } = world({
+      tablePage: (table, query) => {
+        if (table !== "contact_tags") return [];
+        return query.has("or") ? tags.slice(1_000) : tags.slice(0, 1_000);
+      },
+    });
+    stubFetch(...routes);
+
+    expect((await buildDataExports(env)).completed).toBe(1);
+    expect(uploaded.filter((name) => name.includes("contact_tags-"))).toHaveLength(2);
+    const [first, next] = sb.find("GET", "/rest/v1/contact_tags").map(({ url }) => url.searchParams);
+    expect(first.get("order")).toBe("contact_id.asc,tag_id.asc");
+    expect(first.get("active_parent.company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(first.get("active_parent.deleted_at")).toBe("is.null");
+    expect(next.get("or")).toBe("(contact_id.gt.same-contact,and(contact_id.eq.same-contact,tag_id.gt.1000))");
+    expect(checkpointWrites(sb).at(-1)?.body).toMatchObject({
+      row_counts: { contact_tags: 1_001 },
+    });
+  });
+
+  it("adds display names to the workspace member directory", async () => {
+    const members: unknown[] = [];
+    const { routes } = world({
+      rowsFor: { table: "company_members", rows: [{ id: "member", user_id: USER_ID, role: "owner" }] },
+      onUpload: (path, body) => {
+        if (path.endsWith("company_members-0001.jsonl")) members.push(JSON.parse(body));
+      },
+    });
+    stubFetch(...routes);
+
+    expect((await buildDataExports(env)).completed).toBe(1);
+    expect(members).toEqual([{ id: "member", user_id: USER_ID, role: "owner", display_name: "Owner" }]);
+  });
+
   it("resumes a 61-page table at its last exported row on the next run", async () => {
     const row = {
       id: EXPORT_ID,
@@ -209,7 +245,7 @@ describe(buildDataExports, () => {
     });
     stubFetch(...first.routes);
     expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 60, completed: 0 });
-    expect(row.completed_tables).toEqual(["contacts", "conversations"]);
+    expect(row.completed_tables).toEqual(TABLES.slice(0, TABLES.indexOf("messages")));
     expect(first.uploaded).toHaveLength(60);
     expect(first.uploaded.at(-1)).toMatch(/messages-0060\.jsonl$/);
 
