@@ -254,7 +254,6 @@
     "eslint/no-useless-concat": "off", // 12
     "react/jsx-no-useless-fragment": "off", // 12
     "typescript/no-unnecessary-type-parameters": "off", // 11
-    "typescript/return-await": "off", // 11
     "unicorn/prefer-number-coercion": "off", // 11
     "unicorn/prefer-number-properties": "off", // 11
     "typescript/no-redundant-type-constituents": "off", // 10

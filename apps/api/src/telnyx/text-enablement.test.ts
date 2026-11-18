@@ -114,6 +114,14 @@ function attachTelnyx(telnyx: TelnyxMock) {
   );
 }
 
+function deferred() {
+  let complete!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    complete = resolve;
+  });
+  return { promise, resolve: complete };
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -243,6 +251,81 @@ describe("resumeTextEnablement — double-order fail-safes (§4.3)", () => {
     expect(
       rest.rows("text_enablement_orders")[0].provisioning_lease_until,
     ).toBeNull();
+  });
+
+  it("holds the lease across the final status write", async () => {
+    const { env, rest, telnyx } = setup();
+    const { order } = seedHosted(rest, { telnyx_hosted_order_id: "ho-1" });
+    telnyx.on("GET", /^\/v2\/messaging_hosted_number_orders\/ho-1$/, () => ({
+      data: { id: "ho-1", status: "provisioning" },
+    }));
+
+    const started = deferred();
+    const finish = deferred();
+    const requests: string[] = [];
+    const route = rest.route();
+    let blocked = false;
+    stubFetch(async (url, request) => {
+      if (request.method !== "PATCH" || url.pathname !== "/rest/v1/text_enablement_orders") {
+        return route(url, request);
+      }
+      if (url.searchParams.get("status") === "neq.cancelled") {
+        if (!blocked) {
+          blocked = true;
+          requests.push("write started");
+          started.resolve();
+          await finish.promise;
+        }
+        const reply = await route(url, request);
+        requests.push("write completed");
+        return reply;
+      }
+      requests.push("lease released");
+      return route(url, request);
+    }, telnyx.route());
+
+    const running = resumeTextEnablement(env, order);
+    try {
+      await started.promise;
+      expect(await resumeTextEnablement(env, order)).toBe(order);
+    } finally {
+      finish.resolve();
+      await running;
+    }
+
+    expect(requests).toEqual(["write started", "write completed", "lease released"]);
+    expect(telnyx.callsTo("GET", /messaging_hosted_number_orders\/ho-1$/)).toHaveLength(1);
+    expect(rest.rows("text_enablement_orders")[0].provisioning_lease_until).toBeNull();
+  });
+
+  it("releases the lease after a failed final write and preserves the attempt budget", async () => {
+    const { env, rest, telnyx } = setup();
+    const { order } = seedHosted(rest, { telnyx_hosted_order_id: "ho-1", attempts: 2 });
+    telnyx.on("GET", /^\/v2\/messaging_hosted_number_orders\/ho-1$/, () => ({
+      data: { id: "ho-1", status: "provisioning" },
+    }));
+
+    let writes = 0;
+    stubFetch((url, request) => {
+      if (
+        request.method !== "PATCH" ||
+        url.pathname !== "/rest/v1/text_enablement_orders" ||
+        url.searchParams.get("status") !== "neq.cancelled"
+      ) {
+        return undefined;
+      }
+      writes += 1;
+      if (writes === 1) return Response.json({ message: "test write refused" }, { status: 500 });
+      return undefined;
+    }, rest.route(), telnyx.route());
+
+    await expect(resumeTextEnablement(env, order)).rejects.toThrow("test write refused");
+    expect(writes).toBe(1);
+    expect(rest.rows("text_enablement_orders")[0]).toMatchObject({
+      attempts: 2,
+      status: "pending",
+      provisioning_lease_until: null,
+    });
   });
 });
 
