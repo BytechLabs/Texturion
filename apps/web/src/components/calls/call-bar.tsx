@@ -232,7 +232,7 @@ function CallChip({
           className={cn(!prominent && "h-6 gap-1 px-2 text-[12px]")}
           aria-keyshortcuts={CALL_SHORTCUTS.answer.keys}
           onClick={() =>
-            void softphone.answer(call.id).catch((error) =>
+            void softphone.answer(call.id).catch((error: unknown) =>
               toast.error(
                 error instanceof Error
                   ? error.message

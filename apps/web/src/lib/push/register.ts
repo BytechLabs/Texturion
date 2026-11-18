@@ -55,7 +55,7 @@ export function registerServiceWorker(): void {
     void unregisterServiceWorkers();
     return;
   }
-  void navigator.serviceWorker.register(SW_URL).catch((error) => {
+  void navigator.serviceWorker.register(SW_URL).catch((error: unknown) => {
     console.warn("Loonext service worker registration failed:", error);
   });
 }

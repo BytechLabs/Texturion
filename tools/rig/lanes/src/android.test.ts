@@ -422,13 +422,13 @@ describe("the device driver's commands (no device has run them)", () => {
     };
     for (const killed of [false, true]) {
       const android = new AndroidDevice({ name: "pixel", serial: SERIAL, pkg: PKG, pin: () => "2468", apks: { current: "", previous: "" }, exec: failing(killed), portCheck: tunnelUp });
-      const typed = await android.type("Qx7Tz2SeedPassword_-").catch((error: Error) => error);
+      const typed = await android.type("Qx7Tz2SeedPassword_-").catch((error: unknown) => error);
       expect(typed).toBeInstanceOf(Error);
       expect((typed as Error).message).toBe(`adb: typing text on ${SERIAL} ${killed ? "timed out" : "exited 1"}`);
-      const unlocked = await android.unlock().catch((error: Error) => error);
+      const unlocked = await android.unlock().catch((error: unknown) => error);
       expect((unlocked as Error).message).toBe(`adb: typing the PIN on ${SERIAL} ${killed ? "timed out" : "exited 1"}`);
       const adb = new Adb({ serial: SERIAL, exec: failing(killed), portCheck: tunnelUp });
-      const pinned = await adb.setPin("1357", "2468").catch((error: Error) => error);
+      const pinned = await adb.setPin("1357", "2468").catch((error: unknown) => error);
       for (const message of [(typed as Error).message, (unlocked as Error).message, (pinned as Error).message]) {
         expect(message).not.toMatch(/Qx7Tz2SeedPassword|2468|1357|Command failed/);
       }
@@ -515,7 +515,7 @@ describe("the emulator console", () => {
 
   it("fails on a wrong token and on a KO, naming neither the token nor guessing", async () => {
     const world = await fakeConsole({ ko: /^network delay/ });
-    const wrong = await world.make("not-the-token").networkDelay(80).catch((error: Error) => error);
+    const wrong = await world.make("not-the-token").networkDelay(80).catch((error: unknown) => error);
     expect((wrong as Error).message).toBe("emulator console on 5560 refused the auth token");
     expect((wrong as Error).message).not.toContain("not-the-token");
     await expect(world.make().networkDelay(80)).rejects.toThrow('emulator console: "network delay 80" answered KO: bad network delay value');
@@ -886,7 +886,7 @@ describe("the hostd client", () => {
     }
     await expect(hostd.client().tokens("pixel")).rejects.toThrow(/does not hold a console and a gRPC token/);
     await expect(hostd.client().boot("pixel", { cold: true, wipe: false })).rejects.toThrow("hostd: POST /v1/devices/pixel/boot answered 409");
-    const refused = await hostd.client("wrong-token").health().catch((error: Error) => error);
+    const refused = await hostd.client("wrong-token").health().catch((error: unknown) => error);
     expect((refused as Error).message).toBe("hostd: GET /v1/health answered 401");
     await expect(new HostdClient({ origin: "http://127.0.0.1:9", token: () => HOSTD_TOKEN }).health()).rejects.toThrow(/got no answer/);
   });

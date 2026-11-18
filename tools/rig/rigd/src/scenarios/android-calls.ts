@@ -860,7 +860,7 @@ export const D14: ScenarioRunner = {
     // Recording from before the tap, so the phrase's first word is not lost.
     const recording = pixel.audio.transcribe({ stream: "media", ms: PLAYBACK_MS }).then(
       (text) => ({ text }),
-      (error: Error) => ({ error }),
+      (error: unknown) => ({ error }),
     );
     const tapped = await pixel.device.tapText(PLAY_VOICEMAIL);
     const heard = await recording;

@@ -329,7 +329,7 @@ async function main() {
 }
 
 if (typeof process !== "undefined" && process.argv?.[1] && resolve(process.argv[1]) === import.meta.filename) {
-  main().catch((error) => {
+  main().catch((/** @type {unknown} */ error) => {
     console.error(`seal-bundle: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   });

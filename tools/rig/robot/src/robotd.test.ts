@@ -114,7 +114,7 @@ describe("robotd's HTTP face and its client", () => {
   it("refuses a request without the local token", async () => {
     const { base } = await start();
     expect((await fetch(`${base}/health`)).status).toBe(401);
-    expect((await new RobotClient({ base, token: "wrong" }).inbox({}).catch((error: Error) => error.message))).toMatch(/401/);
+    await expect(new RobotClient({ base, token: "wrong" }).inbox({})).rejects.toThrow(/401/);
   });
 
   it("takes plans, relayed events and texts, and reads them back", async () => {

@@ -233,7 +233,14 @@ export function createAudioMuter({
         if (current.filter(isRoot).length === 0) {
           result = { state: "waiting", sessions: 0, muted: 0, pids: [], checked_at: new Date(now()).toISOString() };
         } else {
-          result = await sweep(current, { key }).catch((error) => ({ state: "error", sessions: 0, muted: 0, pids: [], error: error.message, checked_at: new Date(now()).toISOString() }));
+          result = await sweep(current, { key }).catch((/** @type {unknown} */ error) => ({
+            state: "error",
+            sessions: 0,
+            muted: 0,
+            pids: [],
+            error: error instanceof Error ? error.message : String(error),
+            checked_at: new Date(now()).toISOString(),
+          }));
         }
         if (stopped) break;
         try {

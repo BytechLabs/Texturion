@@ -30,7 +30,7 @@ describe(fetchWithDeadline, () => {
           init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
         }),
     );
-    const error = await fetchWithDeadline("https://example.test/", undefined, 5).catch((error_) => error_);
+    const error = await fetchWithDeadline("https://example.test/", undefined, 5).catch((error_: unknown) => error_);
     expect((error as Error).name).toBe("TimeoutError");
   });
 

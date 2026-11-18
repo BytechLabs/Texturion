@@ -580,7 +580,7 @@ export function useUpdateConversation(conversationId: string) {
 
 export interface ConversationPatchCallbacks {
   onSuccess?: (updated: Conversation) => void;
-  onError?: (error: Error) => void;
+  onError?: (error: unknown) => void;
 }
 
 /**
@@ -601,7 +601,7 @@ export function useConversationPatch() {
           .getMutationCache()
           .build(queryClient, conversationPatchOptions(queryClient, companyId, userId, id))
           .execute(patch)
-          .then(callbacks.onSuccess, (error: Error) => callbacks.onError?.(error));
+          .then(callbacks.onSuccess, (error: unknown) => callbacks.onError?.(error));
       },
     }),
     [queryClient, companyId, userId],

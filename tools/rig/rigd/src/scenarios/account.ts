@@ -1054,10 +1054,11 @@ export const S34: ScenarioRunner = {
     ctx.evidence.missed_call_alert = "not_covered";
 
     ctx.lease.registerUndo({ kind: "app.delete-mail-account", params: { email: address } });
-    const account = await ctx.app.createMailAccount({ email: address }).catch((error: Error) => error);
+    const account = await ctx.app.createMailAccount({ email: address }).catch((error: unknown) => error);
     ctx.evidence.account = { status: typeof account === "number" ? account : null };
     if (typeof account !== "number" || !is2xx(account)) {
-      return infra("local-auth", `local auth could not create the invited account: ${typeof account === "number" ? account : account.message}`);
+      const detail = account instanceof Error ? account.message : String(account);
+      return infra("local-auth", `local auth could not create the invited account: ${detail}`);
     }
 
     const since = ctx.now();

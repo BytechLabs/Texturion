@@ -152,7 +152,7 @@ export class EmulatorConsole {
         socket.write(`${command}\n`);
         if (command === "kill") {
           // The emulator may exit before its OK reaches us; the connection closing is the answer.
-          const reply = await replies.next(timeoutMs).catch((error: Error) => {
+          const reply = await replies.next(timeoutMs).catch((error: unknown) => {
             if (replies.closed) return { status: "OK" as const, message: "closed", body: [] };
             throw error;
           });

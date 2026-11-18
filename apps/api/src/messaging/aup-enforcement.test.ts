@@ -100,7 +100,7 @@ describe("#303 the AUP enforcement ladder", () => {
     // person writes after looking, not in an API error. An error that recited
     // the signals would hand a real abuser a description of the detector; one
     // that said only "forbidden" would read to a crew as a bug in the app.
-    const error = await attempt({ enforcement: "suspended" }).catch((error_) => error_);
+    const error = await attempt({ enforcement: "suspended" }).catch((error_: unknown) => error_);
     expect(error).toBeInstanceOf(ApiError);
 
     const {message} = (error as ApiError);
@@ -127,7 +127,7 @@ describe("#303 the AUP enforcement ladder", () => {
     const error = await attempt({
       enforcement: "rate_limited",
       sentThisHour: RATE_LIMITED_SENDS_PER_HOUR,
-    }).catch((error_) => error_);
+    }).catch((error_: unknown) => error_);
     expect((error as ApiError).code).toBe("rate_limited");
     expect((error as ApiError).message).toMatch(/resets each hour/i);
   });

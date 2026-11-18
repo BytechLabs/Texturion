@@ -272,7 +272,9 @@ async function createVm({ contract, root, paths, ref }) {
     writeFileSync(join(paths.host, "measurements.json"), `${JSON.stringify(measurements, null, 2)}\n`);
     if (status.code === 1) throw new Error("cloud-init reported an error; see the status above and /var/log/cloud-init-output.log in the VM");
   } catch (error) {
-    await powerOffAndScrub(vm, paths, userdata).catch((error) => console.error(`create.mjs: ${error.message}`));
+    await powerOffAndScrub(vm, paths, userdata).catch((/** @type {unknown} */ error) => {
+      console.error(`create.mjs: ${error instanceof Error ? error.message : String(error)}`);
+    });
     throw error;
   }
   return { vm, userdata };
@@ -361,7 +363,7 @@ async function main(argv) {
   if (!ref) throw new Error("create.mjs --ref <git ref> --yes");
   const { vm, userdata } = await createVm({ contract, root, paths, ref });
   let failure;
-  await installSdk({ contract, sdk, paths }).catch((error) => {
+  await installSdk({ contract, sdk, paths }).catch((/** @type {unknown} */ error) => {
     failure = error;
   });
   await snapshotBaseline(vm, paths, userdata);
@@ -370,8 +372,8 @@ async function main(argv) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
-  main(process.argv.slice(2)).catch((error) => {
-    console.error(`create.mjs: ${error.message}`);
+  main(process.argv.slice(2)).catch((/** @type {unknown} */ error) => {
+    console.error(`create.mjs: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   });
 }
