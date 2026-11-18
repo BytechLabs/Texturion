@@ -133,8 +133,8 @@ const SUBMITTER_CHOSEN = /github\.head_ref|github\.event\.pull_request\.head\.re
 
 /** The one comparison a submitter cannot satisfy: is this branch OURS? */
 const FORK_TEST = new RegExp(
-  "github\\.event\\.pull_request\\.head\\.repo\\.full_name\\s*==\\s*github\\.repository" +
-    "|github\\.repository\\s*==\\s*github\\.event\\.pull_request\\.head\\.repo\\.full_name",
+  String.raw`github\.event\.pull_request\.head\.repo\.full_name\s*==\s*github\.repository` +
+    String.raw`|github\.repository\s*==\s*github\.event\.pull_request\.head\.repo\.full_name`,
 );
 
 /**

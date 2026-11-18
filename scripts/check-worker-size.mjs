@@ -22,7 +22,7 @@ import { fileURLToPath } from "node:url";
 
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 
-const ANSI = /\u001b\[[0-9;]*m/g;
+const ANSI = /\u001B\[[0-9;]*m/g;
 const UPLOAD_LINE = /Total Upload:\s*([\d.]+)\s*KiB\s*\/\s*gzip:\s*([\d.]+)\s*KiB/;
 
 /** Raw and gzip KiB from wrangler's output, or null when it reports neither. */

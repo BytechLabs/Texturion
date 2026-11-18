@@ -114,7 +114,7 @@ async function ask(path) {
 }
 
 // The wall. A 404 here is the evidence that a 200 anywhere else means something.
-const WALL = "/__this-route-does-not-exist-" + "9f3c1a";
+const WALL = "/__this-route-does-not-exist-9f3c1a";
 const wall = await ask(WALL);
 if (wall !== 404) {
   console.error(

@@ -134,7 +134,7 @@ export function blankComments(text, syntax) {
   if (syntax !== "kotlin" && syntax !== "swift") return text;
 
   const kotlin = syntax === "kotlin";
-  const interpolation = kotlin ? "${" : "\\(";
+  const interpolation = kotlin ? "${" : String.raw`\(`;
   const [open, close] = kotlin ? ["{", "}"] : ["(", ")"];
 
   // Code up to the bracket that closes an interpolation, or to the end.

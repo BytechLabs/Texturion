@@ -41,7 +41,7 @@ const live = {
   telnyx: `KEY${"ABCDEF".repeat(5)}_readablestem`,
   supabase: ["sb", "secret", "readable-stem-for-this-test"].join("_"),
   pooler:
-    "postgresql://postgres.projectrefstem:" + "stem-password-for-a-test" + "@aws-0-us-east-1.pooler." +
+    ["postgresql://postgres.projectrefstem:", "stem-password-for-a-test", "@aws-0-us-east-1.pooler."].join("") +
     "supabase.com:5432/postgres",
 };
 
@@ -77,7 +77,7 @@ describe("what it reads as a live secret", () => {
   });
 
   it("reads a direct database host as well as the pooler", () => {
-    const direct = "postgres://postgres:" + "stem-password-for-a-test" + "@db.projectrefstem." + "supabase.co:5432/postgres";
+    const direct = ["postgres://postgres:", "stem-password-for-a-test", "@db.projectrefstem.", "supabase.co:5432/postgres"].join("");
     expect(shapesOf(direct)).toEqual(["pooler-url-with-password"]);
   });
 });
@@ -129,10 +129,10 @@ describe("what passes", () => {
     ["a run of x", `sb_secret_${  "x".repeat(24)}`],
     ["a fixture that says so", ["sk", "live", "not", "a", "real", "key"].join("_")],
     ["a prefix inside an identifier", `FEATURE${  ["sk", "live", "readablestemforthistest"].join("_")}`],
-    ["a password placeholder", "postgresql://postgres.<ref>:<password>@aws-0-us-east-1.pooler." + "supabase.com:5432/postgres"],
-    ["the dashboard's placeholder", "postgresql://postgres.ref:[YOUR-PASSWORD]@aws-0-us-east-1.pooler." + "supabase.com:6543/postgres"],
+    ["a password placeholder", ["postgresql://postgres.<ref>:<password>@aws-0-us-east-1.pooler.", "supabase.com:5432/postgres"].join("")],
+    ["the dashboard's placeholder", ["postgresql://postgres.ref:[YOUR-PASSWORD]@aws-0-us-east-1.pooler.", "supabase.com:6543/postgres"].join("")],
     ["a template", "postgresql://postgres.${ref}:${password}@${host}:5432/postgres"],
-    ["a fixture's stand-in password", "postgres://postgres:pw@aws-0-region.pooler." + "supabase.com:6543/postgres"],
+    ["a fixture's stand-in password", ["postgres://postgres:pw@aws-0-region.pooler.", "supabase.com:6543/postgres"].join("")],
     ["a local login", "postgresql://postgres:postgres@127.0.0.1:54322/postgres"],
     ["a non-Supabase host", "postgres://postgres:secret@db.example.invalid:5432/postgres"],
   ])("passes %s", (_label, text) => {

@@ -47,7 +47,7 @@ describe("what a push sends", () => {
 
 describe("the lines a commit adds", () => {
   const log = [
-    "\0" + "c1",
+    ["\0", "c1"].join(""),
     "diff --git a/src/a.ts b/src/a.ts",
     "--- a/src/a.ts",
     "+++ b/src/a.ts",
@@ -62,7 +62,7 @@ describe("the lines a commit adds", () => {
     "-was here",
     "diff --git a/logo.png b/logo.png",
     "Binary files a/logo.png and b/logo.png differ",
-    "\0" + "c2",
+    ["\0", "c2"].join(""),
     "diff --git a/src/a.ts b/src/a.ts",
     "--- a/src/a.ts",
     "+++ b/src/a.ts",

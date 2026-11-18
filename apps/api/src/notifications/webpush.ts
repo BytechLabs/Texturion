@@ -115,7 +115,7 @@ export function encodeBase64Url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
     .replace(/\+/g, "-")
     .replace(/\//g, "_")
-    .replace(/=+$/, "");
+    .replace(/[=]+$/, "");
 }
 
 /** Decode + shape-check a subscriber `p256dh` key (65-byte 0x04 point). */

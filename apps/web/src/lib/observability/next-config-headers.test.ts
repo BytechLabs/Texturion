@@ -90,7 +90,7 @@ describe("#559 a revocable link is never shared-cached", () => {
     // regex, where a bare "loonext.com" also matches app.loonext.com — verified
     // live, the app host was returning the apex s-maxage with no Vary: Cookie.
     // `^…$` is right under both matchers.
-    expect(CONFIG).toContain('value: "^loonext\\\\.com$"');
+    expect(CONFIG).toMatch(/value: String\.raw`\^loonext\\\.com\$`/);
     expect(
       /has: \[\{ type: "host", value: "loonext\.com" \}\]/.test(CONFIG),
       "the unanchored host predicate is back — under OpenNext it also matches app.loonext.com",
