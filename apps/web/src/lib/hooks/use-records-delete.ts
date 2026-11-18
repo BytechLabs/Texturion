@@ -29,7 +29,7 @@ export function useCanDeleteRecords(): boolean {
 export function useDeletedToast() {
   const t = useT();
   const router = useRouter();
-  const restore = useRestoreFromTrash();
+  const { mutateAsync: restore } = useRestoreFromTrash();
   return (message: string, targets: readonly TrashTarget[]) => {
     if (targets.length === 0) return;
     undoableToast({
@@ -40,14 +40,14 @@ export function useDeletedToast() {
         label: t("trash.viewTrash"),
         onClick: () => router.push("/trash"),
       },
-      onUndo: () =>
-        restore.mutate(targets, {
-          onSuccess: () => toast.success(t("trash.restored")),
-          onError: (error) =>
-            toast.error(
-              error instanceof ApiError ? error.message : t("trash.restoreFailed"),
-            ),
-        }),
+      onUndo: async () => {
+        try {
+          await restore(targets);
+          toast.success(t("trash.restored"));
+        } catch (error) {
+          toast.error(error instanceof ApiError ? error.message : t("trash.restoreFailed"));
+        }
+      },
     });
   };
 }

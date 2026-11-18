@@ -905,6 +905,13 @@ private fun ContactListScreen(
                                                         onText = onComposeTo,
                                                         onChanged = onRefresh,
                                                         onMessage = { scope.launch { snackbar.showSnackbar(it) } },
+                                                        onDeleted = {
+                                                            scope.launch {
+                                                                snackbar.showContactTrashUndo(
+                                                                    graph, companyId, contact.id, locale, onRefresh,
+                                                                )
+                                                            }
+                                                        },
                                                     )
                                                 },
                                             )

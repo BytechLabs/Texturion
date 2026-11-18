@@ -17,7 +17,7 @@ import { apiFetch } from "./client";
 import { nextCursorParam } from "./pagination";
 import type { Page } from "./types";
 
-export type TrashKind = "conversation" | "message" | "call" | "voicemail";
+export type TrashKind = "conversation" | "message" | "call" | "voicemail" | "contact";
 
 interface TrashRowBase {
   id: string;
@@ -28,6 +28,13 @@ interface TrashRowBase {
 }
 
 export type TrashRow =
+  | (TrashRowBase & {
+      kind: "contact";
+      contact: {
+        contact_name: string | null;
+        contact_phone: string | null;
+      };
+    })
   | (TrashRowBase & {
       kind: "conversation";
       conversation: {
@@ -81,7 +88,7 @@ export function invalidateAfterDeletion(
   queryClient: QueryClient,
   companyId: string,
 ): void {
-  for (const root of ["conversations", "messages", "calls", "trash", "search"]) {
+  for (const root of ["contacts", "conversations", "messages", "calls", "trash", "search"]) {
     void queryClient.invalidateQueries({
       queryKey: [companyId, root],
       refetchType: "active",

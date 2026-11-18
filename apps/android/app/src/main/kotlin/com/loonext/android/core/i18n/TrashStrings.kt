@@ -29,6 +29,8 @@ object TrashStrings : AppStrings.Section {
             "Note",
         "trash.kindCall" to
             "Call",
+        "trash.kindContact" to "Contact",
+        "trash.contactDeleted" to "Contact moved to Trash",
         "trash.kindVoicemail" to
             "Voicemail",
         "trash.unknownContact" to
@@ -106,6 +108,8 @@ object TrashStrings : AppStrings.Section {
             "Note",
         "trash.kindCall" to
             "Appel",
+        "trash.kindContact" to "Contact",
+        "trash.contactDeleted" to "Contact déplacé dans la corbeille",
         "trash.kindVoicemail" to
             "Message vocal",
         "trash.unknownContact" to

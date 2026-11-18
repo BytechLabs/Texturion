@@ -9,6 +9,7 @@ import type { ContactImportColumnDeclaration, Locale, VCardPropertyDeclaration }
 import { apiFetch } from "./client";
 import { keys } from "./keys";
 import { nextCursorParam } from "./pagination";
+import type { TrashTarget } from "./trash";
 import type {
   Contact,
   ContactDetail,
@@ -259,11 +260,11 @@ export function useDeleteContact() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (contactId: string) =>
-      apiFetch<void>(`/v1/contacts/${contactId}`, {
+      apiFetch<TrashTarget>(`/v1/contacts/${contactId}`, {
         method: "DELETE",
         companyId,
       }),
-    onSuccess: (_void, contactId) => {
+    onSuccess: (_target, contactId) => {
       queryClient.removeQueries({
         queryKey: keys.contacts.detail(companyId, contactId),
       });
@@ -272,6 +273,7 @@ export function useDeleteContact() {
         refetchType: "active",
       });
       invalidateDuplicates(queryClient, companyId);
+      void queryClient.invalidateQueries({ queryKey: [companyId, "trash"] });
     },
   });
 }

@@ -2242,6 +2242,8 @@ contactsRoutes.delete("/contacts/:id", requireCapability("records.delete"), asyn
       })
       .eq("company_id", c.get("companyId"))
       .eq("id", id)
+      .is("deleted_at", null)
+      .is("merged_into", null)
       .select("id"),
     "contact soft delete",
   );
@@ -2254,7 +2256,7 @@ contactsRoutes.delete("/contacts/:id", requireCapability("records.delete"), asyn
     targetType: "contact",
     targetId: id,
   });
-  return c.body(null, 204);
+  return c.json({ kind: "contact", id });
 });
 
 /** CSV import (SPEC §7) — owner/admin per the §10 matrix. */

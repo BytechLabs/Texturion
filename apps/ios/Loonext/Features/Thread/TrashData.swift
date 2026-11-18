@@ -4,10 +4,7 @@ import Observation
 /// #735: the Trash's wire rows, its calls, and the words of one row.
 ///
 /// `GET /v1/trash` answers `{ data: [row], next_cursor }`. A row names its `kind`
-/// and carries ONE object under that same key (`conversation`, `message`, `call`
-/// or `voicemail`), so the four shapes decode into one details struct whose
-/// fields are all optional: a kind the server adds later still decodes, and the
-/// screen skips what it cannot restore.
+/// and carries one details object under the same key as its kind.
 
 struct TrashDetails: Codable, Sendable {
     var contact_name: String? = nil
@@ -33,6 +30,7 @@ struct TrashRow: Codable, Sendable {
     var message: TrashDetails? = nil
     var call: TrashDetails? = nil
     var voicemail: TrashDetails? = nil
+    var contact: TrashDetails? = nil
 
     /// A call and its voicemail share one id, so the id alone is not a key.
     var rowKey: String { "\(kind):\(id)" }
@@ -44,6 +42,7 @@ struct TrashRow: Codable, Sendable {
         case "message": return message
         case "call": return call
         case "voicemail": return voicemail
+        case "contact": return contact
         default: return nil
         }
     }
@@ -93,6 +92,8 @@ enum TrashText {
 
     static func kindLabel(_ row: TrashRow, locale: String?) -> String {
         switch row.kind {
+        case "contact":
+            return AppStrings.translate(locale, "trash.kindContact")
         case "conversation":
             return AppStrings.translate(locale, "trash.kindConversation")
         case "message":
@@ -117,6 +118,11 @@ enum TrashText {
     static func detailLabel(_ row: TrashRow, locale: String?) -> String {
         let details = row.details
         switch row.kind {
+        case "contact":
+            if let name = details?.contact_name, !name.isEmpty, let phone = details?.contact_phone {
+                return formatPhone(phone)
+            }
+            return ""
         case "conversation":
             let count = details?.message_count ?? 0
             let key = count == 1 ? "trash.messageCountOne" : "trash.messageCountMany"

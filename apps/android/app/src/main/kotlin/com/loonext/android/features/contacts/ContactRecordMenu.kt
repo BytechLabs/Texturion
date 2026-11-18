@@ -6,6 +6,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -23,6 +24,8 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Contact
 import com.loonext.android.core.model.isCarrierEnforcedOptOut
 import com.loonext.android.AppGraph
+import com.loonext.android.core.data.RecordDeletionRepository
+import com.loonext.android.core.model.TrashKind
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.ui.common.ContactActionId
@@ -31,6 +34,7 @@ import com.loonext.android.ui.common.RecordMenu
 import com.loonext.android.ui.common.contactActions
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.rememberHaptics
+import com.loonext.android.ui.common.showUndo
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.launch
 
@@ -57,6 +61,7 @@ internal fun ContactRecordMenu(
     onText: (phone: String) -> Unit,
     onChanged: () -> Unit,
     onMessage: (String) -> Unit,
+    onDeleted: () -> Unit,
 ) {
     val scope = rememberCoroutineScope()
     val clipboard = LocalClipboardManager.current
@@ -160,6 +165,7 @@ internal fun ContactRecordMenu(
                     try {
                         mutations.delete(companyId, contact.id)
                         onChanged()
+                        onDeleted()
                     } catch (cause: Exception) {
                         onMessage(cause.userMessage(locale))
                     }
@@ -171,5 +177,26 @@ internal fun ContactRecordMenu(
             destructive = true,
             dismissLabel = t("contactsTasks.keepContact"),
         )
+    }
+}
+
+internal suspend fun SnackbarHostState.showContactTrashUndo(
+    graph: AppGraph,
+    companyId: String,
+    contactId: String,
+    locale: String,
+    onRestored: () -> Unit = {},
+) {
+    showUndo(
+        AppStrings.translate(locale, "trash.contactDeleted"),
+        AppStrings.translate(locale, "contactsTasks.deleteUndo"),
+        AppStrings.translate(locale, "trash.viewTrash"),
+    ) {
+        try {
+            RecordDeletionRepository(graph.api).restore(companyId, TrashKind.CONTACT, contactId)
+            onRestored()
+        } catch (failure: Exception) {
+            showSnackbar(failure.userMessage(locale))
+        }
     }
 }

@@ -103,6 +103,8 @@ struct ShellView: View {
     @State private var joiningNote: JoiningNote?
     @State private var notificationAsk = NotificationAsk()
     @State private var primerDismissed = false
+    @State private var contactDeletionNotice: ThreadNotice?
+    @State private var contactNoticeId: Int64 = 0
 
     /// #180: the shell is where the window's horizontal size class is known.
     /// Regular width (iPad, or an iPad-style split) caps the floating pill so it
@@ -157,6 +159,22 @@ struct ShellView: View {
             }
         }
         .tint(BrandColor.olive)
+        .overlay(alignment: .bottom) {
+            if let notice = contactDeletionNotice {
+                ToastView(notice: notice) { contactDeletionNotice = nil }
+                    .padding(.bottom, path.isEmpty ? 74 : 12)
+                    .task(id: notice.id) {
+                        do {
+                            try await Task.sleep(for: .seconds(notice.seconds))
+                        } catch {
+                            return
+                        }
+                        if contactDeletionNotice?.id == notice.id {
+                            contactDeletionNotice = nil
+                        }
+                    }
+            }
+        }
         .sheet(item: $activeSheet) { sheet in
             sheetContent(sheet)
         }
@@ -456,7 +474,7 @@ struct ShellView: View {
                     .toolbar(.hidden, for: .tabBar)
             }
             Tab("Contacts", systemImage: "person.2", value: ShellTab.contacts) {
-                ContactsTab(graph: graph, companyId: companyId, me: hydratedMe)
+                ContactsTab(graph: graph, companyId: companyId, me: hydratedMe, onContactDeleted: showContactDeletion)
                     .safeAreaInset(edge: .bottom, spacing: 0) { navClearance }
                     .toolbar(.hidden, for: .tabBar)
             }
@@ -517,7 +535,8 @@ struct ShellView: View {
                 // settings.manage (owner and admin).
                 canUnmerge: MemberRole.atLeast(role, required: MemberRole.admin),
                 canDelete: RecordDeletion.canDelete(role: role),
-                canBlock: MemberRole.has(role, Capability.conversationsNote)
+                canBlock: MemberRole.has(role, Capability.conversationsNote),
+                onContactDeleted: showContactDeletion
             )
             // Edits/opt-outs/deletes made in the detail show on return to the
             // contacts list (no realtime for contact mutations on iOS).
@@ -530,6 +549,28 @@ struct ShellView: View {
                 onOpenConversation: { AppRouter.shared.openConversationId = $0 },
                 onOpenContact: { AppRouter.shared.openContactId = $0 }
             )
+        }
+    }
+
+    private func showContactDeletion(_ contactId: String) {
+        contactNoticeId += 1
+        contactDeletionNotice = Toast.undoable(
+            id: contactNoticeId,
+            text: AppStrings.translate(appLocale, "trash.contactDeleted"),
+            locale: appLocale,
+            trashLabel: AppStrings.translate(appLocale, "trash.viewTrash")
+        ) {
+            Task {
+                do {
+                    try await RecordDeletionRepository(api: graph.api).restore(
+                        companyId: companyId, kind: .contact, id: contactId
+                    )
+                    router.contactsRevision &+= 1
+                } catch {
+                    contactNoticeId += 1
+                    contactDeletionNotice = ThreadNotice(id: contactNoticeId, text: error.userMessage)
+                }
+            }
         }
     }
 

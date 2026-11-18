@@ -35,6 +35,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -50,6 +51,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableLongStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.Saver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -84,6 +86,8 @@ import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.core.model.canDeleteRecords
 import com.loonext.android.core.update.UpdatePrompt
 import com.loonext.android.core.update.UpdateState
+import com.loonext.android.features.contacts.showContactTrashUndo
+import com.loonext.android.ui.common.TrashSnackbarHost
 import com.loonext.android.features.auth.AuthCallbacks
 import com.loonext.android.features.auth.AuthFlow
 import com.loonext.android.features.auth.AuthViewModel
@@ -677,6 +681,8 @@ private fun ReadyShell(
         SoftphoneManager.get(context.applicationContext, graph.api)
     }
     val appLocale = LocalAppLocale.current
+    val contactTrash = remember(companyId) { SnackbarHostState() }
+    val contactNoticeScope = rememberCoroutineScope()
     LaunchedEffect(appLocale) {
         softphone.setReaderLocale(appLocale)
     }
@@ -1043,6 +1049,12 @@ private fun ReadyShell(
                             ?: MessageLocale.DEFAULT,
                         contactId = active.contactId,
                         onBack = { pop() },
+                        onContactDeleted = {
+                            pop()
+                            contactNoticeScope.launch {
+                                contactTrash.showContactTrashUndo(graph, companyId, active.contactId, appLocale)
+                            }
+                        },
                         onOpenConversation = { push(Overlay.Thread(it)) },
                         onComposeNew = { push(Overlay.Compose(it)) },
                         onOpenTask = { push(Overlay.Task(it)) },
@@ -1178,6 +1190,10 @@ private fun ReadyShell(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 24.dp),
+        )
+        TrashSnackbarHost(
+            state = contactTrash,
+            modifier = Modifier.align(Alignment.BottomCenter).padding(bottom = 24.dp),
         )
     }
     }

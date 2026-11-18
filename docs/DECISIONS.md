@@ -10071,6 +10071,12 @@ or a contact, and the pre-send gate asks only that, so deleting either cannot li
 a STOP. The `opted_out`, `opt_out_revoked` and `consent_attested` timeline events
 survive a purge. Tests prove both halves.
 
+A contact in Trash can be restored until purge. Purge clears the contact profile,
+additional phones and addresses, contact tags, and field values in the contact's
+activity history. The primary number and its consent evidence remain alongside
+the separate opt-out record. An inbound message after purge reopens a blank
+profile for that number.
+
 **Audit and integrations.** `record.deleted`, `record.restored` and `record.purged`
 in the audit log (ids and kinds, never content, 12 months like the rest).
 Outbound webhooks gain `message.deleted`, `conversation.deleted` and
@@ -10078,9 +10084,9 @@ Outbound webhooks gain `message.deleted`, `conversation.deleted` and
 none.
 
 **Clients.** Delete controls on web, Android and iOS are hidden without the
-capability, use an undo toast (undo is restore), and a sent SMS says it is removed
-from Loonext only. Trash management (list, restore, Delete forever with a typed
-confirmation) is web only, under Settings, History.
+capability and offer an Undo that restores the record. A sent SMS explains that
+the delete removes it from Loonext only. Trash management is available on all
+three clients, with typed confirmation for Delete forever.
 
 **A task outlives its source message's trash.** Trashing a single message leaves the
 task made from it visible, because the job is still real; the task's title,

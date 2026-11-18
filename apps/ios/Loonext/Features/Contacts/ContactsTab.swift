@@ -88,6 +88,7 @@ struct ContactsTab: View {
     let graph: AppGraph
     let companyId: String
     var me: Me? = nil
+    var onContactDeleted: ((String) -> Void)? = nil
 
     @ObservedObject private var router = AppRouter.shared
 
@@ -401,6 +402,7 @@ struct ContactsTab: View {
                 do {
                     try await mutations.delete(companyId: companyId, contactId: contact.id)
                     refreshKey += 1
+                    onContactDeleted?(contact.id)
                 } catch {
                     notice = error.userMessage
                 }

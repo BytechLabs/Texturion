@@ -29,7 +29,7 @@ import { ApiError } from "@/lib/api/error";
 import { isCarrierEnforcedOptOut } from '@/lib/api/types';
 import type { OptOutSource } from '@/lib/api/types';
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
-import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
+import { useCanDeleteRecords, useDeletedToast } from "@/lib/hooks/use-records-delete";
 import type { RecordAction } from "@/lib/record-actions/types";
 import { useNavigate } from "@/lib/use-navigate";
 
@@ -188,6 +188,7 @@ export function useContactActions({
   const optOut = useOptOutContact();
   const revoke = useRevokeOptOut();
   const deleteContact = useDeleteContact();
+  const announceDeleted = useDeletedToast();
   const blockedNumber = useBlockedNumber(contact.phone_e164);
   const { place, busy } = usePlaceCall();
   const [confirmOptOut, setConfirmOptOut] = useState(false);
@@ -275,9 +276,9 @@ export function useContactActions({
           pending={deleteContact.isPending}
           onConfirm={() =>
             deleteContact.mutate(contact.id, {
-              onSuccess: () => {
+              onSuccess: (target) => {
                 setConfirmDelete(false);
-                toast.success(t("appShell.contactDeleted"));
+                announceDeleted(t("trash.contactDeleted"), [target ?? { kind: "contact", id: contact.id }]);
                 onDeleted?.();
               },
               onError: (e) => failure(e, t("appShell.contactDeleteFailed")),

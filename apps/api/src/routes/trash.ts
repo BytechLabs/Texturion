@@ -29,7 +29,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage } from "../http/pagination";
-import { purgeTrashItem } from "../trash/purge";
+import { TRASH_KINDS, purgeTrashItem } from "../trash/purge";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
 import {
   parseCursor,
@@ -44,7 +44,7 @@ export const trashRoutes = new Hono<AppEnv>();
 
 const MAX_BULK_DELETE = 100;
 
-const kindSchema = z.enum(["message", "conversation", "call", "voicemail"]);
+const kindSchema = z.enum(TRASH_KINDS);
 
 const restoreSchema = z.object({ kind: kindSchema, id: z.uuid() });
 

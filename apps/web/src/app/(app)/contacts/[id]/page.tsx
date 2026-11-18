@@ -69,7 +69,7 @@ import {
   useDebouncedAutosave,
   type AutosaveState,
 } from "@/lib/hooks/use-debounced-autosave";
-import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
+import { useCanDeleteRecords, useDeletedToast } from "@/lib/hooks/use-records-delete";
 import { formatTimestamp } from "@/lib/format/time";
 import { updateSearch } from "@/lib/url/search-state";
 import { NANP_TIMEZONES } from "@loonext/shared";
@@ -311,6 +311,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
   const optOut = useOptOutContact();
   const revoke = useRevokeOptOut();
   const deleteContact = useDeleteContact();
+  const announceDeleted = useDeletedToast();
   // #691: the server gates DELETE /contacts/:id on records.delete now.
   const canDelete = useCanDeleteRecords();
 
@@ -860,8 +861,8 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
         pending={deleteContact.isPending}
         onConfirm={() =>
           deleteContact.mutate(contact.id, {
-            onSuccess: () => {
-              toast.success(t("appShell.contactDeleted"));
+            onSuccess: (target) => {
+              announceDeleted(t("trash.contactDeleted"), [target ?? { kind: "contact", id: contact.id }]);
               router.push("/contacts");
             },
             onError: (cause) =>
