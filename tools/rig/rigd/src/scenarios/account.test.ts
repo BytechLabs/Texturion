@@ -1148,7 +1148,9 @@ describe("S34, emails", () => {
   });
 
   it("reads the invite's id from the row routes/team.ts answers with", () => {
-    expect(source("apps/api/src/routes/team.ts")).toContain("return c.json({ ...invite, email_sent: emailSent }, 201);");
+    expect(source("apps/api/src/routes/team.ts")).toContain(
+      "return c.json({ ...invite, email_sent: emailSent }, resendInviteId ? 200 : 201);",
+    );
   });
 
   it("creates the account before inviting so the link check can open the accept page directly", async () => {
