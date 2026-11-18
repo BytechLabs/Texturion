@@ -52,6 +52,15 @@ export interface MissedCallNotificationInput {
   textStatus: "sent" | "failed" | "none";
 }
 
+interface VoicemailNotificationInput {
+  companyId: string;
+  conversationId: string;
+}
+
+type CallActivityInput =
+  | (MissedCallNotificationInput & { kind: "missed_call" })
+  | (VoicemailNotificationInput & { kind: "voicemail" });
+
 interface ConversationView {
   id: string;
   assigned_user_id: string | null;
@@ -77,6 +86,23 @@ export async function notifyMissedCall(
   input: MissedCallNotificationInput,
   db: SupabaseClient = getDb(env),
 ): Promise<void> {
+  return notifyCallActivity(env, db, { ...input, kind: "missed_call" });
+}
+
+export function notifyVoicemail(
+  env: Env,
+  db: SupabaseClient,
+  input: VoicemailNotificationInput,
+): Promise<void> {
+  return notifyCallActivity(env, db, { ...input, kind: "voicemail" });
+}
+
+async function notifyCallActivity(
+  env: Env,
+  db: SupabaseClient,
+  input: CallActivityInput,
+): Promise<void> {
+  const voicemail = input.kind === "voicemail";
   const conversations = unwrapRows<ConversationView>(
     await db
       .from("conversations")
@@ -119,7 +145,7 @@ export async function notifyMissedCall(
   //
   // Never throws: every uncertainty inside returns the audience unchanged, so
   // a broken lookup makes this alert loud rather than absent.
-  const routing = await routeAfterHoursAlert(db, {
+  const routing = voicemail ? null : await routeAfterHoursAlert(db, {
     companyId: input.companyId,
     conversationId: input.conversationId,
     phoneNumberId: conversation.phone_number_id,
@@ -136,7 +162,7 @@ export async function notifyMissedCall(
     input.conversationId,
   );
   const audience = withoutMuted(
-    withFollowers(routing.userIds, threadPrefs, members),
+    withFollowers(routing?.userIds ?? assigned, threadPrefs, members),
     threadPrefs,
   );
   if (audience.length === 0) return;
@@ -170,41 +196,40 @@ export async function notifyMissedCall(
   // #228: composed per reader rather than built once. Which of the three
   // bodies this miss gets is decided HERE, where the status is; the copy table
   // owns what each one says in each language.
-  const bodyKey =
-    input.textStatus === "sent"
-      ? "bodyTexted"
-      : (input.textStatus === "failed"
-        ? "bodyTextFailed"
-        : "bodyNoText");
   const alert = (locale: Locale) => {
     const copy = MISSED_CALL_COPY[locale];
+    if (voicemail) return { title: copy.voicemailTitle(contactName), body: copy.voicemailBody, url: link };
+    const bodyKey = input.textStatus === "sent"
+      ? "bodyTexted"
+      : input.textStatus === "failed" ? "bodyTextFailed" : "bodyNoText";
     // The contact's name is theirs and rides through untranslated.
     return { title: copy.title(contactName), body: copy[bodyKey], url: link };
   };
   const delivery = {
-    category: "missed_calls",
+    category: voicemail ? "voicemails" : "missed_calls",
     companyId: input.companyId,
+    conversationId: input.conversationId,
     userIds: pushUsers,
     // #430: every word here is ours. The contact's NAME is in the title, and
     // that stays under the setting too — a name on a lock screen is what any
     // phone shows for any caller, and it is what the setting deliberately
     // preserves. There is no message content in a missed call to withhold.
     content: { written: "us" },
-    web: (locale) => ({
+    web: (locale) => voicemail ? alert(locale) : ({
       ...alert(locale),
       kind: "missed_call",
       call_session_id: input.callSessionId,
     }),
     native: (locale) => ({
-      kind: "missed_call",
+      kind: input.kind,
       ...alert(locale),
     }),
     collapseKey: `conversation:${input.conversationId}`,
     failures,
   } satisfies PushDelivery;
 
-  const alertId = routing.alertId;
-  if (alertId) {
+  if (routing?.alertId) {
+    const alertId = routing.alertId;
     const pageUsers = pushUsers.filter((userId) => routing.userIds.includes(userId));
     const followers = pushUsers.filter((userId) => !routing.userIds.includes(userId));
     await Promise.all([

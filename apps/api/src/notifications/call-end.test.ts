@@ -151,8 +151,12 @@ describe("notifyCallEnd — caps gating (§9.2)", () => {
       "A teammate picked it up.",
     );
     expect(callEndAlert("voicemail", "+16135551000", null)).toEqual({
-      title: "New voicemail",
-      body: "+16135551000 left a message.",
+      title: "Sent to voicemail",
+      body: "+16135551000 was sent to voicemail.",
+    });
+    expect(callEndAlert("voicemail", "Sam Ruiz", null, "fr-CA")).toEqual({
+      title: "Appel dirigé vers la boîte vocale",
+      body: "L’appel de Sam Ruiz a été dirigé vers la boîte vocale.",
     });
     expect(callEndAlert("missed", null, null)).toEqual({
       title: "Missed call",

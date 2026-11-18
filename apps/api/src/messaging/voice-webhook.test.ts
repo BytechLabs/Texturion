@@ -424,13 +424,9 @@ describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
     const stamp = callsLinkStub();
     const upsert = upsertCallStub({ conversation_id: null });
     const thread = threadCallStub();
-    const eventScan = stubRoute(
-      restMatch(env, "GET", "conversation_events"),
-      () => [],
-    );
     const eventInsert = stubRoute(
-      restMatch(env, "POST", "conversation_events"),
-      () => Response.json([], { status: 201 }),
+      restMatch(env, "POST", "rpc/api_insert_voicemail_event"),
+      () => true,
     );
     const recordingList = stubRoute(
       (url, request) =>
@@ -464,7 +460,6 @@ describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
       stamp,
       upsert,
       thread,
-      eventScan,
       eventInsert,
       recordingList,
       recordingDelete,
@@ -539,13 +534,9 @@ describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
     );
     const upsert = upsertCallStub({ conversation_id: null });
     const thread = threadCallStub();
-    const eventScan = stubRoute(
-      restMatch(env, "GET", "conversation_events"),
-      () => [],
-    );
     const eventInsert = stubRoute(
-      restMatch(env, "POST", "conversation_events"),
-      () => Response.json([], { status: 201 }),
+      restMatch(env, "POST", "rpc/api_insert_voicemail_event"),
+      () => true,
     );
     const recordingList = stubRoute(
       (url, request) =>
@@ -564,7 +555,6 @@ describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
       legHangup,
       upsert,
       thread,
-      eventScan,
       eventInsert,
       recordingList,
       recordingDelete,

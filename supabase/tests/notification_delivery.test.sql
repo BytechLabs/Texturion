@@ -390,4 +390,24 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  v_company constant uuid := '7b000000-0000-4000-8000-0000000000c1';
+  v_thread constant uuid := '7b000000-0000-4000-8000-0000000000e1';
+  v_session constant text := 'test-saved-voicemail';
+begin
+  if not public.api_insert_voicemail_event(v_company, v_thread, v_session, '+12125559701', 15, 'Hello.') then
+    raise exception 'The first saved recording did not create a voicemail event';
+  end if;
+  if public.api_insert_voicemail_event(v_company, v_thread, v_session, '+12125559701', 15, 'Hello.') then
+    raise exception 'A replay could notify members about the same saved recording';
+  end if;
+  if not exists (
+    select 1 from public.conversation_events where conversation_id = v_thread
+      and payload->>'call_session_id' = v_session and payload->>'transcript' = 'Hello.'
+  ) then
+    raise exception 'The saved recording did not preserve the transcript in the timeline';
+  end if;
+end $$;
+
 rollback;
