@@ -233,7 +233,9 @@ export const shellEn = {
 
   // ── The call bar ─────────────────────────────────────────────────────────
   transferTo: "Transfer to",
-  noTransferTargets: "Nobody else has their phone open right now.",
+  noTransferTargets: "No teammates can take this call right now.",
+  transferAlertsAvailable: "Push alerts set up",
+  transferNoAlerts: "No push alerts",
   transferring: "Transferring to {name}…",
   transferFailed: "Couldn't transfer. Try again.",
   onACall: "On a call",
@@ -597,7 +599,9 @@ export const shellFr: Translated<typeof shellEn> = {
     "tant que ce n'est pas prêt",
 
   transferTo: "Transférer à",
-  noTransferTargets: "Personne d'autre n'a son téléphone ouvert en ce moment.",
+  noTransferTargets: "Aucun coéquipier ne peut prendre cet appel en ce moment.",
+  transferAlertsAvailable: "Alertes push configurées",
+  transferNoAlerts: "Aucune alerte push",
   transferring: "Transfert à {name}…",
   transferFailed: "Le transfert a échoué. Réessayez.",
   onACall: "En appel",

@@ -47,6 +47,7 @@ struct LiveCallFacts: Codable, Sendable {
 struct TransferTarget: Codable, Sendable {
     let user_id: String
     @Default<DefaultFalse> var busy: Bool
+    var has_push_channel: Bool? = nil
 }
 
 struct TransferTargets: Codable, Sendable {

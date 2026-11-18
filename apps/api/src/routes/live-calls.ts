@@ -51,8 +51,11 @@ import { errorResponse } from "../http/errors";
 import { buildConsultState, consultLegs, insertJourneyEvent, issueTransfer, liveCallBySession,TRANSFER_TIMEOUT_SECS } from '../messaging/live-call';
 import type { LiveCallRow } from '../messaging/live-call';
 import { LOONEXT_SESSION_HEADER } from "../messaging/inbound-ring";
+import { isFcmConfigured } from "../notifications/fcm";
 import { telnyxRequest } from "../telnyx/client";
 import { parseJsonBody, parseOptionalJsonBody, unwrap } from "./core/http";
+
+const TRANSFER_PUSH_HINT_TIMEOUT_MS = 750;
 
 const targetBodySchema = z.object({
   target_user_id: z.uuid(),
@@ -490,7 +493,8 @@ liveCallsRoutes.get(
   "/calls/live/:sessionId/targets",
   requireCapability("conversations.read"),
   async (c) => {
-    const db = getDb(getEnv(c.env));
+    const env = getEnv(c.env);
+    const db = getDb(env);
     const gate = await requireLiveCall(c, db, c.req.param("sessionId"));
     if (gate instanceof Response) return gate;
     const companyId = c.get("companyId");
@@ -540,7 +544,27 @@ liveCallsRoutes.get(
         user_id: cred.user_id as string,
         busy: busy.has(cred.user_id as string),
       }));
-    return c.json({ targets });
+    if (targets.length === 0) return c.json({ targets });
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), TRANSFER_PUSH_HINT_TIMEOUT_MS);
+    try {
+      const { data, error } = await db.rpc("api_transfer_target_push_users", {
+        p_company_id: companyId,
+        p_user_ids: targets.map((target) => target.user_id),
+        p_allow_native: isFcmConfigured(env),
+      }).abortSignal(controller.signal);
+      if (error || !data) return c.json({ targets });
+      const pushUsers = new Set((data as { user_id: string }[]).map((row) => row.user_id));
+      return c.json({
+        targets: targets.map((target) => ({
+          ...target,
+          has_push_channel: pushUsers.has(target.user_id),
+        })),
+      });
+    } finally {
+      clearTimeout(timer);
+    }
   },
 );
 

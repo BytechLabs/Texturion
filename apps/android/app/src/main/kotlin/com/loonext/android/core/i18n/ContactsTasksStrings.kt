@@ -605,6 +605,8 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.transferThisCall" to "Transfer this call",
         "contactsTasks.noTeammatesAvailable" to
             "No teammates can take this call right now.",
+        "contactsTasks.transferAlertsAvailable" to "Push alerts set up",
+        "contactsTasks.transferNoAlerts" to "No push alerts",
         "contactsTasks.transferSnapBack" to
             "If they decline, the call snaps back to you.",
         "contactsTasks.onACall" to "On a call",
@@ -1470,6 +1472,8 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.transferThisCall" to "Transférer cet appel",
         "contactsTasks.noTeammatesAvailable" to
             "Aucun coéquipier ne peut prendre cet appel en ce moment.",
+        "contactsTasks.transferAlertsAvailable" to "Alertes push configurées",
+        "contactsTasks.transferNoAlerts" to "Aucune alerte push",
         "contactsTasks.transferSnapBack" to "S'il refuse, l'appel vous revient.",
         "contactsTasks.onACall" to "En appel",
         "contactsTasks.available" to "Disponible",

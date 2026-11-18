@@ -109,7 +109,7 @@ data class SessionLeg(
 )
 
 @Serializable
-data class TransferTarget(val user_id: String, val busy: Boolean)
+data class TransferTarget(val user_id: String, val busy: Boolean, val has_push_channel: Boolean? = null)
 
 @Serializable
 data class TransferTargets(val targets: List<TransferTarget> = emptyList())

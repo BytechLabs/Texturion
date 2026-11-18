@@ -117,7 +117,14 @@ function TransferMenu({
             }
             className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm text-app-ink transition-colors duration-150 hover:bg-app-hover disabled:opacity-50"
           >
-            <span className="truncate">{nameOf(target.user_id)}</span>
+            <span className="min-w-0">
+              <span className="block truncate">{nameOf(target.user_id)}</span>
+              {target.has_push_channel !== undefined && (
+                <span className="block text-[11px] text-app-muted-2">
+                  {target.has_push_channel ? t("shell.transferAlertsAvailable") : t("shell.transferNoAlerts")}
+                </span>
+              )}
+            </span>
             {target.busy && (
               <span className="ml-2 shrink-0 text-[11px] text-app-muted-2">
                 {t("shell.onACall")}

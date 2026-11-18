@@ -293,7 +293,7 @@ export function useTransferTargets(sessionId: string | null, enabled: boolean) {
   return useQuery({
     queryKey: [companyId, "calls", "targets", sessionId] as const,
     queryFn: () =>
-      apiFetch<{ targets: { user_id: string; busy: boolean }[] }>(
+      apiFetch<{ targets: { user_id: string; busy: boolean; has_push_channel?: boolean }[] }>(
         `/v1/calls/live/${encodeURIComponent(sessionId ?? "")}/targets`,
         { companyId },
       ),
