@@ -49,7 +49,7 @@ begin
 
   select count(*) into v_recipient_count
   from public.claim_workspace_mfa_notices(now(), v_company) where kind = 'enabled';
-  if v_recipient_count <> 2 or exists (select 1 from public.claim_workspace_mfa_notices(now(), v_company)) then
+  if v_recipient_count is distinct from 2 or exists (select 1 from public.claim_workspace_mfa_notices(now(), v_company)) then
     raise exception 'The enabled notice must go once to both active members';
   end if;
 
@@ -69,7 +69,7 @@ begin
   select count(*) into v_retry_count
   from public.claim_workspace_mfa_notices(now() + interval '13 days')
   where email = 'mfa-notice-member@example.test' and kind = 'reminder';
-  if v_retry_count <> 1 or exists (
+  if v_retry_count is distinct from 1 or exists (
     select 1 from public.claim_workspace_mfa_notices(now() + interval '13 days')
     where email = 'mfa-notice-member@example.test'
   ) then
