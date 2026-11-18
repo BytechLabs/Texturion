@@ -530,6 +530,10 @@ struct ShellView: View {
                 onComposeNew: {
                     activeSheet = .compose(prefillContactId: $0, prefillPhone: nil)
                 },
+                onMergedContact: { survivorId in
+                    guard path.last == .contact(contactId: contactId) else { return }
+                    path[path.count - 1] = .contact(contactId: survivorId)
+                },
                 callerIdName: hydratedMe.display_name,
                 // #695: Unmerge is gated like merge, which the server holds to
                 // settings.manage (owner and admin).

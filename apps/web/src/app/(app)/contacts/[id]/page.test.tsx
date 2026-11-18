@@ -249,6 +249,16 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("/contacts/[id] opens in one wave", () => {
+  it("replaces a merged contact link with the survivor", () => {
+    state.contact = contact({ id: "c-survivor", name: "Surviving Contact" });
+    window.history.replaceState(null, "", "/contacts/c-1?tab=calls#history");
+    mount(<ContactDetailPage params={resolvedParams("c-1")} />);
+
+    expect(router.replace).toHaveBeenCalledWith("/contacts/c-survivor?tab=calls#history");
+    expect(router.push).not.toHaveBeenCalled();
+    expect(screen.queryByText("Surviving Contact")).toBeNull();
+  });
+
   it("starts the timeline's default read while the contact is still loading", () => {
     state.pending = true;
     const html = render("c-1");

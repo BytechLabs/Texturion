@@ -1055,6 +1055,11 @@ private fun ReadyShell(
                                 contactTrash.showContactTrashUndo(graph, companyId, active.contactId, appLocale)
                             }
                         },
+                        onMergedContact = { survivorId ->
+                            if (routeStack.lastOrNull() == active) {
+                                routeStack[routeStack.lastIndex] = Overlay.Contact(survivorId)
+                            }
+                        },
                         onOpenConversation = { push(Overlay.Thread(it)) },
                         onComposeNew = { push(Overlay.Compose(it)) },
                         onOpenTask = { push(Overlay.Task(it)) },

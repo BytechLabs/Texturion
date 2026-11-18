@@ -22,6 +22,7 @@ struct ContactDetailView: View {
     let contactId: String
     let onOpenConversation: ((_ conversationId: String) -> Void)?
     let onComposeNew: ((_ contactId: String) -> Void)?
+    var onMergedContact: ((String) -> Void)? = nil
     /// Caller-ID name for softphone registration — the list tab passes the
     /// resolved member display name (the Android twin's callerIdName).
     var callerIdName: String = ""
@@ -216,6 +217,11 @@ struct ContactDetailView: View {
     private func load() async {
         do {
             let loaded = try await mutations.detail(companyId: companyId, contactId: contactId)
+            if loaded.id != contactId, let onMergedContact {
+                state = .loading
+                onMergedContact(loaded.id)
+                return
+            }
             if initiallyEmpty == nil { initiallyEmpty = emptyContactDetailFields(loaded) }
             state = .ready(loaded)
         } catch let error as ApiError where error.code == ApiErrorCode.notFound {

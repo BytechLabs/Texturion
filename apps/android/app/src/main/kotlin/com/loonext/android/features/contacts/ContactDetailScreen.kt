@@ -160,6 +160,7 @@ internal fun ContactDetailScreen(
     companyId: String,
     contactId: String,
     onBack: () -> Unit,
+    onMergedContact: ((String) -> Unit)? = null,
     onOpenConversation: ((conversationId: String) -> Unit)?,
     onComposeNew: ((contactId: String) -> Unit)?,
     modifier: Modifier = Modifier,
@@ -219,7 +220,9 @@ internal fun ContactDetailScreen(
     ) {
         notFound = false
         try {
-            mutations.detail(companyId, contactId)
+            val loaded = mutations.detail(companyId, contactId)
+            if (loaded.id != contactId) onMergedContact?.invoke(loaded.id)
+            loaded
         } catch (cause: Exception) {
             if ((cause as? ApiException)?.code == ApiErrorCode.NOT_FOUND) {
                 notFound = true

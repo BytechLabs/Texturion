@@ -955,22 +955,37 @@ async function demoteOtherPrimaries(
 }
 
 type Db = ReturnType<typeof getDb>;
+type ContactLookup = Record<string, unknown> & { id: string; merged_into?: string | null };
 
 async function findContact(
   db: Db,
   companyId: string,
   id: string,
-): Promise<Record<string, unknown> | null> {
-  const rows = unwrap<Record<string, unknown>[]>(
+  includeMerged = false,
+): Promise<ContactLookup | null> {
+  const rows = unwrap<ContactLookup[]>(
     await db
       .from("contacts")
-      .select(CONTACT_COLUMNS)
+      .select(`${CONTACT_COLUMNS},merged_into`)
       .eq("company_id", companyId)
       .eq("id", id)
       .limit(1),
     "contact lookup",
   );
-  return rows[0] ?? null;
+  const contact = rows[0];
+  return contact && (includeMerged || !contact.merged_into) ? contact : null;
+}
+
+async function findContactDetailTarget(db: Db, companyId: string, id: string) {
+  const visited = new Set<string>();
+  let targetId = id;
+  while (!visited.has(targetId)) {
+    visited.add(targetId);
+    const contact = await findContact(db, companyId, targetId, true);
+    if (!contact?.merged_into) return contact;
+    targetId = contact.merged_into;
+  }
+  return null;
 }
 
 /** A workspace tag as a contact carries it. */
@@ -1926,14 +1941,15 @@ async function contactRelationship(
 }
 
 contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), async (c) => {
-  const id = pathUuid(c, "id");
+  const requestedId = pathUuid(c, "id").toLowerCase();
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
 
-  const contact = await findContact(db, companyId, id);
+  const contact = await findContactDetailTarget(db, companyId, requestedId);
   if (!contact) {
     return errorResponse(c, "not_found", "No such contact.");
   }
+  const { id } = contact;
 
   // #191 attribution: resolve the created/updated actor names (null for older,
   // actor-less rows; the UI shows the attribution line only when it resolves).
@@ -2023,6 +2039,7 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
     >(mergedRows, "contact merged from")[0] ?? null;
   return c.json({
     ...contact,
+    merged_into: id === requestedId ? null : id,
     // The resolved clock, and which rung of the ladder answered — so the UI
     // can say "from their area code" or "using your timezone" rather than
     // presenting a guess as a fact.
@@ -2192,9 +2209,11 @@ contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), a
       .update(patch)
       .eq("company_id", companyId)
       .eq("id", id)
+      .is("merged_into", null)
       .select(CONTACT_COLUMNS),
     "contact update",
   );
+  if (!rows[0]) return errorResponse(c, "not_found", "No such contact.");
 
   if (body.consent_attested === true) {
     await insertConversationEvents(db, [
