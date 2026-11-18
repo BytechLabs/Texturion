@@ -135,7 +135,7 @@ Map geocoding sends saved contact street addresses to OpenStreetMap Foundationâ€
 
 | Table | Holds | Retention |
 |---|---|---|
-| `companies` | business name, country, **CNAM display name**, away/greeting copy, Stripe ids | Life of the workspace |
+| `companies` | business name, country, **CNAM display name**, away/greeting copy, Stripe ids, checkout reminder timestamp | Life of the workspace |
 | `messaging_registrations` | legal name, address, EIN or BN for standard brands, OTP mobile for sole proprietors | Identity fields cleared at **30 days** for signups that never paid (#381) |
 | `port_requests` | **auth person name**, billing phone, losing-carrier account number and transfer PIN | Credentials cleared when the port completes or is cancelled |
 | `phone_numbers`, `number_access`, `number_health` | the numbers and who may use them | Life of the workspace |

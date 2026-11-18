@@ -954,7 +954,7 @@ describe("§9 event → state table", () => {
     // Key set → one capture, distinct_id = company_id, plan as safe metadata.
     const withKey = buildHarness();
     const response = await deliver(
-      eventOf("checkout.session.completed", checkoutSessionFixture()),
+      eventOf("checkout.session.completed", checkoutSessionFixture({ recovered_from: "cs_expired" })),
       withKey,
       { env: { ...env, POSTHOG_API_KEY: "phc_test_key" } },
     );
@@ -966,7 +966,7 @@ describe("§9 event → state table", () => {
       api_key: "phc_test_key",
       event: "checkout_completed",
       distinct_id: COMPANY_ID,
-      properties: { plan: "starter", environment: "local" },
+      properties: { plan: "starter", recovered: true, environment: "local" },
     });
 
     // Key unset (every other suite's env) → zero PostHog traffic.

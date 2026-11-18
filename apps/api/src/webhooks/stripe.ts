@@ -5,6 +5,7 @@ import { Hono } from "hono";
 
 import { capture } from "../analytics/posthog";
 import { stateTransitionProperties } from "../analytics/state-transition";
+import { remindAbandonedCheckout } from "../billing/checkout-recovery";
 import { applyModuleReconcile, planModuleReconcile } from '../billing/company-modules';
 import type { CompanyModuleRow } from '../billing/company-modules';
 import {
@@ -202,6 +203,8 @@ export async function processStripeEvent(
   switch (event.type) {
     case "checkout.session.completed":
       return handleCheckoutCompleted(env, event.data.object);
+    case "checkout.session.expired":
+      return remindAbandonedCheckout(env, event.data.object);
     case "customer.subscription.created":
     case "customer.subscription.updated": {
       const synced = await syncSubscription(env, event.data.object.id);
@@ -767,7 +770,10 @@ export async function handleCheckoutCompleted(
     // SPEC §10). Best-effort — a rare sweeper re-run of a half-processed
     // event may re-fire, which PostHog funnels absorb (first occurrence
     // per distinct_id counts).
-    await capture(env, "checkout_completed", companyId, { plan });
+    await capture(env, "checkout_completed", companyId, {
+      plan,
+      recovered: Boolean(session.recovered_from),
+    });
 
     // Resubscribe-within-grace: un-suspend instead of provisioning (§9) —
     // the saga then skips because a non-released number exists.

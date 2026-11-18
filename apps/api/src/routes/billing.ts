@@ -502,8 +502,7 @@ billingRoutes.post("/checkout", async (c) => {
     }
   }
 
-  const session = await getStripe(env).checkout.sessions.create(
-    {
+  const checkoutParams: Stripe.Checkout.SessionCreateParams = {
     mode: "subscription",
     // #328: the currency this session charges in — see checkout-currency.ts.
     //
@@ -535,7 +534,8 @@ billingRoutes.post("/checkout", async (c) => {
     // service worker could mask as "You're offline" on a slow return.
     success_url: `${env.APP_ORIGIN}/onboarding/setting-up?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${env.APP_ORIGIN}/onboarding/plan?checkout=canceled`,
-    },
+  };
+  const checkoutOptions = {
     // Stable, cart-derived key: two concurrent identical submits collapse to ONE
     // Checkout Session (Stripe replays the first), so a double-click can never
     // start two subscriptions. A genuinely different cart yields a different key
@@ -552,14 +552,24 @@ billingRoutes.post("/checkout", async (c) => {
     // way out. Deriving the key from the cart it describes means any future
     // line-item input is covered by construction rather than by remembering to
     // add it here.
-    {
-      idempotencyKey: idempotencyKey(
-        company.id,
-        "checkout",
-        cartSignature(lineItems),
-      ),
-    },
-  );
+    idempotencyKey: idempotencyKey(company.id, "checkout", cartSignature(lineItems)),
+  };
+  const checkout = getStripe(env).checkout.sessions;
+  let session: Stripe.Checkout.Session;
+  try {
+    session = await checkout.create({
+      ...checkoutParams,
+      after_expiration: {
+        recovery: { enabled: true, allow_promotion_codes: true },
+      },
+    }, checkoutOptions);
+  } catch (error) {
+    if (!(error instanceof Error) || !("type" in error) || error.type !== "StripeIdempotencyError") {
+      throw error;
+    }
+    // Replay an open session created before recovery was added to the request.
+    session = await checkout.create(checkoutParams, checkoutOptions);
+  }
 
   if (!session.url) {
     throw new Error(`Stripe checkout session ${session.id} returned no URL.`);

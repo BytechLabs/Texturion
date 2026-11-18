@@ -131,10 +131,11 @@ Stripe dashboard → **Developers → Webhooks → Add endpoint**.
   (i.e. `${API_ORIGIN}/webhooks/stripe`, mounted at `apps/api/src/index.ts:128`,
   handled at `apps/api/src/webhooks/stripe.ts:48`). This route is **outside** the
   JWT/CORS chain — the HMAC signature is the authentication.
-- **Events to enable — exactly these 10** (the handler no-ops anything else):
+- **Events to enable for platform billing**:
 
   ```
   checkout.session.completed
+  checkout.session.expired
   customer.subscription.created
   customer.subscription.updated
   customer.subscription.deleted
@@ -145,6 +146,12 @@ Stripe dashboard → **Developers → Webhooks → Add endpoint**.
   charge.dispute.updated
   charge.dispute.closed
   ```
+
+  Add `checkout.session.expired` to the endpoint when checkout recovery deploys.
+  Recovery emails remain off until the approved sender mailing address is set
+  in `packages/shared/src/business-identity.ts`. An expired session then qualifies
+  while the workspace is still signing up and its verified owner has active
+  commercial-email consent. Each workspace can receive one reminder.
 
   > **The three dispute events are #422 and they must be ticked by hand.**
   > Without them a disputed charge is completely invisible: Stripe leaves the

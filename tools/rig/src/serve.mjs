@@ -11,6 +11,7 @@ import { stripeSandboxKey } from "./stripe.mjs";
 /** The events apps/api/src/webhooks/stripe.ts handles; stripe listen refuses to start without a list. */
 export const STRIPE_EVENTS = [
   "checkout.session.completed",
+  "checkout.session.expired",
   "customer.subscription.created",
   "customer.subscription.updated",
   "customer.subscription.deleted",
