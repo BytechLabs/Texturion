@@ -449,6 +449,100 @@ describe("POST /v1/contacts (upsert semantics)", () => {
 });
 
 describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
+  const SECOND_CONTACT = "cdecdecd-1111-4222-8333-444444444444";
+  const SURVIVOR = "defdefde-1111-4222-8333-444444444444";
+
+  it("resolves a former contact to the survivor within the workspace", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", (call) => {
+      const params = call.url.searchParams;
+      expect(params.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+      switch (params.get("id")) {
+        case `eq.${CONTACT_ID}`: return [contactRow({ merged_into: SECOND_CONTACT })];
+        case `eq.${SECOND_CONTACT}`:
+          return [contactRow({ id: SECOND_CONTACT, merged_into: SURVIVOR })];
+        case `eq.${SURVIVOR}`:
+          return [contactRow({ id: SURVIVOR, merged_into: null, name: "Survivor" })];
+        default: return [];
+      }
+    });
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app, env, await auth.token(), `/v1/contacts/${CONTACT_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    expect(await res.json()).toMatchObject({ id: SURVIVOR, merged_into: SURVIVOR, name: "Survivor" });
+    for (const relation of ["contact_addresses", "contact_phones", "contact_tags"]) {
+      const [read] = sb.find("GET", `/rest/v1/${relation}`);
+      expect(read.url.searchParams.get("contact_id")).toContain(SURVIVOR);
+    }
+  });
+
+  it("treats an inaccessible merge target as missing", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/contacts", (call) =>
+      call.url.searchParams.get("id") === `eq.${CONTACT_ID}`
+        ? [contactRow({ merged_into: SURVIVOR })]
+        : [],
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app, env, await auth.token(), `/v1/contacts/${CONTACT_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(404);
+    expect(sb.find("GET", "/rest/v1/contact_addresses")).toHaveLength(0);
+  });
+
+  it("does not serve or edit a contact in Trash", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/contacts", (call) => {
+      expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
+      return [];
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+    const path = `/v1/contacts/${CONTACT_ID}`;
+    const token = await auth.token();
+
+    const detail = await apiRequest(app, env, token, path, { companyId: COMPANY_ID });
+    expect(detail.status).toBe(404);
+
+    const edit = await apiRequest(app, env, token, path, {
+      method: "PATCH", companyId: COMPANY_ID, body: { name: "Edited" },
+    });
+    expect(edit.status).toBe(404);
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
+  it("refuses to edit or delete a merged profile", async () => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/contacts", () => [contactRow({ merged_into: SURVIVOR })]);
+    sb.on("PATCH", "/rest/v1/contacts", (call) => {
+      expect(call.url.searchParams.get("merged_into")).toBe("is.null");
+      expect(call.url.searchParams.get("id")).toBe(`eq.${CONTACT_ID}`);
+      return [];
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+    const path = `/v1/contacts/${CONTACT_ID}`;
+    const token = await auth.token();
+
+    const edit = await apiRequest(app, env, token, path, {
+      method: "PATCH", companyId: COMPANY_ID, body: { name: "Edited" },
+    });
+    expect(edit.status).toBe(404);
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
+
+    const remove = await apiRequest(app, env, token, path, {
+      method: "DELETE", companyId: COMPANY_ID,
+    });
+    expect(remove.status).toBe(404);
+    expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(1);
+  });
+
   it("GET returns the contact with app-side opt-out state", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);

@@ -3,7 +3,7 @@
 import { ChevronLeft, Clock, Copy, Plus, SquarePen } from "lucide-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import { toast } from "sonner";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -886,7 +886,15 @@ export default function ContactDetailPage({
 }) {
   const t = useT();
   const { id } = use(params);
+  const router = useRouter();
   const contact = useContact(id);
+  const resolvedId = contact.data?.id;
+  const redirecting = !contact.isError && resolvedId !== undefined && resolvedId !== id;
+  useEffect(() => {
+    if (!redirecting || contact.isFetching) return;
+    const { search, hash } = window.location;
+    router.replace(`/contacts/${resolvedId}${search}${hash}`);
+  }, [redirecting, resolvedId, contact.isFetching, router]);
   // The timeline's default (All) read, started beside the contact's own.
   useRecordActivity("contact", id, null);
 
@@ -900,7 +908,7 @@ export default function ContactDetailPage({
         {t("appShell.contactsTitle")}
       </Link>
 
-      {contact.isPending ? (
+      {contact.isPending || redirecting ? (
         <div className="space-y-4" aria-label={t("appShell.contactLoading")}>
           <Skeleton className="h-8 w-52" />
           <Skeleton className="h-64 w-full rounded-lg" />
