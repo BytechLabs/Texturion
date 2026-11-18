@@ -78,21 +78,31 @@ describe(digestLine, () => {
   it("ND-8: says both numbers, because they answer different questions", () => {
     // Four messages from one customer is a conversation. Four across four is a
     // morning. A digest that reported only the total would flatten them.
-    expect(digestLine(4, 3, "en")).toBe("4 new messages across 3 conversations");
+    expect(digestLine(new Map([["messages_mine", 1], ["messages_all", 3]]), 3, "en"))
+      .toBe("4 new messages across 3 conversations");
   });
 
   it("ND-9: drops the second clause when it would say nothing", () => {
-    expect(digestLine(4, 1, "en")).toBe("4 new messages");
-    expect(digestLine(1, 1, "en")).toBe("1 new message");
+    expect(digestLine(new Map([["messages_all", 4]]), 1, "en")).toBe("4 new messages");
+    expect(digestLine(new Map([["messages_all", 1]]), 1, "en")).toBe("1 new message");
   });
 
   it("ND-10: answers in the reader's language, both branches", () => {
     // #228: this reaches a lock screen, where it is the whole notification.
     // Asserting only the English half would leave the fr-CA rows of the copy
     // table unexecuted — present, plausible, and never proved.
-    expect(digestLine(4, 3, "fr-CA")).toBe(
+    expect(digestLine(new Map([["messages_all", 4]]), 3, "fr-CA")).toBe(
       "4 nouveaux messages dans 3 conversations",
     );
-    expect(digestLine(1, 1, "fr-CA")).toBe("1 nouveau message");
+    expect(digestLine(new Map([["messages_all", 1]]), 1, "fr-CA")).toBe("1 nouveau message");
+  });
+
+  it("labels a mixed digest in both languages", () => {
+    const counts = new Map([["missed_calls", 1], ["messages_mine", 2], ["voicemails", 2]]);
+    expect(digestLine(counts, 2, "en"))
+      .toBe("2 new messages across 2 conversations · 1 missed call · 2 voicemails");
+    expect(digestLine(counts, 2, "fr-CA"))
+      .toBe("2 nouveaux messages dans 2 conversations · 1 appel manqué · 2 messages vocaux");
+    expect(digestLine(new Map([["operational", 1]]), 0, "en")).toBe("1 other update");
   });
 });

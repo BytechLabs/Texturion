@@ -73,11 +73,14 @@ export async function runBatchFlush(
   for (const batch of batches.values()) {
     const first = batch[0];
     try {
-      const conversations = new Set(
-        batch
-          .map((row) => row.conversation_id)
-          .filter((id): id is string => id !== null),
-      );
+      const counts = new Map<string, number>();
+      const conversations = new Set<string>();
+      for (const row of batch) {
+        counts.set(row.category, (counts.get(row.category) ?? 0) + 1);
+        if ((row.category === "messages_mine" || row.category === "messages_all") && row.conversation_id) {
+          conversations.add(row.conversation_id);
+        }
+      }
       // Into the inbox rather than a thread, EVEN when the digest covers one
       // conversation. A digest is a summary of a period, and landing somebody
       // in a single thread would answer a question they did not ask while
@@ -89,7 +92,7 @@ export async function runBatchFlush(
       // this file, the body from the shared counting rule.
       const digest = (locale: Locale) => ({
         title: DIGEST_PUSH_COPY[locale].title,
-        body: digestLine(batch.length, conversations.size, locale),
+        body: digestLine(counts, conversations.size, locale),
         url,
       });
       const failures: unknown[] = [];
