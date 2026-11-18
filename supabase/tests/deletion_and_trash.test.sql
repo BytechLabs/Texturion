@@ -23,6 +23,43 @@
 
 begin;
 
+do $$
+declare
+  unclassified text[];
+  stale text[];
+begin
+  with inventory(table_name) as (
+    values
+      -- api_trash_due and api_purge_trash_item.
+      ('calls'), ('contacts'), ('conversations'), ('messages'),
+      -- The attachment sweep removes objects and rows after the signed URL grace period.
+      ('attachments'),
+      -- purgeClosedWorkspaces clears the company profile after closure.
+      ('companies'),
+      -- Source-record purge clears derived tasks. Independent task and comment expiry is open in #803.
+      ('tasks'), ('task_comments'),
+      -- Template expiry is a separate decision in #419.
+      ('templates')
+  ), soft_deleted_tables as (
+    select c.table_name::text as table_name
+      from information_schema.columns c
+      join information_schema.tables t using (table_catalog, table_schema, table_name)
+     where c.table_schema = 'public' and c.column_name = 'deleted_at'
+       and t.table_type = 'BASE TABLE'
+  )
+  select
+    array_agg(s.table_name order by s.table_name) filter (where i.table_name is null),
+    array_agg(i.table_name order by i.table_name) filter (where s.table_name is null)
+    into unclassified, stale
+    from soft_deleted_tables s
+    full join inventory i using (table_name);
+
+  if unclassified is not null or stale is not null then
+    raise exception 'Soft-delete retention inventory needs updating. Unclassified: %, stale: %',
+      coalesce(unclassified, '{}'), coalesce(stale, '{}');
+  end if;
+end $$;
+
 insert into auth.users (id, email, encrypted_password, email_confirmed_at,
                         created_at, updated_at, aud, role)
 values ('d1000000-0000-4000-8000-000000000001', 'trash@test.local', '', now(),
