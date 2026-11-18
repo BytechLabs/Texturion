@@ -209,7 +209,7 @@ describe("trace-to-fixture: edges", () => {
   });
 
   it("gives a number outside NANP a fictional NANP one, and says so", () => {
-    const foreign = `+44${"20"}${"7946"}${"0321"}`;
+    const foreign = ["+44", "2079460321"].join("");
     const { fixture, report } = traceToFixture([
       envelope("e1", "call.initiated", { from: foreign, to: BUSINESS }),
     ]) as { fixture: { events: Envelope[] }; report: { foreignNumbers: number } };

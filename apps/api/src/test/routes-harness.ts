@@ -62,9 +62,7 @@ export interface SbCall {
   headers: Headers;
 }
 
-export type SbResponder = (
-  call: SbCall,
-) => unknown | Response | undefined;
+export type SbResponder = (call: SbCall) => unknown;
 
 export interface SupabaseStub {
   /** FetchRoute claiming every request to the env's SUPABASE_URL. */

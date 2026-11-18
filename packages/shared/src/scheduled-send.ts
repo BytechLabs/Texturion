@@ -415,7 +415,7 @@ function localParts(
     day: Number(parts.day),
     // Intl renders midnight as "24" in some locales' hour12:false output.
     hour: Number(parts.hour) % 24,
-    weekday: Math.max(0, weekdays.indexOf(String(parts.weekday))),
+    weekday: Math.max(0, weekdays.indexOf(parts.weekday)),
   };
 }
 

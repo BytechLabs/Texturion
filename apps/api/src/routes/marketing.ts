@@ -87,7 +87,7 @@ marketingRoutes.use(
 );
 
 /** Shared by both routes: parse JSON, or null so the caller can say so plainly. */
-async function readJson(request: Request): Promise<unknown | null> {
+async function readJson(request: Request): Promise<unknown> {
   try {
     return await request.json();
   } catch {
@@ -185,7 +185,7 @@ marketingRoutes.post("/marketing/unsubscribe", async (c) => {
     .split(";", 1)[0]
     ?.trim()
     .toLowerCase();
-  let raw: unknown | null;
+  let raw: unknown;
   if (contentType === "application/x-www-form-urlencoded") {
     // RFC 8058: a mail client POSTs this exact marker to the URL from the
     // List-Unsubscribe header. The unguessable token stays in that URL; this

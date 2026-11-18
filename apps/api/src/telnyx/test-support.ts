@@ -488,7 +488,7 @@ export interface TelnyxCall {
 type TelnyxHandler = (
   call: TelnyxCall,
   match: RegExpMatchArray,
-) => unknown | Response;
+) => unknown;
 
 export class TelnyxMock {
   calls: TelnyxCall[] = [];

@@ -6290,12 +6290,12 @@ describe("searching a customer's other numbers", () => {
     return {
       plain: calls.filter(
         (call) =>
-          !String(call.url.searchParams.get("select") ?? "").includes(
+          !(call.url.searchParams.get("select") ?? "").includes(
             "contact_phones",
           ),
       ),
       joined: calls.filter((call) =>
-        String(call.url.searchParams.get("select") ?? "").includes(
+        (call.url.searchParams.get("select") ?? "").includes(
           "contact_phones",
         ),
       ),
@@ -6308,7 +6308,7 @@ describe("searching a customer's other numbers", () => {
   }) {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", (call) =>
-      String(call.url.searchParams.get("select") ?? "").includes(
+      (call.url.searchParams.get("select") ?? "").includes(
         "contact_phones",
       )
         ? options.joined ?? []
@@ -6567,7 +6567,7 @@ describe("filtering contacts by a custom field", () => {
     const joined = sb
       .find("GET", "/rest/v1/contacts")
       .filter((call) =>
-        String(call.url.searchParams.get("select") ?? "").includes(
+        (call.url.searchParams.get("select") ?? "").includes(
           "contact_phones",
         ),
       );

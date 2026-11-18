@@ -476,7 +476,7 @@ interface MicrosoftNotification {
 async function boundedJsonBody(
   request: Request,
   maxBytes: number,
-): Promise<unknown | null> {
+): Promise<unknown> {
   const declared = request.headers.get("Content-Length");
   if (
     declared !== null &&

@@ -108,7 +108,7 @@ export const DEFAULT_SUMMARY_TIME = "17:00";
  * silently swallow somebody's missed call.
  */
 export function decideDelivery(input: {
-  mode: DeliveryMode | string | null | undefined;
+  mode: string | null | undefined;
   /**
    * Decided by the code raising the event, never by a setting. An on-call page
    * (#244), an escalation, an emergency keyword — the same signal that already

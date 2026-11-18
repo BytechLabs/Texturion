@@ -325,7 +325,11 @@ try {
               return box.width > 0 && box.right > client + 1;
             })
             .slice(0, 3)
-            .map((element) => element.tagName.toLowerCase() + (element.className ? "." + String(element.className).trim().split(/\s+/)[0] : ""));
+            .map((element) => {
+              const firstClass = element.classList.item(0);
+              const tag = element.tagName.toLowerCase();
+              return firstClass ? `${tag}.${firstClass}` : tag;
+            });
           return { scroll: root.scrollWidth, client, wide };
         });
         notes.push(

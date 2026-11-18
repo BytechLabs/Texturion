@@ -39,7 +39,7 @@ const TARGETS = [
  * would read as a clean pass on both Workers, and the script would report the
  * door shut because it knocked on a wall.
  */
-const CANARY = `loonext-no-such-worker-${"578"}`;
+const CANARY = "loonext-no-such-worker-578";
 
 async function probe(host, path) {
   try {

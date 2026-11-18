@@ -102,7 +102,7 @@ await runScript("retention-report", async ({ args, db }) => {
           `  ${row.cohort_week}  ${String(row.segment_value).padEnd(14)}` +
             `${pct(row.rate)}  ${String(row.retained).padStart(3)}/${String(row.cohort_size).padEnd(3)}` +
             `  ${verdict(row).padEnd(18)}` +
-            `${flags.length > 0 ? `(${flags.join(", ")})` : ""}`,
+            (flags.length > 0 ? `(${flags.join(", ")})` : ""),
         );
       }
     }
