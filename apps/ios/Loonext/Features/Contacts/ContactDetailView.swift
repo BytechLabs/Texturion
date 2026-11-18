@@ -57,6 +57,7 @@ struct ContactDetailView: View {
     @State private var confirmDelete = false
     /// #696: this number's row on the block list, or nil when it is not.
     @State private var blockedSender: BlockedSender?
+    @State private var blockedSenderRevision = 0
     @State private var working = false
     @State private var placingCall = false
     /// #292: the timezone picker stays folded until asked for.
@@ -168,9 +169,12 @@ struct ContactDetailView: View {
         // so the action reads "Block number", and blocking twice is harmless.
         .task(id: contact?.phone_e164 ?? "") {
             guard let phone = contact?.phone_e164 else { return }
-            blockedSender = try? await MessagingRepository(api: graph.api)
+            let revision = blockedSenderRevision
+            let sender = try? await MessagingRepository(api: graph.api)
                 .blockedSenders(companyId: companyId)
                 .first { $0.phone_e164 == phone }
+            guard !Task.isCancelled, revision == blockedSenderRevision else { return }
+            blockedSender = sender
         }
         .confirmDialog(
             t("thread.blockTitle"),
@@ -180,8 +184,9 @@ struct ContactDetailView: View {
         ) {
             guard let phone = contact?.phone_e164 else { return }
             runAction {
-                blockedSender = try await MessagingRepository(api: graph.api)
+                let sender = try await MessagingRepository(api: graph.api)
                     .blockSender(companyId: companyId, phoneE164: phone)
+                applyBlockChange(sender)
             }
         }
         .confirmDialog(
@@ -257,6 +262,11 @@ struct ContactDetailView: View {
 
     // MARK: - The contact's one action list (#712)
 
+    private func applyBlockChange(_ sender: BlockedSender?) {
+        blockedSenderRevision += 1
+        blockedSender = sender
+    }
+
     /// The more button and the manage card below both read this, so neither can offer
     /// what the other does not.
     private func contactMenuActions(_ contact: Contact) -> [RecordAction] {
@@ -294,7 +304,7 @@ struct ContactDetailView: View {
             runAction {
                 try await MessagingRepository(api: graph.api)
                     .unblockSender(companyId: companyId, id: blocked.id)
-                blockedSender = nil
+                applyBlockChange(nil)
             }
         case ContactActionId.optOut:
             confirmOptOut = true
@@ -1330,7 +1340,7 @@ struct ContactDetailView: View {
                     runAction {
                         try await MessagingRepository(api: graph.api)
                             .unblockSender(companyId: companyId, id: blocked.id)
-                        blockedSender = nil
+                        applyBlockChange(nil)
                     }
                 }
                 }

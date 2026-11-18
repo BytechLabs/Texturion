@@ -96,6 +96,7 @@ final class ThreadController {
     /// #696: this thread's number on the block list, or nil when it is not.
     private(set) var blockedSender: BlockedSender?
     private var checkedSenderPhone: String?
+    @ObservationIgnored private var blockedSenderRevision = 0
     private(set) var company: CompanyView?
     private(set) var usage: Usage?
     var filter = ThreadFilter()
@@ -308,8 +309,11 @@ final class ThreadController {
 
     private func refreshBlocked() async throws {
         guard let phone = threadPhone else { return }
-        blockedSender = try await repo.blockedSenders(companyId: companyId, phoneE164: phone)
+        let revision = blockedSenderRevision
+        let sender = try await repo.blockedSenders(companyId: companyId, phoneE164: phone)
             .first { $0.phone_e164 == phone }
+        guard revision == blockedSenderRevision else { return }
+        blockedSender = sender
         checkedSenderPhone = phone
     }
 
@@ -322,6 +326,8 @@ final class ThreadController {
                     companyId: companyId,
                     phoneE164: phone
                 )
+                blockedSenderRevision += 1
+                checkedSenderPhone = phone
                 notify(t("thread.numberBlocked"))
             } catch {
                 notify(error.userMessage)
@@ -386,6 +392,8 @@ final class ThreadController {
             do {
                 try await repo.unblockSender(companyId: companyId, id: blocked.id)
                 blockedSender = nil
+                blockedSenderRevision += 1
+                checkedSenderPhone = blocked.phone_e164
                 notify(t("thread.numberUnblocked"))
             } catch {
                 notify(error.userMessage)
