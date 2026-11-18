@@ -32,6 +32,7 @@ struct MessageBubble: View {
     let mintAttachmentUrl: @MainActor (String, String) async throws -> String
     let actions: MessageBubbleActions
     var onSelectPhone: (@MainActor (String) -> Void)? = nil
+    var reaction: String? = nil
 
     @State private var selectingText = false
     @Environment(\.appLocale) private var appLocale
@@ -52,6 +53,13 @@ struct MessageBubble: View {
                     exactTime: bubbleExactTime,
                     onSelect: { id, _ in perform(id) }
                 )
+            if let reaction {
+                Text(reaction)
+                    .font(.golos(12))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(.regularMaterial, in: Capsule())
+            }
             MessageMetaLine(
                 message: message,
                 authorName: authorName,

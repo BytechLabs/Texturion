@@ -44,6 +44,20 @@ class TimelineTest {
         )
 
     @Test
+    fun `reaction folds onto its loaded target and a removal clears it`() {
+        val target = message("outbound", "2026-07-15T10:00:00Z", MessageDirection.OUTBOUND)
+        val reaction = message("reaction", "2026-07-15T11:00:00Z").copy(
+            reaction_to_message_id = target.id,
+            reaction_emoji = "👍",
+        )
+        val removal = reaction.copy(id = "remove", created_at = "2026-07-15T12:00:00Z", reaction_removed = true)
+
+        assertEquals(listOf(reaction) to emptyMap<String, String>(), foldTapbacks(listOf(reaction)))
+        assertEquals(listOf(target) to mapOf(target.id to "👍"), foldTapbacks(listOf(reaction, target)))
+        assertEquals(listOf(target) to emptyMap<String, String>(), foldTapbacks(listOf(removal, reaction, target)))
+    }
+
+    @Test
     fun `messages and events interleave newest-first by created_at`() {
         val timeline = buildTimeline(
             messages = listOf(

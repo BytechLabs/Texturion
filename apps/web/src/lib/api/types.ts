@@ -815,6 +815,9 @@ export interface Message {
   automated?: boolean;
   /** #725: which automation (MESSAGE_AUTOMATIONS); null when unknown or not automated. */
   automation?: string | null;
+  reaction_to_message_id?: string | null;
+  reaction_emoji?: string | null;
+  reaction_removed?: boolean;
   created_at: string;
   /**
    * Present on every message read surface (SPEC §7). POST /v1/conversations

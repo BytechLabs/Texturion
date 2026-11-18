@@ -17,6 +17,27 @@ import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.intOrNull
 import com.loonext.android.features.calls.formatCallDuration
 
+internal fun foldTapbacks(messages: List<Message>): Pair<List<Message>, Map<String, String>> {
+    val loaded = messages.mapTo(mutableSetOf()) { it.id }
+    val reactions = mutableMapOf<String, String>()
+    val folded = mutableSetOf<String>()
+    val events = messages.filter { it.reaction_to_message_id != null }
+        .sortedWith(compareBy<Message> { it.created_at }.thenBy { it.id })
+
+    for (event in events) {
+        val target = event.reaction_to_message_id ?: continue
+        val emoji = event.reaction_emoji ?: continue
+        if (target !in loaded) continue
+        if (event.reaction_removed) {
+            if (reactions[target] == emoji) reactions.remove(target)
+        } else {
+            reactions[target] = emoji
+        }
+        folded.add(event.id)
+    }
+    return messages.filterNot { it.id in folded } to reactions
+}
+
 /**
  * Pure thread-timeline assembly: messages + optimistic pending sends + audit
  * events interleaved newest-first (the LazyColumn renders with

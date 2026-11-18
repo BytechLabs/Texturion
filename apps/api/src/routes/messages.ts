@@ -215,6 +215,7 @@ export const MESSAGE_COLUMNS =
   "media_count," +
   // #725: a text a machine wrote, and which machine.
   "automated,automation," +
+  "reaction_to_message_id,reaction_emoji,reaction_removed," +
   "created_at,updated_at";
 
 /** SPEC §7 message object: row + attachments summary, tsv column dropped. */

@@ -36,6 +36,9 @@ export interface MessageRow {
   automated: boolean;
   /** #725: which automation (MESSAGE_AUTOMATIONS); null for a person's text. */
   automation: MessageAutomation | null;
+  reaction_to_message_id?: string | null;
+  reaction_emoji?: string | null;
+  reaction_removed?: boolean;
   created_at: string;
   updated_at: string;
 }

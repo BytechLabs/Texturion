@@ -235,6 +235,9 @@ struct Message: Codable, Sendable {
     var automation: String? = nil
     /// #722: What this member may do to the message now (retry). Nil from an older API, and nil keeps the screen's own check.
     var allowed_actions: [String]? = nil
+    var reaction_to_message_id: String? = nil
+    var reaction_emoji: String? = nil
+    @Default<DefaultFalse> var reaction_removed: Bool = false
 
     /// The one retry affordance rule: API-level failure only (no carrier id),
     /// and never a carrier opt-out block. #722: and the server's list, when the

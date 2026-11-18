@@ -48,7 +48,7 @@ The most sensitive category, because the person never chose us.
 | Table | Holds | Retention |
 |---|---|---|
 | `contacts` | name, phone, **address**, free-text notes | Contact Trash expires after 30 days and clears profile details, including additional numbers and addresses. The primary number and consent evidence remain. Workspace closure purges the contact row after 30 days. |
-| `messages` | **message bodies**, both directions | Life of the workspace; purged 30 days after closure |
+| `messages` | **message bodies**, both directions, plus the emoji and target message ID for a carrier reaction | Life of the workspace; purged 30 days after closure |
 | `conversations` | phone-number link, timings | Same |
 | `conversation_events` | who did what to a thread | Same |
 | `conversation_snoozes` | which member deferred which thread, until when, and a short note THEY wrote (#293). No customer data — the note is a crew member's own words about their own work | Same |

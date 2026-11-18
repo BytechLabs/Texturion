@@ -156,6 +156,7 @@ fun MessageBubble(
     references: ReferenceSource? = null,
     onSelectPhone: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
+    reaction: String? = null,
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
     val note = message.direction == MessageDirection.NOTE
@@ -326,6 +327,15 @@ fun MessageBubble(
                 }
             }
 
+            if (reaction != null) {
+                Text(
+                    reaction,
+                    style = MaterialTheme.typography.labelMedium,
+                    modifier = Modifier
+                        .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(16.dp))
+                        .padding(horizontal = 8.dp, vertical = 3.dp),
+                )
+            }
             MessageMetaLine(
                 message = message,
                 authorName = authorName,

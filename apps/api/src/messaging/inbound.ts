@@ -14,7 +14,7 @@
  * re-notifies.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { canonicalMmsType, companySettingDefault,looksLikeOptOut } from "@loonext/shared";
+import { canonicalMmsType, companySettingDefault, looksLikeOptOut, parseTapback } from "@loonext/shared";
 
 import { PLAN_NOTIFY_LIMITS } from '../billing/plans';
 import type { PlanId } from '../billing/plans';
@@ -86,7 +86,7 @@ type InboundThreadResult = ThreadResult & {
    * Absent on an older database, and the fallback is 'append' — the safe
    * direction, since it is exactly today's behaviour.
    */
-  notify_reason?: "new" | "reopened" | "append";
+  notify_reason?: "new" | "reopened" | "append" | "reaction";
 };
 
 /**
@@ -276,6 +276,7 @@ export async function handleInboundMessage(
     PLAN_NOTIFY_LIMITS.starter;
 
   // The §6 threading transaction, atomically in the database.
+  const reaction = payload.media?.length ? null : parseTapback(payload.text ?? "");
   const { data, error } = await db.rpc("thread_inbound_message", {
     p_company_id: number.company_id,
     p_phone_number_id: number.id,
@@ -285,12 +286,14 @@ export async function handleInboundMessage(
     p_timezone: company?.timezone ?? null,
     p_email_limit: company?.notify_email_limit ?? planLimits.email,
     p_push_limit: company?.notify_push_limit ?? planLimits.push,
+    ...(reaction ? { p_reaction: reaction } : {}),
   });
   if (error) throw new Error(`thread_inbound_message failed: ${error.message}`);
   const threaded = data as InboundThreadResult | null;
   if (!threaded?.message_id || !threaded.conversation_id) {
     throw new Error("thread_inbound_message returned no message");
   }
+  if (threaded.notify_reason === "reaction") return;
 
   // #281 activation: the reply half of D12, once per workspace. Gated on the
   // first delivery so a §11 sweeper replay cannot re-emit it, and awaited

@@ -116,6 +116,21 @@ function threadStub(result: Record<string, unknown>): Stub {
   }));
 }
 
+it("threads a matched tapback without notification or automated reply work", async () => {
+  const number = numberStub();
+  const thread = threadStub({ notify_reason: "reaction" });
+  const unexpected = stubRoute(() => true, () => new Response(null, { status: 500 }));
+  stubFetch(number.route, thread.route, unexpected.route);
+
+  await handleInboundMessage(env, inboundEvent({ text: 'Loved "We can come on Friday."' }));
+
+  expect(thread.calls).toHaveLength(1);
+  expect(thread.calls[0].body).toMatchObject({
+    p_reaction: { emoji: "❤️", quote: "We can come on Friday.", removed: false },
+  });
+  expect(unexpected.calls).toHaveLength(0);
+});
+
 /** Away-reply settings read (first-delivery branch): disabled → no-op. */
 function awayDisabledStub(): Stub {
   return stubRoute(

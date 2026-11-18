@@ -80,6 +80,23 @@ final class MessagingTimelineTests: XCTestCase {
         )
     }
 
+    func testReactionFoldsOntoItsLoadedTargetAndARemovalClearsIt() {
+        let target = message("outbound", at: "2026-07-15T10:00:00Z", direction: MessageDirection.outbound)
+        var reaction = message("reaction", at: "2026-07-15T11:00:00Z")
+        reaction.reaction_to_message_id = target.id
+        reaction.reaction_emoji = "👍"
+        var removal = message("remove", at: "2026-07-15T12:00:00Z")
+        removal.reaction_to_message_id = target.id
+        removal.reaction_emoji = "👍"
+        removal.reaction_removed = true
+
+        XCTAssertEqual(foldTapbacks([reaction]).messages.map(\.id), [reaction.id])
+        let folded = foldTapbacks([reaction, target])
+        XCTAssertEqual(folded.messages.map(\.id), [target.id])
+        XCTAssertEqual(folded.reactions[target.id], "👍")
+        XCTAssertTrue(foldTapbacks([removal, reaction, target]).reactions.isEmpty)
+    }
+
     func testMessagesAndEventsInterleaveNewestFirstByCreatedAt() {
         let timeline = build(
             messages: [
