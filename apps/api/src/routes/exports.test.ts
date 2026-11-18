@@ -294,6 +294,26 @@ describe("GET /v1/exports", () => {
     expect(body.files.map(({ name }) => name)).toEqual(files.map(({ name }) => name));
   });
 
+  it("signs the published files and skips objects from an earlier build attempt", async () => {
+    const { routes } = world({
+      rows: [readyRow({ stored_files: { "manifest.json": "winning-lease-manifest.json" } })],
+      files: [{ id: "stale-file", name: "abandoned-lease-manifest.json" }],
+    });
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), `/v1/exports/${EXPORT_ID}`, {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      files: [{
+        name: "manifest.json",
+        url: expect.stringContaining("winning-lease-manifest.json?token=sig&download=manifest.json"),
+      }],
+    });
+  });
+
   it("offers no links for one still building, and says why it failed", async () => {
     const { routes } = world({
       rows: [

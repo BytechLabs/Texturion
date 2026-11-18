@@ -933,7 +933,7 @@ object SettingsMoreStrings : AppStrings.Section {
         "settingsMore.exportAlreadyBuilding" to
             "One is already being put together. It will appear under Data export.",
         "settingsMore.exportBuildingNow" to
-            "Being put together now. It will appear under Data export.",
+            "Usually ready within 15 minutes. It will appear under Data export.",
         "settingsMore.startIt" to "Start it",
         "settingsMore.export" to "Export",
         "settingsMore.download" to "Download",
@@ -2252,7 +2252,7 @@ object SettingsMoreStrings : AppStrings.Section {
             "Une exportation est déjà en préparation. Elle apparaîtra sous " +
             "Exportation de données.",
         "settingsMore.exportBuildingNow" to
-            "En préparation maintenant. Elle apparaîtra sous Exportation de données.",
+            "Généralement prête dans les 15 minutes. Elle apparaîtra sous Exportation de données.",
         "settingsMore.startIt" to "Lancer",
         "settingsMore.export" to "Exportation",
         "settingsMore.download" to "Télécharger",
