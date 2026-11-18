@@ -168,7 +168,7 @@ try {
    * ignore this. `resultTypes: ["violations"]` skips axe's much slower
    * "incomplete" pass, which we do not read.
    */
-  async function audit(label) {
+  const audit = async (label) => {
     return page.evaluate(async (name) => {
       const results = await window.axe.run("[data-loonext-widget]", {
         resultTypes: ["violations"],
@@ -184,7 +184,7 @@ try {
         })),
       };
     }, label);
-  }
+  };
 
   const collapsed = await audit("collapsed");
 

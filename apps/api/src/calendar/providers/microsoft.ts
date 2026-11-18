@@ -180,7 +180,7 @@ function graphEntityTag(event: GraphEvent): string | null {
   // Graph documents the event entity tag as the changeKey wrapped in the
   // weak, quoted HTTP ETag syntax. A raw changeKey is never a valid If-Match
   // value; reject characters that cannot appear unescaped in an opaque tag.
-  if (changeKey && /^[\x21\x23-\x7e]+$/.test(changeKey)) {
+  if (changeKey && /^[\u0021\u0023-\u007e]+$/.test(changeKey)) {
     return `W/"${changeKey}"`;
   }
   return null;

@@ -221,7 +221,8 @@ export function createAudioMuter({
   function watch({ key, roots, onResult = () => {}, onEnd = () => {} }) {
     let stopped = false;
     const done = (async () => {
-      while (!stopped) {
+      for (;;) {
+        if (stopped) break;
         const current = roots();
         if (current === null) break;
         let result;

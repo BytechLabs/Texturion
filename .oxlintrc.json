@@ -311,7 +311,6 @@
     "unicorn/no-process-exit": "off", // 5
     "unicorn/prefer-array-find": "off", // 5
     "eslint/no-control-regex": "off", // 4
-    "eslint/no-inner-declarations": "off", // 4
     "eslint/no-lonely-if": "off", // 4
     "eslint/no-regex-spaces": "off", // 4
     "eslint/operator-assignment": "off", // 4
@@ -321,11 +320,8 @@
     "typescript/no-meaningless-void-operator": "off", // 4
     "typescript/only-throw-error": "off", // 4
     "typescript/prefer-promise-reject-errors": "off", // 4
-    "unicorn/no-hex-escape": "off", // 4
-    "unicorn/no-unreadable-array-destructuring": "off", // 4
     "eslint/arrow-body-style": "off", // 3
     "eslint/no-multi-assign": "off", // 3
-    "eslint/no-unmodified-loop-condition": "off", // 3
     "eslint/preserve-caught-error": "off", // 3
     "import/no-anonymous-default-export": "off", // 3
     "import/no-default-export": "off", // 3
@@ -360,7 +356,6 @@
     "unicorn/require-array-join-separator": "off", // 2
     "eslint/accessor-pairs": "off", // 1
     "eslint/no-script-url": "off", // 1
-    "eslint/no-template-curly-in-string": "off", // 1
     "eslint/no-throw-literal": "off", // 1
     "eslint/no-unexpected-multiline": "off", // 1
     "eslint/no-useless-constructor": "off", // 1
@@ -388,7 +383,6 @@
     "unicorn/prefer-dom-node-text-content": "off", // 1
     "unicorn/prefer-logical-operator-over-ternary": "off", // 1
     "unicorn/prefer-regexp-test": "off", // 1
-    "unicorn/prefer-structured-clone": "off", // 1
     "unicorn/require-module-specifiers": "off", // 1
     "unicorn/require-post-message-target-origin": "off", // 1
     "vitest/no-duplicate-hooks": "off", // 1

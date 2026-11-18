@@ -180,6 +180,80 @@ function swiftLocaleScopes(source) {
   return scopes;
 }
 
+/** Declaration starts that bound each native body scan. */
+const DECL_START = {
+  android: /^(\s*)(?:@|(?:private |internal |public |companion )*(?:fun|val|var|object|class|enum)\b)/,
+  // Swift's own keywords, plus `extension`, which Kotlin has no equivalent of
+  // and which ends a declaration just as firmly.
+  ios: /^(\s*)(?:@|(?:private |fileprivate |internal |public |static |final )*(?:func|var|let|struct|class|enum|extension)\b)/,
+};
+
+/** A declaration ends when the next one begins at the same or a shallower indentation. */
+function bodyAfter(source, from, ownIndent, declStart) {
+  const rest = source.slice(from);
+  const lines = rest.split("\n");
+  const kept = [];
+  for (let i = 0; i < lines.length; i += 1) {
+    const match = i === 0 ? null : declStart.exec(lines[i]);
+    if (match && match[1].length <= ownIndent) break;
+    kept.push(lines[i]);
+  }
+  return stripComments(kept.join("\n"));
+}
+
+/** Drop comment-only lines so quoted calls are ignored and URLs in code remain intact. */
+function stripComments(text) {
+  return text
+    .split("\n")
+    .filter((line) => {
+      const trimmed = line.trimStart();
+      return !trimmed.startsWith("//") && !trimmed.startsWith("*");
+    })
+    .join("\n");
+}
+
+/** Check the locale source for synchronous error messages before the native builds. */
+function assertErrorLocaleBridges() {
+  const androidUiPath =
+    "apps/android/app/src/main/kotlin/com/loonext/android/ui/common/Ui.kt";
+  const androidUi = readFileSync(androidUiPath, "utf8");
+  if (
+    !androidUi.includes("fun Throwable.userMessage(locale: String): String") ||
+    /fun Throwable\.userMessage\(locale:\s*String\s*=/.test(androidUi)
+  ) {
+    console.error(
+      "Locale forwarding: Android Throwable.userMessage must require a reader " +
+        "locale; an English default makes forgotten forwarding compile.",
+    );
+    process.exit(1);
+  }
+
+  for (const file of walk("apps/android/app/src/main/kotlin", ".kt")) {
+    const source = stripComments(readFileSync(file, "utf8"));
+    if (!/\.userMessage\(\s*\)/.test(source)) continue;
+    console.error(
+      `Locale forwarding: ${file.replace(/\\/g, "/")} calls userMessage() ` +
+        "without the reader locale.",
+    );
+    process.exit(1);
+  }
+
+  const iosUiPath = "apps/ios/Loonext/Support/Ui.swift";
+  const iosUi = readFileSync(iosUiPath, "utf8");
+  const property = /var userMessage:\s*String\s*\{([^}]+)\}/.exec(iosUi)?.[1] ?? "";
+  if (
+    !property.includes("UiLocaleStore.readerLocale") ||
+    property.includes("MessageLocale.en")
+  ) {
+    console.error(
+      "Locale forwarding: iOS Error.userMessage must read " +
+        "UiLocaleStore.readerLocale; its 234 synchronous callers cannot fall " +
+        "back to English.",
+    );
+    process.exit(1);
+  }
+}
+
 const findings = [];
 let inspected = 0;
 let acceptCount = 0;
@@ -247,120 +321,6 @@ for (const client of CLIENTS) {
     process.exit(1);
   }
 
-/**
- * The body of each function that HAS a locale, so calls can be attributed to a
- * caller that actually holds one. Bounded by the next top-level declaration
- * rather than by a closing brace: most of these are expression functions whose
- * body closes at an indent.
- */
-const DECL_START = {
-  android: /^(\s*)(?:@|(?:private |internal |public |companion )*(?:fun|val|var|object|class|enum)\b)/,
-  // Swift's own keywords, plus `extension`, which Kotlin has no equivalent of
-  // and which ends a declaration just as firmly.
-  ios: /^(\s*)(?:@|(?:private |fileprivate |internal |public |static |final )*(?:func|var|let|struct|class|enum|extension)\b)/,
-};
-
-/**
- * The body of the declaration starting at [from], bounded by INDENTATION.
- *
- * A first attempt bounded on the next line starting with `fun`/`val` at column
- * zero. Almost everything here lives inside an `object`, so those lines are
- * indented and the boundary never matched — the "body" of `presets` ran to the
- * end of the file and swallowed a dozen property getters, every one of which
- * was then reported as a call that dropped the locale. The guard's first run
- * was 27 findings and 26 of them were that.
- *
- * So a declaration ends where the next one at the SAME or shallower indentation
- * begins, which is the rule Kotlin's own layout follows.
- */
-function bodyAfter(source, from, ownIndent, declStart) {
-  const rest = source.slice(from);
-  const lines = rest.split("\n");
-  const kept = [];
-  for (let i = 0; i < lines.length; i += 1) {
-    const match = i === 0 ? null : declStart.exec(lines[i]);
-    if (match && match[1].length <= ownIndent) break;
-    kept.push(lines[i]);
-  }
-  return stripComments(kept.join("\n"));
-}
-
-/**
- * Comment lines dropped, because a call QUOTED in a comment is not a call.
- *
- * Caught by this guard biting its own tail: a docblock explaining that the card
- * now passes `threadCatchUpOptOutNotice(state.visibleCarrier, locale:)` quoted
- * the OLD spelling to say what changed, and the scanner read the quotation as a
- * live call that had dropped the locale. Prose about the code is not the code —
- * the same rule the hardcoded-strings ledger learned.
- *
- * Whole comment LINES only. A trailing `//` after real code is left alone, since
- * cutting at the first `//` would truncate any line containing a URL.
- */
-function stripComments(text) {
-  return text
-    .split("\n")
-    .filter((line) => {
-      const trimmed = line.trimStart();
-      return !trimmed.startsWith("//") && !trimmed.startsWith("*");
-    })
-    .join("\n");
-}
-
-/**
- * Reader-facing failures are the high-volume synchronous path this guard's
- * function-call analysis cannot model.
- *
- * Android can make the rule structural: `userMessage` requires a locale, so a
- * forgotten argument cannot compile. iOS has 234 property reads spread across
- * UI and model code; that property must therefore resolve through the
- * concurrency-safe process snapshot rather than preserve its old English
- * default. These narrow source assertions fail in the fast guard job, before
- * waiting for either native compiler.
- */
-function assertErrorLocaleBridges() {
-  const androidUiPath =
-    "apps/android/app/src/main/kotlin/com/loonext/android/ui/common/Ui.kt";
-  const androidUi = readFileSync(androidUiPath, "utf8");
-  if (
-    !androidUi.includes("fun Throwable.userMessage(locale: String): String") ||
-    /fun Throwable\.userMessage\(locale:\s*String\s*=/.test(androidUi)
-  ) {
-    console.error(
-      "Locale forwarding: Android Throwable.userMessage must require a reader " +
-        "locale; an English default makes forgotten forwarding compile.",
-    );
-    process.exit(1);
-  }
-
-  for (const file of walk("apps/android/app/src/main/kotlin", ".kt")) {
-    const source = stripComments(readFileSync(file, "utf8"));
-    if (!/\.userMessage\(\s*\)/.test(source)) continue;
-    console.error(
-      `Locale forwarding: ${file.replace(/\\/g, "/")} calls userMessage() ` +
-        "without the reader locale.",
-    );
-    process.exit(1);
-  }
-
-  const iosUiPath = "apps/ios/Loonext/Support/Ui.swift";
-  const iosUi = readFileSync(iosUiPath, "utf8");
-  const property = /var userMessage:\s*String\s*\{([^}]+)\}/.exec(iosUi)?.[1] ?? "";
-  if (
-    !property.includes("UiLocaleStore.readerLocale") ||
-    property.includes("MessageLocale.en")
-  ) {
-    console.error(
-      "Locale forwarding: iOS Error.userMessage must read " +
-        "UiLocaleStore.readerLocale; its 234 synchronous callers cannot fall " +
-        "back to English.",
-    );
-    process.exit(1);
-  }
-}
-
-  // The helper lives in the per-client analysis scope because it reuses that
-  // scope's comment stripper. Run it once; it checks both clients itself.
   if (client.name === "android") assertErrorLocaleBridges();
 
   for (const file of files) {

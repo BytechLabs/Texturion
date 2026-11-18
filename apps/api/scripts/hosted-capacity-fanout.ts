@@ -215,14 +215,17 @@ async function main(): Promise<void> {
       if (startAt > Date.now()) await sleep(startAt - Date.now());
       const origin = performance.timeOrigin + performance.now();
       const sends: Promise<void>[] = [];
-      if (listenOnly) await sleep(seconds * 1_000);
-      for (let i = 0; i < total && !listenOnly; i += 1) {
-        const due = origin + (i * 1_000) / rate;
-        const wait = due - (performance.timeOrigin + performance.now());
-        if (wait > 0) await sleep(wait);
-        sentAt[i] = performance.timeOrigin + performance.now();
-        const event = inbound(`fanout-${level}-${i}`, `fanout-${level}-${i}-msg`, number, `fanout-${level}-${i}`);
-        sends.push(postSigned(apiOrigin, sign, event).then((ack) => void acks.push(ack)));
+      if (listenOnly) {
+        await sleep(seconds * 1_000);
+      } else {
+        for (let i = 0; i < total; i += 1) {
+          const due = origin + (i * 1_000) / rate;
+          const wait = due - (performance.timeOrigin + performance.now());
+          if (wait > 0) await sleep(wait);
+          sentAt[i] = performance.timeOrigin + performance.now();
+          const event = inbound(`fanout-${level}-${i}`, `fanout-${level}-${i}-msg`, number, `fanout-${level}-${i}`);
+          sends.push(postSigned(apiOrigin, sign, event).then((ack) => void acks.push(ack)));
+        }
       }
       await Promise.all(sends);
 

@@ -123,7 +123,7 @@ describe("a shared Swift model can gain a field without breaking its call sites"
         for (const line of body.split("\n")) {
           const property = /^\s*(let|var)\s+(\w+)\s*:\s*([^=\n]+?)\s*$/.exec(line);
           if (!property) continue;
-          const [, , name, type] = property;
+          const { 2: name, 3: type } = property;
           // Optional means `?` or an explicit Optional<…>. Only those are
           // covered: a non-optional field is genuinely required, and should
           // break its call sites so somebody looks at them.

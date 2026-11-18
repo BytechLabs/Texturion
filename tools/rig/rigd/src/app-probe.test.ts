@@ -571,7 +571,7 @@ describe("the app probe's workspaces", () => {
     };
     const { probe, requests } = probeWith({ ...workspace, [`DELETE ${SUPABASE}/auth/v1/admin/users/${SIGN_UP_USER}`]: () => json({}, 200) });
     await probe.deleteSignUp({ email: SIGN_UP_EMAIL });
-    const [, , held, close, remove, unmute] = requests;
+    const { 2: held, 3: close, 4: remove, 5: unmute } = requests;
     expect([unmute!.method, query(unmute!)]).toEqual(["DELETE", { email: `eq.${SIGN_UP_EMAIL}` }]);
     expect(query(held!)).toEqual({ company_id: "in.(company-new)", status: "neq.released", select: "id,provisioning_key" });
     expect(query(close!)).toEqual({ owner_user_id: `eq.${SIGN_UP_USER}`, deleted_at: "is.null" });
