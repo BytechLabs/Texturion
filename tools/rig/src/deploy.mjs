@@ -234,6 +234,7 @@ export function checkRigdUnits({ nodeBin = process.execPath, runner = run } = {}
     throw new Error(
       `rig deploy: rigd cannot build its units from ${TOOLING_ROOT}, so nothing was changed ` +
         `(run pnpm install there if its packages are missing): ${error.message}`,
+      { cause: error },
     );
   } finally {
     rmSync(out, { recursive: true, force: true });
@@ -283,7 +284,10 @@ export function activate({
       readDeployHold(state) === null
         ? `rigd's units stay as the last install left them until "node tools/rig/rigd/src/cli.ts units --install" succeeds`
         : `runs stay refused while ${deployHoldPath(state)} is there; run the same rig deploy again once rigd's install can succeed`;
-    throw new Error(`rig deploy: ${sha} is deployed and its services restarted, but rigd's units install failed, so ${recovery}: ${error.message}`);
+    throw new Error(
+      `rig deploy: ${sha} is deployed and its services restarted, but rigd's units install failed, so ${recovery}: ${error.message}`,
+      { cause: error },
+    );
   }
   log("rigd: units installed");
   if (readDeployHold(state) !== null) {

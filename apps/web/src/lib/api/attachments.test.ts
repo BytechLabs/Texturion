@@ -276,9 +276,7 @@ describe("uploadFilesSequentially (the staged-note-upload chain, D28)", () => {
   });
 
   it("never rejects — even when every upload throws non-Errors", async () => {
-    const uploadOne = async () => {
-      throw "boom"; // deliberately not an Error — the chain must not trust shape
-    };
+    const uploadOne = vi.fn().mockRejectedValue("boom");
     const result = await uploadFilesSequentially(uploadOne, [file("a.pdf")]);
     expect(result.uploaded).toBe(0);
     expect(result.failed).toEqual([

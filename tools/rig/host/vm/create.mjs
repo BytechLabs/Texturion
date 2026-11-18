@@ -358,18 +358,17 @@ async function main(argv) {
   const ref = flag("--ref") ? value("--ref") : undefined;
   if (!ref) throw new Error("create.mjs --ref <git ref> --yes");
   const { vm, userdata } = await createVm({ contract, root, paths, ref });
-  let failure;
-  await installSdk({ contract, sdk, paths }).catch((error) => {
-    failure = error;
-  });
-  await snapshotBaseline(vm, paths, userdata);
-  if (failure) throw failure;
+  try {
+    await installSdk({ contract, sdk, paths });
+  } finally {
+    await snapshotBaseline(vm, paths, userdata);
+  }
   console.log("\ncreate.mjs: done. Measure VM2 (start with nobody logged on) and VM3 (`hostd doctor` with a device booted) next.");
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) {
-  main(process.argv.slice(2)).catch((error) => {
-    console.error(`create.mjs: ${error.message}`);
+  main(process.argv.slice(2)).catch((/** @type {unknown} */ error) => {
+    console.error(`create.mjs: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   });
 }

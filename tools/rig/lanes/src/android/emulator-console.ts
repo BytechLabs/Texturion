@@ -250,12 +250,12 @@ export class EmulatorConsole {
 
   async #without(ms: number, links: { what: string; off: () => Promise<unknown>; on: () => Promise<unknown> }[]): Promise<void> {
     if (!Number.isInteger(ms) || ms < 0 || ms > 60_000) throw new Error("emulator console: an outage is 0-60000 ms");
-    let failure: unknown;
+    let failure: Error | undefined;
     try {
       for (const link of links) await link.off();
       await this.#sleep(ms);
     } catch (error) {
-      failure = error;
+      failure = error instanceof Error ? error : new Error("Network outage failed", { cause: error });
     }
     const unrestored: string[] = [];
     for (const link of links) {
@@ -266,7 +266,7 @@ export class EmulatorConsole {
       }
     }
     if (unrestored.length > 0) {
-      const cause = failure instanceof Error ? `${failure.message}; ` : "";
+      const cause = failure ? `${failure.message}; ` : "";
       throw new Error(`emulator console: ${cause}could not restore ${unrestored.join("; ")}`);
     }
     if (failure) throw failure;

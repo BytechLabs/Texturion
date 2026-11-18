@@ -1012,7 +1012,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         // Reject so the Answer click can surface the reason. state.error is not
         // rendered anywhere, so without this the ring chip just keeps ringing
         // and the actionable "mic is blocked" message is lost.
-        throw new Error(message);
+        throw new Error(message, { cause });
       }
       holdActive();
       try {

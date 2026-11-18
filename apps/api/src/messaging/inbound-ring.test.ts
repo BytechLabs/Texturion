@@ -107,8 +107,11 @@ describe("storeVoicemailRecording: fetching the recording", () => {
     vi.useFakeTimers();
     const hung: FetchRoute = (url, request) =>
       url.href === WEBHOOK_LINK
-        ? new Promise<Response>((_, reject) => {
-            request.signal.addEventListener("abort", () => reject(request.signal.reason));
+        ? new Promise<Response>((_resolve, reject) => {
+            request.signal.addEventListener("abort", () => {
+              const reason: unknown = request.signal.reason;
+              reject(reason instanceof Error ? reason : new Error("Fetch aborted"));
+            });
           })
         : undefined;
     const removal = telnyxDelete();

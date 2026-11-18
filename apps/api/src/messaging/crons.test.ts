@@ -519,6 +519,36 @@ describe(reportUnreportedUsage, () => {
     expect(nextAt).toBeGreaterThanOrEqual(startedAt + 4 * 60 * 60 * 1000);
   });
 
+  it("retains a scrubbed meter cause when the retry cannot be scheduled", async () => {
+    const usage = stubRoute(restMatch(env, "GET", "usage_events"), () => [
+      {
+        id: "u-3",
+        quantity: 1,
+        meter_identifier: TELNYX_ID,
+        company_id: "c-1",
+        created_at: METER_CREATED_AT,
+        report_attempts: 2,
+        companies: { stripe_customer_id: "cus_123" },
+      },
+    ]);
+    const meter = stubRoute(
+      (url, request) => request.method === "POST" && url.href === "https://api.stripe.com/v1/billing/meter_events",
+      () => Response.json(
+        { error: { type: "api_error", message: "Meter failed for reader@example.test" } },
+        { status: 500 },
+      ),
+    );
+    const retry = stubRoute(restMatch(env, "PATCH", "usage_events"), () =>
+      Response.json({ message: "database unavailable" }, { status: 503 }),
+    );
+    stubFetch(usage.route, meter.route, retry.route);
+
+    await expect(reportUnreportedUsage(env)).rejects.toMatchObject({
+      message: "usage_events meter retry scheduling failed: database unavailable",
+      cause: { message: "Meter failed for [email redacted]" },
+    });
+  });
+
   it("finishes the current row and leaves remaining rows for the next run when the budget expires", async () => {
     const startedAt = Date.now();
     const clock = vi.spyOn(Date, "now").mockReturnValue(startedAt);

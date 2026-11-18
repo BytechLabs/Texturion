@@ -182,7 +182,7 @@ export async function authorizeCalendarConnection(input: {
       configuration.keyring,
     );
     stage = "commit";
-    let lastCommitError: unknown;
+    let lastCommitError: Error | undefined;
     for (let attempt = 0; attempt < CREDENTIAL_COMMIT_ATTEMPTS; attempt += 1) {
       try {
         // Reuse the exact sealed envelope on every attempt. The RPC recognizes
@@ -214,7 +214,9 @@ export async function authorizeCalendarConnection(input: {
         if (error instanceof CalendarCredentialRefreshUnavailableError) {
           throw error;
         }
-        lastCommitError = error;
+        lastCommitError = error instanceof Error
+          ? error
+          : new Error("calendar credential refresh commit failed");
       }
     }
     if (lastCommitError !== undefined) {

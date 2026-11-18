@@ -452,12 +452,13 @@ describe("calendar sync worker", () => {
     expect(db.retryCredentialRefresh).not.toHaveBeenCalled();
   });
 
-  it("never releases or exposes a rotated token while its commit remains ambiguous", async () => {
+  it.each([
+    ["database error", new Error("database transport unavailable"), "database transport unavailable"],
+    ["empty rejection", undefined, "calendar credential refresh commit failed"],
+  ])("withholds the rotated token while its commit remains ambiguous (%s)", async (_case, reason, message) => {
     const db = store({
       claimCredentialRefresh: vi.fn().mockResolvedValue(await credentialClaim()),
-      commitCredentialRefresh: vi.fn().mockRejectedValue(
-        new Error("database transport unavailable"),
-      ),
+      commitCredentialRefresh: vi.fn().mockRejectedValue(reason),
     });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({
       access_token: "must-not-escape",
@@ -467,7 +468,7 @@ describe("calendar sync worker", () => {
 
     await expect(
       calendarAuthorizer(configuredEnv(), db, "credential-worker")(CONNECTION),
-    ).rejects.toThrow("database transport unavailable");
+    ).rejects.toThrow(message);
     expect(db.commitCredentialRefresh).toHaveBeenCalledTimes(3);
     expect(db.retryCredentialRefresh).not.toHaveBeenCalled();
   });

@@ -319,14 +319,11 @@
     "jsx-a11y/no-noninteractive-element-to-interactive-role": "off", // 4
     "react/no-object-type-as-default-prop": "off", // 4
     "typescript/no-meaningless-void-operator": "off", // 4
-    "typescript/only-throw-error": "off", // 4
-    "typescript/prefer-promise-reject-errors": "off", // 4
     "unicorn/no-hex-escape": "off", // 4
     "unicorn/no-unreadable-array-destructuring": "off", // 4
     "eslint/arrow-body-style": "off", // 3
     "eslint/no-multi-assign": "off", // 3
     "eslint/no-unmodified-loop-condition": "off", // 3
-    "eslint/preserve-caught-error": "off", // 3
     "import/no-anonymous-default-export": "off", // 3
     "import/no-default-export": "off", // 3
     "jsx-a11y/media-has-caption": "off", // 3
