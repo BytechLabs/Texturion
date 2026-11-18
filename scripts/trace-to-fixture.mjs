@@ -418,8 +418,8 @@ function main(argv) {
         (report.foreignNumbers ? ` (${report.foreignNumbers} outside NANP, now NANP)` : "") +
         `, ${report.ids} identifiers replaced.`,
     );
-  } catch (cause) {
-    console.error(`trace-to-fixture: ${cause instanceof Error ? cause.message : String(cause)}`);
+  } catch (error) {
+    console.error(`trace-to-fixture: ${error instanceof Error ? error.message : String(error)}`);
     process.exit(1);
   }
 }

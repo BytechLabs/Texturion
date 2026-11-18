@@ -676,7 +676,7 @@ async function main() {
   console.log(`  Company number: ${COMPANY_NUMBER}`);
 }
 
-main().catch((err) => {
-  console.error(err);
+main().catch((error) => {
+  console.error(error);
   process.exit(1);
 });

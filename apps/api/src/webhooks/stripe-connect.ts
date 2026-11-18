@@ -327,8 +327,8 @@ async function alertTheCrew(
       },
       db,
     );
-  } catch (cause) {
-    console.error(`payment alert failed for ${payment_request_id}: ${String(cause)}`);
+  } catch (error) {
+    console.error(`payment alert failed for ${payment_request_id}: ${String(error)}`);
   }
 }
 
@@ -348,10 +348,10 @@ async function latestChargeFor(
       .latest_charge;
     if (!latest) return null;
     return typeof latest === "string" ? latest : latest.id;
-  } catch (cause) {
+  } catch (error) {
     // Not fatal. Without the charge id a later refund cannot be matched, which
     // costs a timeline row — not the payment, which is already recorded.
-    console.warn(`payment intent retrieve failed: ${String(cause)}`);
+    console.warn(`payment intent retrieve failed: ${String(error)}`);
     return null;
   }
 }

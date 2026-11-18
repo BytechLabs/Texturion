@@ -34,8 +34,8 @@ const passes = [];
 async function get(url) {
   try {
     return await fetch(url, { redirect: "manual", headers: HEADERS });
-  } catch (cause) {
-    failures.push(`${url}: network error ${String(cause?.message ?? cause).slice(0, 80)}`);
+  } catch (error) {
+    failures.push(`${url}: network error ${String(error?.message ?? error).slice(0, 80)}`);
     return null;
   }
 }

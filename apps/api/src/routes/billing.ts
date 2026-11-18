@@ -1505,13 +1505,13 @@ async function mirrorAfterSwap(
 ): Promise<void> {
   try {
     await syncSubscription(env, subscriptionId, db);
-  } catch (cause) {
+  } catch (error_) {
     console.error(
       `pause mirror via syncSubscription failed for ${subscriptionId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error_ instanceof Error ? error_.message : String(error_),
     );
     const { error } = await fallback();
-    if (error) throw cause;
+    if (error) throw error_;
   }
 }
 
@@ -2236,7 +2236,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
         parsedKey.data,
       ),
     });
-  } catch (cause) {
+  } catch (error_) {
     const settled = await undoUnpaidReinstate(env, db, {
       stripe,
       subscriptionId: company.stripe_subscription_id,
@@ -2245,10 +2245,10 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
       row,
       billed,
       quantity,
-      cause,
+      cause: error_,
     });
     if (!settled) {
-      const message = cause instanceof Error ? cause.message : String(cause);
+      const message = error_ instanceof Error ? error_.message : String(error_);
       if (/same price|duplicate/i.test(message)) {
         // A raced concurrent buy: the loser's item CREATE hits Stripe's
         // one-item-per-price rule. A clean conflict, not a 500 — a retry sees the
@@ -2259,7 +2259,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
           "Another change to your numbers is in flight. Try again in a moment.",
         );
       }
-      throw cause;
+      throw error_;
     }
     // Stripe had the change after all — the error was on the way back, not on
     // the way in. This is also how two simultaneous presses settle: the loser's

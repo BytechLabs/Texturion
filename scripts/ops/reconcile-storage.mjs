@@ -149,8 +149,8 @@ await runScript("reconcile-storage", async ({ apply, db, script }) => {
     let rows;
     try {
       rows = await readAll(db, spec);
-    } catch (cause) {
-      skipped.push(`${spec.bucket}: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } catch (error) {
+      skipped.push(`${spec.bucket}: ${error instanceof Error ? error.message : String(error)}`);
       continue;
     }
     const missing = [];

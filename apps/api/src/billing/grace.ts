@@ -568,10 +568,10 @@ export async function runGraceJob(
           await recordAndSendGraceNotice(env, company, day, now);
         }
       }
-    } catch (cause) {
+    } catch (error_) {
       // One broken tenant must not starve the rest; rethrown below so the
       // cron run still reports failure (the scheduled handler reports it).
-      failures.push(cause);
+      failures.push(error_);
     }
   }
 

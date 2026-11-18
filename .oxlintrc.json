@@ -190,7 +190,6 @@
     "typescript/non-nullable-type-assertion-style": "off", // 127
     "unicorn/no-nested-ternary": "off", // 124
     "unicorn/switch-case-braces": "off", // 114
-    "unicorn/catch-error-name": "off", // 107
     "vitest/no-conditional-expect": "off", // 106
     "typescript/no-base-to-string": "off", // 104
     "unicorn/no-array-sort": "off", // 101

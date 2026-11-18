@@ -1074,10 +1074,10 @@ export async function ensurePrepaidDiscount(
         `${months === 1 ? "" : "s"} — #584 convergence`,
       { source: "api", level: "warning" },
     );
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `[prepay] convergence failed for company ${companyId}: ` +
-        `${(cause as Error).message}`,
+        `${(error as Error).message}`,
     );
   }
 }
@@ -1164,11 +1164,11 @@ export async function sweepUncreditedConversions(
       });
       if (stampError) throw new Error(stampError.message);
       credited += 1;
-    } catch (cause) {
+    } catch (error_) {
       failed += 1;
       console.error(
         `[prepay] could not credit conversion ${row.prepayment_id} ` +
-          `(${row.credit_cents} ${row.currency}): ${(cause as Error).message}`,
+          `(${row.credit_cents} ${row.currency}): ${(error_ as Error).message}`,
       );
     }
   }

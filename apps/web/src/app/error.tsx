@@ -34,8 +34,8 @@ export async function reportBoundaryError(
   try {
     const posthog = await initPostHog();
     posthog?.captureException(error, error.digest ? { digest: error.digest } : undefined);
-  } catch (cause) {
-    console.error("PostHog capture failed:", cause);
+  } catch (error_) {
+    console.error("PostHog capture failed:", error_);
   }
 }
 

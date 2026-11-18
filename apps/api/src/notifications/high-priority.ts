@@ -112,12 +112,12 @@ export async function claimHighPriority(
       allowed: row.allowed !== false,
       reachedCap: row.reached_cap === true,
     };
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `high-priority push meter failed for company ${request.companyId} ` +
-        `(${request.reason}): ${cause instanceof Error ? cause.message : String(cause)}`,
+        `(${request.reason}): ${error instanceof Error ? error.message : String(error)}`,
     );
-    void captureException(workerEnv(), cause, {
+    void captureException(workerEnv(), error, {
       source: "api",
       level: "warning",
       company_id: request.companyId,

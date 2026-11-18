@@ -210,8 +210,8 @@ async function ensureLimitProbe(spec: TelnyxSpec, groupId: string, ensure: Ensur
   try {
     await ensure("limit_probe_profile", "/v2/outbound_voice_profiles", "name", probe.name, settings, { name: probe.name, ...settings });
     return null;
-  } catch (cause) {
-    const reason = cause instanceof TelnyxError ? `Telnyx answered ${cause.status}` : "the profile could not be listed or written";
+  } catch (error) {
+    const reason = error instanceof TelnyxError ? `Telnyx answered ${error.status}` : "the profile could not be listed or written";
     return { resource: "limit_probe_profile", name: probe.name, action: "skipped", reason };
   }
 }
@@ -317,12 +317,12 @@ async function ensureNotifications(ctx: Ctx, spec: TelnyxSpec): Promise<SetupSte
     return missing > 0
       ? { resource: "notifications", name, action, reason: `${missing} event condition(s) not found by name` }
       : { resource: "notifications", name, action };
-  } catch (cause) {
+  } catch (error) {
     return {
       resource: "notifications",
       name,
       action: "skipped",
-      reason: cause instanceof Error ? cause.message : String(cause),
+      reason: error instanceof Error ? error.message : String(error),
     };
   }
 }

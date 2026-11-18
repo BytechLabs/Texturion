@@ -1135,8 +1135,8 @@ function notifyAssignedTask(
       (input.task?.conversation_id as string | null | undefined) ?? null,
     actorUserId: input.actorUserId,
     assigneeUserId: input.assigneeUserId,
-  }).catch((cause: unknown) => {
-    console.error("task assignment alert failed:", cause);
+  }).catch((error: unknown) => {
+    console.error("task assignment alert failed:", error);
   });
   const ctx = executionCtxOf(c);
   if (ctx) {
@@ -1175,8 +1175,8 @@ async function readTaskBefore(
       assigned_user_id: (row.assigned_user_id as string | null) ?? null,
       due_at: (row.due_at as string | null) ?? null,
     };
-  } catch (cause) {
-    console.error("task pre-read failed:", cause);
+  } catch (error) {
+    console.error("task pre-read failed:", error);
     return null;
   }
 }
@@ -1229,8 +1229,8 @@ function syncRemindersAfterWrite(
 ): Promise<void> {
   const work = syncTaskReminders(getDb(getEnv(c.env)), input)
     .then(() => undefined)
-    .catch((cause: unknown) => {
-      console.error("task reminder sync failed:", cause);
+    .catch((error: unknown) => {
+      console.error("task reminder sync failed:", error);
     });
   const ctx = executionCtxOf(c);
   if (ctx) {
@@ -2777,8 +2777,8 @@ function onCallTaskDone(
         userId: input.userId,
       });
     }
-  })().catch((cause: unknown) => {
-    console.error("job rating ask failed:", cause);
+  })().catch((error: unknown) => {
+    console.error("job rating ask failed:", error);
   });
   executionCtxOf(c)?.waitUntil(work);
 }
@@ -3268,8 +3268,8 @@ tasksRoutes.put(
     }
 
     await syncTaskReminders(db, { companyId, taskId: id, userId }).catch(
-      (cause: unknown) => {
-        console.error("task reminder sync failed:", cause);
+      (error_: unknown) => {
+        console.error("task reminder sync failed:", error_);
       },
     );
 

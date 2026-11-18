@@ -227,13 +227,13 @@ function AddForm({
         ...(description.trim() ? { description: description.trim() } : {}),
       });
       onCreated(result.secret_once);
-    } catch (cause) {
+    } catch (error) {
       // The API answers with a catalogue KEY for every address rule, so the
       // reason is said in the reader's own language rather than as "invalid
       // URL", which tells them nothing they can act on.
       const message =
-        cause instanceof ApiError && cause.message.startsWith("webhooks.")
-          ? t(cause.message as MessageKey)
+        error instanceof ApiError && error.message.startsWith("webhooks.")
+          ? t(error.message as MessageKey)
           : t("appShell.saveFailed");
       toast.error(message);
     }

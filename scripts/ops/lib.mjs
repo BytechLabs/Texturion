@@ -232,9 +232,9 @@ export async function recordPlatformAudit(db, entry) {
       before: entry.before ?? {},
       after: entry.after ?? {},
     });
-  } catch (cause) {
+  } catch (error) {
     fail(
-      `the change was made but the audit row FAILED: ${cause.message}\n` +
+      `the change was made but the audit row FAILED: ${error.message}\n` +
         "  Write the record by hand before doing anything else — an " +
         "unrecorded support edit is the thing this tooling exists to prevent.",
     );
@@ -260,8 +260,8 @@ export async function runScript(name, run, { readOnly = false } = {}) {
   announceTarget(apply, readOnly);
   try {
     await run({ args, apply, db: opsClient(), script: name });
-  } catch (cause) {
-    fail(cause instanceof Error ? cause.message : String(cause));
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
   if (!apply && !readOnly) {
     console.log("  Nothing was written. Re-run with --apply to make it real.\n");

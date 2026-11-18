@@ -125,10 +125,10 @@ export default function PortTimingPage() {
       clearOnboardingDraft();
       await queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
       router.push("/onboarding");
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("onboarding.portSaveFailed"),
       );
     }

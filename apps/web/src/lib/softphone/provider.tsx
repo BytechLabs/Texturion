@@ -166,8 +166,8 @@ async function acquireMicOrThrow(t: Translate): Promise<void> {
   let stream: MediaStream;
   try {
     stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-  } catch (cause) {
-    const name = cause instanceof DOMException ? cause.name : "";
+  } catch (error) {
+    const name = error instanceof DOMException ? error.name : "";
     throw new MicPermissionError(
       name === "NotFoundError" || name === "DevicesNotFoundError"
         ? t("shell.micNotFound")
@@ -493,11 +493,11 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       const mintedFor = companyRef.current;
       const access = accessRef.current;
       const [{ token }, { TelnyxRTC }] = await Promise.all([
-        mintToken().catch((cause: unknown) => {
-          if (cause instanceof ApiError && LASTING_REFUSALS.has(cause.code)) {
+        mintToken().catch((error: unknown) => {
+          if (error instanceof ApiError && LASTING_REFUSALS.has(error.code)) {
             refusedAccessRef.current = access;
           }
-          throw cause;
+          throw error;
         }),
         import("@telnyx/webrtc"),
       ]);
@@ -1040,15 +1040,15 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
           sessionId,
           peer,
         });
-      } catch (cause) {
+      } catch (error) {
         dispatch({
           type: "error",
           message:
-            cause instanceof MicPermissionError || cause instanceof ApiError
-              ? cause.message
+            error instanceof MicPermissionError || error instanceof ApiError
+              ? error.message
               : t("shell.callStartFailed"),
         });
-        throw cause;
+        throw error;
       }
     },
     [authorize, ensureClient, rebuildClient, waitForReady, t],
@@ -1063,10 +1063,10 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       // that can't capture audio.
       try {
         await acquireMicOrThrow(t);
-      } catch (cause) {
+      } catch (error) {
         const message =
-          cause instanceof MicPermissionError
-            ? cause.message
+          error instanceof MicPermissionError
+            ? error.message
             : t("shell.answerFailed");
         dispatch({ type: "error", message });
         // Reject so the Answer click can surface the reason. state.error is not

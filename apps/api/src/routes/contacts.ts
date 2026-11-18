@@ -1956,7 +1956,7 @@ async function contactRelationship(
       conversation_count: counted.count ?? 0,
       first_conversation_at: firstRows[0]?.created_at ?? null,
     };
-  } catch (cause) {
+  } catch (error) {
     // A summary is decoration. The contact panel failing to open because a
     // count query failed would be a bad trade, and "no history" reads as a
     // first-time caller — which is the safe direction to be wrong in.
@@ -1966,7 +1966,7 @@ async function contactRelationship(
     // silently includes numbers the member is kept off.
     console.error(
       `contact relationship for ${args.contactId} failed:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
     return { conversation_count: 0, first_conversation_at: null };
   }
@@ -2363,18 +2363,18 @@ contactsRoutes.post(
     let parsed: CsvRow[];
     try {
       parsed = parseCsvRows(text);
-    } catch (cause) {
+    } catch (error) {
       // An unterminated quote swallows every following row to EOF, and the
       // import used to answer 200 with ordinary counts and no error row for the
       // contacts it ate. Refused whole, naming the line, because the parser
       // cannot say which rows it lost — see CsvUnterminatedQuoteError.
-      if (cause instanceof CsvUnterminatedQuoteError) {
+      if (error instanceof CsvUnterminatedQuoteError) {
         throw new ApiError(
           "validation_failed",
-          contactImportUnterminatedQuoteMessage(cause.line),
+          contactImportUnterminatedQuoteMessage(error.line),
         );
       }
-      throw cause;
+      throw error;
     }
     const rows = parsed.map((row) => row.cells);
     if (rows.length < 2) {
@@ -2643,7 +2643,7 @@ contactsRoutes.post(
         newlyOptedOut,
         contactIdByPhone,
       );
-    } catch (cause) {
+    } catch (error) {
       // A half-finished import that leaves no trace is the part of #248's D4
       // that a job table would have fixed by accident. This fixes it directly:
       // the audit log carries the attempt, so "where did these 200 contacts
@@ -2672,7 +2672,7 @@ contactsRoutes.post(
           outcome: "failed",
         },
       });
-      throw cause;
+      throw error;
     }
 
     const imported = phones.filter((p) => !existingPhones.has(p)).length;
@@ -2791,20 +2791,20 @@ contactsRoutes.post(
     let cards;
     try {
       cards = parseVCards(text);
-    } catch (cause) {
+    } catch (error) {
       // #528: a .vcf whose STRUCTURE cannot be read is refused whole, the same
       // way an unterminated CSV quote is. Both alternatives are worse: reading
       // it partially imports contacts assembled from lines nobody looked at,
       // and a 500 tells the operator nothing they can act on.
-      if (cause instanceof VCardMalformedError) {
+      if (error instanceof VCardMalformedError) {
         throw new ApiError(
           "validation_failed",
-          cause.kind === "merged-card"
-            ? contactImportVCardMergedCardMessage(cause.line)
-            : contactImportVCardNamelessPropertyMessage(cause.line),
+          error.kind === "merged-card"
+            ? contactImportVCardMergedCardMessage(error.line)
+            : contactImportVCardNamelessPropertyMessage(error.line),
         );
       }
-      throw cause;
+      throw error;
     }
     if (cards.length === 0) {
       throw new ApiError(
@@ -2964,7 +2964,7 @@ contactsRoutes.post(
         newlyOptedOut,
         contactIdByPhone,
       );
-    } catch (cause) {
+    } catch (error) {
       // Same reason as the CSV route: a partial import that left no audit row
       // is a set of contacts nobody can account for. See there.
       await recordAuditFromRequest(db, c, {
@@ -2981,7 +2981,7 @@ contactsRoutes.post(
           outcome: "failed",
         },
       });
-      throw cause;
+      throw error;
     }
 
     const imported = phones.filter((p) => !existingPhones.has(p)).length;

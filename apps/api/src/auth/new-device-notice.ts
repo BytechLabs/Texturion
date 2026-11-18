@@ -42,10 +42,10 @@ export function announceNewDevice(
 ): void {
   const client = requestClient(c);
   const geo = requestGeo(c);
-  const work = deliver(env, db, userId, sessionId, client, geo).catch((cause) => {
+  const work = deliver(env, db, userId, sessionId, client, geo).catch((error) => {
     console.error(
       `new-device notice failed for session ${sessionId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   });
   try {

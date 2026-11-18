@@ -163,13 +163,13 @@ function PlanStep() {
       trackCheckoutStarted(plan, modules);
       window.location.assign(url);
       // Keep the button in its busy state while the browser navigates.
-    } catch (cause) {
+    } catch (error) {
       setChoosing(null);
-      if (cause instanceof ApiError && cause.code === "conflict") {
+      if (error instanceof ApiError && error.code === "conflict") {
         // A live subscription or missing draft changed under us — the message
         // is specific and actionable; surface it inline (no retry — refetch
         // re-routes the step guard to the honest surface).
-        setFormError(cause.message);
+        setFormError(error.message);
         void queryClient.invalidateQueries({
           queryKey: keys.company(companyId),
         });
@@ -180,8 +180,8 @@ function PlanStep() {
       }
       // G10 error toast: what happened + what to do, with a one-tap retry.
       const message =
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("onboarding.checkoutOpenFailed");
       toast.error(message, {
         action: {

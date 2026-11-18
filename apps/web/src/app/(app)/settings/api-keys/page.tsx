@@ -149,9 +149,9 @@ function CreateForm({
     try {
       const result = await create.mutateAsync({ name: name.trim(), scopes });
       onCreated(result.token_once);
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError ? cause.message : t("appShell.saveFailed"),
+        error instanceof ApiError ? error.message : t("appShell.saveFailed"),
       );
     }
   }

@@ -722,8 +722,8 @@ async function fanOutPush(
             (result.errorBody ? ` — ${result.errorBody}` : ""),
         );
       }
-    } catch (cause) {
-      delivery.failures.push(cause);
+    } catch (error) {
+      delivery.failures.push(error);
     }
   }
 
@@ -813,8 +813,8 @@ async function fanOutPush(
             (result.errorBody ? ` — ${result.errorBody}` : ""),
         );
       }
-    } catch (cause) {
-      delivery.failures.push(cause);
+    } catch (error) {
+      delivery.failures.push(error);
     }
   }
 }

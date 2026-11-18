@@ -155,8 +155,8 @@ async function processAndStamp(env: Env, event: Stripe.Event): Promise<void> {
     if (error) {
       throw new Error(`webhook_events stamp failed: ${error.message}`);
     }
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error(`stripe webhook ${event.id} (${event.type}) failed:`, message);
     const { data } = await db
       .from("webhook_events")
@@ -356,10 +356,10 @@ async function reconcileModulesFromSubscription(
   if (["active", "past_due", "trialing"].includes(subscription.status)) {
     try {
       await enableVoiceForCompany(env, db, companyId);
-    } catch (cause) {
+    } catch (error) {
       console.error(
         `voice enablement on subscription mirror failed for ${companyId}:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -447,11 +447,11 @@ export async function ensureVoiceMeteredItem(
         proration_behavior: "always_invoice",
       });
     }
-  } catch (cause) {
-    void captureException(env, cause, { source: "api", company_id: companyId });
+  } catch (error) {
+    void captureException(env, error, { source: "api", company_id: companyId });
     console.error(
       `voice metered convergence failed for ${companyId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }
@@ -853,8 +853,8 @@ export async function handleCheckoutCompleted(
           held: allowance.held,
           emailKey: `numbers_held:${session.id}`,
         });
-      } catch (cause) {
-        void captureException(env, cause, { source: "api", company_id: companyId });
+      } catch (error) {
+        void captureException(env, error, { source: "api", company_id: companyId });
         void captureException(
           env,
           heldNoticeUnannouncedAlert({
@@ -864,7 +864,7 @@ export async function handleCheckoutCompleted(
           }),
           { source: "api", company_id: companyId },
         );
-        throw cause;
+        throw error;
       }
     }
   }
@@ -1295,10 +1295,10 @@ async function confirmCancellationReason(
       .eq("company_id", companyId)
       .is("confirmed_at", null);
     if (error) throw new Error(error.message);
-  } catch (cause) {
+  } catch (error) {
     // Never-silent (D3), non-fatal.
     console.error(
-      `cancellation reason confirm failed (${companyId}): ${String(cause)}`,
+      `cancellation reason confirm failed (${companyId}): ${String(error)}`,
     );
   }
 }
@@ -1417,14 +1417,14 @@ async function handleInvoicePaymentFailed(
     if (invoice.id) {
       try {
         await getStripe(env).invoices.voidInvoice(invoice.id);
-      } catch (cause) {
-        const status = (cause as { statusCode?: number }).statusCode;
+      } catch (error_) {
+        const status = (error_ as { statusCode?: number }).statusCode;
         const refused = typeof status === "number" && status >= 400 && status < 500;
         console.error(
           `us-registration invoice ${invoice.id} could not be voided:`,
-          cause instanceof Error ? cause.message : String(cause),
+          error_ instanceof Error ? error_.message : String(error_),
         );
-        if (!refused) throw cause;
+        if (!refused) throw error_;
       }
     }
   }

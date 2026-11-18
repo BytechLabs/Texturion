@@ -187,8 +187,8 @@ async function main() {
       const derived = deriveRigConfig(config, DERIVE_OPTIONS[file]);
       derivedCount += limiters({ ...derived, env: undefined }).length;
       problems.push(...derivedProblems(file, config, derived));
-    } catch (cause) {
-      problems.push(`${file}  the deploy CLI refuses to derive it: ${cause instanceof Error ? cause.message : String(cause)}`);
+    } catch (error) {
+      problems.push(`${file}  the deploy CLI refuses to derive it: ${error instanceof Error ? error.message : String(error)}`);
     }
   }
   const layout = rigLayout({ RIG_HOME: "/var/lib/loonext-rig" });

@@ -94,8 +94,8 @@ export function WorkspaceSummary({
     try {
       await update.mutateAsync({ companyId, name: next });
       setEditing(null);
-    } catch (cause) {
-      fail(cause);
+    } catch (error_) {
+      fail(error_);
     }
   }
 
@@ -130,8 +130,8 @@ export function WorkspaceSummary({
         ...(draftCountry === "CA" ? { us_texting_enabled: draftUsTexting } : {}),
       });
       setEditing(null);
-    } catch (cause) {
-      fail(cause);
+    } catch (error_) {
+      fail(error_);
     }
   }
 

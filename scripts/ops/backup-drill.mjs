@@ -47,8 +47,8 @@ function inContainer(command, { input, quiet } = {}) {
       maxBuffer: 512 * 1024 * 1024,
       stdio: quiet ? ["pipe", "pipe", "pipe"] : ["pipe", "pipe", "inherit"],
     });
-  } catch (cause) {
-    fail(`command failed in ${container}: ${command}\n  ${String(cause.message ?? cause)}`);
+  } catch (error) {
+    fail(`command failed in ${container}: ${command}\n  ${String(error.message ?? error)}`);
   }
 }
 

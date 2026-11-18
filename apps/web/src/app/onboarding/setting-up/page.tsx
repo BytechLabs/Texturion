@@ -171,10 +171,10 @@ function OtpRow({
     try {
       await verify.mutateAsync({ companyId, code });
       // Success flips the brand row — the checklist re-renders from state.
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("onboarding.genericError"),
       );
     }
@@ -187,10 +187,10 @@ function OtpRow({
       await resend.mutateAsync({ companyId });
       setCooldown(60);
       setNotice(t("onboarding.otpResent"));
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("onboarding.genericError"),
       );
     }

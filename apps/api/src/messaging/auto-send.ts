@@ -174,14 +174,14 @@ export async function guardedAutoSend(
       mediaUrls: [],
       clearance: args.clearance,
     });
-  } catch (cause) {
+  } catch (error_) {
     // The §10 layer-3 per-company rate limiter denied the dispatch AFTER the
     // claim stamped conversations.last_auto_reply_at — without compensation
     // the customer's auto-reply is silently gone for the whole throttle
     // window (any replay hits 'throttled'). Release the stamp so the NEXT
     // inbound in the burst re-attempts naturally; the failed row (persisted
     // by dispatchOutbound) stays in the thread as the audit trail.
-    if (cause instanceof ApiError && cause.code === "rate_limited") {
+    if (error_ instanceof ApiError && error_.code === "rate_limited") {
       const { error: releaseError } = await db
         .from("conversations")
         .update(
@@ -197,7 +197,7 @@ export async function guardedAutoSend(
         );
       }
     }
-    throw cause;
+    throw error_;
   }
   return { sent: true, message: sent };
 }
