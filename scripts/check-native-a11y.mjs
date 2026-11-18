@@ -167,7 +167,7 @@ for (const file of sourceFiles(ANDROID_ROOT, ".kt")) {
 
 /* -------------------------------------------------------------------------- */
 
-if (failures.length) {
+if (failures.length > 0) {
   console.error(`\ncheck-native-a11y: ${failures.length} non-scaling text size(s)\n`);
   for (const failure of failures) console.error(`  ${failure}`);
   console.error(

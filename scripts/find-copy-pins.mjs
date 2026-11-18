@@ -84,7 +84,7 @@ for (const file of files) {
 
 console.log(`--- ${module}.ts: ${sentences.length} sentence(s) worth pinning\n`);
 console.log("READS THE FILE BY PATH:");
-console.log(byPath.length ? byPath.map((p) => `  ${p}`).join("\n") : "  (none)");
+console.log(byPath.length > 0 ? byPath.map((p) => `  ${p}`).join("\n") : "  (none)");
 console.log("\nQUOTES A SENTENCE:");
 if (bySentence.size === 0) console.log("  (none)");
 for (const [s, where] of bySentence) {

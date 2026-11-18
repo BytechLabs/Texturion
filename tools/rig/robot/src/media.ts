@@ -25,8 +25,10 @@ function exifWithGps(): number[] {
   tiff.push(...u16le(1), ...u16le(0x88_25), ...u16le(4), ...u32le(1), ...u32le(gpsIfdAt), ...u32le(0));
   // GPS IFD: GPSLatitudeRef "N", GPSLatitude as three RATIONALs stored after it.
   const latitudeAt = gpsIfdAt + 2 + 2 * 12 + 4;
-  tiff.push(...u16le(2), ...u16le(0x00_01), ...u16le(2), ...u32le(2), 0x4E, 0x00, 0x00, 0x00);
-  tiff.push(...u16le(0x00_02), ...u16le(5), ...u32le(3), ...u32le(latitudeAt), ...u32le(0));
+  tiff.push(
+    ...u16le(2), ...u16le(0x00_01), ...u16le(2), ...u32le(2), 0x4E, 0x00, 0x00, 0x00,
+    ...u16le(0x00_02), ...u16le(5), ...u32le(3), ...u32le(latitudeAt), ...u32le(0),
+  );
   for (const [numerator, denominator] of [
     [43, 1],
     [39, 1],

@@ -548,7 +548,7 @@ export class AppProbe implements AppApi {
 
   async companySettings(args: { tenant: string; fields: readonly CompanyField[] }): Promise<Partial<Record<CompanyField, unknown>>> {
     const unknown = args.fields.filter((field) => !(COMPANY_FIELDS as readonly string[]).includes(field));
-    if (unknown.length) throw new Error(`app probe: ${unknown.join(", ")} is not a company setting a scenario may change`);
+    if (unknown.length > 0) throw new Error(`app probe: ${unknown.join(", ")} is not a company setting a scenario may change`);
     if (args.fields.length === 0) return {};
     const companyId = this.#tenant(args.tenant).company_id;
     const [row] = await this.#rest<Record<string, unknown>[]>("companies", { id: `eq.${companyId}`, select: args.fields.join(",") });
@@ -1008,7 +1008,7 @@ export class AppProbe implements AppApi {
       select: "id",
     });
     const owners = await this.#signUpOwners();
-    const companies = owners.length
+    const companies = owners.length > 0
       ? await this.#rest<{ id: string }[]>("companies", { owner_user_id: `in.(${owners.join(",")})`, select: "id" })
       : [];
     const rows = await this.#heldNumbers(companies.map((company) => company.id));

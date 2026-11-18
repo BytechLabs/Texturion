@@ -759,12 +759,15 @@ function vmEntry(
   machine.queuedTargets = [];
   if (routing) machine.routing = routing;
   machine.voicemailCause = cause;
-  effects.push({
-    kind: "mirror",
-    set: routing ? { state: "voicemail_greeting", routing } : { state: "voicemail_greeting" },
-    terminal: false,
-  }, { kind: "clear-alarm", alarm: "ring" });
-  effects.push({ kind: "clear-alarm", alarm: "ring-step" });
+  effects.push(
+    {
+      kind: "mirror",
+      set: routing ? { state: "voicemail_greeting", routing } : { state: "voicemail_greeting" },
+      terminal: false,
+    },
+    { kind: "clear-alarm", alarm: "ring" },
+    { kind: "clear-alarm", alarm: "ring-step" },
+  );
   if (machine.customerCcid) {
     // Terminal-path exemption class (§13): the voicemail answer must never
     // drop at the command cap — it is how the session ends honestly.
@@ -898,8 +901,12 @@ function terminalize(
     effects.push({ kind: "push-call-end", reason: callEndReason });
   }
   if (!upgrade) {
-    effects.push({ kind: "clear-alarm", alarm: "ring" }, { kind: "clear-alarm", alarm: "ring-step" });
-    effects.push({ kind: "clear-alarm", alarm: "fanout-settle" }, { kind: "arm-alarm", alarm: "purge", atMs: nowMs + PURGE_DELAY_MS });
+    effects.push(
+      { kind: "clear-alarm", alarm: "ring" },
+      { kind: "clear-alarm", alarm: "ring-step" },
+      { kind: "clear-alarm", alarm: "fanout-settle" },
+      { kind: "arm-alarm", alarm: "purge", atMs: nowMs + PURGE_DELAY_MS },
+    );
   }
 }
 
@@ -2115,8 +2122,12 @@ function reduceAnswerOutcome(
       }
     }
   }
-  effects.push({ kind: "thread-at-answer" }, { kind: "clear-alarm", alarm: "ring" });
-  effects.push({ kind: "clear-alarm", alarm: "fanout-settle" }, { kind: "push-call-end", reason: "answered" });
+  effects.push(
+    { kind: "thread-at-answer" },
+    { kind: "clear-alarm", alarm: "ring" },
+    { kind: "clear-alarm", alarm: "fanout-settle" },
+    { kind: "push-call-end", reason: "answered" },
+  );
   next.answerIntent = null; // step 3: clear on success
   return { machine: next, effects };
 }

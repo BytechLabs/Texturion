@@ -104,7 +104,11 @@ export function SearchResults({ q }: { q: string }) {
       })) : [],
     },
   ];
-  if (!uniqueConversations.length && !contacts.length && !otherGroups.some((group) => group.hits.length)) {
+  if (
+    uniqueConversations.length === 0 &&
+    contacts.length === 0 &&
+    !otherGroups.some((group) => group.hits.length > 0)
+  ) {
     return (
       <EmptyState
         className="flex-1"
@@ -216,7 +220,7 @@ export function SearchResults({ q }: { q: string }) {
 }
 
 function SearchLinkGroup({ heading, hits }: { heading: string; hits: SearchLink[] }) {
-  if (!hits.length) return null;
+  if (hits.length === 0) return null;
   return (
     <section aria-label={heading}>
       <h3 className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">{heading}</h3>

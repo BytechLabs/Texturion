@@ -55,7 +55,7 @@ function installSlotRpc(rest: FakeRest) {
           row.kind === "brand" &&
           row.sole_proprietor === true,
       );
-    if (soleProp && nonReleased.length >= 1) {
+    if (soleProp && nonReleased.length > 0) {
       return { outcome: "sole_prop_cap", number: null };
     }
     // #110 (mirrors the RPC): effective max = included + the company's

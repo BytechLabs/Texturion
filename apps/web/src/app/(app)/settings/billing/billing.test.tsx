@@ -1125,13 +1125,12 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
           pick(label);
         },
       ]),
+      // An admin may relay this deadline to the owner.
+      [
+        "admin",
+        () => render(<CancelSubscriptionCard isOwner={false} company={company()} />),
+      ],
     );
-    // Including the version an admin reads and relays to the owner — an admin
-    // who counts the deadline wrong passes the wrong deadline on.
-    surfaces.push([
-      "admin",
-      () => render(<CancelSubscriptionCard isOwner={false} company={company()} />),
-    ]);
 
     for (const [name, mount] of surfaces) {
       mount();

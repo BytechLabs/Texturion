@@ -109,10 +109,10 @@ const AUDIT = () => {
       }
       node = node.parentElement;
     }
-    if (!layers.length) return null;
+    if (layers.length === 0) return null;
     // Bottom-most opaque layer up, compositing each translucent one onto it.
     let result = layers.pop();
-    while (layers.length) result = over(layers.pop(), result);
+    while (layers.length > 0) result = over(layers.pop(), result);
     return result;
   };
 
@@ -575,7 +575,7 @@ const FOCUS_WALK = (maxStops) => {
   };
   const describe = (el) => {
     const cls = (el.className || "").toString().split(/\s+/).filter(Boolean).slice(0, 2);
-    return `${el.tagName.toLowerCase()}${cls.length ? "." + cls.join(".") : ""}`;
+    return `${el.tagName.toLowerCase()}${cls.length > 0 ? "." + cls.join(".") : ""}`;
   };
 
   const el = document.activeElement;
@@ -840,7 +840,7 @@ async function login(context) {
 }
 
 const wanted = SURFACES.filter((s) => (publicOnly ? !s.auth : authedOnly ? s.auth : true));
-if (!wanted.length) {
+  if (wanted.length === 0) {
   console.error("theme-audit: no surfaces selected — check the flags.");
   process.exit(1);
 }
@@ -1117,7 +1117,7 @@ if (needsAuth) {
   }
   console.log(
     `theme-audit: swept ${swept} route/width pairs for document scroll` +
-      (skipped.length ? `; skipped (no seeded id): ${skipped.join(", ")}` : ""),
+      (skipped.length > 0 ? `; skipped (no seeded id): ${skipped.join(", ")}` : ""),
   );
 }
 
@@ -1126,7 +1126,7 @@ await browser.close();
 /* ------------------------------------------------------------------------- */
 
 const audited = wanted.length * 2;
-if (!problems.length) {
+  if (problems.length === 0) {
   console.log(`theme-audit: ${audited} surface/theme combinations, no faults.`);
   process.exit(0);
 }
@@ -1155,7 +1155,7 @@ for (const kind of [
   "FOCUS-LOOP",
 ]) {
   const group = problems.filter((p) => p.kind === kind);
-  if (!group.length) continue;
+    if (group.length === 0) continue;
   console.error(`── ${kind} ─────────────────────────────────────────────`);
   for (const p of group) {
     console.error(`  [${p.theme}] ${p.surface}\n    ${p.what}\n    ${p.detail}`);

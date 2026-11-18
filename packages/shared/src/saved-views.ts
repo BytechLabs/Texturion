@@ -262,7 +262,7 @@ export function isEmptyView(filters: SavedViewFilters): boolean {
  */
 export function isValidViewName(raw: string): boolean {
   const trimmed = raw.trim();
-  return trimmed.length >= 1 && trimmed.length <= SAVED_VIEW_NAME_MAX;
+  return trimmed.length > 0 && trimmed.length <= SAVED_VIEW_NAME_MAX;
 }
 
 /**

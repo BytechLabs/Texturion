@@ -101,7 +101,7 @@ export class TelnyxApiError extends Error {
   /** Telnyx's error codes, never its detail text, which can quote a number back. */
   readonly codes: string[];
   constructor(status: number, path: string, codes: string[]) {
-    super(`Telnyx ${status} on ${path}${codes.length ? ` (${codes.join(", ")})` : ""}`);
+    super(`Telnyx ${status} on ${path}${codes.length > 0 ? ` (${codes.join(", ")})` : ""}`);
     this.name = "TelnyxApiError";
     this.status = status;
     this.codes = codes;
