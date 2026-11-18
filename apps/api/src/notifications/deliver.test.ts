@@ -640,6 +640,7 @@ describe("#244 member quiet hours", () => {
     ]);
     sb.on("GET", "/rest/v1/push_subscriptions", () => []);
     sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+    sb.on("POST", "/rest/v1/pending_notifications", () => []);
     stubFetch(sb.route);
     return sb;
   }
@@ -657,7 +658,7 @@ describe("#244 member quiet hours", () => {
     };
   }
 
-  it("QH-1: a routine push skips the member whose window is running", async () => {
+  it("QH-1: a routine push waits for the quiet member's catch-up digest", async () => {
     const sb = quietWorld();
 
     await deliverPush(env, getDb(env), delivery());
@@ -666,6 +667,9 @@ describe("#244 member quiet hours", () => {
       (call) => call.path === "/rest/v1/push_subscriptions",
     );
     expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${AWAKE})`);
+    expect(sb.find("POST", "/rest/v1/pending_notifications")[0]?.body).toEqual([
+      expect.objectContaining({ user_id: SLEEPING, delivery_kind: "quiet" }),
+    ]);
   });
 
   it("QH-2: a page reaches them anyway — the emergency override", async () => {

@@ -75,7 +75,7 @@ export const domainEn = {
      the label plus " to ": French joins the window with a different
      preposition than it introduces it with. */
   quietHoursHeading: "Quiet hours",
-  quietHoursReassurance: "Your phone stays quiet for ordinary messages. New emergencies, on-call pages, and alerts nobody picked up still come through.",
+  quietHoursReassurance: "Ordinary messages wait until quiet hours end. New emergencies, on-call pages, and alerts nobody picked up still come through.",
   quietHoursOff: "Off — every notification reaches you at any hour.",
   quietHoursOn: "Quiet from",
   quietHoursLine: "Quiet from {from} to {to}",
@@ -408,7 +408,7 @@ export const domainFr: Translated<typeof domainEn> = {
   catchUpSectionOpen: "Ce qui reste en suspens",
   catchUpAttribution: "Lou a lu cette conversation. Touchez une ligne pour voir le message d'où elle vient.",
   quietHoursHeading: "Heures de silence",
-  quietHoursReassurance: "Votre téléphone reste silencieux pour les messages ordinaires. Les nouvelles urgences, les alertes de garde et celles que personne n'a prises passent quand même.",
+  quietHoursReassurance: "Les messages ordinaires attendent la fin des heures de silence. Les nouvelles urgences, les alertes de garde et celles que personne n'a prises passent quand même.",
   quietHoursOff: "Désactivé — toutes les notifications vous parviennent à toute heure.",
   quietHoursOn: "Silence à partir de",
   quietHoursLine: "Silence de {from} à {to}",

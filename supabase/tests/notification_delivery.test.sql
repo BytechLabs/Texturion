@@ -331,4 +331,63 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  v_company constant uuid := '7b000000-0000-4000-8000-0000000000c1';
+  v_member constant uuid := '7b000000-0000-4000-8000-00000000000b';
+  v_thread constant uuid := '7b000000-0000-4000-8000-0000000000e1';
+  v_other_thread constant uuid := '7b000000-0000-4000-8000-0000000000e2';
+  v_created constant timestamptz := '2026-08-05T02:15:00Z';
+  v_quiet_id uuid;
+  v_first constant uuid := gen_random_uuid();
+  v_second constant uuid := gen_random_uuid();
+  v_batch record;
+begin
+  delete from public.pending_notifications where company_id = v_company and user_id = v_member;
+  insert into public.notification_prefs (company_id, user_id, quiet_from, quiet_to, quiet_timezone)
+  values (v_company, v_member, time '22:00', time '07:00', 'America/Toronto')
+  on conflict (user_id, company_id) do update set quiet_from = excluded.quiet_from,
+    quiet_to = excluded.quiet_to, quiet_timezone = excluded.quiet_timezone;
+
+  insert into public.pending_notifications
+    (company_id, user_id, category, conversation_id, delivery_kind, created_at, deliver_at)
+  values (v_company, v_member, 'missed_calls', v_other_thread, 'quiet', v_created, v_created)
+  returning id into v_quiet_id;
+
+  if not exists (select 1 from public.pending_notifications where id = v_quiet_id and deliver_at = '2026-08-05T11:00:00Z')
+     or exists (select 1 from public.api_lease_notification_batches('2026-08-05T10:59:59Z', v_first) where user_id = v_member) then
+    raise exception 'The catch-up alert became due before quiet hours ended';
+  end if;
+
+  update public.notification_prefs set quiet_from = null, quiet_to = null
+   where company_id = v_company and user_id = v_member;
+  insert into public.pending_notifications (company_id, user_id, category, conversation_id, deliver_at)
+  values (v_company, v_member, 'messages_mine', v_thread, now()),
+         (v_company, v_member, 'messages_all', v_thread, now() + interval '5 minutes');
+
+  select * into v_batch from public.api_lease_notification_batches(now(), v_first) where user_id = v_member;
+  if v_batch.notifications is distinct from 3 or v_batch.conversations is distinct from 1
+     or v_batch.counts is distinct from '{"missed_calls":1,"messages_mine":1,"messages_all":1}'::jsonb then
+    raise exception 'The leased digest did not count all three alerts as one batch';
+  end if;
+
+  if exists (select 1 from public.api_lease_notification_batches(now() + interval '1 minute', v_second) where user_id = v_member) then
+    raise exception 'A second run took an active lease';
+  end if;
+
+  if not exists (select 1 from public.api_lease_notification_batches(now() + interval '4 minutes', v_second) where user_id = v_member) then
+    raise exception 'A new run could not take an expired lease';
+  end if;
+  if public.api_consume_notification_batch(v_company, v_member, v_first) then
+    raise exception 'An expired lease still had permission to send';
+  end if;
+
+  if not public.api_consume_notification_batch(v_company, v_member, v_second) then
+    raise exception 'The active lease could not consume its batch';
+  end if;
+  if public.api_consume_notification_batch(v_company, v_member, v_second) then
+    raise exception 'A consumed digest could be sent twice';
+  end if;
+end $$;
+
 rollback;
