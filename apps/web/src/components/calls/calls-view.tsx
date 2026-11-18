@@ -19,7 +19,7 @@ import { isCallEndReason, isCallRouting } from "@loonext/shared";
 import { Grid3x3, PhoneIncoming, X } from "lucide-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { CallRow } from "@/components/calls/call-row";
 import { Dialer } from "@/components/calls/dialer";
