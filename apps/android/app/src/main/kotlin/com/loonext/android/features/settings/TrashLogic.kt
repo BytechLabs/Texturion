@@ -44,18 +44,24 @@ internal fun trashKindLabel(item: TrashItem, say: Say): String = when (item.kind
 
 /** The customer, as a name when there is one and a number when there is not. */
 internal fun trashWhoLabel(item: TrashItem, say: Say): String {
-    val name: String?
-    val phone: String?
-    when (item.kind) {
-        TrashKind.CONVERSATION -> { name = item.conversation?.contact_name; phone = item.conversation?.contact_phone }
-        TrashKind.MESSAGE -> { name = item.message?.contact_name; phone = item.message?.contact_phone }
-        TrashKind.CALL -> { name = item.call?.contact_name; phone = item.call?.contact_phone }
-        TrashKind.CONTACT -> { name = item.contact?.contact_name; phone = item.contact?.contact_phone }
-        else -> { name = item.voicemail?.contact_name; phone = item.voicemail?.contact_phone }
+    val name = when (item.kind) {
+        TrashKind.CONVERSATION -> item.conversation?.contact_name
+        TrashKind.MESSAGE -> item.message?.contact_name
+        TrashKind.CALL -> item.call?.contact_name
+        TrashKind.CONTACT -> item.contact?.contact_name
+        else -> item.voicemail?.contact_name
     }
     return name?.trim()?.takeIf { it.isNotEmpty() }
-        ?: phone?.let { formatPhone(it) }
+        ?: trashContactPhone(item)?.let { formatPhone(it) }
         ?: say("trash.unknownContact", emptyMap())
+}
+
+internal fun trashContactPhone(item: TrashItem): String? = when (item.kind) {
+    TrashKind.CONVERSATION -> item.conversation?.contact_phone
+    TrashKind.MESSAGE -> item.message?.contact_phone
+    TrashKind.CALL -> item.call?.contact_phone
+    TrashKind.CONTACT -> item.contact?.contact_phone
+    else -> item.voicemail?.contact_phone
 }
 
 /** The second line: what is inside, in a few words. */

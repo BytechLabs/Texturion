@@ -464,6 +464,7 @@ export function PortCard({
         {ui.bridge ? (
           <p className="rounded-md bg-primary/5 px-3 py-2 text-sm text-muted-foreground">
             {PORT_STATE_COPY.bridgeAvailable(formatPhone(ui.bridge))}
+            <CopyablePhoneNumber number={ui.bridge} iconOnly className="ms-2 align-middle" />
           </p>
         ) : null}
 

@@ -290,7 +290,8 @@ struct ResponseTimeCard: View {
                                 "count": String(number.leads - number.answered),
                             ]
                         ),
-                        ResponseTimeFormat.format(number.median_seconds)
+                        ResponseTimeFormat.format(number.median_seconds),
+                        phoneNumber: number.number_e164
                     )
                 }
                 if let members = report.by_member {
@@ -329,9 +330,9 @@ struct ResponseTimeCard: View {
     }
 
     @ViewBuilder
-    private func detailRow(_ label: String, _ value: String) -> some View {
+    private func detailRow(_ label: String, _ value: String, phoneNumber: String? = nil) -> some View {
         HStack(alignment: .lastTextBaseline) {
-            Text(label)
+            CopyablePhoneNumber(number: phoneNumber, label: label)
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.muted600)
             Spacer(minLength: 12)

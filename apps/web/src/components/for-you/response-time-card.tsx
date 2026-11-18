@@ -33,6 +33,7 @@
  * there.
  */
 import { ArrowRight, Clock, TrendingDown, TrendingUp } from "lucide-react";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { formatPhone } from "@/lib/format/phone";
 import Link from "next/link";
 import { useState } from "react";
@@ -102,13 +103,18 @@ export function noArcReason(report: ResponseTimeReport, t: Translate): string {
 function Row({
   label,
   value,
+  phoneNumber,
 }: {
   label: string;
   value: string;
+  phoneNumber?: string;
 }) {
   return (
     <div className="flex items-baseline justify-between gap-3 py-1.5">
-      <span className="text-[13px] text-app-muted-2">{label}</span>
+      <span className="text-[13px] text-app-muted-2">
+        {label}
+        {phoneNumber && <CopyablePhoneNumber number={phoneNumber} iconOnly className="ms-2 align-middle" />}
+      </span>
       <span className="text-[13px] tabular-nums text-app-ink">{value}</span>
     </div>
   );
@@ -296,6 +302,7 @@ export function ResponseTimeCard() {
                       number: formatPhone(number.number_e164),
                       count: number.leads - number.answered,
                     })}
+                    phoneNumber={number.number_e164}
                     value={formatResponseTime(number.median_seconds)}
                   />
                 ))}

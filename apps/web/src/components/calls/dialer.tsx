@@ -302,6 +302,7 @@ export function Dialer(props: DialerProps) {
               options={active.map((n) => ({
                 value: n.id,
                 label: t("shell.fromNumber", { number: formatPhone(n.number_e164) }),
+                copyValue: n.number_e164,
               }))}
             />
           )}

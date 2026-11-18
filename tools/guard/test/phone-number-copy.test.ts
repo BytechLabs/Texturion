@@ -38,6 +38,11 @@ function hasCopyAction(source: string, number: string) {
   return [
     `<CopyablePhoneNumber number={${number}}`,
     `copyValue={${number}}`,
+    `copyValue: ${number}`,
+    `copyValue = ${number}`,
+    `phoneNumber={${number}}`,
+    `phoneNumber: ${number}`,
+    `phoneNumber = ${number}`,
     `phoneNumberCopyMenu(${number})`,
     `UIPasteboard.general.string = ${number}`,
     `clipboard.writeText(${number})`,
@@ -48,6 +53,28 @@ function hasCopyAction(source: string, number: string) {
     `ClipData.newPlainText(copyLabel, ${number})`,
   ].some((operation) => source.includes(operation));
 }
+
+const selectNumber = /(?:\b(?:label|title):\s*|\bSelectOption(?:<[^>]+>)?\([^\n]{0,120}?)(?:formatPhone)\(([\w.]+)!?\)/g;
+
+it("keeps formatted number choices copyable", () => {
+  const missing: string[] = [];
+  let checked = 0;
+  for (const { directory, extension } of renderers) {
+    for (const file of readSources(resolve(root, directory), extension)) {
+      const source = readFileSync(file, "utf8");
+      for (const match of source.matchAll(selectNumber)) {
+        const index = match.index ?? 0;
+        const nearby = source.slice(Math.max(index - 140, 0), index + match[0].length + 140);
+        checked += 1;
+        if (!hasCopyAction(nearby, match[1])) {
+          missing.push(`${relative(root, file)}:${source.slice(0, index).split("\n").length} (${match[1]})`);
+        }
+      }
+    }
+  }
+  expect(checked).toBeGreaterThan(0);
+  expect(missing).toEqual([]);
+});
 
 it("requires a copy action for directly rendered phone numbers on all clients", () => {
   const missing: string[] = [];

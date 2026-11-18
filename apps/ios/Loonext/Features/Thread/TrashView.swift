@@ -216,11 +216,13 @@ struct TrashRowView: View {
 
     var body: some View {
         let subject = TrashText.subject(row, locale: appLocale)
+        let phone = row.details?.contact_phone
+        let detail = TrashText.detailLabel(row, locale: appLocale)
         return VStack(alignment: .leading, spacing: 6) {
-            Text(subject)
+            CopyablePhoneNumber(number: phone.flatMap { subject.contains(formatPhone($0)) ? $0 : nil }, label: subject)
                 .font(.golos(15, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
-            Text(TrashText.detailLabel(row, locale: appLocale))
+            CopyablePhoneNumber(number: phone.flatMap { detail == formatPhone($0) ? $0 : nil }, label: detail)
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.muted700)
                 .lineLimit(2)

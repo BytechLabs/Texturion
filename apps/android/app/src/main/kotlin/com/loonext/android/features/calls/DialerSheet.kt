@@ -1,5 +1,6 @@
 package com.loonext.android.features.calls
 
+import androidx.compose.foundation.combinedClickable
 import com.loonext.android.ui.common.IconSize
 import android.Manifest
 import android.content.ActivityNotFoundException
@@ -69,6 +70,7 @@ import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.CopyablePhoneNumber
+import com.loonext.android.ui.common.phoneNumberCopyAction
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -271,6 +273,7 @@ fun DialerSheet(
                                     "number" to formatPhone(number.number_e164),
                                 ),
                                 selected = fromId == number.id,
+                                phoneNumber = number.number_e164,
                                 onClick = {
                                     haptics.tap()
                                     fromId = number.id
@@ -287,6 +290,7 @@ fun DialerSheet(
                             ),
                             dot = BrandColor.LimeBright,
                             textColor = MaterialTheme.colorScheme.secondary,
+                            phoneNumber = number.number_e164,
                             modifier = Modifier.padding(bottom = 6.dp),
                         )
                     }
@@ -743,9 +747,15 @@ private fun DialerMatchRow(
 
 /** Caller-ID picker pill: ink when selected, inset otherwise. */
 @Composable
-private fun FromNumberPill(label: String, selected: Boolean, onClick: () -> Unit) {
+private fun FromNumberPill(label: String, selected: Boolean, phoneNumber: String?, onClick: () -> Unit) {
+    val copyLabel = t("contactsTasks.copyNumber")
+    val copy = if (phoneNumber == null) null else phoneNumberCopyAction(phoneNumber, copyLabel)
     Surface(
-        onClick = onClick,
+        modifier = Modifier.combinedClickable(
+            onClick = onClick,
+            onLongClickLabel = copyLabel,
+            onLongClick = copy,
+        ),
         shape = CircleShape,
         color = if (selected) {
             MaterialTheme.colorScheme.primary

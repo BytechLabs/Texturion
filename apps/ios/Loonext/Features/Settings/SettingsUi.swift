@@ -41,6 +41,7 @@ struct SettingsCard<Content: View>: View {
     /// #719: this card's id in the settings index (see SettingsSearch.swift).
     var anchor: String?
     var description: String?
+    var phoneNumber: String?
     @ViewBuilder let content: () -> Content
 
     @Environment(\.settingsAnchor) private var target
@@ -50,11 +51,13 @@ struct SettingsCard<Content: View>: View {
         title: String,
         anchor: String? = nil,
         description: String? = nil,
+        phoneNumber: String? = nil,
         @ViewBuilder content: @escaping () -> Content
     ) {
         self.title = title
         self.anchor = anchor
         self.description = description
+        self.phoneNumber = phoneNumber
         self.content = content
     }
 
@@ -62,7 +65,7 @@ struct SettingsCard<Content: View>: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(title)
+            CopyablePhoneNumber(number: phoneNumber, label: title)
                 .font(.golos(15, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
             if let description {

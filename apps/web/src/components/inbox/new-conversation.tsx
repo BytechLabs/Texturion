@@ -656,6 +656,7 @@ export function NewConversation() {
               options={activeNumbers.map((number) => ({
                 value: number.id,
                 label: formatPhone(number.number_e164!),
+                copyValue: number.number_e164,
               }))}
             />
           </div>
@@ -876,9 +877,14 @@ function ContactNumberChoice({
         value={selected ?? contact.data.phone_e164}
         onValueChange={(value) => onNumberChange(value === contact.data?.phone_e164 ? null : value)}
         options={[
-          { value: contact.data.phone_e164, label: t("contacts.phoneMain") + " · " + formatPhone(contact.data.phone_e164) },
+          {
+            value: contact.data.phone_e164,
+            label: t("contacts.phoneMain") + " · " + formatPhone(contact.data.phone_e164),
+            copyValue: contact.data.phone_e164,
+          },
           ...phones.map((entry) => ({
             value: entry.phone_e164,
+            copyValue: entry.phone_e164,
             label: [entry.label, formatPhone(entry.phone_e164), entry.opted_out ? t("contacts.phoneOptedOut") : null]
               .filter(Boolean).join(" · "),
           })),

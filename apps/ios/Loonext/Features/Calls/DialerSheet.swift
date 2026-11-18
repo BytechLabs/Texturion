@@ -209,6 +209,7 @@ struct DialerSheet: View {
                                     )
                             }
                             .buttonStyle(.plain)
+                            .phoneNumberCopyMenu(number.number_e164)
                         }
                     }
                     .padding(.horizontal, 24)

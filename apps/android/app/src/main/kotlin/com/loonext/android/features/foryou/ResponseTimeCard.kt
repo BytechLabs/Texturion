@@ -1,5 +1,6 @@
 package com.loonext.android.features.foryou
 
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.clickable
 import com.loonext.android.ui.common.SegmentedSize
@@ -364,6 +365,7 @@ private fun ResponseTimeBody(
                         "count" to (number.leads - number.answered).toString(),
                     ),
                     ResponseTimeFormat.format(number.median_seconds),
+                    phoneNumber = number.number_e164,
                 )
             }
             report.by_member?.forEach { member ->
@@ -398,13 +400,14 @@ fun buildUnansweredLine(count: Int, locale: String): String = AppStrings.transla
 )
 
 @Composable
-private fun DetailRow(label: String, value: String) {
+private fun DetailRow(label: String, value: String, phoneNumber: String? = null) {
     Row(
         Modifier.fillMaxWidth().padding(vertical = 4.dp),
         verticalAlignment = Alignment.Bottom,
     ) {
-        Text(
-            label,
+        CopyablePhoneNumber(
+            phoneNumber,
+            label = label,
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.weight(1f),

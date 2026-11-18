@@ -8,6 +8,18 @@ import { useT } from "@/i18n/provider";
 import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
+export function useCopyPhoneNumber() {
+  const t = useT();
+  return async (number: string) => {
+    try {
+      await navigator.clipboard.writeText(number);
+      toast.success(t("thread.numberCopied"));
+    } catch {
+      toast.error(t("thread.copyFailed"));
+    }
+  };
+}
+
 export function CopyablePhoneNumber({
   number,
   label = formatPhone(number),
@@ -21,15 +33,11 @@ export function CopyablePhoneNumber({
 }) {
   const t = useT();
   const copyLabel = t("recordMenu.copyNumber");
+  const copyPhoneNumber = useCopyPhoneNumber();
 
   async function copy(event: MouseEvent<HTMLButtonElement>) {
     event.stopPropagation();
-    try {
-      await navigator.clipboard.writeText(number);
-      toast.success(t("thread.numberCopied"));
-    } catch {
-      toast.error(t("thread.copyFailed"));
-    }
+    await copyPhoneNumber(number);
   }
 
   return (

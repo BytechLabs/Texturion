@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { useT } from "@/i18n/provider";
 import { useCreatePortRequestForCompany } from "@/lib/api/porting";
 import { ApiError } from "@/lib/api/error";
@@ -192,27 +193,30 @@ export default function PortTimingPage() {
         </div>
 
         {/* Opt-in tide-me-over number (D16 / §8.1 step 6), default OFF. */}
-        <label
-          htmlFor={bridgeId}
-          aria-labelledby={bridgeLabelId}
-          className="flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm"
-        >
-          <Checkbox
-            id={bridgeId}
-            checked={wantsBridge}
-            onCheckedChange={(checked) => setWantsBridge(checked === true)}
-            className="mt-0.5"
-            aria-label={t("onboarding.portBridgeAria")}
-          />
-          <span className="space-y-0.5">
-            <span id={bridgeLabelId} className="block font-medium">
-              {t("onboarding.portBridgeLabel")}
+        <div className="flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm">
+          <label
+            htmlFor={bridgeId}
+            aria-labelledby={bridgeLabelId}
+            className="flex flex-1 items-start gap-3"
+          >
+            <Checkbox
+              id={bridgeId}
+              checked={wantsBridge}
+              onCheckedChange={(checked) => setWantsBridge(checked === true)}
+              className="mt-0.5"
+              aria-label={t("onboarding.portBridgeAria")}
+            />
+            <span className="space-y-0.5">
+              <span id={bridgeLabelId} className="block font-medium">
+                {t("onboarding.portBridgeLabel")}
+              </span>
+              <span className="block text-[13px] text-muted-foreground">
+                {t("onboarding.portBridgeHint", { number: display })}
+              </span>
             </span>
-            <span className="block text-[13px] text-muted-foreground">
-              {t("onboarding.portBridgeHint", { number: display })}
-            </span>
-          </span>
-        </label>
+          </label>
+          {port.phoneE164 && <CopyablePhoneNumber number={port.phoneE164} iconOnly />}
+        </div>
 
         {error ? (
           <p role="alert" className="text-sm text-destructive">

@@ -35,13 +35,14 @@ extension View {
     }
 }
 
-private struct CopyPhoneNumberAction: View {
+struct CopyPhoneNumberAction: View {
     let number: String
+    var label: String? = nil
 
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
-        Button(AppStrings.translate(appLocale, "contactsTasks.copyNumber"), systemImage: "doc.on.doc") {
+        Button(label ?? AppStrings.translate(appLocale, "contactsTasks.copyNumber"), systemImage: "doc.on.doc") {
             UIPasteboard.general.string = number
         }
     }

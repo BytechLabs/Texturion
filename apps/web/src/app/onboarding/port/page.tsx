@@ -9,6 +9,7 @@ import { portabilityFailCopy, portabilityOkCopy } from "@/components/porting/cop
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { useT } from "@/i18n/provider";
 import { useCreateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
@@ -176,6 +177,7 @@ export default function PortNumberPage() {
             />
             <p className="text-sm">
               {portabilityOkCopy(e164 ? formatPhone(e164) : raw)}
+              {e164 && <CopyablePhoneNumber number={e164} iconOnly className="ms-2 align-middle" />}
             </p>
           </div>
         ) : null}

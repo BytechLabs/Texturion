@@ -238,6 +238,7 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
                   // *Applying: Smart Defaults.*
                   {
                     value: DEFAULT_LINE,
+                    copyValue: firstLine?.number_e164,
                     label: firstLine
                       ? t("settings.widgetLineDefaultNamed", {
                           number: formatPhone(firstLine.number_e164 ?? ""),
@@ -247,6 +248,7 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
                   ...explicitLines.map((number) => ({
                     value: number.id,
                     label: formatPhone(number.number_e164 ?? ""),
+                    copyValue: number.number_e164,
                   })),
                 ]}
               />

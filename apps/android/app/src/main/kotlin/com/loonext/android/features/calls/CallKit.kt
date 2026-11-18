@@ -1,5 +1,7 @@
 package com.loonext.android.features.calls
 
+import androidx.compose.material3.LocalTextStyle
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -330,6 +332,7 @@ fun LineStatusRow(
     dot: Color,
     textColor: Color,
     modifier: Modifier = Modifier,
+    phoneNumber: String? = null,
 ) {
     Row(
         modifier,
@@ -341,6 +344,11 @@ fun LineStatusRow(
                 .size(6.dp)
                 .background(dot, CircleShape),
         )
-        Text(text, fontSize = 11.sp, fontWeight = FontWeight.SemiBold, color = textColor)
+        CopyablePhoneNumber(
+            phoneNumber,
+            label = text,
+            style = LocalTextStyle.current.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold),
+            color = textColor,
+        )
     }
 }

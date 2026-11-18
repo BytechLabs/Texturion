@@ -438,6 +438,7 @@ private fun NewConversationLoaded(
                                     SelectOption(
                                         selectedContact.phone_e164,
                                         t("contactsTasks.phoneMain") + " · " + formatPhone(selectedContact.phone_e164),
+                                        copyValue = selectedContact.phone_e164,
                                     ),
                                 ) + selectedContact.phones.map { phone ->
                                     val label = listOfNotNull(
@@ -445,7 +446,7 @@ private fun NewConversationLoaded(
                                         formatPhone(phone.phone_e164),
                                         t("contactsTasks.phoneOptedOut").takeIf { phone.opted_out },
                                     ).joinToString(" · ")
-                                    SelectOption(phone.phone_e164, label)
+                                    SelectOption(phone.phone_e164, label, copyValue = phone.phone_e164)
                                 },
                                 selected = alternate?.phone_e164 ?: selectedContact.phone_e164,
                                 label = t("contactsTasks.numberField"),
@@ -470,8 +471,9 @@ private fun NewConversationLoaded(
                             else -> null
                         }
                         if (hint != null) {
-                            Text(
-                                hint,
+                            CopyablePhoneNumber(
+                                rawE164?.takeIf { contactMatches.isNotEmpty() },
+                                label = hint,
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 10.5.sp,
                                 ),
@@ -519,7 +521,7 @@ private fun NewConversationLoaded(
                             modifier = Modifier.padding(end = 8.dp),
                         )
                         SelectField(
-                            options = numbers.map { SelectOption(it.id, formatPhone(it.number_e164)) },
+                            options = numbers.map { SelectOption(it.id, formatPhone(it.number_e164), copyValue = it.number_e164) },
                             selected = fromNumberId,
                             label = t("thread.fromLabel"),
                             onSelect = { fromNumberId = it },

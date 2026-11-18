@@ -12,6 +12,7 @@ import { NumberPicker, isFullNumber } from "@/components/numbers/number-picker";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { SegmentedControl } from "@/components/ui/segmented-control";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { useOnboardingUpdateCompany } from "@/lib/api/onboarding";
@@ -215,7 +216,11 @@ export function WorkspaceSummary({
                       ? t("onboarding.countryUs")
                       : t("onboarding.countryCa")}
                     {" · "}
-                    <span className="tabular-nums">{numberLabel}</span>
+                    {chosenNumber ? (
+                      <CopyablePhoneNumber number={chosenNumber} label={numberLabel} className="tabular-nums" />
+                    ) : (
+                      <span className="tabular-nums">{numberLabel}</span>
+                    )}
                     {country === "CA" && usTexting ? (
                       <span className="text-muted-foreground">
                         {" "}
