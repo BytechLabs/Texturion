@@ -85,7 +85,7 @@ export const UNIT_COST_CENTS = {
    * Inbound MMS receive ($0.005) rides within this conservatism; its stored
    * media draws storage + egress cost, counted via those units.
    */
-  inboundSegment: 1.0,
+  inboundSegment: 1,
   /** Forwarded voice minute: ~$0.01–0.012 for BOTH legs of one forwarded
    *  minute; high end (PRICING-AUDIT §4). D36: multiplied against the
    *  forward-leg (dialed) minute sum — the same measure the 1¢/min overage

@@ -167,9 +167,7 @@ describe("GET /v1/calls", () => {
     });
     expect(res.status).toBe(200);
     const rpc = sb.find("POST", "/rest/v1/rpc/api_list_calls")[0];
-    expect((rpc.body as { p_hidden_number_ids: unknown }).p_hidden_number_ids).toBe(
-      null,
-    );
+    expect((rpc.body as { p_hidden_number_ids: unknown }).p_hidden_number_ids).toBeNull();
     expect(sb.find("POST", "/rest/v1/rpc/member_number_levels")).toHaveLength(0);
   });
 

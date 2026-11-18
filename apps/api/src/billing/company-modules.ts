@@ -7,8 +7,6 @@
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
-import {
-} from "./plans";
 import { isPlanModule, PLAN_MODULES } from './modules';
 import type { PlanModule } from './modules';
 

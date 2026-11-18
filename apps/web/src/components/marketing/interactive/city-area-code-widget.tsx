@@ -85,10 +85,8 @@ export function CityAreaCodeWidget() {
   // Keep the active option in view when it moves via the keyboard.
   useEffect(() => {
     if (!open || activeIndex < 0) return;
-    const list = listRef.current;
-    list
-      ?.querySelectorAll<HTMLElement>('[role="option"]')
-      [activeIndex]?.scrollIntoView({ block: "nearest" });
+    const options = listRef.current?.querySelectorAll<HTMLElement>('[role="option"]');
+    options?.[activeIndex]?.scrollIntoView({ block: "nearest" });
   }, [activeIndex, open]);
 
   const pick = (r: AreaCodeResult) => {

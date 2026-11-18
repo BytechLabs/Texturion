@@ -11,8 +11,6 @@ import {
   useWrapUpRecorder,
 } from "./use-wrap-up-recorder";
 
-afterEach(cleanup);
-
 /**
  * #507 Phase 1 — dictation is a shortcut and typing is the product, so every
  * one of these paths has to end with a SENTENCE and a usable composer. The
@@ -37,6 +35,7 @@ function stubMediaDevices(getUserMedia: () => Promise<MediaStream>): void {
 const restores: (() => void)[] = [];
 afterEach(() => {
   while (restores.length > 0) restores.pop()?.();
+  cleanup();
 });
 
 describe(canRecordAudio, () => {

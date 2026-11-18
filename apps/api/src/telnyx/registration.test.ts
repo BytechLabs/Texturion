@@ -1704,24 +1704,22 @@ describe("getSendGates truth table (contract)", () => {
     },
   ];
 
-  for (const testCase of CASES) {
-    it(testCase.name, async () => {
-      const { env, rest } = setup(testCase.company);
-      if (testCase.campaign) {
-        rest.insert("messaging_registrations", {
-          company_id: COMPANY_ID,
-          kind: "campaign",
-          data: CAMPAIGN_DATA,
-          ...testCase.campaign,
-        });
-      }
-      const gates = await getSendGates(env, COMPANY_ID);
-      expect(gates.subscriptionActive).toBe(testCase.expected.subscriptionActive);
-      expect(gates.usApproved).toBe(testCase.expected.usApproved);
-      // §4.2: CA-bound sends carry no registration gate — always true.
-      expect(gates.caAllowed).toBe(true);
-    });
-  }
+  it.each(CASES)("$name", async ({ company, campaign, expected }) => {
+    const { env, rest } = setup(company);
+    if (campaign) {
+      rest.insert("messaging_registrations", {
+        company_id: COMPANY_ID,
+        kind: "campaign",
+        data: CAMPAIGN_DATA,
+        ...campaign,
+      });
+    }
+    const gates = await getSendGates(env, COMPANY_ID);
+    expect(gates.subscriptionActive).toBe(expected.subscriptionActive);
+    expect(gates.usApproved).toBe(expected.usApproved);
+    // §4.2: CA-bound sends carry no registration gate — always true.
+    expect(gates.caAllowed).toBe(true);
+  });
 });
 
 describe("nudgeSoleProprietorOtp (§4.2, §11)", () => {
