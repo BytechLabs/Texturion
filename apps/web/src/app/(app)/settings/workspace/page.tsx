@@ -212,7 +212,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
     );
   }
 
-  const brand = registration.data.brand;
+  const { brand } = registration.data;
   if (!brand) {
     return (
       <SettingsCard id="business-identification" title={title} description={description}>
@@ -231,7 +231,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
     );
   }
 
-  const data = brand.data;
+  const { data } = brand;
   const legalName = brand.sole_proprietor
     ? `${field(data, "firstName")} ${field(data, "lastName")}`.trim()
     : field(data, "companyName");
@@ -300,7 +300,7 @@ function TimezoneCard({ company }: { company: CompanyView }) {
   const update = useUpdateCompany();
   const [error, setError] = useState<string | null>(null);
 
-  const timezone = company.timezone;
+  const { timezone } = company;
   const localTime = new Intl.DateTimeFormat(t.locale, {
     hour: "numeric",
     minute: "2-digit",

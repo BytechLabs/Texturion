@@ -38,7 +38,7 @@ app.route("/webhooks/telnyx", telnyxWebhookRoute);
 
 beforeEach(async () => {
   const keys = await telnyxSigningKeys();
-  privateKey = keys.privateKey;
+  ({ privateKey } = keys);
   env = { ...completeEnv(), TELNYX_PUBLIC_KEY: keys.publicKeyB64 };
   resetCaptures();
 });
@@ -566,7 +566,7 @@ describe("inbound pipeline — opt-out keywords (§5)", () => {
       opted_out: true,
     });
     expect(optOutRevoke.calls).toHaveLength(1);
-    const {url} = optOutRevoke.calls[0];
+    const [{url}] = optOutRevoke.calls;
     expect(url.searchParams.get("phone_e164")).toBe("eq.+16135551000");
     expect(url.searchParams.get("revoked_at")).toBe("is.null");
     expect(events.calls).toHaveLength(1);

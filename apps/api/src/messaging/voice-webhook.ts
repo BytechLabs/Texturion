@@ -331,7 +331,7 @@ export function parseOutboundSessionId(
   if (!decoded) return null;
   const parts = decoded.split("|");
   if (parts[0] !== OUTBOUND_CUSTOMER_STATE) return null;
-  const s = parts[3];
+  const { 3: s } = parts;
   return s && OUTBOUND_SESSION_UUID_RE.test(s) ? s : null;
 }
 
@@ -358,8 +358,8 @@ export function parseOutboundPlacerState(
   if (!decoded) return null;
   const parts = decoded.split("|");
   if (parts[0] !== OUTBOUND_PLACER_STATE) return null;
-  const sessionId = parts[1];
-  const userId = parts[2];
+  const [, sessionId] = parts;
+  const { 2: userId } = parts;
   if (!sessionId || !OUTBOUND_SESSION_UUID_RE.test(sessionId) || !userId) {
     return null;
   }

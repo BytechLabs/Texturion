@@ -457,7 +457,7 @@ describe("purgeClosedWorkspaces — the export blob (#378)", () => {
 
     await purgeClosedWorkspaces(env);
 
-    const query = w.sb.find("GET", "/rest/v1/data_exports")[0];
+    const [query] = w.sb.find("GET", "/rest/v1/data_exports");
     expect(query?.url.href).not.toContain("expires_at");
     expect(w.removed).toContain(`${COMPANY_ID}/old/messages.csv`);
   });

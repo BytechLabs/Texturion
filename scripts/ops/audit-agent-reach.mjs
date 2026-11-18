@@ -239,9 +239,9 @@ export function parseEnvText(text) {
   for (const line of text.split(/\r?\n/)) {
     const match = /^\s*(#+\s*)?(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$/.exec(line);
     if (!match) continue;
-    let value = match[3];
+    let { 3: value } = match;
     const quoted = /^(["'])(.*)\1$/.exec(value);
-    if (quoted) value = quoted[2];
+    if (quoted) ({ 2: value } = quoted);
     else value = value.replace(/\s+#.*$/, "");
     entries.push({ name: match[2], value, commented: Boolean(match[1]) });
   }

@@ -305,7 +305,7 @@ describe(buildDataExports, () => {
             ]
           : [],
       onWrite: (body) => {
-        if (body.status) status = body.status;
+        if (body.status) ({ status } = body);
       },
     });
     const mails: string[] = [];

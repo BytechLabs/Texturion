@@ -75,7 +75,7 @@ describe("GET /v1/api-keys", () => {
     expect(body.cap).toBe(10);
     expect(body.live).toBe(1);
 
-    const call = sb.find("GET", "/rest/v1/api_keys")[0];
+    const [call] = sb.find("GET", "/rest/v1/api_keys");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     // The column list is the enforcement. Anything that can read `token_hash`
     // can check a stolen token against it offline.
@@ -130,7 +130,7 @@ describe("POST /v1/api-keys", () => {
     // 32 bytes of base64url, unpadded.
     expect(body.token_once.length).toBeGreaterThan(40);
 
-    const insert = sb.find("POST", "/rest/v1/api_keys")[0];
+    const [insert] = sb.find("POST", "/rest/v1/api_keys");
     const written = insert.body as {
       token_hash: string;
       token_prefix: string;
@@ -245,7 +245,7 @@ describe("DELETE /v1/api-keys/:id", () => {
     });
     expect(res.status).toBe(204);
 
-    const call = sb.find("PATCH", "/rest/v1/api_keys")[0];
+    const [call] = sb.find("PATCH", "/rest/v1/api_keys");
     const patch = call.body as { revoked_at: string; revoked_by: string };
     expect(patch.revoked_at).toBeTruthy();
     expect(patch.revoked_by).toBeTruthy();

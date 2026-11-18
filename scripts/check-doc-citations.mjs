@@ -106,7 +106,7 @@ for (const root of ROOTS) {
     const lines = text.split(/\r?\n/);
     lines.forEach((line, index) => {
       for (const match of line.matchAll(CITATION)) {
-        const cited = match[1];
+        const [, cited] = match;
         if (isGlob(cited)) continue;
         checked += 1;
         if (!existsSync(cited.split("/").join(sep))) {

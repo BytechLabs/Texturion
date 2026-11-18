@@ -196,7 +196,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     // The email went out — the UI shows the plain "Invite sent" confirmation.
     expect(await res.json()).toMatchObject({ email_sent: true });
 
-    const insert = sb.find("POST", "/rest/v1/invites")[0];
+    const [insert] = sb.find("POST", "/rest/v1/invites");
     expect(insert.body).toEqual({
       company_id: COMPANY_ID,
       email: "new@crew.example",
@@ -206,7 +206,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       note: null,
       invited_by: auth.subject,
     });
-    const email = sb.find("POST", "/auth/v1/invite")[0];
+    const [email] = sb.find("POST", "/auth/v1/invite");
     expect(email.body).toMatchObject({ email: "new@crew.example" });
     // The redirect carries the invite id the accept screen posts back.
     expect(email.url.searchParams.get("redirect_to")).toBe(
@@ -214,7 +214,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     );
 
     // The pending-invite count only counted unexpired pending rows.
-    const inviteCount = sb.find("HEAD", "/rest/v1/invites")[0];
+    const [inviteCount] = sb.find("HEAD", "/rest/v1/invites");
     expect(inviteCount.url.searchParams.get("accepted_at")).toBe("is.null");
     expect(inviteCount.url.searchParams.get("revoked_at")).toBe("is.null");
     expect(inviteCount.url.searchParams.get("expires_at")).toMatch(/^gt\./);
@@ -391,7 +391,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "new@crew.example", role: "member" },
     });
     expect(res.status).toBe(500);
-    const rollback = sb.find("DELETE", "/rest/v1/invites")[0];
+    const [rollback] = sb.find("DELETE", "/rest/v1/invites");
     expect(rollback.url.searchParams.get("id")).toBe(`eq.${INVITE_ID}`);
   });
 
@@ -551,7 +551,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
       email_enabled: true,
       push_enabled: true,
     });
-    const stamp = sb.find("PATCH", "/rest/v1/invites")[0];
+    const [stamp] = sb.find("PATCH", "/rest/v1/invites");
     expect(
       typeof (stamp.body as Record<string, unknown>).accepted_at,
     ).toBe("string");
@@ -1190,7 +1190,7 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
 
     // #276: deactivate + reassign are ONE transaction. A crash between them is
     // exactly how work ended up pointing at people who had gone.
-    const rpc = sb.find("POST", "/rest/v1/rpc/offboard_member")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/offboard_member");
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_member_id: TARGET_MEMBER_ID,
@@ -1424,7 +1424,7 @@ describe("GET /v1/invites + DELETE /v1/invites/:id (O/A)", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(revoke.status).toBe(204);
-    const patch = sb.find("PATCH", "/rest/v1/invites")[0];
+    const [patch] = sb.find("PATCH", "/rest/v1/invites");
     expect(typeof (patch.body as Record<string, unknown>).revoked_at).toBe(
       "string",
     );
@@ -1532,7 +1532,7 @@ describe("DELETE /v1/members/me (#406 — leaving on your own)", () => {
     // Released to UNASSIGNED, not handed to a name: the person leaving should
     // not be choosing who inherits, and unassigned shows up in triage rather
     // than pointing at somebody who has gone.
-    const rpc = sb.find("POST", "/rest/v1/rpc/offboard_member")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/offboard_member");
     expect((rpc.body as { p_reassign_to: string | null }).p_reassign_to).toBeNull();
     expect(await res.json()).toMatchObject({
       conversations_released: 2,

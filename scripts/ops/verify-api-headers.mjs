@@ -115,7 +115,10 @@ function expectedHeaders() {
   const expected = {};
   for (const line of block[1].split("\n")) {
     const entry = line.match(/^\s*"([^"]+)":\s*"([^"]*)",?\s*$/);
-    if (entry) expected[entry[1]] = entry[2];
+    if (entry) {
+      const [, header, value] = entry;
+      expected[header] = value;
+    }
   }
 
   const fallback = source.match(
@@ -125,7 +128,8 @@ function expectedHeaders() {
     console.error(`Could not find DEFAULT_CACHE_CONTROL in ${SOURCE}.`);
     process.exit(2);
   }
-  expected["Cache-Control"] = fallback[1];
+  const [, cacheControl] = fallback;
+  expected["Cache-Control"] = cacheControl;
 
   // A parse that silently found nothing would pass everything. Four is what the
   // module holds today; the floor is "more than the Cache-Control we just added".

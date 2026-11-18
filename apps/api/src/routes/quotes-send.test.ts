@@ -195,7 +195,7 @@ describe("#287 POST /quotes/:id/send", () => {
     // message the customer received, not the row.
     const harness = buildHarness();
     await harness.send();
-    const quote = harness.rest.rows("quotes")[0];
+    const [quote] = harness.rest.rows("quotes");
     expect(quote.message_id).toBe(MESSAGE_ID);
   });
 

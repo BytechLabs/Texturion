@@ -1285,7 +1285,7 @@ async function loadEnrichmentContext(
       .limit(1),
     "enrichment company lookup",
   );
-  const company = companyRows[0];
+  const [company] = companyRows;
 
   let conversationId = opts.conversationId ?? null;
   if (!conversationId && opts.messageId) {
@@ -2063,7 +2063,7 @@ tasksRoutes.post(
     const companyId = c.get("companyId");
     const userId = c.get("userId");
 
-    let ids = body.ids;
+    let { ids } = body;
     if (ids === undefined) {
       // Filter mode. The SAME builder the list uses, so what gets acted on is
       // what was on screen.
@@ -2481,7 +2481,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
       .limit(1),
     "task detail",
   );
-  const row = rows[0];
+  const [row] = rows;
   if (!row) {
     return errorResponse(c, "not_found", "No such task.");
   }
@@ -3144,7 +3144,7 @@ tasksRoutes.post("/tasks/:id/tags", requireCapability("conversations.note"), asy
       "tag lookup",
     );
     if (!rows[0]) return errorResponse(c, "not_found", "No such tag.");
-    tag = rows[0];
+    ([tag] = rows);
   } else {
     const rows = unwrap<
       { id: string; name: string; color: string | null; refused: boolean; reason: string | null }[]
@@ -3171,7 +3171,7 @@ tasksRoutes.post("/tasks/:id/tags", requireCapability("conversations.note"), asy
       );
     }
     if (!rows[0]) throw new Error("tag find-or-create: no row returned");
-    tag = rows[0];
+    ([tag] = rows);
   }
 
   const labels = await setTaskTags(db, { companyId, taskId: id, userId, add: [tag.id] });

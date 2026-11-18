@@ -1047,7 +1047,7 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     const body = (await response.json()) as {
       data: Record<string, unknown>[];
     };
-    const row = body.data[0];
+    const [row] = body.data;
     // Derived + projected fields.
     expect(row.done).toBe(false);
     expect(row.status).toBe("open");
@@ -2115,7 +2115,7 @@ describe("POST /v1/tasks/bulk (#478)", () => {
     });
     expect(response.status).toBe(200);
     expect(list.calls).toHaveLength(1);
-    const url = list.calls[0].url;
+    const [{ url }] = list.calls;
     // The status filter lands on the effective done state (T2/D64: there is no
     // task status column), and overdue adds the past-due bound.
     expect(url.searchParams.get("task_done_at")).toBe("is.null");

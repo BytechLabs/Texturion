@@ -75,7 +75,7 @@ describe(runDailySummary, () => {
       p_now: QUARTER_TO_EIGHT.toISOString(),
       p_limit: 50,
     });
-    const claim = sb.find("PATCH", "/rest/v1/notification_prefs")[0];
+    const [claim] = sb.find("PATCH", "/rest/v1/notification_prefs");
     expect(claim?.body).toEqual({ summary_sent_on: "2026-08-05" });
     expect(claim?.url.searchParams.get("or")).toContain("summary_sent_on.lt.2026-08-05");
     expect(

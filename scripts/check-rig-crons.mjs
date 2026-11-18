@@ -126,7 +126,7 @@ export function cronJobsFromSource(text) {
   let current = null;
   for (const match of body.matchAll(/"([^"\n]+)"\s*:\s*\[|\bjob\(\s*"([^"\n]+)"/g)) {
     if (match[1] !== undefined) {
-      current = match[1];
+      ([, current] = match);
       jobs.set(current, []);
     } else if (current !== null) {
       jobs.get(current).push(match[2]);
@@ -265,7 +265,7 @@ function checkClassFields(entry, at, problems, families, sourceAt) {
       problems.push(`${where}: telnyx_paths must list /v2/ paths`);
     } else if (families !== null) {
       for (const path of refusal.telnyx_paths) {
-        const family = path.slice("/v2/".length).split("/")[0];
+        const [family] = path.slice("/v2/".length).split("/");
         if (!families.includes(family)) {
           problems.push(
             `${where}: rig mode does not refuse ${path} (policy.ts refuses ${families.join(", ")}), ` +

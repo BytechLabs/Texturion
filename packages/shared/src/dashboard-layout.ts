@@ -108,7 +108,7 @@ function isPanelSize(value: unknown): value is PanelSize {
  */
 export function normaliseDashboardLayout(raw: unknown): DashboardLayout | null {
   if (typeof raw !== "object" || raw === null) return null;
-  const panels = (raw as { panels?: unknown }).panels;
+  const { panels } = (raw as { panels?: unknown });
   if (!Array.isArray(panels)) return null;
   const seen = new Set<LayoutPanelId>();
   const clean: LayoutEntry[] = [];
@@ -180,7 +180,7 @@ export function placePanels(
     // One column never leaves a hole, so the loop above always chooses.
     const placed = chosen as PanelPlacement;
     placements.push(placed);
-    for (let column = placed.column; column < placed.column + placed.span; column++) {
+    for (let { column } = placed; column < placed.column + placed.span; column++) {
       nextTop[column] = placed.top + box.height + gap;
     }
   }

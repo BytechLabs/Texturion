@@ -199,7 +199,7 @@ describe("POST /q/:token/accept", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
 
-    const revoke = sb.find("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject")[0];
+    const [revoke] = sb.find("POST", "/rest/v1/rpc/api_revoke_public_links_for_subject");
     // #571: the company id is required and first. Without it this revoked any
     // workspace's live link from a subject uuid alone.
     expect((revoke.body as { p_company_id: string }).p_company_id).toBe(COMPANY_ID);
@@ -361,7 +361,7 @@ describe("POST /q/:token/accept", () => {
     stubFetch(sb.route);
 
     await call(`/q/${TOKEN}/accept`, { method: "POST" });
-    const write = sb.find("PATCH", "/rest/v1/quotes")[0];
+    const [write] = sb.find("PATCH", "/rest/v1/quotes");
     expect(write.url.searchParams.get("status")).toBe("in.(sent,viewed)");
     expect(write.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
@@ -413,7 +413,7 @@ describe("#581 the view token is not the accept token", () => {
     // And asserted at the source rather than only through the status, so this
     // fails CLEANLY if the route ever asks for the view purpose again — a 404
     // can be reached several ways, and only one of them is this one.
-    const resolve = sb.find("POST", "/rest/v1/rpc/api_resolve_public_link")[0];
+    const [resolve] = sb.find("POST", "/rest/v1/rpc/api_resolve_public_link");
     expect((resolve?.body as { p_purpose: string }).p_purpose).toBe("quote_accept");
   });
 
@@ -445,7 +445,7 @@ describe("#581 the view token is not the accept token", () => {
 
     await call(`/q/${TOKEN}`);
 
-    const mint = sb.find("POST", "/rest/v1/rpc/api_mint_public_link")[0];
+    const [mint] = sb.find("POST", "/rest/v1/rpc/api_mint_public_link");
     const body = mint?.body as { p_purpose: string; p_max_uses: number | null };
     expect(body.p_purpose).toBe("quote_accept");
     expect(body.p_max_uses).toBe(1);

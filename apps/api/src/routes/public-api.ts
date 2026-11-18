@@ -782,7 +782,7 @@ publicApiRoutes.post(
       throw new Error(`public webhook subscribe failed: ${error.message}`);
     }
 
-    const row = (data as unknown as Record<string, unknown>[])[0];
+    const [row] = (data as unknown as Record<string, unknown>[]);
     return c.json({ ...row, secret_once: secret }, 201);
   },
 );

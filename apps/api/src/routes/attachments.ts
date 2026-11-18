@@ -125,7 +125,7 @@ async function resolveNoteOwner(
       .limit(1),
     "note owner lookup",
   );
-  const note = rows[0];
+  const [note] = rows;
   if (!note || note.direction !== "note") return null;
   return { conversationId: note.conversation_id };
 }
@@ -157,7 +157,7 @@ async function resolveCommentOwner(
       .limit(1),
     "comment owner lookup",
   );
-  const comment = rows[0];
+  const [comment] = rows;
   if (!comment?.tasks || comment.tasks.deleted_at !== null) return null;
   if (comment.author_user_id !== userId) return null;
   return { conversationId: comment.tasks.conversation_id };
@@ -858,7 +858,7 @@ attachmentsRoutes.delete("/attachments/:id", requireCapability("conversations.no
       .limit(1),
     "attachment lookup",
   );
-  const row = live[0];
+  const [row] = live;
   if (!row) return errorResponse(c, "not_found", "No such attachment.");
 
   // #106: deleting an attachment is a note-level action on its conversation —

@@ -297,7 +297,7 @@ describe("GET /v1/numbers", () => {
     const res = await harness.request("/v1/numbers");
     expect(res.status).toBe(200);
     const body = (await res.json()) as { data: Record<string, unknown>[] };
-    const row = body.data[0];
+    const [row] = body.data;
     expect(row).toMatchObject({
       status: "provision_failed",
       failure_reason: "no_inventory",
@@ -616,7 +616,7 @@ describe("POST /v1/numbers/provision", () => {
 
     // The saga started from S2: the existing profile was reused.
     expect(harness.telnyx.callsTo("POST", /messaging_profiles/)).toHaveLength(0);
-    const order = harness.telnyx.callsTo("POST", /number_orders/)[0];
+    const [order] = harness.telnyx.callsTo("POST", /number_orders/);
     expect(order.body).toMatchObject({
       messaging_profile_id: "profile-1",
       customer_reference: COMPANY_ID,
@@ -675,7 +675,7 @@ describe("POST /v1/numbers/provision", () => {
     expect(
       harness.telnyx.callsTo("GET", /available_phone_numbers/),
     ).toHaveLength(0);
-    const order = harness.telnyx.callsTo("POST", /number_orders/)[0];
+    const [order] = harness.telnyx.callsTo("POST", /number_orders/);
     expect(order.body).toMatchObject({
       phone_numbers: [{ phone_number: "+16465550777" }],
     });
@@ -1796,7 +1796,7 @@ describe("GET /v1/numbers/access/me (#286)", () => {
       { phone_number_id: HIDDEN, level: "none", decided_by: "no-match", principal: null },
     ]);
     const res = await harness.request("/v1/numbers/access/me");
-    const row = ((await res.json()) as { numbers: Record<string, unknown>[] }).numbers[0];
+    const [row] = ((await res.json()) as { numbers: Record<string, unknown>[] }).numbers;
     expect(Object.keys(row).sort()).toEqual(
       ["decided_by", "level", "number_e164", "phone_number_id", "principal"],
     );

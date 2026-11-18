@@ -271,20 +271,20 @@ describe("GET /v1/usage", () => {
     // bearing half — it means "this period is still running", and a `now()`
     // here instead would trim the period by whichever clock answered and quietly
     // drop the sends that happened in the gap.
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_usage_window")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_usage_window");
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_from: "2026-06-15T00:00:00+00:00",
       p_to: null,
     });
     // DESIGN G8: 6-month history bars ride along on the same response.
-    const historyRpc = sb.find("POST", "/rest/v1/rpc/api_usage_history")[0];
+    const [historyRpc] = sb.find("POST", "/rest/v1/rpc/api_usage_history");
     expect(historyRpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_months: 6,
     });
     // D30: the storage arm rides along too, from the exact-sum RPC.
-    const storageRpc = sb.find("POST", "/rest/v1/rpc/api_storage_usage")[0];
+    const [storageRpc] = sb.find("POST", "/rest/v1/rpc/api_storage_usage");
     expect(storageRpc.body).toEqual({ p_company_id: COMPANY_ID });
   });
 

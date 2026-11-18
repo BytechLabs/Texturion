@@ -73,7 +73,7 @@ async function main(): Promise<void> {
     return;
   }
 
-  const row = rows[0];
+  const [row] = rows;
   const fakeE164 =
     row.number_e164 ?? `+1512555${String(Math.floor(1000 + Date.now() % 9000))}`;
   await rest(`phone_numbers?id=eq.${row.id}`, {

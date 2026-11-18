@@ -1175,7 +1175,7 @@ function normalizePortingEvent(event: unknown): {
     (event as { data?: unknown }).data !== null &&
     typeof (event as { data?: unknown }).data === "object"
   ) {
-    data = (event as { data: PortingEventEnvelope }).data;
+    ({ data } = (event as { data: PortingEventEnvelope }));
   }
   if (typeof data.event_type !== "string") return null;
   const payload =
@@ -1240,7 +1240,7 @@ export async function handlePortingEvent(
     let focDatetimeActual: string | null = null;
     if (next === "foc-date-confirmed") {
       const order = await getPortingOrder(env, orderId);
-      focDatetimeActual = order.focDatetimeActual;
+      ({ focDatetimeActual } = order);
     }
     await applyStatusTransition(env, db, row, next, {
       statusDetails: statusObj.details,

@@ -264,10 +264,10 @@ paymentAccountRoutes.post(
 
     let row = await loadConnectAccount(db, companyId);
     if (!row) {
-      const company = unwrap<{ country: string; name: string }[]>(
+      const [company] = unwrap<{ country: string; name: string }[]>(
         await db.from("companies").select("country,name").eq("id", companyId).limit(1),
         "company lookup",
-      )[0];
+      );
       if (!company) throw new ApiError("not_found", "No such workspace.");
 
       // The email lives on the auth user; `profiles` has no email column, and
@@ -412,7 +412,7 @@ paymentRequestRoutes.post(
     // The row first, so the link and the token have something to point at and
     // so a crash between the two leaves a request nobody can pay rather than a
     // payable link nobody can see.
-    const request = unwrap<PaymentRequestRow[]>(
+    const [request] = unwrap<PaymentRequestRow[]>(
       await db
         .from("payment_requests")
         .insert({
@@ -428,7 +428,7 @@ paymentRequestRoutes.post(
         })
         .select(REQUEST_COLUMNS),
       "payment request insert",
-    )[0];
+    );
     if (!request) throw new Error("payment request insert returned no row");
 
     const link = await mintPublicLink(db, {
@@ -500,7 +500,7 @@ paymentRequestRoutes.post(
         const original = await loadRequestForMessage(db, companyId, gated.message.id);
         return c.json(requestJson(original ?? request, c.get("role")), 200);
       }
-      message = gated.message;
+      ({ message } = gated);
     } catch (error) {
       // The rate/cap gate refused, or the insert failed. Either way there is a
       // live payment link for a text that will never arrive — kill it rather
@@ -610,7 +610,7 @@ paymentRequestRoutes.post(
     const companyId = c.get("companyId");
     const requestId = pathUuid(c, "id");
 
-    const row = unwrap<
+    const [row] = unwrap<
       (PaymentRequestRow & {
         stripe_payment_link_id: string | null;
         stripe_account_id: string;
@@ -626,7 +626,7 @@ paymentRequestRoutes.post(
         .eq("id", requestId)
         .limit(1),
       "payment request lookup",
-    )[0];
+    );
     if (!row) return errorResponse(c, "not_found", "No such payment request.");
 
     const state = paymentRequestState(row);
@@ -660,7 +660,7 @@ paymentRequestRoutes.post(
       await revokePublicLink(db, row.public_link_id, "the crew cancelled the request");
     }
 
-    const updated = unwrap<PaymentRequestRow[]>(
+    const [updated] = unwrap<PaymentRequestRow[]>(
       await db
         .from("payment_requests")
         .update({
@@ -674,7 +674,7 @@ paymentRequestRoutes.post(
         .eq("status", "requested")
         .select(REQUEST_COLUMNS),
       "payment request cancel",
-    )[0];
+    );
 
     await insertConversationEvents(db, [
       {
@@ -726,7 +726,7 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
     return publicLinkNotAvailable(c);
   }
 
-  const row = unwrap<
+  const [row] = unwrap<
     (PaymentRequestRow & {
       stripe_payment_link_id: string | null;
       stripe_account_id: string;
@@ -739,17 +739,17 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
       .eq("id", resolved.subject_id)
       .limit(1),
     "public payment lookup",
-  )[0];
+  );
   if (!row) return publicLinkNotAvailable(c);
 
-  const company = unwrap<{ name: string; locale: string | null }[]>(
+  const [company] = unwrap<{ name: string; locale: string | null }[]>(
     await db
       .from("companies")
       .select("name,locale")
       .eq("id", resolved.company_id)
       .limit(1),
     "company lookup",
-  )[0];
+  );
 
   const state = paymentRequestState(row);
   // The pay URL is withheld unless the request is actually payable. A page that
@@ -815,7 +815,7 @@ async function loadPaymentView(
       .limit(1),
     "conversation lookup",
   );
-  const view = rows[0];
+  const [view] = rows;
   if (!view) throw new ApiError("not_found", "No such conversation.");
   return view;
 }
@@ -947,7 +947,7 @@ async function cancelQuietly(
   publicLinkId: string | null,
 ): Promise<void> {
   try {
-    const account = unwrap<{ stripe_account_id: string }[]>(
+    const [account] = unwrap<{ stripe_account_id: string }[]>(
       await db
         .from("payment_requests")
         .select("stripe_account_id")
@@ -955,7 +955,7 @@ async function cancelQuietly(
         .eq("company_id", companyId)
         .limit(1),
       "payment request account lookup",
-    )[0];
+    );
     if (account) {
       await deactivateStripeLink(env, account.stripe_account_id, stripeLinkId);
     }

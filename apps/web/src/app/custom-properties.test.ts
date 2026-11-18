@@ -109,7 +109,7 @@ describe("#362 — every custom property that is read is also defined", () => {
       // be set — the fallback is what makes it safe, so it is not an offender.
       // Only a bare read can silently paint nothing.
       for (const match of painted.matchAll(/var\(\s*(--[a-zA-Z0-9-]+)\s*\)/g)) {
-        const name = match[1];
+        const [, name] = match;
         if (declared.has(name) || EXTERNAL.has(name)) continue;
         // Report each name once per file; a token read in a loop is one bug.
         const where = `${relative(process.cwd(), file)}: ${name}`;

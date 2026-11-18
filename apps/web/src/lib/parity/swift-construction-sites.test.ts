@@ -158,7 +158,7 @@ describe("a Swift struct's required parameters reach every call site", () => {
       for (const declaration of text.matchAll(
         /(?:^|\n)\s*(?:private\s+|internal\s+|public\s+)?struct\s+([A-Za-z_][A-Za-z0-9_]*)\s*:\s*View\s*\{/g,
       )) {
-        const name = declaration[1];
+        const [, name] = declaration;
         const body = structBody(text, declaration.index ?? 0);
         if (body === null) continue;
         // A struct with its OWN `init` decides its own labels, and they need

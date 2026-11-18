@@ -186,7 +186,7 @@ webhooksRoutes.post("/webhooks", requireCapability("settings.manage"), async (c)
     throw new Error(`webhook endpoint create failed: ${error.message}`);
   }
 
-  const row = (data as unknown as EndpointRow[])[0];
+  const [row] = (data as unknown as EndpointRow[]);
   await recordAuditFromRequest(db, c, {
     companyId,
     action: "webhook.endpoint_created",
@@ -228,7 +228,7 @@ webhooksRoutes.patch("/webhooks/:id", requireCapability("settings.manage"), asyn
       .limit(1),
     "webhook endpoint read",
   );
-  const before = existing[0];
+  const [before] = existing;
   if (!before) return errorResponse(c, "not_found", "No such webhook endpoint.");
 
   const patch: Record<string, unknown> = {};
@@ -288,7 +288,7 @@ webhooksRoutes.delete("/webhooks/:id", requireCapability("settings.manage"), asy
       .limit(1),
     "webhook endpoint read",
   );
-  const before = existing[0];
+  const [before] = existing;
   if (!before) return errorResponse(c, "not_found", "No such webhook endpoint.");
 
   unwrap<unknown[]>(
@@ -362,7 +362,7 @@ webhooksRoutes.post("/webhooks/:id/test", requireCapability("settings.manage"), 
       .limit(1),
     "webhook endpoint read",
   );
-  const endpoint = rows[0];
+  const [endpoint] = rows;
   if (!endpoint) return errorResponse(c, "not_found", "No such webhook endpoint.");
 
   // Re-checked at send time, not trusted from creation. An endpoint stored

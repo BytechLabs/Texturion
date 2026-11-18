@@ -84,7 +84,7 @@ describe("#233 presets land on the destination's wall clock", () => {
 
   it("lands Monday on a Monday, in that zone", () => {
     const now = new Date("2026-06-17T15:00:00Z"); // a Wednesday
-    const monday = schedulePresets(now, "America/New_York", sayEn)[1];
+    const [, monday] = schedulePresets(now, "America/New_York", sayEn);
     expect(weekdayIn(monday.at!, "America/New_York")).toBe("Mon");
     expect(hourIn(monday.at!, "America/New_York")).toBe(8);
   });
@@ -93,7 +93,7 @@ describe("#233 presets land on the destination's wall clock", () => {
     // Otherwise "Monday 8am" on a Monday afternoon is a time that has passed,
     // which the API would reject as in_the_past — a preset that cannot be used.
     const now = new Date("2026-06-15T18:00:00Z"); // Monday
-    const monday = schedulePresets(now, "America/New_York", sayEn)[1];
+    const [, monday] = schedulePresets(now, "America/New_York", sayEn);
     expect(weekdayIn(monday.at!, "America/New_York")).toBe("Mon");
     expect((monday.at!).getTime()).toBeGreaterThan(now.getTime());
   });

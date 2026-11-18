@@ -35,7 +35,7 @@ beforeEach(() => {
   apiFetch.mockReset();
   apiFetch.mockImplementation(async (path: string, options: RequestOptions = {}) => {
     if (path !== "/v1/attachments/urls") throw new Error(`unexpected ${path}`);
-    const items = (options.body as { items: Item[] }).items;
+    const { items } = (options.body as { items: Item[] });
     return {
       data: items
         .filter((item) => !refuse.has(item.id))

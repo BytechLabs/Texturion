@@ -446,7 +446,7 @@ export function scanFile(ts, file, text) {
   };
 
   const fetchSink = (call) => {
-    const init = call.arguments[1];
+    const [, init] = call.arguments;
     let methods = ["GET"];
     if (init) {
       if (!ts.isObjectLiteralExpression(init)) {

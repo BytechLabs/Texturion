@@ -72,7 +72,7 @@ function routes(dir, prefix = "", out = []) {
   }
   for (const entry of entries) {
     if (!entry.isDirectory()) continue;
-    const name = entry.name;
+    const { name } = entry;
     // A parallel/intercepted route or a private folder is not a URL.
     if (name.startsWith("@") || name.startsWith("_")) continue;
     const segment = name.startsWith("(") && name.endsWith(")") ? "" : `/${name}`;

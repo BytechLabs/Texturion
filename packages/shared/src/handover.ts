@@ -70,7 +70,7 @@ export type HandoverPromptKind =
 export function viewerHandoverPrompt(
   state: HandoverViewer,
 ): HandoverPromptKind | null {
-  const pending = state.pending;
+  const { pending } = state;
   if (pending && pending.mine) {
     if (!pending.ready) {
       // Only a claim can be theirs and unripe: an offer ripens the moment it

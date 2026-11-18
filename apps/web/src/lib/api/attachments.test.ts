@@ -111,7 +111,7 @@ describe("attachment upload — multipart request shape", () => {
       file,
     });
 
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     expect(String(url)).toBe("https://api.loonext.test/v1/attachments");
     expect(init?.method).toBe("POST");
 
@@ -305,7 +305,7 @@ describe("attachment delete — request shape (D19 soft-delete / D30 free space)
       companyId: "company-1",
     });
 
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     expect(String(url)).toBe("https://api.loonext.test/v1/attachments/att-1");
     expect(init?.method).toBe("DELETE");
     const headers = init?.headers as Record<string, string>;

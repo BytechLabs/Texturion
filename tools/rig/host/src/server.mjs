@@ -68,7 +68,7 @@ export function parseFlags(text, allowed) {
  */
 export function createHostdServer({ token, devices, health, log = () => {} }) {
   return createServer(async (request, response) => {
-    const path = (request.url ?? "/").split("?")[0];
+    const [path] = (request.url ?? "/").split("?");
     let status = 500;
     try {
       if (!bearerMatches(request.headers.authorization, token)) {
@@ -103,7 +103,7 @@ export function createHostdServer({ token, devices, health, log = () => {} }) {
         }
         result = action === "boot" ? await devices.boot(name, flags) : await devices.kill(name, flags);
       }
-      status = result.status;
+      ({ status } = result);
       return send(response, status, result.body);
     } catch (error) {
       status = error.status ?? 500;

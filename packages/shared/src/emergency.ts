@@ -329,7 +329,7 @@ export function awayEmergencyNotice(args: {
   say: SayEmergency;
 }): AwayEmergencyNotice | null {
   const keywords = args.keywords ?? EMERGENCY_KEYWORDS;
-  const say = args.say;
+  const { say } = args;
   const invites = mentionsEmergencyKeyword(args.awayMessage, keywords);
   const unknown = unrecognizedReplyKeyword(args.awayMessage, keywords);
 

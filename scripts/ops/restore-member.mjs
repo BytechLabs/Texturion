@@ -31,7 +31,7 @@ await runScript("restore-member", async ({ args, apply, db, script }) => {
     "id,company_id,user_id,role,deactivated_at,created_at",
     { id: "eq." + memberId, company_id: "eq." + companyId },
   );
-  const member = rows[0];
+  const [member] = rows;
   if (!member) {
     fail(`no member ${memberId} in company ${companyId}.`);
   }

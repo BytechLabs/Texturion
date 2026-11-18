@@ -1275,9 +1275,9 @@ describe("message.created", () => {
   it("asks for one message when the thread was never opened", async () => {
     const queryClient = await arrive();
     expect(limits()).toEqual([1]);
-    const row = (queryClient.getQueryData(keys.conversations.list(COMPANY, {})) as {
+    const [row] = (queryClient.getQueryData(keys.conversations.list(COMPANY, {})) as {
       pages: { data: { unread: boolean; last_message: { id: string } | null }[] }[];
-    }).pages[0].data[0];
+    }).pages[0].data;
     expect(row.unread).toBe(true);
     expect(row.last_message?.id).toBe(MESSAGE_ID);
   });

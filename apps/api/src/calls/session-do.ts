@@ -631,7 +631,7 @@ export class CallSessionDO extends DurableObject<Env> {
       await this.resumeJournalIfAny();
       const machine = await this.load();
       if (!machine) return false;
-      const intent = machine.intent;
+      const { intent } = machine;
       if (intent?.kind === "consult") {
         if (!intent.transferId) return false;
         await this.admitAndDrain({ type: "clear-intent" }, null);
@@ -1681,7 +1681,7 @@ export class CallSessionDO extends DurableObject<Env> {
     } catch {
       return "untagged";
     }
-    const tag = decoded.split("|")[0];
+    const [tag] = decoded.split("|");
     if (tag === BROWSER_INBOUND_STATE) return "bri";
     if (tag === VOICEMAIL_INBOUND_STATE) return "vmi";
     return "untagged";

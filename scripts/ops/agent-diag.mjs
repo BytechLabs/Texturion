@@ -170,7 +170,7 @@ export function runPsql(sql, connectionEnv, { args = [], container } = {}) {
   if (LOOPBACK.test(connectionEnv.PGHOST ?? "")) {
     const behind = containerBehind(connectionEnv.PGPORT ?? "5432", container);
     if (behind.error) return { error: new Error(behind.error), status: null, stdout: "", stderr: "", via: "docker" };
-    name = behind.name;
+    ({ name } = behind);
     inside = { ...connectionEnv, PGHOST: behind.host, PGPORT: behind.port };
   }
   const names = Object.keys(inside).flatMap((variable) => ["-e", variable]);

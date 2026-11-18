@@ -163,7 +163,7 @@ function pastSubmission(row: { status: string }): boolean {
 export function brandRowComplete(row: RegistrationRow | null): boolean {
   if (!row) return false;
   if (pastSubmission(row)) return true;
-  const data = row.data;
+  const { data } = row;
   if (!data) return false;
   if (!BRAND_COMMON_KEYS.every((key) => present(data, key))) return false;
   if (row.sole_proprietor) {
@@ -177,7 +177,7 @@ export function brandRowComplete(row: RegistrationRow | null): boolean {
 export function campaignRowComplete(row: RegistrationRow | null): boolean {
   if (!row) return false;
   if (pastSubmission(row)) return true;
-  const data = row.data;
+  const { data } = row;
   if (!data) return false;
   return ["messageFlow", "sample1", "sample2"].every((key) =>
     present(data, key),
@@ -216,7 +216,7 @@ export function setupComplete(snapshot: OnboardingSnapshot): boolean {
   const numberActive = company.numbers.some((n) => n.status === "active");
   if (!numberActive) return false;
   if (!owesUsRegistration(company)) return true;
-  const campaign = company.registration.campaign;
+  const { campaign } = company.registration;
   return (
     campaign !== null &&
     campaign.status === "approved" &&

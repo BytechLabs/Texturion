@@ -15,7 +15,7 @@ import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
 
 const R = "D:/projects/JobText";
-const module = process.argv[2];
+const { 2: module } = process.argv;
 if (!module) {
   console.log("usage: node pins.mjs <module-basename>");
   process.exit(1);

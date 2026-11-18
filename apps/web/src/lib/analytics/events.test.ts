@@ -155,7 +155,7 @@ describe("#312 — trackContactSubmitted", () => {
     const { trackContactSubmitted } = await importEvents();
     trackContactSubmitted();
     await flush();
-    const [, properties] = captureSpy.mock.calls[0];
+    const [[, properties]] = captureSpy.mock.calls;
     expect(properties).toBeUndefined();
   });
 

@@ -260,7 +260,7 @@ export async function requireTask(
       .limit(1),
     "task gate lookup",
   );
-  const task = rows[0];
+  const [task] = rows;
   if (!task) return errorResponse(c, "not_found", "No such task.");
   if (task.conversation_id) {
     try {

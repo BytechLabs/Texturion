@@ -655,7 +655,7 @@ async function stripRetiredModuleItems(
         { source: "cron", level: "warning" },
       );
     } catch (cause) {
-      const code = (cause as { code?: string }).code;
+      const { code } = (cause as { code?: string });
       if (code === "resource_missing") continue; // already gone — done
       void captureException(env, cause, { source: "cron" });
       void captureException(

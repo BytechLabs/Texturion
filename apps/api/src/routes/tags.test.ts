@@ -51,7 +51,7 @@ describe("GET /v1/tags", () => {
       data: [{ id: TAG_ID, name: "Won", color: null }],
       next_cursor: null,
     });
-    const call = sb.find("GET", "/rest/v1/tags")[0];
+    const [call] = sb.find("GET", "/rest/v1/tags");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
 });

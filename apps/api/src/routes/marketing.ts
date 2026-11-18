@@ -167,7 +167,7 @@ marketingRoutes.post("/marketing/comparison", async (c) => {
   let sent = false;
   try {
     const result = await sendComparisonEmail(env, db, body.email);
-    sent = result.sent;
+    ({ sent } = result);
   } catch (error_) {
     console.error(`marketing comparison send failed: ${String(error_)}`);
   }

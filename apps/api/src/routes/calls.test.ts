@@ -75,7 +75,7 @@ describe("GET /v1/calls", () => {
       next_cursor: null,
     });
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_calls")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_calls");
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_limit: 26, // limit + 1 sentinel row
@@ -152,7 +152,7 @@ describe("GET /v1/calls", () => {
     });
     expect(res.status).toBe(200);
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_calls")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_calls");
     expect(rpc.body).toMatchObject({
       p_hidden_number_ids: [HIDDEN_NUMBER],
     });
@@ -166,7 +166,7 @@ describe("GET /v1/calls", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_calls")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_calls");
     expect((rpc.body as { p_hidden_number_ids: unknown }).p_hidden_number_ids).toBe(
       null,
     );
@@ -313,7 +313,7 @@ describe("GET /v1/calls", () => {
       { companyId: COMPANY_ID },
     );
     expect(second.status).toBe(200);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_calls")[1];
+    const [, rpc] = sb.find("POST", "/rest/v1/rpc/api_list_calls");
     expect(rpc.body).toMatchObject({
       p_contact_id: contactId,
       p_cursor_ts: "2026-07-10T15:00:00+00:00",
@@ -880,7 +880,7 @@ describe("POST /v1/calls/browser (D43)", () => {
         method: "POST",
         body: { conversation_id: CONVERSATION },
       });
-      const read = sb.find("GET", "/rest/v1/companies")[0];
+      const [read] = sb.find("GET", "/rest/v1/companies");
       expect(read.url.searchParams.get("select")).toContain("paused_at");
 
       // And the other half of the coalesce: a row with no such key is "not
@@ -1116,7 +1116,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     return sb;
   }
 
-  const origin = new URL(env.SUPABASE_URL).origin;
+  const { origin } = new URL(env.SUPABASE_URL);
 
   function listRoute(): Stub {
     return stubRoute(
@@ -1214,7 +1214,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const res = await play(sb, [listRoute(), signRoute()]);
 
     expect(res.status).toBe(200);
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0];
+    const [claim] = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
     expect(claimedBytes(claim.body)).toBe(26_374 * 2);
   });
 
@@ -1225,7 +1225,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const res = await play(sb, [listRoute(), signRoute()]);
 
     expect(res.status).toBe(200);
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0];
+    const [claim] = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
     expect(claimedBytes(claim.body)).toBe(26_374);
     expect(await res.json()).toMatchObject({ transcript: null });
   });

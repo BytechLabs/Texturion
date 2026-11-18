@@ -42,7 +42,7 @@ await runScript("reopen-workspace", async ({ args, apply, db, script }) => {
     "id,name,deleted_at,purge_after,subscription_status",
     { id: "eq." + companyId },
   );
-  const company = rows[0];
+  const [company] = rows;
   if (!company) fail(`no company with id ${companyId}`);
 
   if (!company.deleted_at) {

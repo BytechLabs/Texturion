@@ -223,7 +223,7 @@ describe("resumeTextEnablement — double-order fail-safes (§4.3)", () => {
 
     await resumeTextEnablement(env, order);
 
-    const create = telnyx.callsTo("POST", /messaging_hosted_number_orders$/)[0];
+    const [create] = telnyx.callsTo("POST", /messaging_hosted_number_orders$/);
     const sentKey = create.headers.get("Idempotency-Key");
     expect(sentKey).toBeTruthy();
     // The exact key the row claimed BEFORE the POST — a crash-retry replays it.

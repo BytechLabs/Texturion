@@ -304,7 +304,7 @@ function checkTrust(file, source) {
 
 // Overridable so the failure paths can be exercised against a fixture. A guard
 // whose red branch has never run once is a guess about what it would do.
-const only = process.argv[2];
+const { 2: only } = process.argv;
 const files = only
   ? [only]
   : readdirSync(WORKFLOW_DIR)

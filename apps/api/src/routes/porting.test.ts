@@ -341,12 +341,12 @@ describe("POST /v1/port-requests", () => {
     expect(harness.telnyx.callsTo("POST", /portability_checks/)).toHaveLength(1);
 
     // Rows exist: phone (source='ported', provisioning) + port (draft).
-    const phone = harness.rest.rows("phone_numbers")[0];
+    const [phone] = harness.rest.rows("phone_numbers");
     expect(phone.source).toBe("ported");
     expect(phone.status).toBe("provisioning");
     expect(phone.provisioning_key).toBe(KEY);
     expect(harness.rest.rows("port_requests")).toHaveLength(1);
-    const port = harness.rest.rows("port_requests")[0];
+    const [port] = harness.rest.rows("port_requests");
     expect(port.is_wireless).toBe(false);
     expect(port.ssn_sin_last4 ?? null).toBeNull();
   });
@@ -398,7 +398,7 @@ describe("POST /v1/port-requests", () => {
     // §10: the last-4 is PII — returned only as an on-file boolean.
     expect(body.ssn_sin_last4).toBeUndefined();
     expect(body.has_ssn_sin_last4).toBe(true);
-    const port = harness.rest.rows("port_requests")[0];
+    const [port] = harness.rest.rows("port_requests");
     expect(port.is_wireless).toBe(true);
     expect(port.ssn_sin_last4).toBe("6789");
   });
@@ -818,7 +818,7 @@ describe("POST /v1/port-requests/:id/resubmit", () => {
     expect(body.submission_count).toBe(2);
 
     // The resubmit PATCH re-sends messaging.enable_messaging=true (§6).
-    const patch = harness.telnyx.callsTo("PATCH", /porting_orders/)[0];
+    const [patch] = harness.telnyx.callsTo("PATCH", /porting_orders/);
     expect((patch.body as { messaging: unknown }).messaging).toEqual({
       enable_messaging: true,
     });
@@ -1065,7 +1065,7 @@ describe("PUT /v1/port-requests/:id/documents (paid-first gate)", () => {
     // The paid-first guard runs BEFORE any Telnyx upload.
     expect(harness.telnyx.callsTo("POST", /\/v2\/documents/)).toHaveLength(0);
     // No document UUID was stored on the row.
-    const row = harness.rest.rows("port_requests")[0];
+    const [row] = harness.rest.rows("port_requests");
     expect(row.telnyx_loa_document_id ?? null).toBeNull();
   });
 
@@ -1082,7 +1082,7 @@ describe("PUT /v1/port-requests/:id/documents (paid-first gate)", () => {
     });
     expect(res.status).toBe(200);
     expect(harness.telnyx.callsTo("POST", /\/v2\/documents/)).toHaveLength(1);
-    const row = harness.rest.rows("port_requests")[0];
+    const [row] = harness.rest.rows("port_requests");
     expect(row.telnyx_loa_document_id).toBe("doc-loa-1");
   });
 });

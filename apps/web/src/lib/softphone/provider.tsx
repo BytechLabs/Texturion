@@ -907,7 +907,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
 
   /** Hold the currently-active call (before answering/placing another). */
   const holdActive = useCallback(() => {
-    const activeId = stateRef.current.activeId;
+    const { activeId } = stateRef.current;
     if (!activeId) return;
     const call = callsRef.current.get(activeId);
     if (!call) return;
@@ -1132,7 +1132,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     if (!info || !call) return;
     if (info.phase === "held") {
       // Unholding swaps: anything currently active goes on hold first.
-      const activeId = stateRef.current.activeId;
+      const { activeId } = stateRef.current;
       if (activeId && activeId !== id) {
         const active = callsRef.current.get(activeId);
         void active?.hold().catch(() => {});

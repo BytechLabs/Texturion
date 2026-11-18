@@ -126,8 +126,8 @@ function PlanStep() {
     return <StepLoading />;
   }
 
-  const company = state.company;
-  const companyId = state.companyId;
+  const { company } = state;
+  const { companyId } = state;
   const progress = stepProgress("plan", state.snapshot);
   const owes = owesUsRegistration(company);
   const priceAudience = currencyForCountry(company.country);

@@ -309,7 +309,7 @@ function scan() {
         ts.isPropertyAccessExpression(node.expression)
       ) {
         const method = node.expression.name.text;
-        const limit = node.arguments[0];
+        const [limit] = node.arguments;
         if (method === "limit" && limit && ts.isNumericLiteral(limit) && Number(limit.text) > 1_000) {
           oversizedLimits.push(`${rel}:${lineOf(node)} ${node.getText(tree)}`);
         }
@@ -322,7 +322,7 @@ function scan() {
           if (root === "storage") {
             // not a table
           } else if (root) {
-            const tableArg = root.arguments[0];
+            const [tableArg] = root.arguments;
             const tables = tableArg ? strings(file, tableArg) : null;
             if (tables) {
               for (const table of tables) {
@@ -342,7 +342,7 @@ function scan() {
                 };
                 if (isSelect) {
                   totals.selects += 1;
-                  const arg = node.arguments[0];
+                  const [arg] = node.arguments;
                   const texts = arg ? strings(file, arg) : ["*"];
                   if (texts) {
                     for (const text of texts) report(checkSelect(text, table));
@@ -350,7 +350,7 @@ function scan() {
                     dynamic.push({ file: rel, line: lineOf(node), what: `select(${arg.getText().replaceAll(/\s+/g, " ").slice(0, 40)}) on ${table} [cannot resolve: ${blame}]` });
                   }
                 } else if (isLogical) {
-                  const arg = node.arguments[0];
+                  const [arg] = node.arguments;
                   const text = arg ? strings(file, arg) : null;
                   const foreign = node.arguments[1] !== undefined;
                   if (!text) {
@@ -362,7 +362,7 @@ function scan() {
                     }
                   }
                 } else if (isFilter) {
-                  const arg = node.arguments[0];
+                  const [arg] = node.arguments;
                   const names = arg ? strings(file, arg) : null;
                   if (names) {
                     totals.filters += 1;
@@ -374,7 +374,7 @@ function scan() {
                     dynamic.push({ file: rel, line: lineOf(node), what: `${method}(${arg?.getText().slice(0, 40)}) on ${table}` });
                   }
                 } else {
-                  const arg = node.arguments[0];
+                  const [arg] = node.arguments;
                   const rows = arg
                     ? (ts.isArrayLiteralExpression(arg)
                       ? arg.elements

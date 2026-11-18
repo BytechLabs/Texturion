@@ -218,7 +218,7 @@ teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => 
       .limit(1),
     "member lookup",
   );
-  const target = rows[0];
+  const [target] = rows;
   if (!target) {
     return errorResponse(c, "not_found", "No such member.");
   }
@@ -391,7 +391,7 @@ teamRoutes.delete("/members/me", requireCapability("workspace.access"), async (c
       .limit(1),
     "own membership lookup",
   );
-  const membership = rows[0];
+  const [membership] = rows;
   if (!membership) {
     return errorResponse(c, "not_found", "You are not on this workspace.");
   }
@@ -643,9 +643,9 @@ async function endMemberAccess(
       actor: null,
       reason: "member_removed",
     });
-    sessions = result.sessions;
+    ({ sessions } = result);
     devices += result.devices;
-    voice = result.voice;
+    ({ voice } = result);
   } catch (error) {
     console.error(
       `session revoke on deactivation failed for user ${userId}:`,
@@ -744,7 +744,7 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
     "invite create",
     "A pending invite for this email already exists.",
   );
-  const invite = inserted[0];
+  const [invite] = inserted;
 
   // Supabase Auth admin invite (Resend custom SMTP, SPEC §10). The redirect
   // carries the invite id the accept screen posts back.
@@ -981,7 +981,7 @@ teamRoutes.post("/invites/accept", async (c) => {
     await db.from("invites").select(INVITE_COLUMNS).eq("id", body.invite_id).limit(1),
     "invite lookup",
   );
-  const invite = invites[0];
+  const [invite] = invites;
   if (!invite) {
     return errorResponse(c, "not_found", "No such invite.");
   }
@@ -1068,7 +1068,7 @@ teamRoutes.post("/invites/accept", async (c) => {
         .limit(1),
       "membership lookup",
     );
-    const priorMembership = existing[0];
+    const [priorMembership] = existing;
 
     if (!priorMembership || priorMembership.deactivated_at === null) {
       // Genuinely an active member: a duplicate or stale invite. Consume the

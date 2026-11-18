@@ -183,7 +183,7 @@ describe("rig mode's start-up refusals", () => {
     try {
       getEnv({ ...rigEnv(), STRIPE_SECRET_KEY: secret });
     } catch (error) {
-      message = (error as Error).message;
+      ({ message } = (error as Error));
     }
     expect(message).toMatch(/STRIPE_SECRET_KEY/);
     expect(message).not.toContain(secret);

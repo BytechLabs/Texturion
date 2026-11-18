@@ -525,7 +525,7 @@ function unscopedSites(): Site[] {
     const re = /\.from\(\s*["'`]([a-z_]+)["'`]\s*\)/g;
     let match: RegExpExecArray | null;
     while ((match = re.exec(src)) !== null) {
-      const table = match[1];
+      const [, table] = match;
       if (!TENANT_TABLES.has(table)) continue;
       const statement = statementAt(src, match.index).replace(/\s+/g, " ");
       if (SCOPING_CALL.test(statement)) continue;

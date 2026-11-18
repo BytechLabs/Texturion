@@ -199,7 +199,7 @@ async function answer(digits: string) {
  * retry with no code both read as `undefined` here.
  */
 function retriedWith(): { code?: string } {
-  const second = mutate.mock.calls[1];
+  const [, second] = mutate.mock.calls;
   return second ? { code: second[0] as string | undefined } : {};
 }
 

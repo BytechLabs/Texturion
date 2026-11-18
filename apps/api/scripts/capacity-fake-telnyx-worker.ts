@@ -56,7 +56,7 @@ export class Switch {
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     this.model.setOrigin(url.origin);
-    const voice = this.model.voice;
+    const { voice } = this.model;
 
     if (url.pathname.startsWith("/__ctl/")) {
       const op = url.pathname.slice("/__ctl/".length);

@@ -270,7 +270,7 @@ describe("calendar sync worker", () => {
     });
 
     expect(db.purgeOauthStates).toHaveBeenCalledWith(1000);
-    const purgeOrder = vi.mocked(db.purgeOauthStates).mock.invocationCallOrder[0];
+    const [purgeOrder] = vi.mocked(db.purgeOauthStates).mock.invocationCallOrder;
     expect(purgeOrder).toBeLessThan(
       vi.mocked(db.claimReminderReplans).mock.invocationCallOrder[0],
     );
@@ -436,8 +436,7 @@ describe("calendar sync worker", () => {
     ).resolves.toMatchObject({ accessToken: "fresh-access-token" });
 
     expect(commitCredentialRefresh).toHaveBeenCalledTimes(2);
-    const first = commitCredentialRefresh.mock.calls[0][0];
-    const second = commitCredentialRefresh.mock.calls[1][0];
+    const [[first], [second]] = commitCredentialRefresh.mock.calls;
     expect(second.credential).toEqual(first.credential);
     await expect(openCalendarCredential(
       first.credential,
@@ -550,7 +549,7 @@ describe("calendar sync worker", () => {
     expect(
       vi.mocked(db.markProviderEffectStarted).mock.invocationCallOrder[0],
     ).toBeLessThan(vi.mocked(calendar.createEvent).mock.invocationCallOrder[0]);
-    const input = vi.mocked(calendar.createEvent).mock.calls[0][0];
+    const [[input]] = vi.mocked(calendar.createEvent).mock.calls;
     expect(input.idempotencyKey).toBe(OUTBOX.id);
     expect(input.schedule).toMatchObject({
       start: TASK.due_at,
@@ -1116,11 +1115,11 @@ describe("calendar sync worker", () => {
       workerId: "worker-1",
     });
 
-    const readOrder = vi.mocked(calendar.getEvent).mock.invocationCallOrder[0];
-    const markOrder = vi.mocked(db.markProviderEffectStarted).mock
-      .invocationCallOrder[0];
-    const writeOrder = vi.mocked(calendar.deleteEvent).mock
-      .invocationCallOrder[0];
+    const [readOrder] = vi.mocked(calendar.getEvent).mock.invocationCallOrder;
+    const [markOrder] = vi.mocked(db.markProviderEffectStarted).mock
+      .invocationCallOrder;
+    const [writeOrder] = vi.mocked(calendar.deleteEvent).mock
+      .invocationCallOrder;
     expect(readOrder).toBeLessThan(markOrder);
     expect(markOrder).toBeLessThan(writeOrder);
   });
@@ -2334,7 +2333,7 @@ describe("calendar sync worker", () => {
       now: new Date("2026-08-25T12:00:00.000Z"),
     });
 
-    const watchInput = vi.mocked(calendar.startWatch).mock.calls[0][0];
+    const [[watchInput]] = vi.mocked(calendar.startWatch).mock.calls;
     expect(watchInput).toMatchObject({
       calendarId: CONNECTION.selected_calendar_id,
       callbackUrl: "https://api.example/calendar/webhooks/google",

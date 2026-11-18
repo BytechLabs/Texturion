@@ -316,7 +316,7 @@ describe("customer webhooks on the rig", () => {
     const result = await deliverWebhookBatch(getDb(env), env);
     expect(posted).toEqual([]);
     expect(result).toMatchObject({ delivered: 0, failed: 1 });
-    const update = sb.find("PATCH", "/rest/v1/webhook_deliveries")[0];
+    const [update] = sb.find("PATCH", "/rest/v1/webhook_deliveries");
     expect(update.body).toMatchObject({ status: "failed" });
   });
 

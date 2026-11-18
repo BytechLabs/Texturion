@@ -318,7 +318,7 @@ describe("notifyIncomingCall — native device push (#151)", () => {
       ...INPUT, caller: null, userIds: [USER_A], transfer: { id: "transfer-one", senderUserId: USER_B },
     });
 
-    const deviceQuery = sb.find("GET", "/rest/v1/device_push_tokens")[0];
+    const [deviceQuery] = sb.find("GET", "/rest/v1/device_push_tokens");
     expect(deviceQuery.url.searchParams.get("user_id")).toBe(`in.(${USER_A})`);
     expect(service.sends).toHaveLength(1);
     expect(service.sends[0].message.data).toMatchObject({

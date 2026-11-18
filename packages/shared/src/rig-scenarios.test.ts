@@ -161,7 +161,7 @@ describe("variants", () => {
 
   it("fails a variant 4.2 does not name", () => {
     const invented = fresh();
-    const runs = byId(invented, "S07").runs;
+    const { runs } = byId(invented, "S07");
     const index = runs.length;
     runs.push({ label: "busy" });
     expect(problems(invented)).toContain(`S07: runs[${index}] is labelled "busy", and 4.2's row does not name it`);

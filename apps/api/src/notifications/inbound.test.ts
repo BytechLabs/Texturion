@@ -249,7 +249,7 @@ describe("notifyInboundMessage (§8)", () => {
     const email = world.resend.calls[0] as { to: string[] };
     expect(email.to).toEqual([`${MEMBER}@team.example`]);
     // Push subscriptions were queried for the assignee only.
-    const subsCall = world.sb.find("GET", "/rest/v1/push_subscriptions")[0];
+    const [subsCall] = world.sb.find("GET", "/rest/v1/push_subscriptions");
     expect(subsCall.url.searchParams.get("user_id")).toBe(`in.(${MEMBER})`);
   });
 
@@ -398,7 +398,7 @@ describe("notifyInboundMessage — native device push (#151)", () => {
 
     // Audience-scoped, newest-first, #30-style bounded query. The bound is ten
     // devices PER recipient (#267), so a one-person audience asks for ten.
-    const lookup = world.sb.find("GET", "/rest/v1/device_push_tokens")[0];
+    const [lookup] = world.sb.find("GET", "/rest/v1/device_push_tokens");
     expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
     expect(lookup.url.searchParams.get("order")).toBe("created_at.desc");
     expect(lookup.url.searchParams.get("limit")).toBe("10");

@@ -369,7 +369,7 @@ function SettingUp() {
   // `port.updated` broadcast wired in useProvisioningEvents.
   const ports = usePortRequestsForCompany(state.companyId);
 
-  const company = state.company;
+  const { company } = state;
   // Redirect guard: this screen is the post-payment surface only. A
   // just-returned checkout (webhook still processing) is allowed through and
   // shows the "confirming payment" row until the subscription flips.
@@ -443,7 +443,7 @@ function SettingUp() {
     state.status === "ready" &&
     company !== null &&
     (confirming || !company.numbers.some((n) => n.status === "active"));
-  const companyId = state.companyId;
+  const { companyId } = state;
   useEffect(() => {
     if (!needsNudge || !companyId) return;
     const timer = setInterval(() => {

@@ -92,7 +92,7 @@ function forwarded(barrel) {
     if (byModule.get(name) === null) continue;
     const names = byModule.get(name) ?? new Set();
     for (const raw of clause.slice(1, -1).split(",")) {
-      const symbol = raw.replace(/^\s*type\s+/, "").trim().split(/\s+as\s+/)[0];
+      const [symbol] = raw.replace(/^\s*type\s+/, "").trim().split(/\s+as\s+/);
       if (symbol) names.add(symbol);
     }
     byModule.set(name, names);

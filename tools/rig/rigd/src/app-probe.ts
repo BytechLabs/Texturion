@@ -196,7 +196,7 @@ export class AppProbe implements AppApi {
       phone_e164: `eq.${this.#number(args.role)}`,
       select: "revoked_at,source",
     });
-    const row = rows[0];
+    const [row] = rows;
     return row ? { active: row.revoked_at === null, source: row.source } : null;
   }
 
@@ -878,7 +878,7 @@ export class AppProbe implements AppApi {
     });
     if (!verified.ok) return { aal: null, meStatus: verified.status };
     const second = ((await verified.json()) as { access_token?: string }).access_token ?? "";
-    const aal = claimsOf(second).aal;
+    const { aal } = claimsOf(second);
     const me = await this.#fetch(`${this.#o.apiBase.replace(/\/+$/, "")}/v1/me`, {
       headers: { authorization: `Bearer ${second}` },
       signal: AbortSignal.timeout(10_000),
@@ -1244,7 +1244,7 @@ export class AppProbe implements AppApi {
 
   /** Member keys by auth user id, from the admin listing matched against tenants.json's addresses. */
   async #membersByUser(tenant: string): Promise<Map<string, string>> {
-    const members = this.#tenant(tenant).members;
+    const { members } = this.#tenant(tenant);
     const byEmail = new Map(Object.entries(members).map(([key, member]) => [member.email.toLowerCase(), `${tenant.toLowerCase()}-${key}`]));
     const response = await this.#fetch(`${this.#o.supabaseUrl.replace(/\/+$/, "")}/auth/v1/admin/users?page=1&per_page=1000`, {
       headers: { apikey: this.#o.serviceRoleKey, authorization: `Bearer ${this.#o.serviceRoleKey}` },
@@ -1504,7 +1504,7 @@ function sendResult(status: number, message: SentMessage | undefined): SendResul
 
 /** The user id in a Supabase access token. */
 export function subjectOf(token: string): string {
-  const payload = token.split(".")[1];
+  const [, payload] = token.split(".");
   const sub = payload ? (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as { sub?: unknown }).sub : undefined;
   if (typeof sub !== "string" || !/^[0-9a-f-]{36}$/.test(sub)) throw new Error("app probe: the session names no user");
   return sub;
@@ -1565,7 +1565,7 @@ export function aiPeriod(at: number): string {
 }
 
 function claimsOf(token: string): Record<string, unknown> {
-  const payload = token.split(".")[1];
+  const [, payload] = token.split(".");
   try {
     return payload ? (JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as Record<string, unknown>) : {};
   } catch {

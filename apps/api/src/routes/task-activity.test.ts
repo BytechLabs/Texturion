@@ -126,7 +126,7 @@ describe("GET /v1/tasks/:id/activity", () => {
       actor: { display_name: "Rehman" },
     });
     expect(json.next_cursor).not.toBeNull();
-    const call = sb.find("POST", "/rest/v1/rpc/api_task_activity")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_task_activity");
     expect(JSON.stringify(call)).toContain('"p_limit":3');
   });
 
@@ -286,7 +286,7 @@ describe("POST /v1/tasks/:id/comments", () => {
       body: "Bring the long ladder",
       author: { display_name: "Rehman" },
     });
-    const insert = sb.find("POST", "/rest/v1/task_comments")[0];
+    const [insert] = sb.find("POST", "/rest/v1/task_comments");
     expect(JSON.stringify(insert)).toContain(COMPANY_ID);
     expect(JSON.stringify(insert)).toContain("Bring the long ladder");
   });

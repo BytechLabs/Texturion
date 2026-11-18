@@ -105,7 +105,7 @@ async function outboundPicture(ctx: ScenarioContext): Promise<ScenarioResult | u
     return infra("app-probe", `the picture message could not be sent: ${(error as Error).message}`);
   }
   if (!sent.ok) return fail("send_refused", `the API refused the picture message with ${sent.status}${sent.code ? ` ${sent.code}` : ""}`);
-  const messageId = sent.messageId;
+  const { messageId } = sent;
   const evidence: Record<string, unknown> = { message_id: messageId };
   ctx.evidence.outbound = evidence;
 
@@ -381,7 +381,7 @@ async function groupCheck(ctx: ScenarioContext, telnyxId: string, standingBefore
   if (status.status !== 200 || !status.in_group) {
     return fail("number_outside_group", `the guard answered ${status.status} for the new number, so it is not held in the partition's group`, { critical: true });
   }
-  const standing = (await ctx.guard.partition()).standing;
+  const { standing } = await ctx.guard.partition();
   ctx.evidence.standing = { before: standingBefore, after: standing };
   if (standing !== standingBefore) {
     return fail("standing_number_touched", `the partition held ${standingBefore} standing numbers before the purchase and ${standing} after`, { critical: true });
@@ -461,7 +461,7 @@ async function graceAndRelease(ctx: ScenarioContext): Promise<ScenarioResult> {
   const because = cronError ? ` (the cron answered: ${cronError})` : "";
   const release = await judgeRelease(ctx, number, { held: Boolean(heldRow), row }, because);
 
-  const standing = (await ctx.guard.partition()).standing;
+  const { standing } = await ctx.guard.partition();
   if (standing !== standingBefore) {
     return fail("standing_number_touched", `grace left ${standing} standing numbers where there were ${standingBefore}`, { critical: true });
   }
@@ -642,7 +642,7 @@ async function removeFromSandbox(ctx: ScenarioContext, path: string): Promise<vo
 const DRAFT_SETUP_REASONS: ReadonlySet<string> = new Set(["disabled", "unavailable", "rate_limited", "subscription_inactive", "nothing_to_reply", "spam"]);
 
 function draftOf(answer: ApiAnswer<{ suggestions?: unknown[]; reason?: string }>) {
-  const body = answer.body;
+  const { body } = answer;
   return { status: answer.status, drafts: Array.isArray(body?.suggestions) ? body.suggestions.length : 0, reason: body?.reason ?? null };
 }
 

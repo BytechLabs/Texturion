@@ -41,7 +41,7 @@ export class ManualClock implements Clock {
   advance(ms: number): void {
     const target = this.#now + ms;
     for (;;) {
-      const due = this.#timers.filter((t) => t.at <= target).toSorted((a, b) => a.at - b.at)[0];
+      const [due] = this.#timers.filter((t) => t.at <= target).toSorted((a, b) => a.at - b.at);
       if (!due) break;
       this.#timers = this.#timers.filter((t) => t !== due);
       this.#now = due.at;

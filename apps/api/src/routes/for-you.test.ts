@@ -129,7 +129,7 @@ describe("GET /v1/for-you", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual(MEMBER_PAYLOAD);
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_for_you")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_for_you");
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -157,7 +157,7 @@ describe("GET /v1/for-you", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_for_you")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_for_you");
     expect((rpc.body as Record<string, unknown>).p_hidden_number_ids).toEqual([
       HIDDEN,
     ]);
@@ -180,7 +180,7 @@ describe("GET /v1/for-you", () => {
       expect(body.triage.conversations).toHaveLength(1);
       expect(body.triage.tasks).toHaveLength(1);
 
-      const rpc = sb.find("POST", "/rest/v1/rpc/api_for_you")[0];
+      const [rpc] = sb.find("POST", "/rest/v1/rpc/api_for_you");
       expect(rpc.body, role).not.toHaveProperty("p_is_lead");
       vi.unstubAllGlobals();
     }
@@ -204,7 +204,7 @@ describe("GET /v1/for-you", () => {
 
     // #454: and the flag is not sent at all. It never gated triage after #416,
     // and it must never become something a caller can assert.
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_for_you")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_for_you");
     expect(rpc.body).not.toHaveProperty("p_is_lead");
   });
 

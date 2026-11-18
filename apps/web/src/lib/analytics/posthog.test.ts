@@ -135,7 +135,7 @@ describe("initPostHog (NEXT_PUBLIC_POSTHOG_KEY optional — absent = off)", () =
     await initPostHog();
 
     expect(initSpy).toHaveBeenCalledTimes(1);
-    const [key, config] = initSpy.mock.calls[0];
+    const [[key, config]] = initSpy.mock.calls;
     expect(key).toBe(POSTHOG_KEY);
     expect(config.api_host).toBe(POSTHOG_HOST);
     expect(config.autocapture).toBe(false);
@@ -181,7 +181,7 @@ describe("exception capture (D146)", () => {
     const { initPostHog, scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
     await initPostHog();
 
-    const [, config] = initSpy.mock.calls[0];
+    const [[, config]] = initSpy.mock.calls;
     expect(config.capture_exceptions).toBe(true);
     expect(config.autocapture).toBe(false);
     expect(config.before_send).toBeTypeOf("function");

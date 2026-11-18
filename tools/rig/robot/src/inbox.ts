@@ -131,7 +131,7 @@ export class WebhookSink {
     let type: string | undefined;
     try {
       const parsed = JSON.parse(body) as { type?: unknown };
-      if (typeof parsed.type === "string") type = parsed.type;
+      if (typeof parsed.type === "string") ({ type } = parsed);
     } catch {
       // A webhook with a non-JSON body is still a delivery.
     }

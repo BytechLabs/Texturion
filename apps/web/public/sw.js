@@ -139,7 +139,7 @@ function conversationNotificationTags(id) {
 async function clearConversationNotifications(id) {
   const tags = new Set(conversationNotificationTags(id));
   for (const notification of await self.registration.getNotifications()) {
-    const data = notification.data;
+    const { data } = notification;
     if (tags.has(notification.tag) ||
         (data?.kind === "missed_call" &&
           threadId(normalizeNotificationUrl(data.url, self.location.origin).split("?")[0]) === id)) {

@@ -357,7 +357,7 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
   let i = 0;
   while (i < words.length) {
     const word = words[i];
-    const low = word.low;
+    const { low } = word;
 
     if (low.startsWith("@") && low.length > 1) {
       const query = low.slice(1);
@@ -433,14 +433,14 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
   if (dateHit !== null || clock !== null) {
     let instant: number;
     if (dateHit !== null && dateHit.kind === "instant") {
-      instant = dateHit.instant;
+      ({ instant } = dateHit);
       dueHasTime = true;
       if (clock !== null) {
         const w = wallClock(instant, ctx.timeZone);
         instant = zonedToInstant(w, clock, ctx.timeZone);
       }
     } else if (dateHit !== null) {
-      const civil = dateHit.civil;
+      const { civil } = dateHit;
       if (clock !== null) {
         instant = zonedToInstant(civil, clock, ctx.timeZone);
         dueHasTime = true;

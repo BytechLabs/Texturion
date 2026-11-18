@@ -437,7 +437,7 @@ describe("POST /v1/exports/usage (#304)", () => {
       body: { from: "2026-06-01T00:00:00Z", to: "2026-06-30T23:59:59Z" },
     });
 
-    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    const [audit] = sb.find("POST", "/rest/v1/audit_log");
     const row = (audit.body as Record<string, unknown>[])[0] ??
       (audit.body as Record<string, unknown>);
     expect(JSON.stringify(row)).toContain("usage.exported");
@@ -480,7 +480,7 @@ describe("POST /v1/exports/history (#304)", () => {
     });
     expect(res.status).toBe(202);
 
-    const call = sb.find("POST", "/rest/v1/rpc/request_data_export")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/request_data_export");
     const sent = call.body as Record<string, unknown>;
     expect(sent.p_kind).toBe("conversation_history");
     expect(sent.p_filters).toEqual({
@@ -503,7 +503,7 @@ describe("POST /v1/exports/history (#304)", () => {
       body: { contact_id: CONTACT_ID },
     });
 
-    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    const [audit] = sb.find("POST", "/rest/v1/audit_log");
     const row = (audit.body as Record<string, unknown>[])[0] ??
       (audit.body as Record<string, unknown>);
     expect(JSON.stringify(row)).toContain(CONTACT_ID);

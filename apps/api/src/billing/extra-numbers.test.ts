@@ -175,7 +175,7 @@ describe(setExtraNumberQuantity, () => {
     });
 
     expect(result.applied).toBe(true);
-    const create = harness.callsTo("POST", /\/v1\/subscription_items$/)[0];
+    const [create] = harness.callsTo("POST", /\/v1\/subscription_items$/);
     const form = create.form();
     expect(form.get("price")).toBe(PRO_PRICE);
     expect(form.get("quantity")).toBe("1");
@@ -332,10 +332,10 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
     const result = await converge();
 
     expect(result).toEqual({ kind: "lowered", quantity: 1 });
-    const update = harness.callsTo(
+    const [update] = harness.callsTo(
       "POST",
       /\/v1\/subscription_items\/si_extra/,
-    )[0];
+    );
     expect(update.form().get("quantity")).toBe("1");
     // Convergence credit rides the next invoice; the key carries the ITEM id
     // so a same-day transition against a different item never replays this one.
@@ -429,10 +429,10 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
 
     const result = await converge();
     expect(result).toEqual({ kind: "migrated", quantity: 1 });
-    const update = harness.callsTo(
+    const [update] = harness.callsTo(
       "POST",
       /\/v1\/subscription_items\/si_stale/,
-    )[0];
+    );
     expect(update.form().get("price")).toBe(PRO_PRICE);
     expect(update.form().get("quantity")).toBe("1");
   });
@@ -471,10 +471,10 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
     expect(result).toEqual({ kind: "noop", quantity: 1 });
     // #110 backfill/self-heal: the capacity column mirrors the billed truth,
     // and the RAISE is fenced with the epoch read BEFORE the snapshot.
-    const sync = harness.callsTo(
+    const [sync] = harness.callsTo(
       "POST",
       /\/rest\/v1\/rpc\/sync_paid_extra_capacity/,
-    )[0];
+    );
     expect(sync.json()).toMatchObject({ p_billed: 1, p_expected_epoch: EPOCH });
     // No Stripe WRITE of any kind (the one GET is the fresh retrieve).
     expect(
@@ -528,10 +528,10 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
     ).toHaveLength(0);
     // …but the capacity column keeps mirroring what is actually billed, so a
     // pending downgrade can't leave stale-high capacity for a whole period.
-    const sync = harness.callsTo(
+    const [sync] = harness.callsTo(
       "POST",
       /\/rest\/v1\/rpc\/sync_paid_extra_capacity/,
-    )[0];
+    );
     expect(sync.json()).toMatchObject({ p_billed: 2, p_expected_epoch: EPOCH });
   });
 
@@ -553,10 +553,10 @@ describe("convergeExtraNumberQuantity (down-only; release + reconcile backstop)"
 
     const result = await converge();
     expect(result).toEqual({ kind: "lowered", quantity: 1 });
-    const update = harness.callsTo(
+    const [update] = harness.callsTo(
       "POST",
       /\/v1\/subscription_items\/si_extra/,
-    )[0];
+    );
     expect(update.form().get("quantity")).toBe("1");
   });
 

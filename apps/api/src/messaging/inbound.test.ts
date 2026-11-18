@@ -442,7 +442,7 @@ describe("handleInboundMessage — #294/D128 the sender's own location", () => {
 
     expect(upload.calls, "the photo must still be stored").toHaveLength(1);
     expect(stored, "no bytes reached the bucket").toHaveLength(1);
-    const bytes = stored[0];
+    const [bytes] = stored;
     const latitude = bytes.slice(jpeg.latAt, jpeg.latAt + jpeg.latLength);
     expect(
       latitude.every((byte) => byte === 0),

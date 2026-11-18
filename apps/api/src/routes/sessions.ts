@@ -235,7 +235,7 @@ sessionsRoutes.post(
         .limit(1),
       "member lookup",
     );
-    const member = rows[0];
+    const [member] = rows;
     if (!member) return errorResponse(c, "not_found", "No such member.");
 
     // An admin signing the OWNER out of their own business is not a security

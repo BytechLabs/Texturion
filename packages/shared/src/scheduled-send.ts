@@ -439,7 +439,7 @@ function nextLocalHour(now: Date, timeZone: string, addDays: number): Date {
 
 /** Days from today to the next Monday. Today, if today IS Monday, means next. */
 function daysUntilMonday(now: Date, timeZone: string): number {
-  const weekday = localParts(now, timeZone).weekday;
+  const { weekday } = localParts(now, timeZone);
   const delta = (8 - weekday) % 7;
   return delta === 0 ? 7 : delta;
 }

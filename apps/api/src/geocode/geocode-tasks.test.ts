@@ -98,7 +98,7 @@ describe(geocodeTasksJob, () => {
       "CN Tower, Toronto, ON, Canada",
     );
     expect(captured.updates).toHaveLength(1);
-    const write = captured.updates[0];
+    const [write] = captured.updates;
     expect(write.url.searchParams.get("id")).toBe("eq.t1");
     // The write-back gates on the address columns (concurrent edit wins).
     expect(write.url.searchParams.get("addr_street")).toBe("eq.CN Tower");

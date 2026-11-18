@@ -155,7 +155,7 @@ function classScopes(text: string): [number, number][] {
   };
   for (const match of text.matchAll(/className=(["'{])|\b(?:cn|clsx|cx|cva|twMerge)\(/g)) {
     const start = match.index + match[0].length - 1;
-    const quote = match[1];
+    const [, quote] = match;
     if (quote === '"' || quote === "'") {
       scopes.push([start, text.indexOf(quote, start + 1) + 1]);
     } else if (quote === "{") {
@@ -179,9 +179,9 @@ function displayAtOtherWeight(text: string): string[] {
   for (const literal of text.matchAll(/"[^"\n]*"|'[^'\n]*'|`[^`]*`/g)) {
     if (!DISPLAY_CLASS.test(literal[0])) continue;
     const start = literal.index;
-    const enclosing = scopes
+    const [enclosing] = scopes
       .filter(([from, to]) => from <= start && start < to)
-      .toSorted((a, b) => a[1] - a[0] - (b[1] - b[0]))[0];
+      .toSorted((a, b) => a[1] - a[0] - (b[1] - b[0]));
     const scope = enclosing ? text.slice(...enclosing) : literal[0];
     if (OTHER_WEIGHT.test(scope) || !AT_800.test(scope)) hits.push(scope);
   }

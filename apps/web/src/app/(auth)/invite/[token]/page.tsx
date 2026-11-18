@@ -68,7 +68,7 @@ function inviteErrorCopy(
 export default function InviteAcceptPage() {
   const t = useT();
   const params = useParams<{ token: string }>();
-  const token = params.token;
+  const { token } = params;
   const router = useRouter();
   const accept = useAcceptInvite();
   const updateName = useUpdateDisplayName();

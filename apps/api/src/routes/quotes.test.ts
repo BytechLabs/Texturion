@@ -97,7 +97,7 @@ describe("GET /v1/quotes", () => {
     // against, the effective one is what a person is shown.
     expect(body.data[0].status).toBe("sent");
     expect(body.data[0].effective_status).toBe("sent");
-    const call = sb.find("GET", "/rest/v1/quotes")[0];
+    const [call] = sb.find("GET", "/rest/v1/quotes");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
 
@@ -142,7 +142,7 @@ describe("GET /v1/quotes", () => {
       `/v1/quotes?conversation_id=${CONVERSATION_ID}`,
       { companyId: COMPANY_ID },
     );
-    const call = sb.find("GET", "/rest/v1/quotes")[0];
+    const [call] = sb.find("GET", "/rest/v1/quotes");
     expect(call.url.searchParams.get("conversation_id")).toBe(`eq.${CONVERSATION_ID}`);
     // Still scoped to the workspace: a conversation id is not authorisation.
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
@@ -193,7 +193,7 @@ describe("POST /v1/quotes", () => {
       body: body(),
     });
     expect(res.status).toBe(201);
-    const written = sb.find("POST", "/rest/v1/quotes")[0];
+    const [written] = sb.find("POST", "/rest/v1/quotes");
     expect((written.body as { status: string }).status).toBe("draft");
     expect((written.body as { company_id: string }).company_id).toBe(COMPANY_ID);
   });
@@ -353,7 +353,7 @@ describe("#106 quotes respect the caller's number access", () => {
     // The filter is asserted on the QUERY, because a stub can only return what
     // it is asked for — checking the response would prove the stub, not the
     // route.
-    const call = sb.find("GET", "/rest/v1/quotes")[0];
+    const [call] = sb.find("GET", "/rest/v1/quotes");
     const query = call.url.searchParams.toString();
     expect(query).toContain("conversations");
     expect(query).toContain(DENIED_NUMBER);

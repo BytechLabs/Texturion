@@ -119,7 +119,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
     });
     // #12: the re-mirror scan excludes terminal canceled tenants (which keep
     // their sub id forever → unbounded churn growth) and is bounded per run.
-    const remirrorCall = harness.callsTo("GET", /\/rest\/v1\/companies/)[0];
+    const [remirrorCall] = harness.callsTo("GET", /\/rest\/v1\/companies/);
     expect(
       remirrorCall.url.searchParams.getAll("subscription_status"),
     ).toContain("neq.canceled");
@@ -135,7 +135,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       },
     ]);
     // The update targeted the row by its subscription id.
-    const patch = harness.callsTo("PATCH", /\/rest\/v1\/companies/)[0];
+    const [patch] = harness.callsTo("PATCH", /\/rest\/v1\/companies/);
     expect(patch.url.searchParams.get("stripe_subscription_id")).toBe(
       "eq.sub_1",
     );
@@ -255,7 +255,7 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
       /failed for 1 company/,
     );
     // The healthy tenant was still re-mirrored (to Stripe's past_due truth).
-    const patch = harness.callsTo("PATCH", /\/rest\/v1\/companies/)[0];
+    const [patch] = harness.callsTo("PATCH", /\/rest\/v1\/companies/);
     expect(patch.url.searchParams.get("stripe_subscription_id")).toBe(
       "eq.sub_2",
     );

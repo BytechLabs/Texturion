@@ -113,7 +113,7 @@ export function leadingSentence(
   report: LeadSourceReport,
   t: Translate,
 ): string | null {
-  const top = rankedChannels(report, t)[0];
+  const [top] = rankedChannels(report, t);
   if (!top) return null;
   const attributed = report.total - report.unknown;
   if (attributed === 0) return null;

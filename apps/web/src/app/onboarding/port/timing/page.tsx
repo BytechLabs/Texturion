@@ -64,7 +64,7 @@ export default function PortTimingPage() {
   }
   if (!ready || !onboarding.snapshot) return <StepLoading />;
 
-  const companyId = onboarding.companyId;
+  const { companyId } = onboarding;
   const progress = portStepProgress(onboarding.snapshot);
 
   async function onSubmit() {

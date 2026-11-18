@@ -141,7 +141,7 @@ describe("#689 New task", () => {
     typeTitle("Call back");
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
-    const body = mutateAsync.mock.calls[0][0];
+    const [[body]] = mutateAsync.mock.calls;
     expect(body).toMatchObject({ conversation_id: "v1" });
     expect(body).not.toHaveProperty("contact_id");
   });

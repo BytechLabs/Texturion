@@ -81,8 +81,8 @@ export function parseSelect(select: string): SelectItem[] {
       };
     }
     let name = stripAlias(raw);
-    name = name.split("::")[0];
-    name = name.split("->")[0];
+    ([name] = name.split("::"));
+    ([name] = name.split("->"));
     name = name.replace(/\.(sum|avg|max|min|count)\(\)$/, "");
     return { kind: "column", name: name.trim() };
   });

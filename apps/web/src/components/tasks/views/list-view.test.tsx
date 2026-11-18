@@ -150,7 +150,7 @@ describe("Tasks list status control (#743)", () => {
 
   it("changes status from the Status cell and offers Undo", async () => {
     renderList(MINE);
-    const trigger = (await screen.findAllByRole("button", { name: /Status of Call Ana: Open/ }))[0];
+    const [trigger] = await screen.findAllByRole("button", { name: /Status of Call Ana: Open/ });
     fireEvent.keyDown(trigger, { key: "Enter" });
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Done" }));
     expect(mutate).toHaveBeenCalledWith({
@@ -166,7 +166,7 @@ describe("Tasks list status control (#743)", () => {
 
   it("reopens a done task, and is reachable by keyboard", async () => {
     renderList(MINE);
-    const trigger = (await screen.findAllByRole("button", { name: /Status of Send quote: Done/ }))[0];
+    const [trigger] = await screen.findAllByRole("button", { name: /Status of Send quote: Done/ });
     trigger.focus();
     expect(document.activeElement).toBe(trigger);
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
@@ -178,7 +178,7 @@ describe("Tasks list status control (#743)", () => {
 
   it("does nothing when the current status is picked again", async () => {
     renderList(MINE);
-    const trigger = (await screen.findAllByRole("button", { name: /Status of Call Ana/ }))[0];
+    const [trigger] = await screen.findAllByRole("button", { name: /Status of Call Ana/ });
     fireEvent.keyDown(trigger, { key: "Enter" });
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Open" }));
     expect(mutate).not.toHaveBeenCalled();

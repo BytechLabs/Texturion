@@ -99,7 +99,10 @@ export function parseIni(text) {
   const values = {};
   for (const line of text.split(/\r?\n/)) {
     const match = /^\s*([^=#;\s][^=]*?)\s*=\s*(.*?)\s*$/.exec(line);
-    if (match) values[match[1]] = match[2];
+    if (match) {
+      const [, key, value] = match;
+      values[key] = value;
+    }
   }
   return values;
 }
@@ -133,7 +136,7 @@ export function findDiscovery(device, dirs, { readdir = readdirSync, readFile = 
       if (ini["avd.name"] !== device.avd) continue;
       let mtimeMs;
       try {
-        mtimeMs = stat(join(dir, name)).mtimeMs;
+        ({ mtimeMs } = stat(join(dir, name)));
       } catch {
         continue;
       }

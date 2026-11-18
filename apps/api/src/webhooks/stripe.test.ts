@@ -488,7 +488,7 @@ describe("§9 event → state table", () => {
     const companyPatches = harness.callsTo("PATCH", /companies/);
     expect(companyPatches).toHaveLength(1);
     // Fee stamp: gated on registration_fee_paid_at IS NULL (once ever, §2).
-    const feeStamp = companyPatches[0];
+    const [feeStamp] = companyPatches;
     expect(feeStamp.url.searchParams.get("registration_fee_paid_at")).toBe("is.null");
     expect(feeStamp.json()).toEqual({
       registration_fee_paid_at: expect.any(String),

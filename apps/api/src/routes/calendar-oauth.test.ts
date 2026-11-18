@@ -502,7 +502,7 @@ describe("calendar provider webhooks", () => {
     expect(response.status).toBe(202);
     const calls = sb.find("POST", "/rest/v1/rpc/api_request_calendar_pull");
     expect(calls).toHaveLength(1);
-    const call = calls[0];
+    const [call] = calls;
     expect(call.body).toEqual({
       p_provider: "microsoft",
       p_subscription_id: "graph-watch",

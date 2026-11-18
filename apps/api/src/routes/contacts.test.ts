@@ -209,7 +209,7 @@ describe("GET /v1/contacts", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
     expect(call.url.searchParams.get("or")).toBe(
@@ -308,14 +308,14 @@ describe("GET /v1/contacts", () => {
       }),
     ]);
 
-    const lookup = sb.find("GET", "/rest/v1/opt_outs")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/opt_outs");
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(lookup.url.searchParams.get("revoked_at")).toBe("is.null");
     expect(lookup.url.searchParams.get("phone_e164")).toBe(
       "in.(+14165550199,+15125550105)",
     );
 
-    const activity = sb.find("GET", "/rest/v1/conversations")[0];
+    const [activity] = sb.find("GET", "/rest/v1/conversations");
     expect(activity.url.searchParams.get("company_id")).toBe(
       `eq.${COMPANY_ID}`,
     );
@@ -353,7 +353,7 @@ describe("GET /v1/contacts", () => {
       `/v1/contacts?q=${encodeURIComponent('a%b_("c"),d')}`,
       { companyId: COMPANY_ID },
     );
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("or")).toContain("name.ilike.*abcd*");
     expect(call.url.searchParams.get("contact_addresses.address")).toBe("ilike.*abcd*");
   });
@@ -418,7 +418,7 @@ describe("POST /v1/contacts (upsert semantics)", () => {
     });
     expect(res.status).toBe(201);
 
-    const upsert = sb.find("POST", "/rest/v1/contacts")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/contacts");
     expect(upsert.body).toEqual({
       company_id: COMPANY_ID,
       phone_e164: "+14165550199",
@@ -1079,7 +1079,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     );
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ kind: "contact", id: CONTACT_ID });
-    const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
+    const [patch] = sb.find("PATCH", "/rest/v1/contacts");
     expect(typeof (patch.body as Record<string, unknown>).deleted_at).toBe(
       "string",
     );
@@ -1369,7 +1369,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       updated_by_name: "Pat Rivera",
     });
     // Names resolve via a single batched profiles lookup on the actor ids.
-    const lookup = sb.find("GET", "/rest/v1/profiles")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/profiles");
     expect(lookup.url.searchParams.get("user_id")).toBe(
       `in.(${auth.subject},${OTHER})`,
     );
@@ -2498,9 +2498,9 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
     expect(res.status).toBe(200);
-    const revive = sb.find("PATCH", "/rest/v1/opt_outs")[0];
+    const [revive] = sb.find("PATCH", "/rest/v1/opt_outs");
     expect(revive.url.searchParams.get("revoked_at")).toBe("not.is.null");
-    const insert = sb.find("POST", "/rest/v1/opt_outs")[0];
+    const [insert] = sb.find("POST", "/rest/v1/opt_outs");
     expect(insert.url.searchParams.get("on_conflict")).toBe(
       "company_id,phone_e164",
     );
@@ -2782,12 +2782,12 @@ describe("import and a standing carrier STOP", () => {
 
     // The insert must be ON CONFLICT DO NOTHING, so an active row of ANY
     // source is left exactly as it stands.
-    const insert = sb.find("POST", "/rest/v1/opt_outs")[0];
+    const [insert] = sb.find("POST", "/rest/v1/opt_outs");
     expect(insert.url.searchParams.get("on_conflict")).toBe("company_id,phone_e164");
     expect(insert.headers.get("prefer") ?? "").toContain("ignore-duplicates");
 
     // The revive only ever touches rows that are already revoked.
-    const revive = sb.find("PATCH", "/rest/v1/opt_outs")[0];
+    const [revive] = sb.find("PATCH", "/rest/v1/opt_outs");
     expect(revive.url.searchParams.get("revoked_at")).toBe("not.is.null");
   });
 });
@@ -3890,7 +3890,7 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(201);
-    const upsert = sb.find("POST", "/rest/v1/opt_outs")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/opt_outs");
     expect(upsert.body).toMatchObject({
       phone_e164: "+14165550199",
       source: "manual",
@@ -3956,7 +3956,7 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
         companyId: COMPANY_ID,
       });
       expect(res.status, `${method} ${path}`).toBe(200);
-      const update = sb.find("PATCH", "/rest/v1/opt_outs")[0];
+      const [update] = sb.find("PATCH", "/rest/v1/opt_outs");
       expect(
         typeof (update.body as Record<string, unknown>).revoked_at,
       ).toBe("string");
@@ -4114,7 +4114,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
       `"Jo, Smith",'+14165550199,Quote sent;Won,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00`,
     );
     // Export respects company scope + soft-delete exclusion.
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
   });
@@ -4216,7 +4216,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     expect(res.status).toBe(200);
     const bytes = new Uint8Array(await res.arrayBuffer());
     const text = new TextDecoder("utf-8").decode(bytes.slice(3));
-    const line = text.split("\r\n")[1];
+    const [, line] = text.split("\r\n");
     // The formula name is apostrophe-guarded (then RFC-quoted because it also
     // contains a comma); the tag is guarded; and so is the phone, whose leading
     // "+" Excel would otherwise evaluate, showing 1.6478E+10 and losing the
@@ -4333,7 +4333,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     );
     expect(res.status).toBe(200);
     // The literal /export route ran (not /:id, which would 404 on a non-uuid).
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("or")).toContain("name.ilike.*smi*");
     expect(call.url.searchParams.get("or")).toContain("contact_addresses.not.is.null");
     expect(call.url.searchParams.get("contact_addresses.address")).toBe("ilike.*smi*");
@@ -4580,7 +4580,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     expect(body.errors[0].reason).toBe("no phone number");
 
     // The upsert carried the E.164-normalized phones + names, company-scoped.
-    const upsert = sb.find("POST", "/rest/v1/contacts")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/contacts");
     const rows = upsert.body as { phone_e164: string; name?: string; company_id: string }[];
     const phones = rows.map((r) => r.phone_e164).sort();
     expect(phones).toEqual(["+14165550111", "+12125550133", "+15125550122"].sort());
@@ -5681,7 +5681,7 @@ describe("#291 contact addresses", () => {
       },
     );
 
-    const demote = sb.find("PATCH", "/rest/v1/contact_addresses")[0];
+    const [demote] = sb.find("PATCH", "/rest/v1/contact_addresses");
     expect(demote).toBeDefined();
     expect(demote.body).toMatchObject({ is_primary: false });
     // And it happened BEFORE the insert, which is the whole point.
@@ -5804,7 +5804,7 @@ describe("contact field definitions", () => {
     // hardcoding a number that then drifts from the server's.
     expect(body.cap).toBe(10);
 
-    const call = sb.find("GET", "/rest/v1/contact_field_defs")[0];
+    const [call] = sb.find("GET", "/rest/v1/contact_field_defs");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("order")).toContain("position.asc");
   });
@@ -5829,10 +5829,10 @@ describe("contact field definitions", () => {
 
     // The delete is SCOPED. An unscoped one would empty every workspace on the
     // platform, and the test that only checks the response would pass.
-    const del = sb.find("DELETE", "/rest/v1/contact_field_defs")[0];
+    const [del] = sb.find("DELETE", "/rest/v1/contact_field_defs");
     expect(del.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
 
-    const insert = sb.find("POST", "/rest/v1/contact_field_defs")[0];
+    const [insert] = sb.find("POST", "/rest/v1/contact_field_defs");
     const rows = insert.body as Record<string, unknown>[];
     expect(rows.map((r) => [r.key, r.position])).toEqual([
       ["gate_code", 0],
@@ -5995,13 +5995,13 @@ describe("contact field definitions", () => {
       },
     );
     expect(res.status).toBe(200);
-    const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
+    const [patch] = sb.find("PATCH", "/rest/v1/contacts");
     expect((patch.body as Record<string, unknown>).custom_fields).toEqual({
       system_type: "Combi",
     });
     // Read from the SERVER's definitions, scoped to this workspace — not from
     // whatever the client believed the fields were.
-    const read = sb.find("GET", "/rest/v1/contact_field_defs")[0];
+    const [read] = sb.find("GET", "/rest/v1/contact_field_defs");
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
 
@@ -6100,7 +6100,7 @@ describe("contact phone numbers", () => {
       },
     );
     expect(res.status).toBe(201);
-    const insert = sb.find("POST", "/rest/v1/contact_phones")[0];
+    const [insert] = sb.find("POST", "/rest/v1/contact_phones");
     const row = (insert.body as Record<string, unknown>[])[0] ??
       (insert.body as Record<string, unknown>);
     expect(row.phone_e164).toBe("+14165550177");
@@ -6227,7 +6227,7 @@ describe("contact phone numbers", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const call = sb.find("DELETE", "/rest/v1/contact_phones")[0];
+    const [call] = sb.find("DELETE", "/rest/v1/contact_phones");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("contact_id")).toBe(`eq.${CONTACT_ID}`);
     expect(call.url.searchParams.get("id")).toBe(`eq.${CONTACT_PHONE_ID}`);
@@ -6504,7 +6504,7 @@ describe("filtering contacts by a custom field", () => {
     );
     expect(res.status).toBe(200);
 
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     // `->>` so the comparison is against the TEXT. Comparing the jsonb would
     // make "Combi" and a quoted "Combi" different answers, and the picker
     // only ever sends one of them.
@@ -6590,7 +6590,7 @@ describe("filtering contacts by a custom field", () => {
       "/v1/contacts?field=system_type&value=",
       { companyId: COMPANY_ID },
     );
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("custom_fields->>system_type")).toBe("eq.");
   });
 
@@ -6619,7 +6619,7 @@ describe("filtering contacts by a custom field", () => {
       "/v1/contacts?field=system_type&value=Combi",
       { companyId: COMPANY_ID },
     );
-    const call = sb.find("GET", "/rest/v1/contact_field_defs")[0];
+    const [call] = sb.find("GET", "/rest/v1/contact_field_defs");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
 });

@@ -273,7 +273,7 @@
       "button, input:not([tabindex='-1']), textarea",
     );
     if (focusable.length === 0) return;
-    var first = focusable[0];
+    var first = focusable.item(0);
     var last = focusable[focusable.length - 1];
     var active = root.activeElement;
     if (event.shiftKey && active === first) {
@@ -333,7 +333,7 @@
           return;
         }
         if (verificationId === null) {
-          verificationId = result.payload.verificationId;
+          ({ verificationId } = result.payload);
           paint();
           note.textContent = t.sentCode;
           var code = root.querySelector("#lx-code");

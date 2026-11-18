@@ -72,7 +72,7 @@ export default function PortNumberPage() {
 
   const country = draft.country ?? "US";
   const e164 = toE164(raw);
-  const companyId = onboarding.companyId;
+  const { companyId } = onboarding;
   const progress = portStepProgress(onboarding.snapshot);
 
   async function checkAndContinue() {

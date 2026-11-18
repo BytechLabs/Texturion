@@ -153,7 +153,7 @@ describe("checkPortability — §3.1", () => {
     expect(result.fastPortable).toBe(true);
     expect(result.carrierName).toBe("Old Telco");
 
-    const call = telnyx.callsTo("POST", /portability_checks/)[0];
+    const [call] = telnyx.callsTo("POST", /portability_checks/);
     expect(call.path).toBe("/v2/portability_checks");
     expect(call.body).toEqual({ phone_numbers: [PORT_E164] });
   });
@@ -198,7 +198,7 @@ describe("startPortSaga — §4 P1–P4 (create draft, do NOT confirm)", () => {
     expect(row?.messaging_port_status).toBe("not_applicable");
 
     // P2 create: phone_numbers[] is the ONLY field at create (§3.3).
-    const create = telnyx.callsTo("POST", /^\/v2\/porting_orders$/)[0];
+    const [create] = telnyx.callsTo("POST", /^\/v2\/porting_orders$/);
     expect(create.body).toEqual({ phone_numbers: [PORT_E164] });
     // Deterministic Idempotency-Key from the row id — a crash-resume or a
     // webhook-vs-cron re-create collapses to the single order (no orphan/wedge).
@@ -209,7 +209,7 @@ describe("startPortSaga — §4 P1–P4 (create draft, do NOT confirm)", () => {
     expect(portRow(rest).telnyx_porting_order_id).toBe(ORDER_ID);
 
     // P4 PATCH: the verified body shape (§3.4).
-    const patch = telnyx.callsTo("PATCH", /porting_orders/)[0];
+    const [patch] = telnyx.callsTo("PATCH", /porting_orders/);
     expect(patch.body).toMatchObject({
       customer_reference: COMPANY_ID,
       end_user: {
@@ -314,7 +314,7 @@ describe("submitPortRequest — §3.5/§6 documents-gated confirm", () => {
     expect(row?.messaging_port_status).toBe("pending");
 
     // The confirm-time PATCH re-attaches both documents (§3.4).
-    const patch = telnyx.callsTo("PATCH", /porting_orders/)[0];
+    const [patch] = telnyx.callsTo("PATCH", /porting_orders/);
     expect((patch.body as { documents: unknown }).documents).toEqual({
       loa: "doc-loa",
       invoice: "doc-invoice",

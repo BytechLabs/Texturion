@@ -168,9 +168,9 @@ async function resolveComposeContact(
         .limit(1),
       "contact lookup",
     );
-    const contact = rows[0];
+    const [contact] = rows;
     if (!contact) throw new ApiError("not_found", "No such contact.");
-    const updated = unwrap<ContactRow[]>(
+    const [updated] = unwrap<ContactRow[]>(
       await db
         .from("contacts")
         .update({ deleted_at: null })
@@ -178,7 +178,7 @@ async function resolveComposeContact(
         .eq("id", contact.id)
         .select(columns),
       "contact resurrect",
-    )[0];
+    );
     return updated ?? contact;
   }
 
@@ -190,7 +190,7 @@ async function resolveComposeContact(
     );
   }
 
-  const existing = unwrap<ContactRow[]>(
+  const [existing] = unwrap<ContactRow[]>(
     await db
       .from("contacts")
       .select(columns)
@@ -198,9 +198,9 @@ async function resolveComposeContact(
       .eq("phone_e164", phone)
       .limit(1),
     "contact lookup",
-  )[0];
+  );
   if (existing) {
-    const updated = unwrap<ContactRow[]>(
+    const [updated] = unwrap<ContactRow[]>(
       await db
         .from("contacts")
         .update({ deleted_at: null })
@@ -208,7 +208,7 @@ async function resolveComposeContact(
         .eq("id", existing.id)
         .select(columns),
       "contact resurrect",
-    )[0];
+    );
     return updated ?? existing;
   }
 
@@ -356,7 +356,7 @@ async function createOrReuseConversation(
       .limit(1),
     "open conversation lookup",
   );
-  const row = rows[0];
+  const [row] = rows;
   if (!row) throw new Error("open conversation vanished after conflict");
   return { conversation: row, created: false };
 }
@@ -377,7 +377,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
 
   // Idempotent replay (§7): the same key returns the existing conversation
   // and message with 200 — before re-running any side effect.
-  const replay = unwrap<MessageRow[]>(
+  const [replay] = unwrap<MessageRow[]>(
     await db
       .from("messages")
       .select("*")
@@ -385,9 +385,9 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
       .eq("idempotency_key", idempotencyKey)
       .limit(1),
     "idempotency lookup",
-  )[0];
+  );
   if (replay) {
-    const conversation = unwrap<Record<string, unknown>[]>(
+    const [conversation] = unwrap<Record<string, unknown>[]>(
       await db
         .from("conversations")
         .select(CONVERSATION_COLUMNS)
@@ -395,7 +395,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
         .eq("id", replay.conversation_id)
         .limit(1),
       "conversation lookup",
-    )[0];
+    );
     const attachments = await loadAttachments(db, companyId, [replay.id]);
     return c.json(
       {
@@ -407,7 +407,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   }
 
   // Sending number: must belong to the company and be usable.
-  const number = unwrap<
+  const [number] = unwrap<
     { id: string; number_e164: string | null; status: string }[]
   >(
     await db
@@ -417,7 +417,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
       .eq("id", body.phone_number_id)
       .limit(1),
     "phone number lookup",
-  )[0];
+  );
   if (!number) throw new ApiError("not_found", "No such phone number.");
   // #106: composing from a number needs level 'text' on it (hidden → 404,
   // notes-only → the honest 403).
@@ -436,7 +436,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   // #225 the night-texting confirmation). Optional, because a row read against a
   // Worker deployed ahead of the migration has no such column — and the gate
   // below reads absent as ON so the missing case fails toward asking.
-  const company = unwrap<
+  const [company] = unwrap<
     {
       id: string;
       name: string;
@@ -452,7 +452,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
       .eq("id", companyId)
       .limit(1),
     "company lookup",
-  )[0];
+  );
   if (!company) throw new ApiError("not_found", "No such company.");
 
   // Destination phone BEFORE any write: contact_id path reads the stored

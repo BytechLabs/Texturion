@@ -75,7 +75,7 @@ describe("GET /v1/webhooks", () => {
     expect(body.endpoints).toHaveLength(1);
     expect(body.cap).toBe(10);
 
-    const call = sb.find("GET", "/rest/v1/webhook_endpoints")[0];
+    const [call] = sb.find("GET", "/rest/v1/webhook_endpoints");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     // The column list is the enforcement, so it is what gets asserted. A
     // `select("*")` here would leak the HMAC key to every admin's browser
@@ -116,14 +116,14 @@ describe("POST /v1/webhooks", () => {
     // Nothing in the endpoint object repeats it.
     expect(JSON.stringify(body.endpoint)).not.toContain(body.secret_once);
 
-    const insert = sb.find("POST", "/rest/v1/webhook_endpoints")[0];
+    const [insert] = sb.find("POST", "/rest/v1/webhook_endpoints");
     const written = insert.body as { secret: string; events: string[] };
     expect(written.secret).toBe(body.secret_once);
     // The duplicate is dropped rather than stored — storing it would fire the
     // endpoint twice for one event.
     expect(written.events).toEqual(["message.received", "task.created"]);
 
-    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    const [audit] = sb.find("POST", "/rest/v1/audit_log");
     const entry = audit.body as { action: string; after: { url: string } };
     expect(entry.action).toBe("webhook.endpoint_created");
     expect(entry.after.url).toBe("https://hooks.example.com/loonext");
@@ -435,7 +435,7 @@ describe("GET /v1/webhooks/:id/deliveries", () => {
     );
     expect(res.status).toBe(200);
 
-    const call = sb.find("GET", "/rest/v1/webhook_deliveries")[0];
+    const [call] = sb.find("GET", "/rest/v1/webhook_deliveries");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("endpoint_id")).toBe(`eq.${ENDPOINT_ID}`);
     // The log is for debugging delivery, not for re-reading message content

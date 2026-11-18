@@ -120,7 +120,7 @@ describe("provisionCompanyNumber — §4.3 saga happy path", () => {
     expect(row?.requested_area_code).toBe("212");
 
     // S1: messaging profile per SPEC — webhook URLs + US/CA geo-permissions.
-    const profile = telnyx.callsTo("POST", /messaging_profiles/)[0];
+    const [profile] = telnyx.callsTo("POST", /messaging_profiles/);
     expect(profile.body).toEqual({
       name: COMPANY_ID,
       webhook_url: "https://api.loonext.com/webhooks/telnyx",
@@ -135,14 +135,14 @@ describe("provisionCompanyNumber — §4.3 saga happy path", () => {
     ).toBe("profile-1");
 
     // S2: search filters exactly as SPEC names them.
-    const search = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    const [search] = telnyx.callsTo("GET", /available_phone_numbers/);
     expect(search.query.get("filter[country_code]")).toBe("US");
     expect(search.query.get("filter[features]")).toBe("sms");
     expect(search.query.get("filter[phone_number_type]")).toBe("local");
     expect(search.query.get("filter[national_destination_code]")).toBe("212");
 
     // S3: order carries messaging_profile_id + customer_reference.
-    const order = telnyx.callsTo("POST", /number_orders/)[0];
+    const [order] = telnyx.callsTo("POST", /number_orders/);
     expect(order.body).toEqual({
       phone_numbers: [{ phone_number: "+12125550123" }],
       messaging_profile_id: "profile-1",
@@ -158,7 +158,7 @@ describe("provisionCompanyNumber — §4.3 saga happy path", () => {
       checkoutSessionId: CHECKOUT,
     });
     expect(telnyx.callsTo("POST", /messaging_profiles/)).toHaveLength(0);
-    const order = telnyx.callsTo("POST", /number_orders/)[0];
+    const [order] = telnyx.callsTo("POST", /number_orders/);
     expect((order.body as { messaging_profile_id: string }).messaging_profile_id).toBe(
       "profile-9",
     );
@@ -511,7 +511,7 @@ describe("chosen-number ordering (choose-your-number)", () => {
     const result = await resumeProvisioning(env, row);
     expect(result.status).toBe("active");
     expect(result.number_e164).toBe("+12125550188");
-    const order = telnyx.callsTo("POST", /number_orders/)[0];
+    const [order] = telnyx.callsTo("POST", /number_orders/);
     expect(order.body).toMatchObject({
       phone_numbers: [{ phone_number: "+12125550188" }],
     });
@@ -559,7 +559,7 @@ describe("chosen-number ordering (choose-your-number)", () => {
     // Exactly two order attempts: the taken pick, then the fallback — never a
     // duplicate of a successful order.
     expect(telnyx.callsTo("POST", /number_orders/)).toHaveLength(2);
-    const search = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    const [search] = telnyx.callsTo("GET", /available_phone_numbers/);
     expect(search.query.get("filter[national_destination_code]")).toBe("212");
   });
 });
@@ -704,7 +704,7 @@ describe("reconcileNumbers — §11 crash-window recovery", () => {
     expect(summary.activated).toBe(1);
     expect(summary.orphansFlagged).toBe(0);
 
-    const row = rest.rows("phone_numbers")[0];
+    const [row] = rest.rows("phone_numbers");
     expect(row.status).toBe("active");
     expect(row.number_e164).toBe("+12125550777");
     expect(row.telnyx_phone_number_id).toBe("pn-9");
@@ -733,7 +733,7 @@ describe("reconcileNumbers — §11 crash-window recovery", () => {
 
     const summary = await reconcileNumbers(env);
     expect(summary.activated).toBe(1);
-    const row = rest.rows("phone_numbers")[0];
+    const [row] = rest.rows("phone_numbers");
     expect(row.status).toBe("active");
     expect(row.telnyx_phone_number_id).toBe("pn-7");
     // Adopted — never searched, never ordered.
@@ -876,7 +876,7 @@ describe("double-order fail-safes (§4.3)", () => {
       companyId: COMPANY_ID,
       checkoutSessionId: CHECKOUT,
     });
-    const order = telnyx.callsTo("POST", /number_orders/)[0];
+    const [order] = telnyx.callsTo("POST", /number_orders/);
     const sentKey = order.headers.get("Idempotency-Key");
     expect(sentKey).toBeTruthy();
     // The exact key the row claimed BEFORE the POST — a crash-retry replays it.
@@ -1072,7 +1072,7 @@ describe("stuck-pending provisioning → provision_failed (§4.3 honest status)"
     expect(result.status).toBe("provision_failed");
     expect(result.provision_failure_reason).toBe("timeout");
     expect(result.provision_attempts).toBe(MAX_PROVISION_ATTEMPTS);
-    const stored = rest.rows("phone_numbers")[0];
+    const [stored] = rest.rows("phone_numbers");
     // Order id + key cleared so a remediation orders fresh; lease released.
     expect(stored.telnyx_order_id).toBeNull();
     expect(stored.telnyx_order_idempotency_key ?? null).toBeNull();
@@ -1757,7 +1757,7 @@ describe("D142 — the shared-account partition", () => {
       happyPathTelnyx(telnyx);
       await provisionCompanyNumber(env, { companyId: COMPANY_ID, checkoutSessionId: CHECKOUT });
 
-      const order = telnyx.callsTo("POST", /number_orders/)[0];
+      const [order] = telnyx.callsTo("POST", /number_orders/);
       expect(order.body).toEqual({
         phone_numbers: [{ phone_number: "+12125550123" }],
         messaging_profile_id: "profile-1",
@@ -1772,7 +1772,7 @@ describe("D142 — the shared-account partition", () => {
       happyPathTelnyx(telnyx);
       await provisionCompanyNumber(env, { companyId: COMPANY_ID, checkoutSessionId: CHECKOUT });
 
-      const order = telnyx.callsTo("POST", /number_orders/)[0];
+      const [order] = telnyx.callsTo("POST", /number_orders/);
       expect(order.body).toEqual({
         phone_numbers: [{ phone_number: "+12125550123" }],
         messaging_profile_id: "profile-1",

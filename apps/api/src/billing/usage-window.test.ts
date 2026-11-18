@@ -68,7 +68,7 @@ describe("#304 readUsageWindow", () => {
       to: "2026-06-30T23:59:59.999Z",
     });
 
-    const sent = harness.callsTo("POST", /\/rpc\/api_usage_window/)[0];
+    const [sent] = harness.callsTo("POST", /\/rpc\/api_usage_window/);
     expect(sent.json()).toEqual({
       p_company_id: COMPANY_ID,
       p_from: "2026-06-01T00:00:00.000Z",
@@ -88,7 +88,7 @@ describe("#304 readUsageWindow", () => {
       to: null,
     });
 
-    const sent = harness.callsTo("POST", /\/rpc\/api_usage_window/)[0];
+    const [sent] = harness.callsTo("POST", /\/rpc\/api_usage_window/);
     expect((sent.json() as { p_to: unknown }).p_to).toBeNull();
   });
 

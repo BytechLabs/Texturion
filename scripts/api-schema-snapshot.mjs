@@ -105,7 +105,7 @@ ${defaults.join(",\n")}
 `;
 }
 
-const mode = process.argv[2];
+const { 2: mode } = process.argv;
 if (mode !== "--write" && mode !== "--check") {
   console.error("usage: api-schema-snapshot.mjs --write | --check");
   process.exit(2);

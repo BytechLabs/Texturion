@@ -90,7 +90,7 @@ export function settingsSectionForPath(
   pathname: string,
 ): SettingsSection | null {
   const rest = pathname.replace(/^\/settings\/?/, "");
-  const slug = rest.split("/")[0];
+  const [slug] = rest.split("/");
   if (!slug) return null;
   return (
     SETTINGS_SECTIONS.find(

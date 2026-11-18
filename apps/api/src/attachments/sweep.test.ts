@@ -307,7 +307,7 @@ describe("sweepDeletedAttachments (D19 §2; #15/#16)", () => {
 
     // Scan selects only soft-deleted rows older than the grace window: two
     // deleted_at predicates (not-null AND < cutoff) go on the URL.
-    const scan = captured.scans[0];
+    const [scan] = captured.scans;
     expect(scan.searchParams.getAll("deleted_at")).toEqual([
       "not.is.null",
       expect.stringMatching(/^lt\./),

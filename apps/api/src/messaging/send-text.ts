@@ -85,7 +85,7 @@ export async function loadSendView(
       .limit(1),
     "conversation lookup",
   );
-  const view = rows[0];
+  const [view] = rows;
   if (!view) throw new ApiError("not_found", "No such conversation.");
   return view;
 }

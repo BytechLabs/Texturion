@@ -245,7 +245,7 @@ savedViewsRoutes.patch(
         .limit(1),
       "saved view read",
     );
-    const row = existing[0];
+    const [row] = existing;
     if (!row) return errorResponse(c, "not_found", "No such view.");
 
     const canManageShared = roleHasCapability(c.get("role"), "settings.manage");
@@ -313,7 +313,7 @@ savedViewsRoutes.delete(
         .limit(1),
       "saved view read",
     );
-    const row = existing[0];
+    const [row] = existing;
     if (!row) return errorResponse(c, "not_found", "No such view.");
     if (row.owner_user_id !== null && row.owner_user_id !== c.get("userId")) {
       return errorResponse(c, "not_found", "No such view.");

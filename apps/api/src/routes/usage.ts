@@ -112,7 +112,7 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
       .limit(1),
     "company lookup",
   );
-  const company = companies[0];
+  const [company] = companies;
   if (!company) {
     return errorResponse(c, "not_found", "No such company.");
   }

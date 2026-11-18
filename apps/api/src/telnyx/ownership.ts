@@ -72,7 +72,7 @@ export async function reportOwnershipMismatch(
   where: string,
 ): Promise<void> {
   if (numbers.length === 0) return;
-  const first = numbers[0];
+  const [first] = numbers;
   const summary =
     numbers.length === 1
       ? `Telnyx number ${first.id ?? "(no id)"} (customer_reference=` +

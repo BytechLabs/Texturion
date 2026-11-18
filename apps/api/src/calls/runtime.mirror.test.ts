@@ -41,12 +41,12 @@ describe("createSessionRuntime.mirror - terminal outcome coupling (#209)", () =>
     expect(patches.calls).toHaveLength(2);
     // 1. The coalesce: outcome = coalesce(outcome, 'answered') - only rows
     //    still outcome-null are touched, and it lands BEFORE the state.
-    const fill = patches.calls[0];
+    const [fill] = patches.calls;
     expect(isOutcomeFill(fill.url)).toBe(true);
     expect(fill.url.searchParams.get("call_session_id")).toBe("eq.sess-209");
     expect(fill.body).toEqual({ outcome: "answered" });
     // 2. The state mirror itself, untouched: no outcome in its body.
-    const mirror = patches.calls[1];
+    const [, mirror] = patches.calls;
     expect(isOutcomeFill(mirror.url)).toBe(false);
     expect(mirror.url.searchParams.get("call_session_id")).toBe("eq.sess-209");
     expect(mirror.body).toEqual({

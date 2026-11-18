@@ -16,7 +16,7 @@ function latestViewColumns(view: string): string[] {
   let body = "";
   for (const file of readdirSync(MIGRATIONS).filter((name) => name.endsWith(".sql")).toSorted()) {
     for (const match of readFileSync(join(MIGRATIONS, file), "utf8").matchAll(definition)) {
-      body = match[1];
+      ([, body] = match);
     }
   }
   return body.split(",").map((part) => {

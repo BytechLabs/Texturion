@@ -109,7 +109,7 @@ export async function filterToTaskViewers(
         .limit(1),
       "conversation lookup",
     );
-    const conversation = conversations[0];
+    const [conversation] = conversations;
     if (!conversation) return [];
     const viewers = await listConversationViewers(db, {
       companyId,
@@ -180,7 +180,7 @@ export async function notifyTaskChange(
       .limit(1),
     "task lookup",
   );
-  const task = tasks[0];
+  const [task] = tasks;
   if (task?.deleted_at !== null) return;
 
   let audience = await candidates(db, change);

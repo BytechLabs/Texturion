@@ -72,7 +72,7 @@ describe("GET /v1/audit-log", () => {
     expect(body.data).toHaveLength(1);
     expect(body.next_cursor).toBeNull();
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_audit_log")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_audit_log");
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_actor: ACTOR_ID,
@@ -123,7 +123,7 @@ describe("GET /v1/audit-log", () => {
       `/v1/audit-log?limit=1&cursor=${encodeURIComponent(body.next_cursor)}`,
       { companyId: COMPANY_ID },
     );
-    const second = sb.find("POST", "/rest/v1/rpc/api_list_audit_log")[1];
+    const [, second] = sb.find("POST", "/rest/v1/rpc/api_list_audit_log");
     expect(second.body).toMatchObject({
       p_cursor_ts: "2026-07-20T15:04:05+00:00",
       p_cursor_id: "aaaaaaaa-0000-4000-8000-000000000001",

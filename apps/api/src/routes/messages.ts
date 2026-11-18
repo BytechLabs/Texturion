@@ -369,7 +369,7 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
       .limit(1),
     "message lookup",
   );
-  const message = rows[0];
+  const [message] = rows;
   if (!message) throw new ApiError("not_found", "No such message.");
 
   // §7: retry an API-failure row — failed AND never assigned a Telnyx id
@@ -527,7 +527,7 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
       .limit(1),
     "message lookup",
   );
-  const message = rows[0];
+  const [message] = rows;
   if (!message) throw new ApiError("not_found", "No such message.");
 
   // #106: done/pin are workflow actions — any visible level ('note'+) may
@@ -655,7 +655,7 @@ function onPromotedMessageDone(
         .limit(1),
       "rating task lookup",
     );
-    const task = tasks[0];
+    const [task] = tasks;
     if (!task) return;
     await enqueueWebhookEvent(db, {
       companyId: input.companyId,
@@ -795,21 +795,21 @@ messageRoutes.get(
         );
       }
       const page = await newerThan(cursor, limit);
-      rows = page.rows;
+      ({ rows } = page);
       newerCursor = page.more && rows.length > 0 ? cursorOf(rows[0]) : null;
       // Continues downward from this page's oldest row, which is what lets a
       // client refetch a stack of newer pages by following next_cursor alone.
       nextCursor = rows.length > 0 ? cursorOf(rows[rows.length - 1]) : null;
     } else if (around === null) {
       const page = await olderThan(cursor, limit);
-      rows = page.rows;
+      ({ rows } = page);
       nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
     } else {
       const anchors = unwrap<Row[]>(
         await base().eq("id", around).limit(1),
         "message anchor lookup",
       );
-      const anchor = anchors[0];
+      const [anchor] = anchors;
       if (anchor) {
         anchorId = anchor.id;
         const half = Math.floor((limit - 1) / 2);
@@ -826,7 +826,7 @@ messageRoutes.get(
       } else {
         anchorMissing = true;
         const page = await olderThan(cursor, limit);
-        rows = page.rows;
+        ({ rows } = page);
         nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
       }
     }

@@ -85,7 +85,7 @@ describe("GET /v1/sessions — your own devices", () => {
     });
 
     // Scoped to the caller's own sub — a person cannot ask for anyone else's.
-    const call = sb.find("POST", "/rest/v1/rpc/api_list_user_sessions")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_list_user_sessions");
     expect(call.body).toEqual({ p_user_ids: [auth.subject] });
   });
 
@@ -383,7 +383,7 @@ describe("GET /v1/members/sessions — the workspace view", () => {
       next_cursor: null,
     });
     // The member lookup is scoped to this workspace's ACTIVE members only.
-    const members = sb.find("GET", "/rest/v1/company_members")[0];
+    const [members] = sb.find("GET", "/rest/v1/company_members");
     expect(members.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(members.url.searchParams.get("deactivated_at")).toBe("is.null");
   });
@@ -425,7 +425,7 @@ describe("POST /v1/members/:id/sessions/revoke", () => {
       p_actor: auth.subject,
       p_reason: "admin",
     });
-    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    const [audit] = sb.find("POST", "/rest/v1/audit_log");
     expect(audit.body).toMatchObject({
       action: "member.sessions_revoked",
       target_type: "member",

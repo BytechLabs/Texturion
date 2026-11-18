@@ -131,7 +131,7 @@ export function draftIsExpired(raw: string, now: number = Date.now()): boolean {
   try {
     const value: unknown = JSON.parse(raw);
     if (typeof value !== "object" || value === null) return false;
-    const savedAt = (value as Record<string, unknown>).savedAt;
+    const { savedAt } = (value as Record<string, unknown>);
     if (typeof savedAt !== "number") return true;
     return now - savedAt > DRAFT_TTL_MS;
   } catch {

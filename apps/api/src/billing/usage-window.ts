@@ -75,7 +75,7 @@ export async function readUsageWindow(
   // A set-returning function with every arm coalesced always yields one row.
   // The fallback is here so a shape change reads as zeros rather than throwing
   // on the usage screen, which is a member surface the composer depends on.
-  const row = rows[0];
+  const [row] = rows;
   return {
     outboundSegments: Number(row?.outbound_segments ?? 0),
     inboundSegments: Number(row?.inbound_segments ?? 0),

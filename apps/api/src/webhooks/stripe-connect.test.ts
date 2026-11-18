@@ -193,7 +193,7 @@ describe("#224 a connected account's checkout", () => {
     const harness = buildHarness([openRequest()]);
     await processStripeEvent(harness.env, checkoutEvent(ACCOUNT_ID));
 
-    const row = harness.rest.rows("payment_requests")[0];
+    const [row] = harness.rest.rows("payment_requests");
     expect(row.status).toBe("paid");
     expect(row.amount_received_cents).toBe(25_000);
     // The charge id, read from the payment intent ON the connected account. It
@@ -288,7 +288,7 @@ describe("#224 what happens after the money moved", () => {
     ]);
     await processStripeEvent(harness.env, refundEvent(ACCOUNT_ID));
 
-    const row = harness.rest.rows("payment_requests")[0];
+    const [row] = harness.rest.rows("payment_requests");
     // A refunded payment WAS paid. Collapsing that into the status would
     // destroy the fact the crew most needs.
     expect(row.status).toBe("paid");
@@ -432,7 +432,7 @@ describe("#224 account.updated", () => {
       },
     } as unknown as Stripe.Event);
 
-    const row = harness.rest.rows("stripe_connect_accounts")[0];
+    const [row] = harness.rest.rows("stripe_connect_accounts");
     expect(row.charges_enabled).toBe(true);
     expect(row.disabled_reason).toBeNull();
     expect(row.requirements_due).toEqual([]);

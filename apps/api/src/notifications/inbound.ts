@@ -151,7 +151,7 @@ export async function notifyInboundMessage(
       .limit(1),
     "conversation lookup",
   );
-  const conversation = conversations[0];
+  const [conversation] = conversations;
   if (!conversation) {
     throw new Error(
       `notification pipeline: conversation ${input.conversationId} vanished`,

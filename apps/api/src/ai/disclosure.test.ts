@@ -42,7 +42,7 @@ function catalogueSentence(key: string): string {
     join(import.meta.dirname, "../../../../apps/web/src/i18n/sections/misc.ts"),
     "utf8",
   );
-  const name = key.split(".")[1];
+  const [, name] = key.split(".");
   const match = new RegExp(`^  ${name}:\\s*("(?:[^"\\\\]|\\\\.)*")`, "m").exec(file);
   if (!match) throw new Error(`no catalogue entry for ${key}`);
   return JSON.parse(match[1]) as string;

@@ -46,7 +46,7 @@ export async function processConnectEvent(
   env: Env,
   event: Stripe.Event,
 ): Promise<void> {
-  const account = event.account;
+  const { account } = event;
   if (!account) return;
 
   switch (event.type) {

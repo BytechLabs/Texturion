@@ -122,7 +122,7 @@ describe("search — request shape on the wire", () => {
     );
     await search(request, "furnace");
 
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     const parsed = new URL(String(url));
     expect(parsed.origin).toBe("https://api.loonext.test");
     expect(parsed.pathname).toBe("/v1/search");

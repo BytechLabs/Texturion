@@ -75,7 +75,7 @@ describe("POST /v1/companies (company-exempt)", () => {
     expect(res.status).toBe(201);
     await expect(res.json()).resolves.toEqual(company);
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_create_company")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_create_company");
     expect(rpc.body).toEqual({
       p_owner_user_id: auth.subject,
       p_name: "Acme Plumbing",
@@ -101,7 +101,7 @@ describe("POST /v1/companies (company-exempt)", () => {
       },
     });
     expect(res.status).toBe(201);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_create_company")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_create_company");
     expect(rpc.body).toMatchObject({
       p_country: "CA",
       p_us_texting_enabled: false,
@@ -883,7 +883,7 @@ describe("PATCH /v1/company (O/A; cap owner-only)", () => {
       body: { name: "New Name" },
     });
     expect(rename.status).toBe(200);
-    const patchCall = sb.find("PATCH", "/rest/v1/companies")[0];
+    const [patchCall] = sb.find("PATCH", "/rest/v1/companies");
     expect(patchCall.body).toEqual({ name: "New Name" });
 
     const cap = await apiRequest(app, env, await auth.token(), "/v1/company", {

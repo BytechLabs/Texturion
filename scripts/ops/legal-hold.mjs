@@ -27,7 +27,7 @@ await runScript("legal-hold", async ({ args, apply, db, script }) => {
     "id,name,deleted_at,purge_after,legal_hold_at,legal_hold_reason",
     { id: "eq." + companyId },
   );
-  const company = rows[0];
+  const [company] = rows;
   if (!company) fail(`no company with id ${companyId}`);
 
   showRows("Workspace", [company]);

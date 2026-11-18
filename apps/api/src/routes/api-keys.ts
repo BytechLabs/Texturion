@@ -159,7 +159,7 @@ apiKeysRoutes.post("/api-keys", requireCapability("settings.manage"), async (c) 
     throw new Error(`api key create failed: ${error.message}`);
   }
 
-  const row = (data as unknown as KeyRow[])[0];
+  const [row] = (data as unknown as KeyRow[]);
   await recordAuditFromRequest(db, c, {
     companyId,
     action: "api_key.created",

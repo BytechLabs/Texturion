@@ -1004,7 +1004,7 @@ async function findContact(
       .limit(1),
     "contact lookup",
   );
-  const contact = rows[0];
+  const [contact] = rows;
   return contact && (includeMerged || !contact.merged_into) ? contact : null;
 }
 
@@ -3057,7 +3057,7 @@ contactsRoutes.post(
         .select(optOutCols),
       "opt-out revive",
     );
-    let transitioned = revived[0];
+    let [transitioned] = revived;
     if (!transitioned) {
       // (2) No revoked row to revive → try a brand-new opt-out. ON CONFLICT DO
       // NOTHING (ignoreDuplicates) so a concurrent insert OR an already-active
@@ -3078,7 +3078,7 @@ contactsRoutes.post(
           .select(optOutCols),
         "opt-out insert",
       );
-      transitioned = inserted[0];
+      ([transitioned] = inserted);
     }
     if (!transitioned) {
       // Already opted out (active), or lost the concurrent insert — idempotent,
@@ -3403,7 +3403,7 @@ contactsRoutes.post(
         "tag lookup",
       );
       if (!rows[0]) return errorResponse(c, "not_found", "No such tag.");
-      tag = rows[0];
+      ([tag] = rows);
     } else {
       const rows = unwrap<
         (ContactTagRef & { refused: boolean; reason: string | null })[]
@@ -3432,7 +3432,7 @@ contactsRoutes.post(
         );
       }
       if (!rows[0]) throw new Error("tag find-or-create: no row returned");
-      tag = rows[0];
+      ([tag] = rows);
     }
 
     const attached = unwrap<unknown[]>(

@@ -394,7 +394,7 @@ billingRoutes.post("/checkout", async (c) => {
    * route that needs no deactivation rather than leaving the reader stuck.
    */
   const memberCount = await countActiveMembers(db, company.id);
-  const seats = PLAN_LIMITS[plan].seats;
+  const { seats } = PLAN_LIMITS[plan];
   if (memberCount > seats) {
     const over = memberCount - seats;
     const alternative =
@@ -749,7 +749,7 @@ async function portalConfiguration(env: Env, isOwner: boolean): Promise<string |
     : env.STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID;
   if (!id && !isOwner) return null;
 
-  const configurations = getStripe(env).billingPortal.configurations;
+  const { configurations } = getStripe(env).billingPortal;
   const configuration = id
     ? await configurations.retrieve(id)
     : (await configurations.list({ active: true, is_default: true, limit: 1 })).data[0];
@@ -761,7 +761,7 @@ async function portalConfiguration(env: Env, isOwner: boolean): Promise<string |
     return null;
   }
 
-  const features = configuration.features;
+  const { features } = configuration;
   if (isOwner) {
     return features.subscription_cancel.enabled && features.subscription_cancel.mode === "at_period_end"
       ? configuration.id
@@ -1986,7 +1986,7 @@ billingRoutes.get("/held-numbers", async (c) => {
     suspended_at: string | null;
   }[];
 
-  const plan = company.plan;
+  const { plan } = company;
   const included = plan === null ? null : PLAN_LIMITS[plan].numbers;
   const allowance = included === null ? null : included + company.paid_extra_numbers;
 

@@ -295,7 +295,7 @@ async function authorizedProviderForAttention(input: {
       .limit(1),
     "calendar attention connection",
   );
-  const connection = rows[0];
+  const [connection] = rows;
   if (!connection || connection.provider !== input.expectedProvider) {
     throw new ApiError("not_found", "No such calendar attention item.");
   }

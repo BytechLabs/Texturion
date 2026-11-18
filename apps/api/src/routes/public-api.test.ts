@@ -219,7 +219,7 @@ describe("the door", () => {
 
     await publicRequest("/public/v1/me");
 
-    const call = sb.find("POST", "/rest/v1/rpc/api_resolve_key")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_resolve_key");
     const body = call.body as { p_token_hash: string };
     expect(body.p_token_hash).toMatch(/^[0-9a-f]{64}$/);
     // The token itself must not appear anywhere in what we send.
@@ -239,7 +239,7 @@ describe("scopes are the second gate", () => {
     expect(body.data).toHaveLength(1);
     expect(body.limit).toBe(25);
 
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     // The published column list is the enforcement — a `select("*")` here
     // would publish every internal column as a shape somebody parses.
@@ -464,7 +464,7 @@ describe("#106 travels with the key", () => {
     // THE ONE THAT MATTERS. A key must not enumerate conversations on a number
     // its creator cannot see, and the deny list has to reach the query — not
     // merely be computed and dropped.
-    const call = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
     const body = call.body as { p_hidden_number_ids: string[] };
     expect(body.p_hidden_number_ids).toEqual([
       "nnnnnnnn-1111-4222-8333-444444444444",
@@ -507,7 +507,7 @@ describe("#106 travels with the key", () => {
     const res = await publicRequest(`/public/v1/conversations/${CONVERSATION_ID}/messages`);
     expect(res.status).toBe(200);
 
-    const call = sb.find("GET", "/rest/v1/messages")[0];
+    const [call] = sb.find("GET", "/rest/v1/messages");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("conversation_id")).toBe(`eq.${CONVERSATION_ID}`);
     // A deliberate subset. Every column published becomes a shape somebody
@@ -589,7 +589,7 @@ describe("writes", () => {
     });
     expect(res.status).toBe(201);
 
-    const call = sb.find("POST", "/rest/v1/contacts")[0];
+    const [call] = sb.find("POST", "/rest/v1/contacts");
     // A replayed queue is the normal case for an integration, not the
     // exception, so the conflict target has to be the one the first-party
     // route uses.
@@ -634,7 +634,7 @@ describe("writes", () => {
 
     // A public path that wrote the table directly would be a second way to
     // create a task, and the second way is the one that forgets the audit row.
-    const call = sb.find("POST", "/rest/v1/rpc/create_task")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/create_task");
     expect(call.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_actor_user_id: CREATOR,
@@ -886,7 +886,7 @@ describe("REST hooks — how Zapier and Make actually work", () => {
     // THE ONE THAT MATTERS. Without this filter a Zap could tear down a
     // webhook the same person set up by hand in Settings, or one belonging to
     // a different Zap — invisible until the messages stopped arriving.
-    const call = sb.find("DELETE", "/rest/v1/webhook_endpoints")[0];
+    const [call] = sb.find("DELETE", "/rest/v1/webhook_endpoints");
     expect(call.url.searchParams.get("created_by_api_key_id")).toBe(`eq.${KEY_ID}`);
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
@@ -1213,7 +1213,7 @@ describe("#581 replaying a contact preserves its attribution", () => {
 
     // THE ASSERTION: no INSERT at all, so there is nothing to overwrite with.
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
-    const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
+    const [patch] = sb.find("PATCH", "/rest/v1/contacts");
     expect(patch.body).toMatchObject({
       name: "Maria Alvarez",
       updated_by_user_id: CREATOR,
@@ -1243,7 +1243,7 @@ describe("#581 replaying a contact preserves its attribution", () => {
     });
     expect(res.status).toBe(201);
 
-    const insert = sb.find("POST", "/rest/v1/contacts")[0];
+    const [insert] = sb.find("POST", "/rest/v1/contacts");
     expect(insert.body).toMatchObject({
       created_by_user_id: CREATOR,
       deleted_at: null,

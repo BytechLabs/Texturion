@@ -85,7 +85,7 @@ export function WebsiteWidgetCard({ appOrigin }: { appOrigin: string }) {
   const chosen = company.data?.widget_number_id ?? DEFAULT_LINE;
   // The server's default is the oldest active line, and the list arrives
   // oldest first.
-  const firstLine = routable[0];
+  const [firstLine] = routable;
   const explicitLines = routable.filter((number) =>
     offeredBesideDefault(number.id, firstLine?.id, company.data?.widget_number_id),
   );

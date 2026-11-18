@@ -265,7 +265,7 @@ for (const photo of PHOTOS) {
   }
 
   // Primary = the first (largest) variant; carry its intrinsic w/h in the manifest.
-  const primary = variants[0];
+  const [primary] = variants;
 
   // 20px blur-up placeholder (base64 WebP data-URI), SAME duotone grade so it
   // matches the graded raster (no grain at this size — invisible + noisy).

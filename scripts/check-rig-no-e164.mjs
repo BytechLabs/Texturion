@@ -97,7 +97,7 @@ export function findNumbers(text) {
   for (const match of text.matchAll(E164)) {
     const before = text.slice(Math.max(0, match.index - 3), match.index);
     if (TOUCHING.test(before) && !ESCAPE.test(before)) continue;
-    const digits = match[1];
+    const [, digits] = match;
     const fictional = digits.startsWith("1") && isFictionalNanp(digits.slice(1));
     found.push({ line: lineAt(match.index), fictional });
   }

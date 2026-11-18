@@ -307,7 +307,7 @@ export async function ensureStripeCustomers({ store, tenants = TENANTS, fetchImp
       });
       const body = await made.json().catch(() => ({}));
       if (!made.ok || typeof body.id !== "string") throw new Error(`rig seed: Stripe refused to create ${tenant.name}'s customer (${made.status})`);
-      id = body.id;
+      ({ id } = body);
       known[tenant.key] = id;
       changed = true;
     }

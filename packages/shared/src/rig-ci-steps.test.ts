@@ -21,7 +21,7 @@ function jobRuns(workflow: string): Record<string, string[]> {
     if (/^jobs:\s*$/.test(line)) inJobs = true;
     const job = inJobs ? /^ {2}([\w-]+):\s*$/.exec(line) : null;
     if (job) {
-      current = job[1];
+      ([, current] = job);
       jobs[current] = [];
       continue;
     }

@@ -55,7 +55,7 @@ function crew(options: { role?: string; line?: NumberAccessLevel } = {}): Supaba
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, options.role ?? "admin"),
   );
-  const line = options.line;
+  const { line } = options;
   if (line === undefined) {
     sb.on("GET", "/rest/v1/tasks", () => [{ id: TASK_ID, conversation_id: null }]);
   } else {

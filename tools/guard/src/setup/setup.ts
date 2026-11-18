@@ -62,7 +62,7 @@ function hhmm(hour: number): string {
 }
 
 export async function runSetup(ctx: Ctx, spec: TelnyxSpec = SPEC): Promise<SetupReport> {
-  const telnyx = ctx.telnyx;
+  const { telnyx } = ctx;
   if (!telnyx) throw new Refusal("telnyx.key_missing");
   const edge = ctx.config.edgeOrigin;
   if (!edge) throw new Refusal("startup.unconfigured");

@@ -117,7 +117,7 @@ describe("#228 the two titles", () => {
     // that already had the reader's language in hand, so a French member got a
     // French reason under an English headline.
     const fr = SCHEDULED_DISCLOSURE_COPY["fr-CA"];
-    const en = SCHEDULED_DISCLOSURE_COPY.en;
+    const { en } = SCHEDULED_DISCLOSURE_COPY;
     expect(fr.waitingTitle).not.toBe(en.waitingTitle);
     expect(fr.notSentTitle).not.toBe(en.notSentTitle);
   });

@@ -111,7 +111,7 @@ function listItemFromDetail(
   unread: boolean,
 ): ConversationListItem {
   const { contact, tags, messages, ...conversation } = detail;
-  const newest = messages.data[0]; // page is newest-first (SPEC §7)
+  const [newest] = messages.data; // page is newest-first (SPEC §7)
   return {
     ...conversation,
     contact: {

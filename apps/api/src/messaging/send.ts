@@ -52,7 +52,7 @@ async function offRampAllowed(env: Env, companyId: string): Promise<boolean> {
     .eq("id", companyId)
     .limit(1);
   if (error || !data?.length) return false;
-  const row = data[0];
+  const [row] = data;
   if (!row.offramp_opted_in_at || !row.offramp_message?.trim()) return false;
   // No cancellation means the number is not on its way out, so there is
   // nothing to point anybody at — and a workspace that is merely past due must

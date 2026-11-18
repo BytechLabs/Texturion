@@ -1177,7 +1177,7 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
         .is("deleted_at", null),
       "company location precheck",
     );
-    const row = current[0];
+    const [row] = current;
     if (!row) return errorResponse(c, "not_found", "No such company.");
     if (
       row.subscription_status !== "incomplete" &&
@@ -1270,7 +1270,7 @@ companiesRoutes.patch("/company", requireCapability("settings.manage"), async (c
       .select(COMPANY_COLUMNS),
     "company update",
   );
-  const company = rows[0];
+  const [company] = rows;
   if (!company) {
     return errorResponse(c, "not_found", "No such company.");
   }

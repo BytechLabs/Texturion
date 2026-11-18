@@ -85,7 +85,7 @@ async function main(): Promise<void> {
   }
   const levels = (option(args, "--levels") ?? "2,8,16,32").split(",").map(Number);
   const gapMs = Number(option(args, "--gap-ms") ?? "3000");
-  const lines = (JSON.parse(readFileSync(linesFile, "utf8")) as { lines: Line[] }).lines;
+  const { lines } = (JSON.parse(readFileSync(linesFile, "utf8")) as { lines: Line[] });
   if (lines.length < Math.max(...levels)) throw new CapacityConfigError("the lines file has fewer lines than the top level");
 
   const sign = await loadSigner(requiredEnv("LOONEXT_CAPACITY_SIGNING_KEY_FILE"));

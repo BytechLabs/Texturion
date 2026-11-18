@@ -786,10 +786,10 @@ conversationsRoutes.get(
         .limit(1),
       resolveNumberAccess(db, { companyId, userId, role: c.get("role") }),
     ]);
-    const row = unwrap<ConversationDetailRow[]>(
+    const [row] = unwrap<ConversationDetailRow[]>(
       conversationRows,
       "conversation lookup",
-    )[0];
+    );
     if (!row) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
@@ -806,13 +806,13 @@ conversationsRoutes.get(
       messageLimit,
       "created_at",
     );
-    const memberPref = unwrap<ConversationMemberPref[]>(
+    const [memberPref] = unwrap<ConversationMemberPref[]>(
       memberPrefRows,
       "conversation member prefs lookup",
-    )[0];
-    const snooze = unwrap<
+    );
+    const [snooze] = unwrap<
       { until: string; note: string | null; kind: string }[]
-    >(snoozeRows, "conversation snooze lookup")[0];
+    >(snoozeRows, "conversation snooze lookup");
     const openAlerts = unwrap<
       { id: string; kind: string; on_call_user_id: string | null; created_at: string }[]
     >(alertRows, "open alert lookup");
@@ -1100,7 +1100,7 @@ conversationsRoutes.patch(
         .select(CONVERSATION_COLUMNS),
       "conversation update",
     );
-    const updated = updatedRows[0];
+    const [updated] = updatedRows;
     if (!updated) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
@@ -1292,7 +1292,7 @@ conversationsRoutes.post(
         ),
       "note insert",
     );
-    const note = inserted[0];
+    const [note] = inserted;
     if (!note) throw new Error("note insert returned no row");
 
     // Mentions are a child table of the note, written after it because the
@@ -2919,7 +2919,7 @@ conversationsRoutes.post(
       if (!rows[0]) {
         throw new Error("tag find-or-create: no row returned");
       }
-      tag = rows[0];
+      ([tag] = rows);
     } else {
       const rows = unwrap<TagRow[]>(
         await db
@@ -2933,7 +2933,7 @@ conversationsRoutes.post(
       if (!rows[0]) {
         return errorResponse(c, "not_found", "No such tag.");
       }
-      tag = rows[0];
+      ([tag] = rows);
     }
 
     // ignoreDuplicates: attaching an already-attached tag is a no-op (200,

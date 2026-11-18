@@ -52,7 +52,7 @@ describe("#319/#248 what a customer is told while their number is transferring",
     // ORDER IS THE CONTRACT, not decoration. A reader skims the bold leads and
     // stops; the one that costs them the number on their trucks has to be the
     // one they cannot miss. Every other item here is an inconvenience.
-    const first = PORT_PRE_CUTOVER_CHECKLIST.items[0];
+    const [first] = PORT_PRE_CUTOVER_CHECKLIST.items;
     expect(say(first.lead)).toBe("Keep your old service active.");
     expect(say(first.detail)).toContain("release the number back to the carrier");
     // And in French, because the order is the contract in both languages and a

@@ -145,7 +145,7 @@ function blankFunctionBodies(sql) {
   let match;
   while ((match = tag.exec(out)) !== null) {
     const open = match.index;
-    const delimiter = match[0];
+    const [delimiter] = match;
     const close = out.indexOf(delimiter, open + delimiter.length);
     if (close === -1) break;
     // What introduced this block? The nearest of `function` / `do` behind it.

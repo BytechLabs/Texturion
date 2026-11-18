@@ -242,7 +242,7 @@ describe("submitRegistration — R1 (§4.4)", () => {
     const result = await submitRegistration(env, COMPANY_ID);
     expect(result.action).toBe("brand_submitted");
 
-    const call = telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)[0];
+    const [call] = telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/);
     expect(call.body).toMatchObject({
       entityType: "PRIVATE_PROFIT",
       companyName: "Acme Plumbing LLC",
@@ -280,7 +280,7 @@ describe("submitRegistration — R1 (§4.4)", () => {
     const result = await submitRegistration(env, COMPANY_ID);
     expect(result.action).toBe("brand_submitted");
 
-    const call = telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)[0];
+    const [call] = telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/);
     expect(call.body).toMatchObject({
       entityType: "SOLE_PROPRIETOR",
       firstName: "Pat",
@@ -403,7 +403,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     await handle10dlcEvent(env, brandEvent({ identityStatus: "VERIFIED" }));
 
     expect(brandRowOf(rest).status).toBe("approved");
-    const transition = patches[0];
+    const [transition] = patches;
     expect(transition, "no transition write was made at all").toBeDefined();
     expect(
       transition.searchParams.get("status"),
@@ -495,7 +495,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     expect(brandRowOf(rest).status).toBe("approved");
     expect(brandRowOf(rest).approved_at).toBeTruthy();
 
-    const builder = telnyx.callsTo("POST", /campaignBuilder/)[0];
+    const [builder] = telnyx.callsTo("POST", /campaignBuilder/);
     expect(builder.body).toMatchObject({
       brandId: "brand-1",
       usecase: "LOW_VOLUME",
@@ -543,7 +543,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
       data: { campaignId: "camp-1" },
     }));
     await handle10dlcEvent(env, brandEvent({ identityStatus: "VERIFIED" }));
-    const builder = telnyx.callsTo("POST", /campaignBuilder/)[0];
+    const [builder] = telnyx.callsTo("POST", /campaignBuilder/);
     expect((builder.body as Record<string, unknown>).usecase).toBe(
       "SOLE_PROPRIETOR",
     );
@@ -601,7 +601,7 @@ describe("handle10dlcEvent — §4.4 webhook mapping", () => {
     expect(campaign.status).toBe("approved");
     expect(campaign.approved_at).toBeTruthy();
 
-    const assignment = telnyx.callsTo("POST", /phoneNumberCampaign/)[0];
+    const [assignment] = telnyx.callsTo("POST", /phoneNumberCampaign/);
     expect(assignment.body).toEqual({
       phoneNumber: "+12125550123",
       campaignId: "camp-1",
@@ -1097,7 +1097,7 @@ describe("updateCampaignContent — Step 0c content migration", () => {
     // samples are actually editable after registration — so the PUT body is
     // exactly the sample block: no create-only description/embeddedLink, no
     // identity fields.
-    const put = telnyx.callsTo("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/)[0];
+    const [put] = telnyx.callsTo("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/);
     expect(put.body).toEqual({
       sample1: CAMPAIGN_DATA.sample1,
       sample2: CAMPAIGN_DATA.sample2,
@@ -1303,7 +1303,7 @@ describe("post-grace reactivation (§4.4, §9)", () => {
     const result = await submitRegistration(env, COMPANY_ID);
     expect(result.action).toBe("campaign_reactivated");
 
-    const builder = telnyx.callsTo("POST", /campaignBuilder/)[0];
+    const [builder] = telnyx.callsTo("POST", /campaignBuilder/);
     expect((builder.body as Record<string, unknown>).brandId).toBe("brand-1");
 
     const campaign = campaignRowOf(rest);
@@ -1507,7 +1507,7 @@ describe("#51 brand-create write-ahead marker + orphan adoption", () => {
     expect(result.action).toBe("brand_submitted");
     // Adopted, never re-bought.
     expect(telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(0);
-    const list = telnyx.callsTo("GET", /^\/v2\/10dlc\/brand$/)[0];
+    const [list] = telnyx.callsTo("GET", /^\/v2\/10dlc\/brand$/);
     expect(list.query.get("displayName")).toBe("Acme Plumbing");
 
     const brand = brandRowOf(rest);

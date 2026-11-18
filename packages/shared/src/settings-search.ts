@@ -436,7 +436,7 @@ export function searchSettings(
   for (const item of SETTINGS_INDEX) {
     if (!canSee(item.section)) continue;
     const words = locale === "fr" ? item.fr : item.en;
-    const label = words[0];
+    const [label] = words;
     if (label === undefined) continue;
     const labelMatch = phraseMatches(q, normalizeSettingsQuery(label));
     const rank = labelMatch

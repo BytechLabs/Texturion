@@ -84,7 +84,7 @@ describe(reportTileFailure, () => {
     reportTileFailure({ errors: 7, sample: "https://tiles.example.com/1/2/3.png?key=secret" });
 
     expect(reportClientError).toHaveBeenCalledOnce();
-    const [error, properties] = vi.mocked(reportClientError).mock.calls[0];
+    const [[error, properties]] = vi.mocked(reportClientError).mock.calls;
     expect(error).toBeInstanceOf(Error);
     expect((error as Error).message).toBe("Basemap tiles are not loading");
     // Under a URL key, so the scrubber cuts the query that carries a provider's key.

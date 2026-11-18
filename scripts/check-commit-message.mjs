@@ -186,7 +186,7 @@ export function checkOne(message, files = null) {
       );
     }
     if (PAST_TENSE.test(subject)) {
-      const verb = subject.match(PAST_TENSE)[0];
+      const [verb] = subject.match(PAST_TENSE);
       errors.push(`use present tense — "${verb.replace(/ed$/, "")}", not "${verb}".`);
     }
     if (/^#?\d+$/.test(subject.trim()) || /^(#\d+|[A-Z]+-\d+)\b/.test(subject)) {
@@ -301,7 +301,7 @@ function main() {
       })
       .map(({ message, sha }) => ({ message, files: filesInCommit(sha) }));
   } else {
-    const file = args[0];
+    const [file] = args;
     if (!file) {
       console.error("pass a commit-message file, or --range <from>..<to>");
       process.exit(2);

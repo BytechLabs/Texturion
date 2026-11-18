@@ -409,7 +409,7 @@ function assertErrorLocaleBridges() {
     if (!takesLocale(match[2])) envEntryPerClient[client.name] += 1;
 
     for (const call of body.matchAll(/(?<![A-Za-z0-9_.])([A-Za-z][A-Za-z0-9_]*)\(([^()]*)\)/g)) {
-      const callee = call[1];
+      const [, callee] = call;
       if (callee === match[1]) continue; // recursion carries it or does not, separately
       if (!accepts.has(callee)) continue;
       if (DATA_LOCALE_CALLEES.has(callee)) continue; // its locale is the row's, not the reader's

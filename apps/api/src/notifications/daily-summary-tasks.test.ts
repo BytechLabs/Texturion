@@ -91,13 +91,13 @@ describe("the summary line", () => {
       { overdue: false, due_at: null },
       { overdue: false, due_at: "2026-08-09T20:00:00Z" },
     ]);
-    const delivery = vi.mocked(deliverPush).mock.calls[0][2];
+    const [{ 2: delivery }] = vi.mocked(deliverPush).mock.calls;
     expect(delivery.web("en").body).toBe("2 tasks are due.");
   });
 
   it("does not call a backlog of undated work due", async () => {
     await run([{ overdue: false, due_at: null }]);
-    const delivery = vi.mocked(deliverPush).mock.calls[0][2];
+    const [{ 2: delivery }] = vi.mocked(deliverPush).mock.calls;
     expect(delivery.web("en").body).toBe("Nothing is waiting. Nice day.");
   });
 });

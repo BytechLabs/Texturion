@@ -492,7 +492,7 @@ describe("PUT /v1/text-enablements/:id/documents", () => {
 
     // Both files went to the Documents API and their ids landed on the row.
     expect(h.telnyx.callsTo("POST", /^\/v2\/documents$/)).toHaveLength(2);
-    const row = h.rest.rows("text_enablement_orders")[0];
+    const [row] = h.rest.rows("text_enablement_orders");
     expect(row.telnyx_loa_document_id).toBe("doc-1");
     expect(row.telnyx_bill_document_id).toBe("doc-2");
 
@@ -557,7 +557,7 @@ describe("PUT /v1/text-enablements/:id/documents", () => {
     });
     expect(res.status).toBe(402);
     expect(h.telnyx.callsTo("POST", /^\/v2\/documents$/)).toHaveLength(0);
-    const row = h.rest.rows("text_enablement_orders")[0];
+    const [row] = h.rest.rows("text_enablement_orders");
     expect(row.telnyx_loa_document_id ?? null).toBeNull();
   });
 
@@ -618,7 +618,7 @@ describe("POST /v1/text-enablements/:id/resubmit", () => {
 
     // The saga ran (no executionCtx in tests → awaited inline): the create
     // response status landed and the budget returned.
-    const row = h.rest.rows("text_enablement_orders")[0];
+    const [row] = h.rest.rows("text_enablement_orders");
     expect(row.status).toBe("in-progress"); // Telnyx 'provisioning'
     expect(row.attempts).toBe(0);
     expect(row.last_error).toBeNull();
@@ -984,7 +984,7 @@ describe("lifetime caps (durable per-order budgets, §10)", () => {
     expect(body.error.message).toContain("resubmitted too many times");
     // No Telnyx side effects, no reset: the dead order stays exactly as it was.
     expect(h.telnyx.calls).toHaveLength(0);
-    const row = h.rest.rows("text_enablement_orders")[0];
+    const [row] = h.rest.rows("text_enablement_orders");
     expect(row.status).toBe("failed");
     expect(row.attempts).toBe(5);
     expect(row.resubmit_count).toBe(5);

@@ -858,7 +858,7 @@ describe("POST /v1/registration/enable-us", () => {
     ).toBe(true);
 
     // And the rollback still happened, so the owner is not wedged.
-    const company = harness.rest.rows("companies")[0];
+    const [company] = harness.rest.rows("companies");
     expect(company.us_texting_enabled).toBe(false);
     expect(company.registration_fee_charge_started_at).toBeNull();
   });

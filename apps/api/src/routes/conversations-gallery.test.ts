@@ -188,14 +188,14 @@ describe("GET /v1/conversations/:id/attachments (gallery union)", () => {
 
     // MMS arm was JOINed through messages for the conversation scope (SPEC §6:
     // message_attachments has no conversation_id column).
-    const mmsCall = sb.find("GET", "/rest/v1/message_attachments")[0];
+    const [mmsCall] = sb.find("GET", "/rest/v1/message_attachments");
     expect(mmsCall.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(mmsCall.url.searchParams.get("messages.conversation_id")).toBe(
       `eq.${CONV_ID}`,
     );
     expect(mmsCall.url.searchParams.get("select")).toContain("messages!inner");
     // Generic arm uses the denormalized conversation_id (no join), live only.
-    const genericCall = sb.find("GET", "/rest/v1/attachments")[0];
+    const [genericCall] = sb.find("GET", "/rest/v1/attachments");
     expect(genericCall.url.searchParams.get("conversation_id")).toBe(
       `eq.${CONV_ID}`,
     );
@@ -597,10 +597,10 @@ describe("the gallery serves derivatives", () => {
     expect(body.data[0].size_bytes).toBe(20_971_520);
 
     // And the page claimed what it served, not what the row weighs.
-    const claim = sb.find(
+    const [claim] = sb.find(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress_objects",
-    )[0];
+    );
     expect(claim.body).toMatchObject({
       p_objects: [
         {

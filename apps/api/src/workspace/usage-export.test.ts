@@ -80,7 +80,7 @@ describe("#304 the usage export", () => {
       from: "2026-06-01T00:00:00.000Z",
       to: "2026-06-30T23:59:59.999Z",
     });
-    const sent = h.callsTo("POST", /\/rpc\/api_usage_window/)[0];
+    const [sent] = h.callsTo("POST", /\/rpc\/api_usage_window/);
     expect(sent.json()).toEqual({
       p_company_id: COMPANY_ID,
       p_from: "2026-06-01T00:00:00.000Z",

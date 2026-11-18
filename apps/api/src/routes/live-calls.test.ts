@@ -774,7 +774,7 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
 
     // The liveness contract is enforced IN the query: my answered, un-ended
     // calls only, company-scoped, inside the stale-call window.
-    const read = sb.find("GET", "/rest/v1/calls")[0];
+    const [read] = sb.find("GET", "/rest/v1/calls");
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(read.url.searchParams.get("answered_by_user_id")).toBe(
       `eq.${auth.subject}`,
@@ -1064,7 +1064,7 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     // The queryable truth: company-scoped, state='ringing', outcome null, and
     // (#581) inside the same live window /calls/live/mine uses — an older
     // 'ringing' row is a crashed session, not a call anyone can decline.
-    const read = sb.find("GET", "/rest/v1/calls")[0];
+    const [read] = sb.find("GET", "/rest/v1/calls");
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(read.url.searchParams.get("state")).toBe("eq.ringing");
     expect(read.url.searchParams.get("outcome")).toBe("is.null");

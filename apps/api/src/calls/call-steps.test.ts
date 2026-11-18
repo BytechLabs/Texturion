@@ -72,7 +72,7 @@ function drive(
     const result = reduce(machine, event, now, key);
     if (result.machine) {
       steps.push(...callStepsBetween(machine, result.machine, now));
-      machine = result.machine;
+      ({ machine } = result);
     }
     now += 1000;
   }

@@ -151,7 +151,7 @@ export async function notifyAssigned(
         .limit(1),
       "conversation lookup",
     );
-    const conversation = conversations[0];
+    const [conversation] = conversations;
     // Deleted between the assignment and this running. Nothing to point at, so
     // nothing to say — and NOT an error, because the assignment itself
     // succeeded and the caller must not be told it failed.

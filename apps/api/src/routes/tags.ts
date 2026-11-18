@@ -129,7 +129,7 @@ tagsRoutes.delete("/tags/:id", requireCapability("settings.manage"), async (c) =
       .limit(1),
     "tag delete lookup",
   );
-  const tag = existing[0];
+  const [tag] = existing;
   if (!tag) return errorResponse(c, "not_found", "No such tag.");
 
   if (

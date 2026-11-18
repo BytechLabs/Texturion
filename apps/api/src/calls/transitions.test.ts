@@ -1390,7 +1390,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
   /** A dialing machine whose op leg has been adopted onto `op-ccid`. */
   function opDialedMachine(): { machine: SessionMachine; opCcid: string } {
     const m = dialingMachine();
-    const pending = m.legs[0];
+    const [pending] = m.legs;
     const r = dialOutcome(m, pending.key, "op-ccid");
     return { machine: r.machine as SessionMachine, opCcid: "op-ccid" };
   }
@@ -1543,7 +1543,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
 
   it("a KNOWN-dead placer dial in 'dialing' resolves the call (ended_missed) + drops the customer — no avenue ladder", () => {
     const m = dialingMachine();
-    const pending = m.legs[0];
+    const [pending] = m.legs;
     const r = reduce(m, { type: "dial-outcome", pendingKey: pending.key, ccid: null, failure: "known-dead" }, 1_500, keyGen());
     expect(r.machine?.state).toBe("ended_missed");
     const hangup = r.effects.find((e) => e.kind === "telnyx-hangup" && e.ccid === "oc-cust");
@@ -1554,7 +1554,7 @@ describe("#213 outbound — placer (op) leg lifecycle", () => {
 
   it("an AMBIGUOUS placer dial in 'dialing' is retained (a later webhook / janitor reconciles)", () => {
     const m = dialingMachine();
-    const pending = m.legs[0];
+    const [pending] = m.legs;
     const r = reduce(m, { type: "dial-outcome", pendingKey: pending.key, ccid: null, failure: "ambiguous" }, 1_500, keyGen());
     expect(r.machine?.state).toBe("dialing"); // not terminal
     expect(r.machine?.legs[0].status).toBe("ambiguous");
@@ -1787,7 +1787,7 @@ describe("#278 ringing in turn", () => {
     // ladder's zero-live-legs rung would fire voicemail — while u2 and u3 have
     // not rung at all.
     const started = startInTurn();
-    const key = started.machine!.legs[0].key;
+    const [{ key }] = started.machine!.legs;
     const dialed = reduce(
       started.machine,
       { type: "dial-outcome", pendingKey: key, ccid: "c1", failure: null },
@@ -1809,7 +1809,7 @@ describe("#278 ringing in turn", () => {
     // forever with nothing left to ring, which is the opposite failure.
     const started = startInTurn({ dialTargets: [CREW[0]] });
     expect(started.machine!.queuedTargets).toEqual([]);
-    const key = started.machine!.legs[0].key;
+    const [{ key }] = started.machine!.legs;
     const dialed = reduce(
       started.machine,
       { type: "dial-outcome", pendingKey: key, ccid: "c1", failure: null },

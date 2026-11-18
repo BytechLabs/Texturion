@@ -72,7 +72,7 @@ export async function notifyNoteMention(
       .limit(1),
     "conversation lookup",
   );
-  const conversation = conversations[0];
+  const [conversation] = conversations;
   if (!conversation) {
     throw new Error(
       `note mention alert: conversation ${input.conversationId} vanished`,

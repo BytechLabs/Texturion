@@ -180,7 +180,6 @@
     // Not yet clean: these can apply, and their findings (counted on 2026-11-17)
     // need a hand rewrite. Each turns on as its count reaches zero (#822).
     "typescript/no-unnecessary-type-assertion": "off", // 775
-    "eslint/prefer-destructuring": "off", // 630
     "import/first": "off", // 439
     "vitest/prefer-strict-boolean-matchers": "off", // 421: its fix turned toBeTruthy() on elements and strings into toBe(true)
     "unicorn/numeric-separators-style": "off", // 362

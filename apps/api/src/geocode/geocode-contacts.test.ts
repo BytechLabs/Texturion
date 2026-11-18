@@ -83,7 +83,7 @@ describe(geocodeContactsJob, () => {
 
     expect(captured.nominatim).toHaveLength(1);
     expect(captured.updates).toHaveLength(1);
-    const write = captured.updates[0];
+    const [write] = captured.updates;
     expect(write.url.searchParams.get("id")).toBe("eq.c1");
     expect(write.body).toMatchObject({
       lat: 43.6489,
@@ -104,7 +104,7 @@ describe(geocodeContactsJob, () => {
 
     // The UPDATE is scoped to BOTH the id AND the address we geocoded, so a row
     // whose address changed under us matches zero rows and keeps its coordinate.
-    const write = captured.updates[0];
+    const [write] = captured.updates;
     expect(write.url.searchParams.get("id")).toBe("eq.c1");
     expect(write.url.searchParams.get("address")).toBe("eq.1 King St W, Toronto");
   });

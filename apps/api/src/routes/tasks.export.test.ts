@@ -164,7 +164,7 @@ describe("GET /v1/tasks/export.csv (#745)", () => {
       `/v1/tasks/export.csv?status=done&assigned_user_id=me&due_before=2026-12-01T00:00:00Z&priority=high,urgent&tag_id=${TAG_ID}&q=flue`,
     );
     expect(res.status).toBe(200);
-    const url = w.tasks.calls[0].url;
+    const [{ url }] = w.tasks.calls;
     expect(url.searchParams.get("task_done_at")).toBe("not.is.null");
     expect(url.searchParams.get("task_assignees.user_id")).toBe(`eq.${auth.subject}`);
     expect(url.searchParams.get("due_at")).toBe("lte.2026-12-01T00:00:00Z");
@@ -178,7 +178,7 @@ describe("GET /v1/tasks/export.csv (#745)", () => {
     const w = world();
     stubFetch(...w.routes);
     await get("/v1/tasks/export.csv");
-    const url = w.tasks.calls[0].url;
+    const [{ url }] = w.tasks.calls;
     expect(url.searchParams.get("task_done_at")).toBe("is.null");
     expect(url.searchParams.get("task_assignees.user_id")).toBe(`eq.${auth.subject}`);
   });

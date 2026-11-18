@@ -128,7 +128,7 @@ describe("GET /v1/search", () => {
     expect(body.next_cursor).toBeNull();
 
     // Company scoping + per-arm limits happen in the RPC call, verbatim.
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_search_v2")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_search_v2");
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_q: "quote",
@@ -166,7 +166,7 @@ describe("GET /v1/search", () => {
       `/v1/search?q=quote&cursor=${cursor}`,
       { companyId: COMPANY_ID },
     );
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_search_v2")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_search_v2");
     expect(rpc.body).toMatchObject({
       p_contact_limit: 0,
       p_task_limit: 0,
@@ -268,7 +268,7 @@ describe("GET /v1/search", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_search_v2")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_search_v2");
     expect((rpc.body as Record<string, unknown>).p_hidden_number_ids).toEqual([
       HIDDEN_NUM,
     ]);

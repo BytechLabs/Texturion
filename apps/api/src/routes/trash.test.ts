@@ -134,7 +134,7 @@ describe("#691 delete", () => {
     const res = await call(sb, "DELETE", `/messages/${MESSAGE_ID}`);
     expect(res.status).toBe(200);
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_trash_message")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_trash_message");
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -178,7 +178,7 @@ describe("#691 delete", () => {
     });
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ deleted: [CONV_ID, other] });
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_trash_conversations")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_trash_conversations");
     expect((rpc.body as { p_ids: string[] }).p_ids).toEqual([CONV_ID, other]);
     expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(2);
   });

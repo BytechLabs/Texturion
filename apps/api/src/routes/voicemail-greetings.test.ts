@@ -276,7 +276,7 @@ describe("#309 recording a greeting by phone", () => {
     );
     expect(res.status).toBe(202);
     expect(harness.dials).toHaveLength(1);
-    const dial = harness.dials[0];
+    const [dial] = harness.dials;
     expect(dial.to).toBe("+16135550199");
     expect(dial.from).toBe("+16135550100");
     // The two ceilings a capture leg carries: how long it rings, and how long

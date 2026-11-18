@@ -185,7 +185,7 @@ describe("D31 golden path 2: CA-only instant path", () => {
       .select("subscription_status,plan")
       .eq("id", COMPANY_ID)
       .limit(1);
-    const company = (data ?? [])[0];
+    const [company] = data ?? [];
     expect(company.subscription_status).toBe("active");
     expect(company.plan).toBe("starter");
 

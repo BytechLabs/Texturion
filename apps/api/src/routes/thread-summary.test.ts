@@ -496,7 +496,7 @@ describe("the window and the prompt", () => {
     const sb = stubs();
     const { ai } = mockAi(CITED);
     await summarize(sb, { ...env, AI: ai });
-    const read = sb.find("GET", "/rest/v1/messages")[0];
+    const [read] = sb.find("GET", "/rest/v1/messages");
     expect(read.url.searchParams.get("direction")).toBe("in.(inbound,outbound)");
     expect(read.url.searchParams.get("limit")).toBe(
       String(THREAD_SUMMARY_CONTEXT_MESSAGES),
@@ -740,7 +740,7 @@ describe("the cache", () => {
     const sb = stubs({ messages: rows });
     const { ai } = mockAi(CITED);
     await summarize(sb, { ...env, AI: ai });
-    const write = sb.find("POST", "/rest/v1/conversation_summaries")[0];
+    const [write] = sb.find("POST", "/rest/v1/conversation_summaries");
     expect(write).toBeDefined();
     expect(write.body).toMatchObject({
       conversation_id: CONV_ID,
@@ -762,7 +762,7 @@ describe("the cache", () => {
       reason: string;
     };
     expect(body.reason).toBe("unusable_output");
-    const write = sb.find("POST", "/rest/v1/conversation_summaries")[0];
+    const [write] = sb.find("POST", "/rest/v1/conversation_summaries");
     expect(write).toBeDefined();
     expect(write.body).toMatchObject({
       last_message_id: rows[0].id,

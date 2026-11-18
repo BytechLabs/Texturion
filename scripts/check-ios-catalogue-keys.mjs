@@ -175,7 +175,7 @@ const undefinedLiterals = new Map();
 for (const { relative, source } of appSources) {
   for (const match of source.matchAll(KEY_LITERAL)) {
     literalsChecked += 1;
-    const key = match[1];
+    const [, key] = match;
     if (NOT_KEYS.has(key)) {
       seenNotKeys.add(key);
       continue;

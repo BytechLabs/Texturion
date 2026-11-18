@@ -176,7 +176,7 @@ export function opsClient() {
  * the word APPLY before anybody presses return.
  */
 export function announceTarget(apply, readOnly = false) {
-  const host = new URL(process.env.SUPABASE_URL ?? "http://unset").host;
+  const { host } = new URL(process.env.SUPABASE_URL ?? "http://unset");
   const mode = readOnly
     ? "report — this script has no write path"
     : apply

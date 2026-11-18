@@ -271,7 +271,7 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
       .limit(1),
     "call detail",
   );
-  const call = rows[0];
+  const [call] = rows;
   if (!call) return errorResponse(c, "not_found", "No such call.");
 
   const [, actorNames] = await Promise.all([
@@ -343,7 +343,7 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireCapability("conversations.
       .limit(1),
     "call lookup",
   );
-  const call = rows[0];
+  const [call] = rows;
   if (!call?.voicemail_path) {
     return errorResponse(c, "not_found", "No voicemail for this call.");
   }
@@ -774,7 +774,7 @@ async function authorizeOutboundCall(
         .limit(1),
       "conversation lookup",
     );
-    const conversation = conversations[0];
+    const [conversation] = conversations;
     if (!conversation) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
@@ -832,8 +832,8 @@ async function authorizeOutboundCall(
       body.phone_number_id,
     );
     if (resolved instanceof Response) return resolved;
-    phoneNumberId = resolved.phoneNumberId;
-    businessNumber = resolved.businessNumber;
+    ({ phoneNumberId } = resolved);
+    ({ businessNumber } = resolved);
   }
 
   // Saved contacts and threads pass the same destination check as typed numbers.
@@ -864,7 +864,7 @@ async function authorizeOutboundCall(
       .limit(1),
     "company lookup",
   );
-  const company = companies[0];
+  const [company] = companies;
   if (company?.subscription_status !== "active") {
     return errorResponse(
       c,

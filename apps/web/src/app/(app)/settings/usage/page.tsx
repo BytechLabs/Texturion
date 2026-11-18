@@ -362,7 +362,7 @@ function HistoryBars({ history }: { history: UsageMonth[] }) {
 function UsageDetails({ usage }: { usage: Usage }) {
   const t = useT();
   const pauseAt = usage.cap_segments ?? capSegments(usage.included_segments, null);
-  const voice = usage.voice;
+  const { voice } = usage;
   return (
     <details className="group">
       <summary className="inline-flex min-h-[44px] cursor-pointer list-none items-center gap-1 text-sm font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground [&::-webkit-details-marker]:hidden">
@@ -518,7 +518,7 @@ function countryLabel(t: Translate, code: string): string {
  */
 function DeliveryCard({ usage }: { usage: Usage }) {
   const t = useT();
-  const delivery = usage.delivery;
+  const { delivery } = usage;
   if (!delivery) return null;
 
   const settled = delivery.delivered + delivery.failed;

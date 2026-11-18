@@ -927,7 +927,7 @@ describe("GET /v1/billing/cancellation-reason (#277 follow-up)", () => {
     // partial unique index exists to keep at-most-one of.
     const harness = makeHarness([endpoint("GET", READ, () => [])]);
     await get("/v1/billing/cancellation-reason", harness);
-    const url = harness.callsTo("GET", READ)[0].url;
+    const [{ url }] = harness.callsTo("GET", READ);
     expect(url.searchParams.get("confirmed_at")).toBe("is.null");
     expect(url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
@@ -967,7 +967,7 @@ describe("POST /v1/billing/dismiss-winback (#277 follow-up)", () => {
     const response = await post("/v1/billing/dismiss-winback", undefined, harness);
     expect(response.status).toBe(204);
 
-    const call = harness.callsTo("PATCH", COMPANIES)[0];
+    const [call] = harness.callsTo("PATCH", COMPANIES);
     expect(call.url.searchParams.get("id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
     // A TIMESTAMP, not a boolean. The suppression rule compares it against
@@ -1699,8 +1699,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       harness,
     );
     expect(response.status).toBe(409);
-    const message = ((await response.json()) as { error: { message: string } }).error
-      .message;
+    const { message } = ((await response.json()) as { error: { message: string } }).error;
     expect(message).toMatch(/CAD/);
     expect(message).toMatch(/won't lose it/i);
     // The year is untouched: nothing converted, nothing credited, no price moved.

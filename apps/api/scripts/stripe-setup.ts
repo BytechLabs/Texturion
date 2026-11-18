@@ -186,7 +186,7 @@ async function ensurePrice(
     // below would re-add CAD on every run.
     expand: ["data.currency_options"],
   });
-  const found = existing.data[0];
+  const [found] = existing.data;
   if (found) {
     // #328: a price created before CAD existed carries no `currency_options`,
     // and plain "reusing" would leave every Canadian on USD while this script

@@ -103,7 +103,7 @@ describe(sweepWebhookEvents, () => {
 
     // ...after an atomic claim (CAS on attempts + claimed_at lease)...
     expect(ledgerPatch.calls).toHaveLength(2);
-    const claim = ledgerPatch.calls[0];
+    const [claim] = ledgerPatch.calls;
     expect(claim.body).toMatchObject({
       attempts: 1,
       claimed_at: expect.any(String),
@@ -507,7 +507,7 @@ describe(reportUnreportedUsage, () => {
     await reportUnreportedUsage(env);
 
     expect(stamp.calls).toHaveLength(1);
-    const update = stamp.calls[0];
+    const [update] = stamp.calls;
     expect(update.url.searchParams.get("company_id")).toBe("eq.c-1");
     expect(update.url.searchParams.get("report_attempts")).toBe("eq.2");
     expect(update.url.searchParams.get("stripe_reported_at")).toBe("is.null");

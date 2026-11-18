@@ -118,7 +118,7 @@ await runScript(
       return;
     }
 
-    const best = rankable[0];
+    const [best] = rankable;
     console.log(
       `\n  Most activations: ${best.landing_path} — ${best.activated} of ` +
         `${best.signups} (${pct(best.activation_rate).trim()})\n`,

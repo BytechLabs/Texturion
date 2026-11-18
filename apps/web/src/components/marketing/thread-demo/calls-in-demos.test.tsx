@@ -173,7 +173,7 @@ describe("the home deep-dive walks the call, and its captions keep up", () => {
   const script = demoScriptModule.WATER_HEATER_SCRIPT;
 
   it("opens on the call, before any text", () => {
-    const firstBeat = script.beats[0];
+    const [firstBeat] = script.beats;
     expect(firstBeat.kind).toBe("call");
     expect(DEEP_DIVE_CAPTIONS[0].toLowerCase()).toContain("call");
   });

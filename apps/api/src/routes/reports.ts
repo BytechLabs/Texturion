@@ -238,7 +238,7 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
       .limit(1),
   ]);
   const companies = unwrap<CompanyRow[]>(companiesRes, "response-time company lookup");
-  const company = companies[0];
+  const [company] = companies;
   if (!company) {
     // Not a client error: authorization already proved this member belongs to
     // this workspace, so a missing row is our bug. A 404 here would tell the
@@ -591,7 +591,7 @@ reportsRoutes.get(
         .limit(1),
       "satisfaction company lookup",
     );
-    const company = companies[0];
+    const [company] = companies;
     if (!company) {
       throw new Error(`satisfaction: company ${companyId} has no row`);
     }

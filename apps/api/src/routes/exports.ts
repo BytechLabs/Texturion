@@ -420,7 +420,7 @@ exportsRoutes.get("/exports/:id", requireCapability("workspace.access"), async (
       .limit(1),
     "data export lookup",
   );
-  const row = rows[0];
+  const [row] = rows;
   if (!row) return errorResponse(c, "not_found", "No such export.");
   const role = c.get("role") as MemberRole;
   return c.json({

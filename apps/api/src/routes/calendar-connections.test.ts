@@ -144,7 +144,7 @@ describe("calendar connection management", () => {
       configured: { google: true, microsoft: true },
     });
 
-    const read = sb.find("GET", "/rest/v1/calendar_connections")[0];
+    const [read] = sb.find("GET", "/rest/v1/calendar_connections");
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(read.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(read.url.searchParams.get("revoked_at")).toBe("is.null");
@@ -312,7 +312,7 @@ describe("calendar connection management", () => {
     );
     expect(response.status).toBe(404);
     expect(sb.find("POST", "/rest/v1/rpc/api_revoke_calendar_connection")).toHaveLength(0);
-    const lookup = sb.find("GET", "/rest/v1/calendar_connections")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/calendar_connections");
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(lookup.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(lookup.url.searchParams.get("id")).toBe(`eq.${CONNECTION_ID}`);

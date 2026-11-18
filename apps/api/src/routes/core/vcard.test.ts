@@ -120,7 +120,7 @@ describe(parseVCards, () => {
       "item1.TEL:+14165550111",
       "END:VCARD",
     ].join("\r\n");
-    const card = parseVCards(vcf)[0];
+    const [card] = parseVCards(vcf);
     expect(card.name).toBe("Grouped Name");
     expect(card.tels).toEqual(["+14165550111"]);
   });
@@ -184,7 +184,7 @@ describe(parseVCards, () => {
       "DO-NOT-CALL",
       "END:VCARD",
     ].join("\r\n");
-    const card = parseVCards(vcf)[0];
+    const [card] = parseVCards(vcf);
     expect(card.properties).toContain("DO-NOT-CALL");
     // Still a whole card otherwise: the line is enumerated, not fatal.
     expect(card.tels).toEqual(["+14165550111"]);
@@ -203,7 +203,7 @@ describe(parseVCards, () => {
       'CATEGORIES;TYPE="a:DNC',
       "END:VCARD",
     ].join("\r\n");
-    const card = parseVCards(vcf)[0];
+    const [card] = parseVCards(vcf);
     expect(card.properties).toContain("CATEGORIES");
     expect(card.properties).toContain("CATEGORIES;TYPE");
   });
@@ -225,7 +225,7 @@ describe(parseVCards, () => {
       "NOTE:call before 9",
       "END:VCARD",
     ].join("\r\n");
-    const card = parseVCards(vcf)[0];
+    const [card] = parseVCards(vcf);
     expect(card.properties).toEqual([
       "FN",
       "TEL",

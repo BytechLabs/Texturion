@@ -272,7 +272,7 @@ export function customerWebhookRefusal(env: Env, url: string): string | null {
   }
   let origin: string;
   try {
-    origin = new URL(url).origin;
+    ({ origin } = new URL(url));
   } catch {
     return "rig mode refuses an unparseable webhook URL";
   }

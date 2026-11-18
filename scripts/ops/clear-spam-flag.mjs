@@ -31,7 +31,7 @@ await runScript("clear-spam-flag", async ({ args, apply, db, script }) => {
     "id,company_id,contact_id,is_spam,spam_reviewed_at,status",
     { id: "eq." + conversationId, company_id: "eq." + companyId },
   );
-  const conversation = rows[0];
+  const [conversation] = rows;
   if (!conversation) {
     fail(
       `no conversation ${conversationId} in company ${companyId}. ` +

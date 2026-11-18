@@ -68,9 +68,9 @@ for (const file of walk(API_SRC).filter((f) => f.endsWith(".ts"))) {
   for (const match of source.matchAll(
     /\.from\(\s*"([a-z_]+)"\s*\)[\s\S]{0,400}?\.select\(\s*(?:"|`)([\s\S]*?)(?:"|`)\s*[,)]/g,
   )) {
-    const root = match[1];
+    const [, root] = match;
     for (const embed of match[2].matchAll(/([a-z_]+)\s*(!\s*[a-z_]+\s*)?\(/g)) {
-      const child = embed[1];
+      const [, child] = embed;
       if (child === root) continue;
       // An embed that NAMES its constraint is already unambiguous — that is
       // the whole fix — so it does not put the pair at risk. Counting it did:

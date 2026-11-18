@@ -131,7 +131,7 @@ describe("GET /v1/tasks: priority, labels, repeat", () => {
       `/v1/tasks?priority=high,urgent&tag_id=${TAG_ID}&status=open`,
     );
     expect(response.status).toBe(200);
-    const {url} = list.calls[0];
+    const [{url}] = list.calls;
     expect(url.searchParams.get("priority")).toBe("in.(high,urgent)");
     expect(url.searchParams.get("task_tags.tag_id")).toBe(`eq.${TAG_ID}`);
     expect(url.searchParams.get("select")).toContain("task_tags!inner(tag_id)");
@@ -533,7 +533,7 @@ describe("POST /v1/tasks/bulk: priority and labels", () => {
       filter: { status: "open", priority: ["urgent"], tag_id: TAG_ID },
     });
     expect(response.status).toBe(200);
-    const {url} = list.calls[0];
+    const [{url}] = list.calls;
     expect(url.searchParams.get("priority")).toBe("in.(urgent)");
     expect(url.searchParams.get("task_tags.tag_id")).toBe(`eq.${TAG_ID}`);
   });

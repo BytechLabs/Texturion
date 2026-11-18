@@ -90,7 +90,7 @@ await runScript("set-release-policy", async ({ args, apply, db, script }) => {
     "platform,recommended_version,minimum_version,message,update_url,updated_at",
     { platform: "eq." + platform },
   );
-  const before = current[0];
+  const [before] = current;
   if (!before) fail(`no policy row for platform ${platform}`);
 
   if (minimum && isNewer(minimum, before.recommended_version)) {

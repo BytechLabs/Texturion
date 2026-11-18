@@ -99,7 +99,7 @@ describe("the overdue alert", () => {
     await notifyOverdueTasksJob(env, NOW);
 
     expect(sent()).toHaveLength(1);
-    const delivery = sent()[0];
+    const [delivery] = sent();
     expect(delivery.category).toBe("tasks");
     expect(delivery.userIds).toEqual([ASSIGNEE]);
     expect(delivery.web("en")).toMatchObject({
@@ -133,7 +133,7 @@ describe("the overdue alert", () => {
     const sb = world({ claimLost: true });
     await notifyOverdueTasksJob(env, NOW);
 
-    const claim = sb.find("PATCH", "/rest/v1/tasks")[0];
+    const [claim] = sb.find("PATCH", "/rest/v1/tasks");
     expect(claim.url.searchParams.get("overdue_notified_at")).toBe("is.null");
     expect(sent()).toHaveLength(0);
   });
@@ -205,7 +205,7 @@ describe("the overdue alert", () => {
   it("withholds the title, and keeps the lateness, when content is turned off", async () => {
     world();
     await notifyOverdueTasksJob(env, NOW);
-    const {content} = sent()[0];
+    const [{content}] = sent();
     if (content.written !== "people") throw new Error("unreachable");
     expect(content.withheld("en")).toEqual({ title: "A task is overdue" });
     expect(content.withheld("fr-CA")).toEqual({ title: "Une tâche est en retard" });

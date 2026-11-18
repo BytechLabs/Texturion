@@ -96,7 +96,7 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ data: [], next_cursor: null });
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -157,7 +157,7 @@ describe("GET /v1/conversations (cursor + filter composition)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
     expect(rpc.body).toMatchObject({
       p_limit: 26,
       p_status: null,
@@ -475,7 +475,7 @@ describe("GET /v1/conversations/:id (embedded first message page)", () => {
     expect(messages.next_cursor).toBeNull();
 
     // The messages page is company-scoped and newest-first with limit 50+1.
-    const msgCall = sb.find("GET", "/rest/v1/messages")[0];
+    const [msgCall] = sb.find("GET", "/rest/v1/messages");
     expect(msgCall.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(msgCall.url.searchParams.get("limit")).toBe("51");
     // D14: the embedded first page carries the done fields too.
@@ -953,7 +953,7 @@ describe("POST /v1/conversations/:id/read", () => {
       { method: "POST", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const upsert = sb.find("POST", "/rest/v1/conversation_reads")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/conversation_reads");
     expect(upsert.body).toMatchObject({
       conversation_id: CONV_ID,
       user_id: auth.subject,
@@ -980,7 +980,7 @@ describe("DELETE /v1/conversations/:id/read", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(204);
-    const del = sb.find("DELETE", "/rest/v1/conversation_reads")[0];
+    const [del] = sb.find("DELETE", "/rest/v1/conversation_reads");
     expect(del.url.searchParams.get("conversation_id")).toBe(`eq.${CONV_ID}`);
     expect(del.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
   });
@@ -1051,7 +1051,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       task: null,
     });
 
-    const insert = sb.find("POST", "/rest/v1/messages")[0];
+    const [insert] = sb.find("POST", "/rest/v1/messages");
     expect(insert.body).toMatchObject({
       company_id: COMPANY_ID,
       conversation_id: CONV_ID,
@@ -1063,7 +1063,7 @@ describe("POST /v1/conversations/:id/notes", () => {
     });
 
     // last_message_at moves forward only (never backwards).
-    const bump = sb.find("PATCH", "/rest/v1/conversations")[0];
+    const [bump] = sb.find("PATCH", "/rest/v1/conversations");
     expect(bump.body).toEqual({ last_message_at: "2026-07-01T11:00:00+00:00" });
     expect(bump.url.searchParams.get("last_message_at")).toBe(
       "lt.2026-07-01T11:00:00+00:00",
@@ -1130,7 +1130,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       { method: "POST", companyId: COMPANY_ID, body: { body: "" } },
     );
     expect(res.status).toBe(201);
-    const insert = sb.find("POST", "/rest/v1/messages")[0];
+    const [insert] = sb.find("POST", "/rest/v1/messages");
     expect(insert.body).toMatchObject({ direction: "note", body: "" });
   });
 
@@ -1274,7 +1274,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       );
 
       expect(res.status).toBe(201);
-      const rows = sb.find("POST", "/rest/v1/message_mentions")[0];
+      const [rows] = sb.find("POST", "/rest/v1/message_mentions");
       expect(rows.body).toEqual([
         {
           message_id: NOTE_ID,
@@ -1285,7 +1285,7 @@ describe("POST /v1/conversations/:id/notes", () => {
       ]);
       // The body is untouched, so clients that know nothing about mentions
       // render the note exactly as typed.
-      const insert = sb.find("POST", "/rest/v1/messages")[0];
+      const [insert] = sb.find("POST", "/rest/v1/messages");
       expect(insert.body).toMatchObject({ body: "@Teammate can you check this?" });
     });
 
@@ -1410,14 +1410,14 @@ describe("POST /v1/conversations/:id/notes", () => {
     expect(json.task_id).toBe(TASK_ID);
 
     // The validation lookup was scoped to this conversation + company + live.
-    const lookup = sb.find("GET", "/rest/v1/tasks")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/tasks");
     expect(lookup.url.searchParams.get("id")).toBe(`eq.${TASK_ID}`);
     expect(lookup.url.searchParams.get("conversation_id")).toBe(`eq.${CONV_ID}`);
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(lookup.url.searchParams.get("deleted_at")).toBe("is.null");
 
     // The insert carried the task_id.
-    const insert = sb.find("POST", "/rest/v1/messages")[0];
+    const [insert] = sb.find("POST", "/rest/v1/messages");
     expect(insert.body).toMatchObject({ task_id: TASK_ID });
   });
 
@@ -1493,7 +1493,7 @@ describe("GET /v1/conversations/:id/events", () => {
     expect(body.data).toHaveLength(1);
     expect(body.next_cursor).toBeNull();
 
-    const eventsCall = sb.find("GET", "/rest/v1/conversation_events")[0];
+    const [eventsCall] = sb.find("GET", "/rest/v1/conversation_events");
     expect(eventsCall.url.searchParams.get("or")).toBe(
       `(created_at.lt.2026-07-01T10:00:00+00:00,and(created_at.eq.2026-07-01T10:00:00+00:00,id.lt.${CONV_ID}))`,
     );
@@ -1686,7 +1686,7 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
     expect(res.status).toBe(201);
     // The atomic RPC (keyed on lower(name)) replaces the find/insert/re-select
     // dance and its create/select race.
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag");
     // #298 added p_may_create; the name still reaches the RPC untouched,
     // which is what this test has always been about.
     expect(rpc.body).toMatchObject({
@@ -1717,7 +1717,7 @@ describe("POST /v1/conversations/:id/tags (create-on-attach)", () => {
       { method: "POST", companyId: COMPANY_ID, body: { name: "VIP*" } },
     );
     expect(res.status).toBe(201);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag");
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_name: "VIP*",
@@ -2196,7 +2196,7 @@ describe("#293 snooze routes", () => {
 
     // Read as the CALLER's deferral, not the thread's — a colleague's snooze
     // must not show up here.
-    const read = sb.find("GET", "/rest/v1/conversation_snoozes")[0];
+    const [read] = sb.find("GET", "/rest/v1/conversation_snoozes");
     expect(read.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
@@ -2336,7 +2336,7 @@ describe("#298 a locked tag list restricts CREATION, never attachment", () => {
       { method: "POST", companyId: COMPANY_ID, body: { name: "Roof" } },
     );
     expect(res.status).toBe(201);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_find_or_create_tag");
     expect(rpc.body).toMatchObject({ p_may_create: false });
     expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
   });

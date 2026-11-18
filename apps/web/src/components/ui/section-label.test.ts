@@ -36,7 +36,7 @@ describe("#733 section labels come from SECTION_LABEL_CLASS", () => {
     const offenders: string[] = [];
     for (const { file, rel } of files) {
       for (const match of readFileSync(file, "utf8").matchAll(/"([^"\n]*\buppercase\b[^"\n]*)"/g)) {
-        const classes = match[1];
+        const [, classes] = match;
         // A chip is a filled, rounded token: its own pattern, not a label.
         if (!/\btracking-/.test(classes) || /\brounded/.test(classes)) continue;
         offenders.push(`${rel}: "${classes}"`);

@@ -76,7 +76,7 @@ describe("GET /v1/contacts with a tag", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("select")).toContain("contact_tags!inner(tag_id)");
     expect(call.url.searchParams.get("contact_tags.tag_id")).toBe(`eq.${TAG_ID}`);
     expect(call.url.searchParams.get("merged_into")).toBe("is.null");
@@ -148,7 +148,7 @@ describe("GET /v1/contacts/export with tags and a selection", () => {
     expect(res.status).toBe(200);
     const csv = await res.text();
     expect(csv).toContain("Won;Property manager");
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("id")).toBe(`in.(${CONTACT_A},${CONTACT_B})`);
   });
 
@@ -396,7 +396,7 @@ describe("POST /v1/contacts/bulk", () => {
     });
     const body = (await res.json()) as { applied: { id: string }[] };
     expect(body.applied.map((row) => row.id)).toEqual([CONTACT_A]);
-    const call = sb.find("DELETE", "/rest/v1/contact_tags")[0];
+    const [call] = sb.find("DELETE", "/rest/v1/contact_tags");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("contact_id")).toBe(`in.(${CONTACT_A})`);
   });
@@ -459,7 +459,7 @@ describe("POST /v1/contacts/bulk", () => {
     };
     expect(body.applied.map((row) => row.id)).toEqual([CONTACT_A]);
     expect(body.failed.map((row) => row.id)).toEqual([STRANGER]);
-    const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
+    const [patch] = sb.find("PATCH", "/rest/v1/contacts");
     expect(patch.body).toMatchObject({ deleted_by_user_id: expect.any(String) });
     expect(patch.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     // Only the live ones are named: a stranger's id never reaches the write.

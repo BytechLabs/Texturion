@@ -367,7 +367,7 @@ export class Robot {
       );
     }
     if (plan.gather) {
-      const gather = plan.gather;
+      const { gather } = plan;
       this.#command(record, "gather", (leg, c) =>
         this.#o.telnyx.gather(
           leg,
@@ -397,7 +397,7 @@ export class Robot {
   }
 
   #speakVoicemail(record: CallRecord): void {
-    const voicemail = record.plan.voicemail;
+    const { voicemail } = record.plan;
     if (!voicemail || record.spoke || record.state !== "answered") return;
     record.spoke = voicemail.phrase;
     this.#command(record, "speak", (leg, c) =>

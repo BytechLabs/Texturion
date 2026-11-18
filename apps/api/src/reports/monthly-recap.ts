@@ -295,7 +295,7 @@ async function ownerEmail(
     .is("deactivated_at", null)
     .limit(1);
   if (error || !members?.length) return null;
-  const owner = members[0];
+  const [owner] = members;
 
   const { data: prefs } = await db
     .from("notification_prefs")

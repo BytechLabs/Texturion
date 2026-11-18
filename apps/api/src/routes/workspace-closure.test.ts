@@ -334,7 +334,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
 
       // The address is written to the workspace, because 30 days from now the
       // members table is one of the things the purge will have deleted.
-      const patch = sb.find("PATCH", "/rest/v1/companies")[0];
+      const [patch] = sb.find("PATCH", "/rest/v1/companies");
       expect(patch.body).toEqual({ purge_receipt_email: "owner@acme.test" });
 
       expect(

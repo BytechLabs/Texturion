@@ -102,7 +102,7 @@ describe("a shared Swift model can gain a field without breaking its call sites"
       .map((f) => readFileSync(f, "utf8"))
       .join("\n");
     for (const key of Object.keys(REQUIRED_BY_DESIGN)) {
-      const field = key.split(".")[1];
+      const [, field] = key.split(".");
       expect(
         new RegExp(`\\b(let|var)\\s+${field}\\s*:`).test(source),
         `${key} is exempted and no longer exists`,

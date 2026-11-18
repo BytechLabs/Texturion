@@ -82,7 +82,7 @@ export async function maybeSendOffRamp(
       .eq("id", args.companyId)
       .limit(1);
     if (error || !rows?.length) return;
-    const settings = rows[0];
+    const [settings] = rows;
 
     // Re-checked here as well as by the caller. The caller skips this function
     // entirely for an active workspace so the hot path costs nothing, and this
