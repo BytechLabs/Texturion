@@ -2,6 +2,7 @@
 
 import { Download, ShieldCheck, Trash2 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -27,9 +28,12 @@ import {
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { getAccessToken } from "@/lib/supabase/browser";
 import { EmptyState } from "@/components/ui/empty-state";
+import { updateSearch } from "@/lib/url/search-state";
 
 /** Everyone / all actions. Sentinel values, since a Select cannot hold "". */
 const ANY = "any";
+const UUID = /^[a-f\d]{8}(?:-[a-f\d]{4}){3}-[a-f\d]{12}$/i;
+const DATE = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
  * Smart default rather than an empty form: a month is the window an owner
@@ -53,6 +57,22 @@ function toIsoEnd(day: string): string | undefined {
   return end.toISOString();
 }
 
+function dateFromUrl(value: string | null, fallback: string): string {
+  if (value === "") return "";
+  if (!value || !DATE.test(value)) return fallback;
+  const date = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(date.getTime()) && date.toISOString().slice(0, 10) === value
+    ? value
+    : fallback;
+}
+
+function setHistoryFilter(key: "actor" | "action" | "since" | "until", value: string) {
+  updateSearch((params) => {
+    if (value === ANY || (key === "until" && value === "")) params.delete(key);
+    else params.set(key, value);
+  });
+}
+
 /**
  * /settings/audit-log (#231; "History" until #755) — who changed what in this workspace.
  *
@@ -68,10 +88,13 @@ export default function HistorySettingsPage() {
   const t = useT();
   const companyId = useCompanyId();
   const members = useMembers();
-  const [actor, setActor] = useState<string>(ANY);
-  const [action, setAction] = useState<string>(ANY);
-  const [since, setSince] = useState<string>(defaultSince);
-  const [until, setUntil] = useState<string>("");
+  const search = useSearchParams();
+  const rawActor = search.get("actor") ?? "";
+  const rawAction = search.get("action") ?? "";
+  const actor = UUID.test(rawActor) ? rawActor : ANY;
+  const action = Object.hasOwn(AUDIT_ACTION_LABELS, rawAction) ? rawAction : ANY;
+  const since = dateFromUrl(search.get("since"), defaultSince());
+  const until = dateFromUrl(search.get("until"), "");
   const [exporting, setExporting] = useState(false);
   const canDelete = useCanDeleteRecords();
 
@@ -137,7 +160,7 @@ export default function HistorySettingsPage() {
               id="history-actor"
               className="w-fit"
               value={actor}
-              onValueChange={setActor}
+              onValueChange={(value) => setHistoryFilter("actor", value)}
               options={[
                 { value: ANY, label: t("appShell.historyFilterEveryone") },
                 ...(members.data?.data ?? []).map((member) => ({
@@ -155,7 +178,7 @@ export default function HistorySettingsPage() {
               id="history-action"
               className="w-fit"
               value={action}
-              onValueChange={setAction}
+              onValueChange={(value) => setHistoryFilter("action", value)}
               options={[
                 { value: ANY, label: t("appShell.historyFilterEverything") },
                 ...Object.entries(AUDIT_ACTION_LABELS).map(([key, label]) => ({
@@ -173,7 +196,7 @@ export default function HistorySettingsPage() {
               id="history-since"
               type="date"
               value={since}
-              onChange={(event) => setSince(event.target.value)}
+              onChange={(event) => setHistoryFilter("since", event.target.value)}
             />
           </div>
           <div className="space-y-1.5">
@@ -184,7 +207,7 @@ export default function HistorySettingsPage() {
               id="history-until"
               type="date"
               value={until}
-              onChange={(event) => setUntil(event.target.value)}
+              onChange={(event) => setHistoryFilter("until", event.target.value)}
             />
           </div>
         </div>

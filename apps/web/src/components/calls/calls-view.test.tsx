@@ -29,11 +29,14 @@ const state: {
 };
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
+const callQueries = vi.hoisted(() => vi.fn());
 
 afterEach(() => {
   cleanup();
   state.isPlaceholderData = false;
   state.search = "";
+  callQueries.mockClear();
+  window.history.replaceState(null, "", "/");
 });
 
 // #691: the delete menu is its own surface (call-actions.test.tsx); these tests
@@ -47,16 +50,19 @@ vi.mock("@/lib/hooks/use-records-delete", () => ({
   useDeletedToast: () => () => undefined,
 }));
 vi.mock("@/lib/api/calls", () => ({
-  useCalls: () => ({
-    data: { pages: [{ data: state.rows, next_cursor: null }] },
-    isPending: state.isPending,
-    isError: state.isError,
-    hasNextPage: state.hasNextPage,
-    isPlaceholderData: state.isPlaceholderData,
-    isFetchingNextPage: false,
-    fetchNextPage: vi.fn(),
-    refetch: vi.fn(),
-  }),
+  useCalls: (outcome?: string, reason?: string) => {
+    callQueries(outcome, reason);
+    return {
+      data: { pages: [{ data: state.rows, next_cursor: null }] },
+      isPending: state.isPending,
+      isError: state.isError,
+      hasNextPage: state.hasNextPage,
+      isPlaceholderData: state.isPlaceholderData,
+      isFetchingNextPage: false,
+      fetchNextPage: vi.fn(),
+      refetch: vi.fn(),
+    };
+  },
   // Push-to-wake re-ring mutation (fired only when ?call is present + ready).
   useRingMe: () => ({ mutate: vi.fn() }),
 }));
@@ -126,6 +132,20 @@ function render(): string {
 }
 
 describe("CallsView (#129)", () => {
+  it("restores the call outcome and keeps other parameters when it changes", () => {
+    window.history.replaceState(null, "", "/calls?outcome=voicemail&view=compact");
+    state.search = window.location.search;
+    const view = mount(<CallsView />);
+    expect(callQueries).toHaveBeenCalledWith("voicemail", undefined);
+
+    fireEvent.click(screen.getByRole("radio", { name: "Missed" }));
+    expect(window.location.search).toBe("?outcome=missed&view=compact");
+
+    state.search = "?outcome=unknown&view=compact";
+    view.rerender(<CallsView />);
+    expect(callQueries.mock.calls.at(-2)).toEqual([undefined, undefined]);
+  });
+
   it("renders contact name, the missed pill, and a call back (#734)", () => {
     state.rows = [call()];
     state.isPending = false;
