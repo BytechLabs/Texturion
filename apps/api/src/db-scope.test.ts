@@ -321,10 +321,6 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     count: 1,
     why: "keyed on message_id, resolved by the threading RPC for this company",
   },
-  "messaging/inbound-ring.ts::conversation_events": {
-    count: 1,
-    why: "keyed on conversation_id, resolved from the ringing number's company",
-  },
 
   // ---- The twelve below were invisible until the predicate above began
   // requiring a real filter. Every one of them passed on `.select("…,

@@ -35,6 +35,7 @@ import type { TelnyxEvent } from "./types";
 
 const env: Env = completeEnv();
 const COMPANY_ID = "cccccccc-0000-4000-8000-00000000000c";
+const CONVERSATION_ID = "bbbbbbbb-0000-4000-8000-00000000000b";
 const NUMBER_ID = "dddddddd-0000-4000-8000-00000000000d";
 const OUR_NUMBER = "+16135550100";
 const CALLER = "+16135551000";
@@ -247,7 +248,7 @@ function upsertCallStub(merged: Record<string, unknown> = {}): Stub {
 function threadCallStub(
   result: Record<string, unknown> = {
     contact_id: "ct-1",
-    conversation_id: "bbbbbbbb-0000-4000-8000-00000000000b",
+    conversation_id: CONVERSATION_ID,
   },
 ): Stub {
   return stubRoute(rpcMatch(env, "api_thread_call"), () => result);
@@ -409,6 +410,19 @@ describe("#213 outbound placer tag (buildOutboundPlacerState / parseOutboundPlac
 describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
   const vmiState = btoa(`vmi|${CALLER}`);
 
+  function voicemailAudience() {
+    return [
+      stubRoute(restMatch(env, "GET", "conversations"), () => [{
+        id: CONVERSATION_ID,
+        assigned_user_id: null,
+        phone_number_id: NUMBER_ID,
+        contacts: { name: null, phone_e164: CALLER },
+      }]),
+      stubRoute(restMatch(env, "GET", "company_members"), () => []),
+      stubRoute(rpcMatch(env, "number_member_levels"), () => []),
+    ];
+  }
+
   it("recording.saved: fetches within the presigned window, stores, stamps, threads, deletes the Telnyx copy", async () => {
     const audio = new Uint8Array([73, 68, 51, 4]); // "ID3…"
     const mp3Fetch = stubRoute(
@@ -461,6 +475,7 @@ describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
       upsert,
       thread,
       eventInsert,
+      ...voicemailAudience(),
       recordingList,
       recordingDelete,
     );
@@ -556,6 +571,7 @@ describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
       upsert,
       thread,
       eventInsert,
+      ...voicemailAudience(),
       recordingList,
       recordingDelete,
     );
