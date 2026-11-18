@@ -131,6 +131,7 @@ const SUITES = [
   "contact_phones",
   "contact_custom_values",
   "scoped_exports",
+  "export_claim_leases",
   "usage_window",
   "aup_enforcement",
   "abuse_intake",

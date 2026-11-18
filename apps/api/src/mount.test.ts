@@ -530,6 +530,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       deliverOutboundWebhooks,
     ]);
     expect(runs("*/15 * * * *")).toEqual([
+      buildDataExports,
       runDailySummary,
       notifyDueTasksJob,
       notifyOverdueTasksJob,
@@ -591,7 +592,6 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       // #691: the Trash's 30 days, with the storage objects.
       purgeTrash,
       purgeClosedWorkspaces,
-      buildDataExports,
       pruneExpiredExports, // #378: expired exports are deleted, not just hidden
       // #381: SSN/SIN fragments from signups that never paid.
       runIdentityRetentionJob,
