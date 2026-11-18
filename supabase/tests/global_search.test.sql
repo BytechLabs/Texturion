@@ -756,10 +756,16 @@ begin
   result := public.api_search_v2(f.cid_a, marker, 0, 10, 0, 0, 0);
   if (select array_agg((item->>'id')::uuid order by item->>'id') from jsonb_array_elements(result->'contacts') item)
        is distinct from array[first_id, second_id, unnamed_id]
-     or exists (select 1 from public.api_sorted_contacts(f.cid_b, 'name', 3, marker))
-     or (select c.id from public.api_sorted_contacts(f.cid_a, 'name', 1, '(416) 555-0409') c)
-       is distinct from first_id then
-    raise exception 'Global and list search diverged, exposed a different workspace, or skipped an alternate number';
+     or exists (select 1 from public.api_sorted_contacts(f.cid_b, 'name', 3, marker)) then
+    raise exception 'Global and list search diverged or exposed a different workspace';
+  end if;
+
+  result := public.api_search_v2(f.cid_a, '(416) 555-0409', 0, 10, 0, 0, 0);
+  if (select array_agg((item->>'id')::uuid) from jsonb_array_elements(result->'contacts') item)
+       is distinct from array[first_id]
+     or (select array_agg(c.id) from public.api_sorted_contacts(f.cid_a, 'added', 10, '(416) 555-0409') c)
+       is distinct from array[first_id] then
+    raise exception 'Global and list search should find the same owner for a formatted alternate number';
   end if;
 
   update public.conversations set deleted_at = now() where id = new_thread;
