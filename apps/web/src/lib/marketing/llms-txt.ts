@@ -302,5 +302,5 @@ ${AI_DISCLOSURES.map(({ key, defaultOn }) => {
 - Data is processed in the United States (Supabase on AWS us-east-1).
 
 ## Contact
-- Support is by email only ([support@loonext.com](mailto:support@loonext.com)), usually within one business day.`;
+- Support is by email only ([support@loonext.com](mailto:support@loonext.com)).`;
 

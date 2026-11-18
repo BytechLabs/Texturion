@@ -284,7 +284,7 @@ function ackCopy(): { subject: string; text: string } {
     text:
       `Hi there,\n\n` +
       `Thanks for contacting Loonext. Your message is in our inbox and we ` +
-      `reply to this address, usually within one business day.\n\n` +
+      `will reply to this address.\n\n` +
       `If you did not submit the contact form on loonext.com, you can ` +
       `ignore this email.\n\n` +
       `Loonext\nhttps://loonext.com\n`,
