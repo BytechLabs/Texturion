@@ -34,7 +34,7 @@ import { companyAllows } from "@/lib/api/company-actions";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useRegistration } from "@/lib/api/registration";
-import type { CompanyView, RegistrationRow } from "@/lib/api/types";
+import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
 /*
