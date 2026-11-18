@@ -322,6 +322,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.activityLoadFailed" to "Couldn't load the activity.",
         "contactsTasks.noteFilesCap" to "Up to {count} files per note.",
         "contactsTasks.noteFileTooBig" to "Files must be 25 MB or less.",
+        "contactsTasks.noteUploading" to "Uploading file {file} of {total}…",
         "contactsTasks.noteUploadFailedOne" to
             "The note posted, but {count} file didn't upload. Retry from the note " +
             "in the conversation.",
@@ -1185,6 +1186,7 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.activityLoadFailed" to "Impossible de charger l'activité.",
         "contactsTasks.noteFilesCap" to "Jusqu'à {count} fichiers par note.",
         "contactsTasks.noteFileTooBig" to "Les fichiers doivent faire 25 Mo ou moins.",
+        "contactsTasks.noteUploading" to "Téléversement du fichier {file} sur {total}…",
         "contactsTasks.noteUploadFailedOne" to
             "La note a été publiée, mais {count} fichier n'a pas été téléversé. " +
             "Réessayez depuis la note dans la conversation.",

@@ -28,7 +28,11 @@ import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.net.ConnectionWatch
 import com.loonext.android.core.realtime.RealtimeClient
 import com.loonext.android.core.update.UpdateRepository
+import com.loonext.android.features.compose.ComposerDrafts
+import com.loonext.android.features.contacts.MultipartClient
 import com.loonext.android.features.tasks.CreatedTaskNotice
+import com.loonext.android.features.tasks.TaskMutations
+import com.loonext.android.features.tasks.TaskNoteUploads
 import com.loonext.android.features.settings.SettingsRepository
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.features.thread.Outbox
@@ -175,6 +179,9 @@ class AppGraph(
     val forYouRepo = ForYouRepository(api)
     val inboxRepo = InboxRepository(api)
     val tasksRepo = TasksRepository(api)
+    internal val taskNoteUploads = TaskNoteUploads(
+        appScope, app, ComposerDrafts(app), TaskMutations(api), MultipartClient(api, apiUrl),
+    )
     val contactsRepo = ContactsRepository(api)
     val notificationsRepo = NotificationsRepository(api)
     val searchRepo = SearchRepository(api)
@@ -234,6 +241,7 @@ class AppGraph(
         SessionEnded.onEnded {
             storeCache.clear()
             notificationsReadState.clear()
+            appScope.launch(Dispatchers.Main.immediate) { taskNoteUploads.clear() }
             // #183 part 3: tear down the Connected-Apps account so the
             // "Call/Text with Loonext" rows leave with the session.
             runCatching {
