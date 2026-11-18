@@ -57,13 +57,13 @@ final class RecordActionsTests: XCTestCase {
             blocked: nil,
             optOut: nil,
             surface: ConversationSurface(
-                canOpen: true, hasGallery: false, hasCatchUp: false, hasNewTask: false
+                canOpen: true, hasGallery: false, hasCatchUp: false, hasNewTask: false, canCopyNumber: true
             )
         ).visibleIds
         XCTAssertEqual(
             ids,
             [
-                "open", "mark-unread", "assign", "close", "pin", "snooze", "follow-up",
+                "open", "copy-number", "mark-unread", "assign", "close", "pin", "snooze", "follow-up",
                 "mute", "follow", "spam", "delete",
             ]
         )

@@ -89,6 +89,7 @@ struct RecordViewer: Equatable, Sendable {
 
 enum ConversationActionId {
     static let open = "open"
+    static let copyNumber = "copy-number"
     static let markRead = "mark-read"
     static let markUnread = "mark-unread"
     static let catchUp = "catch-up"
@@ -125,6 +126,7 @@ struct ConversationSurface: Equatable, Sendable {
     let hasCatchUp: Bool
     /// Phones only: a task can start from the conversation sheet.
     let hasNewTask: Bool
+    var canCopyNumber: Bool = false
 }
 
 struct ConversationActionsInput: Sendable {
@@ -166,6 +168,10 @@ func conversationActions(_ input: ConversationActionsInput) -> [RecordAction] {
     list.append(RecordAction(
         id: ConversationActionId.open, labelKey: "recordMenu.open",
         group: .primary, allowed: surface.canOpen
+    ))
+    list.append(RecordAction(
+        id: ConversationActionId.copyNumber, labelKey: "recordMenu.copyNumber",
+        group: .primary, allowed: surface.canCopyNumber
     ))
 
     list.append(

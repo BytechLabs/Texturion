@@ -854,7 +854,8 @@ private final class InboxController {
                     canOpen: true,
                     hasGallery: false,
                     hasCatchUp: false,
-                    hasNewTask: false
+                    hasNewTask: false,
+                    canCopyNumber: !row.contact.phone_e164.isBlank
                 ),
                 assignChoices: assignChoices,
                 snoozeChoices: snoozePresets(locale: locale).map {
@@ -900,6 +901,9 @@ private final class InboxController {
         switch actionId {
         case ConversationActionId.open:
             onOpen(row.id)
+        case ConversationActionId.copyNumber:
+            copyToClipboard(row.contact.phone_e164)
+            notify(AppStrings.translate(locale, "recordMenu.numberCopied"))
         case ConversationActionId.markRead, ConversationActionId.markUnread:
             toggleRead(row)
         case ConversationActionId.close, ConversationActionId.reopen:

@@ -60,11 +60,13 @@ class RecordActionsTest {
             MemberRole.OWNER,
             blocked = null,
             optOut = null,
-            surface = ConversationSurface(canOpen = true, hasGallery = false, hasCatchUp = false, hasNewTask = false),
+            surface = ConversationSurface(
+                canOpen = true, hasGallery = false, hasCatchUp = false, hasNewTask = false, canCopyNumber = true,
+            ),
         ).visibleIds()
         assertEquals(
             listOf(
-                "open", "mark-unread", "assign", "close", "pin", "snooze", "follow-up",
+                "open", "copy-number", "mark-unread", "assign", "close", "pin", "snooze", "follow-up",
                 "mute", "follow", "spam", "delete",
             ),
             ids,
