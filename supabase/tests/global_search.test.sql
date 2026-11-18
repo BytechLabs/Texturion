@@ -221,7 +221,7 @@ begin
 
   insert into public.templates (company_id, name, body, created_by)
   values (cid_a, 'Quote follow-up',
-          'Hey there, just checking in on the quote we sent over. Any questions?', owner_id)
+          repeat('Earlier text. ', 20) || 'Just checking in on the quote we sent over. Any questions?', owner_id)
   returning id into tpl_a;
   insert into public.templates (company_id, name, body, created_by)
   values (cid_b, 'Quote follow-up', 'Invoice attached for your records.', owner_id)
@@ -424,7 +424,7 @@ begin
      or (r->'templates'->0->>'id')::uuid is distinct from f.tpl_a then
     raise exception 'G6 FAILED: template body match wrong: %', r->'templates';
   end if;
-  if r->'templates'->0->>'snippet' not like '%checking%'
+  if coalesce(r->'templates'->0->>'snippet', '') not like '…%checking%'
      or length(r->'templates'->0->>'snippet') > 160 then
     raise exception 'G6 FAILED: template snippet wrong: %', r->'templates'->0;
   end if;
@@ -772,6 +772,8 @@ do $$
 declare
   f record;
   note_id uuid;
+  accent_id uuid;
+  result jsonb;
 begin
   select * into f from gs_fixture;
   select id into note_id from public.messages
@@ -788,6 +790,19 @@ begin
        is distinct from array[note_id]
      or exists (select 1 from public.api_find_thread_messages(f.cid_a, f.cv_b, 'furn')) then
     raise exception 'Find in thread missed the note or returned hidden or unrelated messages';
+  end if;
+
+  insert into public.messages (company_id, conversation_id, direction, body, status)
+  values (f.cid_a, f.cv_a, 'inbound',
+    repeat('Earlier message. ', 20) || 'The café espresso machine needs a filter.', 'received')
+  returning id into accent_id;
+  result := public.api_search_v2(f.cid_a, '"cafe espresso"', 10, 0, 0, 0, 0);
+  if (result->'conversations'->0->>'matched_message_id')::uuid is distinct from accent_id
+     or coalesce(result->'conversations'->0->>'snippet', '') not like '%café%'
+     or (select array_agg(id) from public.api_find_thread_messages(f.cid_a, f.cv_a, '"cafe espresso"'))
+       is distinct from array[accent_id]
+     or exists (select 1 from public.api_find_thread_messages(f.cid_a, f.cv_a, '"espresso cafe"')) then
+    raise exception 'Accent folding lost the original spelling or changed phrase matching';
   end if;
 end $$;
 

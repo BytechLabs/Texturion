@@ -46,7 +46,7 @@ values
    'ce000000-0000-4000-8000-0000000000c1'::uuid,
    'ce000000-0000-4000-8000-0000000000b1'::uuid,
    'ce-session-1', '+16135551111', 'voicemail',
-   'Hi, the boiler on Elm Street is making a banging noise again.', now()),
+   repeat('Earlier words. ', 20) || 'The boiler on Elm Street is making a banging noise again.', now()),
   -- On the HIDDEN number. Same words, must never come back.
   ('ce000000-0000-4000-8000-0000000000f2'::uuid,
    'ce000000-0000-4000-8000-0000000000c1'::uuid,
@@ -81,7 +81,7 @@ begin
   -- ==========================================================================
   select (public.api_search_v2(
             'ce000000-0000-4000-8000-0000000000c1'::uuid,
-            'boiler Elm', 5, 5, 5, 5, 5, null, null,
+            'boiler on Elm', 5, 5, 5, 5, 5, null, null,
             array['ce000000-0000-4000-8000-0000000000b2'::uuid], 5
           ) -> 'voicemails') into v_hits;
   if jsonb_array_length(coalesce(v_hits, '[]'::jsonb)) is distinct from 1 then
@@ -102,7 +102,7 @@ begin
   if (v_row ->> 'call_session_id') is null then
     raise exception 'a voicemail hit must carry its address';
   end if;
-  if (v_row ->> 'snippet') is null then
+  if coalesce(v_row ->> 'snippet', '') not like '…%boiler on Elm%' then
     raise exception 'a voicemail hit must carry the words it matched on';
   end if;
 
