@@ -21,8 +21,10 @@ export class AiShim extends WorkerEntrypoint {
   }
 }
 
-export default {
+const aiShimWorker = {
   fetch() {
     return new Response(null, { status: 404 });
   },
 };
+
+export default aiShimWorker;

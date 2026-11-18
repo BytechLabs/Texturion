@@ -3,7 +3,7 @@
 import { formatViewCount } from '@loonext/shared';
 import type { SavedViewFilters, SavedViewSurface } from '@loonext/shared';
 import { Bookmark, Check, Pencil, Star, Trash2, Users } from "lucide-react";
-import { useMemo, useState } from "react";
+import { useId, useMemo, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
@@ -199,6 +199,9 @@ function SaveViewDialog({
 }) {
   const t = useT();
   const create = useCreateSavedView();
+  const shareId = useId();
+  const shareLabelId = `${shareId}-label`;
+  const shareNoteId = `${shareId}-note`;
   const [name, setName] = useState("");
   const [shared, setShared] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -235,16 +238,25 @@ function SaveViewDialog({
             />
           </div>
           {canShare && (
-            <label className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-card p-3">
+            <label
+              htmlFor={shareId}
+              aria-labelledby={shareLabelId}
+              className="flex cursor-pointer items-start gap-3 rounded-lg border border-border bg-card p-3"
+            >
               <input
+                id={shareId}
                 type="checkbox"
+                aria-labelledby={shareLabelId}
+                aria-describedby={shareNoteId}
                 className="mt-0.5"
                 checked={shared}
                 onChange={(e) => setShared(e.target.checked)}
               />
               <span className="text-sm">
-                <span className="font-medium">{t("inbox.viewShareToggle")}</span>
-                <span className="mt-0.5 block text-[13px] text-muted-foreground">
+                <span id={shareLabelId} className="font-medium">
+                  {t("inbox.viewShareToggle")}
+                </span>
+                <span id={shareNoteId} className="mt-0.5 block text-[13px] text-muted-foreground">
                   {shareNote}
                 </span>
               </span>

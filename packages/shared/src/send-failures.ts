@@ -113,10 +113,9 @@ export function sendFailureMessageKey(
  * — and a test that read the source text would report the opt-out mapping
  * missing when it is the one mapping with a legal meaning.
  *
- * @internal No client should read the table; they call
- * {@link sendFailureMessageKey}, which is where the trimming and the fallback
- * live. A caller that indexed this directly would silently answer nothing for a
- * code stored with whitespace around it.
+ * Callers use {@link sendFailureMessageKey} to handle whitespace and unknown codes.
+ *
+ * @internal
  */
 export const SEND_FAILURE_KEYS_BY_CODE: Readonly<Record<string, SendFailureMessageKey>> =
   SEND_FAILURE_KEYS;

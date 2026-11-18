@@ -1407,7 +1407,7 @@ describe("suspend / release", () => {
     expect(rest.rows("phone_numbers")[0].status).toBe("active");
   });
 
-  it("#526 a database that predates the function is loud, not empty", () => {
+  it("#526 a database that predates the function is loud, not empty", async () => {
     // The shape check is the deploy-window guard: a Worker talking to a
     // database without `close_out_dead_provisioning` gets PostgREST's own
     // error shape back, and coercing that to `{eligible: false, closed: []}`
@@ -1416,24 +1416,20 @@ describe("suspend / release", () => {
     //
     // Replacing the throw with that literal survived all 3804 tests, so the
     // guard was protecting a property nothing measured.
-    return (async () => {
-      const { env, rest } = setup({ subscription_status: "canceled" });
-      const downstream: FetchRoute = (url) =>
-        url.pathname === "/rest/v1/rpc/close_out_dead_provisioning"
-          ? // A 200 carrying the wrong shape, which is what a stale schema cache
-            // or an older function signature produces - not a 500, because a 500
-            // is already covered above and is not the silent case.
-            new Response(JSON.stringify({ hint: "no such function" }), {
-              status: 200,
-              headers: { "content-type": "application/json" },
-            })
-          : undefined;
-      stubFetch(downstream, rest.route());
+    const { env, rest } = setup({ subscription_status: "canceled" });
+    const downstream: FetchRoute = (url) =>
+      url.pathname === "/rest/v1/rpc/close_out_dead_provisioning"
+        ? // A stale schema cache can return 200 with an incompatible body.
+          new Response(JSON.stringify({ hint: "no such function" }), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          })
+        : undefined;
+    stubFetch(downstream, rest.route());
 
-      await expect(closeOutDeadProvisioning(getDb(env), COMPANY_ID)).rejects.toThrow(
-        /unexpected shape/,
-      );
-    })();
+    await expect(closeOutDeadProvisioning(getDb(env), COMPANY_ID)).rejects.toThrow(
+      /unexpected shape/,
+    );
   });
 });
 

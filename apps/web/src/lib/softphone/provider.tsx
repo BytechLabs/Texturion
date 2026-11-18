@@ -375,9 +375,8 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     [],
   );
 
-  useEffect(() => {
-    // Tear the SDK down on unmount (sign-out / shell teardown).
-    return () => {
+  useEffect(
+    () => () => {
       if (consultTimerRef.current !== null) clearTimeout(consultTimerRef.current);
       for (const call of callsRef.current.values()) {
         try {
@@ -389,8 +388,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       callsRef.current.clear();
       clientRef.current?.disconnect();
       clientRef.current = null;
-    };
-  }, []);
+    },
+    [],
+  );
 
   const attachActiveAudio = useCallback((call: TelnyxCall) => {
     if (call.remoteStream && audioRef.current) {

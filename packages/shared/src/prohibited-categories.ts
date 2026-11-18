@@ -82,10 +82,9 @@ const TERMS: Record<ProhibitedCategory, readonly string[]> = {
  * only described above — the list's specificity IS the feature, and prose
  * cannot fail a build.
  *
- * @internal — for that assertion and nothing else. No client has any use for the raw
- * term list, and `check-shared-barrel` would otherwise require it to be published as
- * part of what `@loonext/shared` promises, which is a bigger claim than a test helper
- * should be able to make on its own.
+ * The raw terms are for tests and stay out of the public package exports.
+ *
+ * @internal
  */
 export function allTerms(): string[] {
   return Object.values(TERMS).flatMap((terms) => [...terms]);

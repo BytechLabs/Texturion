@@ -89,7 +89,7 @@ export function getDb(env: Env): SupabaseClient {
       detectSessionInUrl: false,
     },
     global: {
-      fetch: (input, init) => {
+      fetch: async (input, init) => {
         /*
          * #251 — a DEADLINE, so a stalled pooler fails instead of hanging.
          *
@@ -123,28 +123,24 @@ export function getDb(env: Env): SupabaseClient {
         // The deadline stops with the response (http/deadline.ts), so a request
         // that has been answered leaves no timer running.
         // A request that has seen the database refuse stops asking it (db-pressure.ts).
-        return (async () => {
-          if (databaseOverloaded()) throw new DatabaseOverloadedError();
-          let response: Response;
-          try {
-            response = await fetchWithDeadline(input, init, DB_TIMEOUT_MS);
-          } catch (error) {
-            if (isDeadline(error) && markDatabaseOverloaded()) {
-              throw new DatabaseOverloadedError({ cause: error });
-            }
-            // A caller that cancelled has said nothing about the database. A
-            // call that died in transit has, and is left to postgrest-js to
-            // retry; the request only remembers it, to answer 503 if it ends
-            // in a 5xx with the database still unreachable.
-            if (!isCallerAbort(error)) markDatabaseUnreachable();
-            throw error;
+        if (databaseOverloaded()) throw new DatabaseOverloadedError();
+        let response: Response;
+        try {
+          response = await fetchWithDeadline(input, init, DB_TIMEOUT_MS);
+        } catch (error) {
+          if (isDeadline(error) && markDatabaseOverloaded()) {
+            throw new DatabaseOverloadedError({ cause: error });
           }
-          if ((await isDatabaseOverload(response)) && markDatabaseOverloaded()) {
-            throw new DatabaseOverloadedError();
-          }
-          markDatabaseReachable();
-          return response;
-        })();
+          // Caller cancellation leaves database health unchanged. PostgREST
+          // can retry transport failures before the API returns a 503.
+          if (!isCallerAbort(error)) markDatabaseUnreachable();
+          throw error;
+        }
+        if ((await isDatabaseOverload(response)) && markDatabaseOverloaded()) {
+          throw new DatabaseOverloadedError();
+        }
+        markDatabaseReachable();
+        return response;
       },
     },
   });

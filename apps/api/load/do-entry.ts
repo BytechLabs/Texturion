@@ -9,8 +9,10 @@
  */
 export { CallSessionDO } from "../src/calls/session-do";
 
-export default {
+const loadHarnessWorker = {
   fetch(): Response {
     return new Response("load harness", { status: 200 });
   },
 };
+
+export default loadHarnessWorker;
