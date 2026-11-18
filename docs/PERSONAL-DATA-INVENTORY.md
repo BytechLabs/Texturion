@@ -51,6 +51,16 @@ iOS uses a device-only Keychain item available while unlocked. App Lock
 controls access to the workspace screens. Sign-out, Hand over phone, account
 changes and authorization refusals clear the saved response.
 
+For You, the default inbox and task lists, and recently opened threads and
+tasks can also retain their last successful responses. These can contain
+customer names, addresses, text, task notes and attachment metadata. The disk
+cache holds up to 5 MiB and evicts the least recently accessed responses first.
+Android stores encrypted files in its no-backup directory. iOS uses a device-only
+Keychain key and encrypted, backup-excluded files readable while unlocked.
+Entries are scoped to the member and workspace. Ending the session or handing
+over the phone clears the cache. Authorization and missing-record responses
+discard the eligible saved response.
+
 ## 1. Contact data — the customer's customer
 
 The most sensitive category, because the person never chose us.

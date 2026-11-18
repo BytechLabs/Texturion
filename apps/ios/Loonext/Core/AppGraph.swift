@@ -223,7 +223,10 @@ final class AppGraph {
     init(sessionStore: SessionStore = SessionStore(), transport: HTTPClient = URLSessionHTTPClient()) {
         let prefs = AppPrefs()
         let supabaseAuth = SupabaseAuth()
-        let api = ApiClient(sessionStore: sessionStore, auth: supabaseAuth, transport: transport)
+        let offlineReads = transport is URLSessionHTTPClient ? StoreCache() : nil
+        let api = ApiClient(
+            sessionStore: sessionStore, auth: supabaseAuth, transport: transport, offlineReads: offlineReads
+        )
         let realtime = RealtimeClient()
         let meApi = MeApi(api: api)
         let outbox = OutboxCoordinator(
@@ -263,6 +266,10 @@ final class AppGraph {
         SessionEnded.onEnded { [weak outbox] in
             NotificationsReadState.shared.clear()
             Task { @MainActor in outbox?.clear() }
+            if let offlineReads {
+                StoreCache.discardDiskKey()
+                Task { await offlineReads.clear() }
+            }
         }
 
         // Realtime channels authorize with the Supabase JWT — keep it fresh.

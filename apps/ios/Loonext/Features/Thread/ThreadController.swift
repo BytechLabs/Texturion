@@ -259,19 +259,27 @@ final class ThreadController {
     private func initialLoad() async {
         load = .loading
         loadErrorCode = nil
+        if let cached: ConversationDetail = await repo.api.cachedGet(
+            "/v1/conversations/\(conversationId)", companyId: companyId
+        ), !Task.isCancelled {
+            showInitialDetail(cached)
+        }
         let detail: ConversationDetail
         do {
             detail = try await repo.detail(companyId: companyId, conversationId: conversationId)
+        } catch is CancellationError {
+            return
         } catch {
             loadErrorCode = (error as? ApiError)?.code
+            if (error as? ApiError)?.invalidatesOfflineReads == true {
+                conversation = nil
+                messages = []
+                messagesCursor = nil
+            }
             load = .failed(error.userMessage)
             return
         }
-        conversation = detail
-        messages = detail.messages.data
-        messagesCursor = detail.messages.next_cursor
-        allMessagesLoaded = detail.messages.next_cursor == nil
-        load = .ready(())
+        showInitialDetail(detail)
 
         restoreQueued()
 
@@ -296,6 +304,14 @@ final class ThreadController {
         }
         Task { try? await self.refreshScheduled() }
         Task { try? await self.refreshBlocked() }
+    }
+
+    private func showInitialDetail(_ detail: ConversationDetail) {
+        conversation = detail
+        messages = detail.messages.data
+        messagesCursor = detail.messages.next_cursor
+        allMessagesLoaded = detail.messages.next_cursor == nil
+        load = .ready(())
     }
 
     private var threadPhone: String? {

@@ -2,8 +2,8 @@ package com.loonext.android.core.auth
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
-import android.util.Base64
 import java.security.KeyStore
+import java.util.Base64
 import javax.crypto.Cipher
 import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
@@ -36,18 +36,18 @@ internal object WorkspaceCacheCipher {
         }.generateKey()
     }
 
-    fun encrypt(value: String): String {
+    fun encrypt(value: String, diskKey: SecretKey? = null): String {
         val plain = value.encodeToByteArray()
         require(plain.size <= MAX_BYTES)
         val cipher = Cipher.getInstance(CIPHER)
-        cipher.init(Cipher.ENCRYPT_MODE, requireNotNull(key(create = true)))
+        cipher.init(Cipher.ENCRYPT_MODE, diskKey ?: requireNotNull(key(create = true)))
         check(cipher.iv.size == IV_BYTES)
-        return Base64.encodeToString(cipher.iv + cipher.doFinal(plain), Base64.NO_WRAP)
+        return Base64.getEncoder().encodeToString(cipher.iv + cipher.doFinal(plain))
     }
 
-    fun decrypt(value: String): String? {
-        val bytes = Base64.decode(value, Base64.NO_WRAP)
-        val key = key(create = false) ?: return null
+    fun decrypt(value: String, diskKey: SecretKey? = null): String? {
+        val bytes = Base64.getDecoder().decode(value)
+        val key = diskKey ?: key(create = false) ?: return null
         val cipher = Cipher.getInstance(CIPHER)
         cipher.init(Cipher.DECRYPT_MODE, key, GCMParameterSpec(TAG_BITS, bytes, 0, IV_BYTES))
         return cipher.doFinal(bytes, IV_BYTES, bytes.size - IV_BYTES).decodeToString()

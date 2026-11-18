@@ -23,6 +23,7 @@ actor ApiClient {
     private let auth: SupabaseAuth
     private let baseURL: URL
     private let transport: HTTPClient
+    private let offlineReads: StoreCache?
     private var refreshTask: Task<Session?, Error>?
 
     /// Set by the app shell; called when the refresh token itself is rejected.
@@ -35,12 +36,14 @@ actor ApiClient {
         sessionStore: SessionStore,
         auth: SupabaseAuth,
         baseURL: URL = AppConfig.apiURL,
-        transport: HTTPClient = URLSessionHTTPClient()
+        transport: HTTPClient = URLSessionHTTPClient(),
+        offlineReads: StoreCache? = nil
     ) {
         self.sessionStore = sessionStore
         self.auth = auth
         self.baseURL = baseURL
         self.transport = transport
+        self.offlineReads = offlineReads
     }
 
     func setSignedOutHandler(_ handler: @escaping @Sendable () -> Void) {
@@ -56,9 +59,54 @@ actor ApiClient {
     func get<T: Decodable & Sendable>(
         _ path: String,
         query: [String: String?] = [:],
-        companyId: String? = nil
+        companyId: String? = nil,
+        useOfflineFallback: Bool = true
     ) async throws -> T {
-        try Self.decode(path, await raw("GET", path, query: query, companyId: companyId))
+        guard let offlineReads, let scope = offlineScope(path, query, companyId) else {
+            return try Self.decode(path, await raw("GET", path, query: query, companyId: companyId))
+        }
+        do {
+            let data = try await raw("GET", path, query: query, companyId: companyId, expectedUserId: scope.userId)
+            let response: T = try Self.decode(path, data)
+            await offlineReads.write(data, for: scope.key) { [sessionStore, userId = scope.userId] in
+                sessionStore.current()?.userId == userId
+            }
+            return response
+        } catch let failure as ApiError {
+            if failure.invalidatesOfflineReads {
+                await offlineReads.remove(scope.key)
+            }
+            if useOfflineFallback, failure.code == ApiErrorCode.network,
+               let data = await offlineReads.read(scope.key),
+               sessionStore.current()?.userId == scope.userId,
+               let cached: T = try? Self.decode(path, data) {
+                return cached
+            }
+            throw failure
+        }
+    }
+
+    func cachedGet<T: Decodable & Sendable>(
+        _ path: String,
+        query: [String: String?] = [:],
+        companyId: String
+    ) async -> T? {
+        guard let offlineReads, let scope = offlineScope(path, query, companyId),
+              let data = await offlineReads.read(scope.key),
+              sessionStore.current()?.userId == scope.userId else { return nil }
+        return try? Self.decode(path, data)
+    }
+
+    private func offlineScope(
+        _ path: String, _ query: [String: String?], _ companyId: String?
+    ) -> (key: String, userId: String)? {
+        guard let companyId, let userId = sessionStore.current()?.userId,
+              isOfflineRead(path: path, query: query, userId: userId) else { return nil }
+        let parts = [userId, companyId, path] + query.compactMapValues { $0 }
+            .sorted { $0.key < $1.key }
+            .flatMap { [$0.key, $0.value] }
+        guard let encoded = try? JSONEncoder().encode(parts) else { return nil }
+        return (String(decoding: encoded, as: UTF8.self), userId)
     }
 
     func post<T: Decodable & Sendable>(

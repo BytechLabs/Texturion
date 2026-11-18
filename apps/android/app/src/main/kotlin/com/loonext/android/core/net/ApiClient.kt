@@ -5,6 +5,8 @@ import com.loonext.android.core.auth.Session
 import com.loonext.android.core.auth.SessionSource
 import com.loonext.android.core.auth.SupabaseAuth
 import com.loonext.android.core.auth.await
+import com.loonext.android.core.data.OfflineReadCache
+import com.loonext.android.core.data.isOfflineRead
 import com.loonext.android.core.diag.RecentErrors
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
@@ -36,6 +38,8 @@ class ApiClient(
     private val baseUrl: String,
     private val sessionStore: SessionSource,
     private val supabaseAuth: SupabaseAuth,
+    private val offlineReads: OfflineReadCache? = null,
+    private val isOffline: () -> Boolean = { false },
 ) {
     companion object {
         /**
@@ -103,7 +107,40 @@ class ApiClient(
         path: String,
         query: Map<String, String?> = emptyMap(),
         companyId: String? = null,
-    ): T = decodeBody(path, raw("GET", path, query = query, companyId = companyId))
+    ): T = readGet(path, query, companyId) { value -> decodeBody(path, value) }
+
+    @PublishedApi
+    internal suspend fun <T> readGet(
+        path: String,
+        query: Map<String, String?>,
+        companyId: String?,
+        decode: (String) -> T,
+    ): T {
+        val cache = offlineReads
+        val userId = if (cache != null && companyId != null) sessionStore.current()?.userId else null
+        if (cache == null || companyId == null || userId == null || !isOfflineRead(path, query, userId)) {
+            return decode(raw("GET", path, query = query, companyId = companyId))
+        }
+        val keyParts = listOf(userId, companyId, path) +
+            query.toSortedMap().mapNotNull { (name, value) -> value?.let { listOf(name, it) } }.flatten()
+        val key = json.encodeToString(keyParts)
+        suspend fun fromCache(): T? {
+            val saved = cache.read(key) ?: return null
+            if (sessionStore.current()?.userId != userId) return null
+            return runCatching { decode(saved) }.getOrNull()
+        }
+        if (isOffline()) fromCache()?.let { return it }
+        return try {
+            val body = raw("GET", path, query = query, companyId = companyId, expectedUserId = userId)
+            val response = decode(body)
+            cache.write(key, body) { sessionStore.current()?.userId == userId }
+            response
+        } catch (failure: ApiException) {
+            if (failure.httpStatus in setOf(401, 403, 404, 410)) cache.remove(key)
+            if (failure.code == ApiErrorCode.NETWORK) fromCache()?.let { return it }
+            throw failure
+        }
+    }
 
     suspend inline fun <reified T, reified B> post(
         path: String,

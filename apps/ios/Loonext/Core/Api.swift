@@ -225,7 +225,8 @@ struct InboxApi: Sendable {
                 "cursor": cursor,
                 "limit": String(limit),
             ],
-            companyId: companyId
+            companyId: companyId,
+            useOfflineFallback: false
         )
     }
 }
