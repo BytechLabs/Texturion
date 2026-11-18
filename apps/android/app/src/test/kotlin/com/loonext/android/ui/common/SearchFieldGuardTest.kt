@@ -5,8 +5,7 @@ import org.junit.Test
 /**
  * #733: a search box is [SearchField]. Fails on a text field whose label or
  * placeholder is a search string, or a search glyph, outside the component, unless
- * the roster names it. The two entries are the buttons that open a search, which
- * are not fields.
+ * the roster names it. The launcher buttons open a shared search field.
  */
 class SearchFieldGuardTest {
     private val fieldCalls = listOf("OutlinedTextField", "TextField", "BasicTextField")
@@ -27,6 +26,7 @@ class SearchFieldGuardTest {
         roster = listOf(
             GuardException("features/inbox/InboxTab.kt", glyph, 2, "The header button that opens the search, and the icon of the search page's idle prompt."),
             GuardException("features/tasks/TasksTab.kt", glyph, 1, "The header button that shows the task search field."),
+            GuardException("features/thread/ThreadScreen.kt", glyph, 1, "The header button opens the in-conversation SearchField."),
         ),
     )
 
