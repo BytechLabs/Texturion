@@ -887,22 +887,9 @@ async function announceImportOptOuts(
   await insertConversationEvents(db, events);
 }
 
-/**
- * Group upsert rows so every row in one PostgREST request carries identical
- * keys.
- *
- * PostgREST derives the column list from the FIRST row of a batch, so a batch
- * of mixed shapes silently drops whatever the first row happened not to have.
- * The importer used to hand-split on the one key that varied (`name`); it now
- * varies on four (`name`, and the three consent columns, which are written only
- * for contacts with no basis yet), and a hand-written split of every
- * combination is a bug waiting for the next optional column. Grouping by the
- * key set itself cannot go stale.
- */
-function groupByKeySet(
-  rows: Record<string, unknown>[],
-): Record<string, unknown>[][] {
-  const groups = new Map<string, Record<string, unknown>[]>();
+// PostgREST shares one column list per batch. An omitted field must stay absent.
+function groupByKeySet<Row extends Record<string, unknown>>(rows: Row[]): Row[][] {
+  const groups = new Map<string, Row[]>();
   for (const row of rows) {
     const signature = Object.keys(row).sort().join(",");
     const group = groups.get(signature);
@@ -910,6 +897,50 @@ function groupByKeySet(
     else groups.set(signature, [row]);
   }
   return [...groups.values()];
+}
+
+type ImportedContact = Record<string, unknown> & {
+  phone_e164: string;
+  created_by_user_id?: string;
+};
+
+async function upsertImportedContacts(
+  db: Db,
+  contacts: ImportedContact[],
+  operation: string,
+): Promise<Map<string, string>> {
+  const ids = new Map<string, string>();
+  const save = async (rows: ImportedContact[], createOnly: boolean) => {
+    const saved = unwrap<{ id: string; phone_e164: string }[]>(
+      await db.from("contacts")
+        .upsert(rows, { onConflict: "company_id,phone_e164", ignoreDuplicates: createOnly })
+        .select("id,phone_e164"),
+      operation,
+    );
+    for (const row of saved) ids.set(row.phone_e164, row.id);
+  };
+
+  for (const group of groupByKeySet(contacts)) {
+    for (let offset = 0; offset < group.length; offset += IMPORT_CHUNK) {
+      const batch = group.slice(offset, offset + IMPORT_CHUNK);
+      const createOnly = batch[0].created_by_user_id !== undefined;
+      await save(batch, createOnly);
+      if (!createOnly) continue;
+
+      // A concurrent insert may have recorded a creator and consent.
+      const conflicts = batch
+        .filter((row) => !ids.has(row.phone_e164))
+        .map(({
+          created_by_user_id: _creator,
+          consent_source: _consentSource,
+          consent_at: _consentAt,
+          consent_attested_by: _consentActor,
+          ...row
+        }) => row);
+      if (conflicts.length > 0) await save(conflicts, false);
+    }
+  }
+  return ids;
 }
 
 /**
@@ -2500,14 +2531,12 @@ contactsRoutes.post(
     }
 
     const upsertRows = entries.map(({ phone, cells }) => {
-      const row: Record<string, unknown> = {
+      const row: ImportedContact = {
         company_id: companyId,
         phone_e164: phone,
         deleted_at: null,
-        // #191 attribution: every imported/resurrected row records the importer
-        // as its creator. A constant key, so the batching invariant holds.
-        created_by_user_id: userId,
       };
+      if (!existingPhones.has(phone)) row.created_by_user_id = userId;
       // #226 basis, #248 rule: written only where there is none AND nothing
       // standing forbids it. A contact who texted this business first keeps
       // `inbound_sms` and the date they did it, however many times the
@@ -2564,7 +2593,6 @@ contactsRoutes.post(
       (phone) => !standing.has(phone) || !announced.has(phone),
     );
 
-    const contactIdByPhone = new Map<string, string>();
     try {
       // ===================================================================
       // RESTRICTIONS FIRST (#248).
@@ -2583,26 +2611,7 @@ contactsRoutes.post(
       // ===================================================================
       await writeImportOptOuts(db, companyId, userId, optedOutPhones);
 
-      // PostgREST derives the column list from the first row of a batch, so
-      // every row in one request must carry the same keys. Rows that omit
-      // `name` (a blank cell, which must not erase an existing name) or the
-      // consent columns (a contact whose basis is already recorded, or who is
-      // opted out) are sent as their own group rather than padded back to null.
-      for (const group of groupByKeySet(upsertRows)) {
-        for (let i = 0; i < group.length; i += IMPORT_CHUNK) {
-          const chunk = group.slice(i, i + IMPORT_CHUNK);
-          const upserted = unwrap<{ id: string; phone_e164: string }[]>(
-            await db
-              .from("contacts")
-              .upsert(chunk, { onConflict: "company_id,phone_e164" })
-              .select("id,phone_e164"),
-            "import upsert",
-          );
-          for (const row of upserted) {
-            contactIdByPhone.set(row.phone_e164, row.id);
-          }
-        }
-      }
+      const contactIdByPhone = await upsertImportedContacts(db, upsertRows, "import upsert");
 
       // The timeline entries come LAST because they are the only part that
       // needs the contact ids — a record of the block, after the block itself.
@@ -2875,13 +2884,12 @@ contactsRoutes.post(
     const refusals: { row: number; reason: string }[] = [];
     const upsertRows = entries.map(
       ([phone, { name, row: cardNumber, optedOut }]) => {
-        const row: Record<string, unknown> = {
+        const row: ImportedContact = {
           company_id: companyId,
           phone_e164: phone,
           deleted_at: null,
-          // #191 attribution: the importer is the creator (same as the CSV path).
-          created_by_user_id: userId,
         };
+        if (!existingPhones.has(phone)) row.created_by_user_id = userId;
         const decision = importConsent(
           existingBasis.get(phone),
           // #248 round 3: `inFile` is no longer always false here. A .vcf says
@@ -2920,7 +2928,6 @@ contactsRoutes.post(
     const newlyOptedOut = optedOutPhones.filter(
       (phone) => !standing.has(phone) || !announced.has(phone),
     );
-    const contactIdByPhone = new Map<string, string>();
     try {
       // RESTRICTIONS FIRST, the same order and for the same reason as the CSV
       // route: there is no transaction around any of this, so whichever prefix
@@ -2928,26 +2935,7 @@ contactsRoutes.post(
       // partial failure landing on contacts created, the file's attestation
       // stamped on them, and not one of the blocks it declared.
       await writeImportOptOuts(db, companyId, userId, optedOutPhones);
-      // Grouped by key set, like the CSV path. This route never was: a nameless
-      // card landing first in a chunk made PostgREST drop `name` from the whole
-      // batch, so importing a phone book that starts with a bare number saved
-      // every following contact as a number with no name.
-      for (const group of groupByKeySet(upsertRows)) {
-        for (let i = 0; i < group.length; i += IMPORT_CHUNK) {
-          const upserted = unwrap<{ id: string; phone_e164: string }[]>(
-            await db
-              .from("contacts")
-              .upsert(group.slice(i, i + IMPORT_CHUNK), {
-                onConflict: "company_id,phone_e164",
-              })
-              .select("id,phone_e164"),
-            "vcard upsert",
-          );
-          for (const row of upserted) {
-            contactIdByPhone.set(row.phone_e164, row.id);
-          }
-        }
-      }
+      const contactIdByPhone = await upsertImportedContacts(db, upsertRows, "vcard upsert");
       await announceImportOptOuts(
         db,
         companyId,

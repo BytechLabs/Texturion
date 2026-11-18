@@ -449,7 +449,7 @@ describe("writes", () => {
 
     const res = await publicRequest("/public/v1/contacts", {
       method: "POST",
-      body: JSON.stringify({ phone_e164: "+14165550100", name: "Maria Alvarez" }),
+      body: JSON.stringify({ phone_e164: "(416) 555-0100", name: "Maria Alvarez" }),
     });
     expect(res.status).toBe(201);
 
@@ -464,6 +464,19 @@ describe("writes", () => {
       name: "Maria Alvarez",
       created_by_user_id: CREATOR,
     });
+  });
+
+  it("rejects a number outside the supported contact phone format", async () => {
+    const sb = stubWithKey(["contacts:write"]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/contacts", {
+      method: "POST",
+      body: JSON.stringify({ phone_e164: "+44 20 7946 0958" }),
+    });
+    expect(res.status).toBe(422);
+    expect(sb.find("GET", "/rest/v1/contacts")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 
   it("creates a task through the same RPC the first-party route uses", async () => {
@@ -1044,7 +1057,7 @@ describe("#581 a key cannot promote a message on a denied line", () => {
  * erases somebody's work.
  */
 describe("#581 replaying a contact preserves its attribution", () => {
-  it("updates an existing live contact instead of upserting over it", async () => {
+  it("normalizes a formatted number and updates the existing live contact", async () => {
     const sb = stubWithKey(["contacts:write"]);
     sb.on("GET", "/rest/v1/contacts", () => [
       { id: "ct-existing", deleted_at: null },
@@ -1056,9 +1069,11 @@ describe("#581 replaying a contact preserves its attribution", () => {
 
     const res = await publicRequest("/public/v1/contacts", {
       method: "POST",
-      body: JSON.stringify({ phone_e164: "+14165550100", name: "Maria Alvarez" }),
+      body: JSON.stringify({ phone_e164: "+1 (416) 555-0100", name: "Maria Alvarez" }),
     });
     expect(res.status).toBe(201);
+    expect(sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("phone_e164"))
+      .toBe("eq.+14165550100");
 
     // THE ASSERTION: no INSERT at all, so there is nothing to overwrite with.
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);

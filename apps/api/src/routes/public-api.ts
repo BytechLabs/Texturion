@@ -62,6 +62,7 @@ import { errorResponse } from "../http/errors";
 import { sendTextToConversation } from "../messaging/send-text";
 import { prioritySchema, repeatSchema, withLabelsAndRepeat } from "../tasks/repeat";
 import { parseJsonBody, pathUuid, unwrap } from "./core/http";
+import { normalizeNanpPhone } from "./core/phone";
 import { setTaskRepeat, setTaskTags } from "./tasks";
 
 /**
@@ -226,6 +227,10 @@ publicApiRoutes.post(
   requireCapability("conversations.note"),
   async (c) => {
     const body = await parseJsonBody(c, createContactSchema);
+    const phone = normalizeNanpPhone(body.phone_e164);
+    if (!phone) {
+      return errorResponse(c, "validation_failed", "phone_e164: use a valid US or Canadian phone number.");
+    }
     const db = getDb(getEnv(c.env));
     const companyId = c.get("companyId");
 
@@ -260,7 +265,7 @@ publicApiRoutes.post(
         .from("contacts")
         .select("id,deleted_at")
         .eq("company_id", companyId)
-        .eq("phone_e164", body.phone_e164)
+        .eq("phone_e164", phone)
         .limit(1),
       "public contact lookup",
     );
@@ -281,7 +286,7 @@ publicApiRoutes.post(
             .upsert(
               {
                 company_id: companyId,
-                phone_e164: body.phone_e164,
+                phone_e164: phone,
                 deleted_at: null,
                 created_by_user_id: c.get("userId"),
                 ...fields,
