@@ -76,6 +76,7 @@ export {
 export {
   classifySendFailure,
   failureReasonOf,
+  sendFailureAction,
   isCarrierFailureReason,
   isRetryableFailure,
   type CarrierFailureReason,

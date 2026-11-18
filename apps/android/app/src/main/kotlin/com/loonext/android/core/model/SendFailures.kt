@@ -193,3 +193,16 @@ fun failureReasonOf(reason: String?, errorCode: String?): CarrierFailureReason {
  */
 fun isRetryableFailure(reason: CarrierFailureReason): Boolean =
     reason != CarrierFailureReason.OPT_OUT
+
+enum class SendFailureAction { Call, SendAgain }
+
+fun sendFailureAction(storedReason: String?, errorCode: String?): SendFailureAction? {
+    val reason = failureReasonOf(storedReason, errorCode)
+    if (reason == CarrierFailureReason.OPT_OUT) return null
+    val code = errorCode?.trim()
+    return if (reason == CarrierFailureReason.UNREACHABLE && (code == "40012" || code == "40310")) {
+        SendFailureAction.Call
+    } else {
+        SendFailureAction.SendAgain
+    }
+}

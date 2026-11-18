@@ -12,7 +12,21 @@ import {
   classifySendFailure,
   failureReasonOf,
   isRetryableFailure,
+  sendFailureAction,
 } from "./carrier-failure";
+
+describe(sendFailureAction, () => {
+  it.each([
+    ["opt_out", "40012", null],
+    [null, "40300", null],
+    ["unreachable", "40012", "call"],
+    [null, "40310", "call"],
+    ["unreachable", "40006", "send_again"],
+    ["content_blocked", "40009", "send_again"],
+  ])("uses the stored reason and the number's SMS capability", (reason, code, action) => {
+    expect(sendFailureAction(reason, code)).toBe(action);
+  });
+});
 
 describe(classifySendFailure, () => {
   it("classifies the opt-out, which is the one with a legal meaning", () => {

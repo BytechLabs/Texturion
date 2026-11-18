@@ -24,6 +24,7 @@ import { useMe } from "@/lib/api/me";
 import { useActiveCompany } from "@/lib/company/provider";
 import {
   clearDraft,
+  flushDraftOnExit,
   loadDraft,
   NEW_CONVERSATION_DRAFT,
   saveDraft,
@@ -160,6 +161,8 @@ export function NewConversation() {
   // Restored the way the phone apps restore theirs: a message you started and
   // navigated away from is still here when you come back.
   const [body, setBody] = useState(() => loadDraft(NEW_CONVERSATION_DRAFT));
+  const bodyRef = useRef(body);
+  bodyRef.current = body;
   const [pickerOpen, setPickerOpen] = useState(false);
   const [quietHours, setQuietHours] = useState<{
     localTime: string | null;
@@ -243,6 +246,11 @@ export function NewConversation() {
     const timer = setTimeout(() => saveDraft(NEW_CONVERSATION_DRAFT, body), 400);
     return () => clearTimeout(timer);
   }, [body]);
+  useEffect(() => flushDraftOnExit(() => ({
+    conversationId: NEW_CONVERSATION_DRAFT,
+    text: bodyRef.current,
+    mentions: [],
+  })), []);
 
   // --- Gates preview (the API enforces independently) --------------------------
   const destinationE164 =
@@ -381,8 +389,8 @@ export function NewConversation() {
     start.mutate(inputBody, {
       onSuccess: ({ conversation }) => {
         lastFailedComposeRef.current = null;
-        // It went out, so the draft is spent. This screen navigates away
-        // rather than clearing its own state, so the clear is explicit.
+        bodyRef.current = "";
+        setBody("");
         clearDraft(NEW_CONVERSATION_DRAFT);
         router.push(inboxHref({ conversationId: conversation.id, listQuery }));
       },

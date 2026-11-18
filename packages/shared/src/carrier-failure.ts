@@ -156,3 +156,14 @@ export function isCarrierFailureReason(value: string): value is CarrierFailureRe
 export function isRetryableFailure(reason: CarrierFailureReason): boolean {
   return reason !== "opt_out";
 }
+
+export function sendFailureAction(
+  storedReason: string | null | undefined,
+  errorCode: string | null | undefined,
+): "call" | "send_again" | null {
+  const reason = failureReasonOf(storedReason, errorCode);
+  if (reason === "opt_out") return null;
+  const code = errorCode?.trim();
+  if (reason === "unreachable" && (code === "40012" || code === "40310")) return "call";
+  return "send_again";
+}

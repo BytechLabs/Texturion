@@ -15,6 +15,8 @@ struct MessageBubbleActions {
     /// #691: delete this message or note. Nil hides the menu item, which is how
     /// a member without `records.delete` never sees it.
     var onDelete: (@MainActor () -> Void)? = nil
+    var onSendAgain: (@MainActor () -> Void)? = nil
+    var onCall: (@MainActor () -> Void)? = nil
 }
 
 /// One message bubble: inbound paper left, outbound ink right, internal note
@@ -65,7 +67,9 @@ struct MessageBubble: View {
                 authorName: authorName,
                 doneByName: doneByName,
                 onRetry: actions.onRetry,
-                onOpenTask: actions.onOpenTask
+                onOpenTask: actions.onOpenTask,
+                onSendAgain: actions.onSendAgain,
+                onCall: actions.onCall
             )
         }
         .frame(maxWidth: .infinity, alignment: frameAlignment)
@@ -359,6 +363,8 @@ private struct MessageMetaLine: View {
     let doneByName: String?
     let onRetry: @MainActor () -> Void
     let onOpenTask: @MainActor (String) -> Void
+    let onSendAgain: (@MainActor () -> Void)?
+    let onCall: (@MainActor () -> Void)?
 
     @Environment(\.appLocale) private var appLocale
 
@@ -380,6 +386,18 @@ private struct MessageMetaLine: View {
         return parts.joined(separator: " · ")
     }
 
+    private func failureButton(_ key: String, action: @escaping @MainActor () -> Void) -> some View {
+        Button(action: action) {
+            Text(AppStrings.translate(appLocale, key))
+                .font(.golos(10.5, weight: .bold))
+                .foregroundStyle(BrandColor.destructive)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 7)
+                .background(BrandColor.destructiveContainer, in: Capsule())
+        }
+        .buttonStyle(.plain)
+    }
+
     var body: some View {
         let failed = message.status == MessageStatus.failed
         // #241: the reason, not the vendor code it was derived from.
@@ -389,6 +407,9 @@ private struct MessageMetaLine: View {
         let name = message.direction == MessageDirection.outbound
             ? authorName.map { "\($0) · " } ?? ""
             : ""
+        let action = failed && !message.automated
+            ? sendFailureAction(message.error_reason, message.error_code)
+            : nil
 
         HStack(spacing: 6) {
             if message.pinned_at != nil {
@@ -430,16 +451,13 @@ private struct MessageMetaLine: View {
                         ? AnyShapeStyle(BrandColor.destructive)
                         : AnyShapeStyle(BrandColor.muted300)
                 )
-            if message.retryable {
-                Button(action: onRetry) {
-                    Text(AppStrings.translate(appLocale, "thread.retry"))
-                        .font(.golos(10.5, weight: .bold))
-                        .foregroundStyle(BrandColor.destructive)
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 7)
-                        .background(BrandColor.destructiveContainer, in: Capsule())
-                }
-                .buttonStyle(.plain)
+            if action == .call, let onCall {
+                failureButton("thread.callThemInstead", action: onCall)
+            } else if action == .sendAgain, let onSendAgain,
+                      message.error_code != "send_interrupted", !message.body.isBlank {
+                failureButton("thread.sendAgain", action: onSendAgain)
+            } else if message.retryable {
+                failureButton("thread.retry", action: onRetry)
             }
             if message.done_at != nil {
                 Text(

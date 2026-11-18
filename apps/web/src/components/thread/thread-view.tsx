@@ -511,6 +511,7 @@ function ThreadLoaded({
           findHit={findHit}
           onJumpToLatest={jumpToLatest}
           onSelectPhone={canLinkPhones ? setMessagePhone : undefined}
+          allowFailureActions={role !== "read_only" && conversation.viewer_level === "text" && !banner}
           catchUp={{
             offered: catchUp.offered,
             askToken: catchUp.askToken,

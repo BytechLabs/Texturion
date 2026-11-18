@@ -105,6 +105,7 @@ export function MessageList({
   onJumpToLatest,
   onSelectPhone,
   findHit,
+  allowFailureActions = false,
 }: {
   conversationId: string;
   contact: { name: string | null; phone_e164: string };
@@ -120,6 +121,7 @@ export function MessageList({
   onJumpToLatest?: () => void;
   onSelectPhone?: (number: string) => void;
   findHit?: { id: string } | null;
+  allowFailureActions?: boolean;
   /** #716: the thread view's catch-up (`useCatchUp`), answered here. */
   catchUp: {
     offered: boolean;
@@ -708,6 +710,7 @@ export function MessageList({
                             contactName={contactName}
                             contactTimeZone={contactTimeZone}
                             onSelectPhone={onSelectPhone}
+                            allowFailureActions={allowFailureActions}
                             // #101: clusters split per author (clusters.ts), so
                             // one name is honest for the whole run. Null for
                             // inbound and for system sends.

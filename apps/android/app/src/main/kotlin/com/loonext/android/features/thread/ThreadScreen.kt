@@ -528,6 +528,13 @@ private fun ThreadLoaded(
         memberNames(controller.members, teammateName)
     }
     val contactName = detail.contact.name ?: formatPhone(detail.contact.phone_e164)
+    val drafts = remember { ComposerDrafts(context.applicationContext) }
+    val composer = rememberComposerState(controller.conversationId, drafts)
+    val viewerReadOnly = me.memberships.firstOrNull { it.company_id == companyId }?.role ==
+        MemberRole.READ_ONLY
+    val allowFailureActions = !viewerReadOnly && detail.viewer_level == "text" &&
+        controller.contact?.opted_out != true
+    val finishDraftCopy = t("thread.finishCurrentDraft")
 
     // #507: the wrap-up a crew member speaks into their own phone after a call
     // has ended. Multipart, so it goes through its own small client for the
@@ -997,6 +1004,16 @@ private fun ThreadLoaded(
                                     // here or it would double-fire.
                                     onLongPress = { actionsFor = message },
                                     onRetry = { controller.retrySend(message.id) },
+                                    onSendAgain = if (allowFailureActions) ({
+                                        if (composer.text.isNotBlank() || composer.photos.isNotEmpty() ||
+                                            composer.files.isNotEmpty()) {
+                                            onNotice(finishDraftCopy)
+                                        } else {
+                                            composer.mode = ComposerMode.Text
+                                            composer.onTextChange(message.body)
+                                        }
+                                    }) else null,
+                                    onCall = if (allowFailureActions) callOrAskForMic else null,
                                     mintAttachmentUrl = { id ->
                                         repo.attachmentUrl(companyId, id).url
                                     },
@@ -1244,8 +1261,6 @@ private fun ThreadLoaded(
         }
 
         // Composer (or gate banner + notes-only).
-        val drafts = remember { ComposerDrafts(context.applicationContext) }
-        val composer = rememberComposerState(controller.conversationId, drafts)
         val banner = selectComposerBanner(
             contactOptedOut = controller.threadOptedOut == true,
             contactOptOutSource = controller.threadOptOutSource,

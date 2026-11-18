@@ -510,7 +510,13 @@ private struct ThreadBody: View {
                     onHide: { controller.hideCatchUp() }
                 )
 
-                timelinePane(names: names, contactName: contactName)
+                timelinePane(
+                    names: names,
+                    contactName: contactName,
+                    allowFailureActions: detail.viewer_level == "text"
+                        && viewerRole != MemberRole.readOnly
+                        && controller.contact?.opted_out != true
+                )
 
                 presenceStrip(detail: detail)
                 // #233: what this thread is about to say. Above the composer
@@ -857,7 +863,11 @@ private struct ThreadBody: View {
 
     // MARK: - Timeline
 
-    private func timelinePane(names: [String: String], contactName: String) -> some View {
+    private func timelinePane(
+        names: [String: String],
+        contactName: String,
+        allowFailureActions: Bool
+    ) -> some View {
         let (messages, reactions) = foldTapbacks(controller.messages)
         let timeline = buildTimeline(
             messages: messages,
@@ -882,7 +892,10 @@ private struct ThreadBody: View {
                         LazyVStack(spacing: 0) {
                             ForEach(Array(timeline.enumerated()), id: \.element.key) { index, item in
                                 let flashed = isFlashed(item)
-                                itemView(item, names: names, contactName: contactName, reactions: reactions)
+                                itemView(
+                                    item, names: names, contactName: contactName,
+                                    reactions: reactions, allowFailureActions: allowFailureActions
+                                )
                                     // Search-result flash on the matched message
                                     // (#186 item 2) — a brief lime wash.
                                     .background(
@@ -1099,7 +1112,8 @@ private struct ThreadBody: View {
         _ item: TimelineItem,
         names: [String: String],
         contactName: String,
-        reactions: [String: String]
+        reactions: [String: String],
+        allowFailureActions: Bool
     ) -> some View {
         switch item {
         case .message(let message):
@@ -1135,7 +1149,13 @@ private struct ThreadBody: View {
                     // which passes onOpenConversation so the task can jump back
                     // to its source message).
                     onOpenTask: { AppRouter.shared.openTaskId = $0 },
-                    onDelete: deleteMessageAction(for: message)
+                    onDelete: deleteMessageAction(for: message),
+                    onSendAgain: allowFailureActions ? { draftFailedText(message.body) } : nil,
+                    onCall: allowFailureActions ? {
+                        if let detail = controller.conversation {
+                            startCall(detail: detail, contactName: contactName)
+                        }
+                    } : nil
                 ),
                 onSelectPhone: canLinkPhones ? { messagePhone = MessagePhoneSelection(number: $0) } : nil,
                 reaction: reactions[message.id]
@@ -1170,6 +1190,15 @@ private struct ThreadBody: View {
         case .dayDivider(let label, _):
             DayDividerLine(label: label)
         }
+    }
+
+    private func draftFailedText(_ body: String) {
+        guard composer.text.isBlank, composer.photos.isEmpty, composer.files.isEmpty else {
+            controller.notifyExternally(AppStrings.translate(appLocale, "thread.finishCurrentDraft"))
+            return
+        }
+        composer.mode = .text
+        composer.onTextChange(body)
     }
 
     /// D64: "Make a task" beside an answered call's line, or nil for any other.

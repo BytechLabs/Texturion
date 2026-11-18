@@ -81,6 +81,8 @@ import com.loonext.android.core.model.Attachment
 import com.loonext.android.core.model.AttachmentSummary
 import com.loonext.android.core.model.CarrierFailureReason
 import com.loonext.android.core.model.failureReasonOf
+import com.loonext.android.core.model.SendFailureAction
+import com.loonext.android.core.model.sendFailureAction
 import com.loonext.android.core.model.Message
 import com.loonext.android.core.model.MessageDirection
 import com.loonext.android.core.model.MessageStatus
@@ -160,6 +162,8 @@ fun MessageBubble(
     onSelectPhone: ((String) -> Unit)? = null,
     modifier: Modifier = Modifier,
     reaction: String? = null,
+    onSendAgain: (() -> Unit)? = null,
+    onCall: (() -> Unit)? = null,
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
     val note = message.direction == MessageDirection.NOTE
@@ -351,6 +355,8 @@ fun MessageBubble(
                 doneByName = doneByName,
                 onRetry = onRetry,
                 onOpenTask = onOpenTask,
+                onSendAgain = onSendAgain,
+                onCall = onCall,
             )
         }
     }
@@ -366,6 +372,8 @@ private fun MessageMetaLine(
     doneByName: String?,
     onRetry: () -> Unit,
     onOpenTask: ((taskId: String) -> Unit)? = null,
+    onSendAgain: (() -> Unit)? = null,
+    onCall: (() -> Unit)? = null,
 ) {
     val outbound = message.direction == MessageDirection.OUTBOUND
     val locale = LocalAppLocale.current
@@ -376,6 +384,20 @@ private fun MessageMetaLine(
         CarrierFailureReason.OPT_OUT
     val delivered = outbound && !failed &&
         (message.status == MessageStatus.SENT || message.status == MessageStatus.DELIVERED)
+    val failureAction = if (failed && !message.automated) {
+        sendFailureAction(message.error_reason, message.error_code)
+    } else {
+        null
+    }
+    val followUp = when {
+        failureAction == SendFailureAction.Call && onCall != null ->
+            "thread.callThemInstead" to onCall
+        failureAction == SendFailureAction.SendAgain && onSendAgain != null &&
+            message.error_code != "send_interrupted" && message.body.isNotBlank() ->
+            "thread.sendAgain" to onSendAgain
+        message.retryable -> "thread.retry" to onRetry
+        else -> null
+    }
 
     // Flows onto a second line at a large text size, so Retry is never squeezed out.
     FlowRow(
@@ -471,9 +493,9 @@ private fun MessageMetaLine(
                 else MaterialTheme.colorScheme.error,
             )
         }
-        if (message.retryable) {
+        if (followUp != null) {
             Text(
-                t("thread.retry"),
+                t(followUp.first),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
@@ -483,7 +505,7 @@ private fun MessageMetaLine(
                     .touchTarget()
                     .clip(CircleShape)
                     .background(MaterialTheme.colorScheme.errorContainer)
-                    .clickable(onClick = onRetry)
+                    .clickable(onClick = followUp.second)
                     .padding(horizontal = 12.dp, vertical = 6.dp),
             )
         }
