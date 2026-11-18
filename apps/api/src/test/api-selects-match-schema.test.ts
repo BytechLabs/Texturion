@@ -294,6 +294,7 @@ function chainRoot(call: ts.CallExpression): ts.CallExpression | "storage" | und
 function scan() {
   const findings: Finding[] = [];
   const dynamic: Dynamic[] = [];
+  const oversizedLimits: string[] = [];
   const totals: Totals = { chains: 0, selects: 0, filters: 0, writes: 0, notChains: 0 };
 
   for (const file of sourceFiles(SRC)) {
@@ -308,6 +309,10 @@ function scan() {
         ts.isPropertyAccessExpression(node.expression)
       ) {
         const method = node.expression.name.text;
+        const limit = node.arguments[0];
+        if (method === "limit" && limit && ts.isNumericLiteral(limit) && Number(limit.text) > 1_000) {
+          oversizedLimits.push(`${rel}:${lineOf(node)} ${node.getText(tree)}`);
+        }
         const isSelect = method === "select";
         const isFilter = COLUMN_FILTERS.has(method);
         const isLogical = LOGICAL.has(method);
@@ -406,17 +411,21 @@ function scan() {
     };
     visit(tree);
   }
-  return { findings, dynamic, totals };
+  return { findings, dynamic, oversizedLimits, totals };
 }
 
 describe("every query the API builds names columns the database has", () => {
-  const { findings, dynamic, totals } = scan();
+  const { findings, dynamic, oversizedLimits, totals } = scan();
 
   it("finds no unknown table, column, or relation", () => {
     const lines = findings.map(
       (f) => `${f.file}:${f.line}  ${f.table}.${f.problem.column}  ${f.problem.reason}`,
     );
     expect(lines, lines.join("\n")).toEqual([]);
+  });
+
+  it("keeps literal limits within the Data API's 1,000-row page", () => {
+    expect(oversizedLimits, oversizedLimits.join("\n")).toEqual([]);
   });
 
   it("reports its coverage, and the dynamic count only goes down", () => {

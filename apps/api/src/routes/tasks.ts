@@ -2097,11 +2097,9 @@ tasksRoutes.post(
           ...extra,
         },
       );
-      // One more than the RPC's cap, so `capped` can be honest: the RPC reports
-      // it from `matched`, and a window that stopped exactly at the ceiling
-      // could not tell "exactly 500" from "more than 500".
+      // The RPC applies at most 500 tasks and reports whether more matched.
       const rows = unwrap<{ id: string }[]>(
-        await query.limit(1001),
+        await query.limit(1000),
         "tasks bulk filter",
       );
       ids = rows.map((row) => row.id);

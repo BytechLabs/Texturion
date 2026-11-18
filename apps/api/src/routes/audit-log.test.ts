@@ -169,6 +169,47 @@ describe("GET /v1/audit-log", () => {
     );
   });
 
+  it.each([2_200, 10_000, 10_001])("exports and reports the cap for %i matching entries", async (count) => {
+    const cap = 10_000;
+    const occurredAt = "2026-07-20T15:04:05+00:00";
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "owner"));
+    sb.on("POST", "/rest/v1/rpc/api_list_audit_log", (call) => {
+      const body = call.body as { p_limit: number; p_cursor_ts: string | null; p_cursor_id: string | null };
+      const after = body.p_cursor_id === null ? count + 1 : Number(body.p_cursor_id.slice(-12));
+      expect(body.p_limit).toBe(after === count - cap + 1 ? 1 : 1_000);
+      expect(body.p_cursor_ts).toBe(body.p_cursor_id === null ? null : occurredAt);
+      expect(body).toMatchObject({ p_company_id: COMPANY_ID, p_actor: ACTOR_ID });
+      return Array.from({ length: Math.min(body.p_limit, after - 1) }, (_, index) => {
+        const number = after - index - 1;
+        return row({
+          id: `aaaaaaaa-0000-4000-8000-${String(number).padStart(12, "0")}`,
+          occurred_at: occurredAt,
+          target_id: String(number),
+        });
+      });
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(
+      app,
+      env,
+      await auth.token(),
+      `/v1/audit-log?format=csv&actor=${ACTOR_ID}`,
+      { companyId: COMPANY_ID },
+    );
+    expect(res.status).toBe(200);
+    const [, ...entries] = parseCsv(await res.text());
+    if (count > cap) {
+      expect(entries.pop()?.[0]).toBe(
+        "Export limited to 10000 audit entries. Narrow the date range or apply a filter.",
+      );
+    }
+    expect(entries.map((entry) => entry[5])).toEqual(
+      Array.from({ length: Math.min(count, cap) }, (_, index) => String(count - index)),
+    );
+  });
+
   it("neutralizes a cell a spreadsheet would otherwise EXECUTE (#580)", async () => {
     // Both reachable payloads in one row, and only the first needs an attacker.
     // `actor` is `profiles.display_name`, which any member sets on themselves

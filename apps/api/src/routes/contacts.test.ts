@@ -1372,10 +1372,26 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
     expect(patch.deleted_by_user_id).toBe(auth.subject);
   });
 
-  it("CSV import stamps created_by_user_id on every imported row", async () => {
+  it.each([
+    {
+      format: "CSV",
+      path: "/v1/contacts/import",
+      form: () => importForm("phone,name\n+14165550100,A\n+14165550101,B\n"),
+    },
+    {
+      format: "vCard",
+      path: "/v1/contacts/import-vcard",
+      form: () => vcardForm(
+        "BEGIN:VCARD\nVERSION:3.0\nFN:A\nTEL:+14165550100\nEND:VCARD\n" +
+        "BEGIN:VCARD\nVERSION:3.0\nFN:B\nTEL:+14165550101\nEND:VCARD\n",
+      ),
+    },
+  ])("$format import records the creator only for new contacts", async ({ path, form }) => {
     const sb = stubWithRole("admin");
     noStandingOptOuts(sb);
-    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("GET", "/rest/v1/contacts", () => [
+      { phone_e164: "+14165550100", consent_at: null, consent_source: null },
+    ]);
     sb.on("POST", "/rest/v1/contacts", (call) => {
       const rows = call.body as { phone_e164: string }[];
       return rows.map((row) => ({ id: CONTACT_ID, phone_e164: row.phone_e164 }));
@@ -1386,22 +1402,50 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       app,
       env,
       await auth.token(),
-      "/v1/contacts/import",
+      path,
       {
         method: "POST",
         companyId: COMPANY_ID,
-        rawBody: importForm("phone,name\n+14165550100,A\n+14165550101,B\n"),
+        rawBody: form(),
       },
     );
     expect(res.status).toBe(200);
-    const upsert = sb.find("POST", "/rest/v1/contacts")[0].body as Record<
-      string,
-      unknown
-    >[];
-    expect(upsert).toHaveLength(2);
-    for (const row of upsert) {
-      expect(row.created_by_user_id).toBe(auth.subject);
-    }
+    expect(await res.json()).toMatchObject({ imported: 1, updated: 1 });
+    const rows = sb.find("POST", "/rest/v1/contacts").flatMap(
+      (call) => call.body as Record<string, unknown>[],
+    );
+    expect(rows).toHaveLength(2);
+    expect(rows.find((row) => row.phone_e164 === "+14165550100")).not.toHaveProperty("created_by_user_id");
+    expect(rows.find((row) => row.phone_e164 === "+14165550101")).toHaveProperty("created_by_user_id", auth.subject);
+  });
+
+  it("an import racing a new contact retries without replacing creator or consent", async () => {
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      call.headers.get("prefer")?.includes("resolution=ignore-duplicates")
+        ? []
+        : [{ id: CONTACT_ID, phone_e164: "+14165550100" }],
+    );
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contacts/import", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      rawBody: importForm("phone,name\n+14165550100,A\n"),
+    });
+    expect(res.status).toBe(200);
+
+    const writes = sb.find("POST", "/rest/v1/contacts");
+    expect(writes).toHaveLength(2);
+    expect(writes[0].body).toMatchObject([{ created_by_user_id: auth.subject, consent_source: "attested" }]);
+    expect(writes[1].body).toEqual([{
+      company_id: COMPANY_ID,
+      phone_e164: "+14165550100",
+      deleted_at: null,
+      name: "A",
+    }]);
   });
 
   it("list rows carry resolved created_by_name via a batched profiles lookup", async () => {
@@ -1563,9 +1607,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     // is empty settles to 'no_address' — exactly as POST/PATCH /contacts do, so
     // a re-import that CHANGES an already-geocoded contact's address re-geocodes.
     //
-    // ONE call, because NEITHER row takes the attestation and the two
-    // therefore share a key set — and the two reasons are the whole of #248's
-    // consent rule:
+    // Neither contact takes the file's consent attestation:
     //
     //   +14165550100 texted this business first on 12 March, so it keeps
     //   `inbound_sms` and that date. The three consent keys are ABSENT — not
@@ -1585,7 +1627,6 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         company_id: COMPANY_ID,
         phone_e164: "+14165550100",
         deleted_at: null,
-        created_by_user_id: auth.subject, // #191 attribution
         name: "Smith, Jo",
         address: "1 Main St",
         lat: null,
@@ -4280,7 +4321,12 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
         consent_at: "2026-03-12T15:04:00+00:00",
       },
     ]);
-    sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
+    sb.on("POST", "/rest/v1/contacts", (call) =>
+      (call.body as { phone_e164: string }[]).map((row) => ({
+        id: CONTACT_ID,
+        phone_e164: row.phone_e164,
+      })),
+    );
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(

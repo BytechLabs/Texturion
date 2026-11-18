@@ -20,15 +20,17 @@ export const developersEn = {
   surfaceTitle: "The whole surface.",
   surfaceLead:
     "Deliberately short. This is the set an integration actually needs, not our internal API with a second door.",
+  pagination:
+    "Contact, conversation, message, and task lists return 25 rows by default. Set limit to at most 100. To continue, send next_cursor as cursor with the same filters. A null next_cursor marks the last page.",
   routeMe: "Which workspace this key reaches, and what it may do. Start here.",
-  routeContactsGet: "The customer list, newest first.",
+  routeContactsGet: "The customer list, newest first. Use phone to find a primary phone number.",
   routeContactsPost:
-    "Add a customer. Re-sending one you already sent updates it rather than duplicating.",
+    "Add or update a customer by US or Canadian phone number. Formatted numbers are accepted.",
   routeConversations: "The conversation list.",
   routeMessagesGet: "One conversation's messages.",
   routeMessagesPost:
     "Send a text into an existing conversation. Requires an Idempotency-Key header.",
-  routeTasksGet: "The job list.",
+  routeTasksGet: "The job list. Use contact_id to see work linked to a customer.",
   routeTasksPost: "Turn a message into a job.",
   routeWebhooksPost:
     "Subscribe to events. This is the REST-hook endpoint Zapier and Make use.",
@@ -101,16 +103,19 @@ export const developersFr: Translated<typeof developersEn> = {
   surfaceTitle: "Toute la surface.",
   surfaceLead:
     "Elle est courte exprès. C'est l'ensemble dont une intégration a réellement besoin, pas notre API interne munie d'une deuxième porte.",
+  pagination:
+    "Les listes de contacts, de fils, de messages et de travaux contiennent 25 lignes par défaut. La valeur de limit peut aller jusqu'à 100. Pour continuer, envoyez next_cursor comme cursor avec les mêmes filtres. Si next_cursor vaut null, vous êtes à la dernière page.",
   routeMe:
     "Indique l'espace de travail atteint par la clé et ce qu'elle peut faire. Commencez ici.",
-  routeContactsGet: "La liste des clients, du plus récent au plus ancien.",
+  routeContactsGet:
+    "La liste des clients, du plus récent au plus ancien. Utilisez phone pour chercher par numéro principal.",
   routeContactsPost:
-    "Ajoute un client. Renvoyer un client déjà transmis le met à jour au lieu de le dupliquer.",
+    "Ajoute ou met à jour un client par numéro canadien ou américain. Les numéros formatés sont acceptés.",
   routeConversations: "La liste des fils de discussion.",
   routeMessagesGet: "Les messages d'un fil de discussion.",
   routeMessagesPost:
     "Envoie un texto dans un fil existant. L'en-tête Idempotency-Key est obligatoire.",
-  routeTasksGet: "La liste des travaux.",
+  routeTasksGet: "La liste des travaux. Utilisez contact_id pour voir ceux qui sont liés à un client.",
   routeTasksPost: "Transforme un message en travail.",
   routeWebhooksPost:
     "S'abonne aux événements. C'est le point REST-hook utilisé par Zapier et Make.",

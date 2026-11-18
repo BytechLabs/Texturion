@@ -145,6 +145,9 @@ export function DevelopersPageBody({
           <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
             {copy.surfaceLead}
           </p>
+          <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
+            {copy.pagination}
+          </p>
         </div>
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2">

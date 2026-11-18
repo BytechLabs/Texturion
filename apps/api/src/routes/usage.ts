@@ -256,17 +256,11 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
   // numbers are what most people came for.
   const delivery = await (async () => {
     try {
-      const { data, error } = await db
-        .from("messages")
-        .select("status,conversations(contacts(phone_e164))")
-        .eq("company_id", companyId)
-        .eq("direction", "outbound")
-        .gte("created_at", company.current_period_start)
-        .limit(5000);
-      if (error) return null;
-      return summarize(
-        (data ?? []) as unknown as Parameters<typeof summarize>[0],
-      );
+      const { data, error } = await db.rpc("api_delivery_totals_by_area_code", {
+        p_company_id: companyId,
+        p_since: company.current_period_start,
+      });
+      return error ? null : summarize((data ?? []) as Parameters<typeof summarize>[0]);
     } catch {
       return null;
     }

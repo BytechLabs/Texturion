@@ -59,9 +59,11 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
+import { buildPage } from "../http/pagination";
 import { sendTextToConversation } from "../messaging/send-text";
 import { prioritySchema, repeatSchema, withLabelsAndRepeat } from "../tasks/repeat";
-import { parseJsonBody, pathUuid, unwrap } from "./core/http";
+import { keysetFilter, parseCursor, parseJsonBody, pathUuid, unwrap } from "./core/http";
+import { normalizeNanpPhone } from "./core/phone";
 import { setTaskRepeat, setTaskTags } from "./tasks";
 
 /**
@@ -78,6 +80,9 @@ const PUBLIC_CONTACT_COLUMNS =
 
 const PUBLIC_TASK_COLUMNS =
   "id,number,message_id,source_call_id,conversation_id,contact_id,title,description,due_at,assigned_user_id,created_at,priority,series_id";
+
+type PublicListRow = { id: string; created_at: string } & Record<string, unknown>;
+type PublicConversationRow = { id: string; last_message_at: string } & Record<string, unknown>;
 
 /**
  * A public task keeps `message_id` (null for a task promoted from a call, D64,
@@ -193,20 +198,31 @@ publicApiRoutes.get(
   async (c) => {
     const db = getDb(getEnv(c.env));
     const limit = pageSize(c.req.query("limit"));
-    const rows = unwrap<unknown[]>(
-      await db
-        .from("contacts")
-        .select(`${PUBLIC_CONTACT_COLUMNS},contact_tags(tags(name))`)
-        .eq("company_id", c.get("companyId"))
-        .is("deleted_at", null)
-        .is("merged_into", null)
+    const cursor = parseCursor(c);
+    const rawPhone = c.req.query("phone");
+    let query = db
+      .from("contacts")
+      .select(`${PUBLIC_CONTACT_COLUMNS},contact_tags(tags(name))`)
+      .eq("company_id", c.get("companyId"))
+      .is("deleted_at", null)
+      .is("merged_into", null);
+    if (rawPhone !== undefined) {
+      const phone = normalizeNanpPhone(rawPhone);
+      if (!phone) {
+        return errorResponse(c, "validation_failed", "phone: use a valid US or Canadian phone number.");
+      }
+      query = query.eq("phone_e164", phone);
+    }
+    if (cursor) query = query.or(keysetFilter("created_at", cursor));
+    const rows = unwrap<PublicListRow[]>(
+      await query
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .order("id", { ascending: false })
+        .limit(limit + 1),
       "public contacts list",
     );
-    // #695: the tags a contact carries, as plain names. The join row is not a
-    // shape worth publishing.
-    const data = rows.map((row) => {
+    const page = buildPage(rows, limit, "created_at");
+    const data = page.data.map((row) => {
       const { contact_tags: links, ...rest } = row as {
         contact_tags?: { tags: { name: string } | null }[];
       } & Record<string, unknown>;
@@ -216,7 +232,7 @@ publicApiRoutes.get(
         .toSorted((a, b) => a.localeCompare(b));
       return { ...rest, tags };
     });
-    return c.json({ data, limit });
+    return c.json({ data, limit, next_cursor: page.next_cursor });
   },
 );
 
@@ -226,6 +242,10 @@ publicApiRoutes.post(
   requireCapability("conversations.note"),
   async (c) => {
     const body = await parseJsonBody(c, createContactSchema);
+    const phone = normalizeNanpPhone(body.phone_e164);
+    if (!phone) {
+      return errorResponse(c, "validation_failed", "phone_e164: use a valid US or Canadian phone number.");
+    }
     const db = getDb(getEnv(c.env));
     const companyId = c.get("companyId");
 
@@ -260,7 +280,7 @@ publicApiRoutes.post(
         .from("contacts")
         .select("id,deleted_at")
         .eq("company_id", companyId)
-        .eq("phone_e164", body.phone_e164)
+        .eq("phone_e164", phone)
         .limit(1),
       "public contact lookup",
     );
@@ -281,7 +301,7 @@ publicApiRoutes.post(
             .upsert(
               {
                 company_id: companyId,
-                phone_e164: body.phone_e164,
+                phone_e164: phone,
                 deleted_at: null,
                 created_by_user_id: c.get("userId"),
                 ...fields,
@@ -302,6 +322,7 @@ publicApiRoutes.get(
   async (c) => {
     const db = getDb(getEnv(c.env));
     const limit = pageSize(c.req.query("limit"));
+    const cursor = parseCursor(c);
 
     // #106: the same deny list the first-party inbox resolves, from the same
     // function, against the KEY'S CREATOR. A key must not be able to enumerate
@@ -314,19 +335,19 @@ publicApiRoutes.get(
       role: c.get("role"),
     });
 
-    const rows = unwrap<Record<string, unknown>[]>(
+    const rows = unwrap<PublicConversationRow[]>(
       await db.rpc("api_list_conversations", {
         p_company_id: c.get("companyId"),
         p_user_id: c.get("userId"),
-        p_limit: limit,
+        p_limit: limit + 1,
         p_status: c.req.query("status") ?? null,
         p_assigned_user_id: null,
         p_tag_id: null,
         p_is_spam: false,
         p_unread: false,
         p_q: null,
-        p_cursor_ts: null,
-        p_cursor_id: null,
+        p_cursor_ts: cursor?.ts ?? null,
+        p_cursor_id: cursor?.id ?? null,
         p_pinned: null,
         p_hidden_number_ids: access.hiddenNumberIds,
         p_snoozed: "all",
@@ -339,8 +360,9 @@ publicApiRoutes.get(
     // tags, unread state and a snippet shaped for our own inbox; publishing it
     // would make every one of those a promise, and they change whenever the
     // inbox does.
+    const page = buildPage(rows, limit, "last_message_at");
     return c.json({
-      data: rows.map((row) => ({
+      data: page.data.map((row) => ({
         id: row.id,
         contact_id: row.contact_id,
         status: row.status,
@@ -348,6 +370,7 @@ publicApiRoutes.get(
         assigned_user_id: row.assigned_user_id,
       })),
       limit,
+      next_cursor: page.next_cursor,
     });
   },
 );
@@ -372,19 +395,22 @@ publicApiRoutes.get(
       need: "read",
     });
 
-    const rows = unwrap<unknown[]>(
-      await db
-        .from("messages")
-        .select("id,conversation_id,direction,body,status,created_at")
-        .eq("company_id", c.get("companyId"))
-        .eq("conversation_id", conversationId)
-        // #691: what was deleted is not served to an integration either.
-        .is("deleted_at", null)
+    const cursor = parseCursor(c);
+    let query = db
+      .from("messages")
+      .select("id,conversation_id,direction,body,status,created_at")
+      .eq("company_id", c.get("companyId"))
+      .eq("conversation_id", conversationId)
+      .is("deleted_at", null);
+    if (cursor) query = query.or(keysetFilter("created_at", cursor));
+    const rows = unwrap<PublicListRow[]>(
+      await query
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .order("id", { ascending: false })
+        .limit(limit + 1),
       "public messages list",
     );
-    return c.json({ data: rows, limit });
+    return c.json({ ...buildPage(rows, limit, "created_at"), limit });
   },
 );
 
@@ -450,18 +476,49 @@ publicApiRoutes.get(
   async (c) => {
     const db = getDb(getEnv(c.env));
     const limit = pageSize(c.req.query("limit"));
-    const rows = unwrap<Record<string, unknown>[]>(
-      await db
-        .from("tasks")
-        .select(PUBLIC_TASK_COLUMNS)
-        .eq("company_id", c.get("companyId"))
-        .is("deleted_at", null)
+    const cursor = parseCursor(c);
+    const companyId = c.get("companyId");
+    const contactId = c.req.query("contact_id");
+    if (contactId !== undefined && !z.uuid().safeParse(contactId).success) {
+      return errorResponse(c, "validation_failed", "contact_id: not a valid id.");
+    }
+    const taskColumns = contactId === undefined
+      ? PUBLIC_TASK_COLUMNS
+      : `${PUBLIC_TASK_COLUMNS},conversations!conversation_id()`;
+    let query = db
+      .from("tasks")
+      .select(taskColumns)
+      .eq("company_id", companyId)
+      .is("deleted_at", null);
+    if (contactId !== undefined) {
+      const access = await resolveNumberAccess(db, {
+        companyId,
+        userId: c.get("userId"),
+        role: c.get("role"),
+      });
+      query = query
+        .eq("conversations.company_id", companyId)
+        .eq("conversations.contact_id", contactId)
+        .is("conversations.deleted_at", null)
+        .or(`contact_id.eq.${contactId},conversations.not.is.null`);
+      if (access.hiddenNumberIds?.length) {
+        query = query.or(
+          `phone_number_id.is.null,phone_number_id.not.in.(${access.hiddenNumberIds.join(",")})`,
+          { referencedTable: "conversations" },
+        );
+      }
+    }
+    if (cursor) query = query.or(keysetFilter("created_at", cursor));
+    const rows = unwrap<PublicListRow[]>(
+      await query
         .order("created_at", { ascending: false })
-        .limit(limit),
+        .order("id", { ascending: false })
+        .limit(limit + 1),
       "public tasks list",
     );
-    const decorated = await withLabelsAndRepeat(db, c.get("companyId"), rows);
-    return c.json({ data: decorated.map(publicTask), limit });
+    const page = buildPage(rows, limit, "created_at");
+    const decorated = await withLabelsAndRepeat(db, companyId, page.data);
+    return c.json({ data: decorated.map(publicTask), limit, next_cursor: page.next_cursor });
   },
 );
 

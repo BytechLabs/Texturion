@@ -27,9 +27,9 @@ import { parseWith } from "./core/http";
 
 export const auditLogRoutes = new Hono<AppEnv>();
 
-/** A page a person reads; the export takes the whole window in one pass. */
 const DEFAULT_LIMIT = 50;
 const MAX_LIMIT = 200;
+const EXPORT_PAGE_SIZE = 1_000;
 /**
  * Export ceiling. Above this the CSV stops being something a browser downloads
  * and starts being a job; the date filters are how an owner takes a bigger
@@ -112,24 +112,28 @@ auditLogRoutes.get("/audit-log", requireCapability("history.read"), async (c) =>
   const query = parseWith(querySchema, c.req.query());
   const db = getDb(getEnv(c.env));
   const csv = query.format === "csv";
-  const limit = csv ? MAX_EXPORT_ROWS : (query.limit ?? DEFAULT_LIMIT);
-  const cursor = decodeCursor(query.cursor);
-
-  const { data, error } = await db.rpc("api_list_audit_log", {
-    p_company_id: c.get("companyId"),
-    // One extra row is the "is there more" sentinel, never returned.
-    p_limit: csv ? limit : limit + 1,
-    p_actor: query.actor ?? null,
-    p_action: query.action ?? null,
-    p_since: query.since ?? null,
-    p_until: query.until ?? null,
-    p_cursor_ts: cursor.ts,
-    p_cursor_id: cursor.id,
-  });
-  if (error) {
-    throw new Error(`api_list_audit_log failed: ${error.message}`);
+  const limit = csv ? MAX_EXPORT_ROWS : query.limit ?? DEFAULT_LIMIT;
+  let cursor = decodeCursor(query.cursor);
+  const rows: AuditRow[] = [];
+  for (;;) {
+    const batchSize = csv ? Math.min(EXPORT_PAGE_SIZE, limit - rows.length + 1) : limit + 1;
+    const { data, error } = await db.rpc("api_list_audit_log", {
+      p_company_id: c.get("companyId"),
+      p_limit: batchSize,
+      p_actor: query.actor ?? null,
+      p_action: query.action ?? null,
+      p_since: query.since ?? null,
+      p_until: query.until ?? null,
+      p_cursor_ts: cursor.ts,
+      p_cursor_id: cursor.id,
+    });
+    if (error) throw new Error(`api_list_audit_log failed: ${error.message}`);
+    const batch = (data ?? []) as AuditRow[];
+    rows.push(...batch);
+    if (!csv || batch.length < batchSize || rows.length > limit) break;
+    const last = batch[batch.length - 1];
+    cursor = { ts: last.occurred_at, id: last.id };
   }
-  const rows = (data ?? []) as AuditRow[];
 
   if (csv) {
     const header = [
@@ -144,9 +148,9 @@ auditLogRoutes.get("/audit-log", requireCapability("history.read"), async (c) =>
     ];
     // The header rides through the same serializer as the body: the column names
     // are our own literals, and a second join here is a second CSV writer.
-    const table = [
+    const table: (string | null)[][] = [
       header,
-      ...rows.map((row) =>
+      ...rows.slice(0, limit).map((row) =>
         [
           row.occurred_at,
           row.actor_name ?? row.actor_user_id ?? "system",
@@ -159,6 +163,10 @@ auditLogRoutes.get("/audit-log", requireCapability("history.read"), async (c) =>
         ].map(csvCell),
       ),
     ];
+    if (rows.length > limit) {
+      const notice = `Export limited to ${limit} audit entries. Narrow the date range or apply a filter.`;
+      table.push([notice, ...header.slice(1).map(() => null)]);
+    }
     // #587: through `csvResponse` for the byte-order mark. Without it Excel on
     // Windows opens this in the system codepage, so an actor named `Zoë
     // Fournier` arrives mangled — in the one file an owner hands to an insurer

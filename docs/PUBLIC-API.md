@@ -35,7 +35,19 @@ integration should be built against it.
 | GET | `/public/v1/tasks` | `tasks:read` | `conversations.read` |
 | POST | `/public/v1/tasks` | `tasks:write` | `conversations.note` |
 
+The contacts, conversations, messages and tasks lists return
+`{ data, limit, next_cursor }`. The default `limit` is 25 and the maximum is 100.
+Pass `next_cursor` unchanged as `cursor` on the next request and repeat any
+filters. A null cursor marks the last page. Conversations are ordered by most
+recent activity. The other lists are ordered by creation time, newest first.
+
+Filter contacts by their primary number with `phone`, conversations by `status`,
+and tasks by `contact_id`, including tasks linked through the contact's visible
+conversations.
+
 A contact row carries `tags`, the names of the workspace tags it has, sorted (empty when none).
+Contact writes accept US and Canadian numbers in `phone_e164`, including formatted numbers.
+The API normalizes the number before looking up or creating a contact and returns `422` for an invalid number.
 
 A task row names what it came from in `source` (`{ "kind": "message" | "call", "id": "…" }`).
 `message_id` is kept for existing integrations and is `null` for a task promoted from a call. A task with no message or call is a standalone task: `source` is `null`, and `POST` takes a required `title` with an optional `assigned_user_id`, `contact_id` and `conversation_id` (a task with no conversation is visible to every member).

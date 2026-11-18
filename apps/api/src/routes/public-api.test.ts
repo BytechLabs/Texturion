@@ -21,6 +21,7 @@ import { Hono } from "hono";
 
 import type { AppEnv } from "../context";
 import { ApiError, errorResponse } from "../http/errors";
+import { decodeCursor } from "../http/pagination";
 import { membershipResponder, supabaseStub } from '../test/routes-harness';
 import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
@@ -310,6 +311,141 @@ describe("scopes are the second gate", () => {
   });
 });
 
+describe("public list pagination", () => {
+  const createdAt = "2026-11-17T12:00:00Z";
+  const ids = [
+    "aaaaaaaa-0000-4000-8000-000000000003",
+    "aaaaaaaa-0000-4000-8000-000000000002",
+    "aaaaaaaa-0000-4000-8000-000000000001",
+  ];
+  const rows = ids.map((id) => ({ id, created_at: createdAt }));
+
+  it.each([
+    { scope: "contacts:read", route: "/contacts", table: "contacts" },
+    { scope: "tasks:read", route: "/tasks", table: "tasks" },
+    {
+      scope: "messages:read",
+      route: `/conversations/${CONVERSATION_ID}/messages`,
+      table: "messages",
+    },
+  ])("continues the $table list when timestamps tie", async ({ scope, route, table }) => {
+    const sb = stubWithKey([scope]);
+    const restPath = `/rest/v1/${table}`;
+    if (table === "messages") {
+      sb.on("GET", "/rest/v1/conversations", (call) =>
+        call.url.searchParams.get("select") === "created_at"
+          ? []
+          : [{ id: CONVERSATION_ID, phone_number_id: null }],
+      );
+    }
+    sb.on("GET", restPath, (call) => {
+      const params = call.url.searchParams;
+      expect(params.get("limit")).toBe("3");
+      expect(params.get("order")).toBe("created_at.desc,id.desc");
+      expect(params.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+      const cursorFilter = params.get("or");
+      if (cursorFilter === null) return rows;
+      expect(cursorFilter).toBe(
+        `(created_at.lt.${createdAt},and(created_at.eq.${createdAt},id.lt.${ids[1]}))`,
+      );
+      return rows.slice(2);
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const first = await publicRequest(`/public/v1${route}?limit=2`);
+    expect(first.status).toBe(200);
+    const page = await first.json<{ data: { id: string }[]; next_cursor: string; limit: number }>();
+    expect(page.limit).toBe(2);
+    expect(page.data.map(({ id }) => id)).toEqual(ids.slice(0, 2));
+    expect(decodeCursor(page.next_cursor)).toEqual({ ts: createdAt, id: ids[1] });
+
+    const second = await publicRequest(`/public/v1${route}?limit=2&cursor=${page.next_cursor}`);
+    expect(second.status).toBe(200);
+    const end = await second.json<{ data: { id: string }[]; next_cursor: null }>();
+    expect(end.data.map(({ id }) => id)).toEqual(ids.slice(2));
+    expect(end.next_cursor).toBeNull();
+  });
+
+  it("passes the last activity cursor to the conversation list", async () => {
+    const sb = stubWithKey(["conversations:read"]);
+    sb.on("POST", "/rest/v1/rpc/api_list_conversations", (call) => {
+      const input = call.body as { p_cursor_id: string | null };
+      return (input.p_cursor_id === null ? ids : ids.slice(2)).map((id) => ({
+        id,
+        last_message_at: createdAt,
+      }));
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const path = "/public/v1/conversations?limit=2&status=open";
+    const first = await publicRequest(path);
+    expect(first.status).toBe(200);
+    const page = await first.json<{ data: { id: string }[]; next_cursor: string }>();
+    expect(page.data.map(({ id }) => id)).toEqual(ids.slice(0, 2));
+
+    const second = await publicRequest(`${path}&cursor=${page.next_cursor}`);
+    expect(second.status).toBe(200);
+    expect(await second.json()).toMatchObject({ data: [{ id: ids[2] }], next_cursor: null });
+    const calls = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
+    expect(calls[0].body).toMatchObject({ p_cursor_id: null, p_cursor_ts: null, p_limit: 3 });
+    expect(calls[1].body).toMatchObject({
+      p_cursor_id: ids[1],
+      p_cursor_ts: createdAt,
+      p_limit: 3,
+      p_status: "open",
+    });
+  });
+
+  it("normalizes the phone filter before looking up contacts", async () => {
+    const sb = stubWithKey(["contacts:read"]);
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await publicRequest("/public/v1/contacts?phone=(416)%20555-0100");
+    expect(response.status).toBe(200);
+    const [call] = sb.find("GET", "/rest/v1/contacts");
+    expect(call.url.searchParams.get("phone_e164")).toBe("eq.+14165550100");
+  });
+
+  it("matches both standalone tasks and tasks from the contact's live threads", async () => {
+    const sb = stubWithKey(["tasks:read"], "member");
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: ids[1], level: "none" },
+    ]);
+    sb.on("GET", "/rest/v1/tasks", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await publicRequest(`/public/v1/tasks?contact_id=${ids[0]}`);
+    expect(response.status).toBe(200);
+    const [call] = sb.find("GET", "/rest/v1/tasks");
+    expect(call.url.searchParams.get("select")).toContain(
+      "conversations!conversation_id()",
+    );
+    expect(call.url.searchParams.get("conversations.contact_id")).toBe(`eq.${ids[0]}`);
+    expect(call.url.searchParams.get("conversations.deleted_at")).toBe("is.null");
+    expect(call.url.searchParams.get("conversations.or")).toBe(
+      `(phone_number_id.is.null,phone_number_id.not.in.(${ids[1]}))`,
+    );
+    expect(call.url.searchParams.get("or")).toBe(
+      `(contact_id.eq.${ids[0]},conversations.not.is.null)`,
+    );
+  });
+
+  it.each([
+    ["contacts:read", "/contacts?cursor=invalid"],
+    ["contacts:read", "/contacts?phone=invalid"],
+    ["tasks:read", "/tasks?contact_id=invalid"],
+  ])("rejects invalid list input on %s %s", async (scope, route) => {
+    const sb = stubWithKey([scope]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await publicRequest(`/public/v1${route}`);
+    expect(response.status).toBe(422);
+    expect(sb.find("GET", "/rest/v1/contacts")).toHaveLength(0);
+    expect(sb.find("GET", "/rest/v1/tasks")).toHaveLength(0);
+  });
+});
+
 describe("#106 travels with the key", () => {
   it("filters the conversation list by the CREATOR's number access", async () => {
     // A restricted MEMBER, not an owner: resolveNumberAccess short-circuits
@@ -449,7 +585,7 @@ describe("writes", () => {
 
     const res = await publicRequest("/public/v1/contacts", {
       method: "POST",
-      body: JSON.stringify({ phone_e164: "+14165550100", name: "Maria Alvarez" }),
+      body: JSON.stringify({ phone_e164: "(416) 555-0100", name: "Maria Alvarez" }),
     });
     expect(res.status).toBe(201);
 
@@ -464,6 +600,19 @@ describe("writes", () => {
       name: "Maria Alvarez",
       created_by_user_id: CREATOR,
     });
+  });
+
+  it("rejects a number outside the supported contact phone format", async () => {
+    const sb = stubWithKey(["contacts:write"]);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/contacts", {
+      method: "POST",
+      body: JSON.stringify({ phone_e164: "+44 20 7946 0958" }),
+    });
+    expect(res.status).toBe(422);
+    expect(sb.find("GET", "/rest/v1/contacts")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 
   it("creates a task through the same RPC the first-party route uses", async () => {
@@ -1044,7 +1193,7 @@ describe("#581 a key cannot promote a message on a denied line", () => {
  * erases somebody's work.
  */
 describe("#581 replaying a contact preserves its attribution", () => {
-  it("updates an existing live contact instead of upserting over it", async () => {
+  it("normalizes a formatted number and updates the existing live contact", async () => {
     const sb = stubWithKey(["contacts:write"]);
     sb.on("GET", "/rest/v1/contacts", () => [
       { id: "ct-existing", deleted_at: null },
@@ -1056,9 +1205,11 @@ describe("#581 replaying a contact preserves its attribution", () => {
 
     const res = await publicRequest("/public/v1/contacts", {
       method: "POST",
-      body: JSON.stringify({ phone_e164: "+14165550100", name: "Maria Alvarez" }),
+      body: JSON.stringify({ phone_e164: "+1 (416) 555-0100", name: "Maria Alvarez" }),
     });
     expect(res.status).toBe(201);
+    expect(sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("phone_e164"))
+      .toBe("eq.+14165550100");
 
     // THE ASSERTION: no INSERT at all, so there is nothing to overwrite with.
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
