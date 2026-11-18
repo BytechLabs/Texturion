@@ -150,7 +150,9 @@ function ContactSearch({
   );
 }
 
-const ContactRow = memo(({
+const ContactRow = memo(ContactRowView);
+
+function ContactRowView({
   contact,
   selected,
   onToggle,
@@ -158,7 +160,7 @@ const ContactRow = memo(({
   contact: ContactListItem;
   selected: boolean;
   onToggle: (id: string, on: boolean) => void;
-}) => {
+}) {
   const t = useT();
   const router = useRouter();
   const queryClient = useQueryClient();
@@ -271,7 +273,7 @@ const ContactRow = memo(({
       </TableRow>
     </ContactRowMenu>
   );
-});
+}
 
 /**
  * The G6 contacts table: trgm search (debounced 250ms), name / number /

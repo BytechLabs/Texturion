@@ -253,12 +253,10 @@
     "react/exhaustive-effect-dependencies": "off", // 14
     "unicorn/prefer-string-starts-ends-with": "off", // 14
     "import/no-duplicates": "off", // 13
-    "react/function-component-definition": "off", // 13
     "unicorn/consistent-existence-index-check": "off", // 13
     "unicorn/prefer-dom-node-append": "off", // 13
     "unicorn/prefer-type-error": "off", // 13
     "eslint/no-useless-concat": "off", // 12
-    "react/jsx-no-useless-fragment": "off", // 12
     "typescript/no-unnecessary-type-parameters": "off", // 11
     "typescript/return-await": "off", // 11
     "unicorn/prefer-number-coercion": "off", // 11
@@ -274,7 +272,6 @@
     "unicorn/no-lonely-if": "off", // 9
     "unicorn/no-useless-fallback-in-spread": "off", // 9
     "nextjs/no-assign-module-variable": "off", // 8
-    "react/display-name": "off", // 8
     "typescript/no-implied-eval": "off", // 8
     "typescript/no-unnecessary-template-expression": "off", // 8
     "typescript/prefer-readonly": "off", // 8

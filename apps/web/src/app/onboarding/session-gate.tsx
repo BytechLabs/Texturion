@@ -24,5 +24,5 @@ export function OnboardingSessionGate({
 }: Readonly<{ children: React.ReactNode }>) {
   const sessionState = useSessionState();
   if (sessionState === "signed-out") return <SessionExpiredCard />;
-  return <>{children}</>;
+  return children;
 }

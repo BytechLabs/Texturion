@@ -333,7 +333,9 @@ function TaskListBody({
  * quiet link names the source and deep-links to it, and only when there is one.
  * Focus, a resting pointer or a touch on the title fetches the detail ahead.
  */
-const TaskRow = memo(({
+const TaskRow = memo(TaskRowView);
+
+function TaskRowView({
   task,
   selected,
   onToggleSelected,
@@ -344,7 +346,7 @@ const TaskRow = memo(({
   task: Task;
   selected: boolean;
   onToggleSelected: (taskId: string) => void;
-} & RowContext) => {
+} & RowContext) {
   const t = useT();
   const source = taskSourceLink(task, t, { besideTask: wide });
   // #712: right-click, long-press or the menu key opens the task's one action list.
@@ -430,4 +432,4 @@ const TaskRow = memo(({
     </li>
     </RecordContextMenu>
   );
-});
+}

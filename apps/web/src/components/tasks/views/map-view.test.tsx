@@ -20,7 +20,11 @@ vi.mock("@/lib/api/tasks", () => ({
   useTasks,
   useGeocodeProgress: () => ({ data: undefined }),
 }));
-vi.mock("next/dynamic", () => ({ default: () => () => null }));
+vi.mock("next/dynamic", () => ({
+  default: () => function MapFixture() {
+    return null;
+  },
+}));
 vi.mock("../task-empty", () => ({
   EmptyTasks: () => <p>{EN.tasks.emptyTitle}</p>,
 }));

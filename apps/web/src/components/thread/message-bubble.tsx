@@ -249,7 +249,9 @@ function NoteTaskChip({ task }: { task: { id: string; title: string } }) {
 // Memoized: the thread virtualizer re-renders on every scroll, but the cached
 // `message` object + primitive props are referentially stable, so a shallow
 // compare skips re-rendering every visible bubble.
-export const MessageBubble = memo(({
+export const MessageBubble = memo(MessageBubbleView);
+
+function MessageBubbleView({
   message,
   reaction,
   isLastOfCluster,
@@ -272,7 +274,7 @@ export const MessageBubble = memo(({
    * timeline's event lines already narrate those). */
   senderName?: string | null;
   onSelectPhone?: (number: string) => void;
-}) => {
+}) {
   const t = useT();
   const elsewhere = contactTimeZone
     ? { timeZone: contactTimeZone, whose: contactName }
@@ -481,4 +483,4 @@ export const MessageBubble = memo(({
     </div>
     </MessageMenuScope>
   );
-});
+}

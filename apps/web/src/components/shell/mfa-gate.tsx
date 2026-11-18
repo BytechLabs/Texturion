@@ -84,7 +84,7 @@ export function MfaGate({ children }: { children: React.ReactNode }) {
     );
   }
 
-  if (code !== "mfa_required") return <>{children}</>;
+  if (code !== "mfa_required") return children;
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center gap-5 px-6 text-center">

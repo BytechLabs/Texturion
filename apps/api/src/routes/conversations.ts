@@ -1571,7 +1571,7 @@ conversationsRoutes.post(
     // context — but NOT silent. A discarded error here degrades every draft
     // quietly, with nothing anywhere to say why.
     const firstRowOrNull = <T>(label: string) =>
-      (r: { data: unknown[] | null; error: { message: string } | null }): T | null => {
+      function readFirstRow(r: { data: unknown[] | null; error: { message: string } | null }): T | null {
         if (r.error) {
           console.error(`reply-suggestions ${label} lookup failed:`, r.error.message);
           return null;

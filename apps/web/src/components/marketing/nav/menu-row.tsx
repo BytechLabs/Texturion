@@ -6,6 +6,8 @@ import { cn } from "@/lib/utils";
 import type { NavItem } from "../nav-links";
 import { MenuIconChip } from "./menu-icon";
 
+type MenuRowProps = { item: NavItem } & Omit<React.ComponentPropsWithoutRef<typeof Link>, "href">;
+
 /**
  * One two-line mega-menu row, v4 "FIRST RESPONSE" skin (amendment 15): a
  * single cobalt line glyph in a Frost chip, then a Hanken 600 Dispatch Ink
@@ -18,11 +20,13 @@ import { MenuIconChip } from "./menu-icon";
  * focus handling, and the close-on-select behavior onto it, dropping those
  * props would break keyboard nav and auto-close.
  */
-export const MenuRow = React.forwardRef<
-  HTMLAnchorElement,
-  { item: NavItem } & Omit<React.ComponentPropsWithoutRef<typeof Link>, "href">
->(({ item, className, ...rest }, ref) => 
-  (
+export const MenuRow = React.forwardRef(MenuRowView);
+
+function MenuRowView(
+  { item, className, ...rest }: MenuRowProps,
+  ref: React.ForwardedRef<HTMLAnchorElement>,
+) {
+  return (
     <Link
       ref={ref}
       href={item.href}
@@ -45,5 +49,5 @@ export const MenuRow = React.forwardRef<
         ) : null}
       </span>
     </Link>
-  )
-);
+  );
+}

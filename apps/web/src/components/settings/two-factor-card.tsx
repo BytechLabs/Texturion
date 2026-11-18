@@ -324,16 +324,11 @@ export function TwoFactorCard() {
                     lose one of the two. */}
                 <p className="text-sm font-medium">{enrolledLabel}</p>
                 <p className="text-sm text-muted-foreground">
-                  {remaining > 0 ? (
-                    <>
-                      {remaining === 1
-                        ? t("settingsMore.tfaCodesLeftOne", {
-                            count: remaining,
-                          })
-                        : t("settingsMore.tfaCodesLeftMany", {
-                            count: remaining,
-                          })}
-                    </>
+                  {remaining > 0 ? t(
+                    remaining === 1
+                      ? "settingsMore.tfaCodesLeftOne"
+                      : "settingsMore.tfaCodesLeftMany",
+                    { count: remaining },
                   ) : (
                     // Nought left is a lockout waiting for a lost phone, so it
                     // reads as something to fix rather than a statistic.

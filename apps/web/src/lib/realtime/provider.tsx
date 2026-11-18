@@ -1275,5 +1275,5 @@ export function RealtimeProvider({ children }: { children: React.ReactNode }) {
     };
   }, [companyId, queryClient, realtimeEnabled, mePending, topicKey, retryGeneration]);
 
-  return <>{children}</>;
+  return children;
 }

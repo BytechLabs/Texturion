@@ -849,7 +849,7 @@ describe("offline fallback wiring", () => {
       };
       createContext(sandbox);
       runInContext(SW_SOURCE, sandbox);
-      return (method: string, preloadResponse?: Promise<unknown>) => {
+      return function navigate(method: string, preloadResponse?: Promise<unknown>) {
         let responded: Promise<unknown> | null = null;
         listeners.get("fetch")?.({
           request: { mode: "navigate", method, url: `${ORIGIN}/inbox` },
