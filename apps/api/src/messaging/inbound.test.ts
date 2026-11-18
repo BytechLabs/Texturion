@@ -644,6 +644,17 @@ describe("handleInboundMessage — #189 widened inbound media", () => {
 });
 
 describe("handleInboundMessage — notify runs before media download", () => {
+  it("asks the threading transaction to record a texted opt-out hint", async () => {
+    const thread = threadStub({});
+    const away = awayDisabledStub();
+    serve(numberStub(), thread, away);
+
+    await handleInboundMessage(env, inboundEvent({ text: "Please stop texting me" }));
+
+    expect(thread.calls[0].body).toMatchObject({ p_notify_opt_out_hint: true });
+    expect(away.calls).toHaveLength(0);
+  });
+
   it("recovers one alert when a replay follows a preferences outage", async () => {
     let state = "pending";
     const thread = stubRoute(rpcMatch(env, "thread_inbound_message"), () => ({

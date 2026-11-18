@@ -2475,7 +2475,8 @@ So the product **warns loudly and a human decides**: the thread carries
 banner before anyone replies, and nothing changes the contact's state.
 
 **Amendment (#810).** While a request is open, scheduled texts wait and the
-away reply and missed-call text are skipped. For You keeps the request visible
+away reply and missed-call text are skipped. The first detection queues a push
+through the durable inbound alert. For You keeps the request visible
 until a crew member dismisses it or opts out the number on that conversation.
 Both decisions are recorded in History. A carrier opt-out can still be cleared
 only by the customer.

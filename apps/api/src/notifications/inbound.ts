@@ -77,6 +77,7 @@ export interface InboundNotificationInput {
   lead?: boolean;
   beforeSend?: () => Promise<boolean>;
   replyUsers?: string[];
+  optOutHint?: boolean;
   /**
    * #414: the customer replied with the emergency word the away message asked
    * for. Changes three things — the whole crew is told rather than only the
@@ -338,7 +339,7 @@ export async function notifyInboundMessage(
     // "Sent you a message" rather than a bare "New message": the tech still
     // learns there is something from THIS person waiting, which is the triage
     // #388 depends on.
-    content: {
+    content: input.optOutHint ? { written: "us" } : {
       written: "people",
       companyId: input.companyId,
       withheld: (locale) => ({
@@ -346,8 +347,10 @@ export async function notifyInboundMessage(
       }),
     },
     web: (locale) => ({
-      title: pushTitle(locale),
-      body: notificationSnippet(input.body, input.mediaCount, locale),
+      title: input.optOutHint ? THREAD_PUSH_COPY[locale].optOutHintTitle : pushTitle(locale),
+      body: input.optOutHint
+        ? THREAD_PUSH_COPY[locale].optOutHintBody
+        : notificationSnippet(input.body, input.mediaCount, locale),
       url: link,
     }),
     // #564: the phones had nothing to route on, so an URGENT text posted to the

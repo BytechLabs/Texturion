@@ -393,6 +393,31 @@ describe("notifyInboundMessage (§8)", () => {
 const DEVICE_ROW_ID = "30000000-aaaa-4000-8000-000000000001";
 
 describe("notifyInboundMessage — native device push (#151)", () => {
+  it("uses one dedicated, private push for an opt-out hint", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "android", token: "tok-a" },
+    ]);
+    stubFetch(...world.routes, ...service.routes);
+
+    await notifyInboundMessage(fcmEnv(account), {
+      ...INPUT,
+      body: "Please stop texting me",
+      optOutHint: true,
+      allowEmail: false,
+    });
+
+    expect(service.sends).toHaveLength(1);
+    expect(service.sends[0].message.data).toMatchObject({
+      title: "Opt-out request to review",
+      body: "Open the conversation to review the request.",
+      url: `${env.APP_ORIGIN}/inbox/${CONVERSATION_ID}`,
+    });
+    expect(world.resend.calls).toHaveLength(0);
+  });
+
   it("skips the token query entirely (no-op) when FCM is not configured", async () => {
     const world = buildWorld({ members: [OWNER] });
     stubFetch(...world.routes); // an unstubbed device_push_tokens GET would throw

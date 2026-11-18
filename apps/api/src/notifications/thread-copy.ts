@@ -33,6 +33,8 @@ interface ThreadPushCopy {
   snippetMessage: string;
   /** #430: what stands in for the customer's words when content is off. */
   inboundWithheldBody: string;
+  optOutHintTitle: string;
+  optOutHintBody: string;
   /** A teammate named you in a note. The author's name is theirs, not ours. */
   mentionTitle(authorName: string): string;
   /**
@@ -66,6 +68,8 @@ const EN: ThreadPushCopy = {
   snippetAttachment: "Sent an attachment",
   snippetMessage: "Sent a message",
   inboundWithheldBody: "Sent you a message",
+  optOutHintTitle: "Opt-out request to review",
+  optOutHintBody: "Open the conversation to review the request.",
   mentionTitle: (authorName) => `${authorName} mentioned you`,
   teammateFallback: "A teammate",
   mentionWithheldBody: "Mentioned you in a note",
@@ -89,6 +93,8 @@ const FR: ThreadPushCopy = {
   snippetMessage: "A envoyé un message",
   // Subjectless like the English: the subject is the contact named in the title.
   inboundWithheldBody: "Vous a envoyé un message",
+  optOutHintTitle: "Demande d'arrêt à vérifier",
+  optOutHintBody: "Ouvrez la conversation pour vérifier la demande.",
   // Active voice, unlike the passive bell-feed string (misc.ts notifMention):
   // that form has no room for the author, and knowing WHO wants you is the
   // whole point of a mention.

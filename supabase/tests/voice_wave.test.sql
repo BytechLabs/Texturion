@@ -903,4 +903,56 @@ begin
   raise notice 'VW-20e PASSED: a suppressed member can see it, and when it lifts';
 end $$;
 
+do $$
+declare
+  co uuid := 'facade00-0000-4000-8000-000000000002';
+  line uuid := 'facade00-0000-4000-8000-000000000003';
+  phone text := '+14165559180';
+  first_hint jsonb;
+  repeat_hint jsonb;
+  thread uuid;
+begin
+  first_hint := public.thread_inbound_message(
+    co, line, phone, 'Please stop texting me', 'voice-opt-out-hint-1',
+    'UTC', 1000, 10000, false, 0, true
+  );
+  thread := (first_hint->>'conversation_id')::uuid;
+  if first_hint->'crew_notify_verdict'->>'notify_reason' is distinct from 'opt_out_hint'
+     or first_hint->'crew_notify_verdict'->>'allow_push' is distinct from 'true'
+     or first_hint->>'crew_notify_state' is distinct from 'pending' then
+    raise exception 'VW-21: opening a hint should durably queue its own push: %', first_hint;
+  end if;
+
+  repeat_hint := public.thread_inbound_message(
+    co, line, phone, 'Stop texting me', 'voice-opt-out-hint-2',
+    'UTC', 1000, 10000, false, 0, true
+  );
+  if repeat_hint->'crew_notify_verdict'->>'notify_reason' = 'opt_out_hint'
+     or (select count(*) from public.audit_log
+          where company_id = co and target_id = thread::text
+            and action = 'opt_out.language_detected') <> 1
+     or not exists (
+       select 1 from public.conversations
+        where company_id = co and id = thread and opt_out_hint_at is not null
+     ) then
+    raise exception 'VW-21: an existing hint should keep a single push and audit entry';
+  end if;
+
+  if public.api_mark_inbound_notify_attempted(co, (first_hint->>'message_id')::uuid, false)
+       is not true then
+    raise exception 'VW-21: the notification should be claimable once';
+  end if;
+  repeat_hint := public.thread_inbound_message(
+    co, line, phone, 'Please stop texting me', 'voice-opt-out-hint-1',
+    'UTC', 1000, 10000, false, 0, true
+  );
+  if repeat_hint->>'crew_notify_state' is distinct from 'attempted'
+     or exists (
+       select 1 from public.opt_outs
+        where company_id = co and phone_e164 = phone and revoked_at is null
+     ) then
+    raise exception 'VW-21: replay should neither re-queue the push nor opt the contact out';
+  end if;
+end $$;
+
 rollback;
