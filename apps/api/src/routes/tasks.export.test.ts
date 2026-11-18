@@ -120,7 +120,7 @@ describe("GET /v1/tasks/export.csv (#745)", () => {
     expect(res.headers.get("content-disposition")).toBe('attachment; filename="tasks.csv"');
     expect(res.headers.get("cache-control")).toBe("no-store");
     const bytes = new Uint8Array(await res.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
     const body = new TextDecoder().decode(bytes.slice(3));
     expect(body.split("\r\n")[0]).toBe("raised,customer,task,detail,due,assigned to,state");
     expect(body).toContain("Dana Reed");

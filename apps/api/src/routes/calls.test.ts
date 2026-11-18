@@ -957,7 +957,7 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
         ended_at: "2026-07-29T10:00:40.000Z",
         direction: "inbound",
         contacts: null,
-        ...(opts.row ?? {}),
+        ...opts.row,
       },
     ]);
     sb.on("GET", "/rest/v1/profiles", () => []);

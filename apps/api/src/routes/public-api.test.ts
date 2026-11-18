@@ -103,7 +103,7 @@ function publicRequest(path: string, init: RequestInit = {}) {
       headers: {
         Authorization: `Bearer ${TOKEN}`,
         "content-type": "application/json",
-        ...((init.headers as Record<string, string> | undefined) ?? {}),
+        ...(init.headers as Record<string, string> | undefined),
       },
     },
     env,

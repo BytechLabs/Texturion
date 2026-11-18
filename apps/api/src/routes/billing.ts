@@ -309,7 +309,7 @@ billingRoutes.post("/checkout", async (c) => {
   // stale bundle's intent means "check out without it". Ids that were NEVER
   // modules are a 422 (typo/abuse protection).
   const RETIRED_MODULE_IDS = new Set(["voice", "mms", "extra_storage"]);
-  const requestedModules = [...new Set(parsed.data.modules ?? [])];
+  const requestedModules = [...new Set(parsed.data.modules)];
   const unknownModules = requestedModules.filter(
     (id) => !isPlanModule(id) && !RETIRED_MODULE_IDS.has(id),
   );

@@ -21,7 +21,7 @@
 const args = process.argv.slice(2);
 const arg = (name, fallback) => {
   const at = args.indexOf(name);
-  return (at >= 0 ? args[at + 1] : fallback).replace(/\/$/, "");
+  return (at !== -1 ? args[at + 1] : fallback).replace(/\/$/, "");
 };
 const APP = arg("--app", "https://app.loonext.com");
 const SITE = arg("--site", "https://loonext.com");

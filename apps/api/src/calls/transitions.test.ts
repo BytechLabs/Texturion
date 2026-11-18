@@ -633,7 +633,7 @@ describe("#171 — decline (first-class avenue removal)", () => {
       1_000,
       key,
     ).machine as SessionMachine;
-    for (const leg of [...machine.legs]) {
+    for (const leg of machine.legs.slice()) {
       machine = reduce(
         machine,
         { type: "dial-outcome", pendingKey: leg.key, ccid: `leg-${leg.userId}`, failure: null },
@@ -1237,7 +1237,7 @@ describe("§15.1 property (fuzzed) — VM-ENTRY only when the window is exhauste
         keyGen(),
       ).machine as SessionMachine;
       // Resolve engine dials to ccids.
-      for (const leg of [...machine.legs]) {
+      for (const leg of machine.legs.slice()) {
         machine = reduce(machine, { type: "dial-outcome", pendingKey: leg.key, ccid: `c-${leg.userId}`, failure: null }, 1_100, keyGen()).machine as SessionMachine;
       }
 

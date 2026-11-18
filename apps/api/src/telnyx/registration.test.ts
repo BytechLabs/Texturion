@@ -120,11 +120,11 @@ function registerMergeNumberAssignmentRpc(rest: FakeRest) {
     if (!row) return null;
     const data = (row.data ?? {}) as Record<string, unknown>;
     const assignments = {
-      ...((data.numberAssignments as Record<string, unknown>) ?? {}),
+      ...(data.numberAssignments as Record<string, unknown>),
       [args.p_phone as string]: args.p_status,
     };
     const notified = {
-      ...((data.assignmentFailureNotified as Record<string, unknown>) ?? {}),
+      ...(data.assignmentFailureNotified as Record<string, unknown>),
     };
     if (args.p_clear_notified) {
       delete notified[args.p_phone as string];

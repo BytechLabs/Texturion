@@ -334,7 +334,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
   });
 
   it("place the window on the quietest six hours, keeping 04:00 when nothing tells them apart", () => {
-    expect(quietestWindow(new Array(24).fill(0))).toBe(4);
+    expect(quietestWindow(Array.from({ length: 24 }, () => 0))).toBe(4);
     expect(quietestWindow(hourly([6, 7, 8, 9, 10, 11]))).toBe(6);
     expect(quietestWindow(hourly([22, 23, 0, 1, 2, 3]))).toBe(22);
     expect(quietestWindow(hourly([5, 6, 7, 8, 9, 10, 11]))).toBe(5);
@@ -355,7 +355,7 @@ describe("the daily measurements, read from production as agent_diag", () => {
     const none = planFiling({ ...read, numbers: 0 }, false);
     expect(none.inputs).toEqual({});
     expect(none.lines[0]).toMatch(/^::warning title=Reserve not filed::/);
-    const quiet = planFiling({ ...read, hourly_calls: new Array(24).fill(0) }, true);
+    const quiet = planFiling({ ...read, hourly_calls: Array.from({ length: 24 }, () => 0) }, true);
     expect(quiet.inputs).toEqual({ reserveLegs: "4" });
   });
 

@@ -39,7 +39,7 @@ function message(over: Partial<Message> = {}): Message {
 
 /** A thread the shared rule offers a catch-up on, by length alone. */
 function longThread(): Message[] {
-  return Array.from({ length: THREAD_SUMMARY_MIN_MESSAGES }, () => message()).reverse();
+  return Array.from({ length: THREAD_SUMMARY_MIN_MESSAGES }, () => message()).toReversed();
 }
 
 function arrives(next: Message) {
@@ -83,7 +83,7 @@ describe("useCatchUp — when the hint shows", () => {
   });
 
   it("does not show on a thread too short to be worth one", () => {
-    thread = [message(), message()].reverse();
+    thread = [message(), message()].toReversed();
     render(<Thread />);
     expect(screen.getByTestId("offered").textContent).toBe("false");
     expect(hint()).toBeNull();

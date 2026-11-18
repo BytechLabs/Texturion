@@ -490,7 +490,7 @@ describe("#248 every door reports what the attestation could not cover", () => {
     // is there — and its absence is exactly what makes an accented reason arrive
     // as mojibake in the spreadsheet somebody opens this in.
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
 
     const csv = await blob.text();
     expect(csv.split("\r\n")).toHaveLength(61); // header + every refusal

@@ -32,7 +32,7 @@ function catalogue(): { en: string; fr: string } {
   );
   const start = file.indexOf("export const domainEn");
   const boundary = file.indexOf("export const domainFr");
-  if (start < 0 || boundary < 0) {
+  if (start === -1 || boundary === -1) {
     throw new Error("domain.ts no longer has both language blocks");
   }
   return { en: file.slice(start, boundary), fr: file.slice(boundary) };

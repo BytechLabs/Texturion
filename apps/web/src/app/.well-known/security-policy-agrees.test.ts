@@ -77,7 +77,7 @@ describe("#285 the security policy and security.txt agree", () => {
     const address = contact!.replace(/^mailto:/, "");
     expect(address).toMatch(/@/);
 
-    const named = new Set(policy.match(/[\w.+-]+@[\w.-]+\.\w+/g) ?? []);
+    const named = new Set(policy.match(/[\w.+-]+@[\w.-]+\.\w+/g));
     expect(named.size, "SECURITY.md names no address at all").toBeGreaterThan(0);
     expect([...named].sort()).toEqual([address]);
   });

@@ -85,7 +85,7 @@ for (const probe of PROBES) {
     continue;
   }
   const parsed = parseLimit(res.headers.get("ratelimit-limit"));
-  results.push({ ...probe, status: res.status, ...(parsed ?? {}) });
+  results.push({ ...probe, status: res.status, ...parsed });
 }
 
 const measured = results.filter((r) => typeof r.limit === "number");

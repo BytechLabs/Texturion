@@ -74,7 +74,7 @@ await runScript("retention-report", async ({ args, db }) => {
     return;
   }
 
-  const weeksSeen = [...new Set(rows.map((r) => r.cohort_week))].sort().reverse();
+  const weeksSeen = [...new Set(rows.map((row) => row.cohort_week))].toSorted((a, b) => b.localeCompare(a));
   console.log(
     `\n  D12 week-4 logo retention — target ${TARGET * 100}%\n` +
       `  ${weeksSeen.length} mature cohort(s), newest ${weeksSeen[0]}, ` +

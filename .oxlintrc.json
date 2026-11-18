@@ -240,7 +240,6 @@
     "unicorn/prefer-set-has": "off", // 18
     "vitest/prefer-mock-return-shorthand": "off", // 18
     "typescript/no-unsafe-enum-comparison": "off", // 17
-    "unicorn/no-useless-spread": "off", // 17
     "vitest/no-conditional-tests": "off", // 17
     "eslint/no-sequences": "off", // 16
     "typescript/prefer-string-starts-ends-with": "off", // 16
@@ -254,7 +253,6 @@
     "unicorn/prefer-string-starts-ends-with": "off", // 14
     "import/no-duplicates": "off", // 13
     "react/function-component-definition": "off", // 13
-    "unicorn/consistent-existence-index-check": "off", // 13
     "unicorn/prefer-dom-node-append": "off", // 13
     "unicorn/prefer-type-error": "off", // 13
     "eslint/no-useless-concat": "off", // 12
@@ -272,7 +270,6 @@
     "typescript/no-extraneous-class": "off", // 9
     "unicorn/filename-case": "off", // 9
     "unicorn/no-lonely-if": "off", // 9
-    "unicorn/no-useless-fallback-in-spread": "off", // 9
     "nextjs/no-assign-module-variable": "off", // 8
     "react/display-name": "off", // 8
     "typescript/no-implied-eval": "off", // 8
@@ -292,7 +289,6 @@
     "jsx-a11y/no-noninteractive-tabindex": "off", // 6
     "react/no-danger": "off", // 6
     "unicorn/no-immediate-mutation": "off", // 6
-    "unicorn/no-useless-collection-argument": "off", // 6
     "unicorn/prefer-event-target": "off", // 6
     "unicorn/prefer-query-selector": "off", // 6
     "vitest/prefer-to-contain": "off", // 6
@@ -306,10 +302,7 @@
     "jsx-a11y/no-static-element-interactions": "off", // 5
     "react/exhaustive-deps": "off", // 5
     "typescript/unbound-method": "off", // 5
-    "unicorn/no-array-reverse": "off", // 5
-    "unicorn/no-new-array": "off", // 5
     "unicorn/no-process-exit": "off", // 5
-    "unicorn/prefer-array-find": "off", // 5
     "eslint/no-control-regex": "off", // 4
     "eslint/no-inner-declarations": "off", // 4
     "eslint/no-lonely-if": "off", // 4

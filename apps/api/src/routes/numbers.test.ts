@@ -1011,7 +1011,7 @@ function stripeStub(
     if (request.method === "DELETE") {
       const id = url.pathname.split("/").pop();
       const at = items.findIndex((i) => i.id === id);
-      if (at >= 0) items.splice(at, 1);
+      if (at !== -1) items.splice(at, 1);
       return Response.json({ id, deleted: true });
     }
     return Response.json(

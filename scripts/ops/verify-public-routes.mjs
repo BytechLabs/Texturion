@@ -46,7 +46,7 @@ import { join } from "node:path";
 
 const args = process.argv.slice(2);
 const baseArg = args.indexOf("--base");
-const BASE = (baseArg >= 0 ? args[baseArg + 1] : "https://loonext.com").replace(
+const BASE = (baseArg !== -1 ? args[baseArg + 1] : "https://loonext.com").replace(
   /\/$/,
   "",
 );

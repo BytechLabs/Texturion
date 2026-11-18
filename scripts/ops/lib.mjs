@@ -91,7 +91,7 @@ export function opsClient() {
   const send = async (what, url, init = {}) => {
     const response = await fetch(url, {
       ...init,
-      headers: { ...headers, ...(init.headers ?? {}) },
+      headers: { ...headers, ...init.headers },
     });
     const text = await response.text();
     if (!response.ok) {

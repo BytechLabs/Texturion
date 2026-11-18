@@ -280,7 +280,7 @@ export class RigUplink extends DurableObject<Env> {
   }
 
   private failPending(): void {
-    for (const id of [...this.pending.keys()]) this.settle(id, null);
+    for (const id of Array.from(this.pending.keys())) this.settle(id, null);
   }
 
   // ---------------------------------------------------------------------------

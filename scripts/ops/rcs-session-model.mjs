@@ -254,7 +254,7 @@ await runScript("rcs-session-model", async ({ args, db }) => {
     buckets.set(key, (buckets.get(key) ?? 0) + 1);
   }
   const ordered = [...Array(10).keys()].map(String).concat("10+");
-  const maxBucket = Math.max(...[...buckets.values()]);
+  const maxBucket = Math.max(...buckets.values());
   console.log(`  Distribution`);
   for (const key of ordered) {
     const count = buckets.get(key) ?? 0;

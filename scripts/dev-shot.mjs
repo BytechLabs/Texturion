@@ -187,7 +187,7 @@ async function shoot(page, path) {
 
   // One line per distinct complaint: a single fault that fires on every render
   // would otherwise bury the rest.
-  for (const problem of [...new Set(problems)]) {
+  for (const problem of new Set(problems)) {
     console.log(`  ! ${problem}`);
   }
 }

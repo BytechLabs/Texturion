@@ -298,7 +298,7 @@ function main() {
   const argv = process.argv.slice(2);
   const all = argv.includes("--all");
   const rootFlag = argv.indexOf("--root");
-  const root = rootFlag >= 0 && argv[rootFlag + 1] ? resolve(argv[rootFlag + 1]) : REPO_ROOT;
+  const root = rootFlag !== -1 && argv[rootFlag + 1] ? resolve(argv[rootFlag + 1]) : REPO_ROOT;
 
   const result = scan(root, { all });
   const { counts, oversized } = result;

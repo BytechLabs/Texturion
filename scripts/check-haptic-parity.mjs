@@ -117,7 +117,7 @@ const SILENT_ON_IOS = {
  * to be declared rather than silently omitted, and the check below refuses an
  * entry that names a directory which does not exist.
  */
-const ANDROID_ONLY = new Set([]);
+const ANDROID_ONLY = new Set();
 
 const problems = [];
 

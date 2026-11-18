@@ -47,7 +47,7 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
     // Excel — asserting at the byte level, since TextDecoder strips a decoded
     // U+FEFF (exactly why the download must carry raw bytes, not a string).
     const bytes = new Uint8Array(await blob.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
     expect(filename).toBe("contacts.csv");
   });
 

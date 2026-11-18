@@ -2477,7 +2477,7 @@ describe("#689 D subscriber alerts raised by the task routes", () => {
     const lookup = stubRoute(restMatch(env, "GET", "tasks"), () => [prior]);
     const update = stubRoute(rpcMatch(env, "update_task"), (call) => ({
       outcome: "updated",
-      task: { ...prior, ...(options.update?.(call.body as Record<string, unknown>) ?? {}) },
+      task: { ...prior, ...options.update?.(call.body as Record<string, unknown>) },
     }));
     const assign = stubRoute(rpcMatch(env, "set_task_assignees"), (call) => {
       const ids = ((call.body as Record<string, unknown>).p_assignee_ids as string[]) ?? [];

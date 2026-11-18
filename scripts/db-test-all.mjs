@@ -228,7 +228,7 @@ function flag(name) {
   const hit = args.find((a) => a.startsWith(`--${name}=`));
   if (hit) return hit.split("=")[1];
   const index = args.indexOf(`--${name}`);
-  return index >= 0 ? args[index + 1] : undefined;
+  return index !== -1 ? args[index + 1] : undefined;
 }
 
 /**
@@ -265,7 +265,7 @@ const from = flag("from");
 let selected = only ?? SUITES;
 if (from) {
   const index = selected.indexOf(from);
-  if (index < 0) {
+  if (index === -1) {
     console.error(`--from ${from} is not a known suite.`);
     process.exit(2);
   }

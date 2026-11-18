@@ -4101,7 +4101,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     // strips a leading BOM per the WHATWG decode algorithm, so assert on the raw
     // bytes (what a browser download / Excel actually receives).
     const bytes = new Uint8Array(await res.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xef, 0xbb, 0xbf]);
     const text = new TextDecoder("utf-8").decode(bytes.slice(3));
     const lines = text.split("\r\n");
     expect(lines[0]).toBe(

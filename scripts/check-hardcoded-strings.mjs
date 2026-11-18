@@ -1178,7 +1178,7 @@ function scan(client, clientName) {
     // re-reading the tree a second time to answer it would double the walk.
     if (!isScannable(file, client.exts, source)) continue;
     const rel = relative(client.root, file).replaceAll("\\", "/");
-    const excused = new Set(exemptForClient[rel]?.literals ?? []);
+    const excused = new Set(exemptForClient[rel]?.literals);
     const literals = client.find(source, file).filter((text) => {
       if (!excused.has(text)) return true;
       exemptionsUsed.add(`${clientName}\u0000${rel}\u0000${text}`);

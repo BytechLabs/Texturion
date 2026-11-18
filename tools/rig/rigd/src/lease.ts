@@ -189,7 +189,7 @@ export class LeaseClient {
   async runUndo(entry: JournalEntry): Promise<Omit<ReleaseResult, "reaped" | "lease_id">> {
     const failed: ReleaseResult["failed"] = [];
     let undone = 0;
-    for (const action of [...entry.undo].reverse()) {
+    for (const action of entry.undo.toReversed()) {
       const handler = this.#o.handlers[action.kind];
       try {
         if (!handler) throw new Error("no handler for this undo");

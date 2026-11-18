@@ -39,7 +39,7 @@ class Waitable<T> {
   push(item: T): void {
     this.items.push(item);
     if (this.items.length > MAX_ITEMS) this.items.splice(0, this.items.length - MAX_ITEMS);
-    for (const waiter of [...this.#waiters]) {
+    for (const waiter of this.#waiters.slice()) {
       if (waiter.match(item)) {
         this.#waiters.splice(this.#waiters.indexOf(waiter), 1);
         waiter.resolve(item);

@@ -378,7 +378,7 @@ export function audit({ env = process.env, home = homedir(), root = REPO_ROOT } 
       join(tree, ".claude", "settings.local.json"),
     ]),
   ];
-  for (const path of [...new Set(settingsFiles)]) {
+  for (const path of new Set(settingsFiles)) {
     const document = readJson(path);
     if (!document) continue;
     sources.settings += 1;
@@ -475,7 +475,7 @@ function main() {
   const argv = process.argv.slice(2);
   const report = argv.includes("--report");
   const rootFlag = argv.indexOf("--root");
-  const root = rootFlag >= 0 && argv[rootFlag + 1] ? resolve(argv[rootFlag + 1]) : REPO_ROOT;
+  const root = rootFlag !== -1 && argv[rootFlag + 1] ? resolve(argv[rootFlag + 1]) : REPO_ROOT;
   const result = audit({ root });
   const fa1 = fa1Chosen();
   const decision = verdict(result, { report, fa1 });

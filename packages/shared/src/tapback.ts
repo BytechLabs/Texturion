@@ -74,7 +74,7 @@ export function parseTapback(body: string): Tapback | null {
   }
   for (const separator of [" to ", " à "]) {
     const at = folded.indexOf(separator);
-    if (at < 0) continue;
+    if (at === -1) continue;
     const emoji = value.slice(0, at).trim().split(" ").at(-1) ?? "";
     const preamble = folded.slice(0, at).trim();
     if (!isEmoji(emoji) || !["", "reacted", "a réagi"].includes(preamble.slice(0, -emoji.length).trim())) {

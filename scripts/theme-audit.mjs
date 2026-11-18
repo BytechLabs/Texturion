@@ -55,7 +55,7 @@ const publicOnly = args.includes("--public");
 // `--authed` is the other half, so the heavier job does not repeat cheap work.
 const authedOnly = args.includes("--authed");
 const baseIndex = args.indexOf("--base");
-const base = baseIndex >= 0 ? args[baseIndex + 1] : "http://localhost:3100";
+const base = baseIndex !== -1 ? args[baseIndex + 1] : "http://localhost:3100";
 
 /**
  * The surfaces to audit. Deliberately SMALL — #320's devil's advocate is right

@@ -119,7 +119,7 @@ export function readDoc(markdown) {
     if (rooms.length === 0) problems.push(`${DOC_FILE} 4.1: no room table found`);
   }
 
-  const named = s42 === null ? [] : [...new Set(s42.join("\n").match(/\bX\d{1,3}\b/g) ?? [])];
+  const named = s42 === null ? [] : [...new Set(s42.join("\n").match(/\bX\d{1,3}\b/g))];
   const s43 = sectionLines(markdown, "4.3");
   const known = s43 === null ? [] : tableRows(s43).map((cells) => cells[0]);
   const { caps, problems: capsProblems } = capsFromDoc(markdown, s41);

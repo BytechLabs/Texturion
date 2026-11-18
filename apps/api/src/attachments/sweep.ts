@@ -165,7 +165,7 @@ async function sweepSoftDeletedRows(
     // one mistake here that destroys data.
     throw new Error(`attachment in-use check failed: ${inUseError.message}`);
   }
-  const spokenFor = new Set((inUse ?? []) as string[]);
+  const spokenFor = new Set(inUse as string[] | null);
   const paths = candidates.filter((path) => !spokenFor.has(path));
   if (paths.length > 0) {
     const { error: removeError } = await db.storage

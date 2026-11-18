@@ -289,7 +289,7 @@ function scrub(text, secrets) {
 
 function lastError(stderr) {
   const lines = stderr.trim().split(/\r?\n/);
-  const error = [...lines].reverse().find((line) => /ERROR:/.test(line));
+  const error = lines.findLast((line) => /ERROR:/.test(line));
   return (error ?? lines.slice(-2).join(" | ")).replace(/^.*?ERROR:\s*/, "");
 }
 

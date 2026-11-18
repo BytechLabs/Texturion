@@ -30,7 +30,7 @@ function catalogueEnglish(): string {
   );
   const start = file.indexOf("export const settingsMoreEn");
   const end = file.indexOf("export const settingsMoreFr");
-  if (start < 0 || end < 0) {
+  if (start === -1 || end === -1) {
     throw new Error("settingsMore.ts no longer has both language blocks");
   }
   return file.slice(start, end);

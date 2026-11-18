@@ -34,14 +34,14 @@ const ACCENTED = [
 describe("#587 csvBytes", () => {
   it("puts the mark first, before anything else", async () => {
     const bytes = csvBytes(ACCENTED);
-    expect([...bytes.slice(0, 3)]).toEqual(BOM);
+    expect(Array.from(bytes.slice(0, 3))).toEqual(BOM);
   });
 
   it("adds it exactly once, whatever the content", () => {
     // Two marks would show up in the first cell as an invisible character that
     // breaks a header match on re-import — a quieter defect than none at all.
     const bytes = csvBytes(ACCENTED);
-    expect([...bytes.slice(3, 6)]).not.toEqual(BOM);
+    expect(Array.from(bytes.slice(3, 6))).not.toEqual(BOM);
   });
 
   it("leaves the serialized text untouched behind the mark", () => {
@@ -55,7 +55,7 @@ describe("#587 csvBytes", () => {
   it("still emits a mark for an empty export", () => {
     // A workspace with nothing to export still gets a file, and a spreadsheet
     // still has to be told how to read the header row.
-    expect([...csvBytes([["actor", "action"]]).slice(0, 3)]).toEqual(BOM);
+    expect(Array.from(csvBytes([["actor", "action"]]).slice(0, 3))).toEqual(BOM);
   });
 });
 
@@ -65,7 +65,7 @@ describe("#587 csvResponse", () => {
     // U+FEFF character could in principle be dropped and where the bytes cannot.
     const response = csvResponse(ACCENTED, "audit-log.csv");
     const bytes = new Uint8Array(await response.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual(BOM);
+    expect(Array.from(bytes.slice(0, 3))).toEqual(BOM);
   });
 
   it("carries the download headers with it", () => {

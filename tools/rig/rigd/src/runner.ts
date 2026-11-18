@@ -641,7 +641,7 @@ async function finish(deps: RunnerDeps, entry: RegisteredScenario, runId: string
   const summary: RunSummary = { scenario: entry.id, run_id: runId, status: last.outcome, verdicts, detail: last.detail };
   // The event describes this run's last attempt that actually judged
   // something, never a later "skipped" from the window or the cap.
-  const judged = verdicts.filter((v) => DECISIVE.has(v.outcome)).at(-1);
+  const judged = verdicts.findLast((v) => DECISIVE.has(v.outcome));
   if (!judged || judged.outcome === "pass" || !deps.posthog?.canSend) return summary;
 
   const critical = verdicts.find((v) => v.critical);

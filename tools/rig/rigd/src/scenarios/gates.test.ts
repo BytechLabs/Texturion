@@ -1082,8 +1082,7 @@ describe("S26, messaging caps", () => {
     const latest = readdirSync(migrations)
       .filter((name) => name.endsWith(".sql"))
       .toSorted()
-      .filter((name) => readFileSync(`${migrations}/${name}`, "utf8").includes("function public.gate_outbound_send"))
-      .at(-1)!;
+      .findLast((name) => readFileSync(`${migrations}/${name}`, "utf8").includes("function public.gate_outbound_send"))!;
     const gate = readFileSync(`${migrations}/${latest}`, "utf8");
     expect(gate).toMatch(/v_hour_segments >= 250/);
     expect(gate).toMatch(/when 'starter' then 500 when 'pro' then 2500/);

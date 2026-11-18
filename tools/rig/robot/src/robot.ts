@@ -195,7 +195,7 @@ export class Robot {
 
   /** Settles every command and judgement started so far; for tests and shutdown. */
   async idle(): Promise<void> {
-    while (this.#pending.size > 0) await Promise.allSettled([...this.#pending]);
+    while (this.#pending.size > 0) await Promise.allSettled(this.#pending);
   }
 
   async dial(plan: CallPlan): Promise<CallRecord> {
