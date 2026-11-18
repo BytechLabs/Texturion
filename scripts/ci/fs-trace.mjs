@@ -66,7 +66,7 @@ function install(root, outDir) {
   const wrap = (owner, name, kind, pathOf = (args) => args[0]) => {
     const original = owner[name];
     if (typeof original !== "function") return;
-    const wrapped = function (...args) {
+    function wrapped(...args) {
       try {
         if (kind === "s") record("s", "");
         else {
@@ -77,7 +77,7 @@ function install(root, outDir) {
         // Recording must never change what the test sees.
       }
       return Reflect.apply(original, this, args);
-    };
+    }
     // Keeps util.promisify.custom and realpath.native working on the wrapper.
     for (const key of Reflect.ownKeys(original)) {
       if (!["length", "name", "prototype", "arguments", "caller"].includes(key)) {

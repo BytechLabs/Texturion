@@ -99,7 +99,7 @@ export function pushConsentUpdate(
   dataLayer: unknown[],
   choice: ConsentChoice,
 ): void {
-  const gtag = function () {
+  const gtag = function queueConsentUpdate() {
     // eslint-disable-next-line prefer-rest-params
     dataLayer.push(arguments);
   } as unknown as (command: string, action: string, params: object) => void;

@@ -40,7 +40,7 @@ function frameOf(root: HTMLElement, name: string): HTMLElement {
 
 beforeEach(() => {
   measuredAt = {};
-  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function (
+  vi.spyOn(HTMLElement.prototype, "getBoundingClientRect").mockImplementation(function measurePanel(
     this: HTMLElement,
   ) {
     const node = this.firstElementChild?.firstElementChild;

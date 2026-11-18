@@ -39,7 +39,7 @@ const WIDGET = join(
 /** The `COPY = { … }` literal, parsed as the object it is. */
 function copyTable(): Record<string, Record<string, string>> {
   const source = readFileSync(WIDGET, "utf8");
-  const open = source.indexOf("var COPY = {");
+  const open = source.indexOf("const COPY = {");
   expect(open, "widget.js no longer declares a COPY table").toBeGreaterThan(-1);
 
   // Brace-match from the opening brace: the table holds nested objects, so a
@@ -93,7 +93,8 @@ describe("#228 the embed widget speaks both languages", () => {
   it("no longer hardcodes the English it used to render", () => {
     const source = readFileSync(WIDGET, "utf8");
     // Everything after the table: the table itself legitimately holds these.
-    const body = source.slice(source.indexOf("var t = COPY"));
+    const bodyStart = source.indexOf("const t = COPY");
+    expect(bodyStart, "widget.js no longer selects a copy table").toBeGreaterThan(-1);
     const stragglers = [
       "Your name",
       "Mobile number",
@@ -103,7 +104,7 @@ describe("#228 the embed widget speaks both languages", () => {
       "Send my message",
       "We texted you a code.",
       "Powered by Loonext",
-    ].filter((phrase) => body.includes(`"${phrase}"`));
+    ].filter((phrase) => source.includes(`"${phrase}"`, bodyStart));
 
     expect(
       stragglers,

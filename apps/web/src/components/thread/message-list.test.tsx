@@ -112,10 +112,10 @@ beforeEach(() => {
   // A frame never comes, so only a scroll made before the first paint counts.
   vi.stubGlobal("requestAnimationFrame", vi.fn());
   vi.spyOn(HTMLElement.prototype, "scrollHeight", "get").mockReturnValue(SCROLL_HEIGHT);
-  vi.spyOn(HTMLElement.prototype, "scrollTop", "get").mockImplementation(function (this: Element) {
+  vi.spyOn(HTMLElement.prototype, "scrollTop", "get").mockImplementation(function readScrollTop(this: Element) {
     return scrollTops.get(this) ?? 0;
   });
-  vi.spyOn(HTMLElement.prototype, "scrollTop", "set").mockImplementation(function (
+  vi.spyOn(HTMLElement.prototype, "scrollTop", "set").mockImplementation(function writeScrollTop(
     this: Element,
     value: number,
   ) {
