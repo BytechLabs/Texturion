@@ -57,6 +57,7 @@ describe("references stay out of texts to customers", () => {
 
   it("the message bubble reads references out of a note and nothing else", () => {
     const text = readFileSync(join(SRC, "components/thread/message-bubble.tsx"), "utf8");
-    expect(text).toContain("{note ? <ReferenceText text={message.body} /> : message.body}");
+    expect(text).toMatch(/\{note \? <ReferenceText text=\{message\.body\} \/> : \(\s*<MessagePhoneText body=\{message\.body\}/);
+    expect(text.split("<ReferenceText")).toHaveLength(2);
   });
 });

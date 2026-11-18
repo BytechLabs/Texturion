@@ -208,6 +208,7 @@ class ThreadController(
     /** #696: this thread's number on the block list, or null when it is not. */
     var blockedSender by mutableStateOf<BlockedSender?>(null)
         private set
+    private var checkedSenderPhone by mutableStateOf<String?>(null)
     var usage by mutableStateOf<Usage?>(null)
         private set
     var filter by mutableStateOf(ThreadFilter())
@@ -348,9 +349,13 @@ class ThreadController(
     private fun threadPhone(): String? =
         contact?.phone_e164 ?: conversation?.contact?.phone_e164
 
+    val canLinkMessagePhones: Boolean
+        get() = checkedSenderPhone != null && checkedSenderPhone == threadPhone() && blockedSender == null
+
     private suspend fun refreshBlocked() {
         val phone = threadPhone() ?: return
         blockedSender = repo.blockedSenders(companyId).firstOrNull { it.phone_e164 == phone }
+        checkedSenderPhone = phone
     }
 
     /** #696: future texts and calls from this number go straight to spam. */
@@ -726,6 +731,7 @@ class ThreadController(
             runCatching { refreshEvents() }
             runCatching { refreshPinned() }
             runCatching { refreshContact() }
+            runCatching { refreshBlocked() }
             persistSnapshot()
         }
     }

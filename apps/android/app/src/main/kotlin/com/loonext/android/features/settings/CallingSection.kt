@@ -91,6 +91,12 @@ fun CallingSection(
     company: CompanyView,
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
+    Text(
+        t("settings.emergencyCallingDisclosure"),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.padding(horizontal = 20.dp, vertical = 6.dp),
+    )
     if (onlyHostedNumbers(company)) {
         Text(
             t("settings.callingHostedOnly"),

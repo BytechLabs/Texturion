@@ -1,0 +1,95 @@
+[
+  {
+    "body": "Call (416) 555-0182 or +1 800-555-0182.",
+    "phones": [
+      {
+        "start": 5,
+        "end": 19,
+        "e164": "+14165550182"
+      },
+      {
+        "start": 23,
+        "end": 38,
+        "e164": "+18005550182"
+      }
+    ]
+  },
+  {
+    "body": "📞 212.555.0182, please.",
+    "phones": [
+      {
+        "start": 3,
+        "end": 15,
+        "e164": "+12125550182"
+      }
+    ]
+  },
+  {
+    "body": "Numbers: 4165550182\n2125550199",
+    "phones": [
+      {
+        "start": 9,
+        "end": 19,
+        "e164": "+14165550182"
+      },
+      {
+        "start": 20,
+        "end": 30,
+        "e164": "+12125550199"
+      }
+    ]
+  },
+  {
+    "body": "(4165550182) and (+14165550182)",
+    "phones": [
+      {
+        "start": 1,
+        "end": 11,
+        "e164": "+14165550182"
+      },
+      {
+        "start": 18,
+        "end": 30,
+        "e164": "+14165550182"
+      }
+    ]
+  },
+  {
+    "body": "Phone:4165550182.",
+    "phones": [
+      {
+        "start": 6,
+        "end": 16,
+        "e164": "+14165550182"
+      }
+    ]
+  },
+  {
+    "body": "The number is +44 7700 900123 or 011 44 7700 900123.",
+    "phones": []
+  },
+  {
+    "body": "Overlong: 1234165550182 or 416-555-018299.",
+    "phones": []
+  },
+  {
+    "body": "Unsupported: 876-555-0182 or 900-555-0182 or 911.",
+    "phones": []
+  },
+  {
+    "body": "Parts ABC4165550182 and 4165550182X and é4165550182.",
+    "phones": []
+  },
+  {
+    "body": "https://example.test/quote?number=4165550182 and www.example.test/2125550182",
+    "phones": []
+  },
+  {
+    "body": "Message 4165550182@example.test or example.test/4165550182",
+    "phones": []
+  },
+  {
+    "body": "No number here",
+    "phones": []
+  }
+]

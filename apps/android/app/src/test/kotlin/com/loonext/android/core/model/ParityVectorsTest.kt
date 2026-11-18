@@ -6,6 +6,8 @@ import com.loonext.android.features.compose.SmsEncoding
 import com.loonext.android.features.compose.estimateSegments
 import com.loonext.android.features.settings.lastCompleteMonth
 import com.loonext.android.features.settings.prepaidConversionCopy
+import com.loonext.android.features.thread.MessagePhone
+import com.loonext.android.features.thread.messagePhones
 import com.loonext.android.ui.common.initialsOf
 import java.io.File
 import kotlinx.serialization.Serializable
@@ -54,6 +56,9 @@ class ParityVectorsTest {
         val normalized: String?,
         val serviceCode: String?,
     )
+
+    @Serializable
+    private data class MessagePhoneVector(val body: String, val phones: List<MessagePhone>)
 
     @Serializable
     private data class NanpVector(
@@ -185,6 +190,13 @@ class ParityVectorsTest {
             assertEquals(case.raw, case.normalized, Nanp.toE164(case.raw))
             assertEquals(case.raw, case.serviceCode, ContactNanp.emergencyOrServiceCode(case.raw))
         }
+    }
+
+    @Test
+    fun `message phone offsets agree with the TypeScript`() {
+        val cases = json.decodeFromString<List<MessagePhoneVector>>(vectors("message-phones.json"))
+        assertTrue("no message phone vectors", cases.isNotEmpty())
+        for (case in cases) assertEquals(case.body, case.phones, messagePhones(case.body))
     }
 
     @Test

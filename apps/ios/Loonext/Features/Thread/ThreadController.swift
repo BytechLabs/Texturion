@@ -95,6 +95,7 @@ final class ThreadController {
     private(set) var contact: Contact?
     /// #696: this thread's number on the block list, or nil when it is not.
     private(set) var blockedSender: BlockedSender?
+    private var checkedSenderPhone: String?
     private(set) var company: CompanyView?
     private(set) var usage: Usage?
     var filter = ThreadFilter()
@@ -301,10 +302,15 @@ final class ThreadController {
         contact?.phone_e164 ?? conversation?.contact.phone_e164
     }
 
+    var canLinkMessagePhones: Bool {
+        checkedSenderPhone != nil && checkedSenderPhone == threadPhone && blockedSender == nil
+    }
+
     private func refreshBlocked() async throws {
         guard let phone = threadPhone else { return }
         blockedSender = try await repo.blockedSenders(companyId: companyId)
             .first { $0.phone_e164 == phone }
+        checkedSenderPhone = phone
     }
 
     /// #696: future texts and calls from this number go straight to spam.
@@ -647,6 +653,7 @@ final class ThreadController {
             }
             try? await refreshPinned()
             try? await refreshContact()
+            try? await refreshBlocked()
         }
     }
 

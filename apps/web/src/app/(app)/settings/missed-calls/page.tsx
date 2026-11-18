@@ -721,6 +721,7 @@ export default function CallingSettingsPage() {
       title={t("appShell.callingTitle")}
       description={t("appShell.callingDescription")}
     >
+      <p className="text-sm text-muted-foreground">{t("appShell.emergencyCallingDisclosure")}</p>
       {company.isPending ? (
         <CallingSkeleton />
       ) : company.isError ? (

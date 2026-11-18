@@ -517,6 +517,15 @@ const TOLL_FREE_AREA_CODES = new Set(["800", "833", "844", "855", "866", "877", 
  * tolerance. Callers normalize before calling.
  */
 const E164_NANP = /^\+1([2-9]\d{2})[2-9]\d{2}\d{4}$/;
+const PHONE_RUN = /(?:\+?[0-9]|\([0-9]{3}\))[0-9+(). \t-]*[0-9]/g;
+const WEB_ADDRESS = /(?:https?:\/\/|www\.)\S+/gi;
+const ATTACHED_CHARACTER = /[\p{L}\p{N}_@/\\]/u;
+
+export type MessagePhone = {
+  start: number;
+  end: number;
+  e164: string;
+};
 
 /**
  * Look up the NANP entry for a strictly-parsed +1 E.164 number. Returns null
@@ -551,10 +560,10 @@ export function isReachableDestination(e164: string): boolean {
   return isUsCaDestination(e164) || isTollFreeDestination(e164);
 }
 
-/** Returns the N11 code that must be opened in the device dialer. */
+/** Returns a short code that must be opened in the device dialer. */
 export function emergencyOrServiceCode(input: string): string | null {
   const code = input.trim();
-  return /^[2-9]11$/.test(code) ? code : null;
+  return /^(?:[2-9]11|112|988)$/.test(code) ? code : null;
 }
 
 /** Normalize a complete number entered by a person without losing digits. */
@@ -571,6 +580,21 @@ export function normalizeNanpInput(
   const e164 = international ? `+${digits}` : `+1${digits}`;
   const accepts = destination === "reachable" ? isReachableDestination : isUsCaDestination;
   return accepts(e164) ? e164 : null;
+}
+
+/** UTF-16 offsets let each client display the original phone text. */
+export function messagePhones(body: string): MessagePhone[] {
+  const addresses = Array.from(body.matchAll(WEB_ADDRESS));
+  const phones: MessagePhone[] = [];
+  for (const match of body.matchAll(PHONE_RUN)) {
+    const start = match.index;
+    const end = start + match[0].length;
+    if (ATTACHED_CHARACTER.test(body.charAt(start - 1)) || ATTACHED_CHARACTER.test(body.charAt(end))) continue;
+    if (addresses.some((address) => start < address.index + address[0].length && end > address.index)) continue;
+    const e164 = normalizeNanpInput(match[0]);
+    if (e164) phones.push({ start, end, e164 });
+  }
+  return phones;
 }
 
 const hourFormatters = new Map<string, Intl.DateTimeFormat>();

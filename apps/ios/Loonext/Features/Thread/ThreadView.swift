@@ -149,8 +149,19 @@ private struct ThreadBody: View {
     @State private var tagSheetOpen = false
     @State private var galleryOpen = false
     @State private var placingCall = false
+    @State private var messagePhone: String?
     @Environment(\.openURL) private var openURL
     @Environment(\.appLocale) private var appLocale
+
+    private var canLinkPhones: Bool {
+        guard let detail = controller.conversation else { return false }
+        return controller.canLinkMessagePhones && !detail.is_spam && detail.spam_suspected_at == nil
+    }
+
+    private var canContactPhone: Bool {
+        controller.conversation?.viewer_level == "text" &&
+            me.memberships.first { $0.company_id == companyId }?.role != MemberRole.readOnly
+    }
 
     var body: some View {
         ZStack(alignment: .bottom) {
@@ -163,6 +174,32 @@ private struct ThreadBody: View {
             }
         }
         .background(BrandColor.canvas.ignoresSafeArea())
+        .confirmationDialog(
+            messagePhone.map { formatPhone($0) } ?? "",
+            isPresented: Binding(
+                get: { messagePhone != nil && canLinkPhones },
+                set: { if !$0 { messagePhone = nil } }
+            ),
+            titleVisibility: .visible,
+            presenting: messagePhone
+        ) { number in
+            if canContactPhone {
+                Button(AppStrings.translate(appLocale, "thread.callWithLoonext")) {
+                    AppRouter.shared.openCalls = true
+                    AppRouter.shared.dialTo = number
+                }
+                Button(AppStrings.translate(appLocale, "thread.textPhoneNumber")) {
+                    AppRouter.shared.composeTo = number
+                }
+            }
+            Button(AppStrings.translate(appLocale, "contactsTasks.copyNumber")) {
+                UIPasteboard.general.string = number
+                controller.markCopied()
+            }
+        }
+        .onChange(of: canLinkPhones) { _, allowed in
+            if !allowed { messagePhone = nil }
+        }
         // #690: a note's `#T-142` draws as a chip, resolved once per workspace.
         .environment(
             \.referenceResolver,
@@ -1027,7 +1064,8 @@ private struct ThreadBody: View {
                     // to its source message).
                     onOpenTask: { AppRouter.shared.openTaskId = $0 },
                     onDelete: deleteMessageAction(for: message)
-                )
+                ),
+                onSelectPhone: canLinkPhones ? { messagePhone = $0 } : nil
             )
         case .pending(let pending):
             PendingBubble(

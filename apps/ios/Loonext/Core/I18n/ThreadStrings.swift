@@ -472,6 +472,9 @@ enum ThreadStrings {
             // ── #228 pass 2: the composer, the timeline's system lines,
             //    the catch-up and the wrap-up ─────────────────────────────
             "thread.copied": "Copied.",
+            "thread.callWithLoonext": "Call with Loonext",
+            "thread.textPhoneNumber": "Text",
+            "thread.selectMessageText": "Select text",
             "thread.undo": "Undo",
             "trash.viewTrash": "View Trash",
             // #691 — deleting records. Everything here goes to the Trash and
@@ -1234,6 +1237,9 @@ enum ThreadStrings {
             // ── #228 pass 2: the composer, the timeline's system lines,
             //    the catch-up and the wrap-up ─────────────────────────────
             "thread.copied": "Copié.",
+            "thread.callWithLoonext": "Appeler avec Loonext",
+            "thread.textPhoneNumber": "Texter",
+            "thread.selectMessageText": "Sélectionner le texte",
             "thread.undo": "Annuler",
             "trash.viewTrash": "Voir la corbeille",
             // #691 — la suppression. Tout passe par la corbeille et se

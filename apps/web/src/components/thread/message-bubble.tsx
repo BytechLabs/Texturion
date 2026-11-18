@@ -40,6 +40,7 @@ import { AttachmentFileChip } from "./attachment-file";
 import { AttachmentImage } from "./attachment-image";
 import { doneBadgeLabel, isDone } from "./done";
 import { MessageActions, MessageMenuScope } from "./message-actions";
+import { MessagePhoneText } from "./message-phone-actions";
 
 /**
  * Delivery-state line (G5): "Sending…" → "Sent ✓" → "Delivered ✓✓";
@@ -255,6 +256,7 @@ export const MessageBubble = memo(({
   contactName,
   contactTimeZone = null,
   senderName = null,
+  onSelectPhone,
 }: {
   message: Message;
   isLastOfCluster: boolean;
@@ -267,6 +269,7 @@ export const MessageBubble = memo(({
    * Null for inbound (the contact) and for system sends (auto-replies — the
    * timeline's event lines already narrate those). */
   senderName?: string | null;
+  onSelectPhone?: (number: string) => void;
 }) => {
   const t = useT();
   const elsewhere = contactTimeZone
@@ -417,7 +420,9 @@ export const MessageBubble = memo(({
               )}
             >
               {/* #690: only a note's words are read for references. */}
-              {note ? <ReferenceText text={message.body} /> : message.body}
+              {note ? <ReferenceText text={message.body} /> : (
+                <MessagePhoneText body={message.body} onSelect={onSelectPhone} />
+              )}
             </span>
           </div>
         )}

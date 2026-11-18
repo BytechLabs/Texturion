@@ -89,7 +89,7 @@ enum Nanp {
 
     static func emergencyOrServiceCode(_ raw: String) -> String? {
         let code = raw.trimmingCharacters(in: .whitespacesAndNewlines)
-        return code.range(of: #"^[2-9]11$"#, options: .regularExpression) == nil ? nil : code
+        return code.range(of: #"^(?:[2-9]11|112|988)$"#, options: .regularExpression) == nil ? nil : code
     }
 
     /// A complete US/CA or toll-free number entered as national or +1 format.

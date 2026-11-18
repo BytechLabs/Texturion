@@ -105,6 +105,7 @@ export {
   isReachableDestination,
   emergencyOrServiceCode,
   normalizeNanpInput,
+  messagePhones,
   destinationLocalHour,
   formatNanpNumber,
   localHourInZone,

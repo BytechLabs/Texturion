@@ -622,6 +622,11 @@ private fun ReadyShell(
     fun push(route: Overlay) = routeStack.add(route)
     fun pop() { routeStack.removeLastOrNull() }
     fun openTrash() { if (routeStack.lastOrNull() !is Overlay.Trash) push(Overlay.Trash) }
+    fun openDialer(number: String) {
+        routeStack.clear()
+        tab = ShellTab.Calls
+        graph.pendingDial.value = number
+    }
     var counts by remember { mutableStateOf(ShellCounts()) }
     var countsKey by remember { mutableIntStateOf(0) }
     // #508: the filter another surface has asked the inbox to land on, held
@@ -752,11 +757,7 @@ private fun ReadyShell(
                 // #183 part 3: "Call with Loonext" — land on the Calls tab and
                 // hand the number to CallsScreen via the pendingDial bus, which
                 // opens the dialer prefilled.
-                is DeepLink.Dial -> {
-                    routeStack.clear()
-                    tab = ShellTab.Calls
-                    graph.pendingDial.value = link.number
-                }
+                is DeepLink.Dial -> openDialer(link.number)
 
                 // #183 part 3: "Text with Loonext" — open the composer seeded
                 // with the number.
@@ -1003,6 +1004,8 @@ private fun ReadyShell(
                         onBack = { pop() },
                         onOpenConversation = { push(Overlay.Thread(it)) },
                         onOpenTask = { push(Overlay.Task(it)) },
+                        onDialPhone = ::openDialer,
+                        onTextPhone = { push(Overlay.Compose(prefillContactId = null, prefillPhone = it)) },
                         onOpenAiSettings = {
                             push(Overlay.Settings(SettingsSection.Ai))
                         },

@@ -122,6 +122,7 @@ func recordActionSymbol(_ id: String) -> String {
     case "unblock", "opt-in": return "arrow.uturn.backward"
     case "opt-out": return "nosign"
     case "copy-text", "copy-number": return "doc.on.doc"
+    case "select-text": return "text.cursor"
     case "copy-link": return "link"
     case "retry": return "arrow.clockwise"
     case "done": return "checkmark.circle"

@@ -205,6 +205,21 @@
     "serviceCode": "911"
   },
   {
+    "raw": "112",
+    "normalized": null,
+    "serviceCode": "112"
+  },
+  {
+    "raw": "988",
+    "normalized": null,
+    "serviceCode": "988"
+  },
+  {
+    "raw": " 988 ",
+    "normalized": null,
+    "serviceCode": "988"
+  },
+  {
     "raw": "+911",
     "normalized": null,
     "serviceCode": null
