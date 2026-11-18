@@ -72,6 +72,10 @@ function deferred<T>() {
   return { promise, resolve, reject };
 }
 
+function pendingRequest(): Promise<never> {
+  return new Promise(() => {});
+}
+
 function Shell() {
   const { companyId } = useActiveCompany();
   const meRead = useMe();
@@ -234,7 +238,7 @@ describe("CompanyProvider boot reads", () => {
   });
 
   it("opens the connection to the API origin before the first read", () => {
-    api.mockImplementation(() => new Promise(() => {}));
+    api.mockImplementation(pendingRequest);
     mount();
     const link = document.head.querySelector(
       'link[rel="preconnect"][href="https://api.test"]',
@@ -279,7 +283,7 @@ describe("CompanyProvider failure states", () => {
   });
 
   it("draws the loading card in the app's face", () => {
-    api.mockImplementation(() => new Promise(() => {}));
+    api.mockImplementation(pendingRequest);
     mount();
     const sentence = screen.getByText("Loading your workspace…");
     expect(sentence.parentElement?.className).toContain("app-scope");
@@ -318,7 +322,7 @@ describe("a member's launch (D23)", () => {
   const hint = `loonext:landing-role:user-1:${COMPANY}`;
 
   it("sends only a remembered member's first /inbox to For you, before /v1/me answers", async () => {
-    api.mockImplementation(() => new Promise(() => {}));
+    api.mockImplementation(pendingRequest);
 
     localStorage.setItem(hint, "owner");
     mount();

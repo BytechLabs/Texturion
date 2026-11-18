@@ -53,11 +53,11 @@
     "jsdoc/check-tag-names": ["off", { "definedTags": ["vitest-environment"] }], // not yet clean: 1 (#822)
     "unicorn/import-style": ["off", { "extendDefaultStyles": false, "styles": { "node:path": { "named": true }, "node:fs": { "named": true }, "node:url": { "named": true }, "node:util": { "named": true } } }], // not yet clean: 10 (#822)
     "import/no-unassigned-import": ["off", { "allow": ["**/*.css", "server-only", "client-only"] }], // not yet clean: 1 (#822)
-    "vitest/valid-expect": ["off", { "maxArgs": 2 }], // not yet clean: 2 (#822)
+    "vitest/valid-expect": ["error", { "maxArgs": 2 }],
     "vitest/valid-title": ["off", { "allowArguments": true }], // not yet clean: 1 (#822)
     "eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
     "vitest/consistent-test-it": ["error", { "fn": "it", "withinDescribe": "it" }],
-    "vitest/expect-expect": ["off", { "assertFunctionNames": ["expect", "expect*", "assert*", "*.expect*"] }], // not yet clean: 8 (#822)
+    "vitest/expect-expect": ["error", { "assertFunctionNames": ["expect", "expect*", "assert*", "*.expect*"] }],
     // node:test awaits the promise test() returns; nothing else may be left floating.
     "typescript/no-floating-promises": ["error", { "allowForKnownSafeCalls": [{ "from": "package", "package": "node:test", "name": ["test", "describe", "it", "suite", "before", "after", "beforeEach", "afterEach"] }] }],
     "typescript/no-confusing-void-expression": ["off", { "ignoreArrowShorthand": true }], // not yet clean: 42 (#822)
@@ -213,7 +213,6 @@
     "typescript/use-unknown-in-catch-callback-variable": "off", // 38
     "typescript/consistent-type-imports": "off", // 35
     "typescript/switch-exhaustiveness-check": "off", // 35
-    "vitest/require-to-throw-message": "off", // 34
     "eslint/no-var": "off", // 33
     "eslint/vars-on-top": "off", // 31
     "import/no-namespace": "off", // 30
@@ -238,10 +237,8 @@
     "typescript/no-dynamic-delete": "off", // 20
     "promise/prefer-catch": "off", // 19
     "unicorn/prefer-set-has": "off", // 18
-    "vitest/prefer-mock-return-shorthand": "off", // 18
     "typescript/no-unsafe-enum-comparison": "off", // 17
     "unicorn/no-useless-spread": "off", // 17
-    "vitest/no-conditional-tests": "off", // 17
     "eslint/no-sequences": "off", // 16
     "typescript/prefer-string-starts-ends-with": "off", // 16
     "unicorn/explicit-length-check": "off", // 16
@@ -281,7 +278,6 @@
     "unicorn/new-for-builtins": "off", // 8
     "unicorn/prefer-add-event-listener": "off", // 8
     "unicorn/prefer-single-call": "off", // 8
-    "vitest/prefer-expect-type-of": "off", // 8
     "eslint/no-div-regex": "off", // 7
     "eslint/no-useless-return": "off", // 7
     "react/hook-use-state": "off", // 7
@@ -336,7 +332,6 @@
     "unicorn/no-invalid-fetch-options": "off", // 3
     "unicorn/prefer-default-parameters": "off", // 3
     "unicorn/relative-url-style": "off", // 3
-    "vitest/no-standalone-expect": "off", // 3
     "vitest/padding-around-test-blocks": "off", // 3
     "vitest/prefer-mock-promise-shorthand": "off", // 3
     "eslint/no-labels": "off", // 2

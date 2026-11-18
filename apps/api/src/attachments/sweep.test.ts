@@ -428,7 +428,7 @@ describe("sweepDeletedAttachments (D19 §2; #15/#16)", () => {
       );
       stubFetch(route);
 
-      await expect(sweepDeletedAttachments(env)).rejects.toThrow();
+      await expect(sweepDeletedAttachments(env)).rejects.toThrow("attachment sweep failed in 1 pass");
       expect(captured.removes).toHaveLength(0);
       expect(captured.deletes).toHaveLength(0);
     });
@@ -601,7 +601,7 @@ describe("#263 — the mms-media bucket gets both anti-joins too", () => {
     });
     stubFetch(route);
 
-    await expect(sweepDeletedAttachments(env)).rejects.toThrow();
+    await expect(sweepDeletedAttachments(env)).rejects.toThrow("attachment sweep failed in 1 pass");
     expect(captured.mmsOrphanScans).toHaveLength(1);
     expect(captured.mmsRowDeletes).toHaveLength(1);
   });
@@ -682,7 +682,7 @@ describe("#479 — the two buckets nothing ever reclaimed", () => {
     });
     stubFetch(route);
 
-    await expect(sweepDeletedAttachments(env)).rejects.toThrow();
+    await expect(sweepDeletedAttachments(env)).rejects.toThrow("attachment sweep failed in 1 pass");
 
     expect(captured.vmOrphanScans).toHaveLength(1);
     expect(captured.exportOrphanScans).toHaveLength(1);

@@ -404,7 +404,7 @@ describe("Microsoft calendar provider", () => {
   });
 
   it("skips id-less rows and advances a delta page containing malformed unrelated timing", async () => {
-    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warning = vi.spyOn(console, "warn").mockReturnValue(undefined);
     const deltaLink =
       "https://graph.microsoft.com/v1.0/me/calendarView/delta?$deltatoken=after-malformed";
     const { fetcher } = queuedFetch(json({

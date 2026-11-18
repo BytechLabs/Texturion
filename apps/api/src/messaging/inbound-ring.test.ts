@@ -114,9 +114,10 @@ describe("storeVoicemailRecording: fetching the recording", () => {
     const removal = telnyxDelete();
     stubFetch(hung, listing([{ id: "rec-1" }]).route, removal.route);
 
-    const attempt = expect(store()).rejects.toMatchObject({ name: "TimeoutError" });
-    await vi.advanceTimersByTimeAsync(30_000);
-    await attempt;
+    await Promise.all([
+      expect(store()).rejects.toMatchObject({ name: "TimeoutError" }),
+      vi.advanceTimersByTimeAsync(30_000),
+    ]);
     expect(removal.calls).toHaveLength(0);
   });
 

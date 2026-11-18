@@ -425,6 +425,6 @@ describe("message.finalized", () => {
     const lookup = stubRoute(restMatch(env, "GET", "messages"), () => []);
     stubFetch(lookup.route);
     await handleStatusEvent(env, messageReceivedEvent());
-    // no throw, nothing updated — dispatch guards on event_type anyway
+    expect(lookup.calls).toEqual([]);
   });
 });

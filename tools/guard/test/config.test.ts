@@ -67,8 +67,8 @@ describe("wrangler.jsonc", () => {
     const bare = JSON.parse(stripJsonc(withoutEdgeBinding(source))) as Record<string, unknown>;
     const { services: _services, ...rest } = wrangler;
     expect(bare).toEqual(rest);
-    expect(() => withoutEdgeBinding(source.replace('"services"', '"services_moved"'))).toThrow();
-    expect(() => withoutEdgeBinding(`${source}\n  "services": [{ "binding": "EDGE" }],`)).toThrow();
+    expect(() => withoutEdgeBinding(source.replace('"services"', '"services_moved"'))).toThrow(/expected one single-line EDGE "services" entry/);
+    expect(() => withoutEdgeBinding(`${source}\n  "services": [{ "binding": "EDGE" }],`)).toThrow(/expected one single-line EDGE "services" entry/);
   });
 
   it("keeps its own log lines only, never a request URL", () => {

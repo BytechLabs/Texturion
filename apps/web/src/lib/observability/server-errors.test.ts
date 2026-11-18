@@ -81,7 +81,7 @@ describe("captureServerError (onRequestError → posthog-node)", () => {
 
   it("resolves when PostHog is down", async () => {
     vi.mocked(fetch).mockRejectedValue(new Error("network down"));
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
+    vi.spyOn(console, "error").mockReturnValue(undefined);
     const { captureServerError } = await importCapture("phc_web_test_key");
     await expect(captureServerError(new Error("x"), "GET", CONTEXT)).resolves.toBeUndefined();
   });

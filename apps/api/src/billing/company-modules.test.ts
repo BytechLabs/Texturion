@@ -247,7 +247,9 @@ describe("applyModuleReconcile (#17)", () => {
 
   it("a no-op plan writes nothing", async () => {
     serve(); // any request would fail loudly as unstubbed
-    await applyModuleReconcile(getDb(env), COMPANY, { enable: [], disable: [] });
+    await expect(
+      applyModuleReconcile(getDb(env), COMPANY, { enable: [], disable: [] }),
+    ).resolves.toBeUndefined();
   });
 
   it("guard-disables the row and NEVER touches the companies row (#134: the voice settings-clear branch is gone)", async () => {

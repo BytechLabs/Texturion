@@ -120,7 +120,7 @@ describe(vapidKeyToApplicationServerKey, () => {
     expect(() => vapidKeyToApplicationServerKey(b64u(new Uint8Array(32)))).toThrow(
       /P-256/,
     );
-    expect(() => vapidKeyToApplicationServerKey("!not-base64!")).toThrow();
+    expect(() => vapidKeyToApplicationServerKey("!not-base64!")).toThrow("VAPID public key is not base64url.");
   });
 });
 

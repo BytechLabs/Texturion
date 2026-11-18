@@ -130,7 +130,7 @@ describe("the push send paths report what they sent", () => {
 
   it("a ring never waits for PostHog to take its evidence", async () => {
     const { env, service } = await world();
-    vi.mocked(captureEvent).mockImplementationOnce(() => new Promise<void>(() => {}));
+    vi.mocked(captureEvent).mockReturnValueOnce(new Promise<void>(() => {}));
 
     const report = await notifyIncomingCall(env, getDb(env), {
       companyId: COMPANY_ID,

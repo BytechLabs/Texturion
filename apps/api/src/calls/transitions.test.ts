@@ -735,7 +735,7 @@ describe("#171 — decline (first-class avenue removal)", () => {
       machine.state = state;
       const r = reduce(machine, { type: "decline", userId: "u1" }, 5_000, KEY);
       const reply = r.reply as { declined: boolean; state: CallState };
-      expect(typeof reply.declined).toBe("boolean");
+      expect(reply.declined).toBeTypeOf("boolean");
       if (state !== "ringing") {
         // Non-ringing is an idempotent no-op; a terminal never resurrects.
         expect(reply.declined).toBe(false);
@@ -1215,7 +1215,7 @@ describe("§15.1 no-op matrix — internal events in every non-driving state", (
         machine.state = state;
         const r = reduce(machine, event, 5_000, KEY);
         // A terminal state must stay terminal (no resurrection).
-        if (isTerminal(state)) expect(r.machine?.state).toBe(state);
+        expect(!isTerminal(state) || r.machine?.state === state).toBe(true);
       });
     }
   }

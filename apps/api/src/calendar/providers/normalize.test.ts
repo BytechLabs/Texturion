@@ -184,59 +184,55 @@ describe(`Alberta (America/Edmonton) on tzdata ${TZDATA_RELEASE ?? "unknown"}, e
     expect(instantFromWallClock("2026-03-08T02:30:00", zone)).toBeNull();
   });
 
-  if (TZDATA_ERA === "pre-2026c") {
-    it("pre-2026c: refuses 2026-11-01T01:30, which fall-back repeats", () => {
-      expect(wallClockFromInstant("2026-11-01T07:30:00.000Z", zone)).toBe(
-        "2026-11-01T01:30:00",
-      );
-      expect(wallClockFromInstant("2026-11-01T08:30:00.000Z", zone)).toBe(
-        "2026-11-01T01:30:00",
-      );
-      expect(instantFromWallClock("2026-11-01T01:30:00", zone)).toBeNull();
-    });
+  it.runIf(TZDATA_ERA === "pre-2026c")("pre-2026c: refuses 2026-11-01T01:30, which fall-back repeats", () => {
+    expect(wallClockFromInstant("2026-11-01T07:30:00.000Z", zone)).toBe(
+      "2026-11-01T01:30:00",
+    );
+    expect(wallClockFromInstant("2026-11-01T08:30:00.000Z", zone)).toBe(
+      "2026-11-01T01:30:00",
+    );
+    expect(instantFromWallClock("2026-11-01T01:30:00", zone)).toBeNull();
+  });
 
-    it("pre-2026c: round trips 2026-11-01T16:00Z as 09:00 local", () => {
-      expect(wallClockFromInstant("2026-11-01T16:00:00.000Z", zone)).toBe(
-        "2026-11-01T09:00:00",
-      );
-      expect(instantFromWallClock("2026-11-01T09:00:00", zone)).toBe(
-        "2026-11-01T16:00:00.000Z",
-      );
-    });
+  it.runIf(TZDATA_ERA === "pre-2026c")("pre-2026c: round trips 2026-11-01T16:00Z as 09:00 local", () => {
+    expect(wallClockFromInstant("2026-11-01T16:00:00.000Z", zone)).toBe(
+      "2026-11-01T09:00:00",
+    );
+    expect(instantFromWallClock("2026-11-01T09:00:00", zone)).toBe(
+      "2026-11-01T16:00:00.000Z",
+    );
+  });
 
-    it("pre-2026c: is UTC-7 in January 2027", () => {
-      expect(wallClockFromInstant("2027-01-15T18:00:00.000Z", zone)).toBe(
-        "2027-01-15T11:00:00",
-      );
-      expect(instantFromWallClock("2027-01-15T11:00:00", zone)).toBe(
-        "2027-01-15T18:00:00.000Z",
-      );
-    });
-  }
+  it.runIf(TZDATA_ERA === "pre-2026c")("pre-2026c: is UTC-7 in January 2027", () => {
+    expect(wallClockFromInstant("2027-01-15T18:00:00.000Z", zone)).toBe(
+      "2027-01-15T11:00:00",
+    );
+    expect(instantFromWallClock("2027-01-15T11:00:00", zone)).toBe(
+      "2027-01-15T18:00:00.000Z",
+    );
+  });
 
-  if (TZDATA_ERA === "2026c+") {
-    it("2026c+: resolves 2026-11-01T01:30 to its only instant, as Alberta no longer falls back", () => {
-      expect(instantFromWallClock("2026-11-01T01:30:00", zone)).toBe(
-        "2026-11-01T07:30:00.000Z",
-      );
-    });
+  it.runIf(TZDATA_ERA === "2026c+")("2026c+: resolves 2026-11-01T01:30 to its only instant, as Alberta no longer falls back", () => {
+    expect(instantFromWallClock("2026-11-01T01:30:00", zone)).toBe(
+      "2026-11-01T07:30:00.000Z",
+    );
+  });
 
-    it("2026c+: round trips 2026-11-01T16:00Z as 10:00 local", () => {
-      expect(wallClockFromInstant("2026-11-01T16:00:00.000Z", zone)).toBe(
-        "2026-11-01T10:00:00",
-      );
-      expect(instantFromWallClock("2026-11-01T10:00:00", zone)).toBe(
-        "2026-11-01T16:00:00.000Z",
-      );
-    });
+  it.runIf(TZDATA_ERA === "2026c+")("2026c+: round trips 2026-11-01T16:00Z as 10:00 local", () => {
+    expect(wallClockFromInstant("2026-11-01T16:00:00.000Z", zone)).toBe(
+      "2026-11-01T10:00:00",
+    );
+    expect(instantFromWallClock("2026-11-01T10:00:00", zone)).toBe(
+      "2026-11-01T16:00:00.000Z",
+    );
+  });
 
-    it("2026c+: is UTC-6 in January 2027", () => {
-      expect(wallClockFromInstant("2027-01-15T18:00:00.000Z", zone)).toBe(
-        "2027-01-15T12:00:00",
-      );
-      expect(instantFromWallClock("2027-01-15T12:00:00", zone)).toBe(
-        "2027-01-15T18:00:00.000Z",
-      );
-    });
-  }
+  it.runIf(TZDATA_ERA === "2026c+")("2026c+: is UTC-6 in January 2027", () => {
+    expect(wallClockFromInstant("2027-01-15T18:00:00.000Z", zone)).toBe(
+      "2027-01-15T12:00:00",
+    );
+    expect(instantFromWallClock("2027-01-15T12:00:00", zone)).toBe(
+      "2027-01-15T18:00:00.000Z",
+    );
+  });
 });

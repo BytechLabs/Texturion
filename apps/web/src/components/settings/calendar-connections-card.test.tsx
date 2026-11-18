@@ -611,33 +611,29 @@ describe("#245 two-way calendar settings", () => {
       expectRefused(DST_GAP);
     });
 
-    if (TZDATA_ERA === "pre-2026c") {
-      it("pre-2026c: refuses 2026-11-01T01:30, which fall-back repeats", () => {
-        submitMovedTime(zone, "2026-11-01T01:30");
+    it.runIf(TZDATA_ERA === "pre-2026c")("pre-2026c: refuses 2026-11-01T01:30, which fall-back repeats", () => {
+      submitMovedTime(zone, "2026-11-01T01:30");
 
-        expectRefused(DST_FOLD);
-      });
+      expectRefused(DST_FOLD);
+    });
 
-      it("pre-2026c: submits a January 2027 time at UTC-7", () => {
-        submitMovedTime(zone, "2027-01-15T09:30");
+    it.runIf(TZDATA_ERA === "pre-2026c")("pre-2026c: submits a January 2027 time at UTC-7", () => {
+      submitMovedTime(zone, "2027-01-15T09:30");
 
-        expectMovedTo("2027-01-15T16:30:00.000Z");
-      });
-    }
+      expectMovedTo("2027-01-15T16:30:00.000Z");
+    });
 
-    if (TZDATA_ERA === "2026c+") {
-      it("2026c+: submits 2026-11-01T01:30 as its only instant, as Alberta no longer falls back", () => {
-        submitMovedTime(zone, "2026-11-01T01:30");
+    it.runIf(TZDATA_ERA === "2026c+")("2026c+: submits 2026-11-01T01:30 as its only instant, as Alberta no longer falls back", () => {
+      submitMovedTime(zone, "2026-11-01T01:30");
 
-        expectMovedTo("2026-11-01T07:30:00.000Z");
-      });
+      expectMovedTo("2026-11-01T07:30:00.000Z");
+    });
 
-      it("2026c+: submits a January 2027 time at UTC-6", () => {
-        submitMovedTime(zone, "2027-01-15T09:30");
+    it.runIf(TZDATA_ERA === "2026c+")("2026c+: submits a January 2027 time at UTC-6", () => {
+      submitMovedTime(zone, "2027-01-15T09:30");
 
-        expectMovedTo("2027-01-15T15:30:00.000Z");
-      });
-    }
+      expectMovedTo("2027-01-15T15:30:00.000Z");
+    });
   });
 
   it("explains a refused all-day event without offering a destructive guess", () => {

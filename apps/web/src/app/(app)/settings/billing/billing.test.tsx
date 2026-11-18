@@ -882,10 +882,11 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     // this shipped — CR-2a's two buttons, and no answer to a question nobody
     // has answered.
     renderCard();
-    for (const { code } of CANCELLATION_REASONS) {
+    const visibleOffers = CANCELLATION_REASONS.flatMap(({ code }) => {
       const offer = cancellationOffer({ reason: code, plan: "pro" }, sayEnglish);
-      if (offer) expect(screen.queryByText(offer.heading), code).toBeNull();
-    }
+      return offer && screen.queryByText(offer.heading) ? [code] : [];
+    });
+    expect(visibleOffers).toEqual([]);
   });
 
   it("OFFER-2: THE EXIT DOES NOT MOVE — the answer renders after the button", () => {

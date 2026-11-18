@@ -246,9 +246,9 @@ describe("outside the rig, every policy answer is the permissive one", () => {
     ["production", () => getEnv({ ...completeEnv(), DEPLOY_ENV: "production", POSTHOG_API_KEY: "phc_production_test_key" })],
   ])("%s", (_name, build) => {
     const env = build();
-    for (const check of Object.values(INERT_OUTSIDE_RIG)) {
-      if (check !== "constant") check(env);
-    }
+    const checks = Object.values(INERT_OUTSIDE_RIG).filter((check) => check !== "constant");
+    expect(checks.length).toBeGreaterThan(0);
+    for (const check of checks) check(env);
   });
 });
 

@@ -43,7 +43,7 @@ describe("#323 the do-not-build table parses", () => {
 
   it("throws rather than returning nothing when the heading moves", () => {
     // The whole failure mode: a guard that matches nothing reports success.
-    expect(() => parseRefusals("# Just a doc\n\nNo table here.\n")).toThrow();
+    expect(() => parseRefusals("# Just a doc\n\nNo table here.\n")).toThrow(/has no .* section/);
   });
 });
 

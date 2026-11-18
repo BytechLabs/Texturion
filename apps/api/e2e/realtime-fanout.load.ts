@@ -12,6 +12,7 @@
  * spread between the first and last subscriber for one event. What does not:
  * the hosted service's connection ceiling or these laptop milliseconds.
  */
+import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 
 import { createClient } from '@supabase/supabase-js';
@@ -147,7 +148,7 @@ async function completesBefore(
 beforeAll(async () => {
   h = await startHarness();
   const local = resolveLocalSupabasePublic();
-  expect(h.supabaseUrl).toBe(local.apiUrl);
+  assert.equal(h.supabaseUrl, local.apiUrl);
 
   const email = `${h.runId}-realtime@load.test`;
   const created = await h.db.auth.admin.createUser({

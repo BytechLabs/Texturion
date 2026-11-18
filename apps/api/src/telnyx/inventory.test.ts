@@ -139,7 +139,7 @@ describe("searchInventory (number-picker feed)", () => {
 
     await expect(
       searchInventory(env, { country: "US", areaCode: "212" }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ status: 503 });
   });
 });
 

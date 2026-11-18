@@ -258,7 +258,7 @@ describe("Google calendar provider", () => {
   });
 
   it("skips id-less rows and advances a page containing malformed unrelated timing", async () => {
-    const warning = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const warning = vi.spyOn(console, "warn").mockReturnValue(undefined);
     const { fetcher } = queuedFetch(json({
       items: [
         googleEvent({ id: undefined }),

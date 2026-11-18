@@ -674,12 +674,15 @@ describe("the app probe's workspaces", () => {
     expect(inserts[0].number_e164).not.toBe(inserts[1].number_e164);
 
     await expect(probe.assignSignUpNumber({ ownerEmail: "delivered+rig-qa-w-owner@resend.dev", nonce: "x" })).rejects.toThrow(/sign-up scenario/);
-    for (const changed of [{ subscription_status: "active" }, { country: "US" }]) {
+    for (const { changed, reason } of [
+      { changed: { subscription_status: "active" }, reason: "workspace is already active" },
+      { changed: { country: "US" }, reason: "Canadian workspace only" },
+    ]) {
       const refused = probeWith({
         [`GET ${SUPABASE}/auth/v1/admin/users`]: () => json({ users: [{ id: SIGN_UP_USER, email: owner }] }),
         [`GET ${rest("companies")}`]: () => json([{ ...company, ...changed }]),
       });
-      await expect(refused.probe.assignSignUpNumber({ ownerEmail: owner, nonce: "x" })).rejects.toThrow();
+      await expect(refused.probe.assignSignUpNumber({ ownerEmail: owner, nonce: "x" })).rejects.toThrow(reason);
       expect(refused.requests.some((r) => r.method === "POST")).toBe(false);
     }
   });

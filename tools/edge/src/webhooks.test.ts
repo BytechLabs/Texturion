@@ -77,7 +77,7 @@ describe("strangers", () => {
       via: "voice",
     });
     expect(guard.calls.some((c) => c.path === "/legs")).toBe(false);
-    await expect(rig.next(() => true, 200)).rejects.toThrow();
+    await expect(rig.next(() => true, 200)).rejects.toThrow("no matching frame from the edge");
     expect((await counters())["stranger.call"]).toBe(1);
     rig.close();
   });
@@ -89,7 +89,7 @@ describe("strangers", () => {
       messageEvent("message.received", { from: { phone_number: STRANGER }, text: "stranger words" }),
     );
     expect((await call(request, env)).status).toBe(200);
-    await expect(rig.next(() => true, 200)).rejects.toThrow();
+    await expect(rig.next(() => true, 200)).rejects.toThrow("no matching frame from the edge");
     expect((await counters())["stranger.text"]).toBe(1);
 
     const stored = await runInDurableObject(uplinkStub(), (_instance, state) => {
@@ -152,7 +152,7 @@ describe("call events", () => {
     expect((await first).status).toBe(200);
 
     expect((await call(await telnyxDelivery("/t/v2", event), env)).status).toBe(200);
-    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow();
+    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow("no matching frame from the edge");
     expect((await counters())["call.duplicate"]).toBe(1);
     rig.close();
   });
@@ -198,7 +198,7 @@ describe("call events", () => {
     expect((await counters())["call.late_answer"]).toBe(1);
     guard.latency = {};
     expect((await call(await telnyxDelivery("/t/v2", event), env)).status).toBe(200);
-    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow();
+    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow("no matching frame from the edge");
     expect((await counters())["call.duplicate"]).toBe(1);
     rig.close();
   });
@@ -212,7 +212,7 @@ describe("call events", () => {
     expect((await counters())["call.in_flight"]).toBe(1);
     rig.send({ t: "webhook-result", id: frame.t === "webhook" ? frame.id : "", status: 200 });
     expect((await first).status).toBe(200);
-    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow();
+    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow("no matching frame from the edge");
     rig.close();
   });
 

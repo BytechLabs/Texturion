@@ -552,9 +552,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
       push_enabled: true,
     });
     const stamp = sb.find("PATCH", "/rest/v1/invites")[0];
-    expect(
-      typeof (stamp.body as Record<string, unknown>).accepted_at,
-    ).toBe("string");
+    expect((stamp.body as Record<string, unknown>).accepted_at).toBeTypeOf("string");
   });
 
   it("the same acceptance applied twice creates one membership and sends one note", async () => {
@@ -1425,9 +1423,7 @@ describe("GET /v1/invites + DELETE /v1/invites/:id (O/A)", () => {
     );
     expect(revoke.status).toBe(204);
     const patch = sb.find("PATCH", "/rest/v1/invites")[0];
-    expect(typeof (patch.body as Record<string, unknown>).revoked_at).toBe(
-      "string",
-    );
+    expect((patch.body as Record<string, unknown>).revoked_at).toBeTypeOf("string");
     // Revoke only touches pending invites.
     expect(patch.url.searchParams.get("accepted_at")).toBe("is.null");
   });

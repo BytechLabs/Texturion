@@ -680,7 +680,7 @@ describe("handleInboundMessage — notify runs before media download", () => {
           media: [{ url: MEDIA_URL, content_type: "image/jpeg", size: 4 }],
         }),
       ),
-    ).rejects.toThrow();
+    ).rejects.toThrow("media download failed (HTTP 500)");
 
     // The §8 pipeline read the conversation → it ran BEFORE the media failure.
     expect(conversations.calls).toHaveLength(1);

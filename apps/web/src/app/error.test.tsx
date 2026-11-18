@@ -56,7 +56,7 @@ describe("reportBoundaryError (PostHog hand-off)", () => {
   it("never rejects, even when the SDK throws", async () => {
     const consoleSpy = vi
       .spyOn(console, "error")
-      .mockImplementation(() => undefined);
+      .mockReturnValue(undefined);
     captureSpy.mockImplementation(() => {
       throw new Error("sdk exploded");
     });

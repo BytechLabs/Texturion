@@ -248,7 +248,9 @@ describe("a row starts its contact's read", () => {
     prefetch.mockImplementation(async () => {
       order.push("prefetch");
     });
-    router.push.mockImplementation(() => order.push("push"));
+    router.push.mockImplementation(() => {
+      order.push("push");
+    });
     mount();
     fireEvent.click(row("Dana").querySelectorAll("td")[2]);
     expect(order).toEqual(["prefetch", "push"]);

@@ -103,9 +103,10 @@ describe("#233 presets land on the destination's wall clock", () => {
     // refuse is worse than no preset.
     for (let hour = 0; hour < 24; hour += 1) {
       const now = new Date(Date.UTC(2026, 5, 15, hour));
-      for (const preset of schedulePresets(now, "America/Los_Angeles", sayEn)) {
-        if (preset.at) expect(preset.at.getTime()).toBeGreaterThan(now.getTime());
-      }
+      const past = schedulePresets(now, "America/Los_Angeles", sayEn).filter(
+        ({ at }) => at !== null && at.getTime() <= now.getTime(),
+      );
+      expect(past, `UTC hour ${hour}`).toEqual([]);
     }
   });
 

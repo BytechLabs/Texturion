@@ -21,6 +21,8 @@
  *     the SPEC envelope, never a 500 "Something went wrong." that reads as a bug;
  *  4. **and it recovers**: when the load stops, the next request succeeds.
  */
+import assert from "node:assert/strict";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -75,7 +77,7 @@ beforeAll(async () => {
   );
   token = await stack.token(OWNER_ID);
   const warm = await stack.call("GET", "/v1/for-you", { token, companyId: COMPANY_ID });
-  expect(warm.status, `the first request: ${stack.logTail(15)}`).toBe(200);
+  assert.equal(warm.status, 200, `the first request: ${stack.logTail(15)}`);
 });
 
 afterAll(async () => {

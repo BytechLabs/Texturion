@@ -1489,7 +1489,7 @@ describe("D142 — the shared-account partition", () => {
       }));
       telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
 
-      const log = vi.spyOn(console, "log").mockImplementation(() => undefined);
+      const log = vi.spyOn(console, "log").mockReturnValue(undefined);
       let logged: string;
       let summary: Awaited<ReturnType<typeof reconcileNumbers>>;
       try {
@@ -1846,7 +1846,7 @@ describe("D142 — the shared-account partition", () => {
       }));
       telnyx.on("DELETE", /^\/v2\/phone_numbers\//, () => new Response(null, { status: 204 }));
 
-      const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+      const warn = vi.spyOn(console, "warn").mockReturnValue(undefined);
       let released: PhoneNumberRow[];
       try {
         released = await releaseCompanyNumbers(env, COMPANY_ID);

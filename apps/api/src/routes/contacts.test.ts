@@ -747,7 +747,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       .body as Record<string, unknown>;
     expect(update.name).toBe("Jo S.");
     expect(update.consent_source).toBe("attested");
-    expect(typeof update.consent_at).toBe("string");
+    expect(update.consent_at).toBeTypeOf("string");
     expect(update.consent_attested_by).toBe(auth.subject);
 
     const events = sb.find("POST", "/rest/v1/conversation_events")[0]
@@ -1080,9 +1080,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     expect(res.status).toBe(200);
     expect(await res.json()).toEqual({ kind: "contact", id: CONTACT_ID });
     const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
-    expect(typeof (patch.body as Record<string, unknown>).deleted_at).toBe(
-      "string",
-    );
+    expect((patch.body as Record<string, unknown>).deleted_at).toBeTypeOf("string");
     expect(sb.find("POST", "/rest/v1/audit_log")[0].body).toMatchObject({
       action: "record.deleted",
       target_type: "contact",
@@ -1462,7 +1460,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
     expect(res.status).toBe(200);
     const patch = sb.find("PATCH", "/rest/v1/contacts")[0]
       .body as Record<string, unknown>;
-    expect(typeof patch.deleted_at).toBe("string");
+    expect(patch.deleted_at).toBeTypeOf("string");
     expect(patch.deleted_by_user_id).toBe(auth.subject);
   });
 
@@ -1896,7 +1894,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       consent_source: "attested",
       consent_attested_by: auth.subject,
     });
-    expect(typeof upsert[0].consent_at).toBe("string");
+    expect(upsert[0].consent_at).toBeTypeOf("string");
   });
 
   it("#248: re-uploading the same file writes no consent at all the second time", async () => {
@@ -3957,9 +3955,7 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
       });
       expect(res.status, `${method} ${path}`).toBe(200);
       const update = sb.find("PATCH", "/rest/v1/opt_outs")[0];
-      expect(
-        typeof (update.body as Record<string, unknown>).revoked_at,
-      ).toBe("string");
+      expect((update.body as Record<string, unknown>).revoked_at).toBeTypeOf("string");
       expect(update.url.searchParams.get("revoked_at")).toBe("is.null");
       const events = sb.find("POST", "/rest/v1/conversation_events")[0]
         .body as { type: string }[];

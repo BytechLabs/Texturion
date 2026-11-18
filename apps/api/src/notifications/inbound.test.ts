@@ -792,7 +792,7 @@ describe("#694 mute and follow on the inbound audience", () => {
     const world = buildWorld({ memberPrefsFail: true });
     stubFetch(...world.routes);
 
-    await expect(notifyInboundMessage(env, INPUT)).rejects.toThrow();
+    await expect(notifyInboundMessage(env, INPUT)).rejects.toThrow("conversation prefs lookup failed: boom");
     expect(world.resend.calls).toHaveLength(0);
   });
 });

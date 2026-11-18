@@ -671,12 +671,11 @@ describe("hosted Realtime connection ramp", () => {
         settled = true;
       },
     );
-    const rejection = expect(run).rejects.toBeInstanceOf(RealtimeCleanupFailure);
     await vi.waitFor(() => expect(openRealtime).toHaveBeenCalledTimes(3));
     expect(settled).toBe(false);
     expect(sibling.close).not.toHaveBeenCalled();
     releaseSibling.resolve();
-    await rejection;
+    await expect(run).rejects.toBeInstanceOf(RealtimeCleanupFailure);
     expect(sibling.close).toHaveBeenCalledOnce();
     expect(emitted).toEqual([]);
   });

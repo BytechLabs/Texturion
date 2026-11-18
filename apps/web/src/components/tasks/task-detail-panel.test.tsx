@@ -62,7 +62,7 @@ function renderPanel(seed?: (client: QueryClient) => void) {
 beforeEach(() => {
   apiFetch.mockReset();
   // Nothing answers, so the panel stays where a slow detail leaves it.
-  apiFetch.mockImplementation(() => new Promise(() => {}));
+  apiFetch.mockReturnValue(new Promise(() => {}));
 });
 afterEach(cleanup);
 
