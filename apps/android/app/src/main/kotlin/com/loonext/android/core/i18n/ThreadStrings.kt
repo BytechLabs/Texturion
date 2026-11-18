@@ -236,6 +236,7 @@ object ThreadStrings : AppStrings.Section {
 
         // --- Message bubbles + long-press actions ---------------------------------
         "thread.internalNote" to "Internal note",
+        "thread.messageAuthorPrefix" to "{name}:",
         // #725: what stands where a teammate's name would on an automated text.
         "thread.sentAutomatically" to "Sent automatically",
         "thread.sentAutomaticallyBy" to "Sent automatically · {automation}",
@@ -1001,6 +1002,7 @@ object ThreadStrings : AppStrings.Section {
 
         // --- Message bubbles + long-press actions ---------------------------------
         "thread.internalNote" to "Note interne",
+        "thread.messageAuthorPrefix" to "{name} :",
         "thread.sentAutomatically" to "Envoyé automatiquement",
         "thread.sentAutomaticallyBy" to "Envoyé automatiquement · {automation}",
         "thread.automationAwayReply" to "Réponse d’absence",

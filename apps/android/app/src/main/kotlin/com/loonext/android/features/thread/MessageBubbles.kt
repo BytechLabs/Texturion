@@ -59,6 +59,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.text
+import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.LinkAnnotation
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLinkStyles
@@ -161,6 +164,12 @@ fun MessageBubble(
     val outbound = message.direction == MessageDirection.OUTBOUND
     val note = message.direction == MessageDirection.NOTE
     val done = message.done_at != null
+    val authorSemantics = if (!outbound && !note && authorName != null) {
+        val label = t("thread.messageAuthorPrefix", "name" to authorName)
+        Modifier.semantics { text = AnnotatedString(label) }
+    } else {
+        Modifier
+    }
 
     Column(
         modifier
@@ -198,7 +207,7 @@ fun MessageBubble(
                 indication = null,
                 onClick = {},
                 onLongClick = onLongPress,
-            ),
+            ).then(authorSemantics),
             horizontalAlignment = when {
                 note -> Alignment.CenterHorizontally
                 outbound -> Alignment.End

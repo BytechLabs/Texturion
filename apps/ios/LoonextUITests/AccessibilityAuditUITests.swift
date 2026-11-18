@@ -21,6 +21,16 @@ final class AccessibilityAuditUITests: XCTestCase {
 
     func testThreadAndComposer() throws { try audit("thread") }
 
+    func testTimelineNamesTheSenderOnEachMessage() {
+        let app = launchEvidence("thread", "light")
+        defer { app.terminate() }
+        XCTAssertTrue(
+            element(app, labelContains: "Maria: Can you come by Tuesday morning?")
+                .waitForExistence(timeout: 20)
+        )
+        XCTAssertTrue(element(app, labelContains: "Dana: Yes, 9am works.").exists)
+    }
+
     // MARK: Calls
 
     func testCallLog() throws { try audit("calls") }

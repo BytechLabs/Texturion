@@ -1066,7 +1066,9 @@ private struct ThreadBody: View {
                 // #101 shared-inbox attribution: in a shared inbox the first
                 // question about an outbound text is who already answered this
                 // customer, so sends carry the teammate's name like the web.
-                authorName: bubbleAuthorName(message, names: names),
+                authorName: message.direction == MessageDirection.inbound
+                    ? contactName
+                    : bubbleAuthorName(message, names: names),
                 doneByName: message.done_by_user_id.flatMap { names[$0] },
                 noteFilesState: message.direction == MessageDirection.note
                     ? controller.noteFiles[message.id]

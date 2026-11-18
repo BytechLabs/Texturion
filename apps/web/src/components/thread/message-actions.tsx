@@ -96,9 +96,11 @@ function isRetryable(message: Message): boolean {
 function DoneToggle({
   message,
   conversationId,
+  describedBy,
 }: {
   message: Message;
   conversationId: string;
+  describedBy: string;
 }) {
   const t = useT();
   const setDone = useSetMessageDone(conversationId);
@@ -136,6 +138,7 @@ function DoneToggle({
       type="button"
       aria-pressed={done}
       aria-label={doneToggleLabel(done, t)}
+      aria-describedby={describedBy}
       onClick={() => setDone.mutate({ messageId: message.id, done: !done })}
       className={cn(
         // tap-target: the 16px icon + p-1 is 24px; extend the hit area to
@@ -339,7 +342,7 @@ export function MessageMenuScope({
  * controls max — done + overflow). Renders the message's action list; the
  * button is absent when nothing is allowed. Same reveal rules as the done toggle.
  */
-function MessageOverflow() {
+function MessageOverflow({ describedBy }: { describedBy: string }) {
   const t = useT();
   const { actions } = useMessageMenu();
   return (
@@ -351,6 +354,7 @@ function MessageOverflow() {
         <button
           type="button"
           aria-label={t("thread.moreActions")}
+          aria-describedby={describedBy}
           className={cn(
             "tap-target shrink-0 rounded-full p-1 text-foreground-tertiary transition-[color,opacity] duration-150 ease-out",
             "hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
@@ -372,9 +376,11 @@ function MessageOverflow() {
 export function MessageActions({
   message,
   conversationId,
+  describedBy,
 }: {
   message: Message;
   conversationId: string;
+  describedBy: string;
 }) {
   // A never-sent outbound (queued/failed) has no delivered work to complete, so
   // its Done toggle is withheld (marking it done is nonsensical). "Make a task"
@@ -383,8 +389,10 @@ export function MessageActions({
   const done = !isUnsentOutbound(message);
   return (
     <div className="flex shrink-0 items-center gap-0.5 self-center">
-      {done && <DoneToggle message={message} conversationId={conversationId} />}
-      <MessageOverflow />
+      {done && (
+        <DoneToggle message={message} conversationId={conversationId} describedBy={describedBy} />
+      )}
+      <MessageOverflow describedBy={describedBy} />
     </div>
   );
 }
