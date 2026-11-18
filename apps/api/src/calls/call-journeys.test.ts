@@ -53,6 +53,7 @@ const FAR_END_E164 = "+16135550160";
 /** One workspace and line per journey, as the e2e layer seeds them. */
 const LINES: Record<string, string> = {
   "inbound-answered": "+16135550150",
+  "inbound-missed": "+16135550154",
   voicemail: "+16135550151",
   "outbound-answered": "+16135550152",
   "transfer-blind": "+16135550153",
@@ -611,6 +612,18 @@ describe("hermetic call journeys (session layer)", () => {
       company_id: crew.companyId,
       state: "ended_answered",
       outcome: "answered",
+    });
+  });
+
+  it("S05 caller hangup while ringing: one missed call after replay", async () => {
+    const crew = crewFor("inbound-missed");
+    const { sessionId } = await runCallJourney("inbound-missed", "session", driver(), crew);
+    const half = expectQuietSession(sessionId);
+    expect(half.terminalMerges).toEqual(["event"]);
+    expect(sessionRow(sessionId)).toMatchObject({
+      direction: "inbound",
+      outcome: "missed",
+      state: "ended_missed",
     });
   });
 

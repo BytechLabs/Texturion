@@ -208,7 +208,9 @@
       "dials": 1,
       "far_end_legs": 1,
       "peak_concurrent_outbound_legs": 1,
-      "min_room": 2
+      "peak_concurrent_legs": 2,
+      "min_room": 2,
+      "journey": "inbound-missed"
     },
     {
       "id": "S06",

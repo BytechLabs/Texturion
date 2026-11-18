@@ -14,6 +14,13 @@
       "peak_concurrent_legs": 2,
       "peak_concurrent_outbound_legs": 1
     },
+    "inbound-missed": {
+      "rig_scenario": "S05",
+      "dials": 1,
+      "far_end_legs": 1,
+      "peak_concurrent_legs": 2,
+      "peak_concurrent_outbound_legs": 1
+    },
     "voicemail": {
       "rig_scenario": "S04",
       "dials": 1,
