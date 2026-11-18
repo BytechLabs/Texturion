@@ -61,12 +61,14 @@ export interface TransferState {
   hops: number;
   caller: string | null;
   transferId?: string;
+  wakeId?: string;
 }
 
 export function buildTransferState(input: TransferState): string {
   const id = input.transferId ? `|${input.transferId}` : "";
+  const wake = input.transferId && input.wakeId ? `|${input.wakeId}` : "";
   return b64encode(
-    `${TRANSFER_TARGET_STATE}|${input.sessionId}|${input.targetUserId}|${input.senderUserId}|${input.hops}|${input.caller ?? ""}${id}`,
+    `${TRANSFER_TARGET_STATE}|${input.sessionId}|${input.targetUserId}|${input.senderUserId}|${input.hops}|${input.caller ?? ""}${id}${wake}`,
   );
 }
 
@@ -76,18 +78,20 @@ export function parseTransferState(
   const decoded = b64decode(raw);
   if (!decoded) return null;
   const parts = decoded.split("|");
-  if (parts[0] !== TRANSFER_TARGET_STATE || parts.length < 6 || parts.length > 7) return null;
-  const [, sessionId, targetUserId, senderUserId, hopsRaw, caller, transferId] = parts;
+  if (parts[0] !== TRANSFER_TARGET_STATE || parts.length < 6 || parts.length > 8) return null;
+  const [, sessionId, targetUserId, senderUserId, hopsRaw, caller, transferId, wakeId] = parts;
   const hops = Number(hopsRaw);
   if (!sessionId || !targetUserId || !senderUserId || !Number.isFinite(hops)) {
     return null;
   }
   if (transferId !== undefined && !TRANSFER_ID.test(transferId)) return null;
-  return { sessionId, targetUserId, senderUserId, hops, caller: caller || null, transferId };
+  if (wakeId !== undefined && !TRANSFER_ID.test(wakeId)) return null;
+  return { sessionId, targetUserId, senderUserId, hops, caller: caller || null, transferId, wakeId };
 }
 
 function transferLegToken(state: TransferState): string {
-  return `transfer:${state.transferId ?? `${state.targetUserId}:${state.hops}`}`;
+  const id = state.transferId ?? `${state.targetUserId}:${state.hops}`;
+  return state.wakeId ? `transfer:${id}:${state.wakeId}` : `transfer:${id}`;
 }
 
 export function buildConsultState(input: {
@@ -150,7 +154,7 @@ export async function bindRegisteredTransferLeg(env: Env, state: TransferState, 
   const stub = callSessionStub(env, state.sessionId);
   if (!stub) throw new Error("registered transfer has no session binding");
   await stub.bindTransferLeg({
-    transferId: state.transferId, targetUserId: state.targetUserId, memberCcid,
+    transferId: state.transferId, wakeId: state.wakeId, targetUserId: state.targetUserId, memberCcid,
   });
 }
 
@@ -240,7 +244,7 @@ export async function issueTransfer(
       from: input.callerNumberForTarget,
       timeout_secs: TRANSFER_TIMEOUT_SECS,
       client_state: buildTransferState(input.state),
-      ...(input.state.transferId ? { command_id: input.state.transferId } : {}),
+      ...(input.state.transferId ? { command_id: input.state.wakeId ?? input.state.transferId } : {}),
       custom_headers: targetHeaders,
     });
     if (!dialed) {
@@ -297,7 +301,7 @@ async function handleRegisteredTransferAnswer(
   const stub = callSessionStub(env, state.sessionId);
   if (!stub) throw new Error("registered transfer has no session binding");
   const bridged = await stub.completeTransfer({
-    transferId, targetUserId: state.targetUserId, memberCcid: realLegCcid,
+    transferId, wakeId: state.wakeId, targetUserId: state.targetUserId, memberCcid: realLegCcid,
   });
   if (bridged) {
     const call = await liveCallBySession(db, state.sessionId);
@@ -439,11 +443,19 @@ export async function handleTransferLegHangup(
   db: SupabaseClient,
   state: TransferState,
   missed: boolean,
+  attempt?: { memberCcid?: string; explicitlyDeclined: boolean },
 ): Promise<void> {
   if (state.transferId) {
     const stub = callSessionStub(env, state.sessionId);
     if (!stub) throw new Error("registered transfer has no session binding");
-    if (await stub.clearIntent(state.transferId) === "bridged") return;
+    const result = await stub.endTransferAttempt({
+      transferId: state.transferId,
+      wakeId: state.wakeId,
+      userId: state.targetUserId,
+      memberCcid: attempt?.memberCcid,
+      waitForWake: !attempt?.explicitlyDeclined,
+    });
+    if (result === "bridged") return;
     const { error } = await db.from("call_member_legs").update({ state: "failed" })
       .eq("call_session_id", state.sessionId).eq("call_control_id", transferLegToken(state))
       .eq("user_id", state.targetUserId).eq("kind", "transfer").eq("state", "ringing");

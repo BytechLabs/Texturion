@@ -108,6 +108,7 @@ data class PushContent(
 
     /** `call` query param from the wake link (`/calls?call=<call_session_id>`). */
     val callSessionId: String? get() = queryParam(url, "call")
+    val transferId: String? get() = if (isCall) queryParam(url, "transfer") else null
 }
 
 fun outboxNoticeTag(conversationId: String): String = "outbox:$conversationId"

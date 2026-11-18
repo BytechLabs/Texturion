@@ -89,6 +89,7 @@ private struct TransferBody: Codable, Sendable {
 
 private struct RingMeBody: Encodable, Sendable {
     let no_local_leg: Bool
+    let transfer_id: String?
 }
 
 /// The endpoints `SoftphoneCore` drives — a protocol seam so the core's
@@ -123,7 +124,7 @@ protocol CallsBackend: Sendable {
 
     /// Push-to-wake part 2: re-ring THIS member for a still-ringing call.
     func sessionState(companyId: String, sessionId: String) async throws -> RingSessionState
-    func ringMe(companyId: String, sessionId: String, noLocalLeg: Bool) async throws -> RingAck
+    func ringMe(companyId: String, sessionId: String, noLocalLeg: Bool, transferId: String?) async throws -> RingAck
 }
 
 /// The real backend over `ApiClient`, plus the calls tab's typed reads.
@@ -181,10 +182,11 @@ struct CallsService: CallsBackend {
         try await api.get("/v1/calls/live/\(sessionId)/state", companyId: companyId)
     }
 
-    func ringMe(companyId: String, sessionId: String, noLocalLeg: Bool) async throws -> RingAck {
-        try await api.post(
-            "/v1/calls/live/\(sessionId)/ring-me",
-            body: RingMeBody(no_local_leg: noLocalLeg),
+    func ringMe(companyId: String, sessionId: String, noLocalLeg: Bool, transferId: String?) async throws -> RingAck {
+        let action = transferId == nil ? "ring-me" : "transfer/ring-me"
+        return try await api.post(
+            "/v1/calls/live/\(sessionId)/\(action)",
+            body: RingMeBody(no_local_leg: noLocalLeg, transfer_id: transferId),
             companyId: companyId
         )
     }

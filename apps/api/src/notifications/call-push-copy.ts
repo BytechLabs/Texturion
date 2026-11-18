@@ -8,6 +8,7 @@ const CALL_COPY_TIMEOUT_MS = 750;
 
 interface CallPushCopy {
   incoming: { title: string; body: string };
+  transfer: { title: (sender: string | null) => string; body: string };
   answered: { title: string; body: (member: string | null) => string };
   voicemail: { title: string; body: (caller: string) => string };
   missed: { title: string; body: (caller: string) => string };
@@ -17,6 +18,10 @@ interface CallPushCopy {
 export const CALL_PUSH_COPY: Record<Locale, CallPushCopy> = {
   en: {
     incoming: { title: "Incoming call", body: "Someone is calling your business number" },
+    transfer: {
+      title: (sender) => sender ? `Transfer from ${sender}` : "Incoming transfer",
+      body: "A teammate is transferring a call to you",
+    },
     answered: {
       title: "Call answered",
       body: (member) => member ? `${member} picked it up.` : "A teammate picked it up.",
@@ -27,6 +32,10 @@ export const CALL_PUSH_COPY: Record<Locale, CallPushCopy> = {
   },
   "fr-CA": {
     incoming: { title: "Appel entrant", body: "Quelqu’un appelle votre numéro professionnel" },
+    transfer: {
+      title: (sender) => sender ? `Appel transféré par ${sender}` : "Transfert entrant",
+      body: "Un membre de l’équipe vous transfère un appel",
+    },
     answered: {
       title: "Appel pris",
       body: (member) => member ? `${member} a répondu.` : "Un membre de l’équipe a répondu.",

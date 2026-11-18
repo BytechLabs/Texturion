@@ -135,7 +135,7 @@ data class RingAck(
  *  rule §10.1.3 they only call ring-me when holding no live leg, so the call
  *  itself is the attestation "nothing presents on THIS DEVICE". */
 @Serializable
-private data class RingMeBody(val no_local_leg: Boolean)
+private data class RingMeBody(val no_local_leg: Boolean, val transfer_id: String?)
 
 /**
  * POST /v1/calls/live/:session/decline response (#171 bug 1). Decline is a
@@ -222,6 +222,7 @@ interface CallsApi {
         companyId: String,
         sessionId: String,
         noLocalLeg: Boolean = true,
+        transferId: String? = null,
     ): RingAck
 
     /**
@@ -291,9 +292,10 @@ class HttpCallsApi(private val api: ApiClient) : CallsApi {
         companyId: String,
         sessionId: String,
         noLocalLeg: Boolean,
+        transferId: String?,
     ): RingAck = api.post(
-        "/v1/calls/live/$sessionId/ring-me",
-        RingMeBody(no_local_leg = noLocalLeg),
+        if (transferId == null) "/v1/calls/live/$sessionId/ring-me" else "/v1/calls/live/$sessionId/transfer/ring-me",
+        RingMeBody(no_local_leg = noLocalLeg, transfer_id = transferId),
         companyId = companyId,
     )
 

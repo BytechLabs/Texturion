@@ -1654,24 +1654,23 @@ byte-identical to today.
 
 ### 18.7 Transfer / consult mechanic (D11 — the proven consult-style path)
 
-Parity is by the shared `answered` contract: `registerIntent`,
-`handleTransferAnswered`'s #208 **setOwner-then-clearIntent** ordering, and the
-consult routes are reused. The one direction-aware seam is the transfer COMMAND
-inside `issueTransfer`:
+For either direction, a blind transfer registers an intent on the answered
+session and dials an independent `brt` leg. The sender stays bridged to the
+customer while the target rings. When the target answers, the session bridges
+the new leg before updating the call owner. A target who declines or misses
+the call leaves the original bridge in place.
 
-- **INBOUND**: the Telnyx `transfer` command on the customer leg (unchanged).
-- **OUTBOUND (founder-directed, shipped WITHOUT a staging spike)**: the PROVEN
-  consult-style **dial + bridge-steal** — the same mechanic `consult/complete`
-  runs against customer ccids in prod. `issueTransfer` DIALS the target as a
-  `brt` leg; on its `call.answered`, `handleTransferAnswered` **bridge-STEALS the
-  customer (oc) leg onto it, dropping the placer**. The Telnyx `transfer` command
-  on a browser-originated oc leg was never exercised, so it is deliberately NOT
-  used. Because the placer stays bridged until the steal, a MISSED outbound
-  target leaves the placer still connected — `handleTransferLegHangup` marks the
-  transfer failed and returns (NO snap-back, NO customer hangup); the inbound
-  snap-back exists only because the Telnyx transfer unbridges the sender at issue.
-- **Consult** is unchanged for outbound: `consult/complete` already
-  bridge-steals onto `customer_call_control_id`, which for outbound is the oc leg.
+The accepted transfer sends one high-priority wake notification to the target
+through the existing push preferences and delivery budget. The notification
+link carries `call` and `transfer` query parameters. A ready device which has
+no local leg can POST `/v1/calls/live/:sessionId/transfer/ring-me` with
+`transfer_id` and `no_local_leg: true`. The session checks the target and
+intent, waits four seconds if the initial leg is still recent, and permits one
+replacement dial within the wake window and session leg limit. An answer or
+hangup from the replaced leg cannot settle the replacement.
+
+`consult/complete` uses the same customer leg identifier to hand over a call
+after both consult participants join.
 
 Owner-death teardown relies on the existing **4h janitor (T16)** as the
 correctness backstop, so a slow or absent oc `call.hangup` is a latency issue,

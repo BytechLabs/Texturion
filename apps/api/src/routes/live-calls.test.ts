@@ -11,6 +11,7 @@ import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../
 import type { SupabaseStub } from '../test/routes-harness';
 import { stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
+import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { TestAuth } from '../test/support';
 import type { Env } from "../env";
@@ -94,6 +95,9 @@ function liveWorld(opts: {
   sb.on("POST", "/rest/v1/conversation_events", () =>
     Response.json([], { status: 201 }),
   );
+  sb.on("GET", "/rest/v1/notification_prefs", () => []);
+  sb.on("GET", "/rest/v1/push_subscriptions", () => []);
+  sb.on("GET", "/rest/v1/profiles", () => [{ display_name: "Sam" }]);
   return sb;
 }
 
@@ -272,6 +276,60 @@ describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
         );
       }
     }
+  });
+
+  it("pushes once after accepting a transfer and lets only its target request one extra dial", async () => {
+    const transfer = telnyxDialAndActions();
+    const fcm = fcmService();
+    const sb = liveWorld({});
+    const wakeId = crypto.randomUUID();
+    let activeId: string | undefined;
+    let reserved = false;
+    sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: "target-device", user_id: TARGET_ID, token: "fixture", platform: "android" },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route, transfer.route, ...fcm.routes);
+    const doEnv: Env = {
+      ...fcmEnv(await makeServiceAccount()),
+      CALL_SESSIONS: {
+        idFromName: (name: string) => name,
+        get: () => ({
+          registerIntent: async ({ transferId }: { transferId: string }) => {
+            if (activeId) return { state: "answered", registered: false };
+            activeId = transferId;
+            return { state: "answered", registered: true };
+          },
+          reserveTransferWake: async ({ userId, transferId }: { userId: string; transferId: string }) => {
+            if (userId !== TARGET_ID || transferId !== activeId) return { state: "answered", reason: "not_ringing" };
+            if (reserved) return { state: "answered", reason: "live_leg" };
+            reserved = true;
+            return { state: "answered", wakeId, senderUserId: auth.subject };
+          },
+        }),
+      } as unknown as Env["CALL_SESSIONS"],
+    };
+    const senderToken = await auth.token();
+    const targetToken = await auth.token({ subject: TARGET_ID });
+    const base = `/v1/calls/live/${SESSION}/transfer`;
+    const start = () => apiRequest(app, doEnv, senderToken, base, {
+      companyId: COMPANY_ID, method: "POST", body: { target_user_id: TARGET_ID },
+    });
+    expect((await start()).status).toBe(202);
+    expect((await start()).status).toBe(409);
+    expect(fcm.sends).toHaveLength(1);
+    expect(fcm.sends[0].message.data).toMatchObject({
+      kind: "call", title: "Transfer from Sam", url: `/calls?call=${SESSION}&transfer=${activeId}`,
+    });
+    const ring = (token: string, transferId = activeId) => apiRequest(app, doEnv, token, `${base}/ring-me`, {
+      companyId: COMPANY_ID, method: "POST", body: { transfer_id: transferId, no_local_leg: true },
+    });
+    expect(await (await ring(senderToken)).json()).toMatchObject({ rang: false, reason: "not_ringing" });
+    expect(await (await ring(targetToken, crypto.randomUUID())).json()).toMatchObject({ rang: false, reason: "not_ringing" });
+    expect(await (await ring(targetToken)).json()).toMatchObject({ rang: true });
+    expect(await (await ring(targetToken)).json()).toMatchObject({ rang: false, reason: "live_leg" });
+    expect(fcm.sends).toHaveLength(1);
+    expect(transfer.calls).toHaveLength(2);
+    expect(transfer.calls[1].body).toMatchObject({ command_id: wakeId, to: "sip:gencred_target@sip.telnyx.com" });
   });
 
   it("404s a session from another company (scoped read finds nothing)", async () => {

@@ -226,11 +226,13 @@ export function useResolveLiveSession() {
 export function useRingMe() {
   const companyId = useCompanyId();
   return useMutation({
-    mutationFn: (sessionId: string) =>
-      apiFetch<{ ok: boolean; rang?: boolean; state?: string; reason?: string }>(
-        `/v1/calls/live/${encodeURIComponent(sessionId)}/ring-me`,
-        { companyId, method: "POST", body: { no_local_leg: true } },
-      ),
+    mutationFn: ({ sessionId, transferId }: { sessionId: string; transferId: string | null }) => {
+      const action = transferId ? "transfer/ring-me" : "ring-me";
+      return apiFetch<{ ok: boolean; rang?: boolean; state?: string; reason?: string }>(
+        `/v1/calls/live/${encodeURIComponent(sessionId)}/${action}`,
+        { companyId, method: "POST", body: { no_local_leg: true, ...(transferId ? { transfer_id: transferId } : {}) } },
+      );
+    },
   });
 }
 

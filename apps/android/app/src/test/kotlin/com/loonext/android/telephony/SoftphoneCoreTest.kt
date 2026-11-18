@@ -92,6 +92,7 @@ class SoftphoneCoreTest {
     private var ringMeBehavior: () -> RingAck =
         { RingAck(ok = true, rang = true, state = CallWakePolicy.STATE_RINGING) }
     private val ringMeNoLocalLeg = mutableListOf<Boolean>()
+    private val ringMeTransferIds = mutableListOf<String?>()
 
     /** Every session the per-session fast-path decline POSTed (#171 R1). */
     private val declinedSessions = mutableListOf<String>()
@@ -111,6 +112,7 @@ class SoftphoneCoreTest {
         }
         ringMeBehavior = { RingAck(ok = true, rang = true, state = CallWakePolicy.STATE_RINGING) }
         ringMeNoLocalLeg.clear()
+        ringMeTransferIds.clear()
         declinedSessions.clear()
         declineMineCalls.set(0)
     }
@@ -164,8 +166,10 @@ class SoftphoneCoreTest {
             companyId: String,
             sessionId: String,
             noLocalLeg: Boolean,
+            transferId: String?,
         ): RingAck {
             ringMeNoLocalLeg += noLocalLeg
+            ringMeTransferIds += transferId
             return ringMeBehavior()
         }
 
@@ -812,6 +816,23 @@ class SoftphoneCoreTest {
         h.core.onIncomingCallPush("sess-done")
 
         assertTrue(ringMeNoLocalLeg.isEmpty())
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a refused transfer wake clears the OS ring without retrying`() = runTest {
+        sessionStateBehavior = { error("The transfer endpoint owns the state check") }
+        ringMeBehavior = { RingAck(ok = true, rang = false, state = "answered", reason = "not_ringing") }
+        val ended = mutableListOf<String>()
+        val h = harness()
+        h.core.onWakeSessionOver = { ended += it }
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        h.core.onIncomingCallPush("sess-transfer", transferId = "transfer-one")
+
+        assertEquals(listOf("transfer-one"), ringMeTransferIds)
+        assertEquals(listOf("sess-transfer"), ended)
         h.scope.cancel()
     }
 

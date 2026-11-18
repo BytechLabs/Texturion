@@ -23,6 +23,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { deadline } from "../http/deadline";
 import { captureException, workerEnv } from "../observability/capture";
 
 import { CALL_PUSH_COPY, loadCallPushCopySettings } from "./call-push-copy";
@@ -35,6 +36,7 @@ import { sendWebPush } from "./webpush";
 
 /** Per-recipient device bound (#267): never a single ceiling across the crew. */
 const MAX_TARGETS_PER_USER = 10;
+const SENDER_NAME_TIMEOUT_MS = 750;
 
 interface SubscriptionRow {
   id: string;
@@ -51,6 +53,14 @@ interface DeviceTokenRow {
   locale: string | null;
   platform: "android" | "ios";
   token: string;
+}
+
+interface IncomingCallPush {
+  companyId: string;
+  userIds: string[];
+  caller: string | null;
+  callSessionId: string;
+  transfer?: { id: string; senderUserId: string };
 }
 
 /**
@@ -126,15 +136,23 @@ function endpointHost(endpoint: string): string {
   }
 }
 
+async function transferSenderName(db: SupabaseClient, senderUserId: string): Promise<string | null> {
+  const limit = deadline(SENDER_NAME_TIMEOUT_MS);
+  try {
+    const { data } = await db.from("profiles").select("display_name")
+      .eq("user_id", senderUserId).limit(1).abortSignal(limit.signal);
+    return data?.[0]?.display_name?.trim() || null;
+  } catch {
+    return null;
+  } finally {
+    limit.clear();
+  }
+}
+
 export async function notifyIncomingCall(
   env: Env,
   db: SupabaseClient,
-  input: {
-    companyId: string;
-    userIds: string[];
-    caller: string | null;
-    callSessionId: string;
-  },
+  input: IncomingCallPush,
 ): Promise<IncomingCallPushReport> {
   // Best-effort contract (#140 awaits this in the ring path): a thrown DB/network
   // error here must NEVER break the live call. Swallow-but-report at the top so
@@ -155,12 +173,7 @@ export async function notifyIncomingCall(
 async function deliverIncomingCallPush(
   env: Env,
   db: SupabaseClient,
-  input: {
-    companyId: string;
-    userIds: string[];
-    caller: string | null;
-    callSessionId: string;
-  },
+  input: IncomingCallPush,
   attempts: PushAttempt[],
 ): Promise<IncomingCallPushReport> {
   if (input.userIds.length === 0) return { unreachableUserIds: [] };
@@ -203,9 +216,11 @@ async function deliverIncomingCallPush(
     // the sort is newest-first, so it was always the same people.
     .order("created_at", { ascending: false })
     .limit(pushUserIds.length * MAX_TARGETS_PER_USER);
-  const [{ data, error }, { localeFor }] = await Promise.all([
+  const transfer = input.transfer;
+  const [{ data, error }, { localeFor }, senderName] = await Promise.all([
     readSubscriptions,
     loadCallPushCopySettings(db, input.companyId, pushUserIds),
+    transfer ? transferSenderName(db, transfer.senderUserId) : null,
   ]);
   if (error) return { unreachableUserIds: [] }; // best-effort — never throw
   const subscriptions = newestPerUser(
@@ -213,13 +228,15 @@ async function deliverIncomingCallPush(
     MAX_TARGETS_PER_USER,
   );
 
+  const query = new URLSearchParams({ call: input.callSessionId });
+  if (transfer) query.set("transfer", transfer.id);
   const payload = (target: SubscriptionRow | DeviceTokenRow) => {
-    const copy = CALL_PUSH_COPY[localeFor(target)].incoming;
+    const copy = CALL_PUSH_COPY[localeFor(target)];
     return JSON.stringify({
       kind: "call",
-      title: copy.title,
-      body: input.caller ?? copy.body,
-      url: `/calls?call=${encodeURIComponent(input.callSessionId)}`,
+      title: transfer ? copy.transfer.title(senderName) : copy.incoming.title,
+      body: input.caller ?? (transfer ? copy.transfer.body : copy.incoming.body),
+      url: `/calls?${query}`,
     });
   };
 

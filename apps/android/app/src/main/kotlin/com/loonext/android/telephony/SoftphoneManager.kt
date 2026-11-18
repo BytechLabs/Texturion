@@ -336,13 +336,13 @@ class SoftphoneManager private constructor(
         runCatching { registry.ensureIncomingCall(session, content.title, callerHint.orEmpty()) }
         scope.launch {
             try {
-                core.onIncomingCallPush(session, callerHint)
+                core.onIncomingCallPush(session, callerHint, content.transferId)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (_: Exception) {
                 delay(1_500)
                 try {
-                    core.onIncomingCallPush(session, callerHint)
+                    core.onIncomingCallPush(session, callerHint, content.transferId)
                 } catch (cause: CancellationException) {
                     throw cause
                 } catch (_: Exception) {
@@ -398,9 +398,9 @@ class SoftphoneManager private constructor(
      * OS incoming call so a tray-fallback / cold-start tap lands the OS UI, not
      * an empty calls list. conflict/not_found are swallowed by contract.
      */
-    suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null) {
+    suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null, transferId: String? = null) {
         runCatching { registry.ensureIncomingCall(sessionId, CallNotifier.unknownCaller(), callerHint.orEmpty()) }
-        core.onIncomingCallPush(sessionId, callerHint)
+        core.onIncomingCallPush(sessionId, callerHint, transferId)
     }
 
     /**

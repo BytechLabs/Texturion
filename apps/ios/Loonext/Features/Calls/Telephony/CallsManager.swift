@@ -248,9 +248,9 @@ final class CallsManager {
     /// ensure the SDK is registered, then POST ring-me. conflict (already
     /// answered/ended) and not_found are swallowed by contract; other
     /// failures propagate to the caller.
-    func onIncomingCallPush(sessionId: String) async throws {
+    func onIncomingCallPush(sessionId: String, transferId: String? = nil) async throws {
         beacon(.pushReceived, sessionId: sessionId)
-        let ack = try await core.onIncomingCallPush(sessionId: sessionId)
+        let ack = try await core.onIncomingCallPush(sessionId: sessionId, transferId: transferId)
         if ack?.reason == "not_your_turn" {
             PushCoordinator.clearRingNotification(sessionId)
         }

@@ -40,10 +40,18 @@ import { callStepsBetween } from "./call-steps";
 import { createSessionRuntime } from './runtime';
 import type { AdoptionRow, SessionRuntime } from './runtime';
 import { requiresUnauthorizedHangup } from "./outbound-leg-gate";
-import {DIAL_BATCH_SIZE, isTerminal, JOURNAL_RESUME_MS, MAX_TELNYX_COMMANDS_PER_SESSION, outcomeForState, QUEUE_LATENCY_WARN_MS, reduce, RING_WINDOW_SECS, unavailableNotice} from './transitions';
+import {
+  DIAL_BATCH_SIZE, INTENT_EXPIRY_MS, isTerminal, JOURNAL_RESUME_MS, MAX_LEGS_PER_SESSION,
+  MAX_TELNYX_COMMANDS_PER_SESSION, outcomeForState, QUEUE_LATENCY_WARN_MS, reduce,
+  RING_ME_DEBOUNCE_MS, RING_WINDOW_SECS, TRANSFER_WAKE_EXPIRY_MS, unavailableNotice,
+} from './transitions';
 
 export { JANITOR_MS, PURGE_DELAY_MS, RING_WINDOW_SECS } from './transitions';
 import type { AlarmKind, CallState, DeclineReply, Effect, MirrorSet, RingMeReply, SessionEvent, SessionMachine } from './transitions';
+
+type TransferWakeReservation =
+  | { state: "answered"; wakeId: string; senderUserId: string }
+  | { state: CallState; reason: "not_ringing" | "recent_leg" | "live_leg" | "dial_failed" };
 
 /** The freshest machine view the /state route serves (read-your-writes). */
 export interface SessionSnapshot {
@@ -409,7 +417,8 @@ export class CallSessionDO extends DurableObject<Env> {
     kind: "transfer" | "consult";
     targetUserId: string;
     transferId?: string;
-  }): Promise<{ state: CallState; registered: boolean }> {
+    senderUserId?: string;
+  }): Promise<{ state: CallState; registered: boolean; reason?: "leg_limit" }> {
     return this.enqueue(async () => {
       if (input.sessionId) await this.rememberSessionId(input.sessionId);
       await this.resumeJournalIfAny();
@@ -419,15 +428,73 @@ export class CallSessionDO extends DurableObject<Env> {
       if (machine.intent?.transferId || transferCannotStart) {
         return { state: machine.state, registered: false };
       }
+      if (input.transferId && machine.legs.length + (machine.transferDialCount ?? 0) >= MAX_LEGS_PER_SESSION) {
+        return { state: machine.state, registered: false, reason: "leg_limit" };
+      }
       await this.admitAndDrain(
         {
           type: "register-intent", kind: input.kind, targetUserId: input.targetUserId,
-          transferId: input.transferId,
+          transferId: input.transferId, senderUserId: input.senderUserId,
         },
         null,
       );
       const after = await this.load();
       return { state: after?.state ?? machine.state, registered: true };
+    });
+  }
+
+  async reserveTransferWake(input: {
+    transferId: string;
+    userId: string;
+  }): Promise<TransferWakeReservation> {
+    return this.enqueue(async (): Promise<TransferWakeReservation> => {
+      await this.resumeJournalIfAny();
+      const machine = await this.load();
+      const state = machine?.state ?? "ended_missed";
+      const intent = machine?.intent;
+      if (!machine || state !== "answered" || !intent?.senderUserId ||
+          intent.transferId !== input.transferId || intent.targetUserId !== input.userId) {
+        return { state, reason: "not_ringing" };
+      }
+      if (intent.wakeId) return { state, reason: "live_leg" };
+      const elapsed = Date.now() - (intent.transferStartedAtMs ?? 0);
+      if (elapsed > TRANSFER_WAKE_EXPIRY_MS - INTENT_EXPIRY_MS) return { state, reason: "not_ringing" };
+      if (!intent.transferLegEnded && elapsed < RING_ME_DEBOUNCE_MS) {
+        return { state, reason: "recent_leg" };
+      }
+      if (machine.legs.length + (machine.transferDialCount ?? 0) >= MAX_LEGS_PER_SESSION) {
+        return { state, reason: "dial_failed" };
+      }
+      const wakeId = crypto.randomUUID();
+      await this.admitAndDrain({ type: "reserve-transfer-wake", wakeId }, null);
+      return { state, wakeId, senderUserId: intent.senderUserId };
+    });
+  }
+
+  async endTransferAttempt(input: {
+    transferId: string;
+    wakeId?: string;
+    userId: string;
+    memberCcid?: string;
+    waitForWake: boolean;
+  }): Promise<"cleared" | "waiting" | "bridged" | "stale"> {
+    return this.enqueue(async () => {
+      await this.resumeJournalIfAny();
+      const machine = await this.load();
+      if (machine?.lastTransfer?.id === input.transferId &&
+          machine.lastTransfer.memberCcid === input.memberCcid) return "bridged";
+      const intent = machine?.intent;
+      if (!intent || intent.transferId !== input.transferId || intent.targetUserId !== input.userId ||
+          intent.wakeId !== input.wakeId ||
+          (intent.memberCcid && input.memberCcid && intent.memberCcid !== input.memberCcid)) {
+        return "stale";
+      }
+      if (input.waitForWake && intent.senderUserId && !intent.wakeId) {
+        await this.admitAndDrain({ type: "end-first-transfer-leg" }, null);
+        return "waiting";
+      }
+      await this.admitAndDrain({ type: "clear-intent" }, null);
+      return "cleared";
     });
   }
 
@@ -444,6 +511,7 @@ export class CallSessionDO extends DurableObject<Env> {
 
   async completeTransfer(input: {
     transferId: string;
+    wakeId?: string;
     targetUserId: string;
     memberCcid: string;
   }): Promise<boolean> {
@@ -455,10 +523,12 @@ export class CallSessionDO extends DurableObject<Env> {
       if (machine?.state !== "answered" || !machine.customerCcid ||
           machine.intent?.transferId !== input.transferId ||
           machine.intent.targetUserId !== input.targetUserId ||
+          machine.intent.wakeId !== input.wakeId || machine.intent.transferLegEnded ||
           (machine.intent.memberCcid && machine.intent.memberCcid !== input.memberCcid)) return false;
 
-      // Keep the old owner until the bridge lands. Provider retries reuse the intent ID.
-      const bridged = await this.rt.telnyx.bridgeTransfer(input.memberCcid, machine.customerCcid, input.transferId);
+      const bridged = await this.rt.telnyx.bridgeTransfer(
+        input.memberCcid, machine.customerCcid, input.wakeId ?? input.transferId,
+      );
       if (!bridged) {
         await this.admitAndDrain({ type: "clear-intent" }, null);
         return false;
@@ -472,6 +542,7 @@ export class CallSessionDO extends DurableObject<Env> {
 
   async bindTransferLeg(input: {
     transferId: string;
+    wakeId?: string;
     targetUserId: string;
     memberCcid: string;
   }): Promise<void> {
@@ -483,6 +554,7 @@ export class CallSessionDO extends DurableObject<Env> {
       const intent = machine?.intent;
       if (machine?.state !== "answered" || intent?.transferId !== input.transferId ||
           intent.targetUserId !== input.targetUserId ||
+          intent.wakeId !== input.wakeId || intent.transferLegEnded ||
           (intent.memberCcid && intent.memberCcid !== input.memberCcid)) {
         await this.rt.telnyx.hangup(input.memberCcid);
         return;

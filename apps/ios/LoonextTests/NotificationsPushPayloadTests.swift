@@ -94,6 +94,17 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertEqual(content.kind, PushKind.taskDue)
     }
 
+    func testTransferWakeKeepsTheSessionTagAndExposesTheTransferId() {
+        let transferId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        let url = "/calls?call=sess-abc-123&transfer=\(transferId)"
+        let content = parsePush(["kind": "call", "title": "Transfer from Sam", "url": url])
+
+        XCTAssertEqual("call:sess-abc-123", content.tag)
+        XCTAssertEqual("sess-abc-123", content.callSessionId)
+        XCTAssertEqual(transferId, content.transferId)
+        XCTAssertEqual(.calls(sessionId: "sess-abc-123", transferId: transferId), parsePushRoute(url: url))
+    }
+
     func testCallPushIsHighUrgencyCategoryWithPerSessionTagAndSessionId() {
         let content = parsePush([
             "kind": "call",

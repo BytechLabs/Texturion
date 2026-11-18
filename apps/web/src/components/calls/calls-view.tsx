@@ -78,8 +78,9 @@ export function CallsView() {
   // call bar to answer. Fire once per session (a re-ring on every render would
   // spam Telnyx).
   const softphone = useSoftphone();
-  const ringMe = useRingMe();
+  const { mutateAsync: ringMe } = useRingMe();
   const pendingCall = searchParams.get("call");
+  const transferId = searchParams.get("transfer");
   const rungRef = useRef<string | null>(null);
   const ready = softphone?.ready ?? false;
   // #170 CALLS-V3 §10.1.3: ring-me only when this device holds no live leg
@@ -101,10 +102,22 @@ export function CallsView() {
     ) ?? false;
   useEffect(() => {
     if (!pendingCall || !ready || presentingLeg) return;
-    if (rungRef.current === pendingCall) return;
-    rungRef.current = pendingCall;
-    ringMe.mutate(pendingCall);
-  }, [pendingCall, ready, presentingLeg, ringMe]);
+    const key = transferId ?? pendingCall;
+    if (rungRef.current === key) return;
+    rungRef.current = key;
+    const request = { sessionId: pendingCall, transferId };
+    let cancelled = false;
+    let retry: ReturnType<typeof setTimeout> | undefined;
+    void ringMe(request).then((ack) => {
+      if (!cancelled && transferId && ack.rang === false && ack.reason === "recent_leg") {
+        retry = setTimeout(() => { void ringMe(request).catch(() => {}); }, 4_000);
+      }
+    }).catch(() => {});
+    return () => {
+      cancelled = true;
+      clearTimeout(retry);
+    };
+  }, [pendingCall, ready, presentingLeg, ringMe, transferId]);
   const ongoing = (allCalls.data?.pages[0]?.data ?? []).filter(isOngoingCall);
   // Ongoing rows live in the card above — the log below shows resolved calls
   // only, so a live call never renders twice.

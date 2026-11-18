@@ -135,6 +135,7 @@ private final class FakeBackend: CallsBackend {
     var byLegHits = 0
     var resolvedByLegCcids: [String] = []
     var ringMeCalls: [String] = []
+    var ringMeTransferIds: [String?] = []
     var noLocalLegValues: [Bool] = []
     var liveState = "ringing"
     var ringAck = RingAck(ok: true, rang: true, state: "ringing", reason: nil)
@@ -191,8 +192,9 @@ private final class FakeBackend: CallsBackend {
         RingSessionState(state: liveState)
     }
 
-    func ringMe(companyId: String, sessionId: String, noLocalLeg: Bool) async throws -> RingAck {
+    func ringMe(companyId: String, sessionId: String, noLocalLeg: Bool, transferId: String?) async throws -> RingAck {
         ringMeCalls.append(sessionId)
+        ringMeTransferIds.append(transferId)
         noLocalLegValues.append(noLocalLeg)
         if let ringMeError { throw ringMeError }
         return ringAck
@@ -1035,6 +1037,17 @@ final class TelephonyMappingTests: XCTestCase {
 
         XCTAssertEqual("not_your_turn", ack?.reason)
         XCTAssertEqual([try XCTUnwrap(vector.request["no_local_leg"])], backend.noLocalLegValues)
+    }
+
+    func testTransferWakeRequestsTheRegisteredTargetLegForAnAnsweredSession() async throws {
+        let (core, _, backend) = makeCore()
+        try await startReady(core)
+        backend.liveState = "answered"
+
+        try await core.onIncomingCallPush(sessionId: "sess-transfer", transferId: "transfer-one")
+
+        XCTAssertEqual(["sess-transfer"], backend.ringMeCalls)
+        XCTAssertEqual(["transfer-one"], backend.ringMeTransferIds)
     }
 
     // MARK: recovery (fresh mint on auth failure; never during a live call)

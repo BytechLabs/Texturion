@@ -425,7 +425,11 @@ export async function handleCallEvent(
         amdResult: null,
         leg: "forward",
       });
-      return handleTransferLegHangup(env, db, state, missed);
+      const cause = payload.hangup_cause?.toLowerCase();
+      return handleTransferLegHangup(env, db, state, missed, {
+        memberCcid: payload.call_control_id,
+        explicitlyDeclined: cause === "call_rejected" || cause === "user_busy" || cause === "busy",
+      });
     }
     return;
   }

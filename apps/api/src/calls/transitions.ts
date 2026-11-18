@@ -102,6 +102,7 @@ export const JANITOR_MS = 4 * 60 * 60_000;
 
 /** §7.4: intent expiry — TRANSFER_TIMEOUT_SECS (25) + 15s. */
 export const INTENT_EXPIRY_MS = (25 + 15) * 1000;
+export const TRANSFER_WAKE_EXPIRY_MS = INTENT_EXPIRY_MS + 45_000;
 
 /** §17.5: FIFO admission-wait warning threshold (LOAD-BEARING telemetry). */
 export const QUEUE_LATENCY_WARN_MS = 2000;
@@ -196,6 +197,10 @@ export interface SessionIntent {
   kind: "transfer" | "consult";
   targetUserId: string;
   transferId?: string;
+  senderUserId?: string;
+  transferStartedAtMs?: number;
+  wakeId?: string;
+  transferLegEnded?: boolean;
   memberCcid?: string;
 }
 
@@ -331,6 +336,7 @@ export interface SessionMachine {
   legs: LegRecord[];
   intent: SessionIntent | null;
   lastTransfer?: { id: string; memberCcid: string };
+  transferDialCount?: number;
   answerIntent: AnswerIntent | null;
 }
 
@@ -466,7 +472,9 @@ export type SessionEvent =
       noLocalLeg: boolean;
     }
   | { type: "set-owner"; userId: string }
-  | { type: "register-intent"; kind: "transfer" | "consult"; targetUserId: string; transferId?: string }
+  | { type: "register-intent"; kind: "transfer" | "consult"; targetUserId: string; transferId?: string; senderUserId?: string }
+  | { type: "reserve-transfer-wake"; wakeId: string }
+  | { type: "end-first-transfer-leg" }
   | { type: "bind-transfer-leg"; transferId: string; memberCcid: string }
   | { type: "complete-transfer"; transferId: string; memberCcid: string }
   | { type: "clear-intent" }
@@ -549,6 +557,8 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "ring-me",
   "set-owner",
   "register-intent",
+  "reserve-transfer-wake",
+  "end-first-transfer-leg",
   "bind-transfer-leg",
   "complete-transfer",
   "clear-intent",
@@ -1073,13 +1083,33 @@ export function reduce(
         kind: event.kind,
         targetUserId: event.targetUserId,
         ...(event.transferId ? { transferId: event.transferId } : {}),
+        ...(event.senderUserId ? { senderUserId: event.senderUserId, transferStartedAtMs: nowMs } : {}),
       };
+      if (event.transferId) next.transferDialCount = (next.transferDialCount ?? 0) + 1;
       effects.push({
         kind: "arm-alarm",
         alarm: "intent-expiry",
-        atMs: nowMs + INTENT_EXPIRY_MS,
+        atMs: nowMs + (event.senderUserId ? TRANSFER_WAKE_EXPIRY_MS : INTENT_EXPIRY_MS),
       });
       return { machine: next, effects, reply: { state: next.state } };
+    }
+    case "reserve-transfer-wake": {
+      if (!next.intent?.transferId) return { machine: next, effects };
+      if (next.intent.memberCcid) {
+        effects.push({ kind: "telnyx-hangup", ccid: next.intent.memberCcid, terminal: true });
+      }
+      next.intent.memberCcid = undefined;
+      next.intent.transferLegEnded = false;
+      next.intent.wakeId = event.wakeId;
+      next.transferDialCount = (next.transferDialCount ?? 0) + 1;
+      return { machine: next, effects };
+    }
+    case "end-first-transfer-leg": {
+      if (next.intent?.transferId) {
+        next.intent.memberCcid = undefined;
+        next.intent.transferLegEnded = true;
+      }
+      return { machine: next, effects };
     }
     case "bind-transfer-leg": {
       if (next.intent?.transferId === event.transferId) {
