@@ -2,9 +2,11 @@ package com.loonext.android.core.net
 
 import com.loonext.android.core.model.ConversationDetail
 import com.loonext.android.core.model.ForYou
+import com.loonext.android.core.model.SearchContactHit
 import com.loonext.android.core.model.Task
 import kotlinx.serialization.json.Json
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -45,6 +47,18 @@ class NullTolerantDecodeTest {
         explicitNulls = false
         encodeDefaults = true
         coerceInputValues = true
+    }
+
+    @Test
+    fun `a contact search result can include a matching profile line`() {
+        val hit = json.decodeFromString<SearchContactHit>(
+            """{"id":"ct-1","phone_e164":"+14165550123","matched_line":"81 Elmwood Avenue"}""",
+        )
+        val earlier = json.decodeFromString<SearchContactHit>(
+            """{"id":"ct-1","phone_e164":"+14165550123"}""",
+        )
+        assertEquals("81 Elmwood Avenue", hit.matched_line)
+        assertNull(earlier.matched_line)
     }
 
     @Test

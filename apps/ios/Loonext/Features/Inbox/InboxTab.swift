@@ -2374,10 +2374,11 @@ private struct SearchResultsPane: View {
                         Text(name)
                             .font(.golos(13.5, weight: .semibold))
                             .foregroundStyle(BrandColor.ink)
-                        Text(formatPhone(contact.phone_e164))
+                        Text(contact.matched_line ?? formatPhone(contact.phone_e164))
                             .font(.golos(11.5))
                             .monospacedDigit()
                             .foregroundStyle(BrandColor.muted400)
+                            .lineLimit(1)
                     }
                     Spacer()
                 }

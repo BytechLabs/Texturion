@@ -2999,10 +2999,12 @@ private fun SearchContactRow(
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    formatPhone(contact.phone_e164),
+                    contact.matched_line ?: formatPhone(contact.phone_e164),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 1.dp),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
             }
         }

@@ -194,7 +194,7 @@ function importForm(
 }
 
 describe("GET /v1/contacts", () => {
-  it("composes the trgm q filter with soft-delete exclusion and keyset limit", async () => {
+  it("searches profile fields and additional addresses within the contact list", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
     sb.on("GET", "/rest/v1/opt_outs", () => []);
@@ -205,7 +205,7 @@ describe("GET /v1/contacts", () => {
       app,
       env,
       await auth.token(),
-      "/v1/contacts?q=smi&limit=10",
+      "/v1/contacts?q=Elm&limit=10",
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
@@ -213,8 +213,11 @@ describe("GET /v1/contacts", () => {
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
     expect(call.url.searchParams.get("or")).toBe(
-      "(name.ilike.*smi*,phone_e164.ilike.*smi*,business_name.ilike.*smi*,email.ilike.*smi*,custom_values.ilike.*smi*)",
+      "(name.ilike.*Elm*,phone_e164.ilike.*Elm*,business_name.ilike.*Elm*,email.ilike.*Elm*,custom_values.ilike.*Elm*,address.ilike.*Elm*,notes.ilike.*Elm*,contact_addresses.not.is.null)",
     );
+    expect(call.url.searchParams.get("contact_addresses.company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(call.url.searchParams.get("contact_addresses.address")).toBe("ilike.*Elm*");
+    expect(call.url.searchParams.get("select")).toContain("contact_addresses()");
     expect(call.url.searchParams.get("limit")).toBe("11");
     // The list never fetches the (up-to-5000-char) notes column — it's detail-only.
     expect(call.url.searchParams.get("select")).not.toContain("notes");
@@ -257,6 +260,8 @@ describe("GET /v1/contacts", () => {
     expect(or).not.toContain("name_t9.ilike.*262*");
     // The number search it always did is untouched.
     expect(or).toContain("phone_e164.ilike.*262*");
+    expect(or).not.toContain("address.ilike");
+    expect(or).not.toContain("contact_addresses");
   });
 
   it("decorates rows with opted_out (G6 badge) and last_activity_at (conversation activity, never updated_at) via batched lookups", async () => {
@@ -349,9 +354,8 @@ describe("GET /v1/contacts", () => {
       { companyId: COMPANY_ID },
     );
     const call = sb.find("GET", "/rest/v1/contacts")[0];
-    expect(call.url.searchParams.get("or")).toBe(
-      "(name.ilike.*abcd*,phone_e164.ilike.*abcd*,business_name.ilike.*abcd*,email.ilike.*abcd*,custom_values.ilike.*abcd*)",
-    );
+    expect(call.url.searchParams.get("or")).toContain("name.ilike.*abcd*");
+    expect(call.url.searchParams.get("contact_addresses.address")).toBe("ilike.*abcd*");
   });
 
   it("finds a customer by a phone number written the way it is read", async () => {
@@ -372,12 +376,9 @@ describe("GET /v1/contacts", () => {
       { companyId: COMPANY_ID },
     );
 
-    expect(
-      sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("or"),
-    ).toBe(
-      "(name.ilike.*647 892-3862*,phone_e164.ilike.*647 892-3862*,business_name.ilike.*647 892-3862*,email.ilike.*647 892-3862*,custom_values.ilike.*647 892-3862*," +
-        "phone_e164.ilike.*6478923862*)",
-    );
+    const filter = sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("or");
+    expect(filter).toContain("phone_e164.ilike.*647 892-3862*");
+    expect(filter).toContain("phone_e164.ilike.*6478923862*");
   });
 
   it("adds no digits term for a name, or for digits already bare", async () => {
@@ -395,13 +396,11 @@ describe("GET /v1/contacts", () => {
     });
 
     const calls = sb.find("GET", "/rest/v1/contacts");
-    expect(calls[0].url.searchParams.get("or")).toBe(
-      "(name.ilike.*smith*,phone_e164.ilike.*smith*,business_name.ilike.*smith*,email.ilike.*smith*,custom_values.ilike.*smith*)",
-    );
+    expect(calls[0].url.searchParams.get("or")?.match(/phone_e164\.ilike\.[^,)]+/g))
+      .toEqual(["phone_e164.ilike.*smith*"]);
     // Already bare digits: the same term twice would only cost a scan.
-    expect(calls[1].url.searchParams.get("or")).toBe(
-      "(name.ilike.*6478923862*,phone_e164.ilike.*6478923862*,business_name.ilike.*6478923862*,email.ilike.*6478923862*,custom_values.ilike.*6478923862*)",
-    );
+    expect(calls[1].url.searchParams.get("or")?.match(/phone_e164\.ilike\.[^,)]+/g))
+      .toEqual(["phone_e164.ilike.*6478923862*"]);
   });
 });
 
@@ -4200,9 +4199,9 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     expect(res.status).toBe(200);
     // The literal /export route ran (not /:id, which would 404 on a non-uuid).
     const call = sb.find("GET", "/rest/v1/contacts")[0];
-    expect(call.url.searchParams.get("or")).toBe(
-      "(name.ilike.*smi*,phone_e164.ilike.*smi*,business_name.ilike.*smi*,email.ilike.*smi*,custom_values.ilike.*smi*)",
-    );
+    expect(call.url.searchParams.get("or")).toContain("name.ilike.*smi*");
+    expect(call.url.searchParams.get("or")).toContain("contact_addresses.not.is.null");
+    expect(call.url.searchParams.get("contact_addresses.address")).toBe("ilike.*smi*");
   });
 });
 

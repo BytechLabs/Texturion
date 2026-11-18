@@ -2099,6 +2099,7 @@ export interface CallDetail extends Call {
 }
 
 export interface SearchContactHit extends ContactSummary {
+  matched_line?: string | null;
   conversation?: {
     id: string;
     status: ConversationStatus;

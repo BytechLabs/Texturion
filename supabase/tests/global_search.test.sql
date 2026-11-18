@@ -145,6 +145,12 @@ begin
   values (cid_a, '+14165550201', 'Pat Rivera') returning id into ct_a;
   insert into public.contacts (company_id, phone_e164, name)
   values (cid_b, '+14165550301', 'Sam Bravo') returning id into ct_b;
+  update public.contacts
+     set address = '81 Elmwood Avenue', notes = repeat('Previous visit complete. ', 9) || 'Use the solarium gate',
+         business_name = 'Balsam Electrical', email = 'pat@spruce.example'
+   where id = ct_a;
+  insert into public.contact_addresses (company_id, contact_id, address)
+  values (cid_a, ct_a, '12 Foxglove Lane'), (cid_b, ct_b, '42 Foxglove Lane');
 
   insert into public.conversations
     (company_id, contact_id, phone_number_id, status, last_message_at)
@@ -160,7 +166,7 @@ begin
   values (cid_a, cv_a, 'inbound', 'Please send the invoice for the deck job', 'received',
           '2026-07-03T12:00:00Z') returning id into m_a1;
   insert into public.messages (company_id, conversation_id, direction, body, status, sent_by_user_id, created_at)
-  values (cid_a, cv_a, 'note', 'Customer prefers morning gutter visits', null, owner_id,
+  values (cid_a, cv_a, 'note', 'Customer prefers morning gutter visits and furnace filters', null, owner_id,
           '2026-07-03T12:05:00Z') returning id into m_a2;
   insert into public.messages (company_id, conversation_id, direction, body, status, created_at)
   values (cid_a, cv_a, 'inbound', 'Thanks again for the spring cleanup', 'received',
@@ -190,6 +196,7 @@ begin
           '2026-07-03T13:10:00Z', now());
   insert into public.tasks (company_id, message_id, conversation_id, title, description, created_by_user_id)
   values (cid_b, m_b1, cv_b, 'Send the invoice', '', owner_id) returning id into t_b1;
+  update public.tasks set addr_street = '11 Woodbine Road' where id = t_a1;
 
   update public.messages set done_at = now(), done_by_user_id = owner_id where id = m_a3;
 
@@ -223,6 +230,31 @@ begin
   create temporary table gs_fixture as
   select cid_a, cid_b, cv_a, cv_b, m_a1, m_a2, t_a1, t_a2, t_b1,
          at_a1, at_b1, tpl_a, tpl_b;
+end $$;
+
+do $$
+declare
+  f record;
+  example record;
+  results jsonb;
+  hit jsonb;
+begin
+  select * into f from gs_fixture;
+  for example in
+    select * from (values
+      ('Elmwood', 'address'), ('Foxglove', 'address'), ('solarium', 'notes'),
+      ('Balsam', 'business_name'), ('spruce', 'email')
+    ) as examples(query, field)
+  loop
+    results := public.api_search_v2(f.cid_a, example.query, 0, 10, 0, 0, 0)->'contacts';
+    hit := results->0;
+    if jsonb_array_length(results) is distinct from 1
+       or hit->>'name' is distinct from 'Pat Rivera'
+       or hit->>'matched' is distinct from example.field
+       or strpos(coalesce(hit->>'matched_line', ''), example.query) = 0 then
+      raise exception 'Contact detail search missed %', example.query;
+    end if;
+  end loop;
 end $$;
 
 -- ===========================================================================
@@ -262,6 +294,19 @@ begin
     raise exception 'G3 FAILED: snippet not highlighted';
   end if;
 
+  r := public.api_search_v2(f.cid_a, 'furn', 10, 10, 10, 10, 10);
+  if (r->'conversations'->0->>'matched_message_id')::uuid is distinct from f.m_a2
+     or coalesce(r->'conversations'->0->>'snippet', '') not like '%<b>furnace</b>%' then
+    raise exception 'G3 FAILED: prefix search missed the furnace note or its highlight';
+  end if;
+
+  r := public.api_search_v2(f.cid_a, '"morning gutt"', 10, 10, 10, 10, 10);
+  if jsonb_array_length(r->'conversations') is distinct from 0
+     or public.search_tsquery('"morning gutt') is distinct from websearch_to_tsquery('english', '"morning gutt')
+     or public.search_tsquery('invoice the') is distinct from websearch_to_tsquery('english', 'invoice the') then
+    raise exception 'G3 FAILED: prefix search changed a phrase or a query ending in a stop word';
+  end if;
+
   raise notice 'G3 PASSED: conversation hits expose direction (inbound + note)';
 end $$;
 
@@ -299,6 +344,11 @@ begin
   if jsonb_array_length(r->'tasks') is distinct from 1
      or (r->'tasks'->0->>'id')::uuid is distinct from f.t_a1 then
     raise exception 'G4 FAILED: fuzzy description match missed: %', r->'tasks';
+  end if;
+
+  r := public.api_search_v2(f.cid_a, 'Woodbine', 0, 0, 10, 0, 0);
+  if (r->'tasks'->0->>'id')::uuid is distinct from f.t_a1 then
+    raise exception 'G4 FAILED: task street address did not match';
   end if;
 
   -- Derived done: t_a2's source message is done → the hit says done=true.

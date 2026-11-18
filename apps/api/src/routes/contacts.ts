@@ -1134,6 +1134,7 @@ export function contactSearchOr(rawQ: string, t9 = false): string {
     // merely HAS a field, blank ones included.
     `custom_values.ilike.*${q}*`,
   ];
+  if (!t9) terms.push(`address.ilike.*${q}*`, `notes.ilike.*${q}*`);
   const digits = rawQ.replace(/\D/g, "");
   if (digits.length >= 3 && digits !== q) {
     terms.push(`phone_e164.ilike.*${digits}*`);
@@ -1211,14 +1212,14 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     throw new ApiError("validation_failed", "tag_id: not a valid id.");
   }
   const byTag = tagFilter !== undefined && tagFilter !== "";
+  const t9 = c.req.query("t9") === "1";
+  const addressSearch = rawQ && !t9 ? orIlikeValue(rawQ) : "";
+  const listTagJoin = byTag ? ",contact_tags!inner(tag_id)" : "";
+  const listAddressJoin = addressSearch ? ",contact_addresses()" : "";
 
   let query = db
     .from("contacts")
-    .select(
-      byTag
-        ? `${CONTACT_LIST_COLUMNS},contact_tags!inner(tag_id)`
-        : CONTACT_LIST_COLUMNS,
-    )
+    .select(`${CONTACT_LIST_COLUMNS}${listTagJoin}${listAddressJoin}`)
     .eq("company_id", c.get("companyId"))
     .is("deleted_at", null)
     .is("merged_into", null);
@@ -1235,7 +1236,13 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     }
     // #459: `t9=1` is the dialer saying "these digits may be a name". Opt-in so
     // the contacts search box keeps meaning exactly what it meant.
-    query = query.or(contactSearchOr(rawQ, c.req.query("t9") === "1"));
+    const matches = contactSearchOr(rawQ, t9);
+    query = addressSearch
+      ? query
+          .eq("contact_addresses.company_id", c.get("companyId"))
+          .ilike("contact_addresses.address", `*${addressSearch}*`)
+          .or(`${matches},contact_addresses.not.is.null`)
+      : query.or(matches);
   }
   if (cursor) {
     query = query.or(keysetFilter("created_at", cursor));
@@ -1471,6 +1478,10 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
   if (rawQ && rawQ.length > 200) {
     throw new ApiError("validation_failed", "q: too long (max 200).");
   }
+  const addressSearch = rawQ ? orIlikeValue(rawQ) : "";
+  const exportTagJoin = byTag ? ",contact_tags!inner(tag_id)" : "";
+  const exportAddressJoin = addressSearch ? ",contact_addresses()" : "";
+  const matches = rawQ ? contactSearchOr(rawQ) : null;
 
   interface ExportRow {
     id: string;
@@ -1485,17 +1496,20 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
   for (;;) {
     let query = db
       .from("contacts")
-      .select(
-        byTag
-          ? "id,name,phone_e164,consent_source,consent_at,created_at,contact_tags!inner(tag_id)"
-          : "id,name,phone_e164,consent_source,consent_at,created_at",
-      )
+      .select(`id,name,phone_e164,consent_source,consent_at,created_at${exportTagJoin}${exportAddressJoin}`)
       .eq("company_id", companyId)
       .is("deleted_at", null)
       .is("merged_into", null);
     if (byTag) query = query.eq("contact_tags.tag_id", tagFilter);
     if (selectedIds) query = query.in("id", selectedIds);
-    if (rawQ) query = query.or(contactSearchOr(rawQ));
+    if (matches) {
+      query = addressSearch
+        ? query
+            .eq("contact_addresses.company_id", companyId)
+            .ilike("contact_addresses.address", `*${addressSearch}*`)
+            .or(`${matches},contact_addresses.not.is.null`)
+        : query.or(matches);
+    }
 
     const last = rows.at(-1);
     if (last) {
