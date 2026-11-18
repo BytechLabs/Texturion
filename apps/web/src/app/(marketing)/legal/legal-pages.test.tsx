@@ -193,9 +193,14 @@ describe("privacy — the PIPEDA/Law 25 posture survives", () => {
     expect(html).toContain("Law 25");
   });
 
-  it("keeps the no-full-SSN/SIN and no-content-in-analytics commitments", () => {
-    expect(html).toContain("never collect or store a full SSN/SIN");
-    expect(html).toContain("message content");
+  it("describes business registration data and excludes message content from analytics", () => {
+    const english = visibleText(PRIVACY.en);
+    const french = visibleText(PRIVACY["fr-CA"]);
+    expect(english).toContain("a business identifier such as an EIN or BN");
+    expect(english).toContain("a mobile number for a one-time verification code");
+    expect(english).toContain("We do not put message content, names, addresses, or phone numbers into analytics");
+    expect(french).toContain("identifiant d'entreprise comme un EIN ou un NE");
+    expect(french).toContain("un numéro de cellulaire pour un code de vérification à usage unique");
   });
 });
 
