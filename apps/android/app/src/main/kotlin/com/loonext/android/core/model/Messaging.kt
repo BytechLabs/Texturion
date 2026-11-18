@@ -205,6 +205,8 @@ data class ConversationListItem(
     val followed: Boolean = false,
     /** #722: the status moves, spam and trash this member may make now; null from an older API. */
     val allowed_actions: List<String>? = null,
+    /** The latest send failure, cleared when another outbound is accepted. */
+    val last_outbound_failed_at: String? = null,
 )
 
 @Serializable

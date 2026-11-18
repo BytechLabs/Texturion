@@ -1956,12 +1956,20 @@ private struct ConversationRow: View {
                             UrgentBadge()
                         }
                     }
-                    if !snippet.isEmpty {
+                    if !snippet.isEmpty || row.last_outbound_failed_at != nil {
                         // A message carrying media reads differently at a glance
                         // from one that is only text. The clip shows whenever
                         // there is an attachment, including alongside a caption,
                         // where the label alone would not appear at all.
                         HStack(alignment: .top, spacing: 4) {
+                            if row.last_outbound_failed_at != nil {
+                                Label(
+                                    AppStrings.translate(appLocale, "inbox.rowNotDelivered"),
+                                    systemImage: "exclamationmark.triangle"
+                                )
+                                .font(.golos(11, weight: .semibold))
+                                .foregroundStyle(BrandColor.destructive)
+                            }
                             if row.last_message?.has_attachments == true {
                                 Image(systemName: "paperclip")
                                     .font(.scaled(9.5))

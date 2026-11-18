@@ -212,6 +212,7 @@ export const ConversationRow = memo(({
       : "";
 
   const tagNames = conversation.tags.map((tag) => tag.name).join(", ");
+  const deliveryFailure = conversation.last_outbound_failed_at ? t("inbox.rowNotDelivered") : null;
   const rowLabel = `${t("inbox.rowAriaConversationWith", { name })}${
     emergency ? t("inbox.rowAriaUrgent") : ""
   }${
@@ -226,7 +227,7 @@ export const ConversationRow = memo(({
           until: deferralReturnLabel(snoozedUntil, "back", t),
         })}${conversation.snooze_note ? `, ${conversation.snooze_note}` : ""}`
       : ""
-  }${tagNames ? t("inbox.rowAriaTags", { tags: tagNames }) : ""}${attachmentNote}${previewText ? `. ${previewText}` : ""}`;
+  }${tagNames ? t("inbox.rowAriaTags", { tags: tagNames }) : ""}${attachmentNote}${deliveryFailure ? `. ${deliveryFailure}` : ""}${previewText ? `. ${previewText}` : ""}`;
 
   return (
     // The link is the contact's name, stretched over the card by its ::after,
@@ -318,6 +319,12 @@ export const ConversationRow = memo(({
           // gone — one token, both states, both themes.
           className="mt-[3px] flex items-start gap-1 text-[12.5px] leading-[1.45] text-app-muted"
         >
+          {deliveryFailure && (
+            <span className="flex shrink-0 items-center gap-1 font-medium text-destructive">
+              <TriangleAlert className="size-3" aria-hidden />
+              {deliveryFailure}
+            </span>
+          )}
           {snippet?.direction === "note" && (
             <Lock
               className="mt-0.5 size-3 shrink-0 text-app-amber"

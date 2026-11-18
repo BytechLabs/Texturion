@@ -170,6 +170,8 @@ struct ConversationListItem: Codable, Sendable {
     var followed: Bool? = nil
     /// #722: The status moves, spam and trash this member may make now. Nil from an older API, and nil keeps the screen's own check.
     var allowed_actions: [String]? = nil
+    /// The latest send failure, cleared when another outbound is accepted.
+    var last_outbound_failed_at: String? = nil
 }
 
 /// The answer to PUT on a thread's mute (#694).

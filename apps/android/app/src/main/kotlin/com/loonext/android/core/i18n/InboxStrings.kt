@@ -83,6 +83,7 @@ object InboxStrings : AppStrings.Section {
         "inbox.rowStateRead" to "Read",
         "inbox.rowPreviewNote" to "Note · {body}",
         "inbox.rowPreviewYou" to "You: {body}",
+        "inbox.rowNotDelivered" to "Not delivered",
         // Not a sentence, but it is on screen and a language that counts
         // differently would want it: "+3" beside three visible tags.
         "inbox.tagOverflow" to "+{count}",
@@ -490,6 +491,7 @@ object InboxStrings : AppStrings.Section {
         "inbox.rowStateRead" to "Lue",
         "inbox.rowPreviewNote" to "Note · {body}",
         "inbox.rowPreviewYou" to "Vous : {body}",
+        "inbox.rowNotDelivered" to "Non livré",
         "inbox.tagOverflow" to "+{count}",
         "inbox.spamLabel" to "Indésirable",
 
