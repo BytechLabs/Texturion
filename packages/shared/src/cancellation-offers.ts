@@ -625,18 +625,22 @@ export function cancellationOffer(
   const paused = input.paused === true && phase === "before";
 
   switch (input.reason) {
-    case "too_expensive":
+    case "too_expensive": {
       return tooExpensiveOffer(input, phase, paused, say);
-    case "seasonal":
+    }
+    case "seasonal": {
       return paused ? pausedSeasonalOffer(input, say) : seasonalOffer(input, phase, say);
+    }
     // The support promise does not change because the plan is paused, for the
     // same reason it does not change between the two phases: it is a promise
     // about us, not about their subscription.
-    case "missing_feature":
+    case "missing_feature": {
       return missingFeatureOffer(say);
+    }
     // switched / not_using / other: nothing honest to add, paused or not — a
     // pause does not tell us what they switched to. See the header.
-    default:
+    default: {
       return null;
+    }
   }
 }

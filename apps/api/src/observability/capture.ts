@@ -141,10 +141,10 @@ function send(
   sending: () => Promise<void>,
   waitUntil: WaitUntil,
 ): Promise<void> {
-  const done = sending().catch((cause: unknown) => {
+  const done = sending().catch((error: unknown) => {
     console.error(
       `posthog ${name} failed:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   });
   waitUntil(done);

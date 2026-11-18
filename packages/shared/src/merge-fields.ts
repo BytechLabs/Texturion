@@ -90,26 +90,34 @@ function firstName(contactName: string | null | undefined): string {
  */
 function resolveToken(token: string, values: MergeFieldValues): string {
   switch (token) {
-    case "first_name":
+    case "first_name": {
       return firstName(values.contactName);
-    case "business_name":
+    }
+    case "business_name": {
       return (values.businessName ?? "").trim();
-    case "address":
+    }
+    case "address": {
       // #274: one line, whatever the contact stored. Newlines are collapsed
       // because this lands mid-sentence ("on my way to {address}") and a
       // multi-line address there would break the message in two.
       return (values.contactAddress ?? "").replace(/\s*\n+\s*/g, ", ").trim();
-    case "my_name":
+    }
+    case "my_name": {
       return firstName(values.senderName);
-    case "our_number":
+    }
+    case "our_number": {
       return (values.ourNumber ?? "").trim();
-    case "job_day":
+    }
+    case "job_day": {
       return (values.jobDay ?? "").trim();
-    case "job_time":
+    }
+    case "job_time": {
       return (values.jobTime ?? "").trim();
-    default:
+    }
+    default: {
       // Unknown token: drop it (never render the literal braces).
       return "";
+    }
   }
 }
 

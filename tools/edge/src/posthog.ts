@@ -61,8 +61,8 @@ export async function sendOpsEvent(projectKey: string | undefined, event: EdgeEv
       signal: AbortSignal.timeout(5_000),
     });
     return response.ok;
-  } catch (cause) {
-    console.warn(`posthog: ${cause instanceof Error ? cause.message : String(cause)}`);
+  } catch (error) {
+    console.warn(`posthog: ${error instanceof Error ? error.message : String(error)}`);
     return false;
   }
 }

@@ -105,10 +105,10 @@ function inContainer(command, { needsDsn = false, quiet = true } = {}) {
       maxBuffer: 64 * 1024 * 1024,
       stdio: quiet ? ["pipe", "pipe", "pipe"] : ["pipe", "pipe", "inherit"],
     });
-  } catch (cause) {
+  } catch (error) {
     // Deliberately does NOT echo the failing command: it would print the DSN
     // back out on the one path where something has already gone wrong.
-    fail(`command failed in ${container}: ${String(cause.message ?? cause)}`);
+    fail(`command failed in ${container}: ${String(error.message ?? error)}`);
   }
 }
 

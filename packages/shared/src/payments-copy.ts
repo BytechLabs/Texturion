@@ -53,18 +53,21 @@ export function paymentAmountProblemCopy(
    * `payments.amount*` for months.
    */
   switch (problem) {
-    case "too_small":
+    case "too_small": {
       return say("payments.amountTooSmall").replace(
         "{amount}",
         formatMoney(PAYMENT_MIN_CENTS, currency),
       );
-    case "too_large":
+    }
+    case "too_large": {
       return say("payments.amountTooLarge").replace(
         "{amount}",
         formatMoney(PAYMENT_MAX_CENTS, currency),
       );
-    case "not_whole":
+    }
+    case "not_whole": {
       return say("payments.amountNotWhole");
+    }
   }
 }
 

@@ -368,10 +368,10 @@ export default function BusinessIdentityPage() {
       }
       trackOnboardingStepCompleted("business");
       router.push("/onboarding/texting");
-    } catch (cause) {
+    } catch (error) {
       setFormError(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("onboarding.genericError"),
       );
     }

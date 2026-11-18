@@ -106,8 +106,9 @@ export function isPlanModule(value: string): value is PlanModule {
  */
 export function modulePrice(env: Env, module: PlanModule): string | null {
   switch (module) {
-    case "regions_ca":
+    case "regions_ca": {
       return env.STRIPE_MODULE_REGIONS_CA_PRICE_ID ?? null;
+    }
   }
 }
 

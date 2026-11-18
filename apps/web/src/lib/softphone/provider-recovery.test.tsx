@@ -492,7 +492,7 @@ describe("placing a call", () => {
     act(() => {
       outcome = phone!
         .placeCall({ to: "+16135550199", contactName: "Ari" })
-        .catch((cause: unknown) => cause);
+        .catch((error: unknown) => error);
     });
     await act(() => vi.advanceTimersByTimeAsync(10_000));
 

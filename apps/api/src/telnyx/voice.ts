@@ -138,10 +138,10 @@ export async function enableVoiceOnNumber(
       row.company_id,
       row.telnyx_phone_number_id,
     );
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `call settings catch-up failed for number ${row.id}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 
@@ -179,13 +179,13 @@ export async function enableVoiceForCompany(
     if (!row.telnyx_phone_number_id) continue;
     try {
       results.push(await enableVoiceOnNumber(env, db, row));
-    } catch (cause) {
+    } catch (error) {
       // #134 review: one un-bindable number must never abort the company's
       // remaining numbers on this pass — the 15-min reconcile is the durable
       // per-number retry.
       console.error(
         `voice bind failed for number ${row.id}:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -306,10 +306,10 @@ export async function syncCallSettingsForCompany(
         body: voicePatch,
       });
       pushed += 1;
-    } catch (cause) {
+    } catch (error) {
       console.error(
         `call settings sync failed for number ${row.id as string}:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -436,10 +436,10 @@ export async function reconcileVoiceEnablement(
     try {
       const result = await enableVoiceOnNumber(env, db, row);
       if (result.changed) summary.enabled += 1;
-    } catch (cause) {
+    } catch (error) {
       // One number's failure never starves the rest; the cron re-runs in 15m.
-      void captureException(env, cause, { source: "api" });
-      failures.push(cause);
+      void captureException(env, error, { source: "api" });
+      failures.push(error);
     }
   }
   if (failures.length > 0) {

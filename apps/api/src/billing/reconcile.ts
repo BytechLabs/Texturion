@@ -231,10 +231,10 @@ export async function runSubscriptionReconcileJob(
     try {
       await syncSubscription(env, row.stripe_subscription_id, db);
       summary.reconciled += 1;
-    } catch (cause) {
+    } catch (error) {
       // One broken tenant must not starve the rest; rethrown below so the
       // cron run still reports failure (the scheduled handler reports it).
-      failures.push(cause);
+      failures.push(error);
     }
   }
 
@@ -486,8 +486,8 @@ async function sweepOrphanSubscriptions(
             summary.numbersHeldOverAllowance += converged.desired - converged.billed;
             summary.workspacesHoldingNumbers += 1;
           }
-        } catch (cause) {
-          void captureException(env, cause, { source: "cron" });
+        } catch (error) {
+          void captureException(env, error, { source: "cron" });
           void captureException(
             env,
             `subscription reconcile: extra-number convergence failed for company ${row.id} — will retry next sweep.`,
@@ -571,9 +571,9 @@ async function sweepOrphanSubscriptions(
           { source: "cron", level: "warning" },
         );
       }
-    } catch (cause) {
+    } catch (error) {
       // A LIST failure for one tenant reddens the run without starving siblings.
-      failures.push(cause);
+      failures.push(error);
     }
   }
 }
@@ -654,10 +654,10 @@ async function stripRetiredModuleItems(
         `subscription reconcile: removed retired-module item ${item.id} (price ${item.price.id}) from ${scheduleId ? `schedule ${scheduleId} phases of ` : ""}subscription ${stored.id} for company ${companyId} — the mms module is retired (#103); the unused remainder was credited via proration.`,
         { source: "cron", level: "warning" },
       );
-    } catch (cause) {
-      const code = (cause as { code?: string }).code;
+    } catch (error) {
+      const code = (error as { code?: string }).code;
       if (code === "resource_missing") continue; // already gone — done
-      void captureException(env, cause, { source: "cron" });
+      void captureException(env, error, { source: "cron" });
       void captureException(
         env,
         `subscription reconcile: failed to remove retired-module item ${item.id} from subscription ${stored.id} for company ${companyId} — will retry next sweep.`,

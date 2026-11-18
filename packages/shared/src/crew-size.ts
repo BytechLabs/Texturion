@@ -71,12 +71,15 @@ export type CrewSizeKey =
 export function planFitForCrew(bucket: CrewSizeBucket): "starter" | "pro" | null {
   switch (bucket) {
     case "solo":
-    case "2_3":
+    case "2_3": {
       return "starter";
-    case "4_10":
+    }
+    case "4_10": {
       return "pro";
-    case "11_plus":
+    }
+    case "11_plus": {
       return null;
+    }
   }
 }
 

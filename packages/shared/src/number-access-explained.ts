@@ -51,12 +51,15 @@ export interface NumberAccessExplanation {
  */
 export function numberAccessLevelLabel(level: NumberAccessLevel, say: SayKey): string {
   switch (level) {
-    case "text":
+    case "text": {
       return say("domain.numberAccessCanText");
-    case "note":
+    }
+    case "note": {
       return say("domain.numberAccessNoteOnly");
-    case "none":
+    }
+    case "none": {
       return say("domain.numberAccessHidden");
+    }
   }
 }
 
@@ -95,11 +98,12 @@ export function numberAccessReason(
 ): string {
   const self = viewer === "self";
   switch (decidedBy) {
-    case "user":
+    case "user": {
       return say(
         self ? "domain.numberAccessRuleNamingYou" : "domain.numberAccessRuleNamingThem",
       );
-    case "role":
+    }
+    case "role": {
       /*
        * The named-role clause keeps its own shape rather than becoming a key
        * with a {role} hole. `principal` is a wire value — "admin", "member",
@@ -112,22 +116,28 @@ export function numberAccessReason(
       return say(
         self ? "domain.numberAccessRuleForYourRole" : "domain.numberAccessRuleForTheirRole",
       );
-    case "all":
+    }
+    case "all": {
       return say("domain.numberAccessRuleForEveryone");
-    case "no-match":
+    }
+    case "no-match": {
       return say(
         self ? "domain.numberAccessNoMatchYou" : "domain.numberAccessNoMatchThem",
       );
-    case "unruled":
+    }
+    case "unruled": {
       return say("domain.numberAccessUnruled");
-    case "role-override":
+    }
+    case "role-override": {
       return say(
         principal === "owner" ? "domain.numberAccessOwners" : "domain.numberAccessAdmins",
       );
-    case "not-a-member":
+    }
+    case "not-a-member": {
       return say(
         self ? "domain.numberAccessNotMemberYou" : "domain.numberAccessNotMemberThem",
       );
+    }
   }
 }
 

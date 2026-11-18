@@ -154,8 +154,8 @@ async function processAndStamp(env: Env, event: Stripe.Event): Promise<void> {
     if (error) {
       throw new Error(`webhook_events stamp failed: ${error.message}`);
     }
-  } catch (cause) {
-    const message = cause instanceof Error ? cause.message : String(cause);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
     console.error(`stripe webhook ${event.id} (${event.type}) failed:`, message);
     const { data } = await db
       .from("webhook_events")
@@ -199,34 +199,41 @@ export async function processStripeEvent(
   }
 
   switch (event.type) {
-    case "checkout.session.completed":
+    case "checkout.session.completed": {
       return handleCheckoutCompleted(env, event.data.object);
+    }
     case "customer.subscription.created":
     case "customer.subscription.updated": {
       const synced = await syncSubscription(env, event.data.object.id);
       reportSubscriptionMove(env, event, synced);
       return;
     }
-    case "customer.subscription.deleted":
+    case "customer.subscription.deleted": {
       return handleSubscriptionDeleted(env, event.data.object, event.created);
-    case "invoice.paid":
+    }
+    case "invoice.paid": {
       return handleInvoicePaid(env, event.data.object);
-    case "invoice.payment_failed":
+    }
+    case "invoice.payment_failed": {
       return handleInvoicePaymentFailed(env, event.data.object);
-    case "invoice.payment_action_required":
+    }
+    case "invoice.payment_action_required": {
       return handlePaymentActionRequired(env, event.data.object);
+    }
     // #422: a disputed charge was invisible. Stripe leaves the subscription
     // ACTIVE while one of its charges is disputed, so our mirror copied
     // `active` and the service kept running for a customer who had told their
     // bank the charge was wrong. The endpoint was not even subscribed to these.
     case "charge.dispute.created":
     case "charge.dispute.updated":
-    case "charge.dispute.closed":
+    case "charge.dispute.closed": {
       return handleChargeDispute(env, event.data.object, event.type);
-    default:
+    }
+    default: {
       // Only the SPEC §7 event set is configured on the endpoint; anything
       // else is acked as a no-op.
       return;
+    }
   }
 }
 
@@ -355,10 +362,10 @@ async function reconcileModulesFromSubscription(
   if (["active", "past_due", "trialing"].includes(subscription.status)) {
     try {
       await enableVoiceForCompany(env, db, companyId);
-    } catch (cause) {
+    } catch (error) {
       console.error(
         `voice enablement on subscription mirror failed for ${companyId}:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error instanceof Error ? error.message : String(error),
       );
     }
   }
@@ -446,11 +453,11 @@ export async function ensureVoiceMeteredItem(
         proration_behavior: "always_invoice",
       });
     }
-  } catch (cause) {
-    void captureException(env, cause, { source: "api", company_id: companyId });
+  } catch (error) {
+    void captureException(env, error, { source: "api", company_id: companyId });
     console.error(
       `voice metered convergence failed for ${companyId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }
@@ -510,10 +517,10 @@ async function releaseEmailClaim(
       .eq("company_id", companyId)
       .eq("email_key", emailKey);
     if (error) throw new Error(error.message);
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `email_ledger release failed for ${companyId} (${emailKey}):`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
 }
@@ -615,9 +622,9 @@ async function noticeHeldNumbers(
       path: "/settings/billing",
       collapseKey: `numbers_held:${args.companyId}`,
     });
-  } catch (cause) {
+  } catch (error) {
     await releaseEmailClaim(db, args.companyId, args.emailKey);
-    throw cause;
+    throw error;
   }
 }
 
@@ -913,8 +920,8 @@ export async function handleCheckoutCompleted(
           // poller and a sweeper replay all reach this line for the same session.
           emailKey: `numbers_held:${session.id}`,
         });
-      } catch (cause) {
-        void captureException(env, cause, { source: "api", company_id: companyId });
+      } catch (error) {
+        void captureException(env, error, { source: "api", company_id: companyId });
         void captureException(
           env,
           heldNoticeUnannouncedAlert({
@@ -926,7 +933,7 @@ export async function handleCheckoutCompleted(
         );
         console.error(
           `held-number notice failed for ${companyId} (${session.id}):`,
-          cause instanceof Error ? cause.message : String(cause),
+          error instanceof Error ? error.message : String(error),
         );
       }
     }
@@ -1389,10 +1396,10 @@ async function confirmCancellationReason(
       .eq("company_id", companyId)
       .is("confirmed_at", null);
     if (error) throw new Error(error.message);
-  } catch (cause) {
+  } catch (error) {
     // Never-silent (D3), non-fatal.
     console.error(
-      `cancellation reason confirm failed (${companyId}): ${String(cause)}`,
+      `cancellation reason confirm failed (${companyId}): ${String(error)}`,
     );
   }
 }
@@ -1511,14 +1518,14 @@ async function handleInvoicePaymentFailed(
     if (invoice.id) {
       try {
         await getStripe(env).invoices.voidInvoice(invoice.id);
-      } catch (cause) {
-        const status = (cause as { statusCode?: number }).statusCode;
+      } catch (error) {
+        const status = (error as { statusCode?: number }).statusCode;
         const refused = typeof status === "number" && status >= 400 && status < 500;
         console.error(
           `us-registration invoice ${invoice.id} could not be voided:`,
-          cause instanceof Error ? cause.message : String(cause),
+          error instanceof Error ? error.message : String(error),
         );
-        if (!refused) throw cause;
+        if (!refused) throw error;
       }
     }
   }

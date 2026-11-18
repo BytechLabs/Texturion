@@ -291,12 +291,12 @@ for (const suite of selected) {
     );
     ran += 1;
     process.stdout.write(`  ok  ${suite}\n`);
-  } catch (cause) {
+  } catch (error) {
     // psql already printed the failing assertion to stderr. Name the suite so it
     // is obvious which file to open, then stop — a schema break cascades, and
     // burying the first failure under forty more is how it gets missed.
     console.error(`\n  FAILED  ${suite}  (${path})`);
-    console.error(String(cause.stdout ?? "").split("\n").slice(-12).join("\n"));
+    console.error(String(error.stdout ?? "").split("\n").slice(-12).join("\n"));
     process.exit(1);
   }
 }

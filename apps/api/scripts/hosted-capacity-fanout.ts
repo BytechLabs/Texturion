@@ -309,10 +309,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((cause: unknown) => {
+main().catch((error: unknown) => {
   process.stderr.write(
-    cause instanceof CapacityConfigError || (cause instanceof Error && /required/.test(cause.message))
-      ? `capacity: ${cause.message}\n`
+    error instanceof CapacityConfigError || (error instanceof Error && /required/.test(error.message))
+      ? `capacity: ${error.message}\n`
       : "capacity: driver failed; no unreviewed error details were printed\n",
   );
   process.exitCode = 1;

@@ -115,14 +115,18 @@ export function handoverPromptHeadline(
   say: SayHandover,
 ): string {
   switch (kind) {
-    case "accept_offer":
+    case "accept_offer": {
       return say("settings.handoverPromptOffered");
-    case "complete_claim":
+    }
+    case "complete_claim": {
       return say("settings.handoverPromptReady");
-    case "claim_waiting":
+    }
+    case "claim_waiting": {
       return say("settings.handoverPromptAsked");
-    case "backup_standing":
+    }
+    case "backup_standing": {
       return say("settings.handoverPromptBackup");
+    }
   }
 }
 
@@ -140,13 +144,16 @@ export function handoverPromptCancelLabel(
   say: SayHandover,
 ): string | null {
   switch (kind) {
-    case "accept_offer":
+    case "accept_offer": {
       return say("settingsMore.ownershipDecline");
+    }
     case "complete_claim":
-    case "claim_waiting":
+    case "claim_waiting": {
       return say("settings.handoverWithdraw");
-    case "backup_standing":
+    }
+    case "backup_standing": {
       return null;
+    }
   }
 }
 

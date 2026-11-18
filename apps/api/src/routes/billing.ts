@@ -1440,21 +1440,26 @@ billingRoutes.post("/prepay", async (c) => {
  */
 function pauseRefusal(eligibility: PauseEligibility): string {
   switch (eligibility.reason) {
-    case "no_subscription":
+    case "no_subscription": {
       return "Subscribe first — pausing holds a plan you already have.";
-    case "already_paused":
+    }
+    case "already_paused": {
       return "Your plan is already paused.";
-    case "subscription_unhealthy":
+    }
+    case "subscription_unhealthy": {
       return "Sort out your payment method first, then you can pause.";
-    case "plan_change_pending":
+    }
+    case "plan_change_pending": {
       return "You have a plan change waiting to take effect. Once it lands you can pause.";
-    case "already_prepaid":
+    }
+    case "already_prepaid": {
       return (
         "You have already paid for a year, and it runs until " +
         new Date(eligibility.open?.granted_through ?? "").toISOString().slice(0, 10) +
         ". Pausing would spend those months on a hold instead of on the plan you bought."
       );
-    case "prepaid_coupon_orphaned":
+    }
+    case "prepaid_coupon_orphaned": {
       // The `prepayments` row is missing but the year is plainly running, so we
       // cannot name a date the way `already_prepaid` does. Say the true thing:
       // a pause would spend the year on a hold, and support can see the coupon.
@@ -1462,7 +1467,8 @@ function pauseRefusal(eligibility: PauseEligibility): string {
         "Your prepaid year is still running on this plan, so pausing would " +
         "spend those months on a hold instead. Get in touch and we'll sort it out."
       );
-    case "referral_month_pending":
+    }
+    case "referral_month_pending": {
       // Same harm as `already_prepaid`, said the same way: the free month rides
       // the line a pause would swap, so pausing spends a $29/$79 credit on a
       // holding fee. Naming the bill it lands on is what makes waiting obvious.
@@ -1471,8 +1477,10 @@ function pauseRefusal(eligibility: PauseEligibility): string {
         "Pausing would spend it on the hold instead of on your plan — let it " +
         "land first, then pause."
       );
-    default:
+    }
+    default: {
       return "Pausing isn't available right now.";
+    }
   }
 }
 
@@ -1505,13 +1513,13 @@ async function mirrorAfterSwap(
 ): Promise<void> {
   try {
     await syncSubscription(env, subscriptionId, db);
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `pause mirror via syncSubscription failed for ${subscriptionId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
-    const { error } = await fallback();
-    if (error) throw cause;
+    const { error: fallbackError } = await fallback();
+    if (fallbackError) throw error;
   }
 }
 
@@ -2236,7 +2244,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
         parsedKey.data,
       ),
     });
-  } catch (cause) {
+  } catch (error) {
     const settled = await undoUnpaidReinstate(env, db, {
       stripe,
       subscriptionId: company.stripe_subscription_id,
@@ -2245,10 +2253,10 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
       row,
       billed,
       quantity,
-      cause,
+      cause: error,
     });
     if (!settled) {
-      const message = cause instanceof Error ? cause.message : String(cause);
+      const message = error instanceof Error ? error.message : String(error);
       if (/same price|duplicate/i.test(message)) {
         // A raced concurrent buy: the loser's item CREATE hits Stripe's
         // one-item-per-price rule. A clean conflict, not a 500 — a retry sees the
@@ -2259,7 +2267,7 @@ billingRoutes.post("/held-numbers/:id/reinstate", async (c) => {
           "Another change to your numbers is in flight. Try again in a moment.",
         );
       }
-      throw cause;
+      throw error;
     }
     // Stripe had the change after all — the error was on the way back, not on
     // the way in. This is also how two simultaneous presses settle: the loser's

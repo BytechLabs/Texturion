@@ -93,8 +93,8 @@ export async function noticeCancellation(
         current_period_end: subscription.items?.data?.[0]?.current_period_end ?? null,
       },
     });
-  } catch (cause) {
-    console.error(`cancellation audit failed for ${company.id}: ${String(cause)}`);
+  } catch (error) {
+    console.error(`cancellation audit failed for ${company.id}: ${String(error)}`);
   }
 
   try {
@@ -165,7 +165,7 @@ export async function noticeCancellation(
       path: "/settings/billing",
       collapseKey: `cancellation:${company.id}`,
     });
-  } catch (cause) {
-    console.error(`cancellation notice failed for ${company.id}: ${String(cause)}`);
+  } catch (error) {
+    console.error(`cancellation notice failed for ${company.id}: ${String(error)}`);
   }
 }

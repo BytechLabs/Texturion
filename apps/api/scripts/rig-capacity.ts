@@ -237,13 +237,13 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((cause: unknown) => {
+main().catch((error: unknown) => {
   if (
-    cause instanceof CapacityConfigError ||
-    cause instanceof CapacityRunError ||
-    cause instanceof NotTheRigError
+    error instanceof CapacityConfigError ||
+    error instanceof CapacityRunError ||
+    error instanceof NotTheRigError
   ) {
-    process.stderr.write(`capacity: ${cause.message}\n`);
+    process.stderr.write(`capacity: ${error.message}\n`);
   } else {
     // External libraries sometimes put URLs or response bodies in an Error.
     process.stderr.write("capacity: driver failed; no unreviewed error details were printed\n");

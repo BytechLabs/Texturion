@@ -137,9 +137,9 @@ function ignoredByGit(paths) {
       encoding: "utf8",
     });
     return new Set(out.split(/\r?\n/).filter(Boolean));
-  } catch (cause) {
+  } catch (error) {
     // `git check-ignore` exits 1 when NOTHING matched, which is not an error.
-    const out = String(cause.stdout ?? "");
+    const out = String(error.stdout ?? "");
     return new Set(out.split(/\r?\n/).filter(Boolean));
   }
 }

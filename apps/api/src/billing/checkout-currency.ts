@@ -87,11 +87,11 @@ async function currenciesFor(
     }
     currenciesByPrice.set(priceId, found);
     return found;
-  } catch (cause) {
+  } catch (error) {
     // A price we cannot read is not a price we should guess about.
     console.error(
       `checkout currency probe failed for ${priceId}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
     return null;
   }

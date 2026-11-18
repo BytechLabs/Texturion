@@ -295,9 +295,9 @@ widgetRoutes.post("/widget/start", async (c) => {
    */
   try {
     clearance = await runPreSendGates(env, companyId, phone);
-  } catch (cause) {
-    if (cause instanceof ApiError && widgetMayDiscloseGateError(cause.code)) {
-      throw cause;
+  } catch (error) {
+    if (error instanceof ApiError && widgetMayDiscloseGateError(error.code)) {
+      throw error;
     }
     /*
      * Everything else becomes the same sentence a resolver failure gives, so
@@ -497,10 +497,10 @@ widgetRoutes.post("/widget/verify", async (c) => {
         triggerBody: body.message,
         atUtc: new Date(),
       });
-    } catch (cause) {
+    } catch (error) {
       console.error(
         `widget away-reply for conversation ${landed.conversation_id} failed:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error instanceof Error ? error.message : String(error),
       );
     }
   }

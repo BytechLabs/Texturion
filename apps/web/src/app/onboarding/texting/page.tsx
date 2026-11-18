@@ -163,10 +163,10 @@ export default function TextingDetailsPage() {
       });
       trackOnboardingStepCompleted("texting");
       router.push("/onboarding/plan");
-    } catch (cause) {
+    } catch (error) {
       setFormError(
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("onboarding.genericError"),
       );
     }

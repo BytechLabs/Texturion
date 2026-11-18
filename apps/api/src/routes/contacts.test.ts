@@ -458,12 +458,14 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       const params = call.url.searchParams;
       expect(params.get("company_id")).toBe(`eq.${COMPANY_ID}`);
       switch (params.get("id")) {
-        case `eq.${CONTACT_ID}`: return [contactRow({ merged_into: SECOND_CONTACT })];
-        case `eq.${SECOND_CONTACT}`:
+        case `eq.${CONTACT_ID}`: { return [contactRow({ merged_into: SECOND_CONTACT })]; }
+        case `eq.${SECOND_CONTACT}`: {
           return [contactRow({ id: SECOND_CONTACT, merged_into: SURVIVOR })];
-        case `eq.${SURVIVOR}`:
+        }
+        case `eq.${SURVIVOR}`: {
           return [contactRow({ id: SURVIVOR, merged_into: null, name: "Survivor" })];
-        default: return [];
+        }
+        default: { return []; }
       }
     });
     sb.on("GET", "/rest/v1/opt_outs", () => []);

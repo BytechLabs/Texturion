@@ -66,10 +66,10 @@ export async function sendProductionEvent(ctx: Ctx, event: ProductionEvent): Pro
     await response.body?.cancel();
     if (!response.ok) console.error(`guard: production event ${event.key}: PostHog answered ${response.status}`);
     return response.ok;
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `guard: production event ${event.key} failed:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
     return false;
   }

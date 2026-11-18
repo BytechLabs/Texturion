@@ -973,8 +973,8 @@ describe("CAPACITY_RESULT privacy", () => {
         input({ accessToken: secret, confirmation: "wrong" }),
         NOW_SECONDS,
       );
-    } catch (cause) {
-      thrown = cause;
+    } catch (error) {
+      thrown = error;
     }
     expect(thrown).toBeInstanceOf(CapacityConfigError);
     expect((thrown as Error).message).not.toContain(secret);

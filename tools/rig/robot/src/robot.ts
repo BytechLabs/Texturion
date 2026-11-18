@@ -274,37 +274,45 @@ export class Robot {
     if (!record) return;
     record.events.push({ type: event.type, at: event.occurredAt });
     switch (event.type) {
-      case "call.answered":
+      case "call.answered": {
         this.#answered(record, event);
         break;
+      }
       case "call.machine.detection.ended":
-      case "call.machine.premium.detection.ended":
+      case "call.machine.premium.detection.ended": {
         record.amd = { ...record.amd, detection: str(event.payload.result) };
         break;
+      }
       case "call.machine.greeting.ended":
-      case "call.machine.premium.greeting.ended":
+      case "call.machine.premium.greeting.ended": {
         record.amd = { ...record.amd, greeting: str(event.payload.result) };
         this.#speakVoicemail(record);
         break;
-      case "call.speak.ended":
+      }
+      case "call.speak.ended": {
         if (record.plan.voicemail && record.spoke) {
           this.#timer(record, HANGUP_AFTER_SPEECH_MS, () =>
             this.#command(record, "hangup", (leg, c) => this.#o.telnyx.hangup(leg, c)),
           );
         }
         break;
-      case "call.dtmf.received":
+      }
+      case "call.dtmf.received": {
         record.dtmf += str(event.payload.digit) ?? "";
         break;
-      case "call.gather.ended":
+      }
+      case "call.gather.ended": {
         record.gathered = { digits: str(event.payload.digits) ?? "", status: str(event.payload.status) };
         break;
-      case "call.hangup":
+      }
+      case "call.hangup": {
         this.#hungUp(record, event);
         break;
-      case "call.recording.saved":
+      }
+      case "call.recording.saved": {
         this.#track(this.#recordingSaved(record, event));
         break;
+      }
     }
   }
 

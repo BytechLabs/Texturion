@@ -174,8 +174,8 @@ export default function NumberStepPage() {
         });
         trackOnboardingStepCompleted("number");
         router.push(skipsRegistration ? "/onboarding/plan" : "/onboarding/business");
-      } catch (cause) {
-        onError(cause);
+      } catch (error) {
+        onError(error);
       }
       return;
     }
@@ -225,8 +225,8 @@ export default function NumberStepPage() {
       clearOnboardingDraft();
       trackOnboardingStepCompleted("number");
       router.push("/onboarding/plan");
-    } catch (cause) {
-      onError(cause);
+    } catch (error) {
+      onError(error);
     }
   }
 

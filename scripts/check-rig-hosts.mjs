@@ -420,9 +420,9 @@ async function main() {
         surface("derived"),
         derivedFindings(`${source} with production routes`, deriveRigConfig({ ...config, ...PRODUCTION_WIRING }, options)),
       );
-    } catch (cause) {
+    } catch (error) {
       surface("derived").problems.push(
-        `${source}  the deploy CLI refuses to derive it: ${cause instanceof Error ? cause.message : String(cause)}`,
+        `${source}  the deploy CLI refuses to derive it: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -449,9 +449,9 @@ async function main() {
         tomlFindings(`${supabaseSource} (derived config.toml${label})`, deriveSupabaseConfig(text, options)),
       );
     }
-  } catch (cause) {
+  } catch (error) {
     surface("supabase").problems.push(
-      `${supabaseSource}  the deploy CLI refuses to derive it: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `${supabaseSource}  the deploy CLI refuses to derive it: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 

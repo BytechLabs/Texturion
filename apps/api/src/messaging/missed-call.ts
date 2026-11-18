@@ -300,9 +300,9 @@ export async function sendMissedCallText(
   let clearance: SendClearance;
   try {
     clearance = await runPreSendGates(env, args.companyId, args.callerE164);
-  } catch (cause) {
-    if (cause instanceof ApiError) return NO_TEXT;
-    throw cause;
+  } catch (error) {
+    if (error instanceof ApiError) return NO_TEXT;
+    throw error;
   }
 
   // Merge fields into the booking-forward message — owner-authored or the
@@ -364,10 +364,10 @@ export async function sendMissedCallText(
       },
       db,
     );
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `missed-call alert for conversation ${outcome.conversationId} failed:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error instanceof Error ? error.message : String(error),
     );
   }
   // `alerted` even when notifyMissedCall threw: the attempt was made and

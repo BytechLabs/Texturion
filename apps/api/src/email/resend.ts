@@ -206,8 +206,8 @@ async function filterSuppressed(env: Env, to: string[]): Promise<string[]> {
     if (error) throw new Error(error.message);
     const blocked = new Set((data ?? []).map((row) => (row as { email: string }).email));
     return to.filter((address) => !blocked.has(address.trim().toLowerCase()));
-  } catch (cause) {
-    console.error(`email suppression lookup failed, sending anyway: ${String(cause)}`);
+  } catch (error) {
+    console.error(`email suppression lookup failed, sending anyway: ${String(error)}`);
     return to;
   }
 }

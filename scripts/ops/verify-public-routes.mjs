@@ -108,8 +108,8 @@ async function ask(path) {
       headers: { "user-agent": "loonext-release-check" },
     });
     return res.status;
-  } catch (cause) {
-    return `network: ${String(cause?.message ?? cause).slice(0, 80)}`;
+  } catch (error) {
+    return `network: ${String(error?.message ?? error).slice(0, 80)}`;
   }
 }
 

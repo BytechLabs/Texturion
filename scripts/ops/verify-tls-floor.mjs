@@ -97,10 +97,10 @@ function handshake(host, version) {
           done({ state: "accepted", negotiated });
         },
       );
-    } catch (cause) {
+    } catch (error) {
       // Thrown synchronously when this OpenSSL build has the version compiled
       // out. NOT a refusal by the server.
-      return done({ state: "untestable", reason: String(cause?.message ?? cause) });
+      return done({ state: "untestable", reason: String(error?.message ?? error) });
     }
     socket.setTimeout(10_000, () => {
       socket.destroy();
@@ -137,8 +137,8 @@ async function configuredFloor() {
       return { known: false, why: JSON.stringify(body.errors?.map((e) => e.message) ?? []) };
     }
     return { known: true, value: body.result?.value, editable: body.result?.editable };
-  } catch (cause) {
-    return { known: false, why: String(cause?.message ?? cause) };
+  } catch (error) {
+    return { known: false, why: String(error?.message ?? error) };
   }
 }
 

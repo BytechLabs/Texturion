@@ -308,12 +308,15 @@ export function scheduledClockProvenance(
   source: "contact" | "area_code" | "company",
 ): ScheduledClockKey {
   switch (source) {
-    case "contact":
+    case "contact": {
       return "domain.clockTheirTimeContact";
-    case "area_code":
+    }
+    case "area_code": {
       return "domain.clockTheirTimeAreaCode";
-    default:
+    }
+    default: {
       return "domain.clockWorkspaceTime";
+    }
   }
 }
 

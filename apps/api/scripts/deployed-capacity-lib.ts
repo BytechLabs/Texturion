@@ -310,8 +310,8 @@ function parseJwtPayload(token: string, label: string): Record<string, unknown> 
       fail(`${label} has an invalid JWT payload`);
     }
     return decoded as Record<string, unknown>;
-  } catch (cause) {
-    if (cause instanceof CapacityConfigError) throw cause;
+  } catch (error) {
+    if (error instanceof CapacityConfigError) throw error;
     fail(`${label} has an invalid JWT payload`);
   }
 }
@@ -806,7 +806,7 @@ async function openBefore(
     .then(() => openRealtime(input))
     .then(
       (connection) => ({ ok: true as const, connection }),
-      (cause: unknown) => ({ ok: false as const, cause }),
+      (error: unknown) => ({ ok: false as const, cause: error }),
     );
   try {
     const result = await Promise.race([
@@ -1007,7 +1007,7 @@ export async function openSupabaseRealtimeConnection(
         }
       }, remainingJoinMs);
     });
-  } catch (cause) {
+  } catch (error) {
     let cleanupFailed = false;
     try {
       await cleanup(cleanupReserveMs);
@@ -1015,8 +1015,8 @@ export async function openSupabaseRealtimeConnection(
       cleanupFailed = true;
     }
     if (cleanupFailed) throw new RealtimeCleanupFailure();
-    if (cause instanceof RealtimeCleanupFailure) throw cause;
-    if (cause instanceof RealtimeJoinFailure) throw cause;
+    if (error instanceof RealtimeCleanupFailure) throw error;
+    if (error instanceof RealtimeJoinFailure) throw error;
     throw new RealtimeJoinFailure("network_error");
   }
 }
@@ -1157,11 +1157,11 @@ async function openRealtimeBatch(
           deadlineMs: config.deadlineMs,
         });
         return { kind: "opened" as const, connection };
-      } catch (cause) {
-        if (cause instanceof RealtimeCleanupFailure) {
+      } catch (error) {
+        if (error instanceof RealtimeCleanupFailure) {
           return { kind: "cleanup_failure" as const };
         }
-        return { kind: "join_failure" as const, code: realtimeFailureCode(cause) };
+        return { kind: "join_failure" as const, code: realtimeFailureCode(error) };
       }
     }),
   );
@@ -1559,8 +1559,8 @@ export async function runHostedCapacity(
         }
         break;
       }
-    } catch (cause) {
-      realtimeRunFailure = { cause };
+    } catch (error) {
+      realtimeRunFailure = { cause: error };
     }
     if (!(await closeConnections(active, config.deadlineMs))) {
       throw new CapacityRunError("final Realtime cleanup exceeded its deadline");

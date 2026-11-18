@@ -80,8 +80,8 @@ for (const probe of PROBES) {
     res = await fetch(`https://api.telnyx.com/v2/${probe.path}`, {
       headers: { authorization: `Bearer ${KEY}` },
     });
-  } catch (cause) {
-    results.push({ ...probe, error: String(cause?.message ?? cause).slice(0, 90) });
+  } catch (error) {
+    results.push({ ...probe, error: String(error?.message ?? error).slice(0, 90) });
     continue;
   }
   const parsed = parseLimit(res.headers.get("ratelimit-limit"));

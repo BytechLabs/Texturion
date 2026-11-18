@@ -217,8 +217,8 @@ async function main() {
       response = await fetch(`${base}${path}`, {
         headers: { "User-Agent": PROBE_UA, Accept: "application/json" },
       });
-    } catch (cause) {
-      problems.push(`${path}: request failed (${cause.message})`);
+    } catch (error) {
+      problems.push(`${path}: request failed (${error.message})`);
       console.log(`${path}  REQUEST FAILED`);
       continue;
     }

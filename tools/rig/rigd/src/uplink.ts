@@ -177,21 +177,26 @@ export class Uplink {
       return;
     }
     switch (frame.t) {
-      case "ping":
+      case "ping": {
         return;
-      case "webhook":
+      }
+      case "webhook": {
         return frame.kind === "call" || frame.kind === "robot-call"
           ? this.#callEvent(frame)
           : this.#queued(frame.id, () => this.#webhookAck(frame));
-      case "mail":
+      }
+      case "mail": {
         return this.#queued(frame.id, async () => {
           await this.#o.handlers.mail(frame);
           return true;
         });
-      case "media":
+      }
+      case "media": {
         return this.#media(frame);
-      case "rpc":
+      }
+      case "rpc": {
         return this.#rpc(frame);
+      }
     }
   }
 
@@ -268,7 +273,7 @@ export function parseFrame(data: unknown): EdgeToRig | undefined {
   const f = value as Record<string, unknown>;
   const s = (key: string) => typeof f[key] === "string";
   switch (f.t) {
-    case "webhook":
+    case "webhook": {
       return s("id") &&
         typeof f.kind === "string" &&
         (WEBHOOK_KINDS as readonly string[]).includes(f.kind) &&
@@ -278,16 +283,22 @@ export function parseFrame(data: unknown): EdgeToRig | undefined {
         isStringMap(f.headers)
         ? (value as EdgeToRig)
         : undefined;
-    case "media":
+    }
+    case "media": {
       return s("id") && s("path") ? (value as EdgeToRig) : undefined;
-    case "mail":
+    }
+    case "mail": {
       return s("id") && s("to") && s("from") && s("subject") && s("raw") ? (value as EdgeToRig) : undefined;
-    case "rpc":
+    }
+    case "rpc": {
       return s("id") && s("method") ? (value as EdgeToRig) : undefined;
-    case "ping":
+    }
+    case "ping": {
       return s("at") ? (value as EdgeToRig) : undefined;
-    default:
+    }
+    default: {
       return undefined;
+    }
   }
 }
 

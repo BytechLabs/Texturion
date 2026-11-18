@@ -549,10 +549,10 @@ export async function runGraceJob(
       if (daysElapsed >= GRACE_PERIOD_DAYS) {
         await releaseExpiredCompany(env, company);
       }
-    } catch (cause) {
+    } catch (error) {
       // One broken tenant must not starve the rest; rethrown below so the
       // cron run still reports failure (the scheduled handler reports it).
-      failures.push(cause);
+      failures.push(error);
     }
   }
 

@@ -121,14 +121,14 @@ export default function PortNumberPage() {
           isWireless: check.is_wireless,
         });
       }
-    } catch (cause) {
+    } catch (error) {
       // Actionable validation messages (e.g. not-portable, bad number) pass
       // through; a server/upstream outage (internal_error) gets a plain, calm
       // retry line instead of the raw "Something went wrong."
       const friendly = t("onboarding.portCheckFailed");
       setError(
-        cause instanceof ApiError && cause.code !== "internal_error"
-          ? cause.message
+        error instanceof ApiError && error.code !== "internal_error"
+          ? error.message
           : friendly,
       );
     } finally {

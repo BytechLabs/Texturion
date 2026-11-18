@@ -101,10 +101,10 @@ export async function handleChargeDispute(
       if (revoked.outcome === "revoked") {
         console.log(`prepaid year revoked after lost dispute ${dispute.id}`);
       }
-    } catch (cause) {
+    } catch (error) {
       // Never let this fail the dispute record itself — that row is the alarm,
       // and losing it to a revocation error would hide the chargeback too.
-      console.error(`prepaid-year revocation failed for ${dispute.id}: ${String(cause)}`);
+      console.error(`prepaid-year revocation failed for ${dispute.id}: ${String(error)}`);
     }
   }
 
@@ -173,10 +173,10 @@ async function customerIdForDispute(
     const charge = await getStripe(env).charges.retrieve(chargeId);
     if (!charge.customer) return null;
     return typeof charge.customer === "string" ? charge.customer : charge.customer.id;
-  } catch (cause) {
+  } catch (error) {
     // An unattributable dispute is MORE alarming, not less. The lookup failing
     // must never stop the record or the notice.
-    console.error(`dispute ${dispute.id}: charge lookup failed: ${String(cause)}`);
+    console.error(`dispute ${dispute.id}: charge lookup failed: ${String(error)}`);
     return null;
   }
 }
