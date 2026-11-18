@@ -765,7 +765,7 @@ begin
   values (company, 'task', expired_task, company || '/task.jpg', preview_path, 'task.jpg', 'image/jpeg');
 
   if (select count(*) from public.api_trash_due(200)
-       where (kind, id) in (('task', expired_task), ('task_comment', expired_comment))) <> 2
+       where (kind, id) in (('task', expired_task), ('task_comment', expired_comment))) is distinct from 2
      or exists (select 1 from public.api_trash_due(200) where id in (recent_task, recent_comment, active_task))
   then
     raise exception 'Task expiry selected the wrong records';
@@ -774,7 +774,7 @@ begin
        is distinct from array[preview_path, company || '/task.jpg'] then
     raise exception 'Task expiry missed a file or included a shared file';
   end if;
-  if public.api_purge_trash_item('task', expired_task, actor, company) ->> 'outcome' <> 'not_found' then
+  if public.api_purge_trash_item('task', expired_task, actor, company) ->> 'outcome' is distinct from 'not_found' then
     raise exception 'Task expiry is available outside cron';
   end if;
 
@@ -782,16 +782,16 @@ begin
    where id = company;
   if exists (select 1 from public.api_trash_due(200) where id in (expired_task, expired_comment))
      or exists (select 1 from public.api_trash_object_paths('task', expired_task))
-     or public.api_purge_trash_item('task', expired_task) ->> 'outcome' <> 'legal_hold'
-     or public.api_purge_trash_item('task_comment', expired_comment) ->> 'outcome' <> 'legal_hold' then
+     or public.api_purge_trash_item('task', expired_task) ->> 'outcome' is distinct from 'legal_hold'
+     or public.api_purge_trash_item('task_comment', expired_comment) ->> 'outcome' is distinct from 'legal_hold' then
     raise exception 'Task expiry bypassed legal hold';
   end if;
   update public.companies set legal_hold_at = null, legal_hold_reason = null
    where id = company;
 
-  if public.api_purge_trash_item('task', expired_task) ->> 'outcome' <> 'purged'
-     or public.api_purge_trash_item('task_comment', expired_comment) ->> 'outcome' <> 'purged'
-     or public.api_purge_trash_item('task', expired_task) ->> 'outcome' <> 'not_found' then
+  if public.api_purge_trash_item('task', expired_task) ->> 'outcome' is distinct from 'purged'
+     or public.api_purge_trash_item('task_comment', expired_comment) ->> 'outcome' is distinct from 'purged'
+     or public.api_purge_trash_item('task', expired_task) ->> 'outcome' is distinct from 'not_found' then
     raise exception 'Task expiry did not erase both records exactly once';
   end if;
   if not exists (
@@ -817,7 +817,7 @@ begin
   if (select count(*) from public.audit_log where company_id = company
        and target_id in (expired_task::text, expired_comment::text)
        and action = 'record.purged' and before = '{}'::jsonb
-       and after = '{"by":"trash_expiry"}'::jsonb) <> 2 then
+       and after = '{"by":"trash_expiry"}'::jsonb) is distinct from 2 then
     raise exception 'Task expiry did not audit both records without their content';
   end if;
 end $$;
