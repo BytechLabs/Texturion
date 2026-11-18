@@ -10,7 +10,7 @@
  * `a.test.ts`. A listed file vitest does not know is an error.
  */
 import { readFileSync, writeFileSync } from "node:fs";
-import path from "node:path";
+import { resolve } from "node:path";
 import { parseArgs } from "node:util";
 
 import { openVitest, REPO_ROOT, testDependencies, toRepoPath } from "./test-suites.mjs";
@@ -65,7 +65,7 @@ try {
   await ctx.close();
 }
 
-writeFileSync(path.resolve(REPO_ROOT, args.out), JSON.stringify({ package: args.package, results }));
+writeFileSync(resolve(REPO_ROOT, args.out), JSON.stringify({ package: args.package, results }));
 process.exit(exitCode);
 
 async function importsOf(module) {

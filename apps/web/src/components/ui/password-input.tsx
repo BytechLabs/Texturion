@@ -1,7 +1,8 @@
 "use client";
 
 import { Eye, EyeOff } from "lucide-react";
-import * as React from "react";
+import { useState } from "react";
+import type { ComponentProps } from "react";
 
 import { Input } from "@/components/ui/input";
 import { useT } from "@/i18n/provider";
@@ -17,9 +18,9 @@ import { cn } from "@/lib/utils";
 function PasswordInput({
   className,
   ...props
-}: Omit<React.ComponentProps<"input">, "type">) {
+}: Omit<ComponentProps<"input">, "type">) {
   const t = useT();
-  const [visible, setVisible] = React.useState(false);
+  const [visible, setVisible] = useState(false);
   return (
     <div className="relative">
       <Input

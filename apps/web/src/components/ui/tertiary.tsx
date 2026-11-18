@@ -1,4 +1,4 @@
-import * as React from "react";
+import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
  * tertiary text is numeric.
  */
 
-type TertiaryProps<T extends React.ElementType> = {
+type TertiaryProps<T extends ElementType> = {
   /** Render element. Defaults to <span>. Use "p"/"time"/"div" as needed. */
   as?: T;
   /**
@@ -32,7 +32,7 @@ type TertiaryProps<T extends React.ElementType> = {
    */
   essential?: boolean;
   className?: string;
-  children?: React.ReactNode;
+  children?: ReactNode;
 };
 
 /**
@@ -44,14 +44,14 @@ type TertiaryProps<T extends React.ElementType> = {
 export const tertiaryClass = "text-foreground-tertiary";
 export const tertiaryEssentialClass = "text-muted-foreground";
 
-export function Tertiary<T extends React.ElementType = "span">({
+export function Tertiary<T extends ElementType = "span">({
   as,
   essential = false,
   className,
   children,
   ...rest
 }: TertiaryProps<T> &
-  Omit<React.ComponentPropsWithoutRef<T>, keyof TertiaryProps<T>>) {
+  Omit<ComponentPropsWithoutRef<T>, keyof TertiaryProps<T>>) {
   const Comp = (as ?? "span");
   return (
     <Comp

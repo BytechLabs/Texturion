@@ -7,17 +7,17 @@
  */
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import path from "node:path";
+import { dirname, join, relative as relativePath, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
-export const REPO_ROOT = path.resolve(import.meta.dirname, "../..");
+export const REPO_ROOT = resolve(import.meta.dirname, "../..");
 
 export function toRepoPath(absolute) {
-  return path.relative(REPO_ROOT, absolute).split(path.sep).join("/");
+  return relativePath(REPO_ROOT, absolute).split(sep).join("/");
 }
 
 export function workspacePackages() {
-  const yaml = readFileSync(path.join(REPO_ROOT, "pnpm-workspace.yaml"), "utf8");
+  const yaml = readFileSync(join(REPO_ROOT, "pnpm-workspace.yaml"), "utf8");
   const patterns = [...yaml.matchAll(/^\s*-\s*["']?([^"'\s#]+)["']?\s*$/gm)].map((m) => m[1]);
   if (patterns.length === 0) throw new Error("pnpm-workspace.yaml lists no packages");
   const dirs = new Set();
@@ -25,16 +25,16 @@ export function workspacePackages() {
     if (!pattern.endsWith("/*") || pattern.slice(0, -2).includes("*")) {
       throw new Error(`pnpm-workspace.yaml pattern ${pattern} is not of the form dir/*`);
     }
-    const parent = path.join(REPO_ROOT, pattern.slice(0, -2));
+    const parent = join(REPO_ROOT, pattern.slice(0, -2));
     if (!existsSync(parent)) continue;
     for (const entry of readdirSync(parent, { withFileTypes: true })) {
-      if (entry.isDirectory() && existsSync(path.join(parent, entry.name, "package.json"))) {
-        dirs.add(toRepoPath(path.join(parent, entry.name)));
+      if (entry.isDirectory() && existsSync(join(parent, entry.name, "package.json"))) {
+        dirs.add(toRepoPath(join(parent, entry.name)));
       }
     }
   }
   return [...dirs].toSorted().map((dir) => {
-    const manifest = JSON.parse(readFileSync(path.join(REPO_ROOT, dir, "package.json"), "utf8"));
+    const manifest = JSON.parse(readFileSync(join(REPO_ROOT, dir, "package.json"), "utf8"));
     return { dir, name: manifest.name, manifest };
   });
 }
@@ -72,18 +72,18 @@ export function workspaceDependencies(pkg, all = workspacePackages()) {
 }
 
 export async function loadVitestNode(pkgDir) {
-  const require = createRequire(path.join(REPO_ROOT, pkgDir, "package.json"));
+  const require = createRequire(join(REPO_ROOT, pkgDir, "package.json"));
   const manifestPath = require.resolve("vitest/package.json");
   const manifest = JSON.parse(readFileSync(manifestPath, "utf8"));
   const entry = manifest.exports["./node"];
   const relative = typeof entry === "string" ? entry : (entry.import?.default ?? entry.import ?? entry.default);
-  return import(pathToFileURL(path.join(path.dirname(manifestPath), relative)).href);
+  return import(pathToFileURL(join(dirname(manifestPath), relative)).href);
 }
 
 /** Opens vitest for one package without running anything. Close it when done. */
 export async function openVitest(pkgDir, options = {}) {
   const { createVitest } = await loadVitestNode(pkgDir);
-  const root = path.join(REPO_ROOT, pkgDir);
+  const root = join(REPO_ROOT, pkgDir);
   process.chdir(root);
   return createVitest("test", { watch: false, root, ...options });
 }

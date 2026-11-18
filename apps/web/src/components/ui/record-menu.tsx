@@ -1,7 +1,8 @@
 "use client";
 
 import { MoreHorizontal } from "lucide-react";
-import * as React from "react";
+import { Fragment, useRef } from "react";
+import type { MouseEvent, ReactElement, ReactNode } from "react";
 
 import { ACTION_GROUPS, submenuItems, visibleActions } from '@/lib/record-actions/types';
 import type { RecordAction } from '@/lib/record-actions/types';
@@ -81,7 +82,7 @@ export function RecordMenuItems({
           (earlier) => !visible.some((action) => action.group === earlier),
         );
         return (
-          <React.Fragment key={group}>
+          <Fragment key={group}>
             {!first && <kit.Separator />}
             {inGroup.map((action) => {
               const Icon = action.icon;
@@ -147,7 +148,7 @@ export function RecordMenuItems({
                 </kit.Item>
               );
             })}
-          </React.Fragment>
+          </Fragment>
         );
       })}
     </>
@@ -202,12 +203,12 @@ export function RecordOverflowMenu({
   /** The trigger's accessible name. */
   label: string;
   /** Replaces the default ghost ⋯ button; must be a single element. */
-  trigger?: React.ReactElement;
+  trigger?: ReactElement;
   className?: string;
   contentClassName?: string;
   align?: "start" | "center" | "end";
   /** View controls that are not record actions (e.g. the phone's "Show" filter). */
-  before?: React.ReactNode;
+  before?: ReactNode;
 }) {
   if (visibleActions(actions).length === 0) return null;
   return (
@@ -251,15 +252,15 @@ export function RecordContextMenu({
   children,
 }: {
   actions: readonly RecordAction[];
-  children: React.ReactElement;
+  children: ReactElement;
 }) {
-  const restoreTo = React.useRef<HTMLElement | null>(null);
+  const restoreTo = useRef<HTMLElement | null>(null);
   if (visibleActions(actions).length === 0) return children;
   return (
     <ContextMenu>
       <ContextMenuTrigger
         asChild
-        onContextMenuCapture={(event: React.MouseEvent<HTMLElement>) => {
+        onContextMenuCapture={(event: MouseEvent<HTMLElement>) => {
           if (hasSelectionInside(event.currentTarget)) {
             // Stop our trigger, and let the browser's own menu through.
             event.stopPropagation();

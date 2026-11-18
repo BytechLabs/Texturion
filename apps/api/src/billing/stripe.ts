@@ -1,4 +1,4 @@
-import Stripe from "stripe";
+import { Stripe } from "stripe";
 
 import type { Env } from "../env";
 
@@ -60,4 +60,4 @@ export function getStripe(env: Env): Stripe {
  */
 export const stripeCryptoProvider = Stripe.createSubtleCryptoProvider();
 
-export { Stripe };
+export { Stripe } from "stripe";

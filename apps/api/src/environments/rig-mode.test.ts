@@ -4,7 +4,7 @@
  * only thing stubbed is the network edge, so "no request left" is a fact about
  * fetch, not a mock.
  */
-import Stripe from "stripe";
+import { Stripe } from "stripe";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import { getDb } from "../db";

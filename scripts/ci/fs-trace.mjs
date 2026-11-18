@@ -12,9 +12,10 @@
  * outside a test file (vitest's own process) is not recorded.
  */
 import childProcess from "node:child_process";
+// oxlint-disable-next-line unicorn/import-style -- The tracer patches the mutable filesystem module.
 import fs from "node:fs";
 import { syncBuiltinESMExports } from "node:module";
-import path from "node:path";
+import { join, relative as relativePath, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import workerThreads from "node:worker_threads";
 
@@ -32,14 +33,14 @@ const PROMISE_LISTS = ["readdir", "opendir"];
 const GLOBS = ["globSync", "glob"];
 const SPAWNS = ["spawn", "spawnSync", "exec", "execSync", "execFile", "execFileSync", "fork"];
 
-if (OUT_DIR && ROOT) install(path.resolve(ROOT), OUT_DIR);
+if (OUT_DIR && ROOT) install(resolve(ROOT), OUT_DIR);
 
 function install(root, outDir) {
   const { appendFileSync, mkdirSync } = fs;
   mkdirSync(outDir, { recursive: true });
-  const outFile = path.join(outDir, `${process.pid}-${workerThreads.threadId}.ndjson`);
+  const outFile = join(outDir, `${process.pid}-${workerThreads.threadId}.ndjson`);
   const seen = new Set();
-  const rootPrefix = root + path.sep;
+  const rootPrefix = root + sep;
 
   const record = (kind, target) => {
     const testFile = globalThis.__vitest_worker__?.filepath;
@@ -56,9 +57,9 @@ function install(root, outDir) {
     else if (Buffer.isBuffer(target)) target = target.toString();
     if (typeof target !== "string") return null;
     if (target.startsWith("file:")) target = fileURLToPath(target);
-    const absolute = path.resolve(target);
+    const absolute = resolve(target);
     if (absolute !== root && !absolute.startsWith(rootPrefix)) return null;
-    const relative = path.relative(root, absolute).split(path.sep).join("/");
+    const relative = relativePath(root, absolute).split(sep).join("/");
     if (relative.split("/").some((part) => part === "node_modules" || part === ".git")) return null;
     return relative;
   };
@@ -95,7 +96,7 @@ function install(root, outDir) {
     if (typeof first !== "string") return cwd;
     const parts = first.split(/[\\/]/);
     const index = parts.findIndex((part) => /[*?[\]{}!]/.test(part));
-    return path.resolve(cwd, ...(index === -1 ? parts.slice(0, -1) : parts.slice(0, index)));
+    return resolve(cwd, ...(index === -1 ? parts.slice(0, -1) : parts.slice(0, index)));
   };
 
   for (const name of READS) wrap(fs, name, "r");

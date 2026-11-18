@@ -19,7 +19,7 @@
  * `metadata.loonext_catalog`, prices by `lookup_key` — reruns reuse existing
  * objects and only print the ids. Prints the exact env lines the Worker needs.
  */
-import Stripe from "stripe";
+import { Stripe } from "stripe";
 
 const METER_EVENT_NAME = "sms_segments";
 

@@ -51,7 +51,7 @@
     "eslint/class-methods-use-this": ["off", { "ignoreClassesWithImplements": "all", "ignoreOverrideMethods": true }], // not yet clean: 11 (#822)
     "eslint/no-underscore-dangle": ["off", { "allow": ["__vitest_worker__", "_def"], "allowAfterThis": true }], // not yet clean: 16 (#822)
     "jsdoc/check-tag-names": ["off", { "definedTags": ["vitest-environment"] }], // not yet clean: 1 (#822)
-    "unicorn/import-style": ["off", { "extendDefaultStyles": false, "styles": { "node:path": { "named": true }, "node:fs": { "named": true }, "node:url": { "named": true }, "node:util": { "named": true } } }], // not yet clean: 10 (#822)
+    "unicorn/import-style": ["error", { "extendDefaultStyles": false, "styles": { "node:path": { "named": true }, "node:fs": { "named": true }, "node:url": { "named": true }, "node:util": { "named": true } } }],
     "import/no-unassigned-import": ["off", { "allow": ["**/*.css", "server-only", "client-only"] }], // not yet clean: 1 (#822)
     "vitest/valid-expect": ["off", { "maxArgs": 2 }], // not yet clean: 2 (#822)
     "vitest/valid-title": ["off", { "allowArguments": true }], // not yet clean: 1 (#822)
@@ -216,7 +216,6 @@
     "vitest/require-to-throw-message": "off", // 34
     "eslint/no-var": "off", // 33
     "eslint/vars-on-top": "off", // 31
-    "import/no-namespace": "off", // 30
     "promise/always-return": "off", // 30
     "typescript/prefer-regexp-exec": "off", // 29
     "eslint/no-unsafe-optional-chaining": "off", // 28
@@ -301,7 +300,6 @@
     "eslint/no-implicit-coercion": "off", // 5
     "eslint/no-param-reassign": "off", // 5
     "eslint/prefer-arrow-callback": "off", // 5
-    "import/no-named-as-default": "off", // 5
     "jsx-a11y/no-noninteractive-element-interactions": "off", // 5
     "jsx-a11y/no-static-element-interactions": "off", // 5
     "react/exhaustive-deps": "off", // 5

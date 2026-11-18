@@ -25,7 +25,7 @@ import { execFileSync } from "node:child_process";
 
 import { createClient } from '@supabase/supabase-js';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import Stripe from "stripe";
+import { Stripe } from "stripe";
 
 import { app } from "../src/index";
 import { expectedIssuer } from "../src/auth/jwt";

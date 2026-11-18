@@ -1,5 +1,6 @@
 import Link from "next/link";
-import * as React from "react";
+import { forwardRef } from "react";
+import type { ComponentPropsWithoutRef } from "react";
 
 import { cn } from "@/lib/utils";
 
@@ -18,9 +19,9 @@ import { MenuIconChip } from "./menu-icon";
  * focus handling, and the close-on-select behavior onto it, dropping those
  * props would break keyboard nav and auto-close.
  */
-export const MenuRow = React.forwardRef<
+export const MenuRow = forwardRef<
   HTMLAnchorElement,
-  { item: NavItem } & Omit<React.ComponentPropsWithoutRef<typeof Link>, "href">
+  { item: NavItem } & Omit<ComponentPropsWithoutRef<typeof Link>, "href">
 >(({ item, className, ...rest }, ref) => 
   (
     <Link

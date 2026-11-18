@@ -1,6 +1,6 @@
 "use client";
 
-import * as React from "react";
+import { useCallback, useRef } from "react";
 import { toast } from "sonner";
 
 /**
@@ -106,9 +106,9 @@ export interface UndoableActionConfig {
  * the same hook instance has started.
  */
 export function useUndoableAction() {
-  const tokenRef = React.useRef(0);
+  const tokenRef = useRef(0);
 
-  return React.useCallback((config: UndoableActionConfig) => {
+  return useCallback((config: UndoableActionConfig) => {
     const token = tokenRef.current += 1;
     config.apply();
     undoableToast({

@@ -1,6 +1,7 @@
 "use client";
 
-import * as React from "react";
+import { useCallback, useEffect, useState } from "react";
+import type { ComponentPropsWithoutRef, ElementType, ReactNode } from "react";
 
 import { prefersReducedMotion } from "@/lib/motion";
 import { cn } from "@/lib/utils";
@@ -25,9 +26,9 @@ import { cn } from "@/lib/utils";
  * event handler, prefer `prefersReducedMotion()` from lib/motion.
  */
 export function useReducedMotion(): boolean {
-  const [reduced, setReduced] = React.useState(false);
+  const [reduced, setReduced] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (typeof window === "undefined" || !window.matchMedia) return;
     const mq = window.matchMedia("(prefers-reduced-motion: reduce)");
     setReduced(mq.matches);
@@ -44,7 +45,7 @@ export function useReducedMotion(): boolean {
  * thread. Wrap the newest bubble; older bubbles render without it. Pair the
  * scroll region with `aria-live="polite"` so the arrival is announced.
  */
-export function MessageArrival<T extends React.ElementType = "div">({
+export function MessageArrival<T extends ElementType = "div">({
   as,
   animate = true,
   className,
@@ -55,8 +56,8 @@ export function MessageArrival<T extends React.ElementType = "div">({
   /** Only the just-arrived message animates; historical ones pass false. */
   animate?: boolean;
   className?: string;
-  children?: React.ReactNode;
-} & Omit<React.ComponentPropsWithoutRef<T>, "as" | "className" | "children">) {
+  children?: ReactNode;
+} & Omit<ComponentPropsWithoutRef<T>, "as" | "className" | "children">) {
   const Comp = (as ?? "div");
   return (
     <Comp
@@ -81,10 +82,10 @@ export function MessageArrival<T extends React.ElementType = "div">({
  *   <li className={cn(leaving && "app-motion-row-leave")} ...>
  */
 export function useLeaveTransition() {
-  const [leaving, setLeaving] = React.useState(false);
+  const [leaving, setLeaving] = useState(false);
   const ROW_LEAVE_MS = 150;
 
-  const leave = React.useCallback((onDone?: () => void) => {
+  const leave = useCallback((onDone?: () => void) => {
     if (prefersReducedMotion()) {
       onDone?.();
       return;

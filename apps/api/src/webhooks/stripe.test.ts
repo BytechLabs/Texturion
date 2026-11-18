@@ -11,7 +11,7 @@
  */
 import { Hono } from "hono";
 import { exceptionsCaptured, resetCaptures } from "../test/capture-mock";
-import Stripe from "stripe";
+import { Stripe } from "stripe";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { stripeWebhookRoute } from "./stripe";

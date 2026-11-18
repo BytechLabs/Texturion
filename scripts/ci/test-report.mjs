@@ -10,7 +10,7 @@
  * the plan found no test files at all.
  */
 import { appendFileSync, readdirSync, readFileSync } from "node:fs";
-import path from "node:path";
+import { join } from "node:path";
 import { parseArgs } from "node:util";
 
 import { writeHistory } from "./test-history.mjs";
@@ -32,7 +32,7 @@ if (plan.universe === 0) problems.push("the plan found no test files");
 const shardResults = new Map();
 for (const entry of readdirSync(args.results, { recursive: true })) {
   if (!String(entry).endsWith(".json")) continue;
-  const result = JSON.parse(readFileSync(path.join(args.results, String(entry)), "utf8"));
+  const result = JSON.parse(readFileSync(join(args.results, String(entry)), "utf8"));
   if (shardResults.has(result.shard)) problems.push(`shard ${result.shard} reported twice`);
   shardResults.set(result.shard, result);
 }
