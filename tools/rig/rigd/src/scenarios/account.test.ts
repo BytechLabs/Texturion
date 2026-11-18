@@ -1104,7 +1104,7 @@ describe("S33, two-factor sign-in", () => {
 
 const RESET_LINK = "http://127.0.0.1:54321/auth/v1/verify?token=reset&type=recovery";
 const INVITE_LINK = "http://127.0.0.1:3100/invite/invite-1";
-const INVITE_SUBJECT = "You've been invited to join QA-W on Loonext";
+const INVITE_SUBJECT = "Ana invited you to join QA-W on Loonext";
 
 function s34World() {
   const world = fakeContext("S34");
@@ -1113,7 +1113,7 @@ function s34World() {
   const invite = app.invite.bind(app);
   app.invite = async (args: { member: string; email: string }) => {
     const answer = await invite(args);
-    // routes/team.ts: an address with an account is mailed over Resend, to the edge; any other is mailed by local auth.
+    // No account here simulates a regression to the old Auth delivery path.
     if (app.mailAccounts.has(args.email)) mail.robot.push(mailTo(args.email, [INVITE_LINK], time.now + 30_000, "robot-mail-1", INVITE_SUBJECT));
     else mail.auth.push(mailTo(args.email, [INVITE_LINK], time.now + 1000, "auth-invite-1", INVITE_SUBJECT));
     return answer;
@@ -1151,7 +1151,7 @@ describe("S34, emails", () => {
     expect(source("apps/api/src/routes/team.ts")).toContain("return c.json({ ...invite, email_sent: emailSent }, 201);");
   });
 
-  it("gives the sub-address an account before it invites, because only an account makes the app mail over Resend", async () => {
+  it("creates the account before inviting so the link check can open the accept page directly", async () => {
     const { ctx, app } = s34World();
     const order: string[] = [];
     const create = app.createMailAccount.bind(app);

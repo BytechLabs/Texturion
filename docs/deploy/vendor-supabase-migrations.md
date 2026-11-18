@@ -65,9 +65,12 @@ https://<project-ref>.supabase.co/auth/v1/.well-known/jwks.json
 
 ## Step 3 — Custom SMTP (Resend) for Auth emails
 
-Supabase Auth sends invite/signup/reset emails via `inviteUserByEmail` using
-**Resend as the custom SMTP provider** (`SPEC.md:100,1065`; invites at
-`SPEC.md:832`). Configure Supabase dashboard → Authentication → Emails / SMTP
+Supabase Auth sends signup confirmations and password resets using Resend
+as its custom SMTP provider. The API generates workspace invite links through
+Supabase Auth and sends the localized invite through Resend
+(`apps/api/src/routes/team.ts`).
+
+Configure Supabase dashboard → Authentication → Emails / SMTP
 with Resend's SMTP credentials, and a sender at the **verified Resend domain**
 (same domain as `RESEND_FROM`). See [07](./vendor-webhooks-setup.md)
 §Resend for the domain-verification step. (Note: `supabase/config.toml:237-244`
