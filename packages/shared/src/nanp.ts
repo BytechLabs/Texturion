@@ -26,9 +26,8 @@
  * (America/Montreal is an alias of it). Overlay codes share their parent's
  * region/timezone.
  *
- * Non-geographic codes have no state/province or local clock, so their
- * `region`/`timezone` are null (`geographic` discriminates); they still
- * count as US/CA destinations for {@link isUsCaDestination}.
+ * Non-geographic codes have no region or local clock. The 5XX service codes
+ * also fail {@link isUsCaDestination}.
  *
  * #376 SIBLINGS — this rule exists three times, and a change here is a
  * three-edit change:
@@ -533,11 +532,12 @@ export function lookupAreaCode(e164: string): NanpEntry | null {
 /**
  * The SMS-pumping destination check (SPEC §10 layer 2): true only when the
  * number strictly parses as +1 E.164 AND its area code is assigned to the US
- * or Canada. `+1` alone is never enough — NANP includes ~20 Caribbean
- * countries billed at international rates.
+ * or Canada. Excludes pay-per-call 976 exchanges and non-geographic 5XX
+ * services, which may only route within the assignee's network.
  */
 export function isUsCaDestination(e164: string): boolean {
-  return lookupAreaCode(e164) !== null;
+  const area = lookupAreaCode(e164);
+  return area !== null && (area.geographic || e164[2] !== "5") && e164.slice(5, 8) !== "976";
 }
 
 /** Toll-free NPAs span the NANP and carry no destination country or clock. */

@@ -9,7 +9,7 @@
  *   status='failed' + surfaced error on API failure.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { classifySendFailure, isTollFreeDestination, lookupAreaCode } from "@loonext/shared";
+import { classifySendFailure, isTollFreeDestination, isUsCaDestination, lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
 import { qualifyReferralForSender } from "../referrals/referrals";
@@ -222,15 +222,15 @@ export async function runPreSendGates(
     );
   }
 
-  const country = lookupAreaCode(destinationE164)?.country ??
-    (mode === "manual" && isTollFreeDestination(destinationE164) ? "US" : null);
-  if (country === null) {
+  const manualTollFree = mode === "manual" && isTollFreeDestination(destinationE164);
+  if (!manualTollFree && !isUsCaDestination(destinationE164)) {
     throw new ApiError(
       "validation_failed",
-      "Destination must be a US or Canada number.",
+      "Destination must be a US or Canada number. Premium and non-geographic 5XX numbers are unavailable.",
     );
   }
 
+  const country = manualTollFree ? "US" : lookupAreaCode(destinationE164)?.country;
   if (country === "US" && !gates.usApproved) {
     throw new ApiError(
       "registration_pending",

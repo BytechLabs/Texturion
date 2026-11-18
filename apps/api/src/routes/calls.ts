@@ -64,6 +64,9 @@ import {
 } from "./core/http";
 import { normalizeNanpPhone } from "./core/phone";
 
+const UNSUPPORTED_DESTINATION_MESSAGE =
+  "Enter a US, Canadian or toll-free number. Premium and non-geographic 5XX numbers are unavailable.";
+
 const listQuerySchema = z.object({
   outcome: z.enum(["answered", "voicemail", "missed"]).optional(),
   // #205: optional per-contact narrowing for the contact history surface.
@@ -817,11 +820,7 @@ async function authorizeOutboundCall(
       }
       const normalized = normalizeNanpPhone(to);
       if (!normalized) {
-        return errorResponse(
-          c,
-          "validation_failed",
-          "Enter a valid US, Canadian or toll-free number.",
-        );
+        return errorResponse(c, "validation_failed", UNSUPPORTED_DESTINATION_MESSAGE);
       }
       customer = normalized;
     }
@@ -838,11 +837,7 @@ async function authorizeOutboundCall(
 
   // Saved contacts and threads pass the same destination check as typed numbers.
   if (!normalizeNanpPhone(customer)) {
-    return errorResponse(
-      c,
-      "validation_failed",
-      "Calling is available to US, Canadian and toll-free numbers.",
-    );
+    return errorResponse(c, "validation_failed", UNSUPPORTED_DESTINATION_MESSAGE);
   }
 
   await assertNumberLevel(db, {

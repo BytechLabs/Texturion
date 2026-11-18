@@ -11,6 +11,8 @@ import Foundation
 /// NANP-wide service codes (toll-free 800/833/…, premium 900, 500-family,
 /// 700) and unassigned codes are ABSENT: absence IS the destination check.
 enum Nanp {
+    private static let nonGeographic5xx: Set<String> = ["521", "523", "524", "525", "526", "527", "528", "529", "532"]
+
     /// Every currently-assigned, in-service US/Canada NANP area code.
     static let areaCodes: Set<String> = [
         "201", "202", "203", "204", "205", "206", "207", "208", "209", "210", "212", "213",
@@ -74,11 +76,10 @@ enum Nanp {
     }
 
     /// The SMS-pumping destination check (SPEC §10 layer 2): true only when
-    /// the number strictly parses as +1 E.164 AND its area code is assigned
-    /// to the US or Canada. `+1` alone is never enough — NANP includes ~20
-    /// Caribbean countries billed at international rates.
+    /// the number has a supported US or Canadian area code and exchange.
     static func isUsCaDestination(_ e164: String) -> Bool {
-        lookupAreaCode(e164) != nil
+        guard let npa = lookupAreaCode(e164) else { return false }
+        return !nonGeographic5xx.contains(npa) && e164.dropFirst(5).prefix(3) != "976"
     }
 
     static func isReachableDestination(_ e164: String) -> Bool {

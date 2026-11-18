@@ -313,6 +313,15 @@ fun DialerSheet(
                         .padding(top = 14.dp * scale, bottom = 4.dp),
                 )
 
+                if (dialable == null && digits.count(Char::isDigit) >= 10) {
+                    Text(
+                        t("contactsTasks.dialableNumbersOnly"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+
                 // Live contact correlation: the matched name while dialing, or an
                 // Add-contact affordance once the number is dialable and unknown.
                 val addTarget = if (matchedName == null && onAddContact != null) dialable else null
@@ -412,13 +421,12 @@ fun DialerSheet(
                             IconButton(
                                 onClick = {
                                     haptics.tap()
-                                    val to = picked?.number ?: dialable
-                                    if (to != null) {
+                                    if (dialable != null) {
                                         onDismiss()
-                                        onMessage(to)
+                                        onMessage(dialable)
                                     }
                                 },
-                                enabled = dialable != null || picked != null,
+                                enabled = dialable != null,
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Outlined.Message,

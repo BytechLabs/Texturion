@@ -64,7 +64,7 @@ beforeEach(() => {
   vi.mocked(getSendGates).mockReset();
 });
 
-describe("toll-free text destinations", () => {
+describe("text destination eligibility", () => {
   const tollFree = "+18005550123";
 
   it("requires US carrier approval for manual texts", async () => {
@@ -80,6 +80,16 @@ describe("toll-free text destinations", () => {
       destinationE164: tollFree,
     });
     await expect(runPreSendGates(env, COMPANY_ID, tollFree)).rejects.toMatchObject({
+      code: "validation_failed",
+    });
+  });
+
+  it.each(["+14169760123", "+15215550123"])("refuses an unsupported destination %s for both modes", async (phone) => {
+    stubFetch(world().route);
+    await expect(runPreSendGates(env, COMPANY_ID, phone, undefined, "manual")).rejects.toMatchObject({
+      code: "validation_failed",
+    });
+    await expect(runPreSendGates(env, COMPANY_ID, phone)).rejects.toMatchObject({
       code: "validation_failed",
     });
   });

@@ -148,6 +148,13 @@ struct DialerSheet: View {
                 .padding(.bottom, 2)
                 .monospacedDigit()
 
+            if dialable == nil && digits.filter(\.isNumber).count >= 10 {
+                Text(t("contactsTasks.dialableNumbersOnly"))
+                    .font(.golos(14))
+                    .foregroundStyle(BrandColor.muted500)
+                    .multilineTextAlignment(.center)
+            }
+
             // Live correlation (#186 item 5): the matched contact name while
             // dialing, or an Add-contact affordance once the number is dialable
             // and unknown. Fixed height so the keypad never jumps.
@@ -248,7 +255,7 @@ struct DialerSheet: View {
                     if let onMessage {
                         Button {
                             Haptics.tap()
-                            if let to = picked?.number ?? dialable {
+                            if let to = dialable {
                                 dismiss()
                                 onMessage(to)
                             }
@@ -257,7 +264,7 @@ struct DialerSheet: View {
                                 .font(.scaled(IconSize.large, weight: .regular))
                                 .foregroundStyle(BrandColor.muted500)
                         }
-                        .disabled(dialable == nil && picked == nil)
+                        .disabled(dialable == nil)
                         .accessibilityLabel(t("contactsTasks.sendMessageInstead"))
                     }
                     Spacer()

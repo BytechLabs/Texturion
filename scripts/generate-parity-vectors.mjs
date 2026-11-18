@@ -80,7 +80,7 @@ import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 import { estimateSegments } from "../packages/shared/src/segments.ts";
-import { emergencyOrServiceCode, isUsCaDestination, lookupAreaCode, normalizeNanpInput } from "../packages/shared/src/nanp.ts";
+import { emergencyOrServiceCode, isUsCaDestination, lookupAreaCode, NANP_AREA_CODES, normalizeNanpInput } from "../packages/shared/src/nanp.ts";
 import { explainRejection } from "../packages/shared/src/rejection-guidance.ts";
 import { avatarInitials } from "../packages/shared/src/avatar-initials.ts";
 import { prepaidConversionCopy } from "../packages/shared/src/prepaid-conversion-copy.ts";
@@ -174,7 +174,12 @@ const PHONE_INPUTS = [
   "+18765550123",
   "9005550123",
   "9765550123",
+  "4169760123",
   "5005550123",
+  "5015550123",
+  ...Object.entries(NANP_AREA_CODES)
+    .filter(([npa, area]) => npa.startsWith("5") && !area.geographic)
+    .map(([npa]) => npa + "5550123"),
   ...["800", "833", "844", "855", "866", "877", "888"].map((npa) => npa + "5550123"),
   ...["211", "311", "411", "511", "611", "711", "811", "911"],
   "+911",

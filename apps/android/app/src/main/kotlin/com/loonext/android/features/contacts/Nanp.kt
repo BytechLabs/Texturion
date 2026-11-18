@@ -16,6 +16,7 @@ object Nanp {
     private val phoneInput = Regex("""\+?[0-9\s().-]*""")
     private val tollFree = Regex("""\+1(?:800|833|844|855|866|877|888)[2-9][0-9]{6}""")
     private val serviceCode = Regex("[2-9]11")
+    private val nonGeographic5xx = setOf("521", "523", "524", "525", "526", "527", "528", "529", "532")
 
 
     /** Every currently-assigned, in-service US/Canada NANP area code. */
@@ -79,11 +80,12 @@ object Nanp {
 
     /**
      * The SMS-pumping destination check (SPEC §10 layer 2): true only when the
-     * number strictly parses as +1 E.164 AND its area code is assigned to the
-     * US or Canada. `+1` alone is never enough — NANP includes ~20 Caribbean
-     * countries billed at international rates.
+     * number has a supported US or Canadian area code and exchange.
      */
-    fun isUsCaDestination(e164: String): Boolean = lookupAreaCode(e164) != null
+    fun isUsCaDestination(e164: String): Boolean {
+        val npa = lookupAreaCode(e164) ?: return false
+        return npa !in nonGeographic5xx && e164.substring(5, 8) != "976"
+    }
 
     fun isReachableDestination(e164: String): Boolean =
         isUsCaDestination(e164) || tollFree.matches(e164)

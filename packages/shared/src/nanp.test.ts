@@ -162,6 +162,12 @@ describe("isUsCaDestination (SMS-pumping destination check)", () => {
     expect(isUsCaDestination("+12125550123")).toBe(true);
     expect(isUsCaDestination("+16045550123")).toBe(true);
     expect(isUsCaDestination("+17105550123")).toBe(true);
+    expect(isUsCaDestination("+15015550123")).toBe(true);
+  });
+
+  it("rejects premium exchanges and non-geographic 5XX numbers", () => {
+    expect(isUsCaDestination("+14169760123")).toBe(false);
+    expect(isUsCaDestination("+15215550123")).toBe(false);
   });
 
   it("rejects Caribbean NANP, toll-free/NANP-wide, unassigned, and malformed", () => {
