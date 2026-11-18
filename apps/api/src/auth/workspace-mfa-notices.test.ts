@@ -52,9 +52,9 @@ describe("workspace two-factor notices", () => {
     expect(body).toMatchObject({
       to: ["tech@example.test"],
       subject: "Rappel de sécurité pour Plomberie Exemple",
+      html: expect.stringContaining('<html lang="fr-CA">'),
+      text: expect.stringContaining("/settings/account#two-factor"),
     });
-    expect(body.html).toContain('<html lang="fr-CA">');
-    expect(body.text).toContain("/settings/account#two-factor");
     expect(sb.find("POST", RELEASE)).toHaveLength(0);
   });
 
