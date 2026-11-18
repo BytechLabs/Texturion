@@ -99,7 +99,7 @@ export function checkTenantIds(ids, tenants = TENANTS) {
 function lit(value) {
   if (value === null || value === undefined) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
-  return `'${String(value).replaceAll(/'/g, "''")}'`;
+  return `'${String(value).replaceAll('\'', "''")}'`;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;

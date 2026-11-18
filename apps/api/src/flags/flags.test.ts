@@ -119,7 +119,7 @@ describe("the registry is the roster", () => {
     function enforcedIn(key: string): string[] {
       return sources
         .filter((file) => file.text.includes(`isKilled(env, "${key}"`))
-        .map((file) => relative(API_SRC, file.path).replaceAll(/\\/g, "/"));
+        .map((file) => relative(API_SRC, file.path).replaceAll('\\', "/"));
     }
 
     it.each(killSwitchKeys())("%s is enforced, server-side or by a client", (key) => {

@@ -337,7 +337,7 @@ function assertErrorLocaleBridges() {
     const source = stripComments(readFileSync(file, "utf8"));
     if (!/\.userMessage\(\s*\)/.test(source)) continue;
     console.error(
-      `Locale forwarding: ${file.replaceAll(/\\/g, "/")} calls userMessage() ` +
+      `Locale forwarding: ${file.replaceAll('\\', "/")} calls userMessage() ` +
         "without the reader locale.",
     );
     process.exit(1);
@@ -442,7 +442,7 @@ function assertErrorLocaleBridges() {
         ) {
           const line = source.slice(0, start + call.index).split("\n").length;
           findings.push(
-            `${file.replaceAll(/\\/g, "/")}:${line}  ${callee}(${call[2].slice(0, 40)}) ` +
+            `${file.replaceAll('\\', "/")}:${line}  ${callee}(${call[2].slice(0, 40)}) ` +
               "passes a locale POSITIONALLY — Swift needs the `locale:` label and " +
               "this will not compile",
           );
@@ -478,7 +478,7 @@ function assertErrorLocaleBridges() {
       if (localDeclarations.has(callee) && !localDeclarations.get(callee)) continue;
       const line = source.slice(0, start + call.index).split("\n").length;
       findings.push(
-        `${file.replaceAll(/\\/g, "/")}:${line}  ${match[1]} has the locale and calls ` +
+        `${file.replaceAll('\\', "/")}:${line}  ${match[1]} has the locale and calls ` +
           `${callee}(${call[2].slice(0, 40)}) without it`,
       );
     }

@@ -50,7 +50,7 @@ function stripComments(source) {
 }
 
 function read(file) {
-  return stripComments(readFileSync(file, "utf8").replaceAll(/\r\n/g, "\n"));
+  return stripComments(readFileSync(file, "utf8").replaceAll('\r\n', "\n"));
 }
 
 /** `object X { const val NAME = "value" }` → [[NAME, value], …]. */

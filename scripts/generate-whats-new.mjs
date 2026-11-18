@@ -69,8 +69,8 @@ function problemsIn(data) {
 }
 
 const key = (entry, part) => `${entry.id}${part}`;
-const kotlin = (text) => `"${text.replaceAll(/\\/g, "\\\\").replaceAll(/"/g, '\\"').replaceAll(/\$/g, "\\$")}"`;
-const swift = (text) => `"${text.replaceAll(/\\/g, "\\\\").replaceAll(/"/g, '\\"')}"`;
+const kotlin = (text) => `"${text.replaceAll('\\', "\\\\").replaceAll('"', '\\"').replaceAll('$', "\\$")}"`;
+const swift = (text) => `"${text.replaceAll('\\', "\\\\").replaceAll('"', '\\"')}"`;
 const ts = (text) => JSON.stringify(text);
 
 function render(shown) {
@@ -176,7 +176,7 @@ for (const [name, body] of Object.entries(files)) {
   if (check) {
     let current = "";
     try {
-      current = readFileSync(path, "utf8").replaceAll(/\r\n/g, "\n");
+      current = readFileSync(path, "utf8").replaceAll('\r\n', "\n");
     } catch {
       // A missing file is stale.
     }

@@ -142,7 +142,7 @@ for (const file of walk(TESTS)) {
 
   if (used.size > 0) {
     findings.push(
-      `${file.replaceAll(/\\/g, "/")} names ${[...used].slice(0, 4).join(", ")}` +
+      `${file.replaceAll('\\', "/")} names ${[...used].slice(0, 4).join(", ")}` +
         `${used.size > 4 ? ` and ${used.size - 4} more` : ""} but does not ` +
         "`@testable import Loonext`",
     );

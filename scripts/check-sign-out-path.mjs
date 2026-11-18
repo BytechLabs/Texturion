@@ -90,7 +90,7 @@ for (const file of sources(WEB_ROOT)) {
   // ends there.
   if (/\.test\.(ts|tsx)$/.test(file)) continue;
   scanned += 1;
-  const source = stripComments(readFileSync(file, "utf8").replaceAll(/\r\n/g, "\n"));
+  const source = stripComments(readFileSync(file, "utf8").replaceAll('\r\n', "\n"));
   if (!/auth\.signOut\(/.test(source)) continue;
   callers += 1;
   if (file !== WEB_OWNER) {
@@ -115,7 +115,7 @@ for (const file of sources(WEB_ROOT)) {
     // substring check even with the request replaced — and `releasePushOnThisDevice`
     // stayed matched by its own import line after the call was commented out. A
     // guard that reads the prose beside the code cannot see the code stop working.
-    owner = stripComments(readFileSync(WEB_OWNER, "utf8").replaceAll(/\r\n/g, "\n"));
+    owner = stripComments(readFileSync(WEB_OWNER, "utf8").replaceAll('\r\n', "\n"));
   } catch {
     problems.push(
       `cannot read ${WEB_OWNER} — this guard has lost the function every web ` +
@@ -152,7 +152,7 @@ for (const file of sources(WEB_ROOT)) {
 for (const { file, needs, marker } of NATIVE) {
   let source = null;
   try {
-    source = readFileSync(file, "utf8").replaceAll(/\r\n/g, "\n");
+    source = readFileSync(file, "utf8").replaceAll('\r\n', "\n");
   } catch {
     problems.push(
       `cannot read ${file} — the native sign-out path named here has moved, so it ` +

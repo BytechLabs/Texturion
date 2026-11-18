@@ -102,7 +102,7 @@ let scanned = 0;
 let sites = 0;
 
 for (const file of sourceFiles(ROOT, ".kt")) {
-  const source = stripComments(readFileSync(file, "utf8").replaceAll(/\r\n/g, "\n"));
+  const source = stripComments(readFileSync(file, "utf8").replaceAll('\r\n', "\n"));
   scanned += 1;
   const lines = source.split("\n");
 
@@ -157,7 +157,7 @@ for (const file of sourceFiles(ROOT, ".kt")) {
 // the one function every caller now trusts — which is exactly what happened when an
 // earlier version simply exempted it by name.
 {
-  const component = readFileSync(COMPONENT, "utf8").replaceAll(/\r\n/g, "\n");
+  const component = readFileSync(COMPONENT, "utf8").replaceAll('\r\n', "\n");
 
   const helper = /fun boundedGlyph\(([\s\S]*?)\n}/.exec(component);
   if (helper === null) {
@@ -214,7 +214,7 @@ for (const file of sourceFiles(ROOT, ".kt")) {
 // parameterised-wrapper shape that hid three on Android.
 let iosSites = 0;
 for (const file of sourceFiles(IOS_ROOT, ".swift")) {
-  const source = stripComments(readFileSync(file, "utf8").replaceAll(/\r\n/g, "\n"));
+  const source = stripComments(readFileSync(file, "utf8").replaceAll('\r\n', "\n"));
   const lines = source.split("\n");
   for (let i = 0; i < lines.length; i += 1) {
     // A BADGE, not the string helper. `initialsOf` on its own is a pure function and

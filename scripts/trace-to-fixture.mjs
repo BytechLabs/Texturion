@@ -223,7 +223,7 @@ export function createScrubber() {
     return stand(`id:${key}`, value, (n) =>
       /^\d+$/.test(value)
         ? `9${String(n).padStart(Math.max(value.length - 1, 1), "0")}`
-        : `fixture-${key.replaceAll(/_/g, "-")}-${n}`,
+        : `fixture-${key.replaceAll('_', "-")}-${n}`,
     );
   }
 

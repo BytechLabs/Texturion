@@ -57,7 +57,7 @@ export interface AreaCodeHint {
 /** "America/New_York" → "new york" (search matching only, never displayed). */
 function timezoneCity(timezone: string): string {
   const city = timezone.split("/").pop() ?? "";
-  return normalizePlaceSearch(city.replaceAll(/_/g, " "));
+  return normalizePlaceSearch(city.replaceAll('_', " "));
 }
 
 function toHint(

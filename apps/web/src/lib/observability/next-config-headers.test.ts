@@ -23,7 +23,7 @@ import { TOKEN_PATH_PREFIXES } from "./scrub";
 const CONFIG = readFileSync(
   join(__dirname, "../../../next.config.ts"),
   "utf8",
-).replaceAll(/\r\n/g, "\n");
+).replaceAll('\r\n', "\n");
 
 /** The declared list, parsed out of the config source. */
 function declaredUncacheablePrefixes(): string[] {

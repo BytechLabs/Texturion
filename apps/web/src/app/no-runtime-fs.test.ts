@@ -95,7 +95,7 @@ describe("no page reads the filesystem while rendering", () => {
       ["legal/vulnerability-disclosure/page.tsx", "@root/SECURITY.md"],
     ];
     for (const [rel, spec] of pages) {
-      const path = files.find((f) => f.replaceAll(/\\/g, "/").endsWith(rel));
+      const path = files.find((f) => f.replaceAll('\\', "/").endsWith(rel));
       expect(path, `${rel} is gone`).toBeTruthy();
       expect(
         readFileSync(path!, "utf8"),

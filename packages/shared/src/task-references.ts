@@ -69,7 +69,7 @@ export function taskReferenceText(number: number): string {
 
 /** The text a picker inserts for a contact or a conversation. */
 export function recordReferenceText(kind: "contact" | "conversation", id: string): string {
-  const prefix = id.replaceAll(/-/g, "").slice(0, 8).toLowerCase();
+  const prefix = id.replaceAll('-', "").slice(0, 8).toLowerCase();
   return `#${kind === "contact" ? "contact" : "conv"}-${prefix}`;
 }
 

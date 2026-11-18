@@ -105,7 +105,7 @@ function environmentImports(path, code) {
     const [, keyword, clause, specifier] = match;
     const line = lineOf(code, match.index);
     const fromEnvironments = ENVIRONMENTS_SPECIFIER.test(specifier);
-    const withoutBraces = clause.replace(/\{[^}]*\}/, "").replaceAll(/,/g, " ").trim();
+    const withoutBraces = clause.replace(/\{[^}]*\}/, "").replaceAll(',', " ").trim();
     if (fromEnvironments && withoutBraces.length > 0) {
       offences.push({
         path,

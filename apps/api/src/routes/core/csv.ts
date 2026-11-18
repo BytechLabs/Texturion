@@ -130,7 +130,7 @@ export function parseCsvRows(text: string): CsvRow[] {
 export function csvField(value: string | null | undefined): string {
   const text = value ?? "";
   if (/[",\r\n]/.test(text)) {
-    return `"${text.replaceAll(/"/g, '""')}"`;
+    return `"${text.replaceAll('"', '""')}"`;
   }
   return text;
 }

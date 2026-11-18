@@ -84,7 +84,7 @@ function sources(dir) {
 /** Comments are prose. Explaining the rule must not count as declaring it. */
 function stripComments(source) {
   return source
-    .replaceAll(/\r\n/g, "\n")
+    .replaceAll('\r\n', "\n")
     .replaceAll(/\/\*[\s\S]*?\*\//g, "")
     .replaceAll(/^[ \t]*(\/\/|\*|\/\/\/).*$/gm, "");
 }

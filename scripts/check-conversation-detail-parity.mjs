@@ -72,7 +72,7 @@ const problems = [];
 
 let serverColumns = [];
 try {
-  const api = readFileSync(API_FILE, "utf8").replaceAll(/\r\n/g, "\n");
+  const api = readFileSync(API_FILE, "utf8").replaceAll('\r\n', "\n");
   const declaration = /const CONVERSATION_COLUMNS =([\s\S]*?);\n/.exec(api);
   if (declaration === null) {
     problems.push(
@@ -108,7 +108,7 @@ if (serverColumns.length < 5) {
 for (const client of CLIENTS) {
   let source;
   try {
-    source = readFileSync(client.file, "utf8").replaceAll(/\r\n/g, "\n");
+    source = readFileSync(client.file, "utf8").replaceAll('\r\n', "\n");
   } catch {
     problems.push(`${client.label}: cannot read ${client.file}`);
     continue;

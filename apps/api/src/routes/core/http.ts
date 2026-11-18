@@ -229,7 +229,7 @@ export function keysetFilter(timestampColumn: string, cursor: Cursor): string {
  * backslash-escapes the SQL LIKE metacharacters.
  */
 export function escapeLike(q: string): string {
-  return q.replaceAll(/\*/g, "").replaceAll(/[\\%_]/g, "\\$&");
+  return q.replaceAll('*', "").replaceAll(/[\\%_]/g, "\\$&");
 }
 
 /**

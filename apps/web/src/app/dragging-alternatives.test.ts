@@ -232,7 +232,7 @@ describe("#238 every draggable operation has a way out (WCAG 2.2 2.5.7)", () => 
 
 /** A path as the roster spells it: relative to src/, forward slashes. */
 function relative(path: string): string {
-  const normalized = path.replaceAll(/\\/g, "/");
+  const normalized = path.replaceAll('\\', "/");
   const at = normalized.lastIndexOf("/src/");
   return at === -1 ? normalized : normalized.slice(at + "/src/".length);
 }

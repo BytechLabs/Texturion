@@ -417,8 +417,8 @@ function phraseMatches(query: string, phrase: string): boolean {
     return true;
   }
   // "timezone" typed for "time zone", and the other way round.
-  const joined = query.replaceAll(/ /g, "");
-  return joined.length >= 3 && phrase.replaceAll(/ /g, "").startsWith(joined);
+  const joined = query.replaceAll(' ', "");
+  return joined.length >= 3 && phrase.replaceAll(' ', "").startsWith(joined);
 }
 
 /**

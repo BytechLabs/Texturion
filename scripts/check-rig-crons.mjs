@@ -102,7 +102,7 @@ export function cronsFromConfig(file, text) {
   if (file.endsWith(".toml")) {
     throw new Error(`${file}: a TOML Worker config cannot be read here; use wrangler.jsonc`);
   }
-  const config = JSON.parse(stripJsonc(text.replaceAll(/\r\n/g, "\n")));
+  const config = JSON.parse(stripJsonc(text.replaceAll('\r\n', "\n")));
   const crons = config?.triggers?.crons ?? [];
   if (!Array.isArray(crons) || crons.some((cron) => typeof cron !== "string")) {
     throw new Error(`${file}: triggers.crons is not a list of strings`);
@@ -116,7 +116,7 @@ export function cronsFromConfig(file, text) {
  * comments removed first because they quote job keys.
  */
 export function cronJobsFromSource(text) {
-  const lines = text.replaceAll(/\r\n/g, "\n").split("\n");
+  const lines = text.replaceAll('\r\n', "\n").split("\n");
   const start = lines.findIndex((line) => line.startsWith("export const CRON_JOBS"));
   if (start === -1) return null;
   const end = lines.findIndex((line, i) => i > start && /^};\s*$/.test(line));

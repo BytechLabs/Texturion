@@ -134,7 +134,7 @@ export function screenBusinessName(name: string): CategoryMatch[] {
  */
 export function screeningSummary(matches: CategoryMatch[]): string {
   if (matches.length === 0) return "The name matched nothing.";
-  const parts = matches.map((m) => `${m.category.replaceAll(/_/g, " ")} ("${m.term}")`);
+  const parts = matches.map((m) => `${m.category.replaceAll('_', " ")} ("${m.term}")`);
   return (
     `The name looks like it could be in a category the AUP prohibits: ` +
     `${parts.join(", ")}. This is a keyword match on the name they typed, not ` +
