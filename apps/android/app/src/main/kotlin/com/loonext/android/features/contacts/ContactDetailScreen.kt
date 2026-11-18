@@ -75,6 +75,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -131,9 +132,10 @@ import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.spokenAs
 import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberCacheFirst
+import com.loonext.android.ui.common.rememberDebouncedTextSave
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.launch
 
 /** Auto-save lifecycle for one field: idle → saving → saved / failed. */
@@ -759,6 +761,7 @@ private fun ContactDetailBody(
         // Info card: label-left auto-saving rows (Name / Address / Notes).
         PaperCard(Modifier.fillMaxWidth()) {
             AutosaveRow(
+                appScope = graph.appScope,
                 fieldKey = "${contact.id}:name",
                 label = t("contactsTasks.nameField"),
                 initial = contact.name.orEmpty(),
@@ -778,6 +781,7 @@ private fun ContactDetailBody(
             // a general contractor it IS the name — "Dave" is not a useful
             // record, "Dave at Maple Property Group" is.
             AutosaveRow(
+                appScope = graph.appScope,
                 fieldKey = "${contact.id}:business_name",
                 label = t("contactsTasks.businessField"),
                 initial = contact.business_name.orEmpty(),
@@ -793,6 +797,7 @@ private fun ContactDetailBody(
             RowDivider()
             }
             if (ContactDetailField.Address !in hiddenFields) AutosaveRow(
+                appScope = graph.appScope,
                 fieldKey = "${contact.id}:address",
                 label = t("contactsTasks.address"),
                 initial = contact.address.orEmpty(),
@@ -880,6 +885,7 @@ private fun ContactDetailBody(
             // answers the same question — how we reach them when a text is the
             // wrong shape for what we are sending.
             AutosaveRow(
+                appScope = graph.appScope,
                 fieldKey = "${contact.id}:email",
                 label = t("contactsTasks.emailField"),
                 initial = contact.email.orEmpty(),
@@ -896,6 +902,7 @@ private fun ContactDetailBody(
             }
             if (ContactDetailField.Notes !in hiddenFields) {
             AutosaveRow(
+                appScope = graph.appScope,
                 fieldKey = "${contact.id}:notes",
                 label = t("contactsTasks.notesField"),
                 initial = contact.notes.orEmpty(),
@@ -1662,6 +1669,7 @@ private fun FooterAction(
  */
 @Composable
 private fun AutosaveRow(
+    appScope: CoroutineScope,
     fieldKey: String,
     label: String,
     initial: String,
@@ -1672,20 +1680,17 @@ private fun AutosaveRow(
     idleCaption: String? = null,
 ) {
     var value by remember(fieldKey) { mutableStateOf(initial) }
-    var lastSaved by remember(fieldKey) { mutableStateOf(initial) }
     var state by remember(fieldKey) { mutableStateOf(SaveState.Idle) }
 
-    LaunchedEffect(value) {
-        val trimmed = value.trim()
-        if (trimmed == lastSaved.trim()) return@LaunchedEffect
-        delay(800)
+    val autosave = rememberDebouncedTextSave(fieldKey, appScope, initial) { valueToSave ->
         state = SaveState.Saving
         try {
-            save(trimmed.ifEmpty { null })
-            lastSaved = value
+            save(valueToSave.ifEmpty { null })
             state = SaveState.Saved
+            true
         } catch (_: Exception) {
             state = SaveState.Failed
+            false
         }
     }
 
@@ -1731,12 +1736,16 @@ private fun AutosaveRow(
                 }
                 BasicTextField(
                     value = value,
-                    onValueChange = { value = it.take(maxLength) },
+                    onValueChange = {
+                        value = it.take(maxLength)
+                        autosave.schedule(value)
+                    },
                     singleLine = singleLine,
                     maxLines = if (singleLine) 1 else 6,
                     textStyle = textStyle,
                     cursorBrush = SolidColor(MaterialTheme.colorScheme.secondary),
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier.fillMaxWidth()
+                        .onFocusChanged { if (!it.isFocused) autosave.flush() },
                 )
             }
             Text(
@@ -1769,6 +1778,7 @@ private fun AutosaveRow(
  */
 @Composable
 internal fun AutosaveField(
+    appScope: CoroutineScope,
     fieldKey: String,
     label: String,
     initial: String,
@@ -1785,27 +1795,27 @@ internal fun AutosaveField(
     textStyle: androidx.compose.ui.text.TextStyle? = null,
 ) {
     var value by remember(fieldKey) { mutableStateOf(initial) }
-    var lastSaved by remember(fieldKey) { mutableStateOf(initial) }
     var state by remember(fieldKey) { mutableStateOf(SaveState.Idle) }
 
-    LaunchedEffect(value) {
-        val trimmed = value.trim()
-        if (trimmed == lastSaved.trim()) return@LaunchedEffect
-        delay(800)
+    val autosave = rememberDebouncedTextSave(fieldKey, appScope, initial) { valueToSave ->
         state = SaveState.Saving
         try {
-            save(trimmed.ifEmpty { null })
-            lastSaved = value
+            save(valueToSave.ifEmpty { null })
             state = SaveState.Saved
+            true
         } catch (_: Exception) {
             state = SaveState.Failed
+            false
         }
     }
 
     Column(Modifier.fillMaxWidth()) {
         OutlinedTextField(
             value = value,
-            onValueChange = { value = it.take(maxLength) },
+            onValueChange = {
+                value = it.take(maxLength)
+                autosave.schedule(value)
+            },
             label = if (quiet) null else ({ Text(label) }),
             placeholder = { Text(placeholder) },
             singleLine = singleLine,
@@ -1820,6 +1830,7 @@ internal fun AutosaveField(
             },
             modifier = Modifier
                 .fillMaxWidth()
+                .onFocusChanged { if (!it.isFocused) autosave.flush() }
                 .semantics { if (quiet) contentDescription = label },
         )
         Text(

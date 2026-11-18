@@ -1378,13 +1378,14 @@ private struct AutosaveField: View {
     let maxLength: Int
     let placeholder: String
     let multiline: Bool
-    let save: (String?) async throws -> Void
+    private let writeField: (String?) async throws -> Void
 
     @State private var value: String
-    @State private var lastSaved: String
+    @State private var autosave: DebouncedTextSave
     @State private var saveState: SaveState = .idle
 
     @Environment(\.appLocale) private var appLocale
+    @Environment(\.scenePhase) private var scenePhase
 
     init(
         label: String,
@@ -1399,9 +1400,9 @@ private struct AutosaveField: View {
         self.maxLength = maxLength
         self.placeholder = placeholder
         self.multiline = multiline
-        self.save = save
+        writeField = save
         _value = State(initialValue: initial)
-        _lastSaved = State(initialValue: initial)
+        _autosave = State(initialValue: DebouncedTextSave(initial))
     }
 
     var body: some View {
@@ -1413,15 +1414,16 @@ private struct AutosaveField: View {
                 .foregroundStyle(BrandColor.muted500)
                 .frame(width: 56, alignment: .leading)
             VStack(alignment: .leading, spacing: 2) {
-                TextField(placeholder, text: $value, axis: multiline ? .vertical : .horizontal)
+                TextField(placeholder, text: Binding(
+                    get: { value },
+                    set: { next in
+                        value = String(next.prefix(maxLength))
+                        autosave.schedule(value, save: persist)
+                    }
+                ), axis: multiline ? .vertical : .horizontal)
                     .font(.golos(13, weight: .medium))
                     .foregroundStyle(BrandColor.ink)
                     .lineLimit(multiline ? 3 ... 6 : 1 ... 1)
-                    .onChange(of: value) { _, next in
-                        if next.count > maxLength {
-                            value = String(next.prefix(maxLength))
-                        }
-                    }
                 Text(statusLine)
                     .font(.golos(10))
                     .foregroundStyle(
@@ -1434,21 +1436,21 @@ private struct AutosaveField: View {
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 11)
-        .task(id: value) {
-            let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-            let savedTrimmed = lastSaved.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard trimmed != savedTrimmed else { return }
-            // The debounce: a new keystroke cancels this task and starts over.
-            try? await Task.sleep(for: .milliseconds(800))
-            if Task.isCancelled { return }
-            saveState = .saving
-            do {
-                try await save(trimmed.isEmpty ? nil : trimmed)
-                lastSaved = value
-                saveState = .saved
-            } catch {
-                saveState = .failed
-            }
+        .onDisappear { autosave.flush() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { autosave.flush() }
+        }
+    }
+
+    private func persist(_ value: String) async -> Bool {
+        saveState = .saving
+        do {
+            try await writeField(value.isEmpty ? nil : value)
+            saveState = .saved
+            return true
+        } catch {
+            saveState = .failed
+            return false
         }
     }
 

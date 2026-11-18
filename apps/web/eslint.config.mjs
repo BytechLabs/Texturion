@@ -1,3 +1,4 @@
+import query from "@tanstack/eslint-plugin-query";
 import { defineConfig, globalIgnores } from "eslint/config";
 import nextVitals from "eslint-config-next/core-web-vitals";
 import nextTs from "eslint-config-next/typescript";
@@ -33,5 +34,7 @@ export default defineConfig([
   {
     // The eslint-disable comments in the app are for rules oxlint now runs.
     linterOptions: { reportUnusedDisableDirectives: "off" },
+    plugins: { "@tanstack/query": query },
+    rules: { "@tanstack/query/no-unstable-deps": "error" },
   },
 ]);

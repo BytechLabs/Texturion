@@ -32,6 +32,7 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import com.loonext.android.features.compose.usSendApproved
 import com.loonext.android.features.compose.usTextingOff
@@ -40,9 +41,8 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.CompanyView
 import com.loonext.android.core.model.NumberStatus
 import com.loonext.android.core.model.Usage
+import com.loonext.android.ui.common.rememberDebouncedTextSave
 import com.loonext.android.ui.common.userMessage
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
@@ -128,16 +128,12 @@ private fun TextBackCard(
     // there is no composition left to read the reader's language out of.
     val locale = LocalAppLocale.current
     var enabled by remember(company.mctb_enabled) { mutableStateOf(company.mctb_enabled) }
-    var message by remember(company.mctb_message) {
+    var message by remember(scope.companyId) {
         mutableStateOf(company.mctb_message.orEmpty())
     }
     var error by remember { mutableStateOf<String?>(null) }
     // #192 autosave: null = idle, false = saving, true = saved.
     var savedState by remember { mutableStateOf<Boolean?>(null) }
-    var lastSavedMessage by remember(company.mctb_message) {
-        mutableStateOf(company.mctb_message.orEmpty().trim())
-    }
-    var saveJob by remember { mutableStateOf<Job?>(null) }
     val coroutines = rememberCoroutineScope()
 
     val trimmed = message.trim()
@@ -150,27 +146,27 @@ private fun TextBackCard(
         businessName = company.name,
     )
 
-    fun patchMessage(value: String) {
-        saveJob?.cancel()
-        saveJob = coroutines.launch {
-            delay(800)
-            if (value == lastSavedMessage) return@launch
-            savedState = false
-            try {
-                val body = buildJsonObject {
-                    if (value.isEmpty()) put("mctb_message", JsonNull)
-                    else put("mctb_message", value)
-                }
-                val updated = scope.repo.updateCompany(scope.companyId, body)
-                lastSavedMessage = value
-                error = null
-                savedState = true
-                onCompanyUpdated(updated)
-            } catch (cause: Exception) {
-                savedState = null
-                error = cause.userMessage(locale)
+    val autosave = rememberDebouncedTextSave(scope.companyId, scope.graph.appScope, message) { value ->
+        savedState = false
+        try {
+            val body = buildJsonObject {
+                if (value.isEmpty()) put("mctb_message", JsonNull)
+                else put("mctb_message", value)
             }
+            val updated = scope.repo.updateCompany(scope.companyId, body)
+            error = null
+            savedState = true
+            onCompanyUpdated(updated)
+            true
+        } catch (cause: Exception) {
+            savedState = null
+            error = cause.userMessage(locale)
+            false
         }
+    }
+    LaunchedEffect(company.mctb_message, autosave) {
+        val serverValue = company.mctb_message.orEmpty()
+        if (autosave.acceptServerValue(serverValue)) message = serverValue
     }
 
     SettingsCard(
@@ -186,6 +182,7 @@ private fun TextBackCard(
                 // The toggle alone decides WHETHER the text-back fires; a
                 // blank message means the default ships. Flip is optimistic,
                 // reverted with the cause if the PATCH fails.
+                if (!next) autosave.flush()
                 enabled = next
                 error = null
                 coroutines.launch {
@@ -220,11 +217,12 @@ private fun TextBackCard(
                         if (it.length <= 1000) {
                             message = it
                             savedState = null
-                            patchMessage(it.trim())
+                            autosave.schedule(it)
                         }
                     },
                     modifier = Modifier
                         .fillMaxWidth()
+                        .onFocusChanged { if (!it.isFocused) autosave.flush() }
                         .padding(top = 6.dp),
                     minLines = 3,
                     placeholder = { Text(defaultMessage) },
