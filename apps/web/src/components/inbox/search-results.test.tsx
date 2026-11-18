@@ -46,7 +46,7 @@ function openSearch(first: SearchResult, next?: SearchResult) {
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   return render(
     <QueryClientProvider client={client}>
-      <SearchResults q="Maple" />
+      <SearchResults q="Maple" listQuery="q=Maple" />
     </QueryClientProvider>,
   );
 }
@@ -68,7 +68,9 @@ it("loads page two into the Inbox and keeps the first twenty conversations", asy
 
   expect(await screen.findByRole("link", { name: /Customer 20/ })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Load more" }));
-  expect(await screen.findByRole("link", { name: /Customer 21/ })).toBeTruthy();
+  expect((await screen.findByRole("link", { name: /Customer 21/ })).getAttribute("href")).toBe(
+    "/inbox/thread-21?q=Maple&message=message-21",
+  );
   expect(screen.getAllByRole("link")).toHaveLength(21);
   expect(apiFetch.mock.calls[1][1].searchParams.cursor).toBe("page-two");
 });
@@ -100,9 +102,12 @@ it("opens a matched contact's thread and shows separate task and voicemail hits"
     }],
   });
 
-  expect((await screen.findByRole("link", { name: /Pat Rivera/ })).getAttribute("href")).toBe("/inbox/pat-thread");
-  expect(screen.getByRole("link", { name: /Pat Rivera.*81 Maple Street/ })).toBeTruthy();
+  expect((await screen.findByRole("link", { name: /Pat Rivera.*81 Maple Street/ })).getAttribute("href")).toBe(
+    "/inbox/pat-thread?q=Maple",
+  );
   expect(screen.getByRole("link", { name: "Maple installation" }).getAttribute("href")).toBe("/tasks?task=task");
   expect(screen.getByRole("link", { name: /Voicemail.*Maple Street/ }).getAttribute("href")).toBe("/calls/call");
-  expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toContain("/inbox/new?contact=pat");
+  expect(screen.getAllByRole("link").map((link) => link.getAttribute("href"))).toContain(
+    "/inbox/new?q=Maple&contact=pat",
+  );
 });

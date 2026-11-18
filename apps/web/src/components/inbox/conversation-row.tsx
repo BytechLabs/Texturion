@@ -28,6 +28,7 @@ import type {
 import { useCompanyId } from "@/lib/company/provider";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
+import { inboxHref } from "@/lib/inbox/thread-href";
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
@@ -151,20 +152,23 @@ export const ConversationRow = memo(({
   active,
   cursor = false,
   spamView,
+  listQuery = "",
 }: {
   conversation: ConversationListItem;
   active: boolean;
   /** #694: the keyboard cursor (j/k) is on this row. */
   cursor?: boolean;
   spamView: boolean;
+  listQuery?: string;
 }) => {
   const t = useT();
   const memberNames = useMemberNames();
   const snippet = useSnippet(conversation);
+  const href = inboxHref({ conversationId: conversation.id, listQuery });
   // #712: the conversation's one action list, shared with the thread header's ⋯.
   const { actions, dialogs } = useConversationActions({
     conversation,
-    openHref: `/inbox/${conversation.id}`,
+    openHref: href,
   });
   const {unread} = conversation;
   const pinned = conversation.pinned_at !== null;
@@ -255,7 +259,7 @@ export const ConversationRow = memo(({
       <span className="min-w-0 flex-1">
         <span className="flex items-baseline justify-between gap-2">
           <Link
-            href={`/inbox/${conversation.id}`}
+            href={href}
             aria-current={active ? "page" : undefined}
             aria-label={rowLabel}
             // The time's own tooltip sits under the stretched link, so the

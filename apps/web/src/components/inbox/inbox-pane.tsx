@@ -15,6 +15,7 @@ import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
 import { useSavedViews } from "@/lib/api/saved-views";
 import { useActiveCompany } from "@/lib/company/provider";
+import { inboxHref, mergeInboxListParams } from "@/lib/inbox/thread-href";
 
 import { ConversationList } from "./conversation-list";
 import { FilterBar } from "./filter-bar";
@@ -35,23 +36,23 @@ export function InboxPane() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const currentQuery = searchParams.toString();
   const params = useParams<{ conversationId?: string }>();
   const { userId } = useActiveCompany();
 
   const filters = useMemo(
-    () => parseInboxSearchParams(new URLSearchParams(searchParams.toString())),
-    [searchParams],
+    () => parseInboxSearchParams(new URLSearchParams(currentQuery)),
+    [currentQuery],
   );
 
   const setFilters = useCallback(
     (next: InboxUrlFilters) => {
-      // Filters live on /inbox itself; changing them from a thread keeps the
-      // thread open (the list and the URL query string share the route tree).
-      router.replace(`${pathname}${serializeInboxFilters(next)}`, {
+      const query = mergeInboxListParams(currentQuery, serializeInboxFilters(next)).toString();
+      router.replace(query ? `${pathname}?${query}` : pathname, {
         scroll: false,
       });
     },
-    [router, pathname],
+    [router, pathname, currentQuery],
   );
 
   // #280: land on the view this member chose.
@@ -64,7 +65,7 @@ export function InboxPane() {
   const savedViews = useSavedViews("conversations");
   const landed = useRef(false);
   useEffect(() => {
-    if (landed.current || searchParams.toString() !== "") return;
+    if (landed.current || pathname !== "/inbox" || currentQuery !== "") return;
     const defaultId = savedViews.data?.defaults.conversations ?? null;
     if (defaultId === null) return;
     const view = savedViews.data?.data.find((v) => v.id === defaultId);
@@ -74,7 +75,7 @@ export function InboxPane() {
       `${pathname}${serializeInboxFilters(viewFiltersToUrl(view.filters))}`,
       { scroll: false },
     );
-  }, [savedViews.data, searchParams, router, pathname]);
+  }, [savedViews.data, currentQuery, router, pathname]);
 
   const q = searchQueryOf(filters);
   // #548: the same rule the filter bar goes quiet on. Written out twice, the
@@ -102,7 +103,7 @@ export function InboxPane() {
         }
         primary={
           <Button asChild size="sm">
-            <Link href="/inbox/new">
+            <Link href={inboxHref({ conversationId: "new", listQuery: currentQuery })}>
               <SquarePen className="size-4" strokeWidth={1.75} aria-hidden />
               {t("inbox.newTextAction")}
             </Link>
@@ -111,7 +112,7 @@ export function InboxPane() {
       />
       <FilterBar filters={filters} onChange={setFilters} />
       {searching ? (
-        <SearchResults q={q} />
+        <SearchResults q={q} listQuery={currentQuery} />
       ) : (
         <>
           {/* G7 step 7: the dismissible getting-started checklist sits atop
@@ -124,6 +125,7 @@ export function InboxPane() {
             filters={toConversationFilters(filters, userId)}
             hasUrlFilters={hasActiveFilters(filters)}
             activeConversationId={activeConversationId}
+            listQuery={currentQuery}
           />
         </>
       )}

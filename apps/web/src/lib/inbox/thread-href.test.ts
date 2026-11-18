@@ -1,6 +1,13 @@
+import { fileURLToPath } from "node:url";
+
 import { describe, expect, it } from "vitest";
 
-import { threadHref } from "./thread-href";
+import { sourceEntries } from "@/test/source-tree";
+
+import { inboxHref, mergeInboxListParams, threadHref } from "./thread-href";
+
+const LIST_QUERY = "status=open&assignee=me&tag=tag-id&unread=true&spam=1&snoozed=true&awaiting=1&q=garage+door";
+const RAW_INBOX_LINK = /\/inbox\/\$\{|href\s*=\s*["']\/inbox["']/;
 
 describe("#718 threadHref, the one way to open a thread at something", () => {
   it("is the plain thread with no target", () => {
@@ -21,5 +28,50 @@ describe("#718 threadHref, the one way to open a thread at something", () => {
     expect(threadHref("c1", { messageId: "m1", callSessionId: "s1" })).toBe(
       "/inbox/c1?message=m1",
     );
+  });
+});
+
+describe(inboxHref, () => {
+  it("keeps every list key and replaces anchors when opening a different thread", () => {
+    const href = inboxHref({
+      conversationId: "next",
+      listQuery: `${LIST_QUERY}&thread=notes&call=old&task=old&unknown=1`,
+      target: { messageId: "found" },
+    });
+
+    expect(href).toBe(`/inbox/next?${LIST_QUERY}&message=found`);
+  });
+
+  it("keeps the list on the way into compose and back from a thread", () => {
+    expect(inboxHref({ conversationId: "new", contactId: "contact-id", listQuery: LIST_QUERY })).toBe(
+      `/inbox/new?${LIST_QUERY}&contact=contact-id`,
+    );
+    expect(inboxHref({ listQuery: `${LIST_QUERY}&message=found` })).toBe(`/inbox?${LIST_QUERY}`);
+  });
+
+  it("replaces list filters without removing the open thread's params", () => {
+    const current = "status=open&q=old&task=t1&message=m1&call=c1&thread=notes";
+    const params = mergeInboxListParams(current, "?status=closed&tag=tag-id");
+
+    expect(Object.fromEntries(params)).toEqual({
+      status: "closed",
+      tag: "tag-id",
+      task: "t1",
+      message: "m1",
+      call: "c1",
+      thread: "notes",
+    });
+  });
+
+  it("keeps navigation inside inbox and thread components on the shared builders", () => {
+    const roots = [
+      fileURLToPath(new URL("../../components/inbox", import.meta.url)),
+      fileURLToPath(new URL("../../components/thread", import.meta.url)),
+    ];
+    const bareLinks = roots.flatMap((root) => sourceEntries(root, [".tsx"]))
+      .filter(([file, source]) => !file.endsWith(".test.tsx") && RAW_INBOX_LINK.test(source))
+      .map(([file]) => file);
+
+    expect(bareLinks, "Use inboxHref for this inbox navigation").toEqual([]);
   });
 });

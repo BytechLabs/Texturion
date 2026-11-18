@@ -132,10 +132,12 @@ export function ConversationList({
   filters,
   hasUrlFilters,
   activeConversationId,
+  listQuery = "",
 }: {
   filters: ConversationFilters;
   hasUrlFilters: boolean;
   activeConversationId: string | null;
+  listQuery?: string;
 }) {
   const t = useT();
   const query = useConversations(filters);
@@ -233,6 +235,7 @@ export function ConversationList({
   const shortcuts = useInboxShortcuts({
     rows,
     activeConversationId,
+    listQuery,
     scrollToIndex: (index) => virtualizer.scrollToIndex(index),
     runBulkOn,
   });
@@ -373,6 +376,7 @@ export function ConversationList({
                 active={row.id === activeConversationId}
                 cursor={row.id === shortcuts.cursorId}
                 spamView={filters.is_spam === true}
+                listQuery={listQuery}
               />
               {/* #275: a SIBLING of the row's <Link>, positioned over its avatar
                   — never a descendant. An interactive control inside an anchor is

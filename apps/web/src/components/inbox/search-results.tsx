@@ -12,7 +12,7 @@ import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 
 import { StatusPill } from "./status-pill";
-import { threadHref } from "@/lib/inbox/thread-href";
+import { inboxHref } from "@/lib/inbox/thread-href";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
@@ -44,7 +44,7 @@ export function renderSnippet(snippet: string): React.ReactNode[] {
   );
 }
 
-export function SearchResults({ q }: { q: string }) {
+export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: string }) {
   const t = useT();
   const search = useInboxSearch(q);
   const canOpenSettings = useCanOpenSettings();
@@ -91,7 +91,7 @@ export function SearchResults({ q }: { q: string }) {
       hits: attachments.flatMap((hit) => hit.conversation_id ? [{
         id: hit.id,
         title: hit.file_name,
-        href: threadHref(hit.conversation_id),
+        href: inboxHref({ conversationId: hit.conversation_id, listQuery }),
       }] : []),
     },
     {
@@ -124,7 +124,11 @@ export function SearchResults({ q }: { q: string }) {
           {uniqueConversations.map((hit) => (
             <Link
               key={hit.id}
-              href={threadHref(hit.id, { messageId: hit.matched_message_id })}
+              href={inboxHref({
+                conversationId: hit.id,
+                listQuery,
+                target: { messageId: hit.matched_message_id },
+              })}
               className="flex items-center gap-3 border-b border-border-subtle px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
             >
               <span className="min-w-0 flex-1">
@@ -164,12 +168,12 @@ export function SearchResults({ q }: { q: string }) {
             {t("inbox.searchContactsHeading")}
           </h3>
           {contacts.map((contact) => {
-            const compose = `/inbox/new?contact=${contact.id}`;
+            const compose = inboxHref({ conversationId: "new", listQuery, contactId: contact.id });
             const thread = contact.conversation?.id;
             return (
               <div key={contact.id} className="flex items-center border-b border-border-subtle">
                 <Link
-                  href={thread ? threadHref(thread) : compose}
+                  href={thread ? inboxHref({ conversationId: thread, listQuery }) : compose}
                   className="flex min-w-0 flex-1 flex-col gap-0.5 px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                 >
                   <span className="truncate text-sm font-medium text-foreground">

@@ -17,6 +17,7 @@ import { useMembers } from "@/lib/api/team";
 import type { ConversationListItem } from "@/lib/api/types";
 import type { BulkConversationsBody } from "@/lib/inbox/bulk-selection";
 import { useSingleKeyShortcuts } from "@/lib/inbox/shortcut-preference";
+import { inboxHref } from "@/lib/inbox/thread-href";
 import { requestComposerFocus, shortcutForEvent } from '@/lib/inbox/shortcuts';
 import type { ShortcutAction } from '@/lib/inbox/shortcuts';
 import { contactDisplayName } from "@/lib/format/phone";
@@ -41,11 +42,13 @@ const UNASSIGN = "__unassign__";
 export function useInboxShortcuts({
   rows,
   activeConversationId,
+  listQuery = "",
   scrollToIndex,
   runBulkOn,
 }: {
   rows: ConversationListItem[];
   activeConversationId: string | null;
+  listQuery?: string;
   scrollToIndex: (index: number) => void;
   runBulkOn: (
     ids: string[],
@@ -75,6 +78,7 @@ export function useInboxShortcuts({
     rows,
     cursorId,
     activeConversationId,
+    listQuery,
     scrollToIndex,
     runBulkOn,
     t,
@@ -84,6 +88,7 @@ export function useInboxShortcuts({
       rows,
       cursorId,
       activeConversationId,
+      listQuery,
       scrollToIndex,
       runBulkOn,
       t,
@@ -97,6 +102,7 @@ export function useInboxShortcuts({
         rows: list,
         cursorId: cursor,
         activeConversationId: active,
+        listQuery,
         scrollToIndex,
         runBulkOn,
         t,
@@ -133,11 +139,11 @@ export function useInboxShortcuts({
       if (!row) return;
       switch (action) {
         case "open": {
-          router.push(`/inbox/${row.id}`);
+          router.push(inboxHref({ conversationId: row.id, listQuery }));
           return;
         }
         case "reply": {
-          if (row.id !== active) router.push(`/inbox/${row.id}`);
+          if (row.id !== active) router.push(inboxHref({ conversationId: row.id, listQuery }));
           requestComposerFocus();
           return;
         }
