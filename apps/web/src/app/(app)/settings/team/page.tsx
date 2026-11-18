@@ -102,8 +102,7 @@ function MemberRow({
     updateRole.mutate(
       {
         memberId: member.id,
-        // The API takes all four roles; #789 widens the hook's two-role type.
-        role: role as "admin" | "member",
+        role,
         ...(acknowledged ? { [SELF_DOWNGRADE_ACK]: true } : {}),
       },
       {
@@ -445,14 +444,6 @@ function plural(count: number, one: string, many: string): string {
   return `${count} ${count === 1 ? one : many}`;
 }
 
-function isPendingInvite(invite: Invite, now: Date): boolean {
-  return (
-    invite.accepted_at === null &&
-    invite.revoked_at === null &&
-    new Date(invite.expires_at).getTime() > now.getTime()
-  );
-}
-
 function InviteRow({ invite }: { invite: Invite }) {
   const t = useT();
   const revoke = useRevokeInvite();
@@ -617,7 +608,9 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
   }
 
   const now = new Date();
-  const pending = invites.data.data.filter((i) => isPendingInvite(i, now));
+  const outstanding = invites.data.data.filter((invite) =>
+    invite.accepted_at === null && invite.revoked_at === null,
+  );
   const seats = seatUsage(
     activeMemberCount,
     countPendingInvites(invites.data.data, now),
@@ -633,8 +626,6 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
     createInvite.mutate(
       {
         ...values,
-        // The API takes all four roles; #789 widens the hook's two-role type.
-        role: values.role as "admin" | "member",
         // Blank is no note. The server normalises whitespace to null as well,
         // but sending "" would have this client claiming somebody wrote an
         // empty string, which is a different thing from writing nothing.
@@ -815,9 +806,9 @@ function InvitesSection({ activeMemberCount }: { activeMemberCount: number }) {
           {form.formState.errors.root.message}
         </p>
       )}
-      {pending.length > 0 && (
+      {outstanding.length > 0 && (
         <div className="mt-4 divide-y border-t pt-1">
-          {pending.map((invite) => (
+          {outstanding.map((invite) => (
             <InviteRow key={invite.id} invite={invite} />
           ))}
         </div>

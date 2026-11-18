@@ -231,6 +231,14 @@ describe("the invite note (#521)", () => {
     expect(screen.getByText("tech@example.com")).toBeTruthy();
     expect(document.querySelector("blockquote")).toBeNull();
   });
+
+  it("shows an expired invite with the old link disabled", () => {
+    invites.rows = [{ ...pendingInvite(null), expires_at: "2000-01-01T00:00:00Z" }];
+    render(<TeamSettingsPage />);
+
+    expect(screen.getByText(/Expired/)).toBeTruthy();
+    expect(screen.getByRole("button", { name: /Copy.*tech@example.com/i }).hasAttribute("disabled")).toBe(true);
+  });
 });
 
 describe("every role the picker offers (#789)", () => {

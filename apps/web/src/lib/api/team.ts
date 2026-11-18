@@ -1,4 +1,4 @@
-import { SELF_DOWNGRADE_ACK } from "@loonext/shared";
+import { SELF_DOWNGRADE_ACK, type AssignableRole } from "@loonext/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
@@ -26,14 +26,14 @@ export function useMembers() {
   });
 }
 
-/** PATCH /v1/members/:id — { role: 'admin' | 'member' } (owner immutable). */
+/** PATCH /v1/members/:id — change an assignable role. */
 export function useUpdateMemberRole() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: {
       memberId: string;
-      role: "admin" | "member";
+      role: AssignableRole;
       /**
        * #538: present only when somebody is giving up their OWN access, having
        * been shown what that costs. The server refuses a self-downgrade without
@@ -149,7 +149,7 @@ export function useCreateInvite() {
   return useMutation({
     mutationFn: (input: {
       email: string;
-      role: "admin" | "member";
+      role: AssignableRole;
       note?: string | null;
     }) =>
       apiFetch<CreatedInvite>("/v1/invites", {
@@ -159,7 +159,7 @@ export function useCreateInvite() {
       }),
     onSuccess: (invite) => {
       queryClient.setQueryData<Page<Invite>>(keys.invites(companyId), (page) =>
-        page ? { ...page, data: [invite, ...page.data] } : page,
+        page ? { ...page, data: [invite, ...page.data.filter((item) => item.id !== invite.id)] } : page,
       );
     },
   });

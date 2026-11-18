@@ -426,6 +426,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     const sb = stubWithRole("owner");
     seatStub(sb, "starter", 1, 0);
     sb.on("POST", "/rest/v1/invites", () => pgError("23505", "invites_pending_uq"));
+    sb.on("PATCH", "/rest/v1/invites", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
     const dup = await apiRequest(app, env, await auth.token(), "/v1/invites", {
@@ -434,6 +435,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "new@crew.example", role: "member" },
     });
     expect(dup.status).toBe(409);
+    expect(sb.find("POST", "/auth/v1/admin/generate_link")).toEqual([]);
 
     for (const body of [
       { email: "new@crew.example", role: "owner" },
@@ -446,6 +448,36 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       });
       expect(res.status, JSON.stringify(body)).toBe(422);
     }
+  });
+
+  it("refreshes an expired invite in place and delivers a new confirmation link", async () => {
+    const sb = stubWithRole("owner");
+    seatStub(sb, "starter", 1, 0);
+    sb.on("POST", "/rest/v1/invites", () => pgError("23505", "invites_pending_uq"));
+    sb.on("PATCH", "/rest/v1/invites", (call) => {
+      expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+      expect(call.url.searchParams.get("email")).toBe("eq.new@crew.example");
+      expect(call.url.searchParams.get("accepted_at")).toBe("is.null");
+      expect(call.url.searchParams.get("revoked_at")).toBe("is.null");
+      expect(call.url.searchParams.get("expires_at")).toMatch(/^lte\./);
+      return [pendingInvite(call.body as Record<string, unknown>)];
+    });
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    stubNewAuthInvite(sb);
+    const resend = resendCapture();
+    stubFetch(jwksRoute(auth), sb.route, resend.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { email: "new@crew.example", role: "bookkeeper" },
+    });
+
+    expect(res.status).toBe(201);
+    expect(await res.json()).toMatchObject({ id: INVITE_ID, role: "bookkeeper", email_sent: true });
+    expect(sb.find("PATCH", "/rest/v1/invites")).toHaveLength(1);
+    expect(resend.calls).toHaveLength(1);
+    expect(resend.calls[0].text).toContain(`%2Finvite%2F${INVITE_ID}`);
   });
 });
 

@@ -727,26 +727,38 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
     );
   }
 
-  const inserted = unwrap<Record<string, unknown>[]>(
-    await db
-      .from("invites")
-      .insert({
-        company_id: companyId,
-        email: body.email,
-        role: body.role,
-        note: body.note ?? null,
-        invited_by: c.get("userId"),
-      })
-      .select(INVITE_COLUMNS),
+  const { email, role } = body;
+  const note = body.note ?? null;
+  const invitedBy = c.get("userId");
+  const inserted = await db
+    .from("invites")
+    .insert({ company_id: companyId, email, role, note, invited_by: invitedBy })
+    .select(INVITE_COLUMNS);
+
+  const now = new Date();
+  const refreshedExpiry = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString();
+  const refreshing = isUniqueViolation(inserted.error);
+  const rows = unwrap<Record<string, unknown>[]>(
+    refreshing
+      ? await db.from("invites")
+          .update({ role, note, invited_by: invitedBy, expires_at: refreshedExpiry })
+          .eq("company_id", companyId)
+          .eq("email", email)
+          .is("accepted_at", null)
+          .is("revoked_at", null)
+          .lte("expires_at", now.toISOString())
+          .select(INVITE_COLUMNS)
+      : inserted,
     "invite create",
     "A pending invite for this email already exists.",
   );
-  const invite = inserted[0];
+  const invite = rows[0];
+  if (!invite) return errorResponse(c, "conflict", "A pending invite for this email already exists.");
 
   const inviteId = invite.id as string;
   const { data: linkData, error } = await db.auth.admin.generateLink({
     type: "invite",
-    email: body.email,
+    email,
   });
   const alreadyRegistered = error?.code === "email_exists" || error?.status === 422;
   const tokenHash = linkData.properties?.hashed_token;
@@ -760,17 +772,24 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
       link.searchParams.set("next", acceptPath);
     }
     emailSent = await sendWorkspaceInvite(db, env, {
-      email: body.email,
+      email,
       inviteId,
       companyId,
       link: link.href,
-      note: body.note ?? null,
-      invitedBy: c.get("userId"),
+      note,
+      invitedBy,
     });
   }
   if (!alreadyRegistered && !emailSent) {
     expectOk(
-      await db.from("invites").delete().eq("company_id", companyId).eq("id", inviteId),
+      refreshing
+        ? await db.from("invites")
+            .update({ expires_at: now.toISOString() })
+            .eq("company_id", companyId)
+            .eq("id", inviteId)
+            .eq("expires_at", refreshedExpiry)
+            .is("accepted_at", null)
+        : await db.from("invites").delete().eq("company_id", companyId).eq("id", inviteId),
       "invite rollback",
     );
     throw new Error("Invite email could not be sent.");
@@ -782,7 +801,7 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
     action: "member.invited",
     targetType: "invite",
     targetId: inviteId,
-    after: { email: body.email, role: body.role, email_sent: emailSent },
+    after: { email, role, email_sent: emailSent },
   });
 
   // #281 item 3: the approved-to-first-send span was one opaque window, and
@@ -792,7 +811,7 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
   // stamped columns to save a few events would be the wrong trade. The ROLE is
   // the interesting property — inviting an admin is a different act from
   // inviting a tech.
-  await capture(env, "team_invited", companyId, { role: body.role });
+  await capture(env, "team_invited", companyId, { role });
 
   return c.json({ ...invite, email_sent: emailSent }, 201);
 });
