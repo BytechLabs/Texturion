@@ -35,7 +35,7 @@ export function CopyablePhoneNumber({
   return (
     <button
       type="button"
-      className={cn("inline-flex select-all items-center gap-1.5 rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
+      className={cn("tap-target inline-flex select-all items-center gap-1.5 rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
       aria-label={`${copyLabel}: ${label}`}
       title={copyLabel}
       onClick={copy}
