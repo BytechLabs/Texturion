@@ -50,7 +50,7 @@ const EMAIL_FONT =
  * Still not an env var, for the original reason: a missing or mistyped variable
  * would silently ship the void this exists to close.
  */
-export { SUPPORT_EMAIL };
+export { SUPPORT_EMAIL } from "@loonext/shared";
 
 /**
  * The footer, as words rather than markup, so the two MIME parts of one email

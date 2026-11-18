@@ -1,6 +1,11 @@
 "use client";
 
-import { hasBusinessHours } from "@loonext/shared";
+import {
+  awayEmergencyNotice,
+  effectiveEmergencyKeywords,
+  emergencyWordList,
+  hasBusinessHours,
+} from "@loonext/shared";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -23,11 +28,6 @@ import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { SettingChoiceNote } from "@/components/settings/setting-choice-note";
 import { WeeklyHoursGrid } from "@/components/settings/weekly-hours-grid";
 import { ApiError } from "@/lib/api/error";
-import {
-  awayEmergencyNotice,
-  effectiveEmergencyKeywords,
-  emergencyWordList,
-} from "@loonext/shared";
 
 import { useT } from "@/i18n/provider";
 import { previewAwayMessage } from "@/lib/settings/away-preview";

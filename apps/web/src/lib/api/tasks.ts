@@ -59,7 +59,8 @@ export type TaskAddressInput = TaskAddress & {
 // without importing this hook chain. Re-exported here so existing consumers
 // (`import { TaskListFilters, taskSearchParams } from "@/lib/api/tasks"`) are
 // unaffected.
-export type { TaskListFilters, TaskListRequest };
+export type { TaskListFilters } from "./task-filters";
+export type { TaskListRequest } from "./task-params";
 
 // ---------------------------------------------------------------------------
 // Fetchers (pure — reused by prefetch/tests)

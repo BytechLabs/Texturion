@@ -16,8 +16,7 @@ import { dirname, join } from "node:path";
 import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
 import type { NumberBook } from "@loonext/rig-robot";
 import { API_ENVIRONMENT, type PostHogErrors } from "./posthog-errors.ts";
-import { stableUuid as seedStableUuid } from "../../../../scripts/rig/seed.mjs";
-import { totpCode } from "../../../../scripts/rig/seed.mjs";
+import { stableUuid as seedStableUuid, totpCode } from "../../../../scripts/rig/seed.mjs";
 import { MemberSessions, memberSessionsFile } from "../../src/member-sessions.mjs";
 import {
   COMPANY_FIELDS,

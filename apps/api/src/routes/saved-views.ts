@@ -35,7 +35,15 @@
  * `settings.manage`. The check is in the handler rather than the middleware
  * because which capability applies depends on the body.
  */
-import { filtersToQuery, resolveAssignee, sanitizeFilters, SAVED_VIEW_COUNT_MAX_VIEWS, SAVED_VIEW_NAME_MAX, SAVED_VIEW_SURFACES } from '@loonext/shared';
+import {
+  filtersToQuery,
+  resolveAssignee,
+  roleHasCapability,
+  sanitizeFilters,
+  SAVED_VIEW_COUNT_MAX_VIEWS,
+  SAVED_VIEW_NAME_MAX,
+  SAVED_VIEW_SURFACES,
+} from "@loonext/shared";
 import type { SavedViewSurface } from '@loonext/shared';
 import { Hono } from "hono";
 import { z } from "zod";
@@ -47,7 +55,6 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { errorResponse } from "../http/errors";
 import { expectOk, parseJsonBody, pathUuid, unwrap } from "./core/http";
-import { roleHasCapability } from "@loonext/shared";
 
 const VIEW_COLUMNS =
   "id,surface,name,filters,position,owner_user_id,created_by,created_at,updated_at";

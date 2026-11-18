@@ -18,16 +18,21 @@
  *         SPEC §2 cap, §10 matrix).
  */
 import {
+  ATTRIBUTION_PARAMS,
   AUTOMATIC_TEXT_BOUNDS,
   AUTOMATIC_TEXT_KEYS,
   companySettingDefault,
+  CREW_SIZE_BUCKETS,
   isValidBusinessHours,
   isValidHoursExceptions,
   LOCALES,
   NANP_AREA_CODES,
   RING_SECONDS_MAX,
   RING_SECONDS_MIN,
+  sanitizeAttributionValue,
+  sanitizeLandingPath,
   screenBusinessName,
+  SIGNUP_SOURCES,
 } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
@@ -40,13 +45,6 @@ import { alertProhibitedCategory } from "../messaging/aup-signup-screen";
 import { requireCapability } from "../auth/company";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
-import {
-  ATTRIBUTION_PARAMS,
-  CREW_SIZE_BUCKETS,
-  sanitizeAttributionValue,
-  sanitizeLandingPath,
-  SIGNUP_SOURCES,
-} from "@loonext/shared";
 import { attributeReferral } from "../referrals/referrals";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";

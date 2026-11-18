@@ -11,7 +11,6 @@ import { LIMIT_KEYS } from '../src/state/concurrency';
 import type { ValidationRecord } from '../src/state/concurrency';
 import { MemoryStore } from "../src/store";
 import { telnyxApi } from "../src/telnyx/client";
-import { KEYS } from "../src/telnyx/partition";
 import { FakeTelnyx, reply } from "./fake-telnyx";
 
 /** Fictional numbers only (555-0100..0199): scripts/check-rig-no-e164.mjs reads this tree. */
@@ -329,4 +328,5 @@ export async function ruleOf(response: Response): Promise<string | null> {
   return body.rule;
 }
 
-export { KEYS, reply };
+export { KEYS } from "../src/telnyx/partition";
+export { reply } from "./fake-telnyx";

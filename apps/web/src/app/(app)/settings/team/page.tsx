@@ -1,6 +1,12 @@
 "use client";
 
-import { ASSIGNABLE_ROLES, type AssignableRole } from "@loonext/shared";
+import {
+  ASSIGNABLE_ROLES,
+  avatarInitials,
+  roleHasCapability,
+  SELF_DOWNGRADE_ACK,
+} from "@loonext/shared";
+import type { AssignableRole } from "@loonext/shared";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronRight } from "lucide-react";
@@ -9,12 +15,6 @@ import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
-
-import {
-  avatarInitials,
-  roleHasCapability,
-  SELF_DOWNGRADE_ACK,
-} from "@loonext/shared";
 
 import {
   GiveUpAccessDialog,

@@ -1,4 +1,13 @@
-import { SUBPROCESSORS } from "@loonext/shared";
+import {
+  AI_DISCLOSURES,
+  COMPANY_SETTING_DEFAULTS,
+  DELETION_GAPS,
+  DELETION_GRACE_DAYS,
+  formatMoney,
+  PLAN_PRICE_CENTS,
+  SUBPROCESSORS,
+  US_REGISTRATION_FEE_CENTS,
+} from "@loonext/shared";
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -29,15 +38,6 @@ import { DeleteMyDataPageBody } from "@/components/marketing/legal/delete-my-dat
 import { PrivacyPageBody } from "@/components/marketing/legal/privacy-page";
 import { CATALOGS } from "@/i18n/catalog";
 import { legalDeleteMyDataEn } from "@/i18n/marketing/legal-delete-my-data";
-import {
-  AI_DISCLOSURES,
-  COMPANY_SETTING_DEFAULTS,
-  DELETION_GAPS,
-  DELETION_GRACE_DAYS,
-  formatMoney,
-  PLAN_PRICE_CENTS,
-  US_REGISTRATION_FEE_CENTS,
-} from "@loonext/shared";
 
 /**
  * The seven legal pages (COPY-DECK v2, V4 coverage map): quiet register,

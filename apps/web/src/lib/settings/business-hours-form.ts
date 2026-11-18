@@ -8,10 +8,10 @@
  * declarative and the conversion is unit-tested (mirroring the calm settings
  * house style of testable lib helpers).
  */
-import { WEEKDAYS } from '@loonext/shared';
 import type { BusinessHours, Weekday } from '@loonext/shared';
 
-export { WEEKDAYS, type Weekday };
+export { WEEKDAYS } from "@loonext/shared";
+export type { Weekday } from "@loonext/shared";
 
 /** One weekday row in the editor grid. */
 export interface DayFormState {
@@ -87,4 +87,4 @@ export function summarizeDay(day: DayFormState): string {
 }
 
 /** WEEKDAYS re-exported so callers don't reach into @loonext/shared directly. */
-export { WEEKDAYS as ALL_WEEKDAYS };
+export { WEEKDAYS as ALL_WEEKDAYS } from "@loonext/shared";

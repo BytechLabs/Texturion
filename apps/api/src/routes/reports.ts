@@ -36,9 +36,16 @@
  *      made it, the whole crew sees it — a leaderboard nobody may look at is not
  *      a leaderboard, and the opt-in IS the control.
  */
-import { companySettingDefault, pipelineInsight, pipelineInsightKeys, pipelineWinRate, SATISFACTION_MIN_SAMPLE, SATISFACTION_POOR_AT_OR_BELOW } from '@loonext/shared';
+import {
+  companySettingDefault,
+  isAfterHours,
+  pipelineInsight,
+  pipelineInsightKeys,
+  pipelineWinRate,
+  SATISFACTION_MIN_SAMPLE,
+  SATISFACTION_POOR_AT_OR_BELOW,
+} from "@loonext/shared";
 import type { BusinessHours,HoursException,PipelineReport } from '@loonext/shared';
-import { isAfterHours } from '@loonext/shared';
 import { Hono } from "hono";
 
 import { requireCapability } from "../auth/company";

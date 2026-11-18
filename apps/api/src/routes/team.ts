@@ -1,4 +1,3 @@
-import { ASSIGNABLE_ROLES } from "@loonext/shared";
 /**
  * Team routes (SPEC §7, §10):
  *
@@ -28,7 +27,15 @@ import { ASSIGNABLE_ROLES } from "@loonext/shared";
  *          the same formula; creates the membership AND a notification_prefs
  *          row (defaults true/true).
  */
-import { isDowngrade, roleHasCapability, SELF_DOWNGRADE_ACK, SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY, shouldShowOrientation, stateMachines } from '@loonext/shared';
+import {
+  ASSIGNABLE_ROLES,
+  isDowngrade,
+  roleHasCapability,
+  SELF_DOWNGRADE_ACK,
+  SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY,
+  shouldShowOrientation,
+  stateMachines,
+} from "@loonext/shared";
 import type { MemberRole } from '@loonext/shared';
 import { Hono } from "hono";
 import { z } from "zod";

@@ -112,7 +112,7 @@ const nextConfig: NextConfig = {
    */
   turbopack: {
     rules: {
-      "*.md": { loaders: ["./loaders/markdown-source-loader.cjs"], as: "*.js" },
+      "*.md": { loaders: ["./loaders/markdown-source-loader.mjs"], as: "*.js" },
     },
   },
   // Hide the `next dev` indicator (the floating "N" badge). It's dev-only, but

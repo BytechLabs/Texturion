@@ -21,7 +21,6 @@ import {
   buildBrowserAnsweredState,
   buildMemberRingState,
   buildVoicemailState,
-  defaultGreeting,
   LOONEXT_CALLER_HEADER,
   LOONEXT_CALLER_NAME_HEADER,
   LOONEXT_SESSION_HEADER,
@@ -51,7 +50,6 @@ import {
   isTerminal,
   MAX_UNAVAILABLE_NOTICES_PER_DAY,
   outcomeForState,
-  RING_WINDOW_SECS,
 } from "./transitions";
 
 /** Result of a dial POST (§7.7 pending-key discipline). */
@@ -1747,4 +1745,5 @@ export function briTagFor(
 }
 
 /** Re-export for the shell: the greeting fallback. */
-export { defaultGreeting, RING_WINDOW_SECS };
+export { defaultGreeting } from "../messaging/inbound-ring";
+export { RING_WINDOW_SECS } from "./transitions";

@@ -60,4 +60,4 @@ export function getStripe(env: Env): Stripe {
  */
 export const stripeCryptoProvider = Stripe.createSubtleCryptoProvider();
 
-export { Stripe };
+export { default as Stripe } from "stripe";

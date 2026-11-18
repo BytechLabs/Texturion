@@ -37,7 +37,8 @@ import type { AttachmentLike } from './derived-attachments';
 
 // Re-exported for existing importers; the pure logic lives in
 // derived-attachments.ts so it unit-tests without React.
-export { attachmentLabel, isImageAttachment, type AttachmentLike };
+export { attachmentLabel, isImageAttachment } from "./derived-attachments";
+export type { AttachmentLike } from "./derived-attachments";
 
 /**
  * One attachment row (D19 / D28 / APP-FEATURES-V2 §2.5). Images render a

@@ -17,10 +17,9 @@ import {
   estimateSegments,
   isUsCaDestination,
   resolveLocale,
+  resolveNumberIdentity,
 } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
-
-import { resolveNumberIdentity } from "@loonext/shared";
 
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";

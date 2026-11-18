@@ -1,7 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { estimateSegments } from "@loonext/shared";
+import { estimateSegments, MERGE_FIELD_VARIABLES } from "@loonext/shared";
 import { useEffect, useMemo } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
@@ -28,7 +28,6 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useT, type Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
-import { MERGE_FIELD_VARIABLES } from "@loonext/shared";
 import { ApiError } from "@/lib/api/error";
 import { useTemplates, useCreateTemplate, useUpdateTemplate } from "@/lib/api/templates";
 import type { Template } from "@/lib/api/types";

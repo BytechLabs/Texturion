@@ -1,25 +1,30 @@
-import type { BillingCurrency,CallEndReason,CallRouting,DeferralKind,PipelineStage,WorkPhase } from "@loonext/shared";
+/**
+ * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
+ * guessed — SPEC §7 is the contract, the route files are the truth).
+ */
 import {
   OVERAGE_CENTS_PER_SEGMENT,
   PLAN_PRICE_CENTS,
   PLAN_SEATS,
   US_REGISTRATION_FEE_CENTS,
 } from "@loonext/shared";
-
-import { pricingEn } from "@/i18n/marketing/pricing";
-
-/**
- * API resource shapes, derived by reading apps/api/src/routes/*.ts (never
- * guessed — SPEC §7 is the contract, the route files are the truth).
- */
 import type {
+  BillingCurrency,
+  CallEndReason,
+  CallRouting,
   CrewSizeBucket,
+  DeferralKind,
   HoursException,
   Locale,
+  MemberRole,
   MmsMediaKind,
   NumberAccessExplanation,
+  PipelineStage,
   VoicemailIntake,
+  WorkPhase,
 } from "@loonext/shared";
+
+import { pricingEn } from "@/i18n/marketing/pricing";
 
 /**
  * #348: GET /v1/numbers/access/explain/:userId — what one member reaches on
@@ -42,9 +47,7 @@ export type SubscriptionStatus =
  * web app used to keep its own copy, which is how it came to disagree with the
  * server about which roles exist the moment a preset was added.
  */
-import type {MemberRole} from "@loonext/shared";
-
-export { type MemberRole } from "@loonext/shared";
+export type { MemberRole } from "@loonext/shared";
 
 export type PlanId = "starter" | "pro";
 export type Country = "US" | "CA";

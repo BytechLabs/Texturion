@@ -39,7 +39,7 @@
  * catching, because the drag continuing to work is precisely why nobody would
  * notice.
  */
-import { readFileSync, existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 
 /**
  * Every phone file allowed to start a custom drag, and the single-pointer path
@@ -158,7 +158,6 @@ const STARTS_A_DRAG = [
   { pattern: /\.onDrag\s*[({]/, ext: ".swift" },
 ];
 
-import { readdirSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 function walk(dir, out = []) {

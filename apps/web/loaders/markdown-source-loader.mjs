@@ -18,6 +18,6 @@
  * `JSON.stringify` is doing real work: the documents contain quotes, newlines
  * and backslashes, and it is the escaping that makes the result a valid literal.
  */
-module.exports = function markdownSourceLoader(source) {
+export default function markdownSourceLoader(source) {
   return `export default ${JSON.stringify(source)};`;
-};
+}

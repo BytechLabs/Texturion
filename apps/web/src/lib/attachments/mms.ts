@@ -14,7 +14,7 @@ export { MMS_MAX_MEDIA_BYTES, MMS_MAX_MEDIA_ITEMS } from '@loonext/shared';
 import type { MmsMediaType } from '@loonext/shared';
 
 
-export type { MmsMediaType };
+export type { MmsMediaType } from "@loonext/shared";
 
 /**
  * The `accept` attribute for the composers' hidden <input type="file">. Not a
