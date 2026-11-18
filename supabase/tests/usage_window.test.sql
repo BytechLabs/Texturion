@@ -307,4 +307,57 @@ begin
   end if;
 end $$;
 
+insert into public.phone_numbers
+  (id, company_id, provisioning_key, country, number_e164, status)
+values
+  ('9a000000-0000-4000-8000-0000000000d2', '9a000000-0000-4000-8000-0000000000c2',
+   'pk-9a-2', 'US', '+14155550002', 'active');
+
+insert into public.contacts (id, company_id, phone_e164) values
+  ('9a000000-0000-4000-8000-0000000000e2', '9a000000-0000-4000-8000-0000000000c2', '+14165559002');
+
+insert into public.conversations (id, company_id, contact_id, phone_number_id) values
+  ('9a000000-0000-4000-8000-0000000000f2', '9a000000-0000-4000-8000-0000000000c2',
+   '9a000000-0000-4000-8000-0000000000e2', '9a000000-0000-4000-8000-0000000000d2');
+
+insert into public.messages
+  (company_id, conversation_id, direction, status, sent_by_user_id, created_at)
+select
+  '9a000000-0000-4000-8000-0000000000c1',
+  '9a000000-0000-4000-8000-0000000000f1',
+  'outbound',
+  (case when n <= 1200 then 'delivered' when n <= 1300 then 'failed' else 'queued' end)::public.message_status,
+  '9a000000-0000-4000-8000-00000000000a',
+  '2026-06-19T00:00:00Z'
+from generate_series(1, 1500) as batches(n);
+
+insert into public.messages
+  (company_id, conversation_id, direction, status, sent_by_user_id, created_at)
+values
+  ('9a000000-0000-4000-8000-0000000000c1', '9a000000-0000-4000-8000-0000000000f1',
+   'outbound', 'failed', '9a000000-0000-4000-8000-00000000000a', '2026-05-31T23:59:59Z'),
+  ('9a000000-0000-4000-8000-0000000000c2', '9a000000-0000-4000-8000-0000000000f2',
+   'outbound', 'failed', '9a000000-0000-4000-8000-00000000000a', '2026-06-19T00:00:00Z');
+
+do $$
+declare
+  v_delivery_fn constant text := 'public.api_delivery_totals_by_area_code(uuid,timestamptz)';
+  v_rows jsonb;
+begin
+  if has_function_privilege('anon', v_delivery_fn, 'execute')
+     or has_function_privilege('authenticated', v_delivery_fn, 'execute')
+     or not has_function_privilege('service_role', v_delivery_fn, 'execute') then
+    raise exception 'Delivery totals RPC must be service-role only';
+  end if;
+
+  select jsonb_agg(to_jsonb(r)) into v_rows
+    from public.api_delivery_totals_by_area_code(
+      '9a000000-0000-4000-8000-0000000000c1', '2026-06-01T00:00:00Z'
+    ) r;
+  if v_rows is distinct from
+    '[{"area_code":"415","sent":1501,"delivered":1200,"failed":100,"pending":201}]'::jsonb then
+    raise exception 'Delivery totals did not include every outbound message in scope: %', v_rows;
+  end if;
+end $$;
+
 rollback;

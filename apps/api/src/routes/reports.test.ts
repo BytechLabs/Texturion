@@ -575,17 +575,33 @@ function ratingWorld(
     { user_id: TECH_ID, display_name: "Dana" },
     { user_id: MEMBER_ID, display_name: "Sam" },
   ]);
-  sb.on("GET", "/rest/v1/job_ratings", () =>
-    ratings.map((rating) => ({
-      score: rating.score,
-      answered_at:
-        rating.score === null
-          ? null
-          : new Date(Date.now() - rating.ago * 86_400_000).toISOString(),
-      rated_user_id: rating.rated_user_id ?? null,
-      asked_at: new Date(Date.now() - rating.ago * 86_400_000).toISOString(),
-    })),
-  );
+  const now = Date.now();
+  const rows = ratings
+    .map((rating, index) => {
+      const timestamp = new Date(now - rating.ago * 86_400_000).toISOString();
+      return {
+        id: `aaaaaaaa-0000-4000-8000-${String(ratings.length - index).padStart(12, "0")}`,
+        score: rating.score,
+        answered_at: rating.score === null ? null : timestamp,
+        rated_user_id: rating.rated_user_id ?? null,
+        asked_at: timestamp,
+      };
+    })
+    .sort((a, b) => b.asked_at.localeCompare(a.asked_at) || b.id.localeCompare(a.id));
+  sb.on("GET", "/rest/v1/job_ratings", (call) => {
+    const params = call.url.searchParams;
+    expect(params.get("order")).toBe("asked_at.desc,id.desc");
+    const limit = Number(params.get("limit"));
+    expect(limit).toBeLessThanOrEqual(1_000);
+    const filter = params.get("or");
+    const start = filter === null
+      ? 0
+      : rows.findIndex((row) => filter ===
+        `(asked_at.lt.${row.asked_at},and(asked_at.eq.${row.asked_at},id.lt.${row.id}))`,
+      ) + 1;
+    if (filter !== null) expect(start).toBeGreaterThan(0);
+    return rows.slice(start, start + limit);
+  });
   return sb;
 }
 
@@ -606,6 +622,15 @@ async function satisfaction(
 }
 
 describe("#313 satisfaction reporting", () => {
+  it.each([1_400, 5_000, 5_001])("counts %i same-time ratings up to the cap", async (count) => {
+    const ratings = Array.from({ length: count }, () => ({ score: 5, ago: 1 }));
+    const body = await satisfaction(ratingWorld(ratings));
+
+    expect(body.asked).toBe(Math.min(count, 5_000));
+    expect(body.answered).toBe(Math.min(count, 5_000));
+    expect(body.truncated).toBe(count > 5_000);
+  });
+
   it("SR-1: refuses to average four answers, and says which it is", async () => {
     const body = await satisfaction(
       ratingWorld([

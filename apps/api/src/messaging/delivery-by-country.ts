@@ -9,7 +9,7 @@
  * The fleet-wide split is PostHog's: every final status sends a
  * `message_outcome` event with its country (D146).
  */
-import { lookupAreaCode } from '@loonext/shared';
+import { lookupAreaCode, NANP_AREA_CODES } from '@loonext/shared';
 import type { NanpCountry } from '@loonext/shared';
 
 /**
@@ -47,18 +47,19 @@ export interface CountryDelivery {
   rate: number | null;
 }
 
-interface OutboundRow {
-  status: string;
-  conversations: { contacts: { phone_e164: string } | null } | null;
+interface DeliveryAreaTotals {
+  area_code: string | null;
+  sent: number;
+  delivered: number;
+  failed: number;
+  pending: number;
 }
 
-/** Bucket settled outbound messages by the destination's country. Pure. */
-export function summarize(rows: OutboundRow[]): CountryDelivery[] {
+/** Combine area-code totals into country totals before calculating rates. */
+export function summarize(rows: DeliveryAreaTotals[]): CountryDelivery[] {
   const buckets = new Map<string, CountryDelivery>();
   for (const row of rows) {
-    const phone = row.conversations?.contacts?.phone_e164;
-    if (!phone) continue;
-    const country = phoneCountry(phone);
+    const country = NANP_AREA_CODES[row.area_code ?? ""]?.country ?? "other";
 
     const bucket = buckets.get(country) ?? {
       country,
@@ -68,10 +69,10 @@ export function summarize(rows: OutboundRow[]): CountryDelivery[] {
       pending: 0,
       rate: null,
     };
-    bucket.sent += 1;
-    if (row.status === "delivered") bucket.delivered += 1;
-    if (row.status === "failed") bucket.failed += 1;
-    if (row.status === "queued" || row.status === "sent") bucket.pending += 1;
+    bucket.sent += row.sent;
+    bucket.delivered += row.delivered;
+    bucket.failed += row.failed;
+    bucket.pending += row.pending;
     buckets.set(country, bucket);
   }
 

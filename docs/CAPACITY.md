@@ -38,6 +38,11 @@ lines with the date and commit rather than copying terminal prose into this
 document; they contain no request bodies, tokens, phone numbers, or customer
 data.
 
+Supabase's hosted Data API defaults to 1,000 rows per response, and
+`supabase/config.toml` sets the local limit to the same value. Reads above
+that size need ordered pages, or a database aggregate when only totals are
+needed. [Supabase Data API row limit](https://supabase.com/docs/reference/javascript/v1/select)
+
 ## Acceptance matrix
 
 This is the source of truth for #251's axes. A lower bound means the scenario

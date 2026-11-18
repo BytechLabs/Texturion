@@ -46,7 +46,7 @@ import { resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
-import { unwrap } from "./core/http";
+import { keysetFilter, unwrap } from "./core/http";
 
 export const reportsRoutes = new Hono<AppEnv>();
 
@@ -68,6 +68,7 @@ const BASELINE_DAYS = 14;
 
 /** Rows the RPC returns for the hours split. Reported when it truncates. */
 const MAX_ROWS = 5000;
+const RATINGS_PAGE_SIZE = 1_000;
 
 interface LeadRow {
   conversation_id: string;
@@ -475,6 +476,8 @@ reportsRoutes.get("/reports/pipeline", requireCapability("conversations.read"), 
  * a client cannot get a rule wrong that it was never given (#482).
  */
 interface RatingRow {
+  id: string;
+  asked_at: string;
   score: number | null;
   answered_at: string | null;
   rated_user_id: string | null;
@@ -598,23 +601,26 @@ reportsRoutes.get(
     const since = new Date(until.getTime() - windowMs);
     const priorSince = new Date(since.getTime() - windowMs);
 
-    // One read covering both windows, sliced in memory. Two round trips for
-    // two halves of the same small table is a second chance for the boundary
-    // to be drawn differently.
-    const rows = unwrap<RatingRow[]>(
-      await db
+    const rows: RatingRow[] = [];
+    while (rows.length <= MAX_ROWS) {
+      let ratings = db
         .from("job_ratings")
-        .select("score,answered_at,rated_user_id,asked_at")
+        .select("id,asked_at,score,answered_at,rated_user_id")
         .eq("company_id", companyId)
         .gte("asked_at", priorSince.toISOString())
         .order("asked_at", { ascending: false })
-        .limit(MAX_ROWS + 1),
-      "satisfaction ratings",
-    );
+        .order("id", { ascending: false });
+      const last = rows.at(-1);
+      if (last) {
+        ratings = ratings.or(keysetFilter("asked_at", { ts: last.asked_at, id: last.id }));
+      }
+      const limit = Math.min(RATINGS_PAGE_SIZE, MAX_ROWS - rows.length + 1);
+      const page = unwrap<RatingRow[]>(await ratings.limit(limit), "satisfaction ratings");
+      rows.push(...page);
+      if (page.length < limit) break;
+    }
     const truncated = rows.length > MAX_ROWS;
-    const capped = (truncated ? rows.slice(0, MAX_ROWS) : rows) as (RatingRow & {
-      asked_at: string;
-    })[];
+    const capped = truncated ? rows.slice(0, MAX_ROWS) : rows;
 
     const current = capped.filter(
       (row) => new Date(row.asked_at).getTime() >= since.getTime(),

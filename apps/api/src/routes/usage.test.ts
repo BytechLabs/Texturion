@@ -79,7 +79,7 @@ function usageStub(
   // #426: the carrier-reported delivery read. Empty by default — the
   // delivery card simply does not render, which is what every existing
   // assertion here expects.
-  sb.on("GET", "/rest/v1/messages", () => []);
+  sb.on("POST", "/rest/v1/rpc/api_delivery_totals_by_area_code", () => []);
   sb.on("POST", "/rest/v1/rpc/api_period_inbound_segments", () => inbound);
   sb.on("POST", "/rest/v1/rpc/api_usage_history", () => HISTORY);
   sb.on("POST", "/rest/v1/rpc/api_storage_usage", () => storage);
