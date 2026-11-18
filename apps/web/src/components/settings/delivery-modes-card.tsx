@@ -2,7 +2,7 @@
 
 import { toast } from "sonner";
 
-import { BATCH_WINDOW_CHOICES, CATEGORY_LABELS, DEFAULT_BATCH_WINDOW, DELIVERY_COPY, DELIVERY_MODES, NOTIFICATION_CATEGORIES } from '@loonext/shared';
+import { BATCH_WINDOW_CHOICES, CATEGORY_LABELS, DEFAULT_BATCH_WINDOW, DEFAULT_SUMMARY_TIME, DELIVERY_COPY, DELIVERY_MODES, NOTIFICATION_CATEGORIES } from '@loonext/shared';
 import type { DeliveryMode, NotificationCategory } from '@loonext/shared';
 
 import { SimpleSelect } from "@/components/ui/simple-select";
@@ -105,6 +105,9 @@ export function DeliveryModesCard({
         Object.values(next).includes("batched")
           ? (prefs.batch_window_minutes ?? DEFAULT_BATCH_WINDOW)
           : null,
+      summary_at: Object.values(next).includes("summary")
+        ? (prefs.summary_at ?? DEFAULT_SUMMARY_TIME)
+        : prefs.summary_at,
     });
   }
 
@@ -172,14 +175,16 @@ export function DeliveryModesCard({
           id="summary-at"
           type="time"
           disabled={saving}
-          value={prefs.summary_at ?? ""}
-          onChange={(event) =>
-            save({ summary_at: event.target.value || null })
-          }
+          required={anySummary}
+          value={prefs.summary_at?.slice(0, 5) ?? (anySummary ? DEFAULT_SUMMARY_TIME : "")}
+          onChange={(event) => {
+            const time = event.target.value;
+            if (time || !anySummary) void save({ summary_at: time || null });
+          }}
           className="h-9 rounded-app-input border border-app-line bg-app-paper px-2 text-[13px] tabular-nums text-app-ink"
         />
         <span className="text-[12px] text-app-muted-2">
-          {prefs.summary_at
+          {prefs.summary_at || anySummary
             ? t("settings.deliverySummaryOn")
             : t("settings.deliverySummaryOff")}
         </span>

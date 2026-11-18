@@ -379,6 +379,9 @@ object DomainStrings : AppStrings.Section {
         "domain.deliverySummary" to "Once a day",
         // Said next to "Once a day", the option people misread as off.
         "domain.deliverySummaryDetail" to "Held for your daily summary, not discarded.",
+        "domain.deliverySummaryAt" to "Daily summary at",
+        "domain.deliverySummaryOff" to "Off",
+        "domain.deliverySummaryDisable" to "Turn off daily summary",
         "domain.categoryMessagesMine" to "Texts on my jobs",
         "domain.categoryMessagesAll" to "Texts on anyone's jobs",
         "domain.categoryMentions" to "When somebody @s me",
@@ -987,6 +990,9 @@ object DomainStrings : AppStrings.Section {
         "domain.deliverySummary" to "Une fois par jour",
         "domain.deliverySummaryDetail" to
             "Conservées pour votre résumé quotidien, pas supprimées.",
+        "domain.deliverySummaryAt" to "Résumé quotidien à",
+        "domain.deliverySummaryOff" to "Désactivé",
+        "domain.deliverySummaryDisable" to "Désactiver le résumé quotidien",
         "domain.categoryMessagesMine" to "Textos sur mes tâches",
         "domain.categoryMessagesAll" to "Textos sur les tâches de tout le monde",
         "domain.categoryMentions" to "Quand quelqu'un me mentionne avec @",

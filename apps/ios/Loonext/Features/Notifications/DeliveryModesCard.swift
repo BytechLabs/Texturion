@@ -47,6 +47,27 @@ struct DeliveryModesCard: View {
         categories.contains { mode(of: $0.key) == "summary" }
     }
 
+    private var summaryTime: Binding<Date> {
+        let clock: Calendar = {
+            var calendar = Calendar(identifier: .gregorian)
+            calendar.timeZone = .gmt
+            return calendar
+        }()
+        let time = (prefs.summary_at ?? OnCall.defaultSummaryTime).split(separator: ":")
+        let hour = time.first.flatMap { Int($0) } ?? 17
+        let minute = time.dropFirst().first.flatMap { Int($0) } ?? 0
+        return Binding(
+            get: { Date(timeIntervalSince1970: Double(hour * 3600 + minute * 60)) },
+            set: { selected in
+                let components = clock.dateComponents([.hour, .minute], from: selected)
+                guard let hour = components.hour, let minute = components.minute else { return }
+                var updated = prefs
+                updated.summary_at = String(format: "%02d:%02d", hour, minute)
+                onSave(updated)
+            }
+        )
+    }
+
     private func label(for mode: String) -> String {
         switch mode {
         case "batched":
@@ -74,6 +95,9 @@ struct DeliveryModesCard: View {
         updated.batch_window_minutes = next.values.contains("batched")
             ? (prefs.batch_window_minutes ?? OnCall.defaultBatchWindow)
             : nil
+        if next.values.contains("summary"), updated.summary_at == nil {
+            updated.summary_at = OnCall.defaultSummaryTime
+        }
         onSave(updated)
     }
 
@@ -122,6 +146,30 @@ struct DeliveryModesCard: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .padding(.top, 4)
+            }
+
+            if anySummary || prefs.summary_at != nil {
+                DatePicker(
+                    selection: summaryTime,
+                    displayedComponents: .hourAndMinute
+                ) {
+                    Text(AppStrings.translate(appLocale, "domain.deliverySummaryAt"))
+                }
+                .environment(\.timeZone, .gmt)
+                .environment(\.locale, Locale(identifier: appLocale))
+                if !anySummary {
+                    Button(AppStrings.translate(appLocale, "domain.deliverySummaryDisable")) {
+                        var updated = prefs
+                        updated.summary_at = nil
+                        onSave(updated)
+                    }
+                }
+            } else {
+                Button(AppStrings.translate(appLocale, "domain.deliverySummaryAt")) {
+                    var updated = prefs
+                    updated.summary_at = OnCall.defaultSummaryTime
+                    onSave(updated)
+                }
             }
 
             if anyBatched {

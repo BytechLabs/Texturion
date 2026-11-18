@@ -402,8 +402,7 @@ async function readerLocales(
 interface Audience {
   /** Push now. */
   send: string[];
-  /** Hold for a batch, with the moment it comes due. */
-  queue: { userId: string; deliverAt: Date }[];
+  queue: { userId: string; deliverAt: Date; kind: "batch" | "summary" }[];
 }
 
 /**
@@ -462,8 +461,12 @@ async function resolveAudience(
       continue;
     }
 
+    const decision = category === "operational"
+      ? "send"
+      : decideDelivery({ mode: row.delivery?.[category], urgent: false });
+
     if (
-      isMemberQuietNow(
+      decision !== "hold" && isMemberQuietNow(
         { from: row.quiet_from, to: row.quiet_to, timezone: row.quiet_timezone },
         row.companies?.timezone ?? null,
         now,
@@ -472,11 +475,6 @@ async function resolveAudience(
       continue;
     }
 
-    // `operational` has no volume control by design, so it never queues.
-    const decision =
-      category === "operational"
-        ? "send"
-        : decideDelivery({ mode: row.delivery?.[category], urgent: false });
     if (decision === "send") {
       audience.send.push(userId);
       continue;
@@ -485,6 +483,7 @@ async function resolveAudience(
     const minutes = row.batch_window_minutes ?? DEFAULT_BATCH_WINDOW;
     audience.queue.push({
       userId,
+      kind: decision === "hold" ? "summary" : "batch",
       // Stamped NOW from the member's window, so lengthening the window later
       // does not retroactively delay a batch that was already nearly due.
       deliverAt: new Date(now.getTime() + minutes * 60_000),
@@ -512,6 +511,7 @@ async function queueForBatch(
       user_id: entry.userId,
       category: delivery.category,
       conversation_id: delivery.conversationId ?? null,
+      delivery_kind: entry.kind,
       deliver_at: entry.deliverAt.toISOString(),
     })),
   );

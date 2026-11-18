@@ -317,6 +317,8 @@ enum DomainStrings {
             "domain.deliveryBatched": "Grouped up",
             "domain.deliverySummary": "Once a day",
             "domain.deliverySummaryDetail": "Held for your daily summary, not discarded.",
+            "domain.deliverySummaryAt": "Daily summary at",
+            "domain.deliverySummaryDisable": "Turn off daily summary",
             "domain.categoryMessagesMine": "Texts on my jobs",
             "domain.categoryMessagesAll": "Texts on anyone's jobs",
             "domain.categoryMentions": "When somebody @s me",
@@ -822,6 +824,8 @@ enum DomainStrings {
             "domain.deliverySummary": "Une fois par jour",
             "domain.deliverySummaryDetail":
                 "Conservées pour votre résumé quotidien, pas supprimées.",
+            "domain.deliverySummaryAt": "Résumé quotidien à",
+            "domain.deliverySummaryDisable": "Désactiver le résumé quotidien",
             "domain.categoryMessagesMine": "Textos sur mes tâches",
             "domain.categoryMessagesAll": "Textos sur les tâches de tout le monde",
             "domain.categoryMentions": "Quand quelqu'un me mentionne avec @",

@@ -108,7 +108,7 @@ Map geocoding sends saved contact street addresses to OpenStreetMap Foundation�
 | `audit_log` | actor, **actor IP**, action | **12 months** (#231), then pruned |
 | `on_call_shifts` | **which member was holding the phone, and when** (#244) — a record of one person's working hours, which is employment data rather than a preference | Life of the workspace; deleted with the member |
 | `alert_escalations` | **which member was paged and which one claimed it** (#244). No customer content: the conversation is referenced, never copied | Life of the workspace; the user columns null out with the member |
-| `pending_notifications` | **which member is owed a notification about which thread** (#297), for the minutes before their batch closes. No content: the conversation is referenced, never copied | Deleted the moment the batch is sent; nothing survives a flush |
+| `pending_notifications` | **Which member is owed a notification about which thread**, plus its category and delivery time, while it waits for a batch or daily summary. Stores a conversation reference. | Deleted when the batch or summary claims the alert. |
 | `cancellation_reasons` | **which member said the workspace was leaving, and what they wrote** (#277). `detail` is free text somebody typed while annoyed, which is the most candid thing in the database and can name a person, a competitor or a price. Classified here rather than under business data for that reason: the row is attributable to the member who wrote it | Life of the workspace; the user column nulls out with the member |
 
 ## 3. Business data — the workspace itself
