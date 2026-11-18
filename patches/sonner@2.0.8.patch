@@ -1,0 +1,144 @@
+diff --git a/dist/index.js b/dist/index.js
+index 394dbc2272f43b84642b0f9d5cc7eb1eacb0ffb3..34e51f17ea124b9b1e543a45c278bd327344d441 100644
+--- a/dist/index.js
++++ b/dist/index.js
+@@ -1008,6 +1008,7 @@ const Toaster = /*#__PURE__*/ React__default.default.forwardRef(function Toaster
+     ]);
+     const [heights, setHeights] = React__default.default.useState([]);
+     const [expanded, setExpanded] = React__default.default.useState(false);
++    const [focusWithin, setFocusWithin] = React__default.default.useState(false);
+     const [interacting, setInteracting] = React__default.default.useState(false);
+     const [actualTheme, setActualTheme] = React__default.default.useState(theme !== 'system' ? theme : typeof window !== 'undefined' ? window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' : 'light');
+     const listRef = React__default.default.useRef(null);
+@@ -1104,6 +1105,13 @@ const Toaster = /*#__PURE__*/ React__default.default.forwardRef(function Toaster
+         theme
+     ]);
+     React__default.default.useEffect(()=>{
++        if (isFocusWithinRef.current && !listRef.current?.contains(document.activeElement)) {
++            const previous = lastFocusedElementRef.current;
++            isFocusWithinRef.current = false;
++            lastFocusedElementRef.current = null;
++            setFocusWithin(false);
++            if (document.activeElement === document.body) previous?.focus({ preventScroll: true });
++        }
+         // Ensure expanded is always false when no toasts are present / only one left
+         if (toasts.length <= 1) {
+             setExpanded(false);
+@@ -1117,11 +1125,11 @@ const Toaster = /*#__PURE__*/ React__default.default.forwardRef(function Toaster
+             const isHotkeyPressed = hotkey.length > 0 && hotkey.every((key)=>event[key] || event.code === key);
+             if (isHotkeyPressed) {
+                 var _listRef_current1;
+-                setExpanded(true);
+                 (_listRef_current1 = listRef.current) == null ? void 0 : _listRef_current1.focus();
+             }
+             if (event.code === 'Escape' && (document.activeElement === listRef.current || ((_listRef_current = listRef.current) == null ? void 0 : _listRef_current.contains(document.activeElement)))) {
+                 setExpanded(false);
++                if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+             }
+         };
+         document.addEventListener('keydown', handleKeyDown);
+@@ -1138,6 +1146,7 @@ const Toaster = /*#__PURE__*/ React__default.default.forwardRef(function Toaster
+                     });
+                     lastFocusedElementRef.current = null;
+                     isFocusWithinRef.current = false;
++                    setFocusWithin(false);
+                 }
+             };
+         }
+@@ -1178,6 +1187,7 @@ const Toaster = /*#__PURE__*/ React__default.default.forwardRef(function Toaster
+             onBlur: (event)=>{
+                 if (isFocusWithinRef.current && !event.currentTarget.contains(event.relatedTarget)) {
+                     isFocusWithinRef.current = false;
++                    setFocusWithin(false);
+                     if (lastFocusedElementRef.current) {
+                         lastFocusedElementRef.current.focus({
+                             preventScroll: true
+@@ -1191,6 +1201,7 @@ const Toaster = /*#__PURE__*/ React__default.default.forwardRef(function Toaster
+                 if (isNotDismissible) return;
+                 if (!isFocusWithinRef.current) {
+                     isFocusWithinRef.current = true;
++                    setFocusWithin(true);
+                     lastFocusedElementRef.current = event.relatedTarget;
+                 }
+             },
+@@ -1237,7 +1248,7 @@ const Toaster = /*#__PURE__*/ React__default.default.forwardRef(function Toaster
+                 setHeights: setHeights,
+                 expandByDefault: expand,
+                 gap: gap,
+-                expanded: expanded,
++                expanded: expanded || focusWithin,
+                 swipeDirections: props.swipeDirections
+             });
+         }));
+diff --git a/dist/index.mjs b/dist/index.mjs
+index c124f821a68f7070647a5a04441d0caa53689662..d42e832fa7f6250f3fcd05c519e08e17192de986 100644
+--- a/dist/index.mjs
++++ b/dist/index.mjs
+@@ -1001,6 +1001,7 @@ const Toaster = /*#__PURE__*/ React.forwardRef(function Toaster(props, ref) {
+     ]);
+     const [heights, setHeights] = React.useState([]);
+     const [expanded, setExpanded] = React.useState(false);
++    const [focusWithin, setFocusWithin] = React.useState(false);
+     const [interacting, setInteracting] = React.useState(false);
+     const [actualTheme, setActualTheme] = React.useState(theme !== 'system' ? theme : typeof window !== 'undefined' ? window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light' : 'light');
+     const listRef = React.useRef(null);
+@@ -1097,6 +1098,13 @@ const Toaster = /*#__PURE__*/ React.forwardRef(function Toaster(props, ref) {
+         theme
+     ]);
+     React.useEffect(()=>{
++        if (isFocusWithinRef.current && !listRef.current?.contains(document.activeElement)) {
++            const previous = lastFocusedElementRef.current;
++            isFocusWithinRef.current = false;
++            lastFocusedElementRef.current = null;
++            setFocusWithin(false);
++            if (document.activeElement === document.body) previous?.focus({ preventScroll: true });
++        }
+         // Ensure expanded is always false when no toasts are present / only one left
+         if (toasts.length <= 1) {
+             setExpanded(false);
+@@ -1110,11 +1118,11 @@ const Toaster = /*#__PURE__*/ React.forwardRef(function Toaster(props, ref) {
+             const isHotkeyPressed = hotkey.length > 0 && hotkey.every((key)=>event[key] || event.code === key);
+             if (isHotkeyPressed) {
+                 var _listRef_current1;
+-                setExpanded(true);
+                 (_listRef_current1 = listRef.current) == null ? void 0 : _listRef_current1.focus();
+             }
+             if (event.code === 'Escape' && (document.activeElement === listRef.current || ((_listRef_current = listRef.current) == null ? void 0 : _listRef_current.contains(document.activeElement)))) {
+                 setExpanded(false);
++                if (document.activeElement instanceof HTMLElement) document.activeElement.blur();
+             }
+         };
+         document.addEventListener('keydown', handleKeyDown);
+@@ -1131,6 +1139,7 @@ const Toaster = /*#__PURE__*/ React.forwardRef(function Toaster(props, ref) {
+                     });
+                     lastFocusedElementRef.current = null;
+                     isFocusWithinRef.current = false;
++                    setFocusWithin(false);
+                 }
+             };
+         }
+@@ -1171,6 +1180,7 @@ const Toaster = /*#__PURE__*/ React.forwardRef(function Toaster(props, ref) {
+             onBlur: (event)=>{
+                 if (isFocusWithinRef.current && !event.currentTarget.contains(event.relatedTarget)) {
+                     isFocusWithinRef.current = false;
++                    setFocusWithin(false);
+                     if (lastFocusedElementRef.current) {
+                         lastFocusedElementRef.current.focus({
+                             preventScroll: true
+@@ -1184,6 +1194,7 @@ const Toaster = /*#__PURE__*/ React.forwardRef(function Toaster(props, ref) {
+                 if (isNotDismissible) return;
+                 if (!isFocusWithinRef.current) {
+                     isFocusWithinRef.current = true;
++                    setFocusWithin(true);
+                     lastFocusedElementRef.current = event.relatedTarget;
+                 }
+             },
+@@ -1230,7 +1241,7 @@ const Toaster = /*#__PURE__*/ React.forwardRef(function Toaster(props, ref) {
+                 setHeights: setHeights,
+                 expandByDefault: expand,
+                 gap: gap,
+-                expanded: expanded,
++                expanded: expanded || focusWithin,
+                 swipeDirections: props.swipeDirections
+             });
+         }));
