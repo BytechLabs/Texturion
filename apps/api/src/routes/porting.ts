@@ -61,7 +61,7 @@ const PORT_COLUMNS =
   "id,company_id,phone_number_id,phone_e164,country,telnyx_porting_order_id," +
   "telnyx_loa_document_id,telnyx_invoice_document_id,entity_name," +
   "auth_person_name,billing_phone_number,account_number,pin_passcode," +
-  "is_wireless,ssn_sin_last4,service_street,service_extended,service_locality," +
+  "is_wireless,service_street,service_extended,service_locality," +
   "service_admin_area,service_postal_code,foc_datetime_requested,foc_date," +
   "status,messaging_port_status,rejection_reason,submission_count," +
   "wants_bridge_number,bridge_number_id,submitted_at,ported_at,cancelled_at," +
@@ -179,10 +179,7 @@ function sanitizePort(
     has_pin: row.pin_passcode !== null && row.pin_passcode !== undefined,
     has_account_number:
       row.account_number !== null && row.account_number !== undefined,
-    // §10: the SSN/SIN last-4 is PII — return only an on-file boolean, never
-    // the value.
-    has_ssn_sin_last4:
-      row.ssn_sin_last4 !== null && row.ssn_sin_last4 !== undefined,
+    has_ssn_sin_last4: false,
     has_loa: row.telnyx_loa_document_id !== null,
     has_invoice: row.telnyx_invoice_document_id !== null,
     // §8.2/§9: post-port 10DLC assignment FAILED — the card's "ask your
@@ -256,7 +253,7 @@ const checkBodySchema = z.strictObject({ phone_e164: e164Schema });
  * Interpret a Telnyx portability-check result (§3.1) into the two facts the
  * check route and the create gate both need: whether the number is portable
  * in-scope, and whether it is a wireless/mobile number (which drives the
- * PIN + SSN/SIN-last-4 requirement, §2.2). Telnyx may flag a local number as
+ * PIN prompt, §2.2). Telnyx may flag a local number as
  * non-portable (already porting, pending disconnect, …) or as toll-free by
  * record type even when the area code looked geographic — surface that honestly.
  * Shared so both routes classify identically.
@@ -269,7 +266,7 @@ function interpretPortability(result: PortabilityResult): {
   const portable =
     result.portable && type !== "toll_free" && type !== "tollfree";
   // Telnyx reports wireless/mobile numbers as phone_number_type 'mobile'
-  // (a.k.a. 'wireless' in some responses); either flags the PIN + last-4 rule.
+  // (a.k.a. 'wireless' in some responses); either flags the PIN prompt.
   const isWireless = type === "mobile" || type === "wireless";
   return { portable, isWireless };
 }
@@ -360,16 +357,8 @@ const createBodySchema = z.strictObject({
     .max(100)
     .optional()
     .transform((v) => (v && v.length > 0 ? v : undefined)),
-  // Wireless ports require the port-out PIN + the LAST 4 of the account holder's
-  // SSN/SIN (§2.2 / SPEC §10). We store ONLY the last 4 (the DB CHECK enforces
-  // exactly 4 digits); the full SSN/SIN is never collected. Requiredness is
-  // decided at runtime from the Telnyx portability check (is_wireless), not the
-  // schema — the schema only bounds the shape.
-  ssn_sin_last4: z
-    .string()
-    .trim()
-    .regex(/^\d{4}$/, "must be the last 4 digits of the SSN/SIN")
-    .optional(),
+  // Accept the retired field from old clients and discard it.
+  ssn_sin_last4: z.string().trim().regex(/^\d{4}$/).optional(),
   service_street: z.string().trim().min(1).max(255),
   service_extended: z
     .string()
@@ -480,9 +469,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
   // §3.1 portability check (part of create, §6 gate order "US/CA local &
   // portable"): run the Telnyx check to (a) reject a number Telnyx reports as
   // not portable with its not_portable_reason, and (b) learn whether the number
-  // is WIRELESS — a wireless port additionally requires the port-out PIN and the
-  // LAST 4 of the account holder's SSN/SIN (§2.2). We store only the last-4
-  // (never the full SSN/SIN, SPEC §10). A landline port needs neither.
+  // is wireless and needs the port-out PIN.
   const portability = await checkPortability(env, body.phone_e164);
   const { portable, isWireless } = interpretPortability(portability);
   if (!portable) {
@@ -494,24 +481,13 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
         : "We can't transfer this number — the carrier reports it isn't portable.",
     );
   }
-  if (isWireless) {
-    if (!body.ssn_sin_last4) {
-      return errorResponse(
-        c,
-        "validation_failed",
-        "This is a wireless number — the last 4 digits of the account holder's SSN/SIN are required to transfer it.",
-      );
-    }
-    if (!body.pin_passcode) {
-      return errorResponse(
-        c,
-        "validation_failed",
-        "This is a wireless number — the port-out PIN / passcode from your current carrier is required to transfer it.",
-      );
-    }
+  if (isWireless && !body.pin_passcode) {
+    return errorResponse(
+      c,
+      "validation_failed",
+      "This is a wireless number — the port-out PIN / passcode from your current carrier is required to transfer it.",
+    );
   }
-  // Never store an SSN/SIN last-4 for a non-wireless port (it isn't collected).
-  const ssnSinLast4 = isWireless ? (body.ssn_sin_last4 ?? null) : null;
 
   // Sole-prop cap / plan cap: a port counts as the one number (D16; §6 gate
   // order "sole-prop cap"). This is the SAME atomic slot claim the provisioned
@@ -591,7 +567,6 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
       account_number: body.account_number,
       pin_passcode: body.pin_passcode ?? null,
       is_wireless: isWireless,
-      ssn_sin_last4: ssnSinLast4,
       service_street: body.service_street,
       service_extended: body.service_extended ?? null,
       service_locality: body.service_locality,
@@ -714,7 +689,10 @@ portingRoutes.put("/:id", requireCapability("numbers.manage"), async (c) => {
   if (!port) return errorResponse(c, "not_found", "No such port request.");
   assertEditable(port, c.get("role"));
 
-  const body = await parseJsonBody(c, editBodySchema);
+  const { ssn_sin_last4: _legacyIdentifier, ...body } = await parseJsonBody(
+    c,
+    editBodySchema,
+  );
   const patch: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(body)) {
     if (value !== undefined) patch[key] = value;

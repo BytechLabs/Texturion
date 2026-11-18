@@ -136,8 +136,8 @@ Map geocoding sends saved contact street addresses to OpenStreetMap Foundation�
 | Table | Holds | Retention |
 |---|---|---|
 | `companies` | business name, country, **CNAM display name**, away/greeting copy, Stripe ids | Life of the workspace |
-| `messaging_registrations` | legal name, address, **SSN/SIN last-4** on the sole-prop path, OTP mobile | Identity fields cleared at **30 days** for signups that never paid (#381) |
-| `port_requests` | **auth person name**, billing phone, **SSN/SIN last-4** | Life of the port |
+| `messaging_registrations` | legal name, address, EIN or BN for standard brands, OTP mobile for sole proprietors | Identity fields cleared at **30 days** for signups that never paid (#381) |
+| `port_requests` | **auth person name**, billing phone, losing-carrier account number and transfer PIN | Credentials cleared when the port completes or is cancelled |
 | `phone_numbers`, `number_access`, `number_health` | the numbers and who may use them | Life of the workspace |
 | `company_ai_settings` | business description | Life of the workspace |
 | `templates`, `tags` | copy the business wrote | Life of the workspace |
@@ -257,10 +257,10 @@ workspace — which is why it needed its own path.
 no natural expiry are the ones to argue about: `contacts`, `messages` and
 `calls` are the product and last as long as the workspace does.
 
-**#318 — the per-data-class location map.** The classes are the section
-headings. The sharpest ones to be able to answer instantly: **SSN/SIN last-4**
-lives in exactly two places (`messaging_registrations`, `port_requests`);
-**IP addresses** in exactly three (`audit_log.actor_ip`, `contact_messages.ip`,
+**#318 — the per-data-class location map.** The section headings name each
+class. The D203 migration clears stored SSN/SIN fragments from
+`messaging_registrations` and `port_requests`.
+**IP addresses** appear in three places (`audit_log.actor_ip`, `contact_messages.ip`,
 `widget_verifications.ip`) —
 `user_sessions` and `public_link_access` store derived geography rather than the
 address, on purpose.

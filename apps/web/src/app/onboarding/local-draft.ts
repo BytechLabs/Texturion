@@ -13,12 +13,6 @@ const DRAFT_KEY = "loonext:onboarding-draft";
 /**
  * #381 — how long an abandoned draft may keep identity data.
  *
- * The port sub-wizard collects `ssnSinLast4` (the last 4 of the account
- * holder's SSN/SIN, which the losing carrier requires for a wireless port),
- * plus an account number and a PIN. Those sat in localStorage forever: a
- * signup abandoned in March left a partial government identifier on a shared
- * office machine in December.
- *
  * Seven days is long enough for a real resume — somebody who starts on a phone
  * in a van and finishes at a desk that evening, or over a weekend — and short
  * enough that it is not a filing cabinet. PIPEDA and Law 25 both turn on
@@ -76,7 +70,6 @@ const PORT_STRING_KEYS = [
   "accountNumber",
   "pinPasscode",
   "billingPhoneNumber",
-  "ssnSinLast4",
   "serviceStreet",
   "serviceExtended",
   "serviceLocality",
@@ -105,14 +98,17 @@ export function readOnboardingDraft(now: number = Date.now()): OnboardingDraft {
   if (typeof window === "undefined") return {};
   try {
     const raw = window.localStorage.getItem(DRAFT_KEY);
-    // #381: expire before parsing, and DELETE rather than just ignoring. An
-    // expired draft that is merely not read is still a SIN fragment sitting in
-    // storage; the point is that it stops existing.
+    // Delete expired drafts so their carrier details leave browser storage.
     if (raw !== null && draftIsExpired(raw, now)) {
       window.localStorage.removeItem(DRAFT_KEY);
       return {};
     }
-    return parseDraft(raw);
+    const draft = parseDraft(raw);
+    if (raw && /"ssnSinLast4"\s*:/.test(raw)) {
+      const { savedAt } = JSON.parse(raw) as { savedAt: number };
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify({ ...draft, savedAt }));
+    }
+    return draft;
   } catch {
     return {}; // storage blocked (private mode) — wizard still works per-visit
   }

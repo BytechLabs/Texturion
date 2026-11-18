@@ -267,7 +267,6 @@ private let settingsMorePortEn: [String: String] = [
     "settingsMore.fixResubmit": "Fix and resubmit",
     "settingsMore.focDate": "The carriers agreed on a switch date: {date}.",
     "settingsMore.keepItGoing": "Keep it going",
-    "settingsMore.last4Of": "Last 4 of {idLabel}",
     "settingsMore.mayNotText":
         "Heads up: this number may not support texting after the transfer. "
         + "Calls will still work.",
@@ -281,8 +280,7 @@ private let settingsMorePortEn: [String: String] = [
         "Enter these exactly as they appear on your current carrier's bill. "
         + "Mismatches are the top cause of rejections.",
     "settingsMore.portWirelessNote":
-        "This is a mobile number. Enter the transfer PIN and the last 4 of "
-        + "the account holder's {idLabel}. We store only the last 4.",
+        "Get the transfer PIN for this mobile number from your current carrier.",
     "settingsMore.reenterSecrets":
         "The account number and PIN are never shown back for security. "
         + "Re-enter them.",
@@ -332,7 +330,6 @@ private let settingsMorePortFr: [String: String] = [
     "settingsMore.focDate":
         "Les fournisseurs se sont entendus sur une date de bascule : {date}.",
     "settingsMore.keepItGoing": "Poursuivre",
-    "settingsMore.last4Of": "4 derniers chiffres du {idLabel}",
     "settingsMore.mayNotText":
         "À noter : ce numéro pourrait ne pas prendre les textos après le "
         + "transfert. Les appels fonctionneront quand même.",
@@ -347,9 +344,7 @@ private let settingsMorePortFr: [String: String] = [
         + "facture de votre fournisseur actuel. Les écarts sont la première "
         + "cause de refus.",
     "settingsMore.portWirelessNote":
-        "Il s'agit d'un numéro mobile. Entrez le NIP de transfert et les 4 "
-        + "derniers chiffres du {idLabel} du titulaire. Nous ne conservons que "
-        + "les 4 derniers.",
+        "Demandez à votre fournisseur actuel le NIP de transfert de ce numéro de cellulaire.",
     "settingsMore.reenterSecrets":
         "Le numéro de compte et le NIP ne sont jamais réaffichés, par "
         + "sécurité. Entrez-les de nouveau.",
@@ -2106,7 +2101,6 @@ private let settingsMoreIosRegistrationEn: [String: String] = [
     "settingsMore.enterCra": "Enter your CRA business number.",
     "settingsMore.enterEin": "Enter your 9-digit EIN (numbers only, dashes ok).",
     "settingsMore.enterField": "Enter {field}.",
-    "settingsMore.enterLast4": "Enter the last 4 digits of your {idLabel}.",
     "settingsMore.enterMobileForCode":
         "Enter a US or Canadian mobile number; it gets the verification "
         + "text.",
@@ -2144,8 +2138,6 @@ private let settingsMoreIosRegistrationEn: [String: String] = [
     "settingsMore.sampleTooLong": "Keep each sample under 1,024 characters.",
     "settingsMore.sampleTooShort":
         "Each sample needs at least 20 characters: a real text you'd send.",
-    "settingsMore.sinLabel": "SIN",
-    "settingsMore.ssnLabel": "SSN",
     "settingsMore.stateLabel": "State",
     "settingsMore.submitting": "Submitting…",
     "settingsMore.websiteOptional": "Website (optional)",
@@ -2168,7 +2160,6 @@ private let settingsMoreIosRegistrationFr: [String: String] = [
         "Entrez votre EIN à 9 chiffres (chiffres seulement, tirets "
         + "acceptés).",
     "settingsMore.enterField": "Entrez {field}.",
-    "settingsMore.enterLast4": "Entrez les 4 derniers chiffres de votre {idLabel}.",
     "settingsMore.enterMobileForCode":
         "Entrez un numéro mobile américain ou canadien ; c'est lui qui "
         + "recevra le texto de vérification.",
@@ -2210,8 +2201,6 @@ private let settingsMoreIosRegistrationFr: [String: String] = [
     "settingsMore.sampleTooShort":
         "Chaque exemple doit compter au moins 20 caractères : un vrai texto "
         + "que vous enverriez.",
-    "settingsMore.sinLabel": "NAS",
-    "settingsMore.ssnLabel": "SSN",
     "settingsMore.stateLabel": "État",
     "settingsMore.submitting": "Envoi en cours…",
     "settingsMore.websiteOptional": "Site Web (facultatif)",

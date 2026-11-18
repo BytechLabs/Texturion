@@ -1,7 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { normalizeNanpPhone, normalizeWebsite } from "./normalize";
-import { draftIsExpired, parseDraft } from "./local-draft";
+import { draftIsExpired, parseDraft, readOnboardingDraft } from "./local-draft";
 
 describe(normalizeWebsite, () => {
   it("prepends https:// when the scheme is missing", () => {
@@ -85,10 +85,30 @@ describe("draftIsExpired (#381: identity data does not live in localStorage fore
   });
 
   it("expires one abandoned for over a week", () => {
-    // The port sub-wizard collects the last 4 of an SSN/SIN, an account number
-    // and a PIN. A signup abandoned in March should not leave those on a shared
-    // office machine in December.
     expect(draftIsExpired(JSON.stringify({ savedAt: now - 8 * DAY }), now)).toBe(true);
+  });
+
+  it("removes the retired identifier from browser storage and keeps the draft age", () => {
+    const savedAt = now - DAY;
+    const port = { accountNumber: "account", pinPasscode: "pin" };
+    const storage = {
+      getItem: vi.fn(() => JSON.stringify({
+        mode: "port",
+        savedAt,
+        port: { ...port, ssnSinLast4: "1234" },
+      })),
+      setItem: vi.fn(),
+    };
+    vi.stubGlobal("window", { localStorage: storage });
+    try {
+      expect(readOnboardingDraft(now)).toEqual({ mode: "port", port });
+      expect(storage.setItem).toHaveBeenCalledExactlyOnceWith(
+        "loonext:onboarding-draft",
+        JSON.stringify({ mode: "port", port, savedAt }),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("treats a draft with NO timestamp as expired", () => {

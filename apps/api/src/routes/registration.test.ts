@@ -48,7 +48,6 @@ const SOLE_PROP_BODY = {
   displayName: "Pat's Plumbing",
   firstName: "Pat",
   lastName: "Doe",
-  ein: "1234",
   mobilePhone: "+12125550111",
   email: "pat@acme.example",
   phone: "+12125550100",
@@ -304,17 +303,21 @@ describe("PUT /v1/registration", () => {
     expect(res.status).toBe(200);
   });
 
-  it("upserts the sole-prop branch and flags both rows", async () => {
-    const harness = buildHarness();
-    const res = await harness.request(
-      "/v1/registration",
-      jsonInit("PUT", { brand: SOLE_PROP_BODY, campaign: CAMPAIGN_BODY }),
-    );
-    expect(res.status).toBe(200);
-    for (const row of harness.rest.rows("messaging_registrations")) {
-      expect(row.sole_proprietor).toBe(true);
-    }
-  });
+  it.each([SOLE_PROP_BODY, { ...SOLE_PROP_BODY, ein: "1234" }])(
+    "upserts sole-prop drafts without saving an identifier",
+    async (brand) => {
+      const harness = buildHarness();
+      const res = await harness.request(
+        "/v1/registration",
+        jsonInit("PUT", { brand, campaign: CAMPAIGN_BODY }),
+      );
+      expect(res.status).toBe(200);
+      for (const row of harness.rest.rows("messaging_registrations")) {
+        expect(row.sole_proprietor).toBe(true);
+        expect(row.data).not.toHaveProperty("ein");
+      }
+    },
+  );
 
   it("rejects a payload mixing the EIN and sole-prop branches (422)", async () => {
     const harness = buildHarness();

@@ -171,14 +171,8 @@ function CompanyNameCard({ company }: { company: CompanyView }) {
 
 function identifierLabel(
   t: Translate,
-  brand: RegistrationRow,
   country: "US" | "CA",
 ): string {
-  if (brand.sole_proprietor) {
-    return country === "US"
-      ? t("appShell.workspaceIdSsn")
-      : t("appShell.workspaceIdSin");
-  }
   return country === "US"
     ? t("appShell.workspaceIdEin")
     : t("appShell.workspaceIdBusinessNumber");
@@ -248,7 +242,7 @@ function BusinessIdentityCard({ company }: { company: CompanyView }) {
     role === "owner" || role === "admin"
       ? [
           [t("appShell.workspaceLegalName"), legalName],
-          [identifierLabel(t, brand, company.country), field(data, "ein")],
+          [identifierLabel(t, company.country), brand.sole_proprietor ? "" : field(data, "ein")],
           [t("appShell.workspaceAddress"), address],
           [t("appShell.workspaceWebsite"), field(data, "website")],
           [t("appShell.workspaceContact"), field(data, "email")],

@@ -72,7 +72,6 @@ private data class PortForm(
     val authPersonName: String = "",
     val accountNumber: String = "",
     val pinPasscode: String = "",
-    val ssnSinLast4: String = "",
     val street: String = "",
     val locality: String = "",
     val adminArea: String = "",
@@ -82,7 +81,7 @@ private data class PortForm(
         entityName.isNotBlank() && authPersonName.isNotBlank() &&
             accountNumber.isNotBlank() && street.isNotBlank() &&
             locality.isNotBlank() && adminArea.isNotBlank() && postalCode.isNotBlank() &&
-            (!wireless || (pinPasscode.isNotBlank() && Regex("^\\d{4}$").matches(ssnSinLast4)))
+            (!wireless || pinPasscode.isNotBlank())
 
     /** The shared fields of POST and PUT /v1/port-requests bodies. */
     fun fieldsJson(wireless: Boolean): JsonObject = buildJsonObject {
@@ -91,7 +90,6 @@ private data class PortForm(
         put("account_number", accountNumber.trim())
         if (wireless) {
             put("pin_passcode", pinPasscode.trim())
-            put("ssn_sin_last4", ssnSinLast4.trim())
         }
         put("service_street", street.trim())
         put("service_locality", locality.trim())
@@ -113,11 +111,6 @@ private fun PortFormFields(
     focusField: String? = null,
     onFocusHandled: () -> Unit = {},
 ) {
-    val ssnLabel = if (country == "US") {
-        t("settingsMore.ssnLabel")
-    } else {
-        t("settingsMore.sinLabel")
-    }
     val regionLabel = if (country == "US") {
         t("settingsMore.stateLabel")
     } else {
@@ -193,7 +186,7 @@ private fun PortFormFields(
     )
     if (wireless) {
         Text(
-            t("settingsMore.portWirelessNote", "idLabel" to ssnLabel),
+            t("settingsMore.portWirelessNote"),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             modifier = Modifier.padding(top = 4.dp),
@@ -202,16 +195,6 @@ private fun PortFormFields(
             form.pinPasscode,
             t("settingsMore.transferPin"),
             { onForm(form.copy(pinPasscode = it)) },
-        )
-        field(
-            form.ssnSinLast4,
-            t("settingsMore.last4Of", "idLabel" to ssnLabel),
-            { next ->
-                if (next.length <= 4 && next.all(Char::isDigit)) {
-                    onForm(form.copy(ssnSinLast4 = next))
-                }
-            },
-            keyboard = KeyboardType.Number,
         )
     }
     field(

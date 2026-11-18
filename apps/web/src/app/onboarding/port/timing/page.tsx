@@ -105,9 +105,6 @@ export default function PortTimingPage() {
         ? { billing_phone_number: port.billingPhoneNumber }
         : {}),
       ...(port.pinPasscode ? { pin_passcode: port.pinPasscode } : {}),
-      ...(port.isWireless && port.ssnSinLast4
-        ? { ssn_sin_last4: port.ssnSinLast4 }
-        : {}),
       ...(focDate
         ? { foc_datetime_requested: new Date(`${focDate}T12:00:00Z`).toISOString() }
         : {}),

@@ -244,16 +244,6 @@ export function RegistrationFixForm({
         if (soleProp) {
           need("firstName", 100, "settingsMore.regFieldFirstName");
           need("lastName", 100, "settingsMore.regFieldLastName");
-          if (!/^\d{4}$/.test(v.ein.trim())) {
-            ctx.addIssue({
-              code: "custom",
-              path: ["ein"],
-              message:
-                country === "US"
-                  ? t("settingsMore.regSsnLast4")
-                  : t("settingsMore.regSinLast4"),
-            });
-          }
           if (normalizeNanpPhone(v.mobilePhone) === null) {
             ctx.addIssue({
               code: "custom",
@@ -330,7 +320,7 @@ export function RegistrationFixForm({
       state: str(brand?.data, "state"),
       postalCode: str(brand?.data, "postalCode"),
       companyName: str(brand?.data, "companyName"),
-      ein: str(brand?.data, "ein"),
+      ein: soleProp ? "" : str(brand?.data, "ein"),
       website: str(brand?.data, "website"),
       firstName: str(brand?.data, "firstName"),
       lastName: str(brand?.data, "lastName"),
@@ -365,7 +355,6 @@ export function RegistrationFixForm({
               ...common,
               firstName: values.firstName.trim(),
               lastName: values.lastName.trim(),
-              ein: values.ein.trim(),
               mobilePhone: normalizeNanpPhone(values.mobilePhone)!,
               ...(values.website.trim() === ""
                 ? {}
@@ -410,7 +399,7 @@ export function RegistrationFixForm({
     <Form {...form}>
       <form
         // method="post" so a pre-hydration native submit keeps sensitive
-        // registration data (EIN, SSN last-4) in the body, never the URL.
+        // registration data in the body, never the URL.
         method="post"
         onSubmit={form.handleSubmit(onSubmit)}
         className="space-y-4"
@@ -453,31 +442,6 @@ export function RegistrationFixForm({
                   />
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
-                  <FormField
-                    control={form.control}
-                    name="ein"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>
-                          {country === "US"
-                            ? t("settingsMore.regSsnLabel")
-                            : t("settingsMore.regSinLabel")}
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            inputMode="numeric"
-                            maxLength={4}
-                            autoComplete="off"
-                            {...field}
-                          />
-                        </FormControl>
-                        <FormDescription>
-                          {t("settingsMore.regSsnHelp")}
-                        </FormDescription>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
                   <FormField
                     control={form.control}
                     name="mobilePhone"

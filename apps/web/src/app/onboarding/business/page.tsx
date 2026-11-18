@@ -56,15 +56,11 @@ import { TCR_VERTICALS, verticalOptions } from "../verticals";
  * POST /v1/companies) before saving the draft.
  */
 
-// Mirrors the API brand schemas (wizard.ts): EIN/BN 8–15 chars, last-4 SSN/SIN
-// exactly 4 digits, contact phone a loose phone shape, mobile a real US/CA
-// destination.
 const EIN_RE = /^[0-9A-Za-z][0-9A-Za-z-]{7,14}$/;
 const CONTACT_PHONE_RE = /^\+?[0-9()\-. ]{10,20}$/;
 
 function buildSchema(country: "US" | "CA", t: Translate) {
   const einName = country === "US" ? "EIN" : "Business Number";
-  const sinName = country === "US" ? "SSN" : "SIN";
   return z
     .object({
       hasEin: z.enum(["yes", "no"]),
@@ -72,7 +68,6 @@ function buildSchema(country: "US" | "CA", t: Translate) {
       ein: z.string().trim(),
       firstName: z.string().trim().max(100),
       lastName: z.string().trim().max(100),
-      last4: z.string().trim(),
       mobilePhone: z.string().trim(),
       street: z
         .string()
@@ -140,13 +135,6 @@ function buildSchema(country: "US" | "CA", t: Translate) {
             message: t("onboarding.bizLastNameRequired"),
           });
         }
-        if (!/^\d{4}$/.test(v.last4)) {
-          ctx.addIssue({
-            code: "custom",
-            path: ["last4"],
-            message: t("onboarding.bizLast4Required", { id: sinName }),
-          });
-        }
         if (normalizeNanpPhone(v.mobilePhone) === null) {
           ctx.addIssue({
             code: "custom",
@@ -176,7 +164,6 @@ const EMPTY_VALUES: FormValues = {
   ein: "",
   firstName: "",
   lastName: "",
-  last4: "",
   mobilePhone: "",
   street: "",
   city: "",
@@ -242,7 +229,6 @@ export default function BusinessIdentityPage() {
         ein: sole ? "" : asString(data.ein),
         firstName: asString(data.firstName),
         lastName: asString(data.lastName),
-        last4: sole ? asString(data.ein) : "",
         mobilePhone: asString(data.mobilePhone),
         street: asString(data.street),
         city: asString(data.city),
@@ -265,8 +251,6 @@ export default function BusinessIdentityPage() {
   const hasEin = form.watch("hasEin");
   const einName =
     country === "US" ? t("onboarding.einNameUs") : t("onboarding.einNameCa");
-  const sinName =
-    country === "US" ? t("onboarding.sinNameUs") : t("onboarding.sinNameCa");
   const regions = regionNames(country, t.locale);
 
   // Already submitted to carriers → nothing to edit here (409 server-side).
@@ -316,7 +300,6 @@ export default function BusinessIdentityPage() {
         ? {
             firstName: values.firstName,
             lastName: values.lastName,
-            ein: values.last4,
             mobilePhone: normalizeNanpPhone(values.mobilePhone),
             ...(website ? { website } : {}),
           }
@@ -439,7 +422,7 @@ export default function BusinessIdentityPage() {
             <div className="space-y-4 rounded-lg border border-border bg-card p-4">
               <p className="text-sm">{t("onboarding.solePropLead")}</p>
               <p className="text-[13px] text-muted-foreground">
-                {t("onboarding.solePropDetail", { idName: sinName })}
+                {t("onboarding.solePropDetail")}
               </p>
               <div className="grid grid-cols-2 gap-3">
                 <FormField
@@ -469,31 +452,6 @@ export default function BusinessIdentityPage() {
                   )}
                 />
               </div>
-              <FormField
-                control={form.control}
-                name="last4"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>
-                      {t("onboarding.last4Label", { idName: sinName })}
-                    </FormLabel>
-                    <FormControl>
-                      <Input
-                        inputMode="numeric"
-                        autoComplete="off"
-                        maxLength={4}
-                        placeholder="1234"
-                        className="tabular-nums"
-                        {...field}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      {t("onboarding.last4Hint")}
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
               <FormField
                 control={form.control}
                 name="mobilePhone"

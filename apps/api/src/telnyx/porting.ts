@@ -177,7 +177,6 @@ export interface PortRequestRow {
   account_number: string;
   pin_passcode: string | null;
   is_wireless: boolean;
-  ssn_sin_last4: string | null;
   service_street: string;
   service_extended: string | null;
   service_locality: string;
@@ -201,7 +200,7 @@ const PORT_COLUMNS =
   "id,company_id,phone_number_id,phone_e164,country,telnyx_porting_order_id," +
   "telnyx_loa_document_id,telnyx_invoice_document_id,entity_name," +
   "auth_person_name,billing_phone_number,account_number,pin_passcode," +
-  "is_wireless,ssn_sin_last4,service_street,service_extended,service_locality," +
+  "is_wireless,service_street,service_extended,service_locality," +
   "service_admin_area,service_postal_code,foc_datetime_requested,foc_date," +
   "status,messaging_port_status,rejection_reason,submission_count," +
   "wants_bridge_number,bridge_number_id,submitted_at,ported_at,cancelled_at," +

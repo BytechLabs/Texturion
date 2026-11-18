@@ -286,10 +286,10 @@ describe("submitRegistration — R1 (§4.4)", () => {
       entityType: "SOLE_PROPRIETOR",
       firstName: "Pat",
       lastName: "Doe",
-      ein: "1234",
       mobilePhone: "+12125550111",
     });
     expect((call.body as Record<string, unknown>).companyName).toBeUndefined();
+    expect(call.body).not.toHaveProperty("ein");
 
     expect(telnyx.callsTo("POST", /brand-sp\/smsOtp$/)).toHaveLength(1);
     const brand = brandRowOf(rest);
@@ -1515,6 +1515,32 @@ describe("#51 brand-create write-ahead marker + orphan adoption", () => {
     expect(brand.telnyx_id).toBe("brand-orphan");
     expect(brand.status).toBe("submitted");
     expect(brand.submission_count).toBe(1);
+  });
+
+  it("adopts a sole-proprietor brand by name and verification mobile", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(rest, {
+      data: { ...SOLE_PROP_DATA, brandSubmitAttemptedAt: "2026-07-07T00:00:00.000Z" },
+      sole_proprietor: true,
+    }, {});
+    const identity = {
+      entityType: "SOLE_PROPRIETOR",
+      displayName: SOLE_PROP_DATA.displayName,
+      firstName: SOLE_PROP_DATA.firstName,
+      lastName: SOLE_PROP_DATA.lastName,
+    };
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({
+      records: [
+        { ...identity, brandId: "brand-other", mobilePhone: "+12125550144" },
+        { ...identity, brandId: "brand-orphan", mobilePhone: SOLE_PROP_DATA.mobilePhone },
+      ],
+    }));
+    telnyx.on("POST", /^\/v2\/10dlc\/brand\/brand-orphan\/smsOtp$/, () => ({}));
+
+    const result = await submitRegistration(env, COMPANY_ID);
+    expect(result.action).toBe("brand_submitted");
+    expect(brandRowOf(rest).telnyx_id).toBe("brand-orphan");
+    expect(telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(0);
   });
 
   it("creates fresh when no unclaimed orphan matches displayName + EIN", async () => {

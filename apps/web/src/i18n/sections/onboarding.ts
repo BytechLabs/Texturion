@@ -99,28 +99,15 @@ export const onboardingEn = {
   einNameUs: "EIN",
   einNameCa: "Business Number",
   einQuestionCa: "EIN / Business Number",
-  /*
-   * The government programme, by the name the reader's government uses for it.
-   * "SSN" stays "SSN" in French because it is a US programme; Canada's SIN is
-   * "NAS" in French and calling it "SIN" to a Quebec reader would send them
-   * looking for a card they do not have.
-   */
-  sinNameUs: "SSN",
-  sinNameCa: "SIN",
   yes: "Yes",
   no: "No",
   einHintUs: "An EIN is the 9-digit tax ID the IRS gave your business.",
   einHintCa: "The 9-digit number the CRA gave your business.",
   solePropLead: "No problem. We'll register you as a sole proprietor.",
   solePropDetail:
-    "Same texting features. Carriers verify you with the last 4 digits of " +
-    "your {idName} and a code texted to your phone. One thing to know: sole " +
-    "proprietor registrations are limited to one phone number.",
+    "Carriers verify your mobile number with a texted code. Sole proprietor registrations are limited to one phone number.",
   legalFirstName: "Legal first name",
   legalLastName: "Legal last name",
-  last4Label: "Last 4 digits of your {idName}",
-  last4Hint:
-    "Carriers use it to confirm you're you. We only ever ask for, and store, the last 4.",
   mobileLabel: "Your mobile number",
   mobileHint:
     "We'll text a 6-digit verification code to this number after payment.",
@@ -244,21 +231,11 @@ export const onboardingEn = {
   ifDifferent: "(if different)",
   portBillingPhoneHint:
     "The main number on the account, if it isn't the one you're transferring.",
-  portWirelessNote:
-    "This is a mobile number, so your carrier needs two extra details to " +
-    "release it. We only ever store the last 4 digits of the {idName}, never " +
-    "the full number.",
+  portWirelessNote: "Get the transfer PIN for this mobile number from your current carrier.",
   portPinLabel: "Transfer PIN / passcode",
   portPinPlaceholder: "Your carrier can give you this",
-  portLast4Label: "Last 4 of the account holder's {idName}",
-  portLast4Aria: "Why we ask for the {idName} last 4",
-  portLast4Tooltip:
-    "Mobile carriers verify the account holder's identity before releasing a " +
-    "number. We pass only the last 4 digits to the carrier and store only " +
-    "those 4, never the full {idName}.",
   portCarrierMissing:
     "Fill in the account holder, authorized person, and account number.",
-  portLast4Error: "Enter the last 4 digits of the account holder's {idName}.",
   portPinError: "Enter the transfer PIN from your current carrier.",
 
   // ── Port sub-wizard: the service address ──────────────────────────────────
@@ -434,8 +411,6 @@ export const onboardingEn = {
   bizTaxIdRequired: "Enter your {id} (numbers and dashes are fine).",
   bizFirstNameRequired: "Enter your legal first name.",
   bizLastNameRequired: "Enter your legal last name.",
-  /** `id` is SSN or SIN, for the same reason. */
-  bizLast4Required: "Enter the last 4 digits of your {id}.",
   bizMobileInvalid: "Enter a US or Canadian mobile number.",
   bizWebsiteInvalid: "That doesn't look like a web address.",
 
@@ -766,8 +741,6 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   einNameUs: "EIN",
   einNameCa: "numéro d'entreprise",
   einQuestionCa: "EIN / numéro d'entreprise",
-  sinNameUs: "SSN",
-  sinNameCa: "NAS",
   yes: "Oui",
   no: "Non",
   einHintUs:
@@ -776,15 +749,9 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   solePropLead:
     "Aucun problème. Nous vous inscrirons comme travailleur autonome.",
   solePropDetail:
-    "Les mêmes fonctions de texto. Les opérateurs vous vérifient avec les 4 " +
-    "derniers chiffres de votre {idName} et un code envoyé par texto à votre " +
-    "téléphone. Une chose à savoir : les inscriptions de travailleurs " +
-    "autonomes sont limitées à un seul numéro de téléphone.",
+    "Les opérateurs vérifient votre numéro de cellulaire avec un code envoyé par texto. Les inscriptions de travailleurs autonomes sont limitées à un seul numéro de téléphone.",
   legalFirstName: "Prénom légal",
   legalLastName: "Nom légal",
-  last4Label: "4 derniers chiffres de votre {idName}",
-  last4Hint:
-    "Les opérateurs s'en servent pour confirmer votre identité. Nous ne demandons et ne conservons que les 4 derniers.",
   mobileLabel: "Votre numéro de cellulaire",
   mobileHint:
     "Nous texterons un code de vérification à 6 chiffres à ce numéro après le paiement.",
@@ -918,23 +885,11 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   ifDifferent: "(s'il est différent)",
   portBillingPhoneHint:
     "Le numéro principal du compte, s'il n'est pas celui que vous transférez.",
-  portWirelessNote:
-    "C'est un numéro mobile, alors votre opérateur exige deux renseignements " +
-    "de plus pour le libérer. Nous ne conservons que les 4 derniers chiffres " +
-    "du {idName}, jamais le numéro complet.",
+  portWirelessNote: "Demandez à votre fournisseur actuel le NIP de transfert de ce numéro de cellulaire.",
   portPinLabel: "NIP / mot de passe de transfert",
   portPinPlaceholder: "Votre opérateur peut vous le fournir",
-  portLast4Label: "4 derniers chiffres du {idName} du titulaire",
-  portLast4Aria:
-    "Pourquoi nous demandons les 4 derniers chiffres du {idName}",
-  portLast4Tooltip:
-    "Les opérateurs mobiles vérifient l'identité du titulaire avant de " +
-    "libérer un numéro. Nous transmettons seulement les 4 derniers chiffres à " +
-    "l'opérateur et ne conservons que ces 4 chiffres, jamais le {idName} complet.",
   portCarrierMissing:
     "Remplissez le titulaire du compte, la personne autorisée et le numéro de compte.",
-  portLast4Error:
-    "Entrez les 4 derniers chiffres du {idName} du titulaire du compte.",
   portPinError: "Entrez le NIP de transfert fourni par votre opérateur actuel.",
 
   // ── Port sub-wizard: the service address ──────────────────────────────────
@@ -1087,7 +1042,6 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   bizTaxIdRequired: "Entrez votre {id} (les chiffres et les tirets conviennent).",
   bizFirstNameRequired: "Entrez votre prénom légal.",
   bizLastNameRequired: "Entrez votre nom de famille légal.",
-  bizLast4Required: "Entrez les 4 derniers chiffres de votre {id}.",
   bizMobileInvalid: "Entrez un numéro mobile américain ou canadien.",
   bizWebsiteInvalid: "Cela ne ressemble pas à une adresse web.",
 

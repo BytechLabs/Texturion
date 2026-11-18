@@ -779,7 +779,7 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #378: and reclaim the expired ones, so the seven-day promise in the
     // completion email means deleted rather than merely unreachable.
     job("job:prune-expired-exports", pruneExpiredExports),
-    // #381: SSN/SIN fragments from signups that never paid. Same trigger as
+    // #381: registration identity from signups that never paid. Same trigger as
     // the other retention sweeps — it is the same kind of promise.
     job("job:prune-abandoned-identity", runIdentityRetentionJob),
     // #340: names, emails and IPs of non-customers from the marketing contact

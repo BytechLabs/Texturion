@@ -11,10 +11,8 @@ import type { TenDlcUseCase } from "@loonext/shared";
  * — checks completeness against these exact keys, so the two tracks must
  * agree byte-for-byte).
  *
- * PII policy (SPEC §10): the FULL EIN/BN is stored (business identifier,
- * required for brand submission at webhook time); SSN/SIN is last-4 only —
- * the sole-prop branch's `ein` field IS the last-4 identifier and is
- * validated to exactly 4 digits so a full SSN can never be persisted.
+ * Standard brands store the business EIN/BN for submission. Sole proprietors
+ * verify with a mobile OTP.
  */
 
 /** TCR business verticals (SPEC §4.1 step 3: dropdown of TCR vertical values). */
@@ -93,22 +91,18 @@ export const standardBrandSchema = z.strictObject({
   website: optionalWebsite,
 });
 
-/**
- * Sole Proprietor path (SPEC §4.2, D2): first/last name, last-4 SSN (US) /
- * SIN (CA) — carried in `ein` per the §4.4 mapping — and the mobile number
- * that receives the OTP (must be a real US/CA destination).
- */
 export const soleProprietorBrandSchema = z.strictObject({
   ...brandCommonShape,
   firstName: nonEmpty(100),
   lastName: nonEmpty(100),
-  ein: z.string().trim().regex(/^\d{4}$/, "must be the last 4 digits"),
+  // Older clients sent a personal identifier under this key.
+  ein: z.string().trim().regex(/^\d{4}$/).optional(),
   mobilePhone: z
     .string()
     .trim()
     .refine(isUsCaDestination, "must be a US or Canadian mobile number (+1...)"),
   website: optionalWebsite,
-});
+}).transform(({ ein: _legacyEin, ...draft }) => draft);
 
 export const brandDraftSchema = z.union([
   standardBrandSchema,
@@ -155,7 +149,6 @@ export function buildBrandPayload(
   const webhook = telnyxWebhookUrl(env);
   const common = {
     displayName: draft.displayName,
-    ein: draft.ein,
     phone: draft.phone,
     street: draft.street,
     city: draft.city,
@@ -180,6 +173,7 @@ export function buildBrandPayload(
   return {
     entityType: "PRIVATE_PROFIT",
     companyName: draft.companyName,
+    ein: draft.ein,
     ...common,
   };
 }

@@ -188,18 +188,6 @@ private fun firstProblem(
         if (soleProp) {
             blank(form.firstName, "settingsMore.fieldFirstName", 100)?.let { return it }
             blank(form.lastName, "settingsMore.fieldLastName", 100)?.let { return it }
-            if (!Regex("""^\d{4}$""").matches(form.ein.trim())) {
-                return say(
-                    "settingsMore.enterLast4",
-                    "idLabel" to say(
-                        if (country == "US") {
-                            "settingsMore.ssnLabel"
-                        } else {
-                            "settingsMore.sinLabel"
-                        },
-                    ),
-                )
-            }
             if (normalizeNanpInput(form.mobilePhone) == null) {
                 return say("settingsMore.enterMobileForCode")
             }
@@ -257,7 +245,6 @@ private fun payload(
                 if (soleProp) {
                     put("firstName", form.firstName.trim())
                     put("lastName", form.lastName.trim())
-                    put("ein", form.ein.trim())
                     put("mobilePhone", normalizeNanpInput(form.mobilePhone).orEmpty())
                 } else {
                     put("companyName", form.companyName.trim())
@@ -321,7 +308,7 @@ fun RegistrationFixForm(
                 state = str(brand?.data, "state"),
                 postalCode = str(brand?.data, "postalCode"),
                 companyName = str(brand?.data, "companyName"),
-                ein = str(brand?.data, "ein"),
+                ein = if (soleProp) "" else str(brand?.data, "ein"),
                 website = str(brand?.data, "website"),
                 firstName = str(brand?.data, "firstName"),
                 lastName = str(brand?.data, "lastName"),
@@ -441,28 +428,9 @@ fun RegistrationFixForm(
                 t("settingsMore.knownBusinessName"),
                 { form = form.copy(displayName = it) },
             )
-            field(
-                form.ein,
-                if (soleProp) {
-                    t(
-                        "settingsMore.last4Of",
-                        "idLabel" to if (country == "US") {
-                            t("settingsMore.ssnLabel")
-                        } else {
-                            t("settingsMore.sinLabel")
-                        },
-                    )
-                } else {
-                    idLabel
-                },
-                { next ->
-                    if (!soleProp || (next.length <= 4 && next.all(Char::isDigit))) {
-                        form = form.copy(ein = next)
-                    }
-                },
-                keyboard = if (soleProp) KeyboardType.Number else KeyboardType.Text,
-                key = "ein",
-            )
+            if (!soleProp) {
+                field(form.ein, idLabel, { form = form.copy(ein = it) }, key = "ein")
+            }
             field(
                 form.email,
                 t("settingsMore.contactEmail"),
