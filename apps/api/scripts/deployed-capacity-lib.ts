@@ -19,6 +19,8 @@ import { isIP } from "node:net";
 import { createClient } from '@supabase/supabase-js';
 import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 
+import { hostedRealtimeLevels } from './hosted-realtime-budget.ts';
+
 export const CAPACITY_RESULT_PREFIX = "CAPACITY_RESULT ";
 
 const PRODUCTION_API_HOSTS = new Set([
@@ -1263,6 +1265,14 @@ export async function runHostedCapacity(
   config: HostedCapacityConfig,
   dependencies: HostedCapacityDependencies = {},
 ): Promise<CapacityEvidence[]> {
+  const realtimeRamp = config.scenario === "api"
+    ? []
+    : config.targetKind === "rig"
+      ? config.realtimeRamp
+      : await hostedRealtimeLevels(config.supabaseOrigin, config.realtimeRamp, (level) => level);
+  if (config.scenario === "realtime" && realtimeRamp.length === 0) {
+    throw new CapacityRunError("no hosted Realtime levels fit the connection budget");
+  }
   const fetcher = dependencies.fetch ?? globalThis.fetch;
   const nowMs = dependencies.nowMs ?? (() => performance.now());
   const sleep = dependencies.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
@@ -1387,7 +1397,7 @@ export async function runHostedCapacity(
     }
   }
 
-  if (config.scenario === "realtime" || config.scenario === "all") {
+  if (realtimeRamp.length > 0) {
     // One connection proves that the supplied user token is a member of the
     // supplied private company topic before the multi-connection ramp begins.
     let probe: RealtimeConnection;
@@ -1410,7 +1420,7 @@ export async function runHostedCapacity(
     const pendingRealtimeEvidence: CapacityEvidence[] = [];
     let realtimeRunFailure: { cause: unknown } | undefined;
     try {
-      for (const connections of config.realtimeRamp) {
+      for (const connections of realtimeRamp) {
         const additions = Math.max(0, connections - active.length);
         const attemptedAt = nowMs();
         const initialBatch = await openRealtimeBatch(config, openRealtime, additions);

@@ -33,6 +33,7 @@ import type { RealtimeChannel, SupabaseClient } from '@supabase/supabase-js';
 import { assertHostedTarget, CapacityConfigError } from "./deployed-capacity-lib.ts";
 import { countStatuses, loadSigner, postSigned, requiredEnv, sleep, summarize } from './capacity-support.ts';
 import type { Ack } from './capacity-support.ts';
+import { hostedRealtimeLevels } from './hosted-realtime-budget.ts';
 
 const JOIN_BATCH = 25;
 const JOIN_DEADLINE_MS = 20_000;
@@ -51,6 +52,8 @@ Usage:
     [--run-id <id> --start-at <epoch ms> [--listen-only]]
 
 --matrix is sockets:events-per-second, in order; sockets are kept between levels.
+Hosted Realtime levels require a current project connection allocation and a
+verified Supabase project ceiling. See docs/CAPACITY.md for the budget.
 `;
 
 interface Socket {
@@ -105,9 +108,13 @@ async function main(): Promise<void> {
   }
   const matrix = (option(args, "--matrix") ?? "50:1,50:10,200:1,200:10,500:1,500:5").split(",").map((cell) => {
     const [sockets, rate] = cell.split(":").map(Number);
-    if (!sockets || !rate || sockets > 600 || rate > 100) throw new CapacityConfigError("--matrix cells are sockets:rate, up to 600 and 100");
+    if (!Number.isInteger(sockets) || sockets < 1 || sockets > 600 || !Number.isFinite(rate) || rate <= 0 || rate > 100) {
+      throw new CapacityConfigError("--matrix cells are whole sockets and positive events per second, up to 600 and 100");
+    }
     return { sockets, rate };
   });
+  const levels = await hostedRealtimeLevels(supabaseOrigin, matrix, (level) => level.sockets);
+  if (levels.length === 0) throw new CapacityConfigError("no hosted Realtime levels fit the connection budget");
   const seconds = Number(option(args, "--seconds") ?? "12");
   const token = requiredEnv("LOONEXT_CAPACITY_ACCESS_TOKEN");
   const publishable = requiredEnv("LOONEXT_CAPACITY_SUPABASE_PUBLISHABLE_KEY");
@@ -134,6 +141,7 @@ async function main(): Promise<void> {
     });
     await client.realtime.setAuth(token);
     const channel = client.channel(topic, { config: { private: true } });
+    sockets[index] = { client, channel };
     channel.on("broadcast", { event: "message.created" }, (message) => {
       const at = performance.timeOrigin + performance.now();
       const payload = message.payload as { message_id?: string; conversation_id?: string } | undefined;
@@ -160,7 +168,6 @@ async function main(): Promise<void> {
       });
     });
     joinMs.push(performance.now() - started);
-    sockets[index] = { client, channel };
   }
 
   async function growTo(target: number): Promise<void> {
@@ -172,7 +179,6 @@ async function main(): Promise<void> {
       const failed = reasons.length;
       joinFailures += failed;
       if (failed > 0) {
-        // A socket that failed to join leaves a hole; stop growing rather than count it.
         throw new CapacityConfigError(`${failed} of ${batch.length} sockets failed to join at ${from + batch.length} (${[...new Set(reasons)].join(", ")})`);
       }
     }
@@ -200,7 +206,7 @@ async function main(): Promise<void> {
   }
 
   try {
-    for (const { sockets: count, rate } of matrix) {
+    for (const { sockets: count, rate } of levels) {
       await growTo(count);
       await sleep(1_500);
       const level = `${runId}-${count}x${rate}`;
@@ -302,8 +308,11 @@ async function main(): Promise<void> {
   } finally {
     await Promise.allSettled(
       sockets.map(async (socket) => {
-        await socket.client.removeChannel(socket.channel);
-        await socket.client.realtime.disconnect();
+        try {
+          await socket.client.removeChannel(socket.channel);
+        } finally {
+          await socket.client.realtime.disconnect();
+        }
       }),
     );
   }
