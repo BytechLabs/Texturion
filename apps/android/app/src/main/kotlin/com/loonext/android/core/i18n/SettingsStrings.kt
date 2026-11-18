@@ -902,6 +902,19 @@ private val HOURS_FR = mapOf(
 // ---------------------------------------------------------------------------
 
 private val CALLING_EN = mapOf(
+    "callDevice.title" to "Calls on this phone",
+    "callDevice.description" to "Check Android settings that can affect incoming calls.",
+    "callDevice.ready" to "No common call restrictions detected.",
+    "callDevice.notifications" to "App notifications are off",
+    "callDevice.channelBlocked" to "Incoming call alerts are off",
+    "callDevice.channelSilent" to "Incoming call alerts are silent",
+    "callDevice.doNotDisturb" to "Do Not Disturb may silence calls",
+    "callDevice.standby" to "Android may delay calls when the app is idle",
+    "callDevice.batteryRestricted" to "Background battery use is restricted",
+    "callDevice.batterySaver" to "Battery Saver is on",
+    "callDevice.fullScreen" to "Calls can't open full screen on the lock screen",
+    "callDevice.microphone" to "Microphone access is off",
+    "callDevice.openFailed" to "Android couldn't open these settings.",
     // #228 — the voicemail a caller hears when the workspace never recorded
     // one. NOT the reader's language: the CALLER's. Every other string on that
     // screen follows the member reading it; this one follows the WORKSPACE,
@@ -1076,6 +1089,19 @@ private val CALLING_EN = mapOf(
 )
 
 private val CALLING_FR = mapOf(
+    "callDevice.title" to "Appels sur ce téléphone",
+    "callDevice.description" to "Vérifiez les paramètres Android qui peuvent affecter les appels entrants.",
+    "callDevice.ready" to "Aucune restriction courante détectée pour les appels.",
+    "callDevice.notifications" to "Les notifications de l’appli sont désactivées",
+    "callDevice.channelBlocked" to "Les alertes d’appel entrant sont désactivées",
+    "callDevice.channelSilent" to "Les alertes d’appel entrant sont silencieuses",
+    "callDevice.doNotDisturb" to "Le mode Ne pas déranger peut couper la sonnerie",
+    "callDevice.standby" to "Android peut retarder les appels quand l’appli est en veille",
+    "callDevice.batteryRestricted" to "L’utilisation de la batterie en arrière-plan est restreinte",
+    "callDevice.batterySaver" to "L’économiseur de batterie est activé",
+    "callDevice.fullScreen" to "Les appels ne peuvent pas s’afficher en plein écran quand le téléphone est verrouillé",
+    "callDevice.microphone" to "L’accès au microphone est désactivé",
+    "callDevice.openFailed" to "Android n’a pas pu ouvrir ces paramètres.",
     "settings.defaultVoicemailGreeting" to
         "Vous avez joint {name}. Nous ne pouvons pas répondre pour le moment. " +
         "Laissez un message après le signal, ou raccrochez et écrivez-nous à ce numéro.",

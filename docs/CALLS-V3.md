@@ -977,6 +977,9 @@ iOS uses the same ring-me attestation. The client checks the current session
 state, drops expired local rings, and attests only while it has no engaged leg.
 If the server returns `recent_leg`, the client waits four seconds and checks
 its local legs again before one retry. A body-less request still takes T4a.
+On an iOS VoIP push, CallKit initially shows **Incoming call** when the push
+names a workspace number or there is no workspace snapshot yet. The INVITE
+can then replace that label with the caller identity.
 
 For an in-turn ring, the server adds one member per step and pushes only the
 member added at that step. Members who have a push channel and need to mint a
@@ -1012,6 +1015,10 @@ releases the lock when the sensor is clear.
   tray fallback) is the only one.
 - Answer flow, by-leg resolution, telecom/CallStyle presentation: unchanged.
 - The 30s tray timeout → 45s.
+- In Settings → Calling, **Calls on this phone** checks app notifications,
+  the incoming call channel, Do Not Disturb, standby, battery, full-screen
+  alerts, and microphone access. Each reported restriction links to Android's
+  corresponding settings, and the card refreshes when the member returns.
 
 ### 10.3 Web
 
