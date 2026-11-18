@@ -354,7 +354,7 @@ class ThreadController(
 
     private suspend fun refreshBlocked() {
         val phone = threadPhone() ?: return
-        blockedSender = repo.blockedSenders(companyId).firstOrNull { it.phone_e164 == phone }
+        blockedSender = repo.blockedSenders(companyId, phone).firstOrNull { it.phone_e164 == phone }
         checkedSenderPhone = phone
     }
 

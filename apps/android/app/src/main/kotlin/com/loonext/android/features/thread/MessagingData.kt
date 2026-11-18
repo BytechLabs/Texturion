@@ -498,8 +498,12 @@ class MessagingRepository(private val api: ApiClient) {
     )
 
     /** #696: the numbers this workspace sends straight to spam. */
-    suspend fun blockedSenders(companyId: String): List<BlockedSender> =
-        api.get<Page<BlockedSender>>("/v1/blocked-senders", companyId = companyId).data
+    suspend fun blockedSenders(companyId: String, phoneE164: String? = null): List<BlockedSender> =
+        api.get<Page<BlockedSender>>(
+            "/v1/blocked-senders",
+            query = mapOf("phone_digits" to phoneE164?.removePrefix("+")),
+            companyId = companyId,
+        ).data
 
     /** #696: idempotent, so a double tap blocks once. */
     suspend fun blockSender(companyId: String, phoneE164: String): BlockedSender =

@@ -156,4 +156,21 @@ describe("GET /v1/blocked-senders", () => {
     // this only pins that the route reads the table at all.
     expect(reads[0]?.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
+
+  it("filters by sender before limiting the workspace block list", async () => {
+    const sb = stubs();
+    const res = await call(sb, "/v1/blocked-senders?phone_digits=14155559999", { method: "GET" });
+    expect(res.status).toBe(200);
+    const [read] = sb.find("GET", "/rest/v1/blocked_senders");
+    expect(read?.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(read?.url.searchParams.get("phone_e164")).toBe("eq.+14155559999");
+    expect(read?.url.searchParams.get("limit")).toBe("1");
+  });
+
+  it("refuses a partial filter without querying blocked numbers", async () => {
+    const sb = stubs();
+    const res = await call(sb, "/v1/blocked-senders?phone_digits=1415", { method: "GET" });
+    expect(res.status).toBe(422);
+    expect(sb.find("GET", "/rest/v1/blocked_senders")).toHaveLength(0);
+  });
 });

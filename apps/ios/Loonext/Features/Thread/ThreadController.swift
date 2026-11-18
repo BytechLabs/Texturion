@@ -308,7 +308,7 @@ final class ThreadController {
 
     private func refreshBlocked() async throws {
         guard let phone = threadPhone else { return }
-        blockedSender = try await repo.blockedSenders(companyId: companyId)
+        blockedSender = try await repo.blockedSenders(companyId: companyId, phoneE164: phone)
             .first { $0.phone_e164 == phone }
         checkedSenderPhone = phone
     }

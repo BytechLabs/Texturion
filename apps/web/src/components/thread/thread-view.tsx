@@ -270,7 +270,7 @@ function ThreadLoaded({ conversation }: { conversation: ConversationDetail }) {
   const queryClient = useQueryClient();
   const companyId = useCompanyId();
   const { userId, role } = useActiveCompany();
-  const blockedSenders = useBlockedSenders();
+  const blockedSenders = useBlockedSenders(conversation.contact.phone_e164);
   const canLinkPhones = !conversation.is_spam && !conversation.spam_suspected_at &&
     blockedSenders.isSuccess && !blockedSenders.data.data.some((row) => row.phone_e164 === conversation.contact.phone_e164);
   const [messagePhone, setMessagePhone] = useState<string | null>(null);
