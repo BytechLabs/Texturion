@@ -556,6 +556,12 @@ class ThreadControllerTest {
             conversationId = "c1",
             meUserId = "u1",
             scope = scope,
+            outboxCoordinator = OutboxCoordinator(
+                store = Outbox(ctx),
+                repository = MessagingRepository(api),
+                activeUserId = { "u1" },
+                locale = { null },
+            ),
         )
     }
 

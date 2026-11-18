@@ -1371,6 +1371,11 @@ private struct InboxList: View {
     @ViewBuilder
     private func listBody(_ controller: InboxController) -> some View {
         @Bindable var controller = controller
+        let queue = graph.outbox.store.all().filter { row in
+            row.companyId == companyId && (row.ownerUserId == nil || row.ownerUserId == me.user_id)
+        }
+        let outboxStatuses = Dictionary(grouping: queue, by: \.conversationId)
+            .mapValues { rows in rows.contains(where: \.blocked) }
         VStack(spacing: 0) {
             InboxTitleRow(scheduledCount: controller.scheduled.count) {
                 scheduledSheetOpen = true
@@ -1420,6 +1425,7 @@ private struct InboxList: View {
                 case .ready:
                     ConversationListPane(
                         controller: controller,
+                        outboxStatuses: outboxStatuses,
                         selection: $selection,
                         onOpen: { id in
                             controller.markLocallyRead(id)
@@ -1595,6 +1601,7 @@ private struct InboxStatusTabs: View {
 @MainActor
 private struct ConversationListPane: View {
     let controller: InboxController
+    let outboxStatuses: [String: Bool]
     @Binding var selection: String?
     let onOpen: @MainActor (String) -> Void
     let onAssign: @MainActor (ConversationListItem) -> Void
@@ -1698,7 +1705,7 @@ private struct ConversationListPane: View {
         // be worse than the tedium this replaces.
         let selecting = !controller.bulkSelection.isEmpty
         let picked = controller.bulkSelection.isRowSelected(row.id)
-        return ConversationRow(row: row, assigneeName: assigneeName(row)) {
+        return ConversationRow(row: row, assigneeName: assigneeName(row), outboxBlocked: outboxStatuses[row.id]) {
             if selecting {
                 controller.toggleBulkSelected(row.id)
             } else {
@@ -1798,6 +1805,7 @@ private struct ConversationRow: View {
     /// difference between a list you can triage and one where every row looks
     /// like yours; web and Android both show it, so the row does too.
     var assigneeName: String?
+    var outboxBlocked: Bool? = nil
     let onTap: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
@@ -1908,6 +1916,12 @@ private struct ConversationRow: View {
                                 .foregroundStyle(BrandColor.muted600)
                                 .lineLimit(2)
                         }
+                    }
+                    if let outboxBlocked {
+                        let key = outboxBlocked ? "thread.outboxNotSent" : "thread.outboxQueued"
+                        Text(AppStrings.translate(appLocale, key))
+                            .font(.golos(11, weight: .semibold))
+                            .foregroundStyle(outboxBlocked ? BrandColor.destructive : BrandColor.muted600)
                     }
                     if !row.tags.isEmpty || assigneeName != nil {
                         HStack(spacing: 4) {

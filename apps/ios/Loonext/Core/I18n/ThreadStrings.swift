@@ -121,7 +121,10 @@ enum ThreadStrings {
             "thread.deleteQueuedBody":
                 "It hasn't been sent, and deleting it here is the only copy gone.",
             "thread.keepIt": "Keep it",
-            "thread.queuedOffline": "Queued — will send when you're back online",
+            "thread.queuedOffline": "Queued. Reopen Loonext when you're back online if you close the app.",
+            "thread.outboxQueued": "Queued",
+            "thread.outboxNotSent": "Not sent",
+            "thread.outboxNoticeBody": "Open the conversation to review your message.",
             "thread.sending": "Sending…",
             "thread.sent": "Sent",
             "thread.delivered": "Delivered",
@@ -869,7 +872,10 @@ enum ThreadStrings {
                 "Il n'a pas été envoyé, et le supprimer ici efface la seule copie.",
             "thread.keepIt": "Le garder",
             "thread.queuedOffline":
-                "En file d'attente — s'enverra dès votre retour en ligne",
+                "En attente. Si vous fermez Loonext, rouvrez l'appli une fois de retour en ligne.",
+            "thread.outboxQueued": "En attente",
+            "thread.outboxNotSent": "Non envoyé",
+            "thread.outboxNoticeBody": "Ouvrez la conversation pour vérifier votre message.",
             "thread.sending": "Envoi…",
             "thread.sent": "Envoyé",
             "thread.delivered": "Livré",

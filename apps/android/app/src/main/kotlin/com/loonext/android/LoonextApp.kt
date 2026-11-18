@@ -1,6 +1,13 @@
 package com.loonext.android
 
 import android.app.Application
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.Uri
+import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.loonext.android.core.auth.AppPrefs
 import com.loonext.android.core.auth.AuthManager
 import com.loonext.android.core.auth.SessionEnded
@@ -15,11 +22,25 @@ import com.loonext.android.core.data.NotificationsRepository
 import com.loonext.android.core.data.SearchRepository
 import com.loonext.android.core.data.TasksRepository
 import com.loonext.android.core.diag.Telemetry
+import com.loonext.android.core.i18n.AppStrings
+import com.loonext.android.core.i18n.UiLocale
 import com.loonext.android.core.net.ApiClient
 import com.loonext.android.core.realtime.RealtimeClient
 import com.loonext.android.core.update.UpdateRepository
 import com.loonext.android.features.tasks.CreatedTaskNotice
 import com.loonext.android.features.settings.SettingsRepository
+import com.loonext.android.features.thread.MessagingRepository
+import com.loonext.android.features.thread.Outbox
+import com.loonext.android.features.thread.OutboxCoordinator
+import com.loonext.android.features.thread.OutboxWork
+import com.loonext.android.features.thread.QueuedSend
+import com.loonext.android.push.APP_ORIGIN
+import com.loonext.android.push.ChannelIds
+import com.loonext.android.push.PUSH_NOTIFICATION_ID
+import com.loonext.android.push.PushContent
+import com.loonext.android.push.PushHooks
+import com.loonext.android.push.outboxNoticeTag
+import com.loonext.android.push.postPushNotification
 import java.io.File
 import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.CoroutineExceptionHandler
@@ -28,7 +49,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import okhttp3.OkHttpClient
 import com.loonext.android.telephony.SoftphoneManager
@@ -152,6 +175,13 @@ class AppGraph(
     val contactsRepo = ContactsRepository(api)
     val notificationsRepo = NotificationsRepository(api)
     val searchRepo = SearchRepository(api)
+    val outbox = OutboxCoordinator(
+        store = Outbox(app),
+        repository = MessagingRepository(api),
+        activeUserId = { sessionStore.current()?.userId },
+        locale = ::outboxLocale,
+        notice = ::showOutboxNotice,
+    )
 
     /**
      * #214 AI task enrichment + the per-company opt-in. Singleton so its
@@ -207,13 +237,13 @@ class AppGraph(
                 com.loonext.android.features.contacts.sync.LoonextContactsAccount
                     .remove(android.accounts.AccountManager.get(app))
             }
-            // And the outbox — what somebody was in the middle of saying to a
-            // customer, and the photos they attached. It survived every exit until
-            // now: an unsent message to a homeowner sitting on a phone the company
-            // does not own, which could also flush under a session that is gone.
             appScope.launch {
-                runCatching {
-                    com.loonext.android.features.thread.Outbox(app).clear()
+                runCatching { OutboxWork.cancel(app) }
+                val rows = runCatching { outbox.store.all() }.getOrDefault(emptyList())
+                outbox.store.clear()
+                val manager = NotificationManagerCompat.from(app)
+                rows.forEach { row ->
+                    manager.cancel(outboxNoticeTag(row.conversationId), PUSH_NOTIFICATION_ID)
                 }
             }
         }
@@ -250,6 +280,54 @@ class AppGraph(
             api.tokenRefreshed.collect { token -> realtime.setAuth(token) }
         }
     }
+
+    internal fun startOutbox() {
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) = flushOutbox()
+        })
+        val connectivity = app.getSystemService(ConnectivityManager::class.java)
+        runCatching {
+            connectivity?.registerDefaultNetworkCallback(object : ConnectivityManager.NetworkCallback() {
+                override fun onAvailable(network: Network) = flushOutbox()
+            })
+        }
+        appScope.launch {
+            outbox.store.pruneMedia()
+            var previous = emptySet<String>()
+            combine(outbox.rows, sessionStore.session) { rows, session ->
+                rows.asSequence().filter { row ->
+                    session != null && !row.blocked &&
+                        (row.ownerUserId == null || row.ownerUserId == session.userId)
+                }.map { it.localId }.toSet()
+            }.distinctUntilChanged().collect { pending ->
+                if ((pending - previous).isNotEmpty()) OutboxWork.enqueue(app)
+                previous = pending
+            }
+        }
+    }
+
+    fun flushOutbox() {
+        appScope.launch { outbox.flush() }
+    }
+
+    private suspend fun outboxLocale(): String =
+        UiLocale.resolve(prefs.uiLocale.first(), UiLocale.deviceTag(), prefs.workspaceLocale.first())
+
+    private suspend fun showOutboxNotice(row: QueuedSend) {
+        if (PushHooks.foregroundConversationId == row.conversationId) return
+        val locale = outboxLocale()
+        val link = Uri.parse("$APP_ORIGIN/inbox").buildUpon().appendPath(row.conversationId).build()
+        runCatching {
+            postPushNotification(app, PushContent(
+                kind = null,
+                title = AppStrings.translate(locale, "thread.outboxNotSent"),
+                body = AppStrings.translate(locale, "thread.outboxNoticeBody"),
+                url = link.toString(),
+                tag = outboxNoticeTag(row.conversationId),
+                channelId = ChannelIds.MESSAGES,
+            ), onlyAlertOnce = true)
+        }
+    }
 }
 
 class LoonextApp : Application() {
@@ -266,5 +344,6 @@ class LoonextApp : Application() {
         File(filesDir, "diag").deleteRecursively()
         graph = AppGraph(this)
         com.loonext.android.push.ensureChannels(this)
+        graph.startOutbox()
     }
 }

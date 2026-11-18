@@ -412,6 +412,7 @@ class RootViewModel(private val graph: AppGraph) : ViewModel() {
             }
 
             _state.value = RootState.Ready(view, membership.company_id)
+            graph.flushOutbox()
 
             // #483: one transient 5xx on the hydrated read must not cost a whole
             // session of per-number realtime. Retried OFF the bootstrap path —

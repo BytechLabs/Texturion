@@ -161,7 +161,7 @@ fun clearConversationNotifications(context: Context, conversationId: String) {
  * contract: repeats for one conversation (or one call session) replace the
  * previous notification and re-alert; distinct threads/calls stack (#149).
  */
-fun postPushNotification(context: Context, content: PushContent) {
+fun postPushNotification(context: Context, content: PushContent, onlyAlertOnce: Boolean = false) {
     if (!NotificationManagerCompat.from(context).areNotificationsEnabled()) {
         Log.i(TAG, "Notifications disabled for the app; push not shown.")
         return
@@ -192,7 +192,7 @@ fun postPushNotification(context: Context, content: PushContent) {
         .setContentIntent(pending)
         .setAutoCancel(true)
         // Coalesced repeats re-alert (web `renotify: true` parity).
-        .setOnlyAlertOnce(false)
+        .setOnlyAlertOnce(onlyAlertOnce)
 
     if (content.isCall) {
         builder

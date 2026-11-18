@@ -1,7 +1,6 @@
 package com.loonext.android.features.thread
 
 import android.content.Context
-import android.util.Base64
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -108,6 +107,7 @@ class ThreadController(
     val conversationId: String,
     private val meUserId: String,
     private val scope: CoroutineScope,
+    private val outboxCoordinator: OutboxCoordinator,
 ) {
     /**
      * #228 — the reader's language, for the sentences this controller writes
@@ -197,15 +197,7 @@ class ThreadController(
     var scheduled by mutableStateOf<List<ScheduledMessage>>(emptyList())
         private set
 
-    /**
-     * #234: the durable queue behind `pendingSends`.
-     *
-     * Lazy off the context the controller already holds rather than a new
-     * constructor parameter — every caller would otherwise have to thread it
-     * through, and the logic worth testing lives in OutboxFlusher, which is
-     * driven directly on the JVM by OutboxTest.
-     */
-    private val outbox: Outbox by lazy { Outbox(appContext) }
+    private val outbox = outboxCoordinator.store
     var members by mutableStateOf<List<Member>>(emptyList())
         private set
     var contact by mutableStateOf<Contact?>(null)
@@ -331,12 +323,7 @@ class ThreadController(
         }
         persistSnapshot()
 
-        // #234: whatever was queued before this process existed comes back
-        // into the thread, then we try to drain it. Restoring BEFORE flushing
-        // is deliberate — if there is still no signal, the person opening the
-        // thread sees their message sitting there rather than an empty
-        // conversation that quietly ate it.
-        scope.launch { restoreQueued(); flushOutbox() }
+        scope.launch { restoreQueued() }
 
         // Secondary loads — quiet failures; they gate niceties, not the thread.
         scope.launch { runCatching { refreshEvents() } }
@@ -904,33 +891,25 @@ class ThreadController(
                 // a row promising a photo we cannot produce is worse than an
                 // honest failure here.
                 if (code == ApiErrorCode.NETWORK) {
-                    val queuedMedia = runCatching {
-                        outbox.saveMedia(
-                            key,
+                    val queued = runCatching {
+                        outboxCoordinator.enqueue(
+                            QueuedSend(
+                                localId = key,
+                                companyId = companyId,
+                                conversationId = conversationId,
+                                body = body,
+                                createdAt = pendingRow.createdAt,
+                                ownerUserId = meUserId,
+                            ),
                             photos.map { OutboxMediaBytes(it.contentType, it.bytes) },
                         )
-                    }.getOrNull()
-                    val storedAll = queuedMedia != null && queuedMedia.size == photos.size
-                    if (storedAll) {
-                        val wrote = runCatching {
-                            outbox.put(
-                                QueuedSend(
-                                    localId = key,
-                                    companyId = companyId,
-                                    conversationId = conversationId,
-                                    body = body,
-                                    createdAt = pendingRow.createdAt,
-                                    media = queuedMedia,
-                                ),
-                            )
-                        }.isSuccess
-                        if (wrote) {
-                            pendingSends = pendingSends.map {
-                                if (it.localId == key) it.copy(queued = true) else it
-                            }
-                            lastFailedIntent = null
-                            return@launch
+                    }.getOrDefault(false)
+                    if (queued) {
+                        pendingSends = pendingSends.map {
+                            if (it.localId == key) it.copy(queued = true) else it
                         }
+                        lastFailedIntent = null
+                        return@launch
                     }
                     // Storage refused us. Fall through to the honest failure
                     // below rather than showing "Queued" over nothing.
@@ -955,8 +934,15 @@ class ThreadController(
 
     /** Paint the durable queue for this thread back into the timeline. */
     private suspend fun restoreQueued() {
-        val rows = runCatching { outbox.forConversation(conversationId) }.getOrNull() ?: return
-        val restored = rows.map { row ->
+        val rows = runCatching { outbox.all() }.getOrNull() ?: return
+        updateQueuedRows(rows)
+    }
+
+    fun updateQueuedRows(rows: List<QueuedSend>) {
+        val restored = rows.filter { row ->
+            row.companyId == companyId && row.conversationId == conversationId &&
+                (row.ownerUserId == null || row.ownerUserId == meUserId)
+        }.sortedBy { it.createdAt }.map { row ->
             PendingSend(
                 localId = row.localId,
                 body = row.body,
@@ -968,73 +954,20 @@ class ThreadController(
             )
         }
         val known = restored.map { it.localId }.toSet()
-        pendingSends = pendingSends.filterNot { it.localId in known } + restored
+        val alreadyBlocked = pendingSends.filter { it.blockedReason != null }.map { it.localId }.toSet()
+        pendingSends = pendingSends.filter {
+            it.localId !in known && !it.queued && it.blockedReason == null
+        } + restored
+        if (restored.any { it.blockedReason != null && it.localId !in alreadyBlocked }) refreshGates()
     }
 
-    /**
-     * Drain the queue. Safe to call from anywhere and as often as you like —
-     * OutboxFlusher holds the mutex that makes an LTE/Wi-Fi handoff firing two
-     * callbacks land one message rather than two.
-     */
-    fun flushOutbox() {
-        scope.launch {
-            val flusher = OutboxFlusher(outbox, locale = locale) { item ->
-                // The photos, read back from our own storage. A file that is
-                // gone must NOT become a quiet text-only send: the person
-                // attached it for a reason, so the row stops and says so, and
-                // "Send now" then sends the words on their own.
-                val media = item.media.mapNotNull { queued ->
-                    outbox.readMedia(item.localId, queued)?.let { bytes ->
-                        OutboundMedia(
-                            content_type = queued.contentType,
-                            base64 = Base64.encodeToString(bytes, Base64.NO_WRAP),
-                        )
-                    }
-                }
-                if (media.size != item.media.size) {
-                    return@OutboxFlusher SendOutcome.Refused(outboxMediaLostMessage(locale))
-                }
-                try {
-                    val message = repo.send(
-                        companyId = item.companyId,
-                        conversationId = item.conversationId,
-                        body = item.body,
-                        media = media.takeIf { it.isNotEmpty() },
-                        // The key minted when the person pressed send, reused
-                        // on every attempt — this is what makes the flush
-                        // idempotent rather than merely retried.
-                        idempotencyKey = item.localId,
-                    )
-                    if (item.conversationId == conversationId) {
-                        pendingSends = pendingSends.filterNot { it.localId == item.localId }
-                        messages = mergeMessagesFirstPage(messages, listOf(message))
-                    }
-                    SendOutcome.Sent
-                } catch (cause: Exception) {
-                    val code = (cause as? ApiException)?.code
-                    if (code == ApiErrorCode.NETWORK) {
-                        SendOutcome.Unreachable(cause.userMessageForReader())
-                    } else {
-                        SendOutcome.Refused(cause.userMessageForReader())
-                    }
-                }
-            }
-            val result = runCatching { flusher.flush() }.getOrNull() ?: return@launch
-            if (result.sent.isNotEmpty()) {
-                persistSnapshot()
-                markRead()
-            }
-            // Sweep photos left behind by a crash between writing files and
-            // writing the row. Cheap, and the alternative is a folder that
-            // only ever grows on a phone that is usually short of space.
-            runCatching { outbox.pruneMedia() }
-            // A refusal changes what the row says, so repaint from the store
-            // rather than guessing which one was blocked.
-            if (result.blocked.isNotEmpty()) {
-                restoreQueued()
-                refreshGates()
-            }
-        }
+    fun onOutboxDelivered(delivery: OutboxDelivery) {
+        val row = delivery.row
+        if (row.companyId != companyId || row.conversationId != conversationId) return
+        pendingSends = pendingSends.filterNot { it.localId == row.localId }
+        messages = mergeMessagesFirstPage(messages, listOf(delivery.message))
+        persistSnapshot()
+        markRead()
     }
 
     /** Drop a queued message the person has decided against (#234). */
@@ -1073,7 +1006,7 @@ class ThreadController(
                 )
             }
             restoreQueued()
-            flushOutbox()
+            outboxCoordinator.flush()
         }
     }
 

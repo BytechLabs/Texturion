@@ -104,6 +104,9 @@ object ThreadStrings : AppStrings.Section {
             "It hasn't been sent, and deleting it here is the only copy gone.",
         "thread.keepIt" to "Keep it",
         "thread.queuedOffline" to "Queued — will send when you're back online",
+        "thread.outboxQueued" to "Queued",
+        "thread.outboxNotSent" to "Not sent",
+        "thread.outboxNoticeBody" to "Open the conversation to review your message.",
         "thread.sending" to "Sending…",
         "thread.sent" to "Sent",
         "thread.delivered" to "Delivered",
@@ -861,6 +864,9 @@ object ThreadStrings : AppStrings.Section {
         "thread.deleteQueuedBody" to
             "Il n'a pas été envoyé, et le supprimer ici efface la seule copie.",
         "thread.keepIt" to "Le garder",
+        "thread.outboxQueued" to "En attente",
+        "thread.outboxNotSent" to "Non envoyé",
+        "thread.outboxNoticeBody" to "Ouvrez la conversation pour vérifier votre message.",
         "thread.queuedOffline" to
             "En file d'attente — s'enverra dès votre retour en ligne",
         "thread.sending" to "Envoi…",

@@ -151,6 +151,61 @@ final class MessagingOutboxTests: XCTestCase {
         XCTAssertEqual(outbox.all().first { $0.localId == "k1" }?.blocked, false)
     }
 
+    func testARefusalAndAnAgeOutNotifyOnlyWhenTheRowChanges() async {
+        let outbox = makeOutbox()
+        outbox.put(queued("refused", "2026-07-28T10:00:00Z"))
+        outbox.put(queued("expired", "2026-07-26T10:00:00Z"))
+        var notices: [String] = []
+        let flusher = OutboxFlusher(
+            outbox: outbox,
+            now: { outboxTestNow },
+            onBlocked: { row in
+                XCTAssertEqual(outbox.all().first { $0.localId == row.localId }?.blocked, true)
+                notices.append(row.localId)
+            }
+        ) { _ in .refused("opted out") }
+
+        _ = await flusher.flush()
+        _ = await flusher.flush()
+
+        XCTAssertEqual(notices, ["expired", "refused"])
+    }
+
+    func testConcurrentFlushesSendTheRowOnce() async {
+        let outbox = makeOutbox()
+        outbox.put(queued("k1", "2026-07-28T10:00:00Z"))
+        var sends = 0
+        let flusher = OutboxFlusher(outbox: outbox, now: { outboxTestNow }) { _ in
+            sends += 1
+            await Task.yield()
+            return .sent
+        }
+
+        let first = Task { await flusher.flush() }
+        let second = Task { await flusher.flush() }
+        _ = await (first.value, second.value)
+
+        XCTAssertEqual(sends, 1)
+        XCTAssertTrue(outbox.all().isEmpty)
+    }
+
+    func testARefusalInFlightCannotRestoreADiscardedItem() async {
+        let outbox = makeOutbox()
+        outbox.put(queued("k1", "2026-07-28T10:00:00Z"))
+        let flusher = OutboxFlusher(
+            outbox: outbox,
+            now: { outboxTestNow },
+            onBlocked: { _ in XCTFail("Discarded items should not notify.") }
+        ) { item in
+            outbox.remove(item.localId)
+            return .refused("opted out")
+        }
+
+        let result = await flusher.flush()
+        XCTAssertTrue(result.blocked.isEmpty)
+        XCTAssertTrue(outbox.all().isEmpty)
+    }
+
     func testMessagesFlushInTheOrderTheyWereWritten() async {
         // These are messages to one customer. Delivering "on my way" before
         // "running 20 late" would be worse than delivering both slowly.

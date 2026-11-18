@@ -12,6 +12,7 @@
     "androidx.lifecycle:lifecycle-runtime-compose": { "r8": "no-reflection", "why": "Collects flows in a composition." },
     "androidx.lifecycle:lifecycle-viewmodel-compose": { "r8": "no-reflection", "why": "MainActivity's factory compares class literals; it does not look a ViewModel up by name." },
     "androidx.lifecycle:lifecycle-process": { "r8": "ships-rules", "why": "Starts from an androidx.startup initializer named in the manifest; the check asserts initializers keep their names." },
+    "androidx.work:work-runtime": { "r8": "ships-rules", "why": "WorkerFactory restores work by its persisted class name. WorkManager keeps worker names and constructors, and the APK check pins the outbox worker." },
     "androidx.navigation:navigation-compose": { "r8": "ships-rules", "why": "The app builds no NavHost and has no type-safe routes, so no class is serialized into a route." },
     "androidx.datastore:datastore-preferences": { "r8": "ships-rules", "why": "Its native shared counter calls NativeSharedCounter from JNI by name; the check reads the .so and asserts the class kept its name." },
     "androidx.compose.ui:ui": { "r8": "ships-rules", "why": "Compose runtime and UI keep what their own rules name; no name lookups." },
@@ -71,7 +72,9 @@
     "androidx.profileinstaller": "Starts from an androidx.startup initializer, asserted by name.",
     "androidx.recyclerview": "Transitive via Material; XML views, kept by aapt.",
     "androidx.resourceinspection": "Annotations only.",
+    "androidx.room": "WorkManager's database uses generated RoomDatabase implementations. Room ships rules that keep those classes and their constructors.",
     "androidx.savedstate": "No name lookups.",
+    "androidx.sqlite": "WorkManager's database uses these wrappers over framework SQLite. Their consumer rules are intentionally empty.",
     "androidx.startup": "Loads initializers by class name from manifest metadata; ships rules, and the check asserts every initializer kept its name.",
     "androidx.tracing": "No name lookups.",
     "androidx.transition": "XML views, kept by aapt.",
@@ -125,6 +128,10 @@
       {
         "name": "androidx.credentials.playservices.CredentialProviderPlayServicesImpl",
         "why": "CredentialProviderFactory loads it with Class.forName. Without it every passkey ceremony fails with no provider."
+      },
+      {
+        "name": "com.loonext.android.features.thread.OutboxWorker",
+        "why": "WorkManager stores this name in its queue and uses it to restore the worker after process death."
       }
     ],
     "serializable": {
