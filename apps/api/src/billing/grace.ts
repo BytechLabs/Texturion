@@ -21,6 +21,11 @@ type Db = ReturnType<typeof getDb>;
 /** Grace-warning thresholds with a `grace_notices` ledger row (SPEC §6, §9, §11). */
 export type GraceThresholdDay = 1 | 15 | 27;
 export const GRACE_THRESHOLD_DAYS: readonly GraceThresholdDay[] = [1, 15, 27];
+const GRACE_TITLE_KEYS = {
+  1: "graceDay1Title",
+  15: "graceDay15Title",
+  27: "graceDay27Title",
+} as const satisfies Record<GraceThresholdDay, keyof (typeof NUMBER_NOTICE_COPY)[Locale]>;
 
 /**
  * SPEC §1 key rule 2 / §9: numbers are released 30 days after cancellation.
@@ -110,15 +115,7 @@ function graceTitle(
   daysLeft: number,
 ): string {
   const copy = NUMBER_NOTICE_COPY[locale];
-  // A Record over the rungs rather than a chain of ternaries, so a fourth
-  // threshold day is a type error here instead of silently inheriting the last
-  // arm's sentence — which is what the shape this replaced would have done.
-  const rungs: Record<GraceThresholdDay, (daysLeft: number) => string> = {
-    1: copy.graceDay1Title,
-    15: copy.graceDay15Title,
-    27: copy.graceDay27Title,
-  };
-  return rungs[day](daysLeft);
+  return copy[GRACE_TITLE_KEYS[day]](daysLeft);
 }
 
 function warningCopy(

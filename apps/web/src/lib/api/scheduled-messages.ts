@@ -153,7 +153,7 @@ export function useCancelScheduledMessage() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<void>(`/v1/scheduled-messages/${id}`, {
+      apiFetch<undefined>(`/v1/scheduled-messages/${id}`, {
         method: "DELETE",
         companyId,
       }),

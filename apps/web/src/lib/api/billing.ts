@@ -181,7 +181,7 @@ export function useDismissReferralAsk() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: () =>
-      apiFetch<void>("/v1/referrals/dismiss", { method: "POST", companyId }),
+      apiFetch<undefined>("/v1/referrals/dismiss", { method: "POST", companyId }),
     onMutate: () => {
       queryClient.setQueryData<ReferralMomentView>(
         [companyId, "referral-moment"],
@@ -415,7 +415,7 @@ export function useRecordCancellationReason() {
     mutationFn: (input: { reason: string | null; detail: string | null }) =>
       // 204 No Content: apiFetch resolves to undefined, which is the whole
       // answer: there is nothing to show for it and nothing to invalidate.
-      apiFetch<void>("/v1/billing/cancellation-reason", {
+      apiFetch<undefined>("/v1/billing/cancellation-reason", {
         method: "POST",
         companyId,
         body: input,
@@ -484,7 +484,7 @@ export function useDismissWinback() {
   return useMutation({
     // 204 No Content: nothing comes back that the caller did not already know.
     mutationFn: () =>
-      apiFetch<void>("/v1/billing/dismiss-winback", {
+      apiFetch<undefined>("/v1/billing/dismiss-winback", {
         method: "POST",
         companyId,
       }),

@@ -56,10 +56,11 @@ export interface CalendarCredentialRefreshStore {
 }
 
 export class CalendarCredentialRefreshUnavailableError extends Error {
-  constructor(
-    readonly outcome: "busy" | "not_found" | "superseded" | "lease_lost",
-  ) {
+  readonly outcome: "busy" | "not_found" | "superseded" | "lease_lost";
+
+  constructor(outcome: "busy" | "not_found" | "superseded" | "lease_lost") {
     super(`calendar credential refresh is ${outcome}`);
+    this.outcome = outcome;
     this.name = "CalendarCredentialRefreshUnavailableError";
   }
 }

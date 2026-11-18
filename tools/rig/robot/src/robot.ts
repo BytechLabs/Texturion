@@ -574,11 +574,12 @@ export class Robot {
    * its concurrent limit. The call's verdict never depends on the report.
    */
   #reportAnnouncement(announcementMs: number): void {
-    const report = this.#o.telnyx.reportLevelEvidence;
+    const { telnyx } = this.#o;
+    const report = telnyx.reportLevelEvidence?.bind(telnyx);
     if (!report) return;
     const evidence = { announcement_ms: announcementMs, at: this.#iso() };
     this.#track(
-      report.call(this.#o.telnyx, evidence).catch((error: unknown) => {
+      report(evidence).catch((error: unknown) => {
         console.warn(`robot: level evidence not filed: ${describe(error)}`);
       }),
     );

@@ -101,7 +101,7 @@ export function usePushSubscription(): PushSubscriptionState {
             body: input,
           }),
         deleteSubscription: (id: string) =>
-          apiFetch<void>(`/v1/push-subscriptions/${id}`, {
+          apiFetch<undefined>(`/v1/push-subscriptions/${id}`, {
             method: "DELETE",
             companyId: companyIdRef.current,
           }),

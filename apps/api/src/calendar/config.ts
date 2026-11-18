@@ -13,8 +13,11 @@ export interface CalendarProviderConfiguration {
 }
 
 export class CalendarConnectorNotConfiguredError extends Error {
-  constructor(readonly provider: CalendarProviderName) {
+  readonly provider: CalendarProviderName;
+
+  constructor(provider: CalendarProviderName) {
     super(`${provider} calendar connector is not configured`);
+    this.provider = provider;
     this.name = "CalendarConnectorNotConfiguredError";
   }
 }

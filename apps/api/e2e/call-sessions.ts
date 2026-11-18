@@ -54,7 +54,11 @@ export interface CallSessionsOptions {
 }
 
 class FakeDurableObjectId {
-  constructor(readonly name: string) {}
+  readonly name: string;
+
+  constructor(name: string) {
+    this.name = name;
+  }
 
   toString(): string {
     return Buffer.from(this.name).toString("hex");

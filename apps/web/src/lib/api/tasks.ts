@@ -607,7 +607,7 @@ export function useRemoveTaskLabel(conversationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { taskId: string; tagId: string; scope?: TaskScope }) =>
-      apiFetch<void>(`/v1/tasks/${input.taskId}/tags/${input.tagId}`, {
+      apiFetch<undefined>(`/v1/tasks/${input.taskId}/tags/${input.tagId}`, {
         method: "DELETE",
         companyId,
         searchParams: { scope: input.scope },
@@ -708,7 +708,7 @@ export function useDeleteTask(conversationId: string) {
     mutationFn: (input: string | { taskId: string; scope?: TaskScope }) => {
       const { taskId, scope } =
         typeof input === "string" ? { taskId: input, scope: undefined } : input;
-      return apiFetch<void>(`/v1/tasks/${taskId}`, {
+      return apiFetch<undefined>(`/v1/tasks/${taskId}`, {
         method: "DELETE",
         companyId,
         searchParams: { scope },

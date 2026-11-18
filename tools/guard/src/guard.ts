@@ -91,7 +91,11 @@ async function refuseIfKnownUnsafe(ctx: Ctx): Promise<void> {
 }
 
 export class Guard {
-  constructor(readonly ctx: Ctx) {}
+  readonly ctx: Ctx;
+
+  constructor(ctx: Ctx) {
+    this.ctx = ctx;
+  }
 
   async handle(request: Request): Promise<Response> {
     try {

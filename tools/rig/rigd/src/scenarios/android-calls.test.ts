@@ -262,7 +262,7 @@ function ringWorld(scenario: string) {
     row.ended_at = new Date(time.now + 30_000).toISOString();
     return dial(plan);
   };
-  const page = { clearsAfterMs: 400 as number | undefined, onAnswer: () => undefined as void };
+  const page = { clearsAfterMs: 400 as number | undefined, onAnswer: (): void => undefined };
   const open = browser.open.bind(browser);
   browser.open = async (member, surface, path) => {
     const opened = await open(member, surface, path);

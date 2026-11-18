@@ -300,7 +300,7 @@ describe("attachment delete — request shape (D19 soft-delete / D30 free space)
       () => new Response(null, { status: 204 }),
     );
 
-    await request<void>("/v1/attachments/att-1", {
+    await request<undefined>("/v1/attachments/att-1", {
       method: "DELETE",
       companyId: "company-1",
     });
@@ -319,7 +319,7 @@ describe("attachment delete — request shape (D19 soft-delete / D30 free space)
       }),
     );
     await expect(
-      request<void>("/v1/attachments/att-9", {
+      request<undefined>("/v1/attachments/att-9", {
         method: "DELETE",
         companyId: "company-1",
       }),

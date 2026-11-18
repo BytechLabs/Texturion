@@ -49,8 +49,11 @@ export function floorFor(samples: readonly Sample[]): number {
  * as Telnyx's answer rather than as a guard refusal.
  */
 export class AccountRefused extends Error {
-  constructor(readonly reply: TelnyxReply) {
+  readonly reply: TelnyxReply;
+
+  constructor(reply: TelnyxReply) {
     super(`Telnyx refused the balance read with ${reply.status}`);
+    this.reply = reply;
     this.name = "AccountRefused";
   }
 }

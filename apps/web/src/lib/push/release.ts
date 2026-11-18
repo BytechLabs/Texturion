@@ -66,7 +66,7 @@ async function release(companyId: string | null): Promise<void> {
         body: subscriptionToKeys(subscription),
       },
     );
-    await apiFetch<void>(`/v1/push-subscriptions/${id}`, {
+    await apiFetch<undefined>(`/v1/push-subscriptions/${id}`, {
       method: "DELETE",
       companyId,
     });

@@ -426,9 +426,12 @@ export async function refreshGoogleAccessToken(
 }
 
 export class GoogleCalendarProvider implements CalendarProvider {
+  private readonly fetcher: CalendarFetch;
   readonly name = "google" as const;
 
-  constructor(private readonly fetcher: CalendarFetch = fetch) {}
+  constructor(fetcher: CalendarFetch = fetch) {
+    this.fetcher = fetcher;
+  }
 
   async listChanges(
     input: ListCalendarChangesInput,

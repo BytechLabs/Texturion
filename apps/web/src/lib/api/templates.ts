@@ -112,7 +112,7 @@ export function useDeleteTemplate() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (templateId: string) =>
-      apiFetch<void>(`/v1/templates/${templateId}`, {
+      apiFetch<undefined>(`/v1/templates/${templateId}`, {
         method: "DELETE",
         companyId,
       }),

@@ -171,7 +171,7 @@ export function useRevokeInvite() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (inviteId: string) =>
-      apiFetch<void>(`/v1/invites/${inviteId}`, {
+      apiFetch<undefined>(`/v1/invites/${inviteId}`, {
         method: "DELETE",
         companyId,
       }),

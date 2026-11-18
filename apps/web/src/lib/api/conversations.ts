@@ -813,7 +813,7 @@ export function useUnsnoozeConversation() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (conversationId: string) =>
-      apiFetch<void>(`/v1/conversations/${conversationId}/snooze`, {
+      apiFetch<undefined>(`/v1/conversations/${conversationId}/snooze`, {
         method: "DELETE",
         companyId,
       }),
@@ -1059,7 +1059,7 @@ export function useDetachTag(conversationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (tagId: string) =>
-      apiFetch<void>(`/v1/conversations/${conversationId}/tags/${tagId}`, {
+      apiFetch<undefined>(`/v1/conversations/${conversationId}/tags/${tagId}`, {
         method: "DELETE",
         companyId,
       }),

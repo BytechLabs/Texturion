@@ -119,6 +119,28 @@ describe(runScenario, () => {
     await expect(runScenario(deps, "S20", { runId: "../x" })).rejects.toThrow(/run id/);
   });
 
+  it("keeps the runner receiver when a scenario waits", async () => {
+    const { deps } = setup([]);
+    const waits: number[] = [];
+    deps.sleep = async function sleep(this: RunnerDeps, ms: number) {
+      expect(this).toBe(deps);
+      waits.push(ms);
+    };
+    deps.runners = {
+      ...deps.runners,
+      S20: {
+        id: "S20",
+        async run(ctx) {
+          await ctx.sleep(123);
+          return { outcome: "pass" };
+        },
+      },
+    };
+
+    expect((await runScenario(deps, "S20")).status).toBe("pass");
+    expect(waits).toEqual([123]);
+  });
+
   it("retries a failure once, in the next clock hour with room, and reports only when the retry fails too", async () => {
     const flaky = setup([failing("no_ring_within_6s"), { outcome: "pass" }]);
     expect((await runScenario(flaky.deps, "S02")).status).toBe("pass");

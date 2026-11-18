@@ -324,7 +324,7 @@ async function attemptHeld(
     attempt,
     slot: { index: slot.index, ...(slot.label ? { label: slot.label } : {}) },
     now: () => deps.clock.now(),
-    sleep: deps.sleep,
+    sleep: deps.sleep.bind(deps),
     nonce: `${runId}-${attempt}`.slice(-24),
     evidence,
     history: historyOf(deps, entry.id),

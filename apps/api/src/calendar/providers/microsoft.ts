@@ -603,9 +603,12 @@ export async function refreshMicrosoftAccessToken(
 }
 
 export class MicrosoftCalendarProvider implements CalendarProvider {
+  private readonly fetcher: CalendarFetch;
   readonly name = "microsoft" as const;
 
-  constructor(private readonly fetcher: CalendarFetch = fetch) {}
+  constructor(fetcher: CalendarFetch = fetch) {
+    this.fetcher = fetcher;
+  }
 
   async listChanges(
     input: ListCalendarChangesInput,

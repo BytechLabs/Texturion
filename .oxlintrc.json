@@ -224,7 +224,6 @@
     "typescript/require-array-sort-compare": "off", // 28
     "unicorn/prefer-response-static-json": "off", // 28
     "unicorn/prefer-top-level-await": "off", // 27
-    "typescript/no-invalid-void-type": "off", // 26
     "typescript/no-misused-spread": "off", // 25
     "typescript/prefer-optional-chain": "off", // 25
     "unicorn/prefer-export-from": "off", // 25
@@ -233,7 +232,6 @@
     "unicorn/prefer-dom-node-dataset": "off", // 23
     "unicorn/prefer-string-raw": "off", // 22
     "eslint/no-useless-assignment": "off", // 21
-    "typescript/parameter-properties": "off", // 21
     "unicorn/custom-error-definition": "off", // 21
     "typescript/no-dynamic-delete": "off", // 20
     "promise/prefer-catch": "off", // 19
@@ -305,7 +303,6 @@
     "jsx-a11y/no-noninteractive-element-interactions": "off", // 5
     "jsx-a11y/no-static-element-interactions": "off", // 5
     "react/exhaustive-deps": "off", // 5
-    "typescript/unbound-method": "off", // 5
     "unicorn/no-array-reverse": "off", // 5
     "unicorn/no-new-array": "off", // 5
     "unicorn/no-process-exit": "off", // 5

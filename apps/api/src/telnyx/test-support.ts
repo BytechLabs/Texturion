@@ -107,11 +107,14 @@ function parsePrefer(request: Request): {
 }
 
 export class FakeRest {
+  private readonly env: Env;
   private tables = new Map<string, TableSpec>();
   private rpcs = new Map<string, (args: Record<string, unknown>) => unknown>();
   private users = new Map<string, { id: string; email: string }>();
 
-  constructor(private env: Env) {}
+  constructor(env: Env) {
+    this.env = env;
+  }
 
   /** Register a table with column defaults applied to every insert. */
   table(name: string, defaults: Row = {}, unique: string[][] = []): this {

@@ -117,7 +117,7 @@ export function useDeleteGreeting() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<void>(`/v1/voicemail-greetings/${id}`, {
+      apiFetch<undefined>(`/v1/voicemail-greetings/${id}`, {
         method: "DELETE",
         companyId,
       }),
