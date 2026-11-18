@@ -1,4 +1,5 @@
 import Foundation
+import UserNotifications
 import XCTest
 @testable import Loonext
 
@@ -51,6 +52,20 @@ final class NotificationsPushPayloadTests: XCTestCase {
         } catch {
             XCTFail("Unexpected error: \(error)")
         }
+    }
+
+    @MainActor
+    func testNotificationActionsMatchTheServerCategories() {
+        let categories = Dictionary(uniqueKeysWithValues: pushActionCategories().map { ($0.identifier, $0.actions) })
+        XCTAssertEqual(categories["MESSAGE"]?.map(\.identifier), ["REPLY_TO_THREAD", "MARK_THREAD_READ"])
+        XCTAssertNotNil(categories["MESSAGE_FR"]?.first as? UNTextInputNotificationAction)
+        XCTAssertEqual(categories["MESSAGE_READ_ONLY_FR"]?.map(\.identifier), ["MARK_THREAD_READ"])
+        XCTAssertEqual(categories["MISSED_CALL"]?.map(\.identifier), ["CALL_MISSED_CALLER", "TEXT_MISSED_CALLER"])
+        XCTAssertEqual(categories["ON_CALL_ALERT_FR"]?.map(\.identifier), ["ACKNOWLEDGE_ON_CALL"])
+        XCTAssertEqual(
+            categories["ON_CALL_MISSED_CALL_FR"]?.map(\.identifier),
+            ["ACKNOWLEDGE_ON_CALL", "CALL_MISSED_CALLER", "TEXT_MISSED_CALLER"]
+        )
     }
 
     // MARK: - parsePush

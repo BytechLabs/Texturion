@@ -462,8 +462,12 @@ class MessagingRepository(private val api: ApiClient) {
     suspend fun pinnedMessages(companyId: String, conversationId: String): Page<Message> =
         api.get("/v1/conversations/$conversationId/pinned", companyId = companyId)
 
-    suspend fun markRead(companyId: String, conversationId: String) {
-        api.post<JsonObject>("/v1/conversations/$conversationId/read", companyId = companyId)
+    suspend fun markRead(companyId: String, conversationId: String, expectedUserId: String? = null) {
+        api.post<JsonObject>(
+            "/v1/conversations/$conversationId/read",
+            companyId = companyId,
+            expectedUserId = expectedUserId,
+        )
     }
 
     /** Drops the caller's read watermark, so the conversation counts as unread everywhere. */
@@ -643,6 +647,7 @@ class MessagingRepository(private val api: ApiClient) {
         idempotencyKey: String,
         templateId: String? = null,
         templateEdited: Boolean = false,
+        expectedUserId: String? = null,
     ): Message = api.post(
         "/v1/messages/send",
         SendBody(
@@ -656,6 +661,7 @@ class MessagingRepository(private val api: ApiClient) {
         ),
         companyId = companyId,
         idempotencyKey = idempotencyKey,
+        expectedUserId = expectedUserId,
     )
 
     suspend fun compose(

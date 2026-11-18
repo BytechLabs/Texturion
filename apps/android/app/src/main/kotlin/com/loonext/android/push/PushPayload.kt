@@ -101,6 +101,7 @@ data class PushContent(
     /** Channel this push posts on when rendered as a notification. */
     val channelId: String,
     val onCallAction: OnCallPushAction? = null,
+    val threadActions: ThreadPushActions? = null,
     /** Why the original ring ended, when a revocation provides it. */
     val callEndReason: String? = null,
 ) {
@@ -167,6 +168,7 @@ fun parsePush(
         url = url,
         tag = tag,
         onCallAction = parseOnCallAction(data),
+        threadActions = parseThreadPushActions(data),
         channelId = when (kind) {
             // #564: its own high-importance channel. On the Messages channel an
             // urgent text buzzed exactly as loudly as "on my way?" and was

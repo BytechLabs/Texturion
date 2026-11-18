@@ -132,10 +132,11 @@ struct MessagingRepository: Sendable {
         try await api.get("/v1/conversations/\(conversationId)/pinned", companyId: companyId)
     }
 
-    func markRead(companyId: String, conversationId: String) async throws {
+    func markRead(companyId: String, conversationId: String, expectedUserId: String? = nil) async throws {
         let _: ReadReceipt = try await api.post(
             "/v1/conversations/\(conversationId)/read",
-            companyId: companyId
+            companyId: companyId,
+            expectedUserId: expectedUserId
         )
     }
 
@@ -549,7 +550,8 @@ struct MessagingRepository: Sendable {
         media: [OutboundMedia]?,
         idempotencyKey: String,
         templateId: String? = nil,
-        templateEdited: Bool = false
+        templateEdited: Bool = false,
+        expectedUserId: String? = nil
     ) async throws -> Message {
         try await api.post(
             "/v1/messages/send",
@@ -561,7 +563,8 @@ struct MessagingRepository: Sendable {
                 template_edited: templateId == nil ? nil : templateEdited
             ),
             companyId: companyId,
-            idempotencyKey: idempotencyKey
+            idempotencyKey: idempotencyKey,
+            expectedUserId: expectedUserId
         )
     }
 

@@ -471,6 +471,7 @@ enum ShellStrings {
             "shell.pushCallTitle": "Incoming call",
             "shell.pushCallBody": "Someone is calling your business number.",
             "shell.pushGenericBody": "You have a new notification.",
+            "shell.pushReply": "Reply",
 
             // ── A voicemail's words, and lifting them off the screen (#566) ───
             "shell.copyTranscript": "Copy transcript",
@@ -841,6 +842,7 @@ enum ShellStrings {
             "shell.pushCallTitle": "Appel entrant",
             "shell.pushCallBody": "Quelqu'un appelle le numéro de votre entreprise.",
             "shell.pushGenericBody": "Vous avez une nouvelle notification.",
+            "shell.pushReply": "Répondre",
 
             "shell.copyTranscript": "Copier la transcription",
         ]

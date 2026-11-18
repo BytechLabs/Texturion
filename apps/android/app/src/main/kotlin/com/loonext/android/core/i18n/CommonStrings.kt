@@ -108,6 +108,7 @@ object CommonStrings : AppStrings.Section {
         "push.fallbackIncomingBody" to
             "Someone is calling your business number.",
         "push.fallbackGenericBody" to "You have a new notification.",
+        "push.reply" to "Reply",
 
         /*
          * ── What "selected" says in a bulk bar ────────────────────────────────
@@ -193,6 +194,7 @@ object CommonStrings : AppStrings.Section {
         "push.fallbackIncomingBody" to
             "Quelqu'un appelle votre numéro d'affaires.",
         "push.fallbackGenericBody" to "Vous avez une nouvelle notification.",
+        "push.reply" to "Répondre",
 
         "common.bulkSelectedCount" to "{count} sélectionnées",
         "common.bulkSelectedAllMatching" to

@@ -873,6 +873,10 @@ struct ShellView: View {
                     let manager = CallsManager.get(graph: graph)
                     Task { try? await manager.onIncomingCallPush(sessionId: sessionId, transferId: transferId) }
                 }
+            case .callback(let number, let workspace, let member):
+                guard workspace == companyId, member == hydratedMe.user_id else { return }
+                AppRouter.shared.openCalls = true
+                AppRouter.shared.dialTo = number
             case .settings(let section):
                 if let section {
                     AppRouter.shared.openSettingsSection = section

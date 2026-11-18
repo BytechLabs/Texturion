@@ -6,9 +6,10 @@ import UIKit
 import UserNotifications
 
 private let coordinatorLog = Logger(subsystem: "com.loonext.ios", category: "push")
-private let onCallActionIdentifier = "ACKNOWLEDGE_ON_CALL"
 
 struct OnCallPushAction: Equatable, Sendable {
+    static let identifier = "ACKNOWLEDGE_ON_CALL"
+
     let alertId: String
     let companyId: String
     let userId: String
@@ -51,7 +52,7 @@ final class PushCoordinator: NSObject {
     static let shared = PushCoordinator()
 
     private(set) var registrar: PushRegistrar?
-    var onCallActionApi: ApiClient?
+    weak var actionGraph: AppGraph?
 
     private override init() {
         super.init()
@@ -68,22 +69,10 @@ final class PushCoordinator: NSObject {
         }
     }
 
-    fileprivate func registerOnCallCategories(in center: UNUserNotificationCenter) {
-        let categories = [("ON_CALL_ALERT", "en"), ("ON_CALL_ALERT_FR", "fr-CA")].map { identifier, locale in
-            let action = UNNotificationAction(
-                identifier: onCallActionIdentifier,
-                title: AppStrings.translate(locale, "domain.onCallBannerClaim"),
-                options: [.authenticationRequired]
-            )
-            return UNNotificationCategory(identifier: identifier, actions: [action], intentIdentifiers: [])
-        }
-        center.setNotificationCategories(Set(categories))
-    }
-
     private func acknowledge(_ action: OnCallPushAction) async -> Bool {
-        guard let onCallActionApi else { return false }
+        guard let api = actionGraph?.api else { return false }
         do {
-            _ = try await MessagingRepository(api: onCallActionApi).acknowledgeAlert(
+            _ = try await MessagingRepository(api: api).acknowledgeAlert(
                 companyId: action.companyId,
                 alertId: action.alertId,
                 expectedUserId: action.userId
@@ -205,8 +194,15 @@ extension PushCoordinator: UNUserNotificationCenterDelegate {
             fallbackTitle: content.title,
             fallbackBody: content.body
         )
-        if response.actionIdentifier == onCallActionIdentifier {
+        if response.actionIdentifier == OnCallPushAction.identifier {
             if let action = OnCallPushAction(data: data), await acknowledge(action) {
+                center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
+            }
+            return
+        }
+        if let action = ThreadPushAction(rawValue: response.actionIdentifier) {
+            let reply = (response as? UNTextInputNotificationResponse)?.userText
+            if await handleThreadAction(action, data: data, reply: reply) {
                 center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
             }
             return
@@ -217,6 +213,18 @@ extension PushCoordinator: UNUserNotificationCenterDelegate {
             guard !push.isCallEnd else { return }
             guard let route = parsePushRoute(url: push.url) else { return }
             PushHooks.route(route)
+        }
+    }
+
+    private func handleThreadAction(_ action: ThreadPushAction, data: [String: String], reply: String?) async -> Bool {
+        guard let actionGraph else { return false }
+        do {
+            return try await performThreadPushAction(action, data: data, replyText: reply, graph: actionGraph)
+        } catch is CancellationError {
+            return false
+        } catch {
+            coordinatorLog.warning("Thread notification action did not complete")
+            return false
         }
     }
 }
@@ -257,7 +265,7 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         let center = UNUserNotificationCenter.current()
         center.delegate = PushCoordinator.shared
-        PushCoordinator.shared.registerOnCallCategories(in: center)
+        center.setNotificationCategories(pushActionCategories())
         if PushAvailability.configureIfNeeded() {
             Messaging.messaging().delegate = PushCoordinator.shared
         }

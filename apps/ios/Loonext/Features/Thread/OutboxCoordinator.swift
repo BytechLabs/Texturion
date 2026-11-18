@@ -102,9 +102,12 @@ final class OutboxCoordinator {
                 conversationId: row.conversationId,
                 body: row.body,
                 media: media.isEmpty ? nil : media,
-                idempotencyKey: row.localId
+                idempotencyKey: row.localId,
+                expectedUserId: row.ownerUserId
             )
             return .sent
+        } catch is CancellationError {
+            return .unreachable("")
         } catch {
             let code = (error as? ApiError)?.code
             if code == ApiErrorCode.network || code == ApiErrorCode.unauthorized || code == ApiErrorCode.mfaRequired {
