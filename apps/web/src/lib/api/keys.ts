@@ -146,6 +146,8 @@ export const keys = {
       [companyId, "contacts", "list", q] as const,
     detail: (companyId: string, contactId: string) =>
       [companyId, "contacts", "detail", contactId] as const,
+    erasure: (companyId: string, contactId: string) =>
+      [companyId, "contacts", "erasure", contactId] as const,
   },
 
   /**

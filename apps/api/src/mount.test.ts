@@ -39,6 +39,7 @@ import { pruneUserSessions } from "./auth/session-retention";
 import { prunePublicLinkAccess } from "./crons/retention-prunes";
 import { purgeClosedWorkspaces } from "./workspace/purge";
 import { purgeTrash } from "./trash/purge";
+import { processCustomerErasures } from "./trash/customer-erasure";
 import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { retryInterruptedSends } from "./messaging/retry-interrupted";
@@ -525,6 +526,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       failStuckOutboundSends,
       sweepStuckProvisioning,
       runCalendarSyncJob,
+      processCustomerErasures,
       deliverOutboundWebhooks,
     ]);
     expect(runs("*/15 * * * *")).toEqual([

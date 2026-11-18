@@ -822,4 +822,142 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  company uuid := 'd1000000-0000-4000-8000-000000000002';
+  other_company uuid := 'd1000000-0000-4000-8000-00000000000b';
+  actor uuid := 'd1000000-0000-4000-8000-000000000001';
+  line uuid := 'd1000000-0000-4000-8000-000000000010';
+  customer uuid := gen_random_uuid();
+  other_customer uuid := gen_random_uuid();
+  merged_customer uuid := gen_random_uuid();
+  thread uuid := gen_random_uuid();
+  message uuid := gen_random_uuid();
+  call uuid := gen_random_uuid();
+  task uuid := gen_random_uuid();
+  endpoint uuid := gen_random_uuid();
+  number text := '+12125550170';
+  alternate text := '+12125550171';
+  state jsonb;
+  target record;
+begin
+  insert into public.contacts (id, company_id, phone_e164, name, email, notes, consent_source, consent_at)
+  values (customer, company, number, 'Erasure Example', 'delete@test.local', 'Gate code 8803', 'inbound_sms', now()),
+         (other_customer, other_company, number, 'Different Workspace', null, null, null, null);
+  insert into public.contacts (id, company_id, phone_e164, name, merged_into, merged_at)
+  values (merged_customer, company, '+12125550172', 'Erasure Example Alias', customer, now());
+  insert into public.contact_phones (company_id, contact_id, phone_e164) values (company, customer, alternate);
+  insert into public.opt_outs (company_id, phone_e164, source) values (company, number, 'stop_keyword');
+  insert into public.conversations (id, company_id, contact_id, phone_number_id, contact_phone_e164, status)
+  values (thread, company, customer, line, alternate, 'open');
+  insert into public.messages (id, company_id, conversation_id, direction, body, status, telnyx_message_id)
+  values (message, company, thread, 'inbound', 'Gate code 8803', 'received', 'dt-erasure-message');
+  insert into public.message_attachments (company_id, message_id, storage_path, content_type, size_bytes)
+  values (company, message, 'mms-media/dt-erasure.jpg', 'image/jpeg', 1);
+  insert into public.calls (id, company_id, phone_number_id, call_session_id, caller_e164, contact_id,
+    outcome, voicemail_path, voicemail_transcript)
+  values (call, company, line, 'dt-erasure-call', alternate, customer, 'voicemail', 'dt-erasure.mp3', 'Gate code 8803');
+  insert into public.call_records (company_id, call_session_id, call_leg_id, leg, caller_e164, billable_seconds)
+  values (company, 'dt-erasure-call', 'dt-erasure-leg', 'inbound', alternate, 35),
+         (other_company, 'dt-other-call', 'dt-other-leg', 'inbound', number, 12);
+  insert into public.tasks (id, company_id, contact_id, created_by_user_id, title, description)
+  values (task, company, customer, actor, 'Erasure Example', 'Gate code 8803');
+  insert into public.attachments (company_id, owner_type, owner_id, storage_path, file_name, content_type)
+  values (company, 'task', task, company || '/gate.jpg', 'gate.jpg', 'image/jpeg');
+  insert into public.contact_consent_events (company_id, contact_id, state, source, evidence, phone_e164)
+  values (company, customer, 'implied', 'inbound_sms', '{"text":"Gate code 8803"}', number);
+  insert into public.webhook_endpoints (id, company_id, url, secret, events)
+  values (endpoint, company, 'https://example.test/webhook', 'dt-erasure-endpoint', array['contact.deleted']);
+  insert into public.webhook_deliveries (company_id, endpoint_id, event_type, payload)
+  values (company, endpoint, 'contact.created', jsonb_build_object('data', jsonb_build_object('id', customer, 'name', 'Erasure Example')));
+
+  if public.api_contact_erasure(other_company, customer, '{}', actor) ->> 'state' is distinct from 'not_found'
+     or public.api_contact_erasure(company, customer, array[line], actor) ->> 'state' is distinct from 'not_found' then
+    raise exception 'Erasure preview or start exposed a hidden record';
+  end if;
+  update public.companies set legal_hold_at = now(), legal_hold_reason = 'dt erasure' where id = company;
+  if public.api_contact_erasure(company, customer, '{}', actor) ->> 'state' is distinct from 'legal_hold' then
+    raise exception 'Erasure started on a workspace under legal hold';
+  end if;
+  update public.companies set legal_hold_at = null, legal_hold_reason = null where id = company;
+
+  state := public.api_contact_erasure(company, customer, '{}');
+  if state ->> 'state' is distinct from 'ready'
+     or state -> 'counts' is distinct from '{"conversations":1,"messages":1,"calls":1,"tasks":1}'::jsonb then
+    raise exception 'Erasure preview counts were incorrect: %', state;
+  end if;
+  state := public.api_contact_erasure(company, customer, '{}', actor);
+  if state ->> 'state' is distinct from 'erasing'
+     or not exists (select 1 from public.api_customer_erasures_due(10) where id = customer)
+     or public.api_restore_trash(company, actor, 'contact', customer) ->> 'outcome' is distinct from 'not_found'
+     or public.api_finish_customer_erasure(company, customer) then
+    raise exception 'Erasure started without holding the contact until all its records are processed';
+  end if;
+
+  begin
+    update public.contacts set deleted_at = null where id = customer;
+    raise exception 'Contact reopened during erasure';
+  exception when lock_not_available then null;
+  end;
+  begin
+    insert into public.messages (company_id, conversation_id, direction, body, status)
+    values (company, thread, 'inbound', 'arrived during erasure', 'received');
+    raise exception 'Content arrived in an erasing conversation';
+  exception when lock_not_available then null;
+  end;
+
+  update public.companies set legal_hold_at = now(), legal_hold_reason = 'dt erasure' where id = company;
+  if exists (select 1 from public.api_customer_erasures_due(10) where id = customer)
+     or exists (select 1 from public.api_customer_erasure_batch(company, customer, 25))
+     or exists (select 1 from public.api_trash_object_paths('call', call))
+     or public.api_finish_customer_erasure(company, customer) then
+    raise exception 'A new hold did not pause the erasure';
+  end if;
+  update public.companies set legal_hold_at = null, legal_hold_reason = null where id = company;
+
+  if not exists (select 1 from public.api_trash_object_paths('conversation', thread) where path = 'dt-erasure.jpg')
+     or not exists (select 1 from public.api_trash_object_paths('call', call) where path = 'dt-erasure.mp3')
+     or not exists (select 1 from public.api_trash_object_paths('task', task) where path = company || '/gate.jpg') then
+    raise exception 'Erasure omitted MMS, voicemail or task media';
+  end if;
+  for target in select * from public.api_customer_erasure_batch(company, customer, 25) loop
+    if public.api_purge_trash_item(target.kind, target.id) ->> 'outcome' is distinct from 'purged' then
+      raise exception 'Unable to purge %: %', target.kind, target.id;
+    end if;
+  end loop;
+  if not public.api_finish_customer_erasure(company, customer) or public.api_finish_customer_erasure(company, customer) then
+    raise exception 'The customer erasure should finalize once';
+  end if;
+  state := public.api_contact_erasure(company, customer, '{}');
+  if state ->> 'state' is distinct from 'erased' or state ->> 'date' is null then
+    raise exception 'Missing erasure receipt';
+  end if;
+
+  if not exists (select 1 from public.contacts where id = customer and phone_e164 = number
+    and consent_source = 'inbound_sms' and consent_at is not null and name is null and notes is null and email is null)
+     or not exists (select 1 from public.opt_outs where company_id = company and phone_e164 = number)
+     or not exists (select 1 from public.contact_consent_events where contact_id = customer and evidence = '{}'::jsonb)
+     or not exists (select 1 from public.call_records where company_id = company and call_session_id = 'dt-erasure-call'
+                     and caller_e164 is null and billable_seconds = 35)
+     or not exists (select 1 from public.contacts where id = other_customer and phone_e164 = number and name = 'Different Workspace')
+     or not exists (select 1 from public.call_records where company_id = other_company and caller_e164 = number) then
+    raise exception 'Erasure changed the consent floor, billing totals, or another workspace';
+  end if;
+  if exists (select 1 from public.contact_phones where company_id = company and contact_id = customer)
+     or not exists (select 1 from public.contacts where id = merged_customer and name is null and purged_at is not null)
+     or exists (select 1 from public.conversations where id = thread and contact_phone_e164 is not null)
+     or exists (select 1 from public.messages where id = message and body is distinct from '')
+     or exists (select 1 from public.calls where id = call and (caller_e164 is not null or voicemail_transcript is not null))
+     or exists (select 1 from public.tasks where id = task and (title is distinct from 'Removed' or description is distinct from ''))
+     or exists (select 1 from public.webhook_deliveries where endpoint_id = endpoint and event_type = 'contact.created') then
+    raise exception 'Erasure left private content outside the consent and opt-out records';
+  end if;
+  if (select count(*) from public.audit_log where company_id = company and target_id = customer::text
+    and action = 'contact.erased' and before = '{}'::jsonb) is distinct from 1
+     or (select count(*) from public.webhook_deliveries where endpoint_id = endpoint and event_type = 'contact.deleted'
+     and payload->'data' = jsonb_build_object('id', customer) and payload->>'id' = id::text) is distinct from 1 then
+    raise exception 'Erasure did not record one content-free audit and webhook';
+  end if;
+end $$;
+
 rollback;

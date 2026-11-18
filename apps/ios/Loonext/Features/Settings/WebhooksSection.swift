@@ -192,6 +192,7 @@ let webhookEventTypes = [
     "task.created",
     "task.completed",
     "contact.created",
+    "contact.deleted",
     "message.deleted",
     "conversation.deleted",
     "call.deleted",

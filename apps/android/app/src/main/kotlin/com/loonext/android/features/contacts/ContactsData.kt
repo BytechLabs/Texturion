@@ -38,6 +38,17 @@ const val CONTACT_ADDRESS_MAX = 500
 const val CONTACT_EMAIL_MAX = 254
 const val CONTACT_NOTES_MAX = 5000
 
+@Serializable
+data class CustomerErasure(
+    val state: String,
+    val date: String? = null,
+    val legal_hold: Boolean,
+    val counts: Counts,
+) {
+    @Serializable
+    data class Counts(val conversations: Int, val messages: Int, val calls: Int, val tasks: Int)
+}
+
 /** Contacts feature data access (detail, edits, consent, import/export). */
 class ContactMutations(private val api: ApiClient, baseUrl: String) {
 
@@ -45,6 +56,12 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
 
     suspend fun detail(companyId: String, contactId: String): Contact =
         api.get("/v1/contacts/$contactId", companyId = companyId)
+
+    suspend fun erasure(companyId: String, contactId: String): CustomerErasure =
+        api.get("/v1/contacts/$contactId/erase", companyId = companyId)
+
+    suspend fun erase(companyId: String, contactId: String, confirmation: String): CustomerErasure =
+        api.post("/v1/contacts/$contactId/erase", buildJsonObject { put("confirmation", confirmation) }, companyId = companyId)
 
     suspend fun members(companyId: String): Page<Member> =
         api.get("/v1/members", companyId = companyId)

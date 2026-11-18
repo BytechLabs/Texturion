@@ -180,6 +180,20 @@ customer's attachments.
 
 ---
 
+## Erase one customer
+
+Open the contact and choose **Erase customer** in Manage. Review the counts for
+conversations, messages, calls and tasks, then type `ERASE`. The workspace
+member needs deletion permission and access to every line that holds those
+records. Erasure is unavailable under a legal hold.
+
+The contact screen shows progress while the job erases files, messages,
+voicemail, and linked records. When it finishes, the same screen shows the date
+and counts on the receipt. The primary number and consent record, opt-outs,
+and billing totals remain. The voice meter loses the caller's number and keeps
+the billed duration. The workspace can subscribe to `contact.deleted` to get
+the erased contact's ID for its own integration records.
+
 ## What survives, and why
 
 Total erasure is not available to us, and a deletion feature that claims it is

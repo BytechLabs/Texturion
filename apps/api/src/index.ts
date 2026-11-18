@@ -82,6 +82,7 @@ import { contactsRoutes } from "./routes/contacts";
 import { conversationsRoutes } from "./routes/conversations";
 import { trashRoutes } from "./routes/trash";
 import { purgeTrash } from "./trash/purge";
+import { processCustomerErasures } from "./trash/customer-erasure";
 import { devicePushTokensRoutes } from "./routes/device-push-tokens";
 import { forYouRoutes } from "./routes/for-you";
 import { blockedSendersRoutes } from "./routes/blocked-senders";
@@ -640,6 +641,7 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #245: provider notifications only accelerate this durable drain. The
     // five-minute poll remains the proof when a watch expires or goes silent.
     job("job:calendar-sync", runCalendarSyncJob),
+    job("job:customer-erasure", processCustomerErasures),
     // #243: the outbound half. Last in the tick deliberately — every job above
     // it either moves a customer's message or unsticks one, and a slow
     // integration endpoint must never be what delays them. This one talks to

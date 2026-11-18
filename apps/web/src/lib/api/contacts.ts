@@ -124,6 +124,38 @@ export function useContact(contactId: string) {
   return useQuery(contactDetailOptions(companyId, contactId));
 }
 
+export interface CustomerErasure {
+  state: "ready" | "erasing" | "erased";
+  date?: string;
+  legal_hold: boolean;
+  counts: { conversations: number; messages: number; calls: number; tasks: number };
+}
+
+export function useCustomerErasure(contactId: string, enabled: boolean) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: keys.contacts.erasure(companyId, contactId),
+    queryFn: ({ signal }) => apiFetch<CustomerErasure>(`/v1/contacts/${contactId}/erase`, { companyId, signal }),
+    enabled,
+    retry: false,
+    refetchInterval: ({ state }) => state.data?.state === "erasing" ? 10_000 : false,
+  });
+}
+
+export function useEraseCustomer(contactId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (confirmation: string) => apiFetch<CustomerErasure>(`/v1/contacts/${contactId}/erase`, {
+      companyId, method: "POST", body: { confirmation },
+    }),
+    onSuccess: (erasure) => {
+      queryClient.setQueryData(keys.contacts.erasure(companyId, contactId), erasure);
+      void queryClient.invalidateQueries({ queryKey: [companyId] });
+    },
+  });
+}
+
 /**
  * Fold a saved contact back into the cached detail.
  *

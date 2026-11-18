@@ -139,6 +139,14 @@ export const appShellEn = {
   contactDeleting: "Deleting…",
   contactDeleted: "Contact deleted.",
   contactDeleteFailed: "Couldn't delete the contact. Try again.",
+  customerErasureAction: "Erase customer",
+  customerErasureHint: "Permanently erase this customer's profile, conversations, calls, tasks and files.",
+  customerErasureConfirm: "Type ERASE to confirm",
+  customerErasureCounts: "Conversations {conversations}, messages {messages}, calls {calls}, tasks {tasks}",
+  customerErasureInProgress: "Erasing customer data",
+  customerErasureDone: "Customer data erased",
+  customerErasureKept: "We keep the number and consent record, opt-outs and billing totals.",
+  customerErasureHeld: "This workspace is under a legal hold. Erasure is paused.",
 
   // ── Settings index + route gate ───────────────────────────────────────────
   settingsIndexOpening: "Opening your settings…",
@@ -1183,6 +1191,14 @@ export const appShellFr: Translated<typeof appShellEn> = {
   contactDeleting: "Suppression…",
   contactDeleted: "Client supprimé.",
   contactDeleteFailed: "Impossible de supprimer le client. Réessayez.",
+  customerErasureAction: "Effacer les données du client",
+  customerErasureHint: "Effacez définitivement le profil, les conversations, les appels, les tâches et les fichiers de ce client.",
+  customerErasureConfirm: "Tapez ERASE pour confirmer",
+  customerErasureCounts: "Conversations {conversations}, messages {messages}, appels {calls}, tâches {tasks}",
+  customerErasureInProgress: "Effacement des données du client en cours",
+  customerErasureDone: "Données du client effacées",
+  customerErasureKept: "Nous gardons le numéro et la preuve de consentement, les désabonnements et les totaux de facturation.",
+  customerErasureHeld: "Cet espace de travail est soumis à une obligation de conservation. L’effacement est suspendu.",
 
   // ── Index des paramètres + barrière de section ────────────────────────────
   settingsIndexOpening: "Ouverture de vos paramètres…",

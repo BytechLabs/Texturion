@@ -112,6 +112,8 @@ const CONTACT_COLUMNS =
   "first_identification_sent_at," +
   "deleted_at,created_at,updated_at";
 
+const customerErasureConfirmation = z.object({ confirmation: z.literal("ERASE") });
+
 /**
  * The LIST projection — CONTACT_COLUMNS minus `notes`. Notes run up to 5000
  * chars/row and are only ever rendered in the contact detail panel (GET
@@ -2273,6 +2275,32 @@ contactsRoutes.patch("/contacts/:id", requireCapability("conversations.note"), a
     opt_out_source: (optOuts[0]?.source as string | undefined) ?? null,
   });
 });
+
+async function customerErasure(c: Context<AppEnv>, start: boolean) {
+  const id = pathUuid(c, "id");
+  const db = getDb(getEnv(c.env));
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  if (start) await parseJsonBody(c, customerErasureConfirmation);
+  const { hiddenNumberIds } = await resolveNumberAccess(db, { companyId, userId, role: c.get("role") });
+  const result = unwrap<{ state: string }>(
+    await db.rpc("api_contact_erasure", {
+      p_company: companyId,
+      p_contact: id,
+      p_hidden: hiddenNumberIds,
+      p_actor: start ? userId : null,
+    }),
+    "customer erasure",
+  );
+  if (result.state === "not_found") return errorResponse(c, "not_found", "No such contact.");
+  if (result.state === "legal_hold") {
+    return errorResponse(c, "conflict", "This workspace is under a legal hold, so nothing can be erased yet.");
+  }
+  return c.json(result, start && result.state === "erasing" ? 202 : 200);
+}
+
+contactsRoutes.get("/contacts/:id/erase", requireCapability("records.delete"), (c) => customerErasure(c, false));
+contactsRoutes.post("/contacts/:id/erase", requireCapability("records.delete"), (c) => customerErasure(c, true));
 
 /**
  * DELETE /v1/contacts/:id — #691: gated by `records.delete`, no longer by

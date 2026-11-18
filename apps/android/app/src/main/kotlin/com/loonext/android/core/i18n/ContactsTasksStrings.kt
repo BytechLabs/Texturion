@@ -429,6 +429,14 @@ object ContactsTasksStrings : AppStrings.Section {
             "All texting to {number} is blocked until they're opted back in. Use " +
             "this when a customer asks you to stop texting them.",
         "contactsTasks.deleteContact" to "Delete contact",
+        "contactsTasks.customerErasureAction" to "Erase customer",
+        "contactsTasks.customerErasureHint" to "Permanently erase this customer's profile, conversations, calls, tasks and files.",
+        "contactsTasks.customerErasureConfirm" to "Type ERASE to confirm",
+        "contactsTasks.customerErasureCounts" to "Conversations {conversations}, messages {messages}, calls {calls}, tasks {tasks}",
+        "contactsTasks.customerErasureInProgress" to "Erasing customer data",
+        "contactsTasks.customerErasureDone" to "Customer data erased",
+        "contactsTasks.customerErasureKept" to "We keep the number and consent record, opt-outs and billing totals.",
+        "contactsTasks.customerErasureHeld" to "This workspace is under a legal hold. Erasure is paused.",
         "contactsTasks.deleteContactCaption" to
             "Texting history stays. They reappear if they text you again",
         "contactsTasks.deleteContactTitle" to "Delete this contact?",
@@ -1299,6 +1307,14 @@ object ContactsTasksStrings : AppStrings.Section {
             "Tous les textos vers {number} sont bloqués jusqu'au réabonnement. " +
             "Utilisez ceci quand un client vous demande d'arrêter de lui texter.",
         "contactsTasks.deleteContact" to "Supprimer le client",
+        "contactsTasks.customerErasureAction" to "Effacer les données du client",
+        "contactsTasks.customerErasureHint" to "Effacez définitivement le profil, les conversations, les appels, les tâches et les fichiers de ce client.",
+        "contactsTasks.customerErasureConfirm" to "Tapez ERASE pour confirmer",
+        "contactsTasks.customerErasureCounts" to "Conversations {conversations}, messages {messages}, appels {calls}, tâches {tasks}",
+        "contactsTasks.customerErasureInProgress" to "Effacement des données du client en cours",
+        "contactsTasks.customerErasureDone" to "Données du client effacées",
+        "contactsTasks.customerErasureKept" to "Nous gardons le numéro et la preuve de consentement, les désabonnements et les totaux de facturation.",
+        "contactsTasks.customerErasureHeld" to "Cet espace de travail est soumis à une obligation de conservation. L’effacement est suspendu.",
         "contactsTasks.deleteContactCaption" to
             "L'historique des textos reste. Il réapparaît s'il vous texte de nouveau",
         "contactsTasks.deleteContactTitle" to "Supprimer ce client ?",

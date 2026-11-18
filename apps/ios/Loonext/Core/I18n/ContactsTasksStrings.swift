@@ -376,6 +376,14 @@ enum ContactsTasksStrings {
                 "Hide this contact from your list. Texting history stays, and they "
                 + "reappear if they text you again.",
             "contactsTasks.deleteContact": "Delete contact",
+            "contactsTasks.customerErasureAction": "Erase customer",
+            "contactsTasks.customerErasureHint": "Permanently erase this customer's profile, conversations, calls, tasks and files.",
+            "contactsTasks.customerErasureConfirm": "Type ERASE to confirm",
+            "contactsTasks.customerErasureCounts": "Conversations {conversations}, messages {messages}, calls {calls}, tasks {tasks}",
+            "contactsTasks.customerErasureInProgress": "Erasing customer data",
+            "contactsTasks.customerErasureDone": "Customer data erased",
+            "contactsTasks.customerErasureKept": "We keep the number and consent record, opt-outs and billing totals.",
+            "contactsTasks.customerErasureHeld": "This workspace is under a legal hold. Erasure is paused.",
             "contactsTasks.deleteContactTitle": "Delete this contact?",
             "contactsTasks.deleteContactBody":
                 "They disappear from your contact list. Conversations and messages "
@@ -1158,6 +1166,14 @@ enum ContactsTasksStrings {
                 "Masquer ce client de votre liste. L'historique des textos reste, et "
                 + "il réapparaît s'il vous texte de nouveau.",
             "contactsTasks.deleteContact": "Supprimer le client",
+            "contactsTasks.customerErasureAction": "Effacer les données du client",
+            "contactsTasks.customerErasureHint": "Effacez définitivement le profil, les conversations, les appels, les tâches et les fichiers de ce client.",
+            "contactsTasks.customerErasureConfirm": "Tapez ERASE pour confirmer",
+            "contactsTasks.customerErasureCounts": "Conversations {conversations}, messages {messages}, appels {calls}, tâches {tasks}",
+            "contactsTasks.customerErasureInProgress": "Effacement des données du client en cours",
+            "contactsTasks.customerErasureDone": "Données du client effacées",
+            "contactsTasks.customerErasureKept": "Nous gardons le numéro et la preuve de consentement, les désabonnements et les totaux de facturation.",
+            "contactsTasks.customerErasureHeld": "Cet espace de travail est soumis à une obligation de conservation. L’effacement est suspendu.",
             "contactsTasks.deleteContactTitle": "Supprimer ce client ?",
             "contactsTasks.deleteContactBody":
                 "Il disparaît de votre liste de clients. Les conversations et les "
