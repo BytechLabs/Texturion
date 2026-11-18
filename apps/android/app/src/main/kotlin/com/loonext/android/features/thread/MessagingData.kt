@@ -382,8 +382,16 @@ class MessagingRepository(private val api: ApiClient) {
     }
 
     /** #244: "I have this." Returns the outcome so the caller can name whose. */
-    suspend fun acknowledgeAlert(companyId: String, alertId: String): AcknowledgeResult =
-        api.post("/v1/on-call/alerts/$alertId/acknowledge", companyId = companyId)
+    suspend fun acknowledgeAlert(
+        companyId: String,
+        alertId: String,
+        expectedUserId: String? = null,
+    ): AcknowledgeResult =
+        api.post(
+            "/v1/on-call/alerts/$alertId/acknowledge",
+            companyId = companyId,
+            expectedUserId = expectedUserId,
+        )
 
     /**
      * This contact's conversations, found the way the web contact panel does

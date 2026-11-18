@@ -6,6 +6,23 @@ import UIKit
 import UserNotifications
 
 private let coordinatorLog = Logger(subsystem: "com.loonext.ios", category: "push")
+private let onCallActionIdentifier = "ACKNOWLEDGE_ON_CALL"
+
+struct OnCallPushAction: Equatable, Sendable {
+    let alertId: String
+    let companyId: String
+    let userId: String
+
+    init?(data: [String: String]) {
+        guard let alertId = data["alert_id"], UUID(uuidString: alertId) != nil,
+              let companyId = data["action_company_id"], UUID(uuidString: companyId) != nil,
+              let userId = data["action_user_id"], UUID(uuidString: userId) != nil
+        else { return nil }
+        self.alertId = alertId
+        self.companyId = companyId
+        self.userId = userId
+    }
+}
 
 /// The push entry point: UNUserNotificationCenter delegate (foreground
 /// presentation + tap routing) and FCM MessagingDelegate (token rotation),
@@ -34,6 +51,7 @@ final class PushCoordinator: NSObject {
     static let shared = PushCoordinator()
 
     private(set) var registrar: PushRegistrar?
+    var onCallActionApi: ApiClient?
 
     private override init() {
         super.init()
@@ -47,6 +65,35 @@ final class PushCoordinator: NSObject {
         UNUserNotificationCenter.current().delegate = self
         if PushAvailability.configureIfNeeded() {
             Messaging.messaging().delegate = self
+        }
+    }
+
+    fileprivate func registerOnCallCategories(in center: UNUserNotificationCenter) {
+        let categories = [("ON_CALL_ALERT", "en"), ("ON_CALL_ALERT_FR", "fr-CA")].map { identifier, locale in
+            let action = UNNotificationAction(
+                identifier: onCallActionIdentifier,
+                title: AppStrings.translate(locale, "domain.onCallBannerClaim"),
+                options: [.authenticationRequired]
+            )
+            return UNNotificationCategory(identifier: identifier, actions: [action], intentIdentifiers: [])
+        }
+        center.setNotificationCategories(Set(categories))
+    }
+
+    private func acknowledge(_ action: OnCallPushAction) async -> Bool {
+        guard let onCallActionApi else { return false }
+        do {
+            _ = try await MessagingRepository(api: onCallActionApi).acknowledgeAlert(
+                companyId: action.companyId,
+                alertId: action.alertId,
+                expectedUserId: action.userId
+            )
+            return true
+        } catch is CancellationError {
+            return false
+        } catch {
+            coordinatorLog.warning("On-call acknowledgement did not complete")
+            return false
         }
     }
 
@@ -130,13 +177,21 @@ extension PushCoordinator: UNUserNotificationCenterDelegate {
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        let content = response.notification.request.content
-        let locale = await MainActor.run { UiLocaleStore.shared.resolved }
-        let push = parsePush(pushData(
+        let request = response.notification.request
+        let content = request.content
+        let data = pushData(
             fromUserInfo: content.userInfo,
             fallbackTitle: content.title,
             fallbackBody: content.body
-        ), locale)
+        )
+        if response.actionIdentifier == onCallActionIdentifier {
+            if let action = OnCallPushAction(data: data), await acknowledge(action) {
+                center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
+            }
+            return
+        }
+        let locale = await MainActor.run { UiLocaleStore.shared.resolved }
+        let push = parsePush(data, locale)
         await MainActor.run {
             guard let route = parsePushRoute(url: push.url) else { return }
             PushHooks.route(route)
@@ -178,7 +233,9 @@ final class PushAppDelegate: NSObject, UIApplicationDelegate {
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]? = nil
     ) -> Bool {
-        UNUserNotificationCenter.current().delegate = PushCoordinator.shared
+        let center = UNUserNotificationCenter.current()
+        center.delegate = PushCoordinator.shared
+        PushCoordinator.shared.registerOnCallCategories(in: center)
         if PushAvailability.configureIfNeeded() {
             Messaging.messaging().delegate = PushCoordinator.shared
         }

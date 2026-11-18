@@ -1,3 +1,4 @@
+import Foundation
 import XCTest
 @testable import Loonext
 
@@ -5,6 +6,53 @@ import XCTest
 /// in for Android channel ids — same constants), plus the iOS-only
 /// `parsePushRoute` and `pushData(fromUserInfo:)` seams.
 final class NotificationsPushPayloadTests: XCTestCase {
+    private struct RejectUnexpectedRequest: HTTPClient {
+        func data(for request: URLRequest) async throws -> (Data, URLResponse) {
+            XCTFail("The action made a request under a different account")
+            throw URLError(.cancelled)
+        }
+    }
+
+    func testOnlyAFullyScopedPageOffersAcknowledgement() {
+        var data = [
+            "alert_id": "aaaaaaaa-1111-2222-3333-444455556666",
+            "action_company_id": "bbbbbbbb-1111-2222-3333-444455556666",
+            "action_user_id": "cccccccc-1111-2222-3333-444455556666",
+        ]
+        let action = OnCallPushAction(data: data)
+        XCTAssertEqual(action?.alertId, data["alert_id"])
+        XCTAssertEqual(action?.companyId, data["action_company_id"])
+        XCTAssertEqual(action?.userId, data["action_user_id"])
+
+        data["alert_id"] = "1-1-1-1-1"
+        XCTAssertNil(OnCallPushAction(data: data))
+        data.removeValue(forKey: "action_user_id")
+        XCTAssertNil(OnCallPushAction(data: data))
+    }
+
+    func testOldPageCannotAcknowledgeUnderTheNewAccount() async {
+        let store = SessionStore(storage: InMemorySessionStorage())
+        store.save(Session(
+            accessToken: "other-token",
+            refreshToken: "other-refresh",
+            expiresAt: Date().timeIntervalSince1970 + 3600,
+            userId: "current-user",
+            email: "current@example.com"
+        ))
+        let api = ApiClient(sessionStore: store, auth: SupabaseAuth(), transport: RejectUnexpectedRequest())
+        do {
+            _ = try await MessagingRepository(api: api).acknowledgeAlert(
+                companyId: "company-1",
+                alertId: "alert-1",
+                expectedUserId: "old-user"
+            )
+            XCTFail("An old action must be cancelled")
+        } catch is CancellationError {
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+    }
+
     // MARK: - parsePush
 
     func testReadClearsThreadAlertsWithoutClearingNoteMentions() {

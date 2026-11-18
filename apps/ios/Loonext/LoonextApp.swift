@@ -21,6 +21,7 @@ struct LoonextApp: App {
         WrapUpRecorder.sweepOrphans()
         let graph = AppGraph()
         _graph = State(initialValue: graph)
+        PushCoordinator.shared.onCallActionApi = graph.api
         // Construct the softphone at launch (#161): the PushKit delegate must
         // exist before iOS redelivers a cold-start VoIP push — the CallKit
         // report has to happen inside that delivery.

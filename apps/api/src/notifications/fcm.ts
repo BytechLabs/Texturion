@@ -35,6 +35,7 @@ import { encodeBase64Url } from "./webpush";
 export interface DevicePushTarget {
   platform: "android" | "ios";
   token: string;
+  actionScope?: { companyId: string; userId: string; locale: "en" | "fr-CA" };
 }
 
 export interface FcmResult {
@@ -266,6 +267,12 @@ function buildMessage(
   for (const [key, value] of Object.entries(parsed)) {
     if (typeof value === "string") data[key] = value;
   }
+  const actionScope = data.alert_id ? target.actionScope : undefined;
+  if (actionScope) {
+    data.action_company_id = actionScope.companyId;
+    data.action_user_id = actionScope.userId;
+    data.action_locale = actionScope.locale;
+  }
 
   if (target.platform === "android") {
     return {
@@ -304,6 +311,9 @@ function buildMessage(
   // com.apple.developer.usernotifications.time-sensitive (apps/ios/project.yml)
   // — without it APNs silently downgrades this to `active`.
   if (data.kind === "emergency") aps["interruption-level"] = "time-sensitive";
+  if (actionScope) {
+    aps.category = actionScope.locale === "fr-CA" ? "ON_CALL_ALERT_FR" : "ON_CALL_ALERT";
+  }
   const threadId = apnsHeaders["apns-collapse-id"];
   if (threadId !== undefined) aps["thread-id"] = threadId;
 

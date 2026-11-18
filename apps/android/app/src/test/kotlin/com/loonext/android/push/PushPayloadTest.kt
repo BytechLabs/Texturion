@@ -9,6 +9,29 @@ import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PushPayloadTest {
+    @Test
+    fun `only a fully scoped page offers acknowledgement`() {
+        val data = mapOf(
+            "kind" to PushKind.MISSED_CALL,
+            "alert_id" to "aaaaaaaa-1111-2222-3333-444455556666",
+            "action_company_id" to "bbbbbbbb-1111-2222-3333-444455556666",
+            "action_user_id" to "cccccccc-1111-2222-3333-444455556666",
+            "action_locale" to MessageLocale.FR_CA,
+        )
+
+        assertEquals(
+            OnCallPushAction(
+                data.getValue("alert_id"),
+                data.getValue("action_company_id"),
+                data.getValue("action_user_id"),
+                MessageLocale.FR_CA,
+            ),
+            parsePush(data).onCallAction,
+        )
+        assertNull(parsePush(data - "action_user_id").onCallAction)
+        assertNull(parsePush(data + ("alert_id" to "1-1-1-1-1")).onCallAction)
+    }
+
     // --- parsePush ---
 
     @Test

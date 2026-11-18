@@ -369,6 +369,36 @@ describe("sendFcm — iOS aps payload", () => {
     expect(message.apns.payload.aps).not.toHaveProperty("interruption-level");
   });
 
+  it("adds a localized native claim action only to on-call pages", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    stubFetch(...service.routes);
+    const scope = { companyId: "company-1", userId: "member-1", locale: "fr-CA" } as const;
+    const payload = { ...JSON.parse(MESSAGE_PAYLOAD), kind: "missed_call" };
+    const page = JSON.stringify({ ...payload, alert_id: "alert-1" });
+    await sendFcm(fcmEnv(account), { platform: "ios", token: "ios-tok", actionScope: scope }, page);
+    await sendFcm(fcmEnv(account), { platform: "android", token: "android-tok", actionScope: scope }, page);
+    await sendFcm(
+      fcmEnv(account),
+      { platform: "ios", token: "ios-tok", actionScope: scope },
+      JSON.stringify(payload),
+    );
+
+    const [ios, android, ordinary] = service.sends.map((send) => send.message);
+    expect(ios.apns).toMatchObject({ payload: { aps: { category: "ON_CALL_ALERT_FR" } } });
+    for (const device of [ios, android]) {
+      expect(device.data).toMatchObject({
+        alert_id: "alert-1",
+        action_company_id: "company-1",
+        action_user_id: "member-1",
+        action_locale: "fr-CA",
+      });
+    }
+    expect(android).not.toHaveProperty("notification");
+    expect(ordinary.data).not.toHaveProperty("action_user_id");
+    expect(ordinary.apns).not.toHaveProperty("payload.aps.category");
+  });
+
   it("thread-id is the bounded apns-collapse-id, and absent without one", async () => {
     const short = await sendIos(undefined, "conversation:bbbbbbbb-0000-4000-8000-00000000000b");
     const long = await sendIos(undefined, `conversation:${"x".repeat(100)}`);
