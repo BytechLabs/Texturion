@@ -308,8 +308,10 @@ async function sendsInLastHour(env: Env, companyId: string): Promise<number> {
 /**
  * #20: how long an outbound row may sit `queued` without a telnyx_message_id
  * before it counts as stuck. An interrupted send can leave Telnyx's ID
- * unrecorded after acceptance. The retry reuses the original key. Telnyx's
- * handling of that key after 15 minutes still needs a rig check (#797).
+ * unrecorded after acceptance. Telnyx documents replaying a successful
+ * response for up to 24 hours for the same key and request body. The
+ * 15-minute replay still needs a rig check (#797).
+ * https://developers.telnyx.com/api-reference/messages/send-a-message
  */
 export const STUCK_SEND_SECONDS = 15 * 60;
 
