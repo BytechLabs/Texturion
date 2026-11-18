@@ -160,6 +160,7 @@ async function finalize(
     .from("messages")
     .update({
       status: finalStatus,
+      receipt_finalized_at: new Date().toISOString(),
       ...(parts === null ? {} : { segments: parts }),
       ...(typeof payload.encoding === "string"
         ? { encoding: payload.encoding }

@@ -68,6 +68,7 @@ import {
   pruneWebhookDeliveries,
 } from "./webhooks/outbound-deliver";
 import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
+import { reconcileOutboundReceipts } from "./messaging/receipt-reconcile";
 import { attachmentsRoutes } from "./routes/attachments";
 import { availableNumbersRoutes } from "./routes/available-numbers";
 import { billingRoutes } from "./routes/billing";
@@ -702,6 +703,7 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // showing "Waiting" for a link that no longer opens.
     job("job:expire-payment-requests", expirePaymentRequests),
     job("job:workspace-mfa-notices", sendWorkspaceMfaNotices),
+    job("job:reconcile-outbound-receipts", reconcileOutboundReceipts),
   ],
   // Sole-prop OTP nudge (≥12h outstanding, once per submission).
   "30 * * * *": [job("job:nudge-sole-prop-otp", nudgeSoleProprietorOtp)],
