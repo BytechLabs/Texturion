@@ -189,14 +189,14 @@ export function campaignRowComplete(row: RegistrationRow | null): boolean {
 // ---------------------------------------------------------------------------
 
 /** Subscription states that mean "checkout already happened and stuck". */
-const PAID_STATUSES: readonly SubscriptionStatus[] = [
+const PAID_STATUSES: ReadonlySet<SubscriptionStatus> = new Set([
   "active",
   "past_due",
   "unpaid",
-];
+]);
 
 export function hasPaid(status: SubscriptionStatus): boolean {
-  return PAID_STATUSES.includes(status);
+  return PAID_STATUSES.has(status);
 }
 
 /** The steps this signup actually walks (CA-no-US skips the registration pair). */

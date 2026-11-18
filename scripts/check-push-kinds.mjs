@@ -177,10 +177,10 @@ if (androidChannels !== null && iosCategories !== null) {
  * while Android gave it its own channel — found by this guard on its first run.
  */
 if (androidKinds !== null) {
-  const routing = androidSource.slice(androidSource.indexOf("channelId = when"));
+  const routingStart = androidSource.indexOf("channelId = when");
   for (const [name, value] of androidKinds) {
     if (ROUTED_BEFORE_THE_SWITCH.has(value)) continue;
-    if (!routing.includes(`PushKind.${name}`)) {
+    if (routingStart === -1 || !androidSource.includes(`PushKind.${name}`, routingStart)) {
       problems.push(
         `Android declares push kind "${value}" and its channel switch does not ` +
           `mention PushKind.${name}, so it posts to Messages — indistinguishable ` +
@@ -198,10 +198,9 @@ if (iosKinds !== null) {
         `lost its subject.`,
     );
   } else {
-    const routing = iosSource.slice(marker);
     for (const [name, value] of iosKinds) {
       if (ROUTED_BEFORE_THE_SWITCH.has(value)) continue;
-      if (!routing.includes(`PushKind.${name}`)) {
+      if (!iosSource.includes(`PushKind.${name}`, marker)) {
         problems.push(
           `iOS declares push kind "${value}" and pushCategory(for:) does not ` +
             `mention PushKind.${name}, so it lands in Messages while Android ` +

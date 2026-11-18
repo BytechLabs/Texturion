@@ -285,12 +285,12 @@ test("no two tenants are seeded onto one messaging profile, since a company's pr
 
 test("every tenant's messaging profile is a distinct profile the guard's spec creates", () => {
   const spec = JSON.parse(readFileSync(new URL("../../guard/telnyx-spec.json", import.meta.url), "utf8"));
-  const specKeys = spec.messaging_profiles.profiles.map((profile) => profile.key);
+  const specKeys = new Set(spec.messaging_profiles.profiles.map((profile) => profile.key));
   const keyOfRole = new Map(spec.numbers.standing.map((entry) => [entry.role, entry.messaging_profile]));
   const keys = TENANTS.map((tenant) => tenant.messagingProfile ?? keyOfRole.get(tenant.numbers[0]?.role));
-  assert.ok(keys.every((key) => specKeys.includes(key)), `every tenant's profile is in the spec: ${keys}`);
+  assert.ok(keys.every((key) => specKeys.has(key)), `every tenant's profile is in the spec: ${keys}`);
   assert.equal(new Set(keys).size, keys.length, "no two tenants share a profile");
-  assert.ok(specKeys.includes("qa-g"), "the spec creates QA-G's profile");
+  assert.ok(specKeys.has("qa-g"), "the spec creates QA-G's profile");
 });
 
 test("the grace workspace is refused when the guard sends no profile for it", () => {

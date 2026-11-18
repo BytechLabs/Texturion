@@ -37,9 +37,9 @@ export const SCHEMA = "loonext.rig-scenarios.v2";
 
 const COUNT_FIELDS = ["dials", "far_end_legs", "peak_concurrent_outbound_legs", "min_room"];
 const JOURNEY_FIELDS = ["dials", "far_end_legs", "peak_concurrent_legs", "peak_concurrent_outbound_legs"];
-const SCENARIO_KEYS = ["id", "name", "lane", "far_end", "runs_on", "runs", ...COUNT_FIELDS, "peak_concurrent_legs", "journey", "note"];
-const RUN_KEYS = ["label"];
-const CAPS_KEYS = ["daily_cap", "hourly_cap", "window_utc", "source"];
+const SCENARIO_KEYS = new Set(["id", "name", "lane", "far_end", "runs_on", "runs", ...COUNT_FIELDS, "peak_concurrent_legs", "journey", "note"]);
+const RUN_KEYS = new Set(["label"]);
+const CAPS_KEYS = new Set(["daily_cap", "hourly_cap", "window_utc", "source"]);
 /** Scheduling fields: the rig runs nothing on a timer, so none belongs in the catalogue. */
 const SCHEDULING_KEYS = [
   "cadence",
@@ -201,7 +201,7 @@ function checkCapsBlock(c, problems) {
   }
   for (const key of Object.keys(c)) {
     if (SCHEDULING_KEYS.includes(key)) problems.push(`${at}: "${key}" is a scheduling field, and the rig runs nothing on a timer`);
-    else if (!CAPS_KEYS.includes(key)) problems.push(`${at}: "${key}" is not a caps field`);
+    else if (!CAPS_KEYS.has(key)) problems.push(`${at}: "${key}" is not a caps field`);
   }
   for (const key of ["daily_cap", "hourly_cap"]) {
     if (!isCount(c[key]) || c[key] === 0) problems.push(`${at}: ${key} must be a positive integer`);
@@ -221,7 +221,7 @@ function checkScenario(s, lanes, caps, problems) {
   }
   for (const key of Object.keys(s)) {
     if (SCHEDULING_KEYS.includes(key)) problems.push(`${at}: "${key}" is a scheduling field, and the rig runs nothing on a timer`);
-    else if (!SCENARIO_KEYS.includes(key)) problems.push(`${at}: "${key}" is not a scenario field`);
+    else if (!SCENARIO_KEYS.has(key)) problems.push(`${at}: "${key}" is not a scenario field`);
   }
   let ok = true;
   for (const key of ["id", "name", "far_end"]) {
@@ -253,7 +253,7 @@ function checkScenario(s, lanes, caps, problems) {
     const where = `${at} runs[${i}]`;
     for (const key of Object.keys(run ?? {})) {
       if (SCHEDULING_KEYS.includes(key)) problems.push(`${where}: "${key}" is a scheduling field, and the rig runs nothing on a timer`);
-      else if (!RUN_KEYS.includes(key)) problems.push(`${where}: "${key}" is not a run field`);
+      else if (!RUN_KEYS.has(key)) problems.push(`${where}: "${key}" is not a run field`);
     }
     if (run?.label !== undefined && (typeof run.label !== "string" || run.label.trim() === "")) {
       problems.push(`${where}: label must be a non-empty string`);

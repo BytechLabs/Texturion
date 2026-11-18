@@ -43,7 +43,7 @@ export function rigLayout(env = process.env) {
 }
 
 /** Settings a box's rig.json may still hold, which nothing reads any more. */
-const RETIRED_SETTINGS = ["sentryRelayOrigin"];
+const RETIRED_SETTINGS = new Set(["sentryRelayOrigin"]);
 
 export function rigSettings(layout) {
   if (!existsSync(layout.settingsFile)) return { ...DEFAULT_SETTINGS };
@@ -53,7 +53,7 @@ export function rigSettings(layout) {
   } catch {
     throw new Error(`rig: ${layout.settingsFile} is not valid JSON`);
   }
-  const unknown = Object.keys(parsed).filter((key) => !(key in DEFAULT_SETTINGS) && !RETIRED_SETTINGS.includes(key));
+  const unknown = Object.keys(parsed).filter((key) => !(key in DEFAULT_SETTINGS) && !RETIRED_SETTINGS.has(key));
   if (unknown.length > 0) throw new Error(`rig: rig.json has unknown settings: ${unknown.join(", ")}`);
   return { ...DEFAULT_SETTINGS, ...parsed };
 }

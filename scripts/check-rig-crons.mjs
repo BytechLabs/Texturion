@@ -58,7 +58,7 @@ const ENTRY_KEYS = {
   skip: ["config", "cron", "class", "jobs", "reason"],
 };
 export const OUTCOMES = ["job-fails", "captured"];
-const REFUSAL_KEYS = ["job", "code", "outcome", "telnyx_paths", "when", "caught_in", "follow_on_events"];
+const REFUSAL_KEYS = new Set(["job", "code", "outcome", "telnyx_paths", "when", "caught_in", "follow_on_events"]);
 const CAUGHT_IN = /^([\w./-]+\.ts)#(\w+)$/;
 
 /** Comments and trailing commas out, outside strings only: a `//` in a URL is not a comment. */
@@ -238,7 +238,7 @@ function checkClassFields(entry, at, problems, families, sourceAt) {
       continue;
     }
     for (const key of Object.keys(refusal)) {
-      if (!REFUSAL_KEYS.includes(key)) problems.push(`${where}: "${key}" is not a refusal field`);
+      if (!REFUSAL_KEYS.has(key)) problems.push(`${where}: "${key}" is not a refusal field`);
     }
     if (typeof refusal.job !== "string" || refusal.job === "") {
       problems.push(`${where}: job is missing`);

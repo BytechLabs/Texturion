@@ -173,11 +173,11 @@ export type LegStatus =
   | "dead"
   | "ambiguous";
 
-const LIVE_LEG_STATUSES: readonly LegStatus[] = [
+const LIVE_LEG_STATUSES: ReadonlySet<LegStatus> = new Set([
   "dialing",
   "ringing",
   "canceling",
-];
+]);
 
 export interface LegRecord {
   /** Storage key: `leg:pending:{uuid}` before the dial POST returns, re-keyed
@@ -716,7 +716,7 @@ export interface ReduceResult {
 }
 
 function liveLegs(machine: SessionMachine): LegRecord[] {
-  return machine.legs.filter((leg) => LIVE_LEG_STATUSES.includes(leg.status));
+  return machine.legs.filter((leg) => LIVE_LEG_STATUSES.has(leg.status));
 }
 
 function cloneMachine(machine: SessionMachine): SessionMachine {
@@ -738,7 +738,7 @@ function cancelAllLiveLegs(
   terminal: boolean,
 ): void {
   for (const leg of machine.legs) {
-    if (!LIVE_LEG_STATUSES.includes(leg.status)) continue;
+    if (!LIVE_LEG_STATUSES.has(leg.status)) continue;
     if (leg.status === "canceling") continue;
     leg.status = "canceling";
     if (leg.ccid) {
@@ -1202,7 +1202,7 @@ export function reduce(
       const waiting = queue.filter((candidate) =>
         !next.declinedUserIds.includes(candidate.userId) &&
         !next.legs.some((leg) =>
-          leg.userId === candidate.userId && LIVE_LEG_STATUSES.includes(leg.status),
+          leg.userId === candidate.userId && LIVE_LEG_STATUSES.has(leg.status),
         ),
       );
       const target = waiting.shift();
@@ -2044,7 +2044,7 @@ function reduceMemberAnswered(
 
   if (
     next.state !== "ringing" ||
-    !LIVE_LEG_STATUSES.includes(leg.status)
+    !LIVE_LEG_STATUSES.has(leg.status)
   ) {
     // T14 / guard no-op: a late answer against voicemail/ended states is
     // reaped by the T2/T9 exit sweeps; nothing to do here beyond a defensive
@@ -2133,7 +2133,7 @@ function reduceAnswerOutcome(
   // (5) Cancel all sibling legs.
   for (const leg of next.legs) {
     if (leg.ccid === event.memberCcid) continue;
-    if (LIVE_LEG_STATUSES.includes(leg.status) && leg.status !== "canceling") {
+    if (LIVE_LEG_STATUSES.has(leg.status) && leg.status !== "canceling") {
       leg.status = "canceling";
       if (leg.ccid) {
         effects.push({ kind: "telnyx-hangup", ccid: leg.ccid, terminal: false });
@@ -2390,7 +2390,7 @@ function reduceRingMe(
   }
 
   const memberLive = next.legs.filter(
-    (leg) => leg.userId === event.userId && LIVE_LEG_STATUSES.includes(leg.status),
+    (leg) => leg.userId === event.userId && LIVE_LEG_STATUSES.has(leg.status),
   );
 
   if (event.noLocalLeg) {
@@ -2560,7 +2560,7 @@ function reduceDecline(
   // is that a decliner's device kept holding the ring open.
   for (const leg of next.legs) {
     if (leg.userId !== event.userId) continue;
-    if (!LIVE_LEG_STATUSES.includes(leg.status)) continue;
+    if (!LIVE_LEG_STATUSES.has(leg.status)) continue;
     if (leg.ccid) {
       effects.push({ kind: "telnyx-hangup", ccid: leg.ccid, terminal: false });
     }

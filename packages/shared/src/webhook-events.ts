@@ -215,7 +215,7 @@ export type WebhookUrlRejection =
  * request, which may emit another event. The loop is cheap to write by
  * accident and expensive to run.
  */
-const OUR_OWN_HOSTS = ["loonext.com", "api.loonext.com", "www.loonext.com"];
+const OUR_OWN_HOSTS = new Set(["loonext.com", "api.loonext.com", "www.loonext.com"]);
 
 /**
  * IPv4 literals that are not routable on the public internet, plus the two
@@ -293,7 +293,7 @@ export function webhookUrlRejection(raw: string): WebhookUrlRejection | null {
   const ipv4 = privateIpv4Reason(host);
   if (ipv4) return ipv4;
 
-  if (OUR_OWN_HOSTS.includes(host)) return "our-own-host";
+  if (OUR_OWN_HOSTS.has(host)) return "our-own-host";
 
   return null;
 }

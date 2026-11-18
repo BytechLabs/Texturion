@@ -36,7 +36,7 @@ import type { Env } from "../env";
  * because the comparison is against the parsed `URL.hostname`, which ends where
  * the host ends.
  */
-const PUSH_HOSTS: readonly string[] = [
+const PUSH_HOSTS: ReadonlySet<string> = new Set([
   // Chrome, Edge and every Chromium derivative.
   "fcm.googleapis.com",
   "android.googleapis.com",
@@ -44,7 +44,7 @@ const PUSH_HOSTS: readonly string[] = [
   "web.push.apple.com",
   // Firefox.
   "updates.push.services.mozilla.com",
-];
+]);
 
 /** Vendor-sharded suffixes, which an exact host list cannot express. */
 const PUSH_HOST_SUFFIXES: readonly string[] = [
@@ -70,7 +70,7 @@ export function isAllowedPushEndpoint(endpoint: string): boolean {
   if (url.protocol !== "https:") return false;
   const host = url.hostname.toLowerCase();
   return (
-    PUSH_HOSTS.includes(host) ||
+    PUSH_HOSTS.has(host) ||
     PUSH_HOST_SUFFIXES.some((suffix) => host.endsWith(suffix))
   );
 }
