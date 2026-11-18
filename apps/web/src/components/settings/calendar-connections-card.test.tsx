@@ -88,12 +88,13 @@ function connection(
 
 function setView(
   connections: CalendarConnection[] = [],
-  configured: CalendarConnectionsView["configured"] = {
-    google: true,
-    microsoft: true,
-  },
+  configured?: CalendarConnectionsView["configured"],
 ) {
-  mocks.view.data = { connections, disclosures: [], configured };
+  mocks.view.data = {
+    connections,
+    disclosures: [],
+    configured: configured === undefined ? { google: true, microsoft: true } : configured,
+  };
 }
 
 function attentionItem(

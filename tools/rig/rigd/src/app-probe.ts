@@ -781,15 +781,14 @@ export class AppProbe implements AppApi {
     const period = aiPeriod(this.#now());
     const where = { company_id: `eq.${companyId}`, period: `eq.${period}`, feature: `eq.${args.feature}` };
     const [before] = await this.#rest<{ request_count: number }[]>("company_ai_usage", { ...where, select: "request_count" });
-    if (args.requestCount === null) await this.#write("DELETE", "company_ai_usage", where, undefined, "return=minimal");
-    else {
-      await this.#write("POST", "company_ai_usage", { on_conflict: "company_id,period,feature" }, {
-        company_id: companyId,
-        period,
-        feature: args.feature,
-        request_count: args.requestCount,
-      }, "resolution=merge-duplicates,return=minimal");
-    }
+    await (args.requestCount === null
+      ? this.#write("DELETE", "company_ai_usage", where, undefined, "return=minimal")
+      : this.#write("POST", "company_ai_usage", { on_conflict: "company_id,period,feature" }, {
+          company_id: companyId,
+          period,
+          feature: args.feature,
+          request_count: args.requestCount,
+        }, "resolution=merge-duplicates,return=minimal"));
     return before?.request_count ?? null;
   }
 

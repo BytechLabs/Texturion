@@ -1142,16 +1142,12 @@ describe("PATCH /v1/members/:id (O/A; owner immutable)", () => {
 
 describe("DELETE /v1/members/:id (offboard, not delete)", () => {
   /** The stubs an offboarding needs: the RPC, the softphone, and the cleanups. */
-  function offboardStub(
-    outcome: Record<string, unknown> = {
-      outcome: "deactivated",
-      user_id: "u-target",
-      conversations: 2,
-      tasks: 3,
-    },
-  ): SupabaseStub {
+  function offboardStub(outcome?: Record<string, unknown>): SupabaseStub {
+    const response = outcome === undefined
+      ? { outcome: "deactivated", user_id: "u-target", conversations: 2, tasks: 3 }
+      : outcome;
     const sb = stubWithRole("owner");
-    sb.on("POST", "/rest/v1/rpc/offboard_member", () => outcome);
+    sb.on("POST", "/rest/v1/rpc/offboard_member", () => response);
     // D43 (#135): deactivation revokes the softphone — no credential row here.
     sb.on("GET", "/rest/v1/member_telephony_credentials", () => []);
     sb.on("POST", "/rest/v1/rpc/api_revoke_sessions", () => ({

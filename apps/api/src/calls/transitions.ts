@@ -1380,12 +1380,8 @@ export function reduce(
         if (leg.status === "dialing") leg.status = "ringing";
         return { machine: next, effects };
       }
-      if (event.failure === "ambiguous") {
-        // Counted as NOT live for the ladder, retained for reconciliation.
-        leg.status = "ambiguous";
-      } else {
-        leg.status = "dead"; // T3's "dial POST threw with a KNOWN-dead outcome"
-      }
+      // Ambiguous legs stay for reconciliation without counting as live.
+      leg.status = event.failure === "ambiguous" ? "ambiguous" : "dead";
       // #213: for an OUTBOUND call the failed dial is the PLACER (op) leg — the
       // avenue ladder is inbound-only (and no-ops outside 'ringing' anyway). A
       // KNOWN-dead placer dial means the placer can never connect, so resolve the

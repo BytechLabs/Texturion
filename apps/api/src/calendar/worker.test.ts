@@ -1999,11 +1999,10 @@ describe("calendar sync worker", () => {
   it("records an explicit retry when a provider exceeds the page safety cap", async () => {
     const calendar = provider();
     let page = 0;
-    vi.mocked(calendar.listChanges).mockImplementation(async () => ({
-      events: [],
-      nextPageToken: `page-${page += 1}`,
-      nextCursor: null,
-    }));
+    vi.mocked(calendar.listChanges).mockImplementation(async () => {
+      page += 1;
+      return { events: [], nextPageToken: `page-${page}`, nextCursor: null };
+    });
     const db = store({ claimPulls: vi.fn().mockResolvedValue([CONNECTION]) });
 
     await drainCalendarSync({

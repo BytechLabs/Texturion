@@ -61,13 +61,13 @@ function stubs(options: { role?: string | null } = {}): void {
 
 async function post(
   body: unknown,
-  headers: Record<string, string> = { "X-Client": "android", "X-App-Version": "0.18.2" },
+  headers?: Record<string, string>,
   bindings: Env = env,
 ): Promise<Response> {
   return apiRequest(app, bindings, await auth.token(), "/v1/ring-beacons", {
     method: "POST",
     companyId: COMPANY_ID,
-    headers,
+    headers: headers === undefined ? { "X-Client": "android", "X-App-Version": "0.18.2" } : headers,
     body,
   });
 }

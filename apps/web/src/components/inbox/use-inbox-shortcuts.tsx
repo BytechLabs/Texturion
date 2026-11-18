@@ -157,7 +157,6 @@ export function useInboxShortcuts({
         case "assign":
         case "tag": {
           setPicker({ kind: action, id: row.id });
-          return;
         }
       }
     };

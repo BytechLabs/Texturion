@@ -71,19 +71,20 @@ function numberUpdate(): Stub {
 
 /** #193: the settings read the post-bind catch-up push performs (its select
  *  names cnam_display_name, which discriminates it from other companies GETs). */
-function companySettingsGet(
-  row: Record<string, unknown> = {
-    name: "Ace Plumbing & Co.",
-    cnam_display_name: null,
-    call_screening: "flag",
-    caller_id_lookup: true,
-  },
-): Stub {
+function companySettingsGet(row?: Record<string, unknown>): Stub {
+  const settings = row === undefined
+    ? {
+        name: "Ace Plumbing & Co.",
+        cnam_display_name: null,
+        call_screening: "flag",
+        caller_id_lookup: true,
+      }
+    : row;
   return stubRoute(
     restMatch(env, "GET", "companies", (url) =>
       (url.searchParams.get("select") ?? "").includes("cnam_display_name"),
     ),
-    () => [row],
+    () => [settings],
   );
 }
 

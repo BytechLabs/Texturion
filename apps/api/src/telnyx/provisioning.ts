@@ -631,8 +631,9 @@ async function orderNumberForRow(
   env: Env,
   db: SupabaseClient,
   company: ProvisioningCompany,
-  row: PhoneNumberRow,
+  initialRow: PhoneNumberRow,
 ): Promise<PhoneNumberRow> {
+  let row = initialRow;
   const profileId = await ensureMessagingProfile(env, db, company);
 
   // A user-CHOSEN specific number (onboarding pick / remediation) is ordered
@@ -779,21 +780,21 @@ async function recordProvisionFailure(
  */
 export async function resumeProvisioning(
   env: Env,
-  row: PhoneNumberRow,
+  initialRow: PhoneNumberRow,
   now: Date = new Date(),
 ): Promise<PhoneNumberRow> {
   // Belt-and-braces: this saga BUYS inventory, so it must never run on a
   // keep-your-number row. A ported row is fulfilled by the port saga and a
   // hosted row by the text-enablement saga — ordering here would purchase a
   // random new number and overwrite the owner's own number_e164.
-  if (row.source !== "provisioned") {
+  if (initialRow.source !== "provisioned") {
     void captureException(env, "resumeProvisioning called on a keep-your-number row, skipped", {
       source: "api",
       level: "warning",
-      company_id: row.company_id,
-      extra: { source: row.source, phone_number_id: row.id },
+      company_id: initialRow.company_id,
+      extra: { source: initialRow.source, phone_number_id: initialRow.id },
     });
-    return row;
+    return initialRow;
   }
   const db = getDb(env);
 
@@ -806,9 +807,8 @@ export async function resumeProvisioning(
   // row (picks up a remediation's just-written chosen_number/area code). The lease
   // is released on the terminal activate/fail; a crash mid-lease heals by expiry
   // (the next execution recovers from the persisted order id / orphan), not a buy.
-  const leased = await claimProvisioningLease(db, row.id);
-  if (!leased) return row;
-  row = leased;
+  const row = await claimProvisioningLease(db, initialRow.id);
+  if (!row) return initialRow;
 
   // §4.3 double-buy guard: a row already failed AND out of attempts is
   // user-remediation-only (e.g. the stuck-pending 'timeout' flip, or an exhausted

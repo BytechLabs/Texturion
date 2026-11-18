@@ -154,13 +154,14 @@ async function close(
   routes: FetchRoute[],
   // `null` means send NO body — an explicit `undefined` would take the default,
   // which is how the first version of this quietly sent a code it meant to omit.
-  body: Record<string, unknown> | null = { confirmation_code: "123456" },
+  body?: Record<string, unknown> | null,
 ) {
+  const payload = body === undefined ? { confirmation_code: "123456" } : body;
   stubFetch(jwksRoute(auth), ...routes);
   return apiRequest(app, env, await auth.token(), "/v1/company", {
     method: "DELETE",
     companyId: COMPANY_ID,
-    body: body ?? undefined,
+    body: payload ?? undefined,
   });
 }
 

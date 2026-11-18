@@ -13,7 +13,10 @@ import type { InitiatedContext, OutboundInitiatedContext, SessionEvent, SessionM
 
 function keyGen(): () => string {
   let n = 0;
-  return () => `k${n += 1}`;
+  return () => {
+    n += 1;
+    return `k${n}`;
+  };
 }
 
 function initCtx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {

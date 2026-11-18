@@ -48,14 +48,12 @@ function stubWorld(
       captured.scans.push(url);
       return Response.json(scanRows);
     }
-    if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/tasks`)) {
-      if (request.method === "PATCH") {
-        return (async () => {
-          const body = await request.clone().json();
-          captured.updates.push({ url, body });
-          return Response.json([]);
-        })();
-      }
+    if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/tasks`) && request.method === "PATCH") {
+      return (async () => {
+        const body = await request.clone().json();
+        captured.updates.push({ url, body });
+        return Response.json([]);
+      })();
     }
     if (url.href.startsWith(`${NOMINATIM_BASE}/search`)) {
       captured.nominatim.push(url);

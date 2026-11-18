@@ -125,7 +125,7 @@ export function scoreContent(
   from: string,
   rawBody: string | null | undefined,
 ): SpamVerdict {
-  const body = rawBody ?? "";
+  const body = rawBody === null || rawBody === undefined ? "" : rawBody;
   const signals: SpamSignal[] = [];
 
   if (senderIsNotDialable(from)) {

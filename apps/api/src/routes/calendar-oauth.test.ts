@@ -439,11 +439,10 @@ describe("calendar provider webhooks", () => {
     const env = configuredEnv();
     const sb = supabaseStub(env);
     let generation = 0;
-    sb.on("POST", "/rest/v1/rpc/api_request_calendar_pull", () => ({
-      outcome: "queued",
-      connection_id: CONNECTION_ID,
-      generation: generation += 1,
-    }));
+    sb.on("POST", "/rest/v1/rpc/api_request_calendar_pull", () => {
+      generation += 1;
+      return { outcome: "queued", connection_id: CONNECTION_ID, generation };
+    });
     stubFetch(sb.route);
     const token = "T".repeat(43);
     const init: RequestInit = {

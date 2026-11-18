@@ -128,11 +128,11 @@ export function parseCsvRows(text: string): CsvRow[] {
  * emit it bare. A null/undefined value is the empty string.
  */
 export function csvField(value: string | null | undefined): string {
-  const text = value ?? "";
-  if (/[",\r\n]/.test(text)) {
-    return `"${text.replace(/"/g, '""')}"`;
+  if (value === null || value === undefined) return "";
+  if (/[",\r\n]/.test(value)) {
+    return `"${value.replaceAll('"', '""')}"`;
   }
-  return text;
+  return value;
 }
 
 /**
@@ -168,8 +168,8 @@ export function csvField(value: string | null | undefined): string {
  * apostrophe so the export→import round-trip stays lossless (D20 §3.1).
  */
 export function csvSafeText(value: string | null | undefined): string {
-  const text = value ?? "";
-  return FORMULA_TRIGGER.test(text) ? `'${text}` : text;
+  if (value === null || value === undefined) return "";
+  return FORMULA_TRIGGER.test(value) ? `'${value}` : value;
 }
 
 /**

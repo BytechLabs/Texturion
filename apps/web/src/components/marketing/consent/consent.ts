@@ -136,7 +136,7 @@ export function saveConsentChoice(
     // Persistence is best-effort; the dataLayer update below still applies
     // for the rest of this visit.
   }
-  win.dataLayer = win.dataLayer ?? [];
+  win.dataLayer ??= [];
   pushConsentUpdate(win.dataLayer, choice);
   win.dispatchEvent(new CustomEvent(CONSENT_CHANGE_EVENT, { detail: choice }));
 }

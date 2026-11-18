@@ -186,8 +186,8 @@ function pauseDerivedNames(file: TS.SourceFile): Set<string> {
           for (const name of names) add(name);
         }
       }
-      if (ts.isFunctionDeclaration(n) && n.name && n.body) {
-        if (namesThePause(n.name.text) || carries(n.body)) add(n.name.text);
+      if (ts.isFunctionDeclaration(n) && n.name && n.body && (namesThePause(n.name.text) || carries(n.body))) {
+        add(n.name.text);
       }
       n.forEachChild(visit);
     };

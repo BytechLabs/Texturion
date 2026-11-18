@@ -75,14 +75,11 @@ function canadianCompany(overrides: Record<string, unknown> = {}) {
  * currency against a live price is `stripe:setup`, not a deploy, so the code
  * cannot assume it has happened.
  */
-function endpoints(
-  options: { cadFiled: boolean; company?: Record<string, unknown> } = {
-    cadFiled: true,
-  },
-): StubEndpoint[] {
+function endpoints(options?: { cadFiled: boolean; company?: Record<string, unknown> }): StubEndpoint[] {
+  const settings = options === undefined ? { cadFiled: true } : options;
   return [
     endpoint("GET", /\/rest\/v1\/companies/, () => [
-      options.company ?? canadianCompany(),
+      settings.company ?? canadianCompany(),
     ]),
     // The activation probe: this workspace has sent something.
     endpoint("GET", /\/rest\/v1\/messages/, () => [{ id: "m1" }]),
@@ -99,7 +96,7 @@ function endpoints(
       object: "price",
       currency: "usd",
       unit_amount: 29_000,
-      currency_options: options.cadFiled
+      currency_options: settings.cadFiled
         ? { cad: { unit_amount: 39_000 } }
         : {},
     })),

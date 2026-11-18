@@ -1814,14 +1814,11 @@ describe("DELETE /v1/conversations/:id/tags/:tag_id", () => {
 
 describe("POST /v1/conversations/bulk (#275)", () => {
   function bulkStub(
-    result: Record<string, unknown> = {
-      action: "set_status",
-      matched: 2,
-      applied: [],
-      failed: [],
-      capped: false,
-    },
+    payload?: Record<string, unknown>,
   ): { sb: SupabaseStub; calls: Record<string, unknown>[] } {
+    const result = payload === undefined
+      ? { action: "set_status", matched: 2, applied: [], failed: [], capped: false }
+      : payload;
     const sb = memberStub();
     const calls: Record<string, unknown>[] = [];
     sb.on("POST", "/rest/v1/rpc/api_bulk_conversations", (call) => {

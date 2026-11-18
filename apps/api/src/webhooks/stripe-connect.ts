@@ -63,8 +63,6 @@ export async function processConnectEvent(
       return handleChargeRefunded(env, event.data.object as Stripe.Charge, account);
     case "charge.dispute.created":
       return handleConnectDispute(env, event.data.object as Stripe.Dispute, account);
-    default:
-      return;
   }
 }
 

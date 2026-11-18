@@ -160,8 +160,11 @@ describe("whenPageSettles", () => {
     w.requestIdleCallback = idle;
     const settle = await freshSettle();
     let done = 0;
-    void settle().then(() => done += 1);
-    void settle().then(() => done += 1);
+    const recordSettlement = () => {
+      done += 1;
+    };
+    void settle().then(recordSettlement);
+    void settle().then(recordSettlement);
     expect(settle()).toBe(settle());
 
     load();

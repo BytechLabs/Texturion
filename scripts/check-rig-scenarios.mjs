@@ -280,13 +280,14 @@ function checkScenario(s, lanes, caps, problems) {
   if (s.dials > 0 && s.peak_concurrent_outbound_legs === 0) {
     problems.push(`${at}: dials ${s.dials} but peaks at 0 outbound legs; each dial holds a leg`);
   }
-  if (s.peak_concurrent_legs !== undefined && isCount(s.peak_concurrent_legs)) {
-    if (s.peak_concurrent_legs < s.peak_concurrent_outbound_legs || s.peak_concurrent_legs > rigDials(s)) {
-      problems.push(
-        `${at}: peak_concurrent_legs ${s.peak_concurrent_legs} must be between its outbound peak ` +
-          `(${s.peak_concurrent_outbound_legs}) and its rig dials (${rigDials(s)})`,
-      );
-    }
+  if (
+    s.peak_concurrent_legs !== undefined && isCount(s.peak_concurrent_legs) &&
+    (s.peak_concurrent_legs < s.peak_concurrent_outbound_legs || s.peak_concurrent_legs > rigDials(s))
+  ) {
+    problems.push(
+      `${at}: peak_concurrent_legs ${s.peak_concurrent_legs} must be between its outbound peak ` +
+        `(${s.peak_concurrent_outbound_legs}) and its rig dials (${rigDials(s)})`,
+    );
   }
   if (paid && s.peak_concurrent_outbound_legs > s.min_room) {
     problems.push(

@@ -309,7 +309,8 @@ function stripeFake({ deleted = [] } = {}) {
     if (id !== undefined) {
       return deleted.includes(id) ? new Response("{}", { status: 404 }) : Response.json({ id }, { status: 200 });
     }
-    return Response.json({ id: `cus_new${n += 1}` }, { status: 200 });
+    n += 1;
+    return Response.json({ id: `cus_new${n}` }, { status: 200 });
   };
   return { fetchImpl, calls };
 }

@@ -90,7 +90,9 @@ async function applyTheme(context) {
   await context.addInitScript((theme) => {
     try {
       window.localStorage.setItem("theme", theme);
-    } catch {}
+    } catch {
+      // Initial documents can deny access to storage.
+    }
   }, dark ? "dark" : "light");
 }
 
@@ -178,11 +180,9 @@ async function shoot(page, path) {
   await page.waitForTimeout(settle);
   const slug = path.replaceAll("/", "_").replaceAll(/[^\w-]/g, "") || "root";
   const file = join(outDir, `${slug}${mobile ? ".mobile" : ""}${dark ? ".dark" : ""}.png`);
-  if (element) {
-    await page.locator(element).first().screenshot({ path: file });
-  } else {
-    await page.screenshot({ path: file, fullPage });
-  }
+  await (element
+    ? page.locator(element).first().screenshot({ path: file })
+    : page.screenshot({ path: file, fullPage }));
   console.log(file);
 
   // One line per distinct complaint: a single fault that fires on every render

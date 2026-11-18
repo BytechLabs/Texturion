@@ -377,10 +377,13 @@ describe("S05, the caller hangs up while it rings", () => {
   });
 });
 
-function s06World(heard: Record<string, Surface[]> = { hold: [], after_hold: [OWNER], mute: [], after_mute: [OWNER] }) {
+function s06World(heard?: Record<string, Surface[]>) {
+  const segments: Record<string, Surface[]> = heard === undefined
+    ? { hold: [], after_hold: [OWNER], mute: [], after_mute: [OWNER] }
+    : heard;
   const world = fakeContext("S06");
   const pages = withPages(world, {});
-  robotOutcome(world, (record) => ({ ...withSegments(record, heard), gathered: { digits: "123", status: "valid" }, dtmf: "123#" }));
+  robotOutcome(world, (record) => ({ ...withSegments(record, segments), gathered: { digits: "123", status: "valid" }, dtmf: "123#" }));
   return { ...world, ...pages };
 }
 

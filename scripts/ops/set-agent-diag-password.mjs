@@ -153,8 +153,8 @@ export function resolveTarget(target, { env = process.env, root = REPO_ROOT, dbP
     for (const path of devVarsCandidates(root)) {
       if (!existsSync(path)) continue;
       const text = readFileSync(path, "utf8");
-      ref = ref || devVar(text, "SUPABASE_PROJECT_REF");
-      password = password || devVar(text, "SUPABASE_DB_PASSWORD");
+      ref ||= devVar(text, "SUPABASE_PROJECT_REF");
+      password ||= devVar(text, "SUPABASE_DB_PASSWORD");
       if (ref && password) {
         source = "apps/api/.dev.vars";
         break;

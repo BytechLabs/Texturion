@@ -596,7 +596,7 @@ export async function submitHostedVerificationCode(
  */
 export async function resumeTextEnablement(
   env: Env,
-  order: TextEnablementOrderRow,
+  initialOrder: TextEnablementOrderRow,
 ): Promise<TextEnablementOrderRow> {
   const db = getDb(env);
 
@@ -605,9 +605,8 @@ export async function resumeTextEnablement(
   // execution runs the saga; the rest return the order untouched — so ONE hosted
   // number never places TWO carrier-reviewed orders. Released at end-of-pass; a
   // crash mid-lease is healed by expiry + the persisted order id / idempotency key.
-  const leased = await claimTextEnablementLease(db, order.id);
-  if (!leased) return order;
-  order = leased;
+  let order = await claimTextEnablementLease(db, initialOrder.id);
+  if (!order) return initialOrder;
 
   try {
     const company = await fetchProvisioningCompany(db, order.company_id);

@@ -405,12 +405,15 @@ async function attemptHeld(
 
   // The apps place some dials themselves, through Telnyx's SDK, past the guard's log.
   const placed = { byApp: 0, byRobot: 0 };
+  const countAppDial = () => {
+    placed.byApp += 1;
+  };
   const ctx: ScenarioContext = {
     ...base,
     lease,
-    browser: dialsOnPages(lanes.browser, () => placed.byApp += 1),
+    browser: dialsOnPages(lanes.browser, countAppDial),
     guard: lanes.guard,
-    devices: dialsOnDevices(lanes.devices, () => placed.byApp += 1),
+    devices: dialsOnDevices(lanes.devices, countAppDial),
     rig: lanes.rig,
     mail: lanes.mail,
     stripe: lanes.stripe,
@@ -418,7 +421,9 @@ async function attemptHeld(
     robot: noting(
       noting(lanes.robot, "sms", (message: { text: string }) => texts.add(textHash(message.text))),
       "dial",
-      () => placed.byRobot += 1,
+      () => {
+        placed.byRobot += 1;
+      },
     ),
     app: noting(lanes.app, "sendText", (args: { body: string }) => texts.add(textHash(args.body))),
   };

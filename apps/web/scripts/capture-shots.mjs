@@ -89,7 +89,9 @@ const SHOTS = [
       await page.addInitScript(() => {
         try {
           localStorage.setItem("loonext:contact-panel-open", "true");
-        } catch {}
+        } catch {
+          // Initial documents can deny access to storage.
+        }
       });
       await openMarcusThread(page);
       // Ensure the panel actually rendered (heading inside the panel).
@@ -252,7 +254,9 @@ async function capture(browser, storageState, shot, theme, outPng) {
   await context.addInitScript((t) => {
     try {
       localStorage.setItem("theme", t);
-    } catch {}
+    } catch {
+      // Initial documents can deny access to storage.
+    }
     // Belt-and-suspenders: `devIndicators:false` already removes the dev badge,
     // but hide the Next portal host outright so a future Next default can never
     // bake the "N" badge / build overlay into a committed product shot.
@@ -261,7 +265,9 @@ async function capture(browser, storageState, shot, theme, outPng) {
       style.textContent =
         "nextjs-portal,[data-nextjs-toast],#__next-build-watcher{display:none !important}";
       document.documentElement.appendChild(style);
-    } catch {}
+    } catch {
+      // The document root may not exist during initialization.
+    }
   }, theme);
 
   const page = await context.newPage();

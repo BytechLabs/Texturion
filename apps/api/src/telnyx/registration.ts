@@ -1646,7 +1646,6 @@ export async function handle10dlcEvent(
         portAssignmentBlockedCopy(phoneNumber, env),
       );
     }
-    return;
   }
 
   // Unknown 10dlc.* event — ack and ignore (SPEC §4.4).

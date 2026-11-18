@@ -245,13 +245,11 @@ function upsertCallStub(merged: Record<string, unknown> = {}): Stub {
 }
 
 /** #129: api_thread_call RPC — default threads into a conversation. */
-function threadCallStub(
-  result: Record<string, unknown> = {
-    contact_id: "ct-1",
-    conversation_id: CONVERSATION_ID,
-  },
-): Stub {
-  return stubRoute(rpcMatch(env, "api_thread_call"), () => result);
+function threadCallStub(result?: Record<string, unknown>): Stub {
+  const payload = result === undefined
+    ? { contact_id: "ct-1", conversation_id: CONVERSATION_ID }
+    : result;
+  return stubRoute(rpcMatch(env, "api_thread_call"), () => payload);
 }
 
 /** #129: the calls-row contact/conversation link PATCH. */

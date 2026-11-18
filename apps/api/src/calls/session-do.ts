@@ -753,7 +753,6 @@ export class CallSessionDO extends DurableObject<Env> {
     }
     if (slot === "intent-expiry") {
       await this.admitAndDrain({ type: "alarm-intent-expiry" }, null);
-      return;
     }
   }
 
@@ -1267,9 +1266,9 @@ export class CallSessionDO extends DurableObject<Env> {
                 }
               : undefined,
           );
-        } else {
-          await this.rt.terminalMergeSynthetic(machine, effect.outcome, effect.briAnsweredAtIso);
+          return [];
         }
+        await this.rt.terminalMergeSynthetic(machine, effect.outcome, effect.briAnsweredAtIso);
         return [];
       }
       case "voicemail-pipeline": {
@@ -1337,7 +1336,6 @@ export class CallSessionDO extends DurableObject<Env> {
   ): Promise<void> {
     try {
       await this.rt.mirror(sessionId, set);
-      return;
     } catch (error) {
       this.rt.reportError(error);
       // MERGE into any existing pending mirror rather than overwriting it: a

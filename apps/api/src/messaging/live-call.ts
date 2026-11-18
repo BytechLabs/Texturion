@@ -703,17 +703,19 @@ export async function handleConsultLegEvent(
 
   if (eventType === "call.hangup") {
     if (stub && state.consultId) {
-      if (state.role === "s") {
-        await stub.endConsultSender({ consultId: state.consultId, userId: state.userId, memberCcid: ccid });
-      } else {
-        await stub.endTransferAttempt({
-          transferId: state.consultId,
-          wakeId: state.wakeId,
-          userId: state.userId,
-          memberCcid: ccid,
-          waitForWake: !explicitlyDeclined,
-        });
-      }
+      await (state.role === "s"
+        ? stub.endConsultSender({
+            consultId: state.consultId,
+            userId: state.userId,
+            memberCcid: ccid,
+          })
+        : stub.endTransferAttempt({
+            transferId: state.consultId,
+            wakeId: state.wakeId,
+            userId: state.userId,
+            memberCcid: ccid,
+            waitForWake: !explicitlyDeclined,
+          }));
     }
     // Only dismiss the sibling if THIS was a live consult leg of the session
     // (the update matched a real ledger row). A FORGED brc tag naming a

@@ -246,10 +246,8 @@
     "typescript/prefer-string-starts-ends-with": "off", // 16
     "unicorn/explicit-length-check": "off", // 16
     "eslint/no-loop-func": "off", // 15
-    "eslint/no-return-assign": "off", // 15
     "jsx-a11y/no-autofocus": "off", // 15
     "typescript/prefer-includes": "off", // 15
-    "unicorn/no-object-as-default-parameter": "off", // 15
     "react/exhaustive-effect-dependencies": "off", // 14
     "unicorn/prefer-string-starts-ends-with": "off", // 14
     "import/no-duplicates": "off", // 13
@@ -267,11 +265,9 @@
     "typescript/no-redundant-type-constituents": "off", // 10
     "typescript/no-unnecessary-boolean-literal-compare": "off", // 10
     "typescript/no-unnecessary-type-conversion": "off", // 10
-    "unicorn/prefer-ternary": "off", // 10
     "vitest/prefer-to-have-length": "off", // 10
     "typescript/no-extraneous-class": "off", // 9
     "unicorn/filename-case": "off", // 9
-    "unicorn/no-lonely-if": "off", // 9
     "unicorn/no-useless-fallback-in-spread": "off", // 9
     "nextjs/no-assign-module-variable": "off", // 8
     "react/display-name": "off", // 8
@@ -283,7 +279,6 @@
     "unicorn/prefer-single-call": "off", // 8
     "vitest/prefer-expect-type-of": "off", // 8
     "eslint/no-div-regex": "off", // 7
-    "eslint/no-useless-return": "off", // 7
     "react/hook-use-state": "off", // 7
     "typescript/array-type": "off", // 7
     "unicorn/escape-case": "off", // 7
@@ -296,10 +291,7 @@
     "unicorn/prefer-event-target": "off", // 6
     "unicorn/prefer-query-selector": "off", // 6
     "vitest/prefer-to-contain": "off", // 6
-    "eslint/logical-assignment-operators": "off", // 5
-    "eslint/no-empty": "off", // 5
     "eslint/no-implicit-coercion": "off", // 5
-    "eslint/no-param-reassign": "off", // 5
     "eslint/prefer-arrow-callback": "off", // 5
     "import/no-named-as-default": "off", // 5
     "jsx-a11y/no-noninteractive-element-interactions": "off", // 5
@@ -334,7 +326,6 @@
     "promise/catch-or-return": "off", // 3
     "react/jsx-no-constructed-context-values": "off", // 3
     "unicorn/no-invalid-fetch-options": "off", // 3
-    "unicorn/prefer-default-parameters": "off", // 3
     "unicorn/relative-url-style": "off", // 3
     "vitest/no-standalone-expect": "off", // 3
     "vitest/padding-around-test-blocks": "off", // 3

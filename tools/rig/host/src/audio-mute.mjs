@@ -224,12 +224,12 @@ export function createAudioMuter({
       while (!stopped) {
         const current = roots();
         if (current === null) break;
-        let result;
-        if (current.filter(isRoot).length === 0) {
-          result = { state: "waiting", sessions: 0, muted: 0, pids: [], checked_at: new Date(now()).toISOString() };
-        } else {
-          result = await sweep(current, { key }).catch((error) => ({ state: "error", sessions: 0, muted: 0, pids: [], error: error.message, checked_at: new Date(now()).toISOString() }));
-        }
+        const result = current.some(isRoot)
+          ? await sweep(current, { key }).catch((error) => ({
+              state: "error", sessions: 0, muted: 0, pids: [], error: error.message,
+              checked_at: new Date(now()).toISOString(),
+            }))
+          : { state: "waiting", sessions: 0, muted: 0, pids: [], checked_at: new Date(now()).toISOString() };
         if (stopped) break;
         try {
           onResult(result);

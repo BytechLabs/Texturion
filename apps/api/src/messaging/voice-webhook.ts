@@ -914,25 +914,22 @@ export async function handleTerminalCallEvent(
     });
   }
 
-  // A blocked caller was refused at the door (#696): the call is on the closed
-  // spam thread, and the crew is neither texted back nor alerted about it.
-  if (!outboundLeg && outcome.missed && finalCaller) {
-    if (await isBlockedSender(db, resolved.companyId, finalCaller)) {
-      if (thread?.conversationId) {
-        await closeBlockedThread(db, {
-          companyId: resolved.companyId,
-          conversationId: thread.conversationId,
-          fromE164: finalCaller,
-          action: "spam.blocked_caller_arrived",
-        });
-      }
-      return;
-    }
-  }
-
   // The missed-call text-back is an INBOUND behavior only — an outbound
   // no-answer must never text the customer "sorry we missed you".
   if (outboundLeg || !outcome.missed || !finalCaller) return;
+
+  // Keep blocked calls on the closed spam thread so the crew receives no alert.
+  if (await isBlockedSender(db, resolved.companyId, finalCaller)) {
+    if (thread?.conversationId) {
+      await closeBlockedThread(db, {
+        companyId: resolved.companyId,
+        conversationId: thread.conversationId,
+        fromE164: finalCaller,
+        action: "spam.blocked_caller_arrived",
+      });
+    }
+    return;
+  }
 
   const textBack = await sendMissedCallText(env, db, {
     companyId: resolved.companyId,

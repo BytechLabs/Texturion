@@ -630,24 +630,14 @@ async function stripRetiredModuleItems(
   for (const item of stored.items?.data ?? []) {
     if (!item.price || !retired.includes(item.price.id)) continue;
     try {
-      if (scheduleId) {
-        // Rebuild every remaining phase without the retired price — the only
-        // mutation Stripe accepts on a schedule-managed subscription, and the
-        // only one the schedule's pinned phases won't undo at rollover.
-        await applyPriceToSchedulePhases(
-          stripe,
-          scheduleId,
-          item.price.id,
-          false,
-          "create_prorations",
-        );
-      } else {
-        await stripe.subscriptionItems.del(
-          item.id,
-          { proration_behavior: "create_prorations" },
-          { idempotencyKey: idempotencyKey(companyId, "retired_item", item.id, day) },
-        );
-      }
+      // The schedule's pinned phases would restore the retired price at rollover.
+      await (scheduleId
+        ? applyPriceToSchedulePhases(stripe, scheduleId, item.price.id, false, "create_prorations")
+        : stripe.subscriptionItems.del(
+            item.id,
+            { proration_behavior: "create_prorations" },
+            { idempotencyKey: idempotencyKey(companyId, "retired_item", item.id, day) },
+          ));
       summary.retiredModuleItemsRemoved += 1;
       void captureException(
         env,

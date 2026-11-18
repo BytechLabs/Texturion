@@ -74,8 +74,8 @@ function readImports(source: string, fileName: string): ModuleImports {
     if (ts.isImportDeclaration(s)) {
       if (s.importClause?.phaseModifier === ts.SyntaxKind.TypeKeyword) continue;
       if (ts.isStringLiteral(s.moduleSpecifier)) values.push(s.moduleSpecifier.text);
-    } else if (ts.isExportDeclaration(s) && s.moduleSpecifier && !s.isTypeOnly) {
-      if (ts.isStringLiteral(s.moduleSpecifier)) values.push(s.moduleSpecifier.text);
+    } else if (ts.isExportDeclaration(s) && s.moduleSpecifier && !s.isTypeOnly && ts.isStringLiteral(s.moduleSpecifier)) {
+      values.push(s.moduleSpecifier.text);
     }
   }
   const dynamic: string[] = [];
@@ -426,8 +426,8 @@ describe("the hero loads the lean p5", () => {
     };
     const bound = new Set<string>();
     const findBound = (n: TS.Node) => {
-      if ((ts.isParameter(n) || ts.isVariableDeclaration(n)) && ts.isIdentifier(n.name)) {
-        if (namesP5(n.type)) bound.add(n.name.text);
+      if ((ts.isParameter(n) || ts.isVariableDeclaration(n)) && ts.isIdentifier(n.name) && namesP5(n.type)) {
+        bound.add(n.name.text);
       }
       ts.forEachChild(n, findBound);
     };

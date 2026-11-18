@@ -32,7 +32,10 @@ function setup(download: Uint8Array = OWNER_HEARD) {
     clock,
     newId: (() => {
       let n = 0;
-      return () => `plan-${n += 1}`;
+      return () => {
+        n += 1;
+        return `plan-${n}`;
+      };
     })(),
     download: async (url) => {
       downloads.push(url);

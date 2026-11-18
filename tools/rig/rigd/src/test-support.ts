@@ -48,8 +48,9 @@ export class FakeSocket implements SocketLike {
     this.emit("close");
   }
 
-  emit(type: string, event: SocketEvent = { data: undefined }): void {
-    for (const listener of this.#listeners.get(type) ?? []) listener(event);
+  emit(type: string, event?: SocketEvent): void {
+    const payload = event === undefined ? { data: undefined } : event;
+    for (const listener of this.#listeners.get(type) ?? []) listener(payload);
   }
 }
 

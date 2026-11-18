@@ -196,9 +196,10 @@ function buildHarness(
     data: { id: "hosted-order-1", status: "deleted" },
   }));
   // Documents API: store (returns a fresh UUID-ish id) + download-back.
-  telnyx.on("POST", /^\/v2\/documents$/, () => ({
-    data: { id: `doc-${state.docSeq += 1}` },
-  }));
+  telnyx.on("POST", /^\/v2\/documents$/, () => {
+    state.docSeq += 1;
+    return { data: { id: `doc-${state.docSeq}` } };
+  });
   telnyx.on(
     "GET",
     /^\/v2\/documents\/[^/]+\/download$/,

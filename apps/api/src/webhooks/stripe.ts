@@ -224,10 +224,6 @@ export async function processStripeEvent(
     case "charge.dispute.updated":
     case "charge.dispute.closed":
       return handleChargeDispute(env, event.data.object, event.type);
-    default:
-      // Only the SPEC §7 event set is configured on the endpoint; anything
-      // else is acked as a no-op.
-      return;
   }
 }
 

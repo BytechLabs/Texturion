@@ -78,7 +78,10 @@ async function inboundContext(blocked: boolean) {
   });
   if (typeof ctx === "string") throw new TypeError(`expected a context, got ${ctx}`);
   let n = 0;
-  const { effects } = reduce(null, { type: "initiated", context: ctx }, 1000, () => `k${n += 1}`);
+  const { effects } = reduce(null, { type: "initiated", context: ctx }, 1000, () => {
+    n += 1;
+    return `k${n}`;
+  });
   return { ctx, effects, routes };
 }
 

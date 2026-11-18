@@ -854,7 +854,9 @@ for (const theme of ["light", "dark"]) {
   await context.addInitScript((t) => {
     try {
       window.localStorage.setItem("theme", t);
-    } catch {}
+    } catch {
+      // Initial documents can deny access to storage.
+    }
   }, theme);
   if (needsAuth) await login(context);
 

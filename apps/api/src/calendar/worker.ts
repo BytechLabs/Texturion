@@ -633,7 +633,6 @@ async function applyInbound(
       expectMutationOutcome("mark calendar recurrence refusal", result, [
         "refused",
       ]);
-      return;
     }
   }
 }
