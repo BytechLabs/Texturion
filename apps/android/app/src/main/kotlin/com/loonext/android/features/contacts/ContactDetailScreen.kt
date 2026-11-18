@@ -1799,7 +1799,7 @@ private fun FooterAction(
  * Same 800ms-debounce semantics as [AutosaveField].
  */
 @Composable
-private fun AutosaveRow(
+internal fun AutosaveRow(
     appScope: CoroutineScope,
     fieldKey: String,
     label: String,
