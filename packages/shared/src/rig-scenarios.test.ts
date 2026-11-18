@@ -151,8 +151,9 @@ describe("the guard's caps", () => {
 describe("variants", () => {
   it("fails dropping a variant 4.2 names, or every one of them", () => {
     const one = fresh();
-    byId(one, "S07").runs = byId(one, "S07").runs.filter((run) => run.label !== "hop-cap");
-    expect(problems(one)).toMatch(/S07: 4.2 names the hop cap variant\(s\), and runs lists no such run/);
+    const transfer = byId(one, "S07");
+    transfer.runs = transfer.runs.filter((run) => run.label !== "timeout");
+    expect(problems(one)).toMatch(/S07: 4.2 names the timeout variant\(s\), and runs lists no such run/);
     const all = fresh();
     byId(all, "E01").runs = byId(all, "E01").runs.slice(0, 1);
     expect(problems(all)).toMatch(/E01: 4.2 names the notifications revoked, force stopped variant\(s\)/);
@@ -160,8 +161,10 @@ describe("variants", () => {
 
   it("fails a variant 4.2 does not name", () => {
     const invented = fresh();
-    byId(invented, "S07").runs.push({ label: "busy" });
-    expect(problems(invented)).toMatch(/S07: runs\[4\] is labelled "busy", and 4.2's row does not name it/);
+    const runs = byId(invented, "S07").runs;
+    const index = runs.length;
+    runs.push({ label: "busy" });
+    expect(problems(invented)).toContain(`S07: runs[${index}] is labelled "busy", and 4.2's row does not name it`);
     expect(problems(invented)).toMatch(/S07: runs lists variant\(s\) busy that 4.2 does not name/);
   });
 
