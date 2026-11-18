@@ -22,8 +22,6 @@ import { resolveNumberAccess } from "../auth/number-access";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
-import { pendingNotificationCounts } from "./pending-notification-counts";
-import type { PendingNotification } from "./pending-notification-counts";
 
 /** Task rows read per member to count what is overdue or due today. */
 const SUMMARY_TASK_ROWS = 100;
@@ -43,7 +41,9 @@ interface SummaryRow {
   summary_date: string;
 }
 
-interface HeldNotification extends PendingNotification {
+interface HeldNotification {
+  category: string;
+  conversation_id: string | null;
   conversations: { phone_number_id: string } | null;
 }
 
@@ -199,10 +199,16 @@ export async function runDailySummary(
         .select("category,conversation_id,conversations(phone_number_id)");
       if (held.error) throw new Error(held.error.message);
       const hidden = new Set(access.hiddenNumberIds);
-      const visible = ((held.data ?? []) as unknown as HeldNotification[]).filter(
-        (notification) => !notification.conversations || !hidden.has(notification.conversations.phone_number_id),
-      );
-      const pending = pendingNotificationCounts(visible);
+      const activityCounts = new Map<string, number>();
+      const messageConversations = new Set<string>();
+      for (const notification of (held.data ?? []) as unknown as HeldNotification[]) {
+        if (notification.conversations && hidden.has(notification.conversations.phone_number_id)) continue;
+        const { category, conversation_id: conversationId } = notification;
+        activityCounts.set(category, (activityCounts.get(category) ?? 0) + 1);
+        if (conversationId && (category === "messages_mine" || category === "messages_all")) {
+          messageConversations.add(conversationId);
+        }
+      }
       const url = `${env.APP_ORIGIN}/for-you`;
       // #228: composed PER READER. The counts come off one RPC and mean the
       // same thing in either language; the sentence that reports them does
@@ -210,7 +216,7 @@ export async function runDailySummary(
       // somebody reads all day.
       const summaryPush = (locale: Locale) => {
         const status = summaryLine(counts, locale);
-        const activity = digestLine(pending.counts, pending.conversationCount, locale);
+        const activity = digestLine(activityCounts, messageConversations.size, locale);
         return { title: SUMMARY_TITLE[locale], body: activity ? `${status} ${activity}.` : status, url };
       };
 

@@ -1,30 +1,11 @@
-/**
- * #297 — the batch, sent as one thing.
- *
- * "Four new messages across three conversations" is one useful notification
- * instead of four interruptions. That sentence is the entire feature: the queue
- * exists so this job can say it.
- *
- * ONE PUSH PER MEMBER, NOT PER ROW. The claim RPC groups by member for exactly
- * this reason — flushing row by row would send four notifications that each say
- * "1 new message", which is the volume problem wearing the feature's name, with
- * nothing to error and nobody to file a bug.
- *
- * A batch NEVER contains anything urgent. Urgent events are sent before the
- * queue is consulted, so nothing in here can be an emergency waiting on a
- * window — which is the property that makes the whole feature safe to offer.
- */
-import { digestLine } from '@loonext/shared';
-import type { Locale } from '@loonext/shared';
+import { digestLine } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
 import { DIGEST_PUSH_COPY } from "./digest-copy";
-import { pendingNotificationCounts } from "./pending-notification-counts";
-import type { PendingNotification } from "./pending-notification-counts";
 
-/** How many members' batches one tick will flush. */
 const MAX_MEMBERS_PER_TICK = 20;
 
 export interface BatchFlushSummary {
@@ -32,96 +13,75 @@ export interface BatchFlushSummary {
   notifications: number;
 }
 
-interface PendingRow extends PendingNotification {
-  id: string;
+interface NotificationBatch {
   company_id: string;
   user_id: string;
+  counts: Record<string, number>;
+  conversations: number;
+  notifications: number;
 }
 
-/**
- * Send every batch whose window has closed.
- *
- * Best-effort per member: one workspace's dead push tokens must not stop the
- * next member's digest. Failures are logged and the run continues, because the
- * alternative is one bad row holding the sweep hostage every minute.
- */
 export async function runBatchFlush(
   env: Env,
   now = new Date(),
 ): Promise<BatchFlushSummary> {
   const db = getDb(env);
   const summary: BatchFlushSummary = { members: 0, notifications: 0 };
+  const leaseId = crypto.randomUUID();
 
-  const { data, error } = await db.rpc("api_claim_due_notifications", {
+  const { data, error } = await db.rpc("api_lease_notification_batches", {
     p_now: now.toISOString(),
+    p_lease_id: leaseId,
     p_limit: MAX_MEMBERS_PER_TICK,
   });
-  if (error) throw new Error(`claim due notifications failed: ${error.message}`);
+  if (error) throw new Error(`lease notification batches failed: ${error.message}`);
 
-  const rows = (data ?? []) as PendingRow[];
-  if (rows.length === 0) return summary;
-
-  // Group by (company, member): the claim already scoped it that way, and a
-  // member who belongs to two workspaces gets two digests, because they are
-  // two different inboxes and one sentence could not honestly cover both.
-  const batches = new Map<string, PendingRow[]>();
-  for (const row of rows) {
-    const key = `${row.company_id}:${row.user_id}`;
-    batches.set(key, [...(batches.get(key) ?? []), row]);
-  }
-
-  for (const batch of batches.values()) {
-    const first = batch[0];
+  for (const batch of (data ?? []) as NotificationBatch[]) {
     try {
-      const { counts, conversationCount } = pendingNotificationCounts(batch);
-      // Into the inbox rather than a thread, EVEN when the digest covers one
-      // conversation. A digest is a summary of a period, and landing somebody
-      // in a single thread would answer a question they did not ask while
-      // hiding the other three.
-      const url = `${env.APP_ORIGIN}/inbox`;
-      // #228: composed PER READER, not once for the batch. The counts are the
-      // same number in either language; the sentence around them is not, and
-      // both halves are ours to translate — the title from the table beside
-      // this file, the body from the shared counting rule.
+      let consumed = false;
+      async function consumeBatch(): Promise<boolean> {
+        const { data, error } = await db.rpc("api_consume_notification_batch", {
+          p_company_id: batch.company_id,
+          p_user_id: batch.user_id,
+          p_lease_id: leaseId,
+        });
+        if (error) throw new Error(error.message);
+        consumed = data === true;
+        return consumed;
+      }
+
+      if (batch.notifications === 0) {
+        await consumeBatch();
+        continue;
+      }
+
+      const counts = new Map(Object.entries(batch.counts));
       const digest = (locale: Locale) => ({
         title: DIGEST_PUSH_COPY[locale].title,
-        body: digestLine(counts, conversationCount, locale),
-        url,
+        body: digestLine(counts, batch.conversations, locale),
+        url: `${env.APP_ORIGIN}/inbox`,
       });
       const failures: unknown[] = [];
       await deliverPush(env, db, {
-        companyId: first.company_id,
-        // The digest is not any one category — it is what a member asked to
-        // have grouped. Sending it as `operational` is what stops the volume
-        // control from being applied to the volume control's own output,
-        // which would queue the digest and never send anything at all.
+        companyId: batch.company_id,
         category: "operational",
-        failures,
-        userIds: [first.user_id],
-        // #430: every word is ours. A digest deliberately carries no customer
-        // content — it is a count, which is the one thing a lock screen can
-        // say about four different people without quoting any of them.
+        userIds: [batch.user_id],
         content: { written: "us" },
-        // One identity per member: a second digest REPLACES the first rather
-        // than stacking. Somebody who was away for an hour should find one
-        // notification, not twelve.
-        collapseKey: `digest:${first.user_id}`,
+        collapseKey: `digest:${batch.user_id}`,
         web: digest,
         native: (locale) => ({ kind: "digest", ...digest(locale) }),
+        beforeDispatch: consumeBatch,
+        failures,
       });
       if (failures.length > 0) {
-        console.error(
-          `batch flush: ${failures.length} push(es) failed for ${first.user_id}`,
-        );
+        console.error(`batch flush: ${failures.length} push(es) failed for ${batch.user_id}`);
       }
-      summary.members += 1;
-      summary.notifications += batch.length;
+      if (consumed) {
+        summary.members += 1;
+        summary.notifications += batch.notifications;
+      }
     } catch (error_) {
-      // The rows are already claimed and deleted, so this batch is not
-      // retried. That is the right trade: a retry loop would re-notify
-      // everybody whose batch happened to share a tick with a broken one, and
-      // every message in it is still sitting unread in the inbox.
-      console.error(`batch flush: ${first.user_id} failed`, error_);
+      console.error(`batch flush: ${batch.user_id} failed`, error_);
     }
   }
 
