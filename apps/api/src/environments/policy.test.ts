@@ -170,9 +170,11 @@ describe("rig mode's start-up refusals", () => {
     ["FCM_OAUTH_TOKEN_URL", { FCM_OAUTH_TOKEN_URL: "https://oauth2.googleapis.com/token" }],
     ["TELNYX_BILLING_GROUP_ID", { TELNYX_BILLING_GROUP_ID: undefined }],
   ])("refuses a wrong %s", (name, overrides) => {
-    const bindings: Record<string, unknown> = { ...rigEnv(), ...overrides };
+    let bindings: Record<string, unknown> = { ...rigEnv(), ...overrides };
     for (const [key, value] of Object.entries(overrides)) {
-      if (value === undefined) delete bindings[key];
+      if (value !== undefined) continue;
+      const { [key]: _unset, ...remaining } = bindings;
+      bindings = remaining;
     }
     expect(() => getEnv(bindings)).toThrow(new RegExp(name));
   });

@@ -1992,9 +1992,9 @@ export class CallSessionDO extends DurableObject<Env> {
   private async clearAlarmSlot(slot: AlarmSlot): Promise<void> {
     const alarms = await this.getAlarms();
     if (!(slot in alarms)) return;
-    delete alarms[slot];
-    await this.ctx.storage.put("alarms", alarms);
-    await this.reconcileAlarm(alarms);
+    const { [slot]: _cleared, ...remaining } = alarms;
+    await this.ctx.storage.put("alarms", remaining);
+    await this.reconcileAlarm(remaining);
   }
 
   /** Set the single platform alarm to the nearest logical deadline. */

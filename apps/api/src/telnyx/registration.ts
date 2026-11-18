@@ -1431,10 +1431,10 @@ export async function retryCampaignAssignments(env: Env): Promise<number> {
     // Reset failures to unassigned so assignNumbersToCampaign re-attempts;
     // it also picks up any active number missing from the ledger entirely.
     if (hasFailure) {
-      for (const key of Object.keys(ledger)) {
-        if (ledger[key] === "failed") delete ledger[key];
-      }
-      campaign.data = { ...campaign.data, numberAssignments: ledger };
+      const numberAssignments = Object.fromEntries(
+        Object.entries(ledger).filter(([, state]) => state !== "failed"),
+      );
+      campaign.data = { ...campaign.data, numberAssignments };
     }
     const before = JSON.stringify(assignmentLedger(campaign));
     const updated = await assignNumbersToCampaign(env, db, campaign);

@@ -66,7 +66,10 @@ export function emulatorArgs(device, { dnsServer, cold = false, wipe = false, au
  */
 export function emulatorEnv({ paths, sdk, adbPort, base = process.env }) {
   const env = adbEnv(adbPort, base);
-  for (const name of ["ANDROID_HOME", "ANDROID_SDK_HOME", "ANDROID_USER_HOME", "ANDROID_PREFS_ROOT"]) delete env[name];
+  delete env.ANDROID_HOME;
+  delete env.ANDROID_SDK_HOME;
+  delete env.ANDROID_USER_HOME;
+  delete env.ANDROID_PREFS_ROOT;
   return {
     ...env,
     ANDROID_SDK_ROOT: sdk,

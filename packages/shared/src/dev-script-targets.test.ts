@@ -28,9 +28,9 @@ const FAKE_LIVE_KEY = "sk_live_not-a-real-key-only-a-test";
 
 function envWithoutCredentials(extra: Record<string, string>): NodeJS.ProcessEnv {
   const env = { ...process.env };
-  for (const name of ["SUPABASE_URL", "SUPABASE_SECRET_KEY", "STRIPE_SECRET_KEY"]) {
-    delete env[name];
-  }
+  delete env.SUPABASE_URL;
+  delete env.SUPABASE_SECRET_KEY;
+  delete env.STRIPE_SECRET_KEY;
   return { ...env, ...extra };
 }
 

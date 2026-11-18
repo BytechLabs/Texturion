@@ -77,13 +77,17 @@ export async function handleResend(ctx: Ctx, request: Request, path: string): Pr
   if (!body || typeof body !== "object" || Array.isArray(body)) throw new Refusal("request.body_invalid");
 
   const recipients: string[] = [];
-  const outgoing: Record<string, unknown> = { ...body };
+  let outgoing = { ...body };
   for (const field of ["to", "cc", "bcc"]) {
     const list = addresses(body[field]);
     if (list === null) throw new Refusal("resend.recipient_refused");
     recipients.push(...list);
-    if (list.length > 0) outgoing[field] = list;
-    else delete outgoing[field];
+    if (list.length > 0) {
+      outgoing[field] = list;
+    } else {
+      const { [field]: _empty, ...remaining } = outgoing;
+      outgoing = remaining;
+    }
   }
   if (recipients.length === 0) throw new Refusal("resend.recipient_refused");
 
