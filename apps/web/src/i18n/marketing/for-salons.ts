@@ -113,9 +113,9 @@ export const salonsEn = {
     "for up to 15 people and a second number to keep two shops separate.",
 
   faqH2: "Salon questions, straight answers.",
-  faqRemindersQ: "Will Loonext send appointment reminders on its own?",
+  faqRemindersQ: "How can my team confirm appointments by text?",
   faqRemindersA:
-    "No. You send them, and that's on purpose. Pull up tomorrow's column and text each client a confirmation with a saved reply; it takes a couple of taps per client, keeps a real person in the loop, and stays inside the phone companies' rules on unsolicited blasts. What you get is one shared inbox where the whole team sees who's confirmed and who hasn't.",
+    "Use a saved reply to send a confirmation from the shared inbox. Your whole team can see who has confirmed and who still needs a follow-up.",
   faqNoShowQ: "How does texting actually reduce no-shows?",
   faqNoShowA:
     "A client who's tapped yes to a confirmation is far more likely to show than one who booked a week ago and forgot. Because the confirmations live in a shared inbox, anyone on the team can send them and see who still needs a nudge. It doesn't all fall on the front desk on a busy morning.",
@@ -242,9 +242,9 @@ export const salonsFr: Translated<typeof salonsEn> = {
 
   faqH2: "Questions de salons, réponses directes.",
   faqRemindersQ:
-    "Est-ce que Loonext envoie les rappels de rendez-vous tout seul ?",
+    "Comment mon équipe peut-elle confirmer les rendez-vous par texto ?",
   faqRemindersA:
-    "Non. C'est vous qui les envoyez, et c'est voulu. Sortez la colonne de demain et écrivez à chaque cliente une confirmation avec une réponse enregistrée ; ça prend deux touches par cliente, ça garde une vraie personne dans la boucle, et ça reste à l'intérieur des règles des compagnies de téléphone sur les envois non sollicités. Ce que vous obtenez, c'est une seule boîte partagée où toute l'équipe voit qui a confirmé et qui ne l'a pas fait.",
+    "Utilisez une réponse enregistrée pour envoyer une confirmation depuis la boîte partagée. Toute votre équipe peut voir qui a confirmé et qui attend encore un suivi.",
   faqNoShowQ: "Comment le texto réduit-il concrètement les absences ?",
   faqNoShowA:
     "Une cliente qui a répondu oui à une confirmation est bien plus susceptible de se présenter qu'une cliente qui a réservé il y a une semaine et a oublié. Comme les confirmations vivent dans une boîte partagée, n'importe qui dans l'équipe peut les envoyer et voir qui a encore besoin d'un rappel. Tout ne retombe pas sur la réception un matin occupé.",

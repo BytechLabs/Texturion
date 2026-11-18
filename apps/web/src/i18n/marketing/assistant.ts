@@ -94,7 +94,7 @@ export const assistantEn = {
   faqTitle: "Assistant questions, straight answers.",
   faqSendQ: "Will Lou reply to my customers without me?",
   faqSendA:
-    "No, and there is no setting that would let it. Every draft waits in the composer for a person to read, change, or delete. The only message Loonext ever sends on its own is your after-hours auto-reply and your missed-call text back, and both of those are words you wrote yourself, not words Lou wrote.",
+    "Your team sends Lou’s replies. Each draft waits in the composer for a teammate to read, edit or delete. Your after-hours reply and missed-call text-back use the wording you set.",
   faqTrainQ: "Is my customers' message content used to train AI models?",
   faqTrainA:
     "No. The models run on Cloudflare Workers AI inside the same account that hosts the app, and message content and voicemail audio are not used for training, by Cloudflare's published policy and by ours. Anything Lou produces is stored in your workspace like any other message and is deleted when that data is.",
@@ -200,7 +200,7 @@ export const assistantFr: Translated<typeof assistantEn> = {
   faqTitle: "Questions sur l'adjoint, réponses directes.",
   faqSendQ: "Est-ce que Lou répondra à mes clients sans moi ?",
   faqSendA:
-    "Non, et aucun réglage ne le permettrait. Chaque brouillon attend dans le champ de saisie qu'une personne le lise, le change ou le supprime. Les seuls messages que Loonext envoie de lui-même sont votre réponse automatique après les heures et votre texto de retour d'appel manqué, et ce sont dans les deux cas des mots que vous avez écrits vous-même, pas des mots de Lou.",
+    "Votre équipe envoie les réponses que Lou rédige. Chaque brouillon reste dans le champ de saisie jusqu’à ce qu’une personne de l’équipe le lise, le modifie ou le supprime. La réponse après les heures et le texto de retour d’appel manqué utilisent le texte que vous choisissez.",
   faqTrainQ:
     "Le contenu des messages de mes clients sert-il à entraîner des modèles d'IA ?",
   faqTrainA:
