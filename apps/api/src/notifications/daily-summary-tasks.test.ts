@@ -65,14 +65,12 @@ describe(tasksNeedingToday, () => {
 describe("the summary line", () => {
   function run(myTasks: unknown[]) {
     const sb = supabaseStub(env);
-    sb.on("GET", "/rest/v1/notification_prefs", () => [
+    sb.on("POST", "/rest/v1/rpc/api_due_daily_summaries", () => [
       {
         user_id: MEMBER,
         company_id: COMPANY,
-        summary_at: "07:30",
-        summary_sent_on: null,
-        quiet_timezone: "America/Toronto",
-        companies: { timezone: "America/Toronto" },
+        timezone: "America/Toronto",
+        summary_date: "2026-08-05",
       },
     ]);
     sb.on("PATCH", "/rest/v1/notification_prefs", () => [{ user_id: MEMBER }]);

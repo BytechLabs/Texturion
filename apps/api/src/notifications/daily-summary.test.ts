@@ -22,10 +22,7 @@ const QUARTER_TO_EIGHT = new Date("2026-08-05T11:45:00Z");
 const MIDDLE_OF_THE_NIGHT = new Date("2026-08-05T07:00:00Z");
 
 interface Options {
-  summaryAt?: string;
-  sentOn?: string | null;
-  timezone?: string | null;
-  companyTimezone?: string | null;
+  due?: boolean;
   waiting?: number;
   tasks?: number;
   claimed?: Record<string, unknown>[];
@@ -33,22 +30,15 @@ interface Options {
 
 function world(options: Options = {}) {
   const sb = supabaseStub(env);
-  sb.on("GET", "/rest/v1/notification_prefs", () => [
-    {
+  sb.on("GET", "/rest/v1/notification_prefs", () => []);
+  sb.on("POST", "/rest/v1/rpc/api_due_daily_summaries", () =>
+    options.due === false ? [] : [{
       user_id: MEMBER,
       company_id: COMPANY,
-      summary_at: options.summaryAt ?? "07:30",
-      summary_sent_on: options.sentOn ?? null,
-      quiet_timezone:
-        options.timezone === undefined ? "America/Toronto" : options.timezone,
-      companies: {
-        timezone:
-          options.companyTimezone === undefined
-            ? "America/Toronto"
-            : options.companyTimezone,
-      },
-    },
-  ]);
+      timezone: "America/Toronto",
+      summary_date: "2026-08-05",
+    }],
+  );
   sb.on("PATCH", "/rest/v1/notification_prefs", () =>
     options.claimed ?? [{ user_id: MEMBER }],
   );
@@ -77,44 +67,23 @@ describe(runDailySummary, () => {
     const summary = await runDailySummary(env, QUARTER_TO_EIGHT);
 
     expect(summary).toEqual({ considered: 1, sent: 1 });
+    expect(sb.find("POST", "/rest/v1/rpc/api_due_daily_summaries")[0]?.body).toEqual({
+      p_now: QUARTER_TO_EIGHT.toISOString(),
+      p_limit: 50,
+    });
+    const claim = sb.find("PATCH", "/rest/v1/notification_prefs")[0];
+    expect(claim?.body).toEqual({ summary_sent_on: "2026-08-05" });
+    expect(claim?.url.searchParams.get("or")).toContain("summary_sent_on.lt.2026-08-05");
     expect(
       sb.calls.some((call) => call.path === "/rest/v1/push_subscriptions"),
     ).toBe(true);
   });
 
-  it("SM-2: does NOT go before their time, in their zone", async () => {
-    // The failure this prevents arrives at 3am and reads as a bug in somebody
-    // else's code. Nothing errors — the summary is simply wrong about what
-    // "morning" means for that person.
-    const sb = world();
+  it("sends nothing when the database returns no due summary", async () => {
+    const sb = world({ due: false });
 
-    const summary = await runDailySummary(env, MIDDLE_OF_THE_NIGHT);
-
-    expect(summary).toEqual({ considered: 1, sent: 0 });
-    expect(
-      sb.calls.some((call) => call.path === "/rest/v1/push_subscriptions"),
-    ).toBe(false);
-  });
-
-  it("SM-3: once per day, judged on THEIR calendar", async () => {
-    // Comparing instants would send a second summary to anybody whose midnight
-    // falls differently from the server's, which is most of the customer base.
-    const sb = world({ sentOn: "2026-08-05" });
-
-    const summary = await runDailySummary(env, QUARTER_TO_EIGHT);
-
-    expect(summary.sent).toBe(0);
-    expect(
-      sb.calls.some((call) => call.method === "PATCH"),
-    ).toBe(false);
-  });
-
-  it("SM-4: yesterday's summary does not stop today's", async () => {
-    world({ sentOn: "2026-08-04" });
-
-    const summary = await runDailySummary(env, QUARTER_TO_EIGHT);
-
-    expect(summary.sent).toBe(1);
+    expect(await runDailySummary(env, MIDDLE_OF_THE_NIGHT)).toEqual({ considered: 0, sent: 0 });
+    expect(sb.calls.some((call) => call.method === "PATCH")).toBe(false);
   });
 
   it("SM-5: the day is claimed BEFORE the push, and losing the claim sends nothing", async () => {
@@ -128,39 +97,6 @@ describe(runDailySummary, () => {
     expect(
       sb.calls.some((call) => call.path === "/rest/v1/rpc/api_for_you"),
     ).toBe(false);
-  });
-
-  it("SM-6: falls back to the workspace clock when the member has none", async () => {
-    world({ timezone: null });
-
-    expect((await runDailySummary(env, QUARTER_TO_EIGHT)).sent).toBe(1);
-  });
-
-  it("SM-7: no clock at all SKIPS rather than guessing", async () => {
-    // The opposite bias from the rest of the notification paths, on purpose:
-    // this is an optional courtesy on a schedule, and sending it at the wrong
-    // hour is worse than not sending it. It will go tomorrow.
-    world({ timezone: null, companyTimezone: null });
-
-    expect((await runDailySummary(env, QUARTER_TO_EIGHT)).sent).toBe(0);
-  });
-
-  it("SM-11: a STORED zone that no longer resolves also skips", async () => {
-    // A different guard from SM-7, and the one that actually bites: a member
-    // whose saved timezone has been renamed or was never valid reaches the
-    // clock resolver with a non-null string. Testing only the null case left
-    // that branch unguarded — found by deleting it and watching nothing fail.
-    world({ timezone: "Mars/Olympus" });
-    const logged = vi.spyOn(console, "error").mockImplementation(() => {});
-
-    expect((await runDailySummary(env, QUARTER_TO_EIGHT)).sent).toBe(0);
-
-    // Not sending is only half of it. Without the explicit check the clock
-    // resolver returns null, the next line throws, and the per-member catch
-    // swallows it — same outcome, but every tick logs an error about a
-    // perfectly ordinary condition, which is how a real failure gets lost.
-    expect(logged).not.toHaveBeenCalled();
-    logged.mockRestore();
   });
 
   it("SM-8: the counts exclude numbers this member cannot see", async () => {

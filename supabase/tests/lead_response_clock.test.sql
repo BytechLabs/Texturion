@@ -334,6 +334,17 @@ begin
     raise exception 'LC-6 FAILED: an assigned, overdue, opted-in thread did not reach rung 2: %', due;
   end if;
 
+  update public.conversations
+     set awaiting_reply_since = now() - interval '25 minutes', chase_level = 0
+   where id = '38800000-0000-4000-8000-000000000041';
+  due := public.api_due_lead_chases(now(), 5, 1);
+  if jsonb_array_length(due) is distinct from 1
+     or due->0->>'conversation_id' is distinct from '38800000-0000-4000-8000-000000000047' then
+    raise exception 'LC-6 FAILED: the limit must select just the oldest due conversation: %', due;
+  end if;
+  update public.conversations set awaiting_reply_since = null
+   where id = '38800000-0000-4000-8000-000000000041';
+
   -- The opt-in is real.
   update public.companies set lead_chase_crew_enabled = false
    where id = '38800000-0000-4000-8000-000000000010';

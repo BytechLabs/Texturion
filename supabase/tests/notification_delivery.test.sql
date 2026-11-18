@@ -220,4 +220,51 @@ begin
   end if;
 end $$;
 
+insert into auth.users (id, email)
+select ('7b000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid,
+       'summary-' || n || '@test.local'
+  from generate_series(1001, 1124) n;
+
+update public.companies
+   set timezone = 'America/Toronto'
+ where id = '7b000000-0000-4000-8000-0000000000c1';
+
+insert into public.notification_prefs
+  (company_id, user_id, summary_at, quiet_timezone, push_enabled, summary_sent_on)
+select '7b000000-0000-4000-8000-0000000000c1',
+       ('7b000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid,
+       case when n = 1121 then time '18:00' else time '07:30' end,
+       case when n = 1122 then 'Mars/Olympus' end,
+       n <> 1123,
+       case when n = 1124 then date '2026-08-05' end
+  from generate_series(1001, 1124) n;
+
+do $$
+declare
+  v_now constant timestamptz := '2026-08-05T11:45:00Z';
+  v_expected integer;
+  v_claimed integer;
+begin
+  foreach v_expected in array array[50, 50, 20, 0] loop
+    with due as (
+      select * from public.api_due_daily_summaries(v_now, 50)
+    ), claimed as (
+      update public.notification_prefs p
+         set summary_sent_on = due.summary_date
+        from due
+       where p.user_id = due.user_id and p.company_id = due.company_id
+       returning p.user_id
+    )
+    select count(*) into v_claimed from claimed;
+    if v_claimed is distinct from v_expected then
+      raise exception 'Daily summaries claimed %, expected %', v_claimed, v_expected;
+    end if;
+  end loop;
+
+  if has_function_privilege('authenticated',
+       'public.api_due_daily_summaries(timestamptz,integer)', 'execute') then
+    raise exception 'Daily summary candidates must be visible only to the worker';
+  end if;
+end $$;
+
 rollback;
