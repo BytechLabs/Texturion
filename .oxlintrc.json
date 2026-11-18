@@ -50,7 +50,7 @@
     "eslint/no-duplicate-imports": ["off", { "allowSeparateTypeImports": true }], // not yet clean: 10 (#822)
     "eslint/class-methods-use-this": ["off", { "ignoreClassesWithImplements": "all", "ignoreOverrideMethods": true }], // not yet clean: 11 (#822)
     "eslint/no-underscore-dangle": ["off", { "allow": ["__vitest_worker__", "_def"], "allowAfterThis": true }], // not yet clean: 16 (#822)
-    "jsdoc/check-tag-names": ["off", { "definedTags": ["vitest-environment"] }], // not yet clean: 1 (#822)
+    "jsdoc/check-tag-names": ["error", { "definedTags": ["vitest-environment"] }],
     "unicorn/import-style": ["off", { "extendDefaultStyles": false, "styles": { "node:path": { "named": true }, "node:fs": { "named": true }, "node:url": { "named": true }, "node:util": { "named": true } } }], // not yet clean: 10 (#822)
     "import/no-unassigned-import": ["off", { "allow": ["**/*.css", "server-only", "client-only"] }], // not yet clean: 1 (#822)
     "vitest/valid-expect": ["off", { "maxArgs": 2 }], // not yet clean: 2 (#822)
@@ -259,7 +259,6 @@
     "typescript/no-unnecessary-type-conversion": "off", // 10
     "unicorn/prefer-ternary": "off", // 10
     "vitest/prefer-to-have-length": "off", // 10
-    "typescript/no-extraneous-class": "off", // 9
     "unicorn/filename-case": "off", // 9
     "unicorn/no-lonely-if": "off", // 9
     "unicorn/no-useless-fallback-in-spread": "off", // 9

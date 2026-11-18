@@ -14,7 +14,7 @@
  * sure of is always left alone, so a half-understood line still reads as the
  * member typed it.
  *
- *   @me / @name   the one teammate whose name (or first name) starts with it.
+ *   `@me` / `@name`   the one teammate whose name (or first name) starts with it.
  *                 Two matches, or none, leave the word in the title.
  *   #urgent #high #low #normal   the priority. The first one wins.
  *   #label        a workspace label, matched whole and ignoring case. An

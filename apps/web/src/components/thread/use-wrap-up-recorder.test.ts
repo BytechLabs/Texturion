@@ -47,12 +47,12 @@ describe(canRecordAudio, () => {
   });
 
   it("is false when MediaRecorder exists but there is no mediaDevices", () => {
-    vi.stubGlobal("MediaRecorder", class {});
+    vi.stubGlobal("MediaRecorder", vi.fn());
     expect(canRecordAudio()).toBe(false);
   });
 
   it("is true only when both halves are present", () => {
-    vi.stubGlobal("MediaRecorder", class {});
+    vi.stubGlobal("MediaRecorder", vi.fn());
     stubMediaDevices(async () => ({}) as MediaStream);
     expect(canRecordAudio()).toBe(true);
   });
@@ -164,7 +164,7 @@ describe(useWrapUpRecorder, () => {
   });
 
   it("explains a denied microphone instead of doing nothing", async () => {
-    vi.stubGlobal("MediaRecorder", class {});
+    vi.stubGlobal("MediaRecorder", vi.fn());
     stubMediaDevices(() =>
       Promise.reject(new DOMException("denied", "NotAllowedError")),
     );
