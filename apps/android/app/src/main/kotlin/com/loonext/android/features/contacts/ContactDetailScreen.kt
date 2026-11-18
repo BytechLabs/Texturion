@@ -532,7 +532,7 @@ private fun ContactDetailBody(
             }
             ContactActionId.OPT_OUT -> confirmOptOut = true
             ContactActionId.OPT_IN -> runAction {
-                messaging.revokeOptOut(companyId, contact.id)
+                mutations.revokeOptOut(companyId, contact.id)
                 onChanged()
             }
             ContactActionId.DELETE -> confirmDelete = true

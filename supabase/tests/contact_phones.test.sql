@@ -397,7 +397,7 @@ begin
      or v_result #>> '{opt_out,phone_e164}' is distinct from v_primary
      or (select count(*) from public.opt_outs
           where company_id = v_company and phone_e164 in (v_primary, v_secondary, v_other)
-            and revoked_at is null) <> 3 then
+            and revoked_at is null) is distinct from 3 then
     raise exception 'CP-opt-out: a contact opt-out should cover every saved number: %', v_result;
   end if;
   v_result := public.api_change_manual_opt_out(v_company, v_user, null, v_thread, false);

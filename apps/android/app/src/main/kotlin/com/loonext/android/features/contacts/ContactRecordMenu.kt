@@ -27,7 +27,6 @@ import com.loonext.android.AppGraph
 import com.loonext.android.core.data.RecordDeletionRepository
 import com.loonext.android.core.model.TrashKind
 import com.loonext.android.telephony.SoftphoneManager
-import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.ui.common.ContactActionId
 import com.loonext.android.ui.common.ContactActionsInput
 import com.loonext.android.ui.common.RecordMenu
@@ -118,7 +117,7 @@ internal fun ContactRecordMenu(
                 ContactActionId.OPT_OUT -> confirmOptOut = true
                 ContactActionId.OPT_IN -> scope.launch {
                     try {
-                        MessagingRepository(graph.api).revokeOptOut(companyId, contact.id)
+                        mutations.revokeOptOut(companyId, contact.id)
                         onChanged()
                     } catch (cause: Exception) {
                         onMessage(cause.userMessage(locale))

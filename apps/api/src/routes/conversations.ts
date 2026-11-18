@@ -2888,22 +2888,31 @@ async function withAnswerers(
   });
 }
 
-conversationsRoutes.on(
-  ["POST", "DELETE"],
+async function changeConversationOptOut(c: Context<AppEnv>) {
+  const conversationId = pathUuid(c, "id");
+  const db = getDb(getEnv(c.env));
+  await requireConversationAccess(db, {
+    companyId: c.get("companyId"),
+    userId: c.get("userId"),
+    role: c.get("role"),
+    conversationId,
+    need: "note",
+  });
+  return changeManualOptOut(
+    c, db, { type: "conversation", id: conversationId }, c.req.method === "POST",
+  );
+}
+
+conversationsRoutes.post(
   "/conversations/:id/opt-out",
   requireCapability("conversations.note"),
-  async (c) => {
-    const conversationId = pathUuid(c, "id");
-    const db = getDb(getEnv(c.env));
-    await requireConversationAccess(db, {
-      companyId: c.get("companyId"),
-      userId: c.get("userId"),
-      role: c.get("role"),
-      conversationId,
-      need: "note",
-    });
-    return changeManualOptOut(c, db, { type: "conversation", id: conversationId }, c.req.method === "POST");
-  },
+  changeConversationOptOut,
+);
+
+conversationsRoutes.delete(
+  "/conversations/:id/opt-out",
+  requireCapability("conversations.note"),
+  changeConversationOptOut,
 );
 
 conversationsRoutes.post(
