@@ -79,10 +79,9 @@
  * three-valued logic is often exactly what is wanted.
  */
 import { readFileSync, readdirSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = join(import.meta.dirname, "..");
 const DIR = join(REPO_ROOT, "supabase/tests");
 
 /**

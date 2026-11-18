@@ -40,7 +40,6 @@
  */
 import { readFileSync, writeFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { findNumbers } from "./check-rig-no-e164.mjs";
 
@@ -424,4 +423,4 @@ function main(argv) {
   }
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main(process.argv);
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) main(process.argv);

@@ -109,8 +109,7 @@
  * identifier" is not a platform question.
  */
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
-import { dirname, join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, relative } from "node:path";
 
 /**
  * The three clients, each with the root it scans, the extensions it reads, and
@@ -491,7 +490,7 @@ function bilingualPairEnglish() {
    * assertion about it still ran. Same shape as the ENOENT this file's own
    * header records.
    */
-  const shared = join(dirname(fileURLToPath(import.meta.url)), "..", "packages", "shared", "src");
+  const shared = join(import.meta.dirname, "..", "packages", "shared", "src");
 
   let locale;
   try {
@@ -1255,7 +1254,7 @@ function readLedger(path) {
  * functions that decide the ledger were therefore the only part of it nothing
  * could test. Same shape as `check-do-not-build.mjs`.
  */
-if (!(process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1])) {
+if (!(process.argv[1] && import.meta.filename === process.argv[1])) {
   // Imported for its exports; the scan below is not ours to run.
 } else {
 const baseline = process.argv.includes("--baseline");

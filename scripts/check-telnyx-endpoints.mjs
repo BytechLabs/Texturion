@@ -24,10 +24,9 @@
  */
 import { readFileSync, readdirSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, relative, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, relative, resolve } from "node:path";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = join(import.meta.dirname, "..");
 const API_SRC = "apps/api/src";
 export const REGISTRY_FILE = "apps/api/src/telnyx/endpoints.ts";
 const CLIENT_FILE = "apps/api/src/telnyx/client.ts";
@@ -765,4 +764,4 @@ function main() {
   );
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) main();

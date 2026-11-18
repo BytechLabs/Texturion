@@ -51,12 +51,11 @@ import { createHash, createHmac, pbkdf2Sync, randomBytes } from "node:crypto";
 import { chmodSync, existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { agentDiagEnvFile, runPsql } from "./agent-diag.mjs";
 import { fail, parseArgs } from "./lib.mjs";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const REPO_ROOT = join(import.meta.dirname, "..", "..");
 const DEFAULT_POOLER_HOST = "aws-0-us-east-1.pooler.supabase.com";
 const PROJECT_REF = /^[a-z0-9]{8,40}$/;
 const ITERATIONS = 4096;
@@ -405,4 +404,4 @@ function main() {
   );
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) main();

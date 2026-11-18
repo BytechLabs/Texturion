@@ -39,7 +39,6 @@
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
 import { argv } from "node:process";
-import { fileURLToPath } from "node:url";
 
 const DOC = "docs/DECISIONS.md";
 
@@ -159,4 +158,4 @@ function main() {
 
 // Only when RUN, never when imported. `parseRefusals` is unit-tested, and a
 // test that imports this file must not shell out to `gh` to do it.
-if (argv[1] && fileURLToPath(import.meta.url) === argv[1]) main();
+if (argv[1] && import.meta.filename === argv[1]) main();

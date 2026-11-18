@@ -15,10 +15,9 @@
  *         node scripts/pin-postgres-image.mjs --print    print the pinned version
  */
 import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const root = join(import.meta.dirname, "..");
 
 export function pinnedPostgresVersion() {
   const version = readFileSync(join(root, "supabase", "postgres-version"), "utf8").trim();
@@ -28,7 +27,7 @@ export function pinnedPostgresVersion() {
   return version;
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv[1] && import.meta.filename === process.argv[1]) {
   const version = pinnedPostgresVersion();
   if (process.argv.includes("--print")) {
     console.log(version);
