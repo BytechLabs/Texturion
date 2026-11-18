@@ -470,11 +470,11 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
       listEndpoint(
         storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
-          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+          env.STRIPE_MODULE_MMS_PRICE_ID!,
           // #134/D42: the $8 licensed voice item is retired — swept with
           // credit exactly like mms/extra_storage.
-          env.STRIPE_MODULE_VOICE_PRICE_ID as string,
-          env.STRIPE_MODULE_REGIONS_CA_PRICE_ID as string, // live module — untouched
+          env.STRIPE_MODULE_VOICE_PRICE_ID!,
+          env.STRIPE_MODULE_REGIONS_CA_PRICE_ID!, // live module — untouched
         ),
       ),
       endpoint("DELETE", /\/v1\/subscription_items\/si_[12]/, (call) => ({
@@ -522,7 +522,7 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
       listEndpoint({
         ...storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
-          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+          env.STRIPE_MODULE_MMS_PRICE_ID!,
         ),
         schedule: "sub_sched_1",
       }),
@@ -572,7 +572,7 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
     const flat = form.toString();
     expect(flat).toContain(encodeURIComponent(env.STRIPE_STARTER_PRICE_ID));
     expect(flat).not.toContain(
-      encodeURIComponent(env.STRIPE_MODULE_MMS_PRICE_ID as string),
+      encodeURIComponent(env.STRIPE_MODULE_MMS_PRICE_ID!),
     );
   });
 
@@ -583,7 +583,7 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
         storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
           // #134: regions_ca is the one live module left in the catalog.
-          env.STRIPE_MODULE_REGIONS_CA_PRICE_ID as string,
+          env.STRIPE_MODULE_REGIONS_CA_PRICE_ID!,
         ),
       ),
     ]);
@@ -617,7 +617,7 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
       listEndpoint(
         storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
-          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+          env.STRIPE_MODULE_MMS_PRICE_ID!,
         ),
       ),
       endpoint("DELETE", /\/v1\/subscription_items\/si_1/, () =>
@@ -642,7 +642,7 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
       listEndpoint(
         storedWithItems(
           env.STRIPE_STARTER_PRICE_ID,
-          env.STRIPE_MODULE_MMS_PRICE_ID as string,
+          env.STRIPE_MODULE_MMS_PRICE_ID!,
         ),
       ),
       endpoint("DELETE", /\/v1\/subscription_items\/si_1/, () =>

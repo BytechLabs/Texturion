@@ -754,7 +754,7 @@ describe("POST /v1/billing/checkout — the seats it brings with it (#523)", () 
     const form = harness.callsTo("POST", /checkout\/sessions/)[0].form();
     const prices: string[] = [];
     for (let i = 0; form.has(`line_items[${i}][price]`); i += 1) {
-      prices.push(form.get(`line_items[${i}][price]`) as string);
+      prices.push(form.get(`line_items[${i}][price]`)!);
     }
     expect(prices).not.toContain(env.STRIPE_EXTRA_NUMBER_STARTER_PRICE_ID);
   });

@@ -1004,7 +1004,7 @@ function stripeStub(
       const item = items.find((i) => i.id === id);
       if (item) {
         item.quantity = Number(form.get("quantity") ?? item.quantity ?? 1);
-        if (form.get("price")) item.price = form.get("price") as string;
+        if (form.get("price")) item.price = form.get("price")!;
       }
       return Response.json({ id, object: "subscription_item" });
     }

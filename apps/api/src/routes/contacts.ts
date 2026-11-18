@@ -3410,7 +3410,7 @@ contactsRoutes.post(
       >(
         await db.rpc("api_find_or_create_tag", {
           p_company_id: companyId,
-          p_name: body.name as string,
+          p_name: body.name!,
           p_may_create: roleHasCapability(c.get("role"), "settings.manage"),
         }),
         "tag find-or-create",
@@ -3568,7 +3568,7 @@ contactsRoutes.post(
       return c.json({ action: body.action, matched: ids.length, applied, failed });
     }
 
-    const tagId = body.tag_id as string;
+    const tagId = body.tag_id!;
     const tagRows = unwrap<{ id: string }[]>(
       await db
         .from("tags")

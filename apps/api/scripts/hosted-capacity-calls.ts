@@ -112,7 +112,7 @@ async function main(): Promise<void> {
     let quietSince: number | null = null;
     let lastActivity = performance.now();
     for (;;) {
-      const events = await ctl<Array<{ data: { id: string } }>>("events");
+      const events = await ctl<{ data: { id: string } }[]>("events");
       if (events.length > 0) {
         quietSince = null;
         acks.push(...(await Promise.all(events.map((event) => postSigned(apiOrigin, sign, event)))));
@@ -179,7 +179,7 @@ async function main(): Promise<void> {
       const ended = others.filter((leg) => lineOf(leg) === index && leg.endedAtMs !== null);
       const pickedAt = answeredAt.get(picked.callControlId) ?? null;
       return ended.length > 0 && pickedAt !== null
-        ? [Math.max(...ended.map((leg) => leg.endedAtMs as number)) - pickedAt]
+        ? [Math.max(...ended.map((leg) => leg.endedAtMs!)) - pickedAt]
         : [];
     });
     const strandedRinging = others.filter((leg) => leg.state === "ringing").length;

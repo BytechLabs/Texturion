@@ -137,7 +137,7 @@ function MemberRow({
         <p className="text-xs text-muted-foreground">
           {deactivated
             ? t("appShell.teamDeactivatedAgo", {
-                when: formatTimestamp(member.deactivated_at as string, { style: "long", t }),
+                when: formatTimestamp(member.deactivated_at!, { style: "long", t }),
               })
             : t("appShell.teamJoinedAgo", {
                 when: formatTimestamp(member.created_at, { style: "long", t }),

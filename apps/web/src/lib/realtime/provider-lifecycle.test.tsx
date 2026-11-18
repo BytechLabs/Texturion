@@ -245,9 +245,9 @@ function setup({ listener = false }: { listener?: boolean } = {}) {
       handler({ payload });
     },
     loadedPages: () =>
-      (queryClient.getQueryData(keys.conversations.lists(COMPANY)) as {
+      queryClient.getQueryData<{
         pages: unknown[];
-      }).pages.length,
+      }>(keys.conversations.lists(COMPANY))!.pages.length,
     /**
      * `keys.me` invalidations. Two paths in the effect do this and both are
      * asserted below: the reconnect backfill (the only one that ALSO trims, so
@@ -1041,7 +1041,7 @@ describe("what a read costs", () => {
       expect(unreadOnly.fetcher).not.toHaveBeenCalled();
       expect(forYou.fetcher).toHaveBeenCalledTimes(1);
       expect(
-        (queryClient.getQueryData(unreadKey) as { pages: { data: unknown[] }[] }).pages[0].data,
+        queryClient.getQueryData<{ pages: { data: unknown[] }[] }>(unreadKey)!.pages[0].data,
       ).toEqual([]);
 
       emit(COMPANY_TOPIC, "read.notifications", { user_id: USER });
@@ -1068,7 +1068,7 @@ describe("what a read costs", () => {
 
       emit(COMPANY_TOPIC, "read.conversation", { user_id: USER, conversation_id: CONVERSATION });
 
-      const rows = (queryClient.getQueryData(inboxKey) as { pages: { data: { unread: boolean }[] }[] })
+      const rows = queryClient.getQueryData<{ pages: { data: { unread: boolean }[] }[] }>(inboxKey)!
         .pages[0].data;
       expect(rows.map((row) => row.unread)).toEqual([false]);
     } finally {
@@ -1107,7 +1107,7 @@ describe("what a delivery receipt costs", () => {
       await vi.advanceTimersByTimeAsync(1_000);
 
       const cached = () =>
-        (queryClient.getQueryData(threadKey) as { pages: { data: { status: string; done_at: string | null }[] }[] })
+        queryClient.getQueryData<{ pages: { data: { status: string; done_at: string | null }[] }[] }>(threadKey)!
           .pages[0].data[0];
       expect(cached().status).toBe("delivered");
       expect(forYou.fetcher).not.toHaveBeenCalled();
@@ -1275,9 +1275,9 @@ describe("message.created", () => {
   it("asks for one message when the thread was never opened", async () => {
     const queryClient = await arrive();
     expect(limits()).toEqual([1]);
-    const row = (queryClient.getQueryData(keys.conversations.list(COMPANY, {})) as {
+    const row = queryClient.getQueryData<{
       pages: { data: { unread: boolean; last_message: { id: string } | null }[] }[];
-    }).pages[0].data[0];
+    }>(keys.conversations.list(COMPANY, {}))!.pages[0].data[0];
     expect(row.unread).toBe(true);
     expect(row.last_message?.id).toBe(MESSAGE_ID);
   });

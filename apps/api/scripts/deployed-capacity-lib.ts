@@ -897,7 +897,7 @@ export async function openSupabaseRealtimeConnection(
       let failed = false;
       if (client && channel) {
         const removal = await valueSettlementBefore(
-          () => client?.removeChannel(channel as RealtimeChannel),
+          () => client?.removeChannel(channel!),
           remaining(),
         );
         // Supabase fulfills removeChannel with "timed out" or "error" as

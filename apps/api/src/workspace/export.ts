@@ -255,7 +255,7 @@ async function buildOne(
       }
       // supabase-js parses `select()` at the type level; a column list held in
       // a const table is opaque to it, so the cast goes through `unknown`.
-      const rows = (data ?? []) as unknown as Array<{ id: string }>;
+      const rows = (data ?? []) as unknown as { id: string }[];
       if (rows.length === 0) break;
 
       const body = rows.map((entry) => JSON.stringify(entry)).join("\n");

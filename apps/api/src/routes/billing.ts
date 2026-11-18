@@ -1213,7 +1213,7 @@ billingRoutes.post("/change-plan", async (c) => {
           // by treating minutes up to 6,000 as included. Unprovisioned →
           // dropped at rollover (unbilled, never mis-billed).
           ...(voiceMeteredItem && voiceOveragePrice(env, "starter")
-            ? [{ price: voiceOveragePrice(env, "starter") as string }]
+            ? [{ price: voiceOveragePrice(env, "starter")! }]
             : []),
         ],
       },
@@ -1378,7 +1378,7 @@ billingRoutes.post("/prepay", async (c) => {
     return errorResponse(c, "conflict", message);
   }
 
-  const plan = company.plan as PlanId;
+  const plan = company.plan!;
   const price = prepayYearPrice(env, plan);
   if (!price || !company.stripe_customer_id) {
     return errorResponse(

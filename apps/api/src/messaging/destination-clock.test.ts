@@ -395,7 +395,7 @@ describe("#225 — a held message is released INTO the window, not at 8am", () =
         timeZone: "America/Chicago",
         hour: "numeric",
         hour12: false,
-      }).format(opens as Date),
+      }).format(opens!),
     ).toBe("12");
   });
 
@@ -410,7 +410,7 @@ describe("#225 — a held message is released INTO the window, not at 8am", () =
         timeZone: "America/Chicago",
         hour: "numeric",
         hour12: false,
-      }).format(opens as Date),
+      }).format(opens!),
     ).toBe("08");
   });
 

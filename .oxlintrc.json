@@ -188,7 +188,6 @@
     "vitest/prefer-expect-resolves": "off", // 160
     "unicorn/number-literal-case": "off", // 151
     "eslint/no-promise-executor-return": "off", // 133
-    "typescript/non-nullable-type-assertion-style": "off", // 127
     "unicorn/no-nested-ternary": "off", // 124
     "unicorn/switch-case-braces": "off", // 114
     "unicorn/catch-error-name": "off", // 107
@@ -277,7 +276,6 @@
     "react/display-name": "off", // 8
     "typescript/no-implied-eval": "off", // 8
     "typescript/no-unnecessary-template-expression": "off", // 8
-    "typescript/prefer-readonly": "off", // 8
     "unicorn/new-for-builtins": "off", // 8
     "unicorn/prefer-add-event-listener": "off", // 8
     "unicorn/prefer-single-call": "off", // 8
@@ -285,7 +283,6 @@
     "eslint/no-div-regex": "off", // 7
     "eslint/no-useless-return": "off", // 7
     "react/hook-use-state": "off", // 7
-    "typescript/array-type": "off", // 7
     "unicorn/escape-case": "off", // 7
     "unicorn/no-thenable": "off", // 7
     "vitest/prefer-called-exactly-once-with": "off", // 7

@@ -258,8 +258,8 @@ function dateAt(words: Word[], i: number, today: Civil & { weekday: number }, no
     const toMonday = ((8 - today.weekday) % 7) || 7;
     return { kind: "civil", civil: addDays(today, toMonday), words: 2 };
   }
-  if ((w === "next" || w === "this") && next(1) !== undefined && WEEKDAYS[next(1) as string] !== undefined) {
-    const target = WEEKDAYS[next(1) as string];
+  if ((w === "next" || w === "this") && next(1) !== undefined && WEEKDAYS[next(1)!] !== undefined) {
+    const target = WEEKDAYS[next(1)!];
     if (w === "this") {
       const ahead = ((target - today.weekday + 7) % 7) || 7;
       return { kind: "civil", civil: addDays(today, ahead), words: 2 };
@@ -274,8 +274,8 @@ function dateAt(words: Word[], i: number, today: Civil & { weekday: number }, no
   }
 
   if (w === "in" && next(1) !== undefined && next(2) !== undefined) {
-    const amount = /^(\d{1,3})$/.exec(next(1) as string);
-    const unit = next(2) as string;
+    const amount = /^(\d{1,3})$/.exec(next(1)!);
+    const unit = next(2)!;
     if (amount) {
       const n = Number(amount[1]);
       if (n >= 1) {
@@ -304,13 +304,13 @@ function dateAt(words: Word[], i: number, today: Civil & { weekday: number }, no
 
   // "nov 12" and "12 nov": the next such date on or after today.
   const monthFirst = MONTHS[w];
-  const dayAfter = next(1) === undefined ? null : ordinalDay(next(1) as string);
+  const dayAfter = next(1) === undefined ? null : ordinalDay(next(1)!);
   if (monthFirst !== undefined && dayAfter !== null) {
     const civil = nextOccurrence(monthFirst, dayAfter, today);
     return civil === null ? null : { kind: "civil", civil, words: 2 };
   }
   const dayFirst = ordinalDay(w);
-  const monthAfter = next(1) === undefined ? undefined : MONTHS[next(1) as string];
+  const monthAfter = next(1) === undefined ? undefined : MONTHS[next(1)!];
   if (dayFirst !== null && monthAfter !== undefined) {
     const civil = nextOccurrence(monthAfter, dayFirst, today);
     return civil === null ? null : { kind: "civil", civil, words: 2 };
@@ -454,7 +454,7 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
         }
       }
     } else {
-      const at = clock as Clock;
+      const at = clock!;
       instant = zonedToInstant(today, at, ctx.timeZone);
       if (instant <= now) instant = zonedToInstant(addDays(today, 1), at, ctx.timeZone);
       dueHasTime = true;

@@ -372,7 +372,7 @@ export function prepaidCouponIds(env: Env): string[] {
   if (!base) return [];
   return Array.from(
     { length: PREPAY_MONTHS },
-    (_unused, index) => prepaidRemainderCouponId(env, index + 1) as string,
+    (_unused, index) => prepaidRemainderCouponId(env, index + 1)!,
   );
 }
 

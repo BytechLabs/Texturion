@@ -842,7 +842,7 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
                 .from("calls")
                 .select("conversation_id")
                 .eq("company_id", companyId)
-                .eq("id", body.source_call_id as string)
+                .eq("id", body.source_call_id!)
                 .limit(1),
               "task call source lookup",
             );
@@ -3151,7 +3151,7 @@ tasksRoutes.post("/tasks/:id/tags", requireCapability("conversations.note"), asy
     >(
       await db.rpc("api_find_or_create_tag", {
         p_company_id: companyId,
-        p_name: body.name as string,
+        p_name: body.name!,
         p_may_create: roleHasCapability(c.get("role"), "settings.manage"),
       }),
       "tag find-or-create",

@@ -178,7 +178,7 @@ export function placePanels(
       if (!narrowToFit) break;
     }
     // One column never leaves a hole, so the loop above always chooses.
-    const placed = chosen as PanelPlacement;
+    const placed = chosen!;
     placements.push(placed);
     for (let column = placed.column; column < placed.column + placed.span; column++) {
       nextTop[column] = placed.top + box.height + gap;

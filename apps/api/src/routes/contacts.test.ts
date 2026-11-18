@@ -1159,7 +1159,7 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
     expect(body.next_cursor).toBeTruthy();
     expect(body.next_cursor).not.toContain("+");
     expect(body.next_cursor).not.toContain(":");
-    expect(decodeCursor(body.next_cursor as string)).toEqual({
+    expect(decodeCursor(body.next_cursor!)).toEqual({
       ts: "2026-07-19T09:00:00.000Z",
       id: "0bbb0bbb-1111-4222-8333-444444444444",
     });

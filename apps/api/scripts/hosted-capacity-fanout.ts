@@ -120,7 +120,7 @@ async function main(): Promise<void> {
   const startAt = Number(option(args, "--start-at") ?? "0");
 
   /** message id -> every (socket, receive time) for it. */
-  const receipts = new Map<string, Array<{ socket: number; at: number }>>();
+  const receipts = new Map<string, { socket: number; at: number }[]>();
   const sockets: Socket[] = [];
   const joinMs: number[] = [];
   let conversationId: string | undefined;
@@ -191,7 +191,7 @@ async function main(): Promise<void> {
         headers: { authorization: `Bearer ${token}`, "x-company-id": companyId },
       });
       if (!response.ok) throw new CapacityConfigError(`reading the thread back answered ${response.status}`);
-      const body = (await response.json()) as { data: Array<{ id: string; body: string }>; next_cursor: string | null };
+      const body = (await response.json()) as { data: { id: string; body: string }[]; next_cursor: string | null };
       for (const row of body.data) if (row.body.startsWith(prefix)) out.set(row.body, row.id);
       cursor = body.next_cursor;
       if (!cursor) break;

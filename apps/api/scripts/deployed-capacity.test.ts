@@ -365,7 +365,7 @@ describe("bounded API ramp", () => {
 
   it("records but exits inconclusive for repeated network-only failures", async () => {
     const emitted: CapacityEvidence[] = [];
-    const sequence: Array<number | "network"> = [200, 200, "network", 200, "network"];
+    const sequence: (number | "network")[] = [200, 200, "network", 200, "network"];
     const fetcher = vi.fn(async () => {
       const next = sequence.shift();
       if (next === "network") throw new TypeError("unreviewed network detail");
@@ -407,7 +407,7 @@ describe("bounded API ramp", () => {
   });
 
   it("can confirm a repeated server signal while preserving mixed network counts", async () => {
-    const sequence: Array<number | "network"> = [
+    const sequence: (number | "network")[] = [
       200,
       200,
       503,

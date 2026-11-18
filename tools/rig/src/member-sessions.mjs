@@ -35,8 +35,12 @@ export function clearMemberSessions(stateDir) {
  * @typedef {"memory" | "stored" | "refreshed" | "password"} SessionSource
  */
 export class MemberSessions {
-  /** @type {Map<string, StoredSession>} */
+  /**
+   * @type {Map<string, StoredSession>}
+   * @readonly
+   */
   #memory = new Map();
+  /** @readonly */
   #o;
 
   /**

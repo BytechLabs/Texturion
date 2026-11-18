@@ -107,11 +107,11 @@ function parsePrefer(request: Request): {
 }
 
 export class FakeRest {
-  private tables = new Map<string, TableSpec>();
-  private rpcs = new Map<string, (args: Record<string, unknown>) => unknown>();
-  private users = new Map<string, { id: string; email: string }>();
+  private readonly tables = new Map<string, TableSpec>();
+  private readonly rpcs = new Map<string, (args: Record<string, unknown>) => unknown>();
+  private readonly users = new Map<string, { id: string; email: string }>();
 
-  constructor(private env: Env) {}
+  constructor(private readonly env: Env) {}
 
   /** Register a table with column defaults applied to every insert. */
   table(name: string, defaults: Row = {}, unique: string[][] = []): this {
@@ -492,13 +492,13 @@ type TelnyxHandler = (
 
 export class TelnyxMock {
   calls: TelnyxCall[] = [];
-  private handlers: {
+  private readonly handlers: {
     method: string;
     pattern: RegExp;
     handler: TelnyxHandler;
   }[] = [];
 
-  private fallbacks: {
+  private readonly fallbacks: {
     method: string;
     pattern: RegExp;
     handler: TelnyxHandler;

@@ -201,7 +201,7 @@ export function scrubUnknown(value: unknown): unknown {
  * catches the careless author and misses the one who writes
  * `{ contact: "+16135551234" }`. What matters is what the VALUE is.
  */
-const FORBIDDEN_PROPERTY: ReadonlyArray<{ what: string; pattern: RegExp }> = [
+const FORBIDDEN_PROPERTY: readonly { what: string; pattern: RegExp }[] = [
   // E.164 and the loose North American forms people actually type, anywhere in
   // the value.
   { what: "phone number", pattern: /\+?\d[\d\s().-]{8,}\d/ },

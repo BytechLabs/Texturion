@@ -79,8 +79,8 @@ describe("the embed", () => {
 
   it("is a real dialog: opens, announces itself, and takes focus", () => {
     const root = mount();
-    const launcher = root.querySelector(".launch") as HTMLButtonElement;
-    const panel = root.querySelector(".panel") as HTMLElement;
+    const launcher = root.querySelector<HTMLButtonElement>(".launch")!;
+    const panel = root.querySelector<HTMLElement>(".panel")!;
 
     expect(panel.hidden).toBe(true);
     expect(launcher.getAttribute("aria-expanded")).toBe("false");
@@ -106,8 +106,8 @@ describe("the embed", () => {
     // A dialog that drops focus on the body leaves a keyboard user at the top
     // of the page with no idea what happened.
     const root = mount();
-    const launcher = root.querySelector(".launch") as HTMLButtonElement;
-    const panel = root.querySelector(".panel") as HTMLElement;
+    const launcher = root.querySelector<HTMLButtonElement>(".launch")!;
+    const panel = root.querySelector<HTMLElement>(".panel")!;
 
     launcher.click();
     panel.dispatchEvent(new KeyboardEvent("keydown", { key: "Escape", bubbles: true }));
@@ -120,8 +120,8 @@ describe("the embed", () => {
     // Without this, Tab walks out of the dialog into the host page's own links
     // behind it — silently, for a screen-reader user.
     const root = mount();
-    const launcher = root.querySelector(".launch") as HTMLButtonElement;
-    const panel = root.querySelector(".panel") as HTMLElement;
+    const launcher = root.querySelector<HTMLButtonElement>(".launch")!;
+    const panel = root.querySelector<HTMLElement>(".panel")!;
     launcher.click();
 
     const focusable = panel.querySelectorAll<HTMLElement>(
@@ -139,7 +139,7 @@ describe("the embed", () => {
     // Off-screen rather than `display:none`: some bots skip hidden fields, and
     // the entire point is that they fill this one in.
     const root = mount();
-    const honeypot = root.querySelector(".hp input") as HTMLInputElement;
+    const honeypot = root.querySelector<HTMLInputElement>(".hp input")!;
     expect(honeypot).not.toBeNull();
     expect(honeypot.getAttribute("tabindex")).toBe("-1");
     expect(SOURCE).toContain("left:-9999px");
@@ -156,10 +156,10 @@ describe("the embed", () => {
     // to remove. In the panel it is seen only by a visitor who has already
     // decided to text them.
     const root = mount();
-    const launcher = root.querySelector(".launch") as HTMLButtonElement;
+    const launcher = root.querySelector<HTMLButtonElement>(".launch")!;
     expect(launcher.textContent).not.toMatch(/loonext/i);
 
-    const mark = root.querySelector(".by a") as HTMLAnchorElement;
+    const mark = root.querySelector<HTMLAnchorElement>(".by a")!;
     expect(mark).not.toBeNull();
     expect(mark.textContent).toBe("Powered by Loonext");
     expect(mark.closest(".panel")).not.toBeNull();

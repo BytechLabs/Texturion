@@ -308,7 +308,7 @@ describe("GET /v1/calls", () => {
       env,
       await auth.token(),
       `/v1/calls?contact_id=${contactId}&limit=1&cursor=${encodeURIComponent(
-        page.next_cursor as string,
+        page.next_cursor!,
       )}`,
       { companyId: COMPANY_ID },
     );

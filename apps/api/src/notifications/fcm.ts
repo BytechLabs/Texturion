@@ -396,7 +396,7 @@ export async function sendFcm(
     );
     return { ok: true, status: 0, gone: false, errorBody: "" };
   }
-  const account = parseServiceAccount(env.FCM_SERVICE_ACCOUNT_JSON as string);
+  const account = parseServiceAccount(env.FCM_SERVICE_ACCOUNT_JSON!);
   const message = buildMessage(target, payload, ttlSeconds, urgency, collapseId);
   const base = sendBaseFor(env, credential);
   const bearer = await bearerFor(env, account, credential);
