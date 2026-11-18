@@ -321,7 +321,8 @@ function ThreadLoaded({
 
   useEffect(() => {
     function openFind(event: KeyboardEvent) {
-      if ((event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey && event.key.toLowerCase() === "f") {
+      const findKey = event.key === "f" || event.key === "F";
+      if (findKey && (event.ctrlKey || event.metaKey) && !event.shiftKey && !event.altKey) {
         event.preventDefault();
         setFindOpen(true);
       }
