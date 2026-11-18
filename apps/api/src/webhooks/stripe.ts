@@ -8,6 +8,7 @@ import { stateTransitionProperties } from "../analytics/state-transition";
 import { applyModuleReconcile, planModuleReconcile } from '../billing/company-modules';
 import type { CompanyModuleRow } from '../billing/company-modules';
 import {
+  hasScheduledCancellation,
   isNewCancellation,
   noticeCancellation,
 } from "../billing/cancellation-notice";
@@ -767,7 +768,7 @@ export async function handleCheckoutCompleted(
       p_status: status,
       p_period_start: period.start,
       p_period_end: period.end,
-      p_cancel_at_period_end: subscription.cancel_at_period_end === true,
+      p_cancel_at_period_end: hasScheduledCancellation(subscription),
       p_plan: plan ?? null,
     },
   );
@@ -1099,7 +1100,7 @@ export async function syncSubscription(
       // row) and is forced off so the UI never announces a pending
       // cancellation on a dead subscription.
       cancel_at_period_end:
-        status !== "canceled" && subscription.cancel_at_period_end === true,
+        status !== "canceled" && hasScheduledCancellation(subscription),
       ...(plan ? { plan } : {}),
     })
     .eq("stripe_subscription_id", subscriptionId)

@@ -197,7 +197,7 @@ export function sanitizeFilters(
   const out: SavedViewFilters = {};
   for (const [key, value] of Object.entries(raw as Record<string, unknown>)) {
     const check = allowed[key];
-    if (check && check(value)) out[key] = value as FilterValue;
+    if (check?.(value)) out[key] = value as FilterValue;
   }
   // The two assignee filters contradict each other, and the contradiction is
   // silent: whichever the request serialiser happened to read last would win,

@@ -643,7 +643,7 @@ const FOCUS_WALK = (maxStops) => {
       for (const layer of layers) {
         // Chrome serialises a layer as `<colour> <x> <y> <blur> <spread>`, so the
         // lengths come off in that order and `spread` may be absent.
-        const lengths = (layer.match(/-?[\d.]+px/g) || []).map(parseFloat);
+        const lengths = (layer.match(/-?[\d.]+px/g) ?? []).map(parseFloat);
         const [, , blur = 0, spread = 0] = lengths;
 
         // A RING, not any shadow that happens to be there.

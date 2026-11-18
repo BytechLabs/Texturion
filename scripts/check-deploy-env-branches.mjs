@@ -231,7 +231,7 @@ export function coverageProblems(files) {
     for (const importer of importers) {
       const file = files.find((entry) => entry.path === importer);
       const seen = file && environmentImports(file.path, stripComments(file.text)).revealed;
-      if (!seen || !seen.includes(name)) {
+      if (!seen?.includes(name)) {
         problems.push(
           `${importer} is allowed ${name} but does not import it; drop it from MODE_REVEALING_IMPORTERS`,
         );

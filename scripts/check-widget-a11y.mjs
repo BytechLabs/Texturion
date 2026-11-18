@@ -221,8 +221,7 @@ try {
   const focusInsidePanel = await page.evaluate(() => {
     const host = document.querySelector("[data-loonext-widget]");
     const root = host?.shadowRoot;
-    const active = root?.activeElement;
-    return Boolean(active && active.closest("[role='dialog']"));
+    return Boolean(root?.activeElement?.closest("[role='dialog']"));
   });
   if (!focusInsidePanel) {
     problems.push(
@@ -241,7 +240,7 @@ try {
     // this guard's first run failed on its own assertion rather than on the
     // code. A guard that cries wolf gets deleted before it ever catches
     // anything.
-    return Boolean(panel && panel.hidden);
+    return Boolean(panel?.hidden);
   });
   if (!closedByEscape) {
     problems.push(

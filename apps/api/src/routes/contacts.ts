@@ -3415,8 +3415,9 @@ contactsRoutes.post(
         }),
         "tag find-or-create",
       );
-      if (rows[0]?.refused === true) {
-        if (rows[0].reason === "at_ceiling") {
+      const tagRow = rows.at(0);
+      if (tagRow?.refused === true) {
+        if (tagRow.reason === "at_ceiling") {
           return errorResponse(
             c,
             "conflict",
@@ -3431,8 +3432,8 @@ contactsRoutes.post(
             "ask an owner or admin to add this.",
         );
       }
-      if (!rows[0]) throw new Error("tag find-or-create: no row returned");
-      tag = rows[0];
+      if (!tagRow) throw new Error("tag find-or-create: no row returned");
+      tag = tagRow;
     }
 
     const attached = unwrap<unknown[]>(

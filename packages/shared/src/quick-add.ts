@@ -432,7 +432,7 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
   let dueHasTime = false;
   if (dateHit !== null || clock !== null) {
     let instant: number;
-    if (dateHit !== null && dateHit.kind === "instant") {
+    if (dateHit?.kind === "instant") {
       instant = dateHit.instant;
       dueHasTime = true;
       if (clock !== null) {

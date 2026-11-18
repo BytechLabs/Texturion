@@ -126,7 +126,7 @@ async function resolveNoteOwner(
     "note owner lookup",
   );
   const note = rows[0];
-  if (!note || note.direction !== "note") return null;
+  if (note?.direction !== "note") return null;
   return { conversationId: note.conversation_id };
 }
 

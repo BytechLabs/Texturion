@@ -217,7 +217,7 @@ function callEndNotification(rawText, origin) {
   } catch {
     return null;
   }
-  if (!payload || payload.kind !== "call_end") return null;
+  if (payload?.kind !== "call_end") return null;
   const url = normalizeNotificationUrl(payload.url, origin);
   const tag = callTag(url, origin);
   return {
@@ -367,8 +367,7 @@ function routeInTab(client, path) {
       resolve(routed);
     };
     const timer = setTimeout(() => finish(false), ROUTE_REPLY_MS);
-    channel.port1.onmessage = (event) =>
-      finish(Boolean(event.data && event.data.ok === true));
+    channel.port1.onmessage = (event) => finish(event.data?.ok === true);
     client.postMessage({ type: "loonext:navigate", path }, [channel.port2]);
   });
 }
@@ -447,11 +446,9 @@ function subscriptionSaveBody(json) {
  * immediately through the authenticated client instead of waiting for a reload.
  */
 async function handlePushSubscriptionChange(event) {
-  let subscription = event && event.newSubscription ? event.newSubscription : null;
+  let subscription = event?.newSubscription ?? null;
   if (!subscription) {
-    const old = event && event.oldSubscription;
-    const applicationServerKey =
-      old && old.options ? old.options.applicationServerKey : undefined;
+    const applicationServerKey = event?.oldSubscription?.options?.applicationServerKey;
     if (!applicationServerKey) return; // no key to renew with — reconcile handles it
     try {
       subscription = await self.registration.pushManager.subscribe({

@@ -59,7 +59,7 @@ export function sanitizeEventProperties(
  * `sanitize_properties` has already seen it.
  */
 export function scrubExceptionEvent(event: CaptureResult | null): CaptureResult | null {
-  if (event === null || event.event !== "$exception") return event;
+  if (event?.event !== "$exception") return event;
   const list: unknown = event.properties.$exception_list;
   const notABug =
     Array.isArray(list) &&

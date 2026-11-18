@@ -71,7 +71,7 @@ export function viewerHandoverPrompt(
   state: HandoverViewer,
 ): HandoverPromptKind | null {
   const pending = state.pending;
-  if (pending && pending.mine) {
+  if (pending?.mine) {
     if (!pending.ready) {
       // Only a claim can be theirs and unripe: an offer ripens the moment it
       // is made (api_offer_ownership sets ripens_at = now()), so a pending

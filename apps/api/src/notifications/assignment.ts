@@ -191,7 +191,7 @@ export async function notifyAssigned(
     "notification prefs lookup",
   );
   // A missing row reads as the §6 defaults, which have push on.
-  if (prefRows[0]?.push_enabled === false) return;
+  if (prefRows.at(0)?.push_enabled === false) return;
 
   const actorName = await assignerName(db, input.actorUserId);
   const contactName =

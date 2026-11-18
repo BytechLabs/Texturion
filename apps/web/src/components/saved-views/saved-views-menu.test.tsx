@@ -89,7 +89,9 @@ describe("#711 SavedViewsMenu", () => {
     rows.current = [{ id: "v1", name: "Quote sent", shared: false, filters: { id: "v1" } }];
     mountMenu();
     expect(useSavedViewCounts).toHaveBeenCalled();
-    expect(useSavedViewCounts.mock.calls.every((call) => call[2] === false)).toBe(true);
+    for (const { 2: enabled } of useSavedViewCounts.mock.calls) {
+      expect(enabled).toBe(false);
+    }
   });
 
   it("SV-6: pointing at the trigger asks for the badges, leaving stops asking", () => {

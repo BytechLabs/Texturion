@@ -440,7 +440,7 @@ export function audit({ env = process.env, home = homedir(), root = REPO_ROOT } 
 export function fa1Chosen({ env = process.env, home = homedir() } = {}) {
   if (env.LOONEXT_FA1 === "1") return { chosen: true, where: "LOONEXT_FA1=1" };
   const hardening = readJson(join(home, ".loonext", "hardening.json"));
-  if (hardening && hardening.fa1 === true) return { chosen: true, where: "~/.loonext/hardening.json" };
+  if (hardening?.fa1 === true) return { chosen: true, where: "~/.loonext/hardening.json" };
   return { chosen: false, where: null };
 }
 

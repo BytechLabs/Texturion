@@ -189,12 +189,7 @@ function showRingNotification(
   number: string,
   t: Translate,
 ): void {
-  if (
-    typeof Notification === "undefined" ||
-    Notification.permission !== "granted"
-  ) {
-    return;
-  }
+  if (globalThis.Notification?.permission !== "granted") return;
   try {
     const note = new Notification(t("shell.incomingCall"), {
       body: number && number !== name ? `${name} · ${number}` : name,

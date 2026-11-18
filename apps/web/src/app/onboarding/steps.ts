@@ -217,11 +217,7 @@ export function setupComplete(snapshot: OnboardingSnapshot): boolean {
   if (!numberActive) return false;
   if (!owesUsRegistration(company)) return true;
   const campaign = company.registration.campaign;
-  return (
-    campaign !== null &&
-    campaign.status === "approved" &&
-    campaign.deactivated_at === null
-  );
+  return campaign?.status === "approved" && campaign.deactivated_at === null;
 }
 
 /**

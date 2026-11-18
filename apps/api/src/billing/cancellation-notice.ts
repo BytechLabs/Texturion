@@ -29,6 +29,10 @@ interface CancellingCompany {
   owner_user_id: string;
 }
 
+export function hasScheduledCancellation(subscription: { cancel_at_period_end?: unknown }): boolean {
+  return subscription.cancel_at_period_end === true;
+}
+
 /**
  * Was this update the MOMENT of cancellation, rather than a restatement of it?
  *
@@ -44,7 +48,7 @@ export async function isNewCancellation(
   subscription: Stripe.Subscription,
   mirroredStatus: string,
 ): Promise<boolean> {
-  if (subscription.cancel_at_period_end !== true) return false;
+  if (!hasScheduledCancellation(subscription)) return false;
   // A subscription already dead is #21's territory, not this one.
   if (mirroredStatus === "canceled") return false;
 

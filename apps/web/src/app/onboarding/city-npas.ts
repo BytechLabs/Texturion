@@ -1,8 +1,5 @@
-import {
-  NANP_AREA_CODES,
-  type Locale,
-  type NanpGeographicEntry,
-} from "@loonext/shared";
+import { NANP_AREA_CODES } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import {
   areaCodeCityAliases,
@@ -244,8 +241,7 @@ export const CITY_NPAS: Readonly<Record<string, readonly string[]>> = {
 function assertCityNpasValid(): void {
   for (const [city, codes] of Object.entries(CITY_NPAS)) {
     for (const code of codes) {
-      const entry = NANP_AREA_CODES[code] as NanpGeographicEntry | undefined;
-      if (!entry || entry.geographic !== true) {
+      if (!NANP_AREA_CODES[code]?.geographic) {
         throw new Error(
           `city-npas: "${city}" maps to ${code}, which is not a geographic NANP code`,
         );

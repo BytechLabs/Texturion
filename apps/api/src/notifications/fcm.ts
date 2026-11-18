@@ -180,8 +180,7 @@ async function getAccessToken(
 ): Promise<string> {
   const now = Date.now();
   if (
-    cachedAccessToken !== null &&
-    cachedAccessToken.tokenUrl === tokenUrl &&
+    cachedAccessToken?.tokenUrl === tokenUrl &&
     cachedAccessToken.clientEmail === account.client_email &&
     now < cachedAccessToken.expiresAt
   ) {

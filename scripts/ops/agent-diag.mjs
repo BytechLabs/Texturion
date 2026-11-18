@@ -163,7 +163,7 @@ export function runPsql(sql, connectionEnv, { args = [], container } = {}) {
     maxBuffer: 64 * 1024 * 1024,
   });
   const local = spawnSync("psql", psqlArgs, options(connectionEnv));
-  if (!local.error || local.error.code !== "ENOENT") return { ...local, via: "psql" };
+  if (local.error?.code !== "ENOENT") return { ...local, via: "psql" };
 
   let name = container ?? DEFAULT_PSQL_CONTAINER;
   let inside = connectionEnv;

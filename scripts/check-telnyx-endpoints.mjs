@@ -644,7 +644,7 @@ export function readRegistry(ts, text, file = REGISTRY_FILE) {
         init &&
         (ts.isAsExpression(init) ||
           ts.isParenthesizedExpression(init) ||
-          (ts.isSatisfiesExpression && ts.isSatisfiesExpression(init)))
+          ts.isSatisfiesExpression?.(init))
       ) {
         init = init.expression;
       }

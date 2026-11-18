@@ -373,7 +373,7 @@ export function nullBlindOffences(sql) {
 }
 
 // Skip the scan when imported by its own test.
-if (process.argv[1] && process.argv[1].endsWith("check-sql-null-blind.mjs")) {
+if (process.argv[1]?.endsWith("check-sql-null-blind.mjs")) {
   const offences = [];
   const files = readdirSync(DIR).filter((file) => file.endsWith(".sql"));
   for (const name of files) {

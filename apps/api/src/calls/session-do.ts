@@ -424,7 +424,8 @@ export class CallSessionDO extends DurableObject<Env> {
       await this.resumeJournalIfAny();
       const machine = await this.load();
       if (!machine) return { state: "ended_missed", registered: false };
-      const transferCannotStart = input.transferId && (machine.intent || machine.state !== "answered");
+      const transferCannotStart =
+        input.transferId && (Boolean(machine.intent) || machine.state !== "answered");
       if (machine.intent?.transferId || transferCannotStart) {
         return { state: machine.state, registered: false };
       }

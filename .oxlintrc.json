@@ -61,7 +61,7 @@
     // node:test awaits the promise test() returns; nothing else may be left floating.
     "typescript/no-floating-promises": ["error", { "allowForKnownSafeCalls": [{ "from": "package", "package": "node:test", "name": ["test", "describe", "it", "suite", "before", "after", "beforeEach", "afterEach"] }] }],
     "typescript/no-confusing-void-expression": ["off", { "ignoreArrowShorthand": true }], // not yet clean: 42 (#822)
-    "typescript/prefer-nullish-coalescing": ["off", { "ignorePrimitives": { "string": true, "number": true, "boolean": true, "bigint": true } }], // not yet clean: 1 (#822)
+    "typescript/prefer-nullish-coalescing": ["error", { "ignorePrimitives": { "string": true, "number": true, "boolean": true, "bigint": true } }],
 
     // Contradicts a rule that stays on, or a platform this code runs on.
     "eslint/no-void": "off", // contradicts typescript/no-floating-promises, whose void marks a promise left unawaited on purpose
@@ -226,7 +226,6 @@
     "unicorn/prefer-top-level-await": "off", // 27
     "typescript/no-invalid-void-type": "off", // 26
     "typescript/no-misused-spread": "off", // 25
-    "typescript/prefer-optional-chain": "off", // 25
     "unicorn/prefer-export-from": "off", // 25
     "react/no-array-index-key": "off", // 24
     "promise/param-names": "off", // 23
@@ -265,7 +264,6 @@
     "unicorn/prefer-number-properties": "off", // 11
     "eslint/func-names": "off", // 10
     "typescript/no-redundant-type-constituents": "off", // 10
-    "typescript/no-unnecessary-boolean-literal-compare": "off", // 10
     "typescript/no-unnecessary-type-conversion": "off", // 10
     "unicorn/prefer-ternary": "off", // 10
     "vitest/prefer-to-have-length": "off", // 10

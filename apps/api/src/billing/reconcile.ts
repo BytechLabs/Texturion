@@ -22,6 +22,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { subscriptionPause, syncSubscription } from "../webhooks/stripe";
+import { hasScheduledCancellation } from "./cancellation-notice";
 import { idempotencyKey } from "./idempotency";
 import { FIXED_MONTHLY_COST_CENTS } from "./costs";
 import { convergeExtraNumberQuantity } from "./extra-numbers";
@@ -393,7 +394,7 @@ async function sweepOrphanSubscriptions(
        * ours to guarantee — the retired-item sweep below already guards it.)
        */
       const pause =
-        stored && stored.items && !stored.items.has_more
+        stored?.items && !stored.items.has_more
           ? subscriptionPause(env, stored)
           : { reading: "unknown" as const, priceCents: null };
       const pausedNow =
@@ -499,7 +500,7 @@ async function sweepOrphanSubscriptions(
       for (const s of subs.data) {
         if (s.id === row.stripe_subscription_id) continue;
         if (!COLLECTIBLE_STATUSES.has(s.status)) continue;
-        if (s.cancel_at_period_end === true) continue;
+        if (hasScheduledCancellation(s)) continue;
         if (nowEpoch - s.created < ORPHAN_SUBSCRIPTION_MIN_AGE_S) continue;
 
         if (!settled) {

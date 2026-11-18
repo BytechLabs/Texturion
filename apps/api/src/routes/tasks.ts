@@ -3156,8 +3156,9 @@ tasksRoutes.post("/tasks/:id/tags", requireCapability("conversations.note"), asy
       }),
       "tag find-or-create",
     );
-    if (rows[0]?.refused === true) {
-      if (rows[0].reason === "at_ceiling") {
+    const tagRow = rows.at(0);
+    if (tagRow?.refused === true) {
+      if (tagRow.reason === "at_ceiling") {
         return errorResponse(
           c,
           "conflict",
@@ -3170,8 +3171,8 @@ tasksRoutes.post("/tasks/:id/tags", requireCapability("conversations.note"), asy
         "Your workspace keeps a set list of tags. Pick an existing one, or ask an owner or admin to add this.",
       );
     }
-    if (!rows[0]) throw new Error("tag find-or-create: no row returned");
-    tag = rows[0];
+    if (!tagRow) throw new Error("tag find-or-create: no row returned");
+    tag = tagRow;
   }
 
   const labels = await setTaskTags(db, { companyId, taskId: id, userId, add: [tag.id] });

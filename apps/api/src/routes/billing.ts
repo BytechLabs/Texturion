@@ -743,6 +743,10 @@ billingRoutes.post("/dismiss-winback", async (c) => {
   return c.body(null, 204);
 });
 
+function explicitlyDisabled(enabled: unknown): boolean {
+  return enabled === false;
+}
+
 async function portalConfiguration(env: Env, isOwner: boolean): Promise<string | null> {
   const id = isOwner
     ? env.STRIPE_OWNER_PORTAL_CONFIG_ID
@@ -768,10 +772,10 @@ async function portalConfiguration(env: Env, isOwner: boolean): Promise<string |
       : null;
   }
 
-  return features.subscription_cancel.enabled === false &&
-    features.subscription_update.enabled === false &&
+  return explicitlyDisabled(features.subscription_cancel.enabled) &&
+    explicitlyDisabled(features.subscription_update.enabled) &&
     !features.subscription_pause?.enabled &&
-    features.customer_update.enabled === false
+    explicitlyDisabled(features.customer_update.enabled)
     ? configuration.id
     : null;
 }
