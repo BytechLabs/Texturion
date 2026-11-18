@@ -138,14 +138,12 @@ struct MessageBubble: View {
                         color: bodyColor,
                         strikethrough: done
                     )
-                    .textSelection(.enabled)
                 } else {
                     Text(phoneBody)
                         .font(.golos(14))
                         .foregroundStyle(bodyColor)
                         .tint(bodyColor)
                         .strikethrough(done)
-                        .textSelection(.enabled)
                         .environment(\.openURL, OpenURLAction { url in
                             guard url.scheme == "loonext-message-phone", url.host == "dial",
                                   let onSelectPhone,

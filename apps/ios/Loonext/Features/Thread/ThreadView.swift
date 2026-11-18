@@ -103,6 +103,11 @@ private enum ThreadDetailSheet: Identifiable {
     }
 }
 
+private struct MessagePhoneSelection: Identifiable {
+    let number: String
+    var id: String { number }
+}
+
 @MainActor
 private struct ThreadBody: View {
     let graph: AppGraph
@@ -149,7 +154,8 @@ private struct ThreadBody: View {
     @State private var tagSheetOpen = false
     @State private var galleryOpen = false
     @State private var placingCall = false
-    @State private var messagePhone: String?
+    @State private var messagePhone: MessagePhoneSelection?
+    @State private var afterMessagePhoneDismiss: (@MainActor () -> Void)?
     @Environment(\.openURL) private var openURL
     @Environment(\.appLocale) private var appLocale
 
@@ -174,28 +180,15 @@ private struct ThreadBody: View {
             }
         }
         .background(BrandColor.canvas.ignoresSafeArea())
-        .confirmationDialog(
-            messagePhone.map { formatPhone($0) } ?? "",
-            isPresented: Binding(
-                get: { messagePhone != nil && canLinkPhones },
-                set: { if !$0 { messagePhone = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: messagePhone
-        ) { number in
-            if canContactPhone {
-                Button(AppStrings.translate(appLocale, "thread.callWithLoonext")) {
-                    AppRouter.shared.openCalls = true
-                    AppRouter.shared.dialTo = number
-                }
-                Button(AppStrings.translate(appLocale, "thread.textPhoneNumber")) {
-                    AppRouter.shared.composeTo = number
-                }
+        .sheet(
+            item: $messagePhone,
+            onDismiss: {
+                let action = afterMessagePhoneDismiss
+                afterMessagePhoneDismiss = nil
+                if canLinkPhones && canContactPhone { action?() }
             }
-            Button(AppStrings.translate(appLocale, "contactsTasks.copyNumber")) {
-                UIPasteboard.general.string = number
-                controller.markCopied()
-            }
+        ) { selection in
+            messagePhoneSheet(selection.number)
         }
         .onChange(of: canLinkPhones) { _, allowed in
             if !allowed { messagePhone = nil }
@@ -219,6 +212,39 @@ private struct ThreadBody: View {
             controller.markRead()
         }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func messagePhoneSheet(_ number: String) -> some View {
+        NavigationStack {
+            List {
+                if canContactPhone {
+                    Button(AppStrings.translate(appLocale, "thread.callWithLoonext")) {
+                        afterMessagePhoneDismiss = {
+                            AppRouter.shared.openCalls = true
+                            AppRouter.shared.dialTo = number
+                        }
+                        messagePhone = nil
+                    }
+                    Button(AppStrings.translate(appLocale, "thread.textPhoneNumber")) {
+                        afterMessagePhoneDismiss = { AppRouter.shared.composeTo = number }
+                        messagePhone = nil
+                    }
+                }
+                Button(AppStrings.translate(appLocale, "contactsTasks.copyNumber")) {
+                    UIPasteboard.general.string = number
+                    controller.markCopied()
+                    messagePhone = nil
+                }
+            }
+            .navigationTitle(formatPhone(number))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button(AppStrings.translate(appLocale, "common.close")) { messagePhone = nil }
+                }
+            }
+        }
+        .presentationDetents([.medium, .large])
     }
 
     @ViewBuilder
@@ -1065,7 +1091,7 @@ private struct ThreadBody: View {
                     onOpenTask: { AppRouter.shared.openTaskId = $0 },
                     onDelete: deleteMessageAction(for: message)
                 ),
-                onSelectPhone: canLinkPhones ? { messagePhone = $0 } : nil
+                onSelectPhone: canLinkPhones ? { messagePhone = MessagePhoneSelection(number: $0) } : nil
             )
         case .pending(let pending):
             PendingBubble(
