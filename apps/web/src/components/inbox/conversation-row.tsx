@@ -211,7 +211,10 @@ export const ConversationRow = memo(({
         })
       : "";
 
+  const tagNames = conversation.tags.map((tag) => tag.name).join(", ");
   const rowLabel = `${t("inbox.rowAriaConversationWith", { name })}${
+    emergency ? t("inbox.rowAriaUrgent") : ""
+  }${
     unread ? t("inbox.rowAriaUnread") : ""
   }${pinned ? t("inbox.rowAriaPinned") : ""}${muted ? t("inbox.rowAriaMuted") : ""}${
     snippet?.direction === "note" ? t("inbox.rowAriaInternalNote") : ""
@@ -223,7 +226,7 @@ export const ConversationRow = memo(({
           until: deferralReturnLabel(snoozedUntil, "back", t),
         })}${conversation.snooze_note ? `, ${conversation.snooze_note}` : ""}`
       : ""
-  }${attachmentNote}${previewText ? `. ${previewText}` : ""}`;
+  }${tagNames ? t("inbox.rowAriaTags", { tags: tagNames }) : ""}${attachmentNote}${previewText ? `. ${previewText}` : ""}`;
 
   return (
     // The link is the contact's name, stretched over the card by its ::after,

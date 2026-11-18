@@ -58,6 +58,7 @@ export const inboxEn = {
   // own leading punctuation so the joining stays in the component and the
   // WORDS stay here.
   rowAriaConversationWith: "Conversation with {name}",
+  rowAriaUrgent: ", urgent",
   rowAriaUnread: ", unread",
   rowAriaPinned: ", pinned",
   rowAriaInternalNote: ", internal note",
@@ -65,6 +66,7 @@ export const inboxEn = {
   rowAriaSpam: ", spam",
   rowAriaSnoozed: ", snoozed, {until}",
   rowAriaMuted: ", muted",
+  rowAriaTags: ", tagged {tags}",
   rowMutedAria: "Muted",
   shortcutsTitle: "Keyboard shortcuts",
   shortcutsDescription:
@@ -561,6 +563,7 @@ export const inboxFr: Translated<typeof inboxEn> = {
 
   // --- One row of the list ---------------------------------------------------
   rowAriaConversationWith: "Conversation avec {name}",
+  rowAriaUrgent: ", urgente",
   rowAriaUnread: ", non lue",
   rowAriaPinned: ", épinglée",
   rowAriaInternalNote: ", note interne",
@@ -568,6 +571,7 @@ export const inboxFr: Translated<typeof inboxEn> = {
   rowAriaSpam: ", indésirable",
   rowAriaSnoozed: ", en veille, {until}",
   rowAriaMuted: ", en sourdine",
+  rowAriaTags: ", étiquetée {tags}",
   rowMutedAria: "En sourdine",
   shortcutsTitle: "Raccourcis clavier",
   shortcutsDescription:

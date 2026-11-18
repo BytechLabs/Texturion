@@ -54,6 +54,16 @@ function contrast(a: string, b: string): number {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+function compositeOver(foreground: string, background: string, opacity: number): string {
+  const channels = [1, 3, 5].map((offset) => {
+    const fg = Number.parseInt(foreground.slice(offset, offset + 2), 16);
+    const bg = Number.parseInt(background.slice(offset, offset + 2), 16);
+    const channel = Math.round(fg * opacity + bg * (1 - opacity));
+    return channel.toString(16).padStart(2, "0");
+  });
+  return `#${channels.join("")}`;
+}
+
 const AA = 4.5;
 /** WCAG 1.4.11: UI component boundaries and state indicators. */
 const UI = 3;
@@ -74,6 +84,17 @@ describe.each([
   ["light", light],
   ["dark", dark],
 ] as const)("app-scope %s theme", (label, theme) => {
+  it("keeps Urgent badge text readable on the thread and inbox surfaces", () => {
+    const clay = token(theme, "--app-clay");
+    const surfaces = { ...grounds(theme), "app-hover (inbox row)": token(theme, "--app-hover") };
+    for (const [name, background] of Object.entries(surfaces)) {
+      const badgeFill = compositeOver(clay, background, 0.12);
+      expect
+        .soft(contrast(clay, badgeFill), `Urgent badge on ${name}`)
+        .toBeGreaterThanOrEqual(AA);
+    }
+  });
+
   it("#61 — --app-muted clears AA on every ground it carries text on", () => {
     const fg = token(theme, "--app-muted");
     for (const [name, bg] of Object.entries(grounds(theme))) {

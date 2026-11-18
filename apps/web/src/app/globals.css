@@ -649,7 +649,7 @@
   --app-amber-bg: #f6f6f6; /* calm note card fill */
   --app-amber-line: #e7e7e7;
   --app-amber-ink: #7a6535;
-  --app-clay: #b4623f;
+  --app-clay: #963d24;
   --app-slate: #5b7a73;
 
   /* NO SHADOWS on structural surfaces (PORTAL-UX §4). The row/panel/bar shadow
@@ -778,7 +778,7 @@
   --app-amber-bg: #21201a;
   --app-amber-line: #3a3626;
   --app-amber-ink: #c8c8c8;
-  --app-clay: #d98466;
+  --app-clay: #ed9c82;
   --app-slate: #9a9a9a;
 
   /* Still no structural shadows on dark; only the floating-layer whisper. */

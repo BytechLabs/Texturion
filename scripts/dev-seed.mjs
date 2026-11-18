@@ -267,6 +267,16 @@ insert into public.conversation_tags (conversation_id, tag_id) values
   ('${V(5)}', '${T(1)}')
 on conflict do nothing;
 
+update public.conversations
+set emergency_at = now()
+where company_id = '${COMPANY}' and id = '${V(5)}';
+
+insert into public.blocked_senders (company_id, phone_e164, blocked_by)
+select company_id, phone_e164, '${dana}'
+from public.contacts
+where company_id = '${COMPANY}' and id = '${C(4)}'
+on conflict (company_id, phone_e164) do nothing;
+
 insert into public.tasks
   (id, company_id, message_id, conversation_id, title, description,
    assigned_user_id, due_at, created_by_user_id)
