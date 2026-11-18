@@ -99,10 +99,10 @@ function contact(conversationCount: number | null): ContactDetail {
   } as unknown as ContactDetail;
 }
 
-function render(loaded: ContactDetail | undefined) {
+function render(loaded: ContactDetail | undefined, conversation = CONVERSATION) {
   return renderToStaticMarkup(
     <ThreadHeader
-      conversation={CONVERSATION}
+      conversation={conversation}
       contact={loaded}
       onToggleContactPanel={vi.fn()}
       panelOpen={false}
@@ -152,4 +152,10 @@ describe("#505 ThreadHeader repeat-customer badge", () => {
     expect(html).toContain("Change status");
     expect(html).toContain("More actions");
   });
+});
+
+it("gives the urgent badge a role and an accessible name", () => {
+  const urgent = { ...CONVERSATION, emergency_at: "2026-11-01T12:00:00Z", closed_at: null };
+  expect(render(undefined, urgent)).toContain('role="img" aria-label="Urgent"');
+  expect(render(undefined, { ...urgent, closed_at: "2026-11-01T13:00:00Z" })).not.toContain('aria-label="Urgent"');
 });

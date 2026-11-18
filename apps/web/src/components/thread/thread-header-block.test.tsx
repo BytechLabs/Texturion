@@ -127,7 +127,7 @@ describe("ThreadHeader block / unblock", () => {
   it("offers Unblock number on a blocked thread, and marks the thread blocked", () => {
     rows.current = [{ id: "b-1", phone_e164: PHONE }];
     renderHeader();
-    expect(screen.getByLabelText("Blocked")).toBeTruthy();
+    expect(screen.getByRole("img", { name: "Blocked" })).toBeTruthy();
     openOverflow();
     expect(screen.queryByText("Block number")).toBeNull();
     fireEvent.click(screen.getByText("Unblock number"));
@@ -136,7 +136,7 @@ describe("ThreadHeader block / unblock", () => {
 
   it("shows no blocked mark on an ordinary thread", () => {
     renderHeader();
-    expect(screen.queryByLabelText("Blocked")).toBeNull();
+    expect(screen.queryByRole("img", { name: "Blocked" })).toBeNull();
   });
 
   it("hides the action from a role that may not mark spam", () => {

@@ -264,6 +264,7 @@ export function ThreadHeader({
                 narrow layout costs a screen-reader user nothing. */}
             {urgent && (
               <span
+                role="img"
                 aria-label={URGENT_BADGE_LABEL}
                 className="flex shrink-0 items-center gap-1 rounded-full bg-app-clay/12 px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-app-clay uppercase"
               >
@@ -291,6 +292,7 @@ export function ThreadHeader({
             )}
             {blocked && (
               <span
+                role="img"
                 aria-label={t("blockedNumbers.blockedBadge")}
                 className="flex shrink-0 items-center gap-1 rounded-full bg-secondary px-1.5 py-0.5 text-[10.5px] font-semibold tracking-wide text-muted-foreground uppercase"
               >
