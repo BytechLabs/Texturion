@@ -81,9 +81,10 @@ export async function runEscalationSweep(
 ): Promise<EscalationSweepSummary> {
   const db = getDb(env);
   const summary: EscalationSweepSummary = { claimed: 0, widened: 0 };
+  const claimedAt = now.toISOString();
 
   const { data, error } = await db.rpc("api_claim_due_alerts", {
-    p_now: now.toISOString(),
+    p_now: claimedAt,
     p_limit: MAX_PER_TICK,
   });
   if (error) throw new Error(`claim due alerts failed: ${error.message}`);
@@ -92,6 +93,7 @@ export async function runEscalationSweep(
   summary.claimed = alerts.length;
 
   for (const alert of alerts) {
+    let deliveryStarted = false;
     try {
       const conversation = await db
         .from("conversations")
@@ -137,6 +139,7 @@ export async function runEscalationSweep(
       // for everyone — can be settled up here.
       const url = `${env.APP_ORIGIN}/inbox/${alert.conversation_id}`;
       const failures: unknown[] = [];
+      deliveryStarted = true;
       await deliverPush(env, db, {
         category: "missed_calls",
         companyId: alert.company_id,
@@ -169,11 +172,20 @@ export async function runEscalationSweep(
       }
       summary.widened += 1;
     } catch (error_) {
-      // The claim already happened, so this alert will not be retried. That is
-      // the right trade: a retry loop on a broken row would re-page the crew
-      // every minute, and the alert is still visible in the thread and on the
-      // For You surface.
       console.error(`escalation sweep: alert ${alert.id} failed`, error_);
+      // A partial fan-out can already have reached phones.
+      if (!deliveryStarted) {
+        try {
+          const { error: rearmError } = await db.rpc("api_rearm_alert", {
+            p_company_id: alert.company_id,
+            p_alert_id: alert.id,
+            p_claimed_at: claimedAt,
+          });
+          if (rearmError) throw rearmError;
+        } catch (rearmError) {
+          console.error(`escalation sweep: re-arm ${alert.id} failed`, rearmError);
+        }
+      }
     }
   }
 

@@ -1,7 +1,7 @@
 {
   "generated": "by scripts/api-schema-snapshot.mjs from the local database built from supabase/migrations; do not edit, run --write (#750)",
   "tables": {
-    "alert_escalations": {"kind":"table","columns":["acknowledged_at","acknowledged_by","company_id","conversation_id","created_at","escalate_at","escalated_at","id","kind","on_call_user_id"],"computed":[]},
+    "alert_escalations": {"kind":"table","columns":["acknowledged_at","acknowledged_by","company_id","conversation_id","created_at","escalate_at","escalated_at","id","kind","on_call_user_id","rearm_count"],"computed":[]},
     "api_keys": {"kind":"table","columns":["company_id","created_at","created_by","expires_at","id","last_used_at","name","revoked_at","revoked_by","scopes","token_hash","token_prefix"],"computed":[]},
     "app_release_policy": {"kind":"table","columns":["message","minimum_version","platform","recommended_version","update_url","updated_at","updated_by"],"computed":[]},
     "appointment_reminder_rules": {"kind":"table","columns":["body","company_id","created_at","created_by","enabled","id","offset_minutes","updated_at"],"computed":[]},

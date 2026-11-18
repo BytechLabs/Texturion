@@ -10528,3 +10528,11 @@ Loonext currently places business calls through Telnyx and has no E911 path. The
 8XX toll-free destinations use the existing US and Canada outbound voice profile. Telnyx publishes free US toll-free SIP termination plus the $0.002/minute Voice API charge. That is below the local termination rate already covered by the voice-minute cost estimate. Direct texts require US carrier approval and have no destination clock. Toll-free numbers remain unavailable for automated sends, number provisioning and porting. [Telnyx SIP trunking rates](https://telnyx.com/pricing/elastic-sip), [Telnyx Voice API rates](https://telnyx.com/pricing/voice-api).
 
 Calls and texts reject the 900 area code and local 976 exchanges because they can charge the caller. They also reject non-geographic 5XX services because they may only route inside the assigned carrier's network. Geographic 5XX area codes such as 501 remain valid. [CRTC pay-per-call services](https://crtc.gc.ca/eng/phone/telemarketing/900.htm), [NANPA 5XX codes](https://www.nanpa.com/numbering/5xx-nxx-codes).
+
+## Human replies and calls stop after-hours escalation (#795)
+
+For after-hours alerts, a human text, a placed callback, or an answered
+inbound call clears the escalation deadline and records the member who handled
+it. The sweep checks recorded activity before widening. A preparation failure
+may re-arm its own claim up to three times. Once delivery starts, the claim stays
+closed so another sweep cannot send the same page again.

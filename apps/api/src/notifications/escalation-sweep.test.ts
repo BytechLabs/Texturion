@@ -28,7 +28,7 @@ interface Options {
    * first-match-wins, so re-registering a path a helper already claimed is a
    * stub that silently never runs.
    */
-  devices?: Record<string, unknown>[];
+  devices?: Record<string, unknown>[] | Response;
 }
 
 function alertRow(overrides: Record<string, unknown> = {}) {
@@ -169,14 +169,12 @@ describe(runEscalationSweep, () => {
   });
 
   it("ES-5: one broken alert does not starve the next workspace's emergency", async () => {
-    // The claim already happened for every row in the batch, so a throw that
-    // escaped would abandon alerts that were legitimately claimed — and the
-    // next tick will not see them again.
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/rpc/api_claim_due_alerts", () => [
       alertRow({ id: "alert-broken", conversation_id: "missing" }),
       alertRow({ id: "alert-good" }),
     ]);
+    sb.on("POST", "/rest/v1/rpc/api_rearm_alert", () => true);
     sb.on("GET", "/rest/v1/conversations", (call) =>
       call.url.searchParams.get("id") === "eq.missing"
         ? new Response("boom", { status: 500 })
@@ -190,10 +188,27 @@ describe(runEscalationSweep, () => {
     sb.on("GET", "/rest/v1/device_push_tokens", () => []);
     stubFetch(sb.route);
 
-    const summary = await runEscalationSweep(env);
+    const now = new Date("2026-11-17T06:00:00Z");
+    const summary = await runEscalationSweep(env, now);
 
     expect(summary.claimed).toBe(2);
     expect(summary.widened).toBe(1);
+    expect(sb.calls.filter((call) => call.path === "/rest/v1/rpc/api_rearm_alert")
+      .map((call) => call.body)).toEqual([{
+      p_company_id: COMPANY,
+      p_alert_id: "alert-broken",
+      p_claimed_at: now.toISOString(),
+    }]);
+  });
+
+  it("keeps the alert closed when delivery has started", async () => {
+    const account = await makeServiceAccount();
+    const sb = world({ devices: new Response("unavailable", { status: 403 }) });
+    stubFetch(sb.route);
+
+    await expect(runEscalationSweep(fcmEnv(account))).resolves.toEqual({ claimed: 1, widened: 0 });
+    expect(sb.calls.some((call) => call.path === "/rest/v1/device_push_tokens")).toBe(true);
+    expect(sb.calls.some((call) => call.path === "/rest/v1/rpc/api_rearm_alert")).toBe(false);
   });
 
   it("ES-6: a quiet minute claims nothing and touches nothing else", async () => {
