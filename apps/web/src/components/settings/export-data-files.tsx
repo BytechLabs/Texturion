@@ -1,17 +1,14 @@
 "use client";
 
 import { useState } from "react";
-import { useInfiniteQuery, useMutation } from "@tanstack/react-query";
 import { Download } from "lucide-react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { useT } from "@/i18n/provider";
-import { apiFetch } from "@/lib/api/client";
 import { ApiError } from "@/lib/api/error";
-import type { Page } from "@/lib/api/types";
-import { useCompanyId } from "@/lib/company/provider";
+import { useSignWorkspaceExportMedia, useWorkspaceExportMedia } from "@/lib/api/exports";
 
 const fileKinds = ["attachment", "mms", "voicemail"] as const;
 type FileKind = (typeof fileKinds)[number];
@@ -21,38 +18,12 @@ const kindLabels = {
   voicemail: "settings.exportMediaVoicemail",
 } as const;
 
-interface ExportFile {
-  id: string;
-  file_name: string | null;
-  content_type: string | null;
-  size_bytes: number | null;
-}
-
 export function ExportDataFiles({ exportId }: { exportId: string }) {
   const t = useT();
-  const companyId = useCompanyId();
   const [open, setOpen] = useState(false);
   const [kind, setKind] = useState<FileKind>("attachment");
-  const endpoint = "/v1/exports/" + exportId + "/media";
-  const files = useInfiniteQuery({
-    queryKey: [companyId, "export-media", exportId, kind],
-    enabled: open,
-    initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) => {
-      const params = new URLSearchParams({ kind });
-      if (pageParam) params.set("after", pageParam);
-      return apiFetch<Page<ExportFile>>(endpoint + "?" + params, { companyId });
-    },
-    getNextPageParam: (page) => page.next_cursor,
-  });
-  const download = useMutation({
-    mutationFn: ({ kind, id }: { kind: FileKind; id: string }) =>
-      apiFetch<{ url: string }>(endpoint + "/" + kind + "/" + id, { companyId }),
-    onSuccess: ({ url }) => window.location.assign(url),
-    onError: (error) => toast.error(
-      error instanceof ApiError ? error.message : t("settings.exportMediaDownloadFailed"),
-    ),
-  });
+  const files = useWorkspaceExportMedia(exportId, kind, open);
+  const download = useSignWorkspaceExportMedia(exportId);
   const data = files.data?.pages.flatMap((page) => page.data) ?? [];
 
   return (
@@ -92,7 +63,12 @@ export function ExportDataFiles({ exportId }: { exportId: string }) {
                     variant="outline"
                     size="sm"
                     disabled={download.isPending}
-                    onClick={() => download.mutate({ kind, id: file.id })}
+                    onClick={() => download.mutate({ kind, id: file.id }, {
+                      onSuccess: ({ url }) => window.location.assign(url),
+                      onError: (error) => toast.error(
+                        error instanceof ApiError ? error.message : t("settings.exportMediaDownloadFailed"),
+                      ),
+                    })}
                   >
                     <Download aria-hidden />
                     {file.file_name ?? file.content_type ?? t(kindLabels[kind])}
