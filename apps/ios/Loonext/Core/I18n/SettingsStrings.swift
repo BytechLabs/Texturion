@@ -1313,15 +1313,9 @@ private let settingsBillingEn: [String: String] = [
         "Sending is paused until your payment method is updated.",
     "settings.noticeUpdatePayment": "Update payment method",
     "settings.noticeCancelling":
-        "Your plan is set to cancel at the end of this period. Texting stops then. "
-        + "Your number is held for {days} days from the day you cancelled — not from "
-        + "that date — so it can be released soon afterwards. You can undo this from "
-        + "the payment portal.",
+        "Your plan is set to cancel at the end of this period. Texting stops then if it is still active. Your number is held for {days} days after the plan ends. You can undo this from the payment portal.",
     "settings.noticeCancellingOn":
-        "Your plan is set to cancel on {date}. Texting stops then. Your number is "
-        + "held for {days} days from the day you cancelled — not from that date — so "
-        + "it can be released soon afterwards. You can undo this from the payment "
-        + "portal.",
+        "Your plan ends on {date}. Texting stops then if it is still active. We hold your number until {releaseDate}. You can undo this from the payment portal.",
     "settings.noticeKeepMyPlan": "Keep my plan",
 
     "settings.subscriptionTitle": "Subscription",
@@ -1330,8 +1324,8 @@ private let settingsBillingEn: [String: String] = [
     "settings.winbackNoThanks": "No thanks",
     "settings.winbackDismissFailed": "Couldn't save that — you may see this again.",
     "settings.holdRule":
-        "We hold your number for {days} days from the day you cancel. Resubscribe before "
-        + "then and everything picks up where it left off.",
+        "We hold your number for {days} days after the plan ends. "
+        + "Resubscribe before then and everything picks up where it left off.",
     "settings.holdUntil":
         "We hold your number until {date}. Resubscribe before then and everything picks up "
         + "where it left off.",
@@ -1484,15 +1478,9 @@ private let settingsBillingFr: [String: String] = [
         "L'envoi est suspendu tant que votre mode de paiement n'est pas mis à jour.",
     "settings.noticeUpdatePayment": "Mettre le mode de paiement à jour",
     "settings.noticeCancelling":
-        "Votre forfait doit être annulé à la fin de cette période. Les textos "
-        + "s'arrêtent alors. Votre numéro est conservé {days} jours à compter du jour "
-        + "de l'annulation — et non de cette date — il peut donc être libéré peu "
-        + "après. Vous pouvez annuler cette décision depuis le portail de paiement.",
+        "Votre forfait doit être annulé à la fin de cette période. Les textos s’arrêtent alors s’ils sont encore actifs. Votre numéro est conservé {days} jours après la fin du forfait. Vous pouvez annuler cette décision depuis le portail de paiement.",
     "settings.noticeCancellingOn":
-        "Votre forfait doit être annulé le {date}. Les textos s'arrêtent alors. Votre "
-        + "numéro est conservé {days} jours à compter du jour de l'annulation — et non "
-        + "de cette date — il peut donc être libéré peu après. Vous pouvez annuler "
-        + "cette décision depuis le portail de paiement.",
+        "Votre forfait prend fin le {date}. Les textos s’arrêtent alors s’ils sont encore actifs. Nous conservons votre numéro jusqu’au {releaseDate}. Vous pouvez annuler cette décision depuis le portail de paiement.",
     "settings.noticeKeepMyPlan": "Garder mon forfait",
 
     "settings.subscriptionTitle": "Abonnement",
@@ -1502,9 +1490,8 @@ private let settingsBillingFr: [String: String] = [
     "settings.winbackDismissFailed":
         "Impossible d'enregistrer — ceci pourrait réapparaître.",
     "settings.holdRule":
-        "Nous conservons votre numéro pendant {days} jours à compter du jour de "
-        + "l'annulation. Réabonnez-vous avant cette date et tout reprend là où vous l'aviez "
-        + "laissé.",
+        "Nous conservons votre numéro pendant {days} jours après la fin du forfait. "
+        + "Réabonnez-vous avant cette date et tout reprend là où vous l'aviez laissé.",
     "settings.holdUntil":
         "Nous conservons votre numéro jusqu'au {date}. Réabonnez-vous avant cette date et "
         + "tout reprend là où vous l'aviez laissé.",
@@ -1723,10 +1710,10 @@ private let settingsCoreEn: [String: String] = [
             + "watches for. Use {words} instead, add {word} to your emergency "
             + "words, or take the offer out of the message.",
     "settings.cancelConsequence":
-        "Cancel anytime. Your plan runs to the end of the billing period and does not renew "
-        + "— texting stops then, if it has not stopped already. We hold your number for "
-        + "{days} days from the day you cancel, not from the day the plan ends, so the hold "
-        + "can run out soon afterwards. After that the number is released for good.",
+        "Cancel anytime. "
+        + "Your plan runs to the end of the billing period and does not renew — texting stops then, if it has not stopped already. "
+        + "We hold your number for {days} days after the plan ends. "
+        + "After that the number is released for good.",
     "settings.cancelExitAction": "Continue to cancel",
     "settings.cancelExportHeading": "Take your contacts with you",
     "settings.cancelNotInPortal":
@@ -1734,11 +1721,10 @@ private let settingsCoreEn: [String: String] = [
             + "cancellation on it, so this is not something to go looking for "
             + "there.",
     "settings.cancelOwnerOnly":
-        "Only the owner can cancel this plan. When they do, the plan runs to the end of the "
-        + "billing period and does not renew — texting stops then, if it has not stopped "
-        + "already. We hold the number for {days} days from the day they cancel, not from the "
-        + "day the plan ends, so the hold can run out soon afterwards. After that the number "
-        + "is released for good.",
+        "Only the owner can cancel this plan. "
+        + "When they do, the plan runs to the end of the billing period and does not renew — texting stops then, if it has not stopped already. "
+        + "We hold the number for {days} days after the plan ends. "
+        + "After that the number is released for good.",
     "settings.cancelReasonMissingFeature": "Missing something I need",
     "settings.cancelReasonNotUsing": "Not using it",
     "settings.cancelReasonOther": "Something else",
@@ -1848,12 +1834,7 @@ private let settingsCoreEn: [String: String] = [
             + "that is to tell us what it was. We answer {when}. {promise}",
     "settings.offerMissingHeading": "Tell us what was missing",
     "settings.offerPausedSeasonalBody":
-        "Your number and your whole message history are held for as long "
-            + "as you stay paused — nothing expires while your plan is paused, "
-            + "and there is no date you have to be back by. Cancelling instead "
-            + "ends the pause and starts a clock: {days} days from the day you "
-            + "cancel, not from the end of your billing period, and at the end "
-            + "of it the number goes back to the phone company.",
+        "Your number and your whole message history are held for as long as you stay paused — nothing expires while your plan is paused, and there is no date you have to be back by. Cancelling instead ends the pause and starts a clock: {days} days after the plan ends, and at the end of it the number goes back to the phone company.",
     "settings.offerPausedSeasonalHeading":
         "Your plan is already paused, and that hold has no deadline",
     "settings.offerRegistrationFeePaid":
@@ -1861,21 +1842,12 @@ private let settingsCoreEn: [String: String] = [
             + "charged at most once per workspace, ever — coming back does not "
             + "charge it again.",
     "settings.offerSeasonalBody":
-        "It keeps receiving texts the whole time, so nothing a customer "
-            + "sends is lost — you cannot reply until you are back, and your "
-            + "message history stays put. The {days} days run from the day you "
-            + "cancel, not from the end of your billing period, so a quiet "
-            + "season longer than that outruns the hold and the number goes back "
-            + "to the phone company.",
+        "It keeps receiving texts the whole time, so nothing a customer sends is lost — you cannot reply until you are back, and your message history stays put. The {days} days run after the plan ends, so a quiet season longer than that outruns the hold and the number goes back to the phone company.",
     "settings.offerSeasonalGraceBody":
-        "It is still receiving texts, so nothing a customer sends is lost, "
-            + "though you cannot reply until you are back. That date is {days} "
-            + "days from the day you cancelled, not from the end of your last "
-            + "billing period. Resubscribe before then and the number and your "
-            + "whole message history come back with you.",
+        "It is still receiving texts, so nothing a customer sends is lost, though you cannot reply until you are back. That date is {days} days after the plan ended. Resubscribe before then and the number and your whole message history come back with you.",
     "settings.offerSeasonalGraceHeading": "Your number is still yours until the date below",
     "settings.offerSeasonalHeading":
-        "Your number is held for {days} days from the day you cancel",
+        "Your number is held for {days} days after the plan ends",
     "settings.offerStarterCovers":
         "It covers {seats} people and {numbers} business numbers.",
     "settings.offerStarterCoversOne":
@@ -2258,11 +2230,10 @@ private let settingsCoreFr: [String: String] = [
             + "mot que rien ne surveille. Utilisez plutôt {words}, ajoutez "
             + "{word} à vos mots d'urgence, ou retirez cette offre du message.",
     "settings.cancelConsequence":
-        "Annulez à tout moment. Votre forfait se poursuit jusqu'à la fin de la période de "
-        + "facturation et ne se renouvelle pas — les textos s'arrêtent alors, s'ils ne se "
-        + "sont pas déjà arrêtés. Nous conservons votre numéro pendant {days} jours à compter "
-        + "du jour de l'annulation, et non à compter de la fin du forfait : la conservation "
-        + "peut donc prendre fin peu après. Ensuite, le numéro est libéré définitivement.",
+        "Annulez à tout moment. "
+        + "Votre forfait se poursuit jusqu'à la fin de la période de facturation et ne se renouvelle pas — les textos s'arrêtent alors, s'ils ne se sont pas déjà arrêtés. "
+        + "Nous conservons votre numéro pendant {days} jours après la fin du forfait. "
+        + "Ensuite, le numéro est libéré définitivement.",
     "settings.cancelExitAction": "Continuer vers l'annulation",
     "settings.cancelExportHeading": "Partez avec vos clients",
     "settings.cancelNotInPortal":
@@ -2270,12 +2241,10 @@ private let settingsCoreFr: [String: String] = [
             + "et ne contient aucune annulation : ce n'est donc pas là qu'il "
             + "faut la chercher.",
     "settings.cancelOwnerOnly":
-        "Seul le propriétaire peut annuler ce forfait. Lorsqu'il le fait, le forfait se "
-        + "poursuit jusqu'à la fin de la période de facturation et ne se renouvelle pas — les "
-        + "textos s'arrêtent alors, s'ils ne se sont pas déjà arrêtés. Nous conservons le "
-        + "numéro pendant {days} jours à compter du jour de l'annulation, et non à compter de "
-        + "la fin du forfait : la conservation peut donc prendre fin peu après. Ensuite, le "
-        + "numéro est libéré définitivement.",
+        "Seul le propriétaire peut annuler ce forfait. "
+        + "Lorsqu'il le fait, le forfait se poursuit jusqu'à la fin de la période de facturation et ne se renouvelle pas — les textos s'arrêtent alors, s'ils ne se sont pas déjà arrêtés. "
+        + "Nous conservons le numéro pendant {days} jours après la fin du forfait. "
+        + "Ensuite, le numéro est libéré définitivement.",
     "settings.cancelReasonMissingFeature": "Il manque quelque chose dont j'ai besoin",
     "settings.cancelReasonNotUsing": "Je ne m'en sers pas",
     "settings.cancelReasonOther": "Autre chose",
@@ -2397,13 +2366,7 @@ private let settingsCoreFr: [String: String] = [
             + "{when}. {promise}",
     "settings.offerMissingHeading": "Dites-nous ce qui manquait",
     "settings.offerPausedSeasonalBody":
-        "Votre numéro et tout votre historique de messages sont conservés "
-            + "aussi longtemps que vous restez en pause — rien n'expire pendant "
-            + "la pause, et il n'y a aucune date de retour à respecter. Annuler "
-            + "plutôt met fin à la pause et démarre un compte à rebours : {days} "
-            + "jours à compter du jour de l'annulation, et non de la fin de "
-            + "votre période de facturation, au terme duquel le numéro retourne "
-            + "à la compagnie de téléphone.",
+        "Votre numéro et tout votre historique de messages sont conservés aussi longtemps que vous restez en pause — rien n'expire pendant la pause, et il n'y a aucune date de retour à respecter. Annuler plutôt met fin à la pause et démarre un compte à rebours : {days} jours après la fin du forfait, au terme duquel le numéro retourne à la compagnie de téléphone.",
     "settings.offerPausedSeasonalHeading":
         "Votre forfait est déjà en pause, et cette conservation n'a aucune "
             + "échéance",
@@ -2412,25 +2375,13 @@ private let settingsCoreFr: [String: String] = [
             + "facturés au plus une fois par espace de travail, à jamais — "
             + "revenir ne les facture pas de nouveau.",
     "settings.offerSeasonalBody":
-        "Il continue de recevoir les textos tout du long, alors rien de ce "
-            + "qu'un client envoie n'est perdu — vous ne pouvez pas répondre "
-            + "avant votre retour, et votre historique de messages reste en "
-            + "place. Les {days} jours courent à compter du jour de "
-            + "l'annulation, et non de la fin de votre période de facturation : "
-            + "une saison tranquille plus longue dépasse donc la conservation, "
-            + "et le numéro retourne à la compagnie de téléphone.",
+        "Il continue de recevoir les textos tout du long, alors rien de ce qu'un client envoie n'est perdu — vous ne pouvez pas répondre avant votre retour, et votre historique de messages reste en place. Les {days} jours courent après la fin du forfait : une saison tranquille plus longue dépasse donc la conservation, et le numéro retourne à la compagnie de téléphone.",
     "settings.offerSeasonalGraceBody":
-        "Il reçoit encore les textos, alors rien de ce qu'un client envoie "
-            + "n'est perdu, même si vous ne pouvez pas répondre avant votre "
-            + "retour. Cette date est à {days} jours du jour de l'annulation, et "
-            + "non de la fin de votre dernière période de facturation. "
-            + "Réabonnez-vous avant, et le numéro ainsi que tout votre "
-            + "historique de messages reviennent avec vous.",
+        "Il reçoit encore les textos, alors rien de ce qu'un client envoie n'est perdu, même si vous ne pouvez pas répondre avant votre retour. Cette date tombe {days} jours après la fin du forfait. Réabonnez-vous avant, et le numéro ainsi que tout votre historique de messages reviennent avec vous.",
     "settings.offerSeasonalGraceHeading":
         "Votre numéro vous appartient encore jusqu'à la date ci-dessous",
     "settings.offerSeasonalHeading":
-        "Votre numéro est conservé {days} jours à compter du jour de "
-            + "l'annulation",
+        "Votre numéro est conservé {days} jours après la fin du forfait",
     "settings.offerStarterCovers":
         "Il couvre {seats} personnes et {numbers} numéros d'entreprise.",
     "settings.offerStarterCoversOne":

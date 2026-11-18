@@ -106,8 +106,12 @@ divulguer dans le cadre du présent contrat.
 
 ## 6. Sous-traitants ultérieurs
 
-Liste actuelle, tenue publique et à jour : **Cloudflare, OpenAI, PostHog, Resend,
-Stripe, Supabase, Telnyx et Cloudflare Workers AI.**
+Liste actuelle, tenue publique et à jour : **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google, PostHog**
+
+Sur le Web et Android, les cartes chargent des tuiles de l’OpenStreetMap
+Foundation. Le géocodage transmet les adresses postales enregistrées à son
+service public Nominatim pour obtenir des coordonnées. Les conditions du
+service public s’appliquent à ces requêtes.
 
 > Source: `/legal/subprocessors`
 
@@ -120,7 +124,7 @@ pourrions pas respecter.
 ## 7. Traitement par l'IA
 
 Le texte des messages des clients et l'audio de la messagerie vocale sont traités
-par Cloudflare Workers AI et OpenAI pour les fonctionnalités que l'espace de
+par Cloudflare Workers AI pour les fonctionnalités que l'espace de
 travail a activées. La divulgation indique le **cheminement** plutôt que de
 laisser entendre un confinement, parce que l'inférence ne peut pas être confinée
 à un pays.
@@ -152,13 +156,15 @@ de réglementation.
   de tout espace de travail, est supprimé selon son propre calendrier au bout
   d'un an, et peut être retiré plus tôt sur demande.
 - Un utilisateur qui détient la permission `records.delete` peut supprimer un
-  message, une conversation, un appel, un message vocal ou un contact. Il est
-  masqué de toutes les vues à la fois, récupérable dans la corbeille pendant
-  **30 jours**, puis effacé avec ses fichiers stockés, ses enregistrements de
-  messagerie vocale, ses transcriptions et ses résumés dérivés (une suppression
-  par le client, selon ses instructions). Les compteurs de facturation et les
-  registres d'exclusion des textos ne contiennent aucun contenu de message
-  et sont conservés.
+  message, une conversation, un appel, un message vocal ou un contact. Les
+  éléments supprimés passent **30 jours** dans la corbeille, où le client peut
+  les restaurer. L’effacement d’un message, d’une conversation, d’un appel ou
+  d’un message vocal supprime son contenu, dont les fichiers, les enregistrements
+  vocaux, les transcriptions et les résumés dérivés. L’effacement d’un contact
+  supprime les renseignements de son profil. Ses conversations, son numéro
+  principal et ses registres de consentement sont conservés. Les compteurs de
+  facturation et les registres d'exclusion des textos ne contiennent aucun contenu
+  de message et sont conservés.
 - Les contacts peuvent être exportés. **Une exportation plus large n'existe pas
   encore** (#304).
 
@@ -179,13 +185,16 @@ serait le genre de promesse que tout ce document est écrit pour éviter.
 
 ## 11. Transferts internationaux
 
-Les données sont stockées aux **États-Unis**. C'est un énoncé de l'endroit où
-elles se trouvent, **et non une garantie de résidence** : nous n'en offrons pas,
-et l'inférence de l'IA en particulier ne peut pas être confinée à un pays. La
-divulgation transfrontalière exigée par la LPRPDE et par la Loi 25 du Québec se
-trouve sur la page de confidentialité.
+Notre base de données et notre stockage de fichiers se trouvent aux **États-Unis**.
+C'est une indication de leur emplacement, **et non une garantie de résidence**.
+L’inférence de l’IA ne peut pas être confinée à un pays. Le service de géocodage
+public de l’OpenStreetMap Foundation utilise des serveurs au Royaume-Uni et dans
+l’Union européenne. Ses tuiles cartographiques utilisent un réseau de diffusion
+mondial. La page de confidentialité contient la divulgation transfrontalière
+exigée par la LPRPDE et la Loi 25 du Québec.
 
 > Source: `/legal/privacy`, `docs/ACCEPTED-RISKS.md` R4
+> [OpenStreetMap Foundation FAQ](https://osmfoundation.org/wiki/Services_and_tile_users_privacy_FAQ)
 
 ## 12. Ce que ce document ne fait pas
 

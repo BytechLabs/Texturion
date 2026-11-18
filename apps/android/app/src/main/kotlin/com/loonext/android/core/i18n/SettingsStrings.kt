@@ -1422,9 +1422,7 @@ private val BILLING_EN = mapOf(
     "settings.pauseOfferBody" to
         "{price} a month instead of your plan, for as long as the quiet season lasts.",
     "settings.pauseOfferNoClock" to
-        "Cancelling starts a {days}-day clock on your number from the day you " +
-        "cancel; pausing starts no clock at all — come back in spring and pick up " +
-        "where you left off.",
+        "Cancelling starts a {days}-day clock on your number after the plan ends; pausing starts no clock at all — come back in spring and pick up where you left off.",
     "settings.pauseOfferAction" to "Pause for {amount} a month",
     "settings.pauseOfferConfirmTitle" to "Pause your plan?",
     "settings.pauseOfferConfirmBody" to
@@ -1447,11 +1445,10 @@ private val BILLING_EN = mapOf(
     "settings.cancelReasonNotUsing" to "Not using it",
     "settings.cancelReasonOther" to "Something else",
     "settings.cancelOwnerOnly" to
-        "Only the owner can cancel this plan. When they do, the plan runs to the end of the " +
-        "billing period and does not renew — texting stops then, if it has not stopped " +
-        "already. We hold the number for {days} days from the day they cancel, not from the " +
-        "day the plan ends, so the hold can run out soon afterwards. After that the number " +
-        "is released for good.",
+        "Only the owner can cancel this plan. " +
+        "When they do, the plan runs to the end of the billing period and does not renew — texting stops then, if it has not stopped already. " +
+        "We hold the number for {days} days after the plan ends. " +
+        "After that the number is released for good.",
     "settings.cancelNotInPortal" to
         "The payment portal above is for cards and invoices and has no cancellation " +
         "on it, so this is not something to go looking for there.",
@@ -1491,10 +1488,10 @@ private val BILLING_EN = mapOf(
     "misc.ownershipDetailClaimWaiting" to "The owner has been emailed and can stop this until {when}. If nobody stops it, you can complete the takeover after that.",
     "misc.ownershipDetailBackupStanding" to "If the owner ever can't get in — they leave, they lose access to their email, or worse — you're the one person who can ask to take over. They get a week to say no, and everyone on the team is told. Nothing changes until you ask.",
     "settings.cancelConsequence" to
-        "Cancel anytime. Your plan runs to the end of the billing period and does not renew " +
-        "— texting stops then, if it has not stopped already. We hold your number for " +
-        "{days} days from the day you cancel, not from the day the plan ends, so the hold " +
-        "can run out soon afterwards. After that the number is released for good.",
+        "Cancel anytime. " +
+        "Your plan runs to the end of the billing period and does not renew — texting stops then, if it has not stopped already. " +
+        "We hold your number for {days} days after the plan ends. " +
+        "After that the number is released for good.",
     "settings.cancelWhyAsk" to
         "If you want to say why, it helps us fix it. Optional, and it changes nothing " +
         "about cancelling.",
@@ -1548,15 +1545,9 @@ private val BILLING_EN = mapOf(
         "Sending is paused until your payment method is updated.",
     "settings.noticeUpdatePayment" to "Update payment method",
     "settings.noticeCancelling" to
-        "Your plan is set to cancel at the end of this period. Texting stops then. " +
-        "Your number is held for {days} days from the day you cancelled — not from " +
-        "the end of that period — so it can be released soon afterwards. You can undo " +
-        "this from the payment portal.",
+        "Your plan is set to cancel at the end of this period. Texting stops then if it is still active. Your number is held for {days} days after the plan ends. You can undo this from the payment portal.",
     "settings.noticeCancellingOn" to
-        "Your plan is set to cancel on {date}. Texting stops then. Your number is " +
-        "held for {days} days from the day you cancelled — not from the end of that " +
-        "period — so it can be released soon afterwards. You can undo this from the " +
-        "payment portal.",
+        "Your plan ends on {date}. Texting stops then if it is still active. We hold your number until {releaseDate}. You can undo this from the payment portal.",
     "settings.noticeKeepMyPlan" to "Keep my plan",
 
     "settings.subscriptionTitle" to "Subscription",
@@ -1577,8 +1568,8 @@ private val BILLING_EN = mapOf(
         "We hold your number until {date}. Resubscribe before then and everything picks up " +
         "where it left off.",
     "settings.holdRule" to
-        "We hold your number for {days} days from the day you cancel. Resubscribe before " +
-        "then and everything picks up where it left off.",
+        "We hold your number for {days} days after the plan ends. " +
+        "Resubscribe before then and everything picks up where it left off.",
     "settings.resubscribe" to "Resubscribe",
 
     "settings.planTitle" to "Plan",
@@ -1651,13 +1642,13 @@ private val BILLING_EN = mapOf(
     "settings.offerGetHelp" to "Get help",
     "settings.offerMissingBody" to "If the thing you needed is not here, the fastest way to change that is to tell us what it was. We answer {when}. {promise}",
     "settings.offerMissingHeading" to "Tell us what was missing",
-    "settings.offerPausedSeasonalBody" to "Your number and your whole message history are held for as long as you stay paused — nothing expires while your plan is paused, and there is no date you have to be back by. Cancelling instead ends the pause and starts a clock: {days} days from the day you cancel, not from the end of your billing period, and at the end of it the number goes back to the phone company.",
+    "settings.offerPausedSeasonalBody" to "Your number and your whole message history are held for as long as you stay paused — nothing expires while your plan is paused, and there is no date you have to be back by. Cancelling instead ends the pause and starts a clock: {days} days after the plan ends, and at the end of it the number goes back to the phone company.",
     "settings.offerPausedSeasonalHeading" to "Your plan is already paused, and that hold has no deadline",
     "settings.offerRegistrationFeePaid" to " You have already paid the one-time registration fee, and it is charged at most once per workspace, ever — coming back does not charge it again.",
-    "settings.offerSeasonalBody" to "It keeps receiving texts the whole time, so nothing a customer sends is lost — you cannot reply until you are back, and your message history stays put. The {days} days run from the day you cancel, not from the end of your billing period, so a quiet season longer than that outruns the hold and the number goes back to the phone company.",
-    "settings.offerSeasonalGraceBody" to "It is still receiving texts, so nothing a customer sends is lost, though you cannot reply until you are back. That date is {days} days from the day you cancelled, not from the end of your last billing period. Resubscribe before then and the number and your whole message history come back with you.",
+    "settings.offerSeasonalBody" to "It keeps receiving texts the whole time, so nothing a customer sends is lost — you cannot reply until you are back, and your message history stays put. The {days} days run after the plan ends, so a quiet season longer than that outruns the hold and the number goes back to the phone company.",
+    "settings.offerSeasonalGraceBody" to "It is still receiving texts, so nothing a customer sends is lost, though you cannot reply until you are back. That date is {days} days after the plan ended. Resubscribe before then and the number and your whole message history come back with you.",
     "settings.offerSeasonalGraceHeading" to "Your number is still yours until the date below",
-    "settings.offerSeasonalHeading" to "Your number is held for {days} days from the day you cancel",
+    "settings.offerSeasonalHeading" to "Your number is held for {days} days after the plan ends",
     "settings.offerStarterCovers" to "It covers {seats} people and {numbers} business numbers.",
     "settings.offerStarterCoversOne" to "It covers {seats} people and {numbers} business number.",
     "settings.offerStarterHeading" to "Starter is the same product, priced for a smaller crew",
@@ -1671,10 +1662,7 @@ private val BILLING_EN = mapOf(
         "We couldn't check this plan's status just now, so nothing here is claimed " +
         "either way. Your plan and your number are untouched.",
     "settings.pausedCancelNote" to
-        "Your plan is paused, so texting is already off — what cancelling ends is the " +
-        "plan itself. It also starts the clock on your number: {days} days from the " +
-        "day you cancel, not from the day the plan ends. That is the clock a pause " +
-        "keeps off it.",
+        "Your plan is paused, so texting is already off — what cancelling ends is the plan itself. It also starts the clock on your number: {days} days after the plan ends. That is the clock a pause keeps off it.",
 
     "settings.planSwitchToStarter" to "Switch to Starter",
     "settings.planUpgradeToPro" to "Upgrade to Pro",
@@ -1790,9 +1778,7 @@ private val BILLING_FR = mapOf(
         "{price} par mois au lieu de votre forfait, aussi longtemps que dure la " +
         "saison tranquille.",
     "settings.pauseOfferNoClock" to
-        "Annuler déclenche un compte à rebours de {days} jours sur votre numéro à " +
-        "partir du jour de l'annulation ; la pause ne déclenche aucun compte à " +
-        "rebours — revenez au printemps et reprenez où vous en étiez.",
+        "Annuler déclenche un compte à rebours de {days} jours sur votre numéro après la fin du forfait ; la pause ne déclenche aucun compte à rebours — revenez au printemps et reprenez où vous en étiez.",
     "settings.pauseOfferAction" to "Mettre en pause pour {amount} par mois",
     "settings.pauseOfferConfirmTitle" to "Mettre votre forfait en pause ?",
     "settings.pauseOfferConfirmBody" to
@@ -1819,12 +1805,10 @@ private val BILLING_FR = mapOf(
     "settings.cancelReasonNotUsing" to "Je ne m'en sers pas",
     "settings.cancelReasonOther" to "Autre chose",
     "settings.cancelOwnerOnly" to
-        "Seul le propriétaire peut annuler ce forfait. Lorsqu'il le fait, le forfait se " +
-        "poursuit jusqu'à la fin de la période de facturation et ne se renouvelle pas — les " +
-        "textos s'arrêtent alors, s'ils ne se sont pas déjà arrêtés. Nous conservons le " +
-        "numéro pendant {days} jours à compter du jour de l'annulation, et non à compter de " +
-        "la fin du forfait : la conservation peut donc prendre fin peu après. Ensuite, le " +
-        "numéro est libéré définitivement.",
+        "Seul le propriétaire peut annuler ce forfait. " +
+        "Lorsqu'il le fait, le forfait se poursuit jusqu'à la fin de la période de facturation et ne se renouvelle pas — les textos s'arrêtent alors, s'ils ne se sont pas déjà arrêtés. " +
+        "Nous conservons le numéro pendant {days} jours après la fin du forfait. " +
+        "Ensuite, le numéro est libéré définitivement.",
     "settings.cancelNotInPortal" to
         "Le portail de paiement ci-dessus sert aux cartes et aux factures et ne " +
         "contient aucune annulation : ce n'est donc pas là qu'il faut la chercher.",
@@ -1856,11 +1840,10 @@ private val BILLING_FR = mapOf(
     "misc.ownershipDetailClaimWaiting" to "Le propriétaire a reçu un courriel et peut arrêter cette demande jusqu'au {when}. Si personne ne l'arrête, vous pourrez terminer la reprise après ce moment.",
     "misc.ownershipDetailBackupStanding" to "Si le propriétaire ne peut plus accéder au compte un jour — il quitte, il perd l'accès à son courriel, ou pire — vous êtes la seule personne qui peut demander à reprendre. Il a une semaine pour refuser, et toute l'équipe en est informée. Rien ne change tant que vous ne demandez pas.",
     "settings.cancelConsequence" to
-        "Annulez à tout moment. Votre forfait se poursuit jusqu'à la fin de la période de " +
-        "facturation et ne se renouvelle pas — les textos s'arrêtent alors, s'ils ne se " +
-        "sont pas déjà arrêtés. Nous conservons votre numéro pendant {days} jours à compter " +
-        "du jour de l'annulation, et non à compter de la fin du forfait : la conservation " +
-        "peut donc prendre fin peu après. Ensuite, le numéro est libéré définitivement.",
+        "Annulez à tout moment. " +
+        "Votre forfait se poursuit jusqu'à la fin de la période de facturation et ne se renouvelle pas — les textos s'arrêtent alors, s'ils ne se sont pas déjà arrêtés. " +
+        "Nous conservons votre numéro pendant {days} jours après la fin du forfait. " +
+        "Ensuite, le numéro est libéré définitivement.",
     "settings.cancelWhyAsk" to
         "Si vous voulez nous dire pourquoi, cela nous aide à corriger le tir. " +
         "Facultatif, et cela ne change rien à l'annulation.",
@@ -1924,16 +1907,9 @@ private val BILLING_FR = mapOf(
         "L'envoi est suspendu tant que votre mode de paiement n'est pas mis à jour.",
     "settings.noticeUpdatePayment" to "Mettre le mode de paiement à jour",
     "settings.noticeCancelling" to
-        "Votre forfait doit être annulé à la fin de cette période. Les textos " +
-        "s'arrêtent alors. Votre numéro est conservé {days} jours à compter du jour " +
-        "de l'annulation — et non de la fin de cette période — il peut donc être " +
-        "libéré peu après. Vous pouvez annuler cette décision depuis le portail de " +
-        "paiement.",
+        "Votre forfait doit être annulé à la fin de cette période. Les textos s’arrêtent alors s’ils sont encore actifs. Votre numéro est conservé {days} jours après la fin du forfait. Vous pouvez annuler cette décision depuis le portail de paiement.",
     "settings.noticeCancellingOn" to
-        "Votre forfait doit être annulé le {date}. Les textos s'arrêtent alors. Votre " +
-        "numéro est conservé {days} jours à compter du jour de l'annulation — et non " +
-        "de la fin de cette période — il peut donc être libéré peu après. Vous pouvez " +
-        "annuler cette décision depuis le portail de paiement.",
+        "Votre forfait prend fin le {date}. Les textos s’arrêtent alors s’ils sont encore actifs. Nous conservons votre numéro jusqu’au {releaseDate}. Vous pouvez annuler cette décision depuis le portail de paiement.",
     "settings.noticeKeepMyPlan" to "Garder mon forfait",
 
     "settings.subscriptionTitle" to "Abonnement",
@@ -1956,9 +1932,8 @@ private val BILLING_FR = mapOf(
         "Nous conservons votre numéro jusqu'au {date}. Réabonnez-vous avant cette date et " +
         "tout reprend là où vous l'aviez laissé.",
     "settings.holdRule" to
-        "Nous conservons votre numéro pendant {days} jours à compter du jour de " +
-        "l'annulation. Réabonnez-vous avant cette date et tout reprend là où vous l'aviez " +
-        "laissé.",
+        "Nous conservons votre numéro pendant {days} jours après la fin du forfait. " +
+        "Réabonnez-vous avant cette date et tout reprend là où vous l'aviez laissé.",
     "settings.resubscribe" to "Se réabonner",
 
     "settings.planTitle" to "Forfait",
@@ -2013,13 +1988,13 @@ private val BILLING_FR = mapOf(
     "settings.offerGetHelp" to "Obtenir de l'aide",
     "settings.offerMissingBody" to "Si ce dont vous aviez besoin n'est pas là, le plus rapide pour que cela change est de nous dire ce que c'était. Nous répondons {when}. {promise}",
     "settings.offerMissingHeading" to "Dites-nous ce qui manquait",
-    "settings.offerPausedSeasonalBody" to "Votre numéro et tout votre historique de messages sont conservés aussi longtemps que vous restez en pause — rien n'expire pendant la pause, et il n'y a aucune date de retour à respecter. Annuler plutôt met fin à la pause et démarre un compte à rebours : {days} jours à compter du jour de l'annulation, et non de la fin de votre période de facturation, au terme duquel le numéro retourne à la compagnie de téléphone.",
+    "settings.offerPausedSeasonalBody" to "Votre numéro et tout votre historique de messages sont conservés aussi longtemps que vous restez en pause — rien n'expire pendant la pause, et il n'y a aucune date de retour à respecter. Annuler plutôt met fin à la pause et démarre un compte à rebours : {days} jours après la fin du forfait, au terme duquel le numéro retourne à la compagnie de téléphone.",
     "settings.offerPausedSeasonalHeading" to "Votre forfait est déjà en pause, et cette conservation n'a aucune échéance",
     "settings.offerRegistrationFeePaid" to " Vous avez déjà payé les frais d'inscription uniques, et ils sont facturés au plus une fois par espace de travail, à jamais — revenir ne les facture pas de nouveau.",
-    "settings.offerSeasonalBody" to "Il continue de recevoir les textos tout du long, alors rien de ce qu'un client envoie n'est perdu — vous ne pouvez pas répondre avant votre retour, et votre historique de messages reste en place. Les {days} jours courent à compter du jour de l'annulation, et non de la fin de votre période de facturation : une saison tranquille plus longue dépasse donc la conservation, et le numéro retourne à la compagnie de téléphone.",
-    "settings.offerSeasonalGraceBody" to "Il reçoit encore les textos, alors rien de ce qu'un client envoie n'est perdu, même si vous ne pouvez pas répondre avant votre retour. Cette date est à {days} jours du jour de l'annulation, et non de la fin de votre dernière période de facturation. Réabonnez-vous avant, et le numéro ainsi que tout votre historique de messages reviennent avec vous.",
+    "settings.offerSeasonalBody" to "Il continue de recevoir les textos tout du long, alors rien de ce qu'un client envoie n'est perdu — vous ne pouvez pas répondre avant votre retour, et votre historique de messages reste en place. Les {days} jours courent après la fin du forfait : une saison tranquille plus longue dépasse donc la conservation, et le numéro retourne à la compagnie de téléphone.",
+    "settings.offerSeasonalGraceBody" to "Il reçoit encore les textos, alors rien de ce qu'un client envoie n'est perdu, même si vous ne pouvez pas répondre avant votre retour. Cette date tombe {days} jours après la fin du forfait. Réabonnez-vous avant, et le numéro ainsi que tout votre historique de messages reviennent avec vous.",
     "settings.offerSeasonalGraceHeading" to "Votre numéro vous appartient encore jusqu'à la date ci-dessous",
-    "settings.offerSeasonalHeading" to "Votre numéro est conservé {days} jours à compter du jour de l'annulation",
+    "settings.offerSeasonalHeading" to "Votre numéro est conservé {days} jours après la fin du forfait",
     "settings.offerStarterCovers" to "Il couvre {seats} personnes et {numbers} numéros d'entreprise.",
     "settings.offerStarterCoversOne" to "Il couvre {seats} personnes et {numbers} numéro d'entreprise.",
     "settings.offerStarterHeading" to "Starter est le même produit, au prix d'une plus petite équipe",
@@ -2034,11 +2009,7 @@ private val BILLING_FR = mapOf(
         "n'est donc affirmé dans un sens ou dans l'autre. Votre forfait et votre " +
         "numéro n'ont pas été modifiés.",
     "settings.pausedCancelNote" to
-        "Votre forfait est en pause, donc les textos sont déjà désactivés — " +
-        "l'annulation met fin au forfait lui-même. Elle démarre aussi le compte à " +
-        "rebours pour votre numéro : {days} jours à compter du jour où vous annulez, " +
-        "et non du jour où le forfait prend fin. C'est le compte à rebours qu'une " +
-        "pause empêche de démarrer.",
+        "Votre forfait est en pause, donc les textos sont déjà désactivés — l'annulation met fin au forfait lui-même. Elle démarre aussi le compte à rebours pour votre numéro : {days} jours après la fin du forfait. C'est le compte à rebours qu'une pause empêche de démarrer.",
 
     "settings.planSwitchToStarter" to "Passer à Starter",
     "settings.planUpgradeToPro" to "Passer à Pro",

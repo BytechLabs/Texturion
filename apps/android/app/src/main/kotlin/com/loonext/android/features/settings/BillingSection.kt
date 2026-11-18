@@ -1059,20 +1059,12 @@ private fun StatusNotices(scope: SettingsScope, company: CompanyView, canManage:
         company.subscription_status == SubscriptionStatus.UNPAID ->
             t("settings.noticeUnpaid") to t("settings.noticeUpdatePayment")
 
-        // The hold is counted from the day cancelling was REQUESTED, not from
-        // the day texting stops — `canceled_at` comes off Stripe's own
-        // `subscription.canceled_at`. This notice used to read "texting stops
-        // then; we hold your number for 30 days", which invites the reader to
-        // count from the period end and can overstate the real deadline by most
-        // of a month. The exact date is not shown here on purpose: this notice
-        // is drawn while the subscription is still `active`, so the webhook has
-        // not stamped `canceled_at` on the company yet and any date built here
-        // would be a guess. The anchor is named instead.
         company.subscriptionActive && company.cancel_at_period_end -> {
             val date = fullDate(company.current_period_end)
             val days = CANCELLATION_GRACE_DAYS.toString()
-            val text = if (date != null) {
-                t("settings.noticeCancellingOn", "date" to date, "days" to days)
+            val release = releaseDate(company.current_period_end)
+            val text = if (date != null && release != null) {
+                t("settings.noticeCancellingOn", "date" to date, "releaseDate" to release)
             } else {
                 t("settings.noticeCancelling", "days" to days)
             }

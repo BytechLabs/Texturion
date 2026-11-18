@@ -40,7 +40,7 @@ export function DeleteMyDataPageBody({
       title={copy.title}
       summary={copy.summary}
       lastUpdated={copy.lastUpdated}
-      lastUpdatedIso="2026-11-13"
+      lastUpdatedIso="2026-11-17"
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? FR_PATH : EN_PATH}
       sections={sections}
@@ -82,6 +82,7 @@ export function DeleteMyDataPageBody({
       <LegalSectionBlock id="records" number="7" heading={copy.sectionRecords}>
         <p><LegalRichText text={copy.recordsOne} /></p>
         <p><LegalRichText text={copy.recordsTwo} /></p>
+        <p><LegalRichText text={copy.recordsContact} /></p>
       </LegalSectionBlock>
 
       <LegalSectionBlock id="help" number="8" heading={copy.sectionHelp}>

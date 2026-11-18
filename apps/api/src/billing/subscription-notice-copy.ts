@@ -20,14 +20,14 @@
  * next door explains why, and `subscription-notice-copy.test.ts` is the check
  * that keeps them one sentence.
  */
-import type { Locale } from "@loonext/shared";
+import { CANCELLATION_GRACE_DAYS, type Locale } from "@loonext/shared";
 
 interface SubscriptionNoticeCopy {
   /**
    * #421/#252 — the FIRST number-loss warning, and the only one with thirty
    * days of runway still on it.
    */
-  cancellationTitle: string;
+  cancellationTitle(releaseDate: string | null): string;
   /** What can still be done about it, which is the only actionable half. */
   cancellationBody: string;
   /**
@@ -46,7 +46,9 @@ interface SubscriptionNoticeCopy {
 }
 
 const EN: SubscriptionNoticeCopy = {
-  cancellationTitle: "Your subscription was cancelled — your number goes in 30 days",
+  cancellationTitle: (releaseDate) => releaseDate
+    ? `Your number will be released on ${releaseDate}`
+    : `Number release: ${CANCELLATION_GRACE_DAYS} days after the plan ends`,
   cancellationBody: "You can undo this yourself. Open Loonext to keep your number.",
   numbersHeldTitle: (count) =>
     count === 1
@@ -69,7 +71,9 @@ const FR: SubscriptionNoticeCopy = {
   // whose whole job is that the number is still recoverable. So the French
   // body opens by naming it. A body is not truncated, which is exactly why
   // the fact that will not fit above belongs there.
-  cancellationTitle: "Annulé : votre numéro part dans 30 jours",
+  cancellationTitle: (releaseDate) => releaseDate
+    ? `Numéro libéré le ${releaseDate}`
+    : `Numéro libéré ${CANCELLATION_GRACE_DAYS} jours après la fin du forfait`,
   // « revenir en arrière » rather than « annuler l'annulation », which is what
   // a literal reading produces and is unreadable. Loonext is a product name.
   cancellationBody:

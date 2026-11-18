@@ -719,7 +719,7 @@ async function sendNotificationBudgetAlert(
   const name =
     (companies?.[0] as { name: string } | undefined)?.name ?? "Your company";
 
-  const to = await billingRecipients(env, companyId, db);
+  const to = await billingRecipients(env, companyId, db, "settings.manage");
   if (to.length === 0) return;
 
   const copy = budgetAlertCopy({

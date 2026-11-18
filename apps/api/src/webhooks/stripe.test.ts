@@ -98,6 +98,7 @@ function subscriptionFixture(
     cancelAtPeriodEnd?: boolean;
     modulePriceIds?: string[];
     canceledAt?: number | null;
+    endedAt?: number | null;
     /** #327: Stripe's `start_date`; null models a payload without one. */
     startDate?: number | null;
     /** #134/D42: every subscription carries the per-plan voice METERED item
@@ -117,6 +118,7 @@ function subscriptionFixture(
     cancelAtPeriodEnd = false,
     modulePriceIds = [],
     canceledAt = null,
+    endedAt = null,
     startDate = SUBSCRIPTION_START,
     licensedUnitAmount = 2900,
   } = overrides;
@@ -136,6 +138,7 @@ function subscriptionFixture(
     status,
     cancel_at_period_end: cancelAtPeriodEnd,
     canceled_at: canceledAt,
+    ended_at: endedAt,
     start_date: startDate,
     schedule: null,
     items: {
@@ -279,6 +282,7 @@ function ledgerEndpoints(seen = new Set<string>()): StubEndpoint[] {
       restored: [],
       held: [],
     })),
+    endpoint("POST", /\/rest\/v1\/rpc\/api_reanchor_cancellation/, () => true),
     // #134/D42: every LIVE-subscription mirror pass voice-binds the
     // workspace's numbers (enableVoiceForCompany). No active numbers in the
     // billing suites — a quiet no-op.
@@ -1279,6 +1283,8 @@ describe("§9 event → state table", () => {
   });
 
   it("customer.subscription.deleted: canceled + suspend + day-1 notice through the ledger", async () => {
+    const serviceEndedAt = Math.floor(Date.now() / 1000);
+    const requestedAt = serviceEndedAt - 29 * 24 * 60 * 60;
     const graceInserts: unknown[] = [];
     const harness = makeHarness([
       ...ledgerEndpoints(),
@@ -1292,13 +1298,20 @@ describe("§9 event → state table", () => {
       ...recipientEndpoints(),
     ]);
     await deliver(
-      eventOf("customer.subscription.deleted", subscriptionFixture(), {
-        created: EVENT_CREATED,
-      }),
+      eventOf(
+        "customer.subscription.deleted",
+        subscriptionFixture({
+          canceledAt: requestedAt,
+          endedAt: serviceEndedAt,
+        }),
+        {
+          created: serviceEndedAt,
+        },
+      ),
       harness,
     );
 
-    const canceledAt = new Date(EVENT_CREATED * 1000).toISOString();
+    const canceledAt = new Date(serviceEndedAt * 1000).toISOString();
     const patches = harness.callsTo("PATCH", /companies/);
     expect(patches).toHaveLength(2);
     expect(patches[0].json()).toEqual({
@@ -1337,6 +1350,30 @@ describe("§9 event → state table", () => {
       harness,
     );
     expect(suspendCompanyNumbers).toHaveBeenCalledOnce();
+    expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
+  });
+
+  it("customer.subscription.deleted only mirrors a closed workspace", async () => {
+    const harness = makeHarness([
+      ...ledgerEndpoints(),
+      endpoint("PATCH", /\/rest\/v1\/companies/, () => [
+        {
+          id: COMPANY_ID,
+          name: "Acme Plumbing",
+          canceled_at: null,
+          deleted_at: "2026-11-01T00:00:00.000Z",
+        },
+      ]),
+    ]);
+
+    await deliver(
+      eventOf("customer.subscription.deleted", subscriptionFixture()),
+      harness,
+    );
+
+    expect(harness.callsTo("PATCH", /companies/)).toHaveLength(1);
+    expect(suspendCompanyNumbers).not.toHaveBeenCalled();
+    expect(harness.callsTo("POST", /grace_notices/)).toHaveLength(0);
     expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
   });
 
@@ -1955,7 +1992,7 @@ describe("#584 a prepaid year survives a cancel-and-resubscribe", () => {
 });
 
 describe("missed-cancellation backstop (#21)", () => {
-  const STRIPE_CANCELED_AT = 1_750_500_000;
+  const STRIPE_CANCELED_AT = Math.floor(Date.now() / 1000) - 3600;
   const STRIPE_CANCELED_ISO = new Date(STRIPE_CANCELED_AT * 1000).toISOString();
 
   /**
@@ -2024,14 +2061,15 @@ describe("missed-cancellation backstop (#21)", () => {
     expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(1);
   });
 
-  it("an already-claimed cancellation converges: no re-claim, no duplicate email", async () => {
-    const EXISTING = "2026-06-20T00:00:00.000Z";
+  it("moves an early request anchor to service end without duplicating day 1", async () => {
+    const EXISTING = new Date((STRIPE_CANCELED_AT - 86400) * 1000).toISOString();
     const harness = makeHarness([
       ...ledgerEndpoints(),
       endpoint("GET", /api\.stripe\.com\/v1\/subscriptions\/sub_1/, () =>
         subscriptionFixture({
           status: "canceled",
           canceledAt: STRIPE_CANCELED_AT,
+          endedAt: STRIPE_CANCELED_AT,
         }),
       ),
       companiesEndpoint(EXISTING),
@@ -2044,9 +2082,14 @@ describe("missed-cancellation backstop (#21)", () => {
       harness,
     );
 
-    // Only the status mirror — canceled_at is never overwritten (the grace
-    // ledger keys on the one stored value).
     expect(harness.callsTo("PATCH", /companies/)).toHaveLength(1);
+    expect(
+      harness.callsTo("POST", /rpc\/api_reanchor_cancellation/)[0].json(),
+    ).toEqual({
+      p_company_id: COMPANY_ID,
+      p_old_canceled_at: EXISTING,
+      p_new_canceled_at: STRIPE_CANCELED_ISO,
+    });
     expect(suspendCompanyNumbers).toHaveBeenCalledOnce(); // idempotent
     expect(harness.callsTo("POST", /api\.resend\.com/)).toHaveLength(0);
   });

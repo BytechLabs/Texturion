@@ -56,7 +56,9 @@ describe("#228 the French half exists", () => {
     const {en} = SUBSCRIPTION_NOTICE_COPY;
     const fr = SUBSCRIPTION_NOTICE_COPY["fr-CA"];
 
-    expect(fr.cancellationTitle).not.toBe(en.cancellationTitle);
+    expect(fr.cancellationTitle("2026-12-31")).not.toBe(
+      en.cancellationTitle("2026-12-31"),
+    );
     expect(fr.cancellationBody).not.toBe(en.cancellationBody);
     expect(fr.numbersHeldTitle(1)).not.toBe(en.numbersHeldTitle(1));
     expect(fr.numbersHeldBody).not.toBe(en.numbersHeldBody);
@@ -77,10 +79,10 @@ describe("#228 the French half exists", () => {
     // entire notice. Pinned as a number so a later edit has to make the same
     // decision on purpose.
     expect(
-      SUBSCRIPTION_NOTICE_COPY["fr-CA"].cancellationTitle.length,
+      SUBSCRIPTION_NOTICE_COPY["fr-CA"].cancellationTitle("2026-12-31").length,
     ).toBeLessThanOrEqual(40);
-    expect(SUBSCRIPTION_NOTICE_COPY["fr-CA"].cancellationTitle).toContain(
-      "30 jours",
+    expect(SUBSCRIPTION_NOTICE_COPY["fr-CA"].cancellationTitle("2026-12-31")).toContain(
+      "2026-12-31",
     );
   });
 });

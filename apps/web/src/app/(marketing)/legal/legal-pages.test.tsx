@@ -1,3 +1,4 @@
+import { SUBPROCESSORS } from "@loonext/shared";
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
@@ -306,6 +307,16 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
         expect(sharing).toContain(vendor);
       }
     });
+
+    it(`${locale}: discloses public geocoding regions and links the map privacy policy`, () => {
+      const where = section(PRIVACY[locale], "where");
+      expect(where).toContain("https://osmfoundation.org/wiki/Privacy_Policy");
+      expect(visibleText(where)).toContain(
+        locale === "en"
+          ? "United Kingdom and the European Union"
+          : "Royaume-Uni et dans l’Union européenne",
+      );
+    });
   }
 });
 
@@ -394,16 +405,10 @@ describe("messaging — the SMS program disclosures survive", () => {
 describe("subprocessors — the vendor ledger survives", () => {
   const {html} = PAGES[4];
 
-  it("lists all six vendors", () => {
-    for (const vendor of [
-      "Telnyx",
-      "Stripe",
-      "Supabase (on AWS)",
-      "Cloudflare",
-      "Resend",
-      "PostHog",
-    ]) {
-      expect(html).toContain(vendor);
+  it("lists the current service providers", () => {
+    const html = renderToStaticMarkup(<SubprocessorsPage />);
+    for (const { name } of SUBPROCESSORS) {
+      expect(html).toContain(name);
     }
   });
 
@@ -584,19 +589,19 @@ describe("delete-my-data — the store-facing deletion page", () => {
     expect(page.html).toMatch(/30 days/);
   });
 
-  it("says a deleted contact is hidden rather than sent to the Trash, here and on privacy", () => {
-    // DELETE /v1/contacts/:id only sets deleted_at, which an inbound text or call
-    // clears again; the Trash holds messages, conversations, calls and voicemails.
+  it("explains contact Trash retention and what stays after erasure", () => {
     const said = {
       en: [
-        "hides the contact from your lists without erasing it",
-        "its conversations stay",
-        "that number texts or calls you",
+        "Deleting a contact moves it to the Trash",
+        "restored for 30 days",
+        "Its conversations stay",
+        "keep its primary number and consent records",
       ],
       "fr-CA": [
-        "masque le contact dans vos listes sans l'effacer",
-        "ses conversations restent",
-        "ce numéro vous texte ou vous appelle",
+        "Un contact supprimé va dans la corbeille",
+        "restauré pendant 30 jours",
+        "Ses conversations restent",
+        "conservons son numéro principal et ses registres de consentement",
       ],
     } as const;
     for (const locale of ["en", "fr-CA"] as const) {

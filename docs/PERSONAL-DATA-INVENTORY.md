@@ -47,8 +47,8 @@ The most sensitive category, because the person never chose us.
 
 | Table | Holds | Retention |
 |---|---|---|
-| `contacts` | name, phone, **address**, free-text notes | Life of the workspace; purged 30 days after closure |
-| `messages` | **message bodies**, both directions | Same. The bodies are the product |
+| `contacts` | name, phone, **address**, free-text notes | Contact Trash expires after 30 days and clears profile details, including additional numbers and addresses. The primary number and consent evidence remain. Workspace closure purges the contact row after 30 days. |
+| `messages` | **message bodies**, both directions | Life of the workspace; purged 30 days after closure |
 | `conversations` | phone-number link, timings | Same |
 | `conversation_events` | who did what to a thread | Same |
 | `conversation_snoozes` | which member deferred which thread, until when, and a short note THEY wrote (#293). No customer data — the note is a crew member's own words about their own work | Same |
@@ -73,7 +73,7 @@ The most sensitive category, because the person never chose us.
 | `contact_consent_events` | consent attestations, stripped | **3 years**, names and message contents removed — CASL requires the record, not the content |
 | `tasks` | free-text description, **job address** | Life of the workspace |
 | `task_events` | the previous and new **title, description, job address**, assignee and times of one task, with the member who changed it (#689) | Life of the task; deleted with it and purged with the workspace |
-| `record_activity` | one row per event on a contact, task, conversation or call: who did it, when, and a link to the source. Field edits hold the field **before and after** (name, email, address, notes, task title), never a message body (#714) | Life of the workspace; a purged task loses the words its rows carried; purged with the workspace |
+| `record_activity` | one row per event on a contact, task, conversation or call: who did it, when, and a link to the source. Field edits hold the field **before and after** (name, email, address, notes, task title), never a message body (#714) | Life of the workspace. Purging a contact or task clears the old and new field values from its edit events. Workspace closure purges the activity rows. |
 | `task_comments` | the free text a member typed about a task, and the author; files on a comment are `attachments` rows (#689) | Life of the task (a deleted comment is soft-deleted and hidden); purged with the workspace |
 | `task_series` | the **title, description and job address** a repeating job copies into each new occurrence, the contact and conversation it is linked to, and who set it up (#693). Trash expiry stops a series made from deleted content and blanks the copy | Life of the repeat; purged with the workspace |
 | `task_tags` | which workspace tags ("warranty", "parts needed") a task carries. References only (#693) | Life of the task (FK cascade); purged with the workspace |
@@ -86,6 +86,8 @@ The most sensitive category, because the person never chose us.
 | `calendar_outbox` | the same task scheduling snapshot while a provider write is pending, plus lease/error metadata. No plaintext description (#245/D137) | Completed attempts remain as operational evidence until workspace teardown; live attempts are cancelled on disconnect/replacement |
 | `calendar_reminder_replans` | task and requesting-member references plus retry/lease/error metadata for route-driven reminder replanning; no reminder body or calendar snapshot (#245/D137) | Completed attempts remain as operational evidence until workspace teardown; live attempts are cancelled when the task is cancelled or during workspace teardown |
 | `number_port_outs`, `text_enablement_orders` | phone numbers | Life of the workspace |
+
+Map geocoding sends saved contact street addresses to OpenStreetMap Foundation’s public Nominatim endpoint to obtain coordinates. Web and Android request map tiles from OpenStreetMap.
 
 ## 2. User data — our own customers
 

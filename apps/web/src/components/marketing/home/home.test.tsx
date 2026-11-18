@@ -171,7 +171,8 @@ describe("laws that hold across the whole page (Laws 1, 6, 11)", () => {
     expect(hrefs.length).toBeGreaterThan(0);
     for (const href of hrefs) {
       if (href.startsWith("http")) continue; // schema.org URLs in JSON-LD
-      expect(live.has(href), `dead link: ${href}`).toBe(true);
+      const path = new URL(href, "https://loonext.com").pathname;
+      expect(live.has(path), `dead link: ${href}`).toBe(true);
     }
   });
 });

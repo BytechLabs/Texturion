@@ -136,10 +136,7 @@ describe("the notice itself", () => {
     await noticeCancellation(env, getDb(env), company, subscription);
 
     expect(w.audiences).toHaveLength(1);
-    // Owners and admins only. A member cannot undo a cancellation, and waking
-    // somebody at a job about a deadline they cannot resolve is how a crew
-    // learns to swipe our notifications away.
-    expect(w.audiences[0].search).toContain("role=in.%28owner%2Cadmin%29");
+    expect(w.audiences[0].search).toContain("role=in.%28owner%2Cadmin%2Cbookkeeper%29");
     expect(w.audiences[0].search).toContain("deactivated_at=is.null");
   });
 

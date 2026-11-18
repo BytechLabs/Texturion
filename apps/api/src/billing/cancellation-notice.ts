@@ -12,7 +12,7 @@
  * everybody needs; it is one person's decision to make and unmake, and paging
  * a crew about their employer's billing would be a different mistake.
  */
-import type { Locale } from "@loonext/shared";
+import { numberReleaseAt, type Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import type Stripe from "stripe";
 
@@ -105,6 +105,10 @@ export async function noticeCancellation(
     const when = endsAt
       ? new Date(endsAt * 1000).toISOString().slice(0, 10)
       : "the end of the current billing period";
+    const releaseAt = endsAt
+      ? numberReleaseAt(new Date(endsAt * 1000).toISOString())
+      : null;
+    const releaseDate = releaseAt?.toISOString().slice(0, 10) ?? null;
 
     const settingsUrl = `${env.APP_ORIGIN}/settings/billing`;
     // #413: the customer may not understand what release means. The number is
@@ -130,7 +134,7 @@ export async function noticeCancellation(
       // message that gets filtered the next one is already too late.
       critical: true,
       to: [data.user.email],
-      subject: `Your Loonext subscription was cancelled — your number is released in 30 days`,
+      subject: SUBSCRIPTION_NOTICE_COPY.en.cancellationTitle(releaseDate),
       text,
       html: emailLayout(
         `<p>Someone cancelled the Loonext subscription for <strong>${company.name}</strong>.</p>` +
@@ -160,7 +164,7 @@ export async function noticeCancellation(
     await pushConsequentialNotice(env, db, {
       companyId: company.id,
       title: (locale: Locale) =>
-        SUBSCRIPTION_NOTICE_COPY[locale].cancellationTitle,
+        SUBSCRIPTION_NOTICE_COPY[locale].cancellationTitle(releaseDate),
       body: (locale: Locale) => SUBSCRIPTION_NOTICE_COPY[locale].cancellationBody,
       path: "/settings/billing",
       collapseKey: `cancellation:${company.id}`,

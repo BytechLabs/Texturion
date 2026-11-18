@@ -69,7 +69,7 @@ export async function runRetentionNoticeJob(
     if (claimed !== true) continue;
 
     try {
-      const to = await billingRecipients(env, row.company_id, db);
+      const to = await billingRecipients(env, row.company_id, db, "settings.manage");
       if (to.length === 0) continue;
 
       const years = Math.round((row.window_days / 365) * 10) / 10;

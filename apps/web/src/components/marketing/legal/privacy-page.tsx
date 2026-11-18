@@ -1,5 +1,6 @@
 import {
   AI_DISCLOSURES,
+  SUBPROCESSORS,
   AI_INFERENCE_LOCATION_STATEMENT,
   AI_INFERENCE_RETENTION_STATEMENT,
   AI_TRAINING_STATEMENT,
@@ -13,6 +14,7 @@ import {
 import { LegalRichText } from "@/components/marketing/legal/legal-rich-text";
 import { CATALOGS } from "@/i18n/catalog";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
+import { legalSubprocessorsCopy } from "@/i18n/marketing/legal-subprocessors";
 import { legalPrivacyCopy } from "@/i18n/marketing/legal-privacy";
 import {
   PRIVACY_EMAIL,
@@ -73,12 +75,17 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
     type: "conjunction",
   }).format(AI_DISCLOSURES.map((row) => say(row.label)));
 
+  const vendorCopy = legalSubprocessorsCopy(locale);
+  const vendors = SUBPROCESSORS.map((row) =>
+    "note" in row ? `${row.name} (${vendorCopy[row.note]})` : row.name,
+  );
+
   return (
     <LegalPage
       title={copy.title}
       summary={copy.summary}
       lastUpdated={copy.lastUpdated}
-      lastUpdatedIso="2026-11-13"
+      lastUpdatedIso="2026-11-17"
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? PRIVACY_FR_PATH : PRIVACY_EN_PATH}
       sections={sections}
@@ -138,7 +145,17 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
           />
         </p>
         <p>
-          <LegalRichText text={copy.whereThree} slots={{ subprocessors }} />
+          <LegalRichText
+            text={copy.whereThree}
+            slots={{
+              subprocessors,
+              osmPrivacy: (
+                <LegalLink href="https://osmfoundation.org/wiki/Privacy_Policy">
+                  {copy.osmPrivacyLink}
+                </LegalLink>
+              ),
+            }}
+          />
         </p>
       </LegalSectionBlock>
 
@@ -175,7 +192,10 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
       </LegalSectionBlock>
 
       <LegalSectionBlock id="sharing" number="6" heading={copy.sectionSharing}>
-        <p><LegalRichText text={copy.sharingOne} slots={{ subprocessors }} /></p>
+        <p><LegalRichText text={copy.sharingOne} slots={{
+          subprocessors,
+          vendors: new Intl.ListFormat(locale).format(vendors),
+        }} /></p>
         <p>{copy.sharingTwo}</p>
         <p>{copy.sharingThree}</p>
       </LegalSectionBlock>

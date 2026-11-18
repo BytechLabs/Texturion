@@ -1,3 +1,4 @@
+import { SUBPROCESSORS } from "@loonext/shared";
 import securityPolicy from "@root/SECURITY.md";
 import accessibilityStatement from "@root/docs/ACCESSIBILITY.md";
 import dpaEn from "@root/docs/DPA.md";
@@ -123,4 +124,10 @@ describe("every legal page renders with no slot left in braces", () => {
     expect(rendered).toContain("privacy fr-CA");
     expect(rendered).toHaveLength(Object.keys(BODIES).length * 2);
   });
+});
+
+it.each([dpaEn, dpaFr])("lists the same service providers in the DPA", (dpa) => {
+  const subprocessors = dpa.slice(dpa.indexOf("## 6."));
+  const names = subprocessors.match(/\*\*([^*]+)\*\*/)?.[1].split(", ");
+  expect(names).toEqual(SUBPROCESSORS.map(({ name }) => name));
 });

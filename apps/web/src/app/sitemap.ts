@@ -97,6 +97,7 @@ export default function sitemap(): MetadataRoute.Sitemap {
     // Canada (BLUEPRINT §2, §7).
     { path: LIVE_ROUTES.canada, priority: 0.7, changeFrequency: "monthly" },
 
+    { path: LIVE_ROUTES.developers, priority: 0.6, changeFrequency: "monthly" },
     // Comparison pages (BLUEPRINT §2, §6). The /compare index is the hub the
     // two head-to-head pages link back to (and their breadcrumbs terminate on).
     {

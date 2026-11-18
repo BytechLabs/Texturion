@@ -421,23 +421,15 @@ describe("seasonal", () => {
     }
   });
 
-  it("anchors the hold to the cancellation in both phases", () => {
-    // runGraceJob measures now - canceled_at, and startCancellationLifecycle
-    // stamps that column from Stripe's `canceled_at` — which for a
-    // cancel_at_period_end cancellation is the time of the REQUEST, not the end
-    // of the period. Anything anchored to the period end describes a date about
-    // a month later than the one the number actually dies on.
+  it("counts the hold from the plan end in both phases", () => {
     for (const phase of ["before", "grace"] as CancellationOfferPhase[]) {
       const result = offer({ reason: "seasonal", phase })!;
       const copy = `${result.heading} ${result.body}`;
       expect(copy).toMatch(
         new RegExp(
-          `${CANCELLATION_GRACE_DAYS} days .{0,20}from the day you cancel`,
+          `${CANCELLATION_GRACE_DAYS} days .{0,20}after the plan end(?:s|ed)`,
         ),
       );
-      // ...and says so against the wrong anchor by name, because the wrong
-      // anchor is the one the reader already has in their head.
-      expect(copy).toContain("not from the end of your");
     }
   });
 
@@ -502,14 +494,11 @@ describe("seasonal, while paused (#277)", () => {
     expect(paused().body).toContain(`${CANCELLATION_GRACE_DAYS} days`);
   });
 
-  it("anchors that clock to the cancellation, like every other answer", () => {
-    // Same fact, same reason: runGraceJob measures now - canceled_at, so a
-    // period-end anchor is about a month of somebody else's arithmetic.
+  it("counts the paused workspace’s hold from the plan end", () => {
     const copy = `${paused().heading} ${paused().body}`;
     expect(copy).toMatch(
-      new RegExp(`${CANCELLATION_GRACE_DAYS} days .{0,20}from the day you cancel`),
+      new RegExp(`${CANCELLATION_GRACE_DAYS} days .{0,20}after the plan end(?:s|ed)`),
     );
-    expect(copy).toContain("not from the end of your");
     expect(paused().body).toContain("goes back to the phone company");
   });
 

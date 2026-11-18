@@ -61,6 +61,9 @@ export const footerEn = {
   salons: "Salons",
   contractors: "Contractors",
 
+  whatsNew: "What’s new",
+  developers: "Developers",
+  compareIndex: "All comparisons",
   compareHeymarket: "Loonext vs Heymarket",
   compareQuo: "Loonext vs Quo",
 
@@ -112,6 +115,9 @@ export const footerFr: Translated<typeof footerEn> = {
   salons: "Salons",
   contractors: "Entrepreneurs",
 
+  whatsNew: "Nouveaut?s",
+  developers: "Développeurs",
+  compareIndex: "Toutes les comparaisons",
   compareHeymarket: "Loonext vs Heymarket",
   compareQuo: "Loonext vs Quo",
 

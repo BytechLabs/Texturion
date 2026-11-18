@@ -1,3 +1,4 @@
+import { ASSIGNABLE_ROLES } from "@loonext/shared";
 /**
  * Team routes (SPEC §7, §10):
  *
@@ -64,24 +65,6 @@ const INVITE_COLUMNS =
   // #521: the inviter's own words. Read by the team list so an owner can see
   // what they said, and by the accept path so it can reach the new member.
   "note";
-
-/**
- * #315: the roles an owner or admin may hand out.
- *
- * Owner is never assignable (SPEC §6 CHECK, §10 — ownership is transferred,
- * never granted). `read_only` joins the list as a named preset: an owner's
- * partner, an accountant, a consultant who should see the work and never text
- * a customer as the business. `bookkeeper` is the other half of the same
- * problem: billing and NOT the inbox. Before them, the honest options were
- * "let them text your customers" or "give them nothing", and the third one
- * people picked was sharing a login.
- */
-const ASSIGNABLE_ROLES = [
-  "admin",
-  "member",
-  "read_only",
-  "bookkeeper",
-] as const;
 
 const inviteSchema = z.object({
   email: z.email(),
@@ -499,7 +482,7 @@ async function notifyOwnerOfDeparture(
     const [{ data: user }, companies, to] = await Promise.all([
       db.auth.admin.getUserById(userId),
       db.from("companies").select("name").eq("id", companyId).limit(1),
-      billingRecipients(env, companyId, db),
+      billingRecipients(env, companyId, db, "team.manage"),
     ]);
     if (to.length === 0) return;
     const who = user?.user?.email ?? "A member";

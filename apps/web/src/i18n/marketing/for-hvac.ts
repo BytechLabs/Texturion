@@ -113,9 +113,9 @@ export const hvacEn = {
     ", covers up to 15 people, and includes a second number for exactly that.",
 
   faqH2: "HVAC questions, straight answers.",
-  faqRemindersQ: "Does Loonext send maintenance reminders automatically?",
+  faqRemindersQ: "How can my team send seasonal maintenance reminders?",
   faqRemindersA:
-    "No. Reminders are something you send, fast, with a saved reply: pull up your plan customers and text the tune-up nudge in a couple of taps. That keeps a real person deciding who to contact, and it keeps you inside the phone companies' rules on unsolicited blasts. What Loonext gives you is the shared inbox where the whole team sees who's been reminded and who's booked.",
+    "Use a saved reply to text a seasonal tune-up reminder to your maintenance customers. Your team can see their replies in the shared inbox.",
   faqSurgeQ:
     "The calls all hit at once in a cold snap. How does a shared inbox help?",
   faqSurgeA:
@@ -247,9 +247,9 @@ export const hvacFr: Translated<typeof hvacEn> = {
 
   faqH2: "Questions de CVCA, réponses directes.",
   faqRemindersQ:
-    "Est-ce que Loonext envoie les rappels d'entretien automatiquement ?",
+    "Comment mon équipe peut-elle envoyer les rappels d’entretien saisonnier ?",
   faqRemindersA:
-    "Non. Les rappels, c'est quelque chose que vous envoyez, rapidement, avec une réponse enregistrée : sortez vos clients au plan et envoyez le rappel de mise au point en deux touches. Ça garde une vraie personne qui décide qui contacter, et ça vous garde à l'intérieur des règles des compagnies de téléphone sur les envois non sollicités. Ce que Loonext vous donne, c'est la boîte partagée où toute l'équipe voit qui a été rappelé et qui est réservé.",
+    "Utilisez une réponse enregistrée pour envoyer un rappel de mise au point saisonnière à vos clients par texto. Votre équipe retrouve leurs réponses dans la boîte partagée.",
   faqSurgeQ:
     "Les appels arrivent tous en même temps lors d'un grand froid. En quoi une boîte partagée aide-t-elle ?",
   faqSurgeA:

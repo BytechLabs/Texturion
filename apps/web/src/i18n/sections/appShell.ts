@@ -406,10 +406,8 @@ export const appShellEn = {
   billingCancelOnDate: " on {date}",
   billingCancelAtPeriodEnd: " at the end of this period",
   billingCancelTail:
-    ". Texting stops then, if it has not stopped already. Your number is held " +
-    "for {days} days from the day you cancelled — not from that date — so it " +
-    "can be released soon afterwards. You can undo this from the payment " +
-    "portal.",
+    ". Texting stops then, if it has not stopped already. Your number is held for {days} days after the plan ends. You can undo this from the payment portal.",
+  billingScheduledRelease: "We hold your number until {date}.",
   billingKeepPlan: "Keep my plan",
   billingSubscription: "Subscription",
   billingCanceled: "Your subscription is canceled.",
@@ -1464,10 +1462,8 @@ export const appShellFr: Translated<typeof appShellEn> = {
   billingCancelOnDate: " le {date}",
   billingCancelAtPeriodEnd: " à la fin de cette période",
   billingCancelTail:
-    ". Les envois cessent alors, s'ils n'ont pas déjà cessé. Votre numéro est " +
-    "conservé {days} jours à partir du jour de l'annulation — pas à partir de " +
-    "cette date — il peut donc être libéré peu après. Vous pouvez annuler " +
-    "cela depuis le portail de paiement.",
+    ". Les envois cessent alors, s'ils n'ont pas déjà cessé. Votre numéro est conservé {days} jours après la fin du forfait. Vous pouvez annuler cela depuis le portail de paiement.",
+  billingScheduledRelease: "Nous conservons votre numéro jusqu’au {date}.",
   billingKeepPlan: "Garder mon forfait",
   billingSubscription: "Abonnement",
   billingCanceled: "Votre abonnement est annulé.",

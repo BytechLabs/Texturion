@@ -120,10 +120,8 @@ export function usd(n: number, currency: BillingCurrency = "usd"): string {
  * emitted in catalog order so the same selection always yields the same URL.
  */
 export function signupHref(selection: PlanSelection): string {
-  const params = new URLSearchParams({ plan: selection.plan });
   const addons = SELLABLE_ADDON_CARDS.filter((card) =>
     selection.addons.includes(card.id),
   ).map((card) => card.id);
-  if (addons.length > 0) params.set("modules", addons.join(","));
-  return `${APP_LINKS.signup}?${params.toString()}`;
+  return APP_LINKS.signupForPlan(selection.plan, addons);
 }

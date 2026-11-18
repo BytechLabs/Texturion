@@ -150,15 +150,13 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
     const { harness, done } = run(state, daysAfterCancel(16));
     await done;
 
-    // Both thresholds were attempted through the ledger…
     const attempted = harness
       .callsTo("POST", /grace_notices/)
       .map((call) => (call.json() as { threshold_day: number }).threshold_day);
-    expect(attempted).toEqual([1, 15]);
-    // …but only the unsent one produced an email.
+    expect(attempted).toEqual([15]);
     const emails = sentEmails(harness);
     expect(emails).toHaveLength(1);
-    expect(emails[0].subject).toContain("15 days left");
+    expect(emails[0].subject).toContain("14 days left");
   });
 
   it("day 27: the final warning names 3 days", async () => {

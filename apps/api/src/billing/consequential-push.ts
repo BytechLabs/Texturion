@@ -37,6 +37,7 @@ import type { Locale } from "@loonext/shared";
 
 import type { Env } from "../env";
 import { deliverPush } from "../notifications/deliver";
+import { noticeRoles } from "./recipients";
 
 export async function pushConsequentialNotice(
   env: Env,
@@ -69,15 +70,12 @@ export async function pushConsequentialNotice(
   },
 ): Promise<void> {
   try {
-    // Owners and admins. A member cannot act on any of this, and waking
-    // somebody at a job to tell them about a billing deadline they cannot
-    // resolve is how a workspace learns to swipe our notifications away.
     const { data, error } = await db
       .from("company_members")
       .select("user_id")
       .eq("company_id", args.companyId)
       .is("deactivated_at", null)
-      .in("role", ["owner", "admin"]);
+      .in("role", noticeRoles("billing.manage"));
     if (error) throw new Error(`consequential push audience failed: ${error.message}`);
 
     const userIds = ((data ?? []) as { user_id: string }[]).map((row) => row.user_id);

@@ -1,5 +1,7 @@
 "use client";
 
+import { ASSIGNABLE_ROLES, type AssignableRole } from "@loonext/shared";
+
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronRight } from "lucide-react";
 import Link from "next/link";
@@ -19,8 +21,6 @@ import {
   roleChangeNeedsConfirming,
 } from "@/components/settings/give-up-access-dialog";
 import {
-  ASSIGNABLE_ROLES,
-  type AssignableRole,
   RoleSelect,
   roleBlurbs,
   roleLabels,

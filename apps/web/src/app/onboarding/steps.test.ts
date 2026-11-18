@@ -214,14 +214,10 @@ describe(resolveOnboardingLocation, () => {
     ).toEqual({ kind: "step", step: "number" });
   });
 
-  it("US draft with area code but no company → texting step", () => {
-    // #381/#458: the identity ask (`business`) moved behind the paywall, so
-    // the pre-company registration branch lands on the opt-in description.
+  it("resumes an interrupted business form from the draft", () => {
     expect(
-      resolveOnboardingLocation(
-        snapshot({ company: null, draft: COMPLETE_DRAFT }),
-      ),
-    ).toEqual({ kind: "step", step: "texting" });
+      resolveOnboardingLocation(snapshot({ draft: COMPLETE_DRAFT })),
+    ).toEqual({ kind: "step", step: "business" });
   });
 
   it("CA-no-US draft without a company → back to the number step (company is created there)", () => {
@@ -235,25 +231,12 @@ describe(resolveOnboardingLocation, () => {
     ).toEqual({ kind: "step", step: "number" });
   });
 
-  it("US company pre-checkout without registration rows → texting step", () => {
-    // #381/#458: only the campaign half sits before `plan` now.
+  it("requires a brand before texting or checkout", () => {
     expect(
-      resolveOnboardingLocation(snapshot({ company: {} })),
-    ).toEqual({ kind: "step", step: "texting" });
-  });
-
-  it("a PAID US company still owing its identity details goes to business", () => {
-    // The reorder's sharpest edge: before it, no paid company ever returned to
-    // a wizard step. Leaving that would strand them on `setting-up` waiting for
-    // a submission that could never happen, because nothing had the brand.
-    expect(
-      resolveOnboardingLocation(
-        snapshot({
-          company: { status: "active" },
-          brand: null,
-          campaign: { data: COMPLETE_CAMPAIGN_DATA },
-        }),
-      ),
+      resolveOnboardingLocation(snapshot({
+        company: {},
+        campaign: { data: COMPLETE_CAMPAIGN_DATA },
+      })),
     ).toEqual({ kind: "step", step: "business" });
   });
 
@@ -449,7 +432,7 @@ describe(stepAllowed, () => {
 describe("applicableSteps / stepProgress", () => {
   it("US signups walk 5 steps; CA-no-US walks 3", () => {
     expect(applicableSteps(snapshot({ company: null, draft: COMPLETE_DRAFT })))
-      .toEqual(["name", "number", "texting", "plan", "business"]);
+      .toEqual(["name", "number", "business", "texting", "plan"]);
     expect(
       applicableSteps(
         snapshot({ company: { country: "CA", usTexting: false } }),
@@ -461,9 +444,8 @@ describe("applicableSteps / stepProgress", () => {
     const ca = snapshot({ company: { country: "CA", usTexting: false } });
     expect(stepProgress("plan", ca)).toEqual({ index: 3, total: 3 });
     const us = snapshot({ company: {} });
-    // #381/#458: `business` is now the LAST step, behind the paywall.
-    expect(stepProgress("business", us)).toEqual({ index: 5, total: 5 });
-    expect(stepProgress("texting", us)).toEqual({ index: 3, total: 5 });
+    expect(stepProgress("business", us)).toEqual({ index: 3, total: 5 });
+    expect(stepProgress("texting", us)).toEqual({ index: 4, total: 5 });
   });
 });
 
@@ -476,20 +458,10 @@ describe("previousStepHref (honest Back navigation)", () => {
   });
 
   it("walks back to the nearest EDITABLE step for a US company", () => {
-    const us = snapshot({ company: {} });
-    // #381/#458 order: name → number → texting → plan → business.
+    const us = snapshot({ company: {}, brand: { data: COMPLETE_BRAND_DATA } });
     expect(previousStepHref("plan", us)).toBe("/onboarding/texting");
-    expect(previousStepHref("texting", us)).toBe("/onboarding/number");
-  });
-
-  it("walks back PAST plan from business — you do not re-enter a checkout", () => {
-    // `business` now sits after payment, and the step literally before it is
-    // `plan`. Back skips it to `texting`, which is right: offering somebody who
-    // has paid a route back into checkout is not honest navigation, it is a
-    // second charge waiting to happen.
-    expect(previousStepHref("business", snapshot({ company: {} }))).toBe(
-      "/onboarding/texting",
-    );
+    expect(previousStepHref("texting", us)).toBe("/onboarding/business");
+    expect(previousStepHref("business", us)).toBe("/onboarding/number");
   });
 
   it("still allows Back to number pre-company (name/number editable until creation)", () => {
@@ -550,4 +522,39 @@ describe("hasPaid / setupComplete / pathForLocation", () => {
       "/onboarding/texting",
     );
   });
+});
+
+it("only resolves to steps that the guard allows", () => {
+  const statuses: SubscriptionStatus[] = [
+    "incomplete", "incomplete_expired", "active", "past_due", "unpaid", "canceled",
+  ];
+  const drafts = [{}, { name: "Crew" }, COMPLETE_DRAFT, { ...COMPLETE_DRAFT, country: "CA" as const, usTexting: false }];
+  const companies = [
+    null,
+    ...statuses.flatMap((status) => [
+      { status },
+      { status, country: "CA" as const, usTexting: false },
+      { status, country: "CA" as const, usTexting: true },
+    ]),
+  ];
+  for (const company of companies) {
+    for (const draft of drafts) {
+      for (const brand of [null, {}, { data: COMPLETE_BRAND_DATA }]) {
+        for (const campaign of [null, {}, { data: COMPLETE_CAMPAIGN_DATA }]) {
+          const state = snapshot({ company, draft, brand, campaign });
+          const location = resolveOnboardingLocation(state);
+          if (location.kind === "step") {
+            expect(stepAllowed(location.step, state), JSON.stringify({ company, draft, brand, campaign, location })).toBe(true);
+          }
+          const steps = applicableSteps(state);
+          for (const step of steps) {
+            const back = previousStepHref(step, state);
+            if (back) {
+              expect(steps.some((candidate) => back === `/onboarding/${candidate}` && stepAllowed(candidate, state))).toBe(true);
+            }
+          }
+        }
+      }
+    }
+  }
 });

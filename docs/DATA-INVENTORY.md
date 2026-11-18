@@ -211,6 +211,8 @@ feature cannot ship undisclosed.
 
 ---
 
+The OpenStreetMap Foundation receives street addresses through Nominatim geocoding. Web and Android also fetch map tiles from OpenStreetMap.
+
 ## Where the workspace itself sends data (#243)
 
 Everything above is a party **we** chose. These are paths a workspace opens

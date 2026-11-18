@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -198,6 +198,7 @@ export default function BusinessIdentityPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const createCompany = useCreateCompany();
+  const createdCompanyId = useRef<string | null>(null);
   const saveRegistration = useSaveOnboardingRegistration();
   const [formError, setFormError] = useState<string | null>(null);
   const [seeded, setSeeded] = useState(false);
@@ -328,8 +329,8 @@ export default function BusinessIdentityPage() {
     };
 
     try {
-      let companyId = state.companyId;
-      if (state.company === null) {
+      let companyId = state.companyId ?? createdCompanyId.current;
+      if (!companyId) {
         // D15: the creating browser's timezone rides along silently.
         const timezone = browserTimezone();
         const company = await createCompany.mutateAsync({
@@ -354,6 +355,7 @@ export default function BusinessIdentityPage() {
           ...firstTouchForCreate(),
         });
         companyId = company.id;
+        createdCompanyId.current = company.id;
         writeCompanyCookie(company.id);
         clearReferralCode();
         clearFirstTouch();

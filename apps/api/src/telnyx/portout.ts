@@ -249,7 +249,7 @@ async function handleOneNumber(
   const tellCustomer = ACTIONABLE.has(notice.status) || notice.status === "ported";
   if (!companyId || !tellCustomer) return;
 
-  const to = await billingRecipients(env, companyId, db);
+  const to = await billingRecipients(env, companyId, db, "numbers.manage");
   if (to.length === 0) return;
   const copy = customerCopy(companyName, phone, notice.status, env.APP_ORIGIN);
   await sendEmail(env, {

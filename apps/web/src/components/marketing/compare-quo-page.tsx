@@ -10,9 +10,11 @@ import {
   compareAsOf,
   compareMonth,
 } from "@/app/(marketing)/compare/verification";
-import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { compareQuoCopy } from "@/i18n/marketing/compare-quo";
+import { footerCopy, type MarketingLocale } from "@/i18n/marketing/footer";
 import { breadcrumbJsonLd } from "@/lib/marketing/seo";
+import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { localizedPath } from "@/lib/marketing/translated-pages";
 
 import {
   CompareCta,
@@ -105,6 +107,14 @@ export function CompareQuoPageBody({
             <CountryOnly country="ca">
               <p>{copy.loonextCa}</p>
             </CountryOnly>
+            <p>
+              <Link
+                href={localizedPath(LIVE_ROUTES.developers, locale)}
+                className="font-medium text-[color:var(--fr-olive)] underline-offset-2 hover:underline"
+              >
+                {footerCopy(locale).developers}
+              </Link>
+            </p>
           </>
         }
         competitorTitle={copy.rivalTitle}
