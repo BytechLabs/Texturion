@@ -483,6 +483,7 @@
     "api_contact_timeline": [[{"name":"p_company_id","hasDefault":false},{"name":"p_contact_id","hasDefault":false},{"name":"p_limit","hasDefault":true},{"name":"p_before_ts","hasDefault":true},{"name":"p_before_id","hasDefault":true}]],
     "api_create_calendar_oauth_state": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false},{"name":"p_provider","hasDefault":false},{"name":"p_state_hash","hasDefault":false},{"name":"p_verifier_ciphertext","hasDefault":false},{"name":"p_verifier_iv","hasDefault":false},{"name":"p_verifier_key_version","hasDefault":false},{"name":"p_redirect_uri","hasDefault":false},{"name":"p_return_to","hasDefault":false},{"name":"p_expires_at","hasDefault":false}]],
     "api_create_company": [[{"name":"p_owner_user_id","hasDefault":false},{"name":"p_name","hasDefault":false},{"name":"p_country","hasDefault":false},{"name":"p_requested_area_code","hasDefault":false},{"name":"p_us_texting_enabled","hasDefault":false},{"name":"p_timezone","hasDefault":true}]],
+    "api_create_invite": [[{"name":"p_company_id","hasDefault":false},{"name":"p_invited_by","hasDefault":false},{"name":"p_email","hasDefault":false},{"name":"p_role","hasDefault":false},{"name":"p_note","hasDefault":false},{"name":"p_plan","hasDefault":false},{"name":"p_seats","hasDefault":false},{"name":"p_resend_invite_id","hasDefault":true}]],
     "api_create_saved_view": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false},{"name":"p_surface","hasDefault":false},{"name":"p_name","hasDefault":false},{"name":"p_filters","hasDefault":false},{"name":"p_shared","hasDefault":false}]],
     "api_customer_erasure_batch": [[{"name":"p_company","hasDefault":false},{"name":"p_contact","hasDefault":false},{"name":"p_limit","hasDefault":false}]],
     "api_customer_erasures_due": [[{"name":"p_limit","hasDefault":false}]],
@@ -713,6 +714,7 @@
     "claim_text_enablement_lease": [[{"name":"p_row_id","hasDefault":false},{"name":"p_lease_seconds","hasDefault":false}]],
     "claim_text_enablement_order_key": [[{"name":"p_row_id","hasDefault":false}]],
     "claim_text_enablement_slot": [[{"name":"p_company_id","hasDefault":false},{"name":"p_provisioning_key","hasDefault":false},{"name":"p_phone_e164","hasDefault":false},{"name":"p_country","hasDefault":false},{"name":"p_included_numbers","hasDefault":false}]],
+    "claim_workspace_mfa_notices": [[{"name":"p_now","hasDefault":false},{"name":"p_company_id","hasDefault":true}]],
     "close_out_dead_provisioning": [[{"name":"p_company_id","hasDefault":false}]],
     "close_workspace": [[{"name":"p_company_id","hasDefault":false},{"name":"p_window","hasDefault":true}]],
     "company_is_activated": [[{"name":"p_company","hasDefault":false}]],
@@ -782,6 +784,7 @@
     "record_referral": [[{"name":"p_company_id","hasDefault":false},{"name":"p_referee_company","hasDefault":false},{"name":"p_code","hasDefault":false}]],
     "referral_claim_facts": [[{"name":"p_code","hasDefault":false},{"name":"p_referee_company","hasDefault":false}]],
     "referrals_for_company": [[{"name":"p_company_id","hasDefault":false}]],
+    "release_workspace_mfa_notice": [[{"name":"p_member_id","hasDefault":false},{"name":"p_required_at","hasDefault":false},{"name":"p_kind","hasDefault":false}]],
     "reopen_workspace": [[{"name":"p_company_id","hasDefault":false}]],
     "request_data_export": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false},{"name":"p_ttl","hasDefault":true},{"name":"p_kind","hasDefault":true},{"name":"p_filters","hasDefault":true}]],
     "revoke_prepayment": [[{"name":"p_stripe_session_id","hasDefault":false},{"name":"p_reason","hasDefault":false}]],
@@ -838,6 +841,7 @@
     "user_has_verified_mfa": [[{"name":"p_user_id","hasDefault":false}]],
     "valid_emergency_keywords": [[{"name":"p_words","hasDefault":false}]],
     "version_key": [[{"name":"p_version","hasDefault":false}]],
+    "workspace_mfa_progress": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false}]],
     "workspace_state": [[{"name":"p_paused_at","hasDefault":false},{"name":"p_deleted_at","hasDefault":false},{"name":"p_purged_at","hasDefault":false}]]
   },
   "uniqueKeys": {
