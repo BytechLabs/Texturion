@@ -31,10 +31,9 @@
  * Usage: node scripts/check-deploy-env-branches.mjs
  */
 import { readdirSync, readFileSync } from "node:fs";
-import { dirname, join, relative, resolve, sep } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, relative, resolve, sep } from "node:path";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = join(import.meta.dirname, "..");
 const API_SRC = "apps/api/src";
 const ENVIRONMENTS_DIR = "apps/api/src/environments/";
 const ENV_SCHEMA = "apps/api/src/env.ts";
@@ -290,4 +289,4 @@ function main() {
   );
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) main();

@@ -32,12 +32,11 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 
 import { API_CONFIG } from "../tools/rig/src/cron.mjs";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = join(import.meta.dirname, "..");
 
 export const REGISTRY_FILE = "tools/rig/crons.json";
 export const SCHEMA = "loonext.rig-crons.v1";
@@ -532,4 +531,4 @@ function main() {
   );
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) main();

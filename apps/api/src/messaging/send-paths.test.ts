@@ -20,11 +20,10 @@
  */
 import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { describe, expect, it } from "vitest";
 
-const SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+const SRC = join(import.meta.dirname, "..");
 
 /**
  * The gate itself, and the test harness's door

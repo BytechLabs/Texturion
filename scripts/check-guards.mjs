@@ -26,10 +26,9 @@
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import { existsSync, readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
+import { join } from "node:path";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = join(import.meta.dirname, "..");
 const WORKFLOW = join(REPO_ROOT, ".github/workflows/checks.yml");
 
 /**

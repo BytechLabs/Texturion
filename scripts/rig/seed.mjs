@@ -21,7 +21,6 @@
 import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { TENANTS, memberEmail } from "./tenants.mjs";
 import { localSupabaseUrl } from "../local-supabase.mjs";
@@ -466,7 +465,7 @@ export async function seed({ workdir, store, partition, log = console.log }) {
   }
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+if (process.argv[1] && import.meta.filename === process.argv[1]) {
   const at = process.argv.indexOf("--workdir");
   const layout = rigLayout();
   const workdir = at === -1 ? layout.supabaseWorkdir : process.argv[at + 1];

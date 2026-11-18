@@ -25,10 +25,9 @@
  * flipped value rather than only on a deleted line.
  */
 import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = join(import.meta.dirname, "..");
 
 /**
  * Every Worker, and where each one is supposed to answer.
@@ -149,4 +148,4 @@ function main() {
   );
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) main();

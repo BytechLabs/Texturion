@@ -208,7 +208,6 @@
     "typescript/no-deprecated": "off", // 47
     "vitest/prefer-describe-function-title": "off", // 47
     "vitest/prefer-each": "off", // 46
-    "unicorn/prefer-import-meta-properties": "off", // 45
     "unicorn/prefer-module": "off", // 39
     "typescript/use-unknown-in-catch-callback-variable": "off", // 38
     "typescript/consistent-type-imports": "off", // 35

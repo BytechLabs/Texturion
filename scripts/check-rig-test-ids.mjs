@@ -21,10 +21,9 @@
  */
 import { execFileSync } from "node:child_process";
 import { readFileSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join, resolve } from "node:path";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = join(import.meta.dirname, "..");
 
 export const REGISTRY_FILE = "tools/rig/test-ids.json";
 export const SCHEMA = "loonext.rig-test-ids.v1";
@@ -256,4 +255,4 @@ function main() {
   console.log(`check-rig-test-ids: ${lines.join("; ")}.`);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) main();

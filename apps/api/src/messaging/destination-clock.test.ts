@@ -9,7 +9,6 @@
  */
 import { readFileSync } from "node:fs";
 import { join, relative } from "node:path";
-import { fileURLToPath } from "node:url";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
@@ -267,7 +266,7 @@ describe("daylight saving, on the two days it matters", () => {
  * area code would compile, pass its own tests, and text somebody at 3am.
  */
 describe("only the resolver decides quiet hours (#292)", () => {
-  const SRC = join(fileURLToPath(new URL(".", import.meta.url)), "..");
+  const SRC = join(import.meta.dirname, "..");
 
   /** The resolver itself, which is allowed to know the numbers. */
   const THE_RESOLVER = "messaging/destination-clock.ts";

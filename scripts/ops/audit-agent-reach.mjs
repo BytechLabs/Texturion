@@ -40,12 +40,11 @@
 import { execFileSync } from "node:child_process";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, dirname, join, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { basename, join, resolve } from "node:path";
 
 import { findShapes, PUBLISHED_LOCAL_KEYS, SHAPES } from "../check-local-secrets.mjs";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const REPO_ROOT = join(import.meta.dirname, "..", "..");
 
 export const TIERS = ["production-write", "production-read", "nonprod", "none"];
 
@@ -505,4 +504,4 @@ function main() {
   process.exit(decision.exit);
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) main();
+if (process.argv[1] && resolve(process.argv[1]) === import.meta.filename) main();

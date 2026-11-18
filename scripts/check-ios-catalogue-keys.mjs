@@ -58,10 +58,9 @@
  * code. Missing is provable; unused is not.
  */
 import { readFileSync, readdirSync, statSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 
-const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
+const REPO_ROOT = join(import.meta.dirname, "..");
 const IOS = join(REPO_ROOT, "apps/ios/Loonext");
 const CATALOGUE = join(IOS, "Core/I18n");
 

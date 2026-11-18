@@ -37,7 +37,7 @@ import { describe, expect, it } from "vitest";
 
 import { productionSources as readProductionSources, stripComments } from "./test/source-tree";
 
-const SRC = fileURLToPath(new URL(".", import.meta.url));
+const SRC = import.meta.dirname;
 
 /**
  * Every table carrying a `company_id`, mirrored from the live schema.

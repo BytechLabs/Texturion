@@ -14,7 +14,6 @@
  */
 import { readFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
-import { fileURLToPath } from "node:url";
 
 const TYPES = [
   "feat", "fix", "perf", "revert",
@@ -352,4 +351,4 @@ function main() {
 
 // Only when RUN, never when imported — `checkOne` and `scopeErrors` are
 // unit-tested, and a test that imports this file must not shell out to git.
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) main();
+if (process.argv[1] && import.meta.filename === process.argv[1]) main();

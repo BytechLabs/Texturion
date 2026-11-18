@@ -66,10 +66,9 @@
  */
 
 import { readFileSync } from "node:fs";
-import { dirname, resolve } from "node:path";
-import { fileURLToPath } from "node:url";
+import { resolve } from "node:path";
 
-const HERE = dirname(fileURLToPath(import.meta.url));
+const HERE = import.meta.dirname;
 const SOURCE = resolve(HERE, "../../apps/api/src/http/security-headers.ts");
 
 const DEFAULT_BASE = "https://api.loonext.com";
