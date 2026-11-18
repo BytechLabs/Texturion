@@ -139,6 +139,7 @@ export function supabaseStub(env: Env): SupabaseStub {
       respond: () => ({}),
     },
     { method: "GET", matcher: "/rest/v1/email_suppressions", respond: () => [] },
+    { method: "POST", matcher: "/rest/v1/rpc/api_contact_number_owners", respond: () => [] },
     {
       // #714: a route that changes a record also records its activity. The
       // ambient answer is "recorded"; a suite about activity registers this

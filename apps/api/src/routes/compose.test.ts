@@ -179,6 +179,10 @@ function composeStubs(options: {
     restMatch(env, "GET", "contacts"),
     () => (options.existingContact ? [options.existingContact] : []),
   );
+  const contactNumberOwners = stubRoute(rpcMatch(env, "api_contact_number_owners"), (call) => {
+    const { p_numbers } = call.body as { p_numbers: string[] };
+    return options.existingContact ? [{ ...options.existingContact, requested_number: p_numbers[0] }] : [];
+  });
   // #48: new contacts are created BARE (no consent columns) — attestation is
   // stamped post-gate by the PATCH below.
   const contactInsert = stubRoute(restMatch(env, "POST", "contacts"), () => [
@@ -306,6 +310,7 @@ function composeStubs(options: {
       numberLookup.route,
       companyLookup.route,
       contactLookup.route,
+      contactNumberOwners.route,
       contactInsert.route,
       contactPatch.route,
       optOuts.route,
@@ -358,6 +363,19 @@ const VALID_BODY = {
 };
 
 describe("POST /v1/conversations — consent attestation (§5, D4)", () => {
+  it("threads a typed alternate number under its owner and sends to that number", async () => {
+    const stubs = composeStubs({ existingContact: { ...contactRow(), phone_e164: "+16135551001" } });
+    stubFetch(...stubs.all);
+    const response = await postCompose(VALID_BODY);
+    expect(response.status).toBe(201);
+    expect(stubs.contactInsert.calls).toHaveLength(0);
+    expect(stubs.conversationInsert.calls[0].body).toMatchObject({
+      contact_id: CONTACT_ID,
+      contact_phone_e164: "+16135551000",
+    });
+    expect(stubs.telnyx.calls[0].body).toMatchObject({ to: "+16135551000" });
+  });
+
   // The visible consent checkbox was removed; compose no longer requires a
   // consent flag and attests the contact implicitly (auto-attest), so the audit
   // trail (consent_source='attested' + the consent_attested event) still fills.

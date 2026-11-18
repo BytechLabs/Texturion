@@ -67,7 +67,7 @@ The most sensitive category, because the person never chose us.
 
 | Table | Holds | Retention |
 |---|---|---|
-| `contacts` | name, phone, **address**, free-text notes | Contact Trash expires after 30 days and clears profile details, including additional numbers and addresses. Customer erasure also clears linked content and records a receipt with dates and counts. The primary number and consent evidence remain. Workspace closure purges the contact row after 30 days. |
+| `contacts` | name, phone, **address**, free-text notes. A merged contact records its original primary number and the field values needed to undo the merge. | Contact Trash expires after 30 days and clears profile details, including additional numbers and addresses. Customer erasure also clears linked content and merge history, and records a receipt with dates and counts. The primary number and consent evidence remain. Workspace closure purges the contact row after 30 days. |
 | `messages` | **message bodies**, both directions, plus the emoji and target message ID for a carrier reaction | Life of the workspace; purged 30 days after closure |
 | `conversations` | phone-number link, timings | Same |
 | `conversation_events` | who did what to a thread | Same |

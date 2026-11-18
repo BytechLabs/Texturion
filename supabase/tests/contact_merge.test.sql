@@ -611,4 +611,69 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  company uuid := '55000000-0000-4000-8000-0000000000c2';
+  actor uuid := '55000000-0000-4000-8000-00000000000b';
+  source_id uuid := gen_random_uuid();
+  survivor_id uuid := gen_random_uuid();
+  alternate_id uuid := gen_random_uuid();
+  source_number text := '+14155550521';
+  survivor_number text := '+14155550522';
+  alternate_number text := '+14155550523';
+  outcome jsonb;
+begin
+  insert into public.contacts (id, company_id, phone_e164, name, email, business_name, timezone, locale, notes, custom_fields)
+  values (source_id, company, source_number, 'Folded Contact', 'folded@test.local', 'Example Business',
+          'America/Toronto', 'fr-CA', 'Folded note', '{"gate":"17","unit":"source"}'),
+         (survivor_id, company, survivor_number, 'Surviving Contact', null, null,
+          null, null, 'Surviving note', '{"unit":"survivor"}');
+  insert into public.contact_phones (id, company_id, contact_id, phone_e164, label)
+  values (alternate_id, company, source_id, alternate_number, 'Office');
+  insert into public.contact_addresses (company_id, contact_id, address, is_primary)
+  values (company, source_id, '10 Main Street', false),
+         (company, source_id, '11 Main Street', true),
+         (company, survivor_id, '10 main street', true);
+
+  outcome := public.api_merge_contacts(company, source_id, survivor_id, actor);
+  if outcome ->> 'outcome' is distinct from 'merged'
+     or not exists (select 1 from public.contacts where id = survivor_id and name = 'Surviving Contact'
+       and email = 'folded@test.local' and business_name = 'Example Business' and timezone = 'America/Toronto'
+       and locale = 'fr-CA' and custom_fields = '{"gate":"17","unit":"survivor"}'::jsonb)
+     or (select count(*) from public.contact_addresses where company_id = company and contact_id = survivor_id) is distinct from 2
+     or not exists (select 1 from public.contact_addresses where contact_id = survivor_id and address = '11 Main Street' and not is_primary)
+     or not exists (select 1 from public.contact_phones where id = alternate_id and contact_id = survivor_id and label = 'Office')
+     or public.contact_owning_number(company, source_number) is distinct from survivor_id
+     or public.contact_owning_number(company, alternate_number) is distinct from survivor_id then
+    raise exception 'Merge lost profile fields, addresses, or ownership of a number';
+  end if;
+
+  begin
+    insert into public.contacts (company_id, phone_e164) values (company, alternate_number);
+    raise exception 'An alternate was accepted as a different primary';
+  exception when unique_violation then null;
+  end;
+  begin
+    insert into public.contact_phones (company_id, contact_id, phone_e164) values (company, survivor_id, survivor_number);
+    raise exception 'A primary was accepted as an alternate';
+  exception when unique_violation then null;
+  end;
+
+  update public.contacts set business_name = 'New survivor business',
+    custom_fields = custom_fields || '{"unit":"edited"}'::jsonb where id = survivor_id;
+  outcome := public.api_unmerge_contact(company, source_id);
+  if outcome ->> 'outcome' is distinct from 'unmerged'
+     or not exists (select 1 from public.contacts where id = source_id and phone_e164 = source_number
+       and email = 'folded@test.local' and business_name = 'Example Business' and merged_into is null)
+     or not exists (select 1 from public.contacts where id = survivor_id and email is null and timezone is null
+       and locale is null and business_name = 'New survivor business' and notes = 'Surviving note'
+       and custom_fields = '{"unit":"edited"}'::jsonb)
+     or (select count(*) from public.contact_addresses where contact_id = survivor_id) is distinct from 1
+     or not exists (select 1 from public.contact_addresses where contact_id = source_id and address = '11 Main Street' and is_primary)
+     or public.contact_owning_number(company, source_number) is distinct from source_id
+     or public.contact_owning_number(company, alternate_number) is distinct from source_id then
+    raise exception 'Unmerge failed to restore the original data or lost a later edit';
+  end if;
+end $$;
+
 rollback;

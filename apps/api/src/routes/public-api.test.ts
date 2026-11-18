@@ -1193,10 +1193,24 @@ describe("#581 a key cannot promote a message on a denied line", () => {
  * erases somebody's work.
  */
 describe("#581 replaying a contact preserves its attribution", () => {
+  it("returns the owner ID for an alternate number without creating a contact", async () => {
+    const sb = stubWithKey(["contacts:write"]);
+    sb.on("POST", "/rest/v1/rpc/api_contact_number_owners", () => [
+      { id: "ct-existing", requested_number: "+14165550101", phone_e164: "+14165550100", deleted_at: null },
+    ]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await publicRequest("/public/v1/contacts", {
+      method: "POST", body: JSON.stringify({ phone_e164: "+14165550101" }),
+    });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ error: { existing_contact_id: "ct-existing" } });
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
   it("normalizes a formatted number and updates the existing live contact", async () => {
     const sb = stubWithKey(["contacts:write"]);
-    sb.on("GET", "/rest/v1/contacts", () => [
-      { id: "ct-existing", deleted_at: null },
+    sb.on("POST", "/rest/v1/rpc/api_contact_number_owners", () => [
+      { id: "ct-existing", phone_e164: "+14165550100", deleted_at: null },
     ]);
     sb.on("PATCH", "/rest/v1/contacts", () => [
       { id: "ct-existing", phone_e164: "+14165550100" },
@@ -1208,8 +1222,8 @@ describe("#581 replaying a contact preserves its attribution", () => {
       body: JSON.stringify({ phone_e164: "+1 (416) 555-0100", name: "Maria Alvarez" }),
     });
     expect(res.status).toBe(201);
-    expect(sb.find("GET", "/rest/v1/contacts")[0].url.searchParams.get("phone_e164"))
-      .toBe("eq.+14165550100");
+    expect(sb.find("POST", "/rest/v1/rpc/api_contact_number_owners")[0].body)
+      .toEqual({ p_company_id: COMPANY_ID, p_numbers: ["+14165550100"] });
 
     // THE ASSERTION: no INSERT at all, so there is nothing to overwrite with.
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
@@ -1229,8 +1243,8 @@ describe("#581 replaying a contact preserves its attribution", () => {
     // Bringing back somebody who was removed IS a new addition, so the upsert
     // arm — and a fresh created_by — is the right answer there.
     const sb = stubWithKey(["contacts:write"]);
-    sb.on("GET", "/rest/v1/contacts", () => [
-      { id: "ct-gone", deleted_at: "2026-01-01T00:00:00Z" },
+    sb.on("POST", "/rest/v1/rpc/api_contact_number_owners", () => [
+      { id: "ct-gone", phone_e164: "+14165550100", deleted_at: "2026-01-01T00:00:00Z" },
     ]);
     sb.on("POST", "/rest/v1/contacts", () => [
       { id: "ct-gone", phone_e164: "+14165550100" },

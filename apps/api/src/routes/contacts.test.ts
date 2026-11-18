@@ -405,6 +405,20 @@ describe("GET /v1/contacts", () => {
 });
 
 describe("POST /v1/contacts (upsert semantics)", () => {
+  it("refuses to create a contact for another contact's alternate number", async () => {
+    const sb = stubWithRole("member");
+    sb.on("POST", "/rest/v1/rpc/api_contact_number_owners", () => [contactRow({
+      requested_number: "+14165550198",
+    })]);
+    stubFetch(jwksRoute(auth), sb.route);
+    const res = await apiRequest(app, env, await auth.token(), "/v1/contacts", {
+      method: "POST", companyId: COMPANY_ID, body: { phone_e164: "+14165550198" },
+    });
+    expect(res.status).toBe(422);
+    expect(await res.json()).toMatchObject({ error: { existing_contact_id: CONTACT_ID } });
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
+  });
+
   it("normalizes the phone, upserts on (company_id, phone_e164), clears deleted_at", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => []); // no existing live contact → insert path
@@ -445,6 +459,27 @@ describe("POST /v1/contacts (upsert semantics)", () => {
       });
       expect(res.status, phone).toBe(422);
     }
+  });
+});
+
+describe("imported alternate numbers", () => {
+  it.each([
+    { endpoint: "import", row: 2, form: () => importForm("phone,name\r\n4165550198,Other name") },
+    { endpoint: "import-vcard", row: 1, form: () => vcardForm("BEGIN:VCARD\r\nFN:Other name\r\nTEL:+14165550198\r\nEND:VCARD") },
+  ])("reports the existing contact on $endpoint", async ({ endpoint, row, form }) => {
+    const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/contacts", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_contact_number_owners", () => [contactRow({ requested_number: "+14165550198" })]);
+    noStandingOptOuts(sb);
+    stubFetch(jwksRoute(auth), sb.route);
+    const response = await apiRequest(app, env, await auth.token(), `/v1/contacts/${endpoint}`, {
+      method: "POST", companyId: COMPANY_ID, rawBody: form(),
+    });
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({
+      imported: 0, updated: 0, skipped: 1, errors: [{ row, reason: "already on file under Jo Smith" }],
+    });
+    expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 });
 
@@ -1360,7 +1395,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
   it("re-adding an EXISTING live contact updates it — preserves created_by, stamps updated_by, no upsert", async () => {
     const sb = stubWithRole("member");
     // An existing, non-deleted contact on this (company, phone).
-    sb.on("GET", "/rest/v1/contacts", () => [{ id: CONTACT_ID, deleted_at: null }]);
+    sb.on("POST", "/rest/v1/rpc/api_contact_number_owners", () => [contactRow()]);
     sb.on("PATCH", "/rest/v1/contacts", (call) => [
       { ...contactRow(), ...(call.body as Record<string, unknown>) },
     ]);
@@ -6180,7 +6215,10 @@ describe("contact phone numbers", () => {
     // and calls onto this record, and nothing would look wrong until somebody
     // noticed a conversation on the wrong name.
     const sb = stubWithRole("member");
-    contactReads(sb, [{ id: OTHER_ID, name: "Sam Rivera" }]);
+    contactReads(sb);
+    sb.on("POST", "/rest/v1/rpc/api_contact_number_owners", () => [
+      contactRow({ id: OTHER_ID, name: "Sam Rivera", phone_e164: "+14165550188", requested_number: "+14165550188" }),
+    ]);
     sb.on("POST", "/rest/v1/contact_phones", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -6207,10 +6245,11 @@ describe("contact phone numbers", () => {
   it("CPR-4: refuses a number already claimed as another contact's second line", async () => {
     // The other half of CPR-3: a number can be somebody's SECOND number too,
     // and checking only the primaries would miss half the collisions.
-    const sb = stubWithRole("member", [], phoneReads({
-      taken: [{ contact_id: OTHER_ID }],
-    }));
+    const sb = stubWithRole("member");
     contactReads(sb);
+    sb.on("POST", "/rest/v1/rpc/api_contact_number_owners", () => [
+      contactRow({ id: OTHER_ID, phone_e164: "+14165550188", requested_number: "+14165550166" }),
+    ]);
     sb.on("POST", "/rest/v1/contact_phones", () => []);
     stubFetch(jwksRoute(auth), sb.route);
 
