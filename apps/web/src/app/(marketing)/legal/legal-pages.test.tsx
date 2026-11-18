@@ -307,6 +307,16 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
         expect(sharing).toContain(vendor);
       }
     });
+
+    it(`${locale}: discloses public geocoding regions and links the map privacy policy`, () => {
+      const where = section(PRIVACY[locale], "where");
+      expect(where).toContain("https://osmfoundation.org/wiki/Privacy_Policy");
+      expect(visibleText(where)).toContain(
+        locale === "en"
+          ? "United Kingdom and the European Union"
+          : "Royaume-Uni et dans l’Union européenne",
+      );
+    });
   }
 });
 

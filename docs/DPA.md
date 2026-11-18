@@ -161,11 +161,12 @@ the regulator.
   contact form is held outside any workspace, is deleted on its own schedule
   after a year, and can be removed sooner on request.
 - A user with the `records.delete` permission can delete a message, conversation,
-  call, voicemail or contact. It is hidden from every view at once, restorable
-  from the Trash for **30 days**, then erased with its stored files, voicemail
-  recordings, transcripts and derived summaries (a deletion by the customer, on
-  their instruction). Billing counters and do-not-text records contain no message
-  content and are kept.
+  call, voicemail or contact. Deleted records move to the Trash for **30 days**,
+  where the customer can restore them. Purging a message, conversation, call or
+  voicemail clears its content, including stored files, voicemail recordings,
+  transcripts and derived summaries. Purging a contact clears its profile details.
+  Its conversations, primary number and consent records remain. Billing counters
+  and do-not-text records contain no message content and are kept.
 - Contacts can be exported. **A broader export does not exist yet** (#304).
 
 > Source: `packages/shared/src/deletion-promises.ts`
@@ -185,12 +186,15 @@ promise this whole document is written to avoid.
 
 ## 11. International transfers
 
-Data is stored in the **United States**. This is a statement of where it is,
-**not a residency guarantee** — we do not offer one, and AI inference in
-particular cannot be confined to a country. The cross-border disclosure
-required under PIPEDA and Quebec's Law 25 is on the privacy page.
+Our database and file storage are in the **United States**. This states where
+they are and is **not a residency guarantee**. AI inference cannot be confined
+to a country. OpenStreetMap Foundation’s public geocoding service runs on
+servers in the United Kingdom and the European Union. Its map tiles use a
+global delivery network. The privacy page contains the cross-border disclosure
+required under PIPEDA and Quebec's Law 25.
 
 > Source: `/legal/privacy`, `docs/ACCEPTED-RISKS.md` R4
+> [OpenStreetMap Foundation FAQ](https://osmfoundation.org/wiki/Services_and_tile_users_privacy_FAQ)
 
 ## 12. What this document does not do
 

@@ -145,7 +145,17 @@ export function PrivacyPageBody({ locale = "en" }: { locale?: MarketingLocale })
           />
         </p>
         <p>
-          <LegalRichText text={copy.whereThree} slots={{ subprocessors }} />
+          <LegalRichText
+            text={copy.whereThree}
+            slots={{
+              subprocessors,
+              osmPrivacy: (
+                <LegalLink href="https://osmfoundation.org/wiki/Privacy_Policy">
+                  {copy.osmPrivacyLink}
+                </LegalLink>
+              ),
+            }}
+          />
         </p>
       </LegalSectionBlock>
 

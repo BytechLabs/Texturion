@@ -10,7 +10,7 @@ export const legalPrivacyEn = {
   breadcrumbLabel: "Privacy policy",
   lastUpdated: "November 17, 2026",
   summary:
-    "We collect only what the service needs to run your inbox: account details, the contacts and messages your business handles, and billing through Stripe. Your data is processed and stored in the United States, and we say so plainly, with one exception we name rather than bury: AI inference runs on Cloudflare’s global network and cannot be confined to a country. Mobile numbers and SMS consent data are never sold or shared with third parties for their own marketing. You can ask to see, correct, or delete your information at any time.",
+    "We collect only what the service needs to run your inbox, including account details, the contacts and messages your business handles, and billing through Stripe. We store account and inbox data in the United States. AI and map services can process data outside the United States. Mobile numbers and SMS consent data are never sold or shared with third parties for their own marketing. You can ask to see, correct, or delete your information at any time.",
 
   sectionScope: "Scope",
   sectionCollect: "What we collect",
@@ -53,11 +53,12 @@ export const legalPrivacyEn = {
   smsConsentBody:
     "When a business starts a conversation with a new contact, Loonext records that consent was attested, a name and a date. When someone texts STOP, the opt-out is recorded and future sends to that number are blocked.",
   whereOne:
-    "Loonext processes and stores data in the **United States**. Our database, authentication, and file storage run on Supabase in the AWS {region} region. If you are in Canada, your data is transferred to and processed in the United States, we state this plainly rather than burying it.",
+    "Our database, authentication and file storage run on Supabase in the AWS {region} region in the **United States**. This includes data sent to Loonext from Canada.",
   whereTwo:
-    "**One exception, and we would rather name it than have you find it.** {location} It applies only to the features in section 7, only to what those features send, and only while the request is being answered. {retention}",
+    "**AI processing.** {location} This applies to data sent by the features in section 7 while a request is being answered. {retention}",
   whereThree:
-    "The full list of the vendors that process data on our behalf, and the region each operates in, is on our {subprocessors}.",
+    "Our {subprocessors} page lists provider regions. The OpenStreetMap Foundation's public geocoding service runs on servers in the United Kingdom and the European Union. Its map tiles use a global delivery network. The {osmPrivacy} applies to both services.",
+  osmPrivacyLink: "OpenStreetMap Foundation privacy policy",
   phoneIntro:
     "Our app is almost certainly on a phone you own rather than one your company issued. So here is what it keeps on the device itself, and what happens to it.",
   phoneSignIn:
@@ -132,7 +133,7 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
   breadcrumbLabel: "Politique de confidentialité",
   lastUpdated: "17 novembre 2026",
   summary:
-    "Nous ne recueillons que ce dont le service a besoin pour faire fonctionner votre boîte de réception : les renseignements du compte, les contacts et les messages que traite votre entreprise, et la facturation par Stripe. Vos données sont traitées et stockées aux États-Unis, et nous le disons clairement, avec une exception que nous nommons plutôt que de la cacher : l'inférence de l'IA s'exécute sur le réseau mondial de Cloudflare et ne peut pas être confinée à un pays. Les numéros de mobile et les données de consentement aux SMS ne sont jamais vendus ni transmis à des tiers pour leur propre marketing. Vous pouvez demander en tout temps à voir, à corriger ou à supprimer vos renseignements.",
+    "Nous recueillons les données nécessaires au fonctionnement de votre boîte de réception, dont les renseignements du compte, les contacts et les messages que traite votre entreprise, ainsi que les données de facturation par Stripe. Nous stockons les données du compte et de la boîte de réception aux États-Unis. Les services d’IA et de cartographie peuvent traiter des données à l’extérieur des États-Unis. Les numéros de mobile et les données de consentement aux SMS ne sont jamais vendus ni transmis à des tiers pour leur propre marketing. Vous pouvez demander en tout temps à voir, à corriger ou à supprimer vos renseignements.",
 
   sectionScope: "Portée",
   sectionCollect: "Ce que nous recueillons",
@@ -175,11 +176,12 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
   smsConsentBody:
     "Lorsqu'une entreprise amorce une conversation avec un nouveau contact, Loonext consigne que le consentement a été attesté, un nom et une date. Lorsqu'une personne répond STOP par texto, le retrait est consigné et les envois futurs vers ce numéro sont bloqués.",
   whereOne:
-    "Loonext traite et stocke les données aux **États-Unis**. Notre base de données, notre authentification et notre stockage de fichiers s'exécutent sur Supabase, dans la région AWS {region}. Si vous êtes au Canada, vos données sont transférées et traitées aux États-Unis; nous le disons clairement plutôt que de le cacher.",
+    "Notre base de données, notre authentification et notre stockage de fichiers sont hébergés sur Supabase, dans la région AWS {region} aux **États-Unis**. Cela comprend les données transmises à Loonext depuis le Canada.",
   whereTwo:
-    "**Une exception, que nous préférons nommer plutôt que de vous laisser la découvrir.** {location} Elle s'applique seulement aux fonctions de la section 7, seulement à ce que ces fonctions envoient, et seulement pendant que la requête est traitée. {retention}",
+    "**Traitement par l’IA.** {location} Cela concerne les données envoyées par les fonctions de la section 7 pendant le traitement de la requête. {retention}",
   whereThree:
-    "La liste complète des fournisseurs qui traitent des données en notre nom, et la région où chacun exerce ses activités, se trouve sur notre {subprocessors}.",
+    "Notre {subprocessors} indique les régions des fournisseurs. Le service de géocodage public de l’OpenStreetMap Foundation utilise des serveurs au Royaume-Uni et dans l’Union européenne. Ses tuiles cartographiques utilisent un réseau de diffusion mondial. La {osmPrivacy} s’applique aux deux services.",
+  osmPrivacyLink: "politique de confidentialité de l’OpenStreetMap Foundation",
   phoneIntro:
     "Notre application se trouve presque certainement sur un téléphone qui vous appartient plutôt que sur un appareil fourni par votre entreprise. Voici donc ce qu'elle conserve sur l'appareil lui-même, et ce qui en advient.",
   phoneSignIn:
