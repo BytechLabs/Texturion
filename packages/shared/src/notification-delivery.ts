@@ -121,6 +121,8 @@ export function decideDelivery(input: {
   return "send";
 }
 
+type DigestEventCategory = Exclude<NotificationCategory, "messages_mine" | "messages_all">;
+
 /**
  * #228 — the vocabulary both digests are assembled from, in each language.
  *
@@ -139,6 +141,7 @@ interface DigestCopy {
   manyMessages(messages: number): string;
   /** `m` is the message clause above, already built. */
   acrossConversations(m: string, conversations: number): string;
+  events: Record<DigestEventCategory | "other", readonly [string, string]>;
   onePersonWaiting: string;
   manyPeopleWaiting(waiting: number): string;
   oneTaskDue: string;
@@ -151,6 +154,15 @@ const EN: DigestCopy = {
   manyMessages: (messages) => `${messages} new messages`,
   acrossConversations: (m, conversations) =>
     `${m} across ${conversations} conversations`,
+  events: {
+    mentions: ["mention", "mentions"],
+    assignments: ["assignment", "assignments"],
+    tasks: ["task update", "task updates"],
+    scheduled_texts: ["scheduled text update", "scheduled text updates"],
+    missed_calls: ["missed call", "missed calls"],
+    voicemails: ["voicemail", "voicemails"],
+    other: ["other update", "other updates"],
+  },
   onePersonWaiting: "1 person is waiting on you",
   manyPeopleWaiting: (waiting) => `${waiting} people are waiting on you`,
   oneTaskDue: "1 task is due",
@@ -167,6 +179,15 @@ const FR_CA: DigestCopy = {
   // "conversation" is already the house term the inbox uses.
   acrossConversations: (m, conversations) =>
     `${m} dans ${conversations} conversations`,
+  events: {
+    mentions: ["mention", "mentions"],
+    assignments: ["attribution", "attributions"],
+    tasks: ["mise à jour de tâche", "mises à jour de tâches"],
+    scheduled_texts: ["mise à jour de texto planifié", "mises à jour de textos planifiés"],
+    missed_calls: ["appel manqué", "appels manqués"],
+    voicemails: ["message vocal", "messages vocaux"],
+    other: ["autre mise à jour", "autres mises à jour"],
+  },
   onePersonWaiting: "1 personne attend après vous",
   manyPeopleWaiting: (waiting) => `${waiting} personnes attendent après vous`,
   // "Échéance" is the settled house term for a due date (tasks, For You, the
@@ -182,23 +203,31 @@ const FR_CA: DigestCopy = {
 
 const DIGEST_COPY: Record<Locale, DigestCopy> = { en: EN, "fr-CA": FR_CA };
 
-/**
- * The digest line, for a batch that has come due.
- *
- * "4 new messages across 3 conversations" is one useful notification instead of
- * four interruptions — and it says BOTH numbers because they answer different
- * questions. Four messages from one customer is a conversation; four across
- * four is a morning.
- */
+/** The message clause counts distinct conversations that had a message. */
 export function digestLine(
-  messages: number,
+  counts: ReadonlyMap<string, number>,
   conversations: number,
   locale: Locale,
 ): string {
   const copy = DIGEST_COPY[locale];
-  const m = messages === 1 ? copy.oneMessage : copy.manyMessages(messages);
-  if (conversations <= 1) return m;
-  return copy.acrossConversations(m, conversations);
+  const messages = (counts.get("messages_mine") ?? 0) + (counts.get("messages_all") ?? 0);
+  const parts: string[] = [];
+  if (messages > 0) {
+    const messageClause = messages === 1 ? copy.oneMessage : copy.manyMessages(messages);
+    parts.push(
+      conversations > 1 ? copy.acrossConversations(messageClause, conversations) : messageClause,
+    );
+  }
+  let other = -messages;
+  for (const count of counts.values()) other += count;
+  for (const category of NOTIFICATION_CATEGORIES) {
+    if (category === "messages_mine" || category === "messages_all") continue;
+    const count = counts.get(category) ?? 0;
+    if (count > 0) parts.push(`${count} ${copy.events[category][count === 1 ? 0 : 1]}`);
+    other -= count;
+  }
+  if (other > 0) parts.push(`${other} ${copy.events.other[other === 1 ? 0 : 1]}`);
+  return parts.join(" · ");
 }
 
 /**

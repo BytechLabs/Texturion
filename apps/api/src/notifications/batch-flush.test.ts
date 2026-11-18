@@ -67,13 +67,15 @@ describe(runBatchFlush, () => {
     expect(lookups[0].url.searchParams.get("user_id")).toBe(`in.(${MEMBER})`);
   });
 
-  it("BF-2: the digest counts messages AND distinct conversations", async () => {
-    // Four messages from one customer is a conversation; four across four is a
-    // morning. A digest reporting only the total would flatten them.
+  it("BF-2: the digest counts messages, message conversations, and other categories", async () => {
     const account = await makeServiceAccount();
     const service = fcmService();
     const sb = world(
-      [pending(), pending(), pending({ conversation_id: THREAD_B })],
+      [
+        pending(),
+        pending({ category: "messages_mine" }),
+        pending({ conversation_id: THREAD_B, category: "missed_calls" }),
+      ],
       [
         {
           id: "70000000-aaaa-4000-8000-000000000001",
@@ -89,7 +91,7 @@ describe(runBatchFlush, () => {
 
     expect(service.sends).toHaveLength(1);
     const data = service.sends[0].message.data as Record<string, string>;
-    expect(data.body).toBe("3 new messages across 2 conversations");
+    expect(data.body).toBe("2 new messages · 1 missed call");
     expect(data.kind).toBe("digest");
   });
 
