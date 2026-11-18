@@ -399,7 +399,10 @@ describe("POST /public/v1/messages by phone", () => {
     expect(stubs.telnyx.calls).toHaveLength(consent ? 1 : 0);
     if (consent) {
       await expect(response.json()).resolves.toMatchObject({ id: MESSAGE_ID, conversation_id: CONVERSATION_ID });
-      expect(stubs.contactInsert.calls[0].body).toMatchObject({ phone_e164: "+16135551000" });
+      expect(stubs.contactInsert.calls[0].body).toMatchObject({
+        phone_e164: "+16135551000",
+        creation_origin: "api",
+      });
       expect(stubs.telnyx.calls[0].body).toMatchObject({ to: "+16135551000" });
       expect(stubs.contactPatch.calls[0].body).toMatchObject({ consent_source: "attested" });
     } else {
@@ -468,6 +471,7 @@ describe("POST /v1/conversations — consent attestation (§5, D4)", () => {
     expect(stubs.contactInsert.calls[0].body).toEqual({
       company_id: COMPANY_ID,
       phone_e164: "+16135551000",
+      creation_origin: "app",
     });
 
     // consent_attested event attached to the new conversation.

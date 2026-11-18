@@ -1027,26 +1027,6 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
     userId,
   });
 
-  // #243: the job just booked, told to whatever the workspace runs alongside
-  // us. After the `conflict` branch above, so a second promotion of the same
-  // message — which the partial-unique index already refuses — can never emit
-  // a second creation.
-  emitWebhookEvent(c, db, {
-    companyId,
-    type: "task.created",
-    data: {
-      task_id: result.task.id,
-      title: result.task.title ?? null,
-      due_at: result.task.due_at ?? null,
-      assigned_user_id: assigneeIds[0] ?? null,
-      assignee_ids: assigneeIds,
-      // Kept nullable for the integrations that read it; `source` says which
-      // (null for a standalone task).
-      message_id: body.message_id ?? null,
-      source: taskSource(result.task),
-    },
-  });
-
   return c.json(await withLabelsAndRepeatOne(db, companyId, withSource(created)), 201);
 });
 

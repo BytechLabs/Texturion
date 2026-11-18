@@ -978,6 +978,7 @@ async function upsertImportedContacts(
         .filter((row) => !ids.has(row.phone_e164))
         .map(({
           created_by_user_id: _creator,
+          creation_origin: _creationOrigin,
           consent_source: _consentSource,
           consent_at: _consentAt,
           consent_attested_by: _consentActor,
@@ -1843,25 +1844,6 @@ contactsRoutes.post("/contacts", requireCapability("conversations.note"), async 
     const owner = await contactNumberOwner(db, companyId, phone);
     return owner ? contactNumberTaken(c, owner.id) : errorResponse(c, "not_found", "No such contact.");
   }
-  // #243: only on the branch that made a live contact where there was none.
-  // The `live` branch above is an EDIT, and an integration told a contact was
-  // created every time somebody fixes a typo in a name is one that creates a
-  // duplicate in the CRM every time. A resurrect counts as a creation, because
-  // from outside this system that is exactly what it is.
-  //
-  // Fire-and-forget: this path has a response somebody is waiting on, and a
-  // webhook subscription must never be what stands between them and it.
-  if (!live) {
-    emitWebhookEvent(c, db, {
-      companyId,
-      type: "contact.created",
-      data: {
-        contact_id: rows[0]?.id,
-        phone_e164: phone,
-        name: body.name ?? null,
-      },
-    });
-  }
   return c.json(rows[0], 201);
 });
 
@@ -2695,7 +2677,10 @@ contactsRoutes.post(
         phone_e164: phone,
         deleted_at: null,
       };
-      if (!existingPhones.has(phone)) row.created_by_user_id = userId;
+      if (!existingPhones.has(phone)) {
+        row.created_by_user_id = userId;
+        row.creation_origin = "import";
+      }
       // #226 basis, #248 rule: written only where there is none AND nothing
       // standing forbids it. A contact who texted this business first keeps
       // `inbound_sms` and the date they did it, however many times the
@@ -3052,7 +3037,10 @@ contactsRoutes.post(
           phone_e164: phone,
           deleted_at: null,
         };
-        if (!existingPhones.has(phone)) row.created_by_user_id = userId;
+        if (!existingPhones.has(phone)) {
+          row.created_by_user_id = userId;
+          row.creation_origin = "import";
+        }
         const decision = importConsent(
           existingBasis.get(phone),
           // #248 round 3: `inFile` is no longer always false here. A .vcf says

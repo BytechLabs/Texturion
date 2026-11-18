@@ -308,6 +308,7 @@ publicApiRoutes.post(
               phone_e164: phone,
               deleted_at: null,
               created_by_user_id: c.get("userId"),
+              creation_origin: "api",
               ...fields,
             },
             { onConflict: "company_id,phone_e164" },
@@ -454,7 +455,7 @@ publicApiRoutes.post(
         body: body.body,
         consent_attested: true,
         quiet_hours_confirmed: body.quiet_hours_confirmed,
-      }, idempotencyKey)
+      }, idempotencyKey, "api")
       : await sendTextToConversation(env, db, {
         companyId,
         conversationId: body.conversation_id!,
@@ -630,6 +631,7 @@ publicApiRoutes.post(
       p_contact_id: body.contact_id ?? null,
       p_conversation_id: body.conversation_id ?? null,
       p_priority: body.priority ?? "normal",
+      p_creation_origin: "api",
     });
     if (error) throw new Error(`public create_task failed: ${error.message}`);
 

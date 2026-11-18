@@ -1842,6 +1842,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         phone_e164: "+14165550101",
         deleted_at: null,
         created_by_user_id: auth.subject, // #191 attribution
+        creation_origin: "import",
         name: "New Person",
       },
     ]);

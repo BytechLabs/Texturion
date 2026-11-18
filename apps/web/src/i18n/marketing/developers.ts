@@ -44,6 +44,8 @@ export const developersEn = {
     "and carries the delivery id so a retry is recognisably the same event. A failing address is retried",
   webhooksAfterRetries:
     "times with growing gaps, and one that keeps refusing is switched off so it stops costing you deliveries you are not receiving.",
+  webhookCreationOrigins:
+    "Creation events include origin. Contact imports group up to 200 contacts in data.contacts.",
   promisesTitleBefore: "What",
   promisesTitleAfter: "promises.",
   promisesLead:
@@ -129,6 +131,8 @@ export const developersFr: Translated<typeof developersEn> = {
     "et comprend l'identifiant de livraison pour qu'une nouvelle tentative soit reconnaissable comme le même événement. Une adresse en échec est réessayée",
   webhooksAfterRetries:
     "fois, avec des délais croissants. Une adresse qui refuse toujours est désactivée afin qu'elle ne vous coûte plus des livraisons que vous ne recevez pas.",
+  webhookCreationOrigins:
+    "Les événements de création incluent origin. Les importations regroupent jusqu'à 200 contacts dans data.contacts.",
   promisesTitleBefore: "Ce que",
   promisesTitleAfter: "promet.",
   promisesLead:

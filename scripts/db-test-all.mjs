@@ -136,6 +136,7 @@ const SUITES = [
   "workspace_export_media",
   "customer_erasure_exports",
   "business_webhook_events",
+  "creation_webhook_events",
   "usage_window",
   "aup_enforcement",
   "abuse_intake",

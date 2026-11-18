@@ -153,6 +153,7 @@ async function resolveComposeContact(
     companyId: string;
     contactId?: string;
     destination: string;
+    origin: "app" | "api";
   },
 ): Promise<ContactRow> {
   // #274: address + timezone ride along on a query already running, so
@@ -194,15 +195,13 @@ async function resolveComposeContact(
     .insert({
       company_id: args.companyId,
       phone_e164: args.destination,
+      creation_origin: args.origin,
     })
     .select(columns);
   if (inserted.error) {
     if (isUniqueViolation(inserted.error)) {
       // Concurrent create won: re-select that row.
-      return resolveComposeContact(db, {
-        companyId: args.companyId,
-        destination: args.destination,
-      });
+      return resolveComposeContact(db, args);
     }
     throw new Error(`contact insert failed: ${inserted.error.message}`);
   }
@@ -372,6 +371,7 @@ export async function composeConversation(
   c: Context<AppEnv>,
   body: ComposeBody,
   idempotencyKey: string,
+  origin: "app" | "api" = "app",
 ) {
   const env = getEnv(c.env);
   const companyId = c.get("companyId");
@@ -563,6 +563,7 @@ export async function composeConversation(
     companyId,
     contactId: body.contact_id,
     destination,
+    origin,
   });
   const { conversation, created } = await createOrReuseConversation(db, {
     companyId,

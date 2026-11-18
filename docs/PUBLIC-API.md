@@ -98,6 +98,12 @@ requested, received, and refunded amounts in cents. A refund event reports the
 new cumulative refund. The quote event carries `quote_id`, `conversation_id`,
 `contact_id`, `amount_cents`, `currency`, and `decided_at`.
 
+`contact.created` and `task.created` include an `origin` in `data`. Values
+include `app`, `api`, `inbound`, `import`, and `repeat`. Contact imports
+send one event per batch of up to 200 contacts, with those contacts in
+`data.contacts`. Individual contact events carry `data.contact_id`,
+`data.phone_e164`, and `data.name`.
+
 ---
 
 ## Authentication
