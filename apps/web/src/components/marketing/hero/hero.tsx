@@ -59,11 +59,7 @@ export function Hero({ locale = "en" }: { locale?: MarketingLocale } = {}) {
   }));
   return (
     <section className="relative isolate overflow-hidden bg-[color:var(--fr-ground)] pb-16 pt-14 text-[color:var(--fr-ink)] sm:pt-20 lg:pb-24">
-      {/* THE CENTERPIECE: full-bleed live generative art spanning the hero.
-          pointer-events none, aria-hidden, sits behind all content (z-0). */}
-      <div className="pointer-events-none absolute inset-0 z-0" aria-hidden="true">
-        <ArrivalLayer />
-      </div>
+      <ArrivalLayer pauseLabel={copy.heroPauseAnimation} resumeLabel={copy.heroResumeAnimation} />
 
       {/* Legibility scrim (mobile/tablet): the page ground fades in from the
           TOP behind the stacked copy, then clears so the field runs full

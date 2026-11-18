@@ -43,6 +43,7 @@ is nothing verified that is not here.
 |---|---|---|
 | **1.4.3** Contrast (Minimum) | Text token pairs recomputed from the actual hex values in `globals.css`, in **both** themes | `apps/web/src/app/globals.contrast.test.ts` |
 | **1.4.3** Contrast, rendered | Rendered text measured against its actual background on real pages, both themes | `scripts/theme-audit.mjs` (CI) |
+| **2.2.2** Pause, Stop, Hide | The homepage animation can be paused and resumed. A saved pause keeps it from starting on a later visit. | `apps/web/src/components/marketing/hero/arrival-layer.test.tsx` |
 | **2.3.3** Animation from Interactions | One base rule zeroes motion under `prefers-reduced-motion`; the rule cannot be weakened or deleted | `apps/web/src/app/reduced-motion.test.ts` |
 | **2.5.7** Dragging Movements | Every file that starts a drag records the code implementing its single-pointer alternative — on **all three** clients | `apps/web/src/app/dragging-alternatives.test.ts`, `scripts/check-gesture-alternatives.mjs` |
 | **2.4.7** Focus Visible | Every control reached by pressing `Tab` has an outline or a ring, measured on the rendered page in both themes | `scripts/theme-audit.mjs` (CI), `apps/web/src/app/focus-appearance.test.ts` |

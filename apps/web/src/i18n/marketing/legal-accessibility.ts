@@ -121,6 +121,13 @@ export const accessibilityVerifiedFr: Record<
     sourceHolds:
       "Rendered text measured against its actual background on real pages, both themes",
   },
+  "2.2.2 Pause, Stop, Hide": {
+    criterion: "**2.2.2** Mettre en pause, arrêter, masquer",
+    holds:
+      "L’animation de la page d’accueil peut être mise en pause et reprise. Une pause enregistrée empêche son démarrage lors d’une visite ultérieure.",
+    sourceHolds:
+      "The homepage animation can be paused and resumed. A saved pause keeps it from starting on a later visit.",
+  },
   "2.3.3 Animation from Interactions": {
     criterion: "**2.3.3** Animation déclenchée par les interactions",
     holds:
