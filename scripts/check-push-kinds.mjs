@@ -34,15 +34,6 @@ const ANDROID_CHANNELS =
 const IOS_KINDS = "apps/ios/Loonext/Features/Push/PushPayload.swift";
 
 /**
- * Kinds one phone deliberately does not name, with the reason it does not.
- *
- * `call_end` is Android-only by contract (calls-v3 §9.2): iOS cannot retag a
- * remote alert, so its coalescing is server-side and there is nothing for a
- * revocation to cancel.
- */
-const PHONE_EXEMPT = { iOS: ["call_end"] };
-
-/**
  * Kinds that reach a destination without going through the ordinary routing —
  * so "declared but not in the routing switch" is correct for them.
  *
@@ -133,13 +124,12 @@ const destination = (channelId) => channelId.replace(/_v\d+$/, "");
 if (androidKinds !== null && iosKinds !== null) {
   const iosValues = values(iosKinds);
   const androidValues = values(androidKinds);
-  const exemptForIos = new Set(PHONE_EXEMPT.iOS);
   for (const kind of androidValues) {
-    if (!iosValues.includes(kind) && !exemptForIos.has(kind)) {
+    if (!iosValues.includes(kind)) {
       problems.push(
         `Android declares push kind "${kind}" and iOS does not. One phone would ` +
           `route it and the other would treat it as an ordinary text. Add it to ` +
-          `PushKind in ${IOS_KINDS}, or to PHONE_EXEMPT.iOS with the reason.`,
+          `PushKind in ${IOS_KINDS}.`,
       );
     }
   }

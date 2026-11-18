@@ -96,6 +96,7 @@ function buildWorld(
 const INPUT = {
   companyId: COMPANY_ID,
   conversationId: CONVERSATION_ID,
+  callSessionId: "call-sess-1",
   callerE164: "+16135551000",
   textStatus: "sent",
 } as const;
@@ -375,11 +376,7 @@ describe("notifyMissedCall — native device push (#151)", () => {
     expect(data.body).toBe("Le texto de rappel a échoué. Rappelez-les.");
   });
 
-  it("keeps the Web Push payload kind-less (#165: discriminator is native-only)", async () => {
-    // The Web Push body is aes128gcm-encrypted on the wire, so assert at the
-    // seam both senders share: the FCM message is the web payload + kind and
-    // nothing else — proving `kind` was ADDED for native, not moved into the
-    // shared payload (which would change the service worker's input shape).
+  it("keeps the native missed-call payload scoped to the conversation", async () => {
     const account = await makeServiceAccount();
     const service = fcmService();
     const world = buildWorld();
@@ -395,8 +392,6 @@ describe("notifyMissedCall — native device push (#151)", () => {
 
     await notifyMissedCall(fcmEnv(account), INPUT);
 
-    // `tag` is the shared collapse identity every client coalesces on (#266);
-    // `kind` is the only field the service worker must not see.
     const data = service.sends[0].message.data as Record<string, string>;
     expect(Object.keys(data).toSorted()).toEqual([
       "body",
@@ -405,6 +400,7 @@ describe("notifyMissedCall — native device push (#151)", () => {
       "title",
       "url",
     ]);
+    expect(data.tag).toBe(`conversation:${INPUT.conversationId}`);
   });
 });
 

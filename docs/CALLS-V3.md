@@ -923,15 +923,19 @@ extension must be revisited first.
     every call, fleet-wide, while the ring alert survives.
   - **Web**: sw.js renders every push (§8.5.4) — a pre-update SW shows a
     stray generic notification and dismisses nothing.
+    The missed-call alert shares the ring's session tag and keeps its inbox
+    link if the call-end update arrives after it.
+  - **iOS**: the call-end update carries APNs `content-available` and the
+    session ID. When it is delivered, iOS removes the incoming-call alert
+    for that session without displaying an outcome banner.
   - **Therefore delivery is capability-gated**: `device_push_tokens` /
     `push_subscriptions` rows gain a `caps` field (e.g. `["call_end"]`)
     written by the v3 client at token/subscription registration; the DO
     sends `call_end` ONLY to rows declaring the capability. The sw.js
     `call_end` handler ships in the SAME deploy as the server (SW
     soft-updates within ~a day; until a browser updates, its subscription
-    row lacks the cap and receives nothing). iOS (future) may additionally
-    use apns-collapse-id, which genuinely replaces in Notification Center —
-    Android must never be claimed to.
+    row lacks the cap and receives nothing). iOS uses the ring's APNs
+    collapse ID for the background update.
   - **Since #266** the shared fan-out (`notifications/deliver.ts`) puts its
     collapse key in the payload as `tag`, and web + Android coalesce on that
     instead of deriving one from the deep link. Calls are exempt on both

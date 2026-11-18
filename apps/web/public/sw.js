@@ -74,6 +74,8 @@ function formatPushNotification(rawText, origin) {
     }
   }
   const isCall = Boolean(payload) && payload.kind === "call";
+  const missedCallSession = payload?.kind === "missed_call" &&
+    typeof payload.call_session_id === "string" ? payload.call_session_id.trim() : "";
   const title =
     payload && typeof payload.title === "string" && payload.title.trim() !== ""
       ? payload.title
@@ -85,6 +87,8 @@ function formatPushNotification(rawText, origin) {
         ? "Someone is calling your business number."
         : "You have a new message.";
   const url = normalizeNotificationUrl(payload ? payload.url : null, origin);
+  let tag = isCall ? callTag(url, origin) : coalescingTag(payload, url);
+  if (missedCallSession) tag = callSessionTag(missedCallSession);
   return {
     title,
     options: {
@@ -97,11 +101,11 @@ function formatPushNotification(rawText, origin) {
       // numbers as DISTINCT notifications — a shared 'loonext:call' tag would let
       // the second silently overwrite the first, hiding a still-live call — while
       // repeat pushes for the SAME call still coalesce.
-      tag: isCall ? callTag(url, origin) : coalescingTag(payload, url),
+      tag,
       renotify: true,
       requireInteraction: isCall,
       vibrate: isCall ? [200, 100, 200, 100, 200] : undefined,
-      data: { url },
+      data: missedCallSession ? { url, kind: "missed_call" } : { url },
     },
   };
 }
@@ -135,18 +139,33 @@ function conversationNotificationTags(id) {
 async function clearConversationNotifications(id) {
   const tags = new Set(conversationNotificationTags(id));
   for (const notification of await self.registration.getNotifications()) {
-    if (tags.has(notification.tag)) notification.close();
+    const data = notification.data;
+    if (tags.has(notification.tag) ||
+        (data?.kind === "missed_call" &&
+          threadId(normalizeNotificationUrl(data.url, self.location.origin).split("?")[0]) === id)) {
+      notification.close();
+    }
   }
+}
+
+function threadId(path) {
+  return path.match(/^\/inbox\/([^/]+)\/?$/)?.[1] ?? null;
 }
 
 async function showPushNotification(title, options) {
   const path = new URL(options.data.url, self.location.origin).pathname;
-  const id = path.match(/^\/inbox\/([^/]+)\/?$/)?.[1];
-  const isThreadNotification = id && conversationNotificationTags(id).includes(options.tag);
+  const id = threadId(path);
+  const missedCall = options.data.kind === "missed_call";
+  const isThreadNotification = id && (missedCall || conversationNotificationTags(id).includes(options.tag));
   const windows = isThreadNotification ? await self.clients.matchAll({ type: "window" }) : [];
   const focused = windows.some(
     (client) => client.focused && clientLocation(client)?.pathname === path,
   );
+  if (missedCall) {
+    for (const notification of await self.registration.getNotifications({ tag: options.tag })) {
+      notification.close();
+    }
+  }
   await self.registration.showNotification(
     title,
     focused ? { ...options, silent: true, renotify: false } : options,
@@ -155,6 +174,10 @@ async function showPushNotification(title, options) {
     const notifications = await self.registration.getNotifications({ tag: options.tag });
     for (const notification of notifications) notification.close();
   }
+}
+
+function callSessionTag(session) {
+  return session ? `loonext:call:${session}` : "loonext:call";
 }
 
 /**
@@ -166,7 +189,7 @@ async function showPushNotification(title, options) {
 function callTag(url, origin) {
   try {
     const session = new URL(url, origin).searchParams.get("call");
-    return session ? `loonext:call:${session}` : "loonext:call";
+    return callSessionTag(session);
   } catch {
     return "loonext:call";
   }
@@ -242,7 +265,11 @@ async function showCallEnd(alert) {
   for (const notification of notifications) {
     notification.close();
   }
-  await self.registration.showNotification(alert.title, alert.options);
+  const missed = notifications.find((notification) => notification.data?.kind === "missed_call");
+  await self.registration.showNotification(
+    missed?.title ?? alert.title,
+    missed ? { ...alert.options, body: missed.body, data: missed.data } : alert.options,
+  );
 }
 
 self.addEventListener("install", (event) => {

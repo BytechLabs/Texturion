@@ -83,6 +83,7 @@ actor PushRegistrar {
     struct RegisterBody: Encodable, Sendable {
         let platform: String
         let token: String
+        let caps = [PushKind.callEnd]
         /// #228 — the language THIS PHONE is set to, reported so a push can be
         /// written in it. A notification is composed on the server, hours after
         /// anyone opened the app, and the registration row is the only place

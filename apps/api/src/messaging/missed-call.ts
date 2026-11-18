@@ -359,6 +359,7 @@ export async function sendMissedCallText(
       {
         companyId: args.companyId,
         conversationId: outcome.conversationId,
+        callSessionId: args.callId,
         callerE164: args.callerE164,
         textStatus: textSent ? "sent" : "failed",
       },

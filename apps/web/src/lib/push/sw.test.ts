@@ -35,6 +35,9 @@ interface WindowClientStub {
 interface NotificationStub {
   tag: string;
   close: ReturnType<typeof vi.fn>;
+  title?: string;
+  body?: string;
+  data?: { kind: string; url: string };
 }
 
 function loadServiceWorker(
@@ -341,7 +344,11 @@ describe("push event listener", () => {
     const message = { tag: "loonext:conversation:thread-1", close: vi.fn() };
     const emergency = { tag: "loonext:emergency:thread-1", close: vi.fn() };
     const mention = { tag: "loonext:mention:note-1", close: vi.fn() };
-    const sw = loadServiceWorker([], [message, emergency, mention]);
+    const missed = {
+      tag: "loonext:call:sess-1", close: vi.fn(),
+      data: { kind: "missed_call", url: "/inbox/thread-1" },
+    };
+    const sw = loadServiceWorker([], [message, emergency, mention, missed]);
 
     await dispatch(sw.listeners, "message", {
       data: { type: "loonext:thread-opened", conversationId: "thread-1" },
@@ -349,6 +356,7 @@ describe("push event listener", () => {
 
     expect(message.close).toHaveBeenCalledOnce();
     expect(emergency.close).toHaveBeenCalledOnce();
+    expect(missed.close).toHaveBeenCalledOnce();
     expect(mention.close).not.toHaveBeenCalled();
   });
 
@@ -388,6 +396,39 @@ describe("kind:'call_end' retirement push (#170 CALLS-V3 §9.2/§10.3)", () => {
       title: "Call answered",
       body: "Sam picked it up.",
     });
+
+  it("replaces the ring with a missed-call alert on the same tag", async () => {
+    const ring = { tag: "loonext:call:sess-A", close: vi.fn() };
+    const sw = loadServiceWorker([], [ring]);
+    await dispatch(sw.listeners, "push", {
+      data: {
+        text: () => JSON.stringify({
+          kind: "missed_call",
+          call_session_id: "sess-A",
+          url: "/inbox/thread-1",
+          title: "Missed call",
+        }),
+      },
+    });
+    expect(ring.close).toHaveBeenCalledOnce();
+    expect(sw.showNotification).toHaveBeenCalledExactlyOnceWith(
+      "Missed call",
+      expect.objectContaining({ tag: ring.tag, data: { url: "/inbox/thread-1", kind: "missed_call" } }),
+    );
+  });
+
+  it("preserves the missed-call details when the call-end update arrives later", async () => {
+    const missed = {
+      tag: "loonext:call:sess-A", close: vi.fn(), title: "Dana called", body: "We texted back.",
+      data: { kind: "missed_call", url: "/inbox/thread-1" },
+    };
+    const sw = loadServiceWorker([], [missed]);
+    await dispatch(sw.listeners, "push", { data: { text: () => callEndRaw("/calls?call=sess-A") } });
+    expect(missed.close).toHaveBeenCalledOnce();
+    expect(sw.showNotification).toHaveBeenCalledExactlyOnceWith(missed.title, expect.objectContaining({
+      tag: missed.tag, body: missed.body, data: missed.data, silent: true, renotify: false,
+    }));
+  });
 
   it("replaces the ring with the outcome on the same tag", async () => {
     const ringing = { tag: "loonext:call:sess-A", close: vi.fn() };

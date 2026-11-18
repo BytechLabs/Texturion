@@ -127,6 +127,13 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertNotEqual(first.tag, second.tag)
     }
 
+    func testCallEndIdentifiesTheRingToClear() {
+        let push = parsePush(["kind": "call_end", "url": "/calls?call=session-2"])
+        XCTAssertTrue(push.isCallEnd)
+        XCTAssertFalse(push.isCall)
+        XCTAssertEqual(push.callSessionId, "session-2")
+    }
+
     func testMissedCallKindRoutesToTheMissedCallsCategory() {
         let content = parsePush([
             "kind": "missed_call",

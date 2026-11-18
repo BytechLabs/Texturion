@@ -25,6 +25,7 @@ final class PushRegistrationBodyTests: XCTestCase {
             .object([
                 "platform": .string("ios"),
                 "token": .string("fcm-1"),
+                "caps": .array([.string("call_end")]),
                 "locale": .string("fr-CA"),
             ])
         )
@@ -41,6 +42,7 @@ final class PushRegistrationBodyTests: XCTestCase {
             .object([
                 "platform": .string("ios"),
                 "token": .string("fcm-1"),
+                "caps": .array([.string("call_end")]),
                 "locale": .string("fr_CA"),
             ])
         )
@@ -51,6 +53,7 @@ final class PushRegistrationBodyTests: XCTestCase {
             .object([
                 "platform": .string("ios"),
                 "token": .string("fcm-1"),
+                "caps": .array([.string("call_end")]),
                 "locale": .string("de-DE"),
             ])
         )
@@ -64,7 +67,11 @@ final class PushRegistrationBodyTests: XCTestCase {
             try decoded(
                 PushRegistrar.RegisterBody(platform: "ios", token: "fcm-1", locale: nil)
             ),
-            .object(["platform": .string("ios"), "token": .string("fcm-1")])
+            .object([
+                "platform": .string("ios"),
+                "token": .string("fcm-1"),
+                "caps": .array([.string("call_end")]),
+            ])
         )
     }
 
