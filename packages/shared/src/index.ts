@@ -110,6 +110,7 @@ export {
   formatNanpNumber,
   localHourInZone,
   NANP_TIMEZONES,
+  type MessagePhone,
   type NanpCountry,
   type NanpEntry,
   type NanpGeographicEntry,
