@@ -94,7 +94,7 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
 
-  const companies = unwrap<CompanyUsageRow[]>(
+  const companies = unwrap<unknown>(
     await db
       .from("companies")
       .select(
@@ -110,7 +110,7 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
       .is("deleted_at", null)
       .limit(1),
     "company lookup",
-  );
+  ) as CompanyUsageRow[];
   const company = companies[0];
   if (!company) {
     return errorResponse(c, "not_found", "No such company.");

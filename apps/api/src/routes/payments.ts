@@ -578,7 +578,7 @@ paymentRequestRoutes.get(
       need: "note",
     });
 
-    const rows = unwrap<PaymentRequestRow[]>(
+    const rows = unwrap<unknown>(
       await db
         .from("payment_requests")
         .select(REQUEST_COLUMNS)
@@ -587,7 +587,7 @@ paymentRequestRoutes.get(
         .order("created_at", { ascending: false })
         .limit(50),
       "payment request list",
-    );
+    ) as PaymentRequestRow[];
     return c.json({ payment_requests: rows.map((row) => requestJson(row, c.get("role"))) });
   },
 );
@@ -800,7 +800,7 @@ async function loadPaymentView(
   companyId: string,
   conversationId: string,
 ): Promise<PaymentSendView> {
-  const rows = unwrap<PaymentSendView[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("conversations")
       .select(
@@ -813,7 +813,7 @@ async function loadPaymentView(
       .eq("id", conversationId)
       .limit(1),
     "conversation lookup",
-  );
+  ) as PaymentSendView[];
   const view = rows[0];
   if (!view) throw new ApiError("not_found", "No such conversation.");
   return view;
@@ -981,7 +981,7 @@ async function loadRequest(
   companyId: string,
   id: string,
 ): Promise<PaymentRequestRow | null> {
-  const rows = unwrap<PaymentRequestRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("payment_requests")
       .select(REQUEST_COLUMNS)
@@ -989,7 +989,7 @@ async function loadRequest(
       .eq("id", id)
       .limit(1),
     "payment request lookup",
-  );
+  ) as PaymentRequestRow[];
   return rows[0] ?? null;
 }
 
@@ -998,7 +998,7 @@ async function loadRequestForMessage(
   companyId: string,
   messageId: string,
 ): Promise<PaymentRequestRow | null> {
-  const rows = unwrap<PaymentRequestRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("payment_requests")
       .select(REQUEST_COLUMNS)
@@ -1006,6 +1006,6 @@ async function loadRequestForMessage(
       .eq("message_id", messageId)
       .limit(1),
     "payment request lookup",
-  );
+  ) as PaymentRequestRow[];
   return rows[0] ?? null;
 }

@@ -345,7 +345,7 @@ async function createOrReuseConversation(
     throw new Error(`conversation insert failed: ${inserted.error.message}`);
   }
 
-  const rows = unwrap<Record<string, unknown>[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("conversations")
       .select(CONVERSATION_COLUMNS)
@@ -355,7 +355,7 @@ async function createOrReuseConversation(
       .is("closed_at", null)
       .limit(1),
     "open conversation lookup",
-  );
+  ) as Record<string, unknown>[];
   const row = rows[0];
   if (!row) throw new Error("open conversation vanished after conflict");
   return { conversation: row, created: false };
@@ -387,7 +387,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
     "idempotency lookup",
   )[0];
   if (replay) {
-    const conversation = unwrap<Record<string, unknown>[]>(
+    const [conversation] = unwrap<unknown>(
       await db
         .from("conversations")
         .select(CONVERSATION_COLUMNS)
@@ -395,7 +395,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
         .eq("id", replay.conversation_id)
         .limit(1),
       "conversation lookup",
-    )[0];
+    ) as Record<string, unknown>[];
     const attachments = await loadAttachments(db, companyId, [replay.id]);
     return c.json(
       {

@@ -397,10 +397,10 @@ meRoutes.get("/me", async (c) => {
     profilesRes,
     "profile lookup",
   );
-  const membershipRows = unwrap<MembershipRow[]>(
+  const membershipRows = unwrap<unknown>(
     membershipRes,
     "memberships lookup",
-  );
+  ) as MembershipRow[];
 
   const memberships = membershipRows.map((row) => ({
     company_id: row.company_id,

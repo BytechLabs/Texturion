@@ -52,7 +52,10 @@ export async function deliverSecrets(options: {
   });
   if (!response.ok) throw new Error(`rigd: /ctl/secrets answered ${response.status}`);
   const bundle: unknown = await response.json();
-  const opened = await (options.open ?? edgeOpener)(options.store.readJson<JsonWebKey>(BUNDLE_KEY_SECRET), bundle);
+  const opened = await (options.open ?? edgeOpener)(
+    options.store.readJson(BUNDLE_KEY_SECRET) as JsonWebKey,
+    bundle,
+  );
   if (!opened || typeof opened.secrets !== "object" || opened.secrets === null) {
     throw new Error("rigd: the bundle holds no secrets");
   }

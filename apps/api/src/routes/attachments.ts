@@ -142,12 +142,7 @@ async function resolveCommentOwner(
   userId: string,
   commentId: string,
 ): Promise<{ conversationId: string | null } | null> {
-  const rows = unwrap<
-    {
-      author_user_id: string;
-      tasks: { conversation_id: string | null; deleted_at: string | null } | null;
-    }[]
-  >(
+  const rows = unwrap<unknown>(
     await db
       .from("task_comments")
       .select("author_user_id,tasks!task_id(conversation_id,deleted_at)")
@@ -156,7 +151,10 @@ async function resolveCommentOwner(
       .is("deleted_at", null)
       .limit(1),
     "comment owner lookup",
-  );
+  ) as {
+    author_user_id: string;
+    tasks: { conversation_id: string | null; deleted_at: string | null } | null;
+  }[];
   const comment = rows[0];
   if (!comment?.tasks || comment.tasks.deleted_at !== null) return null;
   if (comment.author_user_id !== userId) return null;
@@ -934,7 +932,7 @@ attachmentsRoutes.get("/attachments", requireCapability("conversations.read"), a
   }
 
   const db = getDb(getEnv(c.env));
-  const rows = unwrap<Record<string, unknown>[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("attachments")
       .select(ATTACHMENT_COLUMNS)
@@ -945,7 +943,7 @@ attachmentsRoutes.get("/attachments", requireCapability("conversations.read"), a
       .order("created_at", { ascending: true })
       .order("id", { ascending: true }),
     "attachment list",
-  );
+  ) as Record<string, unknown>[];
   // #106: an owner's attachments all share one conversation — if that number is
   // hidden from the caller, so is the list (404, indistinguishable from empty).
   // Zero rows leak nothing, so the check only runs when there's something to
@@ -1156,16 +1154,14 @@ async function mintAttachmentUrls(
           : { path: previewPath, sizeBytes: row.preview_bytes ?? null },
     });
   }
-  for (const row of unwrap<
-    {
-      id: string;
-      storage_path: string;
-      size_bytes: number | null;
-      content_type?: string | null;
-      quarantined_at?: string | null;
-      messages?: { conversation_id: string | null } | null;
-    }[]
-  >(mmsRows, "mms attachment lookup")) {
+  for (const row of unwrap<unknown>(mmsRows, "mms attachment lookup") as {
+    id: string;
+    storage_path: string;
+    size_bytes: number | null;
+    content_type?: string | null;
+    quarantined_at?: string | null;
+    messages?: { conversation_id: string | null } | null;
+  }[]) {
     // The generic table wins when an id is in both.
     if (candidates.has(row.id)) continue;
     candidates.set(row.id, {

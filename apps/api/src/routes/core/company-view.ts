@@ -478,7 +478,7 @@ export async function loadCompanyView(
       .is("disabled_at", null),
     resolveNumberAccess(db, { companyId, userId: caller.userId, role: caller.role }),
   ]);
-  const company = unwrap<Record<string, unknown>[]>(companiesRes, "company lookup")[0];
+  const [company] = unwrap<unknown>(companiesRes, "company lookup") as Record<string, unknown>[];
   if (!company) return null;
   const allNumbers = unwrap<unknown[]>(numbersRes, "phone_numbers lookup");
   // #106: drop numbers hidden from this member (mirrors GET /v1/numbers). Null
@@ -488,10 +488,10 @@ export async function loadCompanyView(
     hidden === null
       ? allNumbers
       : allNumbers.filter((n) => !hidden.includes((n as { id: string }).id));
-  const registrations = unwrap<RegistrationRow[]>(
+  const registrations = unwrap<unknown>(
     registrationsRes,
     "messaging_registrations lookup",
-  );
+  ) as RegistrationRow[];
   const modules = unwrap<{ module: string }[]>(
     modulesRes,
     "company_modules lookup",

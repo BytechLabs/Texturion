@@ -20,7 +20,7 @@
  * Failures are collected and thrown, so a broken run is visible in PostHog
  * rather than silently skipping a rung (#387).
  */
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestSingleResponse, SupabaseClient } from "@supabase/supabase-js";
 
 import {
   isAfterHours,
@@ -53,9 +53,9 @@ interface DueRow {
   business_hours: unknown;
 }
 
-function unwrap<T>(result: { data: unknown; error: { message: string } | null }, what: string): T {
+function unwrap<T>(result: PostgrestSingleResponse<T>, what: string): T {
   if (result.error) throw new Error(`${what} failed: ${result.error.message}`);
-  return result.data as T;
+  return result.data;
 }
 
 /**

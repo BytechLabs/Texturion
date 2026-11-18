@@ -1041,14 +1041,14 @@ async function tagsByContactIds(
   const byContact = new Map<string, ContactTagRef[]>();
   for (let i = 0; i < contactIds.length; i += IMPORT_CHUNK) {
     const chunk = contactIds.slice(i, i + IMPORT_CHUNK);
-    const links = unwrap<{ contact_id: string; tags: ContactTagRef | null }[]>(
+    const links = unwrap<unknown>(
       await db
         .from("contact_tags")
         .select("contact_id,tags(id,name,color)")
         .eq("company_id", companyId)
         .in("contact_id", chunk),
       "contact tags",
-    );
+    ) as { contact_id: string; tags: ContactTagRef | null }[];
     for (const link of links) {
       if (!link.tags) continue;
       const list = byContact.get(link.contact_id) ?? [];
@@ -1302,13 +1302,13 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     updated_by_user_id: string | null;
     contact_tags?: unknown;
   };
-  const rows = unwrap<ContactListRow[]>(
+  const rows = (unwrap<unknown>(
     await query
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(limit + 1),
     "contacts list",
-  ).map(({ contact_tags: _join, ...row }) => row as ContactListRow);
+  ) as ContactListRow[]).map(({ contact_tags: _join, ...row }) => row as ContactListRow);
 
   /**
    * #291 — and the same search, run through a customer's OTHER numbers.
@@ -1355,13 +1355,13 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
     if (cursor) {
       byOtherNumber = byOtherNumber.or(keysetFilter("created_at", cursor));
     }
-    const alsoRows = unwrap<(ContactListRow & { contact_phones?: unknown })[]>(
+    const alsoRows = unwrap<unknown>(
       await byOtherNumber
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .limit(limit + 1),
       "contacts list by other number",
-    );
+    ) as (ContactListRow & { contact_phones?: unknown })[];
 
     const seen = new Set(rows.map((row) => row.id));
     const extra = alsoRows
@@ -1563,13 +1563,13 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
       query = query.or(keysetFilter("created_at", { ts: last.created_at, id: last.id }));
     }
     const limit = Math.min(EXPORT_PAGE_SIZE, EXPORT_MAX_ROWS - rows.length + 1);
-    const page = unwrap<ExportRow[]>(
+    const page = unwrap<unknown>(
       await query
         .order("created_at", { ascending: false })
         .order("id", { ascending: false })
         .limit(limit),
       "contacts export",
-    );
+    ) as ExportRow[];
     rows.push(...page);
     if (rows.length > EXPORT_MAX_ROWS) {
       rows.pop();
@@ -1594,7 +1594,7 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
   const exportContactIds = rows.map((row) => row.id);
   for (let i = 0; i < exportContactIds.length; i += IMPORT_CHUNK) {
     const chunk = exportContactIds.slice(i, i + IMPORT_CHUNK);
-    const joins = unwrap<TagJoinRow[]>(
+    const joins = unwrap<unknown>(
       await db
         .from("conversations")
         .select("contact_id,conversation_tags(tags(name))")
@@ -1602,7 +1602,7 @@ contactsRoutes.get("/contacts/export", requireCapability("conversations.read"), 
         .is("deleted_at", null)
         .in("contact_id", chunk),
       "contacts export tags",
-    );
+    ) as TagJoinRow[];
     for (const join of joins) {
       const set = tagsByContact.get(join.contact_id) ?? new Set<string>();
       for (const entry of join.conversation_tags ?? []) {

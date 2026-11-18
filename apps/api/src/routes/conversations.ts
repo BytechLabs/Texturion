@@ -301,7 +301,7 @@ async function findConversation(
   companyId: string,
   id: string,
 ): Promise<Record<string, unknown> | null> {
-  const rows = unwrap<Record<string, unknown>[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("conversations")
       .select(CONVERSATION_COLUMNS)
@@ -311,7 +311,7 @@ async function findConversation(
       .is("deleted_at", null)
       .limit(1),
     "conversation lookup",
-  );
+  ) as Record<string, unknown>[];
   return rows[0] ?? null;
 }
 
@@ -659,9 +659,7 @@ conversationsRoutes.get(
     // leaked the internal columns the thread list deliberately omits
     // (provider_cost COGS, company_id, idempotency_key). Naming the columns
     // fixes both and makes the pinned message shape identical to the thread's.
-    const rows = unwrap<
-      (Record<string, unknown> & { id: string; message_attachments: unknown[] })[]
-    >(
+    const rows = unwrap<unknown>(
       await db
         .from("messages")
         .select(MESSAGE_COLUMNS)
@@ -671,7 +669,7 @@ conversationsRoutes.get(
         .not("pinned_at", "is", null)
         .order("pinned_at", { ascending: false }),
       "pinned messages",
-    );
+    ) as (Record<string, unknown> & { id: string; message_attachments: unknown[] })[];
     return c.json({
       data: rows.map(({ message_attachments, ...message }) => ({
         ...message,
@@ -786,10 +784,10 @@ conversationsRoutes.get(
         .limit(1),
       resolveNumberAccess(db, { companyId, userId, role: c.get("role") }),
     ]);
-    const row = unwrap<ConversationDetailRow[]>(
+    const [row] = unwrap<unknown>(
       conversationRows,
       "conversation lookup",
-    )[0];
+    ) as ConversationDetailRow[];
     if (!row) {
       return errorResponse(c, "not_found", "No such conversation.");
     }
@@ -802,7 +800,7 @@ conversationsRoutes.get(
     }
 
     const messagesPage = buildPage(
-      unwrap<MessageRow[]>(messageRows, "messages page"),
+      unwrap<unknown>(messageRows, "messages page") as MessageRow[],
       messageLimit,
       "created_at",
     );
@@ -3171,7 +3169,7 @@ conversationsRoutes.get(
       genericQuery,
       companyPlanRow(db, companyId),
     ]);
-    const mmsRows = unwrap<MmsArmRow[]>(mmsResult, "gallery mms arm");
+    const mmsRows = unwrap<unknown>(mmsResult, "gallery mms arm") as MmsArmRow[];
     const genericRows = unwrap<GenericArmRow[]>(
       genericResult,
       "gallery generic arm",

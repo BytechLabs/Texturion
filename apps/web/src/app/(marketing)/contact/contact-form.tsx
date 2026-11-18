@@ -59,7 +59,7 @@ export function ContactForm({ locale = "en" }: { locale?: MarketingLocale } = {}
     if (status === "success") confirmationRef.current?.focus();
   }, [status]);
 
-  function update<K extends keyof ContactFormValues>(key: K, value: string) {
+  function update(key: keyof ContactFormValues, value: string) {
     setValues((v) => ({ ...v, [key]: value }));
     // Clear this field's inline error as the visitor corrects it.
     setFieldErrors((errs) => {

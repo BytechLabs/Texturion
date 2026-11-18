@@ -149,13 +149,11 @@ export function pathUuid(c: Context, name: string): string {
 }
 
 /**
- * Minimal shape of a supabase-js result this layer cares about. `data` is
- * `unknown` on purpose: without generated Database types supabase-js cannot
- * type computed select strings, so the caller names the row shape at the
- * `unwrap<T>` call site instead.
+ * The parts of a Supabase result used to check and unwrap a query.
+ * Callers assert the row shape when Supabase cannot infer a computed select.
  */
-export interface DbResult {
-  data: unknown;
+export interface DbResult<T = unknown> {
+  data: T | null | undefined;
   error: { message: string; code?: string } | null;
 }
 
@@ -172,7 +170,7 @@ export function isUniqueViolation(error: {
  * `conflictMessage` — those are the SPEC §7 409 `conflict` outcome.
  */
 export function unwrap<T>(
-  result: DbResult,
+  result: DbResult<T>,
   what: string,
   conflictMessage?: string,
 ): T {
@@ -185,18 +183,18 @@ export function unwrap<T>(
   if (result.data === null || result.data === undefined) {
     throw new Error(`${what} failed: no data returned`);
   }
-  return result.data as T;
+  return result.data;
 }
 
 /**
  * Unwrap a `.maybeSingle()` read, where `data` is null when no row matched.
  * `unwrap` would report that as a failure.
  */
-export function unwrapOptional<T>(result: DbResult, what: string): T | null {
+export function unwrapOptional<T>(result: DbResult<T>, what: string): T | null {
   if (result.error) {
     throw new Error(`${what} failed: ${result.error.message}`);
   }
-  return (result.data ?? null) as T | null;
+  return result.data ?? null;
 }
 
 /**

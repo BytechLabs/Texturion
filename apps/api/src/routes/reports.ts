@@ -237,7 +237,7 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
       .eq("id", companyId)
       .limit(1),
   ]);
-  const companies = unwrap<CompanyRow[]>(companiesRes, "response-time company lookup");
+  const companies = unwrap<unknown>(companiesRes, "response-time company lookup") as CompanyRow[];
   const company = companies[0];
   if (!company) {
     // Not a client error: authorization already proved this member belongs to

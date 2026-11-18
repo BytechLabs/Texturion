@@ -245,14 +245,7 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
   const sessionId = c.req.param("sessionId");
   const db = getDb(getEnv(c.env));
 
-  const rows = unwrap<(Omit<CallRow, "answered_by_name"> & {
-    ended_at: string | null;
-    direction: string;
-    voicemail_path: string | null;
-    voicemail_deleted_at: string | null;
-    voicemail_transcript_attempted_at: string | null;
-    contacts: { id: string; name: string | null; phone_e164: string } | null;
-  })[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("calls")
       .select(
@@ -269,7 +262,14 @@ callsRoutes.get("/calls/:sessionId", requireCapability("conversations.read"), as
       .is("deleted_at", null)
       .limit(1),
     "call detail",
-  );
+  ) as (Omit<CallRow, "answered_by_name"> & {
+    ended_at: string | null;
+    direction: string;
+    voicemail_path: string | null;
+    voicemail_deleted_at: string | null;
+    voicemail_transcript_attempted_at: string | null;
+    contacts: { id: string; name: string | null; phone_e164: string } | null;
+  })[];
   const call = rows[0];
   if (!call) return errorResponse(c, "not_found", "No such call.");
 
@@ -318,17 +318,7 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireCapability("conversations.
   const env = getEnv(c.env);
   const db = getDb(env);
 
-  const rows = unwrap<
-    {
-      phone_number_id: string | null;
-      voicemail_path: string | null;
-      voicemail_seconds: number | null;
-      voicemail_transcript: string | null;
-      voicemail_transcript_attempted_at: string | null;
-      voicemail_intake: VoicemailIntake | null;
-      voicemail_intake_at: string | null;
-    }[]
-  >(
+  const rows = unwrap<unknown>(
     await db
       .from("calls")
       .select(
@@ -341,7 +331,15 @@ callsRoutes.get("/calls/:sessionId/voicemail", requireCapability("conversations.
       .is("voicemail_deleted_at", null)
       .limit(1),
     "call lookup",
-  );
+  ) as {
+    phone_number_id: string | null;
+    voicemail_path: string | null;
+    voicemail_seconds: number | null;
+    voicemail_transcript: string | null;
+    voicemail_transcript_attempted_at: string | null;
+    voicemail_intake: VoicemailIntake | null;
+    voicemail_intake_at: string | null;
+  }[];
   const call = rows[0];
   if (!call?.voicemail_path) {
     return errorResponse(c, "not_found", "No voicemail for this call.");
@@ -750,18 +748,7 @@ async function authorizeOutboundCall(
 
   if (body.conversation_id) {
     // From an existing thread: it names the customer AND the business number.
-    const conversations = unwrap<
-      {
-        id: string;
-        contact_id: string;
-        phone_number_id: string | null;
-        // #291: the number this THREAD is with. Calling the contact's
-        // primary from a thread with their landline would ring the wrong
-        // line, and the crew would hear it as "they didn't pick up".
-        contact_phone_e164: string | null;
-        phone_numbers: { number_e164: string; status: string } | null;
-      }[]
-    >(
+    const conversations = unwrap<unknown>(
       await db
         .from("conversations")
         .select(
@@ -772,7 +759,16 @@ async function authorizeOutboundCall(
         .is("deleted_at", null)
         .limit(1),
       "conversation lookup",
-    );
+    ) as {
+      id: string;
+      contact_id: string;
+      phone_number_id: string | null;
+      // #291: the number this THREAD is with. Calling the contact's
+      // primary from a thread with their landline would ring the wrong
+      // line, and the crew would hear it as "they didn't pick up".
+      contact_phone_e164: string | null;
+      phone_numbers: { number_e164: string; status: string } | null;
+    }[];
     const conversation = conversations[0];
     if (!conversation) {
       return errorResponse(c, "not_found", "No such conversation.");

@@ -249,10 +249,10 @@ scheduledMessageRoutes.get(
       query = query.in("status", ["pending", "held"]);
     }
 
-    const rows = unwrap<Record<string, unknown>[]>(
+    const rows = unwrap<unknown>(
       await query,
       "scheduled message list",
-    );
+    ) as Record<string, unknown>[];
     // #722: what this member may do to each text in its state, from the shared
     // machine, so every client shows Edit and Cancel exactly when they work.
     const role = c.get("role");

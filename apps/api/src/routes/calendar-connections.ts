@@ -280,7 +280,7 @@ async function authorizedProviderForAttention(input: {
   provider: CalendarProvider;
 }> {
   const db = getDb(input.env);
-  const rows = unwrap<OwnedCalendarCredentialRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("calendar_connections")
       .select(
@@ -294,7 +294,7 @@ async function authorizedProviderForAttention(input: {
       .is("revoked_at", null)
       .limit(1),
     "calendar attention connection",
-  );
+  ) as OwnedCalendarCredentialRow[];
   const connection = rows[0];
   if (!connection || connection.provider !== input.expectedProvider) {
     throw new ApiError("not_found", "No such calendar attention item.");
@@ -510,7 +510,7 @@ calendarConnectionRoutes.get(
     const companyId = c.get("companyId");
     const userId = c.get("userId");
 
-    const connections = unwrap<CalendarConnectionRow[]>(
+    const connections = unwrap<unknown>(
       await db
         .from("calendar_connections")
         .select(
@@ -523,7 +523,7 @@ calendarConnectionRoutes.get(
         .is("revoked_at", null)
         .order("created_at", { ascending: true }),
       "calendar connection list",
-    );
+    ) as CalendarConnectionRow[];
 
     const ids = connections.map((connection) => connection.id);
     const conflicts = ids.length === 0

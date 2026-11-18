@@ -688,14 +688,14 @@ function inviteState(row: InviteRow, now: Date): stateMachines.InviteState {
 
 teamRoutes.get("/invites", requireCapability("team.manage"), async (c) => {
   const db = getDb(getEnv(c.env));
-  const rows = unwrap<InviteRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("invites")
       .select(INVITE_COLUMNS)
       .eq("company_id", c.get("companyId"))
       .order("created_at", { ascending: false }),
     "invites list",
-  );
+  ) as InviteRow[];
   const role = c.get("role") as MemberRole;
   const now = new Date();
   return c.json({
@@ -941,7 +941,7 @@ teamRoutes.get("/invites/mine", async (c) => {
     [key: string]: unknown;
   }
   // invites.email is citext → the eq match is case-insensitive at the DB.
-  const rows = unwrap<MyInviteRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("invites")
       .select(`${INVITE_COLUMNS},companies(name)`)
@@ -951,7 +951,7 @@ teamRoutes.get("/invites/mine", async (c) => {
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false }),
     "my invites",
-  );
+  ) as MyInviteRow[];
   const data = rows.map(({ companies, ...invite }) => ({
     ...invite,
     company_name: companies?.name ?? null,
@@ -977,10 +977,10 @@ teamRoutes.post("/invites/accept", async (c) => {
     /** #521: why the owner said they were adding this person, or null. */
     note: string | null;
   }
-  const invites = unwrap<InviteRow[]>(
+  const invites = unwrap<unknown>(
     await db.from("invites").select(INVITE_COLUMNS).eq("id", body.invite_id).limit(1),
     "invite lookup",
-  );
+  ) as InviteRow[];
   const invite = invites[0];
   if (!invite) {
     return errorResponse(c, "not_found", "No such invite.");

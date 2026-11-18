@@ -593,14 +593,20 @@ function historyOf(deps: RunnerDeps, scenario: string): ScenarioHistoryApi {
   };
 }
 
+type FirstArgument<F> = F extends (arg: infer A, ...rest: never[]) => unknown ? A : never;
+
 /** The same object, with one method also telling `note` what it was called with. */
-function noting<T extends object, A>(target: T, method: string, note: (arg: A) => void): T {
+function noting<T extends object, K extends keyof T>(
+  target: T,
+  method: K,
+  note: (arg: FirstArgument<T[K]>) => void,
+): T {
   return new Proxy(target, {
     get(object, property) {
       const value: unknown = Reflect.get(object, property);
       if (typeof value !== "function") return value;
       if (property !== method) return value.bind(object);
-      return (arg: A, ...rest: unknown[]) => {
+      return (arg: FirstArgument<T[K]>, ...rest: unknown[]) => {
         note(arg);
         return (value as (...args: unknown[]) => unknown).call(object, arg, ...rest);
       };

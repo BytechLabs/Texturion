@@ -356,7 +356,7 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
   const messageId = pathUuid(c, "id");
   const db = getDb(env);
 
-  const rows = unwrap<MessageRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("messages")
       .select(MESSAGE_COLUMNS)
@@ -366,7 +366,7 @@ messageRoutes.post("/messages/:id/retry", requireCapability("conversations.send"
       .is("deleted_at", null)
       .limit(1),
     "message lookup",
-  );
+  ) as MessageRow[];
   const message = rows[0];
   if (!message) throw new ApiError("not_found", "No such message.");
 
@@ -514,7 +514,7 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
 
   // Company-scoped fetch (§10): a message outside the caller's company is
   // indistinguishable from a missing one — 404 either way.
-  const rows = unwrap<MessageRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("messages")
       .select(MESSAGE_COLUMNS)
@@ -524,7 +524,7 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
       .is("deleted_at", null)
       .limit(1),
     "message lookup",
-  );
+  ) as MessageRow[];
   const message = rows[0];
   if (!message) throw new ApiError("not_found", "No such message.");
 
@@ -762,7 +762,7 @@ messageRoutes.get(
         .order("id", { ascending: false })
         .limit(count + 1);
       if (from) q = q.or(keysetFilter("created_at", from));
-      const rows = unwrap<Row[]>(await q, "messages list");
+      const rows = unwrap<unknown>(await q, "messages list") as Row[];
       return { rows: rows.slice(0, count), more: rows.length > count };
     };
     /** Up to `count` rows strictly newer than `from`, returned newest-first. */
@@ -772,7 +772,7 @@ messageRoutes.get(
         .order("created_at", { ascending: true })
         .order("id", { ascending: true })
         .limit(count + 1);
-      const rows = unwrap<Row[]>(await q, "messages newer list");
+      const rows = unwrap<unknown>(await q, "messages newer list") as Row[];
       return {
         rows: rows.slice(0, count).toReversed(),
         more: rows.length > count,
@@ -803,10 +803,10 @@ messageRoutes.get(
       rows = page.rows;
       nextCursor = page.more ? cursorOf(rows[rows.length - 1]) : null;
     } else {
-      const anchors = unwrap<Row[]>(
+      const anchors = unwrap<unknown>(
         await base().eq("id", around).limit(1),
         "message anchor lookup",
-      );
+      ) as Row[];
       const anchor = anchors[0];
       if (anchor) {
         anchorId = anchor.id;

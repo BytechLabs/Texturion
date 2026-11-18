@@ -769,7 +769,7 @@ async function findTask(
   id: string,
   withDoneState = false,
 ): Promise<Record<string, unknown> | null> {
-  const rows = unwrap<Record<string, unknown>[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("tasks")
       .select(withDoneState ? `${TASK_COLUMNS},${TASK_DONE_SELECT}` : TASK_COLUMNS)
@@ -778,7 +778,7 @@ async function findTask(
       .is("deleted_at", null)
       .limit(1),
     "task lookup",
-  );
+  ) as Record<string, unknown>[];
   return rows[0] ? withSource(rows[0]) : null;
 }
 
@@ -1741,10 +1741,10 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     contact_lng?: number | null;
     [key: string]: unknown;
   }
-  const rows = unwrap<TaskListRow[]>(
+  const rows = unwrap<unknown>(
     await query.limit(limit + 1),
     "tasks list",
-  );
+  ) as TaskListRow[];
 
   const hasNext = rows.length > limit;
   const pageRows = hasNext ? rows.slice(0, limit) : rows;
@@ -2098,10 +2098,10 @@ tasksRoutes.post(
         },
       );
       // The RPC applies at most 500 tasks and reports whether more matched.
-      const rows = unwrap<{ id: string }[]>(
+      const rows = unwrap<unknown>(
         await query.limit(1000),
         "tasks bulk filter",
-      );
+      ) as { id: string }[];
       ids = rows.map((row) => row.id);
       if (ids.length === 0) {
         // Nothing matched. Answered here rather than by the RPC, which requires
@@ -2204,7 +2204,7 @@ tasksRoutes.get(
       source_call: SourceCallRow | null;
       [key: string]: unknown;
     }
-    const rows = unwrap<ChecklistRow[]>(
+    const rows = unwrap<unknown>(
       await db
         .from("tasks")
         .select(`${TASK_COLUMNS},${TASK_DONE_SELECT},${SOURCE_CALL_EMBED}`)
@@ -2214,7 +2214,7 @@ tasksRoutes.get(
         .order("created_at", { ascending: true })
         .order("id", { ascending: true }),
       "conversation tasks",
-    );
+    ) as ChecklistRow[];
 
     // attachment_count: the size of the D28 derived union (source-message MMS
     // + linked-note files + legacy task rows) — the SAME loader the detail's
@@ -2468,7 +2468,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
     messages: { id: string; body: string; done_at: string | null } | null;
     [key: string]: unknown;
   }
-  const rows = unwrap<DetailRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("tasks")
       .select(
@@ -2480,7 +2480,7 @@ tasksRoutes.get("/tasks/:id", requireCapability("conversations.read"), async (c)
       .is("deleted_at", null)
       .limit(1),
     "task detail",
-  );
+  ) as DetailRow[];
   const row = rows[0];
   if (!row) {
     return errorResponse(c, "not_found", "No such task.");

@@ -50,7 +50,7 @@
  */
 import { AUTOMATIC_TEXT_KEYS, estimateSegments, resolveAutomaticTextSettings, SCHEDULED_HOLD_REASON_KEYS, SCHEDULED_HOLD_REASONS, scheduledReasonRecovers } from '@loonext/shared';
 import type { AutomaticTextSettings, ScheduledHoldReason } from '@loonext/shared';
-import type { SupabaseClient } from "@supabase/supabase-js";
+import type { PostgrestSingleResponse, SupabaseClient } from "@supabase/supabase-js";
 
 import { listConversationViewers } from "../auth/conversation-audience";
 import { CALENDAR_VERIFICATION_MAX_AGE_MS } from "../calendar/liveness";
@@ -124,11 +124,11 @@ export interface ScheduledSendSummary {
 }
 
 function unwrap<T>(
-  result: { data: unknown; error: { message: string } | null },
+  result: PostgrestSingleResponse<T>,
   what: string,
 ): T {
   if (result.error) throw new Error(`${what} failed: ${result.error.message}`);
-  return result.data as T;
+  return result.data;
 }
 
 /**

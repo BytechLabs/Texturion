@@ -137,7 +137,7 @@ export const webhooksRoutes = new Hono<AppEnv>();
 
 webhooksRoutes.get("/webhooks", requireCapability("settings.manage"), async (c) => {
   const db = getDb(getEnv(c.env));
-  const rows = unwrap<EndpointRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("webhook_endpoints")
       .select(ENDPOINT_COLUMNS)
@@ -145,7 +145,7 @@ webhooksRoutes.get("/webhooks", requireCapability("settings.manage"), async (c) 
       .order("created_at", { ascending: true })
       .limit(WEBHOOK_ENDPOINT_CAP),
     "webhook endpoints list",
-  );
+  ) as EndpointRow[];
   return c.json({ endpoints: rows, cap: WEBHOOK_ENDPOINT_CAP });
 });
 
@@ -219,7 +219,7 @@ webhooksRoutes.patch("/webhooks/:id", requireCapability("settings.manage"), asyn
   const db = getDb(getEnv(c.env));
   const companyId = c.get("companyId");
 
-  const existing = unwrap<EndpointRow[]>(
+  const existing = unwrap<unknown>(
     await db
       .from("webhook_endpoints")
       .select(ENDPOINT_COLUMNS)
@@ -227,7 +227,7 @@ webhooksRoutes.patch("/webhooks/:id", requireCapability("settings.manage"), asyn
       .eq("id", id)
       .limit(1),
     "webhook endpoint read",
-  );
+  ) as EndpointRow[];
   const before = existing[0];
   if (!before) return errorResponse(c, "not_found", "No such webhook endpoint.");
 
@@ -247,7 +247,7 @@ webhooksRoutes.patch("/webhooks/:id", requireCapability("settings.manage"), asyn
     }
   }
 
-  const updated = unwrap<EndpointRow[]>(
+  const updated = unwrap<unknown>(
     await db
       .from("webhook_endpoints")
       .update(patch)
@@ -256,7 +256,7 @@ webhooksRoutes.patch("/webhooks/:id", requireCapability("settings.manage"), asyn
       .select(ENDPOINT_COLUMNS)
       .limit(1),
     "webhook endpoint update",
-  );
+  ) as EndpointRow[];
 
   await recordAuditFromRequest(db, c, {
     companyId,
@@ -279,7 +279,7 @@ webhooksRoutes.delete("/webhooks/:id", requireCapability("settings.manage"), asy
   const db = getDb(getEnv(c.env));
   const companyId = c.get("companyId");
 
-  const existing = unwrap<EndpointRow[]>(
+  const existing = unwrap<unknown>(
     await db
       .from("webhook_endpoints")
       .select(ENDPOINT_COLUMNS)
@@ -287,7 +287,7 @@ webhooksRoutes.delete("/webhooks/:id", requireCapability("settings.manage"), asy
       .eq("id", id)
       .limit(1),
     "webhook endpoint read",
-  );
+  ) as EndpointRow[];
   const before = existing[0];
   if (!before) return errorResponse(c, "not_found", "No such webhook endpoint.");
 
@@ -321,7 +321,7 @@ webhooksRoutes.post(
     const companyId = c.get("companyId");
     const secret = mintSecret();
 
-    const updated = unwrap<EndpointRow[]>(
+    const updated = unwrap<unknown>(
       await db
         .from("webhook_endpoints")
         .update({ secret })
@@ -330,7 +330,7 @@ webhooksRoutes.post(
         .select(ENDPOINT_COLUMNS)
         .limit(1),
       "webhook secret rotate",
-    );
+    ) as EndpointRow[];
     if (!updated[0]) return errorResponse(c, "not_found", "No such webhook endpoint.");
 
     await recordAuditFromRequest(db, c, {

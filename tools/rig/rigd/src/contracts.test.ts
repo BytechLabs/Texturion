@@ -87,7 +87,7 @@ describe("secret delivery", () => {
     expect(result).toEqual({ written: ["guard-token-robot", "standing-numbers.json"], absent: ["RIG_APP_KEY"], sealed_at: "2026-10-31T00:00:00.000Z" });
     expect(store.read("guard-token-robot")).toBe("robot-token");
     // The key that opens the bundle never comes out of it.
-    expect(store.readJson<{ d: string }>(BUNDLE_KEY_SECRET).d).toBe("d");
+    expect((store.readJson(BUNDLE_KEY_SECRET) as { d: string }).d).toBe("d");
   });
 
   it("refuses when the edge has no bundle", async () => {
