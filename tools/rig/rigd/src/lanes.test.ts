@@ -918,7 +918,7 @@ describe("the app's dialer", () => {
   it("types the number's digits and presses Call, with no reset when the calls screen is as it should be", async () => {
     const { device, actions } = dialerDevice(new Set(["Dial a number", ..."4165550111".split(""), "Call"]));
     await dialOnDevice(device, "ROBOT-1", numbers);
-    expect(actions).toEqual(["launch /calls", "tap Dial a number", ...[..."4165550111"].map((d) => `tap ${d}`), "tap Call"]);
+    expect(actions).toEqual(["launch /calls", "tap Dial a number", ...Array.from("4165550111", (digit) => `tap ${digit}`), "tap Call"]);
   });
 
   it("resets the app once and asks again when a sheet the last run left open hides the dialer's button", async () => {

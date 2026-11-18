@@ -6,7 +6,7 @@ function wavWith(format: number, bits: number, channels: number, payload: Uint8A
   const fmtSize = extensible ? 40 : 16;
   const out = new Uint8Array(12 + 8 + fmtSize + 8 + payload.length);
   const view = new DataView(out.buffer);
-  const ascii = (o: number, s: string) => [...s].forEach((ch, i) => view.setUint8(o + i, ch.charCodeAt(0)));
+  const ascii = (o: number, s: string) => Array.from(s).forEach((ch, i) => view.setUint8(o + i, ch.charCodeAt(0)));
   ascii(0, "RIFF");
   view.setUint32(4, out.length - 8, true);
   ascii(8, "WAVE");

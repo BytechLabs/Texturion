@@ -12,7 +12,7 @@ import type { CalendarFetch } from './types';
 
 const TASK_URL = "https://app.example.test/tasks/0b5c8f2e-6a1d-4c3e-9f7a-2d4b6e8c0a1f";
 
-function json(body: unknown, status = 200, headers?: HeadersInit): Response {
+function json(body: unknown, status = 200, headers?: Record<string, string>): Response {
   return Response.json(body, {
     status,
     headers: { "Content-Type": "application/json", ...headers },

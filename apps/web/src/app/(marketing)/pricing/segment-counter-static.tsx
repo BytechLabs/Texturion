@@ -25,7 +25,7 @@ export function SegmentCounterStatic({
   const DEFAULT_MESSAGE = copy.counterSample;
   const { segments, unitsUsed, encoding } = estimateSegments(DEFAULT_MESSAGE);
   const isUnicode = encoding === "UCS-2";
-  const chars = [...DEFAULT_MESSAGE].length;
+  const chars = Array.from(DEFAULT_MESSAGE).length;
   const textWord = segments === 1 ? copy.counterOne : copy.counterMany;
   const kindLabel = isUnicode ? copy.counterSpecial : copy.counterPlain;
   const splitNote =

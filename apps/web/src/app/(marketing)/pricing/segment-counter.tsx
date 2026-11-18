@@ -39,7 +39,7 @@ export function SegmentCounter({
   // punctuation. "Special characters or emoji" is true for every UCS-2 case
   // and matches SPEC §2's own tooltip wording.
   const isUnicode = encoding === "UCS-2";
-  const chars = [...text].length; // code points, matching the app's meter
+  const chars = Array.from(text).length; // code points, matching the app's meter
 
   const textWord = segments === 1 ? copy.counterOne : copy.counterMany;
   const kindLabel = isUnicode ? copy.counterSpecial : copy.counterPlain;

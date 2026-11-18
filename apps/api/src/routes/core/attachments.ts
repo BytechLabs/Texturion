@@ -169,7 +169,7 @@ function isAmrHeader(
   startsWith: (sig: number[], offset?: number) => boolean,
 ): boolean {
   return AMR_HEADERS.some((header) =>
-    startsWith([...header].map((char) => char.charCodeAt(0))),
+    startsWith(Array.from(header, (char) => char.charCodeAt(0))),
   );
 }
 

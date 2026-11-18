@@ -3544,7 +3544,7 @@ describe("#248 H5 a file that cannot be read is refused, not half-read", () => {
     const sb = refusingStub();
     const utf16 = new Uint8Array([
       0xff, 0xfe, // BOM, as Excel writes it
-      ...[..."phone,name\n+14165550100,Bo\n"].flatMap((char) => [
+      ...Array.from("phone,name\n+14165550100,Bo\n").flatMap((char) => [
         char.charCodeAt(0),
         0x00,
       ]),
@@ -3574,7 +3574,7 @@ describe("#248 H5 a file that cannot be read is refused, not half-read", () => {
     const sb = refusingStub();
     const card = "BEGIN:VCARD\r\nFN:Bo\r\nTEL:+14165550100\r\nEND:VCARD\r\n";
     const utf16 = new Uint8Array(
-      [...card].flatMap((char) => [char.charCodeAt(0), 0x00]),
+      Array.from(card).flatMap((char) => [char.charCodeAt(0), 0x00]),
     );
     const form = new FormData();
     form.append(

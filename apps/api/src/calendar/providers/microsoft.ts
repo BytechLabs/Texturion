@@ -409,7 +409,7 @@ export async function normalizeMicrosoftEvent(
       inbound: { kind: "time_refused", reason: "invalid_range" },
     };
   }
-  if (!common.hasOnlineMeeting && [...description].length > 5_000) {
+  if (!common.hasOnlineMeeting && Array.from(description).length > 5000) {
     return {
       ...common,
       inbound: { kind: "description_refused", reason: "too_long" },
