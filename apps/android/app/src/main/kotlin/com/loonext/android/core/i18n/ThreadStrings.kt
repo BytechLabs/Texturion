@@ -144,7 +144,7 @@ object ThreadStrings : AppStrings.Section {
         // --- Opt-out (#407) --------------------------------------------------
         "thread.optOutTitle" to "Stop texts to this number?",
         "thread.optOutBody" to
-            "This blocks future texts to this number and records the opt-out in the thread.",
+            "This blocks future texts to this number and records the opt-out in the conversation.",
         "thread.optOut" to "Opt out",
         "thread.optOutOfTexts" to "Opt out of texts",
 

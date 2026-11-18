@@ -161,7 +161,7 @@ enum ThreadStrings {
             // --- Opt-out (#407) ---------------------------------------------
             "thread.optOutTitle": "Stop texts to this number?",
             "thread.optOutBody":
-                "This blocks future texts to this number and records the opt-out in the thread.",
+                "This blocks future texts to this number and records the opt-out in the conversation.",
             "thread.optOut": "Opt out",
             "thread.optOutOfTexts": "Opt out of texts",
             "thread.blockNumber": "Block number",

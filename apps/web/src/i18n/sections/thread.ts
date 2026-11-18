@@ -541,14 +541,14 @@ export const threadEn = {
   markOptedInAgain: "Mark opted in again",
   markedOptedInAgain: "Marked opted in again.",
   optOutUpdateFailed: "Couldn't update opt-out.",
-  optOutContact: "Opt out contact",
+  optOutContact: "Opt out of texts",
   optOutTitle: "Stop texts to {name} at this number?",
   optOutDescription:
-    "This blocks future texts to this number and records the opt-out in the thread.",
+    "This blocks future texts to this number and records the opt-out in the conversation.",
   optingOut: "Opting out…",
   optOut: "Opt out",
   contactOptedOut: "Number opted out.",
-  optOutFailed: "Couldn't opt out the contact.",
+  optOutFailed: "Couldn't opt out this number.",
 
   // --- The thread screen (thread-view.tsx) ----------------------------------
   conversationNotFound: "This conversation doesn't exist or was removed.",
@@ -1340,14 +1340,14 @@ export const threadFr: Translated<typeof threadEn> = {
   markOptedInAgain: "Marquer comme réabonné",
   markedOptedInAgain: "Marqué comme réabonné.",
   optOutUpdateFailed: "Impossible de mettre à jour le désabonnement.",
-  optOutContact: "Désabonner le contact",
+  optOutContact: "Désabonner des textos",
   optOutTitle: "Arrêter les textos à ce numéro pour {name} ?",
   optOutDescription:
     "Les prochains textos à ce numéro seront bloqués. Le désabonnement sera inscrit dans la conversation.",
   optingOut: "Désabonnement…",
   optOut: "Désabonner",
   contactOptedOut: "Numéro désabonné.",
-  optOutFailed: "Impossible de désabonner le contact.",
+  optOutFailed: "Impossible de désabonner ce numéro.",
 
   // --- The thread screen ----------------------------------------------------
   conversationNotFound: "Cette conversation n'existe pas ou a été supprimée.",
