@@ -3,10 +3,11 @@
 import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { LoadError } from "@/components/ui/load-error";
+import { PageHeader } from "@/components/ui/page-header";
 import { useT } from "@/i18n/provider";
 import { useCustomerErasure, useEraseCustomer, type CustomerErasure } from "@/lib/api/contacts";
 import { formatAbsoluteDateTime } from "@/lib/format/time";
@@ -32,35 +33,29 @@ export function CustomerErasureAction({ contactId }: { contactId: string }) {
       <Button variant="ghost" size="sm" className="text-destructive" onClick={() => changeOpen(true)}>
         {t("appShell.customerErasureAction")}
       </Button>
-      <Dialog open={open} onOpenChange={changeOpen}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>{t("appShell.customerErasureAction")}</DialogTitle>
-            <DialogDescription>{t("appShell.customerErasureHint")}</DialogDescription>
-          </DialogHeader>
-          {preview.isPending && <p role="status">{t("appShell.contactLoading")}</p>}
-          {preview.isError && <LoadError onRetry={() => preview.refetch()} />}
-          {preview.data && <ErasureCounts status={preview.data} />}
-          {preview.data?.legal_hold && <p role="status">{t("appShell.customerErasureHeld")}</p>}
-          {allowed && (
-            <div className="space-y-2">
-              <Label htmlFor="customer-erasure-confirmation">{t("appShell.customerErasureConfirm")}</Label>
-              <Input id="customer-erasure-confirmation" value={confirmation} disabled={erase.isPending}
-                autoComplete="off" onChange={(event) => setConfirmation(event.target.value)} />
-            </div>
-          )}
-          {erase.isError && <p role="alert" className="text-sm text-destructive">{erase.error.message}</p>}
-          <DialogFooter>
-            <Button variant="outline" disabled={erase.isPending} onClick={() => changeOpen(false)}>
-              {t("common.cancel")}
-            </Button>
-            <Button variant="destructive" disabled={!allowed || confirmation !== "ERASE" || erase.isPending}
-              onClick={() => erase.mutate(confirmation)}>
-              {t("appShell.customerErasureAction")}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+      <ConfirmDialog
+        open={open}
+        onOpenChange={changeOpen}
+        title={t("appShell.customerErasureAction")}
+        description={t("appShell.customerErasureHint")}
+        confirmLabel={t("appShell.customerErasureAction")}
+        confirmDisabled={!allowed || confirmation !== "ERASE"}
+        pending={erase.isPending}
+        onConfirm={() => erase.mutate(confirmation)}
+      >
+        {preview.isPending && <p role="status">{t("appShell.contactLoading")}</p>}
+        {preview.isError && <LoadError onRetry={() => preview.refetch()} />}
+        {preview.data && <ErasureCounts status={preview.data} />}
+        {preview.data?.legal_hold && <p role="status">{t("appShell.customerErasureHeld")}</p>}
+        {allowed && (
+          <div className="space-y-2">
+            <Label htmlFor="customer-erasure-confirmation">{t("appShell.customerErasureConfirm")}</Label>
+            <Input id="customer-erasure-confirmation" value={confirmation} disabled={erase.isPending}
+              autoComplete="off" onChange={(event) => setConfirmation(event.target.value)} />
+          </div>
+        )}
+        {erase.isError && <p role="alert" className="text-sm text-destructive">{erase.error.message}</p>}
+      </ConfirmDialog>
     </div>
   );
 }
@@ -74,7 +69,7 @@ export function CustomerErasureReceipt({ status }: { status: CustomerErasure }) 
   const t = useT();
   return (
     <section className="space-y-2 rounded-lg border bg-card p-5" aria-live="polite">
-      <h1 className="font-semibold">{t(status.state === "erased" ? "appShell.customerErasureDone" : "appShell.customerErasureInProgress")}</h1>
+      <PageHeader title={t(status.state === "erased" ? "appShell.customerErasureDone" : "appShell.customerErasureInProgress")} />
       {status.date && (
         <time dateTime={status.date} className="block text-sm">{formatAbsoluteDateTime(status.date, undefined, t.locale)}</time>
       )}
