@@ -162,7 +162,11 @@ it("offers a separate talk-first action and controls for a connected consult", a
   view.rerender(<CallBar />);
   fireEvent.click(screen.getByRole("button", { name: "Hand over" }));
   await waitFor(() => expect(actions.endConsult).toHaveBeenCalledWith("complete"));
-  await waitFor(() => expect((screen.getByRole("button", { name: "Back to caller" }) as HTMLButtonElement).disabled).toBe(false));
+  await waitFor(() =>
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Back to caller" }).disabled,
+    ).toBe(false),
+  );
   fireEvent.click(screen.getByRole("button", { name: "Back to caller" }));
   await waitFor(() => expect(actions.endConsult).toHaveBeenCalledWith("cancel"));
 });

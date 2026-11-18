@@ -583,7 +583,7 @@ describe("GET /v1/usage — what a member may not see (#515)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = await res.json() as { voice: object };
+    const body = await res.json<{ voice: object }>();
 
     expect(res.status).toBe(200);
     expect(body).toMatchObject({
