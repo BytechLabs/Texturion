@@ -14,7 +14,7 @@ interface WorkspaceMfaNotice {
   email: string;
   workspace_name: string;
   locale: string;
-  timezone: string | null;
+  timezone: string;
 }
 
 export async function sendWorkspaceMfaNotices(env: Env, now: Date, companyId?: string) {
@@ -54,7 +54,7 @@ async function sendWorkspaceMfaNotice(env: Env, notice: WorkspaceMfaNotice) {
     ? new Intl.DateTimeFormat(french ? "fr-CA" : "en-CA", {
         dateStyle: "long",
         timeStyle: "short",
-        timeZone: notice.timezone ?? "UTC",
+        timeZone: notice.timezone,
       }).format(graceUntil)
     : null;
   const subject = notice.kind === "enabled"

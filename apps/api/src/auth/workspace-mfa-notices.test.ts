@@ -19,7 +19,7 @@ function setup(providerStatus: number) {
   sb.on("POST", CLAIM, () => [{
     member_id: MEMBER_ID,
     required_at: REQUIRED_AT,
-    grace_until: "2026-12-01T00:00:00Z",
+    grace_until: new Date(NOW.getTime() + 12 * 3_600_000).toISOString(),
     kind: "reminder",
     email: "tech@example.test",
     workspace_name: "Plomberie Exemple",
