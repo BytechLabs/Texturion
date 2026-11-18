@@ -9,7 +9,12 @@ final class OfflineReadCacheTests: XCTestCase {
     }
 
     private actor ReadTransport: HTTPClient {
+        private let payload: Data
         private var status: Int? = 200
+
+        init(payload: Data = Data(#"{"value":"saved"}"#.utf8)) {
+            self.payload = payload
+        }
 
         func setStatus(_ status: Int?) { self.status = status }
 
@@ -18,7 +23,7 @@ final class OfflineReadCacheTests: XCTestCase {
             let url = try XCTUnwrap(request.url)
             let response = try XCTUnwrap(HTTPURLResponse(url: url, statusCode: status, httpVersion: nil, headerFields: nil))
             let data = status == 200
-                ? Data(#"{"value":"saved"}"#.utf8)
+                ? payload
                 : Data(#"{"error":{"code":"forbidden","message":"Forbidden"}}"#.utf8)
             return (data, response)
         }
@@ -126,6 +131,69 @@ final class OfflineReadCacheTests: XCTestCase {
         }
         let refused: WireValue? = await api.cachedGet(path, companyId: "workspace")
         XCTAssertNil(refused)
+    }
+
+    func testScreenMemoryDoesNotCreateADiskEntryOrReplaceALiveAPIRead() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = StoreCache(directory: directory, diskKey: SymmetricKey(size: .bits256))
+        let sessions = SessionStore(storage: InMemorySessionStorage())
+        sessions.save(Session(
+            accessToken: "memory-fixture", refreshToken: "memory-refresh",
+            expiresAt: Date().timeIntervalSince1970 + 3600, userId: "member", email: "viewer@example.com"
+        ))
+        let transport = ReadTransport()
+        let api = ApiClient(sessionStore: sessions, auth: SupabaseAuth(), transport: transport, offlineReads: cache)
+        let path = "/v1/company"
+
+        let _: WireValue = try await api.get(path, companyId: "workspace", cacheInMemory: true)
+        let cached: WireValue? = await api.cachedGet(path, companyId: "workspace")
+        XCTAssertEqual(cached?.value, "saved")
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
+
+        await transport.setStatus(nil)
+        do {
+            let _: WireValue = try await api.get(path, companyId: "workspace", cacheInMemory: true)
+            XCTFail("Company settings reads must reach the server")
+        } catch let error as ApiError {
+            XCTAssertEqual(error.code, ApiErrorCode.network)
+        }
+        let otherCompany: WireValue? = await api.cachedGet(path, companyId: "other-workspace")
+        XCTAssertNil(otherCompany)
+    }
+
+    func testScreenCacheKeepsTheDefaultContactOrderAndRequestedUsageLocale() async throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let cache = StoreCache(directory: directory, diskKey: SymmetricKey(size: .bits256))
+        let sessions = SessionStore(storage: InMemorySessionStorage())
+        sessions.save(Session(
+            accessToken: "memory-fixture", refreshToken: "memory-refresh",
+            expiresAt: Date().timeIntervalSince1970 + 3600, userId: "member", email: "viewer@example.com"
+        ))
+        let transport = ReadTransport(payload: Data(#"{"data":[],"used_segments":4}"#.utf8))
+        let api = ApiClient(sessionStore: sessions, auth: SupabaseAuth(), transport: transport, offlineReads: cache)
+        let contacts = ContactsApi(api: api)
+        let settings = SettingsRepository(api: api, sessionStore: sessions)
+        let workspace = "workspace"
+
+        _ = try await contacts.contacts(companyId: workspace, limit: 50, sort: ContactsApi.defaultSort)
+        _ = try await contacts.contacts(companyId: workspace, limit: 50, sort: "recent")
+        _ = try await settings.usage(workspace, locale: "fr-CA")
+
+        let defaultContacts: Page<Contact>? = await api.cachedGet(
+            "/v1/contacts", query: ["limit": "50", "sort": ContactsApi.defaultSort], companyId: workspace
+        )
+        let recentContacts: Page<Contact>? = await api.cachedGet(
+            "/v1/contacts", query: ["limit": "50", "sort": "recent"], companyId: workspace
+        )
+        let frenchUsage: Usage? = await api.cachedGet("/v1/usage", query: ["lang": "fr-CA"], companyId: workspace)
+        let englishUsage: Usage? = await api.cachedGet("/v1/usage", query: ["lang": "en"], companyId: workspace)
+        XCTAssertNotNil(defaultContacts)
+        XCTAssertNil(recentContacts)
+        XCTAssertEqual(frenchUsage?.used_segments, 4)
+        XCTAssertNil(englishUsage)
+        XCTAssertFalse(FileManager.default.fileExists(atPath: directory.path))
     }
 
     @MainActor

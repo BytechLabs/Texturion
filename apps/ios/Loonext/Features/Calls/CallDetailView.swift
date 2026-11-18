@@ -44,10 +44,18 @@ struct CallDetailView: View {
 
     private func load() async {
         let service = CallsService(api: graph.api)
+        if case .loading = state,
+           let cached: Call = await graph.api.cachedGet("/v1/calls/\(sessionId)", companyId: companyId),
+           !Task.isCancelled {
+            state = .ready(cached)
+        }
+        guard !Task.isCancelled else { return }
         do {
             state = .ready(try await service.call(companyId: companyId, sessionId: sessionId))
+        } catch is CancellationError {
+            return
         } catch {
-            if case .ready = state {
+            if case .ready = state, (error as? ApiError)?.invalidatesOfflineReads != true {
                 // Keep what is on screen on a quiet refetch failure.
             } else {
                 state = .failed(error.userMessage)

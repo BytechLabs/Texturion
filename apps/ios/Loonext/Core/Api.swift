@@ -415,6 +415,8 @@ struct TasksApi: Sendable {
 }
 
 struct ContactsApi: Sendable {
+    static let defaultSort = "name"
+
     let api: ApiClient
 
     func contacts(
@@ -452,7 +454,8 @@ struct ContactsApi: Sendable {
                 "tag_id": tagId,
                 "sort": sort
             ],
-            companyId: companyId
+            companyId: companyId,
+            cacheInMemory: cursor == nil && q == nil && field == nil && tagId == nil && sort == Self.defaultSort
         )
     }
 }

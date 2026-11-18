@@ -936,13 +936,21 @@ struct ShellView: View {
     private func warmDefaultReads() async {
         let inbox = graph.inboxApi
         let tasks = graph.tasksApi
+        let contacts = graph.contactsApi
+        let calls = CallsService(api: graph.api)
+        let settings = SettingsRepository(api: graph.api, sessionStore: graph.sessionStore)
         let workspace = companyId
+        let locale = appLocale
         let filters = taskListArms(tab: .open, assigneeUserId: nil, unassigned: false, due: nil, q: nil)
             .first ?? TaskListFilters()
         async let rows = try? await inbox.conversations(companyId: workspace, status: "open", pinned: "exclude")
         async let pins = try? await inbox.conversations(companyId: workspace, status: "open", pinned: "only", limit: 100)
         async let openTasks = try? await tasks.list(companyId: workspace, filters: filters)
-        _ = await (rows, pins, openTasks)
+        async let contactList = try? await contacts.contacts(companyId: workspace, limit: 50, sort: ContactsApi.defaultSort)
+        async let callLog = try? await calls.calls(companyId: workspace)
+        async let company = try? await settings.company(workspace)
+        async let usage = try? await settings.usage(workspace, locale: locale)
+        _ = await (rows, pins, openTasks, contactList, callLog, company, usage)
     }
 
     /// Hydrate the company view (numbers etc.) + live nav counts. The numeric

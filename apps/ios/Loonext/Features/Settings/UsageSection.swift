@@ -184,10 +184,25 @@ struct UsageSectionView: View {
             }
         }
         .task(id: "\(scope.companyId)|\(appLocale)|\(refreshKey)") {
-            if case .ready = state {} else { state = .loading }
+            let locale = appLocale
+            if case .ready = state {} else {
+                state = .loading
+                if let cached: Usage = await scope.repo.api.cachedGet(
+                    "/v1/usage", query: ["lang": locale], companyId: scope.companyId
+                ), !Task.isCancelled {
+                    state = .ready(cached)
+                }
+            }
+            guard !Task.isCancelled else { return }
             do {
-                state = .ready(try await scope.repo.usage(scope.companyId, locale: appLocale))
+                let usage = try await scope.repo.usage(scope.companyId, locale: locale)
+                guard !Task.isCancelled else { return }
+                state = .ready(usage)
+            } catch is CancellationError {
+                return
             } catch {
+                guard !Task.isCancelled else { return }
+                if case .ready = state, (error as? ApiError)?.invalidatesOfflineReads != true { return }
                 state = .failed(error.userMessage)
             }
         }

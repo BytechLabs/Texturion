@@ -21,12 +21,15 @@ actor StoreCache {
         memory.totalCostLimit = readCacheCapacity
     }
 
-    func read(_ key: String) -> Data? {
-        let url = fileURL(key)
+    func read(_ key: String, onDisk: Bool = true) -> Data? {
         if let data = memory.object(forKey: key as NSString) {
-            try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: url.path)
+            if onDisk {
+                try? FileManager.default.setAttributes([.modificationDate: Date()], ofItemAtPath: fileURL(key).path)
+            }
             return data as Data
         }
+        guard onDisk else { return nil }
+        let url = fileURL(key)
         guard let encryptionKey = encryptionKey(create: false),
               let size = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
               (1...readCacheCapacity).contains(size),
@@ -39,10 +42,10 @@ actor StoreCache {
         return data
     }
 
-    func write(_ data: Data, for key: String, whileSignedIn: @Sendable () -> Bool) {
+    func write(_ data: Data, for key: String, onDisk: Bool = true, whileSignedIn: @Sendable () -> Bool) {
         guard data.count < readCacheCapacity, whileSignedIn() else { return }
         memory.setObject(data as NSData, forKey: key as NSString, cost: data.count)
-        guard let encryptionKey = encryptionKey(create: true),
+        guard onDisk, let encryptionKey = encryptionKey(create: true),
               let sealed = try? AES.GCM.seal(data, using: encryptionKey, authenticating: Data(key.utf8)),
               let bytes = sealed.combined, bytes.count <= readCacheCapacity else { return }
         do {

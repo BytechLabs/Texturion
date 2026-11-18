@@ -234,13 +234,14 @@ struct CallsService: CallsBackend {
                 "limit": String(limit),
                 "reason": reason,
             ],
-            companyId: companyId
+            companyId: companyId,
+            cacheInMemory: cursor == nil
         )
     }
 
     /// One call, by its carrier session id: the call's own page.
     func call(companyId: String, sessionId: String) async throws -> Call {
-        try await api.get("/v1/calls/\(sessionId)", companyId: companyId)
+        try await api.get("/v1/calls/\(sessionId)", companyId: companyId, cacheInMemory: true)
     }
 
     /// #725: 30-day counts per reason, for the settings that cause them (settings.manage).

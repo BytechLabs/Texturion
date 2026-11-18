@@ -605,11 +605,20 @@ struct SettingsHome: View {
     // MARK: - Load + toast
 
     private func load() async {
-        if case .ready = companyState {} else { companyState = .loading }
+        if case .ready = companyState {} else {
+            companyState = .loading
+            if let cached: CompanyView = await repo.api.cachedGet("/v1/company", companyId: companyId),
+               !Task.isCancelled {
+                companyState = .ready(cached)
+            }
+        }
+        guard !Task.isCancelled else { return }
         do {
             companyState = .ready(try await repo.company(companyId))
+        } catch is CancellationError {
+            return
         } catch {
-            if case .ready = companyState {
+            if case .ready = companyState, (error as? ApiError)?.invalidatesOfflineReads != true {
                 showToast(error.userMessage)
             } else {
                 companyState = .failed(error.userMessage)

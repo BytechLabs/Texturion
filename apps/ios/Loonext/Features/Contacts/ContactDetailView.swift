@@ -240,6 +240,13 @@ struct ContactDetailView: View {
     }
 
     private func load() async {
+        if case .loading = state,
+           let cached: Contact = await graph.api.cachedGet("/v1/contacts/\(contactId)", companyId: companyId),
+           cached.id == contactId, !Task.isCancelled {
+            if initiallyEmpty == nil { initiallyEmpty = emptyContactDetailFields(cached) }
+            state = .ready(cached)
+        }
+        guard !Task.isCancelled else { return }
         do {
             let loaded = try await mutations.detail(companyId: companyId, contactId: contactId)
             if loaded.id != contactId, let onMergedContact {
@@ -249,6 +256,8 @@ struct ContactDetailView: View {
             }
             if initiallyEmpty == nil { initiallyEmpty = emptyContactDetailFields(loaded) }
             state = .ready(loaded)
+        } catch is CancellationError {
+            return
         } catch let error as ApiError where error.code == ApiErrorCode.notFound {
             if canDelete, let receipt = try? await mutations.erasure(companyId: companyId, contactId: contactId),
                receipt.state != "ready" {
@@ -259,7 +268,7 @@ struct ContactDetailView: View {
                 message: t("contactsTasks.contactGone"), notFound: true
             )
         } catch {
-            if case .ready = state {
+            if case .ready = state, (error as? ApiError)?.invalidatesOfflineReads != true {
                 // Keep data on a quiet refresh failure.
             } else {
                 state = .failed(message: error.userMessage, notFound: false)

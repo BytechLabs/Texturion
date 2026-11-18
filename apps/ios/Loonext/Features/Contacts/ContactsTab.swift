@@ -93,7 +93,7 @@ struct ContactsTab: View {
     @ObservedObject private var router = AppRouter.shared
 
     @State private var query = ""
-    @State private var sort = "name"
+    @State private var sort = ContactsApi.defaultSort
     @State private var debouncedQ = ""
     @State private var state: LoadState<Void> = .loading
     @State private var rows: [Contact] = []
@@ -291,7 +291,7 @@ struct ContactsTab: View {
             }
             SelectField(
                 options: [
-                    SelectOption("name", title: t("contactsTasks.sortName")),
+                    SelectOption(ContactsApi.defaultSort, title: t("contactsTasks.sortName")),
                     SelectOption("recent", title: t("contactsTasks.sortRecent")),
                     SelectOption("added", title: t("contactsTasks.sortAdded")),
                 ],
@@ -799,22 +799,39 @@ struct ContactsTab: View {
 
     private func reload() async {
         let requested = loadKey
+        let query = debouncedQ.isEmpty ? nil : debouncedQ
+        let field = fieldFilter
+        let tagId = tagFilter
+        let requestedSort = sort
+        let unfiltered = query == nil && field == nil && tagId == nil
         nextCursor = nil
-        if rows.isEmpty { state = .loading }
+        if rows.isEmpty {
+            state = .loading
+            if unfiltered, requestedSort == ContactsApi.defaultSort,
+               let cached: Page<Contact> = await graph.api.cachedGet(
+                   "/v1/contacts", query: ["limit": "50", "sort": requestedSort], companyId: companyId
+               ), !Task.isCancelled, requested == loadKey {
+                rows = cached.data
+                state = .ready(())
+            }
+        }
+        guard !Task.isCancelled, requested == loadKey else { return }
         do {
             let page = try await graph.contactsApi.contacts(
                 companyId: companyId,
-                q: debouncedQ.isEmpty ? nil : debouncedQ,
+                q: query,
                 limit: 50,
-                field: fieldFilter?.key,
-                value: fieldFilter?.value,
-                tagId: tagFilter,
-                sort: sort
+                field: field?.key,
+                value: field?.value,
+                tagId: tagId,
+                sort: requestedSort
             )
             guard !Task.isCancelled, requested == loadKey else { return }
             rows = page.data
             nextCursor = page.next_cursor
             state = .ready(())
+        } catch is CancellationError {
+            return
         } catch {
             guard !Task.isCancelled, requested == loadKey else { return }
             // A FAILED search must never fall through to the rows already on
@@ -825,7 +842,7 @@ struct ContactsTab: View {
             // #291: a FILTERED list never keeps the rows already on screen
             // either — under a new filter those rows are precisely what was
             // excluded, which is the same failure as a fallen-through search.
-            if rows.isEmpty || !debouncedQ.isEmpty || fieldFilter != nil || tagFilter != nil {
+            if rows.isEmpty || !unfiltered || (error as? ApiError)?.invalidatesOfflineReads == true {
                 rows = []
                 nextCursor = nil
                 state = .failed(error.userMessage)
