@@ -1,4 +1,5 @@
-import { MEMBER_ROLES, roleHasCapability, type Capability } from "@loonext/shared";
+import { MEMBER_ROLES, roleHasCapability } from "@loonext/shared";
+import type { Capability } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";

@@ -6,14 +6,18 @@ import {
   ADMISSION_KEYS,
   roomFor,
   windowStartHour,
-  type ReserveRecord,
-  type WindowRecord,
+} from "../state/admission";
+import type {
+  ReserveRecord,
+  WindowRecord,
 } from "../state/admission";
 import { limitInForce } from "../state/concurrency";
 import { TelnyxError } from "../telnyx/client";
 import { rememberCredential, connectionOfResource } from "../telnyx/targets";
-import { runSafetyChecks, type SafetyState } from "./safety";
-import { edgeUrl, SPEC, type TelnyxSpec } from "./spec";
+import { runSafetyChecks } from "./safety";
+import type { SafetyState } from "./safety";
+import { edgeUrl, SPEC } from "./spec";
+import type { TelnyxSpec } from "./spec";
 
 /**
  * The setup routine (docs/RIG.md), for the admin class. It makes

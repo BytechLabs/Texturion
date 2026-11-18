@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { makeTranslate } from "@/i18n/translate";
 import type { ActivityItem } from "@/lib/api/record-activity";
+import type * as RecordActivity from "@/lib/api/record-activity";
 
 import { activityLine } from "./activity-line";
 
@@ -20,7 +21,7 @@ vi.mock("@/lib/api/team", () => ({
 
 const hook = vi.fn();
 vi.mock("@/lib/api/record-activity", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/record-activity")>()),
+  ...(await importOriginal<typeof RecordActivity>()),
   useRecordActivity: (...args: unknown[]) => hook(...args),
 }));
 

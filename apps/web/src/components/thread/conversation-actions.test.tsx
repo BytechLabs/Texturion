@@ -23,7 +23,7 @@ vi.mock("@/lib/company/provider", () => ({
   useActiveCompany: () => ({ userId: "u-1", role: "owner" }),
 }));
 vi.mock("@loonext/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@loonext/shared")>();
+  const actual = await importOriginal<typeof shared>();
   return {
     ...actual,
     snoozePresets: vi.fn(actual.snoozePresets),

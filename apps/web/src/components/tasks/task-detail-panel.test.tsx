@@ -11,6 +11,7 @@ import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { keys } from "@/lib/api/keys";
+import type * as TasksApi from "@/lib/api/tasks";
 
 const { apiFetch, rowLookups } = vi.hoisted(() => ({
   apiFetch: vi.fn<(path: string) => Promise<unknown>>(),
@@ -24,7 +25,7 @@ vi.mock("@/lib/company/provider", () => ({
 }));
 // Counts the panel's own renders while the detail is pending.
 vi.mock("@/lib/api/tasks", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@/lib/api/tasks")>();
+  const actual = await importOriginal<typeof TasksApi>();
   return {
     ...actual,
     findCachedTaskRow: (...args: Parameters<typeof actual.findCachedTaskRow>) => {

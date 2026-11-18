@@ -37,12 +37,10 @@ import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useOnboardingCheckout } from "@/lib/api/onboarding";
 import { usePortRequestsForCompany } from "@/lib/api/porting";
-import {
-  PLAN_MODULE_CARDS,
-  type PlanId,
-  type PlanModule,
-} from "@/lib/api/types";
-import { consumePlanIntent, type PlanIntent } from "@/lib/marketing/plan-intent";
+import { PLAN_MODULE_CARDS } from "@/lib/api/types";
+import type { PlanId, PlanModule } from "@/lib/api/types";
+import { consumePlanIntent } from "@/lib/marketing/plan-intent";
+import type { PlanIntent } from "@/lib/marketing/plan-intent";
 import { cn } from "@/lib/utils";
 
 import { StepError, StepLoading, StepShell } from "../step-shell";

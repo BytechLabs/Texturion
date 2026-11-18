@@ -26,7 +26,8 @@ import {
 } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { MERGE_FIELD_VARIABLES } from "@loonext/shared";
 import { ApiError } from "@/lib/api/error";

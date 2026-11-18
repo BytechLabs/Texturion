@@ -14,8 +14,8 @@ import {
 import {
   WEBHOOK_EVENT_TYPES,
   webhookEventLabelKey,
-  type WebhookEventType,
 } from "@loonext/shared";
+import type { WebhookEventType } from "@loonext/shared";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
@@ -31,7 +31,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateWebhookEndpoint,
@@ -41,8 +42,8 @@ import {
   useUpdateWebhookEndpoint,
   useWebhookDeliveries,
   useWebhookEndpoints,
-  type WebhookEndpoint,
 } from "@/lib/api/webhooks";
+import type { WebhookEndpoint } from "@/lib/api/webhooks";
 
 /**
  * #243 — Connections.

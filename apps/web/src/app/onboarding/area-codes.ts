@@ -1,8 +1,8 @@
-import {
-  NANP_AREA_CODES,
-  type Locale,
-  type NanpCountry,
-  type NanpGeographicEntry,
+import { NANP_AREA_CODES } from "@loonext/shared";
+import type {
+  Locale,
+  NanpCountry,
+  NanpGeographicEntry,
 } from "@loonext/shared";
 
 import {

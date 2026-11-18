@@ -21,6 +21,7 @@ import { FakeRest } from "../telnyx/test-support";
 import { completeEnv, stubFetch } from "../test/support";
 import type { Stripe } from "../billing/stripe";
 import { notifyPayment } from "../notifications/payment";
+import type * as PaymentNotifications from "../notifications/payment";
 import { processStripeEvent } from "./stripe";
 
 /**
@@ -30,7 +31,7 @@ import { processStripeEvent } from "./stripe";
  * the thread will show, and that a failure inside it cannot fail the webhook.
  */
 vi.mock("../notifications/payment", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../notifications/payment")>()),
+  ...(await importOriginal<typeof PaymentNotifications>()),
   notifyPayment: vi.fn(),
 }));
 

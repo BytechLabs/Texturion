@@ -32,7 +32,8 @@ import {
   usTextingOff,
 } from "@/components/thread/composer-banner";
 import { Textarea } from "@/components/ui/textarea";
-import { makeTranslate, useT, type Translate } from "@/i18n/provider";
+import { makeTranslate, useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { ApiError } from "@/lib/api/error";
 import { useUsage } from "@/lib/api/usage";

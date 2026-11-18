@@ -19,7 +19,8 @@ import {
 } from "@/components/ui/form";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 

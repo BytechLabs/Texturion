@@ -22,10 +22,11 @@ import {
   formatMoney,
   PLAN_PRICE_CENTS,
   US_REGISTRATION_FEE_CENTS,
-  type BillingCurrency,
 } from "@loonext/shared";
+import type { BillingCurrency } from "@loonext/shared";
 
-import { PLAN_MODULE_CARDS, PLAN_PRICING, type PlanId } from "@/lib/api/types";
+import { PLAN_MODULE_CARDS, PLAN_PRICING } from "@/lib/api/types";
+import type { PlanId } from "@/lib/api/types";
 
 import { compareAsOf } from "../compare/verification";
 

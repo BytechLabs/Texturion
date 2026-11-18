@@ -10,6 +10,7 @@ import { ApiError } from "@/lib/api/error";
 import { sayEnglish } from "@/i18n/translate";
 import { threadSummaryRequestFailure } from '@/lib/api/thread-summary';
 import type { ThreadSummaryResult } from '@/lib/api/thread-summary';
+import type * as ThreadSummary from "@/lib/api/thread-summary";
 
 import { ThreadSummaryCard } from "./thread-summary-card";
 
@@ -38,7 +39,7 @@ const hook: {
 };
 
 vi.mock("@/lib/api/thread-summary", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/thread-summary")>()),
+  ...(await importOriginal<typeof ThreadSummary>()),
   useThreadSummary: () => hook,
 }));
 

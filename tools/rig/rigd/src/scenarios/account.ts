@@ -17,16 +17,18 @@ import {
   infra,
   pass,
   poll,
-  type ApiAnswer,
-  type MailMessage,
-  type NumberHandoff,
-  type NumberRow,
-  type PublicPageApi,
-  type ScenarioContext,
-  type ScenarioResult,
-  type ScenarioRunner,
-  type SendResult,
-  type SignUpNumber,
+} from "./context.ts";
+import type {
+  ApiAnswer,
+  MailMessage,
+  NumberHandoff,
+  NumberRow,
+  PublicPageApi,
+  ScenarioContext,
+  ScenarioResult,
+  ScenarioRunner,
+  SendResult,
+  SignUpNumber,
 } from "./context.ts";
 
 /** The bucket both directions of a picture message are stored in, and the edge relays Telnyx's fetch from. */

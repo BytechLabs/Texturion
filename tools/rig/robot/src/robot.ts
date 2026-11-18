@@ -13,10 +13,12 @@ import { randomUUID } from "node:crypto";
 import type { StandingRole } from "@loonext/rig-protocol";
 import type { Calibration } from "./audio/calibrate.ts";
 import type { Margins } from "./audio/detect.ts";
-import { type Surface } from "./audio/surfaces.ts";
-import { judgeRecording, type RecordingJudgement } from "./judge.ts";
+import type { Surface } from "./audio/surfaces.ts";
+import { judgeRecording } from "./judge.ts";
+import type { RecordingJudgement } from "./judge.ts";
 import type { ProbeSource } from "./probe.ts";
-import { GuardRefusedError, type CallControlApi, type RequestContext } from "./telnyx.ts";
+import { GuardRefusedError } from "./telnyx.ts";
+import type { CallControlApi, RequestContext } from "./telnyx.ts";
 import type { Transcriber } from "./audio/transcribe.ts";
 
 /** How a plan names a number held for one scenario: by its Telnyx id, never its digits. */

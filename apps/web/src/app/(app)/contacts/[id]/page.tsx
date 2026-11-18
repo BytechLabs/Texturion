@@ -28,10 +28,12 @@ import {
   paneOf,
   parseContactTab,
   phoneTabOf,
-  type ContactPane,
-  type ContactTab,
-  type DetailField,
-  type PhoneTab,
+} from "@/components/contacts/contact-tabs";
+import type {
+  ContactPane,
+  ContactTab,
+  DetailField,
+  PhoneTab,
 } from "@/components/contacts/contact-tabs";
 import { ContactTags } from "@/components/contacts/contact-tags";
 import { MergedFrom } from "@/components/contacts/merged-from";
@@ -55,8 +57,8 @@ import {
   useOptOutContact,
   useRevokeOptOut,
   useUpdateContact,
-  type ContactPatch,
 } from "@/lib/api/contacts";
+import type { ContactPatch } from "@/lib/api/contacts";
 import { useConversations } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { flattenPages } from "@/lib/api/pagination";
@@ -65,10 +67,8 @@ import { useMembers } from "@/lib/api/team";
 import type { ContactDetail } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
-import {
-  useDebouncedAutosave,
-  type AutosaveState,
-} from "@/lib/hooks/use-debounced-autosave";
+import { useDebouncedAutosave } from "@/lib/hooks/use-debounced-autosave";
+import type { AutosaveState } from "@/lib/hooks/use-debounced-autosave";
 import { useCanDeleteRecords, useDeletedToast } from "@/lib/hooks/use-records-delete";
 import { formatTimestamp } from "@/lib/format/time";
 import { updateSearch } from "@/lib/url/search-state";

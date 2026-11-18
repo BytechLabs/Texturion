@@ -7,9 +7,9 @@ import { useState } from "react";
 
 import {
   ContactsActions,
-  type ImportSource,
   NewContactAction,
 } from "@/components/contacts/contacts-actions";
+import type { ImportSource } from "@/components/contacts/contacts-actions";
 import {
   ContactsTable,
   contactsViewFromSearch,

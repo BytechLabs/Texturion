@@ -28,7 +28,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { ChoiceCards } from "@/components/ui/choice-cards";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 
 import { crewFitCopy, crewFitPrompt } from "../crew-copy";

@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { capabilitiesOf, MEMBER_ROLES } from '@loonext/shared';
 import type { Capability, MemberRole } from '@loonext/shared';
+import type * as Shared from "@loonext/shared";
 
 /**
  * A preset this build has never heard of, standing in for the next one #315
@@ -24,7 +25,7 @@ const state: { role: MemberRole; futureCapabilities: Capability[] } = {
  * whole settings tree reads, and replacing it wholesale would test the mock.
  */
 vi.mock("@loonext/shared", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@loonext/shared")>();
+  const actual = await importOriginal<typeof Shared>();
   return {
     ...actual,
     capabilitiesOf: (role: MemberRole): Capability[] =>

@@ -1,6 +1,7 @@
 "use client";
 
-import { ASSIGNABLE_ROLES, type AssignableRole } from "@loonext/shared";
+import { ASSIGNABLE_ROLES } from "@loonext/shared";
+import type { AssignableRole } from "@loonext/shared";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronRight } from "lucide-react";
@@ -53,7 +54,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { MemberAccessDialog } from "@/components/settings/member-access-dialog";
 import { ApiError } from "@/lib/api/error";

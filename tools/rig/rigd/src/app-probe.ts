@@ -15,29 +15,32 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { EDGE_PATHS, GUARD_ROUTES } from "@loonext/rig-protocol";
 import type { NumberBook } from "@loonext/rig-robot";
-import { API_ENVIRONMENT, type PostHogErrors } from "./posthog-errors.ts";
+import { API_ENVIRONMENT } from "./posthog-errors.ts";
+import type { PostHogErrors } from "./posthog-errors.ts";
 import { stableUuid as seedStableUuid } from "../../../../scripts/rig/seed.mjs";
 import { totpCode } from "../../../../scripts/rig/seed.mjs";
 import { MemberSessions, memberSessionsFile } from "../../src/member-sessions.mjs";
 import {
   COMPANY_FIELDS,
   isFictional,
-  type ApiAnswer,
-  type AppApi,
-  type AutomatedText,
-  type CallRow,
-  type CallStart,
-  type CompanyField,
-  type Destination,
-  type GraceState,
-  type MessageRow,
-  type NumberRow,
-  type CheckoutEvent,
-  type SendResult,
-  type SignUpNumber,
-  type SignUpNumberRow,
-  type VoiceCapState,
-  type WorkspaceState,
+} from "./scenarios/context.ts";
+import type {
+  ApiAnswer,
+  AppApi,
+  AutomatedText,
+  CallRow,
+  CallStart,
+  CompanyField,
+  Destination,
+  GraceState,
+  MessageRow,
+  NumberRow,
+  CheckoutEvent,
+  SendResult,
+  SignUpNumber,
+  SignUpNumberRow,
+  VoiceCapState,
+  WorkspaceState,
 } from "./scenarios/context.ts";
 
 /** The seed's `tenants.json`: tenant key to company id and members' sign-ins. */

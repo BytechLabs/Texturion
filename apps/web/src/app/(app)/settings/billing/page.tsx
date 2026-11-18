@@ -26,12 +26,12 @@ import {
   pauseQueryEnabled,
 } from "@/components/settings/pause-plan";
 import {
-  type PlanBadge,
   pauseReadOf,
   planBadge,
   planStateUnknownNote,
   readSaysRunning,
 } from "@/components/settings/pause-read";
+import type { PlanBadge } from "@/components/settings/pause-read";
 import { PlanModulesCard } from "@/components/settings/plan-modules-card";
 import { PrepaidYearCard } from "@/components/settings/prepaid-year-card";
 import { ReferralCard } from "@/components/settings/referral-card";

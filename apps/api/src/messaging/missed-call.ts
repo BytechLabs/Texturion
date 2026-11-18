@@ -28,7 +28,8 @@ import { notifyMissedCall } from "../notifications/missed-call";
 import { guardedMissedCallText } from "./auto-send-missed";
 import { autoReplyThrottleSeconds } from "./automatic-text-settings";
 import { applySendMergeFields } from "./merge";
-import { dispatchOutbound, runPreSendGates, type SendClearance } from "./send";
+import { dispatchOutbound, runPreSendGates } from "./send";
+import type { SendClearance } from "./send";
 
 /** Hangup causes that mean the forward leg was NOT answered by a human. */
 const MISSED_HANGUP_CAUSES = new Set([

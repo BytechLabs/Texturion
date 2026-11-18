@@ -17,10 +17,11 @@
  */
 import { Hono } from "hono";
 import { afterEach, describe, expect, it, vi } from "vitest";
+import type * as CompanyModules from "../billing/company-modules";
 
 vi.mock(import("../billing/company-modules"), async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../billing/company-modules")>();
+    await importOriginal<typeof CompanyModules>();
   // Only the #41 deliverability answer is swapped. Everything else —
   // `enabledModules`, the #17 reconcile — stays the real implementation.
   return { ...actual, isSellableModule: () => true };

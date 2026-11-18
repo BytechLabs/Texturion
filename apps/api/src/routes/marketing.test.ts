@@ -16,6 +16,7 @@
  *     failure this endpoint exists to avoid.
  */
 import { INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from "@loonext/shared";
+import type * as Shared from "@loonext/shared";
 import { Hono } from "hono";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -45,7 +46,7 @@ const ADDRESS = "Loonext, 1 Example Street, Toronto ON M5V 1A1";
  */
 let addressForTest: string | null = ADDRESS;
 vi.mock(import("@loonext/shared"), async (importOriginal) => {
-  const actual = await importOriginal<typeof import("@loonext/shared")>();
+  const actual = await importOriginal<typeof Shared>();
   return {
     ...actual,
     get MAILING_ADDRESS() {

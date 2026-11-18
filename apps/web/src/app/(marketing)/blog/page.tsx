@@ -10,8 +10,8 @@ import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
 import {
   breadcrumbJsonLd,
   buildMetadata,
-  type Breadcrumb,
 } from "@/lib/marketing/seo";
+import type { Breadcrumb } from "@/lib/marketing/seo";
 import { LIVE_ROUTES, absoluteUrl } from "@/lib/marketing/site";
 
 /**

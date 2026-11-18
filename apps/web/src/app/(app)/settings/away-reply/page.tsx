@@ -35,8 +35,8 @@ import {
   isDirty,
   toBusinessHours,
   toFormState,
-  type DayFormState,
 } from "@/lib/settings/business-hours-form";
+import type { DayFormState } from "@/lib/settings/business-hours-form";
 import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 

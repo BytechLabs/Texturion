@@ -13,6 +13,7 @@ import { vi } from "vitest";
 
 import type { Env } from "../env";
 import type { ExceptionContext, OpsNotice } from "../observability/capture";
+import type * as Capture from "../observability/capture";
 
 /** Every capture also records the `env` and `waitUntil` it was handed. */
 interface Delivery {
@@ -68,7 +69,7 @@ export function eventsCaptured(
 }
 
 export async function captureModuleMock() {
-  const actual = await vi.importActual<typeof import("../observability/capture")>(
+  const actual = await vi.importActual<typeof Capture>(
     "../observability/capture",
   );
   return {

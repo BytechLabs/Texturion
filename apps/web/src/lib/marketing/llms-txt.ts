@@ -1,4 +1,5 @@
-import { AI_DISCLOSURES, type AiDisclosure } from "@loonext/shared";
+import { AI_DISCLOSURES } from "@loonext/shared";
+import type { AiDisclosure } from "@loonext/shared";
 import { PLAN_PRICING, US_REGISTRATION_FEE_DOLLARS } from "@/lib/api/types";
 import { BLOG_POSTS, blogPostPath } from "@/lib/marketing/blog";
 import { absoluteUrl, LIVE_ROUTES } from "@/lib/marketing/site";

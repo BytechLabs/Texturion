@@ -13,12 +13,13 @@ import {
 import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { TestAuth } from '../test/support';
 import { notifyTaskChangeSafely } from "../tasks/notify";
+import type * as TaskNotifications from "../tasks/notify";
 import { taskActivityRoutes } from "./task-activity";
 
 // The alerts have their own suite (tasks/notify.test.ts); here they are only
 // asked whether the route raised them, for whom, and in what order.
 vi.mock(import("../tasks/notify"), async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../tasks/notify")>()),
+  ...(await importOriginal<typeof TaskNotifications>()),
   notifyTaskChangeSafely: vi.fn(async () => undefined),
 }));
 

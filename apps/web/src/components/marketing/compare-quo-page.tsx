@@ -11,7 +11,8 @@ import {
   compareMonth,
 } from "@/app/(marketing)/compare/verification";
 import { compareQuoCopy } from "@/i18n/marketing/compare-quo";
-import { footerCopy, type MarketingLocale } from "@/i18n/marketing/footer";
+import { footerCopy } from "@/i18n/marketing/footer";
+import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { breadcrumbJsonLd } from "@/lib/marketing/seo";
 import { LIVE_ROUTES } from "@/lib/marketing/site";
 import { localizedPath } from "@/lib/marketing/translated-pages";

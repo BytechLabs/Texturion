@@ -13,8 +13,10 @@ import {
   hasFieldErrors,
   submitContact,
   validateContactForm,
-  type ContactFieldErrors,
-  type ContactFormValues,
+} from "./contact-form-logic";
+import type {
+  ContactFieldErrors,
+  ContactFormValues,
 } from "./contact-form-logic";
 
 /**

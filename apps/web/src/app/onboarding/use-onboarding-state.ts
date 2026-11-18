@@ -22,9 +22,11 @@ import {
   pathForLocation,
   resolveOnboardingLocation,
   stepAllowed,
-  type OnboardingDraft,
-  type OnboardingSnapshot,
-  type WizardStep,
+} from "./steps";
+import type {
+  OnboardingDraft,
+  OnboardingSnapshot,
+  WizardStep,
 } from "./steps";
 
 export interface OnboardingState {

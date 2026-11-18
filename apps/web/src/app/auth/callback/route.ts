@@ -1,4 +1,5 @@
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 import { resolveCallbackRedirect } from "@/lib/auth/callback-routing";
 import { getSupabaseServer } from "@/lib/supabase/server";

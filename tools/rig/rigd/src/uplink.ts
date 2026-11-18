@@ -14,11 +14,14 @@
 import {
   CALL_EVENT_RELAY_TIMEOUT_MS,
   EDGE_PATHS,
-  type EdgeToRig,
-  type RigToEdge,
   WEBHOOK_KINDS,
 } from "@loonext/rig-protocol";
-import { systemClock, type Clock } from "@loonext/rig-robot";
+import type {
+  EdgeToRig,
+  RigToEdge,
+} from "@loonext/rig-protocol";
+import { systemClock } from "@loonext/rig-robot";
+import type { Clock } from "@loonext/rig-robot";
 
 export type WebhookFrame = Extract<EdgeToRig, { t: "webhook" }>;
 export type MediaFrame = Extract<EdgeToRig, { t: "media" }>;

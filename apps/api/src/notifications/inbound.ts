@@ -38,7 +38,8 @@ import {
   withFollowers,
   withoutMuted,
 } from "./conversation-prefs";
-import { deliverPush, type PushDelivery } from "./deliver";
+import { deliverPush } from "./deliver";
+import type { PushDelivery } from "./deliver";
 import { THREAD_PUSH_COPY } from "./thread-copy";
 import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 

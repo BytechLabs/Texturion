@@ -11,6 +11,7 @@
  */
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as VoicemailGreetings from "@/lib/api/voicemail-greetings";
 
 const {
   recordMutate,
@@ -30,7 +31,7 @@ const {
 
 vi.mock("@/lib/api/voicemail-greetings", async () => {
   const actual = await vi.importActual<
-    typeof import("@/lib/api/voicemail-greetings")
+    typeof VoicemailGreetings
   >("@/lib/api/voicemail-greetings");
   return {
     ...actual,

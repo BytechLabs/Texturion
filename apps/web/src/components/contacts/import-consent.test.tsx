@@ -39,6 +39,7 @@ import {
   VCARD_IMPORT_MAX_BYTES,
 } from "@loonext/shared";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as ContactsExport from "@/lib/api/contacts-export";
 
 const { csvMutate, vcardMutate, select, download } = vi.hoisted(() => ({
   csvMutate: vi.fn(),
@@ -68,7 +69,7 @@ vi.mock("@/lib/api/contacts-vcard", () => ({
 // stub would have quietly removed the thing this issue added. The module's
 // only import is `./error`, so pulling the original is free.
 vi.mock("@/lib/api/contacts-export", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/contacts-export")>()),
+  ...(await importOriginal<typeof ContactsExport>()),
   triggerBlobDownload: download,
 }));
 // The wizard lazy-loads papaparse inside handleFile; parsing a real File in a

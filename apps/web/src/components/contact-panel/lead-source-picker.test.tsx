@@ -11,6 +11,7 @@
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as LeadSources from "@/lib/api/lead-sources";
 
 const { updateMutate, sourceRows, companyRole } = vi.hoisted(() => ({
   updateMutate: vi.fn(),
@@ -23,7 +24,7 @@ vi.mock("@/lib/api/conversations", () => ({
 }));
 vi.mock("@/lib/api/lead-sources", async () => {
   const actual =
-    await vi.importActual<typeof import("@/lib/api/lead-sources")>(
+    await vi.importActual<typeof LeadSources>(
       "@/lib/api/lead-sources",
     );
   return {

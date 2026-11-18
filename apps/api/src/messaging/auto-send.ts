@@ -18,13 +18,15 @@
  * just started (an inbound reply), so it is reply-exempt — no consent
  * attestation, no quiet-hours gate. The opt-out mirror is honored regardless.
  */
-import { estimateSegments, type MessageAutomation } from "@loonext/shared";
+import { estimateSegments } from "@loonext/shared";
+import type { MessageAutomation } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
 import { isCarrierKeyword, suppressesAutoReply } from "./keywords";
-import { dispatchOutbound, type SendClearance } from "./send";
+import { dispatchOutbound } from "./send";
+import type { SendClearance } from "./send";
 import type { MessageRow } from "./types";
 
 /** Default throttle: one auto-reply per conversation per 3 hours. */

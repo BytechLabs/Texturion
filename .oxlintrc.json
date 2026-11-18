@@ -46,7 +46,7 @@
         "eslint/no-use-before-define": ["off", { "functions": false, "classes": true, "variables": false, "typedefs": false }], // not yet clean: 12 (#822)
     "eslint/sort-imports": ["off", { "ignoreCase": true, "ignoreDeclarationSort": true }], // not yet clean: 112 (#822)
     "eslint/new-cap": ["error", { "capIsNew": false }],
-    "import/consistent-type-specifier-style": ["off", "prefer-top-level"], // not yet clean: 148 (#822)
+    "import/consistent-type-specifier-style": ["error", "prefer-top-level"],
     "eslint/no-duplicate-imports": ["off", { "allowSeparateTypeImports": true }], // not yet clean: 10 (#822)
     "eslint/class-methods-use-this": ["off", { "ignoreClassesWithImplements": "all", "ignoreOverrideMethods": true }], // not yet clean: 11 (#822)
     "eslint/no-underscore-dangle": ["off", { "allow": ["__vitest_worker__", "_def"], "allowAfterThis": true }], // not yet clean: 16 (#822)
@@ -211,7 +211,6 @@
     "unicorn/prefer-import-meta-properties": "off", // 45
     "unicorn/prefer-module": "off", // 39
     "typescript/use-unknown-in-catch-callback-variable": "off", // 38
-    "typescript/consistent-type-imports": "off", // 35
     "typescript/switch-exhaustiveness-check": "off", // 35
     "vitest/require-to-throw-message": "off", // 34
     "eslint/no-var": "off", // 33
@@ -353,7 +352,6 @@
     "promise/no-return-wrap": "off", // 2
     "react/memo-dependencies": "off", // 2
     "react/no-deriving-state-in-effects": "off", // 2
-    "typescript/no-import-type-side-effects": "off", // 2
     "unicorn/no-document-cookie": "off", // 2
     "unicorn/prefer-math-trunc": "off", // 2
     "unicorn/prefer-native-coercion-functions": "off", // 2

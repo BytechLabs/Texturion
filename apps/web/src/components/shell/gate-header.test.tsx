@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type * as CompanyCookie from "@/lib/company/cookie";
 
 /**
  * #207: gates (onboarding wizard, checkout step, setting-up, invite accept)
@@ -43,7 +44,7 @@ vi.mock("./wordmark", () => ({
 // and the onboarding wizard use); control only the cookie I/O.
 vi.mock("@/lib/company/cookie", async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("@/lib/company/cookie")>();
+    await importOriginal<typeof CompanyCookie>();
   return {
     ...actual,
     readCompanyCookie: () => state.cookie,

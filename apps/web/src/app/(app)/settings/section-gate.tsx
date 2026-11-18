@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 
-import { settingsAccessFor, type SettingsAccess } from "./section-access";
+import { settingsAccessFor } from "./section-access";
+import type { SettingsAccess } from "./section-access";
 
 import type { SettingsSection } from "@/components/settings/settings-nav";
 

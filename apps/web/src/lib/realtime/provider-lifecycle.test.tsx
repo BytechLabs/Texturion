@@ -41,6 +41,7 @@ import type { ConversationEvent } from "@/lib/api/types";
 
 import { PAYMENT_EVENT_TYPES, REALTIME_EVENTS } from "./events";
 import { REORDER_WINDOW_MS } from "./sequence";
+import type * as ApiClient from "@/lib/api/client";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
 const USER = "22222222-2222-2222-2222-222222222222";
@@ -151,7 +152,7 @@ vi.mock("@/lib/supabase/browser", () => ({
   getAccessToken: () => Promise.resolve("token"),
 }));
 vi.mock("@/lib/api/client", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/client")>()),
+  ...(await importOriginal<typeof ApiClient>()),
   apiFetch: api.fetch,
 }));
 vi.mock("sonner", () => ({ toast: () => {} }));

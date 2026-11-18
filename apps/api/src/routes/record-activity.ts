@@ -29,6 +29,7 @@
  * returned on any record.
  */
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
@@ -74,7 +75,7 @@ const NOT_FOUND: Record<RecordType, string> = {
 export const recordActivityRoutes = new Hono<AppEnv>();
 
 async function readActivity(
-  c: import("hono").Context<AppEnv>,
+  c: Context<AppEnv>,
   recordType: RecordType,
 ): Promise<Response> {
   const recordId = pathUuid(c, "id");

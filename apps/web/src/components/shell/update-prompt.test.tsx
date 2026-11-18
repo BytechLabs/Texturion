@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppReleasePolicy, UpdateRequirement } from "@loonext/shared";
 
 import type { WebBuild } from "@/lib/api/app-release";
+import type * as AppRelease from "@/lib/api/app-release";
 
 /**
  * #339 — the update surfaces, and mostly the one property that matters:
@@ -32,7 +33,7 @@ let deployed: WebBuild | null = null;
 let liveCall = false;
 
 vi.mock("@/lib/api/app-release", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/app-release")>()),
+  ...(await importOriginal<typeof AppRelease>()),
   APP_VERSION: "1.0.0",
   THIS_BUILD: { version: "1.0.0", build: "build-a" },
   useUpdateRequirement: () => requirement,

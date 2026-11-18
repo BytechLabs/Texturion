@@ -14,7 +14,8 @@ import {
 import { MfaChallenge } from "@/components/auth/mfa-challenge";
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
 import { rememberSignInMethod } from "@/lib/auth/last-used";
-import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
+import { Turnstile } from "@/components/auth/turnstile";
+import type { TurnstileHandle } from "@/components/auth/turnstile";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -27,7 +28,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { publicEnv } from "@/env";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { authErrorMessage } from "@/lib/auth/messages";
 import { needsStepUp } from "@/lib/auth/mfa-step-up";
 import { safeNextPath } from "@/lib/auth/redirects";

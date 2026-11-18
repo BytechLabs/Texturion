@@ -12,6 +12,8 @@ import { MAILBOX_NAME, UPLINK_NAME } from '../env';
 import type { Env } from '../env';
 import { resetGuardCaches } from "../guard";
 import worker from "../index";
+import type { RobotMailbox } from "../mailbox";
+import type { RigUplink } from "../uplink";
 
 export const ORIGIN = "https://loonext-rig-edge.example.workers.dev";
 
@@ -222,11 +224,11 @@ export function call(request: Request, e: Env): Promise<Response> {
   return worker.fetch(request, e);
 }
 
-export function uplinkStub(): DurableObjectStub<import("../uplink").RigUplink> {
+export function uplinkStub(): DurableObjectStub<RigUplink> {
   return bindings.UPLINK.get(bindings.UPLINK.idFromName(UPLINK_NAME));
 }
 
-export function mailboxStub(): DurableObjectStub<import("../mailbox").RobotMailbox> {
+export function mailboxStub(): DurableObjectStub<RobotMailbox> {
   return bindings.MAILBOX.get(bindings.MAILBOX.idFromName(MAILBOX_NAME));
 }
 

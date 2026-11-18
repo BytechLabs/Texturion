@@ -24,12 +24,13 @@ import type { Stub } from '../test/messaging-support';
 import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { FetchRoute, TestAuth } from '../test/support';
 import { notifyPromotedMessageDone } from "../tasks/notify";
+import type * as TaskNotifications from "../tasks/notify";
 import { messageRoutes } from "./messages";
 
 // The alert has its own suite (tasks/notify.test.ts); here the route is only
 // asked whether it raised it, and for whom.
 vi.mock(import("../tasks/notify"), async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../tasks/notify")>()),
+  ...(await importOriginal<typeof TaskNotifications>()),
   notifyPromotedMessageDone: vi.fn(async () => undefined),
 }));
 

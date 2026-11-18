@@ -35,6 +35,7 @@ import {
 import { CONTACT_IMPORT_IGNORE, formatContactImportColumn, readContactFlag } from '@loonext/shared';
 import type { ContactImportColumnDeclaration } from '@loonext/shared';
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as ContactsExport from "@/lib/api/contacts-export";
 
 const { csvMutate, sheet } = vi.hoisted(() => ({
   csvMutate: vi.fn(),
@@ -50,7 +51,7 @@ vi.mock("@/lib/api/contacts", () => ({
 }));
 // #587: the real `csvDownloadBlob`; only the DOM side is replaced.
 vi.mock("@/lib/api/contacts-export", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/contacts-export")>()),
+  ...(await importOriginal<typeof ContactsExport>()),
   triggerBlobDownload: vi.fn(),
 }));
 // The wizard lazy-loads papaparse inside handleFile. Parsing a real File is not

@@ -40,8 +40,8 @@ import {
   draftOwesUsRegistration,
   previousStepHref,
   stepProgress,
-  type NumberMode,
 } from "../steps";
+import type { NumberMode } from "../steps";
 import { useWizardStepGuard } from "../use-onboarding-state";
 
 /**

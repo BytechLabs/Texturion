@@ -6,6 +6,7 @@
  */
 import { cleanup, render } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type * as CompanyProviderModule from "@/lib/company/provider";
 
 
 const { active, replace } = vi.hoisted(() => ({
@@ -18,7 +19,7 @@ vi.mock("next/navigation", () => ({
   useRouter: () => ({ replace }),
 }));
 vi.mock("@/lib/company/provider", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/company/provider")>()),
+  ...(await importOriginal<typeof CompanyProviderModule>()),
   useActiveCompany: () => ({
     role: active.role,
     userId: "user-1",

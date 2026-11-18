@@ -15,9 +15,10 @@ import { restMatch, rpcMatch, stubRoute } from "../test/messaging-support";
 import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { FetchRoute, TestAuth } from '../test/support';
 import { tasksRoutes } from "./tasks";
+import type * as TaskNotifications from "../tasks/notify";
 
 vi.mock(import("../tasks/notify"), async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../tasks/notify")>()),
+  ...(await importOriginal<typeof TaskNotifications>()),
   notifyTaskChangeSafely: vi.fn(async () => undefined),
 }));
 

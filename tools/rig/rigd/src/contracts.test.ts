@@ -3,6 +3,7 @@
  * standing roles (tools/rig/src), the edge's /ctl paths (tools/edge/src/ctl.ts),
  * the seed's tenants (scripts/rig/seed.mjs) and the bundle rig-secrets.yml seals.
  */
+import type { spawn } from "node:child_process";
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -462,7 +463,7 @@ describe("re-runs that triage starts", () => {
     const launch = ((command: string, args: string[]) => {
       launched.push({ command, args });
       return { unref() {} };
-    }) as unknown as typeof import("node:child_process").spawn;
+    }) as unknown as typeof spawn;
     const home = rigHomeDir();
     const config = loadConfig({ RIG_HOME: home });
     const started = runStarter({ home: config.home, systemd: true }, launch)("S02");

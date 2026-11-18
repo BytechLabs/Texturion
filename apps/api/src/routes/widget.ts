@@ -36,7 +36,8 @@
  * is advice a real person can act on and it reveals only that they themselves
  * pressed the button too often.
  */
-import { type Context, Hono } from "hono";
+import { Hono } from "hono";
+import type { Context } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 

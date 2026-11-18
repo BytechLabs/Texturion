@@ -8,7 +8,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
-import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
+import { Turnstile } from "@/components/auth/turnstile";
+import type { TurnstileHandle } from "@/components/auth/turnstile";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -21,7 +22,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { publicEnv } from "@/env";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import {
   trackSignupCompleted,
   trackSignupStarted,
@@ -30,8 +32,8 @@ import { authErrorMessage } from "@/lib/auth/messages";
 import {
   planIntentSearch,
   stashPlanIntentFromSearch,
-  type PlanIntent,
 } from "@/lib/marketing/plan-intent";
+import type { PlanIntent } from "@/lib/marketing/plan-intent";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 /*

@@ -36,7 +36,8 @@
  * identifying goes in this URL. The card passes what it is already rendering
  * in, so the preview does not sit in English inside a French settings page.
  */
-import { DEFAULT_LOCALE, LOCALES, type Locale } from "@loonext/shared";
+import { DEFAULT_LOCALE, LOCALES } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import { CATALOGS } from "@/i18n/catalog";
 

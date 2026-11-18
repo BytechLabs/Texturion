@@ -25,6 +25,7 @@ import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { TestAuth } from '../test/support';
 import { conversationsRoutes } from "./conversations";
+import type * as VoicemailTranscript from "../calls/voicemail-transcript";
 
 /**
  * Which model inputs were BUILT, as opposed to which were sent.
@@ -38,7 +39,7 @@ const built: string[] = [];
 
 vi.mock(import("../calls/voicemail-transcript"), async (importOriginal) => {
   const actual =
-    await importOriginal<typeof import("../calls/voicemail-transcript")>();
+    await importOriginal<typeof VoicemailTranscript>();
   return {
     ...actual,
     transcriptInput: (audioBase64: string) => {

@@ -20,12 +20,13 @@ import type { Stub } from '../test/messaging-support';
 import { authorizeRoute, completeEnv, createTestAuth, jwksRoute, stubFetch as stubFetchBase } from '../test/support';
 import type { FetchRoute, TestAuth } from '../test/support';
 import { notifyTaskChangeSafely } from "../tasks/notify";
+import type * as TaskNotifications from "../tasks/notify";
 import { tasksRoutes } from "./tasks";
 
 // The alerts have their own suite (tasks/notify.test.ts). Here they are only
 // asked "was it raised, for whom, by whom": the route's half of the contract.
 vi.mock("../tasks/notify", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("../tasks/notify")>()),
+  ...(await importOriginal<typeof TaskNotifications>()),
   notifyTaskChangeSafely: vi.fn(async () => undefined),
 }));
 

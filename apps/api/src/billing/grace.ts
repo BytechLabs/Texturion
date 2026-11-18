@@ -1,4 +1,5 @@
-import { CANCELLATION_GRACE_DAYS, numberReleaseAt, type Locale } from "@loonext/shared";
+import { CANCELLATION_GRACE_DAYS, numberReleaseAt } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import { getStripe } from "./stripe";
 import { billingRecipients } from "./recipients";
