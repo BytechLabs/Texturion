@@ -819,7 +819,7 @@ begin
   perform public.api_thread_call(co, line, '+12125559292', 'consent-secondary', 'answered', 0, true);
   perform public.api_thread_call(co, line, '+12125559292', 'consent-secondary', 'answered', 0, true);
   if exists (select 1 from public.contacts where id = ct and consent_at is not null)
-     or (select count(*) from public.contact_consent_events where contact_id = ct) <> 1
+     or (select count(*) from public.contact_consent_events where contact_id = ct) is distinct from 1
      or not exists (
        select 1 from public.contact_consent_events
        where contact_id = ct and phone_e164 = '+12125559292' and state = 'implied'
