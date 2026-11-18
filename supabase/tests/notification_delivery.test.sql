@@ -267,4 +267,147 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  v_company constant uuid := '7b000000-0000-4000-8000-0000000000c1';
+  v_member constant uuid := '7b000000-0000-4000-8000-00000000000a';
+  v_created constant timestamptz := '2026-08-05T17:05:00Z';
+  v_first uuid;
+  v_later uuid;
+begin
+  insert into public.notification_prefs (user_id, company_id, summary_at, quiet_timezone)
+  values (v_member, v_company, time '17:00', 'America/Toronto')
+  on conflict (user_id, company_id) do update
+    set summary_at = excluded.summary_at, quiet_timezone = excluded.quiet_timezone, summary_sent_on = null;
+
+  insert into public.pending_notifications (company_id, user_id, category, delivery_kind, created_at, deliver_at)
+  values (v_company, v_member, 'voicemails', 'summary', v_created, v_created)
+  returning id into v_first;
+
+  if not exists (select 1 from public.pending_notifications where id = v_first and deliver_at = '2026-08-05T21:00:00Z') then
+    raise exception 'Summary alert was not scheduled at the member''s preferred local time';
+  end if;
+
+  update public.notification_prefs set summary_sent_on = date '2026-08-05'
+   where company_id = v_company and user_id = v_member;
+  insert into public.pending_notifications (company_id, user_id, category, delivery_kind, created_at, deliver_at)
+  values (v_company, v_member, 'voicemails', 'summary', v_created, v_created)
+  returning id into v_later;
+
+  if not exists (select 1 from public.pending_notifications where id = v_later and deliver_at = '2026-08-06T21:00:00Z') then
+    raise exception 'Summary alert arrived after the day was claimed and was not scheduled tomorrow';
+  end if;
+
+  perform public.api_claim_due_notifications('2026-08-07T00:00:00Z', 20);
+  if (select count(*) from public.pending_notifications where id in (v_first, v_later)) <> 2 then
+    raise exception 'Batch flush consumed an alert held for a daily summary';
+  end if;
+
+  update public.notification_prefs set summary_at = null where company_id = v_company and user_id = v_member;
+  if exists (select 1 from public.pending_notifications where id in (v_first, v_later) and delivery_kind <> 'batch') then
+    raise exception 'Alerts stayed held after their summary was turned off';
+  end if;
+
+  update public.notification_prefs
+     set summary_at = time '23:00', quiet_from = time '22:00', quiet_to = time '07:00',
+         summary_sent_on = date '2026-08-04'
+   where company_id = v_company and user_id = v_member;
+
+  insert into public.pending_notifications (company_id, user_id, category, delivery_kind, created_at, deliver_at)
+  values (v_company, v_member, 'voicemails', 'summary', v_created, v_created)
+  returning id into v_later;
+
+  if not exists (select 1 from public.pending_notifications where id = v_later and deliver_at = '2026-08-06T11:00:00Z') then
+    raise exception 'Summary alert was not deferred until overnight quiet hours ended';
+  end if;
+
+  if exists (
+    select 1 from public.api_due_daily_summaries('2026-08-06T10:30:00Z', 50) where user_id = v_member
+  ) or not exists (
+    select 1 from public.api_due_daily_summaries('2026-08-06T11:00:00Z', 50)
+     where user_id = v_member and summary_date = date '2026-08-05'
+  ) then
+    raise exception 'The original summary date did not become due when overnight quiet hours ended';
+  end if;
+end $$;
+
+do $$
+declare
+  v_company constant uuid := '7b000000-0000-4000-8000-0000000000c1';
+  v_member constant uuid := '7b000000-0000-4000-8000-00000000000b';
+  v_thread constant uuid := '7b000000-0000-4000-8000-0000000000e1';
+  v_other_thread constant uuid := '7b000000-0000-4000-8000-0000000000e2';
+  v_created constant timestamptz := '2026-08-05T02:15:00Z';
+  v_quiet_id uuid;
+  v_first constant uuid := gen_random_uuid();
+  v_second constant uuid := gen_random_uuid();
+  v_batch record;
+begin
+  delete from public.pending_notifications where company_id = v_company and user_id = v_member;
+  insert into public.notification_prefs (company_id, user_id, quiet_from, quiet_to, quiet_timezone)
+  values (v_company, v_member, time '22:00', time '07:00', 'America/Toronto')
+  on conflict (user_id, company_id) do update set quiet_from = excluded.quiet_from,
+    quiet_to = excluded.quiet_to, quiet_timezone = excluded.quiet_timezone;
+
+  insert into public.pending_notifications
+    (company_id, user_id, category, conversation_id, delivery_kind, created_at, deliver_at)
+  values (v_company, v_member, 'missed_calls', v_other_thread, 'quiet', v_created, v_created)
+  returning id into v_quiet_id;
+
+  if not exists (select 1 from public.pending_notifications where id = v_quiet_id and deliver_at = '2026-08-05T11:00:00Z')
+     or exists (select 1 from public.api_lease_notification_batches('2026-08-05T10:59:59Z', v_first) where user_id = v_member) then
+    raise exception 'The catch-up alert became due before quiet hours ended';
+  end if;
+
+  update public.notification_prefs set quiet_from = null, quiet_to = null
+   where company_id = v_company and user_id = v_member;
+  insert into public.pending_notifications (company_id, user_id, category, conversation_id, deliver_at)
+  values (v_company, v_member, 'messages_mine', v_thread, now()),
+         (v_company, v_member, 'messages_all', v_thread, now() + interval '5 minutes');
+
+  select * into v_batch from public.api_lease_notification_batches(now(), v_first) where user_id = v_member;
+  if v_batch.notifications is distinct from 3 or v_batch.conversations is distinct from 1
+     or v_batch.counts is distinct from '{"missed_calls":1,"messages_mine":1,"messages_all":1}'::jsonb then
+    raise exception 'The leased digest did not count all three alerts as one batch';
+  end if;
+
+  if exists (select 1 from public.api_lease_notification_batches(now() + interval '1 minute', v_second) where user_id = v_member) then
+    raise exception 'A second run took an active lease';
+  end if;
+
+  if not exists (select 1 from public.api_lease_notification_batches(now() + interval '4 minutes', v_second) where user_id = v_member) then
+    raise exception 'A new run could not take an expired lease';
+  end if;
+  if public.api_consume_notification_batch(v_company, v_member, v_first) then
+    raise exception 'An expired lease still had permission to send';
+  end if;
+
+  if not public.api_consume_notification_batch(v_company, v_member, v_second) then
+    raise exception 'The active lease could not consume its batch';
+  end if;
+  if public.api_consume_notification_batch(v_company, v_member, v_second) then
+    raise exception 'A consumed digest could be sent twice';
+  end if;
+end $$;
+
+do $$
+declare
+  v_company constant uuid := '7b000000-0000-4000-8000-0000000000c1';
+  v_thread constant uuid := '7b000000-0000-4000-8000-0000000000e1';
+  v_session constant text := 'test-saved-voicemail';
+begin
+  if not public.api_insert_voicemail_event(v_company, v_thread, v_session, '+12125559701', 15, 'Hello.') then
+    raise exception 'The first saved recording did not create a voicemail event';
+  end if;
+  if public.api_insert_voicemail_event(v_company, v_thread, v_session, '+12125559701', 15, 'Hello.') then
+    raise exception 'A replay could notify members about the same saved recording';
+  end if;
+  if not exists (
+    select 1 from public.conversation_events where conversation_id = v_thread
+      and payload->>'call_session_id' = v_session and payload->>'transcript' = 'Hello.'
+  ) then
+    raise exception 'The saved recording did not preserve the transcript in the timeline';
+  end if;
+end $$;
+
 rollback;

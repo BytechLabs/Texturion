@@ -178,6 +178,13 @@ class PushPayloadTest {
     }
 
     @Test
+    fun `saved voicemail uses the calls channel and the thread tag`() {
+        val content = parsePush(mapOf("kind" to "voicemail", "url" to "/inbox/conv-9"))
+        assertEquals(ChannelIds.MISSED_CALLS, content.channelId)
+        assertEquals("conversation:conv-9", content.tag)
+    }
+
+    @Test
     fun `being handed work routes to the assignments channel`() {
         // #515. Separate from Messages for the same reason task reminders are:
         // the inbox is the first thing a busy crew silences, and somebody

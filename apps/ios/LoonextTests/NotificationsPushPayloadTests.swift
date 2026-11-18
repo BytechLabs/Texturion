@@ -154,6 +154,12 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertEqual(escalation.category, PushCategory.emergency)
     }
 
+    func testSavedVoicemailUsesTheCallsCategoryAndThreadTag() {
+        let content = parsePush(["kind": "voicemail", "url": "/inbox/conv-9"])
+        XCTAssertEqual(content.category, PushCategory.missedCalls)
+        XCTAssertEqual(content.tag, "conversation:conv-9")
+    }
+
     func testBeingHandedWorkRoutesToTheAssignmentsCategory() {
         // #515. Separate from Messages for the same reason the Android channel
         // is: the inbox is the first thing a busy crew silences, and somebody

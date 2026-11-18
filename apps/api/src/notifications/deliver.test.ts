@@ -143,6 +143,31 @@ describe(deliverPush, () => {
     } | undefined)?.payload.aps.badge)).toEqual([undefined, 4, 4, 0]);
   });
 
+  it("holds a once-a-day alert for the daily summary", async () => {
+    const { sb, routes } = world();
+    sb.on("GET", "/rest/v1/notification_prefs", () => [{
+      user_id: USER,
+      delivery: { voicemails: "summary" },
+    }]);
+    sb.on("POST", "/rest/v1/pending_notifications", () => []);
+    stubFetch(...routes);
+
+    await deliverPush(env, getDb(env), {
+      companyId: "c0000000-0000-4000-8000-00000000000c",
+      category: "voicemails",
+      userIds: [USER],
+      content: { written: "us" },
+      web: ALERT,
+      collapseKey: "conversation:summary",
+      failures: [],
+    });
+
+    expect(sb.find("GET", "/rest/v1/push_subscriptions")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/pending_notifications")[0]?.body).toEqual([
+      expect.objectContaining({ user_id: USER, category: "voicemails", delivery_kind: "summary" }),
+    ]);
+  });
+
   it("asks for nothing when there is nobody to reach", async () => {
     // A pipeline whose audience filtered down to nobody must not spend two
     // queries proving it.
@@ -615,6 +640,7 @@ describe("#244 member quiet hours", () => {
     ]);
     sb.on("GET", "/rest/v1/push_subscriptions", () => []);
     sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+    sb.on("POST", "/rest/v1/pending_notifications", () => []);
     stubFetch(sb.route);
     return sb;
   }
@@ -632,7 +658,7 @@ describe("#244 member quiet hours", () => {
     };
   }
 
-  it("QH-1: a routine push skips the member whose window is running", async () => {
+  it("QH-1: a routine push waits for the quiet member's catch-up digest", async () => {
     const sb = quietWorld();
 
     await deliverPush(env, getDb(env), delivery());
@@ -641,6 +667,9 @@ describe("#244 member quiet hours", () => {
       (call) => call.path === "/rest/v1/push_subscriptions",
     );
     expect(lookup?.url.searchParams.get("user_id")).toBe(`in.(${AWAKE})`);
+    expect(sb.find("POST", "/rest/v1/pending_notifications")[0]?.body).toEqual([
+      expect.objectContaining({ user_id: SLEEPING, delivery_kind: "quiet" }),
+    ]);
   });
 
   it("QH-2: a page reaches them anyway — the emergency override", async () => {

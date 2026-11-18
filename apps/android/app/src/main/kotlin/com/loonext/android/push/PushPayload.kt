@@ -40,6 +40,7 @@ object PushKind {
     const val CALL = "call"
     const val MISSED_CALL = "missed_call"
     const val ESCALATION = "escalation"
+    const val VOICEMAIL = "voicemail"
 
     /** A task the reader is assigned, shortly before (or after) its due date. */
     const val TASK_DUE = "task_due"
@@ -182,6 +183,7 @@ fun parsePush(
             } else {
                 ChannelIds.EMERGENCY
             }
+            PushKind.VOICEMAIL -> ChannelIds.MISSED_CALLS
             PushKind.TASK_DUE -> ChannelIds.TASK_REMINDERS
             PushKind.CONVERSATION_ASSIGNED, PushKind.TASK_ASSIGNED, PushKind.TASK_UPDATE ->
                 ChannelIds.ASSIGNMENTS

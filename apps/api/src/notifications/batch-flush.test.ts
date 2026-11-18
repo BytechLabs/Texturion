@@ -19,22 +19,21 @@ const OTHER_COMPANY = "99999999-9999-4999-8999-999999999999";
 const MEMBER = "33333333-3333-4333-8333-333333333333";
 const OTHER = "44444444-4444-4444-8444-444444444444";
 const THREAD_A = "22222222-2222-4222-8222-222222222222";
-const THREAD_B = "55555555-5555-4555-8555-555555555555";
-
-function pending(overrides: Record<string, unknown> = {}) {
+function batch(overrides: Record<string, unknown> = {}) {
   return {
-    id: crypto.randomUUID(),
     company_id: COMPANY,
     user_id: MEMBER,
-    category: "messages_all",
-    conversation_id: THREAD_A,
+    counts: { messages_all: 1 },
+    conversations: 1,
+    notifications: 1,
     ...overrides,
   };
 }
 
-function world(due: Record<string, unknown>[], devices: unknown[] = []) {
+function world(due: Record<string, unknown>[], devices: unknown[] = [], canConsume = true) {
   const sb = supabaseStub(env);
-  sb.on("POST", "/rest/v1/rpc/api_claim_due_notifications", () => due);
+  sb.on("POST", "/rest/v1/rpc/api_lease_notification_batches", () => due);
+  sb.on("POST", "/rest/v1/rpc/api_consume_notification_batch", () => canConsume);
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
   sb.on("GET", "/rest/v1/device_push_tokens", () => devices);
   return sb;
@@ -48,7 +47,7 @@ describe(runBatchFlush, () => {
   it("BF-1: one push per member, however many notifications are waiting", async () => {
     // THE WHOLE POINT. Four pushes that each say "1 new message" is the volume
     // problem wearing the feature's name.
-    const sb = world([pending(), pending(), pending({ conversation_id: THREAD_B })]);
+    const sb = world([batch({ counts: { messages_all: 3 }, conversations: 2, notifications: 3 })]);
     stubFetch(sb.route);
 
     const summary = await runBatchFlush(env);
@@ -58,22 +57,20 @@ describe(runBatchFlush, () => {
       (call) => call.path === "/rest/v1/push_subscriptions",
     );
     expect(lookups).toHaveLength(1);
-    // The filter as well as the count, so this says who was notified rather
-    // than only how many queries ran.
-    //
-    // What actually guards "one push per member" is the claim RPC grouping by
-    // member: breaking THAT makes this test report three members and three
-    // separate lookups. Verified by doing it.
     expect(lookups[0].url.searchParams.get("user_id")).toBe(`in.(${MEMBER})`);
+    const [lease] = sb.find("POST", "/rest/v1/rpc/api_lease_notification_batches");
+    expect(sb.find("POST", "/rest/v1/rpc/api_consume_notification_batch")[0]?.body).toEqual({
+      p_company_id: COMPANY,
+      p_user_id: MEMBER,
+      p_lease_id: (lease?.body as { p_lease_id: string }).p_lease_id,
+    });
   });
 
-  it("BF-2: the digest counts messages AND distinct conversations", async () => {
-    // Four messages from one customer is a conversation; four across four is a
-    // morning. A digest reporting only the total would flatten them.
+  it("BF-2: the digest counts messages, message conversations, and other categories", async () => {
     const account = await makeServiceAccount();
     const service = fcmService();
     const sb = world(
-      [pending(), pending(), pending({ conversation_id: THREAD_B })],
+      [batch({ counts: { messages_all: 1, messages_mine: 1, missed_calls: 1 }, notifications: 3 })],
       [
         {
           id: "70000000-aaaa-4000-8000-000000000001",
@@ -89,15 +86,14 @@ describe(runBatchFlush, () => {
 
     expect(service.sends).toHaveLength(1);
     const data = service.sends[0].message.data as Record<string, string>;
-    expect(data.body).toBe("3 new messages across 2 conversations");
+    expect(data.body).toBe("2 new messages · 1 missed call");
     expect(data.kind).toBe("digest");
   });
 
   it("BF-3: two members get two digests, not one shared", async () => {
     const sb = world([
-      pending(),
-      pending({ user_id: OTHER }),
-      pending({ user_id: OTHER }),
+      batch(),
+      batch({ user_id: OTHER, counts: { messages_all: 2 }, notifications: 2 }),
     ]);
     stubFetch(sb.route);
 
@@ -110,8 +106,8 @@ describe(runBatchFlush, () => {
     // Two different inboxes. One sentence could not honestly cover both, and
     // the deep link could only point at one of them.
     const sb = world([
-      pending(),
-      pending({ company_id: OTHER_COMPANY }),
+      batch(),
+      batch({ company_id: OTHER_COMPANY }),
     ]);
     stubFetch(sb.route);
 
@@ -139,7 +135,7 @@ describe(runBatchFlush, () => {
     const account = await makeServiceAccount();
     const service = fcmService();
     const sb = world(
-      [pending(), pending()],
+      [batch({ counts: { messages_all: 2 }, notifications: 2 })],
       [
         {
           id: "70000000-aaaa-4000-8000-000000000002",
@@ -163,7 +159,7 @@ describe(runBatchFlush, () => {
     const account = await makeServiceAccount();
     const service = fcmService();
     const sb = world(
-      [pending()],
+      [batch()],
       [
         {
           id: "70000000-aaaa-4000-8000-000000000003",
@@ -181,5 +177,32 @@ describe(runBatchFlush, () => {
       service.sends[0].message as { apns: { headers: Record<string, string> } }
     ).apns;
     expect(headers["apns-collapse-id"]).toBe(`digest:${MEMBER}`);
+  });
+
+  it("does not send after another run takes the lease", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const sb = world(
+      [batch()],
+      [{ id: "device", user_id: MEMBER, platform: "android", token: "tok" }],
+      false,
+    );
+    stubFetch(sb.route, ...service.routes);
+
+    expect(await runBatchFlush(fcmEnv(account))).toEqual({ members: 0, notifications: 0 });
+    expect(service.sends).toHaveLength(0);
+  });
+
+  it("preserves the lease when preparation fails before any send", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const sb = world([batch()], [{ id: "device", user_id: MEMBER, platform: "android", token: "tok" }]);
+    stubFetch((url) => url.pathname === "/rest/v1/device_push_tokens"
+      ? new Response('{"message":"token lookup failed"}', { status: 400 })
+      : undefined, sb.route, ...service.routes);
+
+    expect(await runBatchFlush(fcmEnv(account))).toEqual({ members: 0, notifications: 0 });
+    expect(sb.find("POST", "/rest/v1/rpc/api_consume_notification_batch")).toHaveLength(0);
+    expect(service.sends).toHaveLength(0);
   });
 });

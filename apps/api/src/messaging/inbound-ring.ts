@@ -630,7 +630,7 @@ export async function deleteTelnyxRecording(
 /**
  * Drop the voicemail line into the conversation timeline (the thread is the
  * inbox's source of truth; the player fetches its signed URL per session).
- * Dedupe-scanned per session so webhook replays never double-post.
+ * Claim the saved recording once, including concurrent webhook deliveries.
  */
 export async function insertVoicemailEvent(
   db: SupabaseClient,
@@ -642,43 +642,17 @@ export async function insertVoicemailEvent(
     seconds: number;
     transcript?: string | null;
   },
-  // #243: true when THIS call wrote the line, false when it was already
-  // there. The caller needs the difference — a replay of this handler must
-  // not tell an integration about the same voicemail twice, and the
-  // already-exists guard below is the only place that knows.
 ): Promise<boolean> {
-  const { data: existing, error: scanError } = await db
-    .from("conversation_events")
-    .select("id")
-    .eq("conversation_id", input.conversationId)
-    .eq("type", "call_completed")
-    .eq("payload->>call_session_id", input.callSessionId)
-    .eq("payload->>kind", "voicemail")
-    .limit(1);
-  if (scanError) {
-    throw new Error(`voicemail event scan failed: ${scanError.message}`);
-  }
-  if ((existing ?? []).length > 0) return false;
-
-  const { error } = await db.from("conversation_events").insert({
-    company_id: input.companyId,
-    conversation_id: input.conversationId,
-    actor_user_id: null,
-    type: "call_completed",
-    payload: {
-      kind: "voicemail",
-      // Written into the line itself so the thread can show the words with no
-      // extra read. Omitted rather than null when absent, so an older line and
-      // an untranscribed one look identical to every client.
-      ...(input.transcript ? { transcript: input.transcript } : {}),
-      call_session_id: input.callSessionId,
-      outcome: "voicemail",
-      voicemail_seconds: input.seconds,
-      caller: input.caller,
-    },
+  const { data, error } = await db.rpc("api_insert_voicemail_event", {
+    p_company_id: input.companyId,
+    p_conversation_id: input.conversationId,
+    p_call_session_id: input.callSessionId,
+    p_caller: input.caller,
+    p_seconds: input.seconds,
+    p_transcript: input.transcript ?? null,
   });
   if (error) {
     throw new Error(`voicemail event insert failed: ${error.message}`);
   }
-  return true;
+  return data === true;
 }

@@ -193,6 +193,7 @@ object OnCall {
     val BATCH_WINDOW_CHOICES = listOf(5, 15, 30, 60)
 
     const val DEFAULT_BATCH_WINDOW = 15
+    const val DEFAULT_SUMMARY_TIME = "17:00"
 
     /**
      * Turn a preset into a real window.

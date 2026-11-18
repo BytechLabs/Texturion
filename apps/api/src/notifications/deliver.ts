@@ -232,6 +232,8 @@ export interface PushDelivery {
    * to the on-call member is the second without being the first.
    */
   overridesQuietHours?: { reason: "emergency" | "on_call_page" | "escalation" };
+  /** Commit a queued delivery before the first provider request. Return false if its lease expired. */
+  beforeDispatch?: () => Promise<boolean>;
   /**
    * Every failure lands here rather than throwing, so one dead device cannot
    * stop the rest of the fan-out. The caller decides what a non-empty list
@@ -389,21 +391,10 @@ async function readerLocales(
   );
 }
 
-/**
- * #244 — drop the members whose own quiet hours are running.
- *
- * ONE READ, and it returns the input unchanged whenever it cannot answer.
- * Every failure direction here NOTIFIES: a read that errors, a row that is
- * missing, a window that will not parse. The asymmetry is deliberate and is
- * the opposite of #225's — silently withholding a message somebody was waiting
- * for is invisible to them, while an unwanted buzz is merely annoying and they
- * can see what happened.
- */
 interface Audience {
   /** Push now. */
   send: string[];
-  /** Hold for a batch, with the moment it comes due. */
-  queue: { userId: string; deliverAt: Date }[];
+  queue: { userId: string; deliverAt: Date; kind: "batch" | "summary" | "quiet" }[];
 }
 
 /**
@@ -462,21 +453,23 @@ async function resolveAudience(
       continue;
     }
 
+    const decision = category === "operational"
+      ? "send"
+      : decideDelivery({ mode: row.delivery?.[category], urgent: false });
+
     if (
-      isMemberQuietNow(
+      decision !== "hold" && isMemberQuietNow(
         { from: row.quiet_from, to: row.quiet_to, timezone: row.quiet_timezone },
         row.companies?.timezone ?? null,
         now,
       )
     ) {
+      if (category !== "operational") {
+        audience.queue.push({ userId, kind: "quiet", deliverAt: now });
+      }
       continue;
     }
 
-    // `operational` has no volume control by design, so it never queues.
-    const decision =
-      category === "operational"
-        ? "send"
-        : decideDelivery({ mode: row.delivery?.[category], urgent: false });
     if (decision === "send") {
       audience.send.push(userId);
       continue;
@@ -485,6 +478,7 @@ async function resolveAudience(
     const minutes = row.batch_window_minutes ?? DEFAULT_BATCH_WINDOW;
     audience.queue.push({
       userId,
+      kind: decision === "hold" ? "summary" : "batch",
       // Stamped NOW from the member's window, so lengthening the window later
       // does not retroactively delay a batch that was already nearly due.
       deliverAt: new Date(now.getTime() + minutes * 60_000),
@@ -494,14 +488,8 @@ async function resolveAudience(
   return audience;
 }
 
-/**
- * Park a notification until this member's batch closes.
- *
- * Best-effort by contract: a queue write that fails must not stop the members
- * who ARE being pushed to from hearing about it. The event is already durable
- * in the inbox — this row only decides whether a phone buzzes about it.
- */
-async function queueForBatch(
+/** These rows schedule pushes for events that already exist in the inbox. */
+async function queueNotifications(
   db: SupabaseClient,
   delivery: PushDelivery,
   queued: Audience["queue"],
@@ -512,6 +500,7 @@ async function queueForBatch(
       user_id: entry.userId,
       category: delivery.category,
       conversation_id: delivery.conversationId ?? null,
+      delivery_kind: entry.kind,
       deliver_at: entry.deliverAt.toISOString(),
     })),
   );
@@ -612,7 +601,7 @@ async function fanOutPush(
       );
 
   if (resolved.queue.length > 0) {
-    await queueForBatch(db, delivery, resolved.queue);
+    await queueNotifications(db, delivery, resolved.queue);
   }
 
   const audience = resolved.send;
@@ -675,6 +664,22 @@ async function fanOutPush(
   const subscriptionRows = (subData ?? []) as SubscriptionRow[];
   warnIfTruncated("push_subscriptions", subscriptionRows.length, ceiling);
 
+  async function readDeviceTokens(): Promise<DeviceTokenRow[]> {
+    const { data, error } = await db.from("device_push_tokens")
+      .select("id,user_id,platform,token,locale")
+      .in("user_id", audience)
+      .order("created_at", { ascending: false })
+      .limit(ceiling);
+    if (error) throw new Error(`device push tokens lookup failed: ${error.message}`);
+    const rows = (data ?? []) as DeviceTokenRow[];
+    warnIfTruncated("device_push_tokens", rows.length, ceiling);
+    return rows;
+  }
+
+  const fcmConfigured = isFcmConfigured(env);
+  const preparedTokens = delivery.beforeDispatch && fcmConfigured ? await readDeviceTokens() : null;
+  if (delivery.beforeDispatch && !(await delivery.beforeDispatch())) return;
+
   for (const subscription of newestPerUser(
     subscriptionRows,
     MAX_TARGETS_PER_USER,
@@ -729,25 +734,14 @@ async function fanOutPush(
 
   // Native device push: skipped with one log line until Firebase is
   // provisioned (the secret is optional so deploys stay green).
-  if (!isFcmConfigured(env)) {
+  if (!fcmConfigured) {
     console.log(
       "fcm: FCM_SERVICE_ACCOUNT_JSON unset — native device push skipped",
     );
     return;
   }
 
-  const { data: tokenData, error: tokenError } = await db
-    .from("device_push_tokens")
-    .select("id,user_id,platform,token,locale")
-    .in("user_id", audience)
-    .order("created_at", { ascending: false })
-    .limit(ceiling);
-  if (tokenError) {
-    throw new Error(`device push tokens lookup failed: ${tokenError.message}`);
-  }
-  const tokenRows = (tokenData ?? []) as DeviceTokenRow[];
-  warnIfTruncated("device_push_tokens", tokenRows.length, ceiling);
-
+  const tokenRows = preparedTokens ?? await readDeviceTokens();
   const devices = newestPerUser(tokenRows, MAX_TARGETS_PER_USER);
 
   // #452: claim the high-priority budget ONCE for the whole fan-out, against

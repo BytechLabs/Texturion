@@ -361,7 +361,7 @@ object DomainStrings : AppStrings.Section {
         // the fear of missing the emergency, so a control that offers silence
         // without saying what still gets through does not get switched on.
         "domain.quietHoursReassurance" to
-            "Your phone stays quiet for ordinary messages. New emergencies, on-call pages, " +
+            "Ordinary messages wait until quiet hours end. New emergencies, on-call pages, " +
             "and alerts nobody picked up still come through.",
         "domain.quietHoursOff" to "Off — every notification reaches you at any hour.",
         "domain.quietHoursOn" to "Quiet from",
@@ -379,6 +379,9 @@ object DomainStrings : AppStrings.Section {
         "domain.deliverySummary" to "Once a day",
         // Said next to "Once a day", the option people misread as off.
         "domain.deliverySummaryDetail" to "Held for your daily summary, not discarded.",
+        "domain.deliverySummaryAt" to "Daily summary at",
+        "domain.deliverySummaryOff" to "Off",
+        "domain.deliverySummaryDisable" to "Turn off daily summary",
         "domain.categoryMessagesMine" to "Texts on my jobs",
         "domain.categoryMessagesAll" to "Texts on anyone's jobs",
         "domain.categoryMentions" to "When somebody @s me",
@@ -968,7 +971,7 @@ object DomainStrings : AppStrings.Section {
         // ── A member's own quiet hours (#244) ────────────────────────────────
         "domain.quietHoursHeading" to "Heures de silence",
         "domain.quietHoursReassurance" to
-            "Votre téléphone reste silencieux pour les messages ordinaires. Les nouvelles urgences, " +
+            "Les messages ordinaires attendent la fin des heures de silence. Les nouvelles urgences, " +
             "les alertes de garde et celles que personne n'a prises passent quand même.",
         "domain.quietHoursOff" to
             "Désactivé — toutes les notifications vous parviennent à toute heure.",
@@ -987,6 +990,9 @@ object DomainStrings : AppStrings.Section {
         "domain.deliverySummary" to "Une fois par jour",
         "domain.deliverySummaryDetail" to
             "Conservées pour votre résumé quotidien, pas supprimées.",
+        "domain.deliverySummaryAt" to "Résumé quotidien à",
+        "domain.deliverySummaryOff" to "Désactivé",
+        "domain.deliverySummaryDisable" to "Désactiver le résumé quotidien",
         "domain.categoryMessagesMine" to "Textos sur mes tâches",
         "domain.categoryMessagesAll" to "Textos sur les tâches de tout le monde",
         "domain.categoryMentions" to "Quand quelqu'un me mentionne avec @",

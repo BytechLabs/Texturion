@@ -210,6 +210,7 @@ enum OnCall {
     static let batchWindowChoices = [5, 15, 30, 60]
 
     static let defaultBatchWindow = 15
+    static let defaultSummaryTime = "17:00"
 
     /// Turn a preset into a real window.
     ///
