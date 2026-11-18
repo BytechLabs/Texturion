@@ -53,6 +53,7 @@ final class CallsManager {
     @ObservationIgnored private let core: SoftphoneCore
     @ObservationIgnored private let callKit: CallKitBridge
     @ObservationIgnored private let voipPush: VoipPushAdapter
+    @ObservationIgnored private let voipPushPolicy = VoipPushPolicy()
     @ObservationIgnored private var workspaceNumbers: (companyId: String, numbers: Set<String>)?
 
     /// Calls currently reported to CallKit (lowercased UUID strings).
@@ -537,31 +538,27 @@ final class CallsManager {
         payload: [AnyHashable: Any],
         completion: @escaping () -> Void
     ) {
-        let metadata = Self.pushMetadata(payload)
-        let number = (metadata["caller_number"] as? String)
-            ?? (metadata["caller_id_number"] as? String)
-            ?? ""
-        let rawName = (metadata["caller_name"] as? String)
-            ?? (metadata["caller_id_name"] as? String)
-            ?? ""
-        let company = core.companyId ?? prefs.activeCompanyId
-        let numbers = workspaceNumbers?.companyId == company ? workspaceNumbers?.numbers : nil
-        let identity = pushedCallerIdentity(
-            number: number,
-            name: rawName,
+        let wake = voipPushPolicy.wake(
+            activeCompanyId: core.companyId, lastCompanyId: prefs.activeCompanyId
+        )
+        let numbers: Set<String>?
+        if case .connect(let companyId) = wake, workspaceNumbers?.companyId == companyId {
+            numbers = workspaceNumbers?.numbers
+        } else {
+            numbers = nil
+        }
+        let push = voipPushPolicy.incoming(
+            payload,
             workspaceNumbers: numbers,
             locale: UiLocaleStore.shared.resolved
         )
-        // Telnyx stamps the SDK call UUID into the push so the reported
-        // CallKit call and the arriving INVITE line up.
-        let uuid = (metadata["call_id"] as? String).flatMap(UUID.init(uuidString:)) ?? UUID()
-        let id = uuid.uuidString.lowercased()
+        let id = push.id
 
         // 1. REQUIRED synchronously: the CallKit report.
         reportedToCallKit.insert(id)
         lastPhases[id] = .ringing
         callKit.reportIncoming(
-            uuid: uuid, displayName: identity.name, number: identity.number
+            uuid: push.uuid, displayName: push.displayName, number: push.number
         ) { [weak self] error in
             guard error == nil else { return }
             self?.beaconCallKitTookRing(id)
@@ -570,8 +567,8 @@ final class CallsManager {
 
         // 2. Wake the SDK. Signed out / no workspace = nothing can ring —
         //    end the reported call honestly instead of hanging the screen.
-        guard let company else {
-            endDanglingPushCall(id: id, uuid: uuid, reason: .failed)
+        guard case .connect(let company) = wake else {
+            endDanglingPushCall(id: id, uuid: push.uuid, reason: .failed)
             return
         }
         Task { [weak self] in
@@ -585,20 +582,22 @@ final class CallsManager {
                         try self.sdkClient.processVoIPNotification(
                             token: minted.token,
                             pushDeviceToken: self.voipToken,
-                            pushMetaData: metadata
+                            pushMetaData: push.metadata
                         )
                     }
                 } catch {
-                    self.endDanglingPushCall(id: id, uuid: uuid, reason: .failed)
+                    self.endDanglingPushCall(id: id, uuid: push.uuid, reason: .failed)
                     return
                 }
             }
             // Watchdog: if the INVITE never lands (answered elsewhere while
             // we connected, network died), clear the ring instead of letting
             // the CallKit screen ring forever.
-            try? await Task.sleep(for: .seconds(20))
-            if self.core.state.calls.first(where: { $0.id == id }) == nil {
-                self.endDanglingPushCall(id: id, uuid: uuid, reason: .answeredElsewhere)
+            let outcome = await self.voipPushPolicy.afterWatchdog {
+                self.core.state.calls.contains { $0.id == id }
+            }
+            if outcome == .answeredElsewhere {
+                self.endDanglingPushCall(id: id, uuid: push.uuid, reason: .answeredElsewhere)
             }
         }
     }
@@ -609,18 +608,6 @@ final class CallsManager {
         callKitTookRingAt.removeValue(forKey: id)
         lastPhases.removeValue(forKey: id)
         callKit.reportEnded(uuid: uuid, reason: reason)
-    }
-
-    /// Telnyx delivers `metadata` as a dictionary (or, in some SDK versions,
-    /// a JSON string) inside the push payload.
-    private static func pushMetadata(_ payload: [AnyHashable: Any]) -> [String: Any] {
-        if let dict = payload["metadata"] as? [String: Any] { return dict }
-        if let text = payload["metadata"] as? String,
-           let data = text.data(using: .utf8),
-           let parsed = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            return parsed
-        }
-        return [:]
     }
 
     // MARK: - Watchdog triggers
