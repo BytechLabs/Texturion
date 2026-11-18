@@ -57,8 +57,7 @@ import {
   applyPriceToSchedulePhases,
 } from "../billing/schedule-phases";
 import { payPendingReferralRewards } from "../referrals/referrals";
-import { getStripe } from '../billing/stripe';
-import type { Stripe } from '../billing/stripe';
+import { getStripe, Stripe } from '../billing/stripe';
 import type { AppEnv, MemberRole } from "../context";
 import { getDb } from "../db";
 import { callerIp } from "../public-links/guard";
@@ -744,30 +743,37 @@ billingRoutes.post("/dismiss-winback", async (c) => {
   return c.body(null, 204);
 });
 
-async function paymentInvoicesPortalConfiguration(env: Env): Promise<string | null> {
-  const id = env.STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID;
-  if (!id) return null;
+async function portalConfiguration(env: Env, isOwner: boolean): Promise<string | null> {
+  const id = isOwner
+    ? env.STRIPE_OWNER_PORTAL_CONFIG_ID
+    : env.STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID;
+  if (!id && !isOwner) return null;
 
-  try {
-    const configuration = await getStripe(env).billingPortal.configurations.retrieve(id);
-    const { features } = configuration;
-    if (
-      configuration.active &&
-      configuration.is_default === false &&
-      features.invoice_history.enabled &&
-      features.payment_method_update.enabled &&
-      features.subscription_cancel.enabled === false &&
-      features.subscription_update.enabled === false &&
-      features.subscription_pause.enabled === false &&
-      features.customer_update.enabled === false
-    ) {
-      return configuration.id;
-    }
-    throw new Error("Stripe payment and invoices portal configuration has unexpected features");
-  } catch (error) {
-    void captureException(env, error, { source: "api", route: "POST /v1/billing/portal" });
+  const configurations = getStripe(env).billingPortal.configurations;
+  const configuration = id
+    ? await configurations.retrieve(id)
+    : (await configurations.list({ active: true, is_default: true, limit: 1 })).data[0];
+  if (
+    !configuration?.active ||
+    !configuration.features.invoice_history.enabled ||
+    !configuration.features.payment_method_update.enabled
+  ) {
     return null;
   }
+
+  const features = configuration.features;
+  if (isOwner) {
+    return features.subscription_cancel.enabled && features.subscription_cancel.mode === "at_period_end"
+      ? configuration.id
+      : null;
+  }
+
+  return features.subscription_cancel.enabled === false &&
+    features.subscription_update.enabled === false &&
+    !features.subscription_pause?.enabled &&
+    features.customer_update.enabled === false
+    ? configuration.id
+    : null;
 }
 
 billingRoutes.post("/portal", async (c) => {
@@ -783,22 +789,38 @@ billingRoutes.post("/portal", async (c) => {
   }
 
   const isOwner = c.get("role") === "owner";
-  const configuration = isOwner ? null : await paymentInvoicesPortalConfiguration(env);
-  const params: Stripe.BillingPortal.SessionCreateParams = {
-    customer: company.stripe_customer_id,
-    return_url: `${env.APP_ORIGIN}/settings/billing`,
-  };
-  let scope = "full";
-  if (configuration) {
-    params.configuration = configuration;
-    scope = "payment_and_invoices";
-  } else if (!isOwner) {
-    // Keep card updates available if the invoices portal cannot be verified.
-    params.flow_data = { type: "payment_method_update" };
-    scope = "payment_method";
+  const scope = isOwner ? "full" : "payment_and_invoices";
+  let operation = "read_configuration";
+  try {
+    const configuration = await portalConfiguration(env, isOwner);
+    if (configuration) {
+      operation = "create_session";
+      const session = await getStripe(env).billingPortal.sessions.create({
+        configuration,
+        customer: company.stripe_customer_id,
+        return_url: `${env.APP_ORIGIN}/settings/billing`,
+      });
+      return c.json({ url: session.url, scope });
+    }
+    console.error("stripe_billing_portal_failed", {
+      scope,
+      operation,
+      reason: "configuration_unavailable",
+    });
+  } catch (error) {
+    const stripeStatus = error instanceof Stripe.errors.StripeError ? error.statusCode : undefined;
+    console.error("stripe_billing_portal_failed", {
+      scope,
+      operation,
+      reason: stripeStatus === 403 ? "stripe_permission_denied" : "stripe_request_failed",
+      stripe_status: stripeStatus,
+    });
   }
-  const session = await getStripe(env).billingPortal.sessions.create(params);
-  return c.json({ url: session.url, scope });
+  return errorResponse(
+    c,
+    "service_unavailable",
+    "The billing portal is unavailable. Please try again later.",
+  );
 });
 
 /**

@@ -181,14 +181,20 @@ Stripe dashboard → **Settings → Billing → Customer portal**:
 - You can disable "switch plans" in the portal since the app drives plan changes
   itself.
 
-Create a second [Customer Portal configuration](https://docs.stripe.com/api/customer_portal/configurations/create)
-in each Stripe environment. Keep the existing configuration as the default.
-Enable only `features.invoice_history` and `features.payment_method_update` on the
-second configuration. Set `STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID` on the API
-Worker to that configuration's ID. Verify that a bookkeeper can view invoices
-and update the card, and that cancellation and plan changes remain owner-only.
-The Worker checks the configuration when starting a non-owner session and uses
-the card-only flow if it cannot verify those settings.
+Use `STRIPE_OWNER_PORTAL_CONFIG_ID` for the configuration
+with invoice history, card updates, and cancellation at period end. When the
+setting is absent, the Worker resolves the account default and verifies that
+it supports the owner actions before passing its ID to Stripe.
+
+Create a separate [Customer Portal configuration](https://docs.stripe.com/api/customer_portal/configurations/create)
+with invoice history and payment method updates enabled. Disable customer
+details updates, subscription cancellation, plan updates, and subscription
+pauses. Use `STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID` for its ID. Put both
+live IDs in the GitHub `production` environment variables so the release
+workflow sends them to the API Worker on every deployment. For local testing,
+use the test-mode IDs in `apps/api/.dev.vars`. Both roles require a verified
+configuration ID before the Worker starts a session. Verify that the owner can
+cancel at period end and that the bookkeeper can see invoices and update the card.
 
 ---
 
@@ -212,8 +218,7 @@ The **runtime** `STRIPE_SECRET_KEY` (the one you put on the Worker) may be a
 `apps/api/src/billing/meter.ts:33`):
 
 - **Checkout Sessions** (write)
-- **Billing Portal sessions** (write)
-- **Billing Portal configurations** (read, for the payment and invoices portal)
+- **Customer portal** (write, including configuration reads and session creation)
 - **Customers / Subscriptions** (read + write)
 - **Billing Meter Events** (write)
 

@@ -36,7 +36,8 @@ value. Formats are illustrative — real values come from the vendor dashboards.
 | `TELNYX_VOICE_CONNECTION_ID` | yes | Telnyx → Voice → the **Call-Control application** you create once ([04](./04-telnyx.md) §1) | numeric id, e.g. `2593906985...` |
 | `STRIPE_SECRET_KEY` | yes | Stripe → Developers → API keys (**restricted** `rk_` for runtime) | `rk_live_xxxxxxxxxxxx` (or `sk_live_...`) |
 | `STRIPE_WEBHOOK_SECRET` | yes | Stripe → Developers → Webhooks → endpoint → Signing secret | `whsec_xxxxxxxxxxxxxxxx` |
-| `STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID` | no (enables invoice history for non-owner billing roles) | Secondary Stripe customer portal configuration in [03 Stripe](./03-stripe.md#4-configure-the-customer-portal) | `bpc_...` |
+| `STRIPE_OWNER_PORTAL_CONFIG_ID` | no (otherwise resolves the Stripe account default) | Owner Stripe customer portal configuration in [03 Stripe](./03-stripe.md#4-configure-the-customer-portal) | `bpc_...` |
+| `STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID` | required for non-owner billing portal sessions | Separate Stripe customer portal configuration in [03 Stripe](./03-stripe.md#4-configure-the-customer-portal) | `bpc_...` |
 | `STRIPE_CONNECT_WEBHOOK_SECRET` | no (**required for text-to-pay, #224**) | Stripe → Developers → Webhooks → **add a second endpoint** at the same `/webhooks/stripe` URL, listening to *events on connected accounts* → Signing secret | `whsec_xxxxxxxxxxxxxxxx` |
 | `RESEND_API_KEY` | yes | Resend → API Keys | `re_xxxxxxxxxxxxxxxx` |
 | `RESEND_FROM` | yes | Operator-set; address at the verified Resend domain | `Loonext <notifications@loonext.com>` |

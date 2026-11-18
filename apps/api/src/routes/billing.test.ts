@@ -992,10 +992,10 @@ describe("POST /v1/billing/dismiss-winback (#277 follow-up)", () => {
 });
 
 describe("POST /v1/billing/portal", () => {
-  const configuration = {
+  const invoiceConfiguration = {
     id: "bpc_payments_invoices",
     active: true,
-    is_default: false,
+    is_default: true,
     features: {
       invoice_history: { enabled: true },
       payment_method_update: { enabled: true },
@@ -1005,113 +1005,176 @@ describe("POST /v1/billing/portal", () => {
       customer_update: { enabled: false },
     },
   };
-  const invoiceEnv = {
-    ...env,
-    STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID: configuration.id,
+  const ownerConfiguration = {
+    ...invoiceConfiguration,
+    id: "bpc_owner",
+    is_default: false,
+    features: {
+      ...invoiceConfiguration.features,
+      subscription_cancel: { enabled: true, mode: "at_period_end" },
+      customer_update: { enabled: true },
+    },
   };
+  const portalEnv = {
+    ...env,
+    STRIPE_OWNER_PORTAL_CONFIG_ID: ownerConfiguration.id,
+    STRIPE_PAYMENT_INVOICES_PORTAL_CONFIG_ID: invoiceConfiguration.id,
+  };
+  const sessionPath = /\/billing_portal\/sessions$/;
+  const configurationsPath = /\/billing_portal\/configurations(?:\?|$)/;
+  const session = endpoint("POST", sessionPath, () => ({
+    url: "https://billing.stripe.com/p/session/bps_1",
+  }));
 
-  it("409 before any checkout (no Stripe customer)", async () => {
+  it("409 before checkout creates a Stripe customer", async () => {
     const harness = makeHarness([companyEndpoint(companyRow())]);
     const response = await post("/v1/billing/portal", undefined, harness);
     expect(response.status).toBe(409);
   });
 
-  it("creates a portal session for the company's customer", async () => {
+  it("uses the explicit owner configuration even when the restricted portal is the default", async () => {
     const harness = makeHarness([
       companyEndpoint(companyRow({ stripe_customer_id: "cus_1" })),
-      endpoint("POST", /api\.stripe\.com\/v1\/billing_portal\/sessions/, () => ({
-        id: "bps_1",
-        url: "https://billing.stripe.com/p/session/bps_1",
-      })),
+      endpoint("GET", /\/billing_portal\/configurations\/bpc_owner$/, () => ownerConfiguration),
+      session,
     ]);
+
     const response = await post("/v1/billing/portal", undefined, harness, "owner", {
-      env: invoiceEnv,
+      env: portalEnv,
     });
+
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
-      url: "https://billing.stripe.com/p/session/bps_1",
-      // #421: the OWNER gets the whole portal, cancellation included.
-      scope: "full",
-    });
-    const form = harness.callsTo("POST", /billing_portal/)[0].form();
+    expect(await response.json()).toMatchObject({ scope: "full" });
+    const form = harness.callsTo("POST", sessionPath)[0].form();
+    expect(form.get("configuration")).toBe(ownerConfiguration.id);
     expect(form.get("customer")).toBe("cus_1");
-    expect(form.get("return_url")).toBe(`${env.APP_ORIGIN}/settings/billing`);
-    expect(form.get("configuration")).toBeNull();
+    expect(form.get("return_url")).toBe(env.APP_ORIGIN + "/settings/billing");
     expect(form.get("flow_data[type]")).toBeNull();
   });
 
-  it("#421: an ADMIN gets the card-update flow, with no route to cancellation", async () => {
-    // Closing the workspace is owner-only, and cancelling ends in the same
-    // place: `grace.ts` releases the number 30 days later and a released number
-    // is reassigned to another business (#413). That path was admin-reachable
-    // purely because it happened on Stripe's domain.
-    //
-    // Admin billing is still right for the ordinary case — a bookkeeper
-    // updating an expiring card should not have to be the owner (#332). So the
-    // route stays admin-reachable and the BUNDLE is split instead: the
-    // payment_method_update flow has no cancellation surface at all, which is a
-    // structural limit rather than a hidden button.
+  it("looks up the existing owner default and passes its ID explicitly", async () => {
     const harness = makeHarness([
       companyEndpoint(companyRow({ stripe_customer_id: "cus_1" })),
-      endpoint("POST", /api\.stripe\.com\/v1\/billing_portal\/sessions/, () => ({
-        id: "bps_2",
-        url: "https://billing.stripe.com/p/session/bps_2",
+      endpoint("GET", configurationsPath, () => ({
+        data: [{ ...ownerConfiguration, is_default: true }],
       })),
+      session,
     ]);
-    const response = await post("/v1/billing/portal", undefined, harness, "admin");
-    expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ scope: "payment_method" });
 
-    const form = harness.callsTo("POST", /billing_portal/)[0].form();
-    expect(form.get("flow_data[type]")).toBe("payment_method_update");
+    const response = await post("/v1/billing/portal", undefined, harness);
+
+    expect(response.status).toBe(200);
+    const query = harness.callsTo("GET", configurationsPath)[0].url.searchParams;
+    expect(query.get("is_default")).toBe("true");
+    const form = harness.callsTo("POST", sessionPath)[0].form();
+    expect(form.get("configuration")).toBe(ownerConfiguration.id);
   });
 
-  it("opens the payment and invoice portal for a bookkeeper", async () => {
+  it.each([
+    invoiceConfiguration,
+    {
+      ...ownerConfiguration,
+      features: {
+        ...ownerConfiguration.features,
+        subscription_cancel: { enabled: true, mode: "immediately" },
+      },
+    },
+  ])("rejects an owner default without period-end cancellation", async (configuration) => {
     const harness = makeHarness([
       companyEndpoint(companyRow({ stripe_customer_id: "cus_1" })),
-      endpoint("GET", /billing_portal\/configurations\/bpc_payments_invoices/, () =>
-        configuration,
-      ),
-      endpoint("POST", /billing_portal\/sessions/, () => ({
-        url: "https://billing.stripe.com/p/session/bps_3",
+      endpoint("GET", configurationsPath, () => ({ data: [configuration] })),
+    ]);
+
+    const response = await post("/v1/billing/portal", undefined, harness);
+
+    expect(response.status).toBe(503);
+    expect(harness.callsTo("POST", sessionPath)).toHaveLength(0);
+  });
+
+  it("opens the explicitly configured invoice portal for a bookkeeper", async () => {
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ stripe_customer_id: "cus_1" })),
+      endpoint("GET", /\/billing_portal\/configurations\/bpc_payments_invoices$/, () => ({
+        ...invoiceConfiguration,
+        features: { ...invoiceConfiguration.features, subscription_pause: undefined },
       })),
+      session,
     ]);
 
     const response = await post("/v1/billing/portal", undefined, harness, "bookkeeper", {
-      env: invoiceEnv,
+      env: portalEnv,
     });
 
     expect(response.status).toBe(200);
     expect(await response.json()).toMatchObject({ scope: "payment_and_invoices" });
-    const form = harness.callsTo("POST", /billing_portal\/sessions/)[0].form();
-    expect(form.get("configuration")).toBe(configuration.id);
+    const form = harness.callsTo("POST", sessionPath)[0].form();
+    expect(form.get("configuration")).toBe(invoiceConfiguration.id);
     expect(form.get("customer")).toBe("cus_1");
     expect(form.get("flow_data[type]")).toBeNull();
   });
 
-  it.each(["subscription_cancel", "subscription_update", "subscription_pause"] as const)(
-    "uses the card-only flow if the configured portal allows %s",
+  it("does not open the default portal for a bookkeeper when their configuration is absent", async () => {
+    const harness = makeHarness([
+      companyEndpoint(companyRow({ stripe_customer_id: "cus_1" })),
+    ]);
+
+    const response = await post("/v1/billing/portal", undefined, harness, "bookkeeper");
+
+    expect(response.status).toBe(503);
+    expect(harness.callsTo("POST", sessionPath)).toHaveLength(0);
+  });
+
+  it.each(["subscription_cancel", "subscription_update", "subscription_pause", "customer_update"] as const)(
+    "rejects a bookkeeper portal that allows %s",
     async (feature) => {
       const harness = makeHarness([
         companyEndpoint(companyRow({ stripe_customer_id: "cus_1" })),
-        endpoint("GET", /billing_portal\/configurations\//, () => ({
-          ...configuration,
-          features: { ...configuration.features, [feature]: { enabled: true } },
-        })),
-        endpoint("POST", /billing_portal\/sessions/, () => ({
-          url: "https://billing.stripe.com/p/session/bps_4",
+        endpoint("GET", /\/billing_portal\/configurations\//, () => ({
+          ...invoiceConfiguration,
+          features: { ...invoiceConfiguration.features, [feature]: { enabled: true } },
         })),
       ]);
 
       const response = await post("/v1/billing/portal", undefined, harness, "bookkeeper", {
-        env: invoiceEnv,
+        env: portalEnv,
       });
 
-      expect(response.status).toBe(200);
-      expect(await response.json()).toMatchObject({ scope: "payment_method" });
-      const form = harness.callsTo("POST", /billing_portal\/sessions/)[0].form();
-      expect(form.get("configuration")).toBeNull();
-      expect(form.get("flow_data[type]")).toBe("payment_method_update");
+      expect(response.status).toBe(503);
+      expect(harness.callsTo("POST", sessionPath)).toHaveLength(0);
+    },
+  );
+
+  it.each(["read_configuration", "create_session"] as const)(
+    "logs Stripe permission failure metadata for %s",
+    async (operation) => {
+      const permissionError = () => Response.json({
+        error: { type: "invalid_request_error", message: "provider payload" },
+      }, { status: 403 });
+      const report = vi.spyOn(console, "error").mockImplementation(() => {});
+      const harness = makeHarness([
+        companyEndpoint(companyRow({ stripe_customer_id: "cus_1" })),
+        endpoint("GET", /\/billing_portal\/configurations\/bpc_owner$/, () =>
+          operation === "read_configuration" ? permissionError() : ownerConfiguration,
+        ),
+        endpoint("POST", sessionPath, permissionError),
+      ]);
+
+      try {
+        const response = await post("/v1/billing/portal", undefined, harness, "owner", {
+          env: portalEnv,
+        });
+
+        expect(response.status).toBe(503);
+        expect(await response.text()).not.toContain("provider payload");
+        expect(report).toHaveBeenCalledExactlyOnceWith("stripe_billing_portal_failed", {
+          scope: "full",
+          operation,
+          reason: "stripe_permission_denied",
+          stripe_status: 403,
+        });
+      } finally {
+        report.mockRestore();
+      }
     },
   );
 });
