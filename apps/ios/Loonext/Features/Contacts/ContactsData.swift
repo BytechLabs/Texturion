@@ -61,8 +61,11 @@ struct ContactMutations: Sendable {
     }
 
     func erase(companyId: String, contactId: String, confirmation: String) async throws -> CustomerErasure {
-        try await api.post("/v1/contacts/\(contactId)/erase",
-                           body: .object(["confirmation": .string(confirmation)]), companyId: companyId)
+        try await api.post(
+            "/v1/contacts/\(contactId)/erase",
+            body: JSONValue.object(["confirmation": .string(confirmation)]),
+            companyId: companyId
+        )
     }
 
     func members(companyId: String) async throws -> Page<Member> {
