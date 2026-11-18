@@ -296,8 +296,9 @@ fun DialerSheet(
                     }
                 }
 
-                Text(
-                    if (digits.isEmpty()) {
+                CopyablePhoneNumber(
+                    dialable,
+                    label = if (digits.isEmpty()) {
                         t("contactsTasks.enterANumber")
                     } else {
                         formatAsYouDial(digits)
@@ -305,13 +306,13 @@ fun DialerSheet(
                     style = MaterialTheme.typography.headlineMedium.copy(
                         fontSize = 31.sp * scale,
                         letterSpacing = 0.01.em,
+                        textAlign = TextAlign.Center,
                     ),
                     color = if (digits.isEmpty()) {
                         MaterialTheme.colorScheme.onSurfaceVariant
                     } else {
                         MaterialTheme.colorScheme.onBackground
                     },
-                    textAlign = TextAlign.Center,
                     maxLines = 1,
                     modifier = Modifier
                         .fillMaxWidth()

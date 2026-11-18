@@ -149,6 +149,7 @@ struct DialerSheet: View {
                 .padding(.top, 12 * scale)
                 .padding(.bottom, 2)
                 .monospacedDigit()
+                .phoneNumberCopyMenu(dialable)
 
             if dialable == nil && digits.filter(\.isNumber).count >= 10 {
                 Text(t("contactsTasks.dialableNumbersOnly"))

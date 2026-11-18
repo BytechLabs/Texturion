@@ -71,7 +71,7 @@ export function SimpleSelect({
   }
 
   function copyShortcut(event: KeyboardEvent, number?: string | null) {
-    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "c") copyOption(event, number);
+    if ((event.metaKey || event.ctrlKey) && (event.key === "c" || event.key === "C")) copyOption(event, number);
   }
 
   const select = (
