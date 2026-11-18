@@ -45,6 +45,7 @@ interface ExportRow {
   status: "pending" | "running" | "ready" | "failed";
   storage_prefix: string | null;
   stored_files?: Record<string, string> | null;
+  erasure_revoked_at?: string | null;
   row_counts: Record<string, number>;
   error: string | null;
   requested_at: string;
@@ -54,7 +55,7 @@ interface ExportRow {
 
 /** Every column the list and detail routes read. Named once so they cannot diverge. */
 const EXPORT_COLUMNS =
-  "id,kind,status,storage_prefix,stored_files,row_counts,error,requested_at,completed_at,expires_at";
+  "id,kind,status,storage_prefix,stored_files,row_counts,error,requested_at,completed_at,expires_at,erasure_revoked_at";
 
 /**
  * Who may COLLECT an export, decided per export.
@@ -361,8 +362,8 @@ function exportActions(
   row: ExportRow,
   role: MemberRole,
 ): { allowed_actions: readonly string[] } {
-  const expired =
-    row.expires_at !== null && new Date(row.expires_at).getTime() <= Date.now();
+  const expired = row.erasure_revoked_at != null ||
+    (row.expires_at !== null && new Date(row.expires_at).getTime() <= Date.now());
   return {
     allowed_actions: expired
       ? []

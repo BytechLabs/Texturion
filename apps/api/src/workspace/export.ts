@@ -567,6 +567,7 @@ export async function pruneExpiredExports(
     .lt("expires_at", now.toISOString())
     .in("status", ["ready", "failed"])
     .is("reaped_at", null)
+    .is("erasure_revoked_at", null)
     .not("storage_prefix", "is", null)
     .limit(REAP_BATCH);
   if (error) throw new Error(`expired export query failed: ${error.message}`);

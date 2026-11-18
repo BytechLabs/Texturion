@@ -134,6 +134,7 @@ const SUITES = [
   "export_claim_leases",
   "call_effect_counts",
   "workspace_export_media",
+  "customer_erasure_exports",
   "usage_window",
   "aup_enforcement",
   "abuse_intake",
