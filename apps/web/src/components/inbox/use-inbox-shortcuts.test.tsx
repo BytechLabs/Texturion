@@ -104,6 +104,8 @@ describe("inbox shortcuts", () => {
     expect(screen.getByRole("dialog")).toBeTruthy();
     expect(screen.getByText("Keyboard shortcuts")).toBeTruthy();
     expect(screen.getByText("Next conversation")).toBeTruthy();
+    expect(screen.getByText("Alt+T")).toBeTruthy();
+    expect(screen.getByText("Focus the notifications and Undo actions")).toBeTruthy();
   });
 
   it("does nothing when single-key shortcuts are turned off", () => {
