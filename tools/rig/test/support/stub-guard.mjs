@@ -70,28 +70,37 @@ export function startStubGuard({ port = 0, aiAnswer = () => ({ response: "stub" 
       response.end(JSON.stringify(json));
     };
     if (request.headers.authorization !== `Bearer ${STUB_TOKEN}`) {
-      return send(403, { error: "guard_refused", rule: "class.not_allowed" }, { [HEADER.refusedBy]: "stub-guard" });
+      send(403, { error: "guard_refused", rule: "class.not_allowed" }, { [HEADER.refusedBy]: "stub-guard" });
+      return;
     }
     const route = url.pathname.startsWith(EDGE_PATHS.guardPrefix) ? url.pathname.slice(EDGE_PATHS.guardPrefix.length) : null;
-    if (route === GUARD_ROUTES.partition && request.method === "GET") return send(200, stubPartition());
+    if (route === GUARD_ROUTES.partition && request.method === "GET") {
+      send(200, stubPartition());
+      return;
+    }
     if (route === GUARD_ROUTES.health && request.method === "GET") {
-      return send(200, {
+      send(200, {
         ok: true,
         balance_above_floor: true,
         room: 4,
         telnyx: { key: "present", safety: { state: "ok", reasons: [], checked_at: Date.now() } },
       });
+      return;
     }
     if (route?.startsWith(`${GUARD_ROUTES.ai}/run/`) && request.method === "POST") {
       const model = route.slice(`${GUARD_ROUTES.ai}/run/`.length);
-      return send(200, aiAnswer(model, JSON.parse(body || "{}")));
+      send(200, aiAnswer(model, JSON.parse(body || "{}")));
+      return;
     }
-    return send(404, { error: "not_found" });
+    send(404, { error: "not_found" });
+  });
+  const close = () => new Promise((resolve) => {
+    server.close(resolve);
   });
   return new Promise((resolve) => {
     server.listen(port, "127.0.0.1", () => {
       const { port: bound } = server.address();
-      resolve({ origin: `http://127.0.0.1:${bound}`, requests, close: () => new Promise((done) => server.close(done)) });
+      resolve({ origin: `http://127.0.0.1:${bound}`, requests, close });
     });
   });
 }

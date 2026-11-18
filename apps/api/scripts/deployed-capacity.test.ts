@@ -97,11 +97,11 @@ function realtimeInput(deadlineMs = 1_000): OpenRealtimeInput {
 }
 
 function deferred(): { promise: Promise<void>; resolve: () => void } {
-  let resolve!: () => void;
-  const promise = new Promise<void>((done) => {
-    resolve = done;
+  let release!: () => void;
+  const promise = new Promise<void>((resolve) => {
+    release = resolve;
   });
-  return { promise, resolve };
+  return { promise, resolve: release };
 }
 
 describe("deployed capacity target safety", () => {

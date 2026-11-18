@@ -107,7 +107,7 @@ describe("storeVoicemailRecording: fetching the recording", () => {
     vi.useFakeTimers();
     const hung: FetchRoute = (url, request) =>
       url.href === WEBHOOK_LINK
-        ? new Promise<Response>((_, reject) => {
+        ? new Promise<Response>((_resolve, reject) => {
             request.signal.addEventListener("abort", () => reject(request.signal.reason));
           })
         : undefined;

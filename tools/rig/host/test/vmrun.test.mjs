@@ -92,7 +92,14 @@ test("status comes from getGuestIPAddress without -wait", async () => {
   assert.equal(toolsDown.address, null);
   const { root, vmx } = rigRoot();
   const calls = [];
-  await vmControls({ vmx, root, exec: async (file, args) => (calls.push(args), { code: 0, stdout: "192.168.70.10" }) }).status();
+    await vmControls({
+      vmx,
+      root,
+      exec: async (_file, args) => {
+        calls.push(args);
+        return { code: 0, stdout: "192.168.70.10" };
+      },
+    }).status();
   assert.deepEqual(calls, [guestIpArgs(vmx, { wait: false })]);
 });
 

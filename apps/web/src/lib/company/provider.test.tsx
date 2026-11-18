@@ -63,13 +63,13 @@ const me: Me = {
 
 /** A promise this test settles by hand. */
 function deferred<T>() {
-  let resolve!: (value: T) => void;
-  let reject!: (error: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
+  let fulfill!: (value: T) => void;
+  let fail!: (error: unknown) => void;
+  const promise = new Promise<T>((resolve, reject) => {
+    fulfill = resolve;
+    fail = reject;
   });
-  return { promise, resolve, reject };
+  return { promise, resolve: fulfill, reject: fail };
 }
 
 function Shell() {

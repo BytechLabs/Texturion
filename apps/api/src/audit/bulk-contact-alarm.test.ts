@@ -236,7 +236,7 @@ describe("it cannot take the action down with it", () => {
     await expect(c.settled()).resolves.toBeUndefined();
   });
 
-  it("returns without waiting, so an export is never slower for it", () => {
+  it("returns without waiting, so an export is never slower for it", async () => {
     // The reason this is `waitUntil` and not `await`: a company read, two auth
     // lookups and a Resend call in front of the first byte of a CSV somebody is
     // waiting on.
@@ -244,13 +244,16 @@ describe("it cannot take the action down with it", () => {
     stubFetch(...w.routes);
     const c = ctx();
 
-    const result = alarmOnBulkContactAccess(c, env, getDb(env), {
+    const waitUntil = vi.spyOn(c.executionCtx, "waitUntil");
+    alarmOnBulkContactAccess(c, env, getDb(env), {
       companyId: COMPANY_ID,
       actorUserId: MEMBER_ID,
       event: "exported",
       count: 400,
     });
 
-    expect(result).toBeUndefined();
+    expect(waitUntil).toHaveBeenCalledOnce();
+    expect(w.emails).toHaveLength(0);
+    await c.settled();
   });
 });

@@ -34,16 +34,23 @@ export function robotServer(deps: RobotServerDeps): Server {
 }
 
 async function handle(deps: RobotServerDeps, request: IncomingMessage, response: ServerResponse): Promise<void> {
-  if (request.headers[ROBOT_TOKEN_HEADER] !== deps.token) return send(response, 401, { error: "unauthorized" });
+  if (request.headers[ROBOT_TOKEN_HEADER] !== deps.token) {
+    send(response, 401, { error: "unauthorized" });
+    return;
+  }
   const url = new URL(request.url ?? "/", "http://robot.local");
   const route = `${request.method} ${url.pathname}`;
 
-  if (route === "GET /health") return send(response, 200, { ok: true });
+  if (route === "GET /health") {
+    send(response, 200, { ok: true });
+    return;
+  }
 
   if (route === "POST /telnyx") {
     const body = parse(await read(request));
     if (!deps.inbox.handle(body)) deps.robot.handleEvent(body);
-    return send(response, 200, { ok: true });
+    send(response, 200, { ok: true });
+    return;
   }
 
   if (route === "POST /sink") {
@@ -52,20 +59,27 @@ async function handle(deps: RobotServerDeps, request: IncomingMessage, response:
       if (typeof value === "string" && name !== ROBOT_TOKEN_HEADER) headers[name] = value;
     }
     deps.sink.record(headers, await read(request));
-    return send(response, 200, { ok: true });
+    send(response, 200, { ok: true });
+    return;
   }
 
   if (route === "POST /calls/dial" || route === "POST /calls/expect") {
     const plan = parse(await read(request)) as CallPlan;
     const record = route.endsWith("dial") ? await deps.robot.dial(plan) : deps.robot.expect(plan);
-    return send(response, 200, record);
+    send(response, 200, record);
+    return;
   }
 
   const call = /^GET \/calls\/([\w-]+)$/.exec(route);
   if (call) {
     const waitMs = Math.min(Number(url.searchParams.get("wait_ms") ?? 0) || 0, MAX_WAIT_MS);
     const record = waitMs > 0 ? await deps.robot.wait(call[1]!, waitMs) : deps.robot.get(call[1]!);
-    return record ? send(response, 200, record) : send(response, 404, { error: "no such call" });
+    if (record) {
+      send(response, 200, record);
+    } else {
+      send(response, 404, { error: "no such call" });
+    }
+    return;
   }
 
   if (route === "POST /sms") {
@@ -77,33 +91,50 @@ async function handle(deps: RobotServerDeps, request: IncomingMessage, response:
       scenario?: unknown;
       media?: unknown;
     };
-    if (!isRobotRole(body.from_role)) return send(response, 400, { error: "from_role must be a robot line" });
+    if (!isRobotRole(body.from_role)) {
+      send(response, 400, { error: "from_role must be a robot line" });
+      return;
+    }
     if (typeof body.to_role !== "string" || typeof body.text !== "string" || body.text.length === 0) {
-      return send(response, 400, { error: "to_role and text are required" });
+      send(response, 400, { error: "to_role and text are required" });
+      return;
     }
     const from = deps.numbers.number(body.from_role);
     const to = deps.numbers.number(body.to_role);
-    if (!from || !to) return send(response, 400, { error: "unknown role" });
+    if (!from || !to) {
+      send(response, 400, { error: "unknown role" });
+      return;
+    }
     const context: RequestContext = {
       lease: typeof body.lease_id === "string" ? body.lease_id : undefined,
       scenario: typeof body.scenario === "string" ? body.scenario : undefined,
     };
-    if (body.media !== undefined && body.media !== "gps-jpeg") return send(response, 400, { error: "media must be gps-jpeg" });
+    if (body.media !== undefined && body.media !== "gps-jpeg") {
+      send(response, 400, { error: "media must be gps-jpeg" });
+      return;
+    }
     if (body.media === "gps-jpeg") {
-      if (!deps.probe?.media) return send(response, 400, { error: "this robot cannot host a picture" });
+      if (!deps.probe?.media) {
+        send(response, 400, { error: "this robot cannot host a picture" });
+        return;
+      }
       const picture = await deps.probe.media("gps-jpeg");
       const sent = await deps.telnyx.sendMessage({ from, to, text: body.text, media_urls: [picture.url] }, context);
-      return send(response, 200, { ...sent, media_sha256: picture.sha256 });
+      send(response, 200, { ...sent, media_sha256: picture.sha256 });
+      return;
     }
-    return send(response, 200, await deps.telnyx.sendMessage({ from, to, text: body.text }, context));
+    send(response, 200, await deps.telnyx.sendMessage({ from, to, text: body.text }, context));
+    return;
   }
 
   if (route === "GET /inbox") {
-    return send(response, 200, deps.inbox.list({ to_role: url.searchParams.get("to_role") ?? undefined, since: since(url) }));
+    send(response, 200, deps.inbox.list({ to_role: url.searchParams.get("to_role") ?? undefined, since: since(url) }));
+    return;
   }
 
   if (route === "GET /sink") {
-    return send(response, 200, deps.sink.list({ since: since(url), type: url.searchParams.get("type") ?? undefined }));
+    send(response, 200, deps.sink.list({ since: since(url), type: url.searchParams.get("type") ?? undefined }));
+    return;
   }
 
   send(response, 404, { error: "not found" });

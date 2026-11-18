@@ -51,7 +51,13 @@ class Waitable<T> {
     const existing = this.items.find(match);
     if (existing) return Promise.resolve(existing);
     return new Promise((resolve) => {
-      const waiter = { match, resolve: (item: T) => (clearTimeout(timer), resolve(item)) };
+      const waiter = {
+        match,
+        resolve(item: T) {
+          clearTimeout(timer);
+          resolve(item);
+        },
+      };
       const timer = setTimeout(() => {
         const index = this.#waiters.indexOf(waiter);
         if (index !== -1) this.#waiters.splice(index, 1);

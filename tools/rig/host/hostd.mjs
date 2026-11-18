@@ -131,7 +131,10 @@ async function serve({ contract, root, sdk, paths }) {
 
 async function vmCommand({ root, paths }, [action, snapshot]) {
   const vm = vmControls({ vmx: paths.vmx, root, exec: run });
-  if (action === "status") return console.log(JSON.stringify(await vm.status()));
+  if (action === "status") {
+    console.log(JSON.stringify(await vm.status()));
+    return;
+  }
   if (action === "start") return void (await vm.start());
   if (action === "stop") return void (await vm.stop());
   if (action === "revert") {
@@ -243,7 +246,8 @@ async function main(argv) {
       throw new Error("install-startup changes what runs at logon on this workstation; pass --yes once the owner has agreed");
     }
     const path = installStartup({ node: process.execPath, hostd: import.meta.filename, root });
-    return console.log(`hostd: wrote ${path}`);
+    console.log(`hostd: wrote ${path}`);
+    return;
   }
   throw new Error("hostd serve | vm status|start|stop|revert <snapshot> | devices list|boot|kill | doctor | install-startup --yes");
 }

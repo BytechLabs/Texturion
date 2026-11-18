@@ -60,7 +60,7 @@
     "vitest/expect-expect": ["off", { "assertFunctionNames": ["expect", "expect*", "assert*", "*.expect*"] }], // not yet clean: 8 (#822)
     // node:test awaits the promise test() returns; nothing else may be left floating.
     "typescript/no-floating-promises": ["error", { "allowForKnownSafeCalls": [{ "from": "package", "package": "node:test", "name": ["test", "describe", "it", "suite", "before", "after", "beforeEach", "afterEach"] }] }],
-    "typescript/no-confusing-void-expression": ["off", { "ignoreArrowShorthand": true }], // not yet clean: 42 (#822)
+    "typescript/no-confusing-void-expression": ["error", { "ignoreArrowShorthand": true }],
     "typescript/prefer-nullish-coalescing": ["off", { "ignorePrimitives": { "string": true, "number": true, "boolean": true, "bigint": true } }], // not yet clean: 1 (#822)
 
     // Contradicts a rule that stays on, or a platform this code runs on.
@@ -229,7 +229,6 @@
     "typescript/prefer-optional-chain": "off", // 25
     "unicorn/prefer-export-from": "off", // 25
     "react/no-array-index-key": "off", // 24
-    "promise/param-names": "off", // 23
     "unicorn/prefer-dom-node-dataset": "off", // 23
     "unicorn/prefer-string-raw": "off", // 22
     "eslint/no-useless-assignment": "off", // 21
@@ -242,7 +241,6 @@
     "typescript/no-unsafe-enum-comparison": "off", // 17
     "unicorn/no-useless-spread": "off", // 17
     "vitest/no-conditional-tests": "off", // 17
-    "eslint/no-sequences": "off", // 16
     "typescript/prefer-string-starts-ends-with": "off", // 16
     "unicorn/explicit-length-check": "off", // 16
     "eslint/no-loop-func": "off", // 15

@@ -126,7 +126,7 @@ function reminderRoutes(): FetchRoute[] {
  * after the row. Appended last, so a test that stubs them keeps its own answer.
  */
 function stubFetch(...routes: FetchRoute[]) {
-  return stubFetchBase(
+  stubFetchBase(
     ...routes,
     stubRoute(
       (url) => url.pathname.endsWith("/rest/v1/task_tags"),
