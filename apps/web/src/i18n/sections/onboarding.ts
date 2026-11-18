@@ -339,6 +339,8 @@ export const onboardingEn = {
   oauthFailed:
     "We couldn't finish signing you in with that provider. Try again, or use " +
     "your email and password below.",
+  verificationLinkFailed:
+    "This email link is invalid or has expired. Sign in below or ask for a new link.",
   continueWithGoogle: "Continue with Google",
   openingGoogle: "Opening Google…",
   or: "or",
@@ -600,6 +602,9 @@ export const onboardingEn = {
   whatsYourName: "What's your name?",
   nameForTeammates: "Your teammates will see this on messages, notes, and tasks.",
   inviteNamePlaceholder: "Alex Rivera",
+  inviteProfileTitle: "Finish setting up your account",
+  inviteChoosePassword: "Choose a password",
+  inviteProfileSaveFailed: "We couldn't save your account details. Please try again.",
   joining: "Joining…",
   joiningTeam: "Joining your team…",
   saveNameFailed: "Couldn't save your name. Try again.",
@@ -1018,6 +1023,8 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   oauthFailed:
     "Nous n'avons pas pu terminer votre connexion avec ce fournisseur. " +
     "Réessayez, ou utilisez votre courriel et votre mot de passe ci-dessous.",
+  verificationLinkFailed:
+    "Ce lien est invalide ou a expiré. Connectez-vous ci-dessous ou demandez un nouveau lien.",
   continueWithGoogle: "Continuer avec Google",
   openingGoogle: "Ouverture de Google…",
   or: "ou",
@@ -1232,6 +1239,9 @@ export const onboardingFr: Translated<typeof onboardingEn> = {
   nameForTeammates:
     "Vos coéquipiers le verront sur les messages, les notes et les tâches.",
   inviteNamePlaceholder: "Alex Rivard",
+  inviteProfileTitle: "Terminez la configuration de votre compte",
+  inviteChoosePassword: "Choisissez un mot de passe",
+  inviteProfileSaveFailed: "Impossible d'enregistrer vos renseignements. Réessayez.",
   joining: "Adhésion…",
   joiningTeam: "Adhésion à votre équipe…",
   saveNameFailed: "Impossible d'enregistrer votre nom. Réessayez.",

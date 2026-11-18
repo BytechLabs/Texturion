@@ -212,6 +212,12 @@ pasted in by hand:
    `#2740DE` button, plain-text fallback link below the button) and that the
    From name is **Loonext**.
 
+Deploy the web app with `/auth/confirm` before updating the hosted confirmation
+template. Set the Auth Site URL to the app origin. Open a new signup confirmation
+on a different browser and verify it opens the onboarding plan from the signup
+link. The API Worker sends workspace invites through Resend and uses the same
+route to verify new invitees.
+
 Template facts:
 
 - Each template uses only the variables Supabase provides for that type:

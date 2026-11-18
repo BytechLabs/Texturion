@@ -91,6 +91,14 @@ function authUser(overrides: Record<string, unknown> = {}) {
   };
 }
 
+function stubNewAuthInvite(sb: SupabaseStub) {
+  sb.on("POST", "/auth/v1/admin/generate_link", () => ({
+    ...authUser(),
+    hashed_token: "invite-hash-for-test",
+    verification_type: "invite",
+  }));
+}
+
 describe("GET /v1/members", () => {
   it("merges profiles into the member list for any member", async () => {
     const sb = stubWithRole("member");
@@ -178,19 +186,24 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(sb.find("POST", "/rest/v1/invites")).toHaveLength(0);
   });
 
-  it("creates the invite and sends the Supabase admin invite email (email_sent:true)", async () => {
+  it("sends one branded invite with the Supabase token hash and workspace language", async () => {
     const sb = stubWithRole("admin");
+    sb.on("GET", "/rest/v1/companies", () => [
+      { plan: "starter", name: "Pine Plumbing", locale: "fr-CA" },
+    ]);
+    sb.on("GET", "/rest/v1/profiles", () => [{ display_name: "Ana" }]);
     seatStub(sb, "starter", 2, 0);
     sb.on("POST", "/rest/v1/invites", (call) => [
       pendingInvite(call.body as Record<string, unknown>),
     ]);
-    sb.on("POST", "/auth/v1/invite", () => authUser());
-    stubFetch(jwksRoute(auth), sb.route);
+    stubNewAuthInvite(sb);
+    const resend = resendCapture();
+    stubFetch(jwksRoute(auth), sb.route, resend.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
       method: "POST",
       companyId: COMPANY_ID,
-      body: { email: "new@crew.example", role: "member" },
+      body: { email: "new@crew.example", role: "member", note: "Bienvenue <Ana>!" },
     });
     expect(res.status).toBe(201);
     // The email went out — the UI shows the plain "Invite sent" confirmation.
@@ -201,17 +214,31 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       company_id: COMPANY_ID,
       email: "new@crew.example",
       role: "member",
-      // #521: explicit null, not absent. An invite with no note is the
-      // ordinary case and must write the same row shape as one with a note.
-      note: null,
+      note: "Bienvenue <Ana>!",
       invited_by: auth.subject,
     });
-    const email = sb.find("POST", "/auth/v1/invite")[0];
-    expect(email.body).toMatchObject({ email: "new@crew.example" });
-    // The redirect carries the invite id the accept screen posts back.
-    expect(email.url.searchParams.get("redirect_to")).toBe(
-      `${env.APP_ORIGIN}/invites/accept?invite_id=${INVITE_ID}`,
-    );
+    const generated = sb.find("POST", "/auth/v1/admin/generate_link");
+    expect(generated.map((call) => call.body)).toEqual([
+      { type: "invite", email: "new@crew.example" },
+    ]);
+    expect(resend.calls).toHaveLength(1);
+    expect(resend.calls[0]).toMatchObject({
+      to: ["new@crew.example"],
+      subject: "Ana vous invite à rejoindre Pine Plumbing sur Loonext",
+      text: expect.stringContaining("Cette invitation expire après 7 jours."),
+      html: expect.stringContaining("Bienvenue &lt;Ana&gt;!"),
+    });
+    expect(resend.calls[0].html).toContain('<html lang="fr-CA">');
+    expect(resend.calls[0].text).toContain("Ce message de service concerne votre compte Loonext.");
+    const href = String(resend.calls[0].text).match(/https?:\/\/[^\s]+/)?.[0];
+    expect(href).toBeTruthy();
+    const link = new URL(href!);
+    expect(link.pathname).toBe("/auth/confirm");
+    expect(Object.fromEntries(link.searchParams)).toEqual({
+      token_hash: "invite-hash-for-test",
+      type: "invite",
+      next: `/invite/${INVITE_ID}`,
+    });
 
     // The pending-invite count only counted unexpired pending rows.
     const inviteCount = sb.find("HEAD", "/rest/v1/invites")[0];
@@ -226,8 +253,9 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     sb.on("POST", "/rest/v1/invites", (call) => [
       pendingInvite(call.body as Record<string, unknown>),
     ]);
-    sb.on("POST", "/auth/v1/invite", () => authUser());
-    stubFetch(jwksRoute(auth), sb.route);
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    stubNewAuthInvite(sb);
+    stubFetch(jwksRoute(auth), sb.route, resendCapture().route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
       method: "POST",
@@ -254,8 +282,9 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       sb.on("POST", "/rest/v1/invites", (call) => [
         pendingInvite(call.body as Record<string, unknown>),
       ]);
-      sb.on("POST", "/auth/v1/invite", () => authUser());
-      stubFetch(jwksRoute(auth), sb.route);
+      sb.on("GET", "/rest/v1/profiles", () => []);
+      stubNewAuthInvite(sb);
+      stubFetch(jwksRoute(auth), sb.route, resendCapture().route);
       const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
         method: "POST",
         companyId: COMPANY_ID,
@@ -307,7 +336,8 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     ]);
     seatStub(sb, "pro", 4, 0);
     sb.on("POST", "/rest/v1/invites", () => [pendingInvite()]);
-    sb.on("POST", "/auth/v1/invite", () =>
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    sb.on("POST", "/auth/v1/admin/generate_link", () =>
       Response.json(
         {
           code: 422,
@@ -351,7 +381,8 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     const sb = stubWithRole("owner");
     seatStub(sb, "pro", 4, 0);
     sb.on("POST", "/rest/v1/invites", () => [pendingInvite()]);
-    sb.on("POST", "/auth/v1/invite", () =>
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    sb.on("POST", "/auth/v1/admin/generate_link", () =>
       Response.json(
         { code: 422, error_code: "email_exists", msg: "already registered" },
         { status: 422 },
@@ -376,14 +407,10 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     const sb = stubWithRole("owner");
     seatStub(sb, "starter", 1, 0);
     sb.on("POST", "/rest/v1/invites", () => [pendingInvite()]);
-    sb.on("POST", "/auth/v1/invite", () =>
-      Response.json(
-        { code: 500, error_code: "unexpected_failure", msg: "smtp down" },
-        { status: 500 },
-      ),
-    );
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    stubNewAuthInvite(sb);
     sb.on("DELETE", "/rest/v1/invites", () => new Response(null, { status: 204 }));
-    stubFetch(jwksRoute(auth), sb.route);
+    stubFetch(jwksRoute(auth), sb.route, resendCapture(500).route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/invites", {
       method: "POST",

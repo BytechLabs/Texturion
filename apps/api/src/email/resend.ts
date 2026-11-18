@@ -1,4 +1,4 @@
-import { SUPPORT_EMAIL } from "@loonext/shared";
+import { SUPPORT_EMAIL, type Locale } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
@@ -11,6 +11,8 @@ export interface SendEmailInput {
   subject: string;
   html: string;
   text: string;
+  /** Language of the shared service footer. */
+  locale?: Locale;
   /**
    * Per-send Reply-To override (e.g. the contact form sets it to the
    * submitter so support can reply directly). When absent, the env-level
@@ -155,7 +157,7 @@ export async function sendEmail(
       //
       // Commercial mail is exempt: it carries its own compliance block and is
       // not a service message about an account the recipient does not have.
-      text: input.kind === "commercial" ? input.text : input.text + emailTextFooter(),
+      text: input.kind === "commercial" ? input.text : input.text + emailTextFooter(input.locale),
       reply_to: replyTo,
       ...(input.headers !== undefined ? { headers: input.headers } : {}),
     }),

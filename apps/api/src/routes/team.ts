@@ -11,12 +11,9 @@ import { ASSIGNABLE_ROLES } from "@loonext/shared";
  *   POST   /v1/invites         O/A — { email, role }; SEAT FORMULA enforced
  *          here AND at acceptance: active members (deactivated_at IS NULL) +
  *          pending unexpired invites ≤ plan seats, else 409. New addresses get
- *          the Supabase Auth admin invite email (Resend SMTP) with the invite
- *          id in the redirect; an address that ALREADY has an account gets a
- *          direct Resend email carrying the in-app accept link instead (#109 —
- *          Supabase emails nothing for existing users, and asking the inviter
- *          to hand-deliver a link was awful). `email_sent` is false only when
- *          the fallback send itself failed — the UI then offers Copy link.
+ *          a Resend email with a Supabase verification link. Existing users
+ *          receive the in-app accept link. If that send fails, `email_sent`
+ *          is false and the UI offers Copy link.
  *   DELETE /v1/invites/:id     O/A — revoke.
  *   GET    /v1/invites/mine    any (company-exempt) — the caller's own PENDING
  *          invites matched on their CONFIRMED email (citext, case-insensitive),
@@ -746,38 +743,37 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
   );
   const invite = inserted[0];
 
-  // Supabase Auth admin invite (Resend custom SMTP, SPEC §10). The redirect
-  // carries the invite id the accept screen posts back.
-  let emailSent = true;
-  const { error } = await db.auth.admin.inviteUserByEmail(body.email, {
-    redirectTo: `${env.APP_ORIGIN}/invites/accept?invite_id=${invite.id as string}`,
+  const inviteId = invite.id as string;
+  const { data: linkData, error } = await db.auth.admin.generateLink({
+    type: "invite",
+    email: body.email,
   });
-  if (error) {
-    const alreadyRegistered =
-      error.code === "email_exists" || error.status === 422;
-    if (!alreadyRegistered) {
-      // Roll the invite back so the seat is not held by an email that was
-      // never notified, then surface the failure.
-      expectOk(
-        await db.from("invites").delete().eq("id", invite.id),
-        "invite rollback",
-      );
-      throw new Error(`invite email failed: ${error.message}`);
+  const alreadyRegistered = error?.code === "email_exists" || error?.status === 422;
+  const tokenHash = linkData.properties?.hashed_token;
+  let emailSent = false;
+  if (alreadyRegistered || tokenHash) {
+    const acceptPath = `/invite/${inviteId}`;
+    const link = new URL(alreadyRegistered ? acceptPath : "/auth/confirm", env.APP_ORIGIN);
+    if (!alreadyRegistered && tokenHash) {
+      link.searchParams.set("token_hash", tokenHash);
+      link.searchParams.set("type", "invite");
+      link.searchParams.set("next", acceptPath);
     }
-    // #109: the address already has a Loonext account — GoTrue's
-    // inviteUserByEmail refuses those and emails NOTHING. Send the invite
-    // ourselves over Resend with the in-app accept link (the same /invite/:id
-    // page the Copy-link button shares), so the inviter never has to
-    // hand-deliver it. Only a failure of THIS send degrades to
-    // email_sent:false — the invite row stands either way, so Copy link
-    // always remains the fallback.
-    emailSent = await sendExistingAccountInvite(db, env, {
+    emailSent = await sendWorkspaceInvite(db, env, {
       email: body.email,
-      inviteId: invite.id as string,
+      inviteId,
       companyId,
+      link: link.href,
       note: body.note ?? null,
       invitedBy: c.get("userId"),
     });
+  }
+  if (!alreadyRegistered && !emailSent) {
+    expectOk(
+      await db.from("invites").delete().eq("company_id", companyId).eq("id", inviteId),
+      "invite rollback",
+    );
+    throw new Error("Invite email could not be sent.");
   }
 
   // #231: an invite is the front door — who opened it, for whom, at what role.
@@ -785,7 +781,7 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
     companyId,
     action: "member.invited",
     targetType: "invite",
-    targetId: invite.id as string,
+    targetId: inviteId,
     after: { email: body.email, role: body.role, email_sent: emailSent },
   });
 
@@ -801,83 +797,65 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
   return c.json({ ...invite, email_sent: emailSent }, 201);
 });
 
-/**
- * #109: the direct invite email for an address that already has a Loonext
- * account. Plain-language copy + the in-app accept link; returns whether it
- * landed. A failure is NOT fatal — the invite row stands and the UI offers
- * the Copy-link fallback, so the seat is never held silently.
- */
-async function sendExistingAccountInvite(
+async function sendWorkspaceInvite(
   db: Db,
   env: Env,
   args: {
     email: string;
     inviteId: string;
     companyId: string;
-    /** #521: the inviter's own words, or null when they left it blank. */
+    link: string;
     note: string | null;
-    /** Whose words they are, looked up below so the note reads as a person. */
     invitedBy: string;
   },
 ): Promise<boolean> {
   try {
-    const rows = unwrap<{ name: string | null }[]>(
-      await db
+    const [companies, profiles] = await Promise.all([
+      db
         .from("companies")
-        .select("name")
+        .select("name,locale")
         .eq("id", args.companyId)
         .limit(1),
-      "company name lookup",
-    );
-    const company = rows[0]?.name?.trim() || "a Loonext workspace";
-    const link = `${env.APP_ORIGIN}/invite/${args.inviteId}`;
-
-    // #521: the inviter's own words, ABOVE the link and attributed. Below it
-    // the reader has already decided whether to click, and an unattributed
-    // sentence in an invite email reads as more product copy — the whole point
-    // is that a person wrote this one. The name is looked up only when there is
-    // a note to sign, so an ordinary blank invite costs no extra read.
-    let note = "";
-    let noteHtml = "";
-    if (args.note) {
-      const inviter = unwrap<{ display_name: string | null }[]>(
-        await db
-          .from("profiles")
-          .select("display_name")
-          .eq("user_id", args.invitedBy)
-          .limit(1),
-        "inviter name lookup",
-      );
-      const from = inviter[0]?.display_name?.trim();
-      const said = from ? `${from} says` : "They said";
-      note = `${said}: "${args.note}"\n\n`;
-      noteHtml =
-        `<p style="border-left:3px solid #66801F;padding-left:12px;margin:16px 0;">` +
-        `${escapeHtml(said)}: ${escapeHtml(args.note)}</p>`;
-    }
-
-    const text =
-      `You've been invited to join ${company} on Loonext.\n\n${ 
-      note 
-      }You already have a Loonext account — log in and accept here:\n${link}\n\nThis invite expires in 7 days.\n`;
-    await sendEmail(env, {
+      db
+        .from("profiles")
+        .select("display_name")
+        .eq("user_id", args.invitedBy)
+        .limit(1),
+    ]);
+    const company = unwrap<{ name: string | null; locale: string }[]>(
+      companies,
+      "invite workspace lookup",
+    )[0];
+    const profile = unwrap<{ display_name: string | null }[]>(
+      profiles,
+      "inviter name lookup",
+    )[0];
+    const locale = company?.locale === "fr-CA" ? "fr-CA" : "en";
+    const french = locale === "fr-CA";
+    const companyName = company?.name?.trim().replace(/\s+/g, " ") ||
+      (french ? "un espace de travail" : "a Loonext workspace");
+    const inviter = profile?.display_name?.trim().replace(/\s+/g, " ");
+    const subject = french
+      ? `${inviter ? `${inviter} vous invite` : "Vous êtes invité"} à rejoindre ${companyName} sur Loonext`
+      : `${inviter ? `${inviter} invited you` : "You've been invited"} to join ${companyName} on Loonext`;
+    const action = french ? "Accepter l'invitation" : "Accept the invite";
+    const expiry = french ? "Cette invitation expire après 7 jours." : "This invite expires in 7 days.";
+    const noteHtml = args.note ? `<blockquote>${escapeHtml(args.note)}</blockquote>` : "";
+    const sent = await sendEmail(env, {
       to: [args.email],
-      subject: `You've been invited to join ${company} on Loonext`,
-      text,
+      subject,
+      locale,
+      text: [subject, args.note, `${action}\n${args.link}`, expiry].filter(Boolean).join("\n\n"),
       html: emailLayout(
-        `<p>You've been invited to join <strong>${escapeHtml(company)}</strong> on Loonext.</p>${ 
-          noteHtml 
-          }<p>You already have a Loonext account — log in and accept here:</p>` +
-          `<p><a href="${link}" style="color:#66801F;text-decoration:underline;">Accept the invite</a></p>` +
-          `<p style="font-size:14px;color:#6E7163;">This invite expires in 7 days.</p>`,
+        `<p>${escapeHtml(subject)}.</p>${noteHtml}` +
+          `<p><a href="${escapeHtml(args.link)}" style="color:#66801F;text-decoration:underline;">${escapeHtml(action)}</a></p>` +
+          `<p>${escapeHtml(expiry)}</p>`,
+        locale,
       ),
     });
-    return true;
-  } catch (error) {
-    // Never-silent (D3), but non-fatal: the invite stands, Copy link covers it.
-    console.error(
-      `existing-account invite email failed (${args.inviteId}): ${String(error)}`,
-    );
+    return sent.id !== null;
+  } catch {
+    console.error(`Team invite email failed (${args.inviteId}).`);
     return false;
   }
 }

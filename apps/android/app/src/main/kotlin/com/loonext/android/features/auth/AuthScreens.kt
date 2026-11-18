@@ -713,6 +713,11 @@ private fun LoginForm(
         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
         isPassword = true,
     )
+    FooterLink(
+        t("auth.joinedFromInvite"),
+        t("auth.setYourPassword"),
+        onClick = onForgot,
+    )
     ErrorLine(error)
     Spacer(Modifier.height(14.dp))
     InkPillButton(

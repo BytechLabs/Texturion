@@ -451,6 +451,10 @@ private struct LoginForm: View {
                 text: $password,
                 kind: .password
             )
+            LinkButton(
+                AppStrings.translate(appLocale, "shell.authInvitePassword"),
+                action: onForgot
+            )
             ErrorLine(error: model.error)
             PrimaryButton(
                 title: AppStrings.translate(

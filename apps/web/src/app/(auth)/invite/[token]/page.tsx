@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT, type Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
@@ -15,11 +16,12 @@ import { fetchMe, useUpdateDisplayName } from "@/lib/api/me";
 import { useAcceptInvite } from "@/lib/api/team";
 import { writeCompanyCookie } from "@/lib/company/cookie";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
+import { authErrorMessage } from "@/lib/auth/messages";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 type SessionState = "checking" | "authed" | "anonymous";
-/** Once authed: are we still checking the profile, asking for a name, or done. */
-type NameState = "checking" | "needs-name" | "ready";
+type ProfileState = "checking" | "form" | "ready" | "error";
+const MIN_PASSWORD_LENGTH = 8;
 
 function inviteErrorCopy(
   error: unknown,
@@ -74,15 +76,13 @@ export default function InviteAcceptPage() {
   const updateName = useUpdateDisplayName();
   const attempted = useRef(false);
   const [sessionState, setSessionState] = useState<SessionState>("checking");
-  // #112: an invitee must have a display name before joining — the team sees
-  // it everywhere (members list, avatars, notes). Existing accounts and
-  // invite-created ones can arrive with an empty profile name (they never pass
-  // through the signup form), so gate acceptance on it.
-  const [nameState, setNameState] = useState<NameState>("checking");
+  const [profileState, setProfileState] = useState<ProfileState>("checking");
+  const [profileRetry, setProfileRetry] = useState(0);
   const [name, setName] = useState("");
+  const [needsPassword, setNeedsPassword] = useState(false);
+  const [password, setPassword] = useState("");
+  const [saving, setSaving] = useState(false);
 
-  // Wait for the session — the invite link's tokens are consumed client-side
-  // just after load, so "no session yet" isn't "signed out" for a moment.
   useEffect(() => {
     const supabase = getSupabaseBrowser();
     let cancelled = false;
@@ -127,44 +127,60 @@ export default function InviteAcceptPage() {
     });
   });
 
-  // Authenticated → check the profile name. Has one → accept immediately;
-  // empty → ask for it (the form below), then accept.
   useEffect(() => {
     if (sessionState !== "authed") return;
     let cancelled = false;
     void fetchMe()
       .then((me) => {
         if (cancelled) return;
-        if (me.display_name.trim()) {
-          setNameState("ready");
+        const needsName = me.display_name.trim() === "";
+        const passwordRequired =
+          me.has_password === false ||
+          new URLSearchParams(window.location.search).get("setup") === "password";
+        if (!needsName && !passwordRequired) {
+          setProfileState("ready");
           acceptInvite.current();
         } else {
-          setNameState("needs-name");
+          setName(me.display_name);
+          setNeedsPassword(passwordRequired);
+          setProfileState("form");
         }
       })
       .catch(() => {
-        // /me is unreachable — don't strand the invitee: let them accept, and
-        // set a name later from the account sheet.
-        if (cancelled) return;
-        setNameState("ready");
-        acceptInvite.current();
+        if (!cancelled) setProfileState("error");
       });
     return () => {
       cancelled = true;
     };
-  }, [sessionState]);
+  }, [sessionState, profileRetry]);
 
-  function submitName(e: React.FormEvent) {
+  async function submitProfile(e: React.FormEvent) {
     e.preventDefault();
     const trimmed = name.trim();
-    if (trimmed === "") return;
-    updateName.mutate(trimmed, {
-      onSuccess: () => {
-        setNameState("ready");
-        acceptInvite.current();
-      },
-      onError: () => toast.error(t("onboarding.saveNameFailed")),
-    });
+    if (saving || !trimmed || (needsPassword && password.length < MIN_PASSWORD_LENGTH)) {
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateName.mutateAsync(trimmed);
+      if (needsPassword) {
+        const { error } = await getSupabaseBrowser().auth.updateUser({ password });
+        if (error) {
+          toast.error(authErrorMessage(error));
+          return;
+        }
+        setPassword("");
+        const inviteUrl = new URL(window.location.href);
+        inviteUrl.searchParams.delete("setup");
+        window.history.replaceState(window.history.state, "", inviteUrl);
+      }
+      setProfileState("ready");
+      acceptInvite.current();
+    } catch {
+      toast.error(t("onboarding.inviteProfileSaveFailed"));
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function signOutAndLogin() {
@@ -216,13 +232,31 @@ export default function InviteAcceptPage() {
     );
   }
 
-  // #112: authed but no profile name yet — collect it before joining.
-  if (sessionState === "authed" && nameState === "needs-name") {
+  if (profileState === "error") {
     return (
-      <form onSubmit={submitName} className="space-y-4">
+      <div className="space-y-4">
+        <p role="alert" className="text-sm text-destructive">
+          {t("onboarding.inviteErrorBody")}
+        </p>
+        <Button
+          className="w-full"
+          onClick={() => {
+            setProfileState("checking");
+            setProfileRetry((retry) => retry + 1);
+          }}
+        >
+          {t("common.retry")}
+        </Button>
+      </div>
+    );
+  }
+
+  if (profileState === "form") {
+    return (
+      <form method="post" onSubmit={submitProfile} className="space-y-4">
         <div className="space-y-1.5">
           <h1 className="text-2xl font-semibold tracking-tight">
-            {t("onboarding.whatsYourName")}
+            {t(needsPassword ? "onboarding.inviteProfileTitle" : "onboarding.whatsYourName")}
           </h1>
           <p className="text-sm text-muted-foreground">
             {t("onboarding.nameForTeammates")}
@@ -240,12 +274,29 @@ export default function InviteAcceptPage() {
             placeholder={t("onboarding.inviteNamePlaceholder")}
           />
         </div>
+        {needsPassword ? (
+          <div className="space-y-1.5">
+            <Label htmlFor="invite-password">{t("onboarding.inviteChoosePassword")}</Label>
+            <PasswordInput
+              id="invite-password"
+              autoComplete="new-password"
+              value={password}
+              onChange={(event) => setPassword(event.target.value)}
+              minLength={MIN_PASSWORD_LENGTH}
+              aria-describedby="invite-password-rule"
+              required
+            />
+            <p id="invite-password-rule" className="text-sm text-muted-foreground">
+              {t("onboarding.passwordTooShort")}
+            </p>
+          </div>
+        ) : null}
         <Button
           type="submit"
           className="w-full"
-          disabled={name.trim() === "" || updateName.isPending}
+          disabled={name.trim() === "" || saving}
         >
-          {updateName.isPending
+          {saving
             ? t("onboarding.joining")
             : t("onboarding.continue")}
         </Button>
