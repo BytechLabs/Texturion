@@ -201,8 +201,8 @@ export async function enableVoiceForCompany(
  */
 export function sanitizeCnamDisplayName(name: string): string | null {
   const cleaned = name
-    .replace(/[^A-Za-z0-9 ]+/g, " ")
-    .replace(/\s+/g, " ")
+    .replaceAll(/[^A-Za-z0-9 ]+/g, " ")
+    .replaceAll(/\s+/g, " ")
     .trim()
     .slice(0, 15)
     .trim();

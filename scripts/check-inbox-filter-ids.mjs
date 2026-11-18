@@ -62,7 +62,7 @@ const problems = [];
 for (const client of CLIENTS) {
   let source;
   try {
-    source = readFileSync(client.file, "utf8").replace(/\r\n/g, "\n");
+    source = readFileSync(client.file, "utf8").replaceAll(/\r\n/g, "\n");
   } catch {
     problems.push(`${client.label}: cannot read ${client.file}`);
     continue;

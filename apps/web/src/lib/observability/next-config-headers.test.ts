@@ -23,7 +23,7 @@ import { TOKEN_PATH_PREFIXES } from "./scrub";
 const CONFIG = readFileSync(
   join(__dirname, "../../../next.config.ts"),
   "utf8",
-).replace(/\r\n/g, "\n");
+).replaceAll(/\r\n/g, "\n");
 
 /** The declared list, parsed out of the config source. */
 function declaredUncacheablePrefixes(): string[] {
@@ -32,7 +32,7 @@ function declaredUncacheablePrefixes(): string[] {
     .not.toBeNull();
   return (match?.[1] ?? "")
     .split(",")
-    .map((raw) => raw.trim().replace(/^"|"$/g, ""))
+    .map((raw) => raw.trim().replaceAll(/^"|"$/g, ""))
     .filter((raw) => raw !== "");
 }
 

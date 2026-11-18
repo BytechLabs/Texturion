@@ -114,8 +114,8 @@ export function safeFilename(name: string): string {
   const base = name.split(/[\\/]/).pop() ?? name; // drop any directory parts
   const cleaned = base
     .trim()
-    .replace(/[^A-Za-z0-9._-]+/g, "_")
-    .replace(/^_+|_+$/g, "")
+    .replaceAll(/[^A-Za-z0-9._-]+/g, "_")
+    .replaceAll(/^_+|_+$/g, "")
     .slice(0, 120);
   return cleaned === "" ? "file" : cleaned;
 }

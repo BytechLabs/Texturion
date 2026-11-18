@@ -89,7 +89,7 @@ export function newPassword() {
 /** `KEY=value` from a .dev.vars text, commented lines included, or null. */
 export function devVar(text, key) {
   const match = new RegExp(`^#?\\s*${key}=(.*)$`, "m").exec(text);
-  return match ? match[1].trim().replace(/^["']|["']$/g, "") || null : null;
+  return match ? match[1].trim().replaceAll(/^["']|["']$/g, "") || null : null;
 }
 
 function devVarsCandidates(root) {

@@ -136,7 +136,7 @@ export function emailLayout(bodyHtml: string): string {
  * `&amp;` entities are carried into the href verbatim (a browser decodes them).
  */
 export function linkifyUrls(escapedHtml: string): string {
-  return escapedHtml.replace(
+  return escapedHtml.replaceAll(
     /(https?:\/\/[^\s<]+)/g,
     // #362/#238: #3A430F, not the #66801F wordmark olive. A link is 16px body
     // text, so it needs 4.5:1 — olive is 4.41:1 on this card and fails. The

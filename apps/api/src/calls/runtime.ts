@@ -380,7 +380,7 @@ const LINE_BUSY_WINDOW_MS = 4 * 60 * 60 * 1000;
 const CALLER_NAME_LOOKUP_MS = 1000;
 
 function sipCallerName(value: string | null | undefined): string | null {
-  const name = value?.replace(/[\p{Cc}\s]+/gu, " ").trim();
+  const name = value?.replaceAll(/[\p{Cc}\s]+/gu, " ").trim();
   return name ? Array.from(name).slice(0, 80).join("") : null;
 }
 

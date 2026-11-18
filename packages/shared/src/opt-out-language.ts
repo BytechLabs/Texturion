@@ -107,8 +107,8 @@ const CARRIER_KEYWORDS = new Set([
 function normalize(body: string): string {
   return body
     .toLowerCase()
-    .replace(/[^\p{L}\p{N}'\s]/gu, " ")
-    .replace(/\s+/g, " ")
+    .replaceAll(/[^\p{L}\p{N}'\s]/gu, " ")
+    .replaceAll(/\s+/g, " ")
     .trim();
 }
 

@@ -53,7 +53,7 @@ if (login) {
   // Next writes the build id into the page's RSC payload as "b". Inside the
   // HTML that payload is a JS string, so the quotes may be escaped.
   if (BUILD_ID) {
-    const escaped = BUILD_ID.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    const escaped = BUILD_ID.replaceAll(/[.*+?^${}()|[\]\\]/g, "\\$&");
     check(
       new RegExp(`\\\\?"b\\\\?":\\\\?"${escaped}\\\\?"`).test(html),
       `the login page carries build id ${BUILD_ID}`,

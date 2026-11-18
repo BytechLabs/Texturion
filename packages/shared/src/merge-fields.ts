@@ -98,7 +98,7 @@ function resolveToken(token: string, values: MergeFieldValues): string {
       // #274: one line, whatever the contact stored. Newlines are collapsed
       // because this lands mid-sentence ("on my way to {address}") and a
       // multi-line address there would break the message in two.
-      return (values.contactAddress ?? "").replace(/\s*\n+\s*/g, ", ").trim();
+      return (values.contactAddress ?? "").replaceAll(/\s*\n+\s*/g, ", ").trim();
     case "my_name":
       return firstName(values.senderName);
     case "our_number":
@@ -125,13 +125,13 @@ function tidyDroppedTokens(text: string): string {
   return (
     text
       // " ," / " ." / " !" etc. left by a dropped token before punctuation.
-      .replace(/[ \t]+([,.;:!?])/g, "$1")
+      .replaceAll(/[ \t]+([,.;:!?])/g, "$1")
       // Collapse runs of intra-line spaces/tabs to a single space.
-      .replace(/[ \t]{2,}/g, " ")
+      .replaceAll(/[ \t]{2,}/g, " ")
       // Trim trailing spaces/tabs at end of each line.
-      .replace(/[ \t]+$/gm, "")
+      .replaceAll(/[ \t]+$/gm, "")
       // Trim leading spaces/tabs at start of each line.
-      .replace(/^[ \t]+/gm, "")
+      .replaceAll(/^[ \t]+/gm, "")
   );
 }
 

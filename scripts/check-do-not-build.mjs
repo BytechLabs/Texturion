@@ -79,7 +79,7 @@ export function parseRefusals(markdown) {
     // worth matching. Without this the first item carries the label as a
     // prefix and matches nothing.
     for (const phrase of what.split(/[,:]/)) {
-      const cleaned = phrase.replace(/[`"]/g, "").trim().toLowerCase();
+      const cleaned = phrase.replaceAll(/[`"]/g, "").trim().toLowerCase();
       // One- and two-word fragments would match everything.
       if (cleaned.length < 4) continue;
       refusals.push({ phrase: cleaned, decidedBy });

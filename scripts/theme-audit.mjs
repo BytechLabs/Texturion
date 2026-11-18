@@ -665,8 +665,8 @@ const FOCUS_WALK = (maxStops) => {
 
         // The colour is whatever is left once the lengths and keywords are gone.
         const colour = layer
-          .replace(/\b-?[\d.]+(px|em|rem|%)\b/g, " ")
-          .replace(/\binset\b/g, " ")
+          .replaceAll(/\b-?[\d.]+(px|em|rem|%)\b/g, " ")
+          .replaceAll(/\binset\b/g, " ")
           .trim();
         const c = parse(colour);
         if (c && c.a > 0.05) colours.push(c);

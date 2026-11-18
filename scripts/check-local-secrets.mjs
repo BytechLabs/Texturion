@@ -96,11 +96,11 @@ export function unescaped(text) {
   let out = text;
   for (let pass = 0; pass < 2; pass += 1) {
     const next = out
-      .replace(/%([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-      .replace(/\\+u([0-9A-Fa-f]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-      .replace(/\\+x([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
-      .replace(/\\+[nrtbfv0]/g, " ")
-      .replace(/\\+([^A-Za-z0-9\s])/g, (_, char) => char);
+      .replaceAll(/%([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replaceAll(/\\+u([0-9A-Fa-f]{4})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replaceAll(/\\+x([0-9A-Fa-f]{2})/g, (_, hex) => String.fromCharCode(Number.parseInt(hex, 16)))
+      .replaceAll(/\\+[nrtbfv0]/g, " ")
+      .replaceAll(/\\+([^A-Za-z0-9\s])/g, (_, char) => char);
     if (next === out) break;
     out = next;
   }

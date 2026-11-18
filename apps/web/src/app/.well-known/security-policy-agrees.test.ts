@@ -44,7 +44,7 @@ const policy = readFileSync(join(REPO_ROOT, "SECURITY.md"), "utf8");
  * exactly what it is supposed to say. The sentence is the contract; the wrap is
  * formatting.
  */
-const prose = policy.replace(/\s+/g, " ");
+const prose = policy.replaceAll(/\s+/g, " ");
 
 /** The served file, parsed the way a researcher's tooling would read it. */
 async function served(): Promise<Map<string, string>> {

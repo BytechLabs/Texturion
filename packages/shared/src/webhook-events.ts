@@ -65,7 +65,7 @@ export const WEBHOOK_PING_EVENT = "ping";
  * and #548's lesson is that the second copy is the one that goes stale.
  */
 export function webhookEventLabelKey(type: WebhookEventType): string {
-  const camel = type.replace(/\.(\w)/g, (_, c: string) => c.toUpperCase());
+  const camel = type.replaceAll(/\.(\w)/g, (_, c: string) => c.toUpperCase());
   return `webhooks.event.${camel}`;
 }
 
@@ -305,7 +305,7 @@ export function isDeliverableWebhookUrl(raw: string): boolean {
 
 /** The catalogue key explaining a rejection to the person who typed it. */
 export function webhookUrlRejectionKey(reason: WebhookUrlRejection): string {
-  const camel = reason.replace(/-(\w)/g, (_, c: string) => c.toUpperCase());
+  const camel = reason.replaceAll(/-(\w)/g, (_, c: string) => c.toUpperCase());
   return `webhooks.urlError.${camel}`;
 }
 

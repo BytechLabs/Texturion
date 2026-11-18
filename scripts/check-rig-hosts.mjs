@@ -220,7 +220,7 @@ export function boxFindings(path, text) {
         if (gateway[1] !== GATEWAY) findings.problems.push(`${where}  defines the gateway as ${gateway[1]}, not VMnet8's ${GATEWAY}`);
         return;
       }
-      line = line.replace(IPV4_BLOCK, " ");
+      line = line.replaceAll(IPV4_BLOCK, " ");
     }
     judgeHosts(where, hostsInText(line), findings);
   });
@@ -233,7 +233,7 @@ export function templateFindings(path, text) {
   text.split(/\r?\n/).forEach((raw, index) => {
     const line = raw.trim();
     if (line === "" || line.startsWith("#")) return;
-    const hosts = hostsInText(line.replace(/(?:\{\{[^}]*\}\})+/g, STAND_IN))
+    const hosts = hostsInText(line.replaceAll(/(?:\{\{[^}]*\}\})+/g, STAND_IN))
       .filter((host) => host !== STAND_IN)
       .map((host) => host.split(STAND_IN).join("{{...}}"));
     judgeHosts(`${path}:${index + 1}`, hosts, findings);

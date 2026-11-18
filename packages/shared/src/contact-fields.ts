@@ -64,10 +64,10 @@ export function contactFieldKey(label: string): string | null {
   const key = label
     .trim()
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "_")
-    .replace(/^_+|_+$/g, "")
+    .replaceAll(/[^a-z0-9]+/g, "_")
+    .replaceAll(/^_+|_+$/g, "")
     .slice(0, 40)
-    .replace(/_+$/g, "");
+    .replaceAll(/_+$/g, "");
   // Must start with a letter: a key beginning with a digit is legal JSON and
   // an awkward column head, and the database refuses it anyway.
   if (!/^[a-z][a-z0-9_]*$/.test(key)) return null;

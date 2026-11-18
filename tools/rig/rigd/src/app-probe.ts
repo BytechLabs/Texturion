@@ -1532,7 +1532,7 @@ const PAID_STATUSES: ReadonlySet<string> = new Set(["active", "past_due", "unpai
 
 /** The fixture number's provisioning key for a run. */
 export function signUpNumberKey(nonce: string): string {
-  const slug = nonce.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "run";
+  const slug = nonce.toLowerCase().replaceAll(/[^a-z0-9-]+/g, "-").replaceAll(/^-+|-+$/g, "") || "run";
   return `${SIGN_UP_NUMBER_PREFIX}s32-${slug}`;
 }
 

@@ -76,7 +76,7 @@ export const RATING_ASK_BODY =
  * it and be pleased.
  */
 export function parseRatingReply(body: string): number | null {
-  const trimmed = body.trim().replace(/[.!,;:]+$/g, "").trim();
+  const trimmed = body.trim().replaceAll(/[.!,;:]+$/g, "").trim();
   const match = /^([1-5])(\s*\/\s*5)?$/.exec(trimmed);
   return match ? Number(match[1]) : null;
 }

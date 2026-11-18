@@ -1182,7 +1182,7 @@ export function contactSearchOr(rawQ: string, t9 = false): string {
     `custom_values.ilike.*${q}*`,
   ];
   if (!t9) terms.push(`address.ilike.*${q}*`, `notes.ilike.*${q}*`);
-  const digits = rawQ.replace(/\D/g, "");
+  const digits = rawQ.replaceAll(/\D/g, "");
   if (digits.length >= 3 && digits !== q) {
     terms.push(`phone_e164.ilike.*${digits}*`);
   }
@@ -1328,7 +1328,7 @@ contactsRoutes.get("/contacts", requireCapability("conversations.read"), async (
    * round trip.
    */
   let merged = rows;
-  const searchDigits = rawQ?.replace(/\D/g, "") ?? "";
+  const searchDigits = rawQ?.replaceAll(/\D/g, "") ?? "";
   if (rawQ && searchDigits.length >= 3) {
     let byOtherNumber = db
       .from("contacts")

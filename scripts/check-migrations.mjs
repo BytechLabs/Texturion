@@ -80,8 +80,8 @@ const RULES = [
 /** Strip comments so a rule can't fire on prose describing the change. */
 function stripComments(sql) {
   return sql
-    .replace(/\/\*[\s\S]*?\*\//g, " ")
-    .replace(/--[^\n]*/g, " ");
+    .replaceAll(/\/\*[\s\S]*?\*\//g, " ")
+    .replaceAll(/--[^\n]*/g, " ");
 }
 
 /**
@@ -106,7 +106,7 @@ function stripComments(sql) {
  * thought about this".
  */
 function stripPrivilegeStatements(sql) {
-  return sql.replace(
+  return sql.replaceAll(
     /\b(?:grant|revoke)\b[\s\S]*?;/gi,
     " ",
   );

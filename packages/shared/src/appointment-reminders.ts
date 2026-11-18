@@ -145,7 +145,7 @@ export function isAppointmentConfirmation(body: string): boolean {
     // Trailing punctuation only. Stripping INNER punctuation would fold
     // "c'mon over" into "CMONOVER" — harmless — but also turn "no, c" into
     // something this could match, and "no" is the opposite answer.
-    .replace(/[.!,;:'"]+$/g, "")
+    .replaceAll(/[.!,;:'"]+$/g, "")
     .trim();
   return APPOINTMENT_CONFIRM_KEYWORDS.includes(word);
 }

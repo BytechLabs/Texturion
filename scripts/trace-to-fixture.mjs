@@ -223,7 +223,7 @@ export function createScrubber() {
     return stand(`id:${key}`, value, (n) =>
       /^\d+$/.test(value)
         ? `9${String(n).padStart(Math.max(value.length - 1, 1), "0")}`
-        : `fixture-${key.replace(/_/g, "-")}-${n}`,
+        : `fixture-${key.replaceAll(/_/g, "-")}-${n}`,
     );
   }
 
@@ -240,8 +240,8 @@ export function createScrubber() {
   /** The renumbering every string gets, whatever field it is in. */
   function scrubString(text) {
     return text
-      .replace(URL_PATTERN, (url) => urlFor(url))
-      .replace(SIP_URI, (whole, user, host) => {
+      .replaceAll(URL_PATTERN, (url) => urlFor(url))
+      .replaceAll(SIP_URI, (whole, user, host) => {
         const scheme = whole.slice(0, whole.indexOf(":"));
         const plus = user.startsWith("+") ? "+" : "";
         const number = renumberBare(user.slice(plus.length));
@@ -249,16 +249,16 @@ export function createScrubber() {
         const nextHost = host.toLowerCase() === TELNYX_SIP_DOMAIN ? host : sipHostFor(host);
         return `${scheme}:${nextUser}@${nextHost}`;
       })
-      .replace(UUID, (uuid) => uuidFor(uuid))
-      .replace(CALL_CONTROL_ID, (id) => callControlIdFor(id))
-      .replace(E164, (whole, prefix, digits, offset, text) =>
+      .replaceAll(UUID, (uuid) => uuidFor(uuid))
+      .replaceAll(CALL_CONTROL_ID, (id) => callControlIdFor(id))
+      .replaceAll(E164, (whole, prefix, digits, offset, text) =>
         standsAlone(text, offset) ? `${prefix}${renumberDigits(digits)}` : whole,
       )
-      .replace(WRITTEN, (whole, area, exchange, line) => {
+      .replaceAll(WRITTEN, (whole, area, exchange, line) => {
         const fictional = renumberDigits(`1${area}${exchange}${line}`).slice(1);
         return `${fictional.slice(0, 3)}-${fictional.slice(3, 6)}-${fictional.slice(6)}`;
       })
-      .replace(IPV4, (ip) => (DOCUMENTATION_IPV4.test(ip) ? ip : ipFor(ip)));
+      .replaceAll(IPV4, (ip) => (DOCUMENTATION_IPV4.test(ip) ? ip : ipFor(ip)));
   }
 
   function scrubClientState(key, value) {

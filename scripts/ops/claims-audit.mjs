@@ -61,7 +61,7 @@ function claimsIn(source) {
     // Strip JSX and quoting noise so the claim itself is readable.
     const cleaned = line
       .replace(/^[a-zA-Z_]+:\s*/, "")
-      .replace(/^["'`]|["'`],?$/g, "")
+      .replaceAll(/^["'`]|["'`],?$/g, "")
       .trim();
     if (cleaned.length > 12) found.push(cleaned);
   }

@@ -35,13 +35,13 @@ const EMAIL_REDACTED = "[email redacted]";
 const NAME_REDACTED = "[name redacted]";
 
 export function redactPhones(text: string): string {
-  return text.replace(UUID_OR_PHONE, (_match, uuid?: string) =>
+  return text.replaceAll(UUID_OR_PHONE, (_match, uuid?: string) =>
     uuid ?? PHONE_REDACTED,
   );
 }
 
 export function redactEmails(text: string): string {
-  return text.replace(EMAIL_PATTERN, EMAIL_REDACTED);
+  return text.replaceAll(EMAIL_PATTERN, EMAIL_REDACTED);
 }
 
 /**
@@ -64,7 +64,7 @@ const TOKEN_SEGMENT_PATTERN = new RegExp(
 
 /** `/photos/<256 bits of secret>` → `/photos/[token]`. */
 export function redactTokenPaths(text: string): string {
-  return text.replace(TOKEN_SEGMENT_PATTERN, `/$1/${TOKEN_REDACTED}`);
+  return text.replaceAll(TOKEN_SEGMENT_PATTERN, `/$1/${TOKEN_REDACTED}`);
 }
 
 /**

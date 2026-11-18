@@ -192,7 +192,7 @@ function scanZip(bytes: Uint8Array): ScanResult {
   let compressed = 0;
   let uncompressed = 0;
   for (const entry of entries) {
-    const name = entry.name.replace(/\\/g, "/");
+    const name = entry.name.replaceAll(/\\/g, "/");
     const lower = name.toLowerCase();
 
     // Zip-slip: an entry that escapes the extraction directory. There is no

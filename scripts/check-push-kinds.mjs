@@ -45,12 +45,12 @@ const ROUTED_BEFORE_THE_SWITCH = new Set(["call", "call_end"]);
 /** Strip comments so a quoted string inside prose is not read as a constant. */
 function stripComments(source) {
   return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^\s*\/\/\/?.*$/gm, "");
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^\s*\/\/\/?.*$/gm, "");
 }
 
 function read(file) {
-  return stripComments(readFileSync(file, "utf8").replace(/\r\n/g, "\n"));
+  return stripComments(readFileSync(file, "utf8").replaceAll(/\r\n/g, "\n"));
 }
 
 /** `object X { const val NAME = "value" }` → [[NAME, value], …]. */

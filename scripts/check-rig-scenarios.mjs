@@ -73,7 +73,7 @@ export function expandIds(text) {
 
 /** The lines of one `### <number>` section of a Markdown document. */
 export function sectionLines(markdown, number) {
-  const lines = markdown.replace(/\r\n/g, "\n").split("\n");
+  const lines = markdown.replaceAll(/\r\n/g, "\n").split("\n");
   const start = lines.findIndex((line) => line.startsWith(`### ${number} `));
   if (start === -1) return null;
   const rest = lines.slice(start + 1);
@@ -144,7 +144,7 @@ export function capsFromDoc(markdown, s41) {
   return { caps, problems };
 }
 
-export const normalLabel = (text) => text.toLowerCase().replace(/-/g, " ").replace(/\s+/g, " ").trim();
+export const normalLabel = (text) => text.toLowerCase().replaceAll(/-/g, " ").replaceAll(/\s+/g, " ").trim();
 
 /**
  * The variants a row names, when it names them: a "; ... variants" tail in the

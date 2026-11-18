@@ -483,6 +483,6 @@ function matchMember(members: QuickAddMember[], query: string): QuickAddMember |
   if (exactFirst.length === 1) return exactFirst[0];
   const starts = members.filter((m) => lowerName(m).split(/\s+/).some((part) => part.startsWith(q)));
   if (starts.length === 1) return starts[0];
-  const whole = members.filter((m) => lowerName(m).replace(/\s+/g, "").startsWith(q));
+  const whole = members.filter((m) => lowerName(m).replaceAll(/\s+/g, "").startsWith(q));
   return whole.length === 1 ? whole[0] : null;
 }

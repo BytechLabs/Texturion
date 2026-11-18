@@ -97,7 +97,7 @@ function BusinessHoursCard({
     <SettingsCard id="business-hours"
       title={t("appShell.hoursTitle")}
       description={t("appShell.hoursDescription", {
-        timezone: company.timezone.replace(/_/g, " "),
+        timezone: company.timezone.replaceAll(/_/g, " "),
       })}
       footer={
         canEdit ? (

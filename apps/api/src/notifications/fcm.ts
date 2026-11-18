@@ -114,8 +114,8 @@ function parseServiceAccount(raw: string): ServiceAccount {
 /** PEM PKCS#8 → DER bytes (strip armor + whitespace, standard base64 decode). */
 function pemToPkcs8(pem: string): Uint8Array {
   const base64 = pem
-    .replace(/-----(?:BEGIN|END) PRIVATE KEY-----/g, "")
-    .replace(/\s+/g, "");
+    .replaceAll(/-----(?:BEGIN|END) PRIVATE KEY-----/g, "")
+    .replaceAll(/\s+/g, "");
   let binary: string;
   try {
     binary = atob(base64);

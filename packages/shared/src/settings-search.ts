@@ -377,9 +377,9 @@ export interface SettingsSearchResult {
 export function normalizeSettingsQuery(value: string): string {
   return value
     .normalize("NFD")
-    .replace(/[̀-ͯ]/g, "")
+    .replaceAll(/[̀-ͯ]/g, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replaceAll(/[^a-z0-9]+/g, " ")
     .trim();
 }
 
@@ -417,8 +417,8 @@ function phraseMatches(query: string, phrase: string): boolean {
     return true;
   }
   // "timezone" typed for "time zone", and the other way round.
-  const joined = query.replace(/ /g, "");
-  return joined.length >= 3 && phrase.replace(/ /g, "").startsWith(joined);
+  const joined = query.replaceAll(/ /g, "");
+  return joined.length >= 3 && phrase.replaceAll(/ /g, "").startsWith(joined);
 }
 
 /**

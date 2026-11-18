@@ -531,7 +531,7 @@ function unscopedSites(): Site[] {
     while ((match = re.exec(src)) !== null) {
       const table = match[1];
       if (!TENANT_TABLES.has(table)) continue;
-      const statement = statementAt(src, match.index).replace(/\s+/g, " ");
+      const statement = statementAt(src, match.index).replaceAll(/\s+/g, " ");
       if (SCOPING_CALL.test(statement)) continue;
       const applicable = NULLABLE_SCOPE.has(table)
         ? RULES.filter((rule) => rule.name !== "insert-under-a-not-null-scope")

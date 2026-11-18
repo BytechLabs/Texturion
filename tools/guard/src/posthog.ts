@@ -21,7 +21,7 @@ const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 /** No phone number or email address leaves in a notice's text (D8). */
 export function scrubText(text: string): string {
-  return text.replace(EMAIL, "[email redacted]").replace(PHONE, "[phone redacted]");
+  return text.replaceAll(EMAIL, "[email redacted]").replaceAll(PHONE, "[phone redacted]");
 }
 
 /** The `$exception` body PostHog groups into one issue per key. */

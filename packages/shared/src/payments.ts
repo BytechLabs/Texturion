@@ -367,6 +367,6 @@ export function payoutRequirementCopy(requirement: string): PayoutRequirementCop
   const known = PAYOUT_REQUIREMENT_KEYS[requirement as keyof typeof PAYOUT_REQUIREMENT_KEYS];
   if (known) return { key: known, literal: null };
   const cleaned = requirement.replace(/^(individual|company|representative)\./, "");
-  const words = cleaned.replace(/[._]/g, " ").trim();
+  const words = cleaned.replaceAll(/[._]/g, " ").trim();
   return { key: null, literal: words.charAt(0).toUpperCase() + words.slice(1) };
 }

@@ -110,7 +110,7 @@ export type WidgetStartBody = z.infer<typeof startSchema>;
  * send gates refuse anything else anyway.
  */
 export function normaliseVisitorNumber(raw: string): string | null {
-  const digits = raw.replace(/[^\d+]/g, "");
+  const digits = raw.replaceAll(/[^\d+]/g, "");
   const bare = digits.startsWith("+") ? digits.slice(1) : digits;
   if (!/^\d+$/.test(bare)) return null;
   if (bare.length === 10) return `+1${bare}`;

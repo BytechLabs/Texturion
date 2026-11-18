@@ -376,7 +376,7 @@ function deriveAll({ root, sha, layout, settings, store, status, partition, endp
       path: join(layout.aiShimDir, "wrangler.jsonc"),
       content: `${JSON.stringify(
         aiShimConfig({
-          main: join(TOOLING_ROOT, "tools", "rig", "ai-shim", "src", "index.mjs").replace(/\\/g, "/"),
+          main: join(TOOLING_ROOT, "tools", "rig", "ai-shim", "src", "index.mjs").replaceAll(/\\/g, "/"),
           compatibilityDate: apiConfig.compatibility_date,
           guardAiUrl: seams(edge).guardAiUrl,
         }),

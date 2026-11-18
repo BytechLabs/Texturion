@@ -206,7 +206,7 @@ async function main() {
   const names = Object.keys(expected);
 
   console.log(`target         ${base}`);
-  console.log(`expectations   ${SOURCE.replace(/\\/g, "/")}`);
+  console.log(`expectations   ${SOURCE.replaceAll(/\\/g, "/")}`);
   console.log("");
 
   const problems = [];

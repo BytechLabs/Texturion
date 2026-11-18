@@ -63,9 +63,9 @@ const BARREL = `${SRC}/index.ts`;
  */
 function stripComments(source) {
   return source
-    .replace(/\r\n/g, "\n")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ \t]*(\/\/|\*).*$/gm, "");
+    .replaceAll(/\r\n/g, "\n")
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^[ \t]*(\/\/|\*).*$/gm, "");
 }
 
 /**
@@ -141,9 +141,9 @@ function internalAt(raw, _stripped, name) {
     `^export\\s+(?:declare\\s+)?(?:abstract\\s+)?(?:async\\s+)?(?:const|let|var|function\\s*\\*?|class|type|interface|enum)\\s+${name}\\b`,
     "m",
   );
-  const at = raw.replace(/\r\n/g, "\n").search(declaration);
+  const at = raw.replaceAll(/\r\n/g, "\n").search(declaration);
   if (at === -1) return false;
-  const before = raw.replace(/\r\n/g, "\n").slice(0, at);
+  const before = raw.replaceAll(/\r\n/g, "\n").slice(0, at);
   const closes = before.lastIndexOf("*/");
   if (closes === -1) return false;
   // Nothing but whitespace between the comment and the declaration, or it belongs to

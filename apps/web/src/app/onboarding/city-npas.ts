@@ -270,9 +270,9 @@ export interface CityNpaEntry {
 export function normalizePlaceSearch(value: string): string {
   return value
     .normalize("NFD")
-    .replace(/\p{Diacritic}/gu, "")
+    .replaceAll(/\p{Diacritic}/gu, "")
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, " ")
+    .replaceAll(/[^a-z0-9]+/g, " ")
     .trim();
 }
 

@@ -222,7 +222,7 @@ for (const file of swiftFiles(CATALOGUE)) {
     const side = match[1] === "En" ? "en" : "fr";
     // Fold Swift's leading-plus concatenation so a sentence split across lines
     // is measured whole — otherwise every long string looks token-free.
-    const body = match[2].replace(/"\s*\+\s*"/g, "");
+    const body = match[2].replaceAll(/"\s*\+\s*"/g, "");
     /*
      * The value pattern must survive an ESCAPED QUOTE. `settings.callerIdConfirm`
      * is `"Update your caller ID to \"{name}\"?"` — a naive `"[^"]*"` stops at

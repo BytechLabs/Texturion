@@ -208,7 +208,7 @@ export default function PortCarrierPage() {
                 id="ssn-last4"
                 value={ssnSinLast4}
                 onChange={(e) =>
-                  setSsnSinLast4(e.target.value.replace(/\D/g, "").slice(0, 4))
+                  setSsnSinLast4(e.target.value.replaceAll(/\D/g, "").slice(0, 4))
                 }
                 placeholder="1234"
                 inputMode="numeric"

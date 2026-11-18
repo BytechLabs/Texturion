@@ -64,7 +64,7 @@ function productionDsn() {
     }
     const read = (key) => {
       const match = new RegExp(`^#?\\s*${key}=(.*)$`, "m").exec(raw);
-      return match ? match[1].trim().replace(/^["']|["']$/g, "") : null;
+      return match ? match[1].trim().replaceAll(/^["']|["']$/g, "") : null;
     };
     ref = ref || read("SUPABASE_PROJECT_REF");
     password = password || read("SUPABASE_DB_PASSWORD");

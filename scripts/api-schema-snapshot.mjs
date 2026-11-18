@@ -115,7 +115,7 @@ if (mode === "--write") {
   writeFileSync(OUT, next);
   console.log(`wrote ${OUT}`);
 } else {
-  const current = readFileSync(OUT, "utf8").replace(/\r\n/g, "\n");
+  const current = readFileSync(OUT, "utf8").replaceAll(/\r\n/g, "\n");
   if (current !== next) {
     console.error(
       `${OUT} is stale: the database built from supabase/migrations differs from it.\n` +

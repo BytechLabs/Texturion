@@ -137,22 +137,22 @@ function decodeNumericHtmlEntity(value: number): string {
 function graphBodyText(body: GraphEvent["body"]): string {
   const content = body?.content ?? "";
   if (body?.contentType !== "html") return normalizeCalendarText(content);
-  const withoutActiveContent = content.replace(
+  const withoutActiveContent = content.replaceAll(
     /<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,
     "",
   );
   const withoutTags = withoutActiveContent
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(?:p|div|li|h[1-6])\s*>/gi, "\n")
-    .replace(/<[^>]*>/g, "");
+    .replaceAll(/<br\s*\/?>/gi, "\n")
+    .replaceAll(/<\/(?:p|div|li|h[1-6])\s*>/gi, "\n")
+    .replaceAll(/<[^>]*>/g, "");
   const decoded = withoutTags
-    .replace(/&#(\d+);/g, (_match, decimal: string) =>
+    .replaceAll(/&#(\d+);/g, (_match, decimal: string) =>
       decodeNumericHtmlEntity(Number(decimal)),
     )
-    .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) =>
+    .replaceAll(/&#x([0-9a-f]+);/gi, (_match, hex: string) =>
       decodeNumericHtmlEntity(Number.parseInt(hex, 16)),
     )
-    .replace(/&(amp|lt|gt|quot|apos|nbsp);/gi, (_match, name: string) => ({
+    .replaceAll(/&(amp|lt|gt|quot|apos|nbsp);/gi, (_match, name: string) => ({
       amp: "&",
       lt: "<",
       gt: ">",
@@ -209,11 +209,11 @@ function assertGraphCursor(value: string): string {
 
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replaceAll(/&/g, "&amp;")
+    .replaceAll(/</g, "&lt;")
+    .replaceAll(/>/g, "&gt;")
+    .replaceAll(/"/g, "&quot;")
+    .replaceAll(/'/g, "&#39;");
 }
 
 function annotatedBody(input: AnnotateCalendarEventInput): {

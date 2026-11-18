@@ -287,7 +287,7 @@ export function resolveUiLocale(
  */
 export function normalizeDeviceLocale(tag: string | null | undefined): Locale | null {
   if (typeof tag !== "string") return null;
-  const primary = tag.replace(/_/g, "-").split("-")[0]?.toLowerCase();
+  const primary = tag.replaceAll(/_/g, "-").split("-")[0]?.toLowerCase();
   if (primary === "fr") return "fr-CA";
   if (primary === "en") return "en";
   return null;

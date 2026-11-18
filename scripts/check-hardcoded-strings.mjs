@@ -605,8 +605,8 @@ export function findWebLiterals(source, path = "") {
   const found = [];
   // Strip comments so prose ABOUT the UI is not counted as UI.
   const code = source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ \t]*\/\/.*$/gm, "");
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^[ \t]*\/\/.*$/gm, "");
 
   /*
    * 1. JSX text: between a `>` that closes a tag and the next `<`.
@@ -658,7 +658,7 @@ export function findWebLiterals(source, path = "") {
      * reading what the guard still had not noticed.
      */
     for (const fragment of match[2].split(/\{[^{}]*\}/)) {
-      const text = fragment.replace(/\s+/g, " ");
+      const text = fragment.replaceAll(/\s+/g, " ");
       /*
        * A STRAY BRACE means the split did not do its job.
        *
@@ -740,8 +740,8 @@ export function findWebLiterals(source, path = "") {
    * here — that site is its own deliverable.
    */
   for (const match of code.matchAll(/`((?:[^`\\]|\\.)*)`/g)) {
-    const raw = match[1].replace(/\s+/g, " ").trim();
-    const stripped = raw.replace(/\$\{[^{}]*\}/g, " ").replace(/\s+/g, " ").trim();
+    const raw = match[1].replaceAll(/\s+/g, " ").trim();
+    const stripped = raw.replaceAll(/\$\{[^{}]*\}/g, " ").replaceAll(/\s+/g, " ").trim();
     if (BILINGUAL_PAIR_ENGLISH.has(raw) || BILINGUAL_PAIR_ENGLISH.has(stripped)) continue;
     /*
      * Judged on the STRIPPED text, reported RAW.
@@ -824,8 +824,8 @@ function isSentenceLiteral(value) {
  */
 function isOnlyInterpolation(text) {
   const bare = text
-    .replace(/\\\([^)]*\)/g, "")
-    .replace(/\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*/g, "");
+    .replaceAll(/\\\([^)]*\)/g, "")
+    .replaceAll(/\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*/g, "");
   return !/[A-Za-z]/.test(bare);
 }
 
@@ -850,8 +850,8 @@ function isDateFormatPattern(text) {
 /** Comments stripped, so prose ABOUT the UI is never counted as UI. */
 function stripComments(source) {
   return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ 	]*\/\/\/?.*$/gm, "");
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^[ 	]*\/\/\/?.*$/gm, "");
 }
 
 /**

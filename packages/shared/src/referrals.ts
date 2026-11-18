@@ -64,7 +64,7 @@ export const REFERRAL_REWARDS_PER_YEAR = 12;
  * and the honest answer is to say so rather than to guess.
  */
 export function normalizeReferralCode(raw: string): string {
-  return raw.trim().toUpperCase().replace(/[^A-Z0-9]/g, "");
+  return raw.trim().toUpperCase().replaceAll(/[^A-Z0-9]/g, "");
 }
 
 /** True when a string is shaped like one of our codes. */

@@ -106,15 +106,15 @@ const RECORD_SIZE = 4096; // single-record payloads are far below this
 const JWT_TTL_SECONDS = 12 * 60 * 60; // RFC 8292 caps `exp` at 24 h
 
 export function decodeBase64Url(value: string): Uint8Array {
-  const padded = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = value.replaceAll(/-/g, "+").replaceAll(/_/g, "/");
   const binary = atob(padded + "=".repeat((4 - (padded.length % 4)) % 4));
   return Uint8Array.from(binary, (char) => char.charCodeAt(0));
 }
 
 export function encodeBase64Url(bytes: Uint8Array): string {
   return btoa(String.fromCharCode(...bytes))
-    .replace(/\+/g, "-")
-    .replace(/\//g, "_")
+    .replaceAll(/\+/g, "-")
+    .replaceAll(/\//g, "_")
     .replace(/=+$/, "");
 }
 

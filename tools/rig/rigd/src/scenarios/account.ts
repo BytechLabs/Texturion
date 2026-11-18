@@ -78,7 +78,7 @@ const is2xx = (status: number) => status >= 200 && status < 300;
 
 /** A nonce as an address or tag allows it: lower case, letters, digits and dashes. */
 function slug(nonce: string): string {
-  return nonce.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "run";
+  return nonce.toLowerCase().replaceAll(/[^a-z0-9-]+/g, "-").replaceAll(/^-+|-+$/g, "") || "run";
 }
 
 /** S22: a picture each way. Out, Telnyx fetched the app's own copy; in, the app stored it without its GPS position. */

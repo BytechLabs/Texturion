@@ -160,7 +160,7 @@ function postgresTier(value) {
  * `.dev.vars` source, whose active lines are local by this repo's convention.
  */
 export function classify(name, value, { commented = false, devVars = false, context = {} } = {}) {
-  const raw = typeof value === "string" ? value.trim().replace(/^["']|["']$/g, "") : "";
+  const raw = typeof value === "string" ? value.trim().replaceAll(/^["']|["']$/g, "") : "";
   const localLine = devVars && !commented;
   if (PLACEHOLDER.test(raw)) return { tier: "none", reason: "empty or a placeholder" };
   if (PUBLISHED_LOCAL_KEYS.has(raw)) return { tier: "nonprod", reason: "the Supabase CLI's published local key" };

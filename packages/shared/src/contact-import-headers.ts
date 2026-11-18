@@ -24,7 +24,7 @@ export type ContactImportField =
 
 /** Case, spaces, and punctuation are noise: "Phone Number" → "phonenumber". */
 export function normalizeContactHeader(header: string): string {
-  return header.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return header.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
 }
 
 /**

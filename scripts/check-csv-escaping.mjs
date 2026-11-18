@@ -160,7 +160,7 @@ const problems = [];
 
 for (const file of sources(ROOT)) {
   if (file === SHARED_CSV_MODULE) continue;
-  const source = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+  const source = readFileSync(file, "utf8").replaceAll(/\r\n/g, "\n");
   if (!MENTIONS_CSV.test(source)) continue;
 
   const imported = sharedImports(source);
@@ -226,7 +226,7 @@ for (const file of sources(ROOT)) {
  * before it happens.
  */
 {
-  const shared = readFileSync(SHARED_CSV_MODULE, "utf8").replace(/\r\n/g, "\n");
+  const shared = readFileSync(SHARED_CSV_MODULE, "utf8").replaceAll(/\r\n/g, "\n");
   const body = /export function serializeCsv\(([\s\S]*?)\n}/.exec(shared);
   if (body === null) {
     problems.push(
@@ -276,9 +276,9 @@ for (const file of sources(ROOT)) {
   for (const file of sources(ROOT)) {
     if (file === SHARED_CSV_MODULE) continue;
     const code = readFileSync(file, "utf8")
-      .replace(/\r\n/g, "\n")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/^[ \t]*\/\/.*$/gm, "");
+      .replaceAll(/\r\n/g, "\n")
+      .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+      .replaceAll(/^[ \t]*\/\/.*$/gm, "");
     if (/\bserializeCsv\s*\(/.test(code)) callers.push(file);
   }
   if (callers.length > 0) {
@@ -293,7 +293,7 @@ for (const file of sources(ROOT)) {
     );
   }
 
-  const shared = readFileSync(SHARED_CSV_MODULE, "utf8").replace(/\r\n/g, "\n");
+  const shared = readFileSync(SHARED_CSV_MODULE, "utf8").replaceAll(/\r\n/g, "\n");
   if (!/0xef,\s*0xbb,\s*0xbf/i.test(shared)) {
     problems.push(
       `${SHARED_CSV_MODULE} no longer writes the UTF-8 byte-order mark (#587). ` +

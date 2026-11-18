@@ -229,7 +229,7 @@ export function keysetFilter(timestampColumn: string, cursor: Cursor): string {
  * backslash-escapes the SQL LIKE metacharacters.
  */
 export function escapeLike(q: string): string {
-  return q.replace(/\*/g, "").replace(/[\\%_]/g, "\\$&");
+  return q.replaceAll(/\*/g, "").replaceAll(/[\\%_]/g, "\\$&");
 }
 
 /**
@@ -242,7 +242,7 @@ export function escapeLike(q: string): string {
 export function orIlikeValue(q: string): string {
   // Includes `*` — PostgREST's URL-level ilike wildcard (maps to `%`) — so a
   // user `*` can't over-match through the `name.ilike.*<q>*` filter.
-  return q.replace(/["\\%_(),*]/g, "");
+  return q.replaceAll(/["\\%_(),*]/g, "");
 }
 
 /**

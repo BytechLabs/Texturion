@@ -18,7 +18,7 @@
 const SPAM_LIKELY = "spam_likely";
 
 function isSpamLikelyWord(value: string): boolean {
-  return value.trim().toLowerCase().replace(/[\s-]+/g, "_") === SPAM_LIKELY;
+  return value.trim().toLowerCase().replaceAll(/[\s-]+/g, "_") === SPAM_LIKELY;
 }
 
 function resultSaysSpamLikely(result: string): boolean {

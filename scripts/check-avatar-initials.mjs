@@ -84,9 +84,9 @@ function sources(dir) {
 /** Comments are prose. Explaining the rule must not count as declaring it. */
 function stripComments(source) {
   return source
-    .replace(/\r\n/g, "\n")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ \t]*(\/\/|\*|\/\/\/).*$/gm, "");
+    .replaceAll(/\r\n/g, "\n")
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^[ \t]*(\/\/|\*|\/\/\/).*$/gm, "");
 }
 
 const problems = [];

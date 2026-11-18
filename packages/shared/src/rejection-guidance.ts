@@ -130,7 +130,7 @@ export type RejectionMessageKey =
  *   "Rejected (ref 88213): EIN"  ->  " rejected ref 88213 ein "
  */
 function normalise(reason: string): string {
-  return ` ${reason.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `;
+  return ` ${reason.toLowerCase().replaceAll(/[^a-z0-9]+/g, " ").trim()} `;
 }
 
 /**

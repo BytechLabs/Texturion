@@ -466,8 +466,8 @@ function cnamChangePending(submittedAt: string | null): boolean {
 /** Client mirror of the server's company-name sanitizer (telnyx/voice.ts). */
 function cnamFromCompanyName(name: string): string {
   return name
-    .replace(/[^A-Za-z0-9 ]+/g, " ")
-    .replace(/\s+/g, " ")
+    .replaceAll(/[^A-Za-z0-9 ]+/g, " ")
+    .replaceAll(/\s+/g, " ")
     .trim()
     .slice(0, 15)
     .trim();

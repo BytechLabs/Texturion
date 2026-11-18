@@ -55,7 +55,7 @@ export function stripKotlinComments(text) {
     } else if (c === "/" && next === "*") {
       const end = text.indexOf("*/", i + 2);
       const stop = end === -1 ? text.length : end + 2;
-      out += text.slice(i, stop).replace(/[^\n]/g, " ");
+      out += text.slice(i, stop).replaceAll(/[^\n]/g, " ");
       i = stop - 1;
     } else {
       out += c;

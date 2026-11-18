@@ -156,7 +156,7 @@ function blankFunctionBodies(sql) {
       const body = out.slice(open + delimiter.length, close);
       out =
         out.slice(0, open + delimiter.length) +
-        body.replace(/[^\n]/g, " ") +
+        body.replaceAll(/[^\n]/g, " ") +
         out.slice(close);
     }
     tag.lastIndex = close + delimiter.length;

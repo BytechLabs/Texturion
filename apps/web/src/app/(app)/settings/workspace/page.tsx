@@ -336,12 +336,12 @@ function TimezoneCard({ company }: { company: CompanyView }) {
             disabled={update.isPending}
           />
         ) : (
-          <p className="text-sm">{timezone.replace(/_/g, " ")}</p>
+          <p className="text-sm">{timezone.replaceAll(/_/g, " ")}</p>
         )}
         <p className="text-xs text-muted-foreground">
           {t("appShell.workspaceLocalTimeNote", {
             time: localTime,
-            timezone: timezone.replace(/_/g, " "),
+            timezone: timezone.replaceAll(/_/g, " "),
           })}
         </p>
         {!canEdit && (

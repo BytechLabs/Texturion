@@ -24,10 +24,10 @@ const CRLF = "\r\n";
  */
 export function icsEscape(value: string): string {
   return value
-    .replace(/\\/g, "\\\\")
-    .replace(/;/g, "\\;")
-    .replace(/,/g, "\\,")
-    .replace(/\r\n|\r|\n/g, "\\n");
+    .replaceAll(/\\/g, "\\\\")
+    .replaceAll(/;/g, "\\;")
+    .replaceAll(/,/g, "\\,")
+    .replaceAll(/\r\n|\r|\n/g, "\\n");
 }
 
 /**

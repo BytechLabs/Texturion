@@ -223,7 +223,7 @@ export class LeaseClient {
   }
 
   #path(leaseId: string, suffix?: string): string {
-    const safe = leaseId.replace(/[^A-Za-z0-9_-]/g, "_");
+    const safe = leaseId.replaceAll(/[^A-Za-z0-9_-]/g, "_");
     return join(this.#dir, suffix ? `${safe}.${suffix}.json` : `${safe}.json`);
   }
 
