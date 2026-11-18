@@ -46,5 +46,5 @@ export function callLooksSpam(
   callerName?: string | null,
 ): boolean {
   if (screeningResult && resultSaysSpamLikely(screeningResult)) return true;
-  return !!callerName && isSpamLikelyWord(callerName);
+  return Boolean(callerName && isSpamLikelyWord(callerName));
 }

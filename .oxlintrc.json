@@ -42,7 +42,7 @@
     "eslint/func-style": ["off", "declaration", { "allowArrowFunctions": true }], // not yet clean: 1 (#822)
     "eslint/one-var": ["error", "never"],
     "eslint/eqeqeq": ["error", "always", { "null": "ignore" }],
-    "eslint/no-plusplus": ["off", { "allowForLoopAfterthoughts": true }], // not yet clean: 66 (#822)
+    "eslint/no-plusplus": ["error", { "allowForLoopAfterthoughts": true }],
         "eslint/no-use-before-define": ["off", { "functions": false, "classes": true, "variables": false, "typedefs": false }], // not yet clean: 12 (#822)
     "eslint/sort-imports": ["off", { "ignoreCase": true, "ignoreDeclarationSort": true }], // not yet clean: 112 (#822)
     "eslint/new-cap": ["error", { "capIsNew": false }],
@@ -262,7 +262,6 @@
     "typescript/no-unnecessary-type-parameters": "off", // 11
     "typescript/return-await": "off", // 11
     "unicorn/prefer-number-coercion": "off", // 11
-    "unicorn/prefer-number-properties": "off", // 11
     "eslint/func-names": "off", // 10
     "typescript/no-redundant-type-constituents": "off", // 10
     "typescript/no-unnecessary-boolean-literal-compare": "off", // 10
@@ -278,7 +277,6 @@
     "typescript/no-implied-eval": "off", // 8
     "typescript/no-unnecessary-template-expression": "off", // 8
     "typescript/prefer-readonly": "off", // 8
-    "unicorn/new-for-builtins": "off", // 8
     "unicorn/prefer-add-event-listener": "off", // 8
     "unicorn/prefer-single-call": "off", // 8
     "vitest/prefer-expect-type-of": "off", // 8
@@ -298,7 +296,6 @@
     "vitest/prefer-to-contain": "off", // 6
     "eslint/logical-assignment-operators": "off", // 5
     "eslint/no-empty": "off", // 5
-    "eslint/no-implicit-coercion": "off", // 5
     "eslint/no-param-reassign": "off", // 5
     "eslint/prefer-arrow-callback": "off", // 5
     "import/no-named-as-default": "off", // 5
@@ -355,7 +352,6 @@
     "react/no-deriving-state-in-effects": "off", // 2
     "typescript/no-import-type-side-effects": "off", // 2
     "unicorn/no-document-cookie": "off", // 2
-    "unicorn/prefer-math-trunc": "off", // 2
     "unicorn/prefer-native-coercion-functions": "off", // 2
     "unicorn/require-array-join-separator": "off", // 2
     "eslint/accessor-pairs": "off", // 1

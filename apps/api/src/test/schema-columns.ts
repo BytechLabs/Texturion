@@ -46,8 +46,8 @@ function splitTopLevel(text: string): string[] {
   let start = 0;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (ch === "(") depth++;
-    else if (ch === ")") depth--;
+    if (ch === "(") depth += 1;
+    else if (ch === ")") depth -= 1;
     else if (ch === "," && depth === 0) {
       parts.push(text.slice(start, i));
       start = i + 1;

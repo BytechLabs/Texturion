@@ -71,20 +71,17 @@ export function tiffWithGps(options: { little?: boolean } = {}): {
 export function jpegWithExif(tiff: Uint8Array): { bytes: Uint8Array; tiffAt: number } {
   const header = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]; // "Exif\0\0"
   const length = 2 + header.length + tiff.length;
-  const bytes = new Uint8Array(2 + 2 + 2 + header.length + tiff.length + 2);
-  let at = 0;
-  bytes[at++] = 0xff;
-  bytes[at++] = 0xd8; // SOI
-  bytes[at++] = 0xff;
-  bytes[at++] = 0xe1; // APP1
-  bytes[at++] = (length >> 8) & 0xff;
-  bytes[at++] = length & 0xff;
-  for (const byte of header) bytes[at++] = byte;
-  const tiffAt = at;
-  bytes.set(tiff, at);
-  at += tiff.length;
-  bytes[at++] = 0xff;
-  bytes[at++] = 0xd9; // EOI
+  const jpegHeader = [
+    0xFF, 0xD8, // SOI
+    0xFF, 0xE1, // APP1
+    (length >> 8) & 0xFF, length & 0xFF,
+    ...header,
+  ];
+  const tiffAt = jpegHeader.length;
+  const bytes = new Uint8Array(tiffAt + tiff.length + 2);
+  bytes.set(jpegHeader);
+  bytes.set(tiff, tiffAt);
+  bytes.set([0xFF, 0xD9], tiffAt + tiff.length); // EOI
   return { bytes, tiffAt };
 }
 

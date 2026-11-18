@@ -233,7 +233,10 @@ function closing(code, open) {
     if (ch === '"') {
       for (i += 1; i < code.length && code[i] !== '"'; i++) if (code[i] === "\\") i += 1;
     } else if (ch === code[open]) depth += 1;
-    else if (ch === pair && --depth === 0) return i;
+    else if (ch === pair) {
+      depth -= 1;
+      if (depth === 0) return i;
+    }
   }
   return code.length;
 }

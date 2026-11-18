@@ -131,7 +131,7 @@ function timeQuery(label, sql) {
          limit 1;
       `).split("\n").pop(),
     );
-    runs.push(Number.isFinite(ms) ? ms : NaN);
+    runs.push(Number.isFinite(ms) ? ms : Number.NaN);
   }
   const best = Math.min(...runs.filter(Number.isFinite));
   return { label, ms: Number.isFinite(best) ? best : null, runs };

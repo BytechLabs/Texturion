@@ -161,7 +161,7 @@ export class Uplink {
     const initial = this.#o.initialBackoffMs ?? 1_000;
     const max = this.#o.maxBackoffMs ?? 60_000;
     const ceiling = Math.min(max, initial * 2 ** this.#attempt);
-    this.#attempt++;
+    this.#attempt += 1;
     // Full jitter, never under the initial delay: a fleet of one still should not hammer.
     const wait = Math.max(initial, Math.round((this.#o.random ?? Math.random)() * ceiling));
     this.#log(`uplink lost; reconnecting in ${wait} ms`);

@@ -63,14 +63,16 @@ function woff2Axes(file: string): Axis[] {
   const base128 = () => {
     let value = 0;
     for (;;) {
-      const byte = bytes[at++];
+      const byte = bytes[at];
+      at += 1;
       value = value * 128 + (byte & 0x7F);
       if (!(byte & 0x80)) return value;
     }
   };
   const tables: { tag: string; length: number }[] = [];
   for (let i = 0; i < numTables; i++) {
-    const flags = bytes[at++];
+    const flags = bytes[at];
+    at += 1;
     let tag = KNOWN_TAGS[flags & 0x3F];
     if ((flags & 0x3F) === 0x3F) {
       tag = bytes.toString("latin1", at, at + 4);
@@ -148,8 +150,11 @@ function classScopes(text: string): [number, number][] {
   const balanced = (start: number, open: string, close: string): number => {
     let depth = 0;
     for (let i = start; i < text.length; i++) {
-      if (text[i] === open) depth++;
-      else if (text[i] === close && --depth === 0) return i + 1;
+      if (text[i] === open) depth += 1;
+      else if (text[i] === close) {
+        depth -= 1;
+        if (depth === 0) return i + 1;
+      }
     }
     return text.length;
   };

@@ -228,7 +228,10 @@ describe("Doze and battery saver on an emulator", () => {
     const exec: Exec = async (file, args) => {
       const line = [file, ...args].join(" ");
       calls.push(line);
-      return line.endsWith("step deep") ? `Stepped to deep: ${states[step++]}\n` : "";
+      if (!line.endsWith("step deep")) return "";
+      const state = states[step];
+      step += 1;
+      return `Stepped to deep: ${state}\n`;
     };
     const adb = new Adb({ serial: SERIAL, exec, portCheck: tunnelUp });
     await expect(adb.stepDeepIdle()).resolves.toEqual(states.slice(0, 7));
@@ -253,7 +256,12 @@ describe("Doze and battery saver on an emulator", () => {
       pkg: PKG,
       pin: () => undefined,
       apks: { current: "", previous: "" },
-      exec: async (_file, args) => (args.at(-1) === "deep" && args.includes("step") ? `Stepped to deep: ${states[step++]}` : ""),
+      exec: async (_file, args) => {
+        if (args.at(-1) !== "deep" || !args.includes("step")) return "";
+        const state = states[step];
+        step += 1;
+        return `Stepped to deep: ${state}`;
+      },
       portCheck: tunnelUp,
     });
     await expect(android.stepDoze()).resolves.toEqual(states);
@@ -311,8 +319,14 @@ describe("the device driver's commands (no device has run them)", () => {
     let notes = 0;
     const exec: Exec = async (_file, args) => {
       const line = args.join(" ");
-      if (line.includes("dumpsys telecom")) return ++polls >= 3 ? `Call: {state: RINGING, connectionService: ${PKG}}` : "";
-      if (line.includes("dumpsys notification")) return ++notes >= 4 ? `  NotificationRecord(0x2: pkg=${PKG})\n    fullscreenIntent=PendingIntent{x}` : "";
+      if (line.includes("dumpsys telecom")) {
+        polls += 1;
+        return polls >= 3 ? `Call: {state: RINGING, connectionService: ${PKG}}` : "";
+      }
+      if (line.includes("dumpsys notification")) {
+        notes += 1;
+        return notes >= 4 ? `  NotificationRecord(0x2: pkg=${PKG})\n    fullscreenIntent=PendingIntent{x}` : "";
+      }
       return "";
     };
     let now = 0;

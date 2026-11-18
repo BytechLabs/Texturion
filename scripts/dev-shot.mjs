@@ -58,17 +58,21 @@ let fresh = false;
 
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
+  const nextArg = () => {
+    i += 1;
+    return args[i];
+  };
   if (a === "--mobile") mobile = true;
   else if (a === "--dark") dark = true;
   else if (a === "--full") fullPage = true;
   else if (a === "--fresh") fresh = true;
-  else if (a === "--click") clicks.push(args[++i]);
-  else if (a === "--fill") fills.push([args[++i], args[++i]]);
-  else if (a === "--hover") hover = args[++i];
-  else if (a === "--el") element = args[++i];
-  else if (a === "--wait") settle = Number(args[++i]);
-  else if (a === "--out") outDir = args[++i];
-  else if (a === "--base") base = args[++i];
+  else if (a === "--click") clicks.push(nextArg());
+  else if (a === "--fill") fills.push([nextArg(), nextArg()]);
+  else if (a === "--hover") hover = nextArg();
+  else if (a === "--el") element = nextArg();
+  else if (a === "--wait") settle = Number(nextArg());
+  else if (a === "--out") outDir = nextArg();
+  else if (a === "--base") base = nextArg();
   else paths.push(a);
 }
 

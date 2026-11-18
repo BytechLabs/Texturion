@@ -72,7 +72,10 @@ function wakeWorld(scenario: string) {
   const dial = robot.dial.bind(robot);
   robot.dial = async (plan: CallPlan) => {
     const lane = LANES[plan.to ?? ""];
-    if (lane) wake(lane.tenant, lane.member, `call-${++sessions}`, script.callStages);
+    if (lane) {
+      sessions += 1;
+      wake(lane.tenant, lane.member, `call-${sessions}`, script.callStages);
+    }
     return dial(plan);
   };
   app.simulateIncoming = async (args?: unknown) => {
@@ -1022,7 +1025,7 @@ describe("D11, unattended recovery", () => {
     const world = recoveryWorld();
     let calls = 0;
     world.rig.health = async () => {
-      calls++;
+      calls += 1;
       if (calls === 1) throw new Error("rig health exited 1");
       return world.rig.report;
     };
@@ -1040,7 +1043,10 @@ describe("D11, unattended recovery", () => {
   it("fails a device lane that health calls green but adb cannot see, and unlocks one its restart left locked", async () => {
     const lost = recoveryWorld();
     let seen = 0;
-    lost.pixel.reachable = async () => ++seen <= 1;
+    lost.pixel.reachable = async () => {
+      seen += 1;
+      return seen <= 1;
+    };
     await expect(D11.run(lost.ctx)).resolves.toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel") });
     expect(lost.simulated).toEqual([]);
 

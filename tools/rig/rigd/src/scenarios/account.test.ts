@@ -474,7 +474,10 @@ describe("S28, number buy, bind and ring", () => {
 
     const touched = s28World();
     let reads = 0;
-    touched.guard.partition = async () => ({ owned: 9, standing: reads++ === 0 ? 8 : 7, messaging_profiles: 5 });
+    touched.guard.partition = async () => {
+      reads += 1;
+      return { owned: 9, standing: reads === 1 ? 8 : 7, messaging_profiles: 5 };
+    };
     await expect(S28.run(touched.ctx)).resolves.toMatchObject({ failure_class: "standing_number_touched", critical: true });
   });
 
@@ -485,7 +488,7 @@ describe("S28, number buy, bind and ring", () => {
       let reads = 0;
       world.guard.health = async () => {
         const body = await health();
-        reads++;
+        reads += 1;
         return reads > 1 && reads <= 1 + pendingReads ? { ...body, ordering: { enabled: false, blockers: ["first_order_unverified"] } } : body;
       };
     };
@@ -724,7 +727,10 @@ describe("S29, cancel, grace, release and billing", () => {
   it("calls a standing number touched by grace critical", async () => {
     const world = s29World();
     let reads = 0;
-    world.guard.partition = async () => ({ owned: 8, standing: reads++ === 0 ? 8 : 7, messaging_profiles: 5 });
+    world.guard.partition = async () => {
+      reads += 1;
+      return { owned: 8, standing: reads === 1 ? 8 : 7, messaging_profiles: 5 };
+    };
     await expect(S29.run(world.ctx)).resolves.toMatchObject({ failure_class: "standing_number_touched", critical: true });
   });
 
@@ -872,7 +878,10 @@ describe("S31, Lou's drafts and the AI cap", () => {
     const limited = s31World();
     const draft = limited.app.replySuggestions;
     let calls = 0;
-    limited.app.replySuggestions = async () => (calls++ === 0 ? draft() : drafts([], "rate_limited"));
+    limited.app.replySuggestions = async () => {
+      calls += 1;
+      return calls === 1 ? draft() : drafts([], "rate_limited");
+    };
     await expect(S31.run(limited.ctx)).resolves.toMatchObject({ outcome: "infra", component: "reply-suggestions" });
   });
 });
@@ -1195,7 +1204,10 @@ describe("S34, emails", () => {
     world.app.mailAccounts.clear();
     const mailpit = world.mail.mailpit.bind(world.mail);
     let looks = 0;
-    world.mail.mailpit = async (args) => (++looks === 1 ? [] : mailpit(args));
+    world.mail.mailpit = async (args) => {
+      looks += 1;
+      return looks === 1 ? [] : mailpit(args);
+    };
     await expect(S34.run(world.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: "invite_sent_by_auth" });
     expect(looks).toBeGreaterThan(1);
   });

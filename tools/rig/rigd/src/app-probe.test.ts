@@ -662,7 +662,10 @@ describe("the app probe's workspaces", () => {
       [`GET ${SUPABASE}/auth/v1/admin/users`]: () => json({ users: [{ id: SIGN_UP_USER, email: owner }] }),
       [`GET ${rest("companies")}`]: () => json([company]),
       [`GET ${rest("phone_numbers")}`]: () => json([]),
-      [`POST ${rest("phone_numbers")}`]: () => (posts++ === 0 ? json({ code: "23505" }, 409) : json([{ id: "fixture-1" }], 201)),
+      [`POST ${rest("phone_numbers")}`]: () => {
+        posts += 1;
+        return posts === 1 ? json({ code: "23505" }, 409) : json([{ id: "fixture-1" }], 201);
+      },
     });
     const fixture = await probe.assignSignUpNumber({ ownerEmail: owner, nonce: "Run 1" });
     expect(fixture.row_id).toBe("fixture-1");

@@ -34,7 +34,7 @@ import { localStatus, psql } from "../../tools/rig/src/supabase.mjs";
 /** A UUID fixed by its inputs, so a number's row id survives a reseed. */
 export function stableUuid(...parts) {
   const hex = createHash("sha256").update(parts.join("\u0000")).digest("hex");
-  const variant = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  const variant = ((Number.parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
@@ -341,7 +341,7 @@ export function totpCode(secret, now = Date.now()) {
     if (index === -1) throw new Error("rig seed: the TOTP secret is not base32");
     bits += index.toString(2).padStart(5, "0");
   }
-  const key = Buffer.from(bits.match(/.{8}/g).map((byte) => parseInt(byte, 2)));
+  const key = Buffer.from(bits.match(/.{8}/g).map((byte) => Number.parseInt(byte, 2)));
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(Math.floor(now / 1000 / 30)));
   const digest = createHmac("sha1", key).update(counter).digest();

@@ -300,7 +300,7 @@ describe("#251 local Realtime fan-out", () => {
     expect(missingFrames).toBe(0);
     expect(duplicateFrames).toBe(0);
     expect(invalidFrames).toBe(0);
-    expect(perSubscriber).toEqual(Array(SUBSCRIBERS).fill(BROADCASTS));
+    expect(perSubscriber).toEqual(Array.from({ length: SUBSCRIBERS }, () => BROADCASTS));
 
     // Emit only after every exact-delivery assertion. A failed run must not
     // leave a scrapeable line that claims this bound succeeded.

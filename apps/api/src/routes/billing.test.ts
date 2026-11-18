@@ -2182,7 +2182,9 @@ describe("#277 the seasonal pause", () => {
       if (!(call.url.searchParams.get("select") ?? "").startsWith("id,plan")) {
         return [{ stripe_subscription_id: "sub_1" }];
       }
-      return [rows[Math.min(index++, rows.length - 1)]];
+      const row = rows[Math.min(index, rows.length - 1)];
+      index += 1;
+      return [row];
     });
   }
 

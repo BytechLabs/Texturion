@@ -292,7 +292,7 @@ function scanPdf(bytes: Uint8Array): ScanResult {
       if (bytes[i] === 0x2f && bytes[i + 1] === 0x46 && bytes[i + 2] === 0x20) {
         // "/F " then usually ( ... )
         let j = i + 3;
-        while (j < bytes.length && bytes[j] !== 0x28 && bytes[j] !== 0x0a) j++;
+        while (j < bytes.length && bytes[j] !== 0x28 && bytes[j] !== 0x0A) j += 1;
         if (bytes[j] === 0x28) {
           name = "";
           for (j++; j < bytes.length && bytes[j] !== 0x29 && name.length < 260; j++) {

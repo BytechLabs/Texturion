@@ -63,7 +63,15 @@ test("the stack wait returns as soon as the database turns healthy, and says wha
   ];
   const lines = [];
   let polls = 0;
-  await waitForStack("Loonext", { ...time, list: () => answers[Math.min(polls++, answers.length - 1)], log: (line) => lines.push(line) });
+  await waitForStack("Loonext", {
+    ...time,
+    list: () => {
+      const answer = answers[Math.min(polls, answers.length - 1)];
+      polls += 1;
+      return answer;
+    },
+    log: (line) => lines.push(line),
+  });
   assert.equal(polls, 3);
   assert.deepEqual(lines, ["stack: waiting for supabase_db_Loonext"]);
   assert.equal(time.now(), 4_000, "two polls apart");
@@ -109,7 +117,14 @@ test("stack wait passes once the unit is active, through activating while it ret
   const time = clock();
   const states = ["activating", "activating", "active"];
   let polls = 0;
-  await waitForStackUnit({ ...time, state: () => states[polls++] });
+  await waitForStackUnit({
+    ...time,
+    state: () => {
+      const state = states[polls];
+      polls += 1;
+      return state;
+    },
+  });
   assert.equal(polls, 3);
 });
 

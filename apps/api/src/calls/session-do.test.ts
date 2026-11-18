@@ -1314,11 +1314,12 @@ describe("a saved voicemail is stored beside the FIFO, not in it", () => {
   });
 
   it("a failed run is retried until it is stored", async () => {
-    let failures = 2;
+    let attempts = 0;
     const { instance, calls, store } = await toRecording({
       initiated: ctx(),
       voicemailPipeline: () => {
-        if (failures-- > 0) throw new Error("voicemail store failed: timeout");
+        attempts += 1;
+        if (attempts <= 2) throw new Error("voicemail store failed: timeout");
       },
     });
     await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));

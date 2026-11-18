@@ -988,8 +988,9 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
       { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter } as typeof env,
     );
     expect(res.status).toBe(200);
+    const rateLimitKey = `attachment-url:${COMPANY_ID}:${auth.subject}`;
     expect(keys).toEqual(
-      Array(3).fill(`attachment-url:${COMPANY_ID}:${auth.subject}`),
+      Array.from({ length: 3 }, () => rateLimitKey),
     );
   });
 

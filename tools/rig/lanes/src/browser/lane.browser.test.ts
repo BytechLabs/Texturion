@@ -312,7 +312,7 @@ describe("the browser lane in Chromium", () => {
         await page.goto(`https://checkout.stripe.com/pay?app=${encodeURIComponent(origin)}${swallow ? "&swallow=1" : ""}`);
         const lane = new PublicPage(page, origin, () => Promise.resolve());
         await expect(lane.checkout({ card: "4242424242424242", email: "owner@example.invalid", postalCode: "M5V 3L9" })).resolves.toEqual({ challenged: false, submitted: true, returned: true });
-        expect(events, String(swallow)).toEqual(["reprice", ...Array(presses).fill("press")]);
+        expect(events, String(swallow)).toEqual(["reprice", ...Array.from({ length: presses }, () => "press")]);
         expect(new URL(page.url()).pathname).toBe("/inbox");
         await page.close();
       }

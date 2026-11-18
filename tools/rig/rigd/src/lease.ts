@@ -194,7 +194,7 @@ export class LeaseClient {
       try {
         if (!handler) throw new Error("no handler for this undo");
         await handler(action.params);
-        undone++;
+        undone += 1;
       } catch (error) {
         failed.push({ kind: action.kind, error: error instanceof Error ? error.message : String(error) });
       }

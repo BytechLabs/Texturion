@@ -277,14 +277,15 @@ export function CommandPalette() {
   // search mode we render the empty/loading line ourselves: "Searching…" until
   // the first arm lands, "No matches." once every arm is in and empty.
   const results = search.data;
-  const noHits =
-    !!results &&
-    results.conversations.length === 0 &&
-    results.contacts.length === 0 &&
-    results.tasks.length === 0 &&
-    results.attachments.length === 0 &&
-    results.templates.length === 0 &&
-    results.voicemails.length === 0;
+  const noHits = Boolean(
+    results &&
+      results.conversations.length === 0 &&
+      results.contacts.length === 0 &&
+      results.tasks.length === 0 &&
+      results.attachments.length === 0 &&
+      results.templates.length === 0 &&
+      results.voicemails.length === 0,
+  );
   const searchStatus: "searching" | "empty" | "error" | null = searching
     ? search.isError
       ? "error"

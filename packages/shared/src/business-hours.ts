@@ -108,8 +108,8 @@ export function hasBusinessHours(
   if (!hours) return false;
   return WEEKDAYS.some((day) => {
     const window = hours[day];
+    if (!window) return false;
     return (
-      !!window &&
       parseHhmm(window.open) !== null &&
       parseHhmm(window.close) !== null &&
       window.open !== window.close

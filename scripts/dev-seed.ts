@@ -365,7 +365,10 @@ async function main() {
 
   /* ------------------------------- messages ------------------------------ */
   let msgSeq = 0;
-  const tid = () => `devseed-msg-${++msgSeq}`;
+  const tid = () => {
+    msgSeq += 1;
+    return `devseed-msg-${msgSeq}`;
+  };
   const messages = [
     // Dana — new, unread (two inbound in one cluster)
     { c: "dana", dir: "inbound", body: "Hi, do you do water heater replacements? Ours is leaking from the bottom.", at: minutesAgo(8) },

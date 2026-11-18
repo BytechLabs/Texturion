@@ -39,14 +39,18 @@ beforeEach(() => {
     return {
       data: items
         .filter((item) => !refuse.has(item.id))
-        .map((item) => ({
-          id: item.id,
-          requested_variant: item.variant,
-          variant: served(item.variant),
-          url: `https://storage.test/${item.id}-${item.variant}-${++serial}`,
-          expires_at: "2026-11-13T12:00:00.000Z",
-          ttl_seconds: 300,
-        })),
+        .map(({ id, variant: requestedVariant }) => {
+          const variant = served(requestedVariant);
+          serial += 1;
+          return {
+            id,
+            requested_variant: requestedVariant,
+            variant,
+            url: `https://storage.test/${id}-${requestedVariant}-${serial}`,
+            expires_at: "2026-11-13T12:00:00.000Z",
+            ttl_seconds: 300,
+          };
+        }),
       errors: items
         .filter((item) => refuse.has(item.id))
         .map((item) => ({

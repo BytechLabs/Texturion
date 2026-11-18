@@ -314,10 +314,13 @@ describe("bounded API ramp", () => {
       }
       return response(statuses.shift() ?? 500);
     }) as unknown as typeof fetch;
-    let tick = 0;
+    let tick = -1;
     const evidence = await runHostedCapacity(config({ scenario: "api" }), {
       fetch: fetcher,
-      nowMs: () => tick++,
+      nowMs: () => {
+        tick += 1;
+        return tick;
+      },
       sleep: vi.fn(async () => undefined),
     });
 
@@ -469,11 +472,12 @@ describe("bounded API ramp", () => {
 describe("hosted Realtime connection ramp", () => {
   it("opens cumulative independent connections, dwells, reports, and closes every handle", async () => {
     const handles: RealtimeConnection[] = [];
-    let joinedMs = 1;
+    let joinedMs = 0;
     const openRealtime = vi.fn(async (openInput) => {
       expect(openInput.accessToken).toBe(accessToken());
       expect(openInput.topic).toBe(`company:${COMPANY_ID}`);
-      const handle = connection(joinedMs++);
+      joinedMs += 1;
+      const handle = connection(joinedMs);
       handles.push(handle);
       return handle;
     });

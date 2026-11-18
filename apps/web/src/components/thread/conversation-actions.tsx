@@ -435,7 +435,7 @@ export function buildConversationActions(
       label: t("thread.markOptedInAgain"),
       icon: Undo2,
       group: "danger",
-      allowed: !!input.optOut?.optedOut && !input.optOut.carrierEnforced,
+      allowed: Boolean(input.optOut?.optedOut && !input.optOut.carrierEnforced),
       onSelect: run.optIn,
     },
     {
@@ -443,7 +443,7 @@ export function buildConversationActions(
       id: "carrier-stop",
       label: t("thread.carrierStopNote"),
       group: "danger",
-      allowed: !!input.optOut?.optedOut && input.optOut.carrierEnforced,
+      allowed: Boolean(input.optOut?.optedOut && input.optOut.carrierEnforced),
       note: true,
     },
     {

@@ -209,7 +209,7 @@ try {
         probe.remove();
         return size;
       });
-      if (parseFloat(scaleLoaded) !== 16) {
+      if (Number.parseFloat(scaleLoaded) !== 16) {
         problems.push(
           `${where}: a probe \`<input class="text-base">\` computed ` +
             `${scaleLoaded} instead of 16px, so this page is not styled the way ` +
@@ -270,7 +270,7 @@ try {
             const type = element.getAttribute("type");
             if (type === "hidden" || type === "checkbox" || type === "radio") return false;
             if (element.offsetParent === null) return false;
-            return parseFloat(getComputedStyle(element).fontSize) < 16;
+            return Number.parseFloat(getComputedStyle(element).fontSize) < 16;
           })
           .map((element) => element.id || element.name || element.className || "input")
           .slice(0, 5);

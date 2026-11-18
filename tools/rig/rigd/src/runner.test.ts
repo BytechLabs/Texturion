@@ -245,10 +245,12 @@ describe(runScenario, () => {
 
     let calls = 0;
     const freed = setup([{ outcome: "pass" }], {
-      acquire: () =>
-        ++calls < 3
+      acquire: () => {
+        calls += 1;
+        return calls < 3
           ? json({ error: "guard_refused", rule: "lease.busy" }, 403, { [HEADER.refusedBy]: "lease.busy" })
-          : json({ lease_id: "lease-late", scenario: "S02", expires_at: "x" }, 201),
+          : json({ lease_id: "lease-late", scenario: "S02", expires_at: "x" }, 201);
+      },
     });
     expect((await runScenario(freed.deps, "S02")).status).toBe("pass");
   });
@@ -290,10 +292,12 @@ describe(runScenario, () => {
     let calls = 0;
     const waited = setup([], {
       at: Date.UTC(2026, 9, 31, 20, 0),
-      acquire: () =>
-        ++calls < 3
+      acquire: () => {
+        calls += 1;
+        return calls < 3
           ? json({ error: "guard_refused", rule: "lease.busy" }, 403, { [HEADER.refusedBy]: "lease.busy" })
-          : json({ lease_id: "lease-late", scenario: "S20", expires_at: "x" }, 201),
+          : json({ lease_id: "lease-late", scenario: "S20", expires_at: "x" }, 201);
+      },
     });
     waited.deps.runners = { ...waited.deps.runners, S20: { id: "S20", guardLease: true, run: async () => ({ outcome: "pass" }) } };
     expect((await runScenario(waited.deps, "S20")).status).toBe("pass");
@@ -309,7 +313,8 @@ describe(runScenario, () => {
         id: "S20",
         async run(ctx) {
           seen.push(await ctx.history.attempts({ since: clock.now() - 7 * 86_400_000 }));
-          ctx.evidence.audio = { heard: ++run === 1 };
+          run += 1;
+          ctx.evidence.audio = { heard: run === 1 };
           return run === 1 ? { outcome: "pass" } : { outcome: "fail", failure_class: "deaf", detail: "x" };
         },
       },
@@ -385,7 +390,13 @@ describe(runScenario, () => {
     let ran = 0;
     deps.runners = {
       ...deps.runners,
-      S04: { id: "S04", run: async () => (ran++, { outcome: "pass" }) },
+      S04: {
+        id: "S04",
+        async run() {
+          ran += 1;
+          return { outcome: "pass" };
+        },
+      },
       S02: {
         id: "S02",
         async prepare(ctx) {
@@ -561,7 +572,7 @@ describe(runScenario, () => {
           return failing("sent_after_stop");
         },
         async afterRelease() {
-          checked++;
+          checked += 1;
           return { outcome: "fail", failure_class: "stop_left_in_place", detail: "still opted out", critical: true };
         },
       },
@@ -581,7 +592,12 @@ describe(runScenario, () => {
     let checked = 0;
     deps.runners = {
       ...deps.runners,
-      S02: { ...deps.runners.S02!, afterRelease: async () => void checked++ },
+      S02: {
+        ...deps.runners.S02!,
+        async afterRelease() {
+          checked += 1;
+        },
+      },
     };
     const summary = await runScenario(deps, "S02");
     expect(checked).toBe(2);

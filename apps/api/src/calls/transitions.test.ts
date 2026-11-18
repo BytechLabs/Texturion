@@ -23,8 +23,11 @@ import type { CallState, Effect, InitiatedContext, OutboundInitiatedContext, Ses
 // ---- builders --------------------------------------------------------------
 
 function keyGen(): () => string {
-  let n = 0;
-  return () => `k${n++}`;
+  let n = -1;
+  return () => {
+    n += 1;
+    return `k${n}`;
+  };
 }
 
 function initCtx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
@@ -1584,8 +1587,8 @@ describe("#211 outbound — ring-me / decline stay inbound-only (M2)", () => {
 function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {
-    a |= 0;
-    a = (a + 0x6d2b79f5) | 0;
+    // Mulberry32 wraps its state at 32 bits.
+    a = Math.imul(a + 0x6D_2B_79_F5, 1);
     let t = Math.imul(a ^ (a >>> 15), 1 | a);
     t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296;

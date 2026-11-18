@@ -112,7 +112,7 @@ describe("guard.yml's admin routines", () => {
       expect(sent.body).toHaveProperty("messaging_profile_id");
     }
     const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
-    expect(held.map((item) => item.connection_id)).toEqual(Array(8).fill(null));
+    expect(held.map((item) => item.connection_id)).toEqual(Array.from({ length: 8 }, () => null));
     expect(held.every((item) => typeof item.messaging_profile_id === "string")).toBe(true);
     await expect(h.store.get("orders:first")).resolves.toMatchObject({ state: "verified", expect: { connection_id: null }, number_id: held[0].id });
     assertPublicSafe(outcome.lines);
@@ -125,7 +125,7 @@ describe("guard.yml's admin routines", () => {
     expect((await runRoutine("setup", throughEdge(h))).ok).toBe(true);
     expect((await runRoutine("order-standing", throughEdge(h), {}, async (ms) => h.advance(ms))).ok).toBe(true);
     const held = EIGHT.map((phone) => h.telnyx.numbers.find((item) => item.phone_number === phone)!);
-    expect(held.map((item) => item.connection_id)).toEqual(Array(8).fill(null));
+    expect(held.map((item) => item.connection_id)).toEqual(Array.from({ length: 8 }, () => null));
     await h.store.put(`detached:${held[7].id}`, { at: h.clock.now, reason: "stranger_flood" });
 
     await fileValidation(h);

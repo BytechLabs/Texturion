@@ -389,7 +389,7 @@ function withinOneEdit(a: string, b: string): boolean {
   const gap = a.length - b.length;
   if (Math.abs(gap) > 1) return false;
   let i = 0;
-  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  while (i < a.length && i < b.length && a[i] === b[i]) i += 1;
   if (gap === 0) {
     if (a.slice(i + 1) === b.slice(i + 1)) return true;
     return a[i] === b[i + 1] && a[i + 1] === b[i] && a.slice(i + 2) === b.slice(i + 2);
