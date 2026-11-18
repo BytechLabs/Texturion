@@ -818,8 +818,15 @@ async function createOrResendInvite(c: Context<AppEnv>) {
     });
   }
   if (!emailSent && (resendInviteId || !alreadyRegistered)) {
-    const rollback = result.previous_invite
-      ? db.from("invites").update(result.previous_invite)
+    const previous = result.previous_invite;
+    const rollback = previous
+      ? db.from("invites").update({
+          expires_at: previous.expires_at,
+          last_resent_at: previous.last_resent_at,
+          invited_by: previous.invited_by,
+          role: previous.role,
+          note: previous.note,
+        })
       : db.from("invites").delete();
     expectOk(
       await rollback.eq("company_id", companyId)
