@@ -13,7 +13,10 @@ stable
 set search_path = ''
 as $$
   select
-    substring(c.phone_e164 from '^\+1([2-9][0-9]{2})[2-9][0-9]{6}$') as area_code,
+    substring(
+      coalesce(nullif(cv.contact_phone_e164, ''), c.phone_e164)
+      from '^\+1([2-9][0-9]{2})[2-9][0-9]{6}$'
+    ) as area_code,
     count(*) as sent,
     count(*) filter (where m.status = 'delivered') as delivered,
     count(*) filter (where m.status = 'failed') as failed,
@@ -26,7 +29,7 @@ as $$
   where m.company_id = p_company_id
     and m.direction = 'outbound'
     and m.created_at >= p_since
-    and c.phone_e164 <> ''
+    and coalesce(nullif(cv.contact_phone_e164, ''), c.phone_e164) <> ''
   group by 1;
 $$;
 

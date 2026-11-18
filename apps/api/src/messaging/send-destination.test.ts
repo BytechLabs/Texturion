@@ -51,9 +51,6 @@ const ALLOWED: Record<string, string> = {
   "routes/scheduled-messages.ts":
     "lists a queued text beside the customer it is for; the destination it " +
     "schedules against reads `contact_phone_e164`",
-  "routes/usage.ts":
-    "counts sends by DESTINATION COUNTRY; a second number in the same " +
-    "country is the same country",
 };
 
 /**

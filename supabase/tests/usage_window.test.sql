@@ -320,6 +320,13 @@ insert into public.conversations (id, company_id, contact_id, phone_number_id) v
   ('9a000000-0000-4000-8000-0000000000f2', '9a000000-0000-4000-8000-0000000000c2',
    '9a000000-0000-4000-8000-0000000000e2', '9a000000-0000-4000-8000-0000000000d2');
 
+insert into public.contact_phones (company_id, contact_id, phone_e164)
+values ('9a000000-0000-4000-8000-0000000000c1', '9a000000-0000-4000-8000-0000000000e1',
+        '+16135559001');
+
+update public.conversations set contact_phone_e164 = '+16135559001'
+where id = '9a000000-0000-4000-8000-0000000000f1';
+
 insert into public.messages
   (company_id, conversation_id, direction, status, sent_by_user_id, created_at)
 select
@@ -355,7 +362,7 @@ begin
       '9a000000-0000-4000-8000-0000000000c1', '2026-06-01T00:00:00Z'
     ) r;
   if v_rows is distinct from
-    '[{"area_code":"415","sent":1501,"delivered":1200,"failed":100,"pending":201}]'::jsonb then
+    '[{"area_code":"613","sent":1501,"delivered":1200,"failed":100,"pending":201}]'::jsonb then
     raise exception 'Delivery totals did not include every outbound message in scope: %', v_rows;
   end if;
 end $$;
