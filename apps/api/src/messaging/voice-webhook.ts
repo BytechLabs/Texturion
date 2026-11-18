@@ -631,7 +631,7 @@ export async function handleVoicemailSaved(
           },
         }),
         notifyVoicemail(env, db, { companyId: resolved.companyId, conversationId })
-          .catch((error) => {
+          .catch((error: unknown) => {
             console.error(`voicemail-alert (${sessionId}):`, errorLogText(error));
             void captureException(env, error, {
               source: "api",
