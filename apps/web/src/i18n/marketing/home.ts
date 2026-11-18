@@ -41,6 +41,8 @@ export const homeEn = {
     "Loonext gives your business a local number and one shared inbox for the texts and calls that reach it, answered by whoever on the crew is free.",
   metaPrice: "a month flat for the team, not per user.",
   heroDateline: "9:04 PM · TUESDAY",
+  heroPauseAnimation: "Pause animation",
+  heroResumeAnimation: "Resume animation",
   heroH1: "Somebody texted your business at 9:04 last night. Did anybody see it?",
   heroSub:
     "Loonext gives your business a local number and one shared inbox for everything that reaches it. Texts and calls both land where the whole crew can see them, so the next 9 PM message gets answered by whoever is free instead of dying on somebody's personal cell.",
@@ -342,6 +344,8 @@ export const homeFr: Translated<typeof homeEn> = {
     "Loonext donne à votre entreprise un numéro local et une seule boîte partagée pour les textos et les appels qui y arrivent, pris par qui est libre dans l'équipe.",
   metaPrice: "par mois, prix fixe pour l'équipe, pas par personne.",
   heroDateline: "21 H 04 · MARDI",
+  heroPauseAnimation: "Mettre l’animation en pause",
+  heroResumeAnimation: "Reprendre l’animation",
   heroH1:
     "Quelqu'un a écrit à votre entreprise à 21 h 04 hier soir. Est-ce que quelqu'un l'a vu ?",
   heroSub:
