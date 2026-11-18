@@ -206,7 +206,7 @@ describe("evaluation", () => {
     await isFlagOn(env, "kill:calls", "c1", client);
     await isFlagOn(env, "kill:calls", "c1", client);
     await isFlagOn(env, "kill:ai", "c1", client);
-    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledOnce();
   });
 
   it("caches per company, so one workspace's rollout does not leak to another", async () => {
@@ -222,7 +222,7 @@ describe("evaluation", () => {
     await isFlagOn(env, "kill:calls", "c1", client);
     await isFlagOn(env, "kill:calls", "c1", client);
     // The unhealthy database gets one request, not one per request in flight.
-    expect(rpc).toHaveBeenCalledTimes(1);
+    expect(rpc).toHaveBeenCalledOnce();
     errorSpy.mockRestore();
   });
 

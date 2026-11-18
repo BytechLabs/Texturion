@@ -152,13 +152,12 @@ describe("triggerBlobDownload (browser download side effect)", () => {
     const blob = new Blob([`${BOM}name,phone\n`], { type: "text/csv" });
     triggerBlobDownload(blob, "my-contacts.csv");
 
-    expect(createObjectURL).toHaveBeenCalledTimes(1);
-    expect(createObjectURL).toHaveBeenCalledWith(blob);
+    expect(createObjectURL).toHaveBeenCalledExactlyOnceWith(blob);
     expect(anchor.download).toBe("my-contacts.csv");
     expect(anchor.href).toBe("blob:fake");
     expect(appendChild).toHaveBeenCalledWith(anchor);
-    expect(click).toHaveBeenCalledTimes(1);
-    expect(remove).toHaveBeenCalledTimes(1);
+    expect(click).toHaveBeenCalledOnce();
+    expect(remove).toHaveBeenCalledOnce();
     expect(revokeObjectURL).toHaveBeenCalledWith("blob:fake");
   });
 

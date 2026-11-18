@@ -203,7 +203,7 @@ describe("#248 the CSV wizard can satisfy the #226 gate", () => {
     await waitFor(() => expect(isDisabled(importButton)).toBe(false));
     fireEvent.click(importButton);
 
-    expect(csvMutate).toHaveBeenCalledTimes(1);
+    expect(csvMutate).toHaveBeenCalledOnce();
     expect(csvMutate.mock.calls[0][0]).toMatchObject({ consentAttested: true });
   });
 
@@ -275,7 +275,7 @@ describe("#248 a .vcf is asked the same question", () => {
     // The dialog reads the card file before posting, to enumerate what these
     // cards carry that the importer does not read (#248 round 3) — so the
     // mutation lands a tick after the choice rather than inside it.
-    await waitFor(() => expect(vcardMutate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(vcardMutate).toHaveBeenCalledOnce());
     expect(vcardMutate.mock.calls[0][0]).toMatchObject({
       consentAttested: true,
     });
@@ -316,7 +316,7 @@ describe("#248 the device address book is asked it too", () => {
     await waitFor(() => expect(isDisabled(pickButton)).toBe(false));
     fireEvent.click(pickButton);
 
-    await waitFor(() => expect(csvMutate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(csvMutate).toHaveBeenCalledOnce());
     expect(csvMutate.mock.calls[0][0]).toMatchObject({ consentAttested: true });
   });
 
@@ -482,7 +482,7 @@ describe("#248 every door reports what the attestation could not cover", () => {
       screen.getByRole("button", { name: "Download the refused rows" }),
     );
 
-    expect(download).toHaveBeenCalledTimes(1);
+    expect(download).toHaveBeenCalledOnce();
     const [blob, filename] = download.mock.calls[0] as [Blob, string];
     expect(filename).toBe(CONSENT_REFUSALS_FILENAME);
     // #587: the byte-order mark, asserted on the BYTES. `blob.text()` decodes as

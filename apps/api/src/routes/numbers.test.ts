@@ -1238,8 +1238,8 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
     expect(retry.status).toBe(200);
     expect(((await retry.json()) as { id: string }).id).toBe(bought.id);
     expect(
-      stripe.calls.filter((c) => c.method === "POST").length,
-    ).toBe(stripeWrites);
+      stripe.calls.filter((c) => c.method === "POST"),
+    ).toHaveLength(stripeWrites);
   });
 
   it("refuses a sole-prop paid extra BEFORE any Stripe write (never charge-then-409)", async () => {

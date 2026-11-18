@@ -171,10 +171,10 @@ describe("#238 every draggable operation has a way out (WCAG 2.2 2.5.7)", () => 
       const code = stripComments(sourceText(path!));
       for (const marker of surface.pointerAlternative) {
         expect(
-          code.includes(marker),
+          code,
           `${rel} no longer contains its single-pointer alternative marker ` +
             `(${marker}). ${surface.why}`,
-        ).toBe(true);
+        ).toContain(marker);
       }
     }
   });

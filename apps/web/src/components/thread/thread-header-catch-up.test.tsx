@@ -100,7 +100,7 @@ describe("ThreadHeader catch-up", () => {
     const onCatchUp = vi.fn();
     renderHeader(onCatchUp);
     fireEvent.click(screen.getByText("Catch me up"));
-    expect(onCatchUp).toHaveBeenCalledTimes(1);
+    expect(onCatchUp).toHaveBeenCalledOnce();
   });
 
   it("sits in the triage group, right after Mark unread", () => {

@@ -203,7 +203,7 @@ describe("#307 how this line answers", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save).toHaveBeenCalledWith({ label: "Reed Roofing Sales" });
   });
 
@@ -230,7 +230,7 @@ describe("#307 how this line answers", () => {
     });
     fireEvent.click(backButtons[1]);
 
-    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(save).toHaveBeenCalledOnce());
     expect(save).toHaveBeenCalledWith({ voicemail_greeting: null });
   });
 
@@ -241,7 +241,7 @@ describe("#307 how this line answers", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledOnce());
     expect(toastSuccess.mock.calls[0][0]).toMatch(/straight away/i);
   });
 
@@ -340,7 +340,7 @@ describe("#307 how this line answers", () => {
     });
     fireEvent.click(screen.getByRole("button", { name: "Save" }));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastError).toHaveBeenCalledOnce());
     expect(toastError.mock.calls[0][0]).toContain("too long");
   });
 });

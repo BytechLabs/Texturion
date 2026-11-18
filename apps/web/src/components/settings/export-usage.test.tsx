@@ -135,7 +135,7 @@ describe("#304 exporting a period's usage", () => {
     });
     fireEvent.click(screen.getByText("Start it"));
 
-    await waitFor(() => expect(requestExport).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(requestExport).toHaveBeenCalledOnce());
     const sent = requestExport.mock.calls[0][0] as { from: string; to: string };
     expect(new Date(sent.to).getHours()).toBe(23);
     expect(new Date(sent.from).getHours()).toBe(0);
@@ -148,7 +148,7 @@ describe("#304 exporting a period's usage", () => {
     fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
     fireEvent.click(screen.getByText("Start it"));
 
-    await waitFor(() => expect(toastSuccess).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastSuccess).toHaveBeenCalledOnce());
     expect(toastSuccess.mock.calls[0][0]).toContain("Data export");
   });
 
@@ -160,7 +160,7 @@ describe("#304 exporting a period's usage", () => {
     fireEvent.click(screen.getByText(say(EXPORT_USAGE_ACTION)));
     fireEvent.click(screen.getByText("Start it"));
 
-    await waitFor(() => expect(toastError).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(toastError).toHaveBeenCalledOnce());
     expect(toastError.mock.calls[0][0]).toContain("before its start");
   });
 });

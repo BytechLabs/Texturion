@@ -155,7 +155,7 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
     await waitFor(() => expect(importButton().disabled).toBe(false));
     fireEvent.click(importButton());
 
-    expect(vcardMutate).toHaveBeenCalledTimes(1);
+    expect(vcardMutate).toHaveBeenCalledOnce();
     const request = vcardMutate.mock.calls[0][0] as {
       file: File;
       consentAttested: boolean;
@@ -258,7 +258,7 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
       ].join("\r\n"),
     );
 
-    await waitFor(() => expect(vcardMutate).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(vcardMutate).toHaveBeenCalledOnce());
     const request = vcardMutate.mock.calls[0][0] as {
       properties: unknown[];
     };

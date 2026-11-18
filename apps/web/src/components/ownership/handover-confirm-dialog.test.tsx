@@ -80,7 +80,7 @@ describe("answering the demand", () => {
     const { onConfirm, rerender } = open();
     fireEvent.change(field(), { target: { value: "123456" } });
     fireEvent.keyDown(field(), { key: "Enter" });
-    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onConfirm).toHaveBeenCalledOnce();
 
     rerender(
       <HandoverConfirmDialog
@@ -93,7 +93,7 @@ describe("answering the demand", () => {
       />,
     );
     fireEvent.keyDown(field(), { key: "Enter" });
-    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onConfirm).toHaveBeenCalledOnce();
   });
 });
 

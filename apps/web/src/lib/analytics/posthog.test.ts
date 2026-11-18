@@ -134,7 +134,7 @@ describe("initPostHog (NEXT_PUBLIC_POSTHOG_KEY optional — absent = off)", () =
       await importPostHog(POSTHOG_KEY);
     await initPostHog();
 
-    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(initSpy).toHaveBeenCalledOnce();
     const [key, config] = initSpy.mock.calls[0];
     expect(key).toBe(POSTHOG_KEY);
     expect(config.api_host).toBe(POSTHOG_HOST);
@@ -159,7 +159,7 @@ describe("initPostHog (NEXT_PUBLIC_POSTHOG_KEY optional — absent = off)", () =
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     await Promise.all([initPostHog(), initPostHog()]);
     await initPostHog();
-    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(initSpy).toHaveBeenCalledOnce();
   });
 
   it("does not identify when no workspace cookie exists (marketing / signed out)", async () => {
@@ -296,7 +296,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
     expect(initSpy).not.toHaveBeenCalled();
     open();
     expect(await ready).not.toBeNull();
-    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(initSpy).toHaveBeenCalledOnce();
   });
 
   it("records the landing page when the visitor moved on before the SDK started", async () => {
@@ -367,6 +367,6 @@ describe("the SDK waits for the page to settle (#640)", () => {
     settle.gate = new Promise<void>(() => {});
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     expect(await initPostHog()).not.toBeNull();
-    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(initSpy).toHaveBeenCalledOnce();
   });
 });

@@ -136,10 +136,10 @@ describe("both bundlers know what a .md module is", () => {
 
   it("webpack turns .md into its text", () => {
     expect(
-      config.includes('type: "asset/source"'),
+      config,
       "the webpack .md rule is gone; the legal pages' imports have nothing to " +
         "resolve them and the --webpack rollback build is the one that breaks",
-    ).toBe(true);
+    ).toContain('type: "asset/source"');
   });
 
   it("turbopack turns .md into its text", () => {

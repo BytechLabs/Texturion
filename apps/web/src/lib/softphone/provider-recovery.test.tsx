@@ -296,11 +296,11 @@ describe("softphone recovery", () => {
     api.state.mintError = new ApiError("forbidden", "no", 403);
     const view = render(tree());
     await vi.waitFor(() => expect(phone!.error).toBe("shell.registrationFailed"));
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
 
     foreground();
     await act(() => vi.advanceTimersByTimeAsync(4_000));
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
 
     company.role = "admin";
     view.rerender(tree());
@@ -328,7 +328,7 @@ describe("softphone registration", () => {
     await act(() => vi.advanceTimersByTimeAsync(300));
     expect(api.mint).not.toHaveBeenCalled();
     await act(() => vi.advanceTimersByTimeAsync(100));
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
   });
 
   it("registers by five seconds even when the app never goes quiet", async () => {
@@ -343,13 +343,13 @@ describe("softphone registration", () => {
     await act(() => vi.advanceTimersByTimeAsync(4_900));
     expect(api.mint).not.toHaveBeenCalled();
     await act(() => vi.advanceTimersByTimeAsync(100));
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
   });
 
   it("registers at once when opened to answer a call", () => {
     window.history.replaceState(null, "", "/calls?call=v3:ring-1");
     render(tree());
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
   });
 });
 
@@ -454,7 +454,7 @@ describe("softphone workspace switch", () => {
     });
     window.history.replaceState(null, "", "/calls?call=v3:ring-1");
     const view = render(tree());
-    expect(api.mint).toHaveBeenCalledTimes(1);
+    expect(api.mint).toHaveBeenCalledOnce();
 
     company.id = "company-2";
     view.rerender(tree());
@@ -481,7 +481,7 @@ describe("placing a call", () => {
 
     emit(client, "telnyx.ready");
     await act(() => placed);
-    expect(api.authorize).toHaveBeenCalledTimes(1);
+    expect(api.authorize).toHaveBeenCalledOnce();
   });
 
   it("gives up without dialing when the phone never registers", async () => {

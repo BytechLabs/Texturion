@@ -88,7 +88,7 @@ describe("POST /conversations/:id/wrap-up-transcript (#507)", () => {
     expect(await res.json()).toEqual({
       text: "Quoted him $2,400 for the tank, parts Thursday.",
     });
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
     // The positive control for the cost test below: a real wrap-up DOES
     // reserve against the monthly ledger, so "never reserved" means something.
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve").length).toBeGreaterThan(0);

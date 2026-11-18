@@ -408,7 +408,7 @@ describe("#248: the answer travels with the file", () => {
     );
     fireEvent.click(importButton);
 
-    expect(csvMutate).toHaveBeenCalledTimes(1);
+    expect(csvMutate).toHaveBeenCalledOnce();
     const request = csvMutate.mock.calls[0][0] as {
       file: File;
       columns: ContactImportColumnDeclaration[];

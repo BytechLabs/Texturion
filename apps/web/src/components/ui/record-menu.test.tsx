@@ -68,7 +68,7 @@ describe("#712 RecordContextMenu", () => {
   it("separates the groups with exactly one rule between each", () => {
     render(<Row list={actions()} />);
     fireEvent.contextMenu(screen.getByTestId("row"));
-    expect(document.querySelectorAll('[role="menu"] [role="separator"]').length).toBe(2);
+    expect(document.querySelectorAll('[role="menu"] [role="separator"]')).toHaveLength(2);
   });
 
   it("runs the action and closes", async () => {
@@ -76,7 +76,7 @@ describe("#712 RecordContextMenu", () => {
     render(<Row list={actions()} />);
     fireEvent.contextMenu(screen.getByTestId("row"));
     fireEvent.click(screen.getByRole("menuitem", { name: "Copy" }));
-    expect(onCopy).toHaveBeenCalledTimes(1);
+    expect(onCopy).toHaveBeenCalledOnce();
     await waitFor(() => expect(screen.queryByRole("menu")).toBeNull());
   });
 
@@ -171,7 +171,7 @@ describe("a submenu built on open", () => {
     fireEvent.keyDown(document.querySelector('[data-action="snooze"]')!, { key: "ArrowRight" });
     expect(build).toHaveBeenCalled();
     fireEvent.click(document.querySelector('[data-action="snooze.later"]')!);
-    expect(onLater).toHaveBeenCalledTimes(1);
+    expect(onLater).toHaveBeenCalledOnce();
   });
 
   it("is never built for a row whose only action is not allowed", () => {

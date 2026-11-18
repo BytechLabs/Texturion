@@ -181,7 +181,7 @@ describe("#710 a different build reloads the tab only while nobody is looking", 
     vi.advanceTimersByTime(59_999);
     expect(reload).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledOnce();
   });
 
   it("does not reload a tab that came back within the minute", () => {
@@ -202,7 +202,7 @@ describe("#710 a different build reloads the tab only while nobody is looking", 
     expect(reload).not.toHaveBeenCalled();
     liveCall = false;
     vi.advanceTimersByTime(60_000);
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledOnce();
   });
 
   it("does not reload over an open dialog or a save in flight", () => {
@@ -222,7 +222,7 @@ describe("#710 a different build reloads the tab only while nobody is looking", 
 
     saving.mockReturnValue(0);
     vi.advanceTimersByTime(60_000);
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledOnce();
   });
 
   it("never reloads when the live build is this one", () => {

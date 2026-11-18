@@ -373,7 +373,7 @@ describe("#224 what happens after the money moved", () => {
       await processStripeEvent(harness.env, checkoutEvent(ACCOUNT_ID));
       await processStripeEvent(harness.env, checkoutEvent(ACCOUNT_ID));
 
-      expect(alerted).toHaveBeenCalledTimes(1);
+      expect(alerted).toHaveBeenCalledOnce();
     });
 
     it("does not fail the webhook when the alert cannot be delivered", async () => {

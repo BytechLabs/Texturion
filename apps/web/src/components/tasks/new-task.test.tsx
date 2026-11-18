@@ -89,7 +89,7 @@ describe("#689 New task", () => {
     openWith();
     typeTitle("  Order a furnace filter ");
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledOnce());
     expect(mutateAsync).toHaveBeenCalledWith({
       title: "Order a furnace filter",
       assignee_ids: ["me-1"],
@@ -112,7 +112,7 @@ describe("#689 New task", () => {
     fireEvent.click(screen.getByRole("option", { name: "Ben" }));
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledOnce());
     expect(mutateAsync).toHaveBeenCalledWith({
       title: "Two-person install",
       assignee_ids: ["me-1", "u2"],

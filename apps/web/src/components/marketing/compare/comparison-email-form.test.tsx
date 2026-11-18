@@ -36,7 +36,7 @@ async function submit(locale: "en" | "fr-CA") {
   });
   fireEvent.click(screen.getByRole("checkbox"));
   fireEvent.click(screen.getByRole("button"));
-  await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(1));
+  await waitFor(() => expect(fetchMock).toHaveBeenCalledOnce());
 
   expect(submitted).not.toBeNull();
   return submitted ?? {};

@@ -95,7 +95,7 @@ describe("SpamSuspectedBanner", () => {
     mutate.mockClear();
     render(<SpamSuspectedBanner conversation={SUSPECTED} canAct />);
     fireEvent.click(screen.getByRole("button", { name: "Not spam" }));
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
     expect(mutate.mock.calls[0]?.[0]).toEqual({ spam_suspected: false });
   });
 

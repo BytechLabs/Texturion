@@ -77,7 +77,7 @@ describe("/settings/ai — the call wrap-up toggle", () => {
     render(<AiSettingsPage />);
     fireEvent.click(screen.getByLabelText("Let Lou write down your wrap-up"));
 
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
     expect(mutate.mock.calls[0][0]).toEqual({
       ...settings,
       call_wrapup: false,
@@ -129,7 +129,7 @@ describe("/settings/ai — the thread catch-up toggle", () => {
     render(<AiSettingsPage />);
     fireEvent.click(screen.getByLabelText("Let Lou catch you up"));
 
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
     expect(mutate.mock.calls[0][0]).toEqual({
       ...settings,
       summarize_threads: false,

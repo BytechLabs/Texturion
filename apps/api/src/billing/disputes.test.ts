@@ -215,7 +215,7 @@ describe("Stripe redelivers", () => {
 
       await handleChargeDispute(env, lost, "charge.dispute.closed");
       expect(updates, "the coupon was cleared a second time").toHaveLength(1);
-      expect(stripeApi.subscriptions.retrieve).toHaveBeenCalledTimes(1);
+      expect(stripeApi.subscriptions.retrieve).toHaveBeenCalledOnce();
     } finally {
       spy.mockRestore();
     }

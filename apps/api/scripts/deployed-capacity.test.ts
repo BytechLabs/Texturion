@@ -453,7 +453,7 @@ describe("bounded API ramp", () => {
     await expect(
       runHostedCapacity(config({ scenario: "api" }), { fetch: unhealthy }),
     ).rejects.toThrow(/health preflight failed/);
-    expect(unhealthy).toHaveBeenCalledTimes(1);
+    expect(unhealthy).toHaveBeenCalledOnce();
 
     const unauthorized = vi
       .fn()

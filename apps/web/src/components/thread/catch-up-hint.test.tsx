@@ -37,17 +37,17 @@ describe("CatchUpHint", () => {
   it("asks on Recap and dismisses on Not now", () => {
     const handlers = renderHint();
     fireEvent.click(screen.getByText("Recap"), { detail: 1 });
-    expect(handlers.onRecap).toHaveBeenCalledTimes(1);
+    expect(handlers.onRecap).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByText("Not now"), { detail: 1 });
-    expect(handlers.onNotNow).toHaveBeenCalledTimes(1);
+    expect(handlers.onNotNow).toHaveBeenCalledOnce();
   });
 
   it("dismisses on Escape from inside it, and hands focus back", () => {
     const handlers = renderHint();
     fireEvent.keyDown(screen.getByText("Not now"), { key: "Escape" });
-    expect(handlers.onNotNow).toHaveBeenCalledTimes(1);
+    expect(handlers.onNotNow).toHaveBeenCalledOnce();
     expect(handlers.onRecap).not.toHaveBeenCalled();
-    expect(handlers.returnFocus).toHaveBeenCalledTimes(1);
+    expect(handlers.returnFocus).toHaveBeenCalledOnce();
   });
 
   /**
@@ -59,10 +59,10 @@ describe("CatchUpHint", () => {
     const handlers = renderHint();
     // Enter or Space on a button fires a click whose detail is 0.
     fireEvent.click(screen.getByText("Not now"), { detail: 0 });
-    expect(handlers.returnFocus).toHaveBeenCalledTimes(1);
+    expect(handlers.returnFocus).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByText("Recap"), { detail: 1 });
-    expect(handlers.returnFocus).toHaveBeenCalledTimes(1);
+    expect(handlers.returnFocus).toHaveBeenCalledOnce();
   });
 
   it("carries no em or en dash", () => {

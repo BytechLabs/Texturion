@@ -108,12 +108,12 @@ const CHARGEABLE_PRICES: [lookupKey: string, cadCents: number | null][] = [
 describe("the Stripe catalog script and the shared price book agree (#328)", () => {
   it.each(FIGURES)("files the %s amount", (label, cents) => {
     expect(
-      SCRIPT.includes(String(cents)),
+      SCRIPT,
       `${label} is ${cents}¢ in packages/shared/src/billing-currency.ts and ` +
         `does not appear in scripts/stripe-setup.ts. A catalog that files a ` +
         `different number from the one the pricing page quotes charges ` +
         `somebody something we never advertised.`,
-    ).toBe(true);
+    ).toContain(String(cents));
   });
 
   it("files both per-segment overage rates", () => {
@@ -198,13 +198,13 @@ describe("the Stripe catalog script and the shared price book agree (#328)", () 
       for (const currency of BILLING_CURRENCIES) {
         if (currency === "usd") continue;
         expect(
-          body.includes(`${currency}:`),
+          body,
           `the ${module} module is now sellable but its Stripe price files no ` +
             `${currency} amount. A ${currency} subscription cannot take a price ` +
             `that has no ${currency} option — the add-on toggle fails outright ` +
             `for every workspace billed in it. Decide the figure, put it in ` +
             `MODULE_CATALOG with a currency axis, and file it here.`,
-        ).toBe(true);
+        ).toContain(`${currency}:`);
       }
     }
   });

@@ -195,7 +195,6 @@
     "vitest/no-conditional-expect": "off", // 106
     "typescript/no-base-to-string": "off", // 104
     "unicorn/no-array-sort": "off", // 101
-    "vitest/prefer-called-once": "off", // 93
     "typescript/no-misused-promises": "off", // 87
     "eslint/no-shadow": "off", // 83
     "eslint/prefer-template": "off", // 74
@@ -268,7 +267,6 @@
     "typescript/no-unnecessary-boolean-literal-compare": "off", // 10
     "typescript/no-unnecessary-type-conversion": "off", // 10
     "unicorn/prefer-ternary": "off", // 10
-    "vitest/prefer-to-have-length": "off", // 10
     "typescript/no-extraneous-class": "off", // 9
     "unicorn/filename-case": "off", // 9
     "unicorn/no-lonely-if": "off", // 9
@@ -295,7 +293,6 @@
     "unicorn/no-useless-collection-argument": "off", // 6
     "unicorn/prefer-event-target": "off", // 6
     "unicorn/prefer-query-selector": "off", // 6
-    "vitest/prefer-to-contain": "off", // 6
     "eslint/logical-assignment-operators": "off", // 5
     "eslint/no-empty": "off", // 5
     "eslint/no-implicit-coercion": "off", // 5

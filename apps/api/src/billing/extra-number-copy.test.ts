@@ -42,12 +42,12 @@ describe("#228 the extra-number refusals the wire sends", () => {
     const entries = Object.entries(EXTRA_NUMBER_REASONS_EN);
     // A count, so "they all match" is a claim with a number behind it. An
     // empty table would otherwise pass this loop in silence.
-    expect(entries.length).toBe(3);
+    expect(entries).toHaveLength(3);
     for (const [key, sentence] of entries) {
       expect(
-        catalogue.includes(JSON.stringify(sentence)),
+        catalogue,
         `${key} differs between the wire and the catalogue. The wire says:\n  ${sentence}`,
-      ).toBe(true);
+      ).toContain(JSON.stringify(sentence));
     }
   });
 

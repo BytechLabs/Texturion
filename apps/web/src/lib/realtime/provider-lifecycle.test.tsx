@@ -918,7 +918,7 @@ describe("payment.updated", () => {
         queryFn: fetcher,
       });
     });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledOnce();
 
     emit(numberTopic("n1"), "payment.updated", {
       conversation_id: CONVERSATION,
@@ -928,7 +928,7 @@ describe("payment.updated", () => {
     await flush();
     await flush();
 
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledOnce();
     // …and the MARK is there, so the strip is right the moment that thread is
     // opened. Without this half, the test would pass just as happily on a
     // handler that did nothing at all.
@@ -964,7 +964,7 @@ describe("payment.updated", () => {
     await vi.waitFor(() =>
       expect(observer.getCurrentResult().isSuccess).toBe(true),
     );
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledOnce();
 
     emit(numberTopic("n1"), "payment.updated", {
       conversation_id: CONVERSATION,
@@ -1035,11 +1035,11 @@ describe("what a read costs", () => {
       emit(COMPANY_TOPIC, "read.conversation", { user_id: USER, conversation_id: CONVERSATION });
       await vi.advanceTimersByTimeAsync(1_000);
 
-      expect(badge.fetcher).toHaveBeenCalledTimes(1);
+      expect(badge.fetcher).toHaveBeenCalledOnce();
       expect(feed.fetcher).not.toHaveBeenCalled();
       expect(inbox.fetcher).not.toHaveBeenCalled();
       expect(unreadOnly.fetcher).not.toHaveBeenCalled();
-      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
+      expect(forYou.fetcher).toHaveBeenCalledOnce();
       expect(
         (queryClient.getQueryData(unreadKey) as { pages: { data: unknown[] }[] }).pages[0].data,
       ).toEqual([]);
@@ -1048,8 +1048,8 @@ describe("what a read costs", () => {
       await vi.advanceTimersByTimeAsync(1_000);
 
       expect(badge.fetcher).toHaveBeenCalledTimes(2);
-      expect(feed.fetcher).toHaveBeenCalledTimes(1);
-      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
+      expect(feed.fetcher).toHaveBeenCalledOnce();
+      expect(forYou.fetcher).toHaveBeenCalledOnce();
       expect(inbox.fetcher).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -1123,10 +1123,10 @@ describe("what a delivery receipt costs", () => {
       await vi.advanceTimersByTimeAsync(399);
       expect(forYou.fetcher).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(1);
-      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
+      expect(forYou.fetcher).toHaveBeenCalledOnce();
       await vi.advanceTimersByTimeAsync(2_000);
-      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
-      expect(timeline.fetcher).toHaveBeenCalledTimes(1);
+      expect(forYou.fetcher).toHaveBeenCalledOnce();
+      expect(timeline.fetcher).toHaveBeenCalledOnce();
       expect(badge.fetcher).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -1151,8 +1151,8 @@ describe("conversation.updated", () => {
       await vi.advanceTimersByTimeAsync(2_000);
 
       expect(apiCalls(`/v1/conversations/${CONVERSATION}`)).toHaveLength(0);
-      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
-      expect(badge.fetcher).toHaveBeenCalledTimes(1);
+      expect(forYou.fetcher).toHaveBeenCalledOnce();
+      expect(badge.fetcher).toHaveBeenCalledOnce();
     } finally {
       vi.useRealTimers();
     }
@@ -1194,7 +1194,7 @@ describe("conversation.updated", () => {
       );
       emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
       await vi.advanceTimersByTimeAsync(1_000);
-      expect(timeline.fetcher).toHaveBeenCalledTimes(1);
+      expect(timeline.fetcher).toHaveBeenCalledOnce();
       // A thread that was never opened is not created by an update.
       expect(queryClient.getQueryData(keys.thread(COMPANY, CONVERSATION))).toBeUndefined();
     } finally {
@@ -1235,7 +1235,7 @@ describe("conversation.updated", () => {
       answer({ ...detail, assigned_user_id: USER });
       emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
       await vi.advanceTimersByTimeAsync(1_000);
-      expect(pinned.fetcher).toHaveBeenCalledTimes(1);
+      expect(pinned.fetcher).toHaveBeenCalledOnce();
     } finally {
       vi.useRealTimers();
     }

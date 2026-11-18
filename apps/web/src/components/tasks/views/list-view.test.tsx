@@ -139,10 +139,10 @@ describe("Tasks list status control (#743)", () => {
     const { container } = renderList(MINE);
     await screen.findByText("Send quote");
     const items = container.querySelectorAll("li");
-    expect(items.length).toBe(2);
+    expect(items).toHaveLength(2);
     for (const li of items) {
       const boxes = li.querySelectorAll('input[type="checkbox"], [role="checkbox"]');
-      expect(boxes.length).toBe(1);
+      expect(boxes).toHaveLength(1);
       expect(boxes[0].getAttribute("aria-label")).toMatch(/^Select /);
     }
     expect(screen.queryByRole("checkbox", { name: /mark (not )?done/i })).toBeNull();

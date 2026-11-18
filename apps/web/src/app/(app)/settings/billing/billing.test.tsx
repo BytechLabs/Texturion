@@ -625,7 +625,7 @@ describe("#277 saying why, on the way out", () => {
     // disabled-until-you-pick. One click from this screen to the portal, and
     // the press IS the assertion — see `expectTheExitLeaves`.
     expectTheExitLeaves(renderCard(), "nothing answered");
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
   });
 
   it("CR-5: skipping is RECORDED as a skip, not as an opinion", () => {
@@ -648,7 +648,7 @@ describe("#277 saying why, on the way out", () => {
       reason: "too_expensive",
       detail: "Pro is more than we use.",
     });
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
   });
 
   it("CR-7: an answer given by accident can be taken back", () => {
@@ -673,7 +673,7 @@ describe("#277 saying why, on the way out", () => {
     const leave = renderCard();
     fireEvent.click(leave);
 
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -908,7 +908,7 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     // And leaving is unchanged: one press, and it lands.
     expect(screen.queryByRole("dialog")).toBeNull();
     expectTheExitLeaves(leave, "with the answer up");
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
   });
 
   it("OFFER-3: quotes Starter's real price, from the book", () => {
@@ -1273,7 +1273,7 @@ describe("#277 the paid pause, on the cancel card", () => {
     ).toBeTruthy();
     expect(screen.queryByRole("dialog")).toBeNull();
     expectTheExitLeaves(leave, "with the pause offered");
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
     // And pressing the exit does not quietly pause anybody on the way out.
     expect(pausePlan.mutate).not.toHaveBeenCalled();
   });
@@ -1339,7 +1339,7 @@ describe("#277 the paid pause, on the cancel card", () => {
     pick("Quiet season, I'll be back");
     fireEvent.click(screen.getByRole("button", { name: action() }));
 
-    expect(pausePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(pausePlan.mutate).toHaveBeenCalledOnce();
     // Said where the press happened. The paused state lands at the top of this
     // page, a scroll away from a button near the bottom of it.
     expect(toasted).toHaveBeenCalledWith(PAUSE_CONFIRMATION);
@@ -1367,7 +1367,7 @@ describe("#277 the paid pause, on the cancel card", () => {
     expect(screen.getByRole("alert").textContent).toBe(refusal);
     // And the way out is exactly where it was, still one press.
     expectTheExitLeaves(leave, "after the pause was refused");
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
   });
 
   it("PAUSE-9: not asked for on a card that could not render it", () => {
@@ -1486,7 +1486,7 @@ describe("#277 the paid pause, on the cancel card", () => {
       // Pressed, and required to have LANDED — see `expectTheExitLeaves`. The
       // question is never how a state took the exit away, only whether it did.
       expectTheExitLeaves(leave, name);
-      expect(portal.mutate, name).toHaveBeenCalledTimes(1);
+      expect(portal.mutate, name).toHaveBeenCalledOnce();
       cleanup();
     }
   });
@@ -1505,7 +1505,7 @@ describe("#277 the paid pause, on the cancel card", () => {
     pick("Quiet season, I'll be back");
     fireEvent.click(screen.getByRole("button", { name: action() }));
 
-    expect(pausePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(pausePlan.mutate).toHaveBeenCalledOnce();
     expect(toasted).not.toHaveBeenCalled();
     cleanup();
 
@@ -1788,7 +1788,7 @@ describe("#277 the paused state, on the billing screen", () => {
     render(<PausedPlanCard show />);
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
 
-    expect(resumePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(resumePlan.mutate).toHaveBeenCalledOnce();
     expect(screen.getByRole("alert").textContent).toBe(refusal);
   });
 
@@ -1880,7 +1880,7 @@ describe("#277 the paused state, on the billing screen", () => {
     render(<PausedPlanCard show />);
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
 
-    expect(resumePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(resumePlan.mutate).toHaveBeenCalledOnce();
     expect(toasted).not.toHaveBeenCalled();
     cleanup();
 
@@ -1999,7 +1999,7 @@ describe("#277 follow-up: the win-back inside the canceled-state card", () => {
     stated.data = { reason: "seasonal", stated_at: daysAgo(3) };
     renderWinback();
     fireEvent.click(screen.getByRole("button", { name: "No thanks" }));
-    expect(dismiss.mutate).toHaveBeenCalledTimes(1);
+    expect(dismiss.mutate).toHaveBeenCalledOnce();
     expect(document.body.textContent).toBe("");
   });
 
@@ -2509,7 +2509,7 @@ describe("#277 the billing screen while paused", () => {
     expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    expect(pause.refetch).toHaveBeenCalledTimes(1);
+    expect(pause.refetch).toHaveBeenCalledOnce();
   });
 
   it("PAGE-PAUSE-2: leaving is STILL one action from landing on this screen", () => {
@@ -2522,7 +2522,7 @@ describe("#277 the billing screen while paused", () => {
     });
     expect(screen.queryByRole("dialog")).toBeNull();
     expectTheExitLeaves(leave, "on a paused workspace");
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
   });
 
   it("PAGE-PAUSE-3: the pause is not offered again to somebody already paused", () => {
@@ -2621,7 +2621,7 @@ describe("#277 the billing screen while paused", () => {
       // away, the observable is the same one: nothing reached Stripe.
       expect(screen.queryByRole("dialog"), name).toBeNull();
       expectTheExitLeaves(leave, name);
-      expect(portal.mutate, name).toHaveBeenCalledTimes(1);
+      expect(portal.mutate, name).toHaveBeenCalledOnce();
       cleanup();
     }
   });

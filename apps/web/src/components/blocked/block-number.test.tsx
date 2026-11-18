@@ -60,7 +60,7 @@ describe("BlockNumberDialog", () => {
     );
     expect(blockMutate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Block" }));
-    expect(blockMutate).toHaveBeenCalledTimes(1);
+    expect(blockMutate).toHaveBeenCalledOnce();
     expect(blockMutate.mock.calls[0][0]).toBe("+14165550182");
   });
 

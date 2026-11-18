@@ -143,7 +143,7 @@ describe("POST /v1/api-keys", () => {
     // The stub is a PREFIX of the real token, which is what makes it useful
     // for telling three keys apart — and short enough to be useless otherwise.
     expect(body.token_once.startsWith(written.token_prefix)).toBe(true);
-    expect(written.token_prefix.length).toBe(12);
+    expect(written.token_prefix).toHaveLength(12);
     // A duplicate scope is a client bug, not twice the permission.
     expect(written.scopes).toEqual(["contacts:read"]);
   });

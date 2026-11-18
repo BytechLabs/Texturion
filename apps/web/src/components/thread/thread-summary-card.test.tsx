@@ -255,7 +255,7 @@ describe("the catch-up card — what it costs", () => {
     expect(view.container.innerHTML).toBe("");
 
     view.rerender(cardAt(1));
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
   });
 
   /** A re-render is not an ask: only a new token spends. */
@@ -265,7 +265,7 @@ describe("the catch-up card — what it costs", () => {
     const view = render(cardAt(1));
     view.rerender(cardAt(1));
     view.rerender(cardAt(1));
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
 
     view.rerender(cardAt(2));
     expect(mutate).toHaveBeenCalledTimes(2);
@@ -276,7 +276,7 @@ describe("the catch-up card — what it costs", () => {
     const mutate = vi.fn();
     hook.mutate = mutate;
     render(<StrictMode>{cardAt(1)}</StrictMode>);
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
   });
 
   /**
@@ -308,7 +308,7 @@ describe("the catch-up card — what it costs", () => {
     expect(screen.getByText(A_LINE)).toBeTruthy();
 
     fireEvent.click(screen.getByText("Dismiss"));
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledOnce();
     expect(view.container.innerHTML).toBe("");
 
     view.rerender(cardAt(2));
@@ -639,8 +639,7 @@ describe("the catch-up card — what gets reported", () => {
     fireEvent.click(screen.getByText("Asked what a new tank costs"));
     fireEvent.click(screen.getByText("Nobody has answered the quote"));
 
-    expect(reportAiOutcome).toHaveBeenCalledTimes(1);
-    expect(reportAiOutcome).toHaveBeenCalledWith("company-1", "thread_summary", "used");
+    expect(reportAiOutcome).toHaveBeenCalledExactlyOnceWith("company-1", "thread_summary", "used");
   });
 
   it("reports nothing for a catch-up nobody opened a message from", () => {

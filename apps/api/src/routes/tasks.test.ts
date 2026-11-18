@@ -2515,7 +2515,7 @@ describe("#689 D subscriber alerts raised by the task routes", () => {
       assigned_user_id: null,
     });
     expect(response.status).toBe(200);
-    expect(alerts).toHaveBeenCalledTimes(1);
+    expect(alerts).toHaveBeenCalledOnce();
     expect(alerts.mock.calls[0][1]).toMatchObject({
       companyId: COMPANY_ID,
       taskId: TASK_ID,

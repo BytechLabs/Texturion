@@ -1140,7 +1140,7 @@ describe("updateCampaignContent — Step 0c content migration", () => {
     const body = telnyx.callsTo("PUT", /^\/v2\/10dlc\/campaign\/camp-1$/)[0]
       .body as Record<string, string>;
     expect(body.sample1).toBe(longSample1.trim().slice(0, 255));
-    expect(body.sample1.length).toBe(255);
+    expect(body.sample1).toHaveLength(255);
     expect(body.sample2).toBe(CAMPAIGN_DATA.sample2);
     expect(body.sample3.length).toBeLessThanOrEqual(255);
   });

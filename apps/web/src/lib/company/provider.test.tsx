@@ -339,6 +339,6 @@ describe("a member's launch (D23)", () => {
     nav.pathname = "/inbox";
     mount();
     await waitFor(() => expect(nav.replace).toHaveBeenCalledWith("/for-you"));
-    expect(nav.replace).toHaveBeenCalledTimes(1);
+    expect(nav.replace).toHaveBeenCalledOnce();
   });
 });
