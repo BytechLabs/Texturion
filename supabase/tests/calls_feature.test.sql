@@ -531,4 +531,65 @@ begin
   raise notice 'C-12 PASSED: replay branch is authorization-scoped (outbound + matching from only)';
 end $$;
 
+-- C-13. Inbound claims only count live calls and fresh reservations on this line.
+do $$
+declare
+  v_company constant uuid := '77777777-7777-4777-8777-777000000000';
+  v_line constant uuid := '77777777-7777-4777-8777-777000000003';
+  v_other_line constant uuid := '77777777-7777-4777-8777-777000000001';
+  v_window constant timestamptz := now() - interval '4 hours';
+  v_caller constant text := '+14165550813';
+  v_case record;
+  v_busy boolean;
+  v_count integer;
+  v_recorded_caller text;
+begin
+  insert into public.phone_numbers (id, company_id, status, provisioning_key, country, number_e164)
+  values (v_line, v_company, 'active', 'cs_test_inbound_claim', 'CA', '+14165550400');
+
+  for v_case in
+    select * from (values
+      ('live', v_line, 'answered', interval '10 seconds', true),
+      ('legacy state', v_line, null, interval '10 seconds', true),
+      ('stranded', v_line, 'ended_answered', interval '10 seconds', false),
+      ('outside window', v_line, 'answered', interval '5 hours', false),
+      ('other line', v_other_line, 'answered', interval '10 seconds', false)
+    ) as scenarios(label, line, state, age, expected_busy)
+  loop
+    insert into public.calls
+      (company_id, phone_number_id, call_session_id, direction, state, created_at)
+    values (v_company, v_case.line, 'sess-c13-existing', 'inbound', v_case.state, now() - v_case.age);
+
+    v_busy := public.api_claim_inbound_line(v_company, v_line, 'sess-c13-inbound', v_caller, v_window);
+    if v_busy is distinct from v_case.expected_busy then
+      raise exception 'C-13 FAILED: %, busy % (want %)', v_case.label, v_busy, v_case.expected_busy;
+    end if;
+    delete from public.calls where call_session_id in ('sess-c13-existing', 'sess-c13-inbound');
+  end loop;
+
+  insert into public.outbound_call_authorizations
+    (nonce, company_id, phone_number_id, from_e164, customer_e164, created_at)
+  values ('nonce-c13', v_company, v_line, '+14165550400', v_caller, now() - interval '10 seconds');
+
+  v_busy := public.api_claim_inbound_line(v_company, v_line, 'sess-c13-inbound', v_caller, v_window);
+  if v_busy is distinct from true then
+    raise exception 'C-13 FAILED: a ten-second outbound reservation did not hold the line';
+  end if;
+
+  update public.outbound_call_authorizations
+     set created_at = now() - interval '40 seconds'
+   where nonce = 'nonce-c13';
+  v_busy := public.api_claim_inbound_line(v_company, v_line, 'sess-c13-inbound', '+14165550814', v_window);
+  if v_busy is distinct from false then
+    raise exception 'C-13 FAILED: an expired reservation or the replayed session still held the line';
+  end if;
+
+  select count(*), max(caller_e164) into v_count, v_recorded_caller
+    from public.calls where call_session_id = 'sess-c13-inbound';
+  if v_count is distinct from 1 or v_recorded_caller is distinct from v_caller then
+    raise exception 'C-13 FAILED: replay changed the original call row';
+  end if;
+  raise notice 'C-13 PASSED: inbound line claims respect live calls, reservations, and replay';
+end $$;
+
 rollback;
