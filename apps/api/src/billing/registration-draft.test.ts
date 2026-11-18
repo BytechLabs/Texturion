@@ -72,8 +72,7 @@ describe(registrationDraftComplete, () => {
   it.each(["companyName", "ein", "email", "phone", "vertical", "street", "city", "state", "postalCode", "country", "displayName"])(
     "fails a standard brand draft missing %s",
     (key) => {
-      const data: Record<string, unknown> = { ...brandData };
-      delete data[key];
+      const { [key]: _missing, ...data } = brandData as Record<string, unknown>;
       expect(registrationDraftComplete([brand({ data }), campaign()])).toBe(false);
     },
   );
@@ -114,8 +113,7 @@ describe(registrationDraftComplete, () => {
   it.each(["messageFlow", "sample1", "sample2"])(
     "fails a campaign draft missing %s",
     (key) => {
-      const data: Record<string, unknown> = { ...campaignData };
-      delete data[key];
+      const { [key]: _missing, ...data } = campaignData as Record<string, unknown>;
       expect(registrationDraftComplete([brand(), campaign({ data })])).toBe(false);
     },
   );

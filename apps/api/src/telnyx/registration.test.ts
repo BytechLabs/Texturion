@@ -123,11 +123,12 @@ function registerMergeNumberAssignmentRpc(rest: FakeRest) {
       ...((data.numberAssignments as Record<string, unknown>) ?? {}),
       [args.p_phone as string]: args.p_status,
     };
-    const notified = {
+    let notified = {
       ...((data.assignmentFailureNotified as Record<string, unknown>) ?? {}),
     };
     if (args.p_clear_notified) {
-      delete notified[args.p_phone as string];
+      const { [args.p_phone as string]: _cleared, ...remaining } = notified;
+      notified = remaining;
     } else if (args.p_notified_at != null) {
       notified[args.p_phone as string] = args.p_notified_at;
     }

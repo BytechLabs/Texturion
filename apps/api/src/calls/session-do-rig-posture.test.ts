@@ -62,9 +62,8 @@ function revive(store: ReturnType<typeof makeStorage>, bindings: Bindings): Call
 }
 
 function withoutKey(bindings: Bindings, key: string): Bindings {
-  const copy = { ...bindings };
-  delete copy[key];
-  return copy;
+  const { [key]: _omitted, ...remaining } = bindings;
+  return remaining;
 }
 
 /** Every request that reached the network edge. */

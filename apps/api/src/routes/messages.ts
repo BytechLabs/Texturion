@@ -224,16 +224,17 @@ export function messageJson(
   row: MessageRow,
   attachments: AttachmentSummary[],
 ): Record<string, unknown> {
-  const { ...rest } = row as MessageRow & { body_tsv?: unknown };
-  delete (rest as { body_tsv?: unknown }).body_tsv;
   // Internal-only columns, SELECTed because server code needs them (cost
   // roll-ups, send dedup) but never ours to publish. `provider_cost` is what we
   // paid the carrier for that one text, from which anyone on the account can
   // derive our margin. Stripped here because this is the one function every
   // message response goes through, so no route can forget.
-  for (const internal of ["provider_cost", "idempotency_key"]) {
-    delete (rest as Record<string, unknown>)[internal];
-  }
+  const {
+    body_tsv: _searchVector,
+    provider_cost: _carrierCost,
+    idempotency_key: _idempotencyKey,
+    ...rest
+  } = row as MessageRow & { body_tsv?: unknown };
   return { ...rest, attachments };
 }
 

@@ -59,14 +59,13 @@ afterAll(() => {
 });
 
 async function setFlag(args: string[], env: Record<string, string | undefined>) {
-  const childEnv: Record<string, string | undefined> = {
+  const childEnv = Object.fromEntries(Object.entries({
     ...process.env,
     SUPABASE_URL: origin,
     SUPABASE_SECRET_KEY: "stand-in-key",
     GITHUB_ACTIONS: undefined,
     ...env,
-  };
-  for (const [name, value] of Object.entries(childEnv)) if (value === undefined) delete childEnv[name];
+  }).filter(([, value]) => value !== undefined));
   selects.length = 0;
   const { stdout, stderr } = await promisify(execFile)(process.execPath, [SCRIPT, ...args], {
     cwd: REPO_ROOT,

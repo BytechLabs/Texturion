@@ -41,6 +41,8 @@ import {
   viewToTaskState,
 } from "./task-saved-views";
 
+type OptionalTaskField = Exclude<keyof TaskPageState, "tab" | "view">;
+
 /**
  * The /tasks page filter bar (T6.1 / D25) — one-glance, NO fly-out drawer,
  * shared across all four views. Three layers, exactly the inbox model:
@@ -122,16 +124,21 @@ export function taskFilterCount(state: TaskPageState): number {
   ].filter(Boolean).length;
 }
 
-/** Every filter off; the tab, view and search stay. */
-function clearTaskFilters(state: TaskPageState): TaskPageState {
-  const next = { ...state };
-  for (const key of [
-    "assignee", "unassigned", "due", "priority", "tag", "contact", "createdBy",
-    "source", "files", "refs", "dueFrom", "dueTo", "group", "sort",
-  ] as const) {
-    delete next[key];
+function withoutTaskFields(state: TaskPageState, keys: readonly OptionalTaskField[]): TaskPageState {
+  let next = state;
+  for (const key of keys) {
+    const { [key]: _removed, ...remaining } = next;
+    next = remaining;
   }
   return next;
+}
+
+/** Every filter off; the tab, view and search stay. */
+function clearTaskFilters(state: TaskPageState): TaskPageState {
+  return withoutTaskFields(state, [
+    "assignee", "unassigned", "due", "priority", "tag", "contact", "createdBy",
+    "source", "files", "refs", "dueFrom", "dueTo", "group", "sort",
+  ]);
 }
 
 /** Debounced title search (250ms → `q`). */
@@ -527,11 +534,10 @@ function FilterPopover({
   };
   const patch = (
     change: Partial<TaskPageState>,
-    remove: (keyof TaskPageState)[] = [],
+    remove: OptionalTaskField[] = [],
     close = true,
   ) => {
-    const next = { ...state, ...change };
-    for (const key of remove) delete next[key];
+    const next = withoutTaskFields({ ...state, ...change }, remove);
     onChange(next);
     if (close) setOpen(false);
   };

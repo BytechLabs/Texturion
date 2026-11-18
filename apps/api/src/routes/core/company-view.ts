@@ -426,6 +426,8 @@ export const BILLING_ONLY_COMPANY_FIELDS = [
   "winback_dismissed_at",
 ] as const;
 
+const BILLING_ONLY_COMPANY_FIELD_SET = new Set<PropertyKey>(BILLING_ONLY_COMPANY_FIELDS);
+
 /**
  * #515: drop {@link BILLING_ONLY_COMPANY_FIELDS} unless the caller holds
  * `billing.manage`. A no-op for owner, admin and bookkeeper.
@@ -435,9 +437,12 @@ export function withBillingRedacted<T extends Record<string, unknown>>(
   role: MemberRole,
 ): T {
   if (roleHasCapability(role, "billing.manage")) return company;
-  const redacted: Record<string, unknown> = { ...company };
-  for (const field of BILLING_ONLY_COMPANY_FIELDS) delete redacted[field];
-  return redacted as T;
+  const fields: Record<PropertyKey, unknown> = { ...company };
+  return Object.fromEntries(
+    Reflect.ownKeys(fields)
+      .filter((key) => !BILLING_ONLY_COMPANY_FIELD_SET.has(key))
+      .map((key) => [key, fields[key]]),
+  ) as T;
 }
 
 /**

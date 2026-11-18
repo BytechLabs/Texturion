@@ -88,8 +88,8 @@ export class MemberSessions {
     if (!this.#o.file) return;
     const all = this.#read();
     if (!(key in all)) return;
-    delete all[key];
-    this.#write(all);
+    const { [key]: _forgotten, ...remaining } = all;
+    this.#write(remaining);
   }
 
   /** A refused grant returns undefined: the caller falls back to the next kind of sign-in. */

@@ -348,7 +348,6 @@ export function clearSecondary(
   filters: InboxUrlFilters,
   key: SecondaryFilterKey,
 ): InboxUrlFilters {
-  const next = { ...filters };
-  delete next[key];
+  const { [key]: _cleared, ...next } = filters;
   return next;
 }

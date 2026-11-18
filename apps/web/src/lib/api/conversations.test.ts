@@ -119,9 +119,14 @@ function detailOf(item: ConversationListItem): ConversationDetail {
 
 /** The bare conversations row PATCH answers with. */
 function serverRow(item: ConversationListItem, fields: Partial<Conversation>): Conversation {
-  const conversation: Record<string, unknown> = { ...item, ...fields };
-  for (const key of ["contact", "tags", "unread", "last_message"]) delete conversation[key];
-  return conversation as unknown as Conversation;
+  const {
+    contact: _contact,
+    tags: _tags,
+    unread: _unread,
+    last_message: _lastMessage,
+    ...conversation
+  } = { ...item, ...fields };
+  return conversation;
 }
 
 function pages(...rows: ConversationListItem[][]): ConversationListData {

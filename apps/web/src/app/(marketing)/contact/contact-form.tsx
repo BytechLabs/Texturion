@@ -64,8 +64,7 @@ export function ContactForm({ locale = "en" }: { locale?: MarketingLocale } = {}
     // Clear this field's inline error as the visitor corrects it.
     setFieldErrors((errs) => {
       if (!(key in errs)) return errs;
-      const next = { ...errs };
-      delete next[key as keyof ContactFieldErrors];
+      const { [key as keyof ContactFieldErrors]: _corrected, ...next } = errs;
       return next;
     });
   }

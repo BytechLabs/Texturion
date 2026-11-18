@@ -232,7 +232,6 @@
     "eslint/no-useless-assignment": "off", // 21
     "typescript/parameter-properties": "off", // 21
     "unicorn/custom-error-definition": "off", // 21
-    "typescript/no-dynamic-delete": "off", // 20
     "promise/prefer-catch": "off", // 19
     "unicorn/prefer-set-has": "off", // 18
     "vitest/prefer-mock-return-shorthand": "off", // 18

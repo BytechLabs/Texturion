@@ -89,12 +89,14 @@ export function DeliveryModesCard({
   }
 
   function setMode(category: NotificationCategory, mode: DeliveryMode) {
-    const next = { ...delivery };
+    let next = { ...delivery, [category]: mode };
     // Immediate is the default, so it is stored as ABSENCE. Writing it would
     // mean a member who never touched this looked different from one who chose
     // the default, and the two are the same thing.
-    if (mode === "immediate") delete next[category];
-    else next[category] = mode;
+    if (mode === "immediate") {
+      const { [category]: _immediate, ...remaining } = next;
+      next = remaining;
+    }
 
     void save({
       delivery: next,
