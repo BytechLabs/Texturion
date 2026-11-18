@@ -179,6 +179,7 @@ class SoftphoneCore(
         val reason: HoldReason,
         val headerSession: String? = null,
         val legId: String? = null,
+        val transferTarget: Boolean,
     )
 
     private enum class HoldReason { DUPLICATE, CAPACITY }
@@ -230,6 +231,7 @@ class SoftphoneCore(
      * wake push / ring-me.
      */
     private var pushHintSession: String? = null
+    private var pushHintIsTransfer = false
     private var pushHintCaller: String? = null
     private var pushHintAtMs: Long? = null
 
@@ -462,6 +464,7 @@ class SoftphoneCore(
         val headerSession =
             (correlation as? TelecomCallReducer.Correlation.Header)?.session
         val legId = event.legId
+        val transferTarget = TelecomCallReducer.legKindFromHeaders(event.customHeaders) == "transfer"
         // #213: the server-dialed placer (op) leg for an outbound call THIS member
         // just placed. The server stamps X-Loonext-Session=S on the op dial, so a
         // match against a pending placement means this is OUR own outbound leg —
@@ -508,11 +511,11 @@ class SoftphoneCore(
             holdInvite(
                 event.call, name, number,
                 if (duplicate) HoldReason.DUPLICATE else HoldReason.CAPACITY,
-                headerSession, legId,
+                headerSession, legId, transferTarget,
             )
             return
         }
-        presentIncoming(event.call, name, number, headerSession, legId)
+        presentIncoming(event.call, name, number, headerSession, legId, transferTarget)
     }
 
     /**
@@ -581,6 +584,7 @@ class SoftphoneCore(
         number: String,
         headerSession: String?,
         legId: String?,
+        transferTarget: Boolean,
     ) {
         val otherLiveCalls = _state.value.liveCalls.size
         val snapshot = CallSnapshot(
@@ -592,6 +596,7 @@ class SoftphoneCore(
             // §3.2: header-known customer session at ring time (else resolved
             // by-leg post-answer, as before, when the header was absent).
             sessionId = headerSession,
+            transferTarget = transferTarget,
         )
         handles[handle.id] = handle
         sdkPhases[handle.id] = CallPhase.RINGING
@@ -606,7 +611,7 @@ class SoftphoneCore(
         // presenting), THEN the concurrent /state reconcile — a ringing-exit
         // verdict SILENCES the presentation (banner/ringer/notification down)
         // while the leg waits for the server BYE. Never a client hangup.
-        reconcilePresentation(inviteCaller = number, otherLiveCalls = otherLiveCalls)
+        if (!transferTarget) reconcilePresentation(inviteCaller = number, otherLiveCalls = otherLiveCalls)
     }
 
     /** Track a held INVITE (§10.1.4) until it dies or gets promoted. */
@@ -617,9 +622,10 @@ class SoftphoneCore(
         reason: HoldReason,
         headerSession: String? = null,
         legId: String? = null,
+        transferTarget: Boolean,
     ) {
         val id = handle.id
-        heldInvites[id] = HeldInvite(handle, name, number, reason, headerSession, legId)
+        heldInvites[id] = HeldInvite(handle, name, number, reason, headerSession, legId, transferTarget)
         // F2: held INVITEs are subject to the same ring TTL as presented ones.
         ringFirstSeenMs.getOrPut(id) { now() }
         ensureRingTtlSweep()
@@ -695,7 +701,7 @@ class SoftphoneCore(
             ?: heldInvites.entries.firstOrNull { it.value.reason == HoldReason.CAPACITY }?.key
             ?: return
         val held = heldInvites.getValue(candidateId)
-        val verifySession = if (held.reason == HoldReason.DUPLICATE) {
+        val verifySession = if (held.reason == HoldReason.DUPLICATE && !held.transferTarget) {
             CallWakePolicy.reconcileSession(
                 hintSession = pushHintSession,
                 hintAtMs = pushHintAtMs,
@@ -731,7 +737,7 @@ class SoftphoneCore(
             // A slot filled while we deliberated — hold again.
             holdInvite(
                 held.handle, held.callerName, held.callerNumber, HoldReason.CAPACITY,
-                held.headerSession, held.legId,
+                held.headerSession, held.legId, held.transferTarget,
             )
             return
         }
@@ -744,7 +750,7 @@ class SoftphoneCore(
         // after an answer-glare (accepted-but-never-active owner) without dead air.
         // Do NOT reorder promotion ahead of the dead leg's state removal.
         presentIncoming(
-            held.handle, held.callerName, held.callerNumber, held.headerSession, held.legId,
+            held.handle, held.callerName, held.callerNumber, held.headerSession, held.legId, held.transferTarget,
         )
         // Drop it from the held map only AFTER it is in `calls`, so the session's
         // authoritative live-leg set (presented ∪ held) never transiently empties
@@ -791,7 +797,16 @@ class SoftphoneCore(
     fun onCallSessionUpdate(sessionId: String, state: String?) {
         if (sessionId.isBlank()) return
         if (!CallWakePolicy.isRingingExit(state)) return
+        if (keepTransferRing(sessionId, state)) return
         applyRingingExit(sessionId)
+    }
+
+    fun keepTransferRing(sessionId: String, state: String?): Boolean {
+        if (state != CallWakePolicy.STATE_ANSWERED) return false
+        val recentTransferPush = pushHintIsTransfer && pushHintSession == sessionId &&
+            pushHintAtMs?.let { !CallWakePolicy.ringExpired(it, now()) } == true
+        return _state.value.liveCalls.any { it.sessionId == sessionId && it.transferTarget } ||
+            recentTransferPush
     }
 
     /**
@@ -1401,11 +1416,12 @@ class SoftphoneCore(
      * contract, as is ring-me's request-property 409; real failures propagate
      * so the caller (SoftphoneManager) can retry and tray-fall-back.
      */
-    suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null) {
+    suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null, transferId: String? = null) {
         val company = requireCompany()
         // Remember which session is (supposedly) ringing us — presentation
         // reconciliation correlates a later INVITE against this hint.
         pushHintSession = sessionId
+        pushHintIsTransfer = transferId != null
         pushHintCaller = callerHint
         pushHintAtMs = now()
         // #195 F3 honest gate: only a GENUINELY ENGAGED leg (active/held/
@@ -1413,7 +1429,10 @@ class SoftphoneCore(
         // INVITE path owns presentation. A silenced/stale RINGING zombie or a
         // leftover held fork must never eat a wake push — that wedge is how
         // every later call went straight to voicemail until app restart.
-        if (CallWakePolicy.anyEngaged(_state.value.calls)) return
+        if (CallWakePolicy.anyEngaged(_state.value.calls)) {
+            if (transferId != null) finishWake(sessionId)
+            return
+        }
         if (_state.value.calls.isNotEmpty() || heldInvites.isNotEmpty()) {
             CallFlowLog.log(
                 "wake",
@@ -1423,45 +1442,61 @@ class SoftphoneCore(
         }
         ensureConnected()
         awaitReady()
-        val live = try {
-            api.sessionState(company, sessionId)
-        } catch (cause: ApiException) {
-            if (cause.code == ApiErrorCode.NOT_FOUND) {
-                runCatching { onWakeSessionOver?.invoke(sessionId) }
+        if (company != companyId || CallWakePolicy.anyEngaged(_state.value.calls)) {
+            if (transferId != null) finishWake(sessionId)
+            return
+        }
+        if (transferId == null) {
+            val live = try {
+                api.sessionState(company, sessionId)
+            } catch (cause: ApiException) {
+                if (cause.code != ApiErrorCode.NOT_FOUND) throw cause
+                finishWake(sessionId)
                 return
             }
-            throw cause
+            if (live.state != CallWakePolicy.STATE_RINGING) {
+                if (CallWakePolicy.isRingingExit(live.state)) finishWake(sessionId)
+                return
+            }
         }
-        if (live.state != CallWakePolicy.STATE_RINGING) {
-            if (CallWakePolicy.isRingingExit(live.state)) runCatching { onWakeSessionOver?.invoke(sessionId) }
+        val ack = requestRingMe(company, sessionId, transferId)
+        if (ack?.reason == CallWakePolicy.REASON_NOT_YOUR_TURN) {
+            finishWake(sessionId)
             return
         }
-        val ack = requestRingMe(company, sessionId) ?: return
-        if (ack.reason == CallWakePolicy.REASON_NOT_YOUR_TURN) {
-            runCatching { onWakeSessionOver?.invoke(sessionId) }
-            return
-        }
-        if (ack.rang != false) {
+        if (ack != null && ack.rang != false) {
             // rang:true (or a pre-v3 server's bare `ok`) — an INVITE is
             // coming; refresh the hint clock so the correlation window tracks
             // the re-dial, not the original push.
             pushHintAtMs = now()
             return
         }
-        if (ack.reason != CallWakePolicy.REASON_RECENT_LEG) return
+        if (ack?.reason != CallWakePolicy.REASON_RECENT_LEG) {
+            if (transferId != null && ack?.reason != "live_leg") finishWake(sessionId)
+            return
+        }
         // §10.2: one retry after ~4s, only if no INVITE landed meanwhile.
         // "Landed" means an ENGAGED leg (F3) — a fresh INVITE presents as a
         // non-silenced ring; a zombie must not swallow the one retry.
         delay(CallWakePolicy.RING_ME_RETRY_MS)
-        if (CallWakePolicy.anyEngaged(_state.value.calls)) return
-        val retry = requestRingMe(company, sessionId) ?: return
-        if (retry.rang != false) pushHintAtMs = now()
+        if (company != companyId || CallWakePolicy.anyEngaged(_state.value.calls)) return
+        val retry = requestRingMe(company, sessionId, transferId)
+        if (retry != null && retry.rang != false) pushHintAtMs = now()
+        else if (retry?.reason == CallWakePolicy.REASON_NOT_YOUR_TURN ||
+            (transferId != null && retry?.reason != "live_leg")) finishWake(sessionId)
+    }
+
+    private fun finishWake(sessionId: String) {
+        if (_state.value.calls.none { it.sessionId == sessionId }) {
+            if (pushHintSession == sessionId) pushHintIsTransfer = false
+            runCatching { onWakeSessionOver?.invoke(sessionId) }
+        }
     }
 
     /** ring-me with the §6 attestation; 409/404 (request-property refusals,
      *  §8.3) are silent by contract — anything else propagates. */
-    private suspend fun requestRingMe(company: String, sessionId: String): RingAck? = try {
-        api.ringMe(company, sessionId, noLocalLeg = true).also {
+    private suspend fun requestRingMe(company: String, sessionId: String, transferId: String?): RingAck? = try {
+        api.ringMe(company, sessionId, noLocalLeg = true, transferId = transferId).also {
             runCatching { onRingMeSent?.invoke(sessionId) }
         }
     } catch (cause: ApiException) {

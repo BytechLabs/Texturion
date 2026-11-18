@@ -32,6 +32,7 @@ object TelecomCallReducer {
      *  the ring input), so this is null in practice until the DO contract carries
      *  a name (#211). */
     const val CALLER_NAME_HEADER_NAME = "X-Loonext-Caller-Name"
+    const val LEG_HEADER_NAME = "X-Loonext-Leg"
 
     /**
      * §3.3: the single tunable bind deadline. `onAnswer` holds the OS call
@@ -121,6 +122,9 @@ object TelecomCallReducer {
             .firstOrNull { it.first.equals(CALLER_NAME_HEADER_NAME, ignoreCase = true) }
             ?.second
             ?.takeIf { it.isNotBlank() }
+
+    fun legKindFromHeaders(customHeaders: List<Pair<String, String>>): String? =
+        customHeaders.firstOrNull { it.first.equals(LEG_HEADER_NAME, ignoreCase = true) }?.second
 
     // ------------------------------------------------------- §3 idempotency
 

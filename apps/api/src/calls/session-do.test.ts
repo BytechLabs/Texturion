@@ -697,6 +697,41 @@ describe("Founder sequence 3 — BACKGROUND (ring-me coexists with a live engine
   });
 });
 
+describe("Transfer wake", () => {
+  it("reserves one wake for the target and ignores the replaced leg after eviction", async () => {
+    const { instance, calls, store } = makeDO({ initiated: ctx() });
+    await instance.onTelnyxEvent(initiatedEvent("wake-init"));
+    await instance.whenIdle();
+    await instance.onTelnyxEvent(memberAnsweredEvent("wake-owner", "cc0"));
+    await instance.whenIdle();
+
+    const transferId = crypto.randomUUID();
+    const targetUserId = "u2";
+    const firstLeg = { transferId, targetUserId, memberCcid: "transfer-first" };
+    const wake = { transferId, userId: targetUserId };
+    expect(await instance.registerIntent({
+      sessionId: SESSION, kind: "transfer", targetUserId, transferId, senderUserId: "u1",
+    })).toMatchObject({ state: "answered", registered: true });
+    await instance.bindTransferLeg(firstLeg);
+    expect(await instance.reserveTransferWake({ ...wake, userId: "u3" })).toMatchObject({ reason: "not_ringing" });
+    expect(await instance.reserveTransferWake(wake)).toMatchObject({ reason: "recent_leg" });
+    expect(await instance.endTransferAttempt({ ...wake, memberCcid: firstLeg.memberCcid, waitForWake: true })).toBe("waiting");
+    expect(calls.bridges).toHaveLength(1);
+
+    const revived = reviveDO(store, { initiated: ctx() });
+    const reserved = await revived.instance.reserveTransferWake(wake);
+    expect(reserved).toMatchObject({ state: "answered", senderUserId: "u1" });
+    if (!("wakeId" in reserved)) throw new Error("Transfer wake was refused");
+    expect(await revived.instance.reserveTransferWake(wake)).toMatchObject({ reason: "live_leg" });
+    expect(await revived.instance.endTransferAttempt({ ...wake, memberCcid: firstLeg.memberCcid, waitForWake: false })).toBe("stale");
+    expect(await revived.instance.completeTransfer(firstLeg)).toBe(false);
+    const secondLeg = { ...firstLeg, wakeId: reserved.wakeId, memberCcid: "transfer-wake" };
+    await revived.instance.bindTransferLeg(secondLeg);
+    expect(await revived.instance.completeTransfer(secondLeg)).toBe(true);
+    expect(revived.calls.bridges).toEqual([{ member: "transfer-wake", inbound: "cust-ccid" }]);
+  });
+});
+
 // ---- #211 outbound (oc) sessions -------------------------------------------
 
 describe("CallSessionDO — outbound (oc) sessions (#211)", () => {

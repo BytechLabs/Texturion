@@ -92,6 +92,7 @@ class SoftphoneCoreTest {
     private var ringMeBehavior: () -> RingAck =
         { RingAck(ok = true, rang = true, state = CallWakePolicy.STATE_RINGING) }
     private val ringMeNoLocalLeg = mutableListOf<Boolean>()
+    private val ringMeTransferIds = mutableListOf<String?>()
 
     /** Every session the per-session fast-path decline POSTed (#171 R1). */
     private val declinedSessions = mutableListOf<String>()
@@ -111,6 +112,7 @@ class SoftphoneCoreTest {
         }
         ringMeBehavior = { RingAck(ok = true, rang = true, state = CallWakePolicy.STATE_RINGING) }
         ringMeNoLocalLeg.clear()
+        ringMeTransferIds.clear()
         declinedSessions.clear()
         declineMineCalls.set(0)
     }
@@ -164,8 +166,10 @@ class SoftphoneCoreTest {
             companyId: String,
             sessionId: String,
             noLocalLeg: Boolean,
+            transferId: String?,
         ): RingAck {
             ringMeNoLocalLeg += noLocalLeg
+            ringMeTransferIds += transferId
             return ringMeBehavior()
         }
 
@@ -268,11 +272,13 @@ class SoftphoneCoreTest {
             headerSession: String? = null,
             headerCaller: String? = null,
             headerCallerName: String? = null,
+            headerLegKind: String? = null,
         ) {
             val headers = buildList {
                 headerSession?.let { add(TelecomCallReducer.HEADER_NAME to it) }
                 headerCaller?.let { add(TelecomCallReducer.CALLER_HEADER_NAME to it) }
                 headerCallerName?.let { add(TelecomCallReducer.CALLER_NAME_HEADER_NAME to it) }
+                headerLegKind?.let { add(TelecomCallReducer.LEG_HEADER_NAME to it) }
             }
             _events.tryEmit(SdkEvent.Incoming(handle, name, number, customHeaders = headers))
         }
@@ -812,6 +818,42 @@ class SoftphoneCoreTest {
         h.core.onIncomingCallPush("sess-done")
 
         assertTrue(ringMeNoLocalLeg.isEmpty())
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `a refused transfer wake clears the OS ring without retrying`() = runTest {
+        sessionStateBehavior = { error("The transfer endpoint owns the state check") }
+        ringMeBehavior = { RingAck(ok = true, rang = false, state = "answered", reason = "not_ringing") }
+        val ended = mutableListOf<String>()
+        val h = harness()
+        h.core.onWakeSessionOver = { ended += it }
+        h.core.start("company-1")
+        h.core.awaitReady()
+
+        h.core.onIncomingCallPush("sess-transfer", transferId = "transfer-one")
+
+        assertEquals(listOf("transfer-one"), ringMeTransferIds)
+        assertEquals(listOf("sess-transfer"), ended)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `transfer invite keeps ringing on an answered customer session`() = runTest {
+        sessionStateBehavior = { LiveSessionState(call_session_id = it, state = "answered") }
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.onIncomingCallPush("sess-transfer", transferId = "transfer-one")
+        h.sdk.ring(FakeHandle("transfer-leg"), headerSession = "sess-transfer", headerLegKind = "transfer")
+        runCurrent()
+
+        h.core.onCallSessionUpdate("sess-transfer", "answered")
+        assertTrue(h.core.keepTransferRing("sess-transfer", "answered"))
+        assertFalse(h.core.state.value.calls.single().silenced)
+
+        h.core.onCallSessionUpdate("sess-transfer", "ended_answered")
+        assertTrue(h.core.state.value.calls.single().silenced)
         h.scope.cancel()
     }
 

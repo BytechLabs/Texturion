@@ -459,24 +459,17 @@ function s07World(variant: TransferVariant) {
   world.ctx.slot = { index: 0, label: variant };
   const seen = withLeaseAtChanges(world);
   const pages = withPages(world, {
-    [OWNER]: { rings: variant === "blind" ? [1500] : [1500, 2000] },
+    [OWNER]: { rings: [1500] },
     [TECH]: { rings: [2000] },
   });
-  if (variant !== "hop-cap") robotOutcome(world, (record) => withSegments(record, { after: variant === "blind" ? [TECH] : [OWNER] }));
-  const rows = withRows(world, [row("QA-W", "ROBOT-1", "s07-session", { outcome: variant === "hop-cap" ? "voicemail" : "answered" })]);
-  world.app.legs.set(
-    "QA-W/s07-session",
-    variant === "blind"
-      ? [
-          { member: OWNER, state: "answered", kind: "ring" },
-          { member: TECH, state: "answered", kind: "transfer" },
-        ]
-      : [
-          { member: OWNER, state: "answered", kind: "ring" },
-          { member: TECH, state: "failed", kind: "transfer" },
-          { member: OWNER, state: "answered", kind: "transfer" },
-        ],
-  );
+  robotOutcome(world, (record) => withSegments(record, {
+    ringing_target: [OWNER], after: variant === "blind" ? [TECH] : [OWNER],
+  }));
+  const rows = withRows(world, [row("QA-W", "ROBOT-1", "s07-session", { outcome: "answered" })]);
+  world.app.legs.set("QA-W/s07-session", [
+    { member: OWNER, state: "answered", kind: "ring" },
+    { member: TECH, state: variant === "blind" ? "answered" : "failed", kind: "transfer" },
+  ]);
   return { ...world, ...pages, seen, rows };
 }
 
@@ -492,7 +485,7 @@ describe("S07, blind transfer and its variants", () => {
     expect(world.browser.opened.map((page) => page.member)).toEqual([OWNER, TECH]);
   });
 
-  it("rings the crew in turn under an undo registered first, so a snap-back stays inside three dials", async () => {
+  it("rings the owner alone under an undo registered first", async () => {
     const world = s07World("decline");
     world.app.companies.set("QA-W", { ring_strategy: "all" });
     await S07.run(world.ctx);
@@ -503,11 +496,11 @@ describe("S07, blind transfer and its variants", () => {
 
   it("names a blind transfer the robot did not follow, one never recorded, and one that never rang", async () => {
     const stayed = s07World("blind");
-    robotOutcome(stayed, (record) => withSegments(record, { after: [OWNER] }));
+    robotOutcome(stayed, (record) => withSegments(record, { ringing_target: [OWNER], after: [OWNER] }));
     await expect(S07.run(stayed.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_target" });
 
     const both = s07World("blind");
-    robotOutcome(both, (record) => withSegments(record, { after: [TECH, OWNER] }));
+    robotOutcome(both, (record) => withSegments(record, { ringing_target: [OWNER], after: [TECH, OWNER] }));
     await expect(S07.run(both.ctx)).resolves.toMatchObject({ failure_class: "robot_did_not_hear_target" });
 
     const unrecorded = s07World("blind");
@@ -531,41 +524,25 @@ describe("S07, blind transfer and its variants", () => {
     await expect(S07.run(rowless.ctx)).resolves.toMatchObject({ failure_class: "no_call_row" });
   });
 
-  it("passes a decline and a timeout that snap back to the owner, and fails one that stays with the technician", async () => {
+  it("requires the original owner to remain audible while the target rings", async () => {
+    const silent = s07World("blind");
+    robotOutcome(silent, (record) => withSegments(record, { ringing_target: [], after: [TECH] }));
+    await expect(S07.run(silent.ctx)).resolves.toMatchObject({ failure_class: "lost_sender_during_transfer" });
+  });
+
+  it("keeps the original call connected after a decline or timeout", async () => {
     for (const variant of ["decline", "timeout"] as const) {
       const world = s07World(variant);
       await expect(S07.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
       expect(world.did(TECH, "decline")).toHaveLength(variant === "decline" ? 1 : 0);
       expect(world.did(TECH, "answer")).toEqual([]);
-      expect(world.did(OWNER, "answer")).toHaveLength(2);
+      expect(world.did(OWNER, "answer")).toHaveLength(1);
+      expect(world.did(OWNER, "waitForRing")).toHaveLength(1);
 
       const stuck = s07World(variant);
-      robotOutcome(stuck, (record) => withSegments(record, { after: [TECH] }));
-      await expect(S07.run(stuck.ctx)).resolves.toMatchObject({ failure_class: "did_not_snap_back" });
-
-      const lost = s07World(variant);
-      withPages(lost, { [OWNER]: { rings: [1500, undefined] }, [TECH]: { rings: [2000] } });
-      await expect(S07.run(lost.ctx)).resolves.toMatchObject({ failure_class: "no_snap_back" });
+      robotOutcome(stuck, (record) => withSegments(record, { ringing_target: [OWNER], after: [TECH] }));
+      await expect(S07.run(stuck.ctx)).resolves.toMatchObject({ failure_class: "lost_sender_after_transfer" });
     }
-  });
-
-  it("waits out the transfer's own ring before looking for a timeout's snap-back", async () => {
-    const world = s07World("timeout");
-    await S07.run(world.ctx);
-    const [, snapBack] = world.did(OWNER, "waitForRing");
-    expect(snapBack!.args[0]).toBeGreaterThan(TRANSFER_RING_SECS * 1000);
-  });
-
-  it("passes the hop cap when a missed snap-back reaches voicemail, and fails one that does not", async () => {
-    const world = s07World("hop-cap");
-    await expect(S07.run(world.ctx)).resolves.toEqual({ outcome: "pass", detail: undefined });
-    expect(world.did(TECH, "decline")).toHaveLength(1);
-    expect(world.did(OWNER, "decline")).toHaveLength(1);
-    expect(world.robot.plans[0]!.segments).toBeUndefined();
-
-    const answered = s07World("hop-cap");
-    answered.rows[0]!.outcome = "answered";
-    await expect(S07.run(answered.ctx)).resolves.toMatchObject({ failure_class: "hop_cap_not_voicemail" });
   });
 
   it("blames the lane when the transfer control fails, and refuses a variant it does not know", async () => {
@@ -579,19 +556,17 @@ describe("S07, blind transfer and its variants", () => {
     expect(unknown.robot.plans).toEqual([]);
   });
 
-  it("opens every after-transfer window only after the latest answer it can follow, and hangs up after it", () => {
+  it("measures audio while the target is ringing and after it settles", () => {
     for (const variant of S07_VARIANTS) {
-      const { targetBy, snapBackBy, after, hangup } = transferTimeline(variant);
-      const settled = snapBackBy ?? targetBy;
+      const { targetBy, ringing, after, hangup } = transferTimeline(variant);
       expect(targetBy).toBeGreaterThan(TRANSFER_AT_MS);
-      if (after) {
-        expect(after.start_ms).toBeGreaterThanOrEqual(settled + RETURN_MS);
-        expect(hangup).toBeGreaterThan(after.end_ms);
-      } else {
-        expect(hangup).toBeGreaterThan(settled);
-      }
+      expect(ringing.start_ms).toBeGreaterThan(targetBy);
+      expect(ringing.end_ms).toBeLessThan(TRANSFER_AT_MS + TRANSFER_RING_SECS * 1000);
+      expect(after.start_ms).toBeGreaterThanOrEqual(ringing.end_ms + RETURN_MS);
+      expect(hangup).toBeGreaterThan(after.end_ms);
     }
-    expect(transferTimeline("timeout").snapBackBy! - transferTimeline("decline").snapBackBy!).toBe(TRANSFER_RING_SECS * 1000);
+    const timeout = transferTimeline("timeout");
+    expect(timeout.after.start_ms).toBeGreaterThanOrEqual(timeout.targetBy + TRANSFER_RING_SECS * 1000);
   });
 });
 

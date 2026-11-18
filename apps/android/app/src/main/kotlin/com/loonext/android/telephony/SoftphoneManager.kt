@@ -208,12 +208,12 @@ class SoftphoneManager private constructor(
         // (the server-resolved teardown, capability-gated on the `call_end`
         // cap this client already registers) and bring the in-app leg down.
         PushHooks.callEndHandler = CallEndHandler { content ->
-            content.callSessionId?.let { session ->
-                // Directly, so the ring stops without waiting on Telecom to confirm the disconnect.
-                runCatching { CallNotifier.cancelIncomingForSession(appContext, session) }
-                runCatching { registry.disconnect(session) }
-                core.onCallEndPush(session)
-            }
+            val session = content.callSessionId ?: return@CallEndHandler true
+            if (core.keepTransferRing(session, content.callEndReason)) return@CallEndHandler false
+            runCatching { CallNotifier.cancelIncomingForSession(appContext, session) }
+            runCatching { registry.disconnect(session) }
+            core.onCallEndPush(session)
+            true
         }
     }
 
@@ -336,13 +336,13 @@ class SoftphoneManager private constructor(
         runCatching { registry.ensureIncomingCall(session, content.title, callerHint.orEmpty()) }
         scope.launch {
             try {
-                core.onIncomingCallPush(session, callerHint)
+                core.onIncomingCallPush(session, callerHint, content.transferId)
             } catch (cause: CancellationException) {
                 throw cause
             } catch (_: Exception) {
                 delay(1_500)
                 try {
-                    core.onIncomingCallPush(session, callerHint)
+                    core.onIncomingCallPush(session, callerHint, content.transferId)
                 } catch (cause: CancellationException) {
                     throw cause
                 } catch (_: Exception) {
@@ -398,9 +398,9 @@ class SoftphoneManager private constructor(
      * OS incoming call so a tray-fallback / cold-start tap lands the OS UI, not
      * an empty calls list. conflict/not_found are swallowed by contract.
      */
-    suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null) {
+    suspend fun onIncomingCallPush(sessionId: String, callerHint: String? = null, transferId: String? = null) {
         runCatching { registry.ensureIncomingCall(sessionId, CallNotifier.unknownCaller(), callerHint.orEmpty()) }
-        core.onIncomingCallPush(sessionId, callerHint)
+        core.onIncomingCallPush(sessionId, callerHint, transferId)
     }
 
     /**
@@ -409,6 +409,7 @@ class SoftphoneManager private constructor(
      * (the server also sends the BYE / `call_end`).
      */
     fun onCallSessionUpdate(sessionId: String, state: String?) {
+        if (core.keepTransferRing(sessionId, state)) return
         if (CallWakePolicy.isRingingExit(state)) runCatching { registry.disconnect(sessionId) }
         core.onCallSessionUpdate(sessionId, state)
     }

@@ -87,6 +87,8 @@ class LoonextMessagingService : FirebaseMessagingService() {
         // NOTHING (a call_end is a revocation, never a notification).
         if (content.isCallEnd) {
             CallFlowLog.log("push", "kind:call_end received sess=${CallFlowLog.tail(content.callSessionId)}")
+            ensureCallWakePath()
+            if (PushHooks.callEndHandler?.onCallEnd(content) == false) return
             // §9.2: a `call_end` is a revocation, never a notification. Cancel
             // the generic tray entry by tag (data-only FCM carries no collapse
             // key, so this client-side cancel is the ONLY dismissal). The
@@ -95,8 +97,6 @@ class LoonextMessagingService : FirebaseMessagingService() {
             runCatching {
                 NotificationManagerCompat.from(this).cancel(content.tag, PUSH_NOTIFICATION_ID)
             }
-            ensureCallWakePath()
-            PushHooks.callEndHandler?.onCallEnd(content)
             return
         }
 

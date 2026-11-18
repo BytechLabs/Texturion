@@ -226,15 +226,14 @@
     },
     {
       "id": "S07",
-      "name": "Blind transfer; decline, timeout and hop-cap variants",
+      "name": "Blind transfer, decline and timeout",
       "lane": "browser",
       "far_end": "ROBOT-1 to DEV-W2",
       "runs_on": "rig",
       "runs": [
         { "label": "blind" },
         { "label": "decline" },
-        { "label": "timeout" },
-        { "label": "hop-cap" }
+        { "label": "timeout" }
       ],
       "dials": 3,
       "far_end_legs": 1,

@@ -848,7 +848,7 @@ struct ShellView: View {
                 if let taskId { AppRouter.shared.openTaskId = taskId }
             case .task(let taskId):
                 AppRouter.shared.openTaskId = taskId
-            case .calls(let sessionId):
+            case .calls(let sessionId, let transferId):
                 AppRouter.shared.openCalls = true
                 if let sessionId {
                     // Push-to-wake part 2 (#135): the softphone ensures its
@@ -856,7 +856,7 @@ struct ShellView: View {
                     // (conflict/not_found swallowed by contract; best-effort
                     // like the Android twin).
                     let manager = CallsManager.get(graph: graph)
-                    Task { try? await manager.onIncomingCallPush(sessionId: sessionId) }
+                    Task { try? await manager.onIncomingCallPush(sessionId: sessionId, transferId: transferId) }
                 }
             case .settings(let section):
                 if let section {
@@ -871,7 +871,7 @@ struct ShellView: View {
         PushHooks.callWakeHandler = { content in
             guard let sessionId = content.callSessionId else { return }
             let manager = CallsManager.get(graph: graph)
-            Task { try? await manager.onIncomingCallPush(sessionId: sessionId) }
+            Task { try? await manager.onIncomingCallPush(sessionId: sessionId, transferId: content.transferId) }
         }
         await PushCoordinator.shared.ensureRegistrar(api: graph.api).register()
     }

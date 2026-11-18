@@ -19,6 +19,7 @@ const state: {
   hasNextPage: boolean;
   isPlaceholderData: boolean;
   search: string;
+  softphoneReady: boolean;
 } = {
   rows: [],
   isPending: false,
@@ -26,10 +27,12 @@ const state: {
   hasNextPage: false,
   isPlaceholderData: false,
   search: "",
+  softphoneReady: false,
 };
 
 const router = vi.hoisted(() => ({ push: vi.fn(), replace: vi.fn() }));
 const callQueries = vi.hoisted(() => vi.fn());
+const ringMe = vi.hoisted(() => vi.fn());
 
 afterEach(() => {
   cleanup();
@@ -37,6 +40,9 @@ afterEach(() => {
   state.search = "";
   callQueries.mockClear();
   window.history.replaceState(null, "", "/");
+  state.softphoneReady = false;
+  ringMe.mockReset();
+  vi.useRealTimers();
 });
 
 // #691: the delete menu is its own surface (call-actions.test.tsx); these tests
@@ -64,7 +70,7 @@ vi.mock("@/lib/api/calls", () => ({
     };
   },
   // Push-to-wake re-ring mutation (fired only when ?call is present + ready).
-  useRingMe: () => ({ mutate: vi.fn() }),
+  useRingMe: () => ({ mutateAsync: ringMe }),
 }));
 
 // The Dialer (in the Calls header) reaches for the company's numbers and the
@@ -90,7 +96,7 @@ vi.mock("@/lib/api/team", () => ({
   }),
 }));
 vi.mock("@/lib/softphone/provider", () => ({
-  useSoftphone: () => null,
+  useSoftphone: () => state.softphoneReady ? { ready: true, calls: [] } : null,
 }));
 vi.mock("next/navigation", () => ({
   useSearchParams: () => new URLSearchParams(state.search),
@@ -341,6 +347,20 @@ describe("CallsView filters", () => {
     html = render();
     expect(html).not.toContain("opacity-60");
   });
+});
+
+it("retries a transfer wake once when the initial leg is recent", async () => {
+  vi.useFakeTimers();
+  const transferId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa";
+  state.search = `call=sess-abc-123&transfer=${transferId}`;
+  state.softphoneReady = true;
+  ringMe.mockResolvedValue({ rang: false, reason: "recent_leg" });
+  mount(<CallsView />);
+
+  expect(ringMe).toHaveBeenCalledOnce();
+  expect(ringMe).toHaveBeenCalledWith({ sessionId: "sess-abc-123", transferId });
+  await vi.advanceTimersByTimeAsync(12_000);
+  expect(ringMe).toHaveBeenCalledTimes(2);
 });
 
 /**

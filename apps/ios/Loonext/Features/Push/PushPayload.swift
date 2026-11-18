@@ -108,6 +108,7 @@ struct PushContent: Sendable, Equatable {
 
     /// `call` query param from the wake link (`/calls?call=<call_session_id>`).
     var callSessionId: String? { queryParam(url: url, name: "call") }
+    var transferId: String? { isCall ? queryParam(url: url, name: "transfer") : nil }
 }
 
 /// Parse a push data map into displayable content. Every field is optional on
@@ -266,7 +267,7 @@ enum PushRoute: Equatable, Sendable {
     case thread(conversationId: String, taskId: String? = nil, messageId: String? = nil)
     /// A task with no thread behind it: its own page carries the same panel.
     case task(taskId: String)
-    case calls(sessionId: String?)
+    case calls(sessionId: String?, transferId: String? = nil)
     case settings(section: SettingsSection?)
     case forYou
 }
@@ -324,7 +325,9 @@ func parsePushRoute(url: String) -> PushRoute? {
         // query — so a permalink resolved to the empty calls list, which is
         // the dead-end tap this table exists to prevent.
         let fromPath = segments.count >= 2 && !segments[1].isBlank ? segments[1] : nil
-        return .calls(sessionId: fromPath ?? queryParam(url: normalized, name: "call"))
+        let sessionId = fromPath ?? queryParam(url: normalized, name: "call")
+        let transferId = fromPath == nil && sessionId != nil ? queryParam(url: normalized, name: "transfer") : nil
+        return .calls(sessionId: sessionId, transferId: transferId)
     }
     if segments.first == "settings" {
         return .settings(section: pushSettingsSection(segments.dropFirst().first))

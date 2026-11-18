@@ -204,6 +204,7 @@ const tables = {
   company_members: [] as Row[],
   phone_numbers: [] as Row[],
   member_telephony_credentials: [] as Row[],
+  profiles: [] as Row[],
   notification_prefs: [] as Row[],
   push_subscriptions: [] as Row[],
   device_push_tokens: [] as Row[],
@@ -711,6 +712,46 @@ describe("hermetic call journeys (session layer)", () => {
     expect(fake.voice.live()).toEqual([]);
     await expect(client.state(sessionId)).resolves.toBe("ended_answered");
     expect(tables.call_member_legs.map((leg) => leg.state)).toEqual(["failed", "failed"]);
+    expectQuietSession(sessionId);
+  });
+
+  it("keeps the original audio until a woken transfer target answers", async () => {
+    const crew = crewFor("transfer-blind");
+    const [owner, technician] = crew.members;
+    const client = driver();
+    const settle = () => drainCallEvents(client.voice, client.deliver, client.idle);
+    const customer = fake.voice.incoming({ from: crew.farEndE164, to: crew.businessE164 });
+    const sessionId = customer.callSessionId;
+    await settle();
+
+    const ownerLeg = fake.voice.live().find((leg) => leg.to === `sip:${owner.sipUsername}@sip.telnyx.com`)!;
+    fake.voice.answer(ownerLeg.callControlId);
+    await settle();
+    await client.transfer(crew, sessionId, owner, technician);
+    await settle();
+    const targetSip = `sip:${technician.sipUsername}@sip.telnyx.com`;
+    const firstLeg = fake.voice.live().find((leg) => leg.to === targetSip)!;
+    const transferId = atob(firstLeg.clientState!).split("|").at(-1);
+    fake.voice.hangup(firstLeg.callControlId, "user_not_registered");
+    await settle();
+    expect(fake.voice.leg(customer.callControlId)?.bridgedWith).toBe(ownerLeg.callControlId);
+
+    const path = `/v1/calls/live/${sessionId}/transfer/ring-me`;
+    const wake = () => as(technician, crew, path, { transfer_id: transferId, no_local_leg: true });
+    expect(await (await wake()).json()).toMatchObject({ rang: true });
+    expect(await (await wake()).json()).toMatchObject({ rang: false, reason: "live_leg" });
+    await settle();
+    const secondLeg = fake.voice.live().find((leg) => leg.to === targetSip)!;
+    expect(secondLeg.callControlId).not.toBe(firstLeg.callControlId);
+    expect(fake.voice.leg(customer.callControlId)?.bridgedWith).toBe(ownerLeg.callControlId);
+
+    fake.voice.answer(secondLeg.callControlId);
+    await settle();
+    expect(fake.voice.leg(customer.callControlId)?.bridgedWith).toBe(secondLeg.callControlId);
+    await expect(client.answeredBy(sessionId)).resolves.toBe(technician.userId);
+    fake.voice.hangup(customer.callControlId);
+    await settle();
+    expect(fake.voice.live()).toEqual([]);
     expectQuietSession(sessionId);
   });
 });

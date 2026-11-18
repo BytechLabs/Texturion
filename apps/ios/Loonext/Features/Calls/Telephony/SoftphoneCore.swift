@@ -875,18 +875,20 @@ final class SoftphoneCore {
     /// out) is SILENT by contract; anything else propagates so the caller can
     /// retry.
     @discardableResult
-    func onIncomingCallPush(sessionId: String) async throws -> RingAck? {
+    func onIncomingCallPush(sessionId: String, transferId: String? = nil) async throws -> RingAck? {
         let company = try requireCompany()
         do {
             guard !hasEngagedCall() else { return nil }
-            let live = try await api.sessionState(companyId: company, sessionId: sessionId)
-            guard live.state == "ringing", companyId == company else { return nil }
+            if transferId == nil {
+                let live = try await api.sessionState(companyId: company, sessionId: sessionId)
+                guard live.state == "ringing", companyId == company else { return nil }
+            }
             try await ensureConnected()
             try await awaitReady()
-            let ack = try await requestRingMe(company: company, sessionId: sessionId)
+            let ack = try await requestRingMe(company: company, sessionId: sessionId, transferId: transferId)
             if ack?.rang == false, ack?.reason == "recent_leg" {
                 try await Task.sleep(for: .seconds(4))
-                return try await requestRingMe(company: company, sessionId: sessionId)
+                return try await requestRingMe(company: company, sessionId: sessionId, transferId: transferId)
             }
             return ack
         } catch let error as ApiError
@@ -895,9 +897,9 @@ final class SoftphoneCore {
         }
     }
 
-    private func requestRingMe(company: String, sessionId: String) async throws -> RingAck? {
+    private func requestRingMe(company: String, sessionId: String, transferId: String?) async throws -> RingAck? {
         guard companyId == company, !hasEngagedCall() else { return nil }
-        let ack = try await api.ringMe(companyId: company, sessionId: sessionId, noLocalLeg: true)
+        let ack = try await api.ringMe(companyId: company, sessionId: sessionId, noLocalLeg: true, transferId: transferId)
         onRingMeSent?(sessionId)
         return ack
     }

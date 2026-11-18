@@ -68,6 +68,7 @@ export const VOICEMAIL_INBOUND_STATE = "vmi";
  *  starts with `X-`, so this prefix is MANDATORY. Additive + backward-compatible:
  *  an older server that omits it degrades to the client's by-leg fallback. */
 export const LOONEXT_SESSION_HEADER = "X-Loonext-Session";
+export const LOONEXT_LEG_HEADER = "X-Loonext-Leg";
 
 /** Custom SIP header (#212) carrying the REAL caller's E.164 on every member
  *  ring dial. Telnyx rewrites the SIP `from` to a connection-owned number (the

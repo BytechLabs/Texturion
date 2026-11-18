@@ -107,6 +107,7 @@ const CLASSIFIED: Record<string, Classification> = {
   "calls#POST /calls/browser": "trigger:calls",
   "live-calls#POST /calls/live/decline-mine": "trigger:calls",
   "live-calls#POST /calls/live/:sessionId/transfer": "trigger:calls",
+  "live-calls#POST /calls/live/:sessionId/transfer/ring-me": "trigger:calls",
   "live-calls#POST /calls/live/:sessionId/consult": "trigger:calls",
   "live-calls#POST /calls/live/:sessionId/consult/complete": "trigger:calls",
   "live-calls#POST /calls/live/:sessionId/consult/cancel": "trigger:calls",

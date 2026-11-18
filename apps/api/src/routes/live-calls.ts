@@ -52,8 +52,9 @@ import { buildConsultState, consultLegs, insertJourneyEvent, issueTransfer, live
 import type { LiveCallRow } from '../messaging/live-call';
 import { LOONEXT_SESSION_HEADER } from "../messaging/inbound-ring";
 import { isFcmConfigured } from "../notifications/fcm";
+import { notifyIncomingCall } from "../notifications/incoming-call";
 import { telnyxRequest } from "../telnyx/client";
-import { parseJsonBody, parseOptionalJsonBody, unwrap } from "./core/http";
+import { executionCtxOf, parseJsonBody, parseOptionalJsonBody, unwrap } from "./core/http";
 
 const TRANSFER_PUSH_HINT_TIMEOUT_MS = 750;
 
@@ -64,6 +65,11 @@ const targetBodySchema = z.object({
 const ringMeBodySchema = z.object({
   // A missing attestation preserves the older client's live leg.
   no_local_leg: z.boolean().optional(),
+});
+
+const transferRingMeBodySchema = z.object({
+  transfer_id: z.uuid(),
+  no_local_leg: z.literal(true),
 });
 
 /** The CallSessionDO stub for a session, or null when the binding is absent. */
@@ -579,10 +585,15 @@ liveCallsRoutes.post(
     const body = await parseJsonBody(c, targetBodySchema);
     const gate = await requireLiveCall(c, db, sessionId);
     if (gate instanceof Response) return gate;
+    const companyId = c.get("companyId");
+    const senderUserId = c.get("userId");
+    if (body.target_user_id === senderUserId) {
+      return errorResponse(c, "conflict", "Choose a teammate to take the call.");
+    }
 
     const target = await eligibleTarget(
       db,
-      c.get("companyId"),
+      companyId,
       gate.call.phone_number_id!,
       body.target_user_id,
     );
@@ -602,11 +613,12 @@ liveCallsRoutes.post(
     const transferStub = callSessionStub(env, sessionId);
     const transferId = transferStub ? crypto.randomUUID() : undefined;
     if (transferStub) {
-      const { state, registered } = await transferStub.registerIntent({
+      const { state, registered, reason } = await transferStub.registerIntent({
         sessionId,
         kind: "transfer",
         targetUserId: body.target_user_id,
         transferId,
+        senderUserId,
       });
       // #722: the shared machine says whether this member may transfer a call
       // in the state the machine is in now.
@@ -617,12 +629,15 @@ liveCallsRoutes.post(
         return errorResponse(c, "conflict", "The call just ended.");
       }
       if (!registered) {
+        if (reason === "leg_limit") {
+          return errorResponse(c, "conflict", "This call has reached its transfer limit.");
+        }
         return errorResponse(c, "conflict", "A transfer or consult is already running.");
       }
     }
 
     const issued = await issueTransfer(env, db, {
-      companyId: c.get("companyId"),
+      companyId,
       customerCcid: gate.call.customer_call_control_id!,
       targetSipUsername: target.sipUsername,
       // Present the customer to the target (who they're about to talk to),
@@ -632,17 +647,84 @@ liveCallsRoutes.post(
       state: {
         sessionId,
         targetUserId: body.target_user_id,
-        senderUserId: c.get("userId"),
+        senderUserId,
         hops: 0,
         caller: gate.call.caller_e164,
         transferId,
       },
+    }).catch(async (error: unknown) => {
+      if (transferId) await transferStub?.clearIntent(transferId);
+      throw error;
     });
-    if (!issued) {
-      if (transferStub) await transferStub.clearIntent(transferId);
+    if (transferStub && transferId) {
+      if (!issued) {
+        await transferStub.endTransferAttempt({
+          transferId,
+          userId: body.target_user_id,
+          waitForWake: true,
+        });
+      }
+      const notice = notifyIncomingCall(env, db, {
+        companyId,
+        userIds: [body.target_user_id],
+        caller: gate.call.caller_e164,
+        callSessionId: sessionId,
+        transfer: { id: transferId, senderUserId },
+      });
+      const ctx = executionCtxOf(c);
+      if (ctx) ctx.waitUntil(notice);
+      else await notice;
+    } else if (!issued) {
       return errorResponse(c, "conflict", "The call just ended.");
     }
     return c.json({ status: "transferring" }, 202);
+  },
+);
+
+liveCallsRoutes.post(
+  "/calls/live/:sessionId/transfer/ring-me",
+  requireCapability("conversations.send"),
+  async (c) => {
+    const env = getEnv(c.env);
+    const db = getDb(env);
+    const sessionId = c.req.param("sessionId");
+    const { transfer_id: transferId } = await parseJsonBody(c, transferRingMeBodySchema);
+    const gate = await requireLiveCall(c, db, sessionId);
+    if (gate instanceof Response) return gate;
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+    const stub = callSessionStub(env, sessionId);
+    const target = stub && await eligibleTarget(db, companyId, gate.call.phone_number_id!, userId);
+    if (!target || !stub) {
+      return c.json({ ok: true, rang: false, state: "answered", reason: "not_ringing" });
+    }
+    const reserved = await stub.reserveTransferWake({ transferId, userId });
+    if ("reason" in reserved) {
+      return c.json({ ok: true, rang: false, state: reserved.state, reason: reserved.reason });
+    }
+    const { wakeId, senderUserId } = reserved;
+    let rang = false;
+    try {
+      rang = await issueTransfer(env, db, {
+        companyId,
+        customerCcid: gate.call.customer_call_control_id!,
+        targetSipUsername: target.sipUsername,
+        callerNumberForTarget: gate.call.caller_e164 ?? gate.businessNumber,
+        direction: gate.call.direction === "outbound" ? "outbound" : "inbound",
+        state: {
+          sessionId,
+          targetUserId: userId,
+          senderUserId,
+          hops: 0,
+          caller: gate.call.caller_e164,
+          transferId,
+          wakeId,
+        },
+      });
+    } finally {
+      if (!rang) await stub.endTransferAttempt({ transferId, wakeId, userId, waitForWake: false });
+    }
+    return c.json({ ok: true, rang, state: reserved.state, ...(rang ? {} : { reason: "dial_failed" }) });
   },
 );
 

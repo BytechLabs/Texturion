@@ -83,6 +83,20 @@ class PushPayloadTest {
     }
 
     @Test
+    fun `transfer wake keeps the session tag and exposes the transfer id`() {
+        val transferId = "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa"
+        val content = parsePush(mapOf(
+            "kind" to "call",
+            "title" to "Transfer from Sam",
+            "url" to "/calls?call=sess-abc-123&transfer=$transferId",
+        ))
+
+        assertEquals("call:sess-abc-123", content.tag)
+        assertEquals("sess-abc-123", content.callSessionId)
+        assertEquals(transferId, content.transferId)
+    }
+
+    @Test
     fun `call_end shares the call's session tag and channel but is a revocation`() {
         val content = parsePush(
             mapOf(

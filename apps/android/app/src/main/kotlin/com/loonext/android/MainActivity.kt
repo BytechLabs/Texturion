@@ -171,7 +171,7 @@ sealed interface DeepLink {
      * in ring-me instead of an empty calls list (the pre-v3 build DROPPED the
      * param, §17.7; that was scenario 2's dead end).
      */
-    data class Calls(val sessionId: String? = null) : DeepLink
+    data class Calls(val sessionId: String? = null, val transferId: String? = null) : DeepLink
 
     data object ForYou : DeepLink
 
@@ -206,6 +206,7 @@ fun deepLinkFor(
     taskParam: String? = null,
     callParam: String? = null,
     messageParam: String? = null,
+    transferParam: String? = null,
 ): DeepLink? = when {
     segments.size >= 2 && (segments[0] == "inbox" || segments[0] == "conversations") ->
         // A task reminder links to the JOB over its customer's thread, so the
@@ -232,6 +233,7 @@ fun deepLinkFor(
         DeepLink.Calls(
             segments.getOrNull(1)?.takeIf { it.isNotBlank() }
                 ?: callParam?.takeIf { it.isNotBlank() },
+            transferParam?.takeIf { segments.size == 1 && !callParam.isNullOrBlank() && it.isNotBlank() },
         )
 
     // #523: four server pushes point at `/settings/billing` — the #523 hold,
@@ -311,6 +313,7 @@ private fun parseDeepLink(uri: Uri?): DeepLink? {
         taskParam = uri.getQueryParameter("task"),
         callParam = uri.getQueryParameter("call"),
         messageParam = uri.getQueryParameter("message"),
+        transferParam = uri.getQueryParameter("transfer"),
     )
 }
 
@@ -721,7 +724,7 @@ private fun ReadyShell(
                     // `kind:'call'` push — the tray-fallback / cold-start join.
                     link.sessionId?.let { session ->
                         graph.appScope.launch {
-                            runCatching { softphone.onIncomingCallPush(session) }
+                            runCatching { softphone.onIncomingCallPush(session, transferId = link.transferId) }
                         }
                     }
                 }
