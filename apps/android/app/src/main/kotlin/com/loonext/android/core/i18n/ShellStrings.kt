@@ -50,9 +50,9 @@ object ShellStrings : AppStrings.Section {
         "push.channelAssignmentsDesc" to
             "Conversations and jobs a teammate puts on your name.",
         "push.channelUrgentName" to
-            "Urgent texts",
+            "Urgent alerts",
         "push.channelUrgentDesc" to
-            "A customer said their job is urgent.",
+            "Urgent customer texts and on-call alerts.",
         "push.channelPaymentsName" to
             "Payments",
         "push.channelPaymentsDesc" to
@@ -348,9 +348,9 @@ object ShellStrings : AppStrings.Section {
         "push.channelAssignmentsDesc" to
             "Les conversations et les travaux qu'un collègue met à votre nom.",
         "push.channelUrgentName" to
-            "Textos urgents",
+            "Alertes urgentes",
         "push.channelUrgentDesc" to
-            "Un client a indiqué que son travail est urgent.",
+            "Textos urgents des clients et alertes de garde.",
         "push.channelPaymentsName" to
             "Paiements",
         "push.channelPaymentsDesc" to

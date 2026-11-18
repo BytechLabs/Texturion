@@ -80,6 +80,14 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertEqual(content.tag, "conversation:conv-9")
     }
 
+    func testOnCallPagesAndEscalationsUseTheUrgentCategory() {
+        let page = parsePush(["kind": "missed_call", "alert_id": "alert-1", "url": "/inbox/conv-9"])
+        let escalation = parsePush(["kind": "escalation", "alert_id": "alert-1", "url": "/inbox/conv-9"])
+
+        XCTAssertEqual(page.category, PushCategory.emergency)
+        XCTAssertEqual(escalation.category, PushCategory.emergency)
+    }
+
     func testBeingHandedWorkRoutesToTheAssignmentsCategory() {
         // #515. Separate from Messages for the same reason the Android channel
         // is: the inbox is the first thing a busy crew silences, and somebody

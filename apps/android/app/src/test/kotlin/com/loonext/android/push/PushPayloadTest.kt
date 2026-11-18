@@ -109,6 +109,22 @@ class PushPayloadTest {
     }
 
     @Test
+    fun `on-call pages and escalations route to the urgent channel`() {
+        val page = parsePush(mapOf(
+            "kind" to "missed_call",
+            "alert_id" to "alert-1",
+            "url" to "/inbox/conv-9",
+        ))
+        val escalation = parsePush(mapOf(
+            "kind" to "escalation",
+            "alert_id" to "alert-1",
+            "url" to "/inbox/conv-9",
+        ))
+        assertEquals(ChannelIds.EMERGENCY, page.channelId)
+        assertEquals(ChannelIds.EMERGENCY, escalation.channelId)
+    }
+
+    @Test
     fun `task_due kind routes to the task reminders channel`() {
         // A busy inbox is the first thing someone mutes, and a due-date
         // reminder is time-critical in a way an inbox notification is not.
