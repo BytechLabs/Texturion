@@ -78,4 +78,41 @@ begin
   raise notice 'AT-3 PASSED: every event-linked missed-call text is marked automated';
 end $$;
 
+-- AT-4. Every message writer checks outbound spend or has an explicit exception.
+do $$
+declare
+  exempt regprocedure[] := array[
+    -- Customer messages are inbound.
+    'public.thread_inbound_message(uuid, uuid, text, text, text, text, integer, integer, text, text)'::regprocedure,
+    -- Interactive sends apply the matching spend checks inline (P0-3c).
+    'public.gate_outbound_send(uuid, uuid, uuid, text, text, integer)'::regprocedure,
+    -- Emergency acknowledgments use their own daily cap.
+    'public.claim_emergency_ack(uuid, uuid, text, integer, integer, integer, boolean)'::regprocedure
+  ];
+  uncovered text;
+  stale text;
+begin
+  with writers as (
+    select p.oid, p.prosrc
+      from pg_proc p join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.prokind = 'f'
+       and p.prosrc ~* 'insert\s+into\s+public\.messages\M'
+  )
+  select (
+    select string_agg(w.oid::regprocedure::text, ', ' order by w.oid::regprocedure::text)
+      from writers w
+     where w.oid <> all (exempt)
+       and w.prosrc !~* 'public\.outbound_spend_check\s*\('
+  ), (
+    select string_agg(x::text, ', ' order by x::text)
+      from unnest(exempt) x
+     where not exists (select 1 from writers w where w.oid = x)
+  ) into uncovered, stale;
+
+  if uncovered is not null or stale is not null then
+    raise exception 'AT-4: message writers without spend checks: %. Stale exceptions: %.',
+      coalesce(uncovered, 'none'), coalesce(stale, 'none');
+  end if;
+end $$;
+
 rollback;
