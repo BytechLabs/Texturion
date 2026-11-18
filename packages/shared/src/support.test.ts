@@ -198,7 +198,7 @@ describe("#253 the answers people go looking for", () => {
     const all = SUPPORT_TOPICS.map((t) => `${say(t.questionKey)} ${say(t.answerKey)}`)
       .join(" ")
       .toLowerCase();
-    for (const subject of ["registration", "spending cap", "stop", "port"]) {
+    for (const subject of ["registration", "spending cap", "stop", "transfer"]) {
       expect(all, `no answer mentions ${subject}`).toContain(subject);
     }
   });
