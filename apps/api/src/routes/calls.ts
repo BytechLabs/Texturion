@@ -79,8 +79,6 @@ const listQuerySchema = z.object({
 
 /** #725: how far back a setting's effect is counted. */
 const EFFECT_DAYS = 30;
-/** A ceiling on the rows counted, far above a month of calls for a crew. */
-const EFFECT_ROW_CAP = 20_000;
 
 /** One row of GET /v1/calls (mirrored by the web `Call` type). */
 export interface CallRow {
@@ -158,22 +156,13 @@ export const callsRoutes = new Hono<AppEnv>();
 callsRoutes.get("/calls/effects", requireCapability("settings.manage"), async (c) => {
   const db = getDb(getEnv(c.env));
   const since = new Date(Date.now() - EFFECT_DAYS * 24 * 60 * 60 * 1000).toISOString();
-  const rows = unwrap<{ routing: string | null; ended_reason: string | null }[]>(
-    await db
-      .from("calls")
-      .select("routing,ended_reason")
-      .eq("company_id", c.get("companyId"))
-      .is("deleted_at", null)
-      .gte("started_at", since)
-      .limit(EFFECT_ROW_CAP),
+  const counts = unwrap<Record<string, number>>(
+    await db.rpc("api_call_effect_counts", {
+      p_company: c.get("companyId"),
+      p_since: since,
+    }),
     "call effects",
   );
-  const counts: Record<string, number> = {};
-  for (const row of rows) {
-    for (const reason of new Set([row.routing, row.ended_reason])) {
-      if (reason) counts[reason] = (counts[reason] ?? 0) + 1;
-    }
-  }
   return c.json({ days: EFFECT_DAYS, counts });
 });
 
