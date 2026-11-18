@@ -95,6 +95,7 @@ export const BATCH_WINDOW_CHOICES = [5, 15, 30, 60] as const;
 export type BatchWindowMinutes = (typeof BATCH_WINDOW_CHOICES)[number];
 
 export const DEFAULT_BATCH_WINDOW: BatchWindowMinutes = 15;
+export const DEFAULT_SUMMARY_TIME = "17:00";
 
 /**
  * Decide what to do with one event.

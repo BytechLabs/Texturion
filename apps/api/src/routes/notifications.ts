@@ -58,6 +58,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import {
+  DEFAULT_SUMMARY_TIME,
   DELIVERY_MODES,
   normalizeDeviceLocale,
   NOTIFICATION_CATEGORIES,
@@ -296,6 +297,10 @@ notificationsRoutes.put(
     const body = await parseJsonBody(c, prefsSchema);
     const env = getEnv(c.env);
     const db = getDb(env);
+    const delivery = body.delivery ?? NOTIFICATION_SETTING_DEFAULTS.delivery.value;
+    const summaryTime = body.summary_at ?? (
+      Object.values(delivery).includes("summary") ? DEFAULT_SUMMARY_TIME : null
+    );
     const rows = unwrap<PrefsRow[]>(
       await db
         .from("notification_prefs")
@@ -315,9 +320,9 @@ notificationsRoutes.put(
             // whole preference, so an omitted field CLEARS rather than
             // preserves. Otherwise turning a category back to immediate would
             // be impossible to express.
-            delivery: body.delivery ?? NOTIFICATION_SETTING_DEFAULTS.delivery.value,
+            delivery,
             batch_window_minutes: body.batch_window_minutes ?? null,
-            summary_at: body.summary_at ?? null,
+            summary_at: summaryTime,
             updated_at: new Date().toISOString(),
           },
           { onConflict: "user_id,company_id" },

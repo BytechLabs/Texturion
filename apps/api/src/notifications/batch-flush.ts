@@ -21,6 +21,8 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
 import { DIGEST_PUSH_COPY } from "./digest-copy";
+import { pendingNotificationCounts } from "./pending-notification-counts";
+import type { PendingNotification } from "./pending-notification-counts";
 
 /** How many members' batches one tick will flush. */
 const MAX_MEMBERS_PER_TICK = 20;
@@ -30,12 +32,10 @@ export interface BatchFlushSummary {
   notifications: number;
 }
 
-interface PendingRow {
+interface PendingRow extends PendingNotification {
   id: string;
   company_id: string;
   user_id: string;
-  category: string;
-  conversation_id: string | null;
 }
 
 /**
@@ -73,14 +73,7 @@ export async function runBatchFlush(
   for (const batch of batches.values()) {
     const first = batch[0];
     try {
-      const counts = new Map<string, number>();
-      const conversations = new Set<string>();
-      for (const row of batch) {
-        counts.set(row.category, (counts.get(row.category) ?? 0) + 1);
-        if ((row.category === "messages_mine" || row.category === "messages_all") && row.conversation_id) {
-          conversations.add(row.conversation_id);
-        }
-      }
+      const { counts, conversationCount } = pendingNotificationCounts(batch);
       // Into the inbox rather than a thread, EVEN when the digest covers one
       // conversation. A digest is a summary of a period, and landing somebody
       // in a single thread would answer a question they did not ask while
@@ -92,7 +85,7 @@ export async function runBatchFlush(
       // this file, the body from the shared counting rule.
       const digest = (locale: Locale) => ({
         title: DIGEST_PUSH_COPY[locale].title,
-        body: digestLine(counts, conversations.size, locale),
+        body: digestLine(counts, conversationCount, locale),
         url,
       });
       const failures: unknown[] = [];

@@ -8,6 +8,7 @@
  */
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { supabaseStub } from "../test/routes-harness";
 import { completeEnv, stubFetch } from "../test/support";
 import { localClock, runDailySummary } from "./daily-summary";
@@ -26,6 +27,8 @@ interface Options {
   waiting?: number;
   tasks?: number;
   claimed?: Record<string, unknown>[];
+  held?: Record<string, unknown>[];
+  devices?: Record<string, unknown>[];
 }
 
 function world(options: Options = {}) {
@@ -43,6 +46,7 @@ function world(options: Options = {}) {
     options.claimed ?? [{ user_id: MEMBER }],
   );
   sb.on("GET", "/rest/v1/company_members", () => [{ role: "owner" }]);
+  sb.on("DELETE", "/rest/v1/pending_notifications", () => options.held ?? []);
   sb.on("POST", "/rest/v1/rpc/api_for_you", () => ({
     totals: {
       waiting_on_you: options.waiting ?? 3,
@@ -51,7 +55,7 @@ function world(options: Options = {}) {
     my_tasks: [],
   }));
   sb.on("GET", "/rest/v1/push_subscriptions", () => []);
-  sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+  sb.on("GET", "/rest/v1/device_push_tokens", () => options.devices ?? []);
   stubFetch(sb.route);
   return sb;
 }
@@ -84,6 +88,26 @@ describe(runDailySummary, () => {
 
     expect(await runDailySummary(env, MIDDLE_OF_THE_NIGHT)).toEqual({ considered: 0, sent: 0 });
     expect(sb.calls.some((call) => call.method === "PATCH")).toBe(false);
+  });
+
+  it("consumes due held alerts as part of the only daily push", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService();
+    const sb = world({
+      held: [{ category: "voicemails", conversation_id: null, conversations: null }],
+      devices: [{ id: "summary-device", user_id: MEMBER, platform: "android", token: "tok" }],
+    });
+    stubFetch(sb.route, ...service.routes);
+
+    expect((await runDailySummary(fcmEnv(account), QUARTER_TO_EIGHT)).sent).toBe(1);
+    const [consume] = sb.find("DELETE", "/rest/v1/pending_notifications");
+    expect(consume?.url.searchParams.get("delivery_kind")).toBe("eq.summary");
+    expect(consume?.url.searchParams.get("deliver_at")).toBe(`lte.${QUARTER_TO_EIGHT.toISOString()}`);
+    expect(service.sends).toHaveLength(1);
+    expect(service.sends[0].message.data).toMatchObject({
+      kind: "summary",
+      body: "3 people are waiting on you. 1 voicemail.",
+    });
   });
 
   it("SM-5: the day is claimed BEFORE the push, and losing the claim sends nothing", async () => {

@@ -8,13 +8,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.Button
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -25,12 +28,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.loonext.android.ui.common.SelectOption
-import com.loonext.android.ui.common.SelectField
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.NotificationPrefs
 import com.loonext.android.core.oncall.OnCall
+import com.loonext.android.core.time.TimestampFormat
+import com.loonext.android.ui.common.AppSheet
+import com.loonext.android.ui.common.SelectField
+import com.loonext.android.ui.common.SelectOption
+import java.time.LocalTime
 
 /**
  * #297 — how loud each kind of notification is.
@@ -52,6 +58,7 @@ import com.loonext.android.core.oncall.OnCall
  * Mirrors the web and iOS cards; `OnCallCopyTest` keeps the words identical.
  */
 @Composable
+@OptIn(ExperimentalMaterial3Api::class)
 fun DeliveryModesCard(
     prefs: NotificationPrefs,
     onSave: (NotificationPrefs) -> Unit,
@@ -75,6 +82,7 @@ fun DeliveryModesCard(
                 } else {
                     null
                 },
+                summary_at = prefs.summary_at ?: OnCall.DEFAULT_SUMMARY_TIME.takeIf { next.containsValue("summary") },
             ),
         )
     }
@@ -85,6 +93,9 @@ fun DeliveryModesCard(
 
     val anyBatched = categoryLabels.keys.any { modeOf(it) == "batched" }
     val anySummary = categoryLabels.keys.any { modeOf(it) == "summary" }
+    var summaryPickerOpen by remember { mutableStateOf(false) }
+    val summaryTime = prefs.summary_at?.let { runCatching { LocalTime.parse(it) }.getOrNull() }
+        ?: LocalTime.parse(OnCall.DEFAULT_SUMMARY_TIME)
 
     Column(Modifier.padding(top = 12.dp)) {
         Text(
@@ -153,6 +164,17 @@ fun DeliveryModesCard(
             )
         }
 
+        val clock = TimestampFormat.clock(summaryTime, LocalAppLocale.current)
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Text(t("domain.deliverySummaryAt"), modifier = Modifier.weight(1f))
+            OutlinedButton(onClick = { summaryPickerOpen = true }) {
+                Text(if (anySummary || prefs.summary_at != null) clock else t("domain.deliverySummaryOff"))
+            }
+        }
+        if (!anySummary && prefs.summary_at != null) {
+            TextButton(onClick = { onSave(prefs.copy(summary_at = null)) }) { Text(t("domain.deliverySummaryDisable")) }
+        }
+
         if (anyBatched) {
             HorizontalDivider(
                 Modifier.padding(vertical = 8.dp),
@@ -171,6 +193,24 @@ fun DeliveryModesCard(
                     selected = prefs.batch_window_minutes ?: OnCall.DEFAULT_BATCH_WINDOW,
                     onSelect = { onSave(prefs.copy(batch_window_minutes = it)) },
                 )
+            }
+        }
+    }
+
+    if (summaryPickerOpen) {
+        val timeState = rememberTimePickerState(initialHour = summaryTime.hour, initialMinute = summaryTime.minute)
+        AppSheet(onDismissRequest = { summaryPickerOpen = false }) {
+            Column(
+                Modifier.fillMaxWidth().padding(20.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+            ) {
+                Text(t("domain.deliverySummaryAt"), style = MaterialTheme.typography.titleMedium)
+                TimePicker(state = timeState)
+                Button(onClick = {
+                    summaryPickerOpen = false
+                    onSave(prefs.copy(summary_at = LocalTime.of(timeState.hour, timeState.minute).toString()))
+                }) { Text(t("common.save")) }
             }
         }
     }

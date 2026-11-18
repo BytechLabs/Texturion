@@ -75,6 +75,7 @@ describe("the summary line", () => {
     ]);
     sb.on("PATCH", "/rest/v1/notification_prefs", () => [{ user_id: MEMBER }]);
     sb.on("GET", "/rest/v1/company_members", () => [{ role: "owner" }]);
+    sb.on("DELETE", "/rest/v1/pending_notifications", () => []);
     sb.on("POST", "/rest/v1/rpc/api_for_you", () => ({
       totals: { waiting_on_you: 0, my_tasks: myTasks.length },
       my_tasks: myTasks,

@@ -267,4 +267,68 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  v_company constant uuid := '7b000000-0000-4000-8000-0000000000c1';
+  v_member constant uuid := '7b000000-0000-4000-8000-00000000000a';
+  v_created constant timestamptz := '2026-08-05T17:05:00Z';
+  v_first uuid;
+  v_later uuid;
+begin
+  insert into public.notification_prefs (user_id, company_id, summary_at, quiet_timezone)
+  values (v_member, v_company, time '17:00', 'America/Toronto')
+  on conflict (user_id, company_id) do update
+    set summary_at = excluded.summary_at, quiet_timezone = excluded.quiet_timezone, summary_sent_on = null;
+
+  insert into public.pending_notifications (company_id, user_id, category, delivery_kind, created_at, deliver_at)
+  values (v_company, v_member, 'voicemails', 'summary', v_created, v_created)
+  returning id into v_first;
+
+  if not exists (select 1 from public.pending_notifications where id = v_first and deliver_at = '2026-08-05T21:00:00Z') then
+    raise exception 'Summary alert was not scheduled at the member''s preferred local time';
+  end if;
+
+  update public.notification_prefs set summary_sent_on = date '2026-08-05'
+   where company_id = v_company and user_id = v_member;
+  insert into public.pending_notifications (company_id, user_id, category, delivery_kind, created_at, deliver_at)
+  values (v_company, v_member, 'voicemails', 'summary', v_created, v_created)
+  returning id into v_later;
+
+  if not exists (select 1 from public.pending_notifications where id = v_later and deliver_at = '2026-08-06T21:00:00Z') then
+    raise exception 'Summary alert arrived after the day was claimed and was not scheduled tomorrow';
+  end if;
+
+  perform public.api_claim_due_notifications('2026-08-07T00:00:00Z', 20);
+  if (select count(*) from public.pending_notifications where id in (v_first, v_later)) <> 2 then
+    raise exception 'Batch flush consumed an alert held for a daily summary';
+  end if;
+
+  update public.notification_prefs set summary_at = null where company_id = v_company and user_id = v_member;
+  if exists (select 1 from public.pending_notifications where id in (v_first, v_later) and delivery_kind <> 'batch') then
+    raise exception 'Alerts stayed held after their summary was turned off';
+  end if;
+
+  update public.notification_prefs
+     set summary_at = time '23:00', quiet_from = time '22:00', quiet_to = time '07:00',
+         summary_sent_on = date '2026-08-04'
+   where company_id = v_company and user_id = v_member;
+
+  insert into public.pending_notifications (company_id, user_id, category, delivery_kind, created_at, deliver_at)
+  values (v_company, v_member, 'voicemails', 'summary', v_created, v_created)
+  returning id into v_later;
+
+  if not exists (select 1 from public.pending_notifications where id = v_later and deliver_at = '2026-08-06T11:00:00Z') then
+    raise exception 'Summary alert was not deferred until overnight quiet hours ended';
+  end if;
+
+  if exists (
+    select 1 from public.api_due_daily_summaries('2026-08-06T10:30:00Z', 50) where user_id = v_member
+  ) or not exists (
+    select 1 from public.api_due_daily_summaries('2026-08-06T11:00:00Z', 50)
+     where user_id = v_member and summary_date = date '2026-08-05'
+  ) then
+    raise exception 'The original summary date did not become due when overnight quiet hours ended';
+  end if;
+end $$;
+
 rollback;

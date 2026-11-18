@@ -1281,6 +1281,7 @@ describe("#297 delivery preferences on the prefs route", () => {
     expect(write?.body).toMatchObject({
       delivery: { messages_all: "batched", voicemails: "summary" },
       batch_window_minutes: 30,
+      summary_at: "17:00",
     });
   });
 

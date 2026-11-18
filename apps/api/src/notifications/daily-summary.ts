@@ -15,13 +15,15 @@
  * midnight falls differently from the server's, which is most of the customer
  * base.
  */
-import { SUMMARY_TITLE, summaryLine } from '@loonext/shared';
+import { digestLine, SUMMARY_TITLE, summaryLine } from '@loonext/shared';
 import type { Locale } from '@loonext/shared';
 
 import { resolveNumberAccess } from "../auth/number-access";
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { deliverPush } from "./deliver";
+import { pendingNotificationCounts } from "./pending-notification-counts";
+import type { PendingNotification } from "./pending-notification-counts";
 
 /** Task rows read per member to count what is overdue or due today. */
 const SUMMARY_TASK_ROWS = 100;
@@ -39,6 +41,10 @@ interface SummaryRow {
   company_id: string;
   timezone: string;
   summary_date: string;
+}
+
+interface HeldNotification extends PendingNotification {
+  conversations: { phone_number_id: string } | null;
 }
 
 /** The member's local date and minutes-since-midnight, or null. */
@@ -136,6 +142,7 @@ export async function runDailySummary(
         .eq("user_id", row.user_id)
         .eq("company_id", row.company_id)
         .eq("push_enabled", true)
+        .not("summary_at", "is", null)
         .or(`summary_sent_on.is.null,summary_sent_on.lt.${row.summary_date}`)
         .select("user_id");
       if (claim.error || (claim.data ?? []).length === 0) continue;
@@ -180,18 +187,32 @@ export async function runDailySummary(
       } | null;
       const counts = {
         waiting: result?.totals?.waiting_on_you ?? 0,
-        tasks: tasksNeedingToday(result?.my_tasks ?? [], row.timezone, row.summary_date),
+        tasks: tasksNeedingToday(
+          result?.my_tasks ?? [], row.timezone, localClock(row.timezone, now)?.date ?? row.summary_date,
+        ),
       };
+      const held = await db.from("pending_notifications").delete()
+        .eq("company_id", row.company_id)
+        .eq("user_id", row.user_id)
+        .eq("delivery_kind", "summary")
+        .lte("deliver_at", now.toISOString())
+        .select("category,conversation_id,conversations(phone_number_id)");
+      if (held.error) throw new Error(held.error.message);
+      const hidden = new Set(access.hiddenNumberIds);
+      const visible = ((held.data ?? []) as unknown as HeldNotification[]).filter(
+        (notification) => !notification.conversations || !hidden.has(notification.conversations.phone_number_id),
+      );
+      const pending = pendingNotificationCounts(visible);
       const url = `${env.APP_ORIGIN}/for-you`;
       // #228: composed PER READER. The counts come off one RPC and mean the
       // same thing in either language; the sentence that reports them does
       // not, and this is the notification most likely to be the only one
       // somebody reads all day.
-      const summaryPush = (locale: Locale) => ({
-        title: SUMMARY_TITLE[locale],
-        body: summaryLine(counts, locale),
-        url,
-      });
+      const summaryPush = (locale: Locale) => {
+        const status = summaryLine(counts, locale);
+        const activity = digestLine(pending.counts, pending.conversationCount, locale);
+        return { title: SUMMARY_TITLE[locale], body: activity ? `${status} ${activity}.` : status, url };
+      };
 
       const failures: unknown[] = [];
       await deliverPush(env, db, {
