@@ -513,7 +513,7 @@ export const settingsEn = {
     "transcripts, saved replies, tags and opt-outs. Photos and recordings are " +
     "listed with where they live and how big they are, rather than copied.",
   exportDataBuilding:
-    "Building your export. It usually takes a few minutes, and we'll email you " +
+    "Building your export. It's usually ready within 15 minutes. We'll email you " +
     "when it's ready — you can close this page.",
   exportDataAction: "Export my data",
   exportDataStarting: "Starting…",
@@ -1272,8 +1272,8 @@ export const settingsFr: Translated<typeof settingsEn> = {
     "désabonnements. Les photos et les enregistrements sont listés avec leur " +
     "emplacement et leur taille, plutôt que copiés.",
   exportDataBuilding:
-    "Votre exportation est en préparation. Cela prend habituellement quelques " +
-    "minutes, et nous vous écrirons quand ce sera prêt — vous pouvez fermer " +
+    "Votre exportation est en préparation. Elle est généralement prête dans les " +
+    "15 minutes. Nous vous écrirons quand ce sera prêt — vous pouvez fermer " +
     "cette page.",
   exportDataAction: "Exporter mes données",
   exportDataStarting: "Démarrage…",

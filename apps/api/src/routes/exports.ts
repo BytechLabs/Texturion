@@ -42,6 +42,7 @@ interface ExportRow {
   kind: string;
   status: "pending" | "running" | "ready" | "failed";
   storage_prefix: string | null;
+  stored_files?: Record<string, string> | null;
   row_counts: Record<string, number>;
   error: string | null;
   requested_at: string;
@@ -51,7 +52,7 @@ interface ExportRow {
 
 /** Every column the list and detail routes read. Named once so they cannot diverge. */
 const EXPORT_COLUMNS =
-  "id,kind,status,storage_prefix,row_counts,error,requested_at,completed_at,expires_at";
+  "id,kind,status,storage_prefix,stored_files,row_counts,error,requested_at,completed_at,expires_at";
 
 /**
  * Who may COLLECT an export, decided per export.
@@ -385,20 +386,24 @@ async function signFiles(
   if (!prefix) return [];
 
   const bucket = db.storage.from(EXPORTS_BUCKET);
-  const files = await listExportFileNames(db, prefix);
+  const files = row.stored_files
+    ? Object.entries(row.stored_files).sort(([left], [right]) => left.localeCompare(right))
+    : (await listExportFileNames(db, prefix)).map((name) => [name, name] as const);
   const links: { name: string; url: string }[] = [];
   for (let start = 0; start < files.length; start += FILE_SIGNING_BATCH) {
-    const names = files.slice(start, start + FILE_SIGNING_BATCH);
-    const paths = names.map((name) => `${prefix}/${name}`);
+    const batch = files.slice(start, start + FILE_SIGNING_BATCH);
+    const paths = batch.map(([, objectName]) => `${prefix}/${objectName}`);
     const { data, error } = await bucket.createSignedUrls(
       paths, DOWNLOAD_TTL_SECONDS, dispositionOptions("text/csv"),
     );
     if (error) throw new Error(`export file signing failed: ${error.message}`);
     const urls = new Map(data.map(({ path, signedUrl }) => [path, signedUrl]));
-    for (const name of names) {
-      const url = urls.get(`${prefix}/${name}`);
+    for (const [name, objectName] of batch) {
+      const url = urls.get(`${prefix}/${objectName}`);
       if (!url) throw new Error(`export file signing failed for ${name}`);
-      links.push({ name, url });
+      const download = new URL(url);
+      download.searchParams.set("download", name);
+      links.push({ name, url: download.toString() });
     }
   }
   return links;

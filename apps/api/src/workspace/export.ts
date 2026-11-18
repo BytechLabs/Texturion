@@ -41,7 +41,7 @@ const EXPORT_DOWNLOAD_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
 /** Rows per query and per written part. */
 const PAGE = 1000;
 /**
- * Parts per cron run. A day's budget: enough that any real workspace finishes
+ * Parts per cron run. Enough that most workspaces finish
  * in one pass, bounded so one enormous tenant cannot hold the run open. The
  * next run resumes at the table it stopped on.
  */
@@ -139,10 +139,55 @@ interface ExportRow {
   id: string;
   company_id: string;
   requested_by: string;
-  storage_prefix: string | null;
+  storage_prefix: string;
+  lease_token: string;
+  stored_files: Record<string, string> | null;
   completed_tables: string[];
   row_counts: Record<string, number>;
   table_cursors: Partial<Record<string, ExportCursor>>;
+}
+
+class ExportLeaseLost extends Error {}
+
+async function updateClaimedExport(
+  db: SupabaseClient,
+  row: ExportRow,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const { data, error } = await db.from("data_exports").update(patch)
+    .eq("company_id", row.company_id).eq("id", row.id).eq("lease_token", row.lease_token)
+    .select("id").maybeSingle();
+  if (error) throw new Error(`export progress update failed: ${error.message}`);
+  if (!data) throw new ExportLeaseLost();
+}
+
+function exportPartName(table: string, number: number) {
+  return `${table}-${String(number).padStart(4, "0")}.jsonl`;
+}
+
+function resumeStoredFiles(row: ExportRow) {
+  if (row.stored_files) return { ...row.stored_files };
+
+  // Older builds used logical names as object names.
+  const files: Record<string, string> = {};
+  for (const { table } of EXPORT_TABLES) {
+    const parts = row.table_cursors[table]?.parts ?? Math.ceil((row.row_counts[table] ?? 0) / PAGE);
+    for (let part = 1; part <= parts; part += 1) {
+      const name = exportPartName(table, part);
+      files[name] = name;
+    }
+  }
+  return files;
+}
+
+function exportWriter(db: SupabaseClient, row: ExportRow, files: Record<string, string>) {
+  return async (path: string, body: string | Uint8Array, contentType: string) => {
+    const name = path.slice(row.storage_prefix.length + 1);
+    // A worker that outlives its lease can write only its own objects.
+    const objectName = `${row.lease_token}-${name}`;
+    await putObject(db, `${row.storage_prefix}/${objectName}`, body, contentType);
+    files[name] = objectName;
+  };
 }
 
 /**
@@ -157,21 +202,9 @@ export async function buildDataExports(
   const db = getDb(env);
   const summary: ExportSummary = { exports: 0, parts: 0, completed: 0 };
 
-  const { data, error } = await db
-    .from("data_exports")
-    .select(
-      "id,company_id,requested_by,storage_prefix,completed_tables,row_counts,table_cursors," +
-        // #304: which builder this row wants, and what it asked for.
-        "kind,filters",
-    )
-    .in("status", ["pending", "running"])
-    .order("requested_at", { ascending: true })
-    .limit(MAX_EXPORTS_PER_RUN);
-  if (error) throw new Error(`export queue query failed: ${error.message}`);
+  const { data, error } = await db.rpc("claim_data_exports", { p_limit: MAX_EXPORTS_PER_RUN });
+  if (error) throw new Error(`export claim failed: ${error.message}`);
 
-  // The select is built from a concatenated string, which supabase-js
-  // cannot parse at the type level, so the cast goes through `unknown`
-  // exactly as the table reads below already do.
   for (const row of (data ?? []) as unknown as ExportRow[]) {
     summary.exports += 1;
     try {
@@ -189,13 +222,22 @@ export async function buildDataExports(
       summary.parts += result.parts;
       if (result.completed) summary.completed += 1;
     } catch (error_) {
+      if (error_ instanceof ExportLeaseLost) continue;
       const message = error_ instanceof Error ? error_.message : String(error_);
       // Told, not silently stuck. An export nobody hears about again is worse
       // than one that failed — the customer is waiting on a legal right.
       await db
         .from("data_exports")
-        .update({ status: "failed", error: message, completed_at: new Date().toISOString() })
-        .eq("id", row.id);
+        .update({
+          status: "failed",
+          error: message,
+          completed_at: new Date().toISOString(),
+          lease_token: null,
+          lease_expires_at: null,
+        })
+        .eq("company_id", row.company_id)
+        .eq("id", row.id)
+        .eq("lease_token", row.lease_token);
       void captureException(
         env,
         `data export failed for company ${row.company_id}: ${message}`,
@@ -212,14 +254,9 @@ async function buildOne(
   row: ExportRow,
   now: Date,
 ): Promise<{ parts: number; completed: boolean }> {
-  const prefix = row.storage_prefix ?? `${row.company_id}/${row.id}`;
-  if (row.storage_prefix === null) {
-    const { error } = await db
-      .from("data_exports")
-      .update({ storage_prefix: prefix, status: "running", started_at: now.toISOString() })
-      .eq("id", row.id);
-    if (error) throw new Error(`export start stamp failed: ${error.message}`);
-  }
+  const prefix = row.storage_prefix;
+  const files = resumeStoredFiles(row);
+  const write = exportWriter(db, row, files);
 
   const done = new Set(row.completed_tables);
   const counts: Record<string, number> = { ...row.row_counts };
@@ -229,7 +266,7 @@ async function buildOne(
   for (const spec of EXPORT_TABLES) {
     if (done.has(spec.table)) continue;
     if (parts >= MAX_PARTS_PER_RUN) {
-      // Out of budget, not out of work. Tomorrow resumes at this table.
+      await updateClaimedExport(db, row, { lease_token: null, lease_expires_at: null });
       return { parts, completed: false };
     }
 
@@ -259,9 +296,8 @@ async function buildOne(
       if (rows.length === 0) break;
 
       const body = rows.map((entry) => JSON.stringify(entry)).join("\n");
-      await putObject(
-        db,
-        `${prefix}/${spec.table}-${String(page + 1).padStart(4, "0")}.jsonl`,
+      await write(
+        `${prefix}/${exportPartName(spec.table, page + 1)}`,
         body,
         "application/x-ndjson",
       );
@@ -272,32 +308,26 @@ async function buildOne(
       afterId = rows[rows.length - 1].id;
       if (parts >= MAX_PARTS_PER_RUN) {
         cursors[spec.table] = { afterId, parts: page, rows: written };
-        const { error: cursorError } = await db
-          .from("data_exports")
-          .update({ table_cursors: cursors })
-          .eq("id", row.id);
-        if (cursorError) throw new Error(`export cursor update failed: ${cursorError.message}`);
+        await updateClaimedExport(db, row, {
+          table_cursors: cursors,
+          stored_files: files,
+          lease_token: null,
+          lease_expires_at: null,
+        });
         return { parts, completed: false };
       }
     }
 
-    // Recorded only once the parts are safely in the bucket: a table marked
-    // done whose files are missing is an export that lies about being whole.
-    const { error: recordError } = await db.rpc("record_export_table", {
-      p_export_id: row.id,
-      p_table: spec.table,
-      p_rows: written,
-    });
-    if (recordError) {
-      throw new Error(`record_export_table failed: ${recordError.message}`);
-    }
     counts[spec.table] = written;
     done.add(spec.table);
+    delete cursors[spec.table];
+    await updateClaimedExport(db, row, {
+      completed_tables: [...done], row_counts: counts, table_cursors: cursors, stored_files: files,
+    });
   }
 
   // The manifest lands last, so its presence means the export is whole.
-  await putObject(
-    db,
+  await write(
     `${prefix}/manifest.json`,
     JSON.stringify(
       {
@@ -317,7 +347,7 @@ async function buildOne(
 
   // The email follows the stamp and only if it landed: a stamp that silently
   // failed would leave the row running and send this email on every run.
-  await markExportReady(db, row.id, counts);
+  await markExportReady(db, row, counts, files);
   await notifyReady(env, db, row);
   return { parts, completed: true };
 }
@@ -335,13 +365,8 @@ async function buildHistoryExport(
   row: ExportRow,
   now: Date,
 ): Promise<{ parts: number; completed: boolean }> {
-  const prefix = row.storage_prefix ?? `${row.company_id}/${row.id}`;
-  if (row.storage_prefix === null) {
-    await db
-      .from("data_exports")
-      .update({ storage_prefix: prefix, status: "running", started_at: now.toISOString() })
-      .eq("id", row.id);
-  }
+  const prefix = row.storage_prefix;
+  const files: Record<string, string> = {};
 
   const result = await buildConversationHistory(
     db,
@@ -353,10 +378,10 @@ async function buildHistoryExport(
       prefix,
       now,
     },
-    (path, body, contentType) => putObject(db, path, body, contentType),
+    exportWriter(db, row, files),
   );
 
-  await markExportReady(db, row.id, { messages: result.messages, partial: result.partial ? 1 : 0 });
+  await markExportReady(db, row, { messages: result.messages, partial: result.partial ? 1 : 0 }, files);
   return { parts: 2, completed: true };
 }
 
@@ -373,13 +398,8 @@ async function buildUsageSummaryExport(
   row: ExportRow,
   now: Date,
 ): Promise<{ parts: number; completed: boolean }> {
-  const prefix = row.storage_prefix ?? `${row.company_id}/${row.id}`;
-  if (row.storage_prefix === null) {
-    await db
-      .from("data_exports")
-      .update({ storage_prefix: prefix, status: "running", started_at: now.toISOString() })
-      .eq("id", row.id);
-  }
+  const prefix = row.storage_prefix;
+  const files: Record<string, string> = {};
 
   const result = await buildUsageExport(
     db,
@@ -390,10 +410,10 @@ async function buildUsageSummaryExport(
       prefix,
       now,
     },
-    (path, body, contentType) => putObject(db, path, body, contentType),
+    exportWriter(db, row, files),
   );
 
-  await markExportReady(db, row.id, { segments: result.segments, partial: result.partial ? 1 : 0 });
+  await markExportReady(db, row, { segments: result.segments, partial: result.partial ? 1 : 0 }, files);
   return { parts: 2, completed: true };
 }
 
@@ -403,13 +423,8 @@ async function buildTasksExport(
   row: ExportRow,
   now: Date,
 ): Promise<{ parts: number; completed: boolean }> {
-  const prefix = row.storage_prefix ?? `${row.company_id}/${row.id}`;
-  if (row.storage_prefix === null) {
-    await db
-      .from("data_exports")
-      .update({ storage_prefix: prefix, status: "running", started_at: now.toISOString() })
-      .eq("id", row.id);
-  }
+  const prefix = row.storage_prefix;
+  const files: Record<string, string> = {};
 
   const result = await buildTaskExport(
     db,
@@ -420,33 +435,33 @@ async function buildTasksExport(
       prefix,
       now,
     },
-    (path, body, contentType) => putObject(db, path, body, contentType),
+    exportWriter(db, row, files),
   );
 
-  await markExportReady(db, row.id, {
+  await markExportReady(db, row, {
     tasks: result.tasks,
     partial: result.withheld > 0 || result.capped ? 1 : 0,
-  });
+  }, files);
   return { parts: 2, completed: true };
 }
 
 async function markExportReady(
   db: SupabaseClient,
-  id: string,
+  row: ExportRow,
   counts: Record<string, number>,
+  files: Record<string, string>,
 ): Promise<void> {
   const completedAt = Date.now();
-  const { error } = await db
-    .from("data_exports")
-    .update({
-      status: "ready",
-      completed_at: new Date(completedAt).toISOString(),
-      expires_at: new Date(completedAt + EXPORT_DOWNLOAD_WINDOW_MS).toISOString(),
-      row_counts: counts,
-      table_cursors: {},
-    })
-    .eq("id", id);
-  if (error) throw new Error(`export ready stamp failed: ${error.message}`);
+  await updateClaimedExport(db, row, {
+    status: "ready",
+    completed_at: new Date(completedAt).toISOString(),
+    expires_at: new Date(completedAt + EXPORT_DOWNLOAD_WINDOW_MS).toISOString(),
+    row_counts: counts,
+    table_cursors: {},
+    stored_files: files,
+    lease_token: null,
+    lease_expires_at: null,
+  });
 }
 
 async function putObject(
@@ -465,8 +480,6 @@ async function putObject(
     .from(EXPORTS_BUCKET)
     .upload(path, new Blob([body], { type: contentType }), {
       contentType,
-      // A resumed run rewrites a part it had already written rather than
-      // failing on it — the same bytes either way.
       upsert: true,
     });
   if (error) throw new Error(`export upload ${path} failed: ${error.message}`);

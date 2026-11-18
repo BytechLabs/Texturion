@@ -2259,7 +2259,7 @@ private let settingsMoreIosExportEn: [String: String] = [
         "One is already being put together. It will appear under Data "
         + "export.",
     "settingsMore.exportBuildingNow":
-        "Being put together now. It will appear under Data export.",
+        "Usually ready within 15 minutes. It will appear under Data export.",
     "settingsMore.exportCheckAgain": "Check again",
     "settingsMore.exportDidNotFinish": "It didn't finish. Ask for another one.",
     "settingsMore.exportFrom": "From",
@@ -2290,7 +2290,7 @@ private let settingsMoreIosExportFr: [String: String] = [
         "Une exportation est déjà en préparation. Elle apparaîtra sous "
         + "Exportation de données.",
     "settingsMore.exportBuildingNow":
-        "En préparation maintenant. Elle apparaîtra sous Exportation de "
+        "Généralement prête dans les 15 minutes. Elle apparaîtra sous Exportation de "
         + "données.",
     "settingsMore.exportCheckAgain": "Vérifier de nouveau",
     "settingsMore.exportDidNotFinish": "Elle n'a pas abouti. Demandez-en une autre.",

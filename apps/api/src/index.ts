@@ -655,6 +655,7 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // the signed-URL grace window (D19 §2 sweep) — piggybacks this 15-min cadence,
   // comfortably longer than the 300s signed-URL TTL.
   "*/15 * * * *": [
+    job("job:build-data-exports", buildDataExports),
     // #297: the daily summary. Every fifteen minutes rather than hourly,
     // because a member picks a wall-clock TIME and an hourly scan would
     // make 07:30 mean 08:00. Fifteen is the coarsest cadence that keeps
@@ -775,9 +776,6 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // the workspace purge because it is the same kind of promise, narrower.
     job("job:purge-trash", purgeTrash),
     job("job:purge-closed-workspaces", purgeClosedWorkspaces),
-    // #227: exports build here for the same reason the purge does — a busy
-    // workspace cannot be processed inside a request.
-    job("job:build-data-exports", buildDataExports),
     // #378: and reclaim the expired ones, so the seven-day promise in the
     // completion email means deleted rather than merely unreachable.
     job("job:prune-expired-exports", pruneExpiredExports),
