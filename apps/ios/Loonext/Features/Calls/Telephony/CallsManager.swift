@@ -84,6 +84,7 @@ final class CallsManager {
 
     /// The one softphone state every surface renders from.
     var state: SoftphoneSnapshot { core.state }
+    var consultation: Consultation? { core.consultation }
 
     private init(backend: CallsService, prefs: AppPrefs) {
         self.backend = backend
@@ -242,6 +243,14 @@ final class CallsManager {
     func blindTransfer(sessionId: String, targetUserId: String) async throws -> TransferAck {
         try await core.blindTransfer(sessionId: sessionId, targetUserId: targetUserId)
     }
+
+    func startConsult(sessionId: String, targetUserId: String, targetName: String) async throws {
+        try await core.startConsult(sessionId: sessionId, targetUserId: targetUserId, targetName: targetName)
+    }
+
+    func completeConsult() async throws { try await core.completeConsult() }
+
+    func cancelConsult() async throws { try await core.cancelConsult() }
 
     /// Push-to-wake part 2 — the notification tap router calls this with the
     /// call_session_id parsed from a `kind:'call'` push (`/calls?call=<id>`):

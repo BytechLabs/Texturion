@@ -156,6 +156,15 @@ class SoftphoneCoreTest {
         override suspend fun transferTargets(companyId: String, sessionId: String): TransferTargets =
             throw ApiException(ApiErrorCode.NOT_FOUND, "No route.", 404)
 
+        override suspend fun startConsult(companyId: String, sessionId: String, targetUserId: String): TransferAck =
+            TransferAck("consulting")
+
+        override suspend fun completeConsult(companyId: String, sessionId: String): TransferAck =
+            TransferAck("transferred")
+
+        override suspend fun cancelConsult(companyId: String, sessionId: String): TransferAck =
+            TransferAck("cancelled")
+
         override suspend fun blindTransfer(
             companyId: String,
             sessionId: String,
@@ -854,6 +863,40 @@ class SoftphoneCoreTest {
 
         h.core.onCallSessionUpdate("sess-transfer", "ended_answered")
         assertTrue(h.core.state.value.calls.single().silenced)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `consult autoanswers only on the sender device and resumes the caller after cancel`() = runTest {
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        val original = FakeHandle("caller")
+        h.sdk.ring(original, headerSession = "sess-caller")
+        runCurrent()
+        h.core.answer(original.id)
+        original.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
+
+        val unrequested = FakeHandle("unrequested")
+        h.sdk.ring(unrequested, headerSession = "sess-caller", headerLegKind = "consult-s")
+        runCurrent()
+        assertEquals(null, unrequested.accepted)
+
+        h.core.startConsult("sess-caller", "sam", "Sam")
+        val consult = FakeHandle("consult")
+        h.sdk.ring(consult, headerSession = "sess-caller", headerLegKind = "consult-s")
+        runCurrent()
+        assertTrue(consult.accepted != null)
+        assertEquals(1, original.holdToggles)
+        assertEquals(consult.id, h.core.state.value.consultation?.senderLegId)
+        original.phaseFlow.value = CallPhase.HELD
+        consult.phaseFlow.value = CallPhase.ACTIVE
+        runCurrent()
+
+        h.core.cancelConsult()
+        assertEquals(null, h.core.state.value.consultation)
+        assertEquals(2, original.holdToggles)
         h.scope.cancel()
     }
 

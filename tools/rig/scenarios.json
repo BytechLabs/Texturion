@@ -244,7 +244,7 @@
     },
     {
       "id": "S08",
-      "name": "Consult transfer, inbound and outbound (the first live test of outbound transfer)",
+      "name": "Consult transfer, inbound and outbound",
       "lane": "browser",
       "far_end": "ROBOT-1",
       "runs_on": "rig",
@@ -252,11 +252,11 @@
         { "label": "inbound" },
         { "label": "outbound" }
       ],
-      "dials": 3,
+      "dials": 4,
       "far_end_legs": 1,
-      "peak_concurrent_outbound_legs": 3,
-      "min_room": 3,
-      "note": "Inbound rings a crew of two, then dials the consult target; the outbound direction holds three Loonext legs during the consult."
+      "peak_concurrent_outbound_legs": 4,
+      "min_room": 4,
+      "note": "The outbound direction holds the customer and sender legs plus both consult legs."
     },
     {
       "id": "S09",

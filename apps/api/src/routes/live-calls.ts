@@ -53,7 +53,7 @@ import {
   issueTransfer, liveCallBySession, registerConsultLegs,
 } from '../messaging/live-call';
 import type { LiveCallRow } from '../messaging/live-call';
-import { hangupLiveLeg, LOONEXT_SESSION_HEADER } from "../messaging/inbound-ring";
+import { hangupLiveLeg } from "../messaging/inbound-ring";
 import { isFcmConfigured } from "../notifications/fcm";
 import { notifyIncomingCall } from "../notifications/incoming-call";
 import { telnyxRequest } from "../telnyx/client";

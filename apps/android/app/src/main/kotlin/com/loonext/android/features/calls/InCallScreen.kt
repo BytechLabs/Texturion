@@ -76,6 +76,7 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.CallSnapshot
 import com.loonext.android.telephony.CallWakePolicy
+import com.loonext.android.telephony.Consultation
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.InitialsAvatar
@@ -137,7 +138,7 @@ fun InCallScreen(
 
     val haptics = rememberHaptics()
     var dtmfOpen by remember { mutableStateOf(false) }
-    var transferOpen by remember { mutableStateOf(false) }
+    var transferSessionId by remember { mutableStateOf<String?>(null) }
 
     // #202: route toggles render from the OS truth, not local booleans. The
     // registry publishes the confirmed endpoint + which endpoint kinds exist;
@@ -217,7 +218,8 @@ fun InCallScreen(
             if (attempt < 3) delay(1_200)
         }
     }
-    val transferAddressable = CallWakePolicy.transferAddressable(featured, outboundAddressable)
+    val consultation = snapshot.consultation
+    val transferAddressable = consultation == null && CallWakePolicy.transferAddressable(featured, outboundAddressable)
 
     // #180: the live-call surface must stay fully reachable at ANY viewport —
     // a square cover display, a foldable, landscape. The body scrolls when it
@@ -298,7 +300,7 @@ fun InCallScreen(
         }
 
         // Other calls: held lines to swap back to, or a ringing 2nd call.
-        val others = live.filter { it.id != featured?.id }
+        val others = live.filter { it.id != featured?.id && it.id != consultation?.originalCallId }
         if (others.isNotEmpty()) {
             Spacer(Modifier.height(14.dp))
             others.forEach { other ->
@@ -314,6 +316,9 @@ fun InCallScreen(
             Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+        if (consultation != null) {
+            ConsultActions(consultation, featured?.id == consultation.senderLegId && featured?.phase == CallPhase.ACTIVE, manager)
+        }
         if (featured != null && featured.phase != CallPhase.RINGING) {
             if (conversationId != null) {
                 CallNoteCard(
@@ -390,7 +395,7 @@ fun InCallScreen(
                         featured.phase == CallPhase.ACTIVE,
                     onClick = {
                         haptics.tap()
-                        transferOpen = true
+                        transferSessionId = featured.sessionId
                     },
                     modifier = Modifier.weight(1f),
                 )
@@ -537,14 +542,49 @@ fun InCallScreen(
             onDismiss = { dtmfOpen = false },
         )
     }
-    if (transferOpen && featured?.sessionId != null) {
+    transferSessionId?.let { sessionId ->
         TransferSheet(
             manager = manager,
             repo = repo,
             companyId = companyId,
-            sessionId = featured.sessionId!!,
-            onDismiss = { transferOpen = false },
+            sessionId = sessionId,
+            onDismiss = { transferSessionId = null },
         )
+    }
+}
+
+@Composable
+private fun ConsultActions(consultation: Consultation, senderConnected: Boolean, manager: SoftphoneManager) {
+    val locale = LocalAppLocale.current
+    val scope = rememberCoroutineScope()
+    var pending by remember(consultation.sessionId) { mutableStateOf(false) }
+    var error by remember(consultation.sessionId) { mutableStateOf<String?>(null) }
+    fun act(action: suspend () -> Unit) {
+        pending = true
+        error = null
+        scope.launch {
+            try {
+                action()
+            } catch (cause: Exception) {
+                error = cause.userMessage(locale)
+            } finally {
+                pending = false
+            }
+        }
+    }
+    PaperCard(Modifier.fillMaxWidth().padding(bottom = 12.dp)) {
+        Column(Modifier.padding(horizontal = 14.dp, vertical = 8.dp)) {
+            Text(t("contactsTasks.consultingWith", "who" to consultation.targetName))
+            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = { act { manager.cancelConsult() } }, enabled = !pending) {
+                    Text(t("contactsTasks.backToCaller"))
+                }
+                TextButton(onClick = { act { manager.completeConsult() } }, enabled = senderConnected && !pending) {
+                    Text(t("contactsTasks.handOver"))
+                }
+            }
+        }
     }
 }
 
@@ -875,12 +915,6 @@ private fun DtmfSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {
     }
 }
 
-/**
- * Blind-transfer picker (spec 05): eligible teammates with presence dots and
- * honest busy flags. Names come from GET /v1/members (targets are id-only).
- * Decline/timeout recovery is server-side — the customer snaps back to us,
- * never stranded.
- */
 @Composable
 private fun TransferSheet(
     manager: SoftphoneManager,
@@ -926,6 +960,22 @@ private fun TransferSheet(
     }
 
     val haptics = rememberHaptics()
+    fun choose(row: TransferRow, talkFirst: Boolean) {
+        haptics.confirm()
+        transferring = true
+        error = null
+        scope.launch {
+            try {
+                if (talkFirst) manager.startConsult(sessionId, row.userId, row.name)
+                else manager.blindTransfer(sessionId, row.userId)
+                onDismiss()
+            } catch (cause: Exception) {
+                error = cause.userMessage(locale)
+            } finally {
+                transferring = false
+            }
+        }
+    }
     AppSheet(
         onDismissRequest = onDismiss,
         containerColor = MaterialTheme.colorScheme.background,
@@ -967,28 +1017,15 @@ private fun TransferSheet(
                         TransferTargetRow(
                             row = row,
                             enabled = !row.busy && !transferring,
-                            onTransfer = {
-                                haptics.confirm()
-                                transferring = true
-                                error = null
-                                scope.launch {
-                                    try {
-                                        manager.blindTransfer(sessionId, row.userId)
-                                        onDismiss()
-                                    } catch (cause: Exception) {
-                                        error = cause.userMessage(locale)
-                                    } finally {
-                                        transferring = false
-                                    }
-                                }
-                            },
+                            onTransfer = { choose(row, talkFirst = false) },
+                            onConsult = { choose(row, talkFirst = true) },
                         )
                         if (index < rows.lastIndex) RowDivider()
                     }
                 }
             }
             Text(
-                t("contactsTasks.transferSnapBack"),
+                t("contactsTasks.directTransferNote"),
                 fontSize = 11.sp,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center,
@@ -1001,12 +1038,12 @@ private fun TransferSheet(
     }
 }
 
-/** One crew row: avatar, presence dot (lime free / muted busy), Transfer pill. */
 @Composable
 private fun TransferTargetRow(
     row: TransferRow,
     enabled: Boolean,
     onTransfer: () -> Unit,
+    onConsult: () -> Unit,
 ) {
     Row(
         Modifier
@@ -1045,24 +1082,25 @@ private fun TransferTargetRow(
                 )
             }
         }
-        val transferInteraction = remember { MutableInteractionSource() }
-        Surface(
-            onClick = onTransfer,
-            enabled = enabled,
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.primary,
-            contentColor = MaterialTheme.colorScheme.onPrimary,
-            interactionSource = transferInteraction,
-            modifier = Modifier
-                .pressScale(transferInteraction)
-                .alpha(if (enabled) 1f else 0.5f),
-        ) {
-            Text(
-                t("contactsTasks.transfer"),
-                fontSize = 11.5.sp,
-                fontWeight = FontWeight.SemiBold,
-                modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
-            )
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val transferInteraction = remember { MutableInteractionSource() }
+            Surface(
+                onClick = onTransfer,
+                enabled = enabled,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.primary,
+                contentColor = MaterialTheme.colorScheme.onPrimary,
+                interactionSource = transferInteraction,
+                modifier = Modifier.pressScale(transferInteraction).alpha(if (enabled) 1f else 0.5f),
+            ) {
+                Text(
+                    t("contactsTasks.transfer"),
+                    fontSize = 11.5.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    modifier = Modifier.padding(horizontal = 15.dp, vertical = 8.dp),
+                )
+            }
+            TextButton(onClick = onConsult, enabled = enabled) { Text(t("contactsTasks.talkFirst")) }
         }
     }
 }

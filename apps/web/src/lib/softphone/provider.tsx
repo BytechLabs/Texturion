@@ -33,6 +33,8 @@ import { ConfirmDialog } from '@/components/ui/confirm-dialog';
 import { formatPhone } from '@/lib/format/phone';
 import {
   declineIncomingCall,
+  requestConsult,
+  settleConsult,
   useAuthorizeBrowserCall,
   useResolveLiveSession,
   useWebrtcToken,
@@ -125,6 +127,7 @@ const REGISTER_QUIET_MS = 400;
 const REGISTER_CEILING_MS = 5_000;
 /** How long a placed call waits for registration before giving up without a dial. */
 const READY_WAIT_MS = 10_000;
+const CONSULT_INVITE_TIMEOUT_MS = 28_000;
 
 /** Token refusals that only a change of role, workspace or subscription lifts. */
 const LASTING_REFUSALS: ReadonlySet<string> = new Set([
@@ -226,6 +229,13 @@ function closeRingNotification(notes: Map<string, Notification>, id: string): vo
   notes.delete(id);
 }
 
+interface Consultation {
+  sessionId: string;
+  originalCallId: string;
+  targetName: string;
+  senderLegId?: string;
+}
+
 interface SoftphoneContextValue extends SoftphoneState {
   /** False when this member cannot call from this workspace: no phone, no status. */
   entitled: boolean;
@@ -254,6 +264,9 @@ interface SoftphoneContextValue extends SoftphoneState {
   sendDtmf: (id: string, digit: string) => void;
   /** Dismiss an ended call's chip. */
   dismiss: (id: string) => void;
+  consultation: Consultation | null;
+  startConsult: (sessionId: string, targetId: string, targetName: string) => Promise<void>;
+  endConsult: (action: "complete" | "cancel") => Promise<void>;
 }
 
 const SoftphoneContext = createContext<SoftphoneContextValue | null>(null);
@@ -343,6 +356,15 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // rests on the 48s>45s timing margin (review M2).
   const registeredPlacementsRef = useRef<Set<string>>(new Set());
   const placementSdkIdsRef = useRef<Set<string>>(new Set());
+  const consultationRef = useRef<Consultation | null>(null);
+  const finishingConsultRef = useRef(false);
+  const consultTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [consultation, setConsultation] = useState<Consultation | null>(null);
+
+  const updateConsultation = useCallback((next: Consultation | null) => {
+    consultationRef.current = next;
+    setConsultation(next);
+  }, []);
 
   /** True while any tracked call is still up (not torn down). A live call OWNS
    *  its client's RTP/peer connection, so the recovery watchdog must never
@@ -356,6 +378,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     // Tear the SDK down on unmount (sign-out / shell teardown).
     return () => {
+      if (consultTimerRef.current !== null) clearTimeout(consultTimerRef.current);
       for (const call of callsRef.current.values()) {
         try {
           call.hangup();
@@ -378,6 +401,21 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       });
     }
   }, []);
+
+  const endLocalConsult = useCallback((resumeCaller: boolean) => {
+    const pending = consultationRef.current;
+    if (!pending) return;
+    if (consultTimerRef.current !== null) clearTimeout(consultTimerRef.current);
+    consultTimerRef.current = null;
+    updateConsultation(null);
+    if (!resumeCaller || !pending.senderLegId) return;
+    const original = callsRef.current.get(pending.originalCallId);
+    if (!original) return;
+    void original.unhold().then(() => {
+      dispatch({ type: "held", id: original.id, held: false });
+      attachActiveAudio(original);
+    }).catch(() => {});
+  }, [attachActiveAudio, updateConsultation]);
 
   /**
    * #516 — resolve an answered inbound ring leg to its CUSTOMER session,
@@ -512,6 +550,24 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             // server stamped X-Loonext-Session=S on the placer dial; correlate
             // it to the placement we registered in placeCall.
             const opSession = customHeader(call, "X-Loonext-Session");
+            const legKind = customHeader(call, "X-Loonext-Leg");
+            if (legKind === "consult-s") {
+              const consult = consultationRef.current;
+              if (!consult || consult.sessionId !== opSession || consult.senderLegId) return;
+              const original = callsRef.current.get(consult.originalCallId);
+              if (!original || isTerminalSdkState(original.state)) return;
+              if (consultTimerRef.current !== null) clearTimeout(consultTimerRef.current);
+              consultTimerRef.current = null;
+              updateConsultation({ ...consult, senderLegId: call.id });
+              callsRef.current.set(call.id, call);
+              placementSdkIdsRef.current.add(call.id);
+              dispatch({ type: "held", id: original.id, held: true });
+              dispatch({ type: "placing", id: call.id, sessionId: null, peer: { name: consult.targetName, number: "" } });
+              void original.hold().then(() => {
+                if (consultationRef.current?.senderLegId === call.id) call.answer();
+              }).catch(() => endLocalConsult(true));
+              return;
+            }
             const pending = opSession
               ? pendingPlacementsRef.current.get(opSession)
               : undefined;
@@ -572,6 +628,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
               return;
             }
             callsRef.current.set(call.id, call);
+            if (legKind === "consult-t" && opSession) placementSdkIdsRef.current.add(call.id);
             const number = customHeader(call, "X-Loonext-Caller")?.trim() ||
               call.options?.remoteCallerNumber || "";
             const name =
@@ -582,7 +639,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
             dispatch({
               type: "incoming",
               id: call.id,
-              sessionId: call.telnyxIDs?.telnyxSessionId ?? null,
+              sessionId: legKind === "consult-t" ? opSession : call.telnyxIDs?.telnyxSessionId ?? null,
               peer: { name, number },
             });
             showRingNotification(
@@ -648,6 +705,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         if (isTerminalSdkState(call.state)) {
           closeRingNotification(ringNotesRef.current, call.id);
           callsRef.current.delete(call.id);
+          const consult = consultationRef.current;
+          if (consult?.originalCallId === call.id) endLocalConsult(false);
+          if (consult?.senderLegId === call.id && !finishingConsultRef.current) endLocalConsult(true);
           ringSessionsRef.current.delete(call.id);
           placementSdkIdsRef.current.delete(call.id); // #213 cleanup
           const legCcid = call.telnyxIDs?.telnyxCallControlId;
@@ -685,7 +745,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       rebuildClientRef.current?.();
     }
     return client;
-  }, [attachActiveAudio, mintToken, hasLiveCall, resolveSessionWithRetry, t]);
+  }, [attachActiveAudio, endLocalConsult, mintToken, hasLiveCall, resolveSessionWithRetry, t, updateConsultation]);
 
   /** Tear a dead client down and build a fresh one — re-mints the token, so a
    *  NEW SIP registration is established (that's what makes the phone ring
@@ -1089,6 +1149,42 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     }
   }, [attachActiveAudio]);
 
+  const startConsult = useCallback(async (sessionId: string, targetId: string, targetName: string) => {
+    const companyId = companyRef.current;
+    const original = stateRef.current.calls.find((call) => call.id === stateRef.current.activeId);
+    if (!companyId || original?.sessionId !== sessionId || original.phase !== "active" || consultationRef.current ||
+        stateRef.current.calls.filter((call) => call.phase !== "ended").length !== 1) {
+      throw new Error(t("shell.consultUnavailable"));
+    }
+    updateConsultation({ sessionId, originalCallId: original.id, targetName });
+    consultTimerRef.current = setTimeout(() => {
+      endLocalConsult(true);
+      toast.error(t("shell.consultUnavailable"));
+    }, CONSULT_INVITE_TIMEOUT_MS);
+    try {
+      await requestConsult(companyId, sessionId, targetId);
+    } catch (error) {
+      endLocalConsult(true);
+      throw error;
+    }
+  }, [endLocalConsult, t, updateConsultation]);
+
+  const endConsult = useCallback(async (action: "complete" | "cancel") => {
+    const companyId = companyRef.current;
+    const pending = consultationRef.current;
+    if (!companyId || !pending || finishingConsultRef.current) return;
+    finishingConsultRef.current = true;
+    try {
+      await settleConsult(companyId, pending.sessionId, action);
+      endLocalConsult(action === "cancel");
+    } catch (error) {
+      if (pending.senderLegId && !callsRef.current.has(pending.senderLegId)) endLocalConsult(true);
+      throw error;
+    } finally {
+      finishingConsultRef.current = false;
+    }
+  }, [endLocalConsult]);
+
   const toggleMute = useCallback((id: string) => {
     const info = stateRef.current.calls.find((c) => c.id === id);
     const call = callsRef.current.get(id);
@@ -1166,6 +1262,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       toggleMute,
       sendDtmf,
       dismiss,
+      consultation,
+      startConsult,
+      endConsult,
     }),
     [
       state,
@@ -1178,6 +1277,9 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
       toggleMute,
       sendDtmf,
       dismiss,
+      consultation,
+      startConsult,
+      endConsult,
     ],
   );
 

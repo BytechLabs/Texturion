@@ -111,13 +111,15 @@ private final class FakeSdk: SoftphoneSdk {
         _ handle: FakeHandle,
         name: String? = "Dana",
         number: String? = "+15557778888",
-        sessionHeader: String? = nil
+        sessionHeader: String? = nil,
+        legKind: String? = nil
     ) {
         onEvent?(.incoming(
             call: handle,
             callerName: name,
             callerNumber: number,
-            sessionHeader: sessionHeader
+            sessionHeader: sessionHeader,
+            legKind: legKind
         ))
     }
 
@@ -178,6 +180,18 @@ private final class FakeBackend: CallsBackend {
 
     func transferTargets(companyId: String, sessionId: String) async throws -> TransferTargets {
         TransferTargets(targets: [])
+    }
+
+    func startConsult(companyId: String, sessionId: String, targetUserId: String) async throws -> TransferAck {
+        TransferAck(status: "consulting")
+    }
+
+    func completeConsult(companyId: String, sessionId: String) async throws -> TransferAck {
+        TransferAck(status: "transferred")
+    }
+
+    func cancelConsult(companyId: String, sessionId: String) async throws -> TransferAck {
+        TransferAck(status: "cancelled")
     }
 
     func blindTransfer(
@@ -1048,6 +1062,30 @@ final class TelephonyMappingTests: XCTestCase {
 
         XCTAssertEqual(["sess-transfer"], backend.ringMeCalls)
         XCTAssertEqual(["transfer-one"], backend.ringMeTransferIds)
+    }
+
+    func testConsultAutoAnswersOnlyOnTheSenderAndResumesTheCallerOnCancel() async throws {
+        let (core, sdk, backend) = makeCore()
+        try await startReady(core)
+        let original = try await placeAndConnect(core, sdk, backend, session: sessionA)
+        original.report(.active)
+
+        let unrequested = FakeHandle(id: "unrequested")
+        sdk.ring(unrequested, sessionHeader: sessionA, legKind: "consult-s")
+        XCTAssertFalse(unrequested.answered)
+
+        try await core.startConsult(sessionId: sessionA, targetUserId: "sam", targetName: "Sam")
+        let consult = FakeHandle(id: "consult")
+        sdk.ring(consult, sessionHeader: sessionA, legKind: "consult-s")
+        XCTAssertTrue(consult.answered)
+        XCTAssertEqual(1, original.holds)
+        XCTAssertEqual("consult", core.consultation?.senderLegId)
+        original.report(.held)
+        consult.report(.active)
+
+        try await core.cancelConsult()
+        XCTAssertNil(core.consultation)
+        XCTAssertEqual(1, original.unholds)
     }
 
     // MARK: recovery (fresh mint on auth failure; never during a live call)

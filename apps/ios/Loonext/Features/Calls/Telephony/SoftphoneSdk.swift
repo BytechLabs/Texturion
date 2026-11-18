@@ -37,7 +37,8 @@ enum SdkEvent {
         call: any SdkCallHandle,
         callerName: String?,
         callerNumber: String?,
-        sessionHeader: String?
+        sessionHeader: String?,
+        legKind: String? = nil
     )
 }
 

@@ -1,7 +1,7 @@
 import { S22, S27, S28, S29, S31, S32, S33, S34, S35 } from "./account.ts";
 import { D01, D07, D08, D09, D13, D14, R00 } from "./android-calls.ts";
 import { D02, D02p, D03, D04, D10, D11, D12, E01 } from "./android-wake.ts";
-import { S03, S05, S06, S07, S09, S10, S11 } from "./browser-calls.ts";
+import { S03, S05, S06, S07, S08, S09, S10, S11 } from "./browser-calls.ts";
 import { S01, S02, S04 } from "./calls.ts";
 import type { ScenarioRunner } from "./context.ts";
 import { G01, S12, S13, S14, S15, S16, S17 } from "./gates.ts";
@@ -28,6 +28,7 @@ export const RUNNERS: Readonly<Record<string, ScenarioRunner>> = Object.fromEntr
     S05,
     S06,
     S07,
+    S08,
     S09,
     S10,
     S11,
@@ -76,7 +77,6 @@ export const RUNNERS: Readonly<Record<string, ScenarioRunner>> = Object.fromEntr
  */
 export const NOT_RUNNABLE_YET: Readonly<Record<string, string>> = {
   G02: "the Android half needs the nonprod build to place an SDK call to a SIP address, and the app has no entry point for one",
-  S08: "the web call bar has no consult transfer control, so every run would report the browser lane",
   K01: "an optional Phase 4 lane with no runner; it never runs by default (docs/RIG.md 2.3)",
   S26: "the API raises the carrier-ceiling warning by email only, never as an API exception, so every run would fail carrier_alert_missing",
 };

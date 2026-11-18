@@ -107,6 +107,7 @@ class SoftphoneCore(
 
         /** Honest failure key when the op INVITE never arrives (mirror web). */
         private const val PLACEMENT_UNREACHABLE_KEY = "telephony.placementUnreachable"
+        private const val CONSULT_INVITE_TIMEOUT_MS = 28_000L
 
         /** A server that returned no session S can't be correlated to an op
          *  INVITE — fail honestly rather than leave a silent dead chip. */
@@ -159,6 +160,9 @@ class SoftphoneCore(
     /** Placements awaiting their op INVITE, keyed by S (the call_session_id from
      *  POST /calls/browser). */
     private val pendingPlacements = mutableMapOf<String, PendingPlacement>()
+    private var consultInviteWatchdog: Job? = null
+    private var completingConsult = false
+    private var resumeAfterConsult: String? = null
 
     /** Sessions the member CANCELLED during "Calling…" (hung up before the op
      *  INVITE arrived) — when the op INVITE for one of these lands it is DECLINED
@@ -464,7 +468,15 @@ class SoftphoneCore(
         val headerSession =
             (correlation as? TelecomCallReducer.Correlation.Header)?.session
         val legId = event.legId
-        val transferTarget = TelecomCallReducer.legKindFromHeaders(event.customHeaders) == "transfer"
+        val legKind = TelecomCallReducer.legKindFromHeaders(event.customHeaders)
+        if (legKind == "consult-s") {
+            val consultation = _state.value.consultation
+            if (consultation != null && consultation.sessionId == headerSession && consultation.senderLegId == null) {
+                acceptConsultSender(event.call, consultation)
+            }
+            return
+        }
+        val transferTarget = legKind == "transfer" || legKind == "consult-t"
         // #213: the server-dialed placer (op) leg for an outbound call THIS member
         // just placed. The server stamps X-Loonext-Session=S on the op dial, so a
         // match against a pending placement means this is OUR own outbound leg —
@@ -516,6 +528,33 @@ class SoftphoneCore(
             return
         }
         presentIncoming(event.call, name, number, headerSession, legId, transferTarget)
+    }
+
+    private fun acceptConsultSender(handle: SdkCallHandle, consultation: Consultation) {
+        val original = _state.value.activeCall ?: return
+        if (original.id != consultation.originalCallId) return
+        val snapshot = CallSnapshot(
+            id = handle.id,
+            direction = CallDirection.OUTBOUND,
+            peerName = consultation.targetName,
+            peerNumber = original.peerNumber,
+            phase = CallPhase.CONNECTING,
+            consultSender = true,
+        )
+        handles[handle.id] = handle
+        sdkPhases[handle.id] = CallPhase.CONNECTING
+        consultInviteWatchdog?.cancel()
+        requestHold(original.id, hold = true)
+        _state.update {
+            CallStateMachine.placing(it, snapshot).copy(consultation = consultation.copy(senderLegId = handle.id))
+        }
+        watch(handle)
+        _events.tryEmit(CoreEvent.OutgoingPlaced(snapshot))
+        runCatching { handle.accept(original.peerNumber.ifBlank { "unknown" }) }
+            .onFailure { cause ->
+                onInternalFailure?.invoke("consult-answer", cause)
+                finishConsult(resumeCaller = true)
+            }
     }
 
     /**
@@ -974,6 +1013,10 @@ class SoftphoneCore(
         val prev = before.calls.firstOrNull { it.id == id } ?: return
         CallFlowLog.log("phase", "${phase.name} leg=${CallFlowLog.tail(id)} sess=${CallFlowLog.tail(prev.sessionId)}")
         _state.update { CallStateMachine.sdkPhase(it, id, phase, now()) }
+        if (resumeAfterConsult == id) {
+            resumeAfterConsult = null
+            if (phase == CallPhase.HELD) requestHold(id, hold = false)
+        }
 
         if (phase == CallPhase.ACTIVE) {
             // F2: an answered leg is no longer a ring — stop its TTL clock (a
@@ -987,7 +1030,7 @@ class SoftphoneCore(
             if (prev.direction == CallDirection.INBOUND && prev.sessionId == null) {
                 resolveSession(handle)
             }
-            if (prev.direction == CallDirection.OUTBOUND && prev.sessionId == null) {
+            if (prev.direction == CallDirection.OUTBOUND && prev.sessionId == null && !prev.consultSender) {
                 // #211 FALLBACK ONLY: the server-minted session (S) is normally
                 // stamped at placement from the authorize response, so this runs
                 // only for a pre-#211 / kill-switch server that returned no id.
@@ -1000,6 +1043,9 @@ class SoftphoneCore(
             }
         }
         if (phase == CallPhase.ENDED) {
+            val consultation = _state.value.consultation
+            if (consultation?.senderLegId == id && !completingConsult) finishConsult(resumeCaller = true)
+            if (consultation?.originalCallId == id) finishConsult(resumeCaller = false)
             handles.remove(id)
             sdkPhases.remove(id)
             resolvingLegs.remove(id)
@@ -1398,6 +1444,64 @@ class SoftphoneCore(
 
     suspend fun blindTransfer(sessionId: String, targetUserId: String): TransferAck =
         api.blindTransfer(requireCompany(), sessionId, targetUserId)
+
+    suspend fun startConsult(sessionId: String, targetUserId: String, targetName: String) {
+        val company = requireCompany()
+        val original = _state.value.activeCall
+        if (original?.sessionId != sessionId || original.phase != CallPhase.ACTIVE ||
+            _state.value.liveCalls.size != 1 || _state.value.consultation != null
+        ) {
+            throw ApiException(ApiErrorCode.CONFLICT, uiText("contactsTasks.consultUnavailable"), 409)
+        }
+        val consultation = Consultation(sessionId, original.id, targetName)
+        _state.update { it.copy(consultation = consultation) }
+        consultInviteWatchdog = scope.launch {
+            delay(CONSULT_INVITE_TIMEOUT_MS)
+            val pending = _state.value.consultation
+            if (pending?.sessionId == sessionId && pending.senderLegId == null) {
+                finishConsult(resumeCaller = true)
+                reportUiError(uiText("contactsTasks.consultUnavailable"))
+            }
+        }
+        try {
+            api.startConsult(company, sessionId, targetUserId)
+        } catch (cause: Exception) {
+            finishConsult(resumeCaller = true)
+            throw cause
+        }
+    }
+
+    suspend fun completeConsult() {
+        val consultation = _state.value.consultation ?: return
+        completingConsult = true
+        try {
+            api.completeConsult(requireCompany(), consultation.sessionId)
+            finishConsult(resumeCaller = false)
+        } catch (cause: Exception) {
+            if (_state.value.liveCalls.none { it.id == consultation.senderLegId }) finishConsult(resumeCaller = true)
+            throw cause
+        } finally {
+            completingConsult = false
+        }
+    }
+
+    suspend fun cancelConsult() {
+        val consultation = _state.value.consultation ?: return
+        api.cancelConsult(requireCompany(), consultation.sessionId)
+        finishConsult(resumeCaller = true)
+    }
+
+    private fun finishConsult(resumeCaller: Boolean) {
+        val consultation = _state.value.consultation ?: return
+        consultInviteWatchdog?.cancel()
+        consultInviteWatchdog = null
+        _state.update { it.copy(consultation = null) }
+        if (resumeCaller) {
+            val original = consultation.originalCallId
+            if (original in pendingHoldToggle) resumeAfterConsult = original
+            else requestHold(original, hold = false)
+        }
+    }
 
     /**
      * A `kind:'call'` wake (push or notification tap) — the calls-v3 §10.2

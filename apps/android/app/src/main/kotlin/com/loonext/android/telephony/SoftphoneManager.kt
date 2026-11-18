@@ -606,6 +606,13 @@ class SoftphoneManager private constructor(
     suspend fun blindTransfer(sessionId: String, targetUserId: String): TransferAck =
         core.blindTransfer(sessionId, targetUserId)
 
+    suspend fun startConsult(sessionId: String, targetUserId: String, targetName: String) =
+        core.startConsult(sessionId, targetUserId, targetName)
+
+    suspend fun completeConsult() = core.completeConsult()
+
+    suspend fun cancelConsult() = core.cancelConsult()
+
     // ----------------------------------------------------------- core events
 
     private fun onCoreEvent(event: CoreEvent) {

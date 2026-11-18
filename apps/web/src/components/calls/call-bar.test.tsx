@@ -1,6 +1,8 @@
 // @vitest-environment happy-dom
 
 /**
+ * @vitest-environment happy-dom
+ *
  * #211 outbound parity: call bar gating. The transfer/consult affordance
  * lights on a SERVER-ADDRESSABLE signal (a successful GET /v1/calls/live/:session
  * read), never on mere sessionId presence (C1): a 4-part outbound call that fell
@@ -11,7 +13,7 @@
  * feature; the requirement that it cannot act is unchanged.
  * Placement/dialing UX stays SDK-driven ("Calling…").
  */
-import { cleanup, fireEvent, render as mount, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render as mount, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import type { CallInfo } from "@/lib/softphone/state";
@@ -22,11 +24,15 @@ const state: {
   calls: CallInfo[];
   activeId: string | null;
   live: { isSuccess: boolean; data?: { conversation_id: string | null } };
+  consultation: { sessionId: string; originalCallId: string; targetName: string; senderLegId: string } | null;
 } = {
   calls: [],
   activeId: null,
   live: { isSuccess: false, data: undefined },
+  consultation: null,
 };
+
+const actions = vi.hoisted(() => ({ startConsult: vi.fn(), endConsult: vi.fn() }));
 
 // The live-call read is the serverAddressable probe; the targets/transfer hooks
 // and the member roster are only reached once the menu opens, so plain stubs.
@@ -41,11 +47,14 @@ vi.mock("@/lib/api/calls", () => ({
   // and the give-up would fire on the first tick.
   LIVE_NOTE_LOOKUP_ATTEMPTS: 4,
   LIVE_NOTE_LOOKUP_INTERVAL_MS: 1200,
-  useTransferTargets: () => ({ isPending: false, data: { targets: [] } }),
+  useTransferTargets: () => ({
+    isPending: false,
+    data: { targets: [{ user_id: "sam", busy: false, has_push_channel: true }] },
+  }),
   useTransferCall: () => ({ isPending: false, mutate: vi.fn() }),
 }));
 vi.mock("@/lib/api/team", () => ({
-  useMembers: () => ({ data: { data: [] } }),
+  useMembers: () => ({ data: { data: [{ user_id: "sam", display_name: "Sam" }] } }),
 }));
 vi.mock("@/lib/api/notifications", () => ({
   useNotificationsUnreadCount: () => ({ data: { alert_pause: { push_paused: true } }, isPending: false }),
@@ -68,6 +77,8 @@ vi.mock("@/lib/softphone/provider", () => ({
     toggleMute: vi.fn(),
     sendDtmf: vi.fn(),
     dismiss: vi.fn(),
+    consultation: state.consultation,
+    ...actions,
   }),
 }));
 
@@ -127,6 +138,33 @@ afterEach(() => {
   state.calls = [];
   state.activeId = null;
   state.live = { isSuccess: false, data: undefined };
+  state.consultation = null;
+  actions.startConsult.mockReset();
+  actions.endConsult.mockReset();
+});
+
+it("offers a separate talk-first action and controls for a connected consult", async () => {
+  state.calls = [outboundCall()];
+  state.activeId = "c1";
+  state.live = { isSuccess: true };
+  actions.startConsult.mockResolvedValue(undefined);
+  actions.endConsult.mockResolvedValue(undefined);
+  const view = mount(<CallBar />);
+  fireEvent.click(screen.getByRole("button", { name: "Transfer this call" }));
+  expect(screen.getByRole("button", { name: "Transfer to Sam" })).toBeTruthy();
+  expect(screen.getByText("Push alerts set up")).toBeTruthy();
+  fireEvent.click(screen.getByRole("button", { name: "Talk first with Sam" }));
+  await waitFor(() => expect(actions.startConsult).toHaveBeenCalledWith("sess-out-1", "sam", "Sam"));
+
+  state.consultation = { sessionId: "sess-out-1", originalCallId: "c1", targetName: "Sam", senderLegId: "consult-leg" };
+  state.calls = [outboundCall({ phase: "held" }), outboundCall({ id: "consult-leg", sessionId: null })];
+  state.activeId = "consult-leg";
+  view.rerender(<CallBar />);
+  fireEvent.click(screen.getByRole("button", { name: "Hand over" }));
+  await waitFor(() => expect(actions.endConsult).toHaveBeenCalledWith("complete"));
+  await waitFor(() => expect((screen.getByRole("button", { name: "Back to caller" }) as HTMLButtonElement).disabled).toBe(false));
+  fireEvent.click(screen.getByRole("button", { name: "Back to caller" }));
+  await waitFor(() => expect(actions.endConsult).toHaveBeenCalledWith("cancel"));
 });
 
 it("moves the focused hold button to Resume and back", () => {

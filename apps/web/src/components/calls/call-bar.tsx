@@ -75,10 +75,24 @@ function TransferMenu({
   const transfer = useTransferCall();
   const panel = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => panel.current?.focus(), []);
+  const softphone = useSoftphone();
+  const [startingConsult, setStartingConsult] = useState(false);
 
   const nameOf = (userId: string) =>
     members.data?.data.find((m) => m.user_id === userId)?.display_name ??
     t("shell.teammate");
+  async function consult(targetId: string, name: string) {
+    if (!softphone) return;
+    setStartingConsult(true);
+    try {
+      await softphone.startConsult(sessionId, targetId, name);
+      onDone();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("shell.consultUnavailable"));
+    } finally {
+      setStartingConsult(false);
+    }
+  }
 
   return (
     <div
@@ -100,50 +114,80 @@ function TransferMenu({
           {t("shell.noTransferTargets")}
         </p>
       ) : (
-        targets.data!.targets.map((target) => (
-          <button
-            key={target.user_id}
-            type="button"
-            disabled={transfer.isPending}
-            onClick={() =>
-              transfer.mutate(
-                { sessionId, targetUserId: target.user_id },
-                {
-                  onSuccess: () => {
-                    toast.success(
-                      t("shell.transferring", {
-                        name: nameOf(target.user_id),
-                      }),
-                    );
-                    onDone();
-                  },
-                  onError: (cause) =>
-                    toast.error(
-                      cause instanceof ApiError
-                        ? cause.message
-                        : t("shell.transferFailed"),
-                    ),
-                },
-              )
-            }
-            className="flex w-full items-center justify-between rounded-md px-2 py-1.5 text-left text-sm text-app-ink transition-colors duration-150 hover:bg-app-hover disabled:opacity-50"
-          >
-            <span className="min-w-0">
-              <span className="block truncate">{nameOf(target.user_id)}</span>
-              {target.has_push_channel !== undefined && (
-                <span className="block text-[11px] text-app-muted-2">
-                  {target.has_push_channel ? t("shell.transferAlertsAvailable") : t("shell.transferNoAlerts")}
-                </span>
-              )}
-            </span>
-            {target.busy && (
-              <span className="ml-2 shrink-0 text-[11px] text-app-muted-2">
-                {t("shell.onACall")}
-              </span>
-            )}
-          </button>
-        ))
+        targets.data!.targets.map((target) => {
+          const name = nameOf(target.user_id);
+          const disabled = target.busy || transfer.isPending || startingConsult;
+          return (
+            <div key={target.user_id} className="flex items-center justify-between gap-2 rounded-md px-2 py-1.5 text-sm">
+              <div className="min-w-0">
+                <p className="truncate">{name}</p>
+                {target.has_push_channel !== undefined && (
+                  <p className="text-xs text-app-muted-2">
+                    {target.has_push_channel ? t("shell.transferAlertsAvailable") : t("shell.transferNoAlerts")}
+                  </p>
+                )}
+                {target.busy && <p className="text-xs text-app-muted-2">{t("shell.onACall")}</p>}
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  aria-label={t("shell.transferToTeammate", { name })}
+                  disabled={disabled}
+                  onClick={() => transfer.mutate({ sessionId, targetUserId: target.user_id }, {
+                    onSuccess: () => {
+                      toast.success(t("shell.transferring", { name }));
+                      onDone();
+                    },
+                    onError: (cause) => toast.error(cause instanceof ApiError ? cause.message : t("shell.transferFailed")),
+                  })}
+                >
+                  {t("shell.transfer")}
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  aria-label={t("shell.talkFirstWith", { name })}
+                  disabled={!softphone || disabled}
+                  onClick={() => void consult(target.user_id, name)}
+                >
+                  {t("shell.talkFirst")}
+                </Button>
+              </div>
+            </div>
+          );
+        })
       ))}
+    </div>
+  );
+}
+
+function ConsultControls() {
+  const t = useT();
+  const softphone = useSoftphone();
+  const [pending, setPending] = useState(false);
+  const consult = softphone?.consultation;
+  if (!softphone || !consult) return null;
+  const senderConnected = softphone.calls.some((call) => call.id === consult.senderLegId && call.phase === "active");
+  async function run(action: "complete" | "cancel") {
+    setPending(true);
+    try {
+      await softphone?.endConsult(action);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : t("shell.consultUnavailable"));
+    } finally {
+      setPending(false);
+    }
+  }
+  return (
+    <div className="pointer-events-auto flex flex-wrap items-center gap-2 rounded-app-card border border-app-line bg-app-paper p-2 shadow-lg">
+      <span className="px-2 text-sm">{t("shell.consultingWith", { name: consult.targetName })}</span>
+      <Button type="button" size="sm" variant="ghost" disabled={pending} onClick={() => void run("cancel")}>
+        {t("shell.backToCaller")}
+      </Button>
+      <Button type="button" size="sm" disabled={pending || !senderConnected} onClick={() => void run("complete")}>
+        {t("shell.handOver")}
+      </Button>
     </div>
   );
 }
@@ -470,7 +514,7 @@ function ActiveCard({
             <MessageSquareText className="size-4" strokeWidth={1.75} />
           </Button>
         ))}
-      {call.phase === "active" && (
+      {call.phase === "active" && !softphone.consultation && (
         <Button
           ref={transferTrigger}
           variant="ghost"
@@ -491,7 +535,7 @@ function ActiveCard({
           <ArrowRightLeft className="size-4" strokeWidth={1.75} />
         </Button>
       )}
-      {transferOpen && call.phase === "active" && call.sessionId && serverAddressable && (
+      {transferOpen && call.phase === "active" && call.sessionId && serverAddressable && !softphone.consultation && (
         <TransferMenu sessionId={call.sessionId} onDone={closePanel} />
       )}
       {call.phase === "active" && (
@@ -600,7 +644,9 @@ export function CallBar() {
     calls.find((c) => c.id === activeId) ??
     calls.find((c) => c.phase === "connecting") ??
     null;
-  const others = calls.filter((c) => c.id !== active?.id);
+  const others = calls.filter((call) =>
+    call.id !== active?.id && call.id !== softphone.consultation?.originalCallId,
+  );
   const ringing = others.some((call) => call.phase === "ringing");
   const status = calls.map((call) => {
     const name = call.peer.name || formatPhone(call.peer.number);
@@ -623,6 +669,7 @@ export function CallBar() {
           aria-live="off"
           aria-label={t("shell.navCalls")}
         >
+          <ConsultControls />
           {others.length > 0 && (
             <div className="flex flex-wrap justify-center gap-2">
               {others.map((call) => (

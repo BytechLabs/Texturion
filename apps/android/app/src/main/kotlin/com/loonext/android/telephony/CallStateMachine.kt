@@ -55,6 +55,15 @@ data class CallSnapshot(
     val silenced: Boolean = false,
     /** The transfer leg rings while the original customer session is answered. */
     val transferTarget: Boolean = false,
+    /** The sender's consult leg has its own audio and shares the original call's transfer controls. */
+    val consultSender: Boolean = false,
+)
+
+data class Consultation(
+    val sessionId: String,
+    val originalCallId: String,
+    val targetName: String,
+    val senderLegId: String? = null,
 )
 
 data class SoftphoneSnapshot(
@@ -73,6 +82,7 @@ data class SoftphoneSnapshot(
      * instead of via fragile edge signals. Only [SoftphoneCore] writes it.
      */
     val heldLegsBySession: Map<String, Set<String>> = emptyMap(),
+    val consultation: Consultation? = null,
 ) {
     val activeCall: CallSnapshot? get() = calls.firstOrNull { it.id == activeId }
 
