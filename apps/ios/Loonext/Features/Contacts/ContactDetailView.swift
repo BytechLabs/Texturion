@@ -1,4 +1,3 @@
-import AVFoundation
 import SwiftUI
 import UIKit
 
@@ -1648,10 +1647,6 @@ struct ContactSection<Content: View>: View {
 /// conversation. iOS has no StoreCache, so this is a load-on-appear with a
 /// loading state (the current iOS calls pattern); call.updated realtime +
 /// reconnect revalidate the first page, mirroring CallsView.
-///
-/// The row grammar and the voicemail player are REPLICATED from CallsView
-/// (its CallRow / VoicemailPlayerRow are `private`, so not importable): until a
-/// shared component is extracted, any copy change must land in both.
 @MainActor
 private struct ContactCallsSection: View {
     let graph: AppGraph
@@ -1910,7 +1905,7 @@ private struct ContactCallRow: View {
             .padding(.top, 11)
             .padding(.bottom, showsVoicemail ? 6 : 11)
             if showsVoicemail {
-                ContactVoicemailPlayerRow(
+                VoicemailPlayerRow(
                     service: service,
                     companyId: companyId,
                     sessionId: call.call_session_id,
@@ -1931,201 +1926,6 @@ private struct ContactCallRow: View {
 private func voicemailWords(_ call: Call) -> String? {
     guard let text = call.voicemail_transcript, !text.isBlank else { return nil }
     return text
-}
-
-/// Inline voicemail playback. Grammar and data path REPLICATED from
-/// CallsView.VoicemailPlayerRow (a `private` struct there, so not importable):
-/// mint the 1h signed URL on demand via CallsService.voicemail (never cached),
-/// stream via AVPlayer with seek + live progress. Any change here must mirror
-/// the call log's player until a shared component is extracted.
-@MainActor
-private struct ContactVoicemailPlayerRow: View {
-    let service: CallsService
-    let companyId: String
-    let sessionId: String
-    let seconds: Int
-    /// The stored transcript, when the call row already carries one.
-    let storedTranscript: String?
-
-    @State private var backfilledTranscript: String?
-    @State private var player: AVPlayer?
-    @State private var preparing = false
-    @State private var playing = false
-    @State private var positionMs = 0
-    @State private var durationMs: Int
-    @State private var scrubbing = false
-    @State private var errorText: String?
-
-    @Environment(\.appLocale) private var appLocale
-
-    init(
-        service: CallsService,
-        companyId: String,
-        sessionId: String,
-        seconds: Int,
-        storedTranscript: String?
-    ) {
-        self.storedTranscript = storedTranscript
-        self.service = service
-        self.companyId = companyId
-        self.sessionId = sessionId
-        self.seconds = seconds
-        _durationMs = State(initialValue: max(1, seconds * 1000))
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 9) {
-                Button(action: togglePlayback) {
-                    Group {
-                        if preparing {
-                            ProgressView()
-                                .controlSize(.small)
-                                .tint(BrandColor.paper)
-                        } else {
-                            Image(systemName: playing ? "pause.fill" : "play.fill")
-                                .font(.scaled(IconSize.small, weight: .bold))
-                                .foregroundStyle(BrandColor.paper)
-                        }
-                    }
-                    .frame(width: 28, height: 28)
-                    .background(BrandColor.ink, in: Circle())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel(
-                    playing
-                        ? AppStrings.translate(appLocale, "contactsTasks.pauseVoicemail")
-                        : AppStrings.translate(appLocale, "contactsTasks.playVoicemail")
-                )
-
-                Slider(
-                    value: Binding(
-                        get: { Double(min(positionMs, durationMs)) },
-                        set: { positionMs = Int($0) }
-                    ),
-                    in: 0 ... Double(durationMs)
-                ) { editing in
-                    scrubbing = editing
-                    if !editing, let player {
-                        player.seek(to: CMTime(
-                            value: CMTimeValue(positionMs),
-                            timescale: 1000
-                        ))
-                    }
-                }
-                .tint(BrandColor.olive)
-                .disabled(player == nil)
-
-                Text("\(formatTimer(elapsedMs: positionMs)) / \(formatVoicemailLength(seconds))")
-                    .font(.golos(10.5, weight: .semibold))
-                    .foregroundStyle(BrandColor.muted600)
-                    .monospacedDigit()
-            }
-            .padding(.vertical, 6)
-            .padding(.leading, 6)
-            .padding(.trailing, 14)
-            .background(BrandColor.inset, in: Capsule())
-            if let errorText {
-                Text(errorText)
-                    .font(.golos(10.5))
-                    .foregroundStyle(BrandColor.muted500)
-            }
-            if let words = storedTranscript ?? backfilledTranscript {
-                VoicemailTranscript(text: words)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-        }
-        .task(id: playing) {
-            // Poll position while playing (the call log's player does the same).
-            while playing {
-                if !scrubbing, let player {
-                    let current = player.currentTime().seconds
-                    if current.isFinite { positionMs = Int(current * 1000) }
-                    if let item = player.currentItem {
-                        let total = item.duration.seconds
-                        if total.isFinite && total > 0 { durationMs = Int(total * 1000) }
-                        if item.error != nil {
-                            errorText = AppStrings.translate(
-                                appLocale, "contactsTasks.voicemailPlayFailed"
-                            )
-                            playing = false
-                            releaseMediaPlayback()
-                        }
-                    }
-                    if positionMs >= durationMs - 150 {
-                        // Finished — a replay restarts from the top.
-                        positionMs = durationMs
-                        playing = false
-                        player.pause()
-                        releaseMediaPlayback()
-                    }
-                }
-                try? await Task.sleep(for: .milliseconds(200))
-            }
-        }
-        .onDisappear {
-            player?.pause()
-            if playing { releaseMediaPlayback() }
-            player = nil
-            playing = false
-        }
-    }
-
-    private func togglePlayback() {
-        if preparing { return }
-        if playing {
-            player?.pause()
-            playing = false
-            return
-        }
-        if let player {
-            if positionMs >= durationMs - 150 {
-                player.seek(to: .zero)
-                positionMs = 0
-            }
-            prepareMediaPlayback()
-            player.play()
-            playing = true
-            return
-        }
-        beginPlayback()
-    }
-
-    private func beginPlayback() {
-        errorText = nil
-        preparing = true
-        Task {
-            defer { preparing = false }
-            do {
-                // Signed URL minted per playback — NEVER cached (SPEC).
-                let playback = try await service.voicemail(
-                    companyId: companyId,
-                    sessionId: sessionId
-                )
-                guard let url = URL(string: playback.url) else {
-                    errorText = AppStrings.translate(
-                        appLocale, "contactsTasks.voicemailPlayFailed"
-                    )
-                    return
-                }
-                // Recordings from before transcription existed, and any whose
-                // transcription failed at the time, are written down by the
-                // server on this request and get their words on first play.
-                if storedTranscript == nil,
-                   let words = playback.transcript,
-                   !words.isBlank {
-                    backfilledTranscript = words
-                }
-                let next = AVPlayer(url: url)
-                player = next
-                prepareMediaPlayback()
-                next.play()
-                playing = true
-            } catch {
-                errorText = error.userMessage
-            }
-        }
-    }
 }
 
 // MARK: - Previews
