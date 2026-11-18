@@ -362,6 +362,8 @@ Workspace closure ends the service and releases numbers immediately under the cl
 
 Members with `billing.manage` receive billing notices, including payment failures. Porting and number provisioning notices go to members with `numbers.manage`. Payment failures go through the critical email stream and per-attempt push notifications.
 
+Notice delivery claims stay in place after the email provider accepts the message. Failed sends release their claims so the next scheduled run or webhook replay can try again. The monthly response-time recap allows two retry days and uses the same monthly key on each run.
+
 ## D7. Data model decisions
 
 - **Conversation statuses**: `new | open | waiting | closed` + `is_spam boolean`.

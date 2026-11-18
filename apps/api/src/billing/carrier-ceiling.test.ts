@@ -13,6 +13,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { runCarrierCeilingJob } from "./carrier-ceiling";
+import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 
 const sent: { to: string[]; subject: string; text: string }[] = [];
@@ -20,6 +21,7 @@ const sent: { to: string[]; subject: string; text: string }[] = [];
 vi.mock("../email/resend", () => ({
   sendEmail: vi.fn(async (_env: unknown, msg: { to: string[]; subject: string; text: string }) => {
     sent.push(msg);
+    return { id: "email_1" };
   }),
 }));
 vi.mock("../email/html", () => ({ renderEmailHtml: (t: string) => t }));
@@ -48,6 +50,18 @@ function fakeDb(rows: Row[], opts: { alreadyClaimed?: Set<string> } = {}) {
     from: (table: string) => {
       expect(table).toBe("usage_alerts");
       return {
+        delete: () => ({
+          eq: (_column: string, id: string) => {
+            const filters = {
+              eq: () => filters,
+              then: (resolve: (result: { error: null }) => void) => {
+                claimed.delete(id);
+                resolve({ error: null });
+              },
+            };
+            return filters;
+          },
+        }),
         upsert: (row: Record<string, unknown>) => {
           calls.claims.push(row);
           const won = !claimed.has(String(row.company_id));
@@ -134,6 +148,16 @@ describe("carrier ceiling warning (#457)", () => {
       { company_id: "c2", use_case: "LOW_VOLUME", sent_today: 1900 },
     ]);
     await expect(runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), probe.db)).resolves.toBe(1);
+    expect(sent).toHaveLength(1);
+  });
+
+  it("retries a provider failure during the same carrier day", async () => {
+    const probe = fakeDb([{ company_id: "c1", use_case: "LOW_VOLUME", sent_today: 1900 }]);
+    vi.mocked(sendEmail).mockRejectedValueOnce(new Error("Email provider unavailable"));
+
+    await expect(runCarrierCeilingJob(env, new Date("2026-07-29T15:00:00Z"), probe.db)).resolves.toBe(0);
+    await expect(runCarrierCeilingJob(env, new Date("2026-07-29T16:00:00Z"), probe.db)).resolves.toBe(1);
+    await expect(runCarrierCeilingJob(env, new Date("2026-07-29T17:00:00Z"), probe.db)).resolves.toBe(0);
     expect(sent).toHaveLength(1);
   });
 });

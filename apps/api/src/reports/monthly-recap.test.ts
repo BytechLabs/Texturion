@@ -122,7 +122,7 @@ describe(runResponseTimeRecapJob, () => {
   const COMPANY = "cccccccc-0000-4000-8000-00000000000c";
   const OWNER = "10000000-aaaa-4000-8000-000000000001";
 
-  function run(claimed: boolean) {
+  function setup(failFirstSend = false) {
     const sb = supabaseStub(env);
     sb.on("GET", "/rest/v1/companies", () => [
       { id: COMPANY, name: "Bright Spark", created_at: "2026-01-01T00:00:00Z" },
@@ -131,7 +131,7 @@ describe(runResponseTimeRecapJob, () => {
     let call = 0;
     sb.on("POST", "/rest/v1/rpc/api_response_time_stats", () => {
       call += 1;
-      return call === 1
+      return call % 2 === 1
         ? { leads: 10, answered: 10, unanswered: 0, median_seconds: 120 }
         : { leads: 10, answered: 10, unanswered: 0, median_seconds: 900 };
     });
@@ -143,24 +143,46 @@ describe(runResponseTimeRecapJob, () => {
       id: OWNER,
       email: "owner@example.test",
     }));
-    sb.on("POST", "/rest/v1/email_ledger", () =>
-      claimed ? [{ email_key: "response_recap:2026-11" }] : [],
-    );
+    let claimed = false;
+    sb.on("POST", "/rest/v1/email_ledger", ({ body }) => {
+      expect(body).toEqual({ company_id: COMPANY, email_key: "response_recap:2026-11" });
+      if (claimed) return [];
+      claimed = true;
+      return [{ email_key: "response_recap:2026-11" }];
+    });
+    sb.on("DELETE", "/rest/v1/email_ledger", ({ url }) => {
+      expect(url.searchParams.get("company_id")).toBe(`eq.${COMPANY}`);
+      expect(url.searchParams.get("email_key")).toBe("eq.response_recap:2026-11");
+      claimed = false;
+      return new Response(null, { status: 204 });
+    });
     const emails: SentEmailCapture[] = [];
     stubFetch(async (url, request) => {
+      if (failFirstSend && url.href === "https://api.resend.com/emails") {
+        failFirstSend = false;
+        return Response.json({ message: "Provider unavailable" }, { status: 503 });
+      }
       const mail = await resendRoute(emails)(url, request);
       return mail ?? sb.route(url, request);
     });
-    return emails;
+    return { emails, sb };
   }
 
   it("sends the first run of the month and nothing on a second run", async () => {
-    const first = run(true);
+    const { emails } = setup();
     await runResponseTimeRecapJob(env, new Date("2026-11-01T14:35:00Z"));
-    expect(first).toHaveLength(1);
+    await runResponseTimeRecapJob(env, new Date("2026-11-02T14:35:00Z"));
+    expect(emails).toHaveLength(1);
+  });
 
-    const again = run(false);
-    await runResponseTimeRecapJob(env, new Date("2026-11-01T14:50:00Z"));
-    expect(again).toHaveLength(0);
+  it("retries a failed send on the next run in the same month", async () => {
+    const { emails, sb } = setup(true);
+    await runResponseTimeRecapJob(env, new Date("2026-11-01T14:35:00Z"));
+    expect(emails).toHaveLength(0);
+    expect(sb.find("DELETE", "/rest/v1/email_ledger")).toHaveLength(1);
+
+    await runResponseTimeRecapJob(env, new Date("2026-11-02T14:35:00Z"));
+    await runResponseTimeRecapJob(env, new Date("2026-11-03T14:35:00Z"));
+    expect(emails).toHaveLength(1);
   });
 });

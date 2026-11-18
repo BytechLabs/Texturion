@@ -295,8 +295,8 @@ async function sendGraceEmail(
     });
     return false;
   }
-  await sendEmail(env, { to, subject, text, html: renderEmailHtml(text), critical: true });
-  return true;
+  const email = await sendEmail(env, { to, subject, text, html: renderEmailHtml(text), critical: true });
+  return email.id !== null;
 }
 
 export async function recordAndSendGraceNotice(

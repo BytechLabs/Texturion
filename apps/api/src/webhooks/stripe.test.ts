@@ -25,7 +25,7 @@ import type { Env } from "../env";
 import { endpoint, makeExecutionContext, makeHarness } from '../test/billing-support';
 import type { Harness, StubEndpoint } from '../test/billing-support';
 import { completeEnv, stubFetch } from "../test/support";
-import { sendPortEmail, startPortSaga } from "../test/telnyx-doubles/porting";
+import { startPortSaga } from "../test/telnyx-doubles/porting";
 import {
   closeOutDeadProvisioningBestEffort,
   provisionCompanyNumber,
@@ -2156,7 +2156,7 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
    */
   function portEndpoints(port: Record<string, unknown>): StubEndpoint[] {
     return [
-      endpoint("GET", /\/rest\/v1\/port_requests/, () => [port]),
+      endpoint("GET", /\/rest\/v1\/port_requests/, () => [{ phone_e164: "+15125550111", ...port }]),
       endpoint(
         "PATCH",
         /\/rest\/v1\/port_requests/,
@@ -2178,6 +2178,7 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
       ),
       endpoint("PATCH", /\/rest\/v1\/companies/, () => new Response(null, { status: 204 })),
       endpoint("PATCH", /\/rest\/v1\/phone_numbers/, () => new Response(null, { status: 204 })),
+      ...recipientEndpoints(),
     ];
   }
 
@@ -2282,9 +2283,9 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
     expect(startPortSaga).toHaveBeenCalledOnce();
   });
 
-  it("the port-documents nudge is ledgered — a handler re-run never re-emails (#52)", async () => {
+  it("retries the port-documents email after delivery fails and sends it once", async () => {
     const claimed = new Set<string>();
-    const buildHarness = () =>
+    const buildHarness = (failSend = false) =>
       makeHarness([
         // Registered BEFORE ledgerEndpoints so this claim logic wins.
         endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => {
@@ -2293,6 +2294,15 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
           claimed.add(row.email_key);
           return [row];
         }),
+        endpoint("DELETE", /\/rest\/v1\/email_ledger/, (call) => {
+          expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+          expect(call.url.searchParams.get("email_key")).toBe(`eq.port_documents_needed:${PORT_ID}`);
+          claimed.delete(`port_documents_needed:${PORT_ID}`);
+          return new Response(null, { status: 204 });
+        }),
+        ...(failSend ? [endpoint("POST", /api\.resend\.com\/emails/, () =>
+          Response.json({ message: "Delivery unavailable" }, { status: 503 }),
+        )] : []),
         ...portEndpoints({
           id: PORT_ID,
           phone_e164: "+15125550111",
@@ -2305,7 +2315,7 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
         ...checkoutEndpoints(),
       ]);
 
-    const first = buildHarness();
+    const first = buildHarness(true);
     await deliver(
       eventOf("checkout.session.completed", checkoutSessionFixture(), {
         id: "evt_port_nudge_1",
@@ -2316,10 +2326,11 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
       company_id: COMPANY_ID,
       email_key: `port_documents_needed:${PORT_ID}`,
     });
-    expect(sendPortEmail).toHaveBeenCalledOnce();
+    expect(first.callsTo("POST", /api\.resend\.com\/emails/)).toHaveLength(1);
+    expect(first.callsTo("DELETE", /email_ledger/)).toHaveLength(1);
+    expect(provisionCompanyNumber).toHaveBeenCalledOnce();
+    expect(submitRegistration).toHaveBeenCalledOnce();
 
-    // A sweeper-style re-run of the handler (a LATER step failed, the whole
-    // thing replays under a fresh event): the claim conflicts, no re-send.
     const rerun = buildHarness();
     await deliver(
       eventOf("checkout.session.completed", checkoutSessionFixture(), {
@@ -2327,7 +2338,13 @@ describe("pending ports on paid checkout (PORTING.md §4 / D16 bridge number)", 
       }),
       rerun,
     );
-    expect(sendPortEmail).toHaveBeenCalledOnce();
+    expect(rerun.callsTo("POST", /api\.resend\.com\/emails/)).toHaveLength(1);
+    const duplicate = buildHarness();
+    await deliver(
+      eventOf("checkout.session.completed", checkoutSessionFixture(), { id: "evt_port_nudge_3" }),
+      duplicate,
+    );
+    expect(duplicate.callsTo("POST", /api\.resend\.com\/emails/)).toHaveLength(0);
   });
 
   it("a pending port WITHOUT the bridge opt-in starts the saga and buys nothing extra", async () => {

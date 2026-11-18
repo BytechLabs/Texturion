@@ -4,7 +4,7 @@ import { storedBytes } from './stored-bytes';
 import type { StorageUsageRow } from './stored-bytes';
 
 import { pushConsequentialNotice } from "./consequential-push";
-import { sendLedgered } from "./send-ledgered";
+import { sendLedgered, usageAlertLedger } from "./send-ledgered";
 import { billingRecipients } from "./recipients";
 import { UNIT_COST_CENTS } from "./costs";
 import { EGRESS_ALLOWANCE_BYTES } from "../attachments/egress";
@@ -288,35 +288,12 @@ export async function recordAndSendAlert(
 ): Promise<boolean> {
   const db = getDb(env);
   return sendLedgered({
-    claim: async () => {
-      const { data, error } = await db
-        .from("usage_alerts")
-        .upsert(
-          {
-            company_id: company.id,
-            period_start: company.current_period_start,
-            metric,
-            threshold,
-          },
-          {
-            onConflict: "company_id,period_start,metric,threshold",
-            ignoreDuplicates: true,
-          },
-        )
-        .select("company_id");
-      if (error) throw new Error(`usage_alerts insert failed: ${error.message}`);
-      return (data?.length ?? 0) > 0;
-    },
-    release: async () => {
-      const { error } = await db
-        .from("usage_alerts")
-        .delete()
-        .eq("company_id", company.id)
-        .eq("period_start", company.current_period_start)
-        .eq("metric", metric)
-        .eq("threshold", threshold);
-      if (error) throw new Error(`usage_alerts release failed: ${error.message}`);
-    },
+    ...usageAlertLedger(db, {
+      company_id: company.id,
+      period_start: company.current_period_start,
+      metric,
+      threshold,
+    }),
     send: async () => {
       if (pushCopy) {
         await pushConsequentialNotice(env, db, {
@@ -336,13 +313,14 @@ export async function recordAndSendAlert(
         return false;
       }
 
-      await sendEmail(env, {
+      const email = await sendEmail(env, {
         to,
         subject: copy.subject,
         text: copy.text,
         html: renderEmailHtml(copy.text),
         critical: pushCopy !== undefined,
       });
+      if (email.id === null) return false;
       void captureEvent(
         env,
         metric === "cost_projection" ? "overage_projected" : "usage_threshold_crossed",

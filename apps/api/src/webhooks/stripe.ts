@@ -29,6 +29,7 @@ import {
   isPrepayCheckout,
 } from "../billing/prepay";
 import { billingRecipients } from "../billing/recipients";
+import { emailLedger, sendLedgered } from "../billing/send-ledgered";
 import { getStripe, stripeCryptoProvider } from '../billing/stripe';
 import type { Stripe } from '../billing/stripe';
 import type { AppEnv } from "../context";
@@ -40,7 +41,7 @@ import { liveStripeEventRefusal } from "../environments/policy";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import { portDocumentsNeededCopy } from "../telnyx/emails";
-import { sendPortEmail, startPortSaga } from "../telnyx/porting";
+import { startPortSaga } from "../telnyx/porting";
 import {
   closeOutDeadProvisioningBestEffort,
   provisionCompanyNumber,
@@ -456,69 +457,6 @@ export async function ensureVoiceMeteredItem(
 }
 
 /**
- * #52: insert-first ledger for one-shot customer emails sent from webhook
- * processing. The `webhook_events` ledger dedupes duplicate DELIVERIES, but
- * the sweeper replays a partially-failed handler WHOLE — claiming a
- * `(company_id, email_key)` row before sending means a replay can never
- * re-send an email that already went out. Same insert-first shape as
- * `grace_notices`. Returns whether THIS call claimed the key.
- */
-async function claimEmailOnce(
-  db: SupabaseClient,
-  companyId: string,
-  emailKey: string,
-): Promise<boolean> {
-  const { data, error } = await db
-    .from("email_ledger")
-    .upsert(
-      { company_id: companyId, email_key: emailKey },
-      { onConflict: "company_id,email_key", ignoreDuplicates: true },
-    )
-    .select("email_key");
-  if (error) throw new Error(`email_ledger insert failed: ${error.message}`);
-  return (data ?? []).length > 0;
-}
-
-/**
- * Give a claimed key back when the send it was claiming never left the building.
- *
- * The insert-first ledger is what makes a sweeper replay unable to send an email
- * twice, and that is exactly right for a send that HAPPENED. It is exactly wrong
- * for one that did not: Resend has an outage, the send throws, and the key is
- * already spent — so every later replay skips the notice and the owner is never
- * told. At-most-once quietly became never.
- *
- * Releasing the key trades a guarantee we cannot keep for one we can. The worst
- * case is a duplicate notice about a number that really is on hold; the case it
- * prevents is silence about it. And the trade is cheaper than it looks: the
- * push never throws (`pushConsequentialNotice` swallows its own failures), so
- * everything that reaches this point failed BEFORE Resend accepted anything —
- * bar the one narrow case of a send that landed and whose response was lost.
- *
- * Best-effort by construction — the send has already failed, and a failed
- * clean-up must not become the caller's error.
- */
-async function releaseEmailClaim(
-  db: SupabaseClient,
-  companyId: string,
-  emailKey: string,
-): Promise<void> {
-  try {
-    const { error } = await db
-      .from("email_ledger")
-      .delete()
-      .eq("company_id", companyId)
-      .eq("email_key", emailKey);
-    if (error) throw new Error(error.message);
-  } catch (cause) {
-    console.error(
-      `email_ledger release failed for ${companyId} (${emailKey}):`,
-      cause instanceof Error ? cause.message : String(cause),
-    );
-  }
-}
-
-/**
  * #523: tell the owner that a number came back HELD rather than live.
  *
  * A held number is the weakest part of this whole answer and it is only
@@ -537,12 +475,6 @@ async function releaseEmailClaim(
  * reach this for the same session, and only one of them may send. A LATER
  * resubscribe is a different session and is told again, which is right — it is
  * a different decision with a different set of numbers.
- *
- * The push goes out only when the email was claimed by THIS call, so the two
- * channels can never disagree about how many times the owner was told.
- *
- * A FAILED SEND GIVES THE KEY BACK. See {@link releaseEmailClaim}: without it a
- * Resend outage spends the one chance to tell somebody their number is on hold.
  */
 async function noticeHeldNumbers(
   env: Env,
@@ -555,70 +487,57 @@ async function noticeHeldNumbers(
     emailKey: string;
   },
 ): Promise<void> {
-  if (!(await claimEmailOnce(db, args.companyId, args.emailKey))) return;
+  await sendLedgered({
+    ...emailLedger(db, args.companyId, args.emailKey),
+    send: async () => {
+      await pushConsequentialNotice(env, db, {
+        companyId: args.companyId,
+        title: (locale: Locale) =>
+          SUBSCRIPTION_NOTICE_COPY[locale].numbersHeldTitle(args.held.length),
+        body: (locale: Locale) => SUBSCRIPTION_NOTICE_COPY[locale].numbersHeldBody,
+        path: "/settings/billing",
+        collapseKey: `numbers_held:${args.companyId}`,
+      });
 
-  try {
-    const { data, error } = await db
-      .from("companies")
-      .select("name")
-      .eq("id", args.companyId)
-      .limit(1);
-    if (error) throw new Error(`company name lookup failed: ${error.message}`);
-    const companyName =
-      (data?.[0] as { name?: string } | undefined)?.name ?? "your workspace";
+      const { data, error } = await db
+        .from("companies")
+        .select("name")
+        .eq("id", args.companyId)
+        .limit(1);
+      if (error) throw new Error(`company name lookup failed: ${error.message}`);
+      const companyName =
+        (data?.[0] as { name?: string } | undefined)?.name ?? "your workspace";
 
-    const billing = `${env.APP_ORIGIN}/settings/billing`;
-    const { subject, text } = heldNumbersCopy({
-      companyName,
-      plan: args.plan,
-      allowance: args.allowance,
-      held: args.held,
-    });
-    const to = await billingRecipients(env, args.companyId, db);
-    if (to.length === 0) {
-      // #526: silent by construction until now. Nothing is sent and nothing is
-      // thrown, so the catch below never runs and the ledger key is spent on a
-      // notice that had nowhere to go. The push still fires (its audience is
-      // user ids, not addresses) — but the channel we treat as the durable one
-      // did not, and that has to be on the record.
-      void captureException(
-        env,
-        heldNoticeNoRecipientsAlert({
-          companyId: args.companyId,
-          held: args.held.length,
-        }),
-        { source: "api", company_id: args.companyId },
-      );
-    } else {
-      await sendEmail(env, {
+      const billing = `${env.APP_ORIGIN}/settings/billing`;
+      const { subject, text } = heldNumbersCopy({
+        companyName,
+        plan: args.plan,
+        allowance: args.allowance,
+        held: args.held,
+      });
+      const to = await billingRecipients(env, args.companyId, db);
+      if (to.length === 0) {
+        void captureException(
+          env,
+          heldNoticeNoRecipientsAlert({
+            companyId: args.companyId,
+            held: args.held.length,
+          }),
+          { source: "api", company_id: args.companyId },
+        );
+        return false;
+      }
+
+      const email = await sendEmail(env, {
         to,
         subject,
-        // The copy ends on the routes back; the link is appended here because the
-        // billing screen is where both of them start.
         text: `${text}${billing}\n\nLoonext`,
-        // renderEmailHtml escapes — companyName is customer-controlled input.
         html: renderEmailHtml(`${text}${billing}\n\nLoonext`),
         critical: true,
       });
-    }
-
-    // #228: the push is composed per reader; the email above is not, because an
-    // address is not a person whose language we have resolved. So the two
-    // channels stop sharing one string — the title below says word for word
-    // what `subject` says in English, and `subscription-notice-copy.test.ts`
-    // is the check that keeps it that way now they are written twice.
-    await pushConsequentialNotice(env, db, {
-      companyId: args.companyId,
-      title: (locale: Locale) =>
-        SUBSCRIPTION_NOTICE_COPY[locale].numbersHeldTitle(args.held.length),
-      body: (locale: Locale) => SUBSCRIPTION_NOTICE_COPY[locale].numbersHeldBody,
-      path: "/settings/billing",
-      collapseKey: `numbers_held:${args.companyId}`,
-    });
-  } catch (cause) {
-    await releaseEmailClaim(db, args.companyId, args.emailKey);
-    throw cause;
-  }
+      return email.id !== null;
+    },
+  });
 }
 
 /**
@@ -938,7 +857,7 @@ export async function handleCheckoutCompleted(
     // of buying that number. provisionCompanyNumber below then skips it (a
     // non-released ported number already exists), so the ported number is
     // never double-provisioned; only an opted-in bridge number is bought.
-    await startPendingPorts(env, db, companyId, session.id);
+    const portsNeedingDocuments = await startPendingPorts(env, db, companyId, session.id);
 
     await provisionCompanyNumber(env, {
       companyId,
@@ -949,6 +868,24 @@ export async function handleCheckoutCompleted(
     // cron are harmless; a Telnyx failure propagates to the webhook ledger
     // (attempts + last_error) and the sweeper retries the submission.
     await submitRegistration(env, companyId);
+
+    for (const port of portsNeedingDocuments) {
+      await sendLedgered({
+        ...emailLedger(db, companyId, `port_documents_needed:${port.id}`),
+        send: async () => {
+          const to = await billingRecipients(env, companyId, db, "numbers.manage");
+          if (to.length === 0) {
+            void captureException(env, "No contacts for the port documents notice", {
+              source: "api",
+              company_id: companyId,
+            });
+            return false;
+          }
+          const email = await sendEmail(env, { to, ...portDocumentsNeededCopy(port.phone_e164, env) });
+          return email.id !== null;
+        },
+      });
+    }
   }
 }
 
@@ -969,7 +906,7 @@ async function startPendingPorts(
   db: SupabaseClient,
   companyId: string,
   checkoutSessionId: string,
-): Promise<void> {
+): Promise<{ id: string; phone_e164: string }[]> {
   // Widened to `string` on purpose: supabase-js's literal column parser trips
   // on this list; the row shape is asserted by the cast below.
   const portColumns: string =
@@ -1022,31 +959,8 @@ async function startPendingPorts(
       }
     }
     await startPortSaga(env, { companyId, portRequestId: port.id });
-
-    // The transfer is documents-gated (§3.5) and the LOA + bill can only be
-    // uploaded now that the subscription is active — tell the customer their
-    // ONE next step, or a port-only signup sits waiting on documents nobody
-    // asked for. Skipped when both documents are already on file. #52: the
-    // webhook ledger only dedupes duplicate deliveries — a sweeper replay of
-    // this handler (after a later Telnyx step failed) re-runs the whole thing,
-    // so the nudge is claimed through the email_ledger first and sends exactly
-    // once per port request.
-    if (!port.telnyx_loa_document_id || !port.telnyx_invoice_document_id) {
-      const claimed = await claimEmailOnce(
-        db,
-        companyId,
-        `port_documents_needed:${port.id}`,
-      );
-      if (claimed) {
-        await sendPortEmail(
-          env,
-          db,
-          companyId,
-          portDocumentsNeededCopy(port.phone_e164, env),
-        );
-      }
-    }
   }
+  return ports.filter((port) => !port.telnyx_loa_document_id || !port.telnyx_invoice_document_id);
 }
 
 /**
@@ -1549,42 +1463,47 @@ async function handleInvoicePaymentFailed(
     // customer (a distinct failure), while sweeper replays of this same event
     // (same invoice, same attempt) never re-send.
     const key = `invoice_payment_failed:${invoice.id}:${invoice.attempt_count ?? 0}`;
-    if (!(await claimEmailOnce(db, company.id, key))) continue;
+    await sendLedgered({
+      ...emailLedger(db, company.id, key),
+      send: async () => {
+        await pushConsequentialNotice(env, db, {
+          companyId: company.id,
+          title: (locale) => locale === "fr-CA" ? "Votre paiement a échoué" : "Your payment failed",
+          body: (locale) => locale === "fr-CA"
+            ? "L’envoi de textos est en pause. Vérifiez votre mode de paiement."
+            : "Sending texts is paused. Check your payment method.",
+          path: "/settings/billing",
+          collapseKey: key,
+        });
 
-    await pushConsequentialNotice(env, db, {
-      companyId: company.id,
-      title: (locale) => locale === "fr-CA" ? "Votre paiement a échoué" : "Your payment failed",
-      body: (locale) => locale === "fr-CA"
-        ? "L’envoi de textos est en pause. Vérifiez votre mode de paiement."
-        : "Sending texts is paused. Check your payment method.",
-      path: "/settings/billing",
-      collapseKey: key,
+        const portal = `${env.APP_ORIGIN}/settings/billing`;
+        const invoiceLine = invoice.hosted_invoice_url
+          ? `You can also pay the open invoice directly: ${invoice.hosted_invoice_url}\n\n`
+          : "";
+        const text =
+          `Hi,\n\nA payment for ${company.name}'s Loonext subscription failed, so ` +
+          `outbound texting is paused. Receiving texts and your dashboard keep working.\n\n` +
+          `Update your payment method to resume texting: ${portal}\n\n` +
+          invoiceLine +
+          `Stripe retries the charge automatically over the next two weeks.\n\nLoonext`;
+        const to = await billingRecipients(env, company.id, db);
+        if (to.length === 0) {
+          void captureException(env, "No billing contacts for payment notice", {
+            source: "api",
+            company_id: company.id,
+          });
+          return false;
+        }
+        const email = await sendEmail(env, {
+          to,
+          subject: "Your Loonext payment failed: outbound texting is paused",
+          text,
+          html: renderEmailHtml(text),
+          critical: true,
+        });
+        return email.id !== null;
+      },
     });
-
-    const portal = `${env.APP_ORIGIN}/settings/billing`;
-    const invoiceLine = invoice.hosted_invoice_url
-      ? `You can also pay the open invoice directly: ${invoice.hosted_invoice_url}\n\n`
-      : "";
-    const text =
-      `Hi,\n\nA payment for ${company.name}'s Loonext subscription failed, so ` +
-      `outbound texting is paused. Receiving texts and your dashboard keep working.\n\n` +
-      `Update your payment method to resume texting: ${portal}\n\n` +
-      invoiceLine +
-      `Stripe retries the charge automatically over the next two weeks.\n\nLoonext`;
-    try {
-      const to = await billingRecipients(env, company.id, db);
-      if (to.length === 0) throw new Error("No billing contacts for payment notice");
-      await sendEmail(env, {
-        to,
-        subject: "Your Loonext payment failed: outbound texting is paused",
-        text,
-        html: renderEmailHtml(text),
-        critical: true,
-      });
-    } catch (error) {
-      await releaseEmailClaim(db, company.id, key);
-      throw error;
-    }
   }
 }
 

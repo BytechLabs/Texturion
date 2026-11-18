@@ -256,7 +256,7 @@
     },
     {
       "config": "apps/api/wrangler.jsonc",
-      "cron": "35 14 1 * *",
+      "cron": "35 14 1-3 * *",
       "class": "run",
       "jobs": ["job:response-time-recap"],
       "note": "Monthly recap email to every active seeded workspace. The guard sends only to Resend's test addresses, and every member the seed creates has one (memberEmail in scripts/rig/tenants.mjs, pinned by tools/rig/test/seed.test.mjs)."
