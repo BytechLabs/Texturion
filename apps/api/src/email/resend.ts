@@ -157,7 +157,7 @@ export async function sendEmail(
       // not a service message about an account the recipient does not have.
       text: input.kind === "commercial" ? input.text : input.text + emailTextFooter(),
       reply_to: replyTo,
-      ...(input.headers !== undefined ? { headers: input.headers } : {}),
+      ...(input.headers === undefined ? {} : { headers: input.headers }),
     }),
   });
 

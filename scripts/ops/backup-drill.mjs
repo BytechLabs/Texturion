@@ -227,13 +227,13 @@ console.log(
     `  dominates at this size and is not measured here.\n`,
 );
 
-if (!keep) {
+if (keep) {
+  console.log(`  Kept: database "${SCRATCH_DB}" and /tmp/drill.dump inside ${container}.\n`);
+} else {
   inContainer(`psql -U postgres -d postgres -c 'drop database if exists ${SCRATCH_DB}'`, {
     quiet: true,
   });
   inContainer("rm -f /tmp/drill.dump /tmp/drill.err", { quiet: true });
-} else {
-  console.log(`  Kept: database "${SCRATCH_DB}" and /tmp/drill.dump inside ${container}.\n`);
 }
 
 if (problems.length > 0) process.exit(1);

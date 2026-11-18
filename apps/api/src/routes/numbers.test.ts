@@ -980,7 +980,7 @@ function stripeStub(
             id: item.id,
             object: "subscription_item",
             price: { id: item.price, object: "price" },
-            ...(item.quantity !== undefined ? { quantity: item.quantity } : {}),
+            ...(item.quantity === undefined ? {} : { quantity: item.quantity }),
           })),
         },
       });

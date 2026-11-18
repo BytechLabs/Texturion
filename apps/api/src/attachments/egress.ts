@@ -239,9 +239,9 @@ export async function assertEgressWithinAllowance(
   if (objects.length === 0) return;
 
   const currentPeriodStart =
-    knownPeriodStart !== undefined
-      ? knownPeriodStart
-      : (await companyPlanRow(db, companyId)).currentPeriodStart;
+    knownPeriodStart === undefined
+      ? (await companyPlanRow(db, companyId)).currentPeriodStart
+      : knownPeriodStart;
   const limitBytes = EGRESS_ALLOWANCE_BYTES;
   const since = egressPeriodStart(currentPeriodStart);
   const dedupeSince = new Date(Date.now() - ttlSeconds * 1000).toISOString();

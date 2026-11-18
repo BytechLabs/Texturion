@@ -64,9 +64,7 @@ if (login) {
   }
 
   const chunk = /\/_next\/static\/chunks\/[^"'\s]+\.js/.exec(html)?.[0];
-  if (!chunk) {
-    failures.push(`${APP}/login names no /_next/static/chunks/*.js file, so the cache rule cannot be checked`);
-  } else {
+  if (chunk) {
     const response = await get(`${APP}${chunk}`);
     const cache = response?.headers.get("cache-control") ?? "";
     check(
@@ -74,6 +72,8 @@ if (login) {
       `hashed chunk is immutable (${cache})`,
       `${APP}${chunk} answered ${response?.status} with Cache-Control "${cache}", not a year of immutable`,
     );
+  } else {
+    failures.push(`${APP}/login names no /_next/static/chunks/*.js file, so the cache rule cannot be checked`);
   }
 }
 

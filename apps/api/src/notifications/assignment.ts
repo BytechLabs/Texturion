@@ -141,7 +141,21 @@ export async function notifyAssigned(
   const conversationId: string | null =
     input.kind === "conversation_bulk" ? null : input.conversationId;
 
-  if (conversationId !== null) {
+  if (conversationId === null) {
+    // Check membership again so an assignee deactivated after the assignment
+    // receives no notification.
+    const members = unwrapRows<{ user_id: string }>(
+      await db
+        .from("company_members")
+        .select("user_id")
+        .eq("company_id", input.companyId)
+        .eq("user_id", input.assigneeUserId)
+        .is("deactivated_at", null)
+        .limit(1),
+      "assignee membership lookup",
+    );
+    if (members.length === 0) return;
+  } else {
     const conversations = unwrapRows<{ phone_number_id: string | null }>(
       await db
         .from("conversations")
@@ -165,21 +179,6 @@ export async function notifyAssigned(
       phoneNumberId: conversation.phone_number_id,
     });
     if (!viewers.some((row) => row.user_id === input.assigneeUserId)) return;
-  } else {
-    // A standalone task has no number to check, so membership is the whole
-    // question — and it is asked here rather than inferred, because a member
-    // deactivated in this window must not be woken.
-    const members = unwrapRows<{ user_id: string }>(
-      await db
-        .from("company_members")
-        .select("user_id")
-        .eq("company_id", input.companyId)
-        .eq("user_id", input.assigneeUserId)
-        .is("deactivated_at", null)
-        .limit(1),
-      "assignee membership lookup",
-    );
-    if (members.length === 0) return;
   }
 
   const prefRows = unwrapRows<PrefsRow>(

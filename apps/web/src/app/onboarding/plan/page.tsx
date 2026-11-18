@@ -379,9 +379,9 @@ function PlanStep() {
           onClick={() => choose(selectedPlan)}
           disabled={choosing !== null}
         >
-          {choosing !== null
-            ? t("onboarding.sendingToCheckout")
-            : t("onboarding.continueToCheckout")}
+          {choosing === null
+            ? t("onboarding.continueToCheckout")
+            : t("onboarding.sendingToCheckout")}
         </Button>
 
         <p className="text-[13px] text-muted-foreground">

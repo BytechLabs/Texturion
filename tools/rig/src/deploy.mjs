@@ -118,11 +118,11 @@ async function ensureStack({ workdir, configHash, kid, state, log }) {
   const status = localStatus(workdir);
   const current = status !== null && applied?.configHash === configHash && (await runningKids(status.apiUrl)).includes(kid);
   if (current) return { restarted: false };
-  if (status !== null) {
+  if (status === null) {
+    log("stack: starting");
+  } else {
     log("stack: restarting with the derived config");
     supabase(["stop"], { workdir, inherit: true });
-  } else {
-    log("stack: starting");
   }
   supabase(["start", "-x", STACK_EXCLUDES.join(",")], { workdir, inherit: true });
   mkdirSync(state, { recursive: true });

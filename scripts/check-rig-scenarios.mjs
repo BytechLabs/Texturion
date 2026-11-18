@@ -136,10 +136,10 @@ export function capsFromDoc(markdown, s41) {
   const windows = [...markdown.matchAll(/the window is (\d{2}):00-(\d{2}):00 UTC/g)];
   if (cap === null) problems.push(`${DOC_FILE} 4.1: cannot read the guard's cap ("N dials a day and N an hour")`);
   else Object.assign(caps, { daily_cap: Number(cap[1]), hourly_cap: Number(cap[2]) });
-  if (windows.length !== 1) {
-    problems.push(`${DOC_FILE}: expected one "the window is HH:00-HH:00 UTC", found ${windows.length}`);
-  } else {
+  if (windows.length === 1) {
     caps.window_utc = [Number(windows[0][1]), Number(windows[0][2])];
+  } else {
+    problems.push(`${DOC_FILE}: expected one "the window is HH:00-HH:00 UTC", found ${windows.length}`);
   }
   return { caps, problems };
 }
@@ -386,10 +386,10 @@ export function judge({ registry, markdown, journeys }) {
     const expected = rigDials(s) > 0 ? runsAt.get(s.id) : 0;
     if (expected === undefined) {
       problems.push(`${s.id}: 4.1's room table runs it at no room`);
-    } else if (s.min_room !== expected) {
-      problems.push(`${s.id}: min_room is ${s.min_room} but 4.1's room table runs it from room ${expected}`);
-    } else {
+    } else if (s.min_room === expected) {
       roomsMatched += 1;
+    } else {
+      problems.push(`${s.id}: min_room is ${s.min_room} but 4.1's room table runs it from room ${expected}`);
     }
   }
 

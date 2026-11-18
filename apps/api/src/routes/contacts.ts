@@ -3391,20 +3391,8 @@ contactsRoutes.post(
       return errorResponse(c, "not_found", "No such contact.");
     }
 
-    let tag: ContactTagRef;
-    if (body.tag_id !== undefined) {
-      const rows = unwrap<ContactTagRef[]>(
-        await db
-          .from("tags")
-          .select("id,name,color")
-          .eq("company_id", companyId)
-          .eq("id", body.tag_id)
-          .limit(1),
-        "tag lookup",
-      );
-      if (!rows[0]) return errorResponse(c, "not_found", "No such tag.");
-      tag = rows[0];
-    } else {
+    let tagRows: ContactTagRef[];
+    if (body.tag_id === undefined) {
       const rows = unwrap<
         (ContactTagRef & { refused: boolean; reason: string | null })[]
       >(
@@ -3432,8 +3420,20 @@ contactsRoutes.post(
         );
       }
       if (!rows[0]) throw new Error("tag find-or-create: no row returned");
-      tag = rows[0];
+      tagRows = rows;
+    } else {
+      tagRows = unwrap<ContactTagRef[]>(
+        await db
+          .from("tags")
+          .select("id,name,color")
+          .eq("company_id", companyId)
+          .eq("id", body.tag_id)
+          .limit(1),
+        "tag lookup",
+      );
+      if (!tagRows[0]) return errorResponse(c, "not_found", "No such tag.");
     }
+    const [tag] = tagRows;
 
     const attached = unwrap<unknown[]>(
       await db

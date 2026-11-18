@@ -126,7 +126,7 @@ export function WorkspaceSummary({
         companyId,
         requested_area_code: full ? draftChosen.slice(2, 5) : draftChosen,
         chosen_number_e164: full ? draftChosen : null,
-        ...(draftCountry !== country ? { country: draftCountry } : {}),
+        ...(draftCountry === country ? {} : { country: draftCountry }),
         ...(draftCountry === "CA" ? { us_texting_enabled: draftUsTexting } : {}),
       });
       setEditing(null);
@@ -186,7 +186,7 @@ export function WorkspaceSummary({
               <dd className="mt-0.5 truncate text-sm font-medium">{name}</dd>
             )}
           </div>
-          {editing !== "name" ? (
+          {editing !== "name" && (
             <Button
               size="sm"
               variant="ghost"
@@ -198,7 +198,7 @@ export function WorkspaceSummary({
             >
               {t("onboarding.edit")}
             </Button>
-          ) : null}
+          )}
         </div>
 
         {/* Number: country + the chosen number (+ CA US-texting). Hidden for a port. */}
@@ -209,7 +209,7 @@ export function WorkspaceSummary({
                 <dt className="text-[13px] text-muted-foreground">
                   {t("onboarding.businessNumberLabel")}
                 </dt>
-                {editing !== "number" ? (
+                {editing !== "number" && (
                   <dd className="mt-0.5 text-sm font-medium">
                     {country === "US"
                       ? t("onboarding.countryUs")
@@ -223,7 +223,7 @@ export function WorkspaceSummary({
                       </span>
                     ) : null}
                   </dd>
-                ) : null}
+                )}
               </div>
               <Button
                 size="sm"

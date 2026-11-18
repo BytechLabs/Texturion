@@ -492,11 +492,12 @@ async function judgeRelease(
   }
   if (!grace.held) return infra("s28-handoff", "QA-G did not hold the number S28 handed off, so the release half was not covered");
   let result: ScenarioResult | undefined;
-  if (grace.row?.status !== "released") result = fail("number_not_released", `the number's row reads ${grace.row?.status ?? "nothing"} after grace${because}`);
-  else {
+  if (grace.row?.status === "released") {
     const status = await ctx.guard.numberStatus(number.telnyx_phone_number_id);
     ctx.evidence.number_lookup = status.status;
     if (status.status !== 404) result = fail("telnyx_number_kept", `the guard still answers ${status.status} for the released number`);
+  } else {
+    result = fail("number_not_released", `the number's row reads ${grace.row?.status ?? "nothing"} after grace${because}`);
   }
   ctx.evidence.release = result ?? { outcome: "pass" };
   return result;
@@ -538,8 +539,8 @@ export function graduatedAmount(tiers: readonly StripeTier[], quantity: number):
     if (quantity <= floor) break;
     const ceiling = tier.up_to ?? Infinity;
     const units = Math.min(quantity, ceiling) - floor;
-    const unit = tier.unit_amount_decimal != null ? Number(tier.unit_amount_decimal) : (tier.unit_amount ?? 0);
-    const flat = tier.flat_amount_decimal != null ? Number(tier.flat_amount_decimal) : (tier.flat_amount ?? 0);
+    const unit = tier.unit_amount_decimal == null ? (tier.unit_amount ?? 0) : Number(tier.unit_amount_decimal);
+    const flat = tier.flat_amount_decimal == null ? (tier.flat_amount ?? 0) : Number(tier.flat_amount_decimal);
     total += units * unit + flat;
     floor = ceiling;
   }

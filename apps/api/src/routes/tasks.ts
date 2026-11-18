@@ -827,8 +827,17 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
       }
     } else if (access.hiddenNumberIds !== null) {
       const sourceRows =
-        body.message_id !== undefined
+        body.message_id === undefined
           ? unwrap<{ conversation_id: string | null }[]>(
+              await db
+                .from("calls")
+                .select("conversation_id")
+                .eq("company_id", companyId)
+                .eq("id", body.source_call_id)
+                .limit(1),
+              "task call source lookup",
+            )
+          : unwrap<{ conversation_id: string | null }[]>(
               await db
                 .from("messages")
                 .select("conversation_id")
@@ -836,15 +845,6 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
                 .eq("id", body.message_id)
                 .limit(1),
               "task source lookup",
-            )
-          : unwrap<{ conversation_id: string | null }[]>(
-              await db
-                .from("calls")
-                .select("conversation_id")
-                .eq("company_id", companyId)
-                .eq("id", body.source_call_id as string)
-                .limit(1),
-              "task call source lookup",
             );
       if (sourceRows[0]?.conversation_id) {
         await requireConversationAccess(db, {
@@ -970,9 +970,9 @@ tasksRoutes.post("/tasks", requireCapability("conversations.note"), async (c) =>
   if (result.outcome === "conflict") {
     throw new ApiError(
       "conflict",
-      body.message_id !== undefined
-        ? "This message is already a task."
-        : "This call is already a task.",
+      body.message_id === undefined
+        ? "This call is already a task."
+        : "This message is already a task.",
     );
   }
   if (!result.task) throw new Error("create_task returned no row");
@@ -1762,14 +1762,14 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
       // it no pin could render), and strip the view-only columns from the row.
       const done = (row.done_at ?? null) !== null;
       const contact =
-        row.contact_id != null
-          ? {
+        row.contact_id == null
+          ? null
+          : {
               id: row.contact_id,
               name: row.contact_name ?? null,
               lat: row.contact_lat ?? null,
               lng: row.contact_lng ?? null,
-            }
-          : null;
+            };
       delete rest.done_at;
       delete rest.contact_id;
       delete rest.contact_name;
@@ -3132,23 +3132,14 @@ tasksRoutes.post("/tasks/:id/tags", requireCapability("conversations.note"), asy
     return errorResponse(c, "not_found", "No such task.");
   }
 
-  let tag: { id: string; name: string; color: string | null };
-  if (body.tag_id !== undefined) {
-    const rows = unwrap<{ id: string; name: string; color: string | null }[]>(
-      await db
-        .from("tags")
-        .select("id,name,color")
-        .eq("company_id", companyId)
-        .eq("id", body.tag_id)
-        .limit(1),
-      "tag lookup",
-    );
-    if (!rows[0]) return errorResponse(c, "not_found", "No such tag.");
-    tag = rows[0];
-  } else {
-    const rows = unwrap<
-      { id: string; name: string; color: string | null; refused: boolean; reason: string | null }[]
-    >(
+  interface TagRow {
+    id: string;
+    name: string;
+    color: string | null;
+  }
+  let tagRows: TagRow[];
+  if (body.tag_id === undefined) {
+    const rows = unwrap<(TagRow & { refused: boolean; reason: string | null })[]>(
       await db.rpc("api_find_or_create_tag", {
         p_company_id: companyId,
         p_name: body.name as string,
@@ -3171,8 +3162,20 @@ tasksRoutes.post("/tasks/:id/tags", requireCapability("conversations.note"), asy
       );
     }
     if (!rows[0]) throw new Error("tag find-or-create: no row returned");
-    tag = rows[0];
+    tagRows = rows;
+  } else {
+    tagRows = unwrap<TagRow[]>(
+      await db
+        .from("tags")
+        .select("id,name,color")
+        .eq("company_id", companyId)
+        .eq("id", body.tag_id)
+        .limit(1),
+      "tag lookup",
+    );
+    if (!tagRows[0]) return errorResponse(c, "not_found", "No such tag.");
   }
+  const [tag] = tagRows;
 
   const labels = await setTaskTags(db, { companyId, taskId: id, userId, add: [tag.id] });
   if (body.scope === "future") {

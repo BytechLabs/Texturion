@@ -387,15 +387,13 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
         continue;
       }
       const label = ctx.labels.find((l) => l.name.toLowerCase() === tag);
-      if (label !== undefined) {
-        if (!labels.some((l) => l.id === label.id)) {
-          labels.push(label);
-          understood.push({ kind: "label", text: take(i, 1) });
-        } else {
-          take(i, 1);
-        }
-      } else {
+      if (label === undefined) {
         ignored.push(word.raw);
+      } else if (labels.some((l) => l.id === label.id)) {
+        take(i, 1);
+      } else {
+        labels.push(label);
+        understood.push({ kind: "label", text: take(i, 1) });
       }
       i += 1;
       continue;
@@ -439,7 +437,12 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
         const w = wallClock(instant, ctx.timeZone);
         instant = zonedToInstant(w, clock, ctx.timeZone);
       }
-    } else if (dateHit !== null) {
+    } else if (dateHit === null) {
+      const at = clock!;
+      instant = zonedToInstant(today, at, ctx.timeZone);
+      if (instant <= now) instant = zonedToInstant(addDays(today, 1), at, ctx.timeZone);
+      dueHasTime = true;
+    } else {
       const civil = dateHit.civil;
       if (clock !== null) {
         instant = zonedToInstant(civil, clock, ctx.timeZone);
@@ -453,11 +456,6 @@ export function parseQuickAdd(line: string, ctx: QuickAddContext): QuickAddResul
           instant = zonedToInstant(civil, { h: AFTERNOON_HOUR, mi: 0 }, ctx.timeZone);
         }
       }
-    } else {
-      const at = clock as Clock;
-      instant = zonedToInstant(today, at, ctx.timeZone);
-      if (instant <= now) instant = zonedToInstant(addDays(today, 1), at, ctx.timeZone);
-      dueHasTime = true;
     }
     dueAt = new Date(instant).toISOString();
     understood.push({

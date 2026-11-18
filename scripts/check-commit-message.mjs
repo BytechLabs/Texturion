@@ -279,7 +279,14 @@ function main() {
 
   /** @type {{message: string, files: string[] | null}[]} */
   let commits;
-  if (rangeFlag !== -1) {
+  if (rangeFlag === -1) {
+    const [file] = args;
+    if (!file) {
+      console.error("pass a commit-message file, or --range <from>..<to>");
+      process.exit(2);
+    }
+    commits = [{ message: readFileSync(file, "utf8"), files: stagedFiles() }];
+  } else {
     const range = args[rangeFlag + 1];
     if (!range) {
       console.error("--range needs a <from>..<to>");
@@ -300,13 +307,6 @@ function main() {
         return { message: entry.slice(sep + 1).trim(), sha };
       })
       .map(({ message, sha }) => ({ message, files: filesInCommit(sha) }));
-  } else {
-    const file = args[0];
-    if (!file) {
-      console.error("pass a commit-message file, or --range <from>..<to>");
-      process.exit(2);
-    }
-    commits = [{ message: readFileSync(file, "utf8"), files: stagedFiles() }];
   }
 
   const failures = [];

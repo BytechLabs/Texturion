@@ -1584,7 +1584,7 @@ billingRoutes.get("/pause", async (c) => {
     reason: eligibility.reason ?? (offer === null ? "not_provisioned" : null),
     paused_at: company.paused_at,
     monthly_cents:
-      company.paused_at !== null ? company.paused_price_cents : (offer?.cents ?? null),
+      company.paused_at === null ? (offer?.cents ?? null) : company.paused_price_cents,
     // What they come back to. The pause never touches `plan` — that is the
     // whole reason it is not a third plan_id — so this is a real answer even
     // months in.

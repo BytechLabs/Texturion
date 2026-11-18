@@ -1255,9 +1255,7 @@ function readLedger(path) {
  * functions that decide the ledger were therefore the only part of it nothing
  * could test. Same shape as `check-do-not-build.mjs`.
  */
-if (!(process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1])) {
-  // Imported for its exports; the scan below is not ours to run.
-} else {
+if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
 const baseline = process.argv.includes("--baseline");
 /** `--only web` narrows a run while one client is being worked on. */
 const onlyIndex = process.argv.indexOf("--only");

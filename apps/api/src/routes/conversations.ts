@@ -2866,7 +2866,7 @@ conversationsRoutes.post(
       name: string;
       color: string | null;
     }
-    let tag: TagRow;
+    let tagRows: TagRow[];
 
     if (body.tag_id === undefined) {
       // Create-on-attach (SPEC §7): reuse the company's tag with this name
@@ -2919,9 +2919,9 @@ conversationsRoutes.post(
       if (!rows[0]) {
         throw new Error("tag find-or-create: no row returned");
       }
-      tag = rows[0];
+      tagRows = rows;
     } else {
-      const rows = unwrap<TagRow[]>(
+      tagRows = unwrap<TagRow[]>(
         await db
           .from("tags")
           .select("id,name,color")
@@ -2930,11 +2930,11 @@ conversationsRoutes.post(
           .limit(1),
         "tag lookup",
       );
-      if (!rows[0]) {
+      if (!tagRows[0]) {
         return errorResponse(c, "not_found", "No such tag.");
       }
-      tag = rows[0];
     }
+    const [tag] = tagRows;
 
     // ignoreDuplicates: attaching an already-attached tag is a no-op (200,
     // no duplicate timeline event); a fresh attach returns the inserted row.

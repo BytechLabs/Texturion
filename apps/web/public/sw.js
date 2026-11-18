@@ -123,7 +123,7 @@ function formatPushNotification(rawText, origin) {
 function coalescingTag(payload, url) {
   const tag =
     payload && typeof payload.tag === "string" ? payload.tag.trim() : "";
-  return `loonext:${tag !== "" ? tag : url}`;
+  return `loonext:${tag || url}`;
 }
 
 function conversationNotificationTags(id) {

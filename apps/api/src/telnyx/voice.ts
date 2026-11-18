@@ -347,12 +347,12 @@ export async function pushCallSettingsToNumber(
 
   const listing = effectiveCnamDisplayName(company);
   const voicePatch = buildVoicePatch({
-    ...(company.call_screening != null
-      ? { callScreening: company.call_screening }
-      : {}),
-    ...(company.caller_id_lookup != null
-      ? { callerIdLookup: company.caller_id_lookup }
-      : {}),
+    ...(company.call_screening == null
+      ? {}
+      : { callScreening: company.call_screening }),
+    ...(company.caller_id_lookup == null
+      ? {}
+      : { callerIdLookup: company.caller_id_lookup }),
     cnamDisplayName: listing,
   });
   await telnyxRequest(env, {

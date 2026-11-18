@@ -98,12 +98,13 @@ function TextBackCard({
       updateMessage.mutateAsync({ mctb_message: next.length > 0 ? next : null }),
   });
   const message = messageField.draft;
-  const messageError =
-    messageField.state !== "error"
-      ? null
-      : messageField.error instanceof ApiError
+  let messageError: string | null = null;
+  if (messageField.state === "error") {
+    messageError =
+      messageField.error instanceof ApiError
         ? messageField.error.message
         : t("appShell.saveFailed");
+  }
 
   // Another admin's toggle flip always reflects.
   useEffect(() => {

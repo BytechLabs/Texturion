@@ -452,8 +452,8 @@ export class Robot {
       });
       if (record.judgement.announcement_ms > 0) this.#reportAnnouncement(record.judgement.announcement_ms);
       if (record.plan.transcribe) {
-        if (!this.#o.transcriber) record.errors.push("transcribe: the robot has no transcriber");
-        else record.transcript = await this.#o.transcriber.transcribe(wav);
+        if (this.#o.transcriber) record.transcript = await this.#o.transcriber.transcribe(wav);
+        else record.errors.push("transcribe: the robot has no transcriber");
       }
       if (record.judgement.calibration) this.#o.onCalibration?.(record.judgement.calibration);
     } catch (error) {

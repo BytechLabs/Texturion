@@ -297,7 +297,7 @@ export async function telnyxRequest<T = unknown>(
     {
       method: options.method,
       headers,
-      body: body !== undefined ? JSON.stringify(body) : undefined,
+      body: body === undefined ? undefined : JSON.stringify(body),
     },
     TELNYX_TIMEOUT_MS,
   );

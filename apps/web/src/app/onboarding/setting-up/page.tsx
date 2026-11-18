@@ -382,14 +382,14 @@ function SettingUp() {
   useEffect(() => {
     if (checkoutSuccess && paid) trackCheckoutCompleted();
   }, [checkoutSuccess, paid]);
-  const redirectTo =
-    state.status !== "ready"
-      ? null
-      : company === null
-        ? "/onboarding"
-        : !paid && !checkoutSuccess
-          ? "/onboarding/plan"
-          : null;
+  let redirectTo: string | null = null;
+  if (state.status === "ready") {
+    if (company === null) {
+      redirectTo = "/onboarding";
+    } else if (!paid && !checkoutSuccess) {
+      redirectTo = "/onboarding/plan";
+    }
+  }
   useEffect(() => {
     if (redirectTo) router.replace(redirectTo);
   }, [redirectTo, router]);
@@ -479,14 +479,14 @@ function SettingUp() {
   // A failed provision the retry loop can't fix (no inventory / out of attempts):
   // the user must CHOOSE another number. Honest + actionable, never a passive
   // "stalled, nothing to do" row.
-  const failedNeedsChoice = !activeNumber
-    ? company.numbers.find(
+  const failedNeedsChoice = activeNumber
+    ? undefined
+    : company.numbers.find(
         (n) =>
           n.status === "provision_failed" &&
           (n.failure_reason === "no_inventory" ||
             (n.provision_attempts ?? 0) >= 5),
-      )
-    : undefined;
+      );
   const numberActionNeeded = Boolean(failedNeedsChoice);
   const provisioningNumber = company.numbers.find(
     (n) => n.status === "provisioning",
@@ -637,36 +637,38 @@ function SettingUp() {
           order={1}
           title={t("onboarding.rowRegistering")}
         >
-          {!owes ? (
-            <p className="text-sm text-muted-foreground">
-              {t("onboarding.registrationNotNeeded")}
-            </p>
-          ) : campaignApproved ? (
-            <p className="text-sm text-muted-foreground">
-              {REGISTRATION_COPY.approved}
-            </p>
-          ) : registrationRejected ? (
-            <div className="space-y-2">
+          {owes ? (
+            campaignApproved ? (
               <p className="text-sm text-muted-foreground">
-                {REGISTRATION_COPY.rejected(rejectionReason)}
+                {REGISTRATION_COPY.approved}
               </p>
-              {canActOnRegistration ? (
-                <Button asChild variant="outline" size="sm">
-                  <Link href="/settings/numbers">
-                    {t("onboarding.fixAndResubmit")}
-                  </Link>
-                </Button>
-              ) : null}
-            </div>
-          ) : otpPending ? (
-            <OtpRow
-              companyId={companyId}
-              phoneLabel={otpPhone}
-              canEnter={canActOnRegistration}
-            />
+            ) : registrationRejected ? (
+              <div className="space-y-2">
+                <p className="text-sm text-muted-foreground">
+                  {REGISTRATION_COPY.rejected(rejectionReason)}
+                </p>
+                {canActOnRegistration ? (
+                  <Button asChild variant="outline" size="sm">
+                    <Link href="/settings/numbers">
+                      {t("onboarding.fixAndResubmit")}
+                    </Link>
+                  </Button>
+                ) : null}
+              </div>
+            ) : otpPending ? (
+              <OtpRow
+                companyId={companyId}
+                phoneLabel={otpPhone}
+                canEnter={canActOnRegistration}
+              />
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                {REGISTRATION_COPY.registrationPending}
+              </p>
+            )
           ) : (
             <p className="text-sm text-muted-foreground">
-              {REGISTRATION_COPY.registrationPending}
+              {t("onboarding.registrationNotNeeded")}
             </p>
           )}
         </ChecklistRow>

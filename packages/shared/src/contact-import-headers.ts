@@ -399,5 +399,5 @@ export function joinContactName(parts: {
   const joined = [clean(parts.first), clean(parts.last)]
     .filter((part) => part !== "")
     .join(" ");
-  return joined !== "" ? joined : clean(parts.full) || null;
+  return joined || clean(parts.full) || null;
 }

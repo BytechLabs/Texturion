@@ -1668,9 +1668,9 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
         outcome,
         task: taskRow({
           ...current,
-          ...(p.p_title != null ? { title: p.p_title } : {}),
+          ...(p.p_title == null ? {} : { title: p.p_title }),
           ...(p.p_clear_due ? { due_at: null } : {}),
-          ...(p.p_due_at != null ? { due_at: p.p_due_at } : {}),
+          ...(p.p_due_at == null ? {} : { due_at: p.p_due_at }),
         }),
       };
     });
@@ -2558,7 +2558,7 @@ describe("#689 D subscriber alerts raised by the task routes", () => {
   it("changing the due time raises due_changed; changing only the title does not", async () => {
     world({
       before: { due_at: "2026-07-10T17:00:00.000Z" },
-      update: (p) => (p.p_due_at != null ? { due_at: p.p_due_at } : {}),
+      update: (p) => (p.p_due_at == null ? {} : { due_at: p.p_due_at }),
     });
     await request("PATCH", `/v1/tasks/${TASK_ID}`, { due_at: "2026-07-11T17:00:00.000Z" });
     expect(alerts.mock.calls.map((c) => c[1].kind)).toEqual(["due_changed"]);

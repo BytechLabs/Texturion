@@ -345,9 +345,9 @@ function Deliveries({ endpointId }: { endpointId: string }) {
           <span className="font-mono text-xs">{delivery.event_type}</span>
           <span className="text-muted-foreground">
             {t(STATUS[delivery.status] ?? "webhooks.deliveryPending")}
-            {delivery.response_status !== null
-              ? ` · ${delivery.response_status}`
-              : ""}
+            {delivery.response_status === null
+              ? ""
+              : ` · ${delivery.response_status}`}
             {delivery.attempts > 1
               ? ` · ${t("webhooks.deliveryAttempts", { count: delivery.attempts })}`
               : ""}

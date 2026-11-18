@@ -155,13 +155,13 @@ async function ensureProduct(
       // #133: converge the display name — a catalog rename (e.g. "Call
       // forwarding" → "Calling") must reach the LIVE product, or invoices
       // keep the old name forever.
-      if (product.name !== name) {
+      if (product.name === name) {
+        console.error(`product: reusing ${product.id} (${catalogKey})`);
+      } else {
         await stripe.products.update(product.id, { name });
         console.error(
           `product: reusing ${product.id} (${catalogKey}), renamed to "${name}"`,
         );
-      } else {
-        console.error(`product: reusing ${product.id} (${catalogKey})`);
       }
       return product;
     }

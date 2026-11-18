@@ -326,8 +326,8 @@ function survivorsIn(fixture) {
     for (const state of clientStatesIn(event)) {
       const decoded = decodeClientState(state);
       const where = `client_state in event ${index + 1}`;
-      if (!decoded) found.push(`an unreadable ${where}`);
-      else found.push(...realNumbersIn(decoded.text).map(() => `a ${where}`));
+      if (decoded) found.push(...realNumbersIn(decoded.text).map(() => `a ${where}`));
+      else found.push(`an unreadable ${where}`);
     }
   });
   return found;
