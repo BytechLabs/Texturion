@@ -129,6 +129,9 @@ object WebhooksStrings : AppStrings.Section {
         "webhooks.event.messageDeleted" to "A message is deleted",
         "webhooks.event.conversationDeleted" to "A conversation is deleted",
         "webhooks.event.callDeleted" to "A call or voicemail is deleted",
+        "webhooks.event.paymentPaid" to "A payment is received",
+        "webhooks.event.paymentRefunded" to "A payment is refunded",
+        "webhooks.event.quoteAccepted" to "A quote is accepted",
 
         "webhooks.urlError.notAUrl" to "That doesn't look like a web address.",
         "webhooks.urlError.notHttps" to
@@ -260,6 +263,9 @@ object WebhooksStrings : AppStrings.Section {
         "webhooks.event.messageDeleted" to "Un message est supprimé",
         "webhooks.event.conversationDeleted" to "Une conversation est supprimée",
         "webhooks.event.callDeleted" to "Un appel ou un message vocal est supprimé",
+        "webhooks.event.paymentPaid" to "Un paiement est reçu",
+        "webhooks.event.paymentRefunded" to "Un paiement est remboursé",
+        "webhooks.event.quoteAccepted" to "Un devis est accepté",
 
         "webhooks.urlError.notAUrl" to "Ça ne ressemble pas à une adresse web.",
         "webhooks.urlError.notHttps" to

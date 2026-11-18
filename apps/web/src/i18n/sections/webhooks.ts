@@ -129,6 +129,9 @@ export const webhooksEn = {
   "event.messageDeleted": "A message is deleted",
   "event.conversationDeleted": "A conversation is deleted",
   "event.callDeleted": "A call or voicemail is deleted",
+  "event.paymentPaid": "A payment is received",
+  "event.paymentRefunded": "A payment is refunded",
+  "event.quoteAccepted": "A quote is accepted",
 
   /* Why an address was refused */
   "urlError.notAUrl": "That doesn't look like a web address.",
@@ -251,6 +254,9 @@ export const webhooksFr: Translated<typeof webhooksEn> = {
   "event.messageDeleted": "Un message est supprimé",
   "event.conversationDeleted": "Une conversation est supprimée",
   "event.callDeleted": "Un appel ou un message vocal est supprimé",
+  "event.paymentPaid": "Un paiement est reçu",
+  "event.paymentRefunded": "Un paiement est remboursé",
+  "event.quoteAccepted": "Un devis est accepté",
 
   "urlError.notAUrl": "Ça ne ressemble pas à une adresse web.",
   "urlError.notHttps":

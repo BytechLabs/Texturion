@@ -131,6 +131,7 @@ const SUITES = [
   "contact_phones",
   "contact_custom_values",
   "scoped_exports",
+  "business_webhook_events",
   "usage_window",
   "aup_enforcement",
   "abuse_intake",

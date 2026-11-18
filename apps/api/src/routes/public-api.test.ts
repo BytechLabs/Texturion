@@ -1034,6 +1034,23 @@ describe("#243 acceptance: a key cannot reach a number its owner cannot", () => 
  * ever asked a key to reach data it could not already read.
  */
 describe("#581 a key cannot subscribe past its own scopes", () => {
+  it.each(["payment.paid", "payment.refunded", "quote.accepted"])(
+    "requires conversations:read to subscribe to %s",
+    async (event) => {
+      const sb = stubWithKey(["webhooks:manage"]);
+      stubFetch(jwksRoute(auth), sb.route);
+      const res = await publicRequest("/public/v1/webhooks", {
+        method: "POST",
+        body: JSON.stringify({ url: "https://example.invalid/events", events: [event] }),
+      });
+      expect(res.status).toBe(403);
+      await expect(res.json()).resolves.toMatchObject({
+        error: { message: expect.stringContaining("conversations:read") },
+      });
+      expect(sb.find("POST", "/rest/v1/webhook_endpoints")).toHaveLength(0);
+    },
+  );
+
   it("refuses message events to a key that cannot read messages", async () => {
     // THE ATTACK: the scope a connector is given, pointed at everything.
     const sb = stubWithKey(["webhooks:manage"]);
