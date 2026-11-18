@@ -116,4 +116,27 @@ begin
   end if;
 end $$;
 
+-- AT-4. An interrupted send never had a carrier failure to classify.
+do $$
+declare
+  uncovered text;
+begin
+  select string_agg(distinct p.oid::regprocedure::text, ', ') into uncovered
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    cross join lateral regexp_matches(
+      p.prosrc, '(update\s+public\.messages\M[^;]*?set\s+[^;]*?\mstatus\s*=\s*''failed''[^;]*)', 'gi'
+    ) patch
+   where n.nspname = 'public' and p.prokind = 'f'
+     and patch[1] !~* '\merror_reason\s*='
+     and not (
+       p.oid in ('public.claim_message_retry(uuid, uuid, integer)'::regprocedure,
+                 'public.fail_stuck_outbound_sends(integer)'::regprocedure)
+       and patch[1] ~* '\merror_code\s*=\s*''send_interrupted'''
+     );
+  if uncovered is not null then
+    raise exception 'AT-4: message writers without a failure reason: %', uncovered;
+  end if;
+end $$;
+
 rollback;
