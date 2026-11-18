@@ -273,15 +273,13 @@ describe("only the resolver decides quiet hours (#292)", () => {
   const THE_RESOLVER = "messaging/destination-clock.ts";
 
   function productionSources(): string[] {
-    const found: string[] = [];
     /**
      * #492: delegated to the one shared reader — `withFileTypes` instead of a
      * `statSync` per entry, memoised, one definition of "a production source
      * file" instead of ten, and an IO failure that says it is one rather than
      * surfacing as whatever this suite asserts about.
      */
-    found.push(...readProductionSources(SRC));
-    return found;
+    return [...readProductionSources(SRC)];
   }
 
   const repoPath = (file: string) =>

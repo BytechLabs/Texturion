@@ -432,8 +432,7 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     expect(response.status).toBe(200);
     await flush();
 
-    expect(handle10dlcEvent).toHaveBeenCalledOnce();
-    expect(handle10dlcEvent).toHaveBeenCalledWith(env, event);
+    expect(handle10dlcEvent).toHaveBeenCalledExactlyOnceWith(env, event);
     expect(ledger.stamp.calls).toHaveLength(1);
   });
 

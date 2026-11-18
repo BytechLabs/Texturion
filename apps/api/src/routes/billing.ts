@@ -2511,14 +2511,12 @@ billingRoutes.post("/modules", async (c) => {
   if (enabled) {
     if (scheduleId) {
       await applyPriceToSchedulePhases(stripe, scheduleId, price, true);
-    } else {
-      if (!existingItem) {
-        await stripe.subscriptionItems.create({
-          subscription: subscription.id,
-          price,
-          proration_behavior: "always_invoice",
-        });
-      }
+    } else if (!existingItem) {
+      await stripe.subscriptionItems.create({
+        subscription: subscription.id,
+        price,
+        proration_behavior: "always_invoice",
+      });
     }
     const { error } = await db.from("company_modules").upsert(
       {
@@ -2549,12 +2547,10 @@ billingRoutes.post("/modules", async (c) => {
   // never rides a module toggle.)
   if (scheduleId) {
     await applyPriceToSchedulePhases(stripe, scheduleId, price, false);
-  } else {
-    if (existingItem) {
-      await stripe.subscriptionItems.del(existingItem.id, {
-        proration_behavior: "always_invoice",
-      });
-    }
+  } else if (existingItem) {
+    await stripe.subscriptionItems.del(existingItem.id, {
+      proration_behavior: "always_invoice",
+    });
   }
   const { error } = await db
     .from("company_modules")

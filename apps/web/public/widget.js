@@ -293,10 +293,10 @@
     }).then((response) => 
       response
         .json()
-        .catch(function () {
+        .catch(() => {
           return {};
         })
-        .then(function (payload) {
+        .then((payload) => {
           return { ok: response.ok, payload };
         })
     );
@@ -325,7 +325,7 @@
           });
 
     request
-      .then(function (result) {
+      .then((result) => {
         send.disabled = false;
         if (!result.ok) {
           err.textContent =
@@ -343,7 +343,7 @@
         form.hidden = true;
         note.textContent = t.sentMessage;
       })
-      .catch(function () {
+      .catch(() => {
         send.disabled = false;
         err.textContent = t.failed;
       });

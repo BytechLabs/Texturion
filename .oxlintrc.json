@@ -288,10 +288,8 @@
     "typescript/array-type": "off", // 7
     "unicorn/escape-case": "off", // 7
     "unicorn/no-thenable": "off", // 7
-    "vitest/prefer-called-exactly-once-with": "off", // 7
     "jsx-a11y/no-noninteractive-tabindex": "off", // 6
     "react/no-danger": "off", // 6
-    "unicorn/no-immediate-mutation": "off", // 6
     "unicorn/no-useless-collection-argument": "off", // 6
     "unicorn/prefer-event-target": "off", // 6
     "unicorn/prefer-query-selector": "off", // 6
@@ -300,7 +298,6 @@
     "eslint/no-empty": "off", // 5
     "eslint/no-implicit-coercion": "off", // 5
     "eslint/no-param-reassign": "off", // 5
-    "eslint/prefer-arrow-callback": "off", // 5
     "import/no-named-as-default": "off", // 5
     "jsx-a11y/no-noninteractive-element-interactions": "off", // 5
     "jsx-a11y/no-static-element-interactions": "off", // 5
@@ -312,9 +309,6 @@
     "unicorn/prefer-array-find": "off", // 5
     "eslint/no-control-regex": "off", // 4
     "eslint/no-inner-declarations": "off", // 4
-    "eslint/no-lonely-if": "off", // 4
-    "eslint/no-regex-spaces": "off", // 4
-    "eslint/operator-assignment": "off", // 4
     "jsx-a11y/click-events-have-key-events": "off", // 4
     "jsx-a11y/no-noninteractive-element-to-interactive-role": "off", // 4
     "react/no-object-type-as-default-prop": "off", // 4
@@ -335,9 +329,7 @@
     "react/jsx-no-constructed-context-values": "off", // 3
     "unicorn/no-invalid-fetch-options": "off", // 3
     "unicorn/prefer-default-parameters": "off", // 3
-    "unicorn/relative-url-style": "off", // 3
     "vitest/no-standalone-expect": "off", // 3
-    "vitest/padding-around-test-blocks": "off", // 3
     "vitest/prefer-mock-promise-shorthand": "off", // 3
     "eslint/no-labels": "off", // 2
     "eslint/no-new": "off", // 2
@@ -350,13 +342,11 @@
     "nextjs/no-html-link-for-pages": "off", // 2
     "oxc/no-async-endpoint-handlers": "off", // 2
     "promise/no-promise-in-callback": "off", // 2
-    "promise/no-return-wrap": "off", // 2
     "react/memo-dependencies": "off", // 2
     "react/no-deriving-state-in-effects": "off", // 2
     "typescript/no-import-type-side-effects": "off", // 2
     "unicorn/no-document-cookie": "off", // 2
     "unicorn/prefer-math-trunc": "off", // 2
-    "unicorn/prefer-native-coercion-functions": "off", // 2
     "unicorn/require-array-join-separator": "off", // 2
     "eslint/accessor-pairs": "off", // 1
     "eslint/no-script-url": "off", // 1

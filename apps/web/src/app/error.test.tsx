@@ -49,8 +49,7 @@ describe("reportBoundaryError (PostHog hand-off)", () => {
     const { reportBoundaryError } = await importBoundary(true);
     const error = Object.assign(new Error("boom"), { digest: "d1g3st" });
     await reportBoundaryError(error);
-    expect(captureSpy).toHaveBeenCalledOnce();
-    expect(captureSpy).toHaveBeenCalledWith(error, { digest: "d1g3st" });
+    expect(captureSpy).toHaveBeenCalledExactlyOnceWith(error, { digest: "d1g3st" });
   });
 
   it("never rejects, even when the SDK throws", async () => {

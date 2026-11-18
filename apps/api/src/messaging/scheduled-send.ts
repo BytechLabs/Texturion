@@ -577,10 +577,8 @@ export async function runScheduledSendJob(
     sent: 0,
     held: 0,
     failed: 0,
-    expired: 0,
+    expired: await expireStale(env, db, now),
   };
-
-  summary.expired = await expireStale(env, db, now);
 
   const due = unwrap<ScheduledRow[]>(
     await db.rpc("api_claim_due_scheduled_messages", {

@@ -1191,6 +1191,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
     expect(claimedBytes(claims[0].body)).toBe(0);
   });
+
   it("does not buy a transcript twice for a recording that had nothing in it", async () => {
     // A hang-up after the beep transcribes to nothing, so no words are stored
     // and the column stays null. The clients mint a fresh URL on every tap and
@@ -1207,6 +1208,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     // Nothing was written, which is what proves the model was never called.
     expect(sb.find("PATCH", "/rest/v1/calls")).toHaveLength(0);
   });
+
   it("claims both copies when the words still have to be written down", async () => {
     // Writing the words down pulls its own copy from storage, so an open that
     // backfills moves the file twice. The meter has to see both.
@@ -1229,6 +1231,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     expect(claimedBytes(claim.body)).toBe(26_374);
     expect(await res.json()).toMatchObject({ transcript: null });
   });
+
   it("does not mark a recording tried when nothing was ever spent on it", async () => {
     // Over the monthly cap, or a ledger the gate could not read and so treated
     // as over cap, says nothing about this recording. Recording it as an

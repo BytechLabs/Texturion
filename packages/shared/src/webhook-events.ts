@@ -225,7 +225,7 @@ const OUR_OWN_HOSTS = ["loonext.com", "api.loonext.com", "www.loonext.com"];
 function privateIpv4Reason(host: string): WebhookUrlRejection | null {
   const parts = host.split(".");
   if (parts.length !== 4) return null;
-  const octets = parts.map((p) => Number(p));
+  const octets = parts.map(Number);
   if (octets.some((n) => !Number.isInteger(n) || n < 0 || n > 255)) return null;
   const [a, b] = octets as [number, number, number, number];
   if (a === 127) return "loopback-host";

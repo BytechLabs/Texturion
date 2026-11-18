@@ -87,8 +87,8 @@ function loadServiceWorker(
     caches: {
       open: vi.fn(() =>
         Promise.resolve({
-          addAll: vi.fn(() => Promise.resolve()),
-          match: vi.fn(() => Promise.resolve(undefined)),
+          addAll: vi.fn(async () => {}),
+          match: vi.fn(async () => undefined),
         }),
       ),
       keys: vi.fn(() => Promise.resolve([])),

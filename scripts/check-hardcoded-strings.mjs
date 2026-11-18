@@ -1154,7 +1154,7 @@ function isSwiftDiagnosticLog(code, matchIndex, loggers) {
  * Read once, at module load, so `--show` and the gate agree.
  */
 const EXEMPT = JSON.parse(
-  readFileSync(new URL("./hardcoded-strings.exempt.json", import.meta.url), "utf8"),
+  readFileSync(new URL("hardcoded-strings.exempt.json", import.meta.url), "utf8"),
 );
 
 /**

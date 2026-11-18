@@ -290,7 +290,7 @@ describe("#248 the device address book is asked it too", () => {
       configurable: true,
       value: { select, getProperties: async () => ["name", "tel"] },
     });
-    vi.stubGlobal("ContactsManager", function ContactsManager() {});
+    vi.stubGlobal("ContactsManager", class ContactsManager {});
     select.mockResolvedValue([{ name: ["Sam Okafor"], tel: ["416-555-0199"] }]);
   });
   afterEach(() => {

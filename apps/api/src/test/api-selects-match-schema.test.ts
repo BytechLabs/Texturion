@@ -402,8 +402,8 @@ function scan() {
             } else {
               dynamic.push({ file: rel, line: lineOf(node), what: `${method} on a table the scan cannot resolve` });
             }
-          } else {
-            if (isSelect) totals.notChains += 1;
+          } else if (isSelect) {
+            totals.notChains += 1;
           }
         }
       }

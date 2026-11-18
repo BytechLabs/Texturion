@@ -95,8 +95,7 @@ describe("TaskBulkBar assign (#689 C)", () => {
     fireEvent.click(screen.getByRole("option", { name: "Ana" }));
     fireEvent.click(screen.getByRole("option", { name: "Ben" }));
     fireEvent.click(apply);
-    expect(onAssign).toHaveBeenCalledOnce();
-    expect(onAssign).toHaveBeenCalledWith(["u1", "u2"]);
+    expect(onAssign).toHaveBeenCalledExactlyOnceWith(["u1", "u2"]);
   });
 });
 

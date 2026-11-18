@@ -154,11 +154,11 @@ function verbs(source, pattern) {
 
 const androidVerbs = verbs(
   readFileSync(ANDROID_HAPTICS, "utf8"),
-  /\n    fun (\w+)\(/g,
+  /\n {4}fun (\w+)\(/g,
 );
 const iosVerbs = verbs(
   readFileSync(IOS_HAPTICS, "utf8"),
-  /\n    static func (\w+)\(/g,
+  /\n {4}static func (\w+)\(/g,
 );
 // `prepare` is an iOS-only warm-up: Android's View.performHapticFeedback needs
 // no engine spin-up, so there is nothing for it to mirror.

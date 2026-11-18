@@ -677,6 +677,7 @@ describe("#694 mute and follow on the inbound audience", () => {
   const HOUR = 3_600_000;
   const future = () => new Date(Date.now() + HOUR).toISOString();
   const past = () => new Date(Date.now() - HOUR).toISOString();
+
   it("a muted member gets no email and no push", async () => {
     const world = buildWorld({
       memberPrefs: [{ user_id: MEMBER, muted: true, muted_until: future(), followed: false }],

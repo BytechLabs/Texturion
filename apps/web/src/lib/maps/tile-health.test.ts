@@ -34,8 +34,7 @@ describe(createTileHealth, () => {
     for (let i = 0; i < TILE_ERROR_THRESHOLD; i += 1) {
       health.recordError("https://tiles.example.com/1/2/3.png");
     }
-    expect(onUnhealthy).toHaveBeenCalledOnce();
-    expect(onUnhealthy).toHaveBeenCalledWith({
+    expect(onUnhealthy).toHaveBeenCalledExactlyOnceWith({
       errors: TILE_ERROR_THRESHOLD,
       sample: "https://tiles.example.com/1/2/3.png",
     });

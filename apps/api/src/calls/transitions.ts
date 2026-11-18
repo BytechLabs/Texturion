@@ -2352,16 +2352,13 @@ function reduceRingMe(
         reply: { rang: false, state: next.state, reason: "recent_leg" },
       };
     }
-  } else {
-    // T4a — pre-v3 client: ANY live leg for this member, any age, any source
-    // → NO-OP. An unasserted request can NEVER dial past a live leg.
-    if (memberLive.length > 0) {
-      return {
-        machine: next,
-        effects,
-        reply: { rang: false, state: next.state, reason: "live_leg" },
-      };
-    }
+  } else if (memberLive.length > 0) {
+    // Pre-v3 clients cannot dial past an existing live leg.
+    return {
+      machine: next,
+      effects,
+      reply: { rang: false, state: next.state, reason: "live_leg" },
+    };
   }
 
   // §13: past MAX_LEGS_PER_SESSION, ring-me returns dial_failed.

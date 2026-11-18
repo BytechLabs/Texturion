@@ -1584,13 +1584,11 @@ describe("calendar sync worker", () => {
       now: new Date("2026-08-25T12:00:00.000Z"),
     });
 
-    expect(db.applyProviderEvent).toHaveBeenCalledOnce();
     // The privacy policy promises we never read an event we did not create.
-    expect(calendar.getEvent).toHaveBeenCalledOnce();
-    expect(calendar.getEvent).toHaveBeenCalledWith(
+    expect(calendar.getEvent).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ instanceId: LINK.provider_instance_id }),
     );
-    expect(db.applyProviderEvent).toHaveBeenCalledWith({
+    expect(db.applyProviderEvent).toHaveBeenCalledExactlyOnceWith({
       connection: CONNECTION,
       link: LINK,
       remote: mapped,

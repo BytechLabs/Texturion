@@ -37,7 +37,7 @@ const CLIENTS = [
       /var\s+assignee\s+by\s+mutableStateOf<Member\?>/,
       /var\s+tag\s+by\s+mutableStateOf<Tag\?>/,
     ],
-    applyView: /fun applyView\(view: SavedView\)\s*\{([\s\S]*?)\n    \}/,
+    applyView: /fun applyView\(view: SavedView\)\s*\{([\s\S]*?)\n {4}\}/,
   },
   {
     label: "iOS",
@@ -50,7 +50,7 @@ const CLIENTS = [
       /private\(set\)\s+var\s+assignee:\s*Member\?/,
       /private\(set\)\s+var\s+tag:\s*Tag\?/,
     ],
-    applyView: /func applyView\(_ view: SavedView\)\s*\{([\s\S]*?)\n    \}/,
+    applyView: /func applyView\(_ view: SavedView\)\s*\{([\s\S]*?)\n {4}\}/,
   },
 ];
 

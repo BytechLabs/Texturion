@@ -79,9 +79,7 @@ function render(shown) {
       [key(entry, "Title"), entry[lang].title],
       [key(entry, "Body"), entry[lang].body],
     ]);
-  const files = {};
-
-  files.shared = `// ${HEADER}
+  const shared = `// ${HEADER}
 import type { WhatsNewEntry } from "./whats-new";
 
 export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
@@ -95,7 +93,7 @@ ${shown
 ];
 `;
 
-  files.web = `// ${HEADER}
+  const web = `// ${HEADER}
 import type { Translated } from "../translated";
 
 export const whatsNewEn = {
@@ -107,7 +105,7 @@ ${pairs("fr").map(([name, text]) => `  ${name}: ${ts(text)},`).join("\n")}
 };
 `;
 
-  files.androidStrings = `// ${HEADER}
+  const androidStrings = `// ${HEADER}
 package com.loonext.android.core.i18n
 
 object WhatsNewStrings : AppStrings.Section {
@@ -121,7 +119,7 @@ ${pairs("fr").map(([name, text]) => `        "whatsNew.${name}" to ${kotlin(text
 }
 `;
 
-  files.androidEntries = `// ${HEADER}
+  const androidEntries = `// ${HEADER}
 package com.loonext.android.features.settings
 
 /** Newest first, the newest ${SHOWN}. */
@@ -132,7 +130,7 @@ ${shown
 )
 `;
 
-  files.iosStrings = `// ${HEADER}
+  const iosStrings = `// ${HEADER}
 enum WhatsNewStrings {
     static let section = AppStrings.Section(
         name: "WhatsNewStrings",
@@ -146,7 +144,7 @@ ${pairs("fr").map(([name, text]) => `            "whatsNew.${name}": ${swift(tex
 }
 `;
 
-  files.iosEntries = `// ${HEADER}
+  const iosEntries = `// ${HEADER}
 /// Newest first, the newest ${SHOWN}.
 let whatsNewGeneratedEntries: [WhatsNewEntry] = [
 ${shown
@@ -158,7 +156,7 @@ ${shown
   .join("\n")}
 ]
 `;
-  return files;
+  return { shared, web, androidStrings, androidEntries, iosStrings, iosEntries };
 }
 
 const data = JSON.parse(readFileSync(SOURCE, "utf8"));
