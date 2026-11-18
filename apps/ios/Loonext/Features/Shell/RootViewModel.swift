@@ -64,9 +64,12 @@ func retryNumberList(
 @Observable
 final class RootViewModel {
     private(set) var state: RootState = .loading
+    private(set) var usingCachedWorkspace = false
 
     private let graph: AppGraph
     private var started = false
+    private var refreshingWorkspace = false
+    private var refreshAgain = false
 
     /// Bumped by every realtime number re-derive; see `resubscribeNumbers`.
     private var numbersGeneration = 0
@@ -98,6 +101,7 @@ final class RootViewModel {
     func start() {
         guard !started else { return }
         started = true
+        ConnectionWatch.shared.start()
 
         // A dead refresh token anywhere lands back on login. Each closure
         // boundary upgrades `weak self` (a captured var) to a strong `let`
@@ -109,6 +113,7 @@ final class RootViewModel {
                 guard let self else { return }
                 Task { @MainActor in
                     await self.graph.realtime.disconnect()
+                    self.usingCachedWorkspace = false
                     self.state = .signedOut
                 }
             }
@@ -121,6 +126,7 @@ final class RootViewModel {
                 guard let self else { return }
                 if session == nil {
                     await self.graph.realtime.disconnect()
+                    self.usingCachedWorkspace = false
                     self.state = .signedOut
                 } else if self.isSignedOutOrLoading {
                     await self.bootstrap()
@@ -276,10 +282,30 @@ final class RootViewModel {
         CallsManager.peek()?.state.activeId != nil
     }
 
+    func reconnectCachedWorkspace() {
+        guard usingCachedWorkspace, !ConnectionWatch.shared.offline, !refreshingWorkspace else { return }
+        Task { await bootstrap() }
+    }
+
     private func bootstrap() async {
+        if refreshingWorkspace {
+            refreshAgain = true
+            return
+        }
+        refreshingWorkspace = true
+        defer { refreshingWorkspace = false }
+        repeat {
+            refreshAgain = false
+            await refreshWorkspace()
+        } while refreshAgain && !Task.isCancelled
+    }
+
+    private func refreshWorkspace() async {
         do {
             let me = try await graph.meApi.me()
             guard !me.memberships.isEmpty else {
+                graph.sessionStore.forgetReadyWorkspace()
+                usingCachedWorkspace = false
                 // #228: their own setting still decides, even with no workspace
                 // to fall back to — the hand-off screen is a screen.
                 UiLocaleStore.shared.apply(user: me.locale, company: nil)
@@ -303,9 +329,26 @@ final class RootViewModel {
             let incomplete = membership.subscription_status == SubscriptionStatus.incomplete ||
                 membership.subscription_status == SubscriptionStatus.incompleteExpired
             if incomplete, MemberRole.atLeast(membership.role, required: MemberRole.admin) {
+                graph.sessionStore.forgetReadyWorkspace()
+                usingCachedWorkspace = false
                 state = .needsCheckout(me, companyId: membership.company_id)
                 return
             }
+
+            let hydrated: Me?
+            do {
+                hydrated = try await graph.meApi.me(companyId: membership.company_id)
+            } catch let error as ApiError where [
+                ApiErrorCode.unauthorized, ApiErrorCode.forbidden, ApiErrorCode.notFound,
+                ApiErrorCode.mfaChallengeRequired, ApiErrorCode.mfaRequired,
+            ].contains(error.code) {
+                throw error
+            } catch is CancellationError {
+                return
+            } catch {
+                hydrated = nil
+            }
+            let view = hydrated ?? me
 
             // Connect realtime for the active workspace.
             //
@@ -317,7 +360,7 @@ final class RootViewModel {
             //
             // `!= false` rather than a truthiness check: an absent flag means
             // "no statement", which must read as ON.
-            let realtimeAllowed = me.flags?["kill:realtime"] != false
+            let realtimeAllowed = view.flags?["kill:realtime"] != false
             // #483: only ever true when the read was actually attempted AND failed.
             // An empty list is a real answer — a member restricted out of every
             // number joins the company topic alone and works — so it must not be
@@ -328,7 +371,8 @@ final class RootViewModel {
                 // the list is awaited here rather than filled in afterwards — a
                 // socket that opens with an incomplete subscription set has a gap
                 // in it, and one small GET is the honest price of not having one.
-                let numberIds = await visibleNumberIds(membership.company_id)
+                var numberIds = view.company?.numbers.map(\.id)
+                if numberIds == nil { numberIds = await visibleNumberIds(membership.company_id) }
                 numberListFailed = numberIds == nil
                 await graph.realtime.connect(
                     companyId: membership.company_id,
@@ -354,11 +398,21 @@ final class RootViewModel {
             // the claim — the conservative direction, since the only thing that
             // turns it into aal2 is a factor this person actually presented.
             if let mfa, mfa.isEnrolled, (mfa.aal ?? "aal1") != "aal2" {
+                graph.sessionStore.forgetReadyWorkspace()
+                usingCachedWorkspace = false
                 state = .needsMfa(enrolmentRequired: false)
                 return
             }
 
-            state = .ready(me, companyId: membership.company_id)
+            usingCachedWorkspace = false
+            guard graph.sessionStore.current()?.userId == view.user_id else {
+                state = .signedOut
+                return
+            }
+            if let hydrated, mfa != nil {
+                graph.sessionStore.rememberReadyWorkspace(companyId: membership.company_id, me: hydrated)
+            }
+            state = .ready(view, companyId: membership.company_id)
             graph.outbox.requestFlush()
 
             // #483: one transient failure of that GET must not cost a whole session
@@ -382,6 +436,15 @@ final class RootViewModel {
                 }
             }
         } catch let error as ApiError {
+            if error.code == ApiErrorCode.network,
+               let companyId = graph.prefs.activeCompanyId,
+               let cached = graph.sessionStore.cachedWorkspace(companyId: companyId) {
+                usingCachedWorkspace = true
+                state = .ready(cached, companyId: companyId)
+                return
+            }
+            usingCachedWorkspace = false
+            if error.code != ApiErrorCode.network { graph.sessionStore.forgetReadyWorkspace() }
             // #314/#496: both are walls with a route out, not failures.
             // Rendering them as "Couldn't load your workspace." — which is what
             // happened before, on both phones — is a lockout with no
@@ -396,7 +459,10 @@ final class RootViewModel {
             default:
                 state = .failed(error.message)
             }
+        } catch is CancellationError {
+            return
         } catch {
+            usingCachedWorkspace = false
             // #228: the one sentence on this path that is ours rather than the
             // server's, so it is the one that has to be translated. Read off the
             // store rather than the environment — there is no view here, and

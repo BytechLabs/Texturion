@@ -41,6 +41,16 @@ what:
 
 ---
 
+## Phone workspace startup cache
+
+The phone stores one successful `/v1/me` workspace response for the signed-in
+member. It includes the member profile, memberships, workspace settings and
+visible business numbers. Android encrypts the response with Android Keystore
+and stores it in DataStore, which is excluded from backup and device transfer.
+iOS uses a device-only Keychain item available while unlocked. App Lock
+controls access to the workspace screens. Sign-out, Hand over phone, account
+changes and authorization refusals clear the saved response.
+
 ## 1. Contact data — the customer's customer
 
 The most sensitive category, because the person never chose us.

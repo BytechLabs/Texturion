@@ -97,6 +97,9 @@ struct RootView: View {
         .overlay { UpdatePrompt(state: updates.state) }
         .task { model.start() }
         .task { await updates.refresh() }
+        .onChange(of: ConnectionWatch.shared.offline) { _, offline in
+            if !offline { model.reconnectCachedWorkspace() }
+        }
         // #289: the realtime socket follows the app, not the session.
         //
         // Both apps connected on sign-in and disconnected on sign-out, so a
@@ -112,7 +115,9 @@ struct RootView: View {
         // socket is just as connected and just as unwatched.
         .onChange(of: scenePhase) { _, phase in
             switch phase {
-            case .active: model.appDidBecomeActive()
+            case .active:
+                model.appDidBecomeActive()
+                model.reconnectCachedWorkspace()
             case .background: model.appDidEnterBackground()
             // .inactive is a transition — the app switcher, a notification
             // shade, an incoming call banner. Acting on it would drop the

@@ -538,7 +538,7 @@ private fun Root(graph: AppGraph, deepLinks: MutableStateFlow<DeepLink?>) {
         }
 
         is RootState.Ready -> key(current.companyId) {
-            ReadyShell(graph, current.me, current.companyId, root, deepLinks)
+            ReadyShell(graph, current.me, current.companyId, root, deepLinks, staleWorkspace = current.stale)
         }
     }
 }
@@ -626,6 +626,7 @@ private fun ReadyShell(
     companyId: String,
     root: RootViewModel,
     deepLinks: MutableStateFlow<DeepLink?>,
+    staleWorkspace: Boolean,
 ) {
     val context = LocalContext.current
     var sheetOpen by remember { mutableStateOf(false) }
@@ -879,7 +880,7 @@ private fun ReadyShell(
     }
 
     CompositionLocalProvider(LocalOpenTrash provides { openTrash() }) {
-    ReadyShellFrame(offline) {
+    ReadyShellFrame(offline || staleWorkspace) {
         if (hasInbox) {
             MainShell(
                 me = hydratedMe,
