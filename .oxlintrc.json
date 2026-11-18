@@ -322,17 +322,14 @@
     "typescript/prefer-promise-reject-errors": "off", // 4
     "unicorn/no-hex-escape": "off", // 4
     "unicorn/no-unreadable-array-destructuring": "off", // 4
-    "eslint/arrow-body-style": "off", // 3
     "eslint/no-multi-assign": "off", // 3
     "eslint/no-unmodified-loop-condition": "off", // 3
     "eslint/preserve-caught-error": "off", // 3
-    "import/no-anonymous-default-export": "off", // 3
     "import/no-default-export": "off", // 3
     "jsx-a11y/media-has-caption": "off", // 3
     "oxc/branches-sharing-code": "off", // 3
     "promise/catch-or-return": "off", // 3
     "react/jsx-no-constructed-context-values": "off", // 3
-    "unicorn/no-invalid-fetch-options": "off", // 3
     "unicorn/prefer-default-parameters": "off", // 3
     "unicorn/relative-url-style": "off", // 3
     "vitest/no-standalone-expect": "off", // 3
@@ -343,9 +340,7 @@
     "eslint/prefer-exponentiation-operator": "off", // 2
     "eslint/prefer-regex-literals": "off", // 2
     "import/no-cycle": "off", // 2
-    "jsdoc/empty-tags": "off", // 2
     "jsx-a11y/interactive-supports-focus": "off", // 2
-    "jsx-a11y/label-has-associated-control": "off", // 2
     "nextjs/no-html-link-for-pages": "off", // 2
     "oxc/no-async-endpoint-handlers": "off", // 2
     "promise/no-promise-in-callback": "off", // 2
@@ -377,7 +372,6 @@
     "typescript/dot-notation": "off", // 1
     "typescript/no-inferrable-types": "off", // 1
     "typescript/no-non-null-asserted-optional-chain": "off", // 1
-    "typescript/prefer-for-of": "off", // 1
     "typescript/prefer-function-type": "off", // 1
     "typescript/restrict-plus-operands": "off", // 1
     "unicorn/no-array-method-this-argument": "off", // 1

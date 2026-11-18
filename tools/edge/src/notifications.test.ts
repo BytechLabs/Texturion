@@ -163,7 +163,10 @@ describe("account notices", () => {
   it("still refuses a late notice whose signature does not verify", async () => {
     const old = String(Math.floor(Date.now() / 1000) - 3600);
     const signed = await telnyxDelivery(`/t/n/${NOTIFICATIONS_SECRET}`, { data: { id: "n", event_type: "Low Balance" } }, { timestamp: old });
-    const tampered = new Request(signed, { body: JSON.stringify({ data: { id: "n", event_type: "Account Disabled" } }) });
+    const tampered = new Request(signed, {
+      method: signed.method,
+      body: JSON.stringify({ data: { id: "n", event_type: "Account Disabled" } }),
+    });
     expect((await call(tampered, env)).status).toBe(400);
     expect(halts()).toEqual([]);
   });
@@ -175,7 +178,10 @@ describe("account notices", () => {
 
   it("verifies a notice that arrives signed", async () => {
     const signed = await telnyxDelivery(`/t/n/${NOTIFICATIONS_SECRET}`, { data: { id: "n", event_type: "Low Balance" } });
-    const tampered = new Request(signed, { body: JSON.stringify({ data: { id: "n", event_type: "Account Disabled" } }) });
+    const tampered = new Request(signed, {
+      method: signed.method,
+      body: JSON.stringify({ data: { id: "n", event_type: "Account Disabled" } }),
+    });
     expect((await call(tampered, env)).status).toBe(400);
     expect((await call(signed, env)).status).toBe(200);
   });

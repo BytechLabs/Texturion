@@ -91,8 +91,8 @@ export function installPageJudge(config: PageJudgeConfig): void {
       processor.onaudioprocess = (event) => {
         const input = event.inputBuffer.getChannelData(0);
         startedAt ??= Date.now() - (input.length / ctx.sampleRate) * 1000;
-        for (let i = 0; i < input.length; i++) {
-          sum += input[i]!;
+        for (const sample of input) {
+          sum += sample;
           count += 1;
           phase += 1;
           if (phase >= step) {

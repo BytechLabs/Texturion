@@ -25,7 +25,10 @@ describe("signature", () => {
     expect((await call(stale, env)).status).toBe(400);
 
     const good = await telnyxDelivery("/t/v", callEvent("call.initiated", {}));
-    const tampered = new Request(good, { body: (await good.text()).replace("incoming", "outgoing") });
+    const tampered = new Request(good, {
+      method: good.method,
+      body: (await good.text()).replace("incoming", "outgoing"),
+    });
     expect((await call(tampered, env)).status).toBe(400);
 
     expect(guard.calls).toEqual([]);

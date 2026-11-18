@@ -46,7 +46,7 @@ function mountMenu(props: { current?: string; hasFilters?: boolean; onApply?: ()
       suggestName={() => "Open"}
       hasFilters={props.hasFilters ?? true}
       saveDescription=""
-      shareNote=""
+      shareNote="Everyone on the crew can apply this view."
     />,
   );
 }
@@ -63,6 +63,21 @@ describe("#711 SavedViewsMenu", () => {
   it("SV-1: filters that match no view can be saved", () => {
     open();
     expect(screen.getByRole("menuitem", { name: "Save these filters as a view…" })).toBeTruthy();
+  });
+
+  it("associates the share checkbox with its label and note", async () => {
+    open();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Save these filters as a view…" }));
+    const checkbox = await screen.findByRole("checkbox", {
+      name: "Share it with the crew",
+      description: "Everyone on the crew can apply this view.",
+    });
+    expect(screen.getByText("Share it with the crew").closest("label")).toHaveProperty(
+      "control",
+      checkbox,
+    );
+    fireEvent.click(checkbox);
+    expect(checkbox).toHaveProperty("checked", true);
   });
 
   it("SV-2: filters that are already a view are not saved twice", () => {

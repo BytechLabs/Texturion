@@ -3,7 +3,7 @@
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, FileText } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -37,6 +37,8 @@ export default function PortTimingPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
   const createPort = useCreatePortRequestForCompany();
+  const bridgeId = useId();
+  const bridgeLabelId = `${bridgeId}-label`;
 
   const [focDate, setFocDate] = useState("");
   const [wantsBridge, setWantsBridge] = useState(false);
@@ -190,15 +192,20 @@ export default function PortTimingPage() {
         </div>
 
         {/* Opt-in tide-me-over number (D16 / §8.1 step 6), default OFF. */}
-        <label className="flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm">
+        <label
+          htmlFor={bridgeId}
+          aria-labelledby={bridgeLabelId}
+          className="flex items-start gap-3 rounded-lg border border-border bg-card px-4 py-3 text-sm"
+        >
           <Checkbox
+            id={bridgeId}
             checked={wantsBridge}
             onCheckedChange={(checked) => setWantsBridge(checked === true)}
             className="mt-0.5"
             aria-label={t("onboarding.portBridgeAria")}
           />
           <span className="space-y-0.5">
-            <span className="block font-medium">
+            <span id={bridgeLabelId} className="block font-medium">
               {t("onboarding.portBridgeLabel")}
             </span>
             <span className="block text-[13px] text-muted-foreground">

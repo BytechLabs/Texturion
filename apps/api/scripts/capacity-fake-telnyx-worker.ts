@@ -106,7 +106,7 @@ export class Switch {
   }
 }
 
-export default {
+const capacityFakeTelnyxWorker = {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
     if (
@@ -118,3 +118,5 @@ export default {
     return env.SWITCH.get(env.SWITCH.idFromName("switch")).fetch(request);
   },
 };
+
+export default capacityFakeTelnyxWorker;
