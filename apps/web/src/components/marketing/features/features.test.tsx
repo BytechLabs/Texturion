@@ -262,11 +262,11 @@ describe("factual claims survive the v4 restage (Law 7)", () => {
     expect(html).not.toContain("Calling add-on");
   });
 
-  it("business-number: free porting, the port window, the sole-prop cap, the US wait", () => {
+  it("business-number: free porting and live status, the sole-prop cap, the US wait", () => {
     const html = PAGES["business-number"];
     expect(html).toMatch(/Porting is free/i);
-    expect(html).toMatch(/a few days to two weeks/);
-    expect(html).toMatch(/often faster in Canada/);
+    expect(html).toMatch(/follow your transfer in Loonext/i);
+    expect(html).toMatch(/scheduled transfer date/);
     expect(html).toMatch(/3 to 7 business days/);
     expect(html).toMatch(/without an EIN/);
     expect(html).toMatch(/single number regardless of plan/);
@@ -390,7 +390,7 @@ describe("country branching: a Canadian sees only the Canada story (owner ruling
     expect(html).toMatch(/text Canadian customers the same day/);
     // Shared, country-neutral facts still hold.
     expect(html).toMatch(/Porting is free/i);
-    expect(html).toMatch(/often faster in Canada/);
+    expect(html).toMatch(/follow your transfer in Loonext/i);
     // The US-only wait, fee, and 10DLC sole-prop cap never reach a Canadian.
     expect(html).not.toMatch(/3 to 7 business days/);
     expect(html).not.toContain(`first month is ${USD.firstMonth}`);

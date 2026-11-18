@@ -52,7 +52,7 @@ export const compareQuoEn = {
   switchLead:
     "Count your seats, add the carrier fees and any extra numbers, and put the total next to $29 or $79 flat. If the flat line wins, moving is painless.",
   switchNumber:
-    "Keep your number: transfers from Quo or any carrier are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+    "Keep your number with free self-service transfers and live status.",
   switchLive:
     "Your number keeps working on your current provider until the scheduled switch, so you can run both while you move.",
   switchUsGuarantee:
@@ -177,7 +177,7 @@ export const compareQuoFr: Translated<typeof compareQuoEn> = {
   switchLead:
     "Comptez les places, ajoutez les frais de fournisseur et les numéros supplémentaires, et comparez le total aux prix fixes de 29 $ US ou 79 $ US. Si la ligne fixe gagne, le déplacement est simple.",
   switchNumber:
-    "Gardez votre numéro : les transferts depuis Quo ou tout fournisseur sont gratuits, libre-service à l'inscription ou plus tard, et prennent habituellement de 1 à 7 jours ouvrables.",
+    "Gardez votre numéro. Le transfert est gratuit et vous pouvez le suivre en temps réel.",
   switchLive:
     "Votre numéro continue de fonctionner chez son fournisseur actuel jusqu'au transfert prévu, pour exploiter les deux pendant le déplacement.",
   switchUsGuarantee:

@@ -379,7 +379,8 @@ describe("/pricing FAQ (all nine, facts intact)", () => {
       (f) => f.q === "Can I keep my current business number?",
     );
     expect(port?.a).toContain("Bring my number");
-    expect(port?.a).toContain("1 to 7 business days");
+    expect(port?.a).toContain("Follow the transfer");
+    expect(port?.a).not.toMatch(/business days|weeks/i);
     expect(port?.a).toContain("free");
   });
 

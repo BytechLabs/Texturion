@@ -48,7 +48,7 @@ export const compareIndexEn = {
   switchLead:
     "Loonext sits comfortably next to your current tool while you move: sign up, pick or transfer a number, invite the crew by link, and shift the texting at your own pace.",
   switchNumber:
-    "Keep your number: transfers are free, self-serve at signup or later, and typically take 1 to 7 business days.",
+    "Keep your number with free self-service transfers and live status.",
   switchLive:
     "Your number keeps working on your current provider until the scheduled switch.",
   switchUsGuarantee:
@@ -110,7 +110,7 @@ export const compareIndexFr: Translated<typeof compareIndexEn> = {
   switchLead:
     "Loonext peut rester à côté de votre outil actuel pendant la transition : créez le compte, choisissez ou transférez un numéro, invitez l'équipe par lien et déplacez les textos à votre rythme.",
   switchNumber:
-    "Gardez votre numéro : le transfert est gratuit, libre-service à l'inscription ou plus tard, et prend habituellement de 1 à 7 jours ouvrables.",
+    "Gardez votre numéro. Le transfert est gratuit et vous pouvez le suivre en temps réel.",
   switchLive:
     "Votre numéro continue de fonctionner chez votre fournisseur actuel jusqu'au transfert prévu.",
   switchUsGuarantee:

@@ -256,7 +256,7 @@ export const pricingEn = {
     "Yes. Upgrades apply immediately. Downgrades apply at the end of your billing period. Canceling takes two clicks in billing settings, no phone call, no chat-with-retention. We hold your number for 30 days in case you change your mind.",
   faqPortQ: "Can I keep my current business number?",
   faqPortA:
-    "Yes, transfer it to Loonext. At signup, choose “Bring my number,” give us your current carrier details, and upload a recent bill; we handle the paperwork with the phone companies from there. Transfers are free for US and Canadian numbers and typically take 1 to 7 business days, and your number keeps working on your current carrier the whole time, switching to Loonext on the transfer date. Want to text sooner? Get a new local number now and transfer your old one alongside it.",
+    "Yes. Choose “Bring my number” at signup to start a free transfer of your US or Canadian number. Follow the transfer in Loonext as it progresses.",
   faqCurrencyQ: "What currency am I billed in?",
   faqCurrencyA:
     "Loonext prices and bills subscriptions in US dollars in both the United States and Canada. If you pay with a Canadian card, your card issuer may convert the charge to Canadian dollars.",
@@ -500,7 +500,7 @@ export const pricingFr: Translated<typeof pricingEn> = {
     "Oui. Les mises à niveau s'appliquent immédiatement. Les rétrogradations s'appliquent à la fin de votre période de facturation. Annuler prend deux clics dans les réglages de facturation, sans appel téléphonique, sans clavardage de rétention. On garde votre numéro 30 jours au cas où vous changeriez d'idée.",
   faqPortQ: "Puis-je garder mon numéro d'entreprise actuel ?",
   faqPortA:
-    "Oui, transférez-le vers Loonext. À l'inscription, choisissez « Amener mon numéro », donnez-nous les détails de votre fournisseur actuel et téléversez une facture récente ; on s'occupe de la paperasse avec les compagnies de téléphone à partir de là. Les transferts sont gratuits pour les numéros américains et canadiens et prennent habituellement de 1 à 7 jours ouvrables, et votre numéro continue de fonctionner chez votre fournisseur actuel tout du long, basculant sur Loonext à la date du transfert. Vous voulez écrire plus tôt ? Prenez un nouveau numéro local maintenant et transférez l'ancien à côté.",
+    "Oui. À l'inscription, choisissez « Amener mon numéro » pour amorcer le transfert gratuit de votre numéro américain ou canadien. Vous pouvez suivre le transfert dans Loonext.",
   faqCurrencyQ: "Dans quelle monnaie suis-je facturé ?",
   faqCurrencyA:
     "Loonext établit et facture ses abonnements en dollars américains aux États-Unis et au Canada. Si vous payez avec une carte canadienne, l’émetteur de votre carte peut convertir le montant en dollars canadiens.",

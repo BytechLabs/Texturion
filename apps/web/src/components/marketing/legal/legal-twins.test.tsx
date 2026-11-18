@@ -153,13 +153,13 @@ describe("#228 the contract documents keep the same obligations in French", () =
     expect(dpaFr).toMatch(/SOC 2/);
   });
 
-  it("the French terms carry the same limit of liability figure and windows", () => {
+  it("the French terms match the liability limit and number transfer wording", () => {
     const html = render(<TermsPageBody locale="fr-CA" />);
     expect(html).toContain("trois mois");
     expect(html).toContain("30 jours");
     expect(html).toContain("80 % et 100 %");
     expect(html).toContain("de 3 à 7 jours ouvrables");
-    expect(html).toContain("de 1 à 7 jours ouvrables");
+    expect(html).toContain("à la date de transfert prévue");
   });
 
   it("the terms say which language governs, in both languages", () => {

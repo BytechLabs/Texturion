@@ -6,9 +6,8 @@
  * belongs to the business, not to somebody's phone." → sections: pick a
  * local number (set up today, US texting after carrier approval), bring your
  * number (free porting,
- * self-serve, the old number keeps working until the scheduled cutover,
- * usually a few days to two weeks for US numbers and often faster in
- * Canada), two numbers on Pro → Truth Strip branched by country (US
+ * self-serve, the old number keeps working until the scheduled cutover),
+ * two numbers on Pro → Truth Strip branched by country (US
  * first-week approval in US mode, same-day/no-wait in CA mode) → pricing
  * snippet branched by country → unique FAQ → Frost CTA band.
  *
