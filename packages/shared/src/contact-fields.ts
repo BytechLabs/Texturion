@@ -65,9 +65,9 @@ export function contactFieldKey(label: string): string | null {
     .trim()
     .toLowerCase()
     .replaceAll(/[^a-z0-9]+/g, "_")
-    .replaceAll(/^_+|_+$/g, "")
+    .replaceAll(/^_|_$/g, "")
     .slice(0, 40)
-    .replaceAll(/_+$/g, "");
+    .replace(/_$/, "");
   // Must start with a letter: a key beginning with a digit is legal JSON and
   // an awkward column head, and the database refuses it anyway.
   if (!/^[a-z][a-z0-9_]*$/.test(key)) return null;

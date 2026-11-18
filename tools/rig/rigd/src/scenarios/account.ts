@@ -10,7 +10,7 @@ import type { NumberChoice } from "@loonext/rig-lanes";
 import type { GuardHealth } from "@loonext/rig-protocol";
 import { gpsJpeg, hasGpsExif, NUMBER_ID_PREFIX, sha256Hex } from "@loonext/rig-robot";
 import { memberEmail } from "../../../../../scripts/rig/tenants.mjs";
-import { signUpNumberKey } from "../app-probe.ts";
+import { nonceSlug, signUpNumberKey } from "../app-probe.ts";
 import { deleteStripeObject, STRIPE_DELETE_UNDO } from "../stripe-sandbox.ts";
 import {
   fail,
@@ -75,11 +75,6 @@ function mailboxReady(health: GuardHealth): boolean {
 }
 
 const is2xx = (status: number) => status >= 200 && status < 300;
-
-/** A nonce as an address or tag allows it: lower case, letters, digits and dashes. */
-function slug(nonce: string): string {
-  return nonce.toLowerCase().replaceAll(/[^a-z0-9-]+/g, "-").replaceAll(/^-+|-+$/g, "") || "run";
-}
 
 /** S22: a picture each way. Out, Telnyx fetched the app's own copy; in, the app stored it without its GPS position. */
 export const S22: ScenarioRunner = {
@@ -694,7 +689,7 @@ export const S31: ScenarioRunner = {
 
 /** The address S32 and S35 sign up with; the app probe's deleteSignUp removes nothing else. */
 export function signUpAddress(scenario: "S32" | "S35", nonce: string): string {
-  return `delivered+rig-${scenario.toLowerCase()}-${slug(nonce)}@resend.dev`;
+  return `delivered+rig-${scenario.toLowerCase()}-${nonceSlug(nonce)}@resend.dev`;
 }
 
 /** The sign-up's password: made per run, typed once, kept nowhere. */
@@ -1045,7 +1040,7 @@ export const S34: ScenarioRunner = {
   // The guard mails the robot mailbox only under a live S34 lease of its own.
   guardLease: true,
   async run(ctx) {
-    const tag = `s34-acct-${slug(ctx.nonce)}`;
+    const tag = `s34-acct-${nonceSlug(ctx.nonce)}`;
     const address = ctx.mail.robotAddress(tag);
     if (!address) return infra("robot-mailbox", "the rig's private config names no robot mailbox");
     if (!mailboxReady(await ctx.guard.health())) return infra("robot-mailbox", "the guard's mailbox heartbeat is stale or its mail is halted");

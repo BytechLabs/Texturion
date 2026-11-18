@@ -4,15 +4,16 @@
  * `ops:<key>`, the grouping production's own notices use.
  */
 
+import { redactEmailAddresses } from "@loonext/rig-protocol/redact-email";
+
 export const POSTHOG_CAPTURE_URL = "https://us.i.posthog.com/i/v0/e/";
 
-/** The API Worker's phone and email patterns (apps/api/src/observability/scrub.ts). */
+/** Keep the API Worker’s phone pattern in sync. */
 const PHONE = /(?<![0-9A-Za-z])(?:\+|%2[Bb])?1?\d{10,15}(?!\d)/g;
-const EMAIL = /[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/g;
 
 /** No phone number or email address leaves in a notice's text (D8). */
 export function scrubText(text: string): string {
-  return text.replaceAll(EMAIL, "[email redacted]").replaceAll(PHONE, "[phone redacted]");
+  return redactEmailAddresses(text).replaceAll(PHONE, "[phone redacted]");
 }
 
 /** The edge's commit goes in `edge_sha`, not `release`, which names production's deploys. */

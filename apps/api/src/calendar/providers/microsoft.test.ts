@@ -251,7 +251,9 @@ describe("Microsoft calendar provider", () => {
       body: {
         contentType: "html",
         content:
-          "<p>Gate &amp; <strong>access</strong></p><div>Bring&nbsp;ladder</div><script>secret()</script>",
+          '<!doctype html><html><head><title>Meeting metadata</title></head><body>' +
+          '<p title="check > note">Gate &amp; <strong>access</strong></p>' +
+          "<div>Bring&nbsp;ladder</div><script>secret()</script></body></html>",
       },
     }));
     expect(normalized?.description).toBe("Gate & access\nBring ladder");

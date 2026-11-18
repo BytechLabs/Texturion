@@ -13,6 +13,8 @@
  * and what counts as bad enough to wake somebody.
  */
 
+import { trimTrailingCharacters } from "./trim-trailing-characters";
+
 /**
  * How long after a job is finished before the question goes.
  *
@@ -76,7 +78,7 @@ export const RATING_ASK_BODY =
  * it and be pleased.
  */
 export function parseRatingReply(body: string): number | null {
-  const trimmed = body.trim().replaceAll(/[.!,;:]+$/g, "").trim();
+  const trimmed = trimTrailingCharacters(body.trim(), ".!,;:").trim();
   const match = /^([1-5])(\s*\/\s*5)?$/.exec(trimmed);
   return match ? Number(match[1]) : null;
 }

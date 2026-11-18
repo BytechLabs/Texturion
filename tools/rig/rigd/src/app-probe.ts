@@ -1530,10 +1530,18 @@ const SIGN_UP_NUMBER_LABEL = "Rig S32 fixture";
 /** The subscription states the app treats as paid (apps/web/src/app/onboarding/steps.ts). */
 const PAID_STATUSES: ReadonlySet<string> = new Set(["active", "past_due", "unpaid"]);
 
+export function nonceSlug(nonce: string): string {
+  const normalized = nonce.toLowerCase().replaceAll(/[^a-z0-9-]+/g, "-");
+  let start = 0;
+  let end = normalized.length;
+  while (normalized[start] === "-") start += 1;
+  while (end > start && normalized[end - 1] === "-") end -= 1;
+  return normalized.slice(start, end) || "run";
+}
+
 /** The fixture number's provisioning key for a run. */
 export function signUpNumberKey(nonce: string): string {
-  const slug = nonce.toLowerCase().replaceAll(/[^a-z0-9-]+/g, "-").replaceAll(/^-+|-+$/g, "") || "run";
-  return `${SIGN_UP_NUMBER_PREFIX}s32-${slug}`;
+  return `${SIGN_UP_NUMBER_PREFIX}s32-${nonceSlug(nonce)}`;
 }
 
 type WriteError = Error & { status?: number };

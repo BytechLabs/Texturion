@@ -1,3 +1,7 @@
+import { trimTrailingCharacters } from "@loonext/shared";
+import { defaultTreeAdapter, parse } from "parse5";
+import type { DefaultTreeAdapterMap } from "parse5";
+
 import {
   calendarProviderSignal,
   providerJson,
@@ -43,6 +47,8 @@ import { windowsZoneToIana } from "./windows-zones";
 
 const GRAPH_API = "https://graph.microsoft.com/v1.0";
 const SCRUBBED_EVENT_TITLE = "Loonext event removed";
+const DESCRIPTION_LINE_BREAKS = new Set(["br", "p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6"]);
+const HIDDEN_DESCRIPTION_TAGS = new Set(["head", "script", "style"]);
 
 export const MICROSOFT_CALENDAR_SCOPES = [
   "offline_access",
@@ -128,39 +134,34 @@ function sameEmail(left: string | undefined, right: string | undefined): boolean
   return Boolean(left && right && left.trim().toLowerCase() === right.trim().toLowerCase());
 }
 
-function decodeNumericHtmlEntity(value: number): string {
-  return Number.isInteger(value) && value >= 0 && value <= 0x10ffff
-    ? String.fromCodePoint(value)
-    : "";
-}
-
 function graphBodyText(body: GraphEvent["body"]): string {
   const content = body?.content ?? "";
   if (body?.contentType !== "html") return normalizeCalendarText(content);
-  const withoutActiveContent = content.replaceAll(
-    /<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,
-    "",
-  );
-  const withoutTags = withoutActiveContent
-    .replaceAll(/<br\s*\/?>/gi, "\n")
-    .replaceAll(/<\/(?:p|div|li|h[1-6])\s*>/gi, "\n")
-    .replaceAll(/<[^>]*>/g, "");
-  const decoded = withoutTags
-    .replaceAll(/&#(\d+);/g, (_match, decimal: string) =>
-      decodeNumericHtmlEntity(Number(decimal)),
-    )
-    .replaceAll(/&#x([0-9a-f]+);/gi, (_match, hex: string) =>
-      decodeNumericHtmlEntity(Number.parseInt(hex, 16)),
-    )
-    .replaceAll(/&(amp|lt|gt|quot|apos|nbsp);/gi, (_match, name: string) => ({
-      amp: "&",
-      lt: "<",
-      gt: ">",
-      quot: '"',
-      apos: "'",
-      nbsp: " ",
-    })[name.toLowerCase()] ?? "");
-  return normalizeCalendarText(decoded).replace(/\n+$/, "");
+
+  const text: string[] = [];
+  const pending: (DefaultTreeAdapterMap["node"] | "\n")[] = [parse(content)];
+  while (pending.length > 0) {
+    const node = pending.pop()!;
+    if (node === "\n") {
+      text.push(node);
+      continue;
+    }
+    if (defaultTreeAdapter.isTextNode(node)) {
+      text.push(node.value.replaceAll("\u00a0", " "));
+      continue;
+    }
+    if (defaultTreeAdapter.isElementNode(node)) {
+      if (HIDDEN_DESCRIPTION_TAGS.has(node.tagName)) continue;
+      if (DESCRIPTION_LINE_BREAKS.has(node.tagName)) pending.push("\n");
+    }
+    if ("childNodes" in node) {
+      for (let index = node.childNodes.length - 1; index >= 0; index -= 1) {
+        pending.push(node.childNodes[index]!);
+      }
+    }
+  }
+
+  return trimTrailingCharacters(normalizeCalendarText(text.join("")), "\n");
 }
 
 function assertVersion(version: string, operation: string): void {
