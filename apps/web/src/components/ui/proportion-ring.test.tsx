@@ -17,7 +17,7 @@ function offset(html: string): number | null {
   return matches.length > 0 ? Number(matches[matches.length - 1][1]) : null;
 }
 function circumference(html: string): number {
-  const m = html.match(/stroke-dasharray="([\d.]+)"/);
+  const m = /stroke-dasharray="([\d.]+)"/.exec(html);
   return m ? Number(m[1]) : 0;
 }
 

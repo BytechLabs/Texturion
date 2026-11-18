@@ -30,9 +30,7 @@ function block(selector: string): string {
 
 /** Read a 6-digit hex custom property out of a block. */
 function token(blockCss: string, name: string): string {
-  const m = blockCss.match(
-    new RegExp(`${name.replaceAll(/[-]/g, String.raw`\-`)}:\\s*(#[0-9a-fA-F]{6})`),
-  );
+  const m = new RegExp(`${name.replaceAll(/[-]/g, String.raw`\-`)}:\\s*(#[0-9a-fA-F]{6})`).exec(blockCss);
   expect(m, `token ${name} is a 6-digit hex`).not.toBeNull();
   return m![1].toLowerCase();
 }

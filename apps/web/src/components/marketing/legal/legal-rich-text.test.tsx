@@ -128,6 +128,6 @@ describe("every legal page renders with no slot left in braces", () => {
 
 it.each([dpaEn, dpaFr])("lists the same service providers in the DPA", (dpa) => {
   const subprocessors = dpa.slice(dpa.indexOf("## 6."));
-  const names = subprocessors.match(/\*\*([^*]+)\*\*/)?.[1].split(", ");
+  const names = /\*\*([^*]+)\*\*/.exec(subprocessors)?.[1].split(", ");
   expect(names).toEqual(SUBPROCESSORS.map(({ name }) => name));
 });

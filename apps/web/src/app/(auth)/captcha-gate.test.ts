@@ -52,7 +52,7 @@ async function renderPage(
 /** The one type="submit" button on each auth screen (the OAuth buttons are
  *  type="button", so this uniquely picks the form's submit). */
 function submitButton(html: string): string {
-  const match = html.match(/<button[^>]*type="submit"[^>]*>/);
+  const match = /<button[^>]*type="submit"[^>]*>/.exec(html);
   expect(match).not.toBeNull();
   return (match!)[0];
 }

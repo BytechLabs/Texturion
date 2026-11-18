@@ -120,7 +120,7 @@ for (const file of walk("apps/ios/Loonext").filter((f) => f.endsWith(".swift")))
     at = hit + 1;
     // A word ENDING in Button — `EditButton`, `saveButton` — is not this.
     if (/[A-Za-z0-9_]/.test(source[hit - 1] ?? "")) continue;
-    const opener = source.slice(hit + "Button".length).match(/^\s*([({])/);
+    const opener = /^\s*([({])/.exec(source.slice(hit + "Button".length));
     if (!opener) continue;
     checked += 1;
 

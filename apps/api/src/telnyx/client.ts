@@ -102,7 +102,7 @@ function withSeams(env: Env, body: unknown): unknown {
  */
 const CALL_PATH = /^\/v2\/calls(?:\/[^/]+\/actions\/[^/]+)?$/;
 const MESSAGE_PATH = /^\/v2\/messages(?:\/|$)/;
-const VERIFICATION_CODE_PATH = /\/verification_codes$/;
+const VERIFICATION_CODE_SUFFIX = "/verification_codes";
 
 function asDestinations(value: unknown): string[] {
   if (typeof value === "string") return [value];
@@ -131,7 +131,7 @@ export function telnyxDestinations(options: {
     return [...asDestinations(body.to), ...asDestinations(body.sip_address)];
   }
   if (MESSAGE_PATH.test(options.path)) return asDestinations(body.to);
-  if (VERIFICATION_CODE_PATH.test(options.path)) {
+  if (options.path.endsWith(VERIFICATION_CODE_SUFFIX)) {
     return asDestinations(body.phone_numbers);
   }
   return [];

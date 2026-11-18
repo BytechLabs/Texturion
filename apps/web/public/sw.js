@@ -48,7 +48,7 @@ function normalizeNotificationUrl(rawUrl, origin) {
     return "/inbox";
   }
   if (url.origin !== origin) return "/inbox";
-  const thread = url.pathname.match(/^\/conversations\/([^/]+)\/?$/);
+  const thread = /^\/conversations\/([^/]+)\/?$/.exec(url.pathname);
   const path = thread ? `/inbox/${thread[1]}` : url.pathname;
   if (!path.startsWith("/")) return "/inbox";
   // Preserve the query for non-thread links — the incoming-call push carries
@@ -149,7 +149,7 @@ async function clearConversationNotifications(id) {
 }
 
 function threadId(path) {
-  return path.match(/^\/inbox\/([^/]+)\/?$/)?.[1] ?? null;
+  return /^\/inbox\/([^/]+)\/?$/.exec(path)?.[1] ?? null;
 }
 
 async function showPushNotification(title, options) {

@@ -92,7 +92,7 @@ describe("#559 a revocable link is never shared-cached", () => {
     // `^…$` is right under both matchers.
     expect(CONFIG).toContain('value: "^loonext\\\\.com$"');
     expect(
-      /has: \[\{ type: "host", value: "loonext\.com" \}\]/.test(CONFIG),
+      CONFIG.includes("has: [{ type: \"host\", value: \"loonext.com\" }]"),
       "the unanchored host predicate is back — under OpenNext it also matches app.loonext.com",
     ).toBe(false);
   });

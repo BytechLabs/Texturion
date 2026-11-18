@@ -72,7 +72,7 @@ const BINARY =
 export function inScope(file) {
   if (!/^apps\/(?:android|ios)\//.test(file)) return false;
   if (/^apps\/android\/app\/src\/(?:test|androidTest)[A-Za-z]*\//.test(file)) return false;
-  if (/^apps\/android\/mws\//.test(file)) return false;
+  if (file.startsWith("apps/android/mws/")) return false;
   if (/^apps\/ios\/[^/]*Tests\//.test(file)) return false;
   return !/\.md$/i.test(file) && !BINARY.test(file);
 }
@@ -80,7 +80,7 @@ export function inScope(file) {
 /** How a file writes comments, from its extension. */
 export function syntaxOf(file) {
   if (/\.(?:kt|kts|java|gradle)$/.test(file)) return "kotlin";
-  if (/\.swift$/.test(file)) return "swift";
+  if (file.endsWith(".swift")) return "swift";
   if (/\.(?:xml|plist|entitlements|storyboard|xib)$/.test(file)) return "xml";
   if (/\.(?:ya?ml|properties|pro|toml|txt)$/.test(file) || /(?:^|\/)\.gitignore$/.test(file)) {
     return "config";

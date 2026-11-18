@@ -311,7 +311,7 @@ async function main(): Promise<void> {
 
 main().catch((cause: unknown) => {
   process.stderr.write(
-    cause instanceof CapacityConfigError || (cause instanceof Error && /required/.test(cause.message))
+    cause instanceof CapacityConfigError || (cause instanceof Error && cause.message.includes("required"))
       ? `capacity: ${cause.message}\n`
       : "capacity: driver failed; no unreviewed error details were printed\n",
   );

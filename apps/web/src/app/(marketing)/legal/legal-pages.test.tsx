@@ -300,7 +300,7 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
         "Firebase Cloud Messaging",
         "PostHog",
       ];
-      const ledger = section(PAGES[4].html, "list").match(/<tbody>[\s\S]*?<\/tbody>/)![0];
+      const ledger = /<tbody>[\s\S]*?<\/tbody>/.exec(section(PAGES[4].html, "list"))![0];
       expect(vendors).toHaveLength(ledger.match(/<tr/g)!.length);
       const sharing = visibleText(section(PRIVACY[locale], "sharing"));
       for (const vendor of vendors) {

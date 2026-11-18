@@ -177,16 +177,16 @@ export function checkOne(message, files = null) {
     }
     if (VAGUE.test(subject)) {
       errors.push(
-        `subject is vague ("${subject.match(VAGUE)[0]}"). A reader must learn what changed.`,
+        `subject is vague ("${VAGUE.exec(subject)[0]}"). A reader must learn what changed.`,
       );
     }
     if (INTERNAL.test(subject)) {
       errors.push(
-        `subject uses internal shorthand ("${subject.match(INTERNAL)[0]}") that means nothing to a customer. Describe the change itself; keep the tracking reference in the body.`,
+        `subject uses internal shorthand ("${INTERNAL.exec(subject)[0]}") that means nothing to a customer. Describe the change itself; keep the tracking reference in the body.`,
       );
     }
     if (PAST_TENSE.test(subject)) {
-      const verb = subject.match(PAST_TENSE)[0];
+      const verb = PAST_TENSE.exec(subject)[0];
       errors.push(`use present tense — "${verb.replace(/ed$/, "")}", not "${verb}".`);
     }
     if (/^#?\d+$/.test(subject.trim()) || /^(#\d+|[A-Z]+-\d+)\b/.test(subject)) {
@@ -326,7 +326,7 @@ function main() {
       continue;
     }
     // release-please writes its own release commits.
-    if (/^chore\(main\): release/.test(message.trim())) continue;
+    if (message.trim().startsWith("chore(main): release")) continue;
     const { header, errors } = checkOne(message, files);
     if (errors.length > 0) failures.push({ header, errors });
   }

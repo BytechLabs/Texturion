@@ -218,7 +218,6 @@
     "eslint/vars-on-top": "off", // 31
     "import/no-namespace": "off", // 30
     "promise/always-return": "off", // 30
-    "typescript/prefer-regexp-exec": "off", // 29
     "eslint/no-unsafe-optional-chaining": "off", // 28
     "import/newline-after-import": "off", // 28
     "typescript/require-array-sort-compare": "off", // 28
@@ -243,15 +242,12 @@
     "unicorn/no-useless-spread": "off", // 17
     "vitest/no-conditional-tests": "off", // 17
     "eslint/no-sequences": "off", // 16
-    "typescript/prefer-string-starts-ends-with": "off", // 16
     "unicorn/explicit-length-check": "off", // 16
     "eslint/no-loop-func": "off", // 15
     "eslint/no-return-assign": "off", // 15
     "jsx-a11y/no-autofocus": "off", // 15
-    "typescript/prefer-includes": "off", // 15
     "unicorn/no-object-as-default-parameter": "off", // 15
     "react/exhaustive-effect-dependencies": "off", // 14
-    "unicorn/prefer-string-starts-ends-with": "off", // 14
     "import/no-duplicates": "off", // 13
     "react/function-component-definition": "off", // 13
     "unicorn/consistent-existence-index-check": "off", // 13

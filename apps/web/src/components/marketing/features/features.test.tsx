@@ -160,9 +160,7 @@ function honouredStopKeywords(): string[] {
     join(process.cwd(), "..", "api", "src", "messaging", "keywords.ts"),
     "utf8",
   );
-  const block = source.match(
-    /export const STOP_KEYWORDS = new Set\(\[([\s\S]*?)\]\)/,
-  );
+  const block = /export const STOP_KEYWORDS = new Set\(\[([\s\S]*?)\]\)/.exec(source);
   if (!block) throw new Error("STOP_KEYWORDS is no longer a literal Set");
   return [...block[1].matchAll(/"([A-ZÀ-ſ]+)"/g)].map((m) => m[1]);
 }

@@ -199,7 +199,7 @@ export class FakeRest {
     return async (url, request) => {
       if (!url.href.startsWith(this.env.SUPABASE_URL)) return undefined;
 
-      const adminMatch = url.pathname.match(/^\/auth\/v1\/admin\/users\/([^/]+)$/);
+      const adminMatch = /^\/auth\/v1\/admin\/users\/([^/]+)$/.exec(url.pathname);
       if (adminMatch && request.method === "GET") {
         const user = this.users.get(adminMatch[1]);
         return user
@@ -207,7 +207,7 @@ export class FakeRest {
           : Response.json({ message: "user not found" }, { status: 404 });
       }
 
-      const rpcMatch = url.pathname.match(/^\/rest\/v1\/rpc\/([A-Za-z0-9_]+)$/);
+      const rpcMatch = /^\/rest\/v1\/rpc\/([A-Za-z0-9_]+)$/.exec(url.pathname);
       if (rpcMatch && request.method === "POST") {
         const handler = this.rpcs.get(rpcMatch[1]);
         if (!handler) {
@@ -223,7 +223,7 @@ export class FakeRest {
         return Response.json(handler(args) ?? null);
       }
 
-      const tableMatch = url.pathname.match(/^\/rest\/v1\/([A-Za-z0-9_]+)$/);
+      const tableMatch = /^\/rest\/v1\/([A-Za-z0-9_]+)$/.exec(url.pathname);
       if (!tableMatch) return undefined;
       const spec = this.tables.get(tableMatch[1]);
       if (!spec) {

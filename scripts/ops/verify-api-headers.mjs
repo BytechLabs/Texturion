@@ -100,9 +100,7 @@ const PATHS = ["/health", "/v1/me"];
 function expectedHeaders() {
   const source = readFileSync(SOURCE, "utf8");
 
-  const block = source.match(
-    /export const API_SECURITY_HEADERS[^=]*=\s*\{([\s\S]*?)\n\};/,
-  );
+  const block = /export const API_SECURITY_HEADERS[^=]*=\s*\{([\s\S]*?)\n\};/.exec(source);
   if (!block) {
     console.error(
       `Could not find API_SECURITY_HEADERS in ${SOURCE}. If it was renamed or ` +
@@ -114,13 +112,11 @@ function expectedHeaders() {
 
   const expected = {};
   for (const line of block[1].split("\n")) {
-    const entry = line.match(/^\s*"([^"]+)":\s*"([^"]*)",?\s*$/);
+    const entry = /^\s*"([^"]+)":\s*"([^"]*)",?\s*$/.exec(line);
     if (entry) expected[entry[1]] = entry[2];
   }
 
-  const fallback = source.match(
-    /export const DEFAULT_CACHE_CONTROL\s*=\s*"([^"]*)"/,
-  );
+  const fallback = /export const DEFAULT_CACHE_CONTROL\s*=\s*"([^"]*)"/.exec(source);
   if (!fallback) {
     console.error(`Could not find DEFAULT_CACHE_CONTROL in ${SOURCE}.`);
     process.exit(2);

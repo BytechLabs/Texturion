@@ -81,7 +81,7 @@ function scan() {
       const tag = openingTag(source, match.index + match[0].length);
       cards.push({
         file: rel,
-        id: tag.match(/\bid="([^"]+)"/)?.[1] ?? null,
+        id: /\bid="([^"]+)"/.exec(tag)?.[1] ?? null,
         titled: /\btitle=/.test(tag),
       });
     }

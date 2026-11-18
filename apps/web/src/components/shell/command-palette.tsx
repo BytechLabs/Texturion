@@ -93,7 +93,7 @@ const STATUS_LABEL_KEYS: Record<ConversationStatus, MessageKey> = {
 
 /** The `/inbox/:id` conversation id currently on the stage, or null. */
 function openConversationId(pathname: string): string | null {
-  const match = pathname.match(/^\/inbox\/([^/]+)$/);
+  const match = /^\/inbox\/([^/]+)$/.exec(pathname);
   if (!match) return null;
   const id = match[1];
   return id === "new" ? null : id;

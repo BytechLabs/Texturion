@@ -234,14 +234,14 @@ for (const file of sources(ROOT)) {
         `one function all five exports now route their cells through, and every ` +
         `check above would pass vacuously.`,
     );
-  } else if (!/csvSafeText\(/.test(body[1])) {
+  } else if (!body[1].includes("csvSafeText(")) {
     problems.push(
       `serializeCsv no longer applies csvSafeText (#580). Every export depends on ` +
         `it doing so — that is why they stopped calling it per column — so an ` +
         `unguarded serializer is the injection back in all five at once, with ` +
         `nothing in the producers to notice.`,
     );
-  } else if (!/csvField\(csvSafeText\(/.test(body[1])) {
+  } else if (!body[1].includes("csvField(csvSafeText(")) {
     problems.push(
       `serializeCsv applies csvSafeText but not inside csvField (#580). Order ` +
         `matters: guard first, quote second, so the apostrophe ends up INSIDE ` +
@@ -302,7 +302,7 @@ for (const file of sources(ROOT)) {
         `five at once, with nothing in the producers to notice.`,
     );
   }
-  if (!/export function csvResponse/.test(shared)) {
+  if (!shared.includes("export function csvResponse")) {
     problems.push(
       `csvResponse is gone from ${SHARED_CSV_MODULE} (#587), so the download ` +
         `headers and the mark have stopped travelling together and each route is ` +

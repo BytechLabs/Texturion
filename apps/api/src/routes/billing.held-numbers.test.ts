@@ -291,10 +291,10 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     // Charge-first is what let a fenced claim take the money and leave the
     // number held.
     const claimIndex = harness.calls.findIndex((call) =>
-      /rpc\/claim_number_allowance/.test(call.url.href),
+      call.url.href.includes("rpc/claim_number_allowance"),
     );
     const chargeIndex = harness.calls.findIndex((call) =>
-      /subscription_items$/.test(call.url.href),
+      call.url.href.endsWith("subscription_items"),
     );
     expect(claimIndex).toBeGreaterThanOrEqual(0);
     expect(chargeIndex).toBeGreaterThan(claimIndex);

@@ -165,7 +165,7 @@ for (const file of sourceFiles(ROOT, ".kt")) {
       "cannot find boundedGlyph in ui/common/Ui.kt — this guard has lost the rule it " +
         "exists to enforce, and every check above would pass vacuously.",
     );
-  } else if (!/minOf\(/.test(helper[1])) {
+  } else if (!helper[1].includes("minOf(")) {
     problems.push(
       "boundedGlyph no longer takes the SMALLER of what the caller wanted and what " +
         "the box can hold (#569). Without a `minOf` it is not a bound, and every " +
@@ -180,7 +180,7 @@ for (const file of sourceFiles(ROOT, ".kt")) {
         "component it exists to protect.",
     );
   } else {
-    if (!/boundedGlyph\(/.test(avatar[1])) {
+    if (!avatar[1].includes("boundedGlyph(")) {
       problems.push(
         "InitialsAvatar no longer bounds its glyph (#569). It is the badge every " +
           "surface in the app now renders through, so an unbounded glyph here is the " +

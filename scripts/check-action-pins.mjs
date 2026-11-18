@@ -115,13 +115,6 @@ function isAlwaysStrict(_file) {
  */
 const NOT_REPO_WRITE = new Set(["security-events"]);
 
-/**
- * Local composite actions (`./.github/actions/x`) and reusable workflows
- * (`./.github/workflows/y.yml`) are IN this repository — they already cannot
- * change without a commit here, which is the whole property being enforced.
- */
-const LOCAL = /^\.\//;
-
 /** A SHA is 40 hex characters; anything else upstream can move. */
 const SHA = /^[0-9a-f]{40}$/;
 
@@ -234,7 +227,8 @@ function checkRefs(file, source, strict) {
     const [, ref, comment] = match;
     const where = `${file}:${index + 1}`;
 
-    if (LOCAL.test(ref)) return;
+    // Local actions and workflows are pinned by this repository's commit.
+    if (ref.startsWith("./")) return;
     refs += 1;
 
     const at = ref.lastIndexOf("@");

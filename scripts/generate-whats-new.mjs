@@ -44,7 +44,9 @@ function problemsIn(data) {
     if (entry.date > today) problems.push(`${at}: dated ${entry.date}, after today; entries report what shipped`);
     if (entry.date > previous) problems.push(`${at}: out of order; the list is newest first`);
     previous = entry.date;
-    if (entry.href !== null && !/^\//.test(entry.href ?? "")) problems.push(`${at}: href is an in-app path or null`);
+    if (entry.href !== null && (typeof entry.href !== "string" || !entry.href.startsWith("/"))) {
+      problems.push(`${at}: href is an in-app path or null`);
+    }
     for (const lang of ["en", "fr"]) {
       const copy = entry[lang];
       if (!copy?.title || !copy?.body) {

@@ -70,7 +70,7 @@ if (login) {
     const response = await get(`${APP}${chunk}`);
     const cache = response?.headers.get("cache-control") ?? "";
     check(
-      response?.status === 200 && /immutable/.test(cache) && /max-age=31536000/.test(cache),
+      response?.status === 200 && cache.includes("immutable") && cache.includes("max-age=31536000"),
       `hashed chunk is immutable (${cache})`,
       `${APP}${chunk} answered ${response?.status} with Cache-Control "${cache}", not a year of immutable`,
     );
@@ -82,7 +82,7 @@ const sw = await get(`${APP}/sw.js`);
 if (sw) {
   const cache = sw.headers.get("cache-control") ?? "";
   check(
-    sw.status === 200 && !/immutable/.test(cache) && !/max-age=[1-9]/.test(cache),
+    sw.status === 200 && !cache.includes("immutable") && !/max-age=[1-9]/.test(cache),
     `/sw.js is revalidated (${cache})`,
     `${APP}/sw.js answered ${sw.status} with Cache-Control "${cache}"; it must be checked on every use`,
   );
@@ -103,7 +103,7 @@ const manifest = await get(`${APP}/manifest.webmanifest`);
 if (manifest) {
   const cache = manifest.headers.get("cache-control") ?? "";
   check(
-    manifest.status === 200 && /max-age=86400/.test(cache),
+    manifest.status === 200 && cache.includes("max-age=86400"),
     `manifest is cached for a day (${cache})`,
     `${APP}/manifest.webmanifest answered ${manifest.status} with Cache-Control "${cache}"`,
   );

@@ -106,8 +106,8 @@ for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sor
   const statements = sql.split(/;\s*\n/);
   for (const statement of statements) {
     const owner =
-      statement.match(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_]+)/i)?.[1] ??
-      statement.match(/alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_]+)/i)?.[1];
+      /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_]+)/i.exec(statement)?.[1] ??
+      /alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_]+)/i.exec(statement)?.[1];
     if (!owner) continue;
     // A migration that DROPS a constraint is removing an edge, not adding one.
     if (/drop\s+constraint/i.test(statement) && !/references/i.test(statement)) continue;

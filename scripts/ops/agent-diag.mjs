@@ -277,7 +277,7 @@ function runAsAgentDiag(sql, connection, container) {
   }
   let warned = false;
   for (const line of (result.stderr ?? "").split(/\r?\n/)) {
-    if (!/WARNING:/.test(line)) continue;
+    if (!line.includes("WARNING:")) continue;
     warned = true;
     console.error(`  ! ${line.replace(/^.*?WARNING:\s*/, "")}`);
   }

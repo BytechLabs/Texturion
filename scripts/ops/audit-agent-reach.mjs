@@ -170,19 +170,19 @@ export function classify(name, value, { commented = false, devVars = false, cont
 
   if (/^[sr]k_live_/.test(raw)) return { tier: "production-write", reason: "a live Stripe key" };
   if (/^(?:[sr]k|pk)_test_/.test(raw)) return { tier: "nonprod", reason: "a Stripe test-mode key" };
-  if (/^pk_live_/.test(raw)) return { tier: "none", reason: "a Stripe publishable key, public by design" };
+  if (raw.startsWith("pk_live_")) return { tier: "none", reason: "a Stripe publishable key, public by design" };
   if (/^[123]x0{20,40}AA$/.test(raw)) return { tier: "nonprod", reason: "one of Cloudflare's published Turnstile test secrets" };
   if (/^KEY[0-9A-F]{24,}/.test(raw)) {
     return { tier: "production-write", reason: "a Telnyx key: the one Telnyx account is production's" };
   }
-  if (/^sbp_/.test(raw)) return { tier: "production-write", reason: "a Supabase platform token: manages the project" };
-  if (/^sb_publishable_/.test(raw)) return { tier: "none", reason: "a Supabase publishable key, public by design" };
+  if (raw.startsWith("sbp_")) return { tier: "production-write", reason: "a Supabase platform token: manages the project" };
+  if (raw.startsWith("sb_publishable_")) return { tier: "none", reason: "a Supabase publishable key, public by design" };
   const claims = jwtClaims(raw);
   if (claims?.role === "anon") return { tier: "none", reason: "a Supabase anon key, public by design" };
   if (claims?.role === "service_role" && claims.iss === "supabase-demo") {
     return { tier: "nonprod", reason: "the Supabase CLI's published local service_role key" };
   }
-  if (/^sb_secret_/.test(raw) || claims?.role === "service_role" || SUPABASE_SECRET_NAME.test(name)) {
+  if (raw.startsWith("sb_secret_") || claims?.role === "service_role" || SUPABASE_SECRET_NAME.test(name)) {
     if (localSupabaseUrl(context)) return { tier: "nonprod", reason: "a Supabase secret key beside a local SUPABASE_URL" };
     return { tier: "production-write", reason: "a Supabase secret key: bypasses RLS on the project" };
   }
@@ -194,7 +194,7 @@ export function classify(name, value, { commented = false, devVars = false, cont
   }
 
   const alike = LOCAL_ONLY_ON_AN_ACTIVE_DEV_VARS_LINE.find(([pattern]) => pattern.test(name));
-  if (alike || /^whsec_/.test(raw)) {
+  if (alike || raw.startsWith("whsec_")) {
     const what = alike ? alike[1] : "a Stripe signing secret";
     return localLine
       ? { tier: "nonprod", reason: `${what} on an active .dev.vars line, which is local` }

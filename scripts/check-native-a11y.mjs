@@ -82,7 +82,7 @@ const failures = [];
 // `.system(size:)` never scales. `.custom(_:size:)` never scales either, and
 // only its `relativeTo:` overload does, so the bare form is the offence and the
 // three-argument form is the fix.
-const IOS_RAW_SYSTEM = /\.system\(size:/;
+const IOS_RAW_SYSTEM = ".system(size:";
 /*
  * THREE APIs take a raw point size on iOS, not two: `.system(size:)`,
  * `Font.custom(_:size:)` and `Font.custom(_:fixedSize:)`.
@@ -110,7 +110,7 @@ const IOS_CUSTOM = /\.custom\([^)]*\b(?:size|fixedSize):/;
   const source = readFileSync(IOS_SCALING_IMPL, "utf8").split(/\r?\n/);
   source.forEach((line, index) => {
     if (isComment(line, "//")) return;
-    if (!IOS_RAW_SYSTEM.test(line) && !IOS_CUSTOM.test(line)) return;
+    if (!line.includes(IOS_RAW_SYSTEM) && !IOS_CUSTOM.test(line)) return;
     // `relativeTo:` IS the scaling overload — the display and body factories are built
     // from it and are the correct thing, not an exemption. Leaving this out flagged
     // both of them on the first run.
@@ -134,7 +134,7 @@ for (const file of sourceFiles(IOS_ROOT, ".swift")) {
     .forEach((line, index) => {
       if (isComment(line, "//")) return;
       const where = `${file}:${index + 1}`;
-      if (IOS_RAW_SYSTEM.test(line)) {
+      if (line.includes(IOS_RAW_SYSTEM)) {
         failures.push(`${where}  .system(size:) does not scale - use Font.scaled(_:weight:design:)`);
       }
       if (IOS_CUSTOM.test(line) && !line.includes("relativeTo:")) {

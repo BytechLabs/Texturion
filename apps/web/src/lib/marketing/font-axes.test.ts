@@ -187,7 +187,7 @@ function displayAtOtherWeight(text: string): string[] {
   }
   for (const { selector, body } of cssBlocks(text)) {
     if (!body.includes("var(--font-display)") || selector === "@utility font-display") continue;
-    const weight = body.match(/font-weight:\s*([^;]+);/);
+    const weight = /font-weight:\s*([^;]+);/.exec(body);
     if (weight?.[1]!.trim() !== "800") hits.push(selector);
   }
   return hits;

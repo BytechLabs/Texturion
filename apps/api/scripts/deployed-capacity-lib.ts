@@ -243,10 +243,10 @@ function isLocalOrPrivateHost(hostname: string): boolean {
     host === "::" ||
     host === "::1" ||
     host === "0.0.0.0" ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^169\.254\./.test(host) ||
+    host.startsWith("127.") ||
+    host.startsWith("10.") ||
+    host.startsWith("192.168.") ||
+    host.startsWith("169.254.") ||
     /^(fc|fd)[0-9a-f]{2}:/i.test(host) ||
     /^fe[89ab][0-9a-f]*:/i.test(host)
   ) {
