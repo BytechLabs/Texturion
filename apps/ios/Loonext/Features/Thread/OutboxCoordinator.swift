@@ -57,7 +57,7 @@ final class OutboxCoordinator {
     func flushOnBackground() {
         if flushTask == nil { requestFlush() }
         guard flushTask != nil, backgroundTask == .invalid else { return }
-        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: "Send queued messages") { [weak self] in
+        backgroundTask = UIApplication.shared.beginBackgroundTask(withName: nil) { [weak self] in
             Task { @MainActor in
                 self?.flushTask?.cancel()
                 self?.endBackgroundTask()
