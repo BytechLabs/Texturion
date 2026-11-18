@@ -81,7 +81,7 @@ const authedOnly = process.argv.includes("--authed");
  * Imported rather than copied — a copy is how the two audits end up looking at
  * different pages while both report green.
  */
-const { SURFACES } = await import("./audit-surfaces.mjs");
+const { SURFACES, navigateToAuditSurface } = await import("./audit-surfaces.mjs");
 
 function axePath() {
   const direct = "node_modules/axe-core/axe.min.js";
@@ -172,7 +172,7 @@ try {
     await page.setViewportSize({ width: size.width, height: size.height });
     const where = `${surface.label} @${size.label}`;
     try {
-      await page.goto(`${base}${surface.path}`, { waitUntil: "networkidle" });
+      await navigateToAuditSurface(page, base, surface);
       // The theme audit's own guard, for the same reason: a bounced surface
       // audits the login page and reports it clean.
       if (surface.auth && new URL(page.url()).pathname.startsWith("/login")) {

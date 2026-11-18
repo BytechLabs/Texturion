@@ -77,3 +77,11 @@ export const SURFACES = [
   },
   { path: "/settings/team", label: "settings · team", auth: true },
 ];
+
+export function navigateToAuditSurface(page, base, surface, timeout) {
+  // Background requests can keep running after public pages have rendered.
+  return page.goto(`${base}${surface.path}`, {
+    waitUntil: surface.auth ? "networkidle" : "load",
+    timeout,
+  });
+}

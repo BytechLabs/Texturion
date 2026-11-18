@@ -63,7 +63,7 @@ const base = baseIndex >= 0 ? args[baseIndex + 1] : "http://localhost:3100";
  * its place by being a surface where a theme bug has actually happened or where
  * the token scope is genuinely at risk.
  */
-const { SURFACES } = await import("./audit-surfaces.mjs");
+const { SURFACES, navigateToAuditSurface } = await import("./audit-surfaces.mjs");
 
 /* ------------------------------------------------------------------------- */
 
@@ -861,7 +861,7 @@ for (const theme of ["light", "dark"]) {
   for (const surface of wanted) {
     const page = await context.newPage();
     try {
-      await page.goto(`${base}${surface.path}`, { waitUntil: "networkidle", timeout: 45_000 });
+      await navigateToAuditSurface(page, base, surface, 45_000);
       if (surface.auth && new URL(page.url()).pathname.startsWith("/login")) {
         problems.push({
           theme,
@@ -1001,7 +1001,7 @@ for (const theme of ["light", "dark"]) {
   for (const surface of wanted.filter((s) => !s.open)) {
     const page = await context.newPage();
     try {
-      await page.goto(`${base}${surface.path}`, { waitUntil: "networkidle", timeout: 45_000 });
+      await navigateToAuditSurface(page, base, surface, 45_000);
       if (surface.auth && new URL(page.url()).pathname.startsWith("/login")) {
         await page.close();
         continue; // already reported by the desktop pass
