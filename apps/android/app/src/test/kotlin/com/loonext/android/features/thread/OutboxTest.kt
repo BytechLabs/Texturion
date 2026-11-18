@@ -200,6 +200,37 @@ class OutboxTest {
     }
 
     @Test
+    fun `a refusal and an age-out notify once even when the queue is checked again`() = runTest {
+        val refused = queued("refused", "2026-07-28T10:00:00Z")
+        val agedOut = queued("expired", "2026-07-26T10:00:00Z")
+        val store = FakeOutbox(listOf(refused, agedOut))
+        val notices = mutableListOf<String>()
+        val flusher = OutboxFlusher(store, now = { outboxTestNow }, onBlocked = { row ->
+            assertTrue(store.rows.single { it.localId == row.localId }.blocked)
+            notices += row.localId
+        }) { SendOutcome.Refused("opted out") }
+
+        flusher.flush()
+        flusher.flush()
+
+        assertEquals(listOf("expired", "refused"), notices)
+    }
+
+    @Test
+    fun `a refusal in flight cannot restore a discarded item`() = runTest {
+        val store = FakeOutbox(listOf(queued("k1", "2026-07-28T10:00:00Z")))
+        val flusher = OutboxFlusher(store, now = { outboxTestNow }, onBlocked = {
+            error("Discarded items should not notify.")
+        }) { item ->
+            store.remove(item.localId)
+            SendOutcome.Refused("opted out")
+        }
+
+        assertEquals(FlushResult(), flusher.flush())
+        assertTrue(store.rows.isEmpty())
+    }
+
+    @Test
     fun `messages flush in the order they were written`() = runTest {
         // These are messages to one customer. Delivering "on my way" before
         // "running 20 late" would be worse than delivering both slowly.

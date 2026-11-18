@@ -210,6 +210,7 @@ final class AppGraph {
     let contactsApi: ContactsApi
     let notificationsApi: NotificationsApi
     let searchApi: SearchApi
+    let outbox: OutboxCoordinator
 
     /// - Parameter sessionStore: #593 — injectable, defaulting to the one this graph
     ///   would have built. Production passes nothing and is unchanged; a test passes a
@@ -225,6 +226,11 @@ final class AppGraph {
         let api = ApiClient(sessionStore: sessionStore, auth: supabaseAuth, transport: transport)
         let realtime = RealtimeClient()
         let meApi = MeApi(api: api)
+        let outbox = OutboxCoordinator(
+            store: Outbox(),
+            repository: MessagingRepository(api: api),
+            sessionStore: sessionStore
+        )
 
         self.sessionStore = sessionStore
         self.prefs = prefs
@@ -247,21 +253,16 @@ final class AppGraph {
         self.contactsApi = ContactsApi(api: api)
         self.notificationsApi = NotificationsApi(api: api)
         self.searchApi = SearchApi(api: api)
+        self.outbox = outbox
 
         // #330: registered on SessionEnded rather than on the Sign out button, so a
         // session the SERVER ended clears the same things. An owner signing a departed
         // tech's phone out (#236) used to drop only the token, leaving the previous
         // member's unread counts on a phone the company cannot ask back — which is the
         // case that matters once somebody has actually left.
-        SessionEnded.onEnded {
+        SessionEnded.onEnded { [weak outbox] in
             NotificationsReadState.shared.clear()
-            // And the outbox — what somebody was in the middle of saying to a
-            // customer, and the photos they attached. It survived every exit until
-            // now: an unsent message to a homeowner sitting on a phone the company
-            // does not own, which could also flush under a session that is gone. A
-            // fresh instance clears the same storage; the queue lives in
-            // UserDefaults and one fixed directory, not in the object.
-            Outbox().clear()
+            Task { @MainActor in outbox?.clear() }
         }
 
         // Realtime channels authorize with the Supabase JWT — keep it fresh.

@@ -8,7 +8,10 @@ import androidx.datastore.preferences.preferencesDataStore
 import java.time.Instant
 import java.time.temporal.ChronoUnit
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -82,6 +85,8 @@ data class QueuedSend(
      * flush, so "send it anyway" would be a button that does nothing.
      */
     val staleAcknowledged: Boolean = false,
+    /** Older rows belong to the signed-in account that owns the stored outbox. */
+    val ownerUserId: String? = null,
 )
 
 /** One queued photo: a file in this app's storage, plus what it is. */
@@ -129,7 +134,24 @@ fun outboxMediaLostMessage(locale: String? = null): String =
  */
 interface Outbox {
     suspend fun all(): List<QueuedSend>
+    val snapshots: Flow<List<QueuedSend>> get() = flow { emit(all()) }
     suspend fun put(send: QueuedSend)
+
+    suspend fun enqueue(send: QueuedSend, photos: List<OutboxMediaBytes>): Boolean {
+        val media = saveMedia(send.localId, photos)
+        if (media.size != photos.size) {
+            remove(send.localId)
+            return false
+        }
+        put(send.copy(media = media))
+        return true
+    }
+
+    suspend fun replaceIfUnchanged(expected: QueuedSend, updated: QueuedSend): Boolean {
+        if (all().none { it == expected }) return false
+        put(updated)
+        return true
+    }
 
     /** Drops the row AND the photos it owned — nothing outlives its message. */
     suspend fun remove(localId: String)
@@ -173,6 +195,7 @@ fun Outbox(context: Context): Outbox = DataStoreOutbox(context)
 
 private class DataStoreOutbox(private val context: Context) : Outbox {
     private val json = Json { ignoreUnknownKeys = true }
+    private val mediaWrites = Mutex()
 
     /**
      * ONE key holding the whole queue, rather than a key per message.
@@ -184,8 +207,13 @@ private class DataStoreOutbox(private val context: Context) : Outbox {
      */
     private val key = stringPreferencesKey("queued")
 
-    override suspend fun all(): List<QueuedSend> {
-        val raw = context.outboxStore.data.first()[key] ?: return emptyList()
+    override val snapshots: Flow<List<QueuedSend>>
+        get() = context.outboxStore.data.map { prefs -> decode(prefs[key]) }
+
+    override suspend fun all(): List<QueuedSend> = snapshots.first()
+
+    private fun decode(raw: String?): List<QueuedSend> {
+        if (raw == null) return emptyList()
         return runCatching { json.decodeFromString<List<QueuedSend>>(raw) }
             // A queue we cannot parse is a queue we cannot send. Dropping it
             // loses messages silently, which is the failure this file exists
@@ -196,12 +224,25 @@ private class DataStoreOutbox(private val context: Context) : Outbox {
 
     override suspend fun put(send: QueuedSend) {
         context.outboxStore.edit { prefs ->
-            val current = prefs[key]
-                ?.let { runCatching { json.decodeFromString<List<QueuedSend>>(it) }.getOrNull() }
-                ?: emptyList()
+            val current = decode(prefs[key])
             val next = current.filterNot { it.localId == send.localId } + send
             prefs[key] = json.encodeToString(next)
         }
+    }
+
+    override suspend fun enqueue(send: QueuedSend, photos: List<OutboxMediaBytes>): Boolean =
+        mediaWrites.withLock { super.enqueue(send, photos) }
+
+    override suspend fun replaceIfUnchanged(expected: QueuedSend, updated: QueuedSend): Boolean {
+        var replaced = false
+        context.outboxStore.edit { prefs ->
+            val current = decode(prefs[key])
+            if (expected in current) {
+                prefs[key] = json.encodeToString(current.map { if (it == expected) updated else it })
+                replaced = true
+            }
+        }
+        return replaced
     }
 
     override suspend fun remove(localId: String) {
@@ -245,15 +286,16 @@ private class DataStoreOutbox(private val context: Context) : Outbox {
             runCatching { if (file.isFile) file.readBytes() else null }.getOrNull()
         }
 
-    override suspend fun clear() {
+    override suspend fun clear() = mediaWrites.withLock {
         context.outboxStore.edit { it.clear() }
         // The whole directory rather than a walk over the rows: a row that failed to
         // decode is a row `all()` cannot see, and its photos would survive a per-row
         // sweep. What must not remain is the bytes.
         withContext(Dispatchers.IO) { runCatching { mediaRoot().deleteRecursively() } }
+        Unit
     }
 
-    override suspend fun pruneMedia() {
+    override suspend fun pruneMedia() = mediaWrites.withLock {
         val live = all().map { it.localId }.toSet()
         withContext(Dispatchers.IO) {
             runCatching {
@@ -262,6 +304,7 @@ private class DataStoreOutbox(private val context: Context) : Outbox {
                 }
             }
         }
+        Unit
     }
 }
 
@@ -290,17 +333,20 @@ class OutboxFlusher(
     /** Injected so the age-out is assertable without waiting a day. */
     private val now: () -> Instant = { Instant.now() },
     /** #228: the reader's language, for the one sentence this writes itself. */
-    private val locale: String? = null,
+    locale: String? = null,
+    private val currentLocale: suspend () -> String? = { locale },
+    private val onBlocked: suspend (QueuedSend) -> Unit = {},
     private val send: suspend (QueuedSend) -> SendOutcome,
 ) {
     private val mutex = Mutex()
 
-    suspend fun flush(): FlushResult = mutex.withLock {
+    suspend fun flush(accepts: suspend (QueuedSend) -> Boolean = { true }): FlushResult = mutex.withLock {
         val sent = mutableListOf<String>()
         val blocked = mutableListOf<String>()
         val queued = mutableListOf<String>()
 
         for (item in outbox.all().sortedBy { it.createdAt }) {
+            if (!accepts(item)) continue
             // A blocked row waits for the person, never for the network.
             if (item.blocked) {
                 blocked += item.localId
@@ -308,10 +354,11 @@ class OutboxFlusher(
             }
             // Old enough that sending it is a decision rather than a delivery.
             if (!item.staleAcknowledged && agedOut(item, now())) {
-                outbox.put(
-                    item.copy(blocked = true, lastError = outboxStaleMessage(locale)),
-                )
-                blocked += item.localId
+                val updated = item.copy(blocked = true, lastError = outboxStaleMessage(currentLocale()))
+                if (outbox.replaceIfUnchanged(item, updated)) {
+                    blocked += item.localId
+                    if (accepts(updated)) onBlocked(updated)
+                }
                 continue
             }
             when (val outcome = send(item)) {
@@ -321,20 +368,19 @@ class OutboxFlusher(
                 }
                 is SendOutcome.Refused -> {
                     // An answer. Stop retrying and let the row explain itself.
-                    outbox.put(
-                        item.copy(
-                            attempts = item.attempts + 1,
-                            lastError = outcome.message,
-                            blocked = true,
-                        ),
+                    val updated = item.copy(
+                        attempts = item.attempts + 1,
+                        lastError = outcome.message,
+                        blocked = true,
                     )
-                    blocked += item.localId
+                    if (outbox.replaceIfUnchanged(item, updated)) {
+                        blocked += item.localId
+                        if (accepts(updated)) onBlocked(updated)
+                    }
                 }
                 is SendOutcome.Unreachable -> {
-                    outbox.put(
-                        item.copy(attempts = item.attempts + 1, lastError = outcome.message),
-                    )
-                    queued += item.localId
+                    val updated = item.copy(attempts = item.attempts + 1, lastError = outcome.message)
+                    if (outbox.replaceIfUnchanged(item, updated)) queued += item.localId
                     // Stop the pass: the network is down for this one, so it is
                     // down for the rest, and hammering it would only burn
                     // battery in the exact place battery matters.

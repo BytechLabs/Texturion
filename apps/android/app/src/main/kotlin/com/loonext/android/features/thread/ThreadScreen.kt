@@ -7,8 +7,6 @@ import android.Manifest
 import com.loonext.android.ui.common.EmptyState
 import com.loonext.android.ui.common.ConfirmDialog
 import android.content.Intent
-import android.net.ConnectivityManager
-import android.net.Network
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -86,7 +84,6 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -271,6 +268,7 @@ fun ThreadScreen(
             conversationId = conversationId,
             meUserId = me.user_id,
             scope = graph.appScope,
+            outboxCoordinator = graph.outbox,
         )
     }
     // Kept current rather than passed once: the controller outlives a language
@@ -288,33 +286,17 @@ fun ThreadScreen(
     LaunchedEffect(controller) {
         graph.realtime.reconnected.collect { controller.refreshAfterReconnect() }
     }
+    LaunchedEffect(controller) {
+        graph.outbox.rows.collect { controller.updateQueuedRows(it) }
+    }
+    LaunchedEffect(controller) {
+        graph.outbox.deliveries.collect { controller.onOutboxDelivered(it) }
+    }
     // #215: a frame missed while this thread was backgrounded/blurred is lost
     // until a re-JOIN — self-heal on return to the foreground via the same
     // refetch the reconnect path uses.
     ResyncOnResume(controller) {
         controller.refreshAfterReconnect()
-        // #234: coming back to the app is the most common moment the bars
-        // came back too — the walk out of the basement to the truck.
-        controller.flushOutbox()
-    }
-
-    // #234: and the case a foreground return does NOT cover — the phone
-    // regaining signal while the thread is open in the person's hand.
-    //
-    // Registered HERE rather than in the controller because the controller has
-    // no teardown: a default network callback per thread opened would leak one
-    // per screen for the life of the process. DisposableEffect is the hook that
-    // guarantees the unregister.
-    val appContext = LocalContext.current.applicationContext
-    DisposableEffect(controller) {
-        val connectivity = appContext.getSystemService(ConnectivityManager::class.java)
-        val callback = object : ConnectivityManager.NetworkCallback() {
-            override fun onAvailable(network: Network) {
-                controller.flushOutbox()
-            }
-        }
-        runCatching { connectivity?.registerDefaultNetworkCallback(callback) }
-        onDispose { runCatching { connectivity?.unregisterNetworkCallback(callback) } }
     }
     // Mark read on open and again whenever the newest message id changes.
     LaunchedEffect(controller, controller.newestMessageId) { controller.markRead() }

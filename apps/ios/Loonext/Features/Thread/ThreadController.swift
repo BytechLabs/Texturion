@@ -88,11 +88,8 @@ final class ThreadController {
     /// is the worst failure this feature has.
     private(set) var scheduled: [ScheduledMessage] = []
 
-    /// #234: the durable queue behind `pendingSends`. Constructed here rather
-    /// than injected — every caller would otherwise have to thread it through,
-    /// and the logic worth testing lives in `OutboxFlusher`, which
-    /// `MessagingOutboxTests` drives directly against a throwaway suite.
-    private let outbox = Outbox()
+    private let outbox: Outbox
+    private let requestOutboxFlush: () -> Void
 
     private(set) var members: [Member] = []
     private(set) var contact: Contact?
@@ -146,7 +143,9 @@ final class ThreadController {
         contacts: ContactMutations,
         companyId: String,
         conversationId: String,
-        meUserId: String
+        meUserId: String,
+        outbox: Outbox = Outbox(),
+        requestOutboxFlush: @escaping () -> Void = {}
     ) {
         self.repo = repo
         self.meApi = meApi
@@ -155,6 +154,8 @@ final class ThreadController {
         self.companyId = companyId
         self.conversationId = conversationId
         self.meUserId = meUserId
+        self.outbox = outbox
+        self.requestOutboxFlush = requestOutboxFlush
         self.catchUpAnsweredId = CatchUpAnswerStore.read(conversationId)
     }
 
@@ -271,13 +272,7 @@ final class ThreadController {
         allMessagesLoaded = detail.messages.next_cursor == nil
         load = .ready(())
 
-        // #234: whatever was queued before this process existed comes back
-        // into the thread, then we try to drain it. Restoring BEFORE flushing
-        // is deliberate — if there is still no signal, the person opening the
-        // thread sees their message sitting there rather than an empty
-        // conversation that quietly ate it.
         restoreQueued()
-        flushOutbox()
 
         // Secondary loads — quiet failures; they gate niceties, not the thread.
         Task { try? await self.refreshEvents() }
@@ -854,7 +849,8 @@ final class ThreadController {
                                 conversationId: conversationId,
                                 body: body,
                                 createdAt: pendingRow.createdAt,
-                                media: stored
+                                media: stored,
+                                ownerUserId: meUserId
                             )
                         )
                         if let index = pendingSends.firstIndex(where: { $0.localId == key }) {
@@ -885,8 +881,14 @@ final class ThreadController {
 
     /// Paint the durable queue for this thread back into the timeline.
     private func restoreQueued() {
-        let rows = outbox.forConversation(conversationId)
-        let restored = rows.map { row in
+        updateQueuedRows(outbox.all())
+    }
+
+    func updateQueuedRows(_ rows: [QueuedSend]) {
+        let restored = rows.filter { row in
+            row.companyId == companyId && row.conversationId == conversationId &&
+                (row.ownerUserId == nil || row.ownerUserId == meUserId)
+        }.sorted { $0.createdAt < $1.createdAt }.map { row in
             PendingSend(
                 localId: row.localId,
                 body: row.body,
@@ -898,70 +900,13 @@ final class ThreadController {
             )
         }
         let known = Set(restored.map(\.localId))
-        pendingSends = pendingSends.filter { !known.contains($0.localId) } + restored
-    }
-
-    /// Drain the queue. Safe to call from anywhere and as often as you like —
-    /// `OutboxFlusher` refuses to start a second pass while one is running, so
-    /// an LTE/Wi-Fi handoff firing two callbacks lands one message, not two.
-    func flushOutbox() {
-        Task { await flushOutboxNow() }
-    }
-
-    private func flushOutboxNow() async {
-        // Read ONCE, here on the main actor, and captured as a plain String:
-        // the closure below is not main-actor isolated, and `locale` reads a
-        // @MainActor store.
-        let locale = self.locale
-        let flusher = OutboxFlusher(outbox: outbox, locale: locale) { [weak self] item in
-            guard let self else { return .unreachable("gone") }
-            // The photos, read back from our own container. A file that is
-            // gone must NOT become a quiet text-only send: the person attached
-            // it for a reason, so the row stops and says so, and "Send now"
-            // then sends the words on their own.
-            let media = item.media.compactMap { queued in
-                self.outbox.readMedia(item.localId, queued).map {
-                    OutboundMedia(content_type: queued.contentType, base64: $0.base64EncodedString())
-                }
-            }
-            guard media.count == item.media.count else {
-                return .refused(
-                    AppStrings.translate(locale, "thread.outboxMediaLost")
-                )
-            }
-            do {
-                let message = try await self.repo.send(
-                    companyId: item.companyId,
-                    conversationId: item.conversationId,
-                    body: item.body,
-                    media: media.isEmpty ? nil : media,
-                    // The key minted when the person pressed send, reused on
-                    // every attempt — this is what makes the flush idempotent
-                    // rather than merely retried.
-                    idempotencyKey: item.localId
-                )
-                if item.conversationId == self.conversationId {
-                    self.pendingSends.removeAll { $0.localId == item.localId }
-                    self.messages = mergeMessagesFirstPage(self.messages, [message])
-                }
-                return .sent
-            } catch {
-                if (error as? ApiError)?.code == ApiErrorCode.network {
-                    return .unreachable(error.userMessage)
-                }
-                return .refused(error.userMessage)
-            }
-        }
-        let result = await flusher.flush()
-        if !result.sent.isEmpty { markRead() }
-        // Sweep photos left behind by a crash between writing files and writing
-        // the row. Cheap, and the alternative is a folder that only ever grows
-        // on a phone that is usually short of space.
-        outbox.pruneMedia()
-        // A refusal changes what the row says, so repaint from the store rather
-        // than guessing which one was blocked.
-        if !result.blocked.isEmpty {
-            restoreQueued()
+        let delivered = pendingSends.contains { $0.queued && !known.contains($0.localId) }
+        let alreadyBlocked = Set(pendingSends.filter { $0.blockedReason != nil }.map(\.localId))
+        pendingSends = pendingSends.filter {
+            !known.contains($0.localId) && !$0.queued && $0.blockedReason == nil
+        } + restored
+        if delivered { refreshAfterReconnect() }
+        if restored.contains(where: { $0.blockedReason != nil && !alreadyBlocked.contains($0.localId) }) {
             refreshGates()
         }
     }
@@ -990,7 +935,7 @@ final class ThreadController {
         row.staleAcknowledged = true
         outbox.put(row)
         restoreQueued()
-        flushOutbox()
+        requestOutboxFlush()
     }
 
     /// Retry a failed row (server-side rules; retryable gate is in the UI).

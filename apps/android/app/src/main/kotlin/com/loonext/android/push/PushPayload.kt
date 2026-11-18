@@ -108,11 +108,14 @@ data class PushContent(
     val callSessionId: String? get() = queryParam(url, "call")
 }
 
+fun outboxNoticeTag(conversationId: String): String = "outbox:$conversationId"
+
 fun conversationNotificationTags(conversationId: String): Set<String> = setOf(
     "conversation:$conversationId",
     "emergency:$conversationId",
     "lead-chase:1:$conversationId",
     "lead-chase:2:$conversationId",
+    outboxNoticeTag(conversationId),
 )
 
 fun isMessageForOpenConversation(content: PushContent, conversationId: String?): Boolean =

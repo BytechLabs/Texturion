@@ -8,6 +8,7 @@ struct LoonextApp: App {
     @UIApplicationDelegateAdaptor(PushAppDelegate.self) private var pushDelegate
 
     @State private var graph: AppGraph
+    @Environment(\.scenePhase) private var scenePhase
 
     init() {
         // Paper & Olive fonts (Golos + Bricolage) before the first frame.
@@ -64,6 +65,20 @@ struct LoonextApp: App {
             .environment(\.locale, UiLocale.platformLocale(appLocale))
             .tint(BrandColor.olive)
             .preferredColorScheme(preferredScheme)
+            .task { ConnectionWatch.shared.start() }
+            .onChange(of: ConnectionWatch.shared.connection) { _, connection in
+                if connection != .unknown { graph.outbox.requestFlush() }
+            }
+            .onChange(of: graph.outbox.pendingIds) { previous, current in
+                if scenePhase == .active, ConnectionWatch.shared.connection != .unknown,
+                   !current.subtracting(previous).isEmpty {
+                    graph.outbox.requestFlush()
+                }
+            }
+            .onChange(of: scenePhase, initial: true) { _, phase in
+                if phase == .active { graph.outbox.requestFlush() }
+                if phase == .background { graph.outbox.flushOnBackground() }
+            }
             // Universal links: app.loonext.com/inbox/{id} and
             // /calls?call=… — parsed exactly like a notification tap
             // (legacy /conversations/{id} normalization included) and

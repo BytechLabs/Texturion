@@ -1,4 +1,5 @@
 import Foundation
+import Observation
 
 /// #234 — the durable outbox (the Android `Outbox.kt` twin).
 ///
@@ -58,6 +59,8 @@ struct QueuedSend: Codable, Equatable, Identifiable, Sendable {
     /// Without this the age-out below would re-block the row on the very next
     /// flush, so "send it now" would be a button that does nothing.
     var staleAcknowledged: Bool = false
+    /// Older rows belong to the signed-in account that owns the stored outbox.
+    var ownerUserId: String? = nil
 
     var id: String { localId }
 }
@@ -101,6 +104,7 @@ let outboxMediaLostMessage = AppStrings.translate(nil, "thread.outboxMediaLost")
 /// exactly what a device test would never catch reliably, and a throwaway
 /// suite makes all of it assertable.
 @MainActor
+@Observable
 final class Outbox {
     /// ONE key holding the whole queue, rather than a key per message: a queue
     /// is read and rewritten as a unit on every flush, and a crash between two
@@ -110,6 +114,7 @@ final class Outbox {
 
     private let defaults: UserDefaults
     private let mediaRoot: URL
+    private var revision = 0
 
     /// Application Support, not Caches: the system may evict a cache under
     /// storage pressure, and a photo that disappears because the phone was
@@ -123,6 +128,7 @@ final class Outbox {
     }
 
     func all() -> [QueuedSend] {
+        _ = revision
         guard let data = defaults.data(forKey: Self.storageKey) else { return [] }
         // A queue we cannot decode is a queue we cannot send. Reporting empty
         // rather than crashing keeps the app usable; the raw value is left in
@@ -134,6 +140,14 @@ final class Outbox {
         var next = all().filter { $0.localId != send.localId }
         next.append(send)
         write(next)
+    }
+
+    func replaceIfUnchanged(_ expected: QueuedSend, with updated: QueuedSend) -> Bool {
+        var rows = all()
+        guard let index = rows.firstIndex(of: expected) else { return false }
+        rows[index] = updated
+        write(rows)
+        return true
     }
 
     /// Drops the row AND the photos it owned — nothing outlives its message.
@@ -156,6 +170,7 @@ final class Outbox {
     func clear() {
         defaults.removeObject(forKey: Self.storageKey)
         try? FileManager.default.removeItem(at: mediaRoot)
+        revision += 1
     }
 
     /// Everything queued for one thread, oldest first (the timeline order).
@@ -217,6 +232,7 @@ final class Outbox {
     private func write(_ rows: [QueuedSend]) {
         guard let data = try? JSONEncoder().encode(rows) else { return }
         defaults.set(data, forKey: Self.storageKey)
+        revision += 1
     }
 }
 
@@ -276,31 +292,34 @@ final class OutboxFlusher {
     /// Injected so the age-out is assertable without waiting a day.
     private let now: () -> Date
     /// #228: the reader's language, for the one sentence this class writes.
-    private let locale: String?
+    private let currentLocale: () -> String?
+    private let onBlocked: (QueuedSend) -> Void
     private var isFlushing = false
 
-    /// `locale` sits BEFORE `send` deliberately: `send` is passed as a trailing
-    /// closure at every call site, so it has to stay last for those to keep
-    /// compiling. Defaulted, so none of them has to say anything.
     init(
         outbox: Outbox,
         now: @escaping () -> Date = { Date() },
         locale: String? = nil,
+        currentLocale: (() -> String?)? = nil,
+        onBlocked: @escaping (QueuedSend) -> Void = { _ in },
         send: @escaping (QueuedSend) async -> SendOutcome
     ) {
         self.outbox = outbox
         self.now = now
-        self.locale = locale
+        self.currentLocale = currentLocale ?? { locale }
+        self.onBlocked = onBlocked
         self.send = send
     }
 
-    func flush() async -> FlushResult {
+    func flush(accepts: (QueuedSend) -> Bool = { _ in true }) async -> FlushResult {
         if isFlushing { return FlushResult() }
         isFlushing = true
         defer { isFlushing = false }
 
         var result = FlushResult()
         for item in outbox.all().sorted(by: { $0.createdAt < $1.createdAt }) {
+            if Task.isCancelled { break }
+            guard accepts(item) else { continue }
             // A blocked row waits for the person, never for the network.
             if item.blocked {
                 result.blocked.append(item.localId)
@@ -310,12 +329,16 @@ final class OutboxFlusher {
             if !item.staleAcknowledged, agedOut(item, now()) {
                 var stale = item
                 stale.blocked = true
-                stale.lastError = AppStrings.translate(locale, "thread.outboxStale")
-                outbox.put(stale)
-                result.blocked.append(item.localId)
+                stale.lastError = AppStrings.translate(currentLocale(), "thread.outboxStale")
+                if outbox.replaceIfUnchanged(item, with: stale) {
+                    result.blocked.append(item.localId)
+                    onBlocked(stale)
+                }
                 continue
             }
-            switch await send(item) {
+            let outcome = await send(item)
+            guard !Task.isCancelled, accepts(item) else { break }
+            switch outcome {
             case .sent:
                 outbox.remove(item.localId)
                 result.sent.append(item.localId)
@@ -325,14 +348,17 @@ final class OutboxFlusher {
                 updated.attempts += 1
                 updated.lastError = message
                 updated.blocked = true
-                outbox.put(updated)
-                result.blocked.append(item.localId)
+                if outbox.replaceIfUnchanged(item, with: updated) {
+                    result.blocked.append(item.localId)
+                    onBlocked(updated)
+                }
             case .unreachable(let message):
                 var updated = item
                 updated.attempts += 1
                 updated.lastError = message
-                outbox.put(updated)
-                result.stillQueued.append(item.localId)
+                if outbox.replaceIfUnchanged(item, with: updated) {
+                    result.stillQueued.append(item.localId)
+                }
                 // Stop the pass: the network is down for this one, so it is
                 // down for the rest, and hammering it would only burn battery
                 // in the exact place battery matters.

@@ -76,6 +76,7 @@ import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.Stable
 import androidx.compose.runtime.getValue
@@ -1392,6 +1393,12 @@ private fun InboxList(
     modifier: Modifier = Modifier,
 ) {
     val repo = remember(graph) { MessagingRepository(graph.api) }
+    val outboxRows by remember(graph) { graph.outbox.rows }.collectAsState(initial = emptyList())
+    val outboxStatuses = remember(outboxRows, companyId, me.user_id) {
+        outboxRows.filter { row ->
+            row.companyId == companyId && (row.ownerUserId == null || row.ownerUserId == me.user_id)
+        }.groupBy { it.conversationId }.mapValues { (_, rows) -> rows.any { it.blocked } }
+    }
     // #228: the language is part of the key. The controller's snackbars are
     // built in coroutines, so it holds the locale rather than reading it — and a
     // controller kept across a language change would keep saying the old one.
@@ -1563,6 +1570,7 @@ private fun InboxList(
                         ) {
                             ConversationListPane(
                                 controller = controller,
+                                outboxStatuses = outboxStatuses,
                                 meUserId = me.user_id,
                                 viewer = RecordViewer.of(
                                     me.memberships.firstOrNull { it.company_id == companyId }?.role,
@@ -1803,6 +1811,7 @@ internal fun GroupedRow(
 @Composable
 private fun ConversationListPane(
     controller: InboxController,
+    outboxStatuses: Map<String, Boolean>,
     meUserId: String,
     viewer: RecordViewer,
     onOpen: (String) -> Unit,
@@ -1884,7 +1893,7 @@ private fun ConversationListPane(
                     onLongClick = { controller.toggleSelected(row.id) },
                     selected = controller.selection.isRowSelected(row.id),
                     selecting = selecting,
-                ) { SwipeableConversationRow(row, controller, assigneeName(row)) }
+                ) { SwipeableConversationRow(row, controller, assigneeName(row), outboxStatuses[row.id]) }
             }
             if (controller.rows.isNotEmpty()) {
                 item(key = "rest-header") {
@@ -1908,7 +1917,7 @@ private fun ConversationListPane(
                 onLongClick = { controller.toggleSelected(row.id) },
                 selected = controller.selection.isRowSelected(row.id),
                 selecting = selecting,
-            ) { SwipeableConversationRow(row, controller, assigneeName(row)) }
+            ) { SwipeableConversationRow(row, controller, assigneeName(row), outboxStatuses[row.id]) }
         }
         if (controller.loadingMore) {
             item(key = "loading-more") {
@@ -1984,6 +1993,7 @@ private fun SwipeableConversationRow(
     row: ConversationListItem,
     controller: InboxController,
     assigneeName: String?,
+    outboxBlocked: Boolean?,
 ) {
     val haptics = rememberHaptics()
     val closed = row.status == ConversationStatus.CLOSED
@@ -2016,11 +2026,11 @@ private fun SwipeableConversationRow(
         } else {
             null
         },
-    ) { ConversationRow(row, assigneeName) }
+    ) { ConversationRow(row, assigneeName, outboxBlocked) }
 }
 
 @Composable
-private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
+private fun ConversationRow(row: ConversationListItem, assigneeName: String?, outboxBlocked: Boolean? = null) {
     val name = row.contact.name ?: formatPhone(row.contact.phone_e164)
     val readState = if (row.unread) t("inbox.rowStateUnread") else t("inbox.rowStateRead")
     Row(
@@ -2141,6 +2151,14 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
+                )
+            }
+            if (outboxBlocked != null) {
+                Text(
+                    if (outboxBlocked) t("thread.outboxNotSent") else t("thread.outboxQueued"),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (outboxBlocked) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 3.dp),
                 )
             }
             // #293: only in the Snoozed view does this row normally exist —

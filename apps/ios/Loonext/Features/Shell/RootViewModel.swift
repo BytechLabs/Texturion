@@ -359,6 +359,7 @@ final class RootViewModel {
             }
 
             state = .ready(me, companyId: membership.company_id)
+            graph.outbox.requestFlush()
 
             // #483: one transient failure of that GET must not cost a whole session
             // of per-number realtime. Retried OFF the bootstrap path — the shell is

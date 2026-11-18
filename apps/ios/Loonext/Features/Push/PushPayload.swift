@@ -228,12 +228,17 @@ func conversationId(fromNormalizedUrl url: String) -> String? {
     return id.isEmpty ? nil : String(id)
 }
 
+func outboxNoticeTag(_ conversationId: String) -> String {
+    "outbox:\(conversationId)"
+}
+
 func conversationNotificationTags(_ conversationId: String) -> Set<String> {
     [
         "conversation:\(conversationId)",
         "emergency:\(conversationId)",
         "lead-chase:1:\(conversationId)",
         "lead-chase:2:\(conversationId)",
+        outboxNoticeTag(conversationId),
     ]
 }
 
