@@ -10,7 +10,7 @@ import {
 } from "@/components/marketing/pricing/plan-price";
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { legalTermsCopy } from "@/i18n/marketing/legal-terms";
-import { SUPPORT_EMAIL } from "@/lib/marketing/business";
+import { LEGAL_ENTITY_NAME, MAILING_ADDRESS, SUPPORT_EMAIL } from "@/lib/marketing/business";
 import { localizedPath } from "@/lib/marketing/translated-pages";
 
 /**
@@ -57,6 +57,9 @@ export function TermsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
       locale={locale}
     >
       <LegalSectionBlock id="agreement" number="1" heading={copy.sectionAgreement}>
+        {LEGAL_ENTITY_NAME ? (
+          <p><LegalRichText text={copy.operator} slots={{ entity: LEGAL_ENTITY_NAME }} /></p>
+        ) : null}
         <p>{copy.agreement}</p>
       </LegalSectionBlock>
 
@@ -151,6 +154,7 @@ export function TermsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
             }}
           />
         </p>
+        {MAILING_ADDRESS ? <address className="not-italic">{MAILING_ADDRESS}</address> : null}
       </LegalSectionBlock>
     </LegalPage>
   );

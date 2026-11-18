@@ -31,7 +31,8 @@ export const legalPrivacyEn = {
   subprocessorsLink: "sub-processors page",
   deleteLink: "delete your data",
   securityLink: "security page",
-  officerFallback: "our Privacy Officer",
+  officerTitle: "our Privacy Officer",
+  operator: "**{entity}** operates Loonext and is responsible for the personal information covered by this policy.",
 
   scope:
     "This policy covers the personal information Loonext handles when a business uses the service to text its customers. It follows Canada's PIPEDA and Quebec's Law 25 and applies in both countries we serve. Two groups of people are involved: the **account users** on a business's crew, and the **contacts** those businesses text. The business is the party that decides who to text and why; Loonext processes that data to run the shared inbox on the business's behalf.",
@@ -154,7 +155,8 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
   subprocessorsLink: "page des sous-traitants",
   deleteLink: "la page sur la suppression de vos données",
   securityLink: "page sur la sécurité",
-  officerFallback: "notre responsable de la protection des renseignements personnels",
+  officerTitle: "notre responsable de la protection des renseignements personnels",
+  operator: "**{entity}** exploite Loonext et est responsable des renseignements personnels visés par cette politique.",
 
   scope:
     "La présente politique couvre les renseignements personnels que Loonext traite lorsqu'une entreprise utilise le service pour écrire à ses clients par texto. Elle respecte la LPRPDE du Canada et la Loi 25 du Québec et s'applique dans les deux pays que nous servons. Deux groupes de personnes sont concernés : les **utilisateurs du compte** qui font partie de l'équipe d'une entreprise, et les **contacts** à qui ces entreprises écrivent. L'entreprise est la partie qui décide à qui écrire et pourquoi; Loonext traite ces données pour exploiter la boîte de réception partagée au nom de l'entreprise.",

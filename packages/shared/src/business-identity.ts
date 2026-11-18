@@ -26,7 +26,7 @@
  */
 
 /** Registered legal entity name, e.g. "Loonext Technologies Inc.", from ops. */
-export const LEGAL_ENTITY_NAME: string | null = null;
+export const LEGAL_ENTITY_NAME: string | null = "Bytech Labs";
 
 /** Mailing address (single line), required for sender identification, from ops. */
 export const MAILING_ADDRESS: string | null = null;

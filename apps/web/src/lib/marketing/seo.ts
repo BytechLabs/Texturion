@@ -1,5 +1,5 @@
 import { languagesFor } from "./translated-pages";
-import { BILLING_CURRENCIES, PLAN_PRICE_CENTS } from "@loonext/shared";
+import { BILLING_CURRENCIES, LEGAL_ENTITY_NAME, MAILING_ADDRESS, PLAN_PRICE_CENTS } from "@loonext/shared";
 import type { Metadata } from "next";
 
 import { absoluteUrl, SITE_URL } from "./site";
@@ -122,6 +122,8 @@ export function organizationJsonLd() {
     "@type": "Organization",
     "@id": ORG_ID,
     name: "Loonext",
+    ...(LEGAL_ENTITY_NAME ? { legalName: LEGAL_ENTITY_NAME } : {}),
+    ...(MAILING_ADDRESS ? { address: MAILING_ADDRESS } : {}),
     url: SITE_URL,
     logo: `${SITE_URL}/icons/icon-512.png`,
     // #491: was "A shared SMS inbox for small service businesses in the US
