@@ -25,6 +25,7 @@ enum PushLink {
 enum PushKind {
     static let call = "call"
     static let missedCall = "missed_call"
+    static let escalation = "escalation"
     /// A task the reader is assigned, shortly before (or after) its due date.
     static let taskDue = "task_due"
 
@@ -144,25 +145,25 @@ func parsePush(_ data: [String: String], _ locale: String? = nil) -> PushContent
             : body,
         url: url,
         tag: tag,
-        category: pushCategory(for: kind)
+        category: pushCategory(for: kind, alertId: trimmedNonEmpty(data["alert_id"]))
     )
 }
 
 /// Which category a parsed push belongs to. An unknown `kind` is a newer
 /// server than this build, so it lands in Messages rather than being dropped.
-func pushCategory(for kind: String?) -> String {
+private func pushCategory(for kind: String?, alertId: String?) -> String {
     switch kind {
     // #564: not Messages. On Android that distinction is a channel a crew can
     // leave on while muting the inbox; here it is what stops an urgent text
     // being presented exactly like "on my way?".
-    case PushKind.emergency:
+    case PushKind.emergency, PushKind.escalation:
         return PushCategory.emergency
     // #607: money is not a message, and on the Messages category a deposit was
     // presented exactly like "on my way?".
     case PushKind.payment:
         return PushCategory.payments
     case PushKind.missedCall:
-        return PushCategory.missedCalls
+        return alertId == nil ? PushCategory.missedCalls : PushCategory.emergency
     case PushKind.taskDue:
         return PushCategory.taskReminders
     case PushKind.conversationAssigned, PushKind.taskAssigned, PushKind.taskUpdate:

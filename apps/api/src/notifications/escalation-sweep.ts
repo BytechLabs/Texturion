@@ -157,6 +157,7 @@ export async function runEscalationSweep(
         // unanswered for the grace period is exactly the case a member's quiet
         // hours must not swallow — it is the reason the window is safe to set.
         overridesQuietHours: { reason: "escalation" },
+        highPriority: { companyId: alert.company_id, reason: "escalation" },
         web: (locale) => ({ ...escalationCopy(alert.kind, locale), url }),
         native: (locale) => ({
           kind: "escalation",

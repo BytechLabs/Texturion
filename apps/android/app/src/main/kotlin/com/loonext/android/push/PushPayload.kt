@@ -39,6 +39,7 @@ val FALLBACK_DEEP_LINK: String = "$APP_ORIGIN/inbox"
 object PushKind {
     const val CALL = "call"
     const val MISSED_CALL = "missed_call"
+    const val ESCALATION = "escalation"
 
     /** A task the reader is assigned, shortly before (or after) its due date. */
     const val TASK_DUE = "task_due"
@@ -164,13 +165,17 @@ fun parsePush(
             // urgent text buzzed exactly as loudly as "on my way?" and was
             // silenced by the same switch — while the reply we send that
             // customer says the crew has been alerted.
-            PushKind.EMERGENCY -> ChannelIds.EMERGENCY
+            PushKind.EMERGENCY, PushKind.ESCALATION -> ChannelIds.EMERGENCY
             // #607: money is not a message. On the Messages channel a deposit
             // landing was silenced by the same switch as "on my way?", and the
             // person most likely to have muted the inbox for the afternoon is
             // the one standing in the driveway waiting on it.
             PushKind.PAYMENT -> ChannelIds.PAYMENTS
-            PushKind.MISSED_CALL -> ChannelIds.MISSED_CALLS
+            PushKind.MISSED_CALL -> if (data["alert_id"].isNullOrBlank()) {
+                ChannelIds.MISSED_CALLS
+            } else {
+                ChannelIds.EMERGENCY
+            }
             PushKind.TASK_DUE -> ChannelIds.TASK_REMINDERS
             PushKind.CONVERSATION_ASSIGNED, PushKind.TASK_ASSIGNED, PushKind.TASK_UPDATE ->
                 ChannelIds.ASSIGNMENTS

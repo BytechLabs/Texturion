@@ -148,6 +148,10 @@ describe(runEscalationSweep, () => {
     ).apns;
     expect(headers["apns-collapse-id"]).toBe("escalation:alert-1");
     expect(headers["apns-collapse-id"]).not.toBe(`conversation:${CONVERSATION}`);
+    expect(headers["apns-priority"]).toBe("10");
+    expect(sb.find("POST", "/rest/v1/rpc/claim_high_priority_push").map((call) => call.body)).toEqual([
+      { p_company_id: COMPANY, p_reason: "escalation", p_sends: 1, p_default_limit: 2000 },
+    ]);
 
     // And the payload carries the alert id, which is what lets the
     // notification offer Acknowledge rather than only a link.

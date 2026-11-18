@@ -431,8 +431,13 @@ describe("notifyMissedCall — after-hours routing (#244)", () => {
     fri: { open: "09:00", close: "17:00" },
   };
 
-  function nightWorld(onCall: string | null) {
-    const world = buildWorld({ members: CREW });
+  function nightWorld(onCall: string | null, follower?: string) {
+    const world = buildWorld({
+      members: CREW,
+      memberPrefs: follower
+        ? [{ user_id: follower, muted: false, muted_until: null, followed: true }]
+        : [],
+    });
     world.sb.on("GET", "/rest/v1/companies", () => [
       {
         timezone: "America/Toronto",
@@ -443,7 +448,14 @@ describe("notifyMissedCall — after-hours routing (#244)", () => {
     ]);
     world.sb.on("POST", "/rest/v1/rpc/api_on_call_now", () => onCall);
     world.sb.on("POST", "/rest/v1/alert_escalations", () => [{ id: "alert-1" }]);
-    world.sb.on("GET", "/rest/v1/device_push_tokens", () => []);
+    world.sb.on("GET", "/rest/v1/device_push_tokens", (call) => {
+      if (!follower || !onCall) return [];
+      const audience = call.url.searchParams.get("user_id") ?? "";
+      return [
+        { id: "on-call-device", user_id: onCall, platform: "android", token: "on-call-token" },
+        { id: "follower-device", user_id: follower, platform: "android", token: "follower-token" },
+      ].filter((device) => audience.includes(device.user_id));
+    });
     return world;
   }
 
@@ -488,6 +500,33 @@ describe("notifyMissedCall — after-hours routing (#244)", () => {
       world.sb.calls.some((call) => call.path === "/rest/v1/alert_escalations"),
     ).toBe(false);
 
+    vi.useRealTimers();
+  });
+
+  it("pages the on-call device at high priority and sends the follower an ordinary missed call", async () => {
+    const world = nightWorld(TECH, OWNER);
+    const account = await makeServiceAccount();
+    const fcm = fcmService();
+    vi.setSystemTime(new Date("2026-08-02T03:40:00Z"));
+    stubFetch(...world.routes, ...fcm.routes);
+
+    await notifyMissedCall(fcmEnv(account), INPUT);
+
+    expect(fcm.sends).toHaveLength(2);
+    const messages = fcm.sends.map(({ message }) => message);
+    expect(messages.find((message) => message.token === "on-call-token")).toMatchObject({
+      data: { kind: "missed_call", alert_id: "alert-1" },
+      android: { priority: "HIGH" },
+    });
+    const followerMessage = messages.find((message) => message.token === "follower-token");
+    expect(followerMessage).toMatchObject({
+      data: { kind: "missed_call" },
+      android: { priority: "NORMAL" },
+    });
+    expect(followerMessage?.data).not.toHaveProperty("alert_id");
+    expect(world.sb.find("POST", "/rest/v1/rpc/claim_high_priority_push").map((call) => call.body)).toEqual([
+      { p_company_id: COMPANY_ID, p_reason: "on_call_page", p_sends: 1, p_default_limit: 2000 },
+    ]);
     vi.useRealTimers();
   });
 });

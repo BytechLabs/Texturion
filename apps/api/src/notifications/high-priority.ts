@@ -27,15 +27,9 @@ import { captureException, opsNotice, workerEnv } from "../observability/capture
  * Which feature is spending. Recorded per company per day so a spike can be
  * attributed to the feature that caused it rather than to "push".
  *
- * `lead` and `lead_chase` share ONE ceiling; the other three are counted and
- * never capped. That split is a shape argument rather than a volume one. A
- * `ring` and a `call_end` require a phone call to have actually happened, and
- * a ring delivered at NORMAL priority is not a ring; an `emergency` requires
- * one of the four fixed words in EMERGENCY_KEYWORDS. None of those can be
- * manufactured from outside at volume. The two lead reasons both fire off
- * inbound text volume, which is the one input an outsider controls — and they
- * share a ceiling rather than holding one each precisely because they share
- * that input, so a flood cannot spend the budget twice.
+ * The lead reasons share one ceiling because both are driven by inbound text
+ * volume. Calls, emergencies and on-call alerts keep their priority after the
+ * lead budget is spent.
  *
  * The capped set is enforced in `claim_high_priority_push`, not here, so the
  * two cannot drift.
@@ -45,7 +39,9 @@ export type HighPriorityReason =
   | "lead_chase"
   | "emergency"
   | "ring"
-  | "call_end";
+  | "call_end"
+  | "on_call_page"
+  | "escalation";
 
 /**
  * Names the company being spent on and the feature spending. Required to

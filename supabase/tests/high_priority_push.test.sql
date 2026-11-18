@@ -139,11 +139,8 @@ end $$;
 -- ===========================================================================
 -- HP-4. The uncapped reasons are never refused and never reach a ceiling.
 --
---       ring/call_end need a phone call to have actually happened, and a ring
---       delivered at NORMAL priority is not a ring. emergency needs one of the
---       four fixed words in EMERGENCY_KEYWORDS. None can be manufactured from
---       outside at volume, so none of them shares the lead ceiling — proven
---       here by blowing 50 through a limit of 10.
+--       Calls, emergencies and on-call alerts keep their priority when the
+--       lead budget is exhausted.
 -- ===========================================================================
 do $$
 declare
@@ -151,7 +148,7 @@ declare
   reason text;
   r jsonb;
 begin
-  foreach reason in array array['ring', 'call_end', 'emergency'] loop
+  foreach reason in array array['ring', 'call_end', 'emergency', 'on_call_page', 'escalation'] loop
     r := public.claim_high_priority_push(co, reason, 50, 10);
     if (r->>'allowed')::boolean is not true then
       raise exception 'HP-4 FAILED: % must never be capped: %', reason, r;
@@ -190,7 +187,7 @@ begin
   end if;
   -- An uncapped reason can never accrue degraded demand.
   select coalesce(sum(degraded), 0) into n from public.high_priority_push_days
-   where company_id = co and reason in ('ring', 'call_end', 'emergency');
+   where company_id = co and reason in ('ring', 'call_end', 'emergency', 'on_call_page', 'escalation');
   if n is distinct from 0 then
     raise exception 'HP-5 FAILED: an uncapped reason degraded % sends', n;
   end if;

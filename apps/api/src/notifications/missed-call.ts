@@ -32,6 +32,7 @@ import {
   withoutMuted,
 } from "./conversation-prefs";
 import { deliverPush } from "./deliver";
+import type { PushDelivery } from "./deliver";
 import { MISSED_CALL_COPY } from "./missed-call-copy";
 import { routeAfterHoursAlert } from "./on-call";
 import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
@@ -186,13 +187,7 @@ export async function notifyMissedCall(
     // The contact's name is theirs and rides through untranslated.
     return { title: copy.title(contactName), body: copy[bodyKey], url: link };
   };
-  // The alert id rides on the NATIVE payload only: it is what turns the
-  // notification into something answerable, and the Web Push service worker
-  // renders unmarked pushes as ordinary notices and must not change shape.
-  const acknowledgeable = routing.alertId
-    ? { alert_id: routing.alertId }
-    : {};
-  await deliverPush(env, db, {
+  const delivery = {
     category: "missed_calls",
     companyId: input.companyId,
     userIds: pushUsers,
@@ -205,18 +200,28 @@ export async function notifyMissedCall(
     native: (locale) => ({
       kind: "missed_call",
       ...alert(locale),
-      ...acknowledgeable,
     }),
     collapseKey: `conversation:${input.conversationId}`,
-    // #244: only when this was NARROWED to the on-call member. They agreed to
-    // hold the phone tonight, so their own quiet hours do not apply to the one
-    // thing they agreed to. An un-narrowed alert is ordinary traffic and stays
-    // subject to everybody's window — which is the whole point of having one.
-    ...(routing.reason === "narrowed"
-      ? { overridesQuietHours: { reason: "on_call_page" as const } }
-      : {}),
     failures,
-  });
+  } satisfies PushDelivery;
+
+  const alertId = routing.alertId;
+  if (alertId) {
+    const pageUsers = pushUsers.filter((userId) => routing.userIds.includes(userId));
+    const followers = pushUsers.filter((userId) => !routing.userIds.includes(userId));
+    await Promise.all([
+      deliverPush(env, db, { ...delivery, userIds: followers }),
+      deliverPush(env, db, {
+        ...delivery,
+        userIds: pageUsers,
+        overridesQuietHours: { reason: "on_call_page" },
+        highPriority: { companyId: input.companyId, reason: "on_call_page" },
+        native: (locale) => ({ ...delivery.native(locale), alert_id: alertId }),
+      }),
+    ]);
+  } else {
+    await deliverPush(env, db, delivery);
+  }
 
   if (failures.length > 0) {
     throw new AggregateError(
