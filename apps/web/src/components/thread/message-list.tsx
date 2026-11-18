@@ -615,6 +615,8 @@ export function MessageList({
         ref={scrollRef}
         onScroll={onScroll}
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-3 md:px-6"
+        role="log"
+        aria-live="off"
         aria-label={t("thread.messagesWithAria", { name: contactName })}
       >
         {messagesQuery.isFetchingNextPage && (
@@ -747,7 +749,7 @@ export function MessageList({
         </div>
       )}
 
-      {/* Incoming messages announced politely for screen readers (G11). */}
+      {/* The log virtualizes old rows. Announce only real arrivals here. */}
       <div aria-live="polite" role="status" className="sr-only">
         {announcement}
       </div>

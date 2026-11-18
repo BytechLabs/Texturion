@@ -14,6 +14,7 @@ import androidx.compose.ui.test.hasClickAction
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performFirstLinkClick
 import com.loonext.android.core.model.ContactSummary
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.core.model.ConversationSnippet
@@ -145,13 +146,18 @@ class TalkBackSemanticsTest {
     // --- the second round: order, times, hint and headings ---------------------
 
     @Composable
-    private fun bubble(direction: String, status: String?) {
+    private fun bubble(
+        direction: String,
+        status: String?,
+        body: String = "See you Thursday at 9",
+        onSelectPhone: ((String) -> Unit)? = null,
+    ) {
         MessageBubble(
             message = Message(
                 id = "m1",
                 conversation_id = "c1",
                 direction = direction,
-                body = "See you Thursday at 9",
+                body = body,
                 status = status,
                 created_at = "2026-07-15T13:54:00Z",
             ),
@@ -164,6 +170,7 @@ class TalkBackSemanticsTest {
             mintAttachmentUrl = { "" },
             onOpenFile = {},
             onOpenAttachment = {},
+            onSelectPhone = onSelectPhone,
         )
     }
 
@@ -173,6 +180,26 @@ class TalkBackSemanticsTest {
             .fetchSemanticsNode()
         val spoken = stop.config.getOrNull(SemanticsProperties.Text).orEmpty().joinToString(" | ") { it.text }
         assertTrue(spoken, spoken.indexOf("See you") < spoken.indexOf("Delivered") && "Delivered" in spoken)
+        assertTrue(spoken, "Dana" in spoken)
+    }
+
+    @Test fun `an inbound message starts with its sender`() {
+        show { bubble("inbound", "received") }
+        val stop = compose.onNode(hasText("See you Thursday at 9") and hasClickAction())
+            .fetchSemanticsNode()
+        val spoken = stop.config.getOrNull(SemanticsProperties.Text).orEmpty().map { it.text }
+        assertEquals("Dana:", spoken.first())
+        assertTrue("See you Thursday at 9" in spoken)
+    }
+
+    @Test fun `a message with a phone link keeps its sender and a separate action`() {
+        val body = "Call me on (415) 555-0134"
+        var selected: String? = null
+        show { bubble("inbound", "received", body) { selected = it } }
+
+        compose.onNode(hasText(body) and hasClickAction()).assert(hasText("Dana:"))
+        compose.onNodeWithText(body, useUnmergedTree = true).performFirstLinkClick()
+        compose.runOnIdle { assertEquals("+14155550134", selected) }
     }
 
     @Test fun `a time is spoken as a time in the readers locale`() {

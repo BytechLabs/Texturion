@@ -1,6 +1,6 @@
 "use client";
 
-import { memo } from "react";
+import { memo, useId } from "react";
 
 import {
   Check,
@@ -27,7 +27,7 @@ import { Timestamp } from "@/components/ui/timestamp";
 import { useT } from "@/i18n/provider";
 import { useRetryMessage } from "@/lib/api/messages";
 import type { Message, MessageTaskLink } from "@/lib/api/types";
-import { formatTimestamp } from "@/lib/format/time";
+import { formatAbsoluteDateTime, formatTimestamp } from "@/lib/format/time";
 import { cn } from "@/lib/utils";
 
 import { NoteAttachments } from "@/components/attachments/note-attachments";
@@ -279,6 +279,12 @@ export const MessageBubble = memo(({
     : undefined;
   const outbound = message.direction === "outbound";
   const note = message.direction === "note";
+  const author = message.direction === "inbound"
+    ? contactName
+    : (senderName ?? t(note ? "thread.internalNote" : "inbox.teammateFallback"));
+  const authorId = useId();
+  const bodyId = useId();
+  const hasBody = message.body.trim() !== "";
   const attachments = message.attachments ?? [];
   // #189: MMS carries more than pictures now — images keep their thumbnail
   // grid; audio/video/vCard/calendar/PDF/text render as tappable file chips.
@@ -295,6 +301,7 @@ export const MessageBubble = memo(({
     return kind !== "image" && kind !== "audio";
   });
   const failed = message.status === "failed";
+  const hasVisibleTime = (isLastOfCluster || failed) && !(outbound && failed);
   const done = isDone(message);
   const hasTask = message.has_task === true;
   const pinned = message.pinned_at !== null;
@@ -321,6 +328,11 @@ export const MessageBubble = memo(({
           outbound || note ? "items-end" : "items-start",
         )}
       >
+        <span id={authorId} className="sr-only">
+          {note && senderName && `${t("thread.internalNote")}. `}
+          {t("thread.messageAuthorPrefix", { name: author })}
+          {!hasBody && attachments.length > 0 && `${t("thread.attachments")}. `}
+        </span>
         {imageAttachments.length > 0 && (
           <div
             className={cn(
@@ -379,7 +391,7 @@ export const MessageBubble = memo(({
             ))}
           </div>
         )}
-        {message.body.trim() !== "" && (
+        {hasBody && (
           <div
             className={cn(
               // APP-SHELL-REDESIGN bubbles (mockup): 16px radius with the inner
@@ -399,7 +411,7 @@ export const MessageBubble = memo(({
                 author, so a shared inbox knows whose note this is. The ink
                 token, not the amber accent, which is only 3.6:1 on the fill. */}
             {note && (
-              <span className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber-ink">
+              <span aria-hidden className="mb-1 flex items-center gap-1 text-[11px] font-semibold text-app-amber-ink">
                 <Lock className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />
                 <span className="truncate">
                   {t("thread.internalNote")}
@@ -416,6 +428,7 @@ export const MessageBubble = memo(({
             {/* D14 done: strikethrough in the muted text token, 150ms ease-out.
                 Fading it with opacity dropped it below 4.5:1. */}
             <span
+              id={bodyId}
               className={cn(
                 "transition-colors duration-150 ease-out",
                 done && "text-app-muted-2 line-through",
@@ -438,6 +451,11 @@ export const MessageBubble = memo(({
             {reaction}
           </span>
         )}
+        {!hasVisibleTime && (
+          <time className="sr-only" dateTime={message.created_at}>
+            {formatAbsoluteDateTime(message.created_at, undefined, t.locale)}
+          </time>
+        )}
         {(isLastOfCluster || failed || done || hasTask || pinned) && (
           <span className="flex items-center gap-1.5">
             {/* Labeled chips, orthogonal facts: a "Pinned" chip, a stone "Task"
@@ -452,9 +470,9 @@ export const MessageBubble = memo(({
                 teammate who sent it ("Dana · 7:18 AM · Delivered"). Notes carry
                 their author in the card label instead. */}
             {outbound && senderName && (isLastOfCluster || failed) && (
-              <span className="text-[12px] text-muted-foreground">
+              <span aria-hidden className="text-[12px] text-muted-foreground">
                 {senderName}
-                <span aria-hidden> ·</span>
+                {" ·"}
               </span>
             )}
             {(isLastOfCluster || failed) &&
@@ -477,7 +495,11 @@ export const MessageBubble = memo(({
       </div>
       {/* §4.1: done + overflow, vertically CENTERED beside the bubble (the row
           is items-center; the cluster is self-center). */}
-      <MessageActions message={message} conversationId={conversationId} />
+      <MessageActions
+        message={message}
+        conversationId={conversationId}
+        describedBy={hasBody ? `${authorId} ${bodyId}` : authorId}
+      />
     </div>
     </MessageMenuScope>
   );

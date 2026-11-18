@@ -949,7 +949,7 @@ private fun ThreadLoaded(
                                         MessageDirection.OUTBOUND ->
                                             messageSenderLabel(message, names, locale)
 
-                                        else -> null
+                                        else -> contactName
                                     },
                                     doneByName = message.done_by_user_id?.let { names[it] },
                                     noteFilesState =

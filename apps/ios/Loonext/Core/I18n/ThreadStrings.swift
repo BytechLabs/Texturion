@@ -241,6 +241,8 @@ enum ThreadStrings {
 
             // --- Message bubbles + long-press actions ---------------------------
             "thread.internalNote": "Internal note",
+            "thread.messageAuthorPrefix": "{name}:",
+            "thread.messageSenderContact": "Contact",
             // #725: what stands where a teammate's name would on an automated text.
             "thread.sentAutomatically": "Sent automatically",
             "thread.sentAutomaticallyBy": "Sent automatically · {automation}",
@@ -997,6 +999,8 @@ enum ThreadStrings {
 
             // --- Message bubbles + long-press actions ---------------------------
             "thread.internalNote": "Note interne",
+            "thread.messageAuthorPrefix": "{name} :",
+            "thread.messageSenderContact": "Contact",
             "thread.sentAutomatically": "Envoyé automatiquement",
             "thread.sentAutomaticallyBy": "Envoyé automatiquement · {automation}",
             "thread.automationAwayReply": "Réponse d’absence",

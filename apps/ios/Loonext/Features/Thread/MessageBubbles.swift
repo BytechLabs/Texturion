@@ -43,7 +43,7 @@ struct MessageBubble: View {
 
     var body: some View {
         VStack(alignment: horizontalAlignment, spacing: 2) {
-            bubble
+            accessibleBubble
                 // #712: the long-press menu is the message's one action list.
                 .recordContextMenu(
                     messageActions(
@@ -98,7 +98,29 @@ struct MessageBubble: View {
         return outbound ? .trailing : .leading
     }
 
-    private var bubble: some View {
+    private var authorPrefix: String {
+        let name = authorName
+            ?? AppStrings.translate(appLocale, outbound ? "inbox.teammateFallback" : "thread.messageSenderContact")
+        return AppStrings.translate(appLocale, "thread.messageAuthorPrefix", ["name": name])
+    }
+
+    @ViewBuilder
+    private var accessibleBubble: some View {
+        let text = note ? AttributedString("") : phoneBody
+        let hasPhoneLinks = text.runs.contains { $0.link != nil }
+        let content = bubble(text: text, hasPhoneLinks: hasPhoneLinks)
+        if !note && !hasPhoneLinks && message.attachments.isEmpty {
+            content.accessibilityElement(children: .combine)
+        } else if !note && (hasPhoneLinks || message.body.isBlank) {
+            content
+                .accessibilityElement(children: .contain)
+                .accessibilityLabel(Text(authorPrefix))
+        } else {
+            content
+        }
+    }
+
+    private func bubble(text: AttributedString, hasPhoneLinks: Bool) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             if note {
                 HStack(spacing: 4) {
@@ -147,7 +169,7 @@ struct MessageBubble: View {
                         strikethrough: done
                     )
                 } else {
-                    Text(phoneBody)
+                    Text(text)
                         .font(.golos(14))
                         .foregroundStyle(bodyColor)
                         .tint(bodyColor)
@@ -160,6 +182,7 @@ struct MessageBubble: View {
                             MainActor.assumeIsolated { onSelectPhone(number) }
                             return .handled
                         })
+                        .accessibilityLabel("\(authorPrefix) \(message.body)", isEnabled: !hasPhoneLinks)
                 }
             }
 
@@ -347,12 +370,8 @@ private struct MessageMetaLine: View {
             .foregroundStyle(BrandColor.muted300)
     }
 
-    private var metaText: String {
-        // "Dana · 7:18 AM · Delivered", matching the web's order.
+    private var timeAndDelivery: String {
         var parts: [String] = []
-        if message.direction == MessageDirection.outbound, let authorName {
-            parts.append(authorName)
-        }
         parts.append(bubbleTime(message.created_at))
         if message.direction == MessageDirection.outbound,
            let delivery = deliveryLabel(message, locale: appLocale) {
@@ -366,6 +385,10 @@ private struct MessageMetaLine: View {
         // #241: the reason, not the vendor code it was derived from.
         let optedOut = failed
             && failureReasonOf(message.error_reason, message.error_code) == .optOut
+        let timeAndStatus = timeAndDelivery
+        let name = message.direction == MessageDirection.outbound
+            ? authorName.map { "\($0) · " } ?? ""
+            : ""
 
         HStack(spacing: 6) {
             if message.pinned_at != nil {
@@ -399,8 +422,9 @@ private struct MessageMetaLine: View {
                     )
                 }
             }
-            Text(metaText)
+            Text(name + timeAndStatus)
                 .font(.golos(10.5))
+                .accessibilityLabel(Text(timeAndStatus))
                 .foregroundStyle(
                     failed && !optedOut
                         ? AnyShapeStyle(BrandColor.destructive)
@@ -760,7 +784,10 @@ func threadTimelineFixture() -> some View {
     return ScrollView {
         VStack(spacing: 0) {
             DayDividerLine(label: "Today")
-            bubble(fixtureMessage("m1", MessageDirection.inbound, "Can you come by Tuesday morning?", status: MessageStatus.received))
+            bubble(
+                fixtureMessage("m1", MessageDirection.inbound, "Can you come by Tuesday morning?", status: MessageStatus.received),
+                author: "Maria"
+            )
             bubble(fixtureMessage("m2", MessageDirection.outbound, "Yes, 9am works.", status: MessageStatus.delivered), author: "Dana")
             bubble(fixtureMessage("m3", MessageDirection.outbound, "On my way.", status: MessageStatus.failed), author: "Dana")
             bubble(fixtureMessage("m4", MessageDirection.note, "Gate code is 4411."), author: "Dana")

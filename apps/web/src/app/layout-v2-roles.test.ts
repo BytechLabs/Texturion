@@ -51,6 +51,12 @@ const SPEC_RULES: readonly {
   why: string;
 }[] = [
   {
+    rule: "Conversation scroller has a log role",
+    file: "components/thread/message-list.tsx",
+    code: 'role="log"',
+    why: "The timeline contains dated entries in chronological order.",
+  },
+  {
     rule: "§7 — incoming messages announce",
     file: "components/thread/message-list.tsx",
     code: 'aria-live="polite"',

@@ -100,7 +100,7 @@ function renderList() {
       catchUp={{ offered: false, askToken: 0, newestMessageId: undefined, onDismiss: vi.fn() }}
     />,
   );
-  return screen.getByLabelText("Messages with Dana Rivera");
+  return screen.getByRole("log", { name: "Messages with Dana Rivera" });
 }
 
 const scrollTops = new WeakMap<Element, number>();
