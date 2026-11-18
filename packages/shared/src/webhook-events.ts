@@ -38,6 +38,9 @@ export const WEBHOOK_EVENT_TYPES = [
   "message.deleted",
   "conversation.deleted",
   "call.deleted",
+  "payment.paid",
+  "payment.refunded",
+  "quote.accepted",
 ] as const;
 
 export type WebhookEventType = (typeof WEBHOOK_EVENT_TYPES)[number];
@@ -360,6 +363,9 @@ export const WEBHOOK_EVENT_SCOPE: Record<WebhookEventType, ApiKeyScope> = {
   "conversation.deleted": "conversations:read",
   "contact.deleted": "contacts:read",
   "call.deleted": "conversations:read",
+  "payment.paid": "conversations:read",
+  "payment.refunded": "conversations:read",
+  "quote.accepted": "conversations:read",
 };
 
 /**

@@ -91,6 +91,13 @@ the key holds. See `apps/api/src/auth/api-key.ts`.
 Outbound webhooks are the other half and are documented by their own contract
 in `packages/shared/src/webhook-events.ts`.
 
+`payment.paid`, `payment.refunded`, and `quote.accepted` require
+`conversations:read` in addition to `webhooks:manage`. Payment events carry
+`payment_request_id`, `conversation_id`, `contact_id`, `currency`, and the
+requested, received, and refunded amounts in cents. A refund event reports the
+new cumulative refund. The quote event carries `quote_id`, `conversation_id`,
+`contact_id`, `amount_cents`, `currency`, and `decided_at`.
+
 ---
 
 ## Authentication
