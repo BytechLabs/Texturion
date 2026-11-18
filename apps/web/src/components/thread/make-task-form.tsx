@@ -3,12 +3,14 @@
 import { ChevronDown, MapPin } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
+import type { ReactNode } from "react";
 import { toast } from "sonner";
 
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { Button } from "@/components/ui/button";
 import { createdToast } from "@/components/ui/created-toast";
 import { CountryPicker } from "@/components/ui/country-picker";
+import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { undoableToast } from "@/components/ui/optimistic-undo";
@@ -32,12 +34,7 @@ import { messageTaskTitle } from "./make-task-title";
 /** Sentinel <Select> value for "leave unassigned" (Radix forbids an empty string). */
 const UNASSIGNED = "__unassigned__";
 
-/**
- * Delay before applying enrichment results to form state — long enough to clear
- * the Popover's open transition + auto-focus, so a cached (instant) result never
- * setStates mid-open and dismisses the popover on reopen. The fetch is NOT
- * delayed (it overlaps the transition), only the state application.
- */
+/** Apply cached enrichment after the dialog has moved focus to the form. */
 const ENRICH_APPLY_DELAY_MS = 300;
 
 /** The 6 structured address fields as editable strings ("" = absent). */
@@ -57,6 +54,22 @@ const EMPTY_ADDRESS: AddressFields = {
   postal_code: "",
   country: "",
 };
+
+export function MakeTaskDialogContent({ children }: { children: ReactNode }) {
+  const t = useT();
+
+  return (
+    <DialogContent
+      aria-describedby={undefined}
+      className="max-h-[calc(100dvh-2rem)] overflow-y-auto overscroll-contain sm:max-w-md"
+    >
+      <DialogHeader>
+        <DialogTitle>{t("thread.makeATask")}</DialogTitle>
+      </DialogHeader>
+      {children}
+    </DialogContent>
+  );
+}
 
 /** #214 provenance badge copy — only shown for AI sources (not manual/null). */
 function provenanceLabel(
@@ -159,12 +172,6 @@ export function MakeTaskForm({
 
     enrichedRef.current = true;
     let cancelled = false;
-    // Kick the fetch off now (it overlaps the popover's open transition), but
-    // apply EVERY resulting setState only after the transition + auto-focus have
-    // settled. A synchronous session-cache hit (on reopen) would otherwise
-    // setState WHILE this popover is opening, which disrupts Radix's focus scope
-    // and dismisses it — the form "flashed open then vanished" on the 2nd open.
-    // Deferring the state (never the fetch) fixes reopen with no first-open lag.
     const pending = enrichTaskFromMessage(companyId, {
       message_id: message.id,
       conversation_id: conversationId,

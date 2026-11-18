@@ -3,15 +3,8 @@
 import { ListPlus } from "lucide-react";
 import { useState } from "react";
 
-import { MakeTaskForm } from "@/components/thread/make-task-form";
-import {
-  Popover,
-  PopoverAnchor,
-  PopoverContent,
-  PopoverHeader,
-  PopoverTitle,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { MakeTaskDialogContent, MakeTaskForm } from "@/components/thread/make-task-form";
+import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { useT } from "@/i18n/provider";
 import { useCall } from "@/lib/api/calls";
 import { cn } from "@/lib/utils";
@@ -46,11 +39,7 @@ export function MakeCallTask({
   className?: string;
   /** #734: a trigger of the caller's own, so it matches the row it sits in. */
   trigger?: React.ReactNode;
-  /**
-   * #734: opened from a menu item instead of a button of its own. The form then
-   * hangs off an invisible anchor at the row's top-right, since the menu item
-   * that asked for it has already closed.
-   */
+  /** A menu item can open the dialog without a separate trigger. */
   open?: boolean;
   onOpenChange?: (open: boolean) => void;
 }) {
@@ -64,31 +53,24 @@ export function MakeCallTask({
   };
 
   return (
-    <Popover open={open} onOpenChange={setOpen}>
-      {controlled ? (
-        <PopoverAnchor asChild>
-          <span aria-hidden className="pointer-events-none absolute right-3 top-3 size-0" />
-        </PopoverAnchor>
-      ) : (
-      <PopoverTrigger asChild>
-        {trigger ?? <button
-          type="button"
-          aria-label={t("thread.makeTaskFromCallAria")}
-          title={t("thread.makeATask")}
-          className={cn(
-            "tap-target relative z-[1] grid size-8 shrink-0 place-items-center rounded-full text-app-muted-2 transition-colors duration-150",
-            "hover:bg-app-hover hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-            className,
-          )}
-        >
-          <ListPlus aria-hidden className="size-4" strokeWidth={1.75} />
-        </button>}
-      </PopoverTrigger>
+    <Dialog open={open} onOpenChange={setOpen}>
+      {!controlled && (
+        <DialogTrigger asChild>
+          {trigger ?? <button
+            type="button"
+            aria-label={t("thread.makeTaskFromCallAria")}
+            title={t("thread.makeATask")}
+            className={cn(
+              "tap-target relative z-[1] grid size-8 shrink-0 place-items-center rounded-full text-app-muted-2 transition-colors duration-150",
+              "hover:bg-app-hover hover:text-app-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+              className,
+            )}
+          >
+            <ListPlus aria-hidden className="size-4" strokeWidth={1.75} />
+          </button>}
+        </DialogTrigger>
       )}
-      <PopoverContent align="end" className="w-80">
-        <PopoverHeader className="mb-3">
-          <PopoverTitle>{t("thread.makeATask")}</PopoverTitle>
-        </PopoverHeader>
+      <MakeTaskDialogContent>
         {callId === undefined ? (sessionId === undefined ? null : (
           <FormForSession
             sessionId={sessionId}
@@ -106,12 +88,11 @@ export function MakeCallTask({
             onDone={() => setOpen(false)}
           />
         )}
-      </PopoverContent>
-    </Popover>
+      </MakeTaskDialogContent>
+    </Dialog>
   );
 }
 
-/** Mounts only while the popover is open, so it is the one place the call is read. */
 function FormForSession({
   sessionId,
   conversationId,

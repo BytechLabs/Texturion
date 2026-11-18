@@ -109,6 +109,7 @@ export function AssigneeField({
   const [draft, setDraft] = useState<string[]>([...value]);
 
   const names = value.map((userId) => roster.get(userId) ?? t("tasks.teammate"));
+  const summary = assigneeSummary(names, t);
   const atMax = draft.length >= MAX_ASSIGNEES;
 
   function onOpenChange(next: boolean) {
@@ -123,7 +124,7 @@ export function AssigneeField({
         <button
           type="button"
           id={id}
-          aria-label={ariaLabel}
+          aria-label={`${ariaLabel}, ${summary}`}
           aria-haspopup="listbox"
           onClick={(event) => event.stopPropagation()}
           className={cn(
@@ -140,7 +141,7 @@ export function AssigneeField({
               names.length === 0 ? "text-muted-foreground" : "text-app-muted",
             )}
           >
-            {assigneeSummary(names, t)}
+            {summary}
           </span>
         </button>
       </PopoverTrigger>
