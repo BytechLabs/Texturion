@@ -97,7 +97,7 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
                 {entry.label ? (
                   <span className="text-app-muted-2">{entry.label} · </span>
                 ) : null}
-                <CopyablePhoneNumber number={entry.phone_e164} />
+                <CopyablePhoneNumber number={entry.phone_e164} label={formatPhone(entry.phone_e164)} />
                 {entry.opted_out && <span className="ml-2 text-app-muted-2">{t("contacts.phoneOptedOut")}</span>}
               </span>
               {entry.opted_out ? (

@@ -19,8 +19,6 @@ import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -42,6 +40,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactPhone
+import com.loonext.android.ui.common.ActionGroup
+import com.loonext.android.ui.common.RecordAction
+import com.loonext.android.ui.common.RecordMenu
 import com.loonext.android.ui.common.formatPhone
 
 /**
@@ -119,24 +120,23 @@ fun PhoneList(
                     IconButton(onClick = { actionsOpen = true }) {
                         Icon(Icons.Outlined.MoreHoriz, contentDescription = t("contactsTasks.phoneActions"))
                     }
-                    DropdownMenu(expanded = actionsOpen, onDismissRequest = { actionsOpen = false }) {
-                        if (onText != null) DropdownMenuItem(
-                            text = { Text(t("contactsTasks.phoneText")) },
-                            enabled = !entry.opted_out,
-                            onClick = {
-                                actionsOpen = false
-                                onText(entry.phone_e164)
-                            },
-                        )
-                        DropdownMenuItem(text = { Text(t("contactsTasks.phoneCall")) }, onClick = {
-                            actionsOpen = false
-                            onCall(entry.phone_e164)
-                        })
-                        DropdownMenuItem(text = { Text(t("contactsTasks.phoneMakeMain")) }, onClick = {
-                            actionsOpen = false
-                            onMakePrimary(entry.id)
-                        })
-                    }
+                    RecordMenu(
+                        expanded = actionsOpen,
+                        onDismiss = { actionsOpen = false },
+                        actions = listOf(
+                            RecordAction("text", "contactsTasks.phoneText", ActionGroup.PRIMARY,
+                                allowed = onText != null, enabled = !entry.opted_out),
+                            RecordAction("call", "contactsTasks.phoneCall", ActionGroup.PRIMARY),
+                            RecordAction("make-primary", "contactsTasks.phoneMakeMain", ActionGroup.STATE),
+                        ),
+                        onSelect = { action, _ ->
+                            when (action) {
+                                "text" -> onText?.invoke(entry.phone_e164)
+                                "call" -> onCall(entry.phone_e164)
+                                "make-primary" -> onMakePrimary(entry.id)
+                            }
+                        },
+                    )
                 }
                 Icon(
                     Icons.Outlined.Close,

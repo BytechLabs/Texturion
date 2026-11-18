@@ -158,8 +158,9 @@ struct PhoneList: View {
     }
 
     private func line(for entry: ContactPhone) -> String {
-        guard let label = entry.label, !label.isEmpty else { return entry.phone_e164 }
-        return "\(label) · \(entry.phone_e164)"
+        let number = formatPhone(entry.phone_e164)
+        guard let label = entry.label, !label.isEmpty else { return number }
+        return "\(label) · \(number)"
     }
 }
 

@@ -31,8 +31,11 @@ const { addPhone, removePhone, toastError } = vi.hoisted(() => ({
 
 vi.mock("@/lib/api/contacts", () => ({
   useAddContactPhone: () => ({ isPending: false, mutateAsync: addPhone }),
+  useMakePrimaryContactPhone: () => ({ isPending: false, mutate: vi.fn() }),
   useRemoveContactPhone: () => ({ isPending: false, mutate: removePhone }),
 }));
+
+vi.mock("@/components/calls/call-button", () => ({ CallButton: () => null }));
 
 vi.mock("sonner", () => ({
   toast: { error: toastError, success: vi.fn() },
@@ -81,7 +84,7 @@ describe("#291 the other numbers", () => {
         ])}
       />,
     );
-    expect(html).toContain("+14165550177");
+    expect(html).toContain("(416) 555-0177");
     expect(html).toContain("Landline");
   });
 
