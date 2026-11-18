@@ -84,7 +84,7 @@ export type RegistrationStatus =
    *  `deactivated_at` (we stopped paying for it). */
   | "suspended"
   | "rejected";
-export type ConsentSource = "inbound_sms" | "attested";
+export type ConsentSource = "inbound_sms" | "inbound_call" | "attested";
 export type OptOutSource = "stop_keyword" | "manual" | "import" | "carrier";
 export type ConversationEventType =
   | "status_changed"

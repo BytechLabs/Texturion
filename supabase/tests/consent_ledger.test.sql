@@ -784,6 +784,51 @@ begin
   end if;
 end $$;
 
-\echo 'consent_ledger.test.sql: CL-1..CL-16 PASSED'
+do $$
+declare
+  co uuid := '22600000-0000-4000-8000-000000000002';
+  line uuid := '22600000-0000-4000-8000-000000000003';
+  ct uuid;
+begin
+  insert into public.phone_numbers (id, company_id, status, provisioning_key, country, number_e164)
+  values (line, co, 'active', 'consent-voice-line', 'US', '+12125559289');
+
+  perform public.api_thread_call(co, line, '+12125559290', 'consent-inbound', 'answered', 0, true);
+  if not exists (
+    select 1 from public.contacts c
+    join public.contact_consent_events e on e.contact_id = c.id
+    where c.company_id = co and c.phone_e164 = '+12125559290'
+      and c.consent_source = 'inbound_call' and e.source = 'inbound_call'
+      and e.state = 'implied' and e.phone_e164 = c.phone_e164
+  ) then
+    raise exception 'CL-17: inbound calls should record implied call consent';
+  end if;
+
+  insert into public.contacts (company_id, phone_e164)
+  values (co, '+12125559291') returning id into ct;
+  insert into public.contact_phones (company_id, contact_id, phone_e164)
+  values (co, ct, '+12125559292');
+  insert into public.conversations (company_id, contact_id, phone_number_id, contact_phone_e164)
+  values (co, ct, line, '+12125559292');
+  perform public.api_thread_call(co, line, '+12125559292', 'consent-outbound', 'answered', 0, false, 'outbound');
+  if exists (select 1 from public.contacts where id = ct and consent_at is not null)
+     or exists (select 1 from public.contact_consent_events where contact_id = ct) then
+    raise exception 'CL-17: outbound calls should leave consent untouched';
+  end if;
+
+  perform public.api_thread_call(co, line, '+12125559292', 'consent-secondary', 'answered', 0, true);
+  perform public.api_thread_call(co, line, '+12125559292', 'consent-secondary', 'answered', 0, true);
+  if exists (select 1 from public.contacts where id = ct and consent_at is not null)
+     or (select count(*) from public.contact_consent_events where contact_id = ct) <> 1
+     or not exists (
+       select 1 from public.contact_consent_events
+       where contact_id = ct and phone_e164 = '+12125559292' and state = 'implied'
+         and source = 'inbound_call' and evidence->>'call_id' = 'consent-secondary'
+     ) then
+    raise exception 'CL-17: a secondary caller should leave one record on the actual number';
+  end if;
+end $$;
+
+\echo 'consent_ledger.test.sql: CL-1..CL-17 PASSED'
 
 rollback;

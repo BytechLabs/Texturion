@@ -55,6 +55,19 @@ final class ContactsDataTests: XCTestCase {
         )
     }
 
+    func testInboundCallIdentifiesHowTheCustomerGotInTouch() {
+        XCTAssertEqual(
+            consentLine(
+                consentSource: ConsentSource.inboundCall,
+                consentAt: nil,
+                consentAttestedBy: nil,
+                memberName: memberName,
+                calendar: utc
+            ),
+            "Called you first"
+        )
+    }
+
     func testAttestedConsentNamesTheMemberWhoRecordedIt() {
         XCTAssertEqual(
             consentLine(

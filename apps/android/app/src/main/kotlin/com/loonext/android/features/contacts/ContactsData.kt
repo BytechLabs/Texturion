@@ -402,6 +402,7 @@ data class ContactVoicemailPlayback(
 
 object ConsentSource {
     const val INBOUND_SMS = "inbound_sms"
+    const val INBOUND_CALL = "inbound_call"
     const val ATTESTED = "attested"
     const val IMPORT = "import"
 }
@@ -486,6 +487,9 @@ fun consentLine(
     val suffix = if (date != null) " · $date" else ""
     if (consentSource == ConsentSource.INBOUND_SMS) {
         return AppStrings.translate(locale, "contactsTasks.consentTextedFirst") + suffix
+    }
+    if (consentSource == ConsentSource.INBOUND_CALL) {
+        return AppStrings.translate(locale, "contactsTasks.consentCalledFirst") + suffix
     }
     val attester = memberName(consentAttestedBy)
     return if (attester != null) {

@@ -340,7 +340,7 @@ Status transitions are driven by **Telnyx webhooks** to `/webhooks/telnyx` — `
 ### Consent attestation (D4)
 
 - Replying within an existing **inbound** conversation: unrestricted.
-- **Starting a new outbound conversation requires a consent attestation**: one mandatory checkbox in the compose flow — "**This customer asked us to text them**" — which writes `consent_source='attested'`, `consent_at`, `consent_attested_by` on the contact plus a `consent_attested` event. Contacts who texted in first get `consent_source='inbound_sms'` automatically. This makes the 10DLC-declared opt-in flow truthful.
+- **Starting a new outbound conversation requires a consent attestation**: one mandatory checkbox in the compose flow — "**This customer asked us to text them**" — which writes `consent_source='attested'`, `consent_at`, `consent_attested_by` on the contact plus a `consent_attested` event. An inbound text or call records implied consent as `inbound_sms` or `inbound_call`. A call from a secondary number records consent on that number. Outbound calls leave consent unchanged.
 - **Bulk compose, import-and-blast, and broadcast are explicitly out of scope** (D11) — deliberately, and for compliance. The API has no bulk-send surface.
 
 ### Quiet hours (soft, D4)
@@ -390,7 +390,7 @@ create type conversation_status as enum ('new','open','waiting','closed');
 create type message_direction   as enum ('inbound','outbound','note');
 create type message_status      as enum ('received','queued','sent','delivered','failed');
 create type opt_out_source      as enum ('stop_keyword','manual','import','carrier');  -- 'carrier' (#331): learned from Telnyx, not observed by us
-create type consent_source_t    as enum ('inbound_sms','attested');
+create type consent_source_t    as enum ('inbound_sms','attested','widget_form','inbound_call');
 create type usage_event_type    as enum ('sms_outbound','mms_outbound','adjustment');
 create type conversation_event_type as enum
   ('status_changed','assigned','tag_added','tag_removed','opted_out',

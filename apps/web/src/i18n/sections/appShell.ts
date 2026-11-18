@@ -113,6 +113,7 @@ export const appShellEn = {
     "No consent recorded yet. It's recorded when they text you first, or when " +
     "you send them their first text, which attests they asked for it.",
   contactConsentInbound: "Texted you first",
+  contactConsentInboundCall: "Called you first",
   contactConsentRecorded: "Consent recorded",
   contactConsentRecordedBy: "Consent recorded by {name}",
   contactAddedBy: "Added by {name} on {date}",
@@ -1168,6 +1169,7 @@ export const appShellFr: Translated<typeof appShellEn> = {
     "client vous texte en premier, ou quand vous lui envoyez son premier " +
     "texto, ce qui atteste qu'il l'a demandé.",
   contactConsentInbound: "Vous a texté en premier",
+  contactConsentInboundCall: "Vous a appelé en premier",
   contactConsentRecorded: "Consentement enregistré",
   contactConsentRecordedBy: "Consentement enregistré par {name}",
   contactAddedBy: "Ajouté par {name} le {date}",

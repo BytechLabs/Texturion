@@ -501,4 +501,9 @@ describe("/contacts/[id] sections (#740)", () => {
       expect(html).toContain("Block number");
     }
   });
+
+  it("identifies call consent on the contact", () => {
+    state.contact = contact({ consent_source: "inbound_call" });
+    expect(render()).toContain("Called you first");
+  });
 });

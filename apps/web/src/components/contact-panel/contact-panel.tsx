@@ -74,12 +74,14 @@ function consentLine(
   memberName: (id: string | null) => string | null,
   t: Translate,
 ): string {
-  if (contact.consent_source === "inbound_sms") {
+  const calledFirst = contact.consent_source === "inbound_call";
+  if (calledFirst || contact.consent_source === "inbound_sms") {
     return contact.consent_at
-      ? t("contacts.consentTextedFirstOn", {
-          date: formatTimestamp(contact.consent_at, { style: "long", t }),
-        })
-      : t("contacts.consentTextedFirst");
+      ? t(
+          calledFirst ? "contacts.consentCalledFirstOn" : "contacts.consentTextedFirstOn",
+          { date: formatTimestamp(contact.consent_at, { style: "long", t }) },
+        )
+      : t(calledFirst ? "contacts.consentCalledFirst" : "contacts.consentTextedFirst");
   }
   if (contact.consent_source === "attested") {
     const by = memberName(contact.consent_attested_by) ?? t("contacts.aTeammate");

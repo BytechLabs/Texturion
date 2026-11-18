@@ -336,6 +336,7 @@ enum ContactsTasksStrings {
                 + "or when you send them their first text, which attests they asked "
                 + "for it.",
             "contactsTasks.consentTextedFirst": "Texted you first",
+            "contactsTasks.consentCalledFirst": "Called you first",
             "contactsTasks.consentRecorded": "Consent recorded",
             "contactsTasks.consentRecordedBy": "Consent recorded by {name}",
             "contactsTasks.copyNumber": "Copy number",
@@ -1128,6 +1129,7 @@ enum ContactsTasksStrings {
                 + "le client vous texte en premier, ou quand vous lui envoyez son "
                 + "premier texto, ce qui atteste qu'il l'a demandé.",
             "contactsTasks.consentTextedFirst": "Vous a texté en premier",
+            "contactsTasks.consentCalledFirst": "Vous a appelé en premier",
             "contactsTasks.consentRecorded": "Consentement enregistré",
             "contactsTasks.consentRecordedBy": "Consentement enregistré par {name}",
             "contactsTasks.copyNumber": "Copier le numéro",
