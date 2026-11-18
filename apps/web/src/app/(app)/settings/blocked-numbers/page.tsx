@@ -7,6 +7,7 @@ import { SettingsCard, SettingsPage } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { useMemberNames } from "@/components/inbox/member-avatar";
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
 import { useBlockedSenders, useUnblockSender } from "@/lib/api/blocked-senders";
@@ -65,7 +66,7 @@ export default function BlockedNumbersPage() {
                 />
                 <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium tabular-nums">
-                    {formatPhone(row.phone_e164)}
+                    <CopyablePhoneNumber number={row.phone_e164} />
                   </p>
                   <p className="text-xs text-muted-foreground">
                     {who

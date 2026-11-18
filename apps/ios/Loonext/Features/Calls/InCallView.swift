@@ -159,14 +159,20 @@ struct InCallView: View {
                 }
                 .frame(height: avatarBlockHeight)
                 Spacer().frame(height: compactHeight ? 10 : 20)
-                Text(featured.peerName)
+                let numberIsName = !featured.peerNumber.isEmpty
+                    && (featured.peerName == featured.peerNumber || featured.peerName == formatPhone(featured.peerNumber))
+                Group {
+                    if numberIsName {
+                        CopyablePhoneNumber(number: featured.peerNumber, label: featured.peerName)
+                    } else {
+                        Text(featured.peerName).kerning(-0.26)
+                    }
+                }
                     .font(.display(26))
-                    .kerning(-0.26)
                     .foregroundStyle(BrandColor.ink)
                     .multilineTextAlignment(.center)
-                if !featured.peerNumber.isEmpty,
-                   formatPhone(featured.peerNumber) != featured.peerName {
-                    Text(formatPhone(featured.peerNumber))
+                if !featured.peerNumber.isEmpty, !numberIsName {
+                    CopyablePhoneNumber(number: featured.peerNumber)
                         .font(.golos(12.5))
                         .foregroundStyle(BrandColor.muted600)
                         .padding(.top, 4)

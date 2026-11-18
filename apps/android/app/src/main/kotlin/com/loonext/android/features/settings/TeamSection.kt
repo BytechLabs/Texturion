@@ -8,6 +8,7 @@ import com.loonext.android.ui.common.SelectOption
 import com.loonext.android.ui.common.InlineError
 import com.loonext.android.ui.common.LinkButton
 import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -781,8 +782,9 @@ private fun MemberAccessDialog(
                             verticalAlignment = Alignment.Top,
                         ) {
                             Column(Modifier.weight(1f)) {
-                                Text(
-                                    row.number_e164 ?: t("settingsMore.aNumber"),
+                                CopyablePhoneNumber(
+                                    number = row.number_e164,
+                                    label = row.number_e164 ?: t("settingsMore.aNumber"),
                                     style = MaterialTheme.typography.bodyMedium,
                                 )
                                 Text(

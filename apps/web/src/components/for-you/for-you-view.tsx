@@ -48,6 +48,7 @@ import type {
 import { useTaskDrawer } from "@/components/tasks/use-task-drawer";
 import { callOutcomeLabel } from "@/lib/format/call";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { Timestamp } from "@/components/ui/timestamp";
 import { formatTimestamp } from "@/lib/format/time";
 import { BentoLayout } from '@/components/for-you/bento-layout';
@@ -115,22 +116,27 @@ function Avatar({ name }: { name: string }) {
 function Card({
   href,
   children,
+  copyNumber,
 }: {
   href: string;
   children: React.ReactNode;
+  copyNumber?: string | null;
 }) {
   return (
-    <Link
-      href={href}
-      className="flex items-center gap-3 border-b border-app-line-soft px-4 py-3 transition-colors duration-150 ease-out last:border-b-0 hover:bg-app-hover"
-    >
-      {children}
-      <ArrowRight
-        className="size-4 shrink-0 text-app-muted-2"
-        strokeWidth={1.75}
-        aria-hidden
-      />
-    </Link>
+    <div className="flex items-center border-b border-app-line-soft last:border-b-0">
+      <Link
+        href={href}
+        className="flex min-w-0 flex-1 items-center gap-3 px-4 py-3 transition-colors duration-150 ease-out hover:bg-app-hover"
+      >
+        {children}
+        <ArrowRight
+          className="size-4 shrink-0 text-app-muted-2"
+          strokeWidth={1.75}
+          aria-hidden
+        />
+      </Link>
+      {copyNumber && <CopyablePhoneNumber number={copyNumber} iconOnly className="mr-2 p-2" />}
+    </div>
   );
 }
 
@@ -403,6 +409,7 @@ function RecentCallRow({ call }: { call: Call }) {
   return (
     <Card
       href={call.conversation_id ? `/inbox/${call.conversation_id}` : "/calls"}
+      copyNumber={call.contact_name ? null : call.caller_e164}
     >
       <Avatar name={name} />
       <span className="min-w-0 flex-1">

@@ -596,7 +596,7 @@ function SettingUp() {
               // emotional-number scale + fade-rise + copy button.
               <NumberReveal
                 value={formatPhone(activeNumber.number_e164)}
-                copyValue={formatPhone(activeNumber.number_e164)}
+                copyValue={activeNumber.number_e164}
                 copyable
               />
             ) : confirming ? (

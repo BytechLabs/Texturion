@@ -84,6 +84,7 @@ import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.isCompactHeight
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
@@ -267,21 +268,25 @@ fun InCallScreen(
                 badge = featured.phase != CallPhase.RINGING,
                 ringing = featured.phase == CallPhase.RINGING,
             )
-            Text(
-                featured.peerName,
-                style = MaterialTheme.typography.headlineSmall.copy(
-                    fontSize = if (compact) 22.sp else 26.sp,
-                ),
-                color = MaterialTheme.colorScheme.onBackground,
+            val titleStyle = MaterialTheme.typography.headlineSmall.copy(
+                fontSize = if (compact) 22.sp else 26.sp,
                 textAlign = TextAlign.Center,
-                modifier = Modifier.padding(top = if (compact) 6.dp else 10.dp),
             )
-            if (featured.peerNumber.isNotBlank() &&
-                formatPhone(featured.peerNumber) != featured.peerName
-            ) {
-                Text(
-                    formatPhone(featured.peerNumber),
-                    fontSize = 12.5.sp,
+            val titleModifier = Modifier.padding(top = if (compact) 6.dp else 10.dp)
+            val numberIsName = featured.peerNumber.isNotBlank() &&
+                (featured.peerName == featured.peerNumber || featured.peerName == formatPhone(featured.peerNumber))
+            if (numberIsName) {
+                CopyablePhoneNumber(
+                    featured.peerNumber, titleModifier, featured.peerName,
+                    style = titleStyle, color = MaterialTheme.colorScheme.onBackground,
+                )
+            } else {
+                Text(featured.peerName, titleModifier, color = MaterialTheme.colorScheme.onBackground, style = titleStyle)
+            }
+            if (featured.peerNumber.isNotBlank() && !numberIsName) {
+                CopyablePhoneNumber(
+                    featured.peerNumber,
+                    style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.5.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(top = 4.dp),
                 )

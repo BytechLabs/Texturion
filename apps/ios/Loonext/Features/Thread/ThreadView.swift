@@ -1923,6 +1923,7 @@ private struct ConversationSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .phoneNumberCopyMenu(detail.contact.phone_e164)
     }
 
     private var statusSection: some View {

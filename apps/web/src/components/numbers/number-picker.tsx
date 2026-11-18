@@ -11,6 +11,7 @@ import { areaCodeHint, searchAreaCodes } from "@/app/onboarding/area-codes";
 import { useT } from "@/i18n/provider";
 import { useAvailableNumbers } from "@/lib/api/numbers";
 import { formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { cn } from "@/lib/utils";
 
 type Country = "US" | "CA";
@@ -282,14 +283,14 @@ export function NumberPicker({
               {filtered.map((n) => {
                 const on = selected === n.phone_number;
                 return (
-                  <li key={n.phone_number}>
+                  <li key={n.phone_number} className="flex items-center">
                     <button
                       type="button"
                       role="radio"
                       aria-checked={on}
                       onClick={() => onSelect(n.phone_number)}
                       className={cn(
-                        "flex w-full items-center gap-3 px-3 py-3 text-left transition-colors",
+                        "flex min-w-0 flex-1 items-center gap-3 px-3 py-3 text-left transition-colors",
                         on ? "bg-primary/10" : "hover:bg-accent",
                       )}
                     >
@@ -308,6 +309,7 @@ export function NumberPicker({
                         </span>
                       ) : null}
                     </button>
+                    <CopyablePhoneNumber number={n.phone_number} iconOnly className="m-1 p-2" />
                   </li>
                 );
               })}

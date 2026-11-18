@@ -410,6 +410,7 @@ struct DialerSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .phoneNumberCopyMenu(match.number)
     }
 
     /// The matched contact name. Empty otherwise — the fixed-height slot holds

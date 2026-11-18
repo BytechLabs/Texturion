@@ -548,6 +548,7 @@ private struct NewConversationLoaded: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .phoneNumberCopyMenu(contact.phone_e164)
                     if contact.id != contactMatches.last?.id {
                         RowDivider()
                     }

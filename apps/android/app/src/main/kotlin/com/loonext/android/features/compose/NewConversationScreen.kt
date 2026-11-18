@@ -84,6 +84,7 @@ import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.userMessage
 import com.loonext.android.ui.theme.BrandColor
 import com.loonext.android.core.time.TimestampFormat
@@ -904,8 +905,9 @@ private fun ContactMatchRow(
                     fontWeight = FontWeight.SemiBold,
                 ),
             )
-            Text(
-                formatPhone(contact.phone_e164) +
+            CopyablePhoneNumber(
+                contact.phone_e164,
+                label = formatPhone(contact.phone_e164) +
                     if (contact.opted_out) " · " + t("thread.optedOut") else "",
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

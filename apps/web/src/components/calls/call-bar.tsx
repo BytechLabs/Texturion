@@ -42,6 +42,7 @@ import { useNotificationsUnreadCount } from "@/lib/api/notifications";
 import { ApiError } from "@/lib/api/error";
 import { formatCallDuration } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { useSoftphone } from "@/lib/softphone/provider";
 import { CALL_SHORTCUTS } from "@/lib/softphone/shortcuts";
 import type { CallInfo } from "@/lib/softphone/state";
@@ -205,6 +206,7 @@ function CallChip({
   const t = useT();
   const softphone = useSoftphone()!;
   const label = call.peer.name || formatPhone(call.peer.number);
+  const labelIsNumber = call.peer.number && (!call.peer.name || call.peer.name === formatPhone(call.peer.number));
   // The "ended" chip is meant to be brief — auto-dismiss it after a few seconds
   // (the manual X still works) so a stale "· ended" pill doesn't linger for the
   // rest of the session.
@@ -225,7 +227,7 @@ function CallChip({
         <span aria-hidden className="size-2 rounded-full bg-primary animate-pulse" />
         <span className={cn("max-w-[140px] truncate font-medium", prominent ? "text-[15px]" : "text-[12.5px]")}>
           <span className="sr-only">{t("shell.incomingCallFrom")} </span>
-          {label}
+          {labelIsNumber ? <CopyablePhoneNumber number={call.peer.number} /> : label}
         </span>
         <Button
           size="sm"
@@ -265,6 +267,7 @@ function CallChip({
         <span className="max-w-[140px] truncate text-[12.5px] text-app-muted">
           {t("shell.callOnHold", { name: label })}
         </span>
+        {labelIsNumber && <CopyablePhoneNumber number={call.peer.number} iconOnly />}
         <Button
           variant="ghost"
           size="icon-sm"
@@ -293,6 +296,7 @@ function CallChip({
         <span className="max-w-[140px] truncate text-[12.5px]">
           {t("shell.callEnded", { name: label })}
         </span>
+        {labelIsNumber && <CopyablePhoneNumber number={call.peer.number} iconOnly />}
         <Button
           variant="ghost"
           size="icon-sm"
@@ -310,6 +314,7 @@ function CallChip({
     <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 shadow-lg">
       <span aria-hidden className="size-2 rounded-full bg-warning animate-pulse" />
       <span className="max-w-[140px] truncate text-[12.5px]">{label}…</span>
+      {labelIsNumber && <CopyablePhoneNumber number={call.peer.number} iconOnly />}
     </div>
   );
 }
@@ -468,7 +473,12 @@ function ActiveCard({
           ) : (
             <LiveTimer since={call.activeSince} />
           ))}
-          {number ? ` · ${number}` : ""}
+          {number && (
+            <>
+              {" · "}
+              <CopyablePhoneNumber number={call.peer.number} label={number} />
+            </>
+          )}
         </p>
       </div>
 

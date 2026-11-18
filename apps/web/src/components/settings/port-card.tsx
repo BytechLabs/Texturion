@@ -40,6 +40,7 @@ import type {
 } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { cn } from "@/lib/utils";
 
 /** Human date for the confirmed switch-over (no time-of-day noise). */
@@ -297,7 +298,7 @@ export function PortCard({
       <div className="rounded-lg border bg-card px-4 py-4 sm:px-5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <p className="text-lg font-medium tabular-nums text-muted-foreground line-through">
-            {display}
+            <CopyablePhoneNumber number={port.phone_e164} label={display} />
           </p>
           <span className="text-[13px] text-muted-foreground">
             {t("settingsMore.portCancelledPill")}
@@ -337,7 +338,7 @@ export function PortCard({
             ui.live && !hold && "text-success",
           )}
         >
-          {display}
+          <CopyablePhoneNumber number={port.phone_e164} label={display} />
         </p>
         <span className="text-[13px] text-muted-foreground">
           {hold

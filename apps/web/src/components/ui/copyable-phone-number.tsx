@@ -1,15 +1,29 @@
 "use client";
 
 import { Copy } from "lucide-react";
+import type { MouseEvent } from "react";
 import { toast } from "sonner";
 
 import { useT } from "@/i18n/provider";
+import { formatPhone } from "@/lib/format/phone";
+import { cn } from "@/lib/utils";
 
-export function CopyablePhoneNumber({ number, label = number }: { number: string; label?: string }) {
+export function CopyablePhoneNumber({
+  number,
+  label = formatPhone(number),
+  iconOnly = false,
+  className,
+}: {
+  number: string;
+  label?: string;
+  iconOnly?: boolean;
+  className?: string;
+}) {
   const t = useT();
   const copyLabel = t("recordMenu.copyNumber");
 
-  async function copy() {
+  async function copy(event: MouseEvent<HTMLButtonElement>) {
+    event.stopPropagation();
     try {
       await navigator.clipboard.writeText(number);
       toast.success(t("thread.numberCopied"));
@@ -21,12 +35,12 @@ export function CopyablePhoneNumber({ number, label = number }: { number: string
   return (
     <button
       type="button"
-      className="inline-flex select-all items-center gap-1.5 rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+      className={cn("inline-flex select-all items-center gap-1.5 rounded-sm hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring", className)}
       aria-label={`${copyLabel}: ${label}`}
       title={copyLabel}
       onClick={copy}
     >
-      {label}
+      {!iconOnly && label}
       <Copy className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
     </button>
   );

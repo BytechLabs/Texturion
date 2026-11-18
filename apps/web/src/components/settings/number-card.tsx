@@ -269,7 +269,7 @@ export function NumberCard({
           </Button>
           <NumberAccessDialog
             numberId={number.id}
-            numberLabel={formatPhone(number.number_e164)}
+            number={number.number_e164}
             open={managingAccess}
             onOpenChange={setManagingAccess}
           />

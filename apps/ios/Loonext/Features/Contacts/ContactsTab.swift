@@ -774,7 +774,7 @@ struct ContactsTab: View {
                     .font(.golos(15))
                     .foregroundStyle(BrandColor.ink)
                     .lineLimit(1)
-                Text(formatPhone(row.number))
+                CopyablePhoneNumber(number: row.number)
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted500)
                     .lineLimit(1)

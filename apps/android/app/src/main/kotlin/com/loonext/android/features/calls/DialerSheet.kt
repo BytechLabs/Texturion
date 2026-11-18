@@ -68,6 +68,7 @@ import com.loonext.android.ui.common.AppSheet
 import com.loonext.android.ui.common.PreviewHarness
 import com.loonext.android.ui.common.ResponsivePreviews
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
@@ -730,9 +731,9 @@ private fun DialerMatchRow(
                 modifier = Modifier.weight(1f, fill = false),
             )
             Box(Modifier.weight(1f)) {}
-            Text(
-                formatPhone(match.number),
-                fontSize = 12.sp,
+            CopyablePhoneNumber(
+                match.number,
+                style = MaterialTheme.typography.bodySmall.copy(fontSize = 12.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,
             )
