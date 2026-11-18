@@ -33,6 +33,7 @@ const COMPANY_GREETING = "You have reached Reed Roofing.";
 function world(
   overrides: { label: string | null; voicemail_greeting: string | null },
   companyGreeting: string | null = COMPANY_GREETING,
+  names: { primary?: string; alternate?: string } = {},
 ) {
   return stubRoute(
     () => true,
@@ -56,6 +57,13 @@ function world(
             subscription_status: "active",
           },
         ]);
+      }
+      if (path.endsWith("/contacts")) {
+        const name = call.url.searchParams.has("id") ? names.alternate : names.primary;
+        return Response.json(name ? [{ name }] : []);
+      }
+      if (path.endsWith("/contact_phones")) {
+        return Response.json(names.alternate ? [{ contact_id: "alternate-contact" }] : []);
       }
       if (path.includes("/calls")) return Response.json([]);
       return Response.json([]);
@@ -167,5 +175,35 @@ describe("#307 the caller meets the LINE's identity", () => {
     expect(ctx.greeting).toBeNull();
     // The name the runtime will speak, since the greeting itself is absent.
     expect(ctx.companyName).toBe("Reed Roofing Sales");
+  });
+});
+
+describe("inbound caller display names", () => {
+  it.each([
+    [{ primary: "Dana Reyes", alternate: "Other contact" }, "Dana Reyes"],
+    [{ alternate: "Dana at home" }, "Dana at home"],
+    [{}, "Network name"],
+  ])("prefers the saved name for %j and falls back to CNAM", async (names, expected) => {
+    const routes = world({ label: null, voicemail_greeting: null }, COMPANY_GREETING, names);
+    stubFetch(routes.route);
+    const caller = "+14155559001";
+    const ctx = await createSessionRuntime(env).loadInitiatedContext({
+      call_session_id: "sess-776",
+      call_control_id: "ccid-776",
+      from: caller,
+      to: "+14155550001",
+      caller_id_name: "Network name",
+    } as never);
+
+    expect(ctx).toMatchObject({ callerName: expected });
+    const searches = routes.calls.filter((call) =>
+      /\/(contacts|contact_phones)$/.test(call.url.pathname) && call.url.searchParams.has("phone_e164"));
+    expect(searches).toHaveLength(2);
+    for (const search of searches) {
+      expect(search.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+      expect(search.url.searchParams.get("phone_e164")).toBe(`eq.${caller}`);
+    }
+    expect(routes.calls.filter((call) => call.url.pathname.endsWith("/contacts"))
+      .every((call) => call.url.searchParams.get("deleted_at") === "is.null")).toBe(true);
   });
 });

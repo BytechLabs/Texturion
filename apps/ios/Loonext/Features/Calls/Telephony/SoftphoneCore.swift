@@ -874,22 +874,24 @@ final class SoftphoneCore {
     /// (already answered/ended — someone beat us) or not_found (the push aged
     /// out) is SILENT by contract; anything else propagates so the caller can
     /// retry.
-    func onIncomingCallPush(sessionId: String) async throws {
+    @discardableResult
+    func onIncomingCallPush(sessionId: String) async throws -> RingAck? {
         let company = try requireCompany()
         do {
-            guard !hasEngagedCall() else { return }
+            guard !hasEngagedCall() else { return nil }
             let live = try await api.sessionState(companyId: company, sessionId: sessionId)
-            guard live.state == "ringing", companyId == company else { return }
+            guard live.state == "ringing", companyId == company else { return nil }
             try await ensureConnected()
             try await awaitReady()
             let ack = try await requestRingMe(company: company, sessionId: sessionId)
             if ack?.rang == false, ack?.reason == "recent_leg" {
                 try await Task.sleep(for: .seconds(4))
-                _ = try await requestRingMe(company: company, sessionId: sessionId)
+                return try await requestRingMe(company: company, sessionId: sessionId)
             }
+            return ack
         } catch let error as ApiError
             where error.code == ApiErrorCode.conflict || error.code == ApiErrorCode.notFound {
-            // Answered/ended elsewhere, or the push aged out — silent.
+            return nil
         }
     }
 
@@ -901,7 +903,7 @@ final class SoftphoneCore {
     }
 
     func hasEngagedCall() -> Bool {
-        reapExpiredRings()
+        if !ringFirstSeen.isEmpty { reapExpiredRings() }
         return state.anyEngaged
     }
 

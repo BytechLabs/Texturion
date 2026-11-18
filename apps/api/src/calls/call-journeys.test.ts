@@ -211,6 +211,8 @@ const tables = {
   call_member_legs: [] as Row[],
   outbound_call_authorizations: [] as Row[],
   blocked_senders: [] as Row[],
+  contacts: [] as Row[],
+  contact_phones: [] as Row[],
 };
 
 const OUTBOUND_HOLD_MS = 30_000;

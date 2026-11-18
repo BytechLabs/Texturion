@@ -868,6 +868,7 @@ export class CallSessionDO extends DurableObject<Env> {
                   // #212: the real caller rides X-Loonext-Caller so the member's
                   // ring shows who is calling, not our own business number (from).
                   caller: session.callerE164,
+                  callerName: session.callerName,
                   // The pendingKey is minted once and frozen in the journal, so a
                   // replayed dial reuses it and Telnyx returns the original leg
                   // instead of ringing (and billing) a second one.
@@ -1631,6 +1632,7 @@ export class CallSessionDO extends DurableObject<Env> {
       // spoken yet, and defaulting to false here would silently drop the ask
       // for exactly the calls a cutover touches.
       callerE164: row.callerE164,
+      callerName: row.callerName,
       businessNumberE164: row.businessNumberE164,
       customerCcid: row.customerCallControlId,
       direction: row.direction === "outbound" ? "outbound" : "inbound",

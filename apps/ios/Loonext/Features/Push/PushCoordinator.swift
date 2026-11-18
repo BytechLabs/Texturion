@@ -72,7 +72,14 @@ final class PushCoordinator: NSObject {
     }
 
     static func clearConversationNotifications(_ conversationId: String) {
-        let tags = conversationNotificationTags(conversationId)
+        clearNotifications(tags: conversationNotificationTags(conversationId))
+    }
+
+    static func clearRingNotification(_ sessionId: String) {
+        clearNotifications(tags: ["call:\(sessionId)"])
+    }
+
+    private static func clearNotifications(tags: Set<String>) {
         UNUserNotificationCenter.current().getDeliveredNotifications { delivered in
             let matching = delivered.compactMap { notification -> String? in
                 let push = parsePush(pushData(fromUserInfo: notification.request.content.userInfo))

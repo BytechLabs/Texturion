@@ -23,6 +23,7 @@ import {
   buildVoicemailState,
   defaultGreeting,
   LOONEXT_CALLER_HEADER,
+  LOONEXT_CALLER_NAME_HEADER,
   LOONEXT_SESSION_HEADER,
   RING_TIMEOUT_SECS,
   sanitizeGreeting,
@@ -64,6 +65,7 @@ export interface AdoptionRow {
   companyId: string;
   phoneNumberId: string | null;
   callerE164: string | null;
+  callerName?: string | null;
   outcome: "answered" | "voicemail" | "missed" | null;
   answeredAt: string | null;
   answeredByUserId: string | null;
@@ -98,6 +100,7 @@ export interface SessionRuntime {
        *  header and shows the caller instead of our own number. Null for an
        *  anonymous/CLIR caller: no header, client shows "Unknown caller". */
       caller?: string | null;
+      callerName?: string | null;
       /**
        * Telnyx's Dial dedup key — the leg's `pendingKey`, which is already
        * minted once and frozen inside the journaled effect.
@@ -373,6 +376,40 @@ interface InboundCompanyRow {
 
 /** In-flight window for the line-busy read (mirrors voice-webhook.ts). */
 const LINE_BUSY_WINDOW_MS = 4 * 60 * 60 * 1000;
+const CALLER_NAME_LOOKUP_MS = 1000;
+
+function sipCallerName(value: string | null | undefined): string | null {
+  const name = value?.replace(/[\p{Cc}\s]+/gu, " ").trim();
+  return name ? Array.from(name).slice(0, 80).join("") : null;
+}
+
+async function resolveInboundCallerName(
+  db: SupabaseClient,
+  companyId: string,
+  caller: string | null,
+  cnam: string | null | undefined,
+): Promise<string | null> {
+  if (!caller) return null;
+  const fallback = sipCallerName(cnam);
+  // Optional display metadata must not delay the ring when PostgREST is slow.
+  const signal = AbortSignal.timeout(CALLER_NAME_LOOKUP_MS);
+  const contacts = () => db.from("contacts").select("name")
+    .eq("company_id", companyId).is("deleted_at", null).limit(1).abortSignal(signal);
+  try {
+    const [primary, alternate] = await Promise.all([
+      contacts().eq("phone_e164", caller),
+      db.from("contact_phones").select("contact_id")
+        .eq("company_id", companyId).eq("phone_e164", caller).limit(1).abortSignal(signal),
+    ]);
+    const primaryName = sipCallerName(primary.data?.[0]?.name);
+    const alternateId = alternate.data?.[0]?.contact_id;
+    if (primaryName || !alternateId) return primaryName ?? fallback;
+    const { data } = await contacts().eq("id", alternateId);
+    return sipCallerName(data?.[0]?.name) ?? fallback;
+  } catch {
+    return fallback;
+  }
+}
 
 /**
  * `waitUntil` is the Durable Object's own: a capture is handed to it so it
@@ -389,6 +426,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
     telnyx: {
       async dial(input): Promise<DialResult> {
         try {
+          const name = input.caller ? sipCallerName(input.callerName) : null;
           const response = (await telnyxRequest(env, {
             method: "POST",
             path: "/v2/calls",
@@ -417,6 +455,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
                 ...(input.caller
                   ? [{ name: LOONEXT_CALLER_HEADER, value: input.caller }]
                   : []),
+                ...(name ? [{ name: LOONEXT_CALLER_NAME_HEADER, value: name }] : []),
               ],
             },
           })) as { data?: { call_control_id?: string } };
@@ -736,12 +775,10 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         company.call_screening === "divert" &&
         callLooksSpam(payload.call_screening_result, payload.caller_id_name);
 
-      const { dialTargets, pushAudience } = await computeRingContext(
-        db,
-        number.company_id,
-        number.id,
-        (error) => report(error, "warning"),
-      );
+      const [{ dialTargets, pushAudience }, callerName] = await Promise.all([
+        computeRingContext(db, number.company_id, number.id, (error) => report(error, "warning")),
+        resolveInboundCallerName(db, number.company_id, callerE164, payload.caller_id_name),
+      ]);
 
       const identity = resolveNumberIdentity(
         {
@@ -871,6 +908,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         locale: (company as { locale?: string | null }).locale ?? undefined,
         greeting: identity.voicemailGreeting.value,
         callerE164,
+        callerName,
         businessNumberE164: payload.to,
         lineBusy,
         screeningDivert,
@@ -1083,7 +1121,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       const { data: rows, error } = await db
         .from("calls")
         .select(
-          "call_session_id,company_id,phone_number_id,caller_e164,outcome,answered_at,answered_by_user_id,started_at,customer_call_control_id,direction",
+          "call_session_id,company_id,phone_number_id,caller_e164,caller_name,outcome,answered_at,answered_by_user_id,started_at,customer_call_control_id,direction",
         )
         .eq("call_session_id", sessionId)
         .limit(1);
@@ -1094,6 +1132,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
             company_id: string;
             phone_number_id: string | null;
             caller_e164: string | null;
+            caller_name: string | null;
             outcome: "answered" | "voicemail" | "missed" | null;
             answered_at: string | null;
             answered_by_user_id: string | null;
@@ -1104,7 +1143,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         | undefined;
       if (!row) return null;
 
-      const [companyResult, legsResult, numberResult] = await Promise.all([
+      const [companyResult, legsResult, numberResult, callerName] = await Promise.all([
         db
           .from("companies")
           .select("name,voicemail_greeting")
@@ -1122,6 +1161,9 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
               .eq("id", row.phone_number_id)
               .limit(1)
           : Promise.resolve({ data: [], error: null }),
+        row.direction === "outbound"
+          ? Promise.resolve(null)
+          : resolveInboundCallerName(db, row.company_id, row.caller_e164, row.caller_name),
       ]);
       if (companyResult.error) {
         throw new Error(`adoption company read failed: ${companyResult.error.message}`);
@@ -1138,6 +1180,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         companyId: row.company_id,
         phoneNumberId: row.phone_number_id,
         callerE164: row.caller_e164,
+        callerName,
         outcome: row.outcome,
         answeredAt: row.answered_at,
         answeredByUserId: row.answered_by_user_id,

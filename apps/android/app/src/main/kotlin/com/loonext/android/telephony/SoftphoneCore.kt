@@ -1437,6 +1437,10 @@ class SoftphoneCore(
             return
         }
         val ack = requestRingMe(company, sessionId) ?: return
+        if (ack.reason == CallWakePolicy.REASON_NOT_YOUR_TURN) {
+            runCatching { onWakeSessionOver?.invoke(sessionId) }
+            return
+        }
         if (ack.rang != false) {
             // rang:true (or a pre-v3 server's bare `ok`) — an INVITE is
             // coming; refresh the hint clock so the correlation window tracks

@@ -26,6 +26,8 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import java.util.Collections
@@ -114,6 +116,7 @@ class SoftphoneManager private constructor(
     private val sdk = TelnyxSdkClient(appContext, scope)
     private val core = SoftphoneCore(HttpCallsApi(api), sdk, scope, translate = ::copy)
     private val notifier = CallNotifier(appContext)
+    private val proximityLock = ProximityLock(appContext)
 
     /** The one softphone state stream every surface renders from. */
     val state: StateFlow<SoftphoneSnapshot> = core.state
@@ -188,6 +191,14 @@ class SoftphoneManager private constructor(
                 } catch (cause: Exception) {
                     Telemetry.captureNonFatal("sync-platform", cause)
                 }
+            }
+        }
+        scope.launch {
+            combine(core.state, registry.audioRouteFacts) { snapshot, route ->
+                shouldHoldProximityLock(snapshot.activeCall?.phase, route.endpointType)
+            }.distinctUntilChanged().collect { hold ->
+                runCatching { proximityLock.setHeld(hold) }
+                    .onFailure { Telemetry.captureNonFatal("call-proximity", it) }
             }
         }
         // Claim the calls-wake seam (calls-v3 §10.2) — this install is THE one

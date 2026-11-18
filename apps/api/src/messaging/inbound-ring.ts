@@ -77,11 +77,10 @@ export const LOONEXT_SESSION_HEADER = "X-Loonext-Session";
  *  header, same discipline as {@link LOONEXT_SESSION_HEADER}, X- prefix
  *  MANDATORY (Telnyx WebRTC only forwards `X-`-prefixed custom headers). Emitted
  *  ONLY when the caller is known: a null caller (CLIR/anonymous) sends no header
- *  and the client shows "Unknown caller" rather than the business number.
- *  A caller NAME/CNAM is NOT plumbed onto the ring input (the DO contract does
- *  not carry caller_name, which is #211 territory), so no `X-Loonext-Caller-Name`
- *  is emitted here; the client already reads it forward-compatibly if it lands. */
+ *  and the client can show an anonymous caller. */
 export const LOONEXT_CALLER_HEADER = "X-Loonext-Caller";
+
+export const LOONEXT_CALLER_NAME_HEADER = "X-Loonext-Caller-Name";
 
 /** Ring window for member browser legs. Long enough (#135 push-to-wake) that a
  *  mobile member has time to be pushed, tap, open the app, and answer — while

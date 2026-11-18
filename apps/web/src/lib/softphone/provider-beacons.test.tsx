@@ -109,7 +109,7 @@ function notify(call: FakeCall) {
 }
 
 /** An INVITE as the SDK delivers it; `session` is X-Loonext-Session. */
-function invite(id: string, session?: string): FakeCall {
+function invite(id: string, session?: string, headers: FakeCall["options"]["customHeaders"] = []): FakeCall {
   const call: FakeCall = {
     id,
     state: "ringing",
@@ -128,7 +128,7 @@ function invite(id: string, session?: string): FakeCall {
     telnyxIDs: { telnyxCallControlId: `ccid-${id}` },
     options: {
       remoteCallerNumber: "+16135550100",
-      customHeaders: session ? [{ name: "X-Loonext-Session", value: session }] : [],
+      customHeaders: session ? [{ name: "X-Loonext-Session", value: session }, ...headers] : headers,
     },
   };
   notify(call);
@@ -160,6 +160,17 @@ afterEach(() => {
 });
 
 describe("the softphone's ring beacons", () => {
+  it("shows the name and number from the server's caller headers", () => {
+    invite("named-ring", "v3:named-ring", [
+      { name: "x-loonext-caller-name", value: "Élodie Tremblay" },
+      { name: "X-Loonext-Caller", value: "+16135550199" },
+    ]);
+    expect(phone!.calls).toContainEqual(expect.objectContaining({
+      id: "named-ring",
+      peer: { name: "Élodie Tremblay", number: "+16135550199" },
+    }));
+  });
+
   it("reports a ring the server named as shown, then its answer, and nothing for the hang-up after", async () => {
     const call = invite("sdk-1", "v3:ring-1");
     expect(sent).toEqual([["company-1", "ringing_shown", "v3:ring-1"]]);

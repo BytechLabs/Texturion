@@ -65,6 +65,14 @@ export interface CompanyIdentity {
  */
 export type RingStrategy = "all" | "in_turn";
 
+export type RingMeReason =
+  | "not_ringing"
+  | "live_leg"
+  | "recent_leg"
+  | "not_your_turn"
+  | "dial_failed"
+  | "declined";
+
 export const RING_STRATEGIES: readonly RingStrategy[] = ["all", "in_turn"] as const;
 
 export function isRingStrategy(value: unknown): value is RingStrategy {

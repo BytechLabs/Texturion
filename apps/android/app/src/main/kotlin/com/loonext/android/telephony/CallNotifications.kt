@@ -141,6 +141,9 @@ internal class CallNotifier(private val context: Context) {
     private fun post(tag: String, id: Int, notification: Notification): Boolean {
         if (!canPost()) return false
         return runCatching {
+            val manager = context.getSystemService(NotificationManager::class.java) ?: return false
+            val channel = manager.getNotificationChannel(notification.channelId) ?: return false
+            if (channel.importance == NotificationManager.IMPORTANCE_NONE) return false
             NotificationManagerCompat.from(context).notify(tag, id, notification)
         }.isSuccess
     }
