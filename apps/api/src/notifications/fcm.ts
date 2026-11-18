@@ -31,11 +31,32 @@ import type { FcmCredential } from '../environments/policy';
 
 import { encodeBase64Url } from "./webpush";
 
-/** The device_push_tokens columns a send needs. */
+interface NativePushScope {
+  companyId: string;
+  userId: string;
+  locale: "en" | "fr-CA";
+}
+
+export type NativeThreadAction =
+  | {
+      kind: "message";
+      conversationId: string;
+      messageId: string;
+      sender: string;
+      canReply: boolean;
+    }
+  | {
+      kind: "missed_call";
+      conversationId: string;
+      callbackNumber: string;
+    };
+
+/** The device_push_tokens columns and delivery options a send needs. */
 export interface DevicePushTarget {
   platform: "android" | "ios";
   token: string;
-  actionScope?: { companyId: string; userId: string; locale: "en" | "fr-CA" };
+  actionScope?: NativePushScope;
+  threadAction?: NativeThreadAction & NativePushScope;
   badge?: number;
 }
 
@@ -267,11 +288,24 @@ function buildMessage(
   for (const [key, value] of Object.entries(parsed)) {
     if (typeof value === "string") data[key] = value;
   }
-  const actionScope = data.alert_id ? target.actionScope : undefined;
+  const { threadAction } = target;
+  const onCallAction = data.alert_id ? target.actionScope : undefined;
+  const actionScope = onCallAction ?? threadAction;
   if (actionScope) {
     data.action_company_id = actionScope.companyId;
     data.action_user_id = actionScope.userId;
     data.action_locale = actionScope.locale;
+  }
+  if (threadAction) {
+    data.thread_action = threadAction.kind;
+    data.action_conversation_id = threadAction.conversationId;
+    if (threadAction.kind === "message") {
+      data.action_message_id = threadAction.messageId;
+      data.action_sender = threadAction.sender;
+      data.can_reply = String(threadAction.canReply);
+    } else {
+      data.action_callback_number = threadAction.callbackNumber;
+    }
   }
 
   if (target.platform === "android") {
@@ -323,7 +357,15 @@ function buildMessage(
   // — without it APNs silently downgrades this to `active`.
   if (data.kind === "emergency") aps["interruption-level"] = "time-sensitive";
   if (actionScope) {
-    aps.category = actionScope.locale === "fr-CA" ? "ON_CALL_ALERT_FR" : "ON_CALL_ALERT";
+    let category: string;
+    if (onCallAction) {
+      category = threadAction?.kind === "missed_call" ? "ON_CALL_MISSED_CALL" : "ON_CALL_ALERT";
+    } else if (threadAction?.kind === "missed_call") {
+      category = "MISSED_CALL";
+    } else {
+      category = threadAction?.canReply ? "MESSAGE" : "MESSAGE_READ_ONLY";
+    }
+    aps.category = actionScope.locale === "fr-CA" ? `${category}_FR` : category;
   }
   const threadId = apnsHeaders["apns-collapse-id"];
   if (threadId !== undefined) aps["thread-id"] = threadId;

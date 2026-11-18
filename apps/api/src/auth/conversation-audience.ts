@@ -42,6 +42,11 @@ import type { MemberRole } from "../context";
 export interface ConversationViewer {
   user_id: string;
   role: MemberRole;
+  numberLevel?: string;
+}
+
+export function canTextConversation(viewer: ConversationViewer): boolean {
+  return viewer.numberLevel === "text" && roleHasCapability(viewer.role, "conversations.send");
 }
 
 /**
@@ -111,7 +116,7 @@ export async function listConversationViewers(
   // internal notes, not a lesser kind of membership).
   const viewers = levels
     .filter((row) => row.level !== "none")
-    .map(({ user_id, role }) => ({ user_id, role }));
+    .map(({ user_id, role, level }) => ({ user_id, role, numberLevel: level }));
   // An access read that returned nobody where members exist is the failure mode
   // this file's unwrapRows exists to refuse: it would silently turn a broken
   // query into an alert delivered to no one. The resolver returns every member

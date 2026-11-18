@@ -110,6 +110,7 @@ class ApiClient(
         body: B,
         companyId: String? = null,
         idempotencyKey: String? = null,
+        expectedUserId: String? = null,
     ): T = decodeBody(
         path,
         raw(
@@ -118,6 +119,7 @@ class ApiClient(
             body = json.encodeToString(body),
             companyId = companyId,
             idempotencyKey = idempotencyKey,
+            expectedUserId = expectedUserId,
         ),
     )
 

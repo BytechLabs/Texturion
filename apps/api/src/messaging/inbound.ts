@@ -664,6 +664,8 @@ export async function handleInboundMessage(
       {
         companyId: number.company_id,
         conversationId: threaded.conversation_id,
+        messageId: threaded.message_id,
+        optedOut: threaded.opted_out,
         body: payload.text ?? "",
         mediaCount: media.length,
         // An emergency reaches every channel it can, whatever the budget says.

@@ -25,6 +25,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { Env } from "../env";
 import { deadline } from "../http/deadline";
 import { isFcmConfigured, sendFcm } from "./fcm";
+import type { NativeThreadAction } from "./fcm";
 import { resolveHighPriority } from './high-priority';
 import type { HighPriorityRequest } from './high-priority';
 import { recordPushAttempts, timedPush } from './push-attempts';
@@ -193,6 +194,7 @@ export interface PushDelivery {
    * structural `kind` discriminator that picks an Android channel.
    */
   native?: (locale: Locale) => PushPayload;
+  nativeAction?: (userId: string) => NativeThreadAction | undefined;
   /**
    * The one coalescing identity for this alert: repeats about the same subject
    * REPLACE the pending notification instead of stacking, and two DIFFERENT
@@ -756,6 +758,8 @@ async function fanOutPush(
   for (const device of devices) {
     try {
       const locale = localeFor(device);
+      const action = delivery.nativeAction?.(device.user_id);
+      const actionScope = { companyId: delivery.companyId, userId: device.user_id, locale };
       // TTL rides the sender default: an ordinary alert is worth delivering
       // late, unlike a ring. Urgency does NOT — #414 needs HIGH to wake a
       // phone in Doze, which is the whole mechanism behind the emergency
@@ -776,7 +780,8 @@ async function fanOutPush(
             env,
             {
               ...device,
-              actionScope: { companyId: delivery.companyId, userId: device.user_id, locale },
+              actionScope,
+              threadAction: action ? { ...action, ...actionScope } : undefined,
               badge: badges.get(device.user_id),
             },
             payloadFor(

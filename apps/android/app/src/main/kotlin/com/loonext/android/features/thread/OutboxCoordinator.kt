@@ -59,6 +59,7 @@ class OutboxCoordinator(
                 body = row.body,
                 media = media.takeIf { it.isNotEmpty() },
                 idempotencyKey = row.localId,
+                expectedUserId = row.ownerUserId,
             )
             delivered.tryEmit(OutboxDelivery(row, message))
             SendOutcome.Sent
