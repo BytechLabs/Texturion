@@ -220,6 +220,7 @@ const SUITES = [
   // D9 amended: bookkeeping writes and re-reads that change nothing broadcast nothing.
   "broadcast_skips_bookkeeping",
   "transfer_target_push_channels",
+  "thread_tapbacks",
 ];
 
 const args = process.argv.slice(2);

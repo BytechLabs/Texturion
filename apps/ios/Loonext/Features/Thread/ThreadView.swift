@@ -816,8 +816,9 @@ private struct ThreadBody: View {
     // MARK: - Timeline
 
     private func timelinePane(names: [String: String], contactName: String) -> some View {
+        let (messages, reactions) = foldTapbacks(controller.messages)
         let timeline = buildTimeline(
-            messages: controller.messages,
+            messages: messages,
             events: controller.events,
             pending: controller.pendingSends,
             filter: controller.filter,
@@ -839,7 +840,7 @@ private struct ThreadBody: View {
                         LazyVStack(spacing: 0) {
                             ForEach(Array(timeline.enumerated()), id: \.element.key) { index, item in
                                 let flashed = isFlashed(item)
-                                itemView(item, names: names, contactName: contactName)
+                                itemView(item, names: names, contactName: contactName, reactions: reactions)
                                     // Search-result flash on the matched message
                                     // (#186 item 2) — a brief lime wash.
                                     .background(
@@ -1055,7 +1056,8 @@ private struct ThreadBody: View {
     private func itemView(
         _ item: TimelineItem,
         names: [String: String],
-        contactName: String
+        contactName: String,
+        reactions: [String: String]
     ) -> some View {
         switch item {
         case .message(let message):
@@ -1091,7 +1093,8 @@ private struct ThreadBody: View {
                     onOpenTask: { AppRouter.shared.openTaskId = $0 },
                     onDelete: deleteMessageAction(for: message)
                 ),
-                onSelectPhone: canLinkPhones ? { messagePhone = MessagePhoneSelection(number: $0) } : nil
+                onSelectPhone: canLinkPhones ? { messagePhone = MessagePhoneSelection(number: $0) } : nil,
+                reaction: reactions[message.id]
             )
         case .pending(let pending):
             PendingBubble(

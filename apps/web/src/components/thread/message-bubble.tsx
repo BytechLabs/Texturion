@@ -251,6 +251,7 @@ function NoteTaskChip({ task }: { task: { id: string; title: string } }) {
 // compare skips re-rendering every visible bubble.
 export const MessageBubble = memo(({
   message,
+  reaction,
   isLastOfCluster,
   conversationId,
   contactName,
@@ -259,6 +260,7 @@ export const MessageBubble = memo(({
   onSelectPhone,
 }: {
   message: Message;
+  reaction?: string;
   isLastOfCluster: boolean;
   conversationId: string;
   contactName: string;
@@ -431,6 +433,11 @@ export const MessageBubble = memo(({
             generic-attachment owner shown in-thread; MMS media on real messages
             still renders via AttachmentImage above. */}
         {note && <NoteAttachments noteId={message.id} />}
+        {reaction && (
+          <span className="rounded-full border border-border bg-card px-2 py-0.5 text-sm">
+            {reaction}
+          </span>
+        )}
         {(isLastOfCluster || failed || done || hasTask || pinned) && (
           <span className="flex items-center gap-1.5">
             {/* Labeled chips, orthogonal facts: a "Pinned" chip, a stone "Task"

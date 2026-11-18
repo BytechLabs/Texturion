@@ -1,5 +1,26 @@
 import Foundation
 
+func foldTapbacks(_ messages: [Message]) -> (messages: [Message], reactions: [String: String]) {
+    let loaded = Set(messages.map(\.id))
+    var reactions: [String: String] = [:]
+    var folded = Set<String>()
+    let ordered = messages.filter { $0.reaction_to_message_id != nil }.sorted {
+        ($0.created_at, $0.id) < ($1.created_at, $1.id)
+    }
+    for event in ordered {
+        guard let target = event.reaction_to_message_id,
+              let emoji = event.reaction_emoji, loaded.contains(target)
+        else { continue }
+        if event.reaction_removed {
+            if reactions[target] == emoji { reactions.removeValue(forKey: target) }
+        } else {
+            reactions[target] = emoji
+        }
+        folded.insert(event.id)
+    }
+    return (messages.filter { !folded.contains($0.id) }, reactions)
+}
+
 /// Pure thread-timeline assembly: messages + optimistic pending sends + audit
 /// events interleaved newest-first (the flipped scroll view renders index 0 at
 /// the bottom of the screen) with day dividers appended after each day's

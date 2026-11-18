@@ -254,6 +254,9 @@ data class Message(
     val automation: String? = null,
     /** #722: what this member may do to the message now (retry); null where the row carries no list. */
     val allowed_actions: List<String>? = null,
+    val reaction_to_message_id: String? = null,
+    val reaction_emoji: String? = null,
+    val reaction_removed: Boolean = false,
 ) {
     /**
      * The one retry affordance rule: API-level failure only (no carrier id),

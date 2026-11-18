@@ -1,6 +1,6 @@
 "use client";
 
-import { mmsMediaKind } from "@loonext/shared";
+import { foldTapbacks, mmsMediaKind } from "@loonext/shared";
 import { LoadError } from "@/components/ui/load-error";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { ArrowDown, X } from "lucide-react";
@@ -137,10 +137,11 @@ export function MessageList({
   const eventsQuery = useConversationEvents(conversationId);
   const memberNames = useMemberNames();
 
-  const messages = useMemo(
+  const loadedMessages = useMemo(
     () => flattenPages(messagesQuery.data).slice().toSorted(byChronology),
     [messagesQuery.data],
   );
+  const { messages, reactions } = useMemo(() => foldTapbacks(loadedMessages), [loadedMessages]);
   // #13: the banner shows the conversation's COMPLETE pinned set from a
   // dedicated query (so a pin on a not-yet-loaded page still appears), merged
   // with the loaded-page pins so an optimistic pin shows before the query
@@ -166,7 +167,7 @@ export function MessageList({
     (messageId: string) => messageBodyById.get(messageId),
     [messageBodyById],
   );
-  const oldestLoadedMessageAt = messages[0]?.created_at ?? null;
+  const oldestLoadedMessageAt = loadedMessages[0]?.created_at ?? null;
   const allMessagesLoaded = ! messagesQuery.hasNextPage;
 
   // Keep the events timeline at least as deep as the loaded message history
@@ -188,7 +189,7 @@ export function MessageList({
     }
   }, [eventsQuery, oldestLoadedEventAt, oldestLoadedMessageAt]);
 
-  const newestLoadedMessageAt = messages[messages.length - 1]?.created_at ?? null;
+  const newestLoadedMessageAt = loadedMessages.at(-1)?.created_at ?? null;
   const visibleEvents = useMemo(() => {
     // A window that stops short of the newest must not show the events past it.
     const upTo = (rows: typeof events) =>
@@ -683,6 +684,7 @@ export function MessageList({
                         >
                           <MessageBubble
                             message={message}
+                            reaction={reactions.get(message.id)}
                             isLastOfCluster={index === item.messages.length - 1}
                             conversationId={conversationId}
                             contactName={contactName}

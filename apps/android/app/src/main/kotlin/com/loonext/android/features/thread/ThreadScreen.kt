@@ -579,6 +579,7 @@ private fun ThreadLoaded(
 
     val listState = rememberLazyListState()
     val zone = remember { ZoneId.systemDefault() }
+    val (visibleMessages, reactions) = remember(controller.messages) { foldTapbacks(controller.messages) }
     val timeline = remember(
         controller.messages,
         controller.events,
@@ -589,7 +590,7 @@ private fun ThreadLoaded(
         locale,
     ) {
         buildTimeline(
-            messages = controller.messages,
+            messages = visibleMessages,
             events = controller.events,
             pending = controller.pendingSends,
             filter = controller.filter,
@@ -929,6 +930,7 @@ private fun ThreadLoaded(
                                 val message = item.message
                                 MessageBubble(
                                     message = message,
+                                    reaction = reactions[message.id],
                                     references = references,
                                     onSelectPhone = selectMessagePhone.takeIf { canLinkPhones },
                                     // #101 shared-inbox attribution: in a shared

@@ -1329,3 +1329,4 @@ export {
 export * as stateMachines from "./state-machines/index";
 
 export { SUBPROCESSORS } from "./subprocessors";
+export { foldTapbacks, parseTapback, type Tapback } from "./tapback";
