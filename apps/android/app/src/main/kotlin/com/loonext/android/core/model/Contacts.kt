@@ -290,6 +290,8 @@ data class ContactPhone(
     val phone_e164: String = "",
     val label: String? = null,
     val created_at: String = "",
+    val opted_out: Boolean = false,
+    val opt_out_source: String? = null,
 )
 
 @Serializable

@@ -167,6 +167,9 @@ export const contactsEn = {
     "Texts and calls from this number will show up under this customer, in " +
     "their own conversation.",
   phoneRemove: "Remove {number}",
+  phoneMakeMain: "Make main number",
+  phoneOptedOut: "Opted out of texts",
+  phoneMain: "Main number",
   phoneAddFailed: "Couldn't add that number.",
 
   // ── The workspace's own fields, filled in on a contact ──────────────────
@@ -639,6 +642,9 @@ export const contactsFr: Translated<typeof contactsEn> = {
     "Les textos et les appels provenant de ce numéro apparaîtront sous ce " +
     "client, dans sa propre conversation.",
   phoneRemove: "Retirer {number}",
+  phoneMakeMain: "Définir comme numéro principal",
+  phoneOptedOut: "Désabonné des textos",
+  phoneMain: "Numéro principal",
   phoneAddFailed: "Impossible d'ajouter ce numéro.",
 
   // ── Les champs propres à l'espace de travail ────────────────────────────

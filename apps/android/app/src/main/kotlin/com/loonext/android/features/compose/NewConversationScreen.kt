@@ -117,9 +117,7 @@ fun NewConversationScreen(
     onCreated: (conversationId: String) -> Unit,
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
-    /** #183 part 3: a raw number to seed the recipient field with (a "Text with
-     *  Loonext" tap on a device contact that isn't an app contact yet). Ignored
-     *  when [prefillContactId] resolves a saved contact. */
+    /** A dialed number or a saved contact's selected number. */
     prefillPhone: String? = null,
 ) {
     val context = LocalContext.current
@@ -183,8 +181,8 @@ fun NewConversationScreen(
             onCreated = onCreated,
             onBack = onBack,
             modifier = modifier,
-            // Seed the recipient only when no saved contact was prefilled.
             prefillRecipient = prefillPhone?.takeIf { prefillContactId == null },
+            prefillContactNumber = prefillPhone?.takeIf { prefillContactId != null && selectedContact?.id == prefillContactId },
         )
     }
 }
@@ -205,6 +203,7 @@ private fun NewConversationLoaded(
     onBack: () -> Unit,
     modifier: Modifier = Modifier,
     prefillRecipient: String? = null,
+    prefillContactNumber: String? = null,
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -258,7 +257,15 @@ private fun NewConversationLoaded(
 
     val rawDigits = Nanp.nationalDigits(recipientInput)
     val rawE164 = Nanp.toE164(recipientInput)
-    val recipientE164 = selectedContact?.phone_e164 ?: rawE164
+    var alternateNumber by remember(selectedContact?.id) {
+        mutableStateOf(prefillContactNumber)
+    }
+    LaunchedEffect(selectedContact?.id) {
+        val contact = selectedContact ?: return@LaunchedEffect
+        runCatching { repo.contact(companyId, contact.id) }.onSuccess(onContactChange)
+    }
+    val alternate = selectedContact?.phones?.find { it.phone_e164 == alternateNumber }
+    val recipientE164 = alternateNumber ?: selectedContact?.phone_e164 ?: rawE164
     val localTime = recipientE164?.let { Nanp.destinationLocalTime(it) }
     val validDestination = recipientE164 != null && ContactNanp.isReachableDestination(recipientE164)
 
@@ -298,7 +305,7 @@ private fun NewConversationLoaded(
         if (resend == null && !canSend) return
         val photos = composer.photos
         val bodyText = composer.text.trim()
-        val recipientKey = selectedContact?.id ?: rawE164 ?: return
+        val recipientKey = recipientE164 ?: return
         val intentKey = ComposeIntentKey(recipientKey, bodyText, photos.map { it.id })
         val existing = lastIntent
         val key = if (existing != null && existing.first == intentKey) existing.second
@@ -317,6 +324,7 @@ private fun NewConversationLoaded(
             media = photos.takeIf { it.isNotEmpty() }?.map { it.toOutboundMedia() },
             template_id = used?.templateId,
             template_edited = if (used != null) used.body.trim() != bodyText.trim() else null,
+            contact_phone_e164 = alternateNumber,
         )
         dispatch(request, key)
     }
@@ -418,9 +426,31 @@ private fun NewConversationLoaded(
                     MicroLabel(t("thread.toLabel"))
                     if (selectedContact != null) {
                         RecipientChip(
-                            contact = selectedContact,
+                            contact = if (alternate == null) selectedContact else selectedContact.copy(
+                                phone_e164 = alternate.phone_e164, opted_out = alternate.opted_out,
+                            ),
                             onClear = { onContactChange(null) },
                         )
+                        if (selectedContact.phones.isNotEmpty()) {
+                            SelectField(
+                                options = listOf(
+                                    SelectOption(
+                                        selectedContact.phone_e164,
+                                        t("contactsTasks.phoneMain") + " · " + formatPhone(selectedContact.phone_e164),
+                                    ),
+                                ) + selectedContact.phones.map { phone ->
+                                    val label = listOfNotNull(
+                                        phone.label,
+                                        formatPhone(phone.phone_e164),
+                                        t("contactsTasks.phoneOptedOut").takeIf { phone.opted_out },
+                                    ).joinToString(" · ")
+                                    SelectOption(phone.phone_e164, label)
+                                },
+                                selected = alternate?.phone_e164 ?: selectedContact.phone_e164,
+                                label = t("contactsTasks.numberField"),
+                                onSelect = { number -> alternateNumber = number.takeUnless { it == selectedContact.phone_e164 } },
+                            )
+                        }
                     } else {
                         RecipientField(
                             value = recipientInput,

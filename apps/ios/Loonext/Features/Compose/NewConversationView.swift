@@ -18,9 +18,7 @@ struct NewConversationView: View {
     let companyId: String
     let me: Me
     let prefillContactId: String?
-    /// #459: a raw number to seed the recipient with, from the dialer's Text
-    /// action. Ignored when `prefillContactId` resolves — a contact we already
-    /// have is a better answer than the digits that found them.
+    /// A dialed number or a saved contact's selected number.
     var prefillPhone: String?
     let onCreated: @MainActor (String) -> Void
     let onBack: @MainActor () -> Void
@@ -50,6 +48,7 @@ struct NewConversationView: View {
                     companySignature: companySignature,
                     selectedContact: selectedContact,
                     prefillPhone: selectedContact == nil ? prefillPhone : nil,
+                    prefillContactNumber: prefillContactId != nil && selectedContact?.id == prefillContactId ? prefillPhone : nil,
                     onContactChange: { selectedContact = $0 },
                     onCreated: onCreated,
                     onBack: onBack
@@ -92,6 +91,7 @@ private struct NewConversationLoaded: View {
     let selectedContact: Contact?
     /// #459: the dialer's number, seeded into the recipient field once.
     var prefillPhone: String?
+    var prefillContactNumber: String?
     let onContactChange: @MainActor (Contact?) -> Void
     let onCreated: @MainActor (String) -> Void
     let onBack: @MainActor () -> Void
@@ -100,6 +100,7 @@ private struct NewConversationLoaded: View {
     /// Applied once. Re-seeding on every render would fight the person the
     /// moment they cleared the field to pick somebody else.
     @State private var prefillApplied = false
+    @State private var alternateNumber: String?
     @State private var contactMatches: [Contact] = []
     @State private var fromNumberId: String?
     @State private var composer: ComposerState?
@@ -128,7 +129,12 @@ private struct NewConversationLoaded: View {
 
     private var rawDigits: String { Nanp.nationalDigits(recipientInput) }
     private var rawE164: String? { Nanp.toE164(recipientInput) }
-    private var recipientE164: String? { selectedContact?.phone_e164 ?? rawE164 }
+    private var alternate: ContactPhone? {
+        selectedContact?.phones?.first { $0.phone_e164 == alternateNumber }
+    }
+    private var recipientE164: String? {
+        (selectedContact == nil ? nil : alternateNumber) ?? selectedContact?.phone_e164 ?? rawE164
+    }
     private var localTimeLabel: String? {
         recipientE164.flatMap { Nanp.destinationLocalTimeLabel($0) }
     }
@@ -199,6 +205,15 @@ private struct NewConversationLoaded: View {
                     drafts: ComposerDrafts()
                 )
             }
+        }
+        .onChange(of: selectedContact?.id, initial: true) { _, _ in
+            alternateNumber = prefillContactNumber
+        }
+        .task(id: selectedContact?.id) {
+            guard let selectedContact, selectedContact.phones == nil,
+                  let fullContact = try? await repo.contact(companyId: companyId, contactId: selectedContact.id),
+                  !Task.isCancelled else { return }
+            onContactChange(fullContact)
         }
         // Contact search over the recipient input (debounced, ≥2 chars).
         .task(id: recipientInput) {
@@ -428,7 +443,8 @@ private struct NewConversationLoaded: View {
                     HStack(spacing: 8) {
                         Text(
                             (selectedContact.name ?? formatPhone(selectedContact.phone_e164))
-                                + (selectedContact.opted_out ? optedOutSuffix : "")
+                                + ((alternate.map { $0.opted_out == true } ?? selectedContact.opted_out)
+                                    ? optedOutSuffix : "")
                         )
                         .font(.golos(13.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
@@ -451,6 +467,19 @@ private struct NewConversationLoaded: View {
                     BrandColor.paper,
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
+                if let phones = selectedContact.phones, !phones.isEmpty {
+                    Picker(t("contactsTasks.numberField"), selection: $alternateNumber) {
+                        Text(t("contactsTasks.phoneMain") + " · " + formatPhone(selectedContact.phone_e164))
+                            .tag(nil as String?)
+                        ForEach(phones, id: \.id) { phone in
+                            let label = [phone.label, formatPhone(phone.phone_e164),
+                                         phone.opted_out == true ? t("contactsTasks.phoneOptedOut") : nil]
+                                .compactMap { $0 }.joined(separator: " · ")
+                            Text(label).tag(Optional(phone.phone_e164))
+                        }
+                    }
+                    .pickerStyle(.menu)
+                }
             } else {
                 TextField(
                     t("thread.recipientPlaceholder"),
@@ -648,7 +677,7 @@ private struct NewConversationLoaded: View {
         if resend == nil, !canSend { return }
         let photos = composer.photos
         let bodyText = composer.text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let recipientKey = selectedContact?.id ?? rawE164 else { return }
+        guard let recipientKey = recipientE164 else { return }
         let intentKey = ComposeIntentKey(
             recipient: recipientKey,
             body: bodyText,
@@ -681,7 +710,8 @@ private struct NewConversationLoaded: View {
                 template_edited: used.map {
                     $0.body.trimmingCharacters(in: .whitespacesAndNewlines)
                         != bodyText.trimmingCharacters(in: .whitespacesAndNewlines)
-                }
+                },
+                contact_phone_e164: selectedContact == nil ? nil : alternateNumber
             )
         }
         dispatch(request, key: key)

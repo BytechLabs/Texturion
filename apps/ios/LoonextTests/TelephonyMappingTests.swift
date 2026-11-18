@@ -158,7 +158,8 @@ private final class FakeBackend: CallsBackend {
         conversationId: String?,
         contactId: String?,
         to: String?,
-        phoneNumberId: String?
+        phoneNumberId: String?,
+        contactPhoneE164: String?
     ) async throws -> BrowserCallAuth {
         BrowserCallAuth(
             from: "+15550001111",

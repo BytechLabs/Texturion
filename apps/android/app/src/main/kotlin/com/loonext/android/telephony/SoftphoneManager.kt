@@ -429,12 +429,14 @@ class SoftphoneManager private constructor(
         contactId: String? = null,
         to: String? = null,
         phoneNumberId: String? = null,
+        contactPhoneE164: String? = null,
     ) = core.placeCall(
         displayName = displayName,
         conversationId = conversationId,
         contactId = contactId,
         to = to,
         phoneNumberId = phoneNumberId,
+        contactPhoneE164 = contactPhoneE164,
     )
 
     /** Answer the incoming call for [session] from the app's own ring surface

@@ -81,6 +81,7 @@ data class ComposeBody(
     val template_id: String? = null,
     /** #274: whether the words changed after it was inserted. */
     val template_edited: Boolean? = null,
+    val contact_phone_e164: String? = null,
 )
 
 /** POST /v1/conversations/:id/notes request body. */

@@ -248,6 +248,7 @@ interface SoftphoneContextValue extends SoftphoneState {
   placeCall: (args: {
     conversationId?: string;
     contactId?: string;
+    contactPhoneE164?: string;
     to?: string;
     phoneNumberId?: string;
     contactName: string;
@@ -946,12 +947,14 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
     async ({
       conversationId,
       contactId,
+      contactPhoneE164,
       to,
       phoneNumberId,
       contactName,
     }: {
       conversationId?: string;
       contactId?: string;
+      contactPhoneE164?: string;
       to?: string;
       phoneNumberId?: string;
       contactName: string;
@@ -998,6 +1001,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
         const auth = await authorize({
           conversation_id: conversationId,
           contact_id: contactId,
+          ...(contactPhoneE164 ? { contact_phone_e164: contactPhoneE164 } : {}),
           to,
           phone_number_id: phoneNumberId,
         });

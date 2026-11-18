@@ -130,6 +130,10 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
         api.delete("/v1/contacts/$contactId/phones/$phoneId", companyId = companyId)
     }
 
+    suspend fun makePrimaryPhone(companyId: String, contactId: String, phoneId: String) {
+        api.post<JsonObject>("/v1/contacts/$contactId/phones/$phoneId/make-primary", companyId = companyId)
+    }
+
     suspend fun updateField(
         companyId: String,
         contactId: String,

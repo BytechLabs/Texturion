@@ -183,6 +183,7 @@ internal fun ContactDetailScreen(
      */
     companyLocale: String = MessageLocale.DEFAULT,
     onContactDeleted: () -> Unit = onBack,
+    onComposeNumber: ((String, String) -> Unit)? = null,
 ) {
     BackHandler(onBack = onBack)
 
@@ -332,6 +333,7 @@ internal fun ContactDetailScreen(
                 onErase = { showErasure = true },
                 onOpenConversation = onOpenConversation,
                 onComposeNew = onComposeNew,
+                onComposeNumber = onComposeNumber,
                 onOpenTask = onOpenTask,
             )
         }
@@ -364,6 +366,7 @@ private fun ContactDetailBody(
     onErase: () -> Unit,
     onOpenConversation: ((String) -> Unit)?,
     onComposeNew: ((String) -> Unit)?,
+    onComposeNumber: ((String, String) -> Unit)?,
     onOpenTask: ((String) -> Unit)?,
 ) {
     val scope = rememberCoroutineScope()
@@ -435,7 +438,8 @@ private fun ContactDetailBody(
     // honest server copy in the existing error line.
     val softphone = remember(graph) { SoftphoneManager.get(context, graph.api) }
     var placingCall by remember(contact.id) { mutableStateOf(false) }
-    fun placeCall() {
+    var pendingCallNumber by remember(contact.id) { mutableStateOf<String?>(null) }
+    fun placeCall(number: String? = null) {
         if (placingCall) return
         placingCall = true
         actionError = null
@@ -444,8 +448,9 @@ private fun ContactDetailBody(
             try {
                 softphone.placeCall(
                     displayName = contact.name?.ifBlank { null }
-                        ?: formatPhone(contact.phone_e164),
+                        ?: formatPhone(number ?: contact.phone_e164),
                     contactId = contact.id,
+                    contactPhoneE164 = number,
                 )
             } catch (cause: Exception) {
                 actionError = cause.userMessage(locale)
@@ -457,8 +462,10 @@ private fun ContactDetailBody(
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
+        val number = pendingCallNumber
+        pendingCallNumber = null
         if (granted) {
-            placeCall()
+            placeCall(number)
         } else {
             actionError = AppStrings.translate(locale, "contactsTasks.micNeeded")
         }
@@ -497,10 +504,11 @@ private fun ContactDetailBody(
         ),
     )
     val contactMenuIds = contactMenuActions.visibleIds()
-    fun startCall() {
+    fun startCall(number: String? = null) {
         if (softphone.hasMicPermission()) {
-            placeCall()
+            placeCall(number)
         } else {
+            pendingCallNumber = number
             micLauncher.launch(Manifest.permission.RECORD_AUDIO)
         }
     }
@@ -850,6 +858,12 @@ private fun ContactDetailBody(
             // crew adds one, so most records read exactly as they did before.
             PhoneList(
                 phones = contact.phones,
+                onText = onComposeNumber?.let { compose -> { number -> compose(contact.id, number) } },
+                onCall = { number -> startCall(number) },
+                onMakePrimary = { phoneId -> runAction {
+                    mutations.makePrimaryPhone(companyId, contact.id, phoneId)
+                    refreshContact()
+                } },
                 onAdd = { label, phone ->
                     scope.launch {
                         runCatching {

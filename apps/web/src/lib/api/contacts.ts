@@ -568,6 +568,8 @@ export interface ContactPhone {
   phone_e164: string;
   label: string | null;
   created_at: string;
+  opted_out?: boolean;
+  opt_out_source?: string | null;
 }
 
 export function useAddContactAddress(contactId: string) {
@@ -627,6 +629,17 @@ export function useRemoveContactPhone(contactId: string) {
       queryClient.invalidateQueries({
         queryKey: keys.contacts.detail(companyId, contactId),
       }),
+  });
+}
+
+export function useMakePrimaryContactPhone(contactId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (phoneId: string) => apiFetch<{ phone_e164: string }>(
+      `/v1/contacts/${contactId}/phones/${phoneId}/make-primary`, { method: "POST", companyId },
+    ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: [companyId, "contacts"] }),
   });
 }
 

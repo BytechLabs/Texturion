@@ -567,7 +567,10 @@ struct ShellView: View {
                 canUnmerge: MemberRole.atLeast(role, required: MemberRole.admin),
                 canDelete: RecordDeletion.canDelete(role: role),
                 canBlock: MemberRole.has(role, Capability.conversationsNote),
-                onContactDeleted: showContactDeletion
+                onContactDeleted: showContactDeletion,
+                onComposeNumber: { contactId, number in
+                    activeSheet = .compose(prefillContactId: contactId, prefillPhone: number)
+                }
             )
             // Edits/opt-outs/deletes made in the detail show on return to the
             // contacts list (no realtime for contact mutations on iOS).

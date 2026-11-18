@@ -40,6 +40,8 @@ struct ContactPhone: Codable, Sendable, Identifiable {
     var phone_e164: String = ""
     var label: String? = nil
     var created_at: String = ""
+    var opted_out: Bool? = nil
+    var opt_out_source: String? = nil
 }
 
 struct ContactPhoneBody: Codable, Sendable {

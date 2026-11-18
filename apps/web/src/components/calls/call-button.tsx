@@ -37,6 +37,7 @@ export function usePlaceCall() {
   function place(args: {
     conversationId?: string;
     contactId?: string;
+    contactPhoneE164?: string;
     contactName: string;
   }) {
     if (!softphone) {
@@ -66,6 +67,7 @@ export function usePlaceCall() {
 export function CallButton({
   conversationId,
   contactId,
+  contactPhoneE164,
   contactName,
   label,
   variant,
@@ -75,6 +77,7 @@ export function CallButton({
   conversationId?: string;
   /** …or a contact with no thread yet (fresh import). Exactly one is set. */
   contactId?: string;
+  contactPhoneE164?: string;
   contactName: string;
   /**
    * Render as a labelled button instead of the header's icon. Used where the
@@ -91,7 +94,7 @@ export function CallButton({
   const { place, busy } = usePlaceCall();
 
   function onClick() {
-    place({ conversationId, contactId, contactName });
+    place({ conversationId, contactId, contactName, ...(contactPhoneE164 ? { contactPhoneE164 } : {}) });
   }
 
   const icon = busy ? (

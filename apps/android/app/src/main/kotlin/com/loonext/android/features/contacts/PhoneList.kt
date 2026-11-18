@@ -4,6 +4,7 @@ import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -14,9 +15,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material.icons.outlined.ContentCopy
+import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.Phone
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -38,6 +42,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ContactPhone
+import com.loonext.android.ui.common.formatPhone
 
 /**
  * #291 — the other numbers this customer answers.
@@ -67,6 +72,9 @@ fun PhoneList(
     phones: List<ContactPhone>,
     onAdd: (label: String?, phone: String) -> Unit,
     onRemove: (String) -> Unit,
+    onText: ((String) -> Unit)? = null,
+    onCall: (String) -> Unit,
+    onMakePrimary: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     val clipboard = LocalClipboardManager.current
@@ -91,17 +99,13 @@ fun PhoneList(
                     modifier = Modifier.size(IconSize.Small),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                Text(
-                    buildString {
-                        entry.label?.let {
-                            append(it)
-                            append(" · ")
-                        }
-                        append(entry.phone_e164)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
-                )
+                Column(Modifier.weight(1f).padding(horizontal = 8.dp)) {
+                    Text(
+                        listOfNotNull(entry.label, formatPhone(entry.phone_e164)).joinToString(" · "),
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (entry.opted_out) Text(t("contactsTasks.phoneOptedOut"), style = MaterialTheme.typography.labelSmall)
+                }
                 IconButton(onClick = { clipboard.setText(AnnotatedString(entry.phone_e164)) }) {
                     Icon(
                         Icons.Outlined.ContentCopy,
@@ -109,6 +113,30 @@ fun PhoneList(
                         modifier = Modifier.size(IconSize.Small),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
+                }
+                var actionsOpen by remember(entry.id) { mutableStateOf(false) }
+                Box {
+                    IconButton(onClick = { actionsOpen = true }) {
+                        Icon(Icons.Outlined.MoreHoriz, contentDescription = t("contactsTasks.phoneActions"))
+                    }
+                    DropdownMenu(expanded = actionsOpen, onDismissRequest = { actionsOpen = false }) {
+                        if (onText != null) DropdownMenuItem(
+                            text = { Text(t("contactsTasks.phoneText")) },
+                            enabled = !entry.opted_out,
+                            onClick = {
+                                actionsOpen = false
+                                onText(entry.phone_e164)
+                            },
+                        )
+                        DropdownMenuItem(text = { Text(t("contactsTasks.phoneCall")) }, onClick = {
+                            actionsOpen = false
+                            onCall(entry.phone_e164)
+                        })
+                        DropdownMenuItem(text = { Text(t("contactsTasks.phoneMakeMain")) }, onClick = {
+                            actionsOpen = false
+                            onMakePrimary(entry.id)
+                        })
+                    }
                 }
                 Icon(
                     Icons.Outlined.Close,
