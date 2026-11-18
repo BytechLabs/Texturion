@@ -3,6 +3,8 @@ import type { BillingCurrency } from '@loonext/shared';
 
 import type { Env } from "../env";
 
+const MAX_CAP_MULTIPLIER = 10;
+
 /** `plan_id` enum values (SPEC §6). */
 export const PLAN_IDS = ["starter", "pro"] as const;
 export type PlanId = (typeof PLAN_IDS)[number];
@@ -201,6 +203,17 @@ export const PLAN_VOICE_MINUTES: Record<PlanId, number> = {
   starter: 2500,
   pro: 6000,
 };
+
+export function voiceSpendingCapSeconds(
+  plan: PlanId,
+  overageCapMultiplier: number | string | null,
+): number {
+  const value = Number(overageCapMultiplier);
+  const multiplier = Number.isFinite(value) && value > 0
+    ? Math.min(value, MAX_CAP_MULTIPLIER)
+    : MAX_CAP_MULTIPLIER;
+  return PLAN_VOICE_MINUTES[plan] * 60 * multiplier;
+}
 
 /**
  * D36 (#128): overage price per extra forwarded minute, in cents — flat

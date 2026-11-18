@@ -44,6 +44,7 @@ import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
 import { assertNumberLevel, resolveNumberAccess } from "../auth/number-access";
+import { recordSpendingCapRefusal } from "../billing/usage-alerts";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
@@ -927,6 +928,7 @@ async function authorizeOutboundCall(
   );
   const reserveSeconds = liveOutbound.length * OUTBOUND_LIVE_CALL_RESERVE_SECS;
   if (await companyOverVoiceCap(db, companyId, company, reserveSeconds)) {
+    await recordSpendingCapRefusal(getEnv(c.env), companyId, "voice_cap");
     return errorResponse(
       c,
       "usage_cap_reached",

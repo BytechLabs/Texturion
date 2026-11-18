@@ -189,6 +189,22 @@ class ComposerBannerTest {
     }
 
     @Test
+    fun `a member at the cap sees the usage banner`() {
+        assertEquals(
+            ComposerBanner.UsageCap,
+            selectComposerBanner(
+                contactOptedOut = false,
+                contactOptOutSource = null,
+                subscriptionStatus = SubscriptionStatus.ACTIVE,
+                destinationCountry = "CA",
+                usApproved = true,
+                usTextingOff = false,
+                usage = Usage(used_segments = 100, sending_capped = true),
+            ),
+        )
+    }
+
+    @Test
     fun `no cap means no usage banner`() {
         assertNull(
             selectComposerBanner(

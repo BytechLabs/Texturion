@@ -137,6 +137,8 @@ data class Usage(
      * predates it, or when the read failed — the rest of the page still shows.
      */
     val delivery: UsageDelivery? = null,
+    val sending_capped: Boolean? = null,
+    val calling_capped: Boolean? = null,
 )
 
 /**

@@ -1,23 +1,14 @@
-/**
- * 80%/100% usage alerts (SPEC §2, §8, §9; #12 storage arms; #16 egress arm):
- * when a company crosses 80% or 100% of a budget, email the owner + active
- * admins — exactly once per (company, period, metric, threshold), gated by the
- * `usage_alerts` ledger PK. Five static metrics: outbound `segments` vs the
- * plan's INCLUDED quota (never the cap); `mms_storage` + `attachment_storage`
- * vs their #12 storage budgets; `voice_minutes` vs the plan's call-forwarding
- * allowance; and `egress` vs the #16 signed-URL download allowance. (#103: no
- * `mms_messages` arm — pictures meter as segments now.) Runs from the hourly
- * cron right after the usage re-reporter (§11 idempotency style: work is
- * selected by state — sums vs the ledger — never by "last run" bookkeeping),
- * so re-runs and overlaps can never double-send.
- */
+import { resolveLocale, type Locale } from "@loonext/shared";
+
 import { storedBytes } from './stored-bytes';
 import type { StorageUsageRow } from './stored-bytes';
 
+import { pushConsequentialNotice } from "./consequential-push";
+import { sendLedgered, usageAlertLedger } from "./send-ledgered";
 import { billingRecipients } from "./recipients";
 import { UNIT_COST_CENTS } from "./costs";
 import { EGRESS_ALLOWANCE_BYTES } from "../attachments/egress";
-import { dialCeilings, INBOUND_ABUSE_TIERS_SEGMENTS, PLAN_INCLUDED_SEGMENTS, PLAN_VOICE_MINUTES, STORAGE_ABUSE_TIERS_GB } from './plans';
+import { dialCeilings, INBOUND_ABUSE_TIERS_SEGMENTS, PLAN_INCLUDED_SEGMENTS, PLAN_VOICE_MINUTES, STORAGE_ABUSE_TIERS_GB, voiceSpendingCapSeconds } from './plans';
 import type { PlanId } from './plans';
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
@@ -25,9 +16,13 @@ import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { captureEvent, captureException } from "../observability/capture";
 
-/** Ledger-backed thresholds (SPEC §6 `usage_alerts.threshold in (80,100)`). */
 export type UsageAlertThreshold = 80 | 100;
 export const USAGE_ALERT_PERCENTS: readonly UsageAlertThreshold[] = [80, 100];
+const SPENDING_CAP_PERCENTS = [90, 100] as const;
+const SPENDING_CAP_PATH = "/settings/usage#spending-cap";
+
+type SpendingCapMetric = "segments_cap" | "voice_cap";
+type SpendingCapThreshold = (typeof SPENDING_CAP_PERCENTS)[number];
 
 /**
  * The budget a threshold is measured against. `segments` is the per-period
@@ -37,6 +32,7 @@ export const USAGE_ALERT_PERCENTS: readonly UsageAlertThreshold[] = [80, 100];
  */
 export type UsageAlertMetric =
   | "segments"
+  | SpendingCapMetric
   // "mms_storage" / "attachment_storage" retired with the storage budgets
   // (#121) — historic ledger rows keep those values (the DB CHECK still
   // allows them), we just never write them again. The one storage arm left
@@ -68,6 +64,7 @@ export interface ActiveCompanyRow {
    *  uses, so a tenant who raised their cap is not alerted at a tenth of the
    *  point where dialing actually stops. */
   overage_cap_multiplier: number | string | null;
+  locale?: string | null;
 }
 
 /**
@@ -282,52 +279,118 @@ function egressAlertCopy(
  */
 export async function recordAndSendAlert(
   env: Env,
-  company: ActiveCompanyRow,
+  company: Pick<ActiveCompanyRow, "id" | "current_period_start">,
   metric: UsageAlertMetric,
-  // 80|100 for the classic percent arms; an absolute GB tier for
-  // storage_abuse (#121) — the ledger PK treats it purely as a dedupe key.
   threshold: number,
   copy: { subject: string; text: string },
   measured: Record<string, number | null> = {},
+  pushCopy?: (locale: Locale) => { subject: string; text: string },
 ): Promise<boolean> {
   const db = getDb(env);
-  const { data, error } = await db
-    .from("usage_alerts")
-    .upsert(
-      {
-        company_id: company.id,
-        period_start: company.current_period_start,
-        metric,
-        threshold,
-      },
-      {
-        onConflict: "company_id,period_start,metric,threshold",
-        ignoreDuplicates: true,
-      },
-    )
-    .select("company_id");
-  if (error) {
-    throw new Error(`usage_alerts insert failed: ${error.message}`);
-  }
-  if (!data || data.length === 0) return false; // ledger says already sent
+  return sendLedgered({
+    ...usageAlertLedger(db, {
+      company_id: company.id,
+      period_start: company.current_period_start,
+      metric,
+      threshold,
+    }),
+    send: async () => {
+      if (pushCopy) {
+        await pushConsequentialNotice(env, db, {
+          companyId: company.id,
+          title: (locale) => pushCopy(locale).subject,
+          body: (locale) => pushCopy(locale).text,
+          collapseKey: `cap:${company.id}:${metric === "segments_cap" ? "text" : "call"}:${threshold}:${company.current_period_start.slice(0, 10)}`,
+          path: SPENDING_CAP_PATH,
+        });
+      }
+      const to = await billingRecipients(env, company.id, db);
+      if (to.length === 0) {
+        void captureException(env, "No billing contacts for usage alert", {
+          source: "api",
+          company_id: company.id,
+        });
+        return false;
+      }
 
-  void captureEvent(
-    env,
-    metric === "cost_projection" ? "overage_projected" : "usage_threshold_crossed",
-    company.id,
-    { metric, threshold, ...measured },
-  );
-
-  // Operational email: owner + active admins, bypasses notification_prefs (§8).
-  const to = await billingRecipients(env, company.id, db);
-  if (to.length === 0) return false;
-  await sendEmail(env, {
-    to,
-    subject: copy.subject,
-    text: copy.text,
-    html: renderEmailHtml(copy.text),
+      const email = await sendEmail(env, {
+        to,
+        subject: copy.subject,
+        text: copy.text,
+        html: renderEmailHtml(copy.text),
+        critical: pushCopy !== undefined,
+      });
+      if (email.id === null) return false;
+      void captureEvent(
+        env,
+        metric === "cost_projection" ? "overage_projected" : "usage_threshold_crossed",
+        company.id,
+        { metric, threshold, ...measured },
+      );
+      return true;
+    },
   });
-  return true;
+}
+
+function spendingCapCopy(
+  locale: Locale,
+  metric: SpendingCapMetric,
+  threshold: SpendingCapThreshold,
+): { subject: string; text: string } {
+  if (locale === "fr-CA") {
+    const service = metric === "segments_cap" ? "Textos" : "Appels";
+    return threshold === 100
+      ? { subject: `${service} en pause`, text: "Votre plafond de dépenses est atteint. Un propriétaire peut le modifier dans les paramètres d’utilisation." }
+      : { subject: `${service} près du plafond de dépenses`, text: "Vous avez atteint 90 % du plafond. Le service est mis en pause lorsque le plafond est atteint." };
+  }
+  const service = metric === "segments_cap" ? "Texting" : "Calling";
+  return threshold === 100
+    ? { subject: `${service} paused`, text: "You reached the spending cap. An owner can raise it in usage settings." }
+    : { subject: `${service} is near the spending cap`, text: "You've reached 90% of the spending cap. Service pauses at the cap." };
+}
+
+function recordSpendingCapAlert(
+  env: Env,
+  company: Pick<ActiveCompanyRow, "id" | "current_period_start" | "locale">,
+  metric: SpendingCapMetric,
+  threshold: SpendingCapThreshold,
+  measured: Record<string, number> = {},
+): Promise<boolean> {
+  const copy = spendingCapCopy(resolveLocale(null, company.locale), metric, threshold);
+  return recordAndSendAlert(
+    env,
+    company,
+    metric,
+    threshold,
+    { subject: copy.subject, text: `${copy.text}\n\n${env.APP_ORIGIN}${SPENDING_CAP_PATH}` },
+    measured,
+    (locale) => spendingCapCopy(locale, metric, threshold),
+  );
+}
+
+export async function recordSpendingCapRefusal(
+  env: Env,
+  companyId: string,
+  metric: SpendingCapMetric,
+): Promise<void> {
+  try {
+    const { data, error } = await getDb(env)
+      .from("companies")
+      .select("id,current_period_start,locale")
+      .eq("id", companyId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (error) throw new Error(`spending cap company lookup failed: ${error.message}`);
+    if (data?.current_period_start) {
+      await recordSpendingCapAlert(env, {
+        id: data.id,
+        current_period_start: data.current_period_start,
+        locale: data.locale,
+      }, metric, 100);
+    }
+  } catch (error) {
+    void captureException(env, error, { source: "api", company_id: companyId });
+  }
 }
 
 /**
@@ -352,7 +415,7 @@ export async function runUsageAlertsJob(
   const db = getDb(env);
   const { data, error } = await db
     .from("companies")
-    .select("id,name,plan,current_period_start,overage_cap_multiplier")
+    .select("id,name,plan,current_period_start,overage_cap_multiplier,locale")
     .eq("subscription_status", "active")
     .not("plan", "is", null)
     .not("current_period_start", "is", null)
@@ -404,6 +467,14 @@ export async function runUsageAlertsJob(
             threshold,
             segmentAlertCopy(company, threshold, included, used, env),
           );
+        }
+      }
+
+      const multiplier = Number(company.overage_cap_multiplier);
+      const capSegments = Math.round(included * multiplier);
+      for (const threshold of SPENDING_CAP_PERCENTS) {
+        if (capSegments > 0 && used * 100 >= capSegments * threshold) {
+          await recordSpendingCapAlert(env, company, "segments_cap", threshold, { used, cap: capSegments });
         }
       }
 
@@ -469,6 +540,13 @@ export async function runUsageAlertsJob(
               env,
             ),
           );
+        }
+      }
+
+      const capSeconds = voiceSpendingCapSeconds(company.plan, company.overage_cap_multiplier);
+      for (const threshold of SPENDING_CAP_PERCENTS) {
+        if (usedVoiceSeconds * 100 >= capSeconds * threshold) {
+          await recordSpendingCapAlert(env, company, "voice_cap", threshold, { used: usedVoiceSeconds, cap: capSeconds });
         }
       }
 

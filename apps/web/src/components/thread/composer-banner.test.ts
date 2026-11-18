@@ -123,6 +123,12 @@ describe("selectComposerBanner precedence", () => {
     expect(
       selectComposerBanner({
         ...clear,
+        usage: { used_segments: 1500, cap_segments: null, sending_capped: true },
+      }),
+    ).toEqual({ kind: "usage_cap" });
+    expect(
+      selectComposerBanner({
+        ...clear,
         usage: { used_segments: 1500, cap_segments: 1500 },
       }),
     ).toEqual({ kind: "usage_cap" });

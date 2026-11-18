@@ -1,9 +1,11 @@
 import { formatResponseTime } from "@loonext/shared";
 
+import { emailLedger, sendLedgered } from "../billing/send-ledgered";
 import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { captureException } from "../observability/capture";
 
 /**
  * #482 / #239 — the monthly recap the owner actually reads.
@@ -32,8 +34,7 @@ import type { Env } from "../env";
  * CAPPED BEFORE IT IS PROMPTED. Email costs money per send, and this one goes
  * to every eligible workspace at once — the shape most likely to surprise
  * somebody with a bill. `MAX_RECAPS_PER_RUN` bounds one run; past it the rest
- * are skipped, loudly, and simply arrive next month. Skipping is safe because
- * the recap is a courtesy, not a notification somebody is waiting on.
+ * are deferred. The next two days retry the same monthly delivery keys.
  *
  * # Who gets it
  *
@@ -176,6 +177,7 @@ export async function runResponseTimeRecapJob(
   if (error) throw new Error(`recap company list failed: ${error.message}`);
 
   let sent = 0;
+  let attempted = 0;
   let skippedForCap = 0;
 
   for (const row of (companies ?? []) as {
@@ -183,7 +185,7 @@ export async function runResponseTimeRecapJob(
     name: string;
     created_at: string;
   }[]) {
-    if (sent >= MAX_RECAPS_PER_RUN) {
+    if (attempted >= MAX_RECAPS_PER_RUN) {
       skippedForCap += 1;
       continue;
     }
@@ -214,57 +216,37 @@ export async function runResponseTimeRecapJob(
     const owner = await ownerEmail(db, row.id);
     if (!owner) continue;
 
-    // One recap per workspace per month, however many times the job runs.
-    if (!(await claimRecap(db, row.id, now))) continue;
-
-    await sendEmail(env, {
-      to: [owner],
-      subject: `${row.name}: how fast you answered this month`,
-      text: recapText({
-        companyName: row.name,
-        current,
-        baselineMedian: baseline.median_seconds,
-      }),
-      html: renderEmailHtml(
-        recapText({
-          companyName: row.name,
-          current,
-          baselineMedian: baseline.median_seconds,
-        }),
-      ),
+    const text = recapText({
+      companyName: row.name,
+      current,
+      baselineMedian: baseline.median_seconds,
     });
-    sent += 1;
+    try {
+      const delivered = await sendLedgered({
+        ...emailLedger(db, row.id, `response_recap:${now.toISOString().slice(0, 7)}`),
+        send: async () => {
+          attempted += 1;
+          const result = await sendEmail(env, {
+            to: [owner],
+            subject: `${row.name}: how fast you answered this month`,
+            text,
+            html: renderEmailHtml(text),
+          });
+          return result.id !== null;
+        },
+      });
+      if (delivered) sent += 1;
+    } catch (error) {
+      void captureException(env, error, { source: "cron", company_id: row.id });
+    }
   }
 
   if (skippedForCap > 0) {
-    // Loud, per the cost-protection posture: a cap that silently drops work
-    // reads as "everybody got one". These arrive next month.
     console.warn(
-      `response-time recap: sent ${sent} (the per-run ceiling of ` +
-        `${MAX_RECAPS_PER_RUN}); ${skippedForCap} workspaces were skipped and ` +
-        `will be picked up by the next run.`,
+      `response-time recap: sent ${sent} from ${attempted} attempts (the per-run ceiling of ` +
+        `${MAX_RECAPS_PER_RUN}); ${skippedForCap} workspaces were deferred.`,
     );
   }
-}
-
-/** True for the first run in a calendar month to claim this workspace. */
-async function claimRecap(
-  db: ReturnType<typeof getDb>,
-  companyId: string,
-  now: Date,
-): Promise<boolean> {
-  const { data, error } = await db
-    .from("email_ledger")
-    .upsert(
-      {
-        company_id: companyId,
-        email_key: `response_recap:${now.toISOString().slice(0, 7)}`,
-      },
-      { onConflict: "company_id,email_key", ignoreDuplicates: true },
-    )
-    .select("email_key");
-  if (error) throw new Error(`recap ledger insert failed: ${error.message}`);
-  return (data ?? []).length > 0;
 }
 
 /** The same RPC the panel reads, so the two can never disagree. */

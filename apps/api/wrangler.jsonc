@@ -73,10 +73,9 @@
       "0 15 * * *", // subscription reconcile
       "45 15 * * *", // opt-out reconciliation against the carrier list (daily)
       "30 15 * * *", // webhook_events ledger retention (daily)
-      // #482 response-time recap (monthly, 1st). Its own minute so it never
-      // shares a tick with the daily jobs above — this one fans out across
-      // every active tenant, and a slow run must not delay grace & release.
-      "35 14 1 * *"
+      // Monthly recap with two retry days. Its own minute keeps a slow send
+      // from delaying grace and release.
+      "35 14 1-3 * *"
     ]
   },
   "unsafe": {

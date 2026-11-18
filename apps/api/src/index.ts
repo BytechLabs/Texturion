@@ -743,7 +743,7 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   // #482/#239: the monthly response-time recap. Monthly because the arc it
   // reports moves on that scale — a weekly one would mostly report noise, and
   // an email that mostly says nothing is one people stop opening.
-  "35 14 1 * *": [job("job:response-time-recap", runResponseTimeRecapJob)],
+  "35 14 1-3 * *": [job("job:response-time-recap", runResponseTimeRecapJob)],
   // #457: the carrier's own daily ceiling, warned about hourly. Hourly rather
   // than daily because the only useful advice ("spread the rest over
   // tomorrow") expires the moment the ceiling is hit, and a nightly sweep

@@ -1099,6 +1099,8 @@ POST /v1/messages/send
 
 ## 9. Billing mechanics (D6)
 
+Billing managers receive a warning at 90% of the texting or calling spending cap and a second warning when that cap is reached. The first refused send or call also triggers the reached notice through the same period ledger. All workspace roles can see whether service has reached the cap. The cap amount and projected charges are limited to billing managers.
+
 ### Stripe catalog (created by a checked-in setup script, ids stored as env config)
 
 - **Products:** `Loonext Starter`, `Loonext Pro` (SaaS product tax code on both), `US texting registration`.

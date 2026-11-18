@@ -100,7 +100,8 @@ func selectComposerBanner(
         if usSuspended { return .registrationSuspended }
         return .registrationPending
     }
-    if let usage, let cap = usage.cap_segments, usage.used_segments >= cap {
+    if let usage,
+       usage.sending_capped ?? (usage.cap_segments.map({ usage.used_segments >= $0 }) ?? false) {
         return .usageCap
     }
     // #396 LAST, deliberately: every case above says a message CANNOT go, and

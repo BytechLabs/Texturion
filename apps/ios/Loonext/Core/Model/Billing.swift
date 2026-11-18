@@ -138,6 +138,8 @@ struct Usage: Codable, Sendable {
     @Default<DefaultZero> var inbound_segments: Int
     @Default<DefaultZero> var overage_segments: Int
     let cap_segments: Int?
+    var sending_capped: Bool? = nil
+    var calling_capped: Bool? = nil
     @Default<DefaultZero> var projected_overage_cents: Int
     @Default<DefaultEmptyProjection> var overage_projection: UsageOverageProjection
     @Default<DefaultEmptyList<UsageMonth>> var history: [UsageMonth]

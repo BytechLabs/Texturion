@@ -42,6 +42,7 @@ import { summarize } from "../messaging/delivery-by-country";
 import { loadAiSettings } from "../ai/settings";
 import { requireCapability } from "../auth/company";
 import { decideOverage } from "../billing/overage-projection";
+import { voiceSpendingCapSeconds } from "../billing/plans";
 import { readUsageWindow } from "../billing/usage-window";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
@@ -139,6 +140,8 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
       inbound_segments: 0,
       overage_segments: 0,
       cap_segments: null,
+      sending_capped: false,
+      calling_capped: false,
       projected_overage_cents: 0,
       overage_projection: { trending_over: false, projected_overage_cents: 0 },
       history: [],
@@ -286,13 +289,10 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
   // own allowance — at 90%, mirroring the cost-mandate's alert-BEFORE-the-cap.
   const capSegments =
     multiplier === null ? null : Math.round(included * multiplier);
-  const capVoiceSeconds =
-    multiplier === null ? null : includedVoiceMinutes * 60 * multiplier;
+  const capVoiceSeconds = voiceSpendingCapSeconds(company.plan, company.overage_cap_multiplier);
   const nearCap =
     (capSegments !== null && capSegments > 0 && used >= 0.9 * capSegments) ||
-    (capVoiceSeconds !== null &&
-      capVoiceSeconds > 0 &&
-      voiceSeconds >= 0.9 * capVoiceSeconds);
+    voiceSeconds >= 0.9 * capVoiceSeconds;
   const status = nearCap
     ? "capped"
     : (projection.trendingOver
@@ -331,6 +331,8 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
     inbound_segments: inboundUsed,
     overage_segments: overage,
     cap_segments: seesMoney ? capSegments : null,
+    sending_capped: capSegments !== null && used >= capSegments,
+    calling_capped: voiceSeconds >= capVoiceSeconds,
     projected_overage_cents: seesMoney
       ? Math.round(overage * OVERAGE_CENTS_BY_CURRENCY[currency][company.plan])
       : null,
@@ -401,14 +403,15 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
       used_minutes: voiceUsedMinutes,
       included_minutes: includedVoiceMinutes,
       // D36: calling pauses at the SAME spending cap as texts.
-      cap_minutes:
-        multiplier === null
-          ? null
-          : Math.round(includedVoiceMinutes * multiplier),
+      cap_minutes: seesMoney && multiplier !== null
+        ? Math.round(capVoiceSeconds / 60)
+        : null,
       overage_minutes: voiceOverageMinutes,
-      projected_overage_cents: Math.round(
-        (voiceOverageSeconds / 60) * VOICE_OVERAGE_CENTS_BY_CURRENCY[currency],
-      ),
+      ...(seesMoney && {
+        projected_overage_cents: Math.round(
+          (voiceOverageSeconds / 60) * VOICE_OVERAGE_CENTS_BY_CURRENCY[currency],
+        ),
+      }),
       // #134: always true since D42 (grandfathered retired with the module);
       // kept for API-shape stability with deployed web bundles.
       overage_billed: true,

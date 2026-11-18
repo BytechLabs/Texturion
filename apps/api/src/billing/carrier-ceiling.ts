@@ -31,7 +31,9 @@ import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { captureException } from "../observability/capture";
 import { billingRecipients } from "./recipients";
+import { sendLedgered, usageAlertLedger } from "./send-ledgered";
 
 interface DailyRow {
   company_id: string;
@@ -67,50 +69,44 @@ export async function runCarrierCeilingJob(
     const useCase = row.use_case as TenDlcUseCase;
     if (!approachingCarrierCeiling(row.sent_today, useCase)) continue;
 
-    // Claim the day before sending, on the ledger every other alert uses.
-    // This arm runs hourly — without the claim, a crew that crosses 80% at
-    // nine in the morning is told again every hour until midnight, which
-    // reads as panic rather than warning.
-    const { data: claimed, error: claimError } = await db
-      .from("usage_alerts")
-      .upsert(
-        {
+    const ceiling = dailyCeiling(useCase);
+    try {
+      const delivered = await sendLedgered({
+        ...usageAlertLedger(db, {
           company_id: row.company_id,
           period_start: dayStart,
           metric: "carrier_daily",
           threshold: 80,
+        }),
+        send: async () => {
+          const to = await billingRecipients(env, row.company_id, db);
+          if (to.length === 0) {
+            void captureException(env, "No billing contacts for carrier ceiling", {
+              source: "cron",
+              company_id: row.company_id,
+            });
+            return false;
+          }
+
+          const text =
+            `You have sent about ${row.sent_today} texts today, against a daily ` +
+            `limit of ${ceiling} that the phone companies set.\n\n` +
+            `This one is not a Loonext limit and we cannot raise it for you. ` +
+            `Raising it means a fresh carrier registration, which takes days.\n\n` +
+            `If you have more to send today, spreading the rest over tomorrow will ` +
+            `get every message through. If you send it all now and hit the limit, ` +
+            `the remainder will fail and there is nothing either of us can do until ` +
+            `the count resets tonight.`;
+          const email = await sendEmail(env, {
+            to,
+            subject: "You're close to the daily texting limit the carriers set",
+            text,
+            html: renderEmailHtml(text),
+          });
+          return email.id !== null;
         },
-        { onConflict: "company_id,period_start,metric,threshold", ignoreDuplicates: true },
-      )
-      .select("company_id");
-    if (claimError) {
-      console.error(`carrier ceiling claim failed for ${row.company_id}: ${claimError.message}`);
-      continue;
-    }
-    if (!claimed || claimed.length === 0) continue; // already warned today
-
-    const ceiling = dailyCeiling(useCase);
-    try {
-      const to = await billingRecipients(env, row.company_id, db);
-      if (to.length === 0) continue;
-
-      const text =
-        `You have sent about ${row.sent_today} texts today, against a daily ` +
-        `limit of ${ceiling} that the phone companies set.\n\n` +
-        `This one is not a Loonext limit and we cannot raise it for you. ` +
-        `Raising it means a fresh carrier registration, which takes days.\n\n` +
-        `If you have more to send today, spreading the rest over tomorrow will ` +
-        `get every message through. If you send it all now and hit the limit, ` +
-        `the remainder will fail and there is nothing either of us can do until ` +
-        `the count resets tonight.`;
-
-      await sendEmail(env, {
-        to,
-        subject: "You're close to the daily texting limit the carriers set",
-        text,
-        html: renderEmailHtml(text),
       });
-      warned += 1;
+      if (delivered) warned += 1;
     } catch (error_) {
       // One tenant's bad address must not stop the rest being warned, and the
       // window this alert is useful in is measured in hours.

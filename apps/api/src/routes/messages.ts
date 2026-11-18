@@ -275,6 +275,7 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
 
   // §7/§10: opt-out → rate → cap, atomic with the queued insert.
   const { message, existing } = await gateOutboundSend(db, {
+    env,
     companyId,
     conversationId: view.id,
     senderUserId: c.get("userId"),

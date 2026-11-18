@@ -8,6 +8,7 @@
  * suites substitute a fake, so the shell's queue/journal/alarm logic is
  * testable with no Telnyx and no PostgREST.
  */
+import { recordSpendingCapRefusal } from "../billing/usage-alerts";
 import { callLooksSpam, clampRingSeconds, companySettingDefault, isAfterHours, nextOpening, resolveNumberIdentity, RING_SECONDS_MAX, roleHasCapability } from '@loonext/shared';
 import type { AfterHoursCalls, BusinessHours, HoursException, RingStrategy } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
@@ -416,6 +417,10 @@ async function resolveInboundCallerName(
  * never holds up the event that raised it.
  */
 export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRuntime {
+  const notifyVoiceCap = (companyId: string) => {
+    const notice = recordSpendingCapRefusal(env, companyId, "voice_cap");
+    waitUntil?.(notice);
+  };
   const db = getDb(env);
   const report = (error: unknown, level: "error" | "warning") =>
     void captureException(env, error, { source: "call-session-do", level }, waitUntil);
@@ -707,7 +712,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
             plan: company.plan as never,
             current_period_start: company.current_period_start,
             overage_cap_multiplier: company.overage_cap_multiplier,
-          });
+          }, 0, notifyVoiceCap);
 
       // #490: may we answer this one to say the line is down?
       //
@@ -1056,7 +1061,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
           // as the lapse case it sits beside: the route already refused this,
           // and this is the check that holds if the route is ever bypassed.
           (company.paused_at ?? null) !== null ||
-          (await companyOverVoiceCap(db, auth.company_id, company))
+          (await companyOverVoiceCap(db, auth.company_id, company, 0, notifyVoiceCap))
         ) {
           return "reject";
         }

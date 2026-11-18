@@ -62,6 +62,24 @@ final class MessagingComposerBannerTests: XCTestCase {
         XCTAssertFalse(offersCallInstead(.subscription("past_due")))
     }
 
+    func testMemberSeesUsageBannerWithoutCapAmount() {
+        var usage = Usage(used_segments: 100)
+        usage.sending_capped = true
+
+        XCTAssertEqual(
+            selectComposerBanner(
+                contactOptedOut: false,
+                contactOptOutSource: nil,
+                subscriptionStatus: SubscriptionStatus.active,
+                destinationCountry: "CA",
+                usApproved: true,
+                usTextingOff: false,
+                usage: usage
+            ),
+            .usageCap
+        )
+    }
+
     func testNoGatesMeansNoBanner() {
         XCTAssertNil(
             selectComposerBanner(

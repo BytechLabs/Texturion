@@ -145,6 +145,8 @@ describe("GET /v1/usage", () => {
       inbound_segments: INBOUND_USED,
       overage_segments: 120,
       cap_segments: 1500,
+      sending_capped: false,
+      calling_capped: false,
       projected_overage_cents: 360,
       // Extrapolated end-of-period projection (exact value depends on the
       // wall-clock position in the period; the math is pinned in
@@ -427,6 +429,8 @@ describe("GET /v1/usage", () => {
       inbound_segments: 0,
       overage_segments: 0,
       cap_segments: null,
+      sending_capped: false,
+      calling_capped: false,
       projected_overage_cents: 0,
       overage_projection: { trending_over: false, projected_overage_cents: 0 },
       history: [],
@@ -569,6 +573,26 @@ describe("GET /v1/usage — what a member may not see (#515)", () => {
     // for every member in the workspace.
     expect(body.used_segments).toBe(620);
     expect(body.included_segments).toBe(500);
+  });
+
+  it("shows a member both cap states without exposing billing figures", async () => {
+    const company = { ...starterCompany, overage_cap_multiplier: 0.02 };
+    const sb = usageStub(company, 10, STORAGE, INBOUND_USED, "member");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
+      companyId: COMPANY_ID,
+    });
+    const body = await res.json() as { voice: object };
+
+    expect(res.status).toBe(200);
+    expect(body).toMatchObject({
+      sending_capped: true,
+      calling_capped: true,
+      cap_segments: null,
+      voice: { cap_minutes: null },
+    });
+    expect(body.voice).not.toHaveProperty("projected_overage_cents");
   });
 
   it("gives the bookkeeper the money, because the books are their whole role", async () => {

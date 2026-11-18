@@ -483,6 +483,7 @@ paymentRequestRoutes.post(
     let message;
     try {
       const gated = await gateOutboundSend(db, {
+        env,
         companyId,
         conversationId: view.id,
         senderUserId: c.get("userId"),

@@ -18,7 +18,7 @@ export const CRON_SCHEDULES = [
   "0 15 * * *",
   "45 15 * * *",
   "30 15 * * *",
-  "35 14 1 * *",
+  "35 14 1-3 * *",
 ] as const;
 
 export type CronSchedule = (typeof CRON_SCHEDULES)[number];

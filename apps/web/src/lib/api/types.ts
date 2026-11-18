@@ -1901,7 +1901,7 @@ export interface UsageVoice {
    *  rated to the second). */
   overage_minutes: number;
   /** D36: overage-so-far in cents (exact overage seconds ÷ 60 × 1¢). */
-  projected_overage_cents: number;
+  projected_overage_cents?: number;
   /** #133 introduced this for the grandfathered $8-module cohort (false =
    *  extra minutes never bill). #134/D42 retired grandfathering along with
    *  the module itself, so the API now always sends true; the field stays
@@ -1980,6 +1980,8 @@ export interface Usage {
   inbound_segments: number;
   overage_segments: number;
   cap_segments: number | null; // null = no cap
+  sending_capped?: boolean;
+  calling_capped?: boolean;
   projected_overage_cents: number;
   /** #85: the dynamic END-OF-PERIOD projection. `trending_over` gates the
    *  conditional overage surface (shown only when the tenant is pacing past what

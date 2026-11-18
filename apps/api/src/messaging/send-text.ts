@@ -219,6 +219,7 @@ export async function sendTextToConversation(
 
   // §7/§10: opt-out → rate → cap, atomic with the queued insert.
   const { message, existing } = await gateOutboundSend(db, {
+    env,
     companyId: input.companyId,
     conversationId: prepared.view.id,
     senderUserId: input.userId,
