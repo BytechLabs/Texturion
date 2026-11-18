@@ -704,6 +704,10 @@ export const appShellEn = {
   teamRevoke: "Revoke",
   teamRevokeInviteAria: "Revoke invite for {email}",
   teamInviteRevoked: "Invite revoked.",
+  teamResendInvite: "Resend",
+  teamResendInviteAria: "Resend invite for {email}",
+  teamInviteResent: "Invite resent.",
+  teamInviteResendFailed: "Couldn’t resend the invite.",
   teamInviteRevokeFailed: "Couldn't revoke the invite. Try again.",
   teamSeatsFull: "{used} of {limit} seats. Upgrade to add more of your crew.",
   teamSeePlans: "See plans",
@@ -1002,6 +1006,7 @@ export const appShellEn = {
   /** The filter dropdown's label for each action. */
   auditActionInvited: "Invited someone",
   auditActionInviteRevoked: "Cancelled an invite",
+  auditActionInviteResent: "Resent an invite",
   auditActionJoined: "Joined the workspace",
   auditActionRoleChanged: "Changed a role",
   auditActionDeactivated: "Removed a member",
@@ -1025,6 +1030,7 @@ export const appShellEn = {
   /** The whole line, one per action. */
   auditInvited: "{who} invited {email} as {role}",
   auditInviteRevoked: "{who} cancelled an invite",
+  auditInviteResent: "{who} resent an invite to {email}",
   auditJoined: "{who} joined as {role}",
   auditRoleChanged: "{who} changed a member from {before} to {after}",
   auditDeactivated: "{who} removed a member from the workspace",
@@ -1815,6 +1821,10 @@ export const appShellFr: Translated<typeof appShellEn> = {
   teamRevoke: "Révoquer",
   teamRevokeInviteAria: "Révoquer l'invitation pour {email}",
   teamInviteRevoked: "Invitation révoquée.",
+  teamResendInvite: "Renvoyer",
+  teamResendInviteAria: "Renvoyer l’invitation à {email}",
+  teamInviteResent: "Invitation renvoyée.",
+  teamInviteResendFailed: "Impossible de renvoyer l’invitation.",
   teamInviteRevokeFailed: "Impossible de révoquer l'invitation. Réessayez.",
   teamSeatsFull:
     "{used} sièges sur {limit}. Passez à un forfait supérieur pour ajouter " +
@@ -2102,6 +2112,7 @@ export const appShellFr: Translated<typeof appShellEn> = {
   // ── Paramètres › Journal d'audit : une entrée, en une phrase ─────────────
   auditActionInvited: "A invité quelqu'un",
   auditActionInviteRevoked: "A annulé une invitation",
+  auditActionInviteResent: "A renvoyé une invitation",
   auditActionJoined: "S'est joint à l'espace de travail",
   auditActionRoleChanged: "A changé un rôle",
   auditActionDeactivated: "A retiré un membre",
@@ -2122,6 +2133,7 @@ export const appShellFr: Translated<typeof appShellEn> = {
 
   auditInvited: "{who} a invité {email} à titre de {role}",
   auditInviteRevoked: "{who} a annulé une invitation",
+  auditInviteResent: "{who} a renvoyé une invitation à {email}",
   auditJoined: "{who} s'est joint à titre de {role}",
   auditRoleChanged: "{who} a fait passer un membre de {before} à {after}",
   auditDeactivated: "{who} a retiré un membre de l'espace de travail",

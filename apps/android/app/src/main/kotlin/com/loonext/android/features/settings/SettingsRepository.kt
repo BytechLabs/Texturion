@@ -592,6 +592,10 @@ class SettingsRepository(
             companyId = companyId,
         )
 
+    suspend fun resendInvite(companyId: String, inviteId: String) {
+        api.post<Invite>("/v1/invites/$inviteId/resend", companyId = companyId)
+    }
+
     suspend fun revokeInvite(companyId: String, inviteId: String) {
         api.delete("/v1/invites/$inviteId", companyId = companyId)
     }

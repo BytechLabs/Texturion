@@ -49,7 +49,7 @@
     "high_priority_push_budget": {"kind":"table","columns":["company_id","day","day_limit","requested"],"computed":[]},
     "high_priority_push_days": {"kind":"table","columns":["company_id","day","degraded","reason","sends"],"computed":[]},
     "inbound_notification_days": {"kind":"table","columns":["company_id","created_at","day","email_capped_at","email_limit","email_warned_at","notify_count","push_capped_at","push_limit","push_warned_at","updated_at"],"computed":[]},
-    "invites": {"kind":"table","columns":["accepted_at","company_id","created_at","email","expires_at","id","invited_by","note","revoked_at","role","updated_at"],"computed":[]},
+    "invites": {"kind":"table","columns":["accepted_at","company_id","created_at","email","expires_at","id","invited_by","last_resent_at","note","revoked_at","role","updated_at"],"computed":[]},
     "job_ratings": {"kind":"table","columns":["answered_at","asked_at","company_id","contact_id","conversation_id","created_at","escalated_at","id","rated_user_id","score","task_id","updated_at"],"computed":[]},
     "lead_sources": {"kind":"table","columns":["archived_at","company_id","created_at","created_by","id","name"],"computed":[]},
     "marketing_contacts": {"kind":"table","columns":["consent_at","consent_locale","consent_source","consent_text","created_at","email","last_sent_at","unsubscribe_token","unsubscribed_at"],"computed":[]},

@@ -8,7 +8,7 @@ declare
   v_owner uuid := 'b81ec000-0000-4000-8000-000000000002';
   v_existing uuid;
   v_result jsonb;
-  v_function text := 'public.api_create_invite(uuid,uuid,text,public.member_role,text,text,integer)';
+  v_function text := 'public.api_create_invite(uuid,uuid,text,public.member_role,text,text,integer,uuid)';
 begin
   insert into auth.users (id, email) values (v_owner, 'invite-capacity-owner@example.test');
   insert into public.companies
@@ -31,7 +31,8 @@ begin
      or (v_result->'invite'->>'id')::uuid is distinct from v_existing
      or v_result->'invite'->>'role' is distinct from 'bookkeeper'
      or (v_result->'invite'->>'expires_at')::timestamptz is distinct from now() + interval '7 days'
-     or (v_result->>'previous_expiration')::timestamptz is distinct from now() - interval '2 days' then
+     or (v_result->'previous_invite'->>'expires_at')::timestamptz is distinct from now() - interval '2 days'
+     or v_result->'previous_invite'->>'role' is distinct from 'member' then
     raise exception 'Expected an expired invite to refresh in place: %', v_result;
   end if;
 
@@ -70,6 +71,16 @@ begin
   if v_result->>'outcome' is distinct from 'created'
      or (select cardinality(invite_attempts_at) from public.companies where id = v_company) is distinct from 1 then
     raise exception 'Expected attempts older than 24 hours to fall out of the quota: %', v_result;
+  end if;
+
+  v_existing := (v_result->'invite'->>'id')::uuid;
+  v_result := public.api_create_invite(v_company, v_owner, null, null, null, 'starter', 3, v_existing);
+  if v_result->>'outcome' is distinct from 'created' then
+    raise exception 'A pending invite should reuse its reserved seat when resent: %', v_result;
+  end if;
+  v_result := public.api_create_invite(v_company, v_owner, null, null, null, 'starter', 3, v_existing);
+  if v_result->>'outcome' is distinct from 'resend_limit' then
+    raise exception 'Expected a 24-hour per-invite resend limit: %', v_result;
   end if;
 end $$;
 

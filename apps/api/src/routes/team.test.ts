@@ -87,7 +87,9 @@ function stubInviteCreation(sb: SupabaseStub, previousExpiration: string | null 
     return {
       outcome: "created",
       invite: pendingInvite({ email: args.p_email, role: args.p_role, note: args.p_note }),
-      previous_expiration: previousExpiration,
+      previous_invite: previousExpiration
+        ? { expires_at: previousExpiration, invited_by: auth.subject, role: "member", note: null, last_resent_at: null }
+        : null,
     };
   });
 }
@@ -508,6 +510,62 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(await res.json()).toMatchObject({ id: INVITE_ID, role: "bookkeeper", email_sent: true });
     expect(resend.calls).toHaveLength(1);
     expect(resend.calls[0].text).toContain(`%2Finvite%2F${INVITE_ID}`);
+  });
+
+  it.each([200, 500])("resends an invite and handles provider status %s", async (status) => {
+    const sb = stubWithRole("owner");
+    seatStub(sb, "starter", 1, 2);
+    const original = {
+      expires_at: "2020-01-01T00:00:00Z",
+      invited_by: auth.subject,
+      role: "bookkeeper",
+      note: "Welcome to the crew.",
+      last_resent_at: null,
+    };
+    sb.on("POST", CREATE_INVITE_RPC, ({ body }) => {
+      expect(body).toMatchObject({ p_resend_invite_id: INVITE_ID, p_email: null, p_role: null });
+      return {
+        outcome: "created",
+        invite: pendingInvite({ role: original.role, note: original.note }),
+        previous_invite: original,
+      };
+    });
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    sb.on("PATCH", "/rest/v1/invites", () => new Response(null, { status: 204 }));
+    stubNewAuthInvite(sb);
+    const resend = resendCapture(status);
+    stubFetch(jwksRoute(auth), sb.route, resend.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/invites/${INVITE_ID}/resend`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+    });
+    expect(resend.calls[0].text).toContain(original.note);
+    expect(response.status).toBe(status);
+    const rollback = sb.find("PATCH", "/rest/v1/invites");
+    if (status === 200) {
+      expect(await response.json()).toMatchObject({ id: INVITE_ID, email_sent: true });
+      expect(auditRow(sb)).toMatchObject({ action: "member.invite_resent", target_id: INVITE_ID });
+      expect(rollback).toHaveLength(0);
+    } else {
+      expect(rollback[0].body).toEqual(original);
+      expect(rollback[0].url.searchParams.get("expires_at")).toBe(`eq.${FUTURE}`);
+      expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(0);
+    }
+  });
+
+  it.each([["member", 403], ["owner", 429]])("blocks a resend from %s before emailing", async (role, status) => {
+    const sb = stubWithRole(role);
+    seatStub(sb, "starter", 1, 1);
+    sb.on("POST", CREATE_INVITE_RPC, () => ({ outcome: "resend_limit" }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/invites/${INVITE_ID}/resend`, {
+      method: "POST",
+      companyId: COMPANY_ID,
+    });
+    expect(response.status).toBe(status);
+    expect(sb.find("POST", "/auth/v1/admin/generate_link")).toHaveLength(0);
   });
 });
 
@@ -1535,8 +1593,8 @@ describe("GET /v1/invites + DELETE /v1/invites/:id (O/A)", () => {
     });
     const body = (await res.json()) as { data: { allowed_actions: string[] }[] };
     expect(body.data.map((r) => r.allowed_actions)).toEqual([
-      ["revoke"],
-      ["revoke"],
+      ["revoke", "resend"],
+      ["revoke", "resend"],
       [],
       [],
     ]);

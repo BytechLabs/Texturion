@@ -624,6 +624,7 @@ private struct PendingInviteRow: View {
     let onChanged: @MainActor () -> Void
 
     @State private var revoking = false
+    @State private var resending = false
 
     @Environment(\.appLocale) private var appLocale
 
@@ -680,6 +681,12 @@ private struct PendingInviteRow: View {
                         }
                         .padding(.top, 8)
                 }
+                if invite.allowed_actions?.contains("resend") == true {
+                    Button(t("settingsMore.resendInvite")) { resend() }
+                        .font(.subheadline)
+                        .buttonStyle(.borderless)
+                        .disabled(resending || revoking)
+                }
             }
             Spacer()
             if !expired {
@@ -698,10 +705,24 @@ private struct PendingInviteRow: View {
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .buttonStyle(.borderless)
-                    .disabled(revoking)
+                    .disabled(revoking || resending)
             }
         }
         .padding(.vertical, 8)
+    }
+
+    private func resend() {
+        resending = true
+        Task {
+            do {
+                try await scope.repo.resendInvite(scope.companyId, inviteId: invite.id)
+                scope.showMessage(t("settingsMore.inviteResent"))
+                onChanged()
+            } catch {
+                scope.showMessage(error.userMessage)
+            }
+            resending = false
+        }
     }
 
     private func revoke() {

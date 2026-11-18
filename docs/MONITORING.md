@@ -34,7 +34,7 @@ already do (D8). Alerts only read `environment = 'production'`.
 | `message_outcome` | API Worker, Telnyx status webhook | `status` (`delivered`, `failed`), `country` (two letters) | an outbound text reached a final status |
 | `email_sent` | API Worker | none | Resend accepted an email; the denominator of the bounce and complaint rates |
 | `email_bounced` | API Worker, Resend webhook | `kind` (`bounce`, `complaint`) | Resend reported a bounce or a complaint |
-| `team_invite_refused` | API Worker | `reason` (`workspace_rate_limit`, `inviter_rate_limit`, `daily_limit`, `revoke_cooldown`) | Invite abuse limits refuse an attempt |
+| `team_invite_refused` | API Worker | `reason` (`workspace_rate_limit`, `inviter_rate_limit`, `daily_limit`, `revoke_cooldown`, `resend_limit`, `seat_limit`, `duplicate`, `plan_changed`, `not_found`, `invite_not_found`) | An invite request is refused by the rate limiter or database |
 | `push_attempt` | API Worker and Durable Object | `purpose` (`ring`, `call_end`, `alert`), `channel`, `platform`, `priority`, `response_class` (`accepted`, `gone`, `unauthorized`, `rejected`, `throttled`, `provider_error`, `transport_error`), `http_status`, `latency_ms`, `call_session_id`, `user_id` (not in production), `attempted_at` | every push the server sent, one event per device |
 | `ring_beacon` | API Worker, relaying the apps | `platform`, `app_version`, `stage`, `call_session_id`, `user_id` (not in production), `occurred_at`, and the device state the app reports (`os`, `permissions`, `standby_bucket`, `power_save`, `device_idle`, `screen_locked`) | a device reported a ring stage; a Workers rate limiting binding bounds each member's beacons |
 | `call_started` | call Durable Object | `direction` (`inbound`, `outbound`), `call_session_id` | the call engine took a new call: its session began |
@@ -57,6 +57,7 @@ hosted project's Authentication rate limits to verify its production allowance.
 The Worker limits bursts to six attempts per minute per workspace and inviter.
 The database limits each workspace to three times its seat count per 24 hours
 and waits 10 minutes before a revoked address can be invited again.
+Each invite can be resent once per 24 hours.
 
 The call events come from the Durable Object because it owns every inbound and
 outbound call's state: each is sent once, after the transition that caused it

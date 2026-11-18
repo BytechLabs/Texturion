@@ -1,4 +1,4 @@
-import { ASSIGNABLE_ROLES } from "@loonext/shared";
+import { ASSIGNABLE_ROLES, type AssignableRole } from "@loonext/shared";
 /**
  * Team routes (SPEC §7, §10):
  *
@@ -27,7 +27,7 @@ import { ASSIGNABLE_ROLES } from "@loonext/shared";
  */
 import { isDowngrade, roleHasCapability, SELF_DOWNGRADE_ACK, SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY, shouldShowOrientation, stateMachines } from '@loonext/shared';
 import type { MemberRole } from '@loonext/shared';
-import { Hono } from "hono";
+import { Hono, type Context } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
@@ -673,10 +673,21 @@ type InviteRow = {
   expires_at: string | null;
 };
 
+type InviteDetails = {
+  expires_at: string;
+  invited_by: string;
+  role: AssignableRole;
+  note: string | null;
+};
+
 type InviteCreation =
-  | { outcome: "created"; invite: { id: string; expires_at: string }; previous_expiration: string | null }
+  | {
+      outcome: "created";
+      invite: InviteDetails & { id: string; email: string };
+      previous_invite: (InviteDetails & { last_resent_at: string | null }) | null;
+    }
   | { outcome: "seat_limit"; active: number; pending: number }
-  | { outcome: "not_found" | "plan_changed" | "duplicate" | "revoke_cooldown" | "daily_limit" };
+  | { outcome: "not_found" | "invite_not_found" | "plan_changed" | "duplicate" | "revoke_cooldown" | "daily_limit" | "resend_limit" };
 
 /** The derived invite state; the same rule as SQL invite_state(). */
 function inviteState(row: InviteRow, now: Date): stateMachines.InviteState {
@@ -714,7 +725,10 @@ teamRoutes.get("/invites", requireCapability("team.manage"), async (c) => {
   });
 });
 
-teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
+teamRoutes.post("/invites", requireCapability("team.manage"), createOrResendInvite);
+teamRoutes.post("/invites/:id/resend", requireCapability("team.manage"), createOrResendInvite);
+
+async function createOrResendInvite(c: Context<AppEnv>) {
   const companyId = c.get("companyId");
   const invitedBy = c.get("userId");
   const env = getEnv(c.env);
@@ -731,23 +745,26 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
       return errorResponse(c, "rate_limited", "Too many invite attempts. Wait a minute and try again.");
     }
   }
-  const body = await parseJsonBody(c, inviteSchema);
+  const resendInviteId = c.req.param("id") ? pathUuid(c, "id") : null;
+  const body = resendInviteId ? null : await parseJsonBody(c, inviteSchema);
   const db = getDb(env);
 
   const plan = await companyPlan(db, companyId);
   const seats = seatLimit(plan);
-  const { email, role } = body;
-  const note = body.note ?? null;
   const result = unwrap<InviteCreation>(await db.rpc("api_create_invite", {
     p_company_id: companyId,
     p_invited_by: invitedBy,
-    p_email: email,
-    p_role: role,
-    p_note: note,
+    p_email: body?.email ?? null,
+    p_role: body?.role ?? null,
+    p_note: body?.note ?? null,
     p_plan: plan,
     p_seats: seats,
+    ...(resendInviteId ? { p_resend_invite_id: resendInviteId } : {}),
   }), "invite create");
 
+  if (result.outcome !== "created") {
+    await capture(env, "team_invite_refused", companyId, { reason: result.outcome });
+  }
   if (result.outcome === "seat_limit") {
     return errorResponse(
       c,
@@ -760,19 +777,22 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
     return errorResponse(c, "conflict", "A pending invite for this email already exists.");
   }
   if (result.outcome === "not_found") return errorResponse(c, "not_found", "No such company.");
+  if (result.outcome === "invite_not_found") return errorResponse(c, "not_found", "No invite to resend.");
   if (result.outcome === "plan_changed") {
     return errorResponse(c, "conflict", "Your plan changed. Try the invite again.");
   }
-  if (result.outcome === "revoke_cooldown" || result.outcome === "daily_limit") {
-    await capture(env, "team_invite_refused", companyId, { reason: result.outcome });
-    return errorResponse(c, "rate_limited", result.outcome === "revoke_cooldown"
-      ? "Wait 10 minutes after revoking an invite before inviting this address again."
-      : "Your workspace reached its invite limit for the past 24 hours.");
+  if (result.outcome === "revoke_cooldown" || result.outcome === "daily_limit" || result.outcome === "resend_limit") {
+    const messages = {
+      revoke_cooldown: "Wait 10 minutes after revoking an invite before inviting this address again.",
+      daily_limit: "Your workspace reached its invite limit for the past 24 hours.",
+      resend_limit: "An invite can be resent once every 24 hours.",
+    };
+    return errorResponse(c, "rate_limited", messages[result.outcome]);
   }
   if (result.outcome !== "created") throw new Error("Unknown invite creation outcome.");
 
   const invite = result.invite;
-  const inviteId = invite.id;
+  const { id: inviteId, email, note, role } = invite;
   const { data: linkData, error } = await db.auth.admin.generateLink({
     type: "invite",
     email,
@@ -794,19 +814,19 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
       companyId,
       link: link.href,
       note,
-      invitedBy,
+      invitedBy: invite.invited_by,
     });
   }
-  if (!alreadyRegistered && !emailSent) {
+  if (!emailSent && (resendInviteId || !alreadyRegistered)) {
+    const rollback = result.previous_invite
+      ? db.from("invites").update(result.previous_invite)
+      : db.from("invites").delete();
     expectOk(
-      result.previous_expiration
-        ? await db.from("invites")
-            .update({ expires_at: result.previous_expiration })
-            .eq("company_id", companyId)
-            .eq("id", inviteId)
-            .eq("expires_at", invite.expires_at)
-            .is("accepted_at", null)
-        : await db.from("invites").delete().eq("company_id", companyId).eq("id", inviteId),
+      await rollback.eq("company_id", companyId)
+        .eq("id", inviteId)
+        .eq("expires_at", invite.expires_at)
+        .is("accepted_at", null)
+        .is("revoked_at", null),
       "invite rollback",
     );
     throw new Error("Invite email could not be sent.");
@@ -815,7 +835,7 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
   // #231: an invite is the front door — who opened it, for whom, at what role.
   await recordAuditFromRequest(db, c, {
     companyId,
-    action: "member.invited",
+    action: resendInviteId ? "member.invite_resent" : "member.invited",
     targetType: "invite",
     targetId: inviteId,
     after: { email, role, email_sent: emailSent },
@@ -828,10 +848,10 @@ teamRoutes.post("/invites", requireCapability("team.manage"), async (c) => {
   // stamped columns to save a few events would be the wrong trade. The ROLE is
   // the interesting property — inviting an admin is a different act from
   // inviting a tech.
-  await capture(env, "team_invited", companyId, { role });
+  if (!resendInviteId) await capture(env, "team_invited", companyId, { role });
 
-  return c.json({ ...invite, email_sent: emailSent }, 201);
-});
+  return c.json({ ...invite, email_sent: emailSent }, resendInviteId ? 200 : 201);
+}
 
 async function sendWorkspaceInvite(
   db: Db,
