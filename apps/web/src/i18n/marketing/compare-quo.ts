@@ -43,9 +43,9 @@ export const compareQuoEn = {
   pointFeesTitle: "Their fee disclosure sets a high bar.",
   pointFeesBody:
     "Quo prints its $19.50 one-time registration and its $1.50 to $3 monthly carrier maintenance right on the pricing page, and even reminds you before a trial ends. Credit where due; we aim to beat it, not match it, with one $29 fee, once, and no recurring carrier line at all.",
-  pointAppsTitle: "A bigger app surface.",
+  pointAppsTitle: "Apps and developer tools.",
   pointAppsBody:
-    "Quo ships iOS, Android, macOS, Windows, and web apps plus integrations and an API. Loonext is a fast web app you add to your home screen, deliberately smaller.",
+    "Quo ships iOS, Android, macOS, Windows, and web apps plus integrations and an API. Your team can use Loonext’s shared inbox from any phone and add it to the home screen.",
   recommendation:
     "Plainly: if the phone ringing is your front door, buy Quo. If the text conversation is your front door and you're tired of it living on one person's cell, Loonext gives the whole crew one inbox for $29 flat, and the texts are already in the price.",
   switchTitle: "Switching from a per-user bill is quick math.",
@@ -168,9 +168,9 @@ export const compareQuoFr: Translated<typeof compareQuoEn> = {
   pointFeesTitle: "Leur divulgation des frais place la barre haut.",
   pointFeesBody:
     "Quo affiche ses frais uniques d'inscription de 19,50 $ US et ses frais mensuels de fournisseur de 1,50 à 3 $ US sur la page des tarifs, et rappelle même la fin de l'essai. Le mérite leur revient; nous cherchons à faire mieux avec 29 $ US une seule fois et aucuns frais récurrents de fournisseur.",
-  pointAppsTitle: "Une plus grande surface d'applications.",
+  pointAppsTitle: "Applications et ressources pour les développeurs.",
   pointAppsBody:
-    "Quo offre des applications iOS, Android, macOS, Windows et Web, ainsi que des intégrations et une API. Loonext est une application Web rapide à ajouter à l'écran d'accueil, volontairement plus petite.",
+    "Quo offre des applications iOS, Android, macOS, Windows et Web, ainsi que des intégrations et une API. Votre équipe peut utiliser la boîte de réception partagée de Loonext sur n’importe quel téléphone et l’ajouter à l’écran d’accueil.",
   recommendation:
     "En clair : si le téléphone qui sonne est votre porte d'entrée, achetez Quo. Si le fil de textos est votre porte d'entrée et que vous ne voulez plus qu'il vive sur le cellulaire d'une seule personne, Loonext donne une boîte à toute l'équipe pour 29 $ US au prix fixe, textos compris.",
   switchTitle: "Quitter une facture par personne est un calcul rapide.",
