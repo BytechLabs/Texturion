@@ -7,6 +7,7 @@ import { securityHeaders } from "./http/security-headers";
 import { sweepDeletedAttachments } from "./attachments/sweep";
 import { companyContext } from "./auth/company";
 import { jwtAuth } from "./auth/jwt";
+import { sendWorkspaceMfaNotices } from "./auth/workspace-mfa-notices";
 import { runGraceJob } from "./billing/grace";
 import { sweepUncreditedConversions } from "./billing/prepay";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
@@ -698,6 +699,7 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // #224: retire payment requests past their expiry, so a thread stops
     // showing "Waiting" for a link that no longer opens.
     job("job:expire-payment-requests", expirePaymentRequests),
+    job("job:workspace-mfa-notices", sendWorkspaceMfaNotices),
   ],
   // Sole-prop OTP nudge (≥12h outstanding, once per submission).
   "30 * * * *": [job("job:nudge-sole-prop-otp", nudgeSoleProprietorOtp)],

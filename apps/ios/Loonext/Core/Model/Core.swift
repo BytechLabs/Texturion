@@ -454,6 +454,11 @@ enum DefaultEmptyRegistrationPair: DefaultCodableProvider {
     static var defaultValue: RegistrationPair { RegistrationPair() }
 }
 
+struct CompanyMfaSetup: Codable, Sendable {
+    let enrolled: Bool
+    let grace_until: String?
+}
+
 /// GET /v1/company and the GET /v1/me `company` hydration.
 struct CompanyView: Codable, Sendable {
     let id: String
@@ -467,6 +472,7 @@ struct CompanyView: Codable, Sendable {
     let subscription_status: String
     let current_period_start: String?
     let current_period_end: String?
+    var mfa_setup: CompanyMfaSetup? = nil
     /// Wire union number|string|null — read via `overageCapMultiplier`.
     let overage_cap_multiplier: JSONValue?
     let registration_fee_paid_at: String?

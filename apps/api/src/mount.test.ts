@@ -21,6 +21,7 @@ import { runAupSignalsJob } from "./messaging/aup-watch";
 import { runRetentionEnforceJob } from "./workspace/retention-enforce";
 import { runRetentionNoticeJob } from "./workspace/retention-notice";
 import { expirePaymentRequests } from "./crons/payment-requests";
+import { sendWorkspaceMfaNotices } from "./auth/workspace-mfa-notices";
 import { buildDataExports,pruneExpiredExports } from "./workspace/export";
 import { runGraceJob } from "./billing/grace";
 import { runLeadChaseJob } from "./notifications/lead-chase";
@@ -553,6 +554,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       // #224: retires payment requests past their 14-day expiry, so a thread
       // stops showing "Waiting" for a link that no longer opens.
       expirePaymentRequests,
+      sendWorkspaceMfaNotices,
     ]);
     expect(runs("30 * * * *")).toEqual([nudgeSoleProprietorOtp]);
     expect(runs("20 * * * *")).toEqual([geocodeContactsJob]);

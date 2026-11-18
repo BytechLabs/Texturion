@@ -638,6 +638,7 @@ export const settingsMoreEn = {
     "A stolen password is enough to text your customers as you. This is the " +
     "setting that stops that.",
   mfaSwitchAria: "Require two-factor authentication",
+  mfaTeamProgress: "{enrolled} of {total} set up",
   mfaDeadlineFixed:
     "This deadline is fixed. Saving again won't move it — so what you tell " +
     "your crew stays true.",
@@ -1887,6 +1888,7 @@ export const settingsMoreFr: Translated<typeof settingsMoreEn> = {
     "Un mot de passe volé suffit pour texter vos clients en votre nom. C'est " +
     "le réglage qui empêche cela.",
   mfaSwitchAria: "Exiger la double authentification",
+  mfaTeamProgress: "{enrolled} sur {total} l’ont configurée",
   mfaDeadlineFixed:
     "Cette échéance est fixe. Enregistrer de nouveau ne la déplacera pas — " +
     "ce que vous dites à votre équipe reste donc vrai.",

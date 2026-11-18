@@ -916,6 +916,7 @@ export default function TeamSettingsPage() {
               <RequireTwoFactorCard
                 required={company.data?.mfa_required_at != null}
                 graceUntil={company.data?.mfa_grace_until ?? null}
+                progress={company.data?.mfa_setup?.team}
               />
             )}
             {canManage ? (

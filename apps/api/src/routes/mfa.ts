@@ -26,6 +26,7 @@ import { recordAuditFromRequest } from "../audit/log";
 import { requireCapability } from "../auth/company";
 import { requireActionConfirmation } from "../auth/confirm-action";
 import { requireStepUpForEnrolled } from "../auth/step-up";
+import { sendWorkspaceMfaNotices } from "../auth/workspace-mfa-notices";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { sendEmail } from "../email/resend";
@@ -312,7 +313,7 @@ mfaRoutes.put("/company/mfa", requireCapability("workspace.own"), async (c) => {
     p_grace_days: body.grace_days ?? 14,
   });
   if (error) throw new Error(`api_set_company_mfa failed: ${error.message}`);
-  const result = data as { outcome: string; grace_until?: string };
+  const result = data as { outcome: string; grace_until?: string; changed?: boolean };
 
   if (result.outcome === "not_found") {
     return errorResponse(c, "not_found", "No such workspace.");
@@ -335,6 +336,10 @@ mfaRoutes.put("/company/mfa", requireCapability("workspace.own"), async (c) => {
       mfa_grace_until: result.grace_until ?? null,
     },
   });
+
+  if (result.changed) {
+    c.executionCtx.waitUntil(sendWorkspaceMfaNotices(env, new Date(), companyId));
+  }
 
   return c.json({
     required: result.outcome === "on",

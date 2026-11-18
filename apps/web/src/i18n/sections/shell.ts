@@ -159,6 +159,8 @@ export const shellEn = {
 
   // ── The two-factor wall ──────────────────────────────────────────────────
   mfaRequiredTitle: "This workspace needs two-factor authentication",
+  mfaSetupDeadline: "Set up two-factor authentication by {when} to keep access to this workspace.",
+  mfaSetupAction: "Set up two-factor",
   mfaRequiredBody:
     "The owner turned it on, and the grace period has ended. Set it up once " +
     "and you're back in — it takes about a minute and needs an authenticator " +
@@ -539,6 +541,8 @@ export const shellFr: Translated<typeof shellEn> = {
   regBannerReasonUnknown: "le fournisseur a signalé un détail",
   numberSettingUp: "Configuration de votre numéro…",
 
+  mfaSetupDeadline: "Configurez l’authentification à deux facteurs avant le {when} pour garder accès à cet espace.",
+  mfaSetupAction: "Configurer l’authentification",
   mfaRequiredTitle:
     "Cet espace de travail exige l'authentification à deux facteurs",
   mfaRequiredBody:

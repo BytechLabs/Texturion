@@ -397,6 +397,11 @@ export interface CompanyView {
    */
   mfa_required_at?: string | null;
   mfa_grace_until?: string | null;
+  mfa_setup?: {
+    enrolled: boolean;
+    grace_until: string | null;
+    team: { enrolled: number; total: number } | null;
+  };
   /** D15: workspace IANA timezone (business-facing daily framing). */
   timezone: string;
   /**

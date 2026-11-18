@@ -79,6 +79,7 @@ const SUITES = [
   "active_sessions",
   "ownership_transfer",
   "mfa",
+  "workspace_mfa_notices",
   "team_invite_capacity",
   "app_version",
   "feature_flags",

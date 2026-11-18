@@ -15,6 +15,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.add
@@ -132,6 +133,7 @@ fun MainShell(
     onCompose: () -> Unit,
     onOpenAccountSheet: () -> Unit,
     floatingAction: (@Composable () -> Unit)? = null,
+    topNotice: (@Composable () -> Unit)? = null,
     content: @Composable (ShellTab, Modifier) -> Unit,
 ) {
     // Surface, NOT Box+background: a Surface establishes LocalContentColor
@@ -250,7 +252,10 @@ fun MainShell(
                     // (tablets, foldable inner displays) so lists and headers
                     // don't stretch edge-to-edge; a no-op on phones. The pill
                     // nav and fade gradient stay full-width (drawn above this).
-                    content(shellTabForPage(page), Modifier.fillMaxSize().contentMaxWidth())
+                    Column(Modifier.fillMaxSize().contentMaxWidth()) {
+                        topNotice?.invoke()
+                        content(shellTabForPage(page), Modifier.weight(1f))
+                    }
                 }
             }
 
@@ -263,7 +268,10 @@ fun MainShell(
                         .fillMaxSize()
                         .background(MaterialTheme.colorScheme.background),
                 ) {
-                    content(ShellTab.Contacts, contentInsets.contentMaxWidth())
+                    Column(contentInsets.contentMaxWidth()) {
+                        topNotice?.invoke()
+                        content(ShellTab.Contacts, Modifier.weight(1f))
+                    }
                 }
             }
 

@@ -29,9 +29,11 @@ import { formatAbsoluteDateTime } from "@/lib/format/time";
 export function RequireTwoFactorCard({
   required,
   graceUntil,
+  progress,
 }: {
   required: boolean;
   graceUntil: string | null;
+  progress?: { enrolled: number; total: number } | null;
 }) {
   const t = useT();
   const setMfa = useSetWorkspaceMfa();
@@ -128,6 +130,11 @@ export function RequireTwoFactorCard({
         {required && graceUntil && !enforcing && (
           <p className="rounded-lg border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
             {t("settingsMore.mfaDeadlineFixed")}
+          </p>
+        )}
+        {required && progress && (
+          <p className="text-sm text-muted-foreground">
+            {t("settingsMore.mfaTeamProgress", { enrolled: progress.enrolled, total: progress.total })}
           </p>
         )}
       </div>
