@@ -391,11 +391,11 @@ private fun MessageMetaLine(
     }
     val followUp = when {
         failureAction == SendFailureAction.Call && onCall != null ->
-            "thread.callThemInstead" to onCall
+            t("thread.callThemInstead") to onCall
         failureAction == SendFailureAction.SendAgain && onSendAgain != null &&
             message.error_code != "send_interrupted" && message.body.isNotBlank() ->
-            "thread.sendAgain" to onSendAgain
-        message.retryable -> "thread.retry" to onRetry
+            t("thread.sendAgain") to onSendAgain
+        message.retryable -> t("thread.retry") to onRetry
         else -> null
     }
 
@@ -495,7 +495,7 @@ private fun MessageMetaLine(
         }
         if (followUp != null) {
             Text(
-                t(followUp.first),
+                followUp.first,
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.5.sp,
                     fontWeight = FontWeight.Bold,
