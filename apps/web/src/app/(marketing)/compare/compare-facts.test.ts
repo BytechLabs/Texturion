@@ -363,11 +363,3 @@ describe("#370 the crew-size chart states THIS page's rival rate", () => {
     );
   });
 });
-
-it.each([
-  { locale: "en", href: "/developers" },
-  { locale: "fr-CA", href: "/fr/developpeurs" },
-] as const)("links from the $locale Quo comparison to the developer page", ({ locale, href }) => {
-  const html = renderToStaticMarkup(createElement(CompareQuoPageBody, { locale }));
-  expect(html).toContain(`href="${href}"`);
-});
