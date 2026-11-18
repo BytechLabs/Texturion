@@ -652,6 +652,9 @@ liveCallsRoutes.post(
         caller: gate.call.caller_e164,
         transferId,
       },
+    }).catch(async (error: unknown) => {
+      if (transferId) await transferStub?.clearIntent(transferId);
+      throw error;
     });
     if (transferStub && transferId) {
       if (!issued) {
