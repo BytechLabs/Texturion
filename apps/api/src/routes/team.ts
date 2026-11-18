@@ -819,21 +819,27 @@ async function createOrResendInvite(c: Context<AppEnv>) {
   }
   if (!emailSent && (resendInviteId || !alreadyRegistered)) {
     const previous = result.previous_invite;
-    const rollback = previous
-      ? db.from("invites").update({
-          expires_at: previous.expires_at,
-          last_resent_at: previous.last_resent_at,
-          invited_by: previous.invited_by,
-          role: previous.role,
-          note: previous.note,
-        })
-      : db.from("invites").delete();
     expectOk(
-      await rollback.eq("company_id", companyId)
-        .eq("id", inviteId)
-        .eq("expires_at", invite.expires_at)
-        .is("accepted_at", null)
-        .is("revoked_at", null),
+      previous
+        ? await db.from("invites")
+            .update({
+              expires_at: previous.expires_at,
+              last_resent_at: previous.last_resent_at,
+              invited_by: previous.invited_by,
+              role: previous.role,
+              note: previous.note,
+            })
+            .eq("company_id", companyId)
+            .eq("id", inviteId)
+            .eq("expires_at", invite.expires_at)
+            .is("accepted_at", null)
+            .is("revoked_at", null)
+        : await db.from("invites").delete()
+            .eq("company_id", companyId)
+            .eq("id", inviteId)
+            .eq("expires_at", invite.expires_at)
+            .is("accepted_at", null)
+            .is("revoked_at", null),
       "invite rollback",
     );
     throw new Error("Invite email could not be sent.");
