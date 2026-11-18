@@ -193,7 +193,7 @@ describe(buildDataExports, () => {
       tablePage: messagePages,
     });
     stubFetch(...first.routes);
-    expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 60, completed: 0 });
+    await expect(buildDataExports(env)).resolves.toEqual({ exports: 1, parts: 60, completed: 0 });
     const completed = first.sb.find("POST", "/rest/v1/rpc/record_export_table");
     const finishedTables = completed.map(({ body }) => (body as { p_table: string }).p_table);
     expect(finishedTables).toEqual(["contacts", "conversations"]);
@@ -205,7 +205,7 @@ describe(buildDataExports, () => {
       tablePage: messagePages,
     });
     stubFetch(...second.routes);
-    expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 1, completed: 1 });
+    await expect(buildDataExports(env)).resolves.toEqual({ exports: 1, parts: 1, completed: 1 });
     expect(second.uploaded.map((path) => path.split("/").at(-1))).toEqual([
       "messages-0061.jsonl",
       "manifest.json",

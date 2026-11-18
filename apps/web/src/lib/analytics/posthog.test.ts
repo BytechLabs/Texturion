@@ -125,7 +125,7 @@ describe("sanitizeEventProperties (D8: UUIDs, counts, and feature events only)",
 describe("initPostHog (NEXT_PUBLIC_POSTHOG_KEY optional — absent = off)", () => {
   it("is a silent no-op when the key is not configured", async () => {
     const { initPostHog } = await importPostHog(undefined);
-    expect(await initPostHog()).toBeNull();
+    await expect(initPostHog()).resolves.toBeNull();
     expect(initSpy).not.toHaveBeenCalled();
   });
 
@@ -295,7 +295,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
     await new Promise((r) => setTimeout(r, 0));
     expect(initSpy).not.toHaveBeenCalled();
     open();
-    expect(await ready).not.toBeNull();
+    await expect(ready).resolves.not.toBeNull();
     expect(initSpy).toHaveBeenCalledTimes(1);
   });
 
@@ -366,7 +366,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
     vi.stubGlobal("document", { readyState: "complete", referrer: "", cookie: "" });
     settle.gate = new Promise<void>(() => {});
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
-    expect(await initPostHog()).not.toBeNull();
+    await expect(initPostHog()).resolves.not.toBeNull();
     expect(initSpy).toHaveBeenCalledTimes(1);
   });
 });

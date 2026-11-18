@@ -116,7 +116,8 @@ describe("GET /v1/members", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       data: [
         expect.objectContaining({
           id: MEMBER_ID,
@@ -154,7 +155,8 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "fourth@crew.example", role: "member" },
     });
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       error: { code: "conflict", message: expect.stringContaining("Seat limit") },
     });
     expect(sb.find("POST", "/rest/v1/invites")).toHaveLength(0);
@@ -172,7 +174,8 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "sixteenth@crew.example", role: "member" },
     });
     expect(res.status).toBe(409);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       error: { code: "conflict", message: expect.stringContaining("15 seats") },
     });
     expect(sb.find("POST", "/rest/v1/invites")).toHaveLength(0);
@@ -194,7 +197,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     });
     expect(res.status).toBe(201);
     // The email went out — the UI shows the plain "Invite sent" confirmation.
-    expect(await res.json()).toMatchObject({ email_sent: true });
+    await expect(res.json()).resolves.toMatchObject({ email_sent: true });
 
     const insert = sb.find("POST", "/rest/v1/invites")[0];
     expect(insert.body).toEqual({
@@ -328,7 +331,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(res.status).toBe(201);
     // GoTrue 422s an existing account and emails NOTHING — the route now sends
     // the invite itself instead of telling the inviter to hand-deliver a link.
-    expect(await res.json()).toMatchObject({ email_sent: true });
+    await expect(res.json()).resolves.toMatchObject({ email_sent: true });
     expect(sb.find("DELETE", "/rest/v1/invites")).toHaveLength(0);
 
     expect(resend.calls).toHaveLength(1);
@@ -366,7 +369,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
       body: { email: "new@crew.example", role: "admin" },
     });
     expect(res.status).toBe(201);
-    expect(await res.json()).toMatchObject({ email_sent: false });
+    await expect(res.json()).resolves.toMatchObject({ email_sent: false });
     // NO rollback: unlike the new-user failure, the invite stays actionable
     // via Copy link.
     expect(sb.find("DELETE", "/rest/v1/invites")).toHaveLength(0);
@@ -479,7 +482,7 @@ describe("GET /v1/invites/mine (company-exempt, #109)", () => {
       companyId: null,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [] });
+    await expect(res.json()).resolves.toEqual({ data: [] });
     expect(sb.find("GET", "/rest/v1/invites")).toHaveLength(0);
   });
 });
@@ -529,7 +532,8 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
       { method: "POST", companyId: null, body: { invite_id: INVITE_ID } },
     );
     expect(res.status).toBe(201);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       company_id: COMPANY_ID,
       user_id: auth.subject,
       role: "member",
@@ -965,7 +969,7 @@ describe("POST /v1/invites/accept (company-exempt)", () => {
     // The mark is cleared, and the role comes from THIS invite — a returning
     // admin does not silently regain admin because they once had it.
     expect(patched).toMatchObject({ deactivated_at: null, role: "member" });
-    expect(await res.json()).toMatchObject({ deactivated_at: null });
+    await expect(res.json()).resolves.toMatchObject({ deactivated_at: null });
   });
 });
 
@@ -1037,7 +1041,8 @@ describe("PATCH /v1/members/:id (O/A; owner immutable)", () => {
       { method: "PATCH", companyId: COMPANY_ID, body: { role: "member" } },
     );
     expect(res.status).toBe(422);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       error: {
         code: "validation_failed",
         message_key: SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY,
@@ -1181,7 +1186,7 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       conversations_moved: 2,
       tasks_moved: 3,
       sessions_ended: 2,
@@ -1324,7 +1329,7 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       sessions_ended: 0,
       push_devices_removed: 0,
     });
@@ -1357,7 +1362,7 @@ describe("GET /v1/members/:id/holdings (#276)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ conversations: 4, tasks: 7 });
+    await expect(res.json()).resolves.toEqual({ conversations: 4, tasks: 7 });
     expect(sb.find("POST", "/rest/v1/rpc/api_member_holdings")[0].body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: "u-target",
@@ -1534,7 +1539,7 @@ describe("DELETE /v1/members/me (#406 — leaving on your own)", () => {
     // than pointing at somebody who has gone.
     const rpc = sb.find("POST", "/rest/v1/rpc/offboard_member")[0];
     expect((rpc.body as { p_reassign_to: string | null }).p_reassign_to).toBeNull();
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       conversations_released: 2,
       tasks_released: 1,
     });

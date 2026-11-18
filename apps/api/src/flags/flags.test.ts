@@ -172,13 +172,13 @@ describe("the registry is the roster", () => {
 describe("evaluation", () => {
   it("takes the store's answer when it has one", async () => {
     const { client } = db({ "kill:calls": false });
-    expect(await isFlagOn(env, "kill:calls", "c1", client)).toBe(false);
-    expect(await isKilled(env, "kill:calls", "c1", client)).toBe(true);
+    await expect(isFlagOn(env, "kill:calls", "c1", client)).resolves.toBe(false);
+    await expect(isKilled(env, "kill:calls", "c1", client)).resolves.toBe(true);
   });
 
   it("falls back to the code default for a key nobody has spoken about", async () => {
     const { client } = db({});
-    expect(await isFlagOn(env, "kill:calls", "c1", client)).toBe(true);
+    await expect(isFlagOn(env, "kill:calls", "c1", client)).resolves.toBe(true);
   });
 
   it("falls back to the code default when the store is unreachable", async () => {
@@ -189,7 +189,8 @@ describe("evaluation", () => {
 
     for (const key of killSwitchKeys()) {
       resetFlagCache();
-      expect(await isFlagOn(env, key, "c1", client), key).toBe(true);
+      const enabled = await isFlagOn(env, key, "c1", client);
+      expect(enabled, key).toBe(true);
     }
     expect(errorSpy).toHaveBeenCalled();
     errorSpy.mockRestore();
@@ -198,7 +199,7 @@ describe("evaluation", () => {
   it("ignores a non-boolean value rather than trusting it", async () => {
     // A malformed row must not become a truthy "on" or a falsy "off".
     const { client } = db({ "kill:calls": "false" });
-    expect(await isFlagOn(env, "kill:calls", "c1", client)).toBe(true);
+    await expect(isFlagOn(env, "kill:calls", "c1", client)).resolves.toBe(true);
   });
 
   it("caches, so a burst from one workspace costs one read", async () => {
@@ -229,6 +230,6 @@ describe("evaluation", () => {
   it("answers for a path with no workspace in hand", async () => {
     // Webhooks and crons have no company. They still need a kill switch.
     const { client } = db({ "kill:outbound-send": false });
-    expect(await isKilled(env, "kill:outbound-send", null, client)).toBe(true);
+    await expect(isKilled(env, "kill:outbound-send", null, client)).resolves.toBe(true);
   });
 });

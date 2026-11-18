@@ -149,7 +149,9 @@ describe("AttachmentItem file row", () => {
 
     expect(prevented).toBe(true);
     await waitFor(() => expect(tab.close).toHaveBeenCalled());
-    expect(await screen.findByText("This file was reported and is on hold.")).toBeInstanceOf(Element);
+    await expect(
+      screen.findByText("This file was reported and is on hold."),
+    ).resolves.toBeInstanceOf(Element);
     expect(batches()).toEqual([
       { items: [{ id: "quote", variant: "original" }] },
       { items: [{ id: "quote", variant: "original" }] },

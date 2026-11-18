@@ -162,7 +162,8 @@ describe("#248: a .vcf cannot import past a property nobody has answered", () =>
       properties: VCardPropertyDeclaration[];
     };
     expect(request.consentAttested).toBe(true);
-    expect(await request.file.text()).toBe(BOOK);
+    const fileText = await request.file.text();
+    expect(fileText).toBe(BOOK);
     expect(request.properties.map(formatVCardProperty).sort()).toEqual([
       "CATEGORIES:opted_out",
       "NOTE:opted_out",

@@ -232,7 +232,9 @@ describe("AttachmentFileChip", () => {
 
     await waitFor(() => expect(tab.close).toHaveBeenCalled());
     expect(tab.location.href).toBe("");
-    expect(await screen.findByRole("button", { name: "Didn't load. Retry" })).toBeInstanceOf(Element);
+    await expect(
+      screen.findByRole("button", { name: "Didn't load. Retry" }),
+    ).resolves.toBeInstanceOf(Element);
   });
 });
 

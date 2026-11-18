@@ -299,7 +299,7 @@ describe("POST /v1/tasks — promote a message", () => {
       message_id: MESSAGE_ID,
     });
     expect(response.status).toBe(409);
-    expect(await errorCode(response)).toBe("conflict");
+    await expect(errorCode(response)).resolves.toBe("conflict");
     // The single RPC is the one-per-message arbiter (its partial-unique index).
     expect(stubs.rpc.calls).toHaveLength(1);
   });
@@ -312,14 +312,14 @@ describe("POST /v1/tasks — promote a message", () => {
       message_id: MESSAGE_ID,
     });
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
   });
 
   it("422 when there is neither a source nor a title", async () => {
     stubFetch(jwksRoute(auth), membersRoute());
     const response = await request("POST", "/v1/tasks", { description: "orphan" });
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
   });
 
   it("422 when a contact or conversation link rides on a promotion", async () => {
@@ -329,7 +329,7 @@ describe("POST /v1/tasks — promote a message", () => {
       contact_id: OTHER_USER,
     });
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
   });
 
   describe("standalone (#689)", () => {
@@ -432,7 +432,7 @@ describe("POST /v1/tasks — promote a message", () => {
         assignee_ids: [OTHER_USER],
       });
       expect(rpc.status).toBe(422);
-      expect(await errorCode(rpc)).toBe("validation_failed");
+      await expect(errorCode(rpc)).resolves.toBe("validation_failed");
     });
 
     it("a promotion keeps its assignee default of nobody", async () => {
@@ -470,7 +470,7 @@ describe("POST /v1/tasks — promote a message", () => {
       stubFetch(...stubs.all);
       const response = await request("POST", "/v1/tasks", { title: "x" });
       expect(response.status).toBe(422);
-      expect(await errorCode(response)).toBe("validation_failed");
+      await expect(errorCode(response)).resolves.toBe("validation_failed");
     });
 
     it("a standalone task linked to a hidden conversation is refused like that conversation's own", async () => {
@@ -522,7 +522,7 @@ describe("POST /v1/tasks — promote a message", () => {
       source_call_id: CALL_ID,
     });
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
   });
 
   it("promotes an answered call via create_task: p_call_id, no message, source=call", async () => {
@@ -568,7 +568,8 @@ describe("POST /v1/tasks — promote a message", () => {
       source_call_id: CALL_ID,
     });
     expect(response.status).toBe(status);
-    expect(await errorCode(response)).toBe(code);
+    const actualCode = await errorCode(response);
+    expect(actualCode).toBe(code);
   });
 
   it("422 when the assignee is not an active member", async () => {
@@ -580,7 +581,7 @@ describe("POST /v1/tasks — promote a message", () => {
       assigned_user_id: OTHER_USER,
     });
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
   });
 
   it("forwards a provided title verbatim to the RPC", async () => {
@@ -1884,7 +1885,8 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
       p_done: true,
       p_actor_user_id: auth.subject,
     });
-    expect(await response.json()).toMatchObject({
+    const responseBody = await response.json();
+    expect(responseBody).toMatchObject({
       source: { kind: "call", id: CALL_ID },
     });
   });
@@ -1903,7 +1905,7 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
       assigned_user_id: OTHER_USER,
     });
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
     // Nothing was written.
     expect(stubs.update.calls).toHaveLength(0);
     expect(stubs.assign.calls).toHaveLength(0);
@@ -1916,7 +1918,7 @@ describe("PATCH /v1/tasks/:id — metadata", () => {
       assigned_user_id: OTHER_USER,
     });
     expect(response.status).toBe(422);
-    expect(await errorCode(response)).toBe("validation_failed");
+    await expect(errorCode(response)).resolves.toBe("validation_failed");
   });
 
   it("a no-op metadata patch is idempotent (update_task 'unchanged'), returns the row", async () => {
@@ -2009,7 +2011,7 @@ describe("DELETE /v1/tasks/:id — soft-delete + role gate", () => {
       memberApp,
     );
     expect(response.status).toBe(403);
-    expect(await errorCode(response)).toBe("forbidden");
+    await expect(errorCode(response)).resolves.toBe("forbidden");
     // The gate fires before the RPC — no write.
     expect(stubs.del.calls).toHaveLength(0);
   });
@@ -2186,7 +2188,7 @@ describe("POST /v1/tasks/bulk (#478)", () => {
       filter: { status: "open" },
     });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ matched: 0, applied: [] });
+    await expect(response.json()).resolves.toMatchObject({ matched: 0, applied: [] });
     expect(rpc.calls).toHaveLength(0);
   });
 
@@ -2616,10 +2618,10 @@ describe("#689 D subscriber alerts raised by the task routes", () => {
       }).subscribed;
 
     detail({ unsubscribed_at: null });
-    expect(await subscribed()).toBe(true);
+    await expect(subscribed()).resolves.toBe(true);
     detail({ unsubscribed_at: "2026-11-10T12:00:00.000Z" });
-    expect(await subscribed()).toBe(false);
+    await expect(subscribed()).resolves.toBe(false);
     detail(null);
-    expect(await subscribed()).toBe(false);
+    await expect(subscribed()).resolves.toBe(false);
   });
 });

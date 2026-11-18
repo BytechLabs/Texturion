@@ -335,7 +335,8 @@ describe("POST /v1/billing/checkout — roles and body", () => {
       harness,
     );
     expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({
+    const responseBody = await response.json();
+    expect(responseBody).toEqual({
       error: { code: "validation_failed", message: expect.any(String) },
     });
   });
@@ -427,7 +428,7 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
       harness,
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       url: "https://checkout.stripe.com/c/pay/cs_1",
     });
 
@@ -591,7 +592,8 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
       harness,
     );
     expect(response.status).toBe(422);
-    expect(await response.json()).toEqual({
+    const responseBody = await response.json();
+    expect(responseBody).toEqual({
       error: { code: "validation_failed", message: expect.any(String) },
     });
     expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
@@ -833,7 +835,7 @@ describe("POST /v1/billing/confirm-checkout (webhook-independent activation)", (
       harness,
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ confirmed: false });
+    await expect(response.json()).resolves.toEqual({ confirmed: false });
   });
 });
 
@@ -915,7 +917,7 @@ describe("GET /v1/billing/cancellation-reason (#277 follow-up)", () => {
     ]);
     const response = await get("/v1/billing/cancellation-reason", harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       reason: "seasonal",
       stated_at: "2026-03-01T00:00:00Z",
     });
@@ -950,11 +952,11 @@ describe("GET /v1/billing/cancellation-reason (#277 follow-up)", () => {
         { reason: null, created_at: "2026-03-01T00:00:00Z" },
       ]),
     ]);
-    expect(await (await get("/v1/billing/cancellation-reason", skipped)).json())
+    await expect((await get("/v1/billing/cancellation-reason", skipped)).json()).resolves
       .toEqual({ reason: null, stated_at: "2026-03-01T00:00:00Z" });
 
     const none = makeHarness([endpoint("GET", READ, () => [])]);
-    expect(await (await get("/v1/billing/cancellation-reason", none)).json())
+    await expect((await get("/v1/billing/cancellation-reason", none)).json()).resolves
       .toEqual({ reason: null, stated_at: null });
   });
 });
@@ -1044,7 +1046,7 @@ describe("POST /v1/billing/portal", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ scope: "full" });
+    await expect(response.json()).resolves.toMatchObject({ scope: "full" });
     const form = harness.callsTo("POST", sessionPath)[0].form();
     expect(form.get("configuration")).toBe(ownerConfiguration.id);
     expect(form.get("customer")).toBe("cus_1");
@@ -1106,7 +1108,7 @@ describe("POST /v1/billing/portal", () => {
     });
 
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ scope: "payment_and_invoices" });
+    await expect(response.json()).resolves.toMatchObject({ scope: "payment_and_invoices" });
     const form = harness.callsTo("POST", sessionPath)[0].form();
     expect(form.get("configuration")).toBe(invoiceConfiguration.id);
     expect(form.get("customer")).toBe("cus_1");
@@ -1165,7 +1167,7 @@ describe("POST /v1/billing/portal", () => {
         });
 
         expect(response.status).toBe(503);
-        expect(await response.text()).not.toContain("provider payload");
+        await expect(response.text()).resolves.not.toContain("provider payload");
         expect(report).toHaveBeenCalledExactlyOnceWith("stripe_billing_portal_failed", {
           scope: "full",
           operation,
@@ -1268,7 +1270,7 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       harness,
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       plan: "pro",
       effective: "now",
       reinstated: [],
@@ -1310,7 +1312,8 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
     ]);
     const response = await post("/v1/billing/change-plan", { plan: "pro" }, harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    const responseBody = await response.json();
+    expect(responseBody).toEqual({
       plan: "pro",
       effective: "now",
       reinstated: [back],
@@ -1783,7 +1786,8 @@ describe("POST /v1/billing/change-plan (SPEC §9 plan changes)", () => {
       harness,
     );
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    const responseBody = await response.json();
+    expect(responseBody).toEqual({
       plan: "starter",
       effective: "period_end",
       effective_at: new Date(PERIOD_END * 1000).toISOString(),
@@ -2071,7 +2075,8 @@ describe("plan-builder modules (#12)", () => {
       harness,
     );
     expect(response.status).toBe(409);
-    expect(await response.json()).toEqual({
+    const responseBody = await response.json();
+    expect(responseBody).toEqual({
       error: {
         code: "conflict",
         message: expect.stringContaining("resubscribe"),
@@ -2273,7 +2278,7 @@ describe("#277 the seasonal pause", () => {
     const harness = resumeHarness();
     const response = await post("/v1/billing/resume", {}, harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ plan: "starter", paused_at: null });
+    await expect(response.json()).resolves.toEqual({ plan: "starter", paused_at: null });
 
     const form = harness.callsTo("POST", /subscriptions\/sub_1/)[0].form();
     expect(form.get("items[0][id]")).toBe("si_licensed");
@@ -2488,7 +2493,7 @@ describe("#277 the seasonal pause", () => {
       endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => null),
     ]);
     const response = await get("/v1/billing/pause", harness);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       eligible: true,
       monthly_cents: 700,
     });
@@ -2513,7 +2518,7 @@ describe("#277 the seasonal pause", () => {
     // puts the Pause button on the screen; reporting it true beside a null
     // amount is the priced-blind state this whole route exists to end, and the
     // press behind it 409s.
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       eligible: false,
       reason: "not_provisioned",
       monthly_cents: null,
@@ -2672,7 +2677,7 @@ describe("#277 the seasonal pause", () => {
       endpoint("POST", /\/rest\/v1\/rpc\/open_prepayment/, () => null),
     ]);
     const response = await get("/v1/billing/pause", harness);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       eligible: false,
       reason: "subscription_unhealthy",
       monthly_cents: null,
@@ -2702,7 +2707,8 @@ describe("POST /v1/billing/checkout — the burst limit (#581/#586)", () => {
     });
 
     expect(response.status).toBe(429);
-    expect(await response.json()).toEqual({
+    const responseBody = await response.json();
+    expect(responseBody).toEqual({
       error: { code: "rate_limited", message: expect.any(String) },
     });
     expect(limit).toHaveBeenCalledExactlyOnceWith({ key: "checkout:203.0.113.7" });

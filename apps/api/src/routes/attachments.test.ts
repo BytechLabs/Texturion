@@ -299,7 +299,7 @@ describe("GET /v1/attachments/:id/url", () => {
       rowWithPreview(sb);
       const res = await mint(sb);
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ variant: "preview" });
+      await expect(res.json()).resolves.toMatchObject({ variant: "preview" });
       expect(signedObjects(sb)).toEqual([`attachments/${PREVIEW}`]);
     });
 
@@ -325,7 +325,7 @@ describe("GET /v1/attachments/:id/url", () => {
       const sb = stubWithRole("member");
       rowWithPreview(sb);
       const res = await mint(sb, "?variant=original");
-      expect(await res.json()).toMatchObject({ variant: "original" });
+      await expect(res.json()).resolves.toMatchObject({ variant: "original" });
       expect(signedObjects(sb)).toEqual([`attachments/${ORIGINAL}`]);
       const claim = sb.find(
         "POST",
@@ -356,7 +356,7 @@ describe("GET /v1/attachments/:id/url", () => {
       stubSigning(sb);
       const res = await mint(sb);
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ variant: "original" });
+      await expect(res.json()).resolves.toMatchObject({ variant: "original" });
       expect(signedObjects(sb)).toEqual([`attachments/${ORIGINAL}`]);
     });
 
@@ -403,7 +403,7 @@ describe("GET /v1/attachments/:id/url", () => {
       stubSigning(sb);
       const res = await mint(sb);
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ variant: "original" });
+      await expect(res.json()).resolves.toMatchObject({ variant: "original" });
     });
   });
 
@@ -453,7 +453,7 @@ describe("GET /v1/attachments/:id/url", () => {
         { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/quote.pdf`,
           size_bytes: 2048, content_type: "application/pdf" },
       ]);
-      expect(await mintedUrl(sb)).toMatch(/[?&]download(=|$)/);
+      await expect(mintedUrl(sb)).resolves.toMatch(/[?&]download(=|$)/);
     });
 
     it("forces a download for the ZIP-container document formats", async () => {
@@ -467,7 +467,8 @@ describe("GET /v1/attachments/:id/url", () => {
           { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/doc`, size_bytes: 10,
             content_type: type },
         ]);
-        expect(await mintedUrl(sb), type).toMatch(/[?&]download(=|$)/);
+        const url = await mintedUrl(sb);
+        expect(url, type).toMatch(/[?&]download(=|$)/);
       }
     });
 
@@ -481,7 +482,7 @@ describe("GET /v1/attachments/:id/url", () => {
         { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/photo.jpg`,
           size_bytes: 2048, content_type: "image/jpeg" },
       ]);
-      expect(await mintedUrl(sb)).not.toMatch(/[?&]download(=|$)/);
+      await expect(mintedUrl(sb)).resolves.not.toMatch(/[?&]download(=|$)/);
     });
 
     it("forces a download when the type is missing or unrecognised", async () => {
@@ -498,7 +499,8 @@ describe("GET /v1/attachments/:id/url", () => {
       ]) {
         const sb = stubWithRole("member");
         sb.on("GET", "/rest/v1/attachments", () => [row]);
-        expect(await mintedUrl(sb), JSON.stringify(row)).toMatch(
+        const url = await mintedUrl(sb);
+        expect(url, JSON.stringify(row)).toMatch(
           /[?&]download(=|$)/,
         );
       }
@@ -1178,7 +1180,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
         ),
       );
       expect(res.status).toBe(201);
-      expect(await res.json()).toMatchObject({ has_preview: true });
+      await expect(res.json()).resolves.toMatchObject({ has_preview: true });
 
       // Two objects, the preview keyed beside its original so the pair is
       // legible in a bucket listing.
@@ -1300,7 +1302,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
         ),
       );
       expect(res.status).toBe(201);
-      expect(await res.json()).toMatchObject({ has_preview: false });
+      await expect(res.json()).resolves.toMatchObject({ has_preview: false });
       // Nothing was stamped, so nothing points at a half-written object.
       expect(sb.find("PATCH", "/rest/v1/attachments")).toHaveLength(0);
     });
@@ -1350,7 +1352,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
         }),
       );
       expect(res.status).toBe(201);
-      expect(await res.json()).toMatchObject({ has_preview: false });
+      await expect(res.json()).resolves.toMatchObject({ has_preview: false });
       expect(sb.find("POST", /^\/storage\/v1\/object\/attachments\//)).toHaveLength(1);
       // One stamp, and it carries the hash ONLY — there is no preview to point
       // at, and writing a null over one would be a different bug.
@@ -1427,7 +1429,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       sb.on("POST", "/rest/v1/conversation_events", () => []);
 
       const res = await upload(sb);
-      expect(await res.json()).toMatchObject({ has_preview: true });
+      await expect(res.json()).resolves.toMatchObject({ has_preview: true });
       expect(sb.find("PATCH", "/rest/v1/attachments")[0].body).toMatchObject({
         preview_path: `${COMPANY_ID}/note/${NOTE_ID}/preview-uuid-original.pdf`,
         preview_bytes: 150000,
@@ -2322,7 +2324,7 @@ describe("POST /v1/attachments/:id/report — a member pulls a file back for eve
       { companyId: COMPANY_ID, method: "POST", body: { note: "looks wrong" } },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ quarantined: true });
+    await expect(res.json()).resolves.toMatchObject({ quarantined: true });
 
     const patch = sb.find("PATCH", "/rest/v1/attachments")[0];
     // Company-scoped, and guarded on still-unquarantined so two techs racing
@@ -2383,7 +2385,7 @@ describe("POST /v1/attachments/:id/report — a member pulls a file back for eve
       { companyId: COMPANY_ID, method: "POST", body: {} },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ quarantined: true });
+    await expect(res.json()).resolves.toMatchObject({ quarantined: true });
     // Nothing written a second time.
     expect(sb.find("PATCH", "/rest/v1/attachments")).toHaveLength(0);
   });
@@ -2452,7 +2454,7 @@ describe("POST /v1/attachments/:id/release — standing it down is a different c
       { companyId: COMPANY_ID, method: "POST" },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ quarantined: false });
+    await expect(res.json()).resolves.toMatchObject({ quarantined: false });
     expect(sb.find("PATCH", "/rest/v1/attachments")[0].body).toMatchObject({
       quarantined_at: null,
     });

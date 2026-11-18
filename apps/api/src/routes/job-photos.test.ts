@@ -357,7 +357,7 @@ describe("who may share a job's photos (#294)", () => {
       const res = await share(sb, method);
 
       expect(res.status).toBe(404);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         error: { code: "not_found", message: "No such job." },
       });
       expect(linksTouched(sb)).toBe(0);
@@ -555,7 +555,7 @@ describe("what the customer's page contains (#294)", () => {
 
     const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
-    expect(await res.json()).toMatchObject({ truncated: false });
+    await expect(res.json()).resolves.toMatchObject({ truncated: false });
   });
 
   it("carries the no-index headers on the way out", async () => {
@@ -682,7 +682,7 @@ describe("a link that does not work (#294)", () => {
       const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
 
       expect(res.status).toBe(404);
-      expect(await res.json()).toMatchObject({ error: { code: "not_found" } });
+      await expect(res.json()).resolves.toMatchObject({ error: { code: "not_found" } });
       // And nothing was read about a workspace it could not verify access to.
       expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
       expect(sb.find("GET", "/rest/v1/attachments")).toHaveLength(0);

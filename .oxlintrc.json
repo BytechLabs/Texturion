@@ -184,7 +184,6 @@
     "import/first": "off", // 439
     "unicorn/numeric-separators-style": "off", // 362
     "unicorn/prefer-string-replace-all": "off", // 199
-    "vitest/prefer-expect-resolves": "off", // 160
     "unicorn/number-literal-case": "off", // 151
     "eslint/no-promise-executor-return": "off", // 133
     "typescript/non-nullable-type-assertion-style": "off", // 127

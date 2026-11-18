@@ -336,7 +336,7 @@ describe("GET /v1/contacts", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [], next_cursor: null });
+    await expect(res.json()).resolves.toEqual({ data: [], next_cursor: null });
     expect(sb.find("GET", "/rest/v1/opt_outs")).toHaveLength(0);
     expect(sb.find("GET", "/rest/v1/conversations")).toHaveLength(0);
   });
@@ -474,7 +474,8 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ id: SURVIVOR, merged_into: SURVIVOR, name: "Survivor" });
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({ id: SURVIVOR, merged_into: SURVIVOR, name: "Survivor" });
     for (const relation of ["contact_addresses", "contact_phones", "contact_tags"]) {
       const [read] = sb.find("GET", `/rest/v1/${relation}`);
       expect(read.url.searchParams.get("contact_id")).toContain(SURVIVOR);
@@ -557,7 +558,8 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       id: CONTACT_ID,
       opted_out: true,
     });
@@ -938,7 +940,8 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     // that merely already had a basis — nothing was going to be written there,
     // so nothing was refused, and naming it would inflate a count people learn
     // to ignore.
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       consent_refused: 1,
       consent_refusals: [
         { row: 2, reason: contactImportConsentRefusedReason(STOPPED_PHONE) },
@@ -1020,7 +1023,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     );
     expect(res.status).toBe(500);
     // And it is not a 200 carrying a quiet lie.
-    expect(await res.text()).not.toContain('"opted_out":false');
+    await expect(res.text()).resolves.not.toContain('"opted_out":false');
   });
 
   it("#248 B4: an ordinary edit still costs one opt-out read, not two", async () => {
@@ -1078,7 +1081,8 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ kind: "contact", id: CONTACT_ID });
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({ kind: "contact", id: CONTACT_ID });
     const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
     expect(typeof (patch.body as Record<string, unknown>).deleted_at).toBe(
       "string",
@@ -1361,7 +1365,8 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       id: CONTACT_ID,
       created_by_user_id: auth.subject,
       created_by_name: "Casey Owner",
@@ -1504,7 +1509,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imported: 1, updated: 1 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 1, updated: 1 });
     const rows = sb.find("POST", "/rest/v1/contacts").flatMap(
       (call) => call.body as Record<string, unknown>[],
     );
@@ -1677,7 +1682,8 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       imported: 1, // +14165550101
       updated: 1, // +14165550100 existed
       skipped: 3,
@@ -1937,7 +1943,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     );
     expect(res.status).toBe(200);
     // Everything is an update, and not one consent key crosses the wire.
-    expect(await res.json()).toMatchObject({ imported: 0, updated: 2 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 0, updated: 2 });
     const rows = sb
       .find("POST", "/rest/v1/contacts")
       .flatMap((call) => call.body as Record<string, unknown>[]);
@@ -2006,7 +2012,8 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     // the person who uploaded the file otherwise believes it covered everyone.
     // Against the shipped strings, so a reworded sentence has to be rewritten
     // in one place rather than agreed with in two.
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       imported: 1,
       consent_refused: 1,
       consent_refusals: [
@@ -2113,7 +2120,8 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       consent_refused: 1,
       consent_refusals: [
         { row: 2, reason: contactImportConsentRefusedReason(STOPPED_PHONE) },
@@ -2171,7 +2179,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       consent_refused: 0,
       consent_refusals: [],
       consent_refused_note: null,
@@ -2226,7 +2234,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     expect(optOuts).toEqual(["+14165550100", "+14165550101"]);
     // The extra ROW is still discarded and still reported — which of two
     // spellings of a name to keep is not a judgement to make silently.
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       imported: 2,
       skipped: 2,
       errors: [
@@ -2509,7 +2517,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     // is for the DISAGREEMENTS — rows the uploader believed their attestation
     // covered — and padding it with rows they flagged themselves is how a
     // count becomes something people stop reading.
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       consent_refused: 0,
       consent_refusals: [],
       consent_refused_note: null,
@@ -2734,7 +2742,7 @@ describe("import name handling", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imported: 1, skipped: 0 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 1, skipped: 0 });
     const rows = sb
       .find("POST", "/rest/v1/contacts")
       .flatMap((call) => call.body as Record<string, unknown>[]);
@@ -3328,7 +3336,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imported: 4 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 4 });
     // And the workspace's claim is on the audit row, next to the consent
     // attestation it stands beside — it is a claim, not a fact we verified.
     const audit = sb
@@ -3447,7 +3455,7 @@ describe("#248 every column of the file is answered for", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imported: 3 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 3 });
     // And nobody was blocked. An `ignore` is a person saying the column says
     // nothing about who may be texted, so it must not quietly become one.
     expect(sb.find("POST", "/rest/v1/opt_outs")).toHaveLength(0);
@@ -4307,7 +4315,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(importRes.status).toBe(200);
-    expect(await importRes.json()).toMatchObject({ imported: 1, skipped: 0 });
+    await expect(importRes.json()).resolves.toMatchObject({ imported: 1, skipped: 0 });
     const landed = importSb
       .find("POST", "/rest/v1/contacts")
       .flatMap((call) => call.body as Record<string, unknown>[]);
@@ -4496,7 +4504,8 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     // Reported with the same three fields the CSV route answers with — a
     // client that had to branch on which door it used would eventually show
     // the note on one and not the other.
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       consent_refused: 1,
       consent_refusals: [
         { row: 1, reason: contactImportConsentRefusedReason(STOPPED_PHONE) },
@@ -5003,7 +5012,7 @@ describe("#248 every property on the cards is answered for", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imported: 2 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 2 });
     expect(sb.find("POST", "/rest/v1/opt_outs")).toHaveLength(0);
   });
 
@@ -5374,7 +5383,7 @@ describe("#246 merging two contacts for the same customer", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       merged: true,
       moved: 3,
       closed: 1,
@@ -5941,7 +5950,7 @@ describe("contact field definitions", () => {
       },
     );
     expect(res.status).toBe(422);
-    expect(await res.text()).toContain("gate_code");
+    await expect(res.text()).resolves.toContain("gate_code");
     expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
   });
 
@@ -5968,7 +5977,7 @@ describe("contact field definitions", () => {
     expect(res.status).toBe(422);
     // The LABEL, not the key — a form with ten fields and one error reading
     // "invalid" is a form somebody edits at random until it saves.
-    expect(await res.text()).toContain("Warranty expiry");
+    await expect(res.text()).resolves.toContain("Warranty expiry");
   });
 
   it("CFA-9: writes a good value, and validates against the LIVE definitions", async () => {
@@ -6417,7 +6426,7 @@ describe("searching a customer's other numbers", () => {
       "/v1/contacts?q=555",
       { companyId: COMPANY_ID },
     );
-    expect(await res.text()).not.toContain("contact_phones");
+    await expect(res.text()).resolves.not.toContain("contact_phones");
   });
 
   it("CS-5: a name search costs no extra round trip", async () => {
@@ -6528,7 +6537,7 @@ describe("filtering contacts by a custom field", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(422);
-    expect(await res.text()).toContain("nonexistent");
+    await expect(res.text()).resolves.toContain("nonexistent");
     expect(sb.find("GET", "/rest/v1/contacts")).toHaveLength(0);
   });
 

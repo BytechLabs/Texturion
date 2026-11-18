@@ -385,7 +385,8 @@ describe("public list pagination", () => {
 
     const second = await publicRequest(`${path}&cursor=${page.next_cursor}`);
     expect(second.status).toBe(200);
-    expect(await second.json()).toMatchObject({ data: [{ id: ids[2] }], next_cursor: null });
+    const nextPage = await second.json();
+    expect(nextPage).toMatchObject({ data: [{ id: ids[2] }], next_cursor: null });
     const calls = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
     expect(calls[0].body).toMatchObject({ p_cursor_id: null, p_cursor_ts: null, p_limit: 3 });
     expect(calls[1].body).toMatchObject({

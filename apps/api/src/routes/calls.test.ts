@@ -70,7 +70,8 @@ describe("GET /v1/calls", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       data: [callRow()],
       next_cursor: null,
     });
@@ -523,7 +524,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
     );
     expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "subscription_inactive" },
     });
   });
@@ -540,7 +541,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
     );
     expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "usage_cap_reached" },
     });
   });
@@ -559,7 +560,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { conversation_id: CONVERSATION },
     });
     expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "usage_cap_reached" },
     });
   });
@@ -596,7 +597,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { conversation_id: CONVERSATION },
     });
     expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "usage_cap_reached" },
     });
     // The atomic line claim is never reached — the cap refuses first.
@@ -630,7 +631,8 @@ describe("POST /v1/calls/browser (D43)", () => {
       { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
     );
     expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       error: { message: expect.stringContaining("on another call") },
     });
   });
@@ -681,7 +683,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { to: "123" },
     });
     expect(res.status).toBe(422);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "validation_failed" },
     });
   });
@@ -701,7 +703,8 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { to: "+14186553839" },
     });
     expect(res.status).toBe(422);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       error: { message: expect.stringContaining("which of your numbers") },
     });
   });
@@ -800,7 +803,7 @@ describe("POST /v1/calls/browser (D43)", () => {
         body: { conversation_id: CONVERSATION },
       });
       expect(res.status).toBe(402);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         error: { code: "workspace_paused" },
       });
       // The two things that cost money or wedge a line, both untouched: no
@@ -845,7 +848,7 @@ describe("POST /v1/calls/browser (D43)", () => {
         body: { conversation_id: CONVERSATION },
       });
       expect(res.status).toBe(402);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         error: { code: "subscription_inactive" },
       });
     });
@@ -1203,7 +1206,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const res = await play(sb, [listRoute(), signRoute()]);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ transcript: null });
+    await expect(res.json()).resolves.toMatchObject({ transcript: null });
     // Nothing was written, which is what proves the model was never called.
     expect(sb.find("PATCH", "/rest/v1/calls")).toHaveLength(0);
   });
@@ -1227,7 +1230,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     expect(res.status).toBe(200);
     const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0];
     expect(claimedBytes(claim.body)).toBe(26_374);
-    expect(await res.json()).toMatchObject({ transcript: null });
+    await expect(res.json()).resolves.toMatchObject({ transcript: null });
   });
   it("does not mark a recording tried when nothing was ever spent on it", async () => {
     // Over the monthly cap, or a ledger the gate could not read and so treated
@@ -1277,7 +1280,7 @@ describe("#725 calls by reason", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       days: 30,
       counts: {
         after_hours: 2,

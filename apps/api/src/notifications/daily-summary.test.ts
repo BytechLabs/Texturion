@@ -82,7 +82,7 @@ describe(runDailySummary, () => {
   it("sends nothing when the database returns no due summary", async () => {
     const sb = world({ due: false });
 
-    expect(await runDailySummary(env, MIDDLE_OF_THE_NIGHT)).toEqual({ considered: 0, sent: 0 });
+    await expect(runDailySummary(env, MIDDLE_OF_THE_NIGHT)).resolves.toEqual({ considered: 0, sent: 0 });
     expect(sb.calls.some((call) => call.method === "PATCH")).toBe(false);
   });
 

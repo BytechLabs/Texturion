@@ -175,7 +175,7 @@ describe("#689 New task", () => {
     typeTitle("Monthly filter");
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     fireEvent.click(screen.getByLabelText("Repeat"));
-    expect(await screen.findByText(/needs a due date/)).toBeInstanceOf(Element);
+    await expect(screen.findByText(/needs a due date/)).resolves.toBeInstanceOf(Element);
     expect(
       (screen.getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled,
     ).toBe(true);

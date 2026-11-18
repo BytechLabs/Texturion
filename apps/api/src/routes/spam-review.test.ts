@@ -81,7 +81,8 @@ describe("GET /v1/spam-review (#342)", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [flaggedRow()] });
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({ data: [flaggedRow()] });
 
     const call = sb.find("POST", "/rest/v1/rpc/api_spam_review")[0].body as {
       p_company_id: string;

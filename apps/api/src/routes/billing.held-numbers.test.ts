@@ -181,7 +181,8 @@ describe("GET /v1/billing/held-numbers (#523)", () => {
     const harness = makeHarness([companyEndpoint(companyRow()), heldRows([HELD])]);
     const response = await get("/v1/billing/held-numbers", harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    const responseBody = await response.json();
+    expect(responseBody).toEqual({
       plan: "starter",
       included: 1,
       paid_extras: 0,
@@ -279,7 +280,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       reinstated: true,
       paid_extras: 1,
       allowance: 2,
@@ -368,7 +369,8 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     expect(response.status).toBe(200);
     // Read off the claim, not retyped: a body pinned to literals cannot pass
     // this, and neither can one that reports the figures we ASKED Stripe for.
-    expect(await response.json()).toEqual({
+    const responseBody = await response.json();
+    expect(responseBody).toEqual({
       reinstated: true,
       paid_extras: CLAIM.capacity,
       allowance: CLAIM.allowance,
@@ -524,7 +526,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ reinstated: true, paid_extras: 1 });
+    await expect(response.json()).resolves.toMatchObject({ reinstated: true, paid_extras: 1 });
     // Nothing was taken back and no capacity was returned.
     expect(harness.callsTo("PATCH", /phone_numbers/)).toHaveLength(0);
     expect(harness.callsTo("POST", /rpc\/claim_number_allowance/)).toHaveLength(1);
@@ -537,7 +539,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ reinstated: false, already_active: true });
+    await expect(response.json()).resolves.toEqual({ reinstated: false, already_active: true });
     expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
   });
 

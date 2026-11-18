@@ -738,8 +738,8 @@ describe("hermetic call journeys (session layer)", () => {
 
     const path = `/v1/calls/live/${sessionId}/transfer/ring-me`;
     const wake = () => as(technician, crew, path, { transfer_id: transferId, no_local_leg: true });
-    expect(await (await wake()).json()).toMatchObject({ rang: true });
-    expect(await (await wake()).json()).toMatchObject({ rang: false, reason: "live_leg" });
+    await expect((await wake()).json()).resolves.toMatchObject({ rang: true });
+    await expect((await wake()).json()).resolves.toMatchObject({ rang: false, reason: "live_leg" });
     await settle();
     const secondLeg = fake.voice.live().find((leg) => leg.to === targetSip)!;
     expect(secondLeg.callControlId).not.toBe(firstLeg.callControlId);
@@ -787,8 +787,8 @@ describe("hermetic call journeys (session layer)", () => {
       await settle();
       const ringPath = `/v1/calls/live/${sessionId}/transfer/ring-me`;
       const ring = () => as(technician, crew, ringPath, { transfer_id: consultId, no_local_leg: true });
-      expect(await (await ring()).json()).toMatchObject({ rang: true });
-      expect(await (await ring()).json()).toMatchObject({ rang: false, reason: "live_leg" });
+      await expect((await ring()).json()).resolves.toMatchObject({ rang: true });
+      await expect((await ring()).json()).resolves.toMatchObject({ rang: false, reason: "live_leg" });
       await settle();
       const secondLeg = dialedTo(technician);
       expect(secondLeg.callControlId).not.toBe(targetLeg.callControlId);

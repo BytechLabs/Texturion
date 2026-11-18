@@ -58,7 +58,8 @@ describe("whenTelemetryMayLoad", () => {
   it("waits for the page to settle on a marketing page (#640)", async () => {
     for (const pathname of ["/", "/pricing", "/fr/tarifs", "/blog/some-post"]) {
       vi.stubGlobal("window", { location: { pathname } });
-      expect(await resolvesAtOnce(whenTelemetryMayLoad()), pathname).toBe(false);
+      const resolvedImmediately = await resolvesAtOnce(whenTelemetryMayLoad());
+      expect(resolvedImmediately, pathname).toBe(false);
     }
     expect(settle).toHaveBeenCalledTimes(4);
   });
@@ -67,15 +68,18 @@ describe("whenTelemetryMayLoad", () => {
     for (const pathname of ["/inbox", "/for-you", "/settings/billing", "/login", "/onboarding"]) {
       const page = stubAppPage(pathname);
       const gate = whenTelemetryMayLoad();
-      expect(await resolvesAtOnce(gate), `${pathname} before load`).toBe(false);
+      const resolvedBeforeLoad = await resolvesAtOnce(gate);
+      expect(resolvedBeforeLoad, `${pathname} before load`).toBe(false);
 
       page.fireLoad();
       expect(page.idleCallbacks).toHaveLength(1);
       expect(page.idleCallbacks[0].timeout).toBe(5_000);
-      expect(await resolvesAtOnce(gate), `${pathname} before idle`).toBe(false);
+      const resolvedBeforeIdle = await resolvesAtOnce(gate);
+      expect(resolvedBeforeIdle, `${pathname} before idle`).toBe(false);
 
       page.idleCallbacks[0].cb();
-      expect(await resolvesAtOnce(gate), `${pathname} after idle`).toBe(true);
+      const resolvedAfterIdle = await resolvesAtOnce(gate);
+      expect(resolvedAfterIdle, `${pathname} after idle`).toBe(true);
     }
     expect(settle).not.toHaveBeenCalled();
   });
@@ -85,7 +89,7 @@ describe("whenTelemetryMayLoad", () => {
     const gate = whenTelemetryMayLoad();
     expect(page.idleCallbacks).toHaveLength(1);
     page.idleCallbacks[0].cb();
-    expect(await resolvesAtOnce(gate)).toBe(true);
+    await expect(resolvesAtOnce(gate)).resolves.toBe(true);
   });
 
   it("falls back to a timer where requestIdleCallback does not exist", async () => {
@@ -93,8 +97,8 @@ describe("whenTelemetryMayLoad", () => {
     const gate = whenTelemetryMayLoad();
     page.fireLoad();
     expect(page.timeouts).toHaveLength(1);
-    expect(await resolvesAtOnce(gate)).toBe(false);
+    await expect(resolvesAtOnce(gate)).resolves.toBe(false);
     page.timeouts[0]();
-    expect(await resolvesAtOnce(gate)).toBe(true);
+    await expect(resolvesAtOnce(gate)).resolves.toBe(true);
   });
 });

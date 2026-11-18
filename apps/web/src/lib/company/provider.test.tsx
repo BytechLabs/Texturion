@@ -155,7 +155,7 @@ describe("CompanyProvider boot reads", () => {
       plain.resolve(me);
       hydrated.resolve({ ...me, company });
     });
-    expect(await screen.findByText(`shell for ${COMPANY}`)).toBeInstanceOf(Element);
+    await expect(screen.findByText(`shell for ${COMPANY}`)).resolves.toBeInstanceOf(Element);
   });
 
   it("with no workspace remembered, starts the hydrated read once /v1/me names one", async () => {
@@ -181,7 +181,7 @@ describe("CompanyProvider boot reads", () => {
       return me;
     });
     mount();
-    expect(await screen.findByText(`shell for ${COMPANY}`)).toBeInstanceOf(Element);
+    await expect(screen.findByText(`shell for ${COMPANY}`)).resolves.toBeInstanceOf(Element);
     // Asked once: a refusal is not retried.
     expect(calls().filter((c) => c === `/v1/me@${COMPANY}`)).toHaveLength(1);
     expect(screen.queryByText(/couldn't load your workspace/i)).toBeNull();
@@ -255,14 +255,14 @@ describe("CompanyProvider failure states", () => {
       return options?.companyId ? { ...me, company } : me;
     });
     const queryClient = mount();
-    expect(await screen.findByText(`shell for ${COMPANY}`)).toBeInstanceOf(Element);
+    await expect(screen.findByText(`shell for ${COMPANY}`)).resolves.toBeInstanceOf(Element);
 
     failNext = true;
     await act(async () => {
       await queryClient.refetchQueries({ queryKey: keys.me, exact: true });
     });
     // Rendered by the shell itself, so the failure has reached the tree.
-    expect(await screen.findByText("shell saw the refetch fail")).toBeInstanceOf(Element);
+    await expect(screen.findByText("shell saw the refetch fail")).resolves.toBeInstanceOf(Element);
     expect(screen.getByText(`shell for ${COMPANY}`)).toBeInstanceOf(Element);
     expect(screen.queryByText(/couldn't load your workspace/i)).toBeNull();
   });
@@ -298,7 +298,7 @@ describe("CompanyProvider failure states", () => {
         </CompanyProvider>
       </QueryClientProvider>,
     );
-    expect(await screen.findByText(`shell for ${COMPANY}`)).toBeInstanceOf(Element);
+    await expect(screen.findByText(`shell for ${COMPANY}`)).resolves.toBeInstanceOf(Element);
 
     session.current = { state: "signed-out", userId: null };
     rerender(

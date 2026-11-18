@@ -85,7 +85,7 @@ describe("POST /conversations/:id/wrap-up-transcript (#507)", () => {
     const res = await post(env, wrapUpForm(18));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       text: "Quoted him $2,400 for the tank, parts Thursday.",
     });
     expect(run).toHaveBeenCalledTimes(1);
@@ -106,7 +106,7 @@ describe("POST /conversations/:id/wrap-up-transcript (#507)", () => {
     const res = await post(env, wrapUpForm(CALL_WRAPUP_MAX_SECONDS + 1));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ text: null, reason: "too_long" });
+    await expect(res.json()).resolves.toEqual({ text: null, reason: "too_long" });
     expect(run).not.toHaveBeenCalled();
     // ...and nothing was reserved against the monthly ledger either.
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);

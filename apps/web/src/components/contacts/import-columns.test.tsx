@@ -419,7 +419,8 @@ describe("#248: the answer travels with the file", () => {
     // column names we had invented. Posting the original is what makes the
     // declaration describe the bytes the server parses.
     expect(request.file).toBe(chosen);
-    expect(await request.file.text()).toBe(sheetText(MARKETING_STATUS));
+    const fileText = await request.file.text();
+    expect(fileText).toBe(sheetText(MARKETING_STATUS));
     // Complete, by index, headers exactly as the file spelled them.
     expect(request.columns.map(formatContactImportColumn)).toEqual([
       "0:phone:Phone",

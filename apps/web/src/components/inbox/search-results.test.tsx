@@ -66,9 +66,9 @@ it("loads page two into the Inbox and keeps the first twenty conversations", asy
     { ...emptyPage, conversations: [conversation(20), conversation(21)] },
   );
 
-  expect(await screen.findByRole("link", { name: /Customer 20/ })).toBeInstanceOf(Element);
+  await expect(screen.findByRole("link", { name: /Customer 20/ })).resolves.toBeInstanceOf(Element);
   fireEvent.click(screen.getByRole("button", { name: "Load more" }));
-  expect(await screen.findByRole("link", { name: /Customer 21/ })).toBeInstanceOf(Element);
+  await expect(screen.findByRole("link", { name: /Customer 21/ })).resolves.toBeInstanceOf(Element);
   expect(screen.getAllByRole("link")).toHaveLength(21);
   expect(apiFetch.mock.calls[1][1].searchParams.cursor).toBe("page-two");
 });

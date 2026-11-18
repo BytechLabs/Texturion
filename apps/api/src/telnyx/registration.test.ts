@@ -1620,7 +1620,7 @@ describe("deactivateCampaign (§11 grace expiry)", () => {
   it("returns null when there is no submitted campaign", async () => {
     const { env, rest } = setup();
     seedRows(rest, {}, {}); // both drafts, no telnyx ids
-    expect(await deactivateCampaign(env, COMPANY_ID)).toBeNull();
+    await expect(deactivateCampaign(env, COMPANY_ID)).resolves.toBeNull();
   });
 });
 
@@ -1738,13 +1738,13 @@ describe("nudgeSoleProprietorOtp (§4.2, §11)", () => {
       {},
     );
 
-    expect(await nudgeSoleProprietorOtp(env)).toBe(1);
+    await expect(nudgeSoleProprietorOtp(env)).resolves.toBe(1);
     expect(emails).toHaveLength(1);
     expect(emails[0].subject).toContain("One step left");
     expect(Boolean(brandRowOf(rest).otp_nudged_at)).toBe(true);
 
     // Idempotent: the stamp blocks a second nudge.
-    expect(await nudgeSoleProprietorOtp(env)).toBe(0);
+    await expect(nudgeSoleProprietorOtp(env)).resolves.toBe(0);
     expect(emails).toHaveLength(1);
   });
 
@@ -1760,7 +1760,7 @@ describe("nudgeSoleProprietorOtp (§4.2, §11)", () => {
       },
       {},
     );
-    expect(await nudgeSoleProprietorOtp(env)).toBe(0);
+    await expect(nudgeSoleProprietorOtp(env)).resolves.toBe(0);
     expect(emails).toHaveLength(0);
   });
 });

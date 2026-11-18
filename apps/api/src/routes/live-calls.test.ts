@@ -150,7 +150,8 @@ describe("GET /v1/calls/live/:id/targets", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       targets: [
         { user_id: TARGET_ID, busy: true, has_push_channel: true },
         { user_id: offlineId, busy: false, has_push_channel: false },
@@ -176,7 +177,8 @@ describe("GET /v1/calls/live/:id/targets", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ targets: [{ user_id: TARGET_ID, busy: false }] });
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({ targets: [{ user_id: TARGET_ID, busy: false }] });
   });
 });
 
@@ -324,10 +326,19 @@ describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
     const ring = (token: string, transferId = activeId) => apiRequest(app, doEnv, token, `${base}/ring-me`, {
       companyId: COMPANY_ID, method: "POST", body: { transfer_id: transferId, no_local_leg: true },
     });
-    expect(await (await ring(senderToken)).json()).toMatchObject({ rang: false, reason: "not_ringing" });
-    expect(await (await ring(targetToken, crypto.randomUUID())).json()).toMatchObject({ rang: false, reason: "not_ringing" });
-    expect(await (await ring(targetToken)).json()).toMatchObject({ rang: true });
-    expect(await (await ring(targetToken)).json()).toMatchObject({ rang: false, reason: "live_leg" });
+    await expect((await ring(senderToken)).json()).resolves.toMatchObject({
+      rang: false,
+      reason: "not_ringing",
+    });
+    await expect((await ring(targetToken, crypto.randomUUID())).json()).resolves.toMatchObject({
+      rang: false,
+      reason: "not_ringing",
+    });
+    await expect((await ring(targetToken)).json()).resolves.toMatchObject({ rang: true });
+    await expect((await ring(targetToken)).json()).resolves.toMatchObject({
+      rang: false,
+      reason: "live_leg",
+    });
     expect(fcm.sends).toHaveLength(1);
     expect(transfer.calls).toHaveLength(2);
     expect(transfer.calls[1].body).toMatchObject({

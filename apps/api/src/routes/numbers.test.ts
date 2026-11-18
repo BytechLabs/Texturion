@@ -456,7 +456,7 @@ describe("GET/PUT /v1/numbers/:id/access (#106)", () => {
     expect(put.status).toBe(200);
 
     const get = await harness.request(`/v1/numbers/${NUMBER_ID}/access`);
-    expect(await get.json()).toEqual({
+    await expect(get.json()).resolves.toEqual({
       access: "role",
       role: "admin",
       level: "note",
@@ -532,7 +532,7 @@ describe("GET/PUT /v1/numbers/:id/access (#106)", () => {
     );
     expect(put.status).toBe(200);
     const get = await harness.request(`/v1/numbers/${NUMBER_ID}/access`);
-    expect(await get.json()).toEqual({ access: "everyone" });
+    await expect(get.json()).resolves.toEqual({ access: "everyone" });
     expect(harness.rest.rows("number_access")).toHaveLength(0);
   });
 });
@@ -1386,7 +1386,7 @@ describe("DELETE /v1/numbers/:id", () => {
       const res = await harness.request(`/v1/numbers/${id}`, { method: "DELETE" });
 
       expect(res.status).toBe(403);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         error: { code: "confirmation_code_required" },
       });
       // Still ours: nothing was said to Telnyx.
@@ -1416,7 +1416,7 @@ describe("DELETE /v1/numbers/:id", () => {
       });
 
       expect(res.status).toBe(403);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
       // #581/#7: the code changed, the property did not. `mfa_challenge_required`
       // is the wall in front of the whole workspace; `mfa_reprove_required` is
       // "tap your authenticator for THIS act". The old assertion also passed for
@@ -2302,8 +2302,8 @@ describe("GET /v1/numbers allowed actions (#722)", () => {
       };
       return Object.fromEntries(body.data.map((row) => [row.id.slice(-2), row.allowed_actions]));
     };
-    expect(await actionsOf()).toEqual({ f1: ["remediate"], f2: [] });
+    await expect(actionsOf()).resolves.toEqual({ f1: ["remediate"], f2: [] });
     harness.state.role = "member";
-    expect(await actionsOf()).toEqual({ f1: [], f2: [] });
+    await expect(actionsOf()).resolves.toEqual({ f1: [], f2: [] });
   });
 });

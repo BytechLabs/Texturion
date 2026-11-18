@@ -1222,7 +1222,8 @@ describe("port allowed actions (#722)", () => {
       return Object.fromEntries(body.data.map((row) => [row.id, row.allowed_actions]));
     };
     harness.state.role = "owner";
-    expect(await actionsOf()).toEqual({
+    const actions = await actionsOf();
+    expect(actions).toEqual({
       [draft.id as string]: ["edit", "submit", "cancel"],
       [exception.id as string]: ["edit", "fix_and_resubmit", "cancel"],
       [ported.id as string]: [],
