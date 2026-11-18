@@ -24,7 +24,8 @@ fun interface CallWakeHandler {
  * touches telecom or the SDK leg — the server sends the BYE.
  */
 fun interface CallEndHandler {
-    fun onCallEnd(content: PushContent)
+    /** Whether to remove the tray entry after handling the revocation. */
+    fun onCallEnd(content: PushContent): Boolean
 }
 
 /**

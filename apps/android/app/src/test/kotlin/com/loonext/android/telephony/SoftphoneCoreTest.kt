@@ -272,11 +272,13 @@ class SoftphoneCoreTest {
             headerSession: String? = null,
             headerCaller: String? = null,
             headerCallerName: String? = null,
+            headerLegKind: String? = null,
         ) {
             val headers = buildList {
                 headerSession?.let { add(TelecomCallReducer.HEADER_NAME to it) }
                 headerCaller?.let { add(TelecomCallReducer.CALLER_HEADER_NAME to it) }
                 headerCallerName?.let { add(TelecomCallReducer.CALLER_NAME_HEADER_NAME to it) }
+                headerLegKind?.let { add(TelecomCallReducer.LEG_HEADER_NAME to it) }
             }
             _events.tryEmit(SdkEvent.Incoming(handle, name, number, customHeaders = headers))
         }
@@ -833,6 +835,25 @@ class SoftphoneCoreTest {
 
         assertEquals(listOf("transfer-one"), ringMeTransferIds)
         assertEquals(listOf("sess-transfer"), ended)
+        h.scope.cancel()
+    }
+
+    @Test
+    fun `transfer invite keeps ringing on an answered customer session`() = runTest {
+        sessionStateBehavior = { LiveSessionState(call_session_id = it, state = "answered") }
+        val h = harness()
+        h.core.start("company-1")
+        h.core.awaitReady()
+        h.core.onIncomingCallPush("sess-transfer", transferId = "transfer-one")
+        h.sdk.ring(FakeHandle("transfer-leg"), headerSession = "sess-transfer", headerLegKind = "transfer")
+        runCurrent()
+
+        h.core.onCallSessionUpdate("sess-transfer", "answered")
+        assertTrue(h.core.keepTransferRing("sess-transfer", "answered"))
+        assertFalse(h.core.state.value.calls.single().silenced)
+
+        h.core.onCallSessionUpdate("sess-transfer", "ended_answered")
+        assertTrue(h.core.state.value.calls.single().silenced)
         h.scope.cancel()
     }
 

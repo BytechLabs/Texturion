@@ -329,7 +329,14 @@ describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
     expect(await (await ring(targetToken)).json()).toMatchObject({ rang: false, reason: "live_leg" });
     expect(fcm.sends).toHaveLength(1);
     expect(transfer.calls).toHaveLength(2);
-    expect(transfer.calls[1].body).toMatchObject({ command_id: wakeId, to: "sip:gencred_target@sip.telnyx.com" });
+    expect(transfer.calls[1].body).toMatchObject({
+      command_id: wakeId,
+      to: "sip:gencred_target@sip.telnyx.com",
+      custom_headers: [
+        { name: "X-Loonext-Session", value: SESSION },
+        { name: "X-Loonext-Leg", value: "transfer" },
+      ],
+    });
   });
 
   it("404s a session from another company (scoped read finds nothing)", async () => {

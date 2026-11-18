@@ -1668,6 +1668,8 @@ no local leg can POST `/v1/calls/live/:sessionId/transfer/ring-me` with
 intent, waits four seconds if the initial leg is still recent, and permits one
 replacement dial within the wake window and session leg limit. An answer or
 hangup from the replaced leg cannot settle the replacement.
+The `X-Loonext-Leg: transfer` SIP header lets Android keep presenting that
+leg while the original customer call is still answered.
 
 `consult/complete` uses the same customer leg identifier to hand over a call
 after both consult participants join.

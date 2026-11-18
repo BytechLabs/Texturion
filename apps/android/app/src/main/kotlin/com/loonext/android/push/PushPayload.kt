@@ -100,6 +100,8 @@ data class PushContent(
     /** Channel this push posts on when rendered as a notification. */
     val channelId: String,
     val onCallAction: OnCallPushAction? = null,
+    /** Why the original ring ended, when a revocation provides it. */
+    val callEndReason: String? = null,
 ) {
     val isCall: Boolean get() = kind == PushKind.CALL
 
@@ -154,6 +156,7 @@ fun parsePush(
             url = url,
             tag = tag,
             channelId = ChannelIds.INCOMING_CALLS,
+            callEndReason = if (kind == PushKind.CALL_END) data["reason"] else null,
         )
     }
     return PushContent(

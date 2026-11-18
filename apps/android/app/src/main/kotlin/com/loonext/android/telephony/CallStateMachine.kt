@@ -53,6 +53,8 @@ data class CallSnapshot(
      * whole dismissal mechanism.
      */
     val silenced: Boolean = false,
+    /** The transfer leg rings while the original customer session is answered. */
+    val transferTarget: Boolean = false,
 )
 
 data class SoftphoneSnapshot(

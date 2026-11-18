@@ -26,7 +26,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import type { CallSessionDO } from "../calls/session-do";
 import type { Env } from "../env";
 import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
-import { hangupLiveLeg, LOONEXT_SESSION_HEADER } from "./inbound-ring";
+import { hangupLiveLeg, LOONEXT_LEG_HEADER, LOONEXT_SESSION_HEADER } from "./inbound-ring";
 
 /** Transfer target leg: `brt|<session>|<target>|<sender>|<hops>|<caller-or-empty>[|<transferId>]` */
 export const TRANSFER_TARGET_STATE = "brt";
@@ -234,6 +234,7 @@ export async function issueTransfer(
   const targetHeaders = [
     { name: LOONEXT_SESSION_HEADER, value: input.state.sessionId },
   ];
+  if (input.state.transferId) targetHeaders.push({ name: LOONEXT_LEG_HEADER, value: "transfer" });
 
   if (input.state.transferId || input.direction === "outbound") {
     const dialed = await telnyxOnLiveLeg(env, "/v2/calls", {

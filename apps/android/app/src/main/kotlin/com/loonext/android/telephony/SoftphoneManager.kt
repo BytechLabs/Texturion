@@ -208,12 +208,12 @@ class SoftphoneManager private constructor(
         // (the server-resolved teardown, capability-gated on the `call_end`
         // cap this client already registers) and bring the in-app leg down.
         PushHooks.callEndHandler = CallEndHandler { content ->
-            content.callSessionId?.let { session ->
-                // Directly, so the ring stops without waiting on Telecom to confirm the disconnect.
-                runCatching { CallNotifier.cancelIncomingForSession(appContext, session) }
-                runCatching { registry.disconnect(session) }
-                core.onCallEndPush(session)
-            }
+            val session = content.callSessionId ?: return@CallEndHandler true
+            if (core.keepTransferRing(session, content.callEndReason)) return@CallEndHandler false
+            runCatching { CallNotifier.cancelIncomingForSession(appContext, session) }
+            runCatching { registry.disconnect(session) }
+            core.onCallEndPush(session)
+            true
         }
     }
 
@@ -409,6 +409,7 @@ class SoftphoneManager private constructor(
      * (the server also sends the BYE / `call_end`).
      */
     fun onCallSessionUpdate(sessionId: String, state: String?) {
+        if (core.keepTransferRing(sessionId, state)) return
         if (CallWakePolicy.isRingingExit(state)) runCatching { registry.disconnect(sessionId) }
         core.onCallSessionUpdate(sessionId, state)
     }
