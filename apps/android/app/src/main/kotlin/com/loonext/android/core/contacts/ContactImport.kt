@@ -102,9 +102,10 @@ object ContactImport {
      * format allows. One field per property the cards carry that the importer
      * does not read; empty when they carry none.
      */
-    fun vcardFields(attested: Boolean, properties: List<String>): List<Pair<String, String>> =
+    fun vcardFields(attested: Boolean, properties: List<String>, replaceDetails: Boolean = false): List<Pair<String, String>> =
         buildList {
             if (attested) add(CONSENT_FIELD to CONSENT_VALUE)
+            if (replaceDetails) add("replace_existing_details" to "true")
             properties.forEach { add(VCARD_PROPERTY_FIELD to it) }
         }
 
@@ -551,6 +552,8 @@ object ContactImport {
                 AppStrings.translate(locale, "contactsTasks.importPropertyIgnore")
             VCardProperties.ACTION_OPTED_OUT ->
                 AppStrings.translate(locale, "contactsTasks.importPropertyOptedOut")
+            VCardProperties.ACTION_IMPORT ->
+                AppStrings.translate(locale, "contactsTasks.vcardImportDetail")
             else -> action
         }
     }

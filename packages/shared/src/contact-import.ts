@@ -464,7 +464,13 @@ export function vcardParameterProperty(
 }
 
 /** What a caller may say about one vCard property. */
-export type VCardPropertyAction = "ignore" | "opted_out";
+export type VCardPropertyAction = "ignore" | "opted_out" | "import";
+
+export const VCARD_PROFILE_PROPERTIES = ["EMAIL", "ORG", "ADR", "NOTE"] as const;
+
+export function canImportVCardProperty(property: string): boolean {
+  return VCARD_PROFILE_PROPERTIES.some((field) => field === property);
+}
 
 /** One property's answer: the property name, and what it means. */
 export interface VCardPropertyDeclaration {
@@ -484,7 +490,7 @@ export const VCARD_MAPPED_PROPERTIES: readonly string[] = [
   "VERSION",
 ];
 
-const VCARD_ACTIONS = new Set<string>([CONTACT_IMPORT_IGNORE, "opted_out"]);
+const VCARD_ACTIONS = new Set<string>([CONTACT_IMPORT_IGNORE, "opted_out", "import"]);
 
 /** The wire form of one property declaration: `<PROPERTY>:<action>`. */
 export function formatVCardProperty(
@@ -506,7 +512,7 @@ export function parseVCardProperty(raw: string): VCardPropertyDeclaration | null
   const action = raw.slice(colon + 1);
   if (!VCARD_ACTIONS.has(action)) return null;
   const property = raw.slice(0, colon).trim().toUpperCase();
-  if (property === "") return null;
+  if (property === "" || (action === "import" && !canImportVCardProperty(property))) return null;
   return { property, action: action as VCardPropertyAction };
 }
 

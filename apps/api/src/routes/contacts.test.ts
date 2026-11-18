@@ -11,7 +11,7 @@ import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/suppo
 import type { TestAuth } from '../test/support';
 import { decodeCursor, encodeCursor } from "../http/pagination";
 import { CONTACT_IMPORT_COLUMN_FIELD, CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_REFUSED_NOTE, CONTACT_IMPORT_CONSENT_REQUIRED, CONTACT_IMPORT_CONSENT_VALUE, CONTACT_IMPORT_IGNORE, CONTACT_IMPORT_MAX_ROWS, CONTACT_IMPORT_UNREADABLE_ENCODING, CONTACT_IMPORT_VCARD_PROPERTY_FIELD, contactImportColumnMismatchMessage, contactImportConsentRefusedReason, contactImportUndeclaredColumnsMessage, contactImportUndeclaredColumnsReference, contactImportUndeclaredPropertiesMessage, contactImportUndeclaredPropertiesReference, contactImportUnreadableFlagMessage, contactImportUnreadableFlagReference, contactImportUnterminatedQuoteMessage, defaultContactImportColumns, formatContactImportColumn, formatVCardProperty, vcardParameterProperty } from '@loonext/shared';
-import type { ContactImportColumnDeclaration, ContactImportColumnGuess } from '@loonext/shared';
+import type { ContactImportColumnDeclaration, ContactImportColumnGuess, VCardPropertyDeclaration } from '@loonext/shared';
 
 import { parseCsvRows } from "./core/csv";
 import {
@@ -4161,7 +4161,7 @@ function vcardForm(
    * of them need none — the gate is asserted directly by the tests that add a
    * `CATEGORIES` or a `NOTE`.
    */
-  properties: { property: string; action: "ignore" | "opted_out" }[] = [],
+  properties: VCardPropertyDeclaration[] = [],
 ): FormData {
   const form = new FormData();
   form.append("file", new File([vcf], "contacts.vcf", { type: "text/vcard" }));
@@ -4686,7 +4686,9 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     const sb = stubWithRole("admin");
     noStandingOptOuts(sb);
     sb.on("GET", "/rest/v1/contacts", () => []); // none pre-existing → all imported
-    sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
+    sb.on("POST", "/rest/v1/contacts", ({ body }) =>
+      (body as { phone_e164: string }[]).map(({ phone_e164 }) => ({ id: CONTACT_ID, phone_e164 })),
+    );
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -4707,8 +4709,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       skipped: number;
       errors: { row: number; reason: string }[];
     };
-    // Three distinct valid numbers across the cards (Alice ×1, Bob ×2).
-    expect(body.imported).toBe(3);
+    expect(body.imported).toBe(2);
     expect(body.updated).toBe(0);
     // The card with no TEL is skipped with a reason.
     expect(body.skipped).toBe(1);
@@ -4718,13 +4719,59 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     const upsert = sb.find("POST", "/rest/v1/contacts")[0];
     const rows = upsert.body as { phone_e164: string; name?: string; company_id: string }[];
     const phones = rows.map((r) => r.phone_e164).sort();
-    expect(phones).toEqual(["+14165550111", "+12125550133", "+15125550122"].sort());
+    expect(phones).toEqual(["+14165550111", "+15125550122"].sort());
     for (const row of rows) {
       expect(row.company_id).toBe(COMPANY_ID);
     }
-    // Bob's two numbers both carry his name.
     const bobRow = rows.find((r) => r.phone_e164 === "+15125550122");
     expect(bobRow?.name).toBe("Bob Baker");
+    expect(sb.find("POST", "/rest/v1/rpc/api_merge_import_contact_details")[0].body).toMatchObject({
+      p_rows: [{ contact_id: CONTACT_ID, other_phones: ["+12125550133"] }],
+    });
+  });
+
+  it("imports explicitly reviewed vCard details and applies a stop to every number on the card", async () => {
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    const primary = "+14165550111";
+    const other = "+14165550112";
+    sb.on("GET", "/rest/v1/contacts", () => [{ phone_e164: primary }]);
+    sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID, phone_e164: primary }]);
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const file = [
+      "BEGIN:VCARD", "VERSION:4.0", "FN:Jo", `TEL:${primary}`, `TEL:${other}`,
+      "EMAIL:jo@example.invalid", "ORG:Manufacturing;Service", "ADR:;;1 New St;Ottawa;ON;K1A 0B1;CA",
+      "NOTE:Use the side door\\nRing the bell", "CATEGORIES:Do not text", "END:VCARD",
+    ].join("\r\n");
+    const form = vcardForm(file, true, [
+      { property: "EMAIL", action: "import" }, { property: "ORG", action: "import" },
+      { property: "ADR", action: "import" }, { property: "NOTE", action: "import" },
+      { property: "CATEGORIES", action: "opted_out" },
+    ]);
+    form.append("replace_existing_details", "true");
+    const result = await apiRequest(app, env, await auth.token(), "/v1/contacts/import-vcard", {
+      companyId: COMPANY_ID, method: "POST", rawBody: form,
+    });
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ updated: 1, skipped: 0 });
+    expect(sb.find("POST", "/rest/v1/opt_outs")[0].body).toMatchObject([
+      { phone_e164: primary }, { phone_e164: other },
+    ]);
+    expect(sb.find("POST", "/rest/v1/rpc/api_merge_import_contact_details")[0].body).toMatchObject({
+      p_replace: true,
+      p_rows: [{
+        contact_id: CONTACT_ID, other_phones: [other],
+        profile: {
+          name: "Jo", email: "jo@example.invalid", business_name: "Manufacturing, Service",
+          address: "1 New St, Ottawa, ON, K1A 0B1, CA", notes: "Use the side door\nRing the bell",
+        },
+      }],
+    });
   });
 
   it("counts pre-existing numbers as updated, not imported", async () => {

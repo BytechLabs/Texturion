@@ -689,10 +689,8 @@ struct ContactImportConsentSheet: View {
                     if !candidate.columns.isEmpty { columnsCard }
                     if !candidate.properties.isEmpty { propertiesCard }
                     attestationCard
-                    if candidate.kind == .csv {
-                        Toggle(isOn: $replaceDetails) {
-                            Text(AppStrings.translate(appLocale, "contactsTasks.replaceExistingDetails"))
-                        }
+                    Toggle(isOn: $replaceDetails) {
+                        Text(AppStrings.translate(appLocale, "contactsTasks.replaceExistingDetails"))
                     }
                     consequences
                     if let reason = gateReason { gateLine(reason) }
@@ -1105,7 +1103,7 @@ struct ContactImportConsentSheet: View {
                 SelectOption<VCardPropertyAction?>(nil, title: unansweredLabel, isDisabled: true)
             )
         }
-        for action in VCardPropertyAction.allCases {
+        for action in VCardPropertyAction.allCases where action != .importDetail || VCardPropertyAction.canImport(property.name) {
             options.append(
                 SelectOption<VCardPropertyAction?>(action, title: action.localizedLabel(appLocale))
             )

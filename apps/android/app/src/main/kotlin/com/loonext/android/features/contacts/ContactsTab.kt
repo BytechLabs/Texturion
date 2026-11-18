@@ -163,7 +163,7 @@ private class ColumnStep(
 private class PropertyStep(
     val fileName: String,
     val bytes: ByteArray,
-    val properties: List<String>,
+    val properties: List<VCardProperties.Property>,
 )
 
 /**
@@ -308,6 +308,7 @@ private fun ContactListScreen(
     // because the claim is made about a FILE — a sheet answered for a CSV must
     // not follow the user into a vCard pick.
     var attestingImport by remember { mutableStateOf<ContactImportKind?>(null) }
+    var replaceVCardDetails by remember { mutableStateOf(false) }
     var pendingImport by remember { mutableStateOf<ContactImportKind?>(null) }
     var importing by remember { mutableStateOf(false) }
     var exporting by remember { mutableStateOf(false) }
@@ -553,6 +554,7 @@ private fun ContactListScreen(
                     bytes,
                     attested = true,
                     properties = declarations,
+                    replaceDetails = replaceVCardDetails,
                 )
             }
             importReport = ImportReport(kind, result)
@@ -651,7 +653,7 @@ private fun ContactListScreen(
                 }
                 ContactImportKind.VCARD -> {
                     val properties =
-                        withContext(Dispatchers.Default) { VCardProperties.undeclared(bytes) }
+                        withContext(Dispatchers.Default) { VCardProperties.review(bytes) }
                     // A plain FN/N/TEL export carries nothing we do not read, and
                     // there is no question to ask about it. Anything else — the
                     // CATEGORIES and NOTE that Apple and Google actually write —
@@ -1136,8 +1138,9 @@ private fun ContactListScreen(
         ImportConsentSheet(
             kind = kind,
             onDismiss = { attestingImport = null },
-            onAttested = {
+            onAttested = { replaceDetails ->
                 attestingImport = null
+                replaceVCardDetails = replaceDetails
                 pickFileFor(kind)
             },
         )
@@ -1621,11 +1624,12 @@ internal fun CreateContactSheet(
 private fun ImportConsentSheet(
     kind: ContactImportKind,
     onDismiss: () -> Unit,
-    onAttested: () -> Unit,
+    onAttested: (Boolean) -> Unit,
 ) {
     // Never hoisted, never remembered across sheets: each file is its own
     // claim, so re-opening this asks again.
     var attested by remember(kind) { mutableStateOf(false) }
+    var replaceDetails by remember(kind) { mutableStateOf(false) }
     val locale = LocalAppLocale.current
 
     AppSheet(onDismissRequest = onDismiss) {
@@ -1701,6 +1705,16 @@ private fun ImportConsentSheet(
                 }
             }
 
+            if (kind == ContactImportKind.VCARD) {
+                Row(
+                    Modifier.fillMaxWidth().toggleable(replaceDetails, role = Role.Checkbox) { replaceDetails = it },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = replaceDetails, onCheckedChange = null)
+                    Text(t("contactsTasks.replaceExistingDetails"))
+                }
+            }
+
             Row(
                 Modifier
                     .fillMaxWidth()
@@ -1709,7 +1723,7 @@ private fun ImportConsentSheet(
             ) {
                 Spacer(Modifier.weight(1f))
                 TextButton(onClick = onDismiss) { Text(t(ContactImport.Copy.CANCEL)) }
-                Button(enabled = attested, onClick = onAttested) {
+                Button(enabled = attested, onClick = { onAttested(replaceDetails) }) {
                     Text(t(ContactImport.Copy.CONTINUE))
                 }
             }
@@ -2137,7 +2151,7 @@ private fun ImportPropertiesSheet(
             // somebody meeting it cold cannot answer it — but a file carrying only
             // CATEGORIES and NOTE needs no lesson about a punctuation mark that is
             // not on their screen.
-            if (step.properties.any { it.contains(';') }) {
+            if (step.properties.any { it.name.contains(';') }) {
                 Text(
                     t(ContactImport.Properties.PARAMETER_NOTE),
                     style = MaterialTheme.typography.bodySmall,
@@ -2158,8 +2172,8 @@ private fun ImportPropertiesSheet(
                 step.properties.forEach { property ->
                     PropertyDeclarationCard(
                         property = property,
-                        action = answers[property],
-                        onAction = { answers = answers + (property to it) },
+                        action = answers[property.name],
+                        onAction = { answers = answers + (property.name to it) },
                     )
                 }
             }
@@ -2197,7 +2211,7 @@ private fun ImportPropertiesSheet(
                             // refuses the file rather than this app deciding a
                             // `CATEGORIES` nobody looked at means nothing.
                             step.properties.mapNotNull { property ->
-                                answers[property]?.let { VCardProperties.format(property, it) }
+                                answers[property.name]?.let { VCardProperties.format(property.name, it) }
                             },
                         )
                     },
@@ -2210,14 +2224,15 @@ private fun ImportPropertiesSheet(
     }
 }
 
-/** One vCard property and the two things it can be said to mean. */
+/** The actions offered for a vCard property. */
 @Composable
 private fun PropertyDeclarationCard(
-    property: String,
+    property: VCardProperties.Property,
     action: String?,
     onAction: (String) -> Unit,
 ) {
     val locale = LocalAppLocale.current
+    var showAll by remember(property) { mutableStateOf(false) }
     Surface(
         shape = RoundedCornerShape(14.dp),
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
@@ -2227,12 +2242,30 @@ private fun PropertyDeclarationCard(
             Text(
                 // The property name as the file spells it — `CATEGORIES`, `NOTE`
                 // — because that is what they will find if they open the .vcf.
-                property,
+                property.name,
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
             )
+            val shown = if (showAll) property.values else property.values.take(ImportColumns.SAMPLE_LIMIT)
+            if (shown.isNotEmpty()) {
+                Text(
+                    ContactImport.Columns.valuesLine(shown, property.total, locale),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+            }
+            if (property.values.size > ImportColumns.SAMPLE_LIMIT) {
+                TextButton(onClick = { showAll = !showAll }) {
+                    Text(
+                        if (showAll) t(ContactImport.Columns.SHOW_FEWER_VALUES_LABEL)
+                        else ContactImport.Columns.showAllValuesLabel(property.total, locale),
+                    )
+                }
+            }
+            if (showAll && property.total > shown.size) {
+                Text(ContactImport.Columns.valueCeilingNote(shown.size, property.total, locale))
+            }
             Box(Modifier.padding(top = 8.dp)) {
                 SelectField(
-                    options = VCardProperties.ACTIONS.map {
+                    options = VCardProperties.actions(property.name).map {
                         SelectOption(it, ContactImport.Properties.actionLabel(it, locale))
                     },
                     selected = action,

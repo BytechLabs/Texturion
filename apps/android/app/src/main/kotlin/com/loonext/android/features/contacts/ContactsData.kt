@@ -315,11 +315,12 @@ class ContactMutations(private val api: ApiClient, baseUrl: String) {
         bytes: ByteArray,
         attested: Boolean,
         properties: List<String>,
+        replaceDetails: Boolean = false,
     ): ImportResult = api.json.decodeFromString(
         multipart.postFile(
             path = "/v1/contacts/import-vcard",
             companyId = companyId,
-            fields = ContactImport.vcardFields(attested, properties),
+            fields = ContactImport.vcardFields(attested, properties, replaceDetails),
             fileField = "file",
             fileName = fileName,
             contentType = "text/vcard",

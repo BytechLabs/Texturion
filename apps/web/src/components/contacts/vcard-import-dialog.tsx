@@ -19,7 +19,7 @@ import { ApiError } from "@/lib/api/error";
 import type { ImportResult } from "@/lib/api/types";
 import { answerProperty, ignoreRemainingProperties, propertyDeclarations, readVCardProperties } from '@/lib/contacts/vcard-properties';
 import type { VCardProperty } from '@/lib/contacts/vcard-properties';
-import { CONTACT_IMPORT_IGNORE, CONTACT_IMPORT_SHOW_FEWER_VALUES_KEY, contactImportHiddenValuesLabel, contactImportShowAllValuesLabel, contactImportValueCeilingNote, VCARD_IMPORT_MAX_BYTES } from '@loonext/shared';
+import { CONTACT_IMPORT_IGNORE, CONTACT_IMPORT_SHOW_FEWER_VALUES_KEY, canImportVCardProperty, contactImportHiddenValuesLabel, contactImportShowAllValuesLabel, contactImportValueCeilingNote, VCARD_IMPORT_MAX_BYTES } from '@loonext/shared';
 import type { VCardPropertyAction } from '@loonext/shared';
 
 import { ImportConsentCheck } from "./import-consent-check";
@@ -27,12 +27,6 @@ import { ImportSummaryView } from "./import-summary-view";
 
 /** The server's own ceiling, printed rather than a second copy of it. */
 const MAX_SIZE_LABEL = `${VCARD_IMPORT_MAX_BYTES / (1024 * 1024)} MB`;
-
-/** The two answers a vCard property can have. See the shared docblock for why. */
-const PROPERTY_LABEL_KEYS: Record<VCardPropertyAction, "contacts.vcardSkipIt" | "contacts.vcardNeverText"> = {
-  ignore: "contacts.vcardSkipIt",
-  opted_out: "contacts.vcardNeverText",
-};
 
 /** The empty option's value. Not a valid answer, so it cannot be posted. */
 const UNANSWERED = "";
@@ -75,6 +69,7 @@ export function VCardImportDialog({
   // preview of rows to ask over. Cleared by reset(), so "Import another" asks
   // again about the next file.
   const [consentAttested, setConsentAttested] = useState(false);
+  const [replaceExistingDetails, setReplaceExistingDetails] = useState(false);
   // The chosen file, held while its properties are being answered for. The
   // bytes posted are the bytes chosen: the declaration describes the file the
   // server will parse, or it describes nothing.
@@ -92,6 +87,7 @@ export function VCardImportDialog({
     setUploadError(null);
     setResult(null);
     setConsentAttested(false);
+    setReplaceExistingDetails(false);
     setPending(null);
     setProperties([]);
     importVCard.reset();
@@ -105,7 +101,7 @@ export function VCardImportDialog({
   function send(file: File, declared: ReturnType<typeof propertyDeclarations>) {
     if (declared === null) return;
     importVCard.mutate(
-      { file, consentAttested, properties: declared },
+      { file, consentAttested, replaceExistingDetails, properties: declared },
       {
         onSuccess: (summary) => setResult(summary),
         onError: (cause) =>
@@ -307,12 +303,15 @@ export function VCardImportDialog({
                           options={[
                             {
                               value: CONTACT_IMPORT_IGNORE,
-                              label: t(PROPERTY_LABEL_KEYS.ignore),
+                              label: t("contacts.vcardSkipIt"),
                             },
                             {
                               value: "opted_out",
-                              label: t(PROPERTY_LABEL_KEYS.opted_out),
+                              label: t("contacts.vcardNeverText"),
                             },
+                            ...(canImportVCardProperty(row.property)
+                              ? [{ value: "import", label: t("contacts.vcardImportDetail") }]
+                              : []),
                           ]}
                         />
                       </div>
@@ -393,6 +392,15 @@ export function VCardImportDialog({
               disabled={importVCard.isPending}
               onCheckedChange={setConsentAttested}
             />
+            <label className="flex items-center gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={replaceExistingDetails}
+                disabled={importVCard.isPending}
+                onChange={(event) => setReplaceExistingDetails(event.target.checked)}
+              />
+              {t("contacts.replaceExistingDetails")}
+            </label>
             {/* Disabled until attested. A file with nothing unread imports the
                 moment it is chosen, so the question has to be answered before
                 the picker opens or it cannot be answered at all. */}

@@ -406,6 +406,7 @@ export {
   type SayValuesKey,
   CONTACT_IMPORT_UNREADABLE_ENCODING,
   CONTACT_IMPORT_VCARD_PROPERTY_FIELD,
+  canImportVCardProperty,
   contactImportColumnMismatchMessage,
   contactImportConsentRefusedReason,
   contactImportHiddenValuesLabel,

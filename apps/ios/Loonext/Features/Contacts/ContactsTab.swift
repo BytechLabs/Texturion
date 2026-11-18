@@ -982,7 +982,8 @@ struct ContactsTab: View {
                         fileName: candidate.fileName,
                         bytes: candidate.bytes,
                         consentAttested: candidate.consentAttested,
-                        properties: candidate.declaredProperties
+                        properties: candidate.declaredProperties,
+                        replaceDetails: candidate.replaceDetails
                     )
                 }
                 importReport = ImportReport(kind: candidate.kind, result: result)

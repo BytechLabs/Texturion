@@ -974,13 +974,12 @@ already exist, UNIQUE(company_id, phone_e164), D7).
   object with text values for the workspace’s current field keys. Blank values preserve saved data.
   CSV and vCard imports keep the original creator on existing contacts.
 - **vCard (.vcf) import — `POST /v1/contacts/import-vcard`.** Accepts one .vcf containing one or many
-  `VCARD` blocks (the format phones/Google/Apple export). Parse **vCard 3.0 and 4.0** (`FN`/`N` → name,
-  `TEL` → phone). **Normalize every `TEL` to E.164** against the company's default country (US/CA per D2);
-  drop non-mobile-shaped or un-normalizable numbers with a per-row reason in the import report. A card with
-  multiple `TEL`s creates one contact per **distinct valid** number (contacts are phone-keyed, D7). Reuse
-  the **exact upsert + dedupe + consent-attestation gating** the CSV importer already enforces — vCard is
-  just a second parser feeding the same idempotent upsert, not a second import pipeline. Same
-  preview→confirm UI and same per-row error report as CSV.
+  `VCARD` blocks from phones and address books. For vCard 3.0 and 4.0, `FN` or `N` supplies the name.
+  The first valid `TEL` becomes the primary number. Remaining valid numbers become other numbers on the
+  same contact when no other contact owns them. The report lists any numbers that could not be added.
+  The reviewer can import `EMAIL`, `ORG`, `ADR` and `NOTE` into the contact profile. The same
+  **Replace existing details** control and kept counts apply as for CSV. When the reviewer marks a
+  property as do-not-text, the opt-out applies to every valid number on each affected card.
   - **CORRECTED 2026-08-05 (#248).** This bullet said import is a `consent_source='import'` path. There
     is no such value: `consent_source_t` is the two-value enum `('inbound_sms','attested')`, and an
     import writes `attested` — the same value a by-hand attestation writes, because it is the same claim.

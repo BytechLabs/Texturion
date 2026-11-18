@@ -3085,33 +3085,29 @@ contactsRoutes.post(
         .map((declaration) => declaration.property),
     );
 
+    const profileProperties = new Set(propertyDeclarations
+      .filter((declaration) => declaration.action === "import")
+      .map((declaration) => declaration.property));
+    const replace = form.get("replace_existing_details") === "true";
     const companyId = c.get("companyId");
     const userId = c.get("userId");
     const db = getDb(getEnv(c.env));
-
     const errors: { row: number; reason: string }[] = [];
-    // One entry per DISTINCT valid E.164 across the whole file; first name
-    // wins, and the card it came from is kept so a refusal can name it.
-    const byPhone = new Map<
-      string,
-      { name: string | null; row: number; optedOut: boolean }
-    >();
+    const warnings: { row: number; reason: string }[] = [];
+    const byPhone = new Map<string, ImportContactDetails>();
+    const optedOutNumbers = new Set<string>();
 
     cards.forEach((card, index) => {
-      const cardNumber = index + 1; // 1-based card position
-      // Somebody looked at this property and said a card carrying it must not
-      // be texted. Read BEFORE the duplicate check below, and OR-ed into a
-      // number already seen, for the reason the CSV route learned the hard way:
-      // the restriction belongs to the person, not to the row that happened to
-      // carry it, and a discarded duplicate must not take it away.
+      const cardNumber = index + 1;
       const optedOut = card.properties.some((property) =>
         blockingProperties.has(property),
       );
       const valid = new Set<string>();
+      const invalid: { row: number; reason: string }[] = [];
       for (const rawTel of card.tels) {
         const phone = normalizeNanpPhone(rawTel);
         if (!phone) {
-          errors.push({
+          invalid.push({
             row: cardNumber,
             reason: `invalid phone: ${rawTel === "" ? "(empty)" : rawTel}`,
           });
@@ -3119,27 +3115,40 @@ contactsRoutes.post(
         }
         valid.add(phone);
       }
-      if (valid.size === 0 && card.tels.length === 0) {
-        // A card with no TEL at all is a skip with a clear reason.
-        errors.push({ row: cardNumber, reason: "no phone number" });
+      const [phone, ...otherPhones] = valid;
+      if (!phone) {
+        errors.push(invalid[0] ?? { row: cardNumber, reason: "no phone number" });
         return;
       }
-      for (const phone of valid) {
-        const seen = byPhone.get(phone);
-        if (seen) {
-          if (optedOut) seen.optedOut = true;
-          errors.push({
-            row: cardNumber,
-            reason: `duplicate phone in file: ${phone}`,
-          });
-          continue;
-        }
-        byPhone.set(phone, { name: card.name, row: cardNumber, optedOut });
+      if (optedOut) {
+        for (const number of valid) optedOutNumbers.add(number);
       }
+      if (byPhone.has(phone)) {
+        errors.push({ row: cardNumber, reason: `duplicate phone in file: ${phone}` });
+        return;
+      }
+      warnings.push(...invalid);
+      const profile: Record<string, unknown> = {};
+      if (card.name) profile.name = card.name;
+      if (card.email && profileProperties.has("EMAIL")) {
+        if (emailField.safeParse(card.email).success) profile.email = card.email;
+        else warnings.push({ row: cardNumber, reason: "Invalid email address." });
+      }
+      if (card.businessName && profileProperties.has("ORG")) profile.business_name = card.businessName;
+      if (card.address && profileProperties.has("ADR")) profile.address = card.address;
+      if (card.notes && profileProperties.has("NOTE")) profile.notes = card.notes;
+      byPhone.set(phone, { row: cardNumber, profile, other_phones: otherPhones, tags: [] });
     });
 
     const entries = [...byPhone.entries()];
     const phones = entries.map(([phone]) => phone);
+    for (const detail of byPhone.values()) {
+      detail.other_phones = detail.other_phones.filter((phone) => {
+        if (!byPhone.has(phone)) return true;
+        warnings.push({ row: detail.row, reason: `Could not add other phone ${phone}.` });
+        return false;
+      });
+    }
 
     // Pre-existing contacts → imported-vs-updated counting, and the consent
     // basis each already carries (mirrors CSV, #248). Plus every standing
@@ -3149,7 +3158,7 @@ contactsRoutes.post(
     // STOP every single time.
     const [existingBasis, standing] = await Promise.all([
       existingConsentBasis(db, companyId, phones),
-      standingOptOuts(db, companyId, phones),
+      standingOptOuts(db, companyId, [...new Set([...phones, ...optedOutNumbers])]),
     ]);
     const existingPhones = new Set(existingBasis.keys());
 
@@ -3159,7 +3168,7 @@ contactsRoutes.post(
     const importedAt = new Date().toISOString();
     const refusals: { row: number; reason: string }[] = [];
     const upsertRows = entries.map(
-      ([phone, { name, row: cardNumber, optedOut }]) => {
+      ([phone, { profile, row: cardNumber }]) => {
         const row: ImportedContact = {
           company_id: companyId,
           phone_e164: phone,
@@ -3168,6 +3177,8 @@ contactsRoutes.post(
         if (!existingPhones.has(phone)) {
           row.created_by_user_id = userId;
           row.creation_origin = "import";
+          Object.assign(row, profile);
+          if (typeof profile.address === "string") Object.assign(row, geocodeReset(profile.address));
         }
         const decision = importConsent(
           existingBasis.get(phone),
@@ -3177,7 +3188,7 @@ contactsRoutes.post(
           // a card marked DNC has contradicted itself, so the restriction is
           // the half to believe. Everything else standing is a disagreement
           // between the file and the record, and every one of those is reported.
-          { standing: standing.has(phone), inFile: optedOut },
+          { standing: standing.has(phone), inFile: optedOutNumbers.has(phone) },
           importedAt,
           userId,
         );
@@ -3188,7 +3199,6 @@ contactsRoutes.post(
             reason: contactImportConsentRefusedReason(phone),
           });
         }
-        if (name !== null) row.name = name;
         return row;
       },
     );
@@ -3196,9 +3206,7 @@ contactsRoutes.post(
     // same two questions the CSV route asks, answered from durable state so a
     // re-run after a half-finished import repairs the timeline rather than
     // staying silent forever. See `announcedOptOuts`.
-    const optedOutPhones = entries
-      .filter(([, entry]) => entry.optedOut)
-      .map(([phone]) => phone);
+    const optedOutPhones = [...optedOutNumbers];
     const alreadyStanding = optedOutPhones.filter((phone) => standing.has(phone));
     const announced =
       alreadyStanding.length > 0
@@ -3208,6 +3216,7 @@ contactsRoutes.post(
       (phone) => !standing.has(phone) || !announced.has(phone),
     );
     let writtenPhones = phones;
+    let kept = 0;
     try {
       // RESTRICTIONS FIRST, the same order and for the same reason as the CSV
       // route: there is no transaction around any of this, so whichever prefix
@@ -3215,9 +3224,14 @@ contactsRoutes.post(
       // partial failure landing on contacts created, the file's attestation
       // stamped on them, and not one of the blocks it declared.
       await writeImportOptOuts(db, companyId, userId, optedOutPhones);
-      const { ids, skipped } = await upsertImportedContacts(db, companyId, upsertRows, "vcard upsert");
+      const saved = await upsertImportedContacts(db, companyId, upsertRows, "vcard upsert");
+      const { ids, skipped } = saved;
       reportImportNumberSkips(skipped, byPhone, errors, refusals);
       writtenPhones = phones.filter((phone) => !skipped.has(phone));
+      kept = await mergeImportedContactDetails(db, companyId, saved, byPhone, {
+        replace,
+        mayCreateTags: false,
+      }, warnings);
       await announceImportOptOuts(
         db,
         companyId,
@@ -3266,6 +3280,7 @@ contactsRoutes.post(
       after: {
         imported,
         updated,
+        kept,
         skipped: errors.length,
         consent_refused: refusals.length,
         // #248 round 3: what this workspace said the cards' unread properties
@@ -3278,8 +3293,10 @@ contactsRoutes.post(
     return c.json({
       imported,
       updated,
+      kept,
       skipped: errors.length,
       errors,
+      detail_warnings: warnings,
       // #248: the same three fields the CSV route answers with. A client that
       // has to branch on which door it used would eventually show the note on
       // one and not the other.

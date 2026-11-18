@@ -44,9 +44,14 @@ object VCardProperties {
 
     /** A card carrying this property must not be texted. */
     const val ACTION_OPTED_OUT = ImportColumns.FIELD_OPTED_OUT
+    const val ACTION_IMPORT = "import"
 
     /** The two answers, in the order they are offered. */
     val ACTIONS: List<String> = listOf(ACTION_IGNORE, ACTION_OPTED_OUT)
+    private val profileProperties = setOf("EMAIL", "ORG", "ADR", "NOTE")
+
+    fun actions(property: String): List<String> =
+        if (property in profileProperties) ACTIONS + ACTION_IMPORT else ACTIONS
 
     /**
      * The properties the importer reads. Everything else must be declared.
@@ -84,9 +89,8 @@ object VCardProperties {
         val colon = raw.lastIndexOf(':')
         if (colon == -1) return null
         val action = raw.substring(colon + 1)
-        if (action !in ACTIONS) return null
         val property = raw.substring(0, colon).trim().uppercase()
-        return if (property == "") null else property to action
+        return if (property.isEmpty() || action !in actions(property)) null else property to action
     }
 
     /**
@@ -96,15 +100,20 @@ object VCardProperties {
      * Sorted because the order carries no meaning and a stable list is one a
      * person can work down without it moving under them.
      */
-    fun undeclared(vcf: ByteArray): List<String> =
-        (present(String(vcf, Charsets.UTF_8)) - MAPPED.toSet()).sorted()
+    fun undeclared(vcf: ByteArray): List<String> = review(vcf).map { it.name }
+
+    data class Property(val name: String, val values: List<String>, val total: Int)
+
+    fun review(vcf: ByteArray): List<Property> = present(String(vcf, Charsets.UTF_8))
+        .toSortedMap()
+        .map { (name, values) -> Property(name, values.take(ImportColumns.VALUE_CEILING), values.size) }
 
     /**
      * The port. Only content lines INSIDE a `BEGIN:VCARD` … `END:VCARD` block
      * count, exactly as the server counts them.
      */
-    private fun present(text: String): Set<String> {
-        val found = linkedSetOf<String>()
+    private fun present(text: String): Map<String, Set<String>> {
+        val found = mutableMapOf<String, MutableSet<String>>()
         var inCard = false
         for (line in unfold(text)) {
             val trimmed = line.trim()
@@ -121,7 +130,11 @@ object VCardProperties {
                 continue
             }
             if (!inCard) continue
-            found += contentLineProperties(line)
+            for ((property, value) in lineValues(line)) {
+                if (property in MAPPED) continue
+                val values = found.getOrPut(property) { linkedSetOf() }
+                if (value.isNotBlank()) values.add(value)
+            }
         }
         return found
     }
@@ -181,7 +194,9 @@ object VCardProperties {
      * that let the ubiquitous ones through would be a vocabulary — which is the
      * thing two rounds of this issue lost to.
      */
-    fun contentLineProperties(line: String): List<String> {
+    fun contentLineProperties(line: String): List<String> = lineValues(line).map { it.first }.distinct()
+
+    private fun lineValues(line: String): List<Pair<String, String>> {
         var colon = -1
         var inQuotes = false
         for (i in line.indices) {
@@ -200,7 +215,8 @@ object VCardProperties {
         if (dot != -1) name = name.substring(dot + 1)
         if (name == "") return emptyList()
         val property = name.uppercase()
-        val tokens = mutableListOf(property)
+        val value = if (colon == -1) "" else line.substring(colon + 1).trim()
+        val tokens = mutableListOf(property to value)
         for (segment in segments.drop(1)) {
             // `TYPE=CELL` is the parameter TYPE; a valueless `PREF` is its own
             // name. Everything to the RIGHT of the `=` is the free text nobody
@@ -210,7 +226,8 @@ object VCardProperties {
                 (if (equals == -1) segment else segment.substring(0, equals)).trim().uppercase()
             if (parameter == "") continue
             val token = parameterProperty(property, parameter)
-            if (token !in tokens) tokens += token
+            val parameterValue = if (equals == -1) "" else segment.substring(equals + 1).trim().trim('"')
+            tokens += token to parameterValue
         }
         return tokens
     }

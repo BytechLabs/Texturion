@@ -358,6 +358,7 @@ export const contactsEn = {
   // ── The shared import summary ───────────────────────────────────────────
   importFinished: "Import finished",
   replaceExistingDetails: "Replace existing details",
+  vcardImportDetail: "Import this detail",
   importKept: "Existing details kept for {count} contacts",
   importDetailWarnings: "Details that could not be imported",
   importFailed: "The import didn't go through. Try again.",
@@ -858,6 +859,7 @@ export const contactsFr: Translated<typeof contactsEn> = {
   // ── Le sommaire d'importation partagé ───────────────────────────────────
   importFinished: "Importation terminée",
   replaceExistingDetails: "Remplacer les renseignements existants",
+  vcardImportDetail: "Importer ce renseignement",
   importKept: "Renseignements existants conservés pour {count} contacts",
   importDetailWarnings: "Renseignements qui n’ont pas pu être importés",
   importFailed: "L'importation a échoué. Réessayez.",
