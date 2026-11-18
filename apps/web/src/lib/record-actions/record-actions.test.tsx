@@ -118,15 +118,15 @@ describe("#712 conversation", () => {
     buildConversationActions({ ...base, viewer: { canWrite, canDelete } });
 
   expectOneList("owner on an inbox row", build(true, true), [
-    "open", "open-new-tab", "mark-unread", "assign", "close", "pin", "snooze",
+    "open", "open-new-tab", "copy-number", "mark-unread", "assign", "close", "pin", "snooze",
     "follow-up", "mute", "follow", "spam", "block", "delete",
   ]);
   expectOneList("member on an inbox row (no records.delete)", build(true, false), [
-    "open", "open-new-tab", "mark-unread", "assign", "close", "pin", "snooze",
+    "open", "open-new-tab", "copy-number", "mark-unread", "assign", "close", "pin", "snooze",
     "follow-up", "mute", "follow", "spam", "block",
   ]);
   expectOneList("read-only on an inbox row", build(false, false), [
-    "open", "open-new-tab", "mark-unread", "snooze", "follow-up", "mute", "follow",
+    "open", "open-new-tab", "copy-number", "mark-unread", "snooze", "follow-up", "mute", "follow",
   ]);
 
   const header = buildConversationActions({

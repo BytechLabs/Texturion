@@ -93,6 +93,7 @@ data class RecordViewer(val canWrite: Boolean, val canDelete: Boolean) {
 
 object ConversationActionId {
     const val OPEN = "open"
+    const val COPY_NUMBER = "copy-number"
     const val MARK_READ = "mark-read"
     const val MARK_UNREAD = "mark-unread"
     const val CATCH_UP = "catch-up"
@@ -126,6 +127,7 @@ data class ConversationSurface(
     val hasCatchUp: Boolean,
     /** Phones only: a task can start from the conversation sheet. */
     val hasNewTask: Boolean,
+    val canCopyNumber: Boolean = false,
 )
 
 data class ConversationActionsInput(
@@ -164,6 +166,10 @@ fun conversationActions(input: ConversationActionsInput): List<RecordAction> {
     val surface = input.surface
     return listOf(
         RecordAction(ConversationActionId.OPEN, "recordMenu.open", ActionGroup.PRIMARY, allowed = surface.canOpen),
+        RecordAction(
+            ConversationActionId.COPY_NUMBER, "recordMenu.copyNumber", ActionGroup.PRIMARY,
+            allowed = surface.canCopyNumber,
+        ),
 
         if (input.unread) {
             RecordAction(ConversationActionId.MARK_READ, "recordMenu.markRead", ActionGroup.STATE)

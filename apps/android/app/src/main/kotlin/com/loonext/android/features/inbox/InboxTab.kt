@@ -94,6 +94,7 @@ import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.semantics.CustomAccessibilityAction
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.customActions
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -117,6 +118,7 @@ import com.loonext.android.core.snooze.DeferralKind
 import com.loonext.android.core.snooze.followUpPresets
 import com.loonext.android.core.snooze.snoozePresets
 import com.loonext.android.core.time.TimestampFormat
+import com.loonext.android.features.settings.copyToClipboard
 import com.loonext.android.ui.common.ConversationActionId
 import com.loonext.android.ui.common.ConversationActionsInput
 import com.loonext.android.ui.common.ConversationSurface
@@ -1232,6 +1234,7 @@ private class InboxController(
                     hasGallery = false,
                     hasCatchUp = false,
                     hasNewTask = false,
+                    canCopyNumber = row.contact.phone_e164.isNotBlank(),
                 ),
                 assignChoices = listOf(
                     RecordSubAction(UNASSIGNED_CHOICE, labelKey = "recordMenu.unassigned"),
@@ -1267,6 +1270,7 @@ private class InboxController(
         actionId: String,
         subId: String?,
         onOpen: (String) -> Unit,
+        onCopyNumber: (String) -> Unit,
     ) {
         clearSelection()
         fun call(block: suspend () -> Unit) {
@@ -1281,6 +1285,10 @@ private class InboxController(
         }
         when (actionId) {
             ConversationActionId.OPEN -> onOpen(row.id)
+            ConversationActionId.COPY_NUMBER -> {
+                onCopyNumber(row.contact.phone_e164)
+                notify(say("recordMenu.numberCopied"))
+            }
             ConversationActionId.MARK_READ, ConversationActionId.MARK_UNREAD -> toggleRead(row)
             ConversationActionId.CLOSE, ConversationActionId.REOPEN -> toggleStatus(row)
             ConversationActionId.ASSIGN -> call {
@@ -3052,6 +3060,8 @@ private fun BulkSelectionBar(
     val loadedIds = controller.rows.map { it.id }
     val running = controller.bulkRunning
     val locale = LocalAppLocale.current
+    val context = LocalContext.current
+    val clipboardLabel = t("settingsMore.phoneNumberClipLabel")
     var menuOpen by remember { mutableStateOf(false) }
     val showSelectLoaded = selection is BulkSelection.Ids &&
         loadedIds.isNotEmpty() &&
@@ -3106,7 +3116,9 @@ private fun BulkSelectionBar(
                             onDismiss = { menuOpen = false },
                             actions = controller.actionsFor(single, viewer),
                             onSelect = { actionId, subId ->
-                                controller.runRowAction(single, actionId, subId, onOpen)
+                                controller.runRowAction(single, actionId, subId, onOpen) {
+                                    copyToClipboard(context, clipboardLabel, it)
+                                }
                             },
                         )
                     } else DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
