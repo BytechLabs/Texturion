@@ -1121,7 +1121,7 @@ export function Composer({
   const onKeyDown = (event: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if ((event.metaKey || event.ctrlKey) && event.key === "Enter") {
       event.preventDefault();
-      void requestSend();
+      requestSend();
       return;
     }
     // "/" in an empty draft opens the saved-replies picker inline (§3.1) —
@@ -1702,7 +1702,7 @@ export function Composer({
           >
             <button
               type="button"
-              onClick={() => void requestSend()}
+              onClick={requestSend}
               disabled={!canSend}
               aria-label={
                 isNote ? t("thread.saveNoteAria") : t("thread.sendMessageAria")

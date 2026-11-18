@@ -214,8 +214,8 @@ describe("exception capture (D146)", () => {
 
     expect(JSON.stringify(out)).not.toContain("6135551234");
     expect(JSON.stringify(out)).not.toContain("a@b.co");
-    const [entry] = out?.properties.$exception_list as { value: string }[];
-    expect(entry.value).toBe("[phone redacted] [email redacted]");
+    const [entry] = (out?.properties.$exception_list ?? []) as { value: string }[];
+    expect(entry?.value).toBe("[phone redacted] [email redacted]");
     expect(out?.properties).toMatchObject({
       $current_url: "https://app.loonext.com/inbox",
       environment: "production",

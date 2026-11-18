@@ -34,7 +34,7 @@ export function useDebouncedAutosave<T>({
 }) {
   const [draft, setDraftState] = useState(value);
   const [state, setState] = useState<AutosaveState>("idle");
-  const [error, setError] = useState<unknown>(null);
+  const [saveError, setError] = useState<unknown>(null);
 
   // Refs, so no effect re-runs when the caller's mutation object changes.
   const draftRef = useRef(value);
@@ -60,8 +60,8 @@ export function useDebouncedAutosave<T>({
     clearTimer(savedTimer);
     setState("saving");
     setError(null);
-    saveRef.current(next).then(
-      () => {
+    void saveRef.current(next)
+      .then(() => {
         if (id !== requestId.current) return;
         lastSaved.current = next;
         if (!mounted.current) return;
@@ -70,15 +70,14 @@ export function useDebouncedAutosave<T>({
           savedTimer.current = null;
           setState("idle");
         }, SAVED_FLASH_MS);
-      },
-      (error_: unknown) => {
+      })
+      .catch((error: unknown) => {
         if (id !== requestId.current) return;
         lastSent.current = lastSaved.current;
         if (!mounted.current) return;
         setState("error");
-        setError(error_);
-      },
-    );
+        setError(error);
+      });
   }, []);
 
   const setDraft = useCallback(
@@ -118,5 +117,5 @@ export function useDebouncedAutosave<T>({
     };
   }, [flush]);
 
-  return { draft, setDraft, onBlur: flush, state, error };
+  return { draft, setDraft, onBlur: flush, state, error: saveError };
 }

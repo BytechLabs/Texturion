@@ -246,9 +246,7 @@ describe("an emergency is the one auto-send that may answer URGENT", () => {
 
     expect(outcome.sent).toBe(true);
     expect(telnyx.calls).toHaveLength(1);
-    expect((telnyx.calls[0]?.body as { text?: string }).text).toBe(
-      EMERGENCY_ACK_BODY,
-    );
+    expect(telnyx.calls[0]?.body).toMatchObject({ text: EMERGENCY_ACK_BODY });
   });
 
   it("still refuses to answer a contact who sent STOP", async () => {

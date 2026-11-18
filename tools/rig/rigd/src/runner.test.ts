@@ -435,7 +435,13 @@ describe(runScenario, () => {
     const closing = setup([], { at: Date.UTC(2026, 10, 1, 9, 0) });
     closing.deps.runners = {
       ...closing.deps.runners,
-      S02: { ...preparing(undefined), prepare: async () => void closing.clock.advance(50 * 60_000) },
+      S02: {
+        ...preparing(undefined),
+        prepare: async () => {
+          closing.clock.advance(50 * 60_000);
+          return undefined;
+        },
+      },
     };
     await expect(runScenario(closing.deps, "S02")).resolves.toMatchObject({ status: "skipped", detail: "the dial window closed while the run prepared" });
     expect(abandoned).toHaveLength(4);

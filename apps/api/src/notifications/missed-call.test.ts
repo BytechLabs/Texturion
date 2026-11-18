@@ -304,10 +304,9 @@ describe("notifyMissedCall — native device push (#151)", () => {
     const iosSend = service.sends.find(
       (send) => (send.message as { token: string }).token === "tok-b",
     );
-    const {headers} = (
-      iosSend?.message as { apns: { headers: Record<string, string> } }
-    ).apns;
-    expect(headers["apns-collapse-id"]).toBe(`conversation:${CONVERSATION_ID}`);
+    expect(iosSend?.message).toMatchObject({
+      apns: { headers: { "apns-collapse-id": `conversation:${CONVERSATION_ID}` } },
+    });
   });
 
   it("#228: composes the alert in each device's own language", async () => {
@@ -478,7 +477,7 @@ describe("notifyMissedCall — after-hours routing (#244)", () => {
     const opened = world.sb.calls.find(
       (call) => call.path === "/rest/v1/alert_escalations",
     );
-    expect((opened?.body as { on_call_user_id: string }).on_call_user_id).toBe(TECH);
+    expect(opened?.body).toMatchObject({ on_call_user_id: TECH });
 
     vi.useRealTimers();
   });

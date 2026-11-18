@@ -19,11 +19,8 @@ function json(body: unknown, status = 200, headers?: HeadersInit): Response {
   });
 }
 
-function queuedFetch(...responses: Response[]): {
-  fetcher: CalendarFetch;
-  mock: ReturnType<typeof vi.fn>;
-} {
-  const mock = vi.fn(async () => responses.shift() ?? json({}));
+function queuedFetch(...responses: Response[]) {
+  const mock = vi.fn<CalendarFetch>(async () => responses.shift() ?? json({}));
   return { fetcher: mock, mock };
 }
 
@@ -431,7 +428,7 @@ describe("Google calendar provider", () => {
     expect(recovered.instanceId).toBe(eventIds[0]);
     expect(mock).toHaveBeenCalledTimes(3);
     expect(String(mock.mock.calls[2]?.[0])).toContain(`/events/${eventIds[0]}`);
-    expect((mock.mock.calls[2]?.[1]!).method).toBeUndefined();
+    expect(mock.mock.calls[2]?.[1]?.method).toBeUndefined();
   });
 
   it("does not replay a failed conditional patch", async () => {
@@ -531,7 +528,7 @@ describe("Google calendar provider", () => {
     await expect(
       refreshGoogleAccessToken(fetcher, client, "r"),
     ).resolves.toMatchObject({ accessToken: "a2", refreshToken: "r" });
-    expect(String((mock.mock.calls[0]?.[1] as RequestInit).body)).toContain(
+    expect(String(mock.mock.calls[0]?.[1]?.body)).toContain(
       "code_verifier=verifier",
     );
   });
@@ -563,10 +560,10 @@ describe("Google calendar provider", () => {
       subscriptionId: "channel-1",
       resourceId: "resource-1",
     });
-    expect((mock.mock.calls[0]?.[1] as RequestInit).method).toBe("POST");
-    expect((mock.mock.calls[1]?.[1] as RequestInit).method).toBe("POST");
-    expect((mock.mock.calls[2]?.[1] as RequestInit).method).toBe("POST");
-    expect(JSON.parse(String((mock.mock.calls[2]?.[1] as RequestInit).body))).toEqual({
+    expect(mock.mock.calls[0]?.[1]?.method).toBe("POST");
+    expect(mock.mock.calls[1]?.[1]?.method).toBe("POST");
+    expect(mock.mock.calls[2]?.[1]?.method).toBe("POST");
+    expect(JSON.parse(String(mock.mock.calls[2]?.[1]?.body))).toEqual({
       id: "channel-1",
       resourceId: "resource-1",
     });

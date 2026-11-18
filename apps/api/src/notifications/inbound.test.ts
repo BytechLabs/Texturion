@@ -419,10 +419,9 @@ describe("notifyInboundMessage — native device push (#151)", () => {
     const iosSend = service.sends.find(
       (send) => (send.message as { token: string }).token === "tok-b",
     );
-    const {headers} = (
-      iosSend?.message as { apns: { headers: Record<string, string> } }
-    ).apns;
-    expect(headers["apns-collapse-id"]).toBe(`conversation:${CONVERSATION_ID}`);
+    expect(iosSend?.message).toMatchObject({
+      apns: { headers: { "apns-collapse-id": `conversation:${CONVERSATION_ID}` } },
+    });
   });
 
   it("prunes an UNREGISTERED token row (cleanup, not a failure)", async () => {

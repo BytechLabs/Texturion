@@ -19,11 +19,8 @@ function json(body: unknown, status = 200, headers?: HeadersInit): Response {
   });
 }
 
-function queuedFetch(...responses: Response[]): {
-  fetcher: CalendarFetch;
-  mock: ReturnType<typeof vi.fn>;
-} {
-  const mock = vi.fn(async () => responses.shift() ?? json({}));
+function queuedFetch(...responses: Response[]) {
+  const mock = vi.fn<CalendarFetch>(async () => responses.shift() ?? json({}));
   return { fetcher: mock, mock };
 }
 
@@ -267,7 +264,7 @@ describe("Microsoft calendar provider", () => {
       calendarTimeZone: "America/Edmonton",
     });
     const prefer = new Headers(
-      (mock.mock.calls[0]?.[1] as RequestInit).headers,
+      mock.mock.calls[0]?.[1]?.headers,
     ).get("Prefer");
     expect(prefer).toContain('outlook.body-content-type="text"');
     expect(prefer).toContain('IdType="ImmutableId"');
@@ -289,7 +286,7 @@ describe("Microsoft calendar provider", () => {
     });
 
     const prefer = new Headers(
-      (mock.mock.calls[0]?.[1] as RequestInit).headers,
+      mock.mock.calls[0]?.[1]?.headers,
     ).get("Prefer");
     expect(prefer).toContain('outlook.body-content-type="html"');
     expect(event.description).toBe("Customer note");
@@ -466,7 +463,7 @@ describe("Microsoft calendar provider", () => {
       "/v1.0/me/calendars/crew%2Fa/events/occurrence-id",
     );
     const prefer = new Headers(
-      (mock.mock.calls[0]?.[1] as RequestInit).headers,
+      mock.mock.calls[0]?.[1]?.headers,
     ).get("Prefer");
     expect(prefer).toContain('IdType="ImmutableId"');
     expect(prefer).not.toContain("outlook.timezone");
@@ -533,7 +530,7 @@ describe("Microsoft calendar provider", () => {
     );
     const provider = new MicrosoftCalendarProvider(fetcher);
     await provider.createEvent(await writeInput());
-    const body = JSON.parse(String((mock.mock.calls[0]?.[1] as RequestInit).body)) as {
+    const body = JSON.parse(String(mock.mock.calls[0]?.[1]?.body)) as {
       body: { content: string };
     };
     expect(body.body.content).toBe(linked);
@@ -611,7 +608,7 @@ describe("Microsoft calendar provider", () => {
       });
 
       const body = JSON.parse(
-        String((mock.mock.calls[0]?.[1] as RequestInit).body),
+        String(mock.mock.calls[0]?.[1]?.body),
       ) as Record<string, { dateTime?: string; timeZone?: string }>;
       expect(body.start).toEqual({
         dateTime: start.replace(".000Z", ""),
@@ -745,12 +742,12 @@ describe("Microsoft calendar provider", () => {
       expiration: "2026-11-02T00:00:00Z",
     });
     await provider.stopWatch({ accessToken: "access", subscriptionId: "sub-1" });
-    expect((mock.mock.calls[0]?.[1] as RequestInit).method).toBe("POST");
+    expect(mock.mock.calls[0]?.[1]?.method).toBe("POST");
     expect(
-      JSON.parse(String((mock.mock.calls[0]?.[1] as RequestInit).body)),
+      JSON.parse(String(mock.mock.calls[0]?.[1]?.body)),
     ).toMatchObject({ resource: "/me/events" });
-    expect((mock.mock.calls[1]?.[1] as RequestInit).method).toBe("PATCH");
-    expect((mock.mock.calls[2]?.[1] as RequestInit).method).toBe("DELETE");
+    expect(mock.mock.calls[1]?.[1]?.method).toBe("PATCH");
+    expect(mock.mock.calls[2]?.[1]?.method).toBe("DELETE");
     for (const call of mock.mock.calls) {
       expect(
         new Headers((call[1] as RequestInit).headers).get("Prefer"),
@@ -800,7 +797,7 @@ describe("Microsoft calendar provider", () => {
     await expect(
       refreshMicrosoftAccessToken(fetcher, client, "r"),
     ).resolves.toMatchObject({ accessToken: "a2", refreshToken: "r" });
-    expect(String((mock.mock.calls[0]?.[1] as RequestInit).body)).toContain(
+    expect(String(mock.mock.calls[0]?.[1]?.body)).toContain(
       "code_verifier=verifier",
     );
   });

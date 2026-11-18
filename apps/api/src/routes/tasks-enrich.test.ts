@@ -540,10 +540,7 @@ describe("company AI settings (GET/PATCH /v1/company/ai-settings)", () => {
     expect(res.status).toBe(200);
     // Passed through as null, which the RPC reads as "keep what is stored" —
     // a toggle save must never clear the owner's own words as a side effect.
-    expect(
-      (upsert.calls[0]?.body as { p_business_description: string | null })
-        .p_business_description,
-    ).toBeNull();
+    expect(upsert.calls[0]?.body).toMatchObject({ p_business_description: null });
   });
 
   it("#420: a stored description survives a toggle-only save", async () => {

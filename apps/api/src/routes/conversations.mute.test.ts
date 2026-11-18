@@ -91,7 +91,7 @@ describe("#694 mute", () => {
       muted: true,
     });
     const until = Date.parse(
-      (upsert?.body as { muted_until: string }).muted_until,
+      (upsert?.body as { muted_until: string } | undefined)?.muted_until ?? "",
     );
     expect(until - before).toBeGreaterThan(8 * 3_600_000 - 5000);
     expect(until - before).toBeLessThan(8 * 3_600_000 + 5000);

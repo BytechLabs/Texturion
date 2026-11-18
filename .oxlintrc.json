@@ -219,7 +219,6 @@
     "import/no-namespace": "off", // 30
     "promise/always-return": "off", // 30
     "typescript/prefer-regexp-exec": "off", // 29
-    "eslint/no-unsafe-optional-chaining": "off", // 28
     "import/newline-after-import": "off", // 28
     "typescript/require-array-sort-compare": "off", // 28
     "unicorn/prefer-response-static-json": "off", // 28
@@ -318,7 +317,6 @@
     "jsx-a11y/click-events-have-key-events": "off", // 4
     "jsx-a11y/no-noninteractive-element-to-interactive-role": "off", // 4
     "react/no-object-type-as-default-prop": "off", // 4
-    "typescript/no-meaningless-void-operator": "off", // 4
     "typescript/only-throw-error": "off", // 4
     "typescript/prefer-promise-reject-errors": "off", // 4
     "unicorn/no-hex-escape": "off", // 4
@@ -331,7 +329,6 @@
     "import/no-default-export": "off", // 3
     "jsx-a11y/media-has-caption": "off", // 3
     "oxc/branches-sharing-code": "off", // 3
-    "promise/catch-or-return": "off", // 3
     "react/jsx-no-constructed-context-values": "off", // 3
     "unicorn/no-invalid-fetch-options": "off", // 3
     "unicorn/prefer-default-parameters": "off", // 3
@@ -349,7 +346,6 @@
     "jsx-a11y/label-has-associated-control": "off", // 2
     "nextjs/no-html-link-for-pages": "off", // 2
     "oxc/no-async-endpoint-handlers": "off", // 2
-    "promise/no-promise-in-callback": "off", // 2
     "promise/no-return-wrap": "off", // 2
     "react/memo-dependencies": "off", // 2
     "react/no-deriving-state-in-effects": "off", // 2

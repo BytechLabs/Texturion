@@ -68,10 +68,9 @@ function itemError(error: BatchError): ApiError {
 }
 
 function settle(item: Pending, outcome: Promise<AttachmentUrl>): void {
-  outcome.then(
-    (url) => item.waiters.forEach((waiter) => waiter.resolve(url)),
-    (error: unknown) => item.waiters.forEach((waiter) => waiter.reject(error)),
-  );
+  void outcome
+    .then((url) => item.waiters.forEach((waiter) => waiter.resolve(url)))
+    .catch((error: unknown) => item.waiters.forEach((waiter) => waiter.reject(error)));
 }
 
 /** Sends a company's mints from one render as POST /v1/attachments/urls, each caller getting its own item's URL or refusal. */

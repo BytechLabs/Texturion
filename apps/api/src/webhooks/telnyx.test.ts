@@ -467,10 +467,9 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
     const failurePatch = ledger.stamp.calls.find(
       (call) => (call.body as Record<string, unknown>).attempts === 1,
     );
-    expect(failurePatch).toBeDefined();
-    expect(
-      (failurePatch?.body as Record<string, unknown>).last_error,
-    ).toContain("thread_inbound_message failed");
+    expect(failurePatch?.body).toMatchObject({
+      last_error: expect.stringContaining("thread_inbound_message failed"),
+    });
   });
 });
 

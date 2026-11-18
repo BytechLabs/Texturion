@@ -155,7 +155,7 @@ describe("#244 acknowledging", () => {
     const rpc = sb.calls.find(
       (c) => c.path === "/rest/v1/rpc/api_acknowledge_alert",
     );
-    expect((rpc?.body as { p_user_id: string }).p_user_id).toBe(auth.subject);
+    expect(rpc?.body).toMatchObject({ p_user_id: auth.subject });
   });
 
   it("ON-7: the second tapper is told WHOSE it is, not that they claimed it", async () => {

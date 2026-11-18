@@ -414,7 +414,7 @@ describe("#581 the view token is not the accept token", () => {
     // fails CLEANLY if the route ever asks for the view purpose again — a 404
     // can be reached several ways, and only one of them is this one.
     const resolve = sb.find("POST", "/rest/v1/rpc/api_resolve_public_link")[0];
-    expect((resolve?.body as { p_purpose: string }).p_purpose).toBe("quote_accept");
+    expect(resolve?.body).toMatchObject({ p_purpose: "quote_accept" });
   });
 
   it("hands the accept credential to whoever opened the page", async () => {
