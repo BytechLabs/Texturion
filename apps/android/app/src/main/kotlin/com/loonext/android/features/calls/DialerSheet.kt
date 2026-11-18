@@ -2,6 +2,11 @@ package com.loonext.android.features.calls
 
 import com.loonext.android.ui.common.IconSize
 import android.Manifest
+import android.content.ActivityNotFoundException
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.ui.platform.LocalContext
+import com.loonext.android.features.contacts.Nanp
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -125,7 +130,7 @@ fun DialerSheet(
     onDeviceContactsGranted: (() -> Unit)? = null,
 ) {
     val haptics = rememberHaptics()
-    var digits by remember { mutableStateOf(initialDigits.take(15)) }
+    var digits by remember { mutableStateOf(initialDigits) }
     var matches by remember { mutableStateOf<List<DialerMatch>>(emptyList()) }
     // Whoever was tapped in the list. Kept separate from the digits so editing
     // the number after picking somebody drops the pick: a call that went to the
@@ -159,6 +164,9 @@ fun DialerSheet(
     // only in scope after its declaration.
     val locale = LocalAppLocale.current
     val dialable = dialableE164(digits)
+    val serviceCode = Nanp.emergencyOrServiceCode(digits)
+    val context = LocalContext.current
+    val phoneUnavailable = t("contactsTasks.phoneUnavailable")
 
     // #183 part 2: contacts access is requested HERE, at the point of use, not
     // at launch. READ (dialer name matching) + WRITE (the app's own
@@ -305,6 +313,15 @@ fun DialerSheet(
                         .padding(top = 14.dp * scale, bottom = 4.dp),
                 )
 
+                if (dialable == null && digits.count(Char::isDigit) >= 10) {
+                    Text(
+                        t("contactsTasks.dialableNumbersOnly"),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+
                 // Live contact correlation: the matched name while dialing, or an
                 // Add-contact affordance once the number is dialable and unknown.
                 val addTarget = if (matchedName == null && onAddContact != null) dialable else null
@@ -359,7 +376,7 @@ fun DialerSheet(
                                 onClick = {
                                     haptics.tap()
                                     picked = match
-                                    digits = match.number.filter(Char::isDigit).take(15)
+                                    digits = match.number
                                 },
                             )
                         }
@@ -404,13 +421,12 @@ fun DialerSheet(
                             IconButton(
                                 onClick = {
                                     haptics.tap()
-                                    val to = picked?.number ?: dialable
-                                    if (to != null) {
+                                    if (dialable != null) {
                                         onDismiss()
-                                        onMessage(to)
+                                        onMessage(dialable)
                                     }
                                 },
-                                enabled = dialable != null || picked != null,
+                                enabled = dialable != null,
                             ) {
                                 Icon(
                                     Icons.AutoMirrored.Outlined.Message,
@@ -422,34 +438,55 @@ fun DialerSheet(
                     }
                     // The lime call disc (spec 03) — disabled until dialable.
                     val callInteraction = remember { MutableInteractionSource() }
-                    Surface(
-                        onClick = {
-                            haptics.confirm()
-                            if (manager.hasMicPermission()) {
-                                placeCall()
-                            } else {
-                                micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                    if (serviceCode != null) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            TextButton(onClick = {
+                                try {
+                                    context.startActivity(Intent(Intent.ACTION_DIAL, Uri.fromParts("tel", serviceCode, null)))
+                                } catch (_: ActivityNotFoundException) {
+                                    error = phoneUnavailable
+                                }
+                            }) {
+                                Text(t("contactsTasks.callWithPhone"))
                             }
-                        },
-                        enabled = dialable != null && !calling,
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.tertiary,
-                        contentColor = MaterialTheme.colorScheme.onTertiary,
-                        interactionSource = callInteraction,
-                        modifier = Modifier
-                            .size(68.dp * scale)
-                            .pressScale(callInteraction)
-                            .alpha(if (dialable != null && !calling) 1f else 0.45f),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            if (calling) {
-                                LoadingIndicator(Modifier.size(24.dp * scale))
-                            } else {
-                                Icon(
-                                    Icons.Outlined.Call,
-                                    contentDescription = t("contactsTasks.call"),
-                                    modifier = Modifier.size(26.dp * scale),
+                            if (serviceCode == "911") {
+                                Text(
+                                    t("contactsTasks.emergencyCallsUnavailable"),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    textAlign = TextAlign.Center,
                                 )
+                            }
+                        }
+                    } else {
+                        Surface(
+                            onClick = {
+                                haptics.confirm()
+                                if (manager.hasMicPermission()) {
+                                    placeCall()
+                                } else {
+                                    micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                }
+                            },
+                            enabled = dialable != null && !calling,
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.tertiary,
+                            contentColor = MaterialTheme.colorScheme.onTertiary,
+                            interactionSource = callInteraction,
+                            modifier = Modifier
+                                .size(68.dp * scale)
+                                .pressScale(callInteraction)
+                                .alpha(if (dialable != null && !calling) 1f else 0.45f),
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                if (calling) {
+                                    LoadingIndicator(Modifier.size(24.dp * scale))
+                                } else {
+                                    Icon(
+                                        Icons.Outlined.Call,
+                                        contentDescription = t("contactsTasks.call"),
+                                        modifier = Modifier.size(26.dp * scale),
+                                    )
+                                }
                             }
                         }
                     }

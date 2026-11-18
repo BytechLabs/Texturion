@@ -27,8 +27,8 @@ describe(formatNanpAsYouType, () => {
     expect(formatNanpAsYouType("(416) 555.0182")).toBe("(416) 555-0182");
   });
 
-  it("ignores overflow digits past 10", () => {
-    expect(formatNanpAsYouType("41655501829999")).toBe("(416) 555-0182");
+  it("keeps an overlong number intact for correction", () => {
+    expect(formatNanpAsYouType("41655501829999")).toBe("41655501829999");
   });
 });
 
@@ -45,8 +45,12 @@ describe(normalizeNanpInput, () => {
     expect(normalizeNanpInput("+44 20 7946 0958")).toBeNull();
     // 876 = Jamaica: +1 but not a US/CA destination (SPEC §10 layer 2).
     expect(normalizeNanpInput("8765550100")).toBeNull();
-    // 800 toll-free is not a texting destination either.
-    expect(normalizeNanpInput("8005550100")).toBeNull();
+    expect(normalizeNanpInput("+44 7700 900123")).toBeNull();
+    expect(normalizeNanpInput("416555019912")).toBeNull();
+  });
+
+  it("accepts toll-free numbers without a geographic assignment", () => {
+    expect(normalizeNanpInput("8005550100")).toBe("+18005550100");
   });
 });
 

@@ -20,6 +20,7 @@ import {
 import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 import { endSessionOnThisDevice } from "@/lib/auth/end-session";
+import { useConfirmLeaving } from "@/lib/softphone/leave-call";
 
 /**
  * The sidebar footer user-bar menu (issue #8, Discord-style): opens upward from
@@ -43,6 +44,7 @@ export function MemberMenu({
   const { theme, setTheme } = useTheme();
   const router = useRouter();
   const queryClient = useQueryClient();
+  const confirmLeaving = useConfirmLeaving();
 
   async function signOut() {
     // Hand this browser's push subscription back FIRST (#264) — while the
@@ -98,7 +100,9 @@ export function MemberMenu({
           </DropdownMenuRadioItem>
         </DropdownMenuRadioGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={() => void signOut()}>
+        <DropdownMenuItem onSelect={() => {
+          confirmLeaving(t("shell.signOut"), () => void signOut());
+        }}>
           <LogOut className="size-4" strokeWidth={1.75} />
           {t("shell.signOut")}
         </DropdownMenuItem>

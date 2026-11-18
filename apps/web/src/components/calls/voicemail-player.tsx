@@ -8,7 +8,7 @@
  */
 import { callLooksSpam } from "@loonext/shared";
 import { Play } from "lucide-react";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { VoicemailTranscript } from "@/components/calls/voicemail-transcript";
 import { useT } from '@/i18n/provider';
@@ -45,8 +45,12 @@ export function VoicemailPlayer({
     latched.current = { sessionId: callSessionId, url: latest };
   }
   const src = latched.current?.sessionId === callSessionId ? latched.current.url : null;
+  const showAudio = open && src !== null;
+  useEffect(() => {
+    if (showAudio) audio.current?.focus();
+  }, [showAudio]);
 
-  if (open && src) {
+  if (showAudio) {
     return (
       <span className="block w-full">
         <audio
@@ -58,6 +62,7 @@ export function VoicemailPlayer({
             else rerender((n) => n + 1);
           }}
           controls
+          tabIndex={0}
           autoPlay
           preload="auto"
           className="h-8 w-full max-w-[280px]"

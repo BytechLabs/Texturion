@@ -1,5 +1,6 @@
 "use client";
 
+import { normalizeNanpInput } from "@loonext/shared";
 import { Check, X } from "lucide-react";
 import { useId, useState } from "react";
 import { toast } from "sonner";
@@ -41,19 +42,6 @@ import { formatPhone } from "@/lib/format/phone";
  * server re-validates and re-runs the check as its gate.
  */
 
-/** Normalize any typed phone to +1E.164, or null. */
-function toE164(raw: string): string | null {
-  const digits = raw.replaceAll(/\D/g, "");
-  const ten =
-    digits.length === 11 && digits.startsWith("1")
-      ? digits.slice(1)
-      : (digits.length === 10
-        ? digits
-        : null);
-  if (!ten || !/^[2-9]\d{2}[2-9]\d{6}$/.test(ten)) return null;
-  return `+1${ten}`;
-}
-
 export function StartPortDialog({ country }: { country: Country }) {
   const t = useT();
   const check = useCheckPortability();
@@ -76,7 +64,7 @@ export function StartPortDialog({ country }: { country: Country }) {
   const [postalCode, setPostalCode] = useState("");
   const [wantsBridge, setWantsBridge] = useState(false);
 
-  const e164 = toE164(raw);
+  const e164 = normalizeNanpInput(raw, "us-ca");
   const isWireless = checked?.is_wireless === true;
   const ssnSinLabel =
     country === "US"

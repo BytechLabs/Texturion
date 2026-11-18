@@ -790,6 +790,7 @@ create trigger on_auth_user_created after insert or update on auth.users
 | `registration_pending` | 403 | US-bound send without an `approved`, non-deactivated campaign (§4.4 gate) |
 | `recipient_opted_out` | 403 | Destination is on the opt-out list |
 | `validation_failed` | 422 | Body/param validation (zod) |
+| `unsupported_service_code` | 422 | An N11 code dialed through the business line must be entered on a phone instead |
 | `not_found` | 404 | — |
 | `conflict` | 409 | Uniqueness/state conflict |
 | `mfa_required` | 403 | #314 — the workspace requires a second factor, the grace window has passed, and this token has none. Its own code, not a `forbidden` with prose, because all three clients ROUTE on it to the enrolment screen |

@@ -16,8 +16,12 @@ describe("normalizeNanpPhone (E.164 normalization + US/CA NANP gate)", () => {
     expect(normalizeNanpPhone("8765550199")).toBeNull(); // Jamaica 876
   });
 
-  it("rejects toll-free and unassigned codes", () => {
-    expect(normalizeNanpPhone("8005550199")).toBeNull();
+  it("accepts toll-free for reachable destinations only", () => {
+    expect(normalizeNanpPhone("8005550199")).toBe("+18005550199");
+    expect(normalizeNanpPhone("8005550199", "us-ca")).toBeNull();
+  });
+
+  it("rejects unassigned codes", () => {
     expect(normalizeNanpPhone("9995550199")).toBeNull();
   });
 

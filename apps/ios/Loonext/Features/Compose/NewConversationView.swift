@@ -141,7 +141,17 @@ private struct NewConversationLoaded: View {
 
     private var validDestination: Bool {
         guard let recipientE164 else { return false }
-        return Nanp.isUsCaDestination(recipientE164)
+        return Nanp.isReachableDestination(recipientE164)
+    }
+
+    private var recipientHint: String? {
+        if let rawE164 {
+            return contactMatches.isEmpty
+                ? t("thread.noContactMatch")
+                : t("thread.willText", ["number": formatPhone(rawE164)])
+        }
+        let raw = recipientInput.trimmingCharacters(in: .whitespacesAndNewlines)
+        return rawDigits.count >= 10 || raw.hasPrefix("+") ? t("thread.nanpOnly") : nil
     }
 
     private var canSend: Bool {
@@ -181,7 +191,7 @@ private struct NewConversationLoaded: View {
             // and correct what they dialed.
             if let prefillPhone, !prefillApplied {
                 prefillApplied = true
-                recipientInput = Nanp.formatAsYouType(prefillPhone)
+                recipientInput = prefillPhone
             }
             if composer == nil {
                 composer = ComposerState(
@@ -444,14 +454,7 @@ private struct NewConversationLoaded: View {
             } else {
                 TextField(
                     t("thread.recipientPlaceholder"),
-                    text: Binding(
-                        get: { recipientInput },
-                        set: { value in
-                            recipientInput = value.contains(where: \.isLetter)
-                                ? value
-                                : Nanp.formatAsYouType(Nanp.nationalDigits(value))
-                        }
-                    )
+                    text: $recipientInput
                 )
                 .font(.golos(15, weight: .semibold))
                 .foregroundStyle(BrandColor.ink)
@@ -472,14 +475,8 @@ private struct NewConversationLoaded: View {
                         )
                 )
 
-                if rawDigits.count == 10, let rawE164 {
-                    Text(
-                        validDestination
-                            ? (contactMatches.isEmpty
-                                ? t("thread.noContactMatch")
-                                : t("thread.willText", ["number": formatPhone(rawE164)]))
-                            : t("thread.nanpOnly")
-                    )
+                if let recipientHint {
+                    Text(recipientHint)
                     .font(.golos(10.5))
                     .foregroundStyle(BrandColor.muted300)
                     .padding(.horizontal, 4)

@@ -402,6 +402,10 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.updatedWhen" to "Updated {when}",
         "contactsTasks.textAction" to "Text",
         "contactsTasks.call" to "Call",
+        "contactsTasks.callWithPhone" to "Call with your phone",
+        "contactsTasks.emergencyCallsUnavailable" to "Loonext can't place emergency calls.",
+        "contactsTasks.dialableNumbersOnly" to "Enter a US, Canadian or toll-free number. Premium and non-geographic 5XX numbers are unavailable.",
+        "contactsTasks.phoneUnavailable" to "The phone app could not be opened. Use another phone to dial this code.",
         "contactsTasks.calling" to "Calling…",
         "contactsTasks.micNeeded" to
             "Loonext needs the microphone to place calls. Allow it in " +
@@ -1264,6 +1268,10 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.updatedWhen" to "Mis à jour {when}",
         "contactsTasks.textAction" to "Texter",
         "contactsTasks.call" to "Appeler",
+        "contactsTasks.callWithPhone" to "Appeler avec votre téléphone",
+        "contactsTasks.emergencyCallsUnavailable" to "Loonext ne peut pas passer d’appels d’urgence.",
+        "contactsTasks.dialableNumbersOnly" to "Entrez un numéro américain, canadien ou sans frais. Les numéros surtaxés et les numéros 5XX non géographiques sont indisponibles.",
+        "contactsTasks.phoneUnavailable" to "Impossible d’ouvrir l’application Téléphone. Composez ce numéro sur un autre téléphone.",
         "contactsTasks.calling" to "Appel…",
         "contactsTasks.micNeeded" to
             "Loonext a besoin du microphone pour passer des appels. Autorisez-le " +

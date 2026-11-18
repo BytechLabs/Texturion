@@ -27,6 +27,7 @@ describe("error codes (SPEC §7)", () => {
       registration_pending: 403,
       recipient_opted_out: 403,
       validation_failed: 422,
+      unsupported_service_code: 422,
       not_found: 404,
       conflict: 409,
       quiet_hours_confirmation_required: 409,

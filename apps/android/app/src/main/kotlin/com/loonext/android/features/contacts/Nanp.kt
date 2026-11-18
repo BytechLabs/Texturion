@@ -13,6 +13,11 @@ package com.loonext.android.features.contacts
  * and unassigned codes are ABSENT: absence IS the destination check.
  */
 object Nanp {
+    private val phoneInput = Regex("""\+?[0-9\s().-]*""")
+    private val tollFree = Regex("""\+1(?:800|833|844|855|866|877|888)[2-9][0-9]{6}""")
+    private val serviceCode = Regex("[2-9]11")
+    private val nonGeographic5xx = setOf("521", "523", "524", "525", "526", "527", "528", "529", "532")
+
 
     /** Every currently-assigned, in-service US/Canada NANP area code. */
     val AREA_CODES: Set<String> = setOf(
@@ -75,39 +80,42 @@ object Nanp {
 
     /**
      * The SMS-pumping destination check (SPEC §10 layer 2): true only when the
-     * number strictly parses as +1 E.164 AND its area code is assigned to the
-     * US or Canada. `+1` alone is never enough — NANP includes ~20 Caribbean
-     * countries billed at international rates.
+     * number has a supported US or Canadian area code and exchange.
      */
-    fun isUsCaDestination(e164: String): Boolean = lookupAreaCode(e164) != null
-
-    /**
-     * Normalize free-form phone input to +1 E.164, or null when it can't be a
-     * valid US/CA number. Accepts "(416) 555-0123", "416-555-0123",
-     * "1 416 555 0123", "+14165550123" — anything whose digits are a 10-digit
-     * NANP number (optionally prefixed with country code 1) whose area code is
-     * in the table.
-     */
-    fun normalize(raw: String): String? {
-        val digits = raw.filter { it.isDigit() }
-        val national = when {
-            digits.length == 10 -> digits
-            digits.length == 11 && digits.startsWith("1") -> digits.substring(1)
-            else -> return null
-        }
-        val candidate = "+1$national"
-        return if (isUsCaDestination(candidate)) candidate else null
+    fun isUsCaDestination(e164: String): Boolean {
+        val npa = lookupAreaCode(e164) ?: return false
+        return npa !in nonGeographic5xx && e164.substring(5, 8) != "976"
     }
 
-    /**
-     * Live as-you-type NANP formatting for a phone field: progressive
-     * "(416) 555-0123" from whatever the user typed. Only the first 10
-     * national digits are kept (a leading 1 country code is dropped).
-     */
+    fun isReachableDestination(e164: String): Boolean =
+        isUsCaDestination(e164) || tollFree.matches(e164)
+
+    fun emergencyOrServiceCode(raw: String): String? =
+        raw.trim().takeIf(serviceCode::matches)
+
+    /** A complete US/CA or toll-free number entered as national or +1 format. */
+    fun normalize(raw: String): String? {
+        val input = raw.trim()
+        if (!phoneInput.matches(input)) return null
+        if (input.startsWith("+") && !input.startsWith("+1")) return null
+        val digits = input.filter { it in '0'..'9' }
+        val candidate = when {
+            digits.length == 11 && digits.startsWith("1") -> "+$digits"
+            digits.length == 10 && !input.startsWith("+") -> "+1$digits"
+            else -> return null
+        }
+        return candidate.takeIf(::isReachableDestination)
+    }
+
+    /** Format a partial number while preserving input that needs correction. */
     fun formatAsYouType(raw: String): String {
-        var digits = raw.filter { it.isDigit() }
-        if (digits.length == 11 && digits.startsWith("1")) digits = digits.substring(1)
-        digits = digits.take(10)
+        val input = raw.trim()
+        if (!phoneInput.matches(input) || (input.startsWith("+") && !input.startsWith("+1"))) return raw
+        var digits = input.filter { it in '0'..'9' }
+        if (input.startsWith("+1") || (digits.length == 11 && digits.startsWith("1"))) {
+            digits = digits.drop(1)
+        }
+        if (digits.length > 10 || (digits.isEmpty() && input.startsWith("+"))) return raw
         return when {
             digits.isEmpty() -> ""
             digits.length <= 3 -> "(${digits}"

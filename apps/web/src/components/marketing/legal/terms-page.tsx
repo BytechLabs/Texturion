@@ -91,6 +91,8 @@ export function TermsPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
       <LegalSectionBlock id="numbers" number="4" heading={copy.sectionNumbers}>
         <p>{copy.numbersOne}</p>
         <p>{copy.numbersTwo}</p>
+        <h3 className="mt-4 font-semibold">{copy.emergencyCallingTitle}</h3>
+        <p>{copy.emergencyCalling}</p>
       </LegalSectionBlock>
 
       <LegalSectionBlock id="acceptable-use" number="5" heading={copy.sectionAcceptableUse}>

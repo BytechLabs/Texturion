@@ -27,6 +27,12 @@ final class ParityVectorsTests: XCTestCase {
         let unitsPerSegment: Int
     }
 
+    private struct PhoneInputVector: Decodable {
+        let raw: String
+        let normalized: String?
+        let serviceCode: String?
+    }
+
     private struct NanpVector: Decodable {
         let e164: String
         let is_us_ca: Bool
@@ -165,6 +171,15 @@ final class ParityVectorsTests: XCTestCase {
                 c.country,
                 "country for \(c.e164)"
             )
+        }
+    }
+
+    func testPhoneInputAgreesWithTheTypeScript() throws {
+        let cases = try vectors("phone-input.json", as: [PhoneInputVector].self)
+        XCTAssertFalse(cases.isEmpty)
+        for c in cases {
+            XCTAssertEqual(Nanp.normalize(c.raw), c.normalized, c.raw)
+            XCTAssertEqual(Nanp.emergencyOrServiceCode(c.raw), c.serviceCode, c.raw)
         }
     }
 

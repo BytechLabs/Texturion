@@ -57,6 +57,12 @@ export const SURFACES = [
   // #238: the rest of the daily path. Each of these failed WCAG A or AA the
   // first time it was looked at, which is the argument for looking.
   { path: "/calls", label: "calls", auth: true },
+  {
+    path: "/calls",
+    label: "calls · dialer (portal)",
+    auth: true,
+    open: ["role=button[name=/^Dial$/]"],
+  },
   { path: "/contacts", label: "contacts", auth: true },
   // #714: the page whose hidden date label stretched the document.
   {

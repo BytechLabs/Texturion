@@ -3,8 +3,8 @@
 /**
  * D43 (#135) dialer — call ANY number, not just someone you've already texted.
  * A keypad places the call through the softphone via POST /v1/calls/browser
- * with a raw `to` (the server normalizes + NANP-validates it and resolves which
- * business number to present). Threading find-or-creates the contact +
+ * with the validated destination and selected business number. The server
+ * rechecks both. Threading find-or-creates the contact +
  * conversation on answer, so a dialed stranger still lands in the inbox.
  *
  * #459 — the keypad is also a name search. The letters printed on a phone key
@@ -23,7 +23,7 @@
  * Principle — matches render between the readout and the keypad, which is
  * where every system dialer has put them for fifteen years.
  */
-import { rankDialerCandidates } from '@loonext/shared';
+import { emergencyOrServiceCode, normalizeNanpInput, rankDialerCandidates } from '@loonext/shared';
 import type { DialerMatch } from '@loonext/shared';
 import { Delete, MessageSquare, Phone, UserPlus, Users } from "lucide-react";
 import Link from "next/link";
@@ -122,9 +122,9 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
   const target = picked ?? ranked[0] ?? null;
   const matchedName = target?.label ?? null;
 
-  // The server does the authoritative NANP validation; this just gates the
-  // Call button so an obviously-too-short number can't be dialed.
-  const canCall = digits.replaceAll(/\D/g, "").length >= 10 && !calling;
+  const serviceCode = emergencyOrServiceCode(digits);
+  const destination = normalizeNanpInput(digits);
+  const canCall = destination !== null && !calling;
 
   function press(key: string) {
     // Editing the number after choosing somebody drops the choice: a call that
@@ -142,13 +142,12 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
   /** Tapping a match fills the readout with it, which is what a keypad does. */
   function pickMatch(match: DialerMatch) {
     setPicked(match);
-    setDigits(match.number.replaceAll(/\D/g, ""));
+    setDigits(match.number);
   }
 
   /** #459: the same person, the other verb. */
   function message() {
-    const to = picked?.number ?? digits;
-    if (!to) return;
+    if (!destination) return;
     setOpen(false);
     // The contact when we know them, the raw number when we do not — compose
     // resolves both, and passing the id means the thread opens on the person
@@ -157,36 +156,27 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
     router.push(
       picked?.contactId
         ? `/inbox/new?contact=${encodeURIComponent(picked.contactId)}`
-        : `/inbox/new?to=${encodeURIComponent(to)}`,
+        : `/inbox/new?to=${encodeURIComponent(destination)}`,
     );
   }
 
   async function call() {
+    if (!destination) return;
     if (!softphone) {
       toast.error(t("shell.callingUnavailable"));
       return;
     }
     setCalling(true);
     try {
-      // Display the number formatted on the call chip (the server still does the
-      // authoritative normalization on `to`). Only NANP shapes format; anything
-      // else falls back to the raw digits.
-      const cleaned = digits.replaceAll(/\D/g, "");
-      const e164 =
-        cleaned.length === 10
-          ? `+1${cleaned}`
-          : (cleaned.length === 11 && cleaned.startsWith("1")
-            ? `+${cleaned}`
-            : digits);
       await softphone.placeCall({
-        to: digits,
+        to: destination,
         // Only pin a caller-ID number when the company owns several; a
         // single-number company lets the server imply it.
         phoneNumberId:
           active.length > 1 ? (fromId ?? active[0]?.id) : undefined,
         // The name if we know it, so the call chip and the log read like a
         // person rather than a number.
-        contactName: matchedName ?? formatPhone(e164),
+        contactName: matchedName ?? formatPhone(destination),
       });
       setOpen(false);
       setDigits("");
@@ -255,6 +245,16 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
               </span>
             )}
           </div>
+          {serviceCode && (
+            <p role="status" className="text-sm text-app-muted">
+              {serviceCode === "911"
+                ? t("shell.emergencyCallsUnavailable")
+                : t("shell.usePhoneForServiceCode", { code: serviceCode })}
+            </p>
+          )}
+          {!serviceCode && !destination && digits.replaceAll(/\D/g, "").length >= 10 && (
+            <p className="text-sm text-app-muted">{t("shell.dialableNumbersOnly")}</p>
+          )}
 
           {/* #459: who this could be, best first. Between the readout and the
               keypad, where every system dialer puts it. */}
@@ -333,7 +333,6 @@ export function Dialer({ trigger }: { trigger: ReactNode }) {
               variant="outline"
               onClick={message}
               disabled={!canCall}
-              aria-label={t("shell.sendMessageInstead")}
             >
               <MessageSquare strokeWidth={1.75} />
               {t("shell.textAction")}

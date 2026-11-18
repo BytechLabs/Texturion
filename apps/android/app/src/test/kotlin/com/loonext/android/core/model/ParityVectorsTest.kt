@@ -1,5 +1,6 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.features.contacts.Nanp as ContactNanp
 import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.SmsEncoding
 import com.loonext.android.features.compose.estimateSegments
@@ -45,6 +46,13 @@ class ParityVectorsTest {
         val segments: Int,
         val unitsUsed: Int,
         val unitsPerSegment: Int,
+    )
+
+    @Serializable
+    private data class PhoneInputVector(
+        val raw: String,
+        val normalized: String?,
+        val serviceCode: String?,
     )
 
     @Serializable
@@ -166,6 +174,16 @@ class ParityVectorsTest {
             // timezone here would text somebody at 3am.
             assertEquals("timezone for ${case.e164}", case.timezone, entry?.timezone)
             assertEquals("country for ${case.e164}", case.country, entry?.country)
+        }
+    }
+
+    @Test
+    fun `phone input agrees with the TypeScript`() {
+        val cases = json.decodeFromString<List<PhoneInputVector>>(vectors("phone-input.json"))
+        assertTrue("no phone input vectors", cases.isNotEmpty())
+        for (case in cases) {
+            assertEquals(case.raw, case.normalized, Nanp.toE164(case.raw))
+            assertEquals(case.raw, case.serviceCode, ContactNanp.emergencyOrServiceCode(case.raw))
         }
     }
 

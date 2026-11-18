@@ -23,7 +23,8 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
@@ -37,10 +38,12 @@ import {
   useTransferTargets,
 } from "@/lib/api/calls";
 import { useMembers } from "@/lib/api/team";
+import { useNotificationsUnreadCount } from "@/lib/api/notifications";
 import { ApiError } from "@/lib/api/error";
 import { formatCallDuration } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
 import { useSoftphone } from "@/lib/softphone/provider";
+import { CALL_SHORTCUTS } from "@/lib/softphone/shortcuts";
 import type { CallInfo } from "@/lib/softphone/state";
 import { cn } from "@/lib/utils";
 
@@ -70,13 +73,21 @@ function TransferMenu({
   const targets = useTransferTargets(sessionId, true);
   const members = useMembers();
   const transfer = useTransferCall();
+  const panel = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => panel.current?.focus(), []);
 
   const nameOf = (userId: string) =>
     members.data?.data.find((m) => m.user_id === userId)?.display_name ??
     t("shell.teammate");
 
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-2 shadow-lg">
+    <div
+      ref={panel}
+      tabIndex={-1}
+      role="group"
+      aria-label={t("shell.transferTo")}
+      className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-2 shadow-lg"
+    >
       <p className={cn(SECTION_LABEL_CLASS, "px-2 pb-1.5")}>
         {t("shell.transferTo")}
       </p>
@@ -138,7 +149,15 @@ function TransferMenu({
 }
 
 /** A compact chip for a NON-active call (held / ringing / ended). */
-function CallChip({ call }: { call: CallInfo }) {
+function CallChip({
+  call,
+  prominent,
+  onToggleHold,
+}: {
+  call: CallInfo;
+  prominent: boolean;
+  onToggleHold: (button: HTMLButtonElement) => void;
+}) {
   const t = useT();
   const softphone = useSoftphone()!;
   const label = call.peer.name || formatPhone(call.peer.number);
@@ -154,16 +173,20 @@ function CallChip({ call }: { call: CallInfo }) {
     return (
       <div
         role="alert"
-        className="flex items-center gap-2 rounded-full border border-primary/40 bg-app-paper px-3 py-1.5 shadow-lg"
+        className={cn(
+          "pointer-events-auto flex items-center gap-2 border border-primary/40 bg-app-paper shadow-lg",
+          prominent ? "rounded-app-card px-4 py-2.5" : "rounded-full px-3 py-1.5",
+        )}
       >
         <span aria-hidden className="size-2 rounded-full bg-primary animate-pulse" />
-        <span className="max-w-[140px] truncate text-[12.5px] font-medium">
+        <span className={cn("max-w-[140px] truncate font-medium", prominent ? "text-[15px]" : "text-[12.5px]")}>
           <span className="sr-only">{t("shell.incomingCallFrom")} </span>
           {label}
         </span>
         <Button
           size="sm"
-          className="h-6 gap-1 px-2 text-[12px]"
+          className={cn(!prominent && "h-6 gap-1 px-2 text-[12px]")}
+          aria-keyshortcuts={CALL_SHORTCUTS.answer.keys}
           onClick={() =>
             void softphone.answer(call.id).catch((error) =>
               toast.error(
@@ -179,19 +202,21 @@ function CallChip({ call }: { call: CallInfo }) {
         </Button>
         <Button
           variant="ghost"
-          size="icon-sm"
-          className="size-6 text-app-clay hover:bg-app-clay/10"
+          size={prominent ? "sm" : "icon-sm"}
+          className={cn("text-app-clay hover:bg-app-clay/10", !prominent && "size-6")}
           aria-label={t("shell.decline")}
+          aria-keyshortcuts={CALL_SHORTCUTS.hangup.keys}
           onClick={() => softphone.hangup(call.id)}
         >
           <PhoneOff className="size-3.5" strokeWidth={1.75} />
+          {prominent && t("shell.decline")}
         </Button>
       </div>
     );
   }
   if (call.phase === "held") {
     return (
-      <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 shadow-lg">
+      <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 shadow-lg">
         <Pause className="size-3 text-app-muted-2" strokeWidth={1.75} aria-hidden />
         <span className="max-w-[140px] truncate text-[12.5px] text-app-muted">
           {t("shell.callOnHold", { name: label })}
@@ -201,7 +226,8 @@ function CallChip({ call }: { call: CallInfo }) {
           size="icon-sm"
           className="size-6"
           aria-label={t("shell.resumeCall", { name: label })}
-          onClick={() => softphone.toggleHold(call.id)}
+          data-hold-call={call.id}
+          onClick={(event) => onToggleHold(event.currentTarget)}
         >
           <Play className="size-3.5" strokeWidth={1.75} />
         </Button>
@@ -219,7 +245,7 @@ function CallChip({ call }: { call: CallInfo }) {
   }
   if (call.phase === "ended") {
     return (
-      <div className="flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 text-app-muted-2 shadow-lg">
+      <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-app-line bg-app-paper px-3 py-1.5 text-app-muted-2 shadow-lg">
         <span className="max-w-[140px] truncate text-[12.5px]">
           {t("shell.callEnded", { name: label })}
         </span>
@@ -270,20 +296,29 @@ function DtmfKeypad({
 }) {
   const t = useT();
   const softphone = useSoftphone()!;
+  const panel = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => panel.current?.focus(), []);
   return (
-    <div className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-3 shadow-lg">
+    <div
+      ref={panel}
+      tabIndex={-1}
+      role="group"
+      aria-label={t("shell.keypad")}
+      className="absolute bottom-full left-0 right-0 mb-2 rounded-app-card border border-app-line bg-app-paper p-3 shadow-lg"
+    >
       <div className="mb-2 flex items-center justify-between px-1">
         <span className={SECTION_LABEL_CLASS}>
           {t("shell.keypad")}
         </span>
-        <button
-          type="button"
+        <Button
+          variant="ghost"
+          size="icon-xs"
           onClick={onClose}
           aria-label={t("shell.closeKeypad")}
           className="text-app-muted-2 transition-colors hover:text-app-ink"
         >
           <X className="size-3.5" strokeWidth={2} />
-        </button>
+        </Button>
       </div>
       <div className="grid grid-cols-3 gap-1.5">
         {DTMF_KEYS.map((key) => (
@@ -302,11 +337,40 @@ function DtmfKeypad({
 }
 
 /** The active call's full control card. */
-function ActiveCard({ call }: { call: CallInfo }) {
+function ActiveCard({
+  call,
+  onToggleHold,
+}: {
+  call: CallInfo;
+  onToggleHold: (button: HTMLButtonElement) => void;
+}) {
   const t = useT();
   const softphone = useSoftphone()!;
-  const [transferOpen, setTransferOpen] = useState(false);
-  const [keypadOpen, setKeypadOpen] = useState(false);
+  const [panel, setPanel] = useState<"transfer" | "keypad" | null>(null);
+  const card = useRef<HTMLDivElement>(null);
+  const transferTrigger = useRef<HTMLButtonElement>(null);
+  const keypadTrigger = useRef<HTMLButtonElement>(null);
+  const transferOpen = panel === "transfer";
+  const keypadOpen = panel === "keypad";
+  const closePanel = useCallback(() => {
+    setPanel(null);
+    (panel === "transfer" ? transferTrigger : keypadTrigger).current?.focus();
+  }, [panel]);
+  useEffect(() => {
+    if (!panel) return;
+    function closeOnEscape(event: KeyboardEvent) {
+      if (
+        event.key !== "Escape" ||
+        !(event.target instanceof Node) ||
+        !card.current?.contains(event.target)
+      ) return;
+      event.preventDefault();
+      event.stopPropagation();
+      closePanel();
+    }
+    window.addEventListener("keydown", closeOnEscape, true);
+    return () => window.removeEventListener("keydown", closeOnEscape, true);
+  }, [closePanel, panel]);
   const live = useLiveCall(call.sessionId);
   const name = call.peer.name || formatPhone(call.peer.number);
   const number = call.peer.number ? formatPhone(call.peer.number) : "";
@@ -338,26 +402,9 @@ function ActiveCard({ call }: { call: CallInfo }) {
 
   return (
     <div
-      className="relative flex w-full max-w-lg items-center gap-2.5 rounded-app-card border border-primary/20 bg-app-paper px-4 py-2.5 shadow-lg"
-      onKeyDown={(e) => {
-        // Escape closes whichever popover is open (they have no backdrop) —
-        // focus lives inside the card, so the keydown bubbles here.
-        if (e.key === "Escape" && (transferOpen || keypadOpen)) {
-          e.stopPropagation();
-          setTransferOpen(false);
-          setKeypadOpen(false);
-        }
-      }}
+      ref={card}
+      className="pointer-events-auto relative flex w-full max-w-lg items-center gap-2.5 rounded-app-card border border-primary/20 bg-app-paper px-4 py-2.5 shadow-lg"
     >
-      {transferOpen && call.sessionId && serverAddressable && (
-        <TransferMenu
-          sessionId={call.sessionId}
-          onDone={() => setTransferOpen(false)}
-        />
-      )}
-      {keypadOpen && call.phase === "active" && (
-        <DtmfKeypad callId={call.id} onClose={() => setKeypadOpen(false)} />
-      )}
       <span
         aria-hidden
         className={cn(
@@ -425,6 +472,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
         ))}
       {call.phase === "active" && (
         <Button
+          ref={transferTrigger}
           variant="ghost"
           size="icon-sm"
           aria-label={t("shell.transferThisCall")}
@@ -438,36 +486,36 @@ function ActiveCard({ call }: { call: CallInfo }) {
               ? undefined
               : t("shell.connectingCallToServer")
           }
-          onClick={() => {
-            // Mutually exclusive with the keypad — they render in the same
-            // slot and would otherwise stack on top of each other.
-            setTransferOpen((open) => !open);
-            setKeypadOpen(false);
-          }}
+          onClick={() => transferOpen ? closePanel() : setPanel("transfer")}
         >
           <ArrowRightLeft className="size-4" strokeWidth={1.75} />
         </Button>
       )}
+      {transferOpen && call.phase === "active" && call.sessionId && serverAddressable && (
+        <TransferMenu sessionId={call.sessionId} onDone={closePanel} />
+      )}
       {call.phase === "active" && (
         <Button
+          ref={keypadTrigger}
           variant="ghost"
           size="icon-sm"
           aria-label={t("shell.keypad")}
           aria-expanded={keypadOpen}
-          onClick={() => {
-            setKeypadOpen((open) => !open);
-            setTransferOpen(false);
-          }}
+          onClick={() => keypadOpen ? closePanel() : setPanel("keypad")}
         >
           <Grid3x3 className="size-4" strokeWidth={1.75} />
         </Button>
+      )}
+      {keypadOpen && call.phase === "active" && (
+        <DtmfKeypad callId={call.id} onClose={closePanel} />
       )}
       {call.phase === "active" && (
         <Button
           variant="ghost"
           size="icon-sm"
           aria-label={t("shell.putOnHold")}
-          onClick={() => softphone.toggleHold(call.id)}
+          data-hold-call={call.id}
+          onClick={(event) => onToggleHold(event.currentTarget)}
         >
           <Pause className="size-4" strokeWidth={1.75} />
         </Button>
@@ -476,6 +524,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
         variant="ghost"
         size="icon-sm"
         aria-label={call.muted ? t("shell.unmute") : t("shell.mute")}
+        aria-keyshortcuts={CALL_SHORTCUTS.mute.keys}
         aria-pressed={call.muted}
         onClick={() => softphone.toggleMute(call.id)}
       >
@@ -489,6 +538,7 @@ function ActiveCard({ call }: { call: CallInfo }) {
         variant="ghost"
         size="icon-sm"
         aria-label={t("shell.hangUp")}
+        aria-keyshortcuts={CALL_SHORTCUTS.hangup.keys}
         onClick={() => softphone.hangup(call.id)}
         className="text-app-clay hover:bg-app-clay/10"
       >
@@ -498,37 +548,103 @@ function ActiveCard({ call }: { call: CallInfo }) {
   );
 }
 
+function Ringtone() {
+  const { data, isPending } = useNotificationsUnreadCount();
+  const paused = data?.alert_pause?.push_paused ?? false;
+  useEffect(() => {
+    if (paused || isPending) return;
+    const sound = new Audio("/incoming-call.mp3");
+    sound.loop = true;
+    void sound.play().catch(() => {});
+    return () => sound.pause();
+  }, [paused, isPending]);
+  return null;
+}
+
 export function CallBar() {
-  // Before the early return: hooks may not sit behind a condition.
   const t = useT();
   const softphone = useSoftphone();
-  if (!softphone || softphone.calls.length === 0) return null;
+  const region = useRef<HTMLDivElement>(null);
+  const holdFocus = useRef<{ id: string; previous: HTMLButtonElement } | null>(null);
+  useEffect(() => {
+    // Radix's document-level focus trap would pull focus back from the call controls.
+    function keepCallFocus(event: FocusEvent) {
+      const next = event.type === "focusout" ? event.relatedTarget : event.target;
+      if (next instanceof Node && region.current?.contains(next)) event.stopPropagation();
+    }
+    document.body.addEventListener("focusin", keepCallFocus);
+    document.body.addEventListener("focusout", keepCallFocus);
+    return () => {
+      document.body.removeEventListener("focusin", keepCallFocus);
+      document.body.removeEventListener("focusout", keepCallFocus);
+    };
+  }, []);
+  useLayoutEffect(() => {
+    const request = holdFocus.current;
+    if (!request || request.previous.isConnected) return;
+    holdFocus.current = null;
+    if (document.activeElement !== document.body) return;
+    const buttons = region.current?.querySelectorAll<HTMLButtonElement>("[data-hold-call]");
+    if (!buttons) return;
+    Array.from(buttons).find((button) => button.dataset.holdCall === request.id)?.focus();
+  });
+  if (typeof document === "undefined" || !softphone) return null;
+
+  const { calls, activeId, toggleHold } = softphone;
+  function holdWithFocus(callId: string, button: HTMLButtonElement) {
+    holdFocus.current = document.activeElement === button ? { id: callId, previous: button } : null;
+    toggleHold(callId);
+  }
 
   const active =
-    softphone.calls.find((c) => c.id === softphone.activeId) ??
-    softphone.calls.find((c) => c.phase === "connecting") ??
+    calls.find((c) => c.id === activeId) ??
+    calls.find((c) => c.phase === "connecting") ??
     null;
-  const others = softphone.calls.filter((c) => c.id !== active?.id);
-  // A lone ringing call renders as the prominent chip row (no active card).
+  const others = calls.filter((c) => c.id !== active?.id);
+  const ringing = others.some((call) => call.phase === "ringing");
+  const status = calls.map((call) => {
+    const name = call.peer.name || formatPhone(call.peer.number);
+    if (call.phase === "active") return t("shell.callConnected", { name });
+    if (call.phase === "held") return t("shell.callOnHold", { name });
+    if (call.phase === "ended") return t("shell.callEnded", { name });
+    return "";
+  }).filter(Boolean).join(". ");
 
-  return (
-    <div
-      className={cn(
-        "fixed inset-x-0 z-40 flex flex-col items-center gap-2 px-3",
-        // Sit above the mobile tab bar; float near the bottom on desktop.
-        "bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.5rem)] lg:bottom-4",
-      )}
-      role="region"
-      aria-label={t("shell.navCalls")}
-    >
-      {others.length > 0 && (
-        <div className="flex flex-wrap justify-center gap-2">
-          {others.map((call) => (
-            <CallChip key={call.id} call={call} />
-          ))}
+  return createPortal(
+    <div aria-live="polite">
+      <div role="status" className="sr-only">{status}</div>
+      {ringing && <Ringtone />}
+      {calls.length > 0 && (
+        <div
+          ref={region}
+          data-call-bar=""
+          className="pointer-events-none fixed inset-x-0 bottom-[calc(3.5rem+env(safe-area-inset-bottom)+0.5rem)] z-[60] flex flex-col items-center gap-2 px-3 font-sans lg:bottom-4"
+          role="region"
+          aria-live="off"
+          aria-label={t("shell.navCalls")}
+        >
+          {others.length > 0 && (
+            <div className="flex flex-wrap justify-center gap-2">
+              {others.map((call) => (
+                <CallChip
+                  key={call.id}
+                  call={call}
+                  prominent={calls.length === 1}
+                  onToggleHold={(button) => holdWithFocus(call.id, button)}
+                />
+              ))}
+            </div>
+          )}
+          {active && (
+            <ActiveCard
+              key={active.id}
+              call={active}
+              onToggleHold={(button) => holdWithFocus(active.id, button)}
+            />
+          )}
         </div>
       )}
-      {active && <ActiveCard call={active} />}
-    </div>
+    </div>,
+    document.body,
   );
 }

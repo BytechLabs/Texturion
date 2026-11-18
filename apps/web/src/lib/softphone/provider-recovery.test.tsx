@@ -189,6 +189,26 @@ function hangUp(client: FakeClient, call: FakeCall) {
   notify(client, call);
 }
 
+it("answers a ring from a modifier chord while a form field has focus", async () => {
+  render(tree());
+  const client = await registered(1);
+  emit(client, "telnyx.ready");
+  const call = ring(client, "shortcut-ring");
+  const field = document.createElement("input");
+  document.body.append(field);
+  try {
+    field.focus();
+    const chord = new KeyboardEvent("keydown", {
+      code: "KeyA", altKey: true, shiftKey: true, bubbles: true, cancelable: true,
+    });
+    await act(async () => { field.dispatchEvent(chord); });
+    expect(chord.defaultPrevented).toBe(true);
+    expect(call.state).toBe("active");
+  } finally {
+    field.remove();
+  }
+});
+
 /** Whether leaving the page right now would ask the member first. */
 function unloadIsGuarded(): boolean {
   const event = new Event("beforeunload", { cancelable: true });

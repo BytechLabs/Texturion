@@ -9,7 +9,7 @@
  *   status='failed' + surfaced error on API failure.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { classifySendFailure,lookupAreaCode } from "@loonext/shared";
+import { classifySendFailure, isTollFreeDestination, isUsCaDestination, lookupAreaCode } from "@loonext/shared";
 
 import { capture } from "../analytics/posthog";
 import { qualifyReferralForSender } from "../referrals/referrals";
@@ -130,6 +130,8 @@ export async function runPreSendGates(
    * so a future path that passes the flag hopefully gets nothing.
    */
   offRamp = false,
+  /** A direct send from the app can use toll-free destinations. */
+  mode?: "manual",
 ): Promise<SendClearance> {
   // #283: the outbound kill switch, checked FIRST and at the single dispatch
   // choke point every send passes through. The most serious switch we have —
@@ -220,21 +222,22 @@ export async function runPreSendGates(
     );
   }
 
-  const entry = lookupAreaCode(destinationE164);
-  if (!entry) {
+  const manualTollFree = mode === "manual" && isTollFreeDestination(destinationE164);
+  if (!manualTollFree && !isUsCaDestination(destinationE164)) {
     throw new ApiError(
       "validation_failed",
-      "Destination must be a US or Canada number.",
+      "Destination must be a US or Canada number. Premium and non-geographic 5XX numbers are unavailable.",
     );
   }
 
-  if (entry.country === "US" && !gates.usApproved) {
+  const country = manualTollFree ? "US" : lookupAreaCode(destinationE164)?.country;
+  if (country === "US" && !gates.usApproved) {
     throw new ApiError(
       "registration_pending",
       "US texting activates after carrier approval (typically 3–7 business days).",
     );
   }
-  if (entry.country === "CA" && !gates.caAllowed) {
+  if (country === "CA" && !gates.caAllowed) {
     throw new ApiError(
       "registration_pending",
       "Texting Canadian numbers is not enabled for this company yet.",

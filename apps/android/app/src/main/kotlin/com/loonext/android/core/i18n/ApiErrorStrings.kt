@@ -39,6 +39,7 @@ object ApiErrorStrings : AppStrings.Section {
         "apiErrors.usage_cap_reached" to "You've reached a spending cap for this period.",
         "apiErrors.registration_pending" to "Your texting registration is still being reviewed.",
         "apiErrors.recipient_opted_out" to "This person asked us to stop texting them.",
+        "apiErrors.unsupported_service_code" to "Use your phone to dial this service code.",
         "apiErrors.validation_failed" to
             "Something in that wasn't right. Check the details and try again.",
         "apiErrors.not_found" to "We couldn't find that.",
@@ -87,6 +88,7 @@ object ApiErrorStrings : AppStrings.Section {
             "Vous avez atteint une limite de dépenses pour cette période.",
         "apiErrors.registration_pending" to "Votre inscription pour les textos est encore à l'étude.",
         "apiErrors.recipient_opted_out" to "Cette personne nous a demandé de ne plus lui écrire.",
+        "apiErrors.unsupported_service_code" to "Composez ce numéro sur votre téléphone.",
         "apiErrors.validation_failed" to
             "Quelque chose ne va pas dans cette demande. Vérifiez les détails et réessayez.",
         "apiErrors.not_found" to "Nous n'avons pas trouvé cela.",

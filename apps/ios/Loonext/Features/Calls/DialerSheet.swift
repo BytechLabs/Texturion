@@ -88,6 +88,7 @@ struct DialerSheet: View {
     private var matchedName: String? { target?.name }
 
     private var dialable: String? { dialableE164(digits) }
+    private var serviceCode: String? { Nanp.emergencyOrServiceCode(digits) }
 
     var body: some View {
         // #180: the keypad derives from the available space. At or above the
@@ -146,6 +147,13 @@ struct DialerSheet: View {
                 .padding(.top, 12 * scale)
                 .padding(.bottom, 2)
                 .monospacedDigit()
+
+            if dialable == nil && digits.filter(\.isNumber).count >= 10 {
+                Text(t("contactsTasks.dialableNumbersOnly"))
+                    .font(.golos(14))
+                    .foregroundStyle(BrandColor.muted500)
+                    .multilineTextAlignment(.center)
+            }
 
             // Live correlation (#186 item 5): the matched contact name while
             // dialing, or an Add-contact affordance once the number is dialable
@@ -247,7 +255,7 @@ struct DialerSheet: View {
                     if let onMessage {
                         Button {
                             Haptics.tap()
-                            if let to = picked?.number ?? dialable {
+                            if let to = dialable {
                                 dismiss()
                                 onMessage(to)
                             }
@@ -256,30 +264,44 @@ struct DialerSheet: View {
                                 .font(.scaled(IconSize.large, weight: .regular))
                                 .foregroundStyle(BrandColor.muted500)
                         }
-                        .disabled(dialable == nil && picked == nil)
+                        .disabled(dialable == nil)
                         .accessibilityLabel(t("contactsTasks.sendMessageInstead"))
                     }
                     Spacer()
                 }
                 .frame(maxWidth: .infinity)
-                Button(action: preflightThenCall) {
-                    Group {
-                        if calling {
-                            ProgressView()
-                                .tint(BrandColor.onLime)
-                        } else {
-                            Image(systemName: "phone")
-                                .font(.scaled(24 * scale, weight: .medium))
+                if let code = serviceCode, let url = URL(string: "tel:\(code)") {
+                    VStack(spacing: 4) {
+                        Link(t("contactsTasks.callWithPhone"), destination: url)
+                            .font(.golos(14, weight: .semibold))
+                            .foregroundStyle(BrandColor.ink)
+                        if code == "911" {
+                            Text(t("contactsTasks.emergencyCallsUnavailable"))
+                                .font(.golos(11))
+                                .foregroundStyle(BrandColor.muted500)
+                                .multilineTextAlignment(.center)
                         }
                     }
-                    .foregroundStyle(BrandColor.onLime)
-                    .frame(width: 68 * scale, height: 68 * scale)
-                    .background(BrandColor.lime, in: Circle())
+                } else {
+                    Button(action: preflightThenCall) {
+                        Group {
+                            if calling {
+                                ProgressView()
+                                    .tint(BrandColor.onLime)
+                            } else {
+                                Image(systemName: "phone")
+                                    .font(.scaled(24 * scale, weight: .medium))
+                            }
+                        }
+                        .foregroundStyle(BrandColor.onLime)
+                        .frame(width: 68 * scale, height: 68 * scale)
+                        .background(BrandColor.lime, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .disabled(dialable == nil || calling)
+                    .opacity(dialable == nil ? 0.4 : 1)
+                    .accessibilityLabel(t("contactsTasks.call"))
                 }
-                .buttonStyle(.plain)
-                .disabled(dialable == nil || calling)
-                .opacity(dialable == nil ? 0.4 : 1)
-                .accessibilityLabel(t("contactsTasks.call"))
                 HStack {
                     Spacer()
                     Button {
@@ -363,7 +385,7 @@ struct DialerSheet: View {
     private func matchRow(_ match: DialerMatch) -> some View {
         Button {
             picked = match
-            digits = String(match.number.filter(\.isNumber).prefix(15))
+            digits = match.number
         } label: {
             HStack(spacing: 10) {
                 Text(match.name)

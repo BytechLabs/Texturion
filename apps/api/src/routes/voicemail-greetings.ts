@@ -281,7 +281,7 @@ voicemailGreetingsRoutes.post(
 
     // US/CA only, the same table every other dial target goes through — it
     // excludes the Caribbean +1 codes a bare `+1[2-9]` regex would admit.
-    const to = normalizeNanpPhone(body.to);
+    const to = normalizeNanpPhone(body.to, "us-ca");
     if (!to) {
       return errorResponse(
         c,

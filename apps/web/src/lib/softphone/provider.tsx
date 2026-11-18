@@ -21,7 +21,7 @@
  * the screenshot harness).
  */
 import { useQueryClient } from "@tanstack/react-query";
-import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useReducer, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { toast } from "sonner";
 
@@ -29,6 +29,8 @@ import { roleHasCapability } from "@loonext/shared";
 
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
+import { ConfirmDialog } from '@/components/ui/confirm-dialog';
+import { formatPhone } from '@/lib/format/phone';
 import {
   declineIncomingCall,
   useAuthorizeBrowserCall,
@@ -40,6 +42,8 @@ import { useActiveCompany } from "@/lib/company/provider";
 
 import { emitRingBeacon } from "./beacons";
 import { setLiveBrowserCall } from "./live-call";
+import { ConfirmLeavingContext } from "./leave-call";
+import { CALL_SHORTCUTS } from "./shortcuts";
 import { INITIAL_SOFTPHONE_STATE, isTerminalSdkState, softphoneReducer } from './state';
 import type { CallInfo, SoftphoneState } from './state';
 
@@ -259,6 +263,7 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   // memoises it), so it can sit in a dependency array without re-arming the
   // SDK client on every render.
   const t = useT();
+  const [leave, setLeave] = useState<{ name: string; label: string; proceed: () => void } | null>(null);
   const [state, dispatch] = useReducer(
     softphoneReducer,
     INITIAL_SOFTPHONE_STATE,
@@ -1111,6 +1116,42 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
   );
 
   const activeCall = state.calls.find((c) => c.id === state.activeId) ?? null;
+  const confirmLeaving = useCallback((label: string, proceed: () => void) => {
+    const { calls, activeId } = stateRef.current;
+    const call = calls.find((item) => item.id === activeId) ?? calls.find((item) => item.phase !== "ended");
+    if (!call) {
+      proceed();
+      return;
+    }
+    setLeave({ name: call.peer.name || formatPhone(call.peer.number), label, proceed });
+  }, []);
+  useEffect(() => {
+    function callShortcut(event: KeyboardEvent) {
+      if (!event.altKey || !event.shiftKey || event.ctrlKey || event.metaKey || event.repeat || event.isComposing) return;
+      const { calls, activeId } = stateRef.current;
+      const ringing = calls.find((call) => call.phase === "ringing");
+      if (event.code === CALL_SHORTCUTS.answer.code && ringing) {
+        event.preventDefault();
+        event.stopPropagation();
+        void answer(ringing.id).catch((error: unknown) => {
+          toast.error(error instanceof Error ? error.message : t("shell.answerFailed"));
+        });
+      } else if (event.code === CALL_SHORTCUTS.hangup.code) {
+        const target = ringing?.id ?? activeId ?? calls.find((call) => call.phase !== "ended")?.id;
+        if (!target) return;
+        event.preventDefault();
+        event.stopPropagation();
+        hangup(target);
+      } else if (event.code === CALL_SHORTCUTS.mute.code && activeId) {
+        event.preventDefault();
+        event.stopPropagation();
+        toggleMute(activeId);
+      }
+    }
+    window.addEventListener("keydown", callShortcut, true);
+    return () => window.removeEventListener("keydown", callShortcut, true);
+  }, [answer, hangup, t, toggleMute]);
+
   const value = useMemo<SoftphoneContextValue>(
     () => ({
       ...state,
@@ -1140,7 +1181,22 @@ export function SoftphoneProvider({ children }: { children: ReactNode }) {
 
   return (
     <SoftphoneContext.Provider value={value}>
-      {children}
+      <ConfirmLeavingContext.Provider value={confirmLeaving}>
+        {children}
+      </ConfirmLeavingContext.Provider>
+      {leave && (
+        <ConfirmDialog
+          open
+          onOpenChange={(open) => { if (!open) setLeave(null); }}
+          title={leave.label}
+          description={t("shell.leavingEndsCall", { name: leave.name })}
+          confirmLabel={leave.label}
+          onConfirm={() => {
+            setLeave(null);
+            leave.proceed();
+          }}
+        />
+      )}
       {/* The single remote-audio sink; hidden, always mounted. */}
       <audio ref={audioRef} autoPlay className="sr-only" aria-hidden />
     </SoftphoneContext.Provider>

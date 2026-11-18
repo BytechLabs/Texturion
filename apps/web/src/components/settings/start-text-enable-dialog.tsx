@@ -46,7 +46,7 @@ export function StartTextEnableDialog() {
 
   async function onStart() {
     setError(null);
-    const e164 = normalizeNanpInput(raw);
+    const e164 = normalizeNanpInput(raw, "us-ca");
     if (!e164) {
       setError(t("settingsMore.textEnableNumberInvalid"));
       return;

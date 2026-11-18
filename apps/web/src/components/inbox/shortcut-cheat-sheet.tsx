@@ -10,6 +10,7 @@ import {
 import { useT } from "@/i18n/provider";
 import { INBOX_KEYMAP } from '@/lib/inbox/shortcuts';
 import type { ShortcutAction } from '@/lib/inbox/shortcuts';
+import { CALL_SHORTCUTS } from '@/lib/softphone/shortcuts';
 
 /** The cheat sheet reads the same keymap the key handler uses. */
 const ORDER: ShortcutAction[] = [
@@ -50,6 +51,12 @@ export function ShortcutCheatSheet({
                 </kbd>
               </dt>
               <dd className="text-app-ink">{t(INBOX_KEYMAP[action].label)}</dd>
+            </div>
+          ))}
+          {Object.values(CALL_SHORTCUTS).map(({ keys, label }) => (
+            <div key={keys} className="contents">
+              <dt><kbd className="font-mono text-xs">{keys}</kbd></dt>
+              <dd className="text-app-ink">{t(label)}</dd>
             </div>
           ))}
         </dl>

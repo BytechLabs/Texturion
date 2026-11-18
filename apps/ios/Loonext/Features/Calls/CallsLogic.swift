@@ -293,14 +293,7 @@ func formatVoicemailLength(_ seconds: Int) -> String {
 /// with a leading 1, or an already-+1 string. nil = not dialable yet (the
 /// Call button stays disabled — an obviously-short number can't be dialed).
 func dialableE164(_ raw: String) -> String? {
-    let digits = raw.filter(\.isNumber)
-    let trimmed = raw.trimmingCharacters(in: .whitespaces)
-    if trimmed.hasPrefix("+") && digits.count == 11 && digits.first == "1" {
-        return "+\(digits)"
-    }
-    if digits.count == 10 { return "+1\(digits)" }
-    if digits.count == 11 && digits.first == "1" { return "+\(digits)" }
-    return nil
+    Nanp.normalize(raw)
 }
 
 // MARK: - #459 dialer correlation

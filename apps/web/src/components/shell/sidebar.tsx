@@ -1,5 +1,7 @@
 "use client";
 
+import { useConfirmLeaving } from "@/lib/softphone/leave-call";
+
 import {
   Check,
   CheckSquare,
@@ -248,6 +250,7 @@ export function Sidebar({
   const pathname = usePathname();
   const { membership, memberships, switchCompany, displayName, role } =
     useActiveCompany();
+  const confirmLeaving = useConfirmLeaving();
   const forYouCount = useForYouNavCount();
   const inboxCount = useInboxNavCount();
   const taskCount = useTaskNavCount();
@@ -299,7 +302,10 @@ export function Sidebar({
       {memberships.map((m) => (
         <DropdownMenuItem
           key={m.company_id}
-          onSelect={() => switchCompany(m.company_id)}
+          onSelect={() => {
+            if (m.company_id === membership.company_id) return;
+            confirmLeaving(t("shell.switchWorkspace"), () => switchCompany(m.company_id));
+          }}
         >
           <span className="min-w-0 flex-1 truncate">{m.name}</span>
           {m.company_id === membership.company_id && (

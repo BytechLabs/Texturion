@@ -2430,7 +2430,7 @@ contactsRoutes.post(
       // reason was pinned to the wrong original line.
       const rowNumber = line;
       const rawPhone = cells[phoneCol]?.trim() ?? "";
-      const phone = normalizeNanpPhone(rawPhone);
+      const phone = normalizeNanpPhone(csvUnguardText(rawPhone) ?? "");
       if (!phone) {
         errors.push({
           row: rowNumber,

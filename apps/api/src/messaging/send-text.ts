@@ -144,6 +144,8 @@ export async function prepareSend(
     body: string;
     /** MMS meters as 3 segments; text estimates its own. */
     hasMedia: boolean;
+    /** A direct send from the app may use toll-free destinations. */
+    manual?: boolean;
   },
 ): Promise<PreparedSend> {
   const view = await loadSendView(db, input.companyId, input.conversationId);
@@ -164,6 +166,8 @@ export async function prepareSend(
     env,
     input.companyId,
     view.contact_phone_e164,
+    undefined,
+    input.manual ? "manual" : undefined,
   );
 
   // Step 0a merge-fields: applied server-side at SEND time, reusing the

@@ -35,6 +35,7 @@ function world(
   options: {
     paused?: boolean;
     subscriptionActive?: boolean;
+    usApproved?: boolean;
     /** The #481 off-ramp opt-in, as the companies row would carry it. */
     offRampRow?: Record<string, unknown> | null;
   } = {},
@@ -43,7 +44,7 @@ function world(
     subscriptionActive: options.subscriptionActive ?? true,
     paused: options.paused ?? false,
     aupEnforcement: "none",
-    usApproved: true,
+    usApproved: options.usApproved ?? true,
     caAllowed: true,
   });
   return makeHarness([
@@ -61,6 +62,37 @@ async function attempt(options: Parameters<typeof world>[0] = {}, offRamp = fals
 
 beforeEach(() => {
   vi.mocked(getSendGates).mockReset();
+});
+
+describe("text destination eligibility", () => {
+  const tollFree = "+18005550123";
+
+  it("requires US carrier approval for manual texts", async () => {
+    stubFetch(world({ usApproved: false }).route);
+    await expect(runPreSendGates(env, COMPANY_ID, tollFree, undefined, "manual")).rejects.toMatchObject({
+      code: "registration_pending",
+    });
+  });
+
+  it("allows a manual text and refuses the same destination for automation", async () => {
+    stubFetch(world().route);
+    await expect(runPreSendGates(env, COMPANY_ID, tollFree, undefined, "manual")).resolves.toEqual({
+      destinationE164: tollFree,
+    });
+    await expect(runPreSendGates(env, COMPANY_ID, tollFree)).rejects.toMatchObject({
+      code: "validation_failed",
+    });
+  });
+
+  it.each(["+14169760123", "+15215550123"])("refuses an unsupported destination %s for both modes", async (phone) => {
+    stubFetch(world().route);
+    await expect(runPreSendGates(env, COMPANY_ID, phone, undefined, "manual")).rejects.toMatchObject({
+      code: "validation_failed",
+    });
+    await expect(runPreSendGates(env, COMPANY_ID, phone)).rejects.toMatchObject({
+      code: "validation_failed",
+    });
+  });
 });
 
 describe("#277 the seasonal pause, at the send gate", () => {

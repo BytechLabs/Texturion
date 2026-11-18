@@ -4,6 +4,7 @@ import * as React from "react"
 import { Popover as PopoverPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
+import { keepOpenForCallBar } from "@/components/ui/call-bar-outside"
 
 function Popover({
   ...props
@@ -21,12 +22,16 @@ function PopoverContent({
   className,
   align = "center",
   sideOffset = 4,
+  onPointerDownOutside,
+  onInteractOutside,
   ...props
 }: React.ComponentProps<typeof PopoverPrimitive.Content>) {
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
         data-slot="popover-content"
+        onPointerDownOutside={keepOpenForCallBar(onPointerDownOutside)}
+        onInteractOutside={keepOpenForCallBar(onInteractOutside)}
         align={align}
         sideOffset={sideOffset}
         className={cn(
