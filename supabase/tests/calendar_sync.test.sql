@@ -1453,7 +1453,7 @@ begin
     raise exception 'CS-11 FAILED: refusal subtype transition retained unsafe due %', v;
   end if;
   if (select count(*) from public.api_claim_calendar_attention_notices()
-       where link_id = pg_temp.link_id() and user_id = pg_temp.user_id()) <> 1
+       where link_id = pg_temp.link_id() and user_id = pg_temp.user_id()) is distinct from 1
      or exists (select 1 from public.api_claim_calendar_attention_notices()) then
     raise exception 'CS-11 FAILED: refusal observations must yield one push attempt for the connector';
   end if;
@@ -1801,7 +1801,7 @@ begin
     raise exception 'CS-11 FAILED: removed replay was not idempotent %', v;
   end if;
   if (select count(*) from public.api_claim_calendar_attention_notices()
-       where link_id = pg_temp.link_id() and user_id = pg_temp.user_id()) <> 1 then
+       where link_id = pg_temp.link_id() and user_id = pg_temp.user_id()) is distinct from 1 then
     raise exception 'CS-11 FAILED: repeated removal must yield one push attempt for the connector';
   end if;
   v := public.api_for_you(
