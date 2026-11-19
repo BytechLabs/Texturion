@@ -2,10 +2,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { removeExportObjects } from "../workspace/export";
 import { purgeTrashItem } from "./purge";
 
 const CUSTOMERS_PER_RUN = 10;
 const RECORDS_PER_CUSTOMER = 25;
+const EXPORTS_PER_CUSTOMER = 5;
 
 interface ErasureTarget {
   kind: "conversation" | "call" | "task";
@@ -39,8 +41,25 @@ async function eraseCustomerBatch(db: SupabaseClient, companyId: string, contact
     const result = await purgeTrashItem(db, record.kind, record.id, null);
     if (result.outcome === "legal_hold") return false;
   }
-  if (records.length === RECORDS_PER_CUSTOMER) return false;
+  if (records.length === RECORDS_PER_CUSTOMER || !(await eraseCustomerExports(db, scope))) return false;
   const result = await db.rpc("api_finish_customer_erasure", scope);
   if (result.error) throw new Error(`Customer erasure finish failed: ${result.error.message}`);
   return result.data === true;
+}
+
+async function eraseCustomerExports(
+  db: SupabaseClient,
+  scope: { p_company: string; p_contact: string },
+): Promise<boolean> {
+  const copies = await db.rpc("api_customer_erasure_exports", { ...scope, p_limit: EXPORTS_PER_CUSTOMER });
+  if (copies.error) throw new Error(`Customer export scan failed: ${copies.error.message}`);
+  const rows = (copies.data ?? []) as { id: string; storage_prefix: string; removable: boolean }[];
+  for (const row of rows) {
+    if (!row.removable) return false;
+    await removeExportObjects(db, row.storage_prefix);
+    const removed = await db.from("data_exports").update({ reaped_at: new Date().toISOString() })
+      .eq("id", row.id).eq("company_id", scope.p_company).is("reaped_at", null);
+    if (removed.error) throw new Error(`Customer export receipt failed: ${removed.error.message}`);
+  }
+  return rows.length < EXPORTS_PER_CUSTOMER;
 }

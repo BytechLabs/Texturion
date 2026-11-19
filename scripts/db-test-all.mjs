@@ -137,6 +137,7 @@ const SUITES = [
   "export_claim_leases",
   "call_effect_counts",
   "workspace_export_media",
+  "customer_erasure_exports",
   "business_webhook_events",
   "creation_webhook_events",
   "merge_import_contact_details",

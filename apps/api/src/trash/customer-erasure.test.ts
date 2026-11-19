@@ -26,6 +26,7 @@ it("retries a failed storage removal before purging the row or completing the re
     order.push("row");
     return { outcome: "purged", company_id: companyId };
   });
+  sb.on("POST", "/rest/v1/rpc/api_customer_erasure_exports", () => []);
   sb.on("POST", "/rest/v1/rpc/api_finish_customer_erasure", () => {
     order.push("receipt");
     return true;
@@ -37,4 +38,40 @@ it("retries a failed storage removal before purging the row or completing the re
   storageFails = false;
   await expect(processCustomerErasures(env)).resolves.toEqual({ completed: 1 });
   expect(order).toEqual(["storage", "storage", "row", "receipt"]);
+});
+
+it("removes revoked archive copies before completing an erasure", async () => {
+  const sb = supabaseStub(env);
+  const exportId = "dddddddd-1111-4222-8333-444444444444";
+  const order: string[] = [];
+  let removable = false;
+  let removed = false;
+  sb.on("POST", "/rest/v1/rpc/api_customer_erasures_due", () => [{ id: contactId, company_id: companyId }]);
+  sb.on("POST", "/rest/v1/rpc/api_customer_erasure_batch", () => []);
+  sb.on("POST", "/rest/v1/rpc/api_customer_erasure_exports", () => [
+    { id: exportId, storage_prefix: `${companyId}/${exportId}`, removable },
+  ]);
+  sb.on("POST", "/storage/v1/object/list/exports", () => [{ id: "part", name: "messages.jsonl" }]);
+  sb.on("DELETE", "/storage/v1/object/exports", () => {
+    order.push("storage");
+    return removed ? [] : Response.json({ message: "unavailable" }, { status: 500 });
+  });
+  sb.on("PATCH", "/rest/v1/data_exports", () => {
+    order.push("reaped");
+    return [];
+  });
+  sb.on("POST", "/rest/v1/rpc/api_finish_customer_erasure", () => {
+    order.push("receipt");
+    return true;
+  });
+  stubFetch(sb.route);
+
+  await expect(processCustomerErasures(env)).resolves.toEqual({ completed: 0 });
+  expect(order).toEqual([]);
+  removable = true;
+  await expect(processCustomerErasures(env)).rejects.toThrow("Customer erasure failed");
+  expect(order).toEqual(["storage"]);
+  removed = true;
+  await expect(processCustomerErasures(env)).resolves.toEqual({ completed: 1 });
+  expect(order).toEqual(["storage", "storage", "reaped", "receipt"]);
 });
