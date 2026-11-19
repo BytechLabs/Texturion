@@ -3919,6 +3919,10 @@ below follows from that sentence.
   takes effect immediately. The ICS feed (#245) is long-lived and pasted
   into third-party servers — and individual rotation is the only control that
   fits it.
+- **Quote withdrawal.** The crew can withdraw an outstanding quote. The same
+  transaction records the withdrawal and revokes the view and accept links.
+  Opening the original view link within its expiry shows a withdrawal notice
+  in the customer’s language.
 - **One failure page for every failure.** Expired, revoked, spent, wrong purpose,
   never existed: identical response. A holder who can tell them apart has been
   handed an oracle.

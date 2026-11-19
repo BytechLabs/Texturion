@@ -222,6 +222,20 @@ describe("GET /q/:token", () => {
     expect(expired.status).toBe(missing.status);
     await expect(expired.text()).resolves.toBe(await missing.text());
   });
+
+  it("shows a withdrawn quote in the contact’s language without offer details", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_resolve_public_link", () => ({ ok: false, outcome: "revoked" }));
+    sb.on("POST", "/rest/v1/rpc/api_public_quote_withdrawal", () => ({
+      contact_locale: "fr-CA", company_locale: "en",
+    }));
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}`);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ withdrawn: true, status: "withdrawn", locale: "fr-CA" });
+    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_accept_link")).toHaveLength(0);
+  });
 });
 
 describe("POST /q/:token/accept", () => {
@@ -404,7 +418,9 @@ describe("POST /q/:token/accept", () => {
      * be both wrong and alarming.
      */
     const sb = stubResolving("quote_accept");
-    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
+    sb.on("GET", "/rest/v1/quotes", ({ url }) => [
+      quote(url.searchParams.get("select") === "status,expires_at" ? { status: "accepted" } : {}),
+    ]);
     sb.on("PATCH", "/rest/v1/quotes", () => []);
     stubFetch(sb.route);
 
@@ -413,9 +429,25 @@ describe("POST /q/:token/accept", () => {
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
   });
 
+  it("rejects acceptance when a concurrent withdrawal won", async () => {
+    const sb = stubResolving("quote_accept");
+    sb.on("GET", "/rest/v1/quotes", ({ url }) => [
+      quote(url.searchParams.get("select") === "status,expires_at" ? { status: "withdrawn" } : {}),
+    ]);
+    sb.on("PATCH", "/rest/v1/quotes", () => []);
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}/accept`, acceptRequest());
+    expect(response.status).toBe(409);
+    await expect(response.json()).resolves.toEqual({ accepted: false, status: "withdrawn" });
+    expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);
+  });
+
   it("the same acceptance applied twice tells the thread once", async () => {
     const sb = stubResolving("quote_accept");
-    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
+    sb.on("GET", "/rest/v1/quotes", ({ url }) => [
+      quote(url.searchParams.get("select") === "status,expires_at" ? { status: "accepted" } : {}),
+    ]);
     // The write is guarded in the WHERE clause: the first tap moves the row, the
     // second matches nothing.
     let moved = false;

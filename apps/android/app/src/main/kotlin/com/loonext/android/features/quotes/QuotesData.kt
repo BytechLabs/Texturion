@@ -34,6 +34,7 @@ object QuoteStatus {
     const val VIEWED = "viewed"
     const val ACCEPTED = "accepted"
     const val DECLINED = "declined"
+    const val WITHDRAWN = "withdrawn"
     const val EXPIRED = "expired"
 }
 
@@ -44,6 +45,7 @@ val QUOTE_STATUS_KEYS: Map<String, String> = mapOf(
     QuoteStatus.VIEWED to "quotes.statusViewed",
     QuoteStatus.ACCEPTED to "quotes.statusAccepted",
     QuoteStatus.DECLINED to "quotes.statusDeclined",
+    QuoteStatus.WITHDRAWN to "quotes.statusWithdrawn",
     QuoteStatus.EXPIRED to "quotes.statusExpired",
 )
 
@@ -67,6 +69,7 @@ object Quotes {
     fun effectiveStatus(status: String, expiresAt: String?, nowMillis: Long): String {
         if (isDecided(status)) return status
         if (status == QuoteStatus.DRAFT) return QuoteStatus.DRAFT
+        if (status == QuoteStatus.WITHDRAWN) return QuoteStatus.WITHDRAWN
         if (status == QuoteStatus.EXPIRED) return QuoteStatus.EXPIRED
         val expiry = parseIsoMillis(expiresAt) ?: return status
         return if (expiry <= nowMillis) QuoteStatus.EXPIRED else status
@@ -129,12 +132,6 @@ data class Quote(
 @Serializable
 data class QuotePage(val data: List<Quote> = emptyList())
 
-/**
- * What `POST /v1/quotes/{id}/send` returns: the quote, plus two plaintext
- * tokens returned ONCE. Nothing can produce them again — only their SHA-256 is
- * stored — and they are separate on purpose: the link a customer opens to READ
- * a quote cannot accept it.
- */
 /** The create body, typed rather than a map: kotlinx cannot serialise Any. */
 @Serializable
 private data class CreateQuoteBody(
@@ -200,4 +197,8 @@ class QuotesRepository(private val api: ApiClient) {
 
     suspend fun send(companyId: String, quoteId: String): SentQuote =
         api.post("/v1/quotes/$quoteId/send", companyId = companyId)
+
+    suspend fun withdraw(companyId: String, quoteId: String) {
+        api.post<Map<String, Boolean>>("/v1/quotes/$quoteId/withdraw", companyId = companyId)
+    }
 }

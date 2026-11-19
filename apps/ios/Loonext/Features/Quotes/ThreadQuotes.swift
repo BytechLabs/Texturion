@@ -40,7 +40,8 @@ private let quoteRecentDecisionSeconds: TimeInterval = 7 * 24 * 60 * 60
 private let quoteDefaultExpiryDays = 14
 
 private func quoteIsWorthShowing(_ quote: Quote, now: Date) -> Bool {
-    if !Quotes.isDecided(quote.shownStatus(now: now)) { return true }
+    let status = quote.shownStatus(now: now)
+    if status != QuoteStatus.withdrawn && !Quotes.isDecided(status) { return true }
     guard let decided = Quotes.isoDate(quote.decided_at) else { return false }
     return now.timeIntervalSince(decided) < quoteRecentDecisionSeconds
 }
@@ -115,6 +116,18 @@ final class ThreadQuotesModel {
             return false
         }
     }
+
+    func withdraw(_ quote: Quote, locale: String?) async {
+        notice = nil
+        sendingId = quote.id
+        defer { sendingId = nil }
+        do {
+            try await quotes.withdraw(companyId: companyId, quoteId: quote.id)
+            await load()
+        } catch {
+            notice = error.userMessage(locale ?? MessageLocale.en)
+        }
+    }
 }
 
 struct ThreadQuotesPane: View {
@@ -134,6 +147,7 @@ struct ThreadQuotesPane: View {
     @State private var model: ThreadQuotesModel?
     @State private var amount = ""
     @State private var work = ""
+    @State private var quoteToWithdraw: Quote?
 
     private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
         AppStrings.translate(appLocale, key, vars)
@@ -157,12 +171,15 @@ struct ThreadQuotesPane: View {
                         QuoteStripRow(
                             quote: quote,
                             canSend: canAct && quote.allowed_actions.allows("send"),
-                            sending: model.sendingId == quote.id
-                        ) {
-                            Task {
-                                if await model.send(quote, locale: appLocale) { onSent() }
-                            }
-                        }
+                            canWithdraw: canAct && (quote.allowed_actions?.contains("withdraw") == true),
+                            sending: model.sendingId == quote.id,
+                            onSend: {
+                                Task {
+                                    if await model.send(quote, locale: appLocale) { onSent() }
+                                }
+                            },
+                            onWithdraw: { quoteToWithdraw = quote }
+                        )
                     }
                     if canAct && draftOpen { form(model) }
                     // The API's own words on a refusal, never a paraphrase, and
@@ -173,6 +190,14 @@ struct ThreadQuotesPane: View {
                 .padding(.horizontal, 12)
                 .padding(.bottom, 4)
             }
+        }
+        .confirmDialog(
+            t("quotes.withdrawTitle"),
+            item: $quoteToWithdraw,
+            message: { _ in t("quotes.withdrawDetail") },
+            confirmLabel: t("quotes.withdraw")
+        ) { quote in
+            Task { await model?.withdraw(quote, locale: appLocale) }
         }
         .task(id: "\(companyId)|\(conversationId)") {
             let created = ThreadQuotesModel(
@@ -244,8 +269,10 @@ struct ThreadQuotesPane: View {
 private struct QuoteStripRow: View {
     let quote: Quote
     let canSend: Bool
+    let canWithdraw: Bool
     let sending: Bool
     let onSend: () -> Void
+    let onWithdraw: () -> Void
 
     @Environment(\.appLocale) private var appLocale
 
@@ -283,13 +310,19 @@ private struct QuoteStripRow: View {
                 .foregroundStyle(BrandColor.olive)
                 .disabled(sending)
             }
+            if canWithdraw {
+                Button(AppStrings.translate(appLocale, "quotes.withdraw"), action: onWithdraw)
+                    .font(.golos(13, weight: .semibold))
+                    .foregroundStyle(BrandColor.olive)
+                    .disabled(sending)
+            }
         }
     }
 
     private func statusTint(_ status: String) -> Color {
         switch status {
         case QuoteStatus.accepted: return BrandColor.olive
-        case QuoteStatus.expired, QuoteStatus.declined: return BrandColor.muted500
+        case QuoteStatus.expired, QuoteStatus.declined, QuoteStatus.withdrawn: return BrandColor.muted500
         default: return BrandColor.ink
         }
     }

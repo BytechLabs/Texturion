@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 
-import { effectiveQuoteStatus, isQuoteDecided, resolveLocale } from '@loonext/shared';
+import { effectiveQuoteStatus, resolveLocale } from '@loonext/shared';
 import type { QuoteState } from '@loonext/shared';
 
 import type { AppEnv } from "../context";
@@ -15,6 +15,7 @@ import {
   publicLinkNotAvailable,
 } from "../public-links/guard";
 import {
+  hashToken,
   issueQuoteAcceptToken,
   resolvePublicLink,
 } from "../public-links/tokens";
@@ -39,7 +40,8 @@ import { afterTaskCreated } from "../tasks/follow-ups";
  * and none of it reaches the holder. A page that distinguished "expired" from
  * "no such token" would be an oracle for enumerating the others. One response
  * for every failure, and the outcome stays in the access log where it is
- * evidence rather than a hint.
+ * evidence rather than a hint. The original view link for a withdrawn quote
+ * is allowed to show the withdrawal notice until the link expires.
  *
  * # Viewing is recorded, and viewing is not answering
  *
@@ -95,6 +97,19 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
     "quote_view",
     callerCountry(c),
   );
+  if (resolved.outcome === "revoked") {
+    const withdrawal = unwrap<{ contact_locale: string | null; company_locale: string | null } | null>(
+      await db.rpc("api_public_quote_withdrawal", { p_token_hash: await hashToken(viewToken) }),
+      "public quote withdrawal",
+    );
+    if (withdrawal) {
+      return c.json({
+        withdrawn: true,
+        status: "withdrawn",
+        locale: resolveLocale(withdrawal.contact_locale, withdrawal.company_locale),
+      });
+    }
+  }
   if (!resolved.ok || !resolved.link_id || !resolved.subject_id || !resolved.company_id) {
     return publicLinkNotAvailable(c);
   }
@@ -236,13 +251,16 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
       .eq("company_id", resolved.company_id)
       .eq("id", row.id)
       .in("status", ["sent", "viewed"])
+      .gt("expires_at", now.toISOString())
       .select("id"),
     "public quote accept",
   );
   if (accepted.length === 0) {
-    // Somebody else won the race. The quote IS accepted, so this is not a
-    // failure from the customer's side.
-    return c.json({ accepted: true, status: "accepted" });
+    const [current] = unwrap<QuoteState[]>(await db.from("quotes").select("status,expires_at")
+      .eq("company_id", resolved.company_id).eq("id", row.id).limit(1), "quote decision lookup");
+    if (!current) return publicLinkNotAvailable(c);
+    const status = effectiveQuoteStatus(current, now);
+    return c.json({ accepted: status === "accepted", status }, status === "accepted" ? 200 : 409);
   }
 
   try {
@@ -375,7 +393,3 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
 
   return c.json({ accepted: true, status: "accepted" });
 });
-
-/** Exported for the tests, which assert the decided-quote guard directly. */
-export const quoteIsAnswerable = (quote: QuoteState, now: Date): boolean =>
-  !isQuoteDecided(effectiveQuoteStatus(quote, now));

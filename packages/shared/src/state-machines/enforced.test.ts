@@ -127,7 +127,9 @@ describe("#722 enforced machines", () => {
     ["subscription", subscriptionMachine, "companies_subscription_status_forward_only"],
   ] as const)("%s: the trigger allows exactly the defined moves", (_name, machine, fn) => {
     const edges = triggerEdges(
-      fn === "calls_transition_guard"
+      fn === "quotes_transition_guard"
+        ? "20261119195601_withdraw_quotes.sql"
+        : fn === "calls_transition_guard"
         ? "20261111410000_a_call_never_goes_backwards.sql"
         : REMAINING_GUARDS.has(fn)
         ? "20261111400000_the_remaining_machines_keep_their_lifecycles.sql"

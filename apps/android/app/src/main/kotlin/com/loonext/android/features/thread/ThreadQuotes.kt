@@ -40,6 +40,7 @@ import com.loonext.android.features.quotes.QuoteStatus
 import com.loonext.android.features.quotes.Quotes
 import com.loonext.android.features.quotes.QuotesRepository
 import com.loonext.android.features.settings.formatMoney
+import com.loonext.android.ui.common.ConfirmDialog
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.rememberHaptics
@@ -87,7 +88,8 @@ private const val RECENT_DECISION_MS = 7L * 24 * 60 * 60 * 1000
 private const val DEFAULT_EXPIRY_DAYS = 14L
 
 private fun isWorthShowing(quote: Quote, now: Long): Boolean {
-    if (!Quotes.isDecided(quote.shownStatus(now))) return true
+    val status = quote.shownStatus(now)
+    if (status != QuoteStatus.WITHDRAWN && !Quotes.isDecided(status)) return true
     val decided = quote.decided_at?.let {
         runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
     } ?: return false
@@ -129,6 +131,9 @@ fun ThreadQuotes(
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var sendingId by remember { mutableStateOf<String?>(null) }
+    var withdrawId by remember { mutableStateOf<String?>(null) }
+    var withdrawing by remember { mutableStateOf(false) }
+    var withdrawError by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
 
     val now = System.currentTimeMillis()
@@ -187,14 +192,49 @@ fun ThreadQuotes(
         }
     }
 
+    fun withdraw(id: String) {
+        withdrawing = true
+        withdrawError = null
+        coroutines.launch {
+            try {
+                repo.withdraw(companyId, id)
+                haptics.confirm()
+                withdrawId = null
+                refreshKey++
+            } catch (cause: Exception) {
+                withdrawError = cause.userMessage(locale)
+            } finally {
+                withdrawing = false
+            }
+        }
+    }
+
+    withdrawId?.let { id ->
+        ConfirmDialog(
+            title = t("quotes.withdrawTitle"),
+            body = t("quotes.withdrawDetail"),
+            confirmLabel = t("quotes.withdraw"),
+            onConfirm = { withdraw(id) },
+            onDismiss = { if (!withdrawing) withdrawId = null },
+            destructive = true,
+            pending = withdrawing,
+            error = withdrawError,
+        )
+    }
+
     Column(modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
         shown.forEach { quote ->
             QuoteRow(
                 quote = quote,
                 now = now,
                 canSend = canAct && quote.allowed_actions.allows("send"),
+                canWithdraw = canAct && quote.allowed_actions?.contains("withdraw") == true,
                 sending = sendingId == quote.id,
                 onSend = { send(quote.id) },
+                onWithdraw = {
+                    withdrawError = null
+                    withdrawId = quote.id
+                },
             )
         }
 
@@ -247,8 +287,10 @@ private fun QuoteRow(
     quote: Quote,
     now: Long,
     canSend: Boolean,
+    canWithdraw: Boolean,
     sending: Boolean,
     onSend: () -> Unit,
+    onWithdraw: () -> Unit,
 ) {
     val status = quote.shownStatus(now)
     // The row carries its own currency, the way a payment request does: a quote
@@ -280,7 +322,7 @@ private fun QuoteRow(
             fontSize = 13.sp,
             color = when (status) {
                 QuoteStatus.ACCEPTED -> MaterialTheme.colorScheme.primary
-                QuoteStatus.EXPIRED, QuoteStatus.DECLINED ->
+                QuoteStatus.EXPIRED, QuoteStatus.DECLINED, QuoteStatus.WITHDRAWN ->
                     MaterialTheme.colorScheme.onSurfaceVariant
                 else -> MaterialTheme.colorScheme.onSurface
             },
@@ -298,6 +340,11 @@ private fun QuoteRow(
                     if (sending) t("quotes.sending") else t("quotes.sendFor", "amount" to money),
                     fontSize = 13.sp,
                 )
+            }
+        }
+        if (canWithdraw) {
+            TextButton(onClick = onWithdraw) {
+                Text(t("quotes.withdraw"), fontSize = 13.sp)
             }
         }
     }

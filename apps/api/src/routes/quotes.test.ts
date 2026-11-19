@@ -78,7 +78,7 @@ describe("GET /v1/quotes", () => {
       });
       const body = await res.json<{ data: { allowed_actions: string[] }[] }>();
       expect(body.data[0].allowed_actions, role).toEqual(draftActions);
-      expect(body.data[1].allowed_actions, `${role}, sent`).toEqual([]);
+      expect(body.data[1].allowed_actions, `${role}, sent`).toEqual(role === "member" ? ["withdraw"] : []);
       vi.unstubAllGlobals();
     }
   });
@@ -159,6 +159,36 @@ describe("GET /v1/quotes", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(422);
+  });
+});
+
+describe("POST /v1/quotes/:id/withdraw", () => {
+  it("allows a sender on the line to withdraw the quote", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/quotes", () => [row()]);
+    sb.on("GET", "/rest/v1/conversations", () => [{ id: CONVERSATION_ID, phone_number_id: null }]);
+    sb.on("POST", "/rest/v1/rpc/api_withdraw_quote", () => true);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/quotes/${QUOTE_ID}/withdraw`, {
+      method: "POST", companyId: COMPANY_ID,
+    });
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ withdrawn: true });
+    expect(sb.find("POST", "/rest/v1/rpc/api_withdraw_quote")[0]?.body).toMatchObject({
+      p_company_id: COMPANY_ID, p_quote_id: QUOTE_ID,
+    });
+  });
+
+  it("forbids a read-only member before writing", async () => {
+    const sb = stubWithRole("read_only");
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), `/v1/quotes/${QUOTE_ID}/withdraw`, {
+      method: "POST", companyId: COMPANY_ID,
+    });
+    expect(response.status).toBe(403);
+    expect(sb.find("POST", "/rest/v1/rpc/api_withdraw_quote")).toHaveLength(0);
   });
 });
 

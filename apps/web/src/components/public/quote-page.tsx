@@ -56,17 +56,13 @@ interface QuoteView {
   status: string;
   expires_at: string;
   can_accept: boolean;
-  /**
-   * #581: the authority to accept, minted when this page was fetched and
-   * returned only here. NOT the token in the address bar — that one is written
-   * into the customer's text message, and `messages.body` is readable by every
-   * member with `conversations.read`, by any `messages:read` API key, and by any
-   * webhook endpoint the workspace has registered.
-   *
-   * Null when the quote cannot be accepted, so there is no credential to press
-   * a button with.
-   */
   accept_token: string | null;
+}
+
+interface WithdrawnQuote {
+  locale?: string;
+  withdrawn: true;
+  status: "withdrawn";
 }
 
 /** "$450.00" — the amount as a person reads it, in the quote's own currency. */
@@ -93,10 +89,10 @@ export function QuotePage({
   quote,
   notAvailable = false,
 }: {
-  quote?: QuoteView;
+  quote?: QuoteView | WithdrawnQuote;
   notAvailable?: boolean;
 }) {
-  const [state, setState] = useState<"idle" | "sending" | "accepted" | "invalidName" | "failed">(
+  const [state, setState] = useState<"idle" | "sending" | "accepted" | "withdrawn" | "invalidName" | "failed">(
     "idle",
   );
   const locale = isLocale(quote?.locale) ? quote.locale : DEFAULT_LOCALE;
@@ -107,20 +103,16 @@ export function QuotePage({
     if (state === "accepted") acceptedHeading.current?.focus();
   }, [state]);
 
-  /*
-   * ONE page for every failure, matching what the API does. Expired, revoked,
-   * withdrawn, never existed: a page that distinguished them would let
-   * somebody holding one token learn about others.
-   */
-  if (notAvailable || !quote) {
+  if (notAvailable || !quote || "withdrawn" in quote || state === "withdrawn") {
+    const withdrawn = state === "withdrawn" || (quote && "withdrawn" in quote);
     return (
       <main lang={locale} className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-6 py-16">
         <DocumentLanguage locale={locale} />
         <h1 className="text-xl font-semibold tracking-tight">
-          {t("quotes.unavailableTitle")}
+          {t(withdrawn ? "quotes.withdrawnTitle" : "quotes.unavailableTitle")}
         </h1>
         <p className="mt-2 text-[15px] leading-relaxed text-muted-foreground">
-          {t("quotes.unavailableDetail")}
+          {t(withdrawn ? "quotes.withdrawnDetail" : "quotes.unavailableDetail")}
         </p>
       </main>
     );
@@ -152,7 +144,7 @@ export function QuotePage({
 
   async function accept(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const credential = quote?.accept_token;
+    const credential = quote && "accept_token" in quote ? quote.accept_token : null;
     if (!credential || name.trim().length === 0 || state === "sending") return;
     setState("sending");
     const base = publicEnv.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
@@ -167,6 +159,9 @@ export function QuotePage({
       );
       if (response.status === 422) {
         setState("invalidName");
+      } else if (response.status === 409) {
+        const decision = await response.json() as { status?: string };
+        setState(decision.status === "withdrawn" ? "withdrawn" : "failed");
       } else {
         setState(response.ok ? "accepted" : "failed");
       }

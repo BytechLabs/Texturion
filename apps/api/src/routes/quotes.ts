@@ -86,13 +86,14 @@ function withEffectiveStatus(
   now: Date,
   role: MemberRole,
 ): Record<string, unknown> {
+  const status = effectiveQuoteStatus(row, now);
   return {
     ...row,
-    effective_status: effectiveQuoteStatus(row, now),
+    effective_status: status,
     // #722: what this member may do to it now, from the shared machine.
     allowed_actions: stateMachines.allowedActions(
       stateMachines.quoteMachine,
-      row.status,
+      status,
       role,
     ),
   };
@@ -148,6 +149,40 @@ async function releaseSend(db: ReturnType<typeof getDb>, companyId: string, id: 
 }
 
 export const quotesRoutes = new Hono<AppEnv>();
+
+quotesRoutes.post("/quotes/:id/withdraw", requireCapability("conversations.send"), async (c) => {
+  const id = pathUuid(c, "id");
+  const db = getDb(getEnv(c.env));
+  const companyId = c.get("companyId");
+  const actor = c.get("userId");
+  const [quote] = unwrap<{ conversation_id: string }[]>(
+    await db.from("quotes").select("conversation_id")
+      .eq("company_id", companyId).eq("id", id).limit(1),
+    "quote withdrawal lookup",
+  );
+  if (!quote) {
+    return errorResponse(c, "not_found", "No such quote.", { key: "apiRefusals.quoteNotFound" });
+  }
+  await requireConversationAccess(db, {
+    companyId,
+    userId: actor,
+    role: c.get("role"),
+    conversationId: quote.conversation_id,
+    need: "text",
+  });
+
+  const withdrawn = unwrap<boolean>(await db.rpc("api_withdraw_quote", {
+    p_company_id: companyId,
+    p_quote_id: id,
+    p_actor: actor,
+  }), "quote withdrawal");
+  if (!withdrawn) {
+    return errorResponse(c, "conflict", "This quote can no longer be withdrawn.", {
+      key: "apiRefusals.quoteWithdrawalUnavailable",
+    });
+  }
+  return c.json({ withdrawn: true });
+});
 
 /**
  * The outstanding queue, and the rest on request.

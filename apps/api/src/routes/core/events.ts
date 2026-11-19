@@ -93,7 +93,8 @@ export type ConversationEventType =
   // No `quote_declined`: the public page offers accept and nothing else, so a
   // declined type would be a value nothing can write.
   | "quote_sent"
-  | "quote_accepted";
+  | "quote_accepted"
+  | "quote_withdrawn";
 
 export interface ConversationEventRow {
   company_id: string;

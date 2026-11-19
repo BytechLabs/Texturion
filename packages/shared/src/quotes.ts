@@ -51,6 +51,7 @@ export const QUOTE_STATUSES = [
   "viewed",
   "accepted",
   "declined",
+  "withdrawn",
   "expired",
 ] as const;
 
@@ -67,6 +68,7 @@ export type QuoteStatusKey =
   | "quotes.statusViewed"
   | "quotes.statusAccepted"
   | "quotes.statusDeclined"
+  | "quotes.statusWithdrawn"
   | "quotes.statusExpired";
 
 export const QUOTE_STATUS_KEYS: Record<QuoteStatus, QuoteStatusKey> = {
@@ -75,6 +77,7 @@ export const QUOTE_STATUS_KEYS: Record<QuoteStatus, QuoteStatusKey> = {
   viewed: "quotes.statusViewed",
   accepted: "quotes.statusAccepted",
   declined: "quotes.statusDeclined",
+  withdrawn: "quotes.statusWithdrawn",
   expired: "quotes.statusExpired",
 };
 
@@ -112,6 +115,7 @@ export function effectiveQuoteStatus(
   now: Date = new Date(),
 ): QuoteStatus {
   if (isQuoteDecided(quote.status)) return quote.status;
+  if (quote.status === "withdrawn") return "withdrawn";
   if (quote.status === "draft") return "draft";
   if (quote.status === "expired") return "expired";
   const expiry = Date.parse(quote.expires_at);
@@ -150,11 +154,12 @@ export function isQuoteOutstanding(
  */
 const ALLOWED_NEXT: Record<QuoteStatus, readonly QuoteStatus[]> = {
   draft: ["sent"],
-  sent: ["viewed", "accepted", "declined", "expired"],
+  sent: ["viewed", "accepted", "declined", "withdrawn", "expired"],
   // Viewing is not answering: a customer who opened it can still do either.
-  viewed: ["accepted", "declined", "expired"],
+  viewed: ["accepted", "declined", "withdrawn", "expired"],
   accepted: [],
   declined: [],
+  withdrawn: [],
   expired: [],
 };
 

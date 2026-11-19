@@ -144,3 +144,18 @@ export function useSendQuote(conversationId: string) {
     },
   });
 }
+
+export function useWithdrawQuote(conversationId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (quoteId: string) =>
+      apiFetch<{ withdrawn: true }>(`/v1/quotes/${quoteId}/withdraw`, { method: "POST", companyId }),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: keys.quotes.forConversation(companyId, conversationId) }),
+        queryClient.invalidateQueries({ queryKey: keys.quotes.outstanding(companyId) }),
+      ]);
+    },
+  });
+}

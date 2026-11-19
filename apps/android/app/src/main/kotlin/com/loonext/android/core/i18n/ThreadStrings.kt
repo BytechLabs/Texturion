@@ -33,6 +33,10 @@ object ThreadStrings : AppStrings.Section {
             "Accepted",
         "quotes.statusDeclined" to
             "Declined",
+        "quotes.statusWithdrawn" to "Withdrawn",
+        "quotes.withdraw" to "Withdraw",
+        "quotes.withdrawTitle" to "Withdraw this quote?",
+        "quotes.withdrawDetail" to "The customer will no longer be able to accept it.",
         "quotes.statusExpired" to
             "Expired",
         "quotes.outstandingTitle" to
@@ -823,6 +827,10 @@ object ThreadStrings : AppStrings.Section {
             "Accepté",
         "quotes.statusDeclined" to
             "Refusé",
+        "quotes.statusWithdrawn" to "Retiré",
+        "quotes.withdraw" to "Retirer",
+        "quotes.withdrawTitle" to "Retirer ce devis ?",
+        "quotes.withdrawDetail" to "Le client ne pourra plus l’accepter.",
         "quotes.statusExpired" to
             "Expiré",
         "quotes.outstandingTitle" to

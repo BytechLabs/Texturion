@@ -21,6 +21,7 @@ vi.mock("@/lib/api/quotes", () => ({
   useQuotes: () => ({ data: { data: rows } }),
   useCreateQuote: () => ({ mutate: vi.fn(), isPending: false }),
   useSendQuote: () => ({ mutate: vi.fn(), isPending: false, variables: undefined }),
+  useWithdrawQuote: () => ({ mutate: vi.fn(), reset: vi.fn(), isPending: false, isError: false }),
 }));
 
 const quote = (over: Partial<Quote>): Quote =>

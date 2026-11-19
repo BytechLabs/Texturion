@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import { FileText, Send } from "lucide-react";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 import {
   billingCurrencyOf,
@@ -12,7 +13,7 @@ import {
 
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
-import { useCreateQuote, useQuotes, useSendQuote } from '@/lib/api/quotes';
+import { useCreateQuote, useQuotes, useSendQuote, useWithdrawQuote } from '@/lib/api/quotes';
 import type { Quote } from '@/lib/api/quotes';
 import { cn } from "@/lib/utils";
 
@@ -58,7 +59,8 @@ const RECENT_DECISION_MS = 7 * 24 * 60 * 60 * 1000;
 const DEFAULT_EXPIRY_DAYS = 14;
 
 function isWorthShowing(quote: Quote, now: number): boolean {
-  if (!isQuoteDecided(quote.effective_status)) return true;
+  const status = quote.effective_status;
+  if (status !== "withdrawn" && !isQuoteDecided(status)) return true;
   const decided = quote.decided_at ? Date.parse(quote.decided_at) : Number.NaN;
   if (Number.isNaN(decided)) return false;
   return now - decided < RECENT_DECISION_MS;
@@ -68,6 +70,7 @@ function QuoteRow({
   quote,
   onSend,
   onAskForPayment,
+  onWithdraw,
   sending,
   canSend,
   t,
@@ -76,6 +79,7 @@ function QuoteRow({
   onSend: () => void;
   /** #287: accepted → pay now, carrying the agreed figure. */
   onAskForPayment: () => void;
+  onWithdraw: () => void;
   sending: boolean;
   canSend: boolean;
   t: Translate;
@@ -103,7 +107,8 @@ function QuoteRow({
           quote.effective_status === "accepted"
             ? "text-success"
             : (quote.effective_status === "expired" ||
-                quote.effective_status === "declined"
+                quote.effective_status === "declined" ||
+                quote.effective_status === "withdrawn"
               ? "text-muted-foreground"
               : "text-foreground"),
         )}
@@ -137,6 +142,15 @@ function QuoteRow({
           {sending ? t("quotes.sending") : t("quotes.sendFor", { amount })}
         </button>
       )}
+      {canSend && quote.allowed_actions?.includes("withdraw") && (
+        <button
+          type="button"
+          onClick={onWithdraw}
+          className="tap-target shrink-0 rounded-app-ctrl px-2 font-medium text-primary hover:underline"
+        >
+          {t("quotes.withdraw")}
+        </button>
+      )}
     </div>
   );
 }
@@ -159,10 +173,12 @@ export function QuoteStrip({
   const quotes = useQuotes(conversationId);
   const create = useCreateQuote(conversationId);
   const send = useSendQuote(conversationId);
+  const withdraw = useWithdrawQuote(conversationId);
 
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [withdrawId, setWithdrawId] = useState<string | null>(null);
   const focusAmount = useCallback((input: HTMLInputElement | null) => {
     input?.focus();
   }, []);
@@ -222,6 +238,10 @@ export function QuoteStrip({
           canSend={canSend}
           sending={send.isPending && send.variables === quote.id}
           onSend={() => send.mutate(quote.id)}
+          onWithdraw={() => {
+            withdraw.reset();
+            setWithdrawId(quote.id);
+          }}
           onAskForPayment={() =>
             onAskForPayment?.({
               amountCents: quote.amount_cents,
@@ -230,6 +250,22 @@ export function QuoteStrip({
           }
         />
       ))}
+
+      <ConfirmDialog
+        open={withdrawId !== null}
+        onOpenChange={(open) => {
+          if (!open && !withdraw.isPending) setWithdrawId(null);
+        }}
+        title={t("quotes.withdrawTitle")}
+        description={t("quotes.withdrawDetail")}
+        confirmLabel={t("quotes.withdraw")}
+        pending={withdraw.isPending}
+        onConfirm={() => {
+          if (withdrawId) withdraw.mutate(withdrawId, { onSuccess: () => setWithdrawId(null) });
+        }}
+      >
+        {withdraw.isError && <p role="alert" className="text-sm text-destructive">{t("quotes.withdrawFailed")}</p>}
+      </ConfirmDialog>
 
       {showForm && (
         <div className="mt-1 space-y-2 rounded-app-card border border-app-line p-3">

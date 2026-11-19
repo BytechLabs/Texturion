@@ -10,6 +10,14 @@ vi.mock("@/env", () => ({
 }));
 
 describe(QuotePage, () => {
+  it("shows the French withdrawal and removes the option to accept", () => {
+    render(<QuotePage quote={{ locale: "fr-CA", withdrawn: true, status: "withdrawn" }} />);
+
+    expect(screen.getByRole("heading", { name: "L’entreprise a retiré ce devis" }).tagName).toBe("H1");
+    expect(screen.getByRole("main").lang).toBe("fr-CA");
+    expect(screen.queryByRole("button")).toBeNull();
+  });
+
   it("sends the name from the French form and focuses the acceptance heading", async () => {
     const fetchQuote = vi.fn(() => Promise.resolve(new Response(null, { status: 200 })));
     vi.stubGlobal("fetch", fetchQuote);

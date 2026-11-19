@@ -50,6 +50,10 @@ enum ThreadStrings {
                 "Accepted",
             "quotes.statusDeclined":
                 "Declined",
+            "quotes.statusWithdrawn": "Withdrawn",
+            "quotes.withdraw": "Withdraw",
+            "quotes.withdrawTitle": "Withdraw this quote?",
+            "quotes.withdrawDetail": "The customer will no longer be able to accept it.",
             "quotes.statusExpired":
                 "Expired",
             "quotes.outstandingTitle":
@@ -831,6 +835,10 @@ enum ThreadStrings {
                 "Accepté",
             "quotes.statusDeclined":
                 "Refusé",
+            "quotes.statusWithdrawn": "Retiré",
+            "quotes.withdraw": "Retirer",
+            "quotes.withdrawTitle": "Retirer ce devis ?",
+            "quotes.withdrawDetail": "Le client ne pourra plus l’accepter.",
             "quotes.statusExpired":
                 "Expiré",
             "quotes.outstandingTitle":
