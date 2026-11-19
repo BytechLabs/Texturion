@@ -45,8 +45,7 @@ function encode(response: FakeResponse): Response {
   });
 }
 
-const json = (value: unknown): Response =>
-  new Response(JSON.stringify(value), { headers: { "content-type": "application/json" } });
+const json = (value: object): Response => Response.json(value);
 
 export class Switch {
   private readonly model = createVoiceModel();

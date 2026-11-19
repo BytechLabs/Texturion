@@ -212,8 +212,8 @@ describe("POST /v1/api-keys", () => {
       "POST",
       "/rest/v1/api_keys",
       () =>
-        new Response(
-          JSON.stringify({ message: "api key cap reached for company x", code: "23514" }),
+        Response.json(
+          { message: "api key cap reached for company x", code: "23514" },
           { status: 400, headers: { "content-type": "application/json" } },
         ),
     );

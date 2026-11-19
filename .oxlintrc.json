@@ -53,6 +53,8 @@
     "jsdoc/check-tag-names": ["error", { "definedTags": ["vitest-environment"] }],
     "unicorn/import-style": ["off", { "extendDefaultStyles": false, "styles": { "node:path": { "named": true }, "node:fs": { "named": true }, "node:url": { "named": true }, "node:util": { "named": true } } }], // not yet clean: 10 (#822)
     "import/no-unassigned-import": ["off", { "allow": ["**/*.css", "server-only", "client-only"] }], // not yet clean: 1 (#822)
+    // Hono sends rejected promises from this handler to app.onError.
+    "oxc/no-async-endpoint-handlers": ["error", { "allowedNames": ["revokeOptOut"] }],
     "vitest/valid-expect": ["off", { "maxArgs": 2 }], // not yet clean: 2 (#822)
     "vitest/valid-title": ["error", { "allowArguments": true }],
     "eslint/no-unused-vars": ["error", { "argsIgnorePattern": "^_", "varsIgnorePattern": "^_", "caughtErrorsIgnorePattern": "^_" }],
@@ -217,7 +219,6 @@
     "eslint/no-unsafe-optional-chaining": "off", // 28
     "import/newline-after-import": "off", // 28
     "typescript/require-array-sort-compare": "off", // 28
-    "unicorn/prefer-response-static-json": "off", // 28
     "unicorn/prefer-top-level-await": "off", // 27
     "typescript/no-invalid-void-type": "off", // 26
     "typescript/prefer-optional-chain": "off", // 25
@@ -324,7 +325,6 @@
     "import/no-cycle": "off", // 2
     "jsx-a11y/interactive-supports-focus": "off", // 2
     "nextjs/no-html-link-for-pages": "off", // 2
-    "oxc/no-async-endpoint-handlers": "off", // 2
     "promise/no-promise-in-callback": "off", // 2
     "promise/no-return-wrap": "off", // 2
     "react/memo-dependencies": "off", // 2

@@ -970,7 +970,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     sb.on(
       "GET",
       "/rest/v1/opt_outs",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -1007,7 +1007,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     sb.on(
       "GET",
       "/rest/v1/opt_outs",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -2344,7 +2344,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     sb.on(
       "POST",
       "/rest/v1/contacts",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on("PATCH", "/rest/v1/opt_outs", () => []);
     sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
@@ -3858,7 +3858,7 @@ describe("#248 what an import says about the rows it refused", () => {
     sb.on(
       "POST",
       "/rest/v1/contacts",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on("GET", "/rest/v1/opt_outs", () => [
       { phone_e164: STOPPED_PHONE, source: "stop_keyword" },
@@ -3894,7 +3894,7 @@ describe("#248 what an import says about the rows it refused", () => {
     sb.on(
       "GET",
       "/rest/v1/opt_outs",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on("GET", "/rest/v1/contacts", () => []);
     sb.on("POST", "/rest/v1/audit_log", () => new Response(null, { status: 201 }));

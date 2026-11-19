@@ -93,10 +93,10 @@ describe("fetchContactsExport (GET /v1/contacts/export, D20 §3.1)", () => {
 
   it("parses the SPEC §7 error envelope on a non-2xx", async () => {
     const fetchSpy = vi.fn(async () =>
-      new Response(
-        JSON.stringify({
+      Response.json(
+        {
           error: { code: "forbidden", message: "You can't export here." },
-        }),
+        },
         { status: 403, headers: { "Content-Type": "application/json" } },
       ),
     );

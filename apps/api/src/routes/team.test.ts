@@ -1306,12 +1306,12 @@ describe("DELETE /v1/members/:id (offboard, not delete)", () => {
     sb.on(
       "POST",
       "/rest/v1/rpc/api_revoke_sessions",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on(
       "DELETE",
       "/rest/v1/push_subscriptions",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on("DELETE", "/rest/v1/device_push_tokens", () => []);
     stubFetch(jwksRoute(auth), sb.route);

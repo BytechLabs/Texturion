@@ -2338,7 +2338,7 @@ describe("#277 the seasonal pause", () => {
         // The canonical mirror fails; the narrow fallback that follows it is
         // what has to land.
         return mirrorAttempts === 1
-          ? new Response(JSON.stringify({ message: "deadlock detected" }), {
+          ? Response.json({ message: "deadlock detected" }, {
               status: 500,
               headers: { "content-type": "application/json" },
             })
@@ -2572,7 +2572,7 @@ describe("#277 the seasonal pause", () => {
       endpoint("PATCH", /\/rest\/v1\/companies/, () => {
         mirrorAttempts += 1;
         return mirrorAttempts === 1
-          ? new Response(JSON.stringify({ message: "deadlock detected" }), {
+          ? Response.json({ message: "deadlock detected" }, {
               status: 500,
               headers: { "content-type": "application/json" },
             })

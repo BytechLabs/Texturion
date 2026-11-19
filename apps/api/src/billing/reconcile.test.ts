@@ -230,8 +230,8 @@ describe("runSubscriptionReconcileJob (SPEC §11 subscription reconcile)", () =>
         "GET",
         /api\.stripe\.com\/v1\/subscriptions\/sub_broken/,
         () =>
-          new Response(
-            JSON.stringify({ error: { message: "no such subscription" } }),
+          Response.json(
+            { error: { message: "no such subscription" } },
             { status: 500 },
           ),
       ),
@@ -378,8 +378,8 @@ describe("orphan-subscription sweep (§11 double-buy safety net)", () => {
       ...baseEndpoints([], 0, [sweepCompany]),
       listEndpoint(subList(sub(STORED, "active"), sub("sub_orphan", "active"))),
       endpoint("DELETE", /\/v1\/subscriptions\/sub_orphan/, () =>
-        new Response(
-          JSON.stringify({ error: { message: "cancel failed" } }),
+        Response.json(
+          { error: { message: "cancel failed" } },
           { status: 500 },
         ),
       ),
@@ -396,8 +396,8 @@ describe("orphan-subscription sweep (§11 double-buy safety net)", () => {
     const harness = makeHarness([
       ...baseEndpoints([], 0, [sweepCompany]),
       endpoint("GET", /\/v1\/subscriptions\?customer=/, () =>
-        new Response(
-          JSON.stringify({ error: { message: "list failed" } }),
+        Response.json(
+          { error: { message: "list failed" } },
           { status: 500 },
         ),
       ),
@@ -621,10 +621,10 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
         ),
       ),
       endpoint("DELETE", /\/v1\/subscription_items\/si_1/, () =>
-        new Response(
-          JSON.stringify({
+        Response.json(
+          {
             error: { code: "resource_missing", message: "No such item" },
-          }),
+          },
           { status: 404 },
         ),
       ),
@@ -646,8 +646,8 @@ describe("retired-module item sweep (#103 — strip the stale $5 mms item)", () 
         ),
       ),
       endpoint("DELETE", /\/v1\/subscription_items\/si_1/, () =>
-        new Response(
-          JSON.stringify({ error: { message: "delete failed" } }),
+        Response.json(
+          { error: { message: "delete failed" } },
           { status: 500 },
         ),
       ),

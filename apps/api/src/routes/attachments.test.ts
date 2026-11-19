@@ -612,7 +612,7 @@ describe("GET /v1/attachments/:id/url", () => {
     sb.on(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress_objects",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -937,7 +937,7 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     sb.on(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress_objects",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on("GET", "/rest/v1/attachments", () => [
       { id: PHOTO, storage_path: `${COMPANY_ID}/note/n/a.jpg`, size_bytes: 10 },
@@ -1282,7 +1282,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
         write += 1;
         return write === 1
           ? ({ Key: "attachments/x" } as unknown as Record<string, unknown>)
-          : new Response(JSON.stringify({ message: "storage is having a day" }), {
+          : Response.json({ message: "storage is having a day" }, {
               status: 500,
             });
       });
@@ -1864,7 +1864,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       "POST",
       /^\/storage\/v1\/object\/attachments\//,
       () =>
-        new Response(JSON.stringify({ error: "boom", message: "boom" }), {
+        Response.json({ error: "boom", message: "boom" }, {
           status: 500,
         }),
     );

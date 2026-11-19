@@ -466,8 +466,8 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
         "POST",
         /api\.stripe\.com\/v1\/subscription_items$/,
         () =>
-          new Response(
-            JSON.stringify({ error: { type: "card_error", message: "Your card was declined." } }),
+          Response.json(
+            { error: { type: "card_error", message: "Your card was declined." } },
             { status: 402 },
           ),
       ),

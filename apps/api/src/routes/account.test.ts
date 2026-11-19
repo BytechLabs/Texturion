@@ -100,7 +100,7 @@ function mailbox(sb: SupabaseStub, options: { fails?: boolean } = {}) {
       severedBefore: sb.find("PUT", /^\/auth\/v1\/admin\/users\//).length,
     });
     return options.fails
-      ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+      ? Response.json({ message: "boom" }, { status: 500 })
       : Response.json({ id: "email_1" });
   };
   return { route, sent };
@@ -331,7 +331,7 @@ describe("DELETE /v1/account", () => {
     sb.on(
       "PUT",
       /^\/auth\/v1\/admin\/users\//,
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);
 

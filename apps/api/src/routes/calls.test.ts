@@ -710,7 +710,7 @@ describe("POST /v1/calls/browser (D43)", () => {
     const dial = stubRoute(
       (url, request) =>
         request.method === "POST" && url.href === "https://api.telnyx.com/v2/calls",
-      () => new Response(JSON.stringify({ errors: [{ code: "10015" }] }), { status: 422 }),
+      () => Response.json({ errors: [{ code: "10015" }] }, { status: 422 }),
     );
     stubFetch(jwksRoute(auth), sb.route, dial.route);
 

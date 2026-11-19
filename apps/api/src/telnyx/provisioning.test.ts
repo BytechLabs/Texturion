@@ -1328,7 +1328,7 @@ describe("suspend / release", () => {
     const { env, rest } = setup({ subscription_status: "canceled" });
     const downstream: FetchRoute = (url) =>
       url.pathname === "/rest/v1/rpc/close_out_dead_provisioning"
-        ? new Response(JSON.stringify({ message: "db down" }), { status: 500 })
+        ? Response.json({ message: "db down" }, { status: 500 })
         : undefined;
     stubFetch(downstream, rest.route());
     rest.insert("phone_numbers", {
@@ -1420,7 +1420,7 @@ describe("suspend / release", () => {
     const downstream: FetchRoute = (url) =>
       url.pathname === "/rest/v1/rpc/close_out_dead_provisioning"
         ? // A stale schema cache can return 200 with an incompatible body.
-          new Response(JSON.stringify({ hint: "no such function" }), {
+          Response.json({ hint: "no such function" }, {
             status: 200,
             headers: { "content-type": "application/json" },
           })
