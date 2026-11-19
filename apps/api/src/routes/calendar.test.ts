@@ -46,10 +46,25 @@ describe("the calendar feed link", () => {
     expect(url.endsWith("/schedule.ics")).toBe(true);
     expect(url.startsWith(env.APP_ORIGIN)).toBe(false);
   });
+
+  it("does not return a URL if access ended before minting", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
+    sb.on("POST", "/rest/v1/rpc/api_mint_calendar_feed_token", () => null);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/calendar/feed", {
+      method: "POST",
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(404);
+  });
 });
 
 describe("the calendar feed answers the app's own page", () => {
   const feedApp = new Hono<AppEnv>();
+  const feedPath = "/calendar/abcdefghijklmnopqrstuvwxyz/schedule.ics";
   feedApp.route("/", calendarFeedRoutes);
 
   it("lets the app origin read the answer, so the page can check the link", async () => {
@@ -66,29 +81,45 @@ describe("the calendar feed answers the app's own page", () => {
     const taskId = "5e3f1a2b-7c4d-4e6f-8a9b-0c1d2e3f4a5b";
     const sb = supabaseStub(env);
     sb.on("POST", "/rest/v1/rpc/api_resolve_calendar_feed_token", () => [
-      { company_id: COMPANY_ID, user_id: MEMBER_ID },
+      { company_id: COMPANY_ID, user_id: MEMBER_ID, role: "member", company_name: "Northside Plumbing" },
     ]);
-    sb.on("GET", "/rest/v1/companies", () => [{ name: "Northside Plumbing" }]);
-    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
-    sb.on("GET", "/rest/v1/tasks", () => [
+    sb.on("POST", "/rest/v1/rpc/api_calendar_feed_tasks", () => [
       {
         id: taskId,
         title: "Boiler repair",
         description: "Bring ladder",
         due_at: new Date(Date.now() + 86_400_000).toISOString(),
-        conversation_id: null,
         updated_at: null,
       },
     ]);
     stubFetch(sb.route);
 
-    const res = await feedApp.request("/calendar/abcdefghijklmnopqrstuvwxyz/schedule.ics", {}, env);
+    const res = await feedApp.request(feedPath, {}, env);
     expect(res.status).toBe(200);
+    expect(res.headers.get("cache-control")).toBe("no-store, private");
+    expect(sb.find("POST", "/rest/v1/rpc/api_calendar_feed_tasks")[0].body).toMatchObject({
+      p_company_id: COMPANY_ID,
+      p_user_id: MEMBER_ID,
+      p_since: expect.any(String),
+    });
     // Unfold the ics line wrapping before reading the fields.
     const body = (await res.text()).replaceAll(/\r\n[ \t]/g, "");
     const taskUrl = `${env.APP_ORIGIN}/tasks/${taskId}`;
     expect(body).toContain(`URL:${taskUrl}`);
     expect(body).toContain(`DESCRIPTION:Bring ladder\\n\\nOpen in Loonext: ${taskUrl}`);
+  });
+
+  it("does not fetch tasks for a role without conversation access", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_resolve_calendar_feed_token", () => [
+      { company_id: COMPANY_ID, user_id: MEMBER_ID, role: "bookkeeper", company_name: "Northside Plumbing" },
+    ]);
+    stubFetch(sb.route);
+
+    const res = await feedApp.request(feedPath, {}, env);
+
+    expect(res.status).toBe(404);
+    expect(sb.find("POST", "/rest/v1/rpc/api_calendar_feed_tasks")).toHaveLength(0);
   });
 
   it("does not open the feed to any other origin", async () => {
