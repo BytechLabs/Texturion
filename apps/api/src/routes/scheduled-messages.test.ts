@@ -2,6 +2,7 @@
  * How long a scheduled text may stay held is the workspace's setting, with 24
  * hours as the default.
  */
+import { SCHEDULED_HORIZON_DAYS } from "@loonext/shared";
 import { afterEach, beforeAll, describe, expect, it, vi } from "vitest";
 
 import {
@@ -96,6 +97,51 @@ it("returns a scheduled text on replay even when the destination clock now asks 
     p_idempotency_key: "schedule-1",
     p_needs_quiet_confirmation: true,
   });
+});
+
+it("returns the same catalogue key when scheduling or rescheduling too far ahead", async () => {
+  const sb = supabaseStub(env);
+  sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
+  sb.on("GET", "/rest/v1/conversations", () => [
+    { contact_phone_e164: "+16135550142", contacts: { timezone: "America/Toronto" } },
+  ]);
+  sb.on("GET", "/rest/v1/scheduled_messages", () => ({
+    status: "pending",
+    conversation_id: CONVERSATION_ID,
+    conversations: null,
+  }));
+  sb.on("POST", "/rest/v1/rpc/api_schedule_message", () => ({ outcome: "too_far_out", limit_days: 12 }));
+  sb.on("GET", /\/rest\/v1\//, () => []);
+  stubFetch(jwksRoute(auth), sb.route);
+
+  const token = await auth.token();
+  const sendAt = new Date(Date.now() + (SCHEDULED_HORIZON_DAYS + 2) * 86_400_000).toISOString();
+  const scheduled = await apiRequest(app, env, token, "/v1/scheduled-messages", {
+    method: "POST",
+    companyId: COMPANY_ID,
+    body: {
+      conversation_id: CONVERSATION_ID,
+      body: "Checking in",
+      send_at: sendAt,
+      quiet_hours_confirmed: true,
+    },
+  });
+  const rescheduled = await apiRequest(app, env, token, `/v1/scheduled-messages/${SCHEDULED_ID}`, {
+    method: "PATCH",
+    companyId: COMPANY_ID,
+    body: { send_at: sendAt },
+  });
+
+  for (const [response, days] of [[scheduled, 12], [rescheduled, SCHEDULED_HORIZON_DAYS]] as const) {
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      error: {
+        code: "validation_failed",
+        message_key: "apiRefusals.scheduledTextHorizon",
+        message_vars: { days: String(days) },
+      },
+    });
+  }
 });
 
 describe("GET /v1/scheduled-messages allowed actions (#722)", () => {
