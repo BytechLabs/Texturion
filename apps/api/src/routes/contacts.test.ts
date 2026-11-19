@@ -4746,7 +4746,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     const file = [
       "BEGIN:VCARD", "VERSION:4.0", "FN:Jo", `TEL:${primary}`, `TEL:${other}`,
       "EMAIL:jo@example.invalid", "ORG:Manufacturing;Service", "ADR:;;1 New St;Ottawa;ON;K1A 0B1;CA",
-      "NOTE:Use the side door\\nRing the bell", "CATEGORIES:Do not text", "END:VCARD",
+      String.raw`NOTE:Use the side door\nRing the bell`, "CATEGORIES:Do not text", "END:VCARD",
     ].join("\r\n");
     const form = vcardForm(file, true, [
       { property: "EMAIL", action: "import" }, { property: "ORG", action: "import" },

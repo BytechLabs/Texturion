@@ -466,7 +466,7 @@ export function vcardParameterProperty(
 /** What a caller may say about one vCard property. */
 export type VCardPropertyAction = "ignore" | "opted_out" | "import";
 
-export const VCARD_PROFILE_PROPERTIES = ["EMAIL", "ORG", "ADR", "NOTE"] as const;
+const VCARD_PROFILE_PROPERTIES = ["EMAIL", "ORG", "ADR", "NOTE"] as const;
 
 export function canImportVCardProperty(property: string): boolean {
   return VCARD_PROFILE_PROPERTIES.some((field) => field === property);
