@@ -45,10 +45,13 @@ import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.outlined.AutoAwesome
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
+import androidx.compose.material.icons.automirrored.outlined.StickyNote2
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Description
+import androidx.compose.material.icons.outlined.ChatBubbleOutline
 import androidx.compose.material.icons.outlined.ContactPage
 import androidx.compose.material.icons.outlined.Description as DescriptionOutlined
 import androidx.compose.material.icons.outlined.Event
@@ -142,7 +145,6 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import androidx.compose.ui.text.style.TextDecoration
-import com.loonext.android.ui.common.asToggleButton
 
 enum class ComposerMode { Text, Note }
 
@@ -993,35 +995,6 @@ fun ThreadComposer(
             }
         }
 
-        if (!textBlocked) {
-            Row(
-                Modifier.padding(start = 16.dp, top = 4.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                ModePill(
-                    label = t("thread.modeText"),
-                    selected = state.mode == ComposerMode.Text,
-                    selectedBg = MaterialTheme.colorScheme.primaryContainer,
-                    selectedInk = MaterialTheme.colorScheme.onPrimaryContainer,
-                    onClick = {
-                        if (state.mode != ComposerMode.Text) haptics.tap()
-                        state.mode = ComposerMode.Text
-                    },
-                )
-                Spacer(Modifier.width(4.dp))
-                ModePill(
-                    label = t("thread.modeNote"),
-                    selected = state.mode == ComposerMode.Note,
-                    selectedBg = NoteAmber.bg(),
-                    selectedInk = NoteAmber.ink(),
-                    onClick = {
-                        if (state.mode != ComposerMode.Note) haptics.tap()
-                        state.mode = ComposerMode.Note
-                    },
-                )
-            }
-        }
-
         if (!isNote && (suggestions.isNotEmpty() || suggesting)) {
             ReplySuggestionsRow(
                 suggestions = suggestions,
@@ -1181,7 +1154,7 @@ fun ThreadComposer(
         Row(
             Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 12.dp, vertical = 8.dp)
+                .padding(start = 12.dp, end = 12.dp, top = 8.dp, bottom = 4.dp)
                 .border(1.dp, pillLine, RoundedCornerShape(24.dp))
                 .background(pillBg, RoundedCornerShape(24.dp))
                 .pointerInput(textBlocked) {
@@ -1224,6 +1197,17 @@ fun ThreadComposer(
                         expanded = attachMenuOpen,
                         dismiss = { attachMenuOpen = false },
                     ) {
+                        DropdownMenuItem(
+                            text = { Text(t("thread.modeNote")) },
+                            leadingIcon = {
+                                Icon(Icons.AutoMirrored.Outlined.StickyNote2, contentDescription = null)
+                            },
+                            onClick = {
+                                attachMenuOpen = false
+                                haptics.tap()
+                                state.mode = ComposerMode.Note
+                            },
+                        )
                         DropdownMenuItem(
                             text = { Text(t("thread.savedReply")) },
                             leadingIcon = {
@@ -1269,22 +1253,46 @@ fun ThreadComposer(
                 }
             } else {
                 Box {
-                    IconButton(
-                        onClick = { attachMenuOpen = true },
-                        enabled = state.files.size < MAX_NOTE_FILES,
-                    ) {
-                        Icon(
-                            Icons.Filled.AttachFile,
-                            contentDescription = t("thread.attachFilesToNote"),
-                            tint = NoteAmber.ink(),
-                        )
+                    if (textBlocked) {
+                        IconButton(
+                            onClick = { attachMenuOpen = true },
+                            enabled = state.files.size < MAX_NOTE_FILES,
+                        ) {
+                            Icon(
+                                Icons.Filled.AttachFile,
+                                contentDescription = t("thread.attachFilesToNote"),
+                                tint = NoteAmber.ink(),
+                            )
+                        }
+                    } else {
+                        TextButton(onClick = { attachMenuOpen = true }) {
+                            Text(t("thread.modeNote"), color = NoteAmber.ink())
+                            Icon(
+                                Icons.Filled.ArrowDropDown,
+                                contentDescription = null,
+                                modifier = Modifier.size(IconSize.Small),
+                                tint = NoteAmber.ink(),
+                            )
+                        }
                     }
                     AttachmentMenu(
                         picker = attachmentPicker,
                         enabled = state.files.size < MAX_NOTE_FILES,
                         expanded = attachMenuOpen,
                         dismiss = { attachMenuOpen = false },
-                    )
+                    ) {
+                        if (!textBlocked) {
+                            DropdownMenuItem(
+                                text = { Text(t("thread.modeText")) },
+                                leadingIcon = { Icon(Icons.Outlined.ChatBubbleOutline, contentDescription = null) },
+                                onClick = {
+                                    attachMenuOpen = false
+                                    haptics.tap()
+                                    state.mode = ComposerMode.Text
+                                },
+                            )
+                        }
+                    }
                 }
 
                 // #507. In the row beside the paperclip rather than behind a
@@ -1772,39 +1780,6 @@ fun ComposerHints(
         }
         Spacer(Modifier.height(4.dp))
     }
-}
-
-@Composable
-private fun ModePill(
-    label: String,
-    selected: Boolean,
-    selectedBg: Color,
-    selectedInk: Color,
-    onClick: () -> Unit,
-) {
-    // Crossfade with the pill body (#185) instead of snapping.
-    val bg by animateColorAsState(
-        if (selected) selectedBg else Color.Transparent,
-        animationSpec = tween(durationMillis = 200),
-        label = "mode-pill-bg",
-    )
-    val ink by animateColorAsState(
-        if (selected) selectedInk else MaterialTheme.colorScheme.onSurfaceVariant,
-        animationSpec = tween(durationMillis = 200),
-        label = "mode-pill-ink",
-    )
-    Text(
-        label,
-        style = MaterialTheme.typography.labelMedium,
-        color = ink,
-        modifier = Modifier
-            .touchTarget()
-            .background(bg, RoundedCornerShape(50))
-            .clip(RoundedCornerShape(50))
-            .clickable(onClick = onClick)
-            .asToggleButton(selected)
-            .padding(horizontal = 12.dp, vertical = 6.dp),
-    )
 }
 
 /** #507: what the microphone in the note box is doing right now. */

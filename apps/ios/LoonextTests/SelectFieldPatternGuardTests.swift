@@ -34,6 +34,7 @@ final class SelectFieldPatternGuardTests: XCTestCase {
             PatternException(file: "Features/Tasks/TaskFilterSheet.swift", rule: "system Picker", reason: "The task filter sheet: Form rows, where the system draws the row's title beside the value."),
             PatternException(file: "Features/Tasks/TasksTab.swift", rule: "Menu that sets a value", reason: "The sort chip in the filter bar: a sort order is a view setting shown as a chip beside the filters, not a field."),
             PatternException(file: "Features/Contacts/ContactsTab.swift", rule: "Menu that sets a value", reason: "The import button: it picks which file type to open, then runs the importer. An action, not a stored choice."),
+            PatternException(file: "Features/Compose/Composer.swift", rule: "Menu that sets a value", reason: "The composer actions menu opens a note or text draft alongside attachments and quotes."),
             PatternException(file: "Features/Tasks/TaskLinksSection.swift", rule: "Menu that sets a value", reason: "The add-link button: each row opens the task picker for that relation. An action, not a stored choice."),
             PatternException(file: "Features/Tasks/TaskDetailView.swift", rule: "Menu that sets a value", reason: "The comment actions menu: edit and delete. Its Button fills the edit draft, which is an action."),
         ],

@@ -236,6 +236,7 @@ object ThreadStrings : AppStrings.Section {
         // --- Pinned ------------------------------------------------------------
         "thread.pinned" to "Pinned",
         "thread.pinnedCount" to "Pinned · {count}",
+        "thread.pinnedJump" to "Jump to pinned message",
         "thread.collapse" to "Collapse",
         "thread.expand" to "Expand",
 
@@ -331,7 +332,6 @@ object ThreadStrings : AppStrings.Section {
         "thread.catchUpHint" to "Catch up on this conversation?",
         "thread.catchUpRecap" to "Recap",
         "thread.notNow" to "Not now",
-        "thread.morePinnedAria" to "{count} more pinned",
         "thread.summaryTruncated" to
             "The conversation is longer than this — Lou read the most recent part.",
         "thread.summaryLineAria" to "{text}. Open the message this came from.",
@@ -1028,6 +1028,7 @@ object ThreadStrings : AppStrings.Section {
         // --- Pinned ------------------------------------------------------------
         "thread.pinned" to "Épinglé",
         "thread.pinnedCount" to "Épinglés · {count}",
+        "thread.pinnedJump" to "Aller au message épinglé",
         "thread.collapse" to "Réduire",
         "thread.expand" to "Développer",
 
@@ -1123,7 +1124,6 @@ object ThreadStrings : AppStrings.Section {
         "thread.catchUpHint" to "Rattraper cette conversation ?",
         "thread.catchUpRecap" to "Résumé",
         "thread.notNow" to "Pas maintenant",
-        "thread.morePinnedAria" to "{count} autres épinglés",
         "thread.summaryTruncated" to
             "La conversation est plus longue que ceci — Lou a lu la partie la " +
             "plus récente.",

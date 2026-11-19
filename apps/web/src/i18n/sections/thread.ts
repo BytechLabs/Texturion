@@ -154,7 +154,8 @@ export const threadEn = {
   pinnedMessagesAria: "Pinned messages",
   jumpToPinnedAria: "Jump to pinned message: {snippet}",
   /** #716: the count on a collapsed stack of pins. */
-  morePinnedAria: "{count} more pinned",
+  pinnedCount: "Pinned · {count}",
+  pinnedJump: "Jump to pinned message",
   jump: "Jump",
 
   // --- The catch-up card (thread-summary-card.tsx) --------------------------
@@ -962,7 +963,8 @@ export const threadFr: Translated<typeof threadEn> = {
   // --- The pinned strip -----------------------------------------------------
   pinnedMessagesAria: "Messages épinglés",
   jumpToPinnedAria: "Aller au message épinglé : {snippet}",
-  morePinnedAria: "{count} autres épinglés",
+  pinnedCount: "Épinglés · {count}",
+  pinnedJump: "Aller au message épinglé",
   jump: "Aller",
 
   // --- The catch-up card ----------------------------------------------------

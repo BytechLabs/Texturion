@@ -59,10 +59,9 @@ const SURFACES = {
       "iOS sheet; all three share `isDeliberateDrag` from packages/shared.",
   },
   "apps/android/app/src/main/kotlin/com/loonext/android/features/compose/Composer.kt": {
-    alternative: "detectTapGestures",
+    alternative: 'text = { Text(t("thread.modeNote")) }',
     why:
-      "The composer's mode pill can be dragged sideways to switch, and tapped " +
-      "to do the same thing. The drag is the shortcut; the tap is the door.",
+      "Open Add to message and choose Note, or open the Note menu and choose Text.",
   },
   "apps/android/app/src/main/kotlin/com/loonext/android/ui/common/SwipeActions.kt": {
     // The component itself cannot carry the alternative — the actions belong

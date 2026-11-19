@@ -130,7 +130,7 @@ final class ComposerState {
     }
 }
 
-/// The messages-style composer pill: Text/Note mode toggle, auto-grow field
+/// The messages-style composer pill: text and note actions, auto-grow field
 /// (1→6 lines then internal scroll), `/` opens saved replies, photo attach
 /// (≤3, transcoded ≤1 MB), note files (≤10 × 25 MB), passive segment meter,
 /// merge-field live preview. `banner` replaces text mode with an explanatory
@@ -411,26 +411,6 @@ struct ThreadComposerView: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 16)
                     .padding(.top, 6)
-            }
-
-            if !textBlocked {
-                HStack(spacing: 4) {
-                    modePill(
-                        label: t("thread.modeText"),
-                        selected: state.mode == .text,
-                        selectedBg: BrandColor.avatarTint,
-                        selectedInk: BrandColor.muted900
-                    ) { state.mode = .text }
-                    modePill(
-                        label: t("thread.modeNote"),
-                        selected: state.mode == .note,
-                        selectedBg: NoteAmber.bg,
-                        selectedInk: NoteAmber.ink
-                    ) { state.mode = .note }
-                    Spacer()
-                }
-                .padding(.leading, 16)
-                .padding(.top, 4)
             }
 
             if !isNote, !suggestions.isEmpty || suggesting {
@@ -784,6 +764,11 @@ struct ThreadComposerView: View {
                 Menu {
                     attachmentSourceActions.disabled(state.photos.count >= maxPhotos)
                     Button {
+                        state.mode = .note
+                    } label: {
+                        Label(t("thread.modeNote"), systemImage: "note.text")
+                    }
+                    Button {
                         templatePickerOpen = true
                     } label: {
                         Label(t("thread.savedReply"), systemImage: "text.badge.plus")
@@ -797,7 +782,7 @@ struct ThreadComposerView: View {
                     Image(systemName: "plus")
                         .font(.body.weight(.medium))
                         .foregroundStyle(BrandColor.muted500)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 44, height: 44)
                 }
                 .accessibilityLabel(t("thread.addToMessage"))
 
@@ -821,15 +806,33 @@ struct ThreadComposerView: View {
                 }
             } else {
                 Menu {
-                    attachmentSourceActions
+                    if !textBlocked {
+                        Button {
+                            state.mode = .text
+                        } label: {
+                            Label(t("thread.modeText"), systemImage: "message")
+                        }
+                    }
+                    attachmentSourceActions.disabled(state.files.count >= maxNoteFiles)
                 } label: {
-                    Image(systemName: "paperclip")
-                        .font(.body.weight(.medium))
-                        .foregroundStyle(NoteAmber.ink)
-                        .frame(width: 36, height: 36)
+                    Group {
+                        if textBlocked {
+                            Image(systemName: "paperclip")
+                                .font(.body.weight(.medium))
+                        } else {
+                            HStack(spacing: 3) {
+                                Text(t("thread.modeNote"))
+                                Image(systemName: "chevron.down")
+                                    .accessibilityHidden(true)
+                            }
+                            .font(.footnote.weight(.medium))
+                        }
+                    }
+                    .foregroundStyle(NoteAmber.ink)
+                    .frame(minWidth: 44, minHeight: 44)
                 }
-                .disabled(state.files.count >= maxNoteFiles)
-                .accessibilityLabel(t("thread.attachFilesToNote"))
+                .disabled(textBlocked && state.files.count >= maxNoteFiles)
+                .accessibilityLabel(t(textBlocked ? "thread.attachFilesToNote" : "thread.modeNote"))
 
                 // #507: in the pill beside the paperclip rather than behind a
                 // menu, for the same reason Lou's orb is in text mode — this is
@@ -906,7 +909,8 @@ struct ThreadComposerView: View {
                 )
         )
         .padding(.horizontal, 12)
-        .padding(.vertical, 8)
+        .padding(.top, 8)
+        .padding(.bottom, 4)
     }
 
     // MARK: - #507 wrap-up dictation
@@ -1121,25 +1125,6 @@ struct ThreadComposerView: View {
             wrapUpPhase = .idle
             wrapUpSeconds = 0
         }
-    }
-
-    private func modePill(
-        label: String,
-        selected: Bool,
-        selectedBg: Color,
-        selectedInk: Color,
-        onTap: @escaping @MainActor () -> Void
-    ) -> some View {
-        Button(action: onTap) {
-            Text(label)
-                .font(.footnote.weight(.medium))
-                .foregroundStyle(selected ? selectedInk : BrandColor.muted500)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 6)
-                .background(selected ? selectedBg : Color.clear, in: Capsule())
-                .contentShape(Capsule())
-        }
-        .buttonStyle(.plain)
     }
 
     private func handleTextChange(_ value: String) {

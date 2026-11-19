@@ -239,6 +239,7 @@ enum ThreadStrings {
             // --- Pinned ----------------------------------------------------------
             "thread.pinned": "Pinned",
             "thread.pinnedCount": "Pinned · {count}",
+            "thread.pinnedJump": "Jump to pinned message",
             "thread.collapsePinned": "Collapse pinned",
             "thread.expandPinned": "Expand pinned",
 
@@ -337,7 +338,6 @@ enum ThreadStrings {
             "thread.catchUpHint": "Catch up on this conversation?",
             "thread.catchUpRecap": "Recap",
             "thread.notNow": "Not now",
-            "thread.morePinnedAria": "{count} more pinned",
             "thread.summaryOfferAria": "Catch me up on this conversation",
             "thread.summaryOfferHint":
                 "Lou reads the conversation and shows what they asked, what you said, and "
@@ -1020,6 +1020,7 @@ enum ThreadStrings {
             // --- Pinned ----------------------------------------------------------
             "thread.pinned": "Épinglé",
             "thread.pinnedCount": "Épinglés · {count}",
+            "thread.pinnedJump": "Aller au message épinglé",
             "thread.collapsePinned": "Réduire les épinglés",
             "thread.expandPinned": "Développer les épinglés",
 
@@ -1121,7 +1122,6 @@ enum ThreadStrings {
             "thread.catchUpHint": "Rattraper cette conversation ?",
             "thread.catchUpRecap": "Résumé",
             "thread.notNow": "Pas maintenant",
-            "thread.morePinnedAria": "{count} autres épinglés",
             "thread.summaryOfferAria": "Faites-moi un résumé de cette conversation",
             "thread.summaryOfferHint":
                 "Lou lit la conversation et montre ce que le client a demandé, ce "

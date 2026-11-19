@@ -9,10 +9,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ExpandLess
 import androidx.compose.material.icons.filled.ExpandMore
@@ -30,8 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -109,11 +111,7 @@ internal fun catchUpHintShown(
     answeredId: String?,
 ): Boolean = offered && !recapOpen && newestNotMineId != null && answeredId != newestNotMineId
 
-/**
- * Pins as a stack. One row shows the newest pin and how many more there are,
- * and opens the full list on demand; each conversation remembers whether it
- * was left open. A single pin is just that pin, one tap from the message.
- */
+/** Remembers whether each conversation's pin list was left open. */
 @Composable
 internal fun PinnedStack(
     conversationId: String,
@@ -125,27 +123,30 @@ internal fun PinnedStack(
         mutableStateOf(readPinsOpen(context, conversationId))
     }
     val newest = pinned.firstOrNull() ?: return
-    val older = pinned.size - 1
+    val multiple = pinned.size > 1
+    val actionLabel = if (multiple) {
+        t(if (expanded) "thread.collapse" else "thread.expand")
+    } else {
+        t("thread.pinnedJump")
+    }
     val photo = t("thread.photo")
     Column(
         Modifier
             .fillMaxWidth()
             .padding(horizontal = 18.dp, vertical = 5.dp)
             .clip(RoundedCornerShape(14.dp))
-            .background(
-                if (isSystemInDarkTheme()) MaterialTheme.colorScheme.surfaceContainerHigh
-                else BrandColor.Cream,
-            ),
+            .background(MaterialTheme.colorScheme.surfaceContainerHigh),
     ) {
         Row(
             Modifier
                 .fillMaxWidth()
-                .clickable {
-                    if (older == 0) {
-                        onJump(newest.id)
-                    } else {
+                .heightIn(min = 48.dp)
+                .clickable(role = Role.Button, onClickLabel = actionLabel) {
+                    if (multiple) {
                         expanded = !expanded
                         writePinsOpen(context, conversationId, expanded)
+                    } else {
+                        onJump(newest.id)
                     }
                 }
                 .padding(horizontal = 14.dp, vertical = 8.dp),
@@ -159,51 +160,47 @@ internal fun PinnedStack(
             )
             Spacer(Modifier.width(8.dp))
             Text(
-                newest.body.ifBlank { photo },
+                t("thread.pinnedCount", "count" to pinned.size.toString()),
                 style = MaterialTheme.typography.labelMedium,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f),
             )
-            if (older > 0) {
-                val moreLabel = t("thread.morePinnedAria", "count" to older.toString())
+            if (multiple) {
                 Spacer(Modifier.width(8.dp))
-                Text(
-                    "+$older",
-                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.semantics { contentDescription = moreLabel },
-                )
                 Icon(
                     if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (expanded) t("thread.collapse") else t("thread.expand"),
+                    contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
         }
-        if (older > 0 && expanded) {
-            pinned.forEach { message ->
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .clickable { onJump(message.id) }
-                        .padding(horizontal = 16.dp, vertical = 8.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Text(
-                        message.body.ifBlank { photo },
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.weight(1f),
-                    )
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        bubbleTime(message.created_at),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+        if (multiple && expanded) {
+            Column(Modifier.heightIn(max = 192.dp).verticalScroll(rememberScrollState())) {
+                pinned.forEach { message ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 48.dp)
+                            .clickable(role = Role.Button) { onJump(message.id) }
+                            .padding(horizontal = 16.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        Text(
+                            message.body.ifBlank { photo },
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f),
+                        )
+                        Spacer(Modifier.width(8.dp))
+                        Text(
+                            bubbleTime(message.created_at),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
         }

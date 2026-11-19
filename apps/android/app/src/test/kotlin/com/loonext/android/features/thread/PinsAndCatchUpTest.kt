@@ -91,16 +91,17 @@ class PinsAndCatchUpTest {
 
     @Test
     fun `the new strings exist in both languages`() {
+        val labels = listOf("thread.catchUpHint", "thread.catchUpRecap", "thread.notNow", "thread.pinnedJump")
         for (locale in listOf("en", MessageLocale.FR_CA)) {
-            for (key in listOf("thread.catchUpHint", "thread.catchUpRecap", "thread.notNow")) {
+            for (key in labels) {
                 val text = AppStrings.translate(locale, key, emptyMap())
                 assertTrue("$locale $key", text.isNotBlank() && text != key)
             }
-            val more = AppStrings.translate(locale, "thread.morePinnedAria", mapOf("count" to "2"))
-            assertTrue("$locale $more", more.contains("2") && !more.contains("{count}"))
+            val pinCount = AppStrings.translate(locale, "thread.pinnedCount", mapOf("count" to "2"))
+            assertTrue("$locale $pinCount", pinCount.contains("2") && !pinCount.contains("{count}"))
         }
         assertEquals("Rattraper cette conversation ?", AppStrings.translate(MessageLocale.FR_CA, "thread.catchUpHint", emptyMap()))
-        assertEquals("2 autres épinglés", AppStrings.translate(MessageLocale.FR_CA, "thread.morePinnedAria", mapOf("count" to "2")))
+        assertEquals("Épinglés · 2", AppStrings.translate(MessageLocale.FR_CA, "thread.pinnedCount", mapOf("count" to "2")))
     }
 
     @Test
