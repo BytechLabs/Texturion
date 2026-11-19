@@ -147,28 +147,21 @@ loonext/
    → creates company (subscription_status='incomplete'), creator becomes owner
      member, creates notification_prefs row.
 
-3. Registration wizard (pre-checkout, in-app; ~2 minutes)
-   Collects brand + campaign data into messaging_registrations rows (status='draft'):
-   • Legal business name, address, website (optional for sole prop)
-   • EIN (US) / BN (CA) — OR "I don't have an EIN/BN" → Sole Proprietor path:
-     first/last name and mobile number for OTP (D203)
-   • Brand contact email + phone (pre-filled from the owner's account email;
-     required by the Telnyx brand payload — see §4.4 field mapping)
-   • Business vertical (dropdown of TCR vertical values; default 'PROFESSIONAL')
-   • Opt-in flow description (pre-filled truthful default, editable):
+3. Texting details (before checkout)
+   Collects the campaign draft for companies enabling US texting:
+   • Opt-in flow description (pre-filled truthful default, editable)
      "Customers text or call our business, ask us to text them in person or by
       phone, or request a text on our website. We never send marketing blasts."
    • Sample messages (pre-filled from ICP templates)
-   Canadian companies with us_texting_enabled=false skip the wizard entirely.
+   Canadian companies with us_texting_enabled=false skip the registration steps.
 
 4. POST /v1/billing/checkout { plan: 'starter'|'pro' } → Stripe Checkout
    (subscription mode).
    Gates (both return 409 `conflict`):
    • subscription_status already in ('active','past_due','unpaid') — one
      subscription per company, ever concurrent.
-   • The company owes US registration (country='US', or 'CA' with
-     us_texting_enabled=true) and the wizard's brand + campaign draft rows are
-     not complete — no such company reaches payment without a submittable draft.
+   • The company owes US registration and its campaign draft is incomplete.
+     A canceled workspace can restart service with a missing campaign draft.
    Line items: licensed flat price (plan) + metered graduated price (NO quantity)
    + one-time $29 US-registration price when applicable (US company, or CA company
    with us_texting_enabled — AND registration_fee_paid_at IS NULL; see §2).
@@ -185,12 +178,18 @@ loonext/
    a. Store stripe_customer_id, stripe_subscription_id, plan, period dates;
       subscription_status = 'active'; registration_fee_paid_at when fee line present.
    b. Start the provisioning saga (4.3).
-   c. Submit the 10DLC registration (4.4) — the checkout gate (step 4)
-      guarantees a complete draft for every company that owes US registration;
-      CA companies with us_texting_enabled=false have nothing to submit.
+   c. Submit an existing complete 10DLC registration once payment is recorded.
    Idempotent via webhook_events PK + phone_numbers.provisioning_key.
 
-6. Customer lands on the dashboard, which live-renders (via Realtime) the states:
+6. Business details (after checkout, for companies that owe US registration)
+   Collects the brand draft if details are missing:
+   • Legal business name, address and optional website
+   • EIN (US) / BN (CA), or the sole proprietor's name and mobile number for OTP (D203)
+   • Brand contact email and phone, and business vertical
+   Saving the last draft triggers submission once the registration fee is paid.
+   The registration poller retries a complete paid brand draft after a carrier outage.
+
+7. Customer lands on the setup checklist, which live-renders the states:
    number provisioning → number active; US registration pending → approved.
 ```
 
@@ -832,7 +831,7 @@ shell.
 | `POST /v1/companies` | any | Create company: `{ name, country, requested_area_code, us_texting_enabled?, aup_accepted: true }` → company; creator = owner |
 | `GET /v1/company` | M | Company + plan, subscription_status, period, cap, numbers summary, registration summary |
 | `PATCH /v1/company` | O/A | `{ name? }`; `{ overage_cap_multiplier? }` **owner only** (number or null) |
-| `POST /v1/billing/checkout` | O/A | `{ plan: 'starter'\|'pro' }` → `{ url }` Stripe Checkout session (§9 composition); 409 `conflict` when `subscription_status` ∈ ('active','past_due','unpaid') or a required registration draft is incomplete (§4.1 step 4) |
+| `POST /v1/billing/checkout` | O/A | `{ plan: 'starter'\|'pro' }` → `{ url }` Stripe Checkout session (§9 composition); 409 `conflict` when `subscription_status` ∈ ('active','past_due','unpaid') or required texting details are incomplete (§4.1 step 4) |
 | `POST /v1/billing/portal` | O/A | → `{ url }` hosted portal (payment methods, invoices, cancellation only) |
 | `POST /v1/billing/change-plan` | billing.manage | `{ plan: 'starter'\|'pro' }` — upgrades prorate immediately. Downgrades start at period end and require at most one number and three active or reserved seats. The pending Starter limit applies to new invites and numbers until the downgrade takes effect or is withdrawn. |
 | `POST /v1/billing/cancel-plan-change` | billing.manage | Keep Pro by releasing the pending Stripe schedule before Starter takes effect. |
@@ -1127,7 +1126,7 @@ Billing managers receive a warning at 90% of the texting or calling spending cap
 
 ### Checkout composition (D6)
 
-Request body: `{ plan: 'starter'|'pro' }` (zod-validated) selects the price pair. Gates (409 `conflict`): `subscription_status` already in ('active','past_due','unpaid'); or the company owes US registration (US, or CA with `us_texting_enabled=true`) and the wizard's brand + campaign draft rows are incomplete (§4.1 step 4). Subscription-mode Checkout Session: `client_reference_id = company_id`; line items = licensed price (qty 1) + metered price (**no quantity** — required for metered items) + the one-time $29 price when applicable (US company or CA with `us_texting_enabled`, **and `registration_fee_paid_at IS NULL`** — never charged twice; initial invoice only); `automatic_tax[enabled]=true`; success/cancel URLs back to the dashboard. **Company-first ordering:** signup → `POST /v1/companies` (status `incomplete`) → checkout. **`checkout.session.completed` with `payment_status=='paid'` is the only provisioning trigger** — never the redirect page.
+Request body: `{ plan: 'starter'|'pro' }` (zod-validated) selects the price pair. Checkout returns 409 for an existing live subscription or missing required texting details (§4.1 step 4). Subscription-mode Checkout Session: `client_reference_id = company_id`; line items = licensed price (qty 1) + metered price (**no quantity** — required for metered items) + the one-time $29 price when applicable (US company or CA with `us_texting_enabled`, **and `registration_fee_paid_at IS NULL`** — never charged twice; initial invoice only); `automatic_tax[enabled]=true`; success/cancel URLs back to onboarding. The company is created on the number step or during number transfer intake. **`checkout.session.completed` with `payment_status=='paid'` is the only provisioning trigger** — never the redirect page.
 
 ### Webhook handling & subscription_status state machine
 

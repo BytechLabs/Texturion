@@ -163,7 +163,7 @@ export default function TextingDetailsPage() {
         campaign: values,
       });
       trackOnboardingStepCompleted("texting");
-      router.push("/onboarding/plan");
+      router.push("/onboarding");
     } catch (cause) {
       setFormError(
         cause instanceof ApiError

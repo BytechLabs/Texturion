@@ -153,7 +153,7 @@ describe("GET /v1/me", () => {
       },
     ]);
     sb.on("GET", "/rest/v1/messaging_registrations", () => [
-      { kind: "brand", status: "approved" },
+      { kind: "brand", status: "approved", data: { ein: "12-3456789" } },
       { kind: "campaign", status: "pending", rejection_reason: null },
     ]);
     sb.on("GET", "/rest/v1/company_modules", () => []); // #133 enabled_modules
@@ -181,6 +181,7 @@ describe("GET /v1/me", () => {
       kind: "brand",
       status: "approved",
     });
+    expect(body.company.registration.brand).not.toHaveProperty("data");
     expect(body.company.registration.campaign).toMatchObject({
       kind: "campaign",
       status: "pending",

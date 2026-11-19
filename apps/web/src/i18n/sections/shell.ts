@@ -121,6 +121,9 @@ export const shellEn = {
     "Text-enabling your existing number. Carrier review usually takes a few business days. Calls keep working the whole time.",
   regPending:
     "US texting activates in ~3 to 7 business days (carrier approval). Calling, receiving texts, and texting Canadian numbers already work.",
+  regBusinessDetailsNeeded: "One step left: your business details",
+  regTextingDetailsNeeded: "Finish your US texting setup",
+  regFinishRegistration: "Continue setup",
   regOtpPending:
     "One step left: enter the verification code we sent to {phone} to finish US registration.",
   regRejected:
@@ -508,6 +511,9 @@ export const shellFr: Translated<typeof shellEn> = {
     "Activation des textos sur votre numéro actuel. L'examen par le fournisseur prend habituellement quelques jours ouvrables. Les appels continuent de fonctionner pendant tout ce temps.",
   regPending:
     "Les textos vers les États-Unis s'activent en environ 3 à 7 jours ouvrables (approbation du fournisseur). Les appels, la réception de textos et les textos vers les numéros canadiens fonctionnent déjà.",
+  regBusinessDetailsNeeded: "Une dernière étape : les renseignements sur votre entreprise",
+  regTextingDetailsNeeded: "Terminez la configuration des textos vers les États-Unis",
+  regFinishRegistration: "Continuer la configuration",
   regOtpPending:
     "Une dernière étape : entrez le code de vérification envoyé au {phone} pour terminer l'inscription américaine.",
   regRejected:

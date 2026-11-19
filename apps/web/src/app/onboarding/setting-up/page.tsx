@@ -30,7 +30,7 @@ import { formatPhone } from "@/lib/format/phone";
 import { cn } from "@/lib/utils";
 
 import { StepError, StepLoading } from "../step-shell";
-import { hasPaid, owesUsRegistration } from "../steps";
+import { hasPaid, owesUsRegistration, pendingRegistrationStep } from "../steps";
 import { useOnboardingState } from "../use-onboarding-state";
 import { setupHeadline } from "./headline";
 import {
@@ -377,6 +377,7 @@ function SettingUp() {
   // shows the "confirming payment" row until the subscription flips.
   const paid = company ? hasPaid(company.subscription_status) : false;
   const confirming = company !== null && !paid && checkoutSuccess;
+  const registrationStep = paid && state.snapshot ? pendingRegistrationStep(state.snapshot) : null;
 
   // Funnel: the checkout return confirmed as paid (client view; the Stripe
   // webhook's server-side event stays authoritative). The helper's
@@ -532,10 +533,7 @@ function SettingUp() {
   const registrationStatus: RowStatus =
     !owes || campaignApproved
       ? "done"
-      : // A sole-prop's OTP verification is waiting on the USER (they must enter
-        // the code texted to their mobile) — show the honest "action" alert, not
-        // a "working" spinner that implies the system is busy.
-        otpPending
+      : registrationStep || otpPending
         ? "action"
         : confirming
           ? "waiting"
@@ -555,7 +553,7 @@ function SettingUp() {
     registrationStatus === "done" &&
     inboxStatus === "done";
   const aRowNeedsYou =
-    numberActionNeeded || portItem?.actionNeeded || otpPending;
+    numberActionNeeded || portItem?.actionNeeded || otpPending || registrationStep !== null;
 
   return (
     <div className="space-y-10">
@@ -647,6 +645,19 @@ function SettingUp() {
             <p className="text-sm text-muted-foreground">
               {REGISTRATION_COPY.approved}
             </p>
+          ) : registrationStep ? (
+            <div className="space-y-2">
+              <p className="text-sm text-muted-foreground">
+                {t(registrationStep === "business" ? "shell.regBusinessDetailsNeeded" : "shell.regTextingDetailsNeeded")}
+              </p>
+              {canActOnRegistration ? (
+                <Button asChild variant="outline" size="sm">
+                  <Link href={`/onboarding/${registrationStep}`}>
+                    {t("shell.regFinishRegistration")}
+                  </Link>
+                </Button>
+              ) : null}
+            </div>
           ) : registrationRejected ? (
             <div className="space-y-2">
               <p className="text-sm text-muted-foreground">

@@ -47,14 +47,10 @@ import { useWizardStepGuard } from "../use-onboarding-state";
 /**
  * G7 step 2: "Where do your customers text you?" — country (US/CA) + area
  * code picker with "(416) — Ontario"-style hints from the shared NANP table.
- * CA additionally answers the US-texting question (SPEC §4.2); a CA company
- * that declines US texting skips the registration wizard entirely, so THIS
- * screen collects the AUP and creates the company (POST /v1/companies).
+ * Canadian companies that decline US texting skip the registration steps.
  *
  * #79: this step stays editable until checkout. A customer who picked the wrong
- * country can step Back here and switch; when the company already exists (it was
- * created on this step for CA-only, or on the business step for US), Continue
- * PATCHes it pre-checkout instead of creating a second one.
+ * country can step Back here and switch. Continue updates the existing company.
  */
 export default function NumberStepPage() {
   const t = useT();
@@ -107,6 +103,7 @@ export default function NumberStepPage() {
     draft: { ...draft, country, usTexting },
   });
   const skipsRegistration = !draftOwesUsRegistration({ country, usTexting });
+  const nextStep = skipsRegistration ? "/onboarding/plan" : "/onboarding/texting";
   const busy = submitting || createCompany.isPending || updateCompany.isPending;
   // Honest Back: the nearest still-editable preceding step, or none (name locks
   // at creation, so an editing user has nothing reachable behind this step).
@@ -173,7 +170,7 @@ export default function NumberStepPage() {
           us_texting_enabled: country === "CA" ? usTexting : true,
         });
         trackOnboardingStepCompleted("number");
-        router.push(skipsRegistration ? "/onboarding/plan" : "/onboarding/business");
+        router.push(nextStep);
       } catch (cause) {
         onError(cause);
       }
@@ -189,24 +186,16 @@ export default function NumberStepPage() {
       mode: "new",
     });
 
-    if (!skipsRegistration) {
-      trackOnboardingStepCompleted("number");
-      router.push("/onboarding/business");
-      return;
-    }
-
-    // CA, Canadian customers only: no registration wizard — create the
-    // company here (SPEC §4.1 step 2).
     // D15: the creating browser's timezone rides along silently.
     const timezone = browserTimezone();
     try {
       const created = await createCompany.mutateAsync({
         locale: t.locale,
         name: (draft.name ?? "").trim(),
-        country: "CA",
+        country,
         requested_area_code: requestedAreaCode,
         ...(full ? { chosen_number_e164: chosenNumber } : {}),
-        us_texting_enabled: false,
+        us_texting_enabled: !skipsRegistration,
         ...(timezone ? { timezone } : {}),
         // #370: the crew size answered back on the name step.
         ...(draft.crewSize ? { crew_size: draft.crewSize } : {}),
@@ -225,7 +214,7 @@ export default function NumberStepPage() {
       await queryClient.invalidateQueries({ queryKey: keys.me });
       clearOnboardingDraft();
       trackOnboardingStepCompleted("number");
-      router.push("/onboarding/plan");
+      router.push(nextStep);
     } catch (cause) {
       onError(cause);
     }

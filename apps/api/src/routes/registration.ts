@@ -164,11 +164,25 @@ async function upsertDraftRow(
   soleProprietor: boolean,
 ): Promise<void> {
   if (existing) {
-    const { error } = await db
+    const lease = existing.brand_submission_lease_until;
+    if (lease && Date.parse(lease) > Date.now()) {
+      throw new ApiError("conflict", "The registration is being submitted. Refresh before editing it.", {
+        key: "apiRefusals.registrationSubmissionInProgress",
+      });
+    }
+    const { data: saved, error } = await db
       .from("messaging_registrations")
       .update({ data, sole_proprietor: soleProprietor })
-      .eq("id", existing.id);
+      .eq("id", existing.id)
+      .eq("status", existing.status)
+      .filter("brand_submission_lease_until", lease ? "eq" : "is", lease ?? "null")
+      .select("id");
     if (error) throw new Error(`wizard update failed: ${error.message}`);
+    if (!saved?.length) {
+      throw new ApiError("conflict", "The registration changed. Refresh before editing it.", {
+        key: "apiRefusals.registrationChanged",
+      });
+    }
     return;
   }
   const { error } = await db.from("messaging_registrations").upsert(
@@ -184,12 +198,21 @@ async function upsertDraftRow(
   if (error) throw new Error(`wizard insert failed: ${error.message}`);
 }
 
-/** PUT /v1/registration — owner/admin: draft upsert (§4.1 step 3, §7). */
+/** PUT /v1/registration — save editable registration details. */
 registrationRoutes.put("/", requireCapability("numbers.manage"), async (c) => {
   const env = getEnv(c.env);
   const db = getDb(env);
   const companyId = c.get("companyId");
   const body = await parseJsonBody(c, wizardBodySchema);
+
+  if (body.brand) {
+    const company = await fetchCompanyRow(db, companyId);
+    if (company.subscription_status === "incomplete" || company.subscription_status === "incomplete_expired") {
+      throw new ApiError("conflict", "Finish checkout before entering business details.", {
+        key: "apiRefusals.registrationCheckoutRequired",
+      });
+    }
+  }
 
   const { brand, campaign } = await fetchRegistrationRows(db, companyId);
 
@@ -215,24 +238,12 @@ registrationRoutes.put("/", requireCapability("numbers.manage"), async (c) => {
     );
   }
 
-  // #381/#458: the second half of the handshake.
-  //
-  // D2 auto-submits "immediately after payment", and that fired on the
-  // paid-checkout webhook. Now that `business` comes AFTER payment, the brand
-  // draft does not exist at that moment — so the webhook's call no-ops and
-  // THIS is where the registration actually goes out.
-  //
-  // Two conditions, either order: details complete AND payment received.
-  // Whichever lands second triggers it. Both paths call the same idempotent
-  // `submitRegistration`, which no-ops on an incomplete draft or an
-  // already-submitted one, so a redelivered webhook racing a form save cannot
-  // double-submit.
-  //
-  // Best-effort: a Telnyx outage must not fail the save. The wizard step would
-  // look broken and the person would retype details we already have — and the
-  // daily poller picks the submission up regardless.
+  // Read payment after saving so either order of the save and the webhook can submit.
   const company = await fetchCompanyRow(db, companyId);
-  if (hasLiveSubscription(company.subscription_status as LocalSubscriptionStatus)) {
+  if (
+    company.registration_fee_paid_at !== null &&
+    hasLiveSubscription(company.subscription_status as LocalSubscriptionStatus)
+  ) {
     try {
       await submitRegistration(env, companyId);
     } catch (error) {

@@ -1,11 +1,3 @@
-/**
- * Checkout gate helper (SPEC §4.1 step 4, §9): a company that owes US
- * registration (US, or CA with `us_texting_enabled=true`) must have a
- * SUBMITTABLE brand + campaign pair before it may reach payment — the
- * `checkout.session.completed` handler relies on this gate when it submits
- * the 10DLC registration.
- */
-
 export interface RegistrationRow {
   kind: "brand" | "campaign";
   status:
@@ -19,7 +11,7 @@ export interface RegistrationRow {
     | "suspended"
     | "rejected";
   sole_proprietor: boolean;
-  data: Record<string, unknown>;
+  data?: Record<string, unknown>;
 }
 
 /** A company owes the US-registration flow (SPEC §4.2 table). */
@@ -45,6 +37,7 @@ function present(data: Record<string, unknown>, key: string): boolean {
  */
 function brandDataComplete(row: RegistrationRow): boolean {
   const { data } = row;
+  if (!data) return false;
   const common = ["displayName", "email", "phone", "vertical", "street", "city", "state", "postalCode", "country"];
   if (!common.every((key) => present(data, key))) return false;
   if (row.sole_proprietor) {
@@ -56,8 +49,10 @@ function brandDataComplete(row: RegistrationRow): boolean {
 }
 
 function campaignDataComplete(row: RegistrationRow): boolean {
+  const { data } = row;
+  if (!data) return false;
   return ["messageFlow", "sample1", "sample2"].every((key) =>
-    present(row.data, key),
+    present(data, key),
   );
 }
 
@@ -73,7 +68,7 @@ function campaignDataComplete(row: RegistrationRow): boolean {
  * would block checkout for a returning customer on the grounds that their
  * wizard data is incomplete, which is both untrue and unactionable.
  */
-function submittable(row: RegistrationRow): boolean {
+export function registrationRowSubmittable(row: RegistrationRow): boolean {
   if (
     row.status === "submitted" ||
     row.status === "pending" ||
@@ -96,7 +91,7 @@ export function registrationDraftComplete(
   return (
     brand !== undefined &&
     campaign !== undefined &&
-    submittable(brand) &&
-    submittable(campaign)
+    registrationRowSubmittable(brand) &&
+    registrationRowSubmittable(campaign)
   );
 }

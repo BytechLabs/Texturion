@@ -52,7 +52,7 @@ import {
   PLAN_MODULES,
   voiceOveragePrice,
 } from "../billing/modules";
-import { owesUsRegistration, registrationDraftComplete } from '../billing/registration-draft';
+import { owesUsRegistration, registrationRowSubmittable } from '../billing/registration-draft';
 import type { RegistrationRow } from '../billing/registration-draft';
 import {
   applyPriceToSchedulePhases,
@@ -342,32 +342,27 @@ billingRoutes.post("/checkout", async (c) => {
     );
   }
 
-  // Gate 2 (409): a company that owes US registration may not reach payment
-  // without a submittable brand + campaign draft (SPEC §4.1 step 4).
   const owesRegistration = owesUsRegistration(company);
   if (owesRegistration) {
     const { data, error } = await db
       .from("messaging_registrations")
       .select("kind,status,sole_proprietor,data")
-      .eq("company_id", company.id);
+      .eq("company_id", company.id)
+      .eq("kind", "campaign");
     if (error) {
       throw new Error(`messaging_registrations lookup failed: ${error.message}`);
     }
-    // #381/#458: an EMPTY registration is now the normal pre-checkout state —
-    // `business` moved behind the paywall, so the identity details do not
-    // exist yet and refusing checkout for their absence would 409 every new
-    // US signup. A PARTIAL one still blocks: that is the resubmit path, where
-    // a half-filled draft reaching checkout would submit garbage to the
-    // carrier. Submission itself is safe either way — `submitRegistration`
-    // no-ops on an incomplete draft, and the second trigger in
-    // routes/registration.ts fires when the details finally land.
-    const rows = (data ?? []) as RegistrationRow[];
-    const started = rows.some((row) => Object.keys(row.data ?? {}).length > 0);
-    if (started && !registrationDraftComplete(rows)) {
+    const campaign = ((data ?? []) as RegistrationRow[]).find((row) => row.kind === "campaign");
+    // Older customers can restart service before completing a missing draft.
+    const campaignComplete = campaign
+      ? registrationRowSubmittable(campaign)
+      : company.subscription_status === "canceled";
+    if (!campaignComplete) {
       return errorResponse(
         c,
         "conflict",
-        "Complete the US texting registration details before checkout.",
+        "Complete the US texting details before checkout.",
+        { key: "apiRefusals.billingCheckoutTextingRequired" },
       );
     }
   }

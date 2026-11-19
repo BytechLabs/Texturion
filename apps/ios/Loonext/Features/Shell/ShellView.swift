@@ -154,7 +154,12 @@ struct ShellView: View {
             if hasInbox {
                 NavigationStack(path: $path) {
                     tabShell
-                        .safeAreaInset(edge: .top, spacing: 0) { twoFactorDeadlineBanner }
+                        .safeAreaInset(edge: .top, spacing: 0) {
+                            VStack(spacing: 0) {
+                                twoFactorDeadlineBanner
+                                registrationSetupBanner
+                            }
+                        }
                         .navigationBarBackButtonHidden(true)
                         .toolbar(.hidden, for: .navigationBar)
                         .navigationDestination(for: ShellRoute.self) { route in
@@ -453,6 +458,28 @@ struct ShellView: View {
             onSignOut: { root.signOut() },
             initialSection: .billing
         )
+    }
+
+    @ViewBuilder
+    private var registrationSetupBanner: some View {
+        if let step = hydratedMe.company?.registration.completion_step,
+           step == "business" || step == "texting" {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(AppStrings.translate(appLocale, step == "business"
+                    ? "shell.regBusinessDetailsNeeded"
+                    : "shell.regTextingDetailsNeeded"))
+                    .font(.footnote)
+                if MemberRole.has(role, Capability.numbersManage) {
+                    Link(AppStrings.translate(appLocale, "shell.regFinishRegistration"),
+                         destination: ExternalStepView.onboardingURL)
+                        .font(.subheadline)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .background(BrandColor.canvas)
+        }
     }
 
     @ViewBuilder

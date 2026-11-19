@@ -368,6 +368,7 @@ data class RegistrationSummary(
 data class RegistrationPair(
     val brand: RegistrationSummary? = null,
     val campaign: RegistrationSummary? = null,
+    val completion_step: String? = null,
 )
 
 @Serializable

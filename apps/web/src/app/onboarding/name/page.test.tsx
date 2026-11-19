@@ -47,7 +47,12 @@ vi.mock("../use-onboarding-state", () => ({
       registration: null,
       role: null,
       draft: guard.draft,
-      snapshot: { company: null, registration: null, draft: guard.draft },
+      snapshot: {
+        company: null,
+        registration: null,
+        canManageRegistration: false,
+        draft: guard.draft,
+      },
       refreshDraft: vi.fn(),
     },
   }),

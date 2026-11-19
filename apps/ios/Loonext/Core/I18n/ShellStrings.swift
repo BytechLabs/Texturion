@@ -163,6 +163,9 @@ enum ShellStrings {
                 + "Create yours at app.loonext.com, then come back and refresh.",
             "shell.needsWorkspaceCta": "Open app.loonext.com",
             "shell.needsCheckoutTitle": "Finish setting up",
+            "shell.regBusinessDetailsNeeded": "One step left: your business details",
+            "shell.regTextingDetailsNeeded": "Finish your US texting setup",
+            "shell.regFinishRegistration": "Continue setup",
             "shell.needsCheckoutBody":
                 "Your workspace hasn't completed checkout yet. Finish on the web "
                 + "and your number, texting, and calling light up here.",
@@ -599,6 +602,9 @@ enum ShellStrings {
                 + "revenez et actualisez.",
             "shell.needsWorkspaceCta": "Ouvrir app.loonext.com",
             "shell.needsCheckoutTitle": "Terminer la configuration",
+            "shell.regBusinessDetailsNeeded": "Une dernière étape : les renseignements sur votre entreprise",
+            "shell.regTextingDetailsNeeded": "Terminez la configuration des textos vers les États-Unis",
+            "shell.regFinishRegistration": "Continuer la configuration",
             "shell.needsCheckoutBody":
                 "Votre espace de travail n'a pas encore terminé le paiement. "
                 + "Terminez sur le Web et votre numéro, les textos et les appels "

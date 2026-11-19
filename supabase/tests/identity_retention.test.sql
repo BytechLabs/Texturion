@@ -1,10 +1,4 @@
--- [#381] Abandoned-identity retention — assertion suite for
--- supabase/migrations/20260730000600_prune_abandoned_identity.sql.
---
--- Almost everything here is about what the prune must NOT touch. Deleting too
--- little leaves a stranger's SIN fragment on our disk; deleting too much
--- breaks a live carrier registration we are required to be able to reproduce.
--- The second failure is the one that would be discovered late and badly.
+-- Abandoned brand drafts are removed without losing carrier or customer records.
 --
 -- psql-runnable: every test is a DO block that RAISEs EXCEPTION on failure.
 -- Run with:
@@ -20,7 +14,6 @@ begin;
 insert into auth.users (id, email) values
   ('fa000000-0000-4000-8000-00000000000a'::uuid, 'identity-owner@test.local');
 
--- Two companies: one that never paid, one that did.
 insert into public.companies
   (id, name, owner_user_id, country, requested_area_code, aup_accepted_at,
    registration_fee_paid_at)
@@ -28,7 +21,11 @@ values
   ('fa000000-0000-4000-8000-0000000000c1'::uuid, 'Abandoned Co',
    'fa000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now(), null),
   ('fa000000-0000-4000-8000-0000000000c2'::uuid, 'Paying Co',
-   'fa000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now(), now());
+   'fa000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now(), now()),
+  ('fa000000-0000-4000-8000-0000000000c3'::uuid, 'Recent Co',
+   'fa000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now(), null),
+  ('fa000000-0000-4000-8000-0000000000c4'::uuid, 'Registered Co',
+   'fa000000-0000-4000-8000-00000000000a'::uuid, 'US', '415', now(), null);
 
 -- The identity payload the wizard's no-EIN path collects.
 create or replace function pg_temp.identity_data() returns jsonb
@@ -48,19 +45,21 @@ values
    pg_temp.identity_data(), now() - interval '60 days'),
   -- Abandoned but RECENT: somebody mid-signup who stepped away for coffee.
   ('fa000000-0000-4000-8000-0000000000d2'::uuid,
-   'fa000000-0000-4000-8000-0000000000c1'::uuid, 'campaign', 'draft',
+   'fa000000-0000-4000-8000-0000000000c3'::uuid, 'brand', 'draft',
    pg_temp.identity_data(), now() - interval '2 days'),
   -- SUBMITTED and old: a live carrier relationship.
   ('fa000000-0000-4000-8000-0000000000d3'::uuid,
-   'fa000000-0000-4000-8000-0000000000c2'::uuid, 'brand', 'approved',
+   'fa000000-0000-4000-8000-0000000000c4'::uuid, 'brand', 'approved',
    pg_temp.identity_data(), now() - interval '120 days');
 
--- An old draft belonging to a company that DID pay.
 insert into public.messaging_registrations (id, company_id, kind, status, data, updated_at)
 values
   ('fa000000-0000-4000-8000-0000000000d4'::uuid,
-   'fa000000-0000-4000-8000-0000000000c2'::uuid, 'campaign', 'draft',
-   pg_temp.identity_data(), now() - interval '90 days');
+   'fa000000-0000-4000-8000-0000000000c2'::uuid, 'brand', 'draft',
+   pg_temp.identity_data(), now() - interval '90 days'),
+  ('fa000000-0000-4000-8000-0000000000d5'::uuid,
+   'fa000000-0000-4000-8000-0000000000c1'::uuid, 'campaign', 'draft',
+   '{"messageFlow":"Customers text us first."}', now() - interval '90 days');
 
 do $$
 declare
@@ -72,19 +71,13 @@ begin
   -- ---------------------------------------------------------------------
   -- The one it must clear.
   -- ---------------------------------------------------------------------
-  select data into v_row from public.messaging_registrations
-   where id = 'fa000000-0000-4000-8000-0000000000d1'::uuid;
-
-  if v_row ? 'ein' or v_row ? 'firstName' or v_row ? 'lastName'
-     or v_row ? 'mobilePhone' then
-    raise exception
-      'an abandoned unpaid draft still holds identity fields: %', v_row::text;
+  if exists (select 1 from public.messaging_registrations
+   where id = 'fa000000-0000-4000-8000-0000000000d1'::uuid) then
+    raise exception 'abandoned brand details were kept';
   end if;
-
-  -- And it must leave the ordinary trade details, so somebody returning
-  -- retypes four digits rather than the whole form.
-  if not (v_row ? 'displayName' and v_row ? 'website') then
-    raise exception 'the prune removed more than the identity fields: %', v_row::text;
+  if not exists (select 1 from public.messaging_registrations
+   where id = 'fa000000-0000-4000-8000-0000000000d5'::uuid) then
+    raise exception 'texting details needed before checkout were deleted';
   end if;
 
   if v_cleared is distinct from 1 then
@@ -97,7 +90,7 @@ begin
   -- ---------------------------------------------------------------------
   select data into v_row from public.messaging_registrations
    where id = 'fa000000-0000-4000-8000-0000000000d3'::uuid;
-  if not (v_row ? 'ein') then
+  if v_row is null or not (v_row ? 'ein') then
     raise exception 'an APPROVED registration was pruned — that is a live carrier record';
   end if;
 
@@ -107,7 +100,7 @@ begin
   -- ---------------------------------------------------------------------
   select data into v_row from public.messaging_registrations
    where id = 'fa000000-0000-4000-8000-0000000000d4'::uuid;
-  if not (v_row ? 'ein') then
+  if v_row is null or not (v_row ? 'ein') then
     raise exception 'a paying company''s draft was pruned';
   end if;
 
@@ -116,7 +109,7 @@ begin
   -- ---------------------------------------------------------------------
   select data into v_row from public.messaging_registrations
    where id = 'fa000000-0000-4000-8000-0000000000d2'::uuid;
-  if not (v_row ? 'ein') then
+  if v_row is null or not (v_row ? 'ein') then
     raise exception 'a 2-day-old draft was pruned — that person is mid-signup';
   end if;
 end $$;

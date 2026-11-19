@@ -360,10 +360,12 @@ struct RegistrationSummary: Codable, Sendable {
 struct RegistrationPair: Codable, Sendable {
     let brand: RegistrationSummary?
     let campaign: RegistrationSummary?
+    let completion_step: String?
 
-    init(brand: RegistrationSummary? = nil, campaign: RegistrationSummary? = nil) {
+    init(brand: RegistrationSummary? = nil, campaign: RegistrationSummary? = nil, completion_step: String? = nil) {
         self.brand = brand
         self.campaign = campaign
+        self.completion_step = completion_step
     }
 }
 

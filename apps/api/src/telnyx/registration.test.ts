@@ -163,6 +163,7 @@ function setup(companyOverrides: Record<string, unknown> = {}) {
     country: "US",
     us_texting_enabled: true,
     subscription_status: "active",
+    registration_fee_paid_at: "2026-07-01T00:00:00.000Z",
     requested_area_code: "212",
     ...companyOverrides,
   });
@@ -1459,6 +1460,37 @@ describe("#40 lifetime campaign-submission budget (cap-and-drop)", () => {
 });
 
 describe("#51 brand-create write-ahead marker + orphan adoption", () => {
+  it("submits a paid brand once when two triggers arrive together", async () => {
+    const { env, rest, telnyx } = setup();
+    seedRows(rest, {}, {});
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
+    telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({ data: { brandId: "brand-1" } }));
+
+    const results = await Promise.all([
+      submitRegistration(env, COMPANY_ID),
+      submitRegistration(env, COMPANY_ID),
+    ]);
+
+    expect(results.map((result) => result.action).sort()).toEqual(["brand_submitted", "noop"]);
+    expect(telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(1);
+    expect(brandRowOf(rest).brand_submission_lease_until).toBeNull();
+  });
+
+  it("retries a complete draft from the poller once the registration fee clears", async () => {
+    const { env, rest, telnyx } = setup({ registration_fee_paid_at: null });
+    seedRows(rest, {}, {});
+    telnyx.on("GET", /^\/v2\/10dlc\/brand$/, () => ({ records: [] }));
+    telnyx.on("POST", /^\/v2\/10dlc\/brand$/, () => ({ data: { brandId: "brand-1" } }));
+
+    await pollRegistrations(env);
+    expect(telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(0);
+
+    rest.rows("companies")[0].registration_fee_paid_at = "2026-07-01T00:00:00.000Z";
+    await pollRegistrations(env);
+    expect(telnyx.callsTo("POST", /^\/v2\/10dlc\/brand$/)).toHaveLength(1);
+    expect(brandRowOf(rest).status).toBe("submitted");
+  });
+
   it("stamps the write-ahead marker BEFORE the paid POST (survives a crash)", async () => {
     const { env, rest, telnyx } = setup();
     seedRows(rest, {}, {});
