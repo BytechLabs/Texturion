@@ -84,7 +84,7 @@
     "public_link_access": {"kind":"table","columns":["at","id","ip_country","link_id","outcome"],"computed":[]},
     "public_links": {"kind":"table","columns":["company_id","created_at","created_by","expires_at","id","last_used_at","max_uses","purpose","revoke_reason","revoked_at","subject_id","subject_type","token_hash","uses"],"computed":[]},
     "push_subscriptions": {"kind":"table","columns":["auth","caps","created_at","endpoint","id","locale","p256dh","session_id","user_agent","user_id"],"computed":[]},
-    "quotes": {"kind":"table","columns":["amount_cents","company_id","contact_id","conversation_id","created_at","created_by","currency","decided_at","description","expires_at","id","message_id","sending_at","sent_at","status","updated_at","viewed_at"],"computed":[]},
+    "quotes": {"kind":"table","columns":["amount_cents","company_id","contact_id","conversation_id","created_at","created_by","currency","decided_at","decided_by_name","description","expires_at","id","message_id","sending_at","sent_at","status","updated_at","viewed_at"],"computed":[]},
     "realtime_topic_seq": {"kind":"table","columns":["company_id","seq","topic"],"computed":[]},
     "record_activity": {"kind":"table","columns":["actor_id","actor_type","category","company_id","conversation_id","dedupe_key","id","kind","occurred_at","payload","phone_number_id","record_id","record_type","source_id","source_type"],"computed":[]},
     "record_references": {"kind":"table","columns":["company_id","created_at","created_by","id","source_id","source_kind","source_message_id","source_number_id","source_task_id","target_contact_id","target_conversation_id","target_kind","target_task_id"],"computed":["record_activity_reference"]},

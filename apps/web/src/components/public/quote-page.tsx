@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
 
 import { DEFAULT_LOCALE, isLocale } from "@loonext/shared";
 import type { Locale } from "@loonext/shared";
@@ -95,12 +96,13 @@ export function QuotePage({
   quote?: QuoteView;
   notAvailable?: boolean;
 }) {
-  const [state, setState] = useState<"idle" | "sending" | "accepted" | "failed">(
+  const [state, setState] = useState<"idle" | "sending" | "accepted" | "invalidName" | "failed">(
     "idle",
   );
   const locale = isLocale(quote?.locale) ? quote.locale : DEFAULT_LOCALE;
   const t = makeTranslate(locale);
   const acceptedHeading = useRef<HTMLHeadingElement>(null);
+  const [name, setName] = useState("");
   useEffect(() => {
     if (state === "accepted") acceptedHeading.current?.focus();
   }, [state]);
@@ -148,21 +150,26 @@ export function QuotePage({
     );
   }
 
-  async function accept() {
-    // #581: the ACCEPT credential, not the one from the URL.
+  async function accept(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
     const credential = quote?.accept_token;
-    if (!credential) return;
+    if (!credential || name.trim().length === 0 || state === "sending") return;
     setState("sending");
     const base = publicEnv.NEXT_PUBLIC_API_URL.replace(/\/$/, "");
     try {
       const response = await fetch(
         `${base}/q/${encodeURIComponent(credential)}/accept`,
-        { method: "POST" },
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ name: name.trim() }),
+        },
       );
-      // A 409 means it lapsed or was answered while this page was open, which
-      // is a state rather than a fault. Either way the honest thing is to stop
-      // offering a button that will not work.
-      setState(response.ok ? "accepted" : "failed");
+      if (response.status === 422) {
+        setState("invalidName");
+      } else {
+        setState(response.ok ? "accepted" : "failed");
+      }
     } catch {
       setState("failed");
     }
@@ -172,7 +179,7 @@ export function QuotePage({
     <main lang={locale} className="mx-auto flex min-h-screen w-full max-w-md flex-col justify-center px-6 py-12">
       <DocumentLanguage locale={locale} />
       {/* The business, first: a stranger's first question is who this is from. */}
-      <p className="text-[15px] text-muted-foreground">{quote.business_name}</p>
+      <h1 className="text-[15px] text-muted-foreground">{quote.business_name}</h1>
 
       {/*
         The amount, largest. *Prioritize Intent* — the page is built around the
@@ -189,16 +196,36 @@ export function QuotePage({
 
       {quote.can_accept ? (
         <>
-          <button
-            type="button"
-            onClick={accept}
-            disabled={state === "sending"}
-            /* 52px: comfortably past the 44px target floor, on a page whose
-               whole job is one tap on a phone held one-handed. */
-            className="mt-8 inline-flex min-h-[52px] items-center justify-center gap-1 rounded-app-ctrl bg-primary px-6 text-[16px] font-medium text-primary-foreground transition-colors duration-150 ease-out hover:opacity-90 disabled:opacity-60"
-          >
-            {state === "sending" ? t("quotes.accepting") : t("quotes.acceptAction")}
-          </button>
+          <form className="mt-8 flex flex-col gap-3" onSubmit={accept}>
+            <label className="flex flex-col gap-1.5 text-[15px] font-medium">
+              {t("quotes.acceptNameLabel")}
+              <input
+                aria-invalid={state === "invalidName" || undefined}
+                autoComplete="name"
+                className="min-h-11 rounded-app-ctrl border border-input bg-background px-3 text-[16px]"
+                maxLength={120}
+                readOnly={state === "sending"}
+                required
+                value={name}
+                onChange={(event) => {
+                  setName(event.target.value);
+                  if (state === "invalidName") setState("idle");
+                }}
+              />
+            </label>
+            {state === "invalidName" && (
+              <p role="alert" className="text-[15px] text-destructive">
+                {t("quotes.acceptNameRequired")}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={state === "sending" || name.trim().length === 0}
+              className="inline-flex min-h-[52px] items-center justify-center gap-1 rounded-app-ctrl bg-primary px-6 text-[16px] font-medium text-primary-foreground transition-colors duration-150 ease-out hover:opacity-90 disabled:opacity-60"
+            >
+              {state === "sending" ? t("quotes.accepting") : t("quotes.acceptAction")}
+            </button>
+          </form>
 
           {/* A fact, once, quietly. Not a countdown — see the header. */}
           <p className="mt-4 text-[13px] text-muted-foreground">

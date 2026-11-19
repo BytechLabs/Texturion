@@ -6,6 +6,7 @@ import type { QuoteState } from '@loonext/shared';
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { errorResponse } from "../http/errors";
 import { notifyQuoteAccepted } from "../notifications/payment";
 import { reportHandledFailure, workerEnv } from "../observability/capture";
 import {
@@ -97,7 +98,7 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
     return publicLinkNotAvailable(c);
   }
 
-  const [row] = unwrap<(PublicQuoteRow & { contact: { locale: string | null } | null })[]>(
+  const [row] = unwrap<unknown>(
     await db
       .from("quotes")
       .select(`${PUBLIC_COLUMNS},conversations!inner(),companies!inner(),contact:contacts!contact_id(locale)`)
@@ -108,7 +109,7 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
       .is("companies.deleted_at", null)
       .limit(1),
     "public quote lookup",
-  );
+  ) as (PublicQuoteRow & { contact: { locale: string | null } | null })[];
   // A token that resolves to a row that is gone is the same answer as a token
   // that never existed. Saying otherwise confirms the id was once real.
   if (!row) return publicLinkNotAvailable(c);
@@ -182,48 +183,20 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
     expires_at: row.expires_at,
     /** Whether pressing accept would do anything, decided here not on a client. */
     can_accept: canAccept,
-    /*
-     * The authority to accept, minted for THIS view and returned to nobody
-     * else.
-     *
-     * The token in the URL cannot be this credential: it is written into the
-     * SMS body and `messages.body` is readable by every member holding
-     * `conversations.read` — including `read_only`, whom the capability table
-     * gives no write anywhere — by any `messages:read` API key, and by any
-     * customer-supplied webhook subscribed to `message.sent`. When the accept
-     * route resolved the view purpose, all of those parties could bind the
-     * business to a price, record it as the CUSTOMER's decision, create a job
-     * from it, and revoke the real customer's link in the process.
-     *
-     * SINGLE USE, and only minted when accepting is actually possible. A quote
-     * already answered or lapsed hands back nothing, so a client cannot press a
-     * button whose credential does not exist.
-     */
     accept_token: acceptToken,
   });
 });
 
-/**
- * Accepting, which is the whole point of the feature.
- *
- * NOT THE TOKEN FROM THE TEXT MESSAGE. This resolves `quote_accept`, which is
- * minted when the customer opens the page and returned only in that response —
- * see `GET /q/:token`.
- *
- * The distinction is the whole security of this route. The view token is
- * written into `messages.body`, where it is readable by every member with
- * `conversations.read` (`read_only` included), by any `messages:read` API key,
- * and by any workspace-supplied webhook endpoint subscribed to `message.sent`.
- * While this route accepted that token, all of them could commit the business
- * to a price, have it recorded as the customer's own decision, and lock the
- * customer out of their link — with no authenticated route in the product that
- * does the same thing, and no way to undo it.
- *
- * Double accept is still guarded by the WHERE clause on the update, which two
- * taps on a slow connection cannot beat; `maxUses: 1` on the credential makes
- * the second tap fail earlier and more honestly.
- */
+/** Accept using a single-use credential issued by the public quote page. */
 publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
+  const body = await c.req.json<{ name?: unknown }>().catch(() => null);
+  const name = typeof body?.name === "string" ? body.name.trim() : "";
+  if (name.length === 0 || name.length > 120) {
+    return errorResponse(c, "validation_failed", "Enter your name to accept this quote.", {
+      key: "quotes.acceptNameRequired",
+    });
+  }
+
   const env = getEnv(c.env);
   const db = getDb(env);
   const country = callerCountry(c);
@@ -279,6 +252,7 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
       .update({
         status: "accepted",
         decided_at: now.toISOString(),
+        decided_by_name: name,
       })
       .eq("company_id", resolved.company_id)
       .eq("id", row.id)

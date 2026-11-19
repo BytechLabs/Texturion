@@ -43,6 +43,14 @@ app.route("/", publicQuoteRoutes);
 const call = (path: string, init: RequestInit = {}) =>
   app.request(path, init, env);
 
+function acceptRequest(name = "  Camille Martin  "): RequestInit {
+  return {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name }),
+  };
+}
+
 afterEach(() => {
   vi.unstubAllGlobals();
 });
@@ -117,7 +125,7 @@ describe("GET /q/:token", () => {
 
     const response = await call(`/q/${TOKEN}`);
     expect(response.status).toBe(200);
-    const body = await response.json() as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body.locale).toBe("fr-CA");
     expect(body).not.toHaveProperty("contact");
   });
@@ -235,7 +243,7 @@ describe("POST /q/:token/accept", () => {
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(404);
     expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
   });
@@ -247,9 +255,11 @@ describe("POST /q/:token/accept", () => {
     sb.on("PATCH", "/rest/v1/public_links", () => []);
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
+    const [write] = sb.find("PATCH", "/rest/v1/quotes");
+    expect(write.body).toMatchObject({ decided_by_name: "Camille Martin" });
 
     const [revoke] = sb.find("PATCH", "/rest/v1/public_links");
     expect(Object.fromEntries(revoke.url.searchParams)).toMatchObject({
@@ -259,6 +269,22 @@ describe("POST /q/:token/accept", () => {
       purpose: "eq.quote_accept",
       revoked_at: "is.null",
     });
+  });
+
+  it.each(["  ", "x".repeat(121)])("requires a valid name before recording acceptance", async (name) => {
+    const sb = stubResolving("quote_accept");
+    sb.on("GET", "/rest/v1/quotes", () => [quote()]);
+    stubFetch(sb.route);
+
+    const response = await call(`/q/${TOKEN}/accept`, acceptRequest(name));
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { message_key: "quotes.acceptNameRequired" },
+    });
+    expect(sb.find("POST", "/rest/v1/rpc/api_resolve_public_link")).toHaveLength(0);
+    expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
+    expect(sb.find("PATCH", "/rest/v1/public_links")).toHaveLength(0);
   });
 
   it("tells the crew's thread that their quote was accepted", async () => {
@@ -275,7 +301,7 @@ describe("POST /q/:token/accept", () => {
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(sb.route);
 
-    const request = new Request(`https://api.example.test/q/${TOKEN}/accept`, { method: "POST" });
+    const request = new Request(`https://api.example.test/q/${TOKEN}/accept`, acceptRequest());
     Object.defineProperty(request, "cf", { value: { country: "CA" } });
     const res = await app.fetch(request, env);
     expect(res.status).toBe(200);
@@ -312,7 +338,7 @@ describe("POST /q/:token/accept", () => {
     sb.on("POST", "/rest/v1/rpc/create_task", () => ({ outcome: "created" }));
     stubFetch(sb.route);
 
-    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
+    expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
 
     const created = sb.find("POST", "/rest/v1/rpc/create_task");
     expect(created, "an accepted quote produced no job").toHaveLength(1);
@@ -337,7 +363,7 @@ describe("POST /q/:token/accept", () => {
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(sb.route);
 
-    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
+    expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
     expect(sb.find("POST", "/rest/v1/rpc/create_task")).toHaveLength(0);
   });
 
@@ -354,7 +380,7 @@ describe("POST /q/:token/accept", () => {
     });
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
   });
@@ -366,7 +392,7 @@ describe("POST /q/:token/accept", () => {
     sb.on("GET", "/rest/v1/quotes", () => [quote({ expires_at: inDays(-1) })]);
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(409);
     expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
   });
@@ -383,7 +409,7 @@ describe("POST /q/:token/accept", () => {
     sb.on("PATCH", "/rest/v1/quotes", () => []);
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const res = await call(`/q/${TOKEN}/accept`, acceptRequest());
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
   });
@@ -403,10 +429,10 @@ describe("POST /q/:token/accept", () => {
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(sb.route);
 
-    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
+    expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
     expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(1);
 
-    expect((await call(`/q/${TOKEN}/accept`, { method: "POST" })).status).toBe(200);
+    expect((await call(`/q/${TOKEN}/accept`, acceptRequest())).status).toBe(200);
     expect(
       sb.find("POST", "/rest/v1/conversation_events"),
       "the crew's thread was told twice",
@@ -421,7 +447,7 @@ describe("POST /q/:token/accept", () => {
     sb.on("PATCH", "/rest/v1/public_links", () => []);
     stubFetch(sb.route);
 
-    await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    await call(`/q/${TOKEN}/accept`, acceptRequest());
     const [write] = sb.find("PATCH", "/rest/v1/quotes");
     expect(write.url.searchParams.get("status")).toBe("in.(sent,viewed)");
     expect(write.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
@@ -465,7 +491,7 @@ describe("#581 the view token is not the accept token", () => {
     const sb = stubResolving("quote_view");
     stubFetch(sb.route);
 
-    const response = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const response = await call(`/q/${TOKEN}/accept`, acceptRequest());
 
     // The same answer every failed public link gives. A distinct one would
     // tell the holder their token is real but wrong-purposed.

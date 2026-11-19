@@ -163,10 +163,8 @@ const UNGATED_WRITES: Record<string, string> = {
   // PUBLIC — unauthenticated marketing surfaces.
   "POST /contact": "public — the marketing contact form, no session",
   "POST /q/:token/accept":
-    "#287: public — the homeowner accepting a quote has no account and never " +
-    "will. Ungated is not unguarded: the token IS the authorisation, and it is " +
-    "a SEPARATE public_links purpose from the one that views the quote, so the " +
-    "URL in the customer's SMS cannot commit them to a price",
+    "#287: public — the quote page issues the homeowner a single-use " +
+    "quote_accept credential for the decision.",
   "POST /widget/verify":
     "#232: public — the same surface as /widget/start, one step later. The " +
     "code it answers is the authorisation: nothing lands in an inbox until a " +

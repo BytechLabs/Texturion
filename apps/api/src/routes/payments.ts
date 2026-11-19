@@ -735,13 +735,7 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
     return publicLinkNotAvailable(c);
   }
 
-  const [row] = unwrap<
-    (PaymentRequestRow & {
-      stripe_payment_link_id: string | null;
-      stripe_account_id: string;
-      contact: { locale: string | null } | null;
-    })[]
-  >(
+  const [row] = unwrap<unknown>(
     await db
       .from("payment_requests")
       .select(`${REQUEST_COLUMNS},stripe_payment_link_id,stripe_account_id,conversations!inner(),companies!inner(),contact:contacts!contact_id(locale)`)
@@ -752,7 +746,11 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
       .is("companies.deleted_at", null)
       .limit(1),
     "public payment lookup",
-  );
+  ) as (PaymentRequestRow & {
+    stripe_payment_link_id: string | null;
+    stripe_account_id: string;
+    contact: { locale: string | null } | null;
+  })[];
   if (!row) return publicLinkNotAvailable(c);
 
   const [company] = unwrap<{ name: string; locale: string | null }[]>(

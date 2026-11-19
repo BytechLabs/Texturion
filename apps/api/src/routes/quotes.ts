@@ -45,7 +45,7 @@ import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
 const QUOTE_COLUMNS =
   "id,conversation_id,contact_id,amount_cents,currency,description," +
-  "status,expires_at,sent_at,viewed_at,decided_at,created_by,created_at,updated_at";
+  "status,expires_at,sent_at,viewed_at,decided_at,decided_by_name,created_by,created_at,updated_at";
 
 /** A quote row as the wire carries it, plus the status a reader should see. */
 interface QuoteRow extends QuoteState {
@@ -458,28 +458,7 @@ quotesRoutes.post(
      */
     const clearance = await runPreSendGates(env, companyId, view.contact_phone_e164);
 
-    /*
-     * A VIEW token, and only a view token, because this one is written down
-     * forever.
-     *
-     * The link below goes into the SMS body, and `messages.body` is read by
-     * every member with `conversations.read` (including `read_only`), by any
-     * API key with `messages:read`, and by any customer-supplied webhook
-     * endpoint subscribed to `message.sent`. Whatever authority this token
-     * carries is therefore held by all of them, permanently.
-     *
-     * So it carries the authority to READ. The authority to ACCEPT — to bind
-     * this business to a price in the customer's name — is minted when the
-     * customer actually opens the page and returned only in that response.
-     * See `GET /q/:token` in quotes-public.ts.
-     *
-     * An earlier revision of this comment argued the separation "protected
-     * nothing, and could not, because the only channel to the customer is the
-     * text". That was wrong in a way worth recording: the accept token never
-     * had to travel in the text. It travels in the reply to the person who
-     * opened the link, which is the one channel that reaches the customer and
-     * nobody else.
-     */
+    // The public quote page issues a separate credential for the decision.
     const expiresAt = new Date(row.expires_at);
     const viewLink = await mintPublicLink(db, {
       companyId,
