@@ -17,6 +17,22 @@
  * is not something anybody repeats out loud.
  */
 
+export const RESPONSE_BASELINE_DEFINITION_VERSION = 1;
+export const RESPONSE_BASELINE_MIN_DAYS = 14;
+export const RESPONSE_BASELINE_MAX_DAYS = 60;
+export const RESPONSE_BASELINE_MIN_ANSWERS = 5;
+
+export interface ResponseBaselineProgress {
+  answered: number;
+  required: number;
+}
+
+export interface MissedCallerTotals {
+  total: number;
+  reached: number;
+  unreached: number;
+}
+
 /** Rounded, coarse, and honest: the largest unit that still tells the truth. */
 export function formatResponseTime(seconds: number | null | undefined): string {
   if (seconds === null || seconds === undefined || !Number.isFinite(seconds)) {

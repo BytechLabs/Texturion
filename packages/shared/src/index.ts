@@ -552,7 +552,12 @@ export {
   formatResponseTime,
   responseArcDirection,
   RESPONSE_ARC_MIN_SECONDS,
+  RESPONSE_BASELINE_DEFINITION_VERSION,
+  RESPONSE_BASELINE_MIN_DAYS,
+  RESPONSE_BASELINE_MAX_DAYS,
+  RESPONSE_BASELINE_MIN_ANSWERS,
 } from "./response-time";
+export type { MissedCallerTotals, ResponseBaselineProgress } from "./response-time";
 
 // #352 — a carrier rejection, in words the customer can act on. One catalogue
 // for registration and porting, because #352 asked for exactly that rather

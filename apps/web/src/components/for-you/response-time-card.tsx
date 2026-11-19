@@ -89,6 +89,9 @@ export function unansweredLine(count: number, t: Translate): string {
 
 /** Why there is no arc yet, said plainly rather than left blank. */
 export function noArcReason(report: ResponseTimeReport, t: Translate): string {
+  if (report.baseline_unavailable === "collecting" && report.baseline_progress) {
+    return t("inbox.responseBaselineCollecting", { ...report.baseline_progress });
+  }
   if (report.baseline_unavailable === "too_new") {
     return t("inbox.responseNoArcTooNew");
   }
@@ -160,86 +163,94 @@ export function ResponseTimeCard() {
           onRetry={() => report.refetch()}
           className="px-4 py-4"
         />
-      ) : report.data.leads === 0 ? (
+      ) : report.data.leads === 0 && !report.data.missed_callers?.total ? (
         // Not a zero. A workspace with no new leads in the window has no
         // response time, and "0 sec" would read as instant service.
         <div className="px-4 py-4">
           <p className="text-[13px] text-app-muted-2">
             {t("inbox.responseNoLeads", { days })}
           </p>
+          {report.data.baseline_progress && (
+            <p className="mt-1 text-[13px] text-app-muted-2">{noArcReason(report.data, t)}</p>
+          )}
         </div>
       ) : (
         <>
-          <div className="px-4 pb-3 pt-4">
-            <div className="flex items-baseline gap-2">
-              {/* #540: how many of the leads got answered, as a shape.
-                  "34 of 41" is arithmetic a reader has to do before it means
-                  anything; the ring is read at a glance and remembered.
-                  Absent when there were no leads in the window — an empty ring
-                  beside a dash is a picture of nothing.
-                  *Applying: Gamify & Coin Metrics — a ring somebody wants to
-                  close beats a percentage they have to interpret.* */}
-              {report.data.leads > 0 && (
-                <ProportionRing
-                  value={report.data.answered}
-                  total={report.data.leads}
-                  centre={`${report.data.answered}`}
-                  label={t("inbox.responseRingAria", {
-                    answered: report.data.answered,
-                    leads: report.data.leads,
-                  })}
-                  className="shrink-0 self-center text-app-olive-deep"
-                  size={40}
+          {report.data.leads === 0 ? (
+            <p className="px-4 py-4 text-[13px] text-app-muted-2">{t("inbox.responseNoLeads", { days })}</p>
+          ) : (
+            <div className="px-4 pb-3 pt-4">
+              <div className="flex items-baseline gap-2">
+                {/* #540: how many of the leads got answered, as a shape.
+                    "34 of 41" is arithmetic a reader has to do before it means
+                    anything; the ring is read at a glance and remembered.
+                    Absent when there were no leads in the window — an empty ring
+                    beside a dash is a picture of nothing.
+                    *Applying: Gamify & Coin Metrics — a ring somebody wants to
+                    close beats a percentage they have to interpret.* */}
+                {report.data.leads > 0 && (
+                  <ProportionRing
+                    value={report.data.answered}
+                    total={report.data.leads}
+                    centre={`${report.data.answered}`}
+                    label={t("inbox.responseRingAria", {
+                      answered: report.data.answered,
+                      leads: report.data.leads,
+                    })}
+                    className="shrink-0 self-center text-app-olive-deep"
+                    size={40}
+                  />
+                )}
+                <Clock
+                  className="size-4 shrink-0 translate-y-[-1px] text-app-muted-2"
+                  strokeWidth={1.75}
+                  aria-hidden
                 />
-              )}
-              <Clock
-                className="size-4 shrink-0 translate-y-[-1px] text-app-muted-2"
-                strokeWidth={1.75}
-                aria-hidden
-              />
-              {/* The median, large and tabular. Optically nudged rather than
-                  mathematically centred against the icon.
-                  *Applying: Optical Corrections.* */}
-              <span className="text-2xl font-semibold tabular-nums tracking-tight text-app-ink">
-                {formatResponseTime(report.data.median_seconds)}
-              </span>
-              <span className="text-[13px] text-app-muted-2">
-                {t("inbox.responseToAnswer")}
-              </span>
-            </div>
+                {/* The median, large and tabular. Optically nudged rather than
+                    mathematically centred against the icon.
+                    *Applying: Optical Corrections.* */}
+                <span className="text-2xl font-semibold tabular-nums tracking-tight text-app-ink">
+                  {formatResponseTime(report.data.median_seconds)}
+                </span>
+                <span className="text-[13px] text-app-muted-2">
+                  {t("inbox.responseToAnswer")}
+                </span>
+              </div>
 
-            {/* The arc: the accomplishment, and the sentence that gets
-                repeated. Direction-coloured, never hidden when it is the
-                wrong direction. */}
-            {(() => {
-              const sentence = arcSentence(report.data, t);
-              const direction = responseArcDirection(
-                report.data.improved_by_seconds,
-              );
-              if (!sentence) {
+              {/* The arc: the accomplishment, and the sentence that gets
+                  repeated. Direction-coloured, never hidden when it is the
+                  wrong direction. */}
+              {(() => {
+                const sentence = arcSentence(report.data, t);
+                const direction = responseArcDirection(
+                  report.data.improved_by_seconds,
+                );
+                if (!sentence) {
+                  return (
+                    <p className="pt-1 text-[13px] text-app-muted-2">
+                      {noArcReason(report.data, t)}
+                    </p>
+                  );
+                }
+                const Icon =
+                  direction === "faster" ? TrendingDown : TrendingUp;
                 return (
-                  <p className="pt-1 text-[13px] text-app-muted-2">
-                    {noArcReason(report.data, t)}
+                  <p
+                    className={cn(
+                      "flex items-center gap-1.5 pt-1 text-[13px] font-medium",
+                      direction === "faster"
+                        ? "text-app-olive-deep"
+                        : "text-app-amber-ink",
+                    )}
+                  >
+                    <Icon className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
+                    {sentence}
                   </p>
                 );
-              }
-              const Icon =
-                direction === "faster" ? TrendingDown : TrendingUp;
-              return (
-                <p
-                  className={cn(
-                    "flex items-center gap-1.5 pt-1 text-[13px] font-medium",
-                    direction === "faster"
-                      ? "text-app-olive-deep"
-                      : "text-app-amber-ink",
-                  )}
-                >
-                  <Icon className="size-3.5 shrink-0" strokeWidth={2} aria-hidden />
-                  {sentence}
-                </p>
-              );
-            })()}
-          </div>
+              })()}
+            </div>
+
+          )}
 
           {/* The leak, named, and a way to act on it. */}
           {report.data.unanswered > 0 && (
@@ -271,6 +282,17 @@ export function ResponseTimeCard() {
             </button>
             {open && (
               <div className="border-t border-app-line-soft px-4 py-2">
+                {report.data.missed_callers && report.data.missed_callers.total > 0 && (
+                  <Link
+                    href="/inbox?awaiting=only"
+                    className="flex items-center gap-2 rounded-app-ctrl py-2 text-[13px] font-medium text-app-ink hover:underline"
+                  >
+                    <span className="flex-1">
+                      {t("inbox.responseMissedCallers", { ...report.data.missed_callers })}
+                    </span>
+                    <ArrowRight className="size-4 shrink-0 text-app-muted-2" strokeWidth={1.75} aria-hidden />
+                  </Link>
+                )}
                 <Row
                   label={t("inbox.responseSlowest")}
                   value={formatResponseTime(report.data.p90_seconds)}

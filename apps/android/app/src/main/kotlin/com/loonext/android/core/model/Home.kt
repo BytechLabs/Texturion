@@ -185,6 +185,12 @@ data class ResponseTimeBaseline(
 )
 
 @Serializable
+data class ResponseBaselineProgress(val answered: Int, val required: Int)
+
+@Serializable
+data class MissedCallerTotals(val total: Int, val reached: Int, val unreached: Int)
+
+@Serializable
 data class ResponseTimeWindow(val days: Int = 30)
 
 /**
@@ -250,8 +256,9 @@ data class ResponseTimeReport(
     val by_number: List<ResponseTimeNumber> = emptyList(),
     val per_member_enabled: Boolean = false,
     val baseline: ResponseTimeBaseline? = null,
-    /** 'too_new' | 'no_answered_leads' | null — why there is no arc. */
     val baseline_unavailable: String? = null,
+    val baseline_progress: ResponseBaselineProgress? = null,
+    val missed_callers: MissedCallerTotals? = null,
     val improved_by_seconds: Double? = null,
     val split_truncated: Boolean = false,
     val split_row_limit: Int = 0,

@@ -1,4 +1,5 @@
 import { formatResponseTime } from "@loonext/shared";
+import type { MissedCallerTotals } from "@loonext/shared";
 
 import { emailLedger, sendLedgered } from "../billing/send-ledgered";
 import { getDb } from "../db";
@@ -6,6 +7,7 @@ import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { captureException } from "../observability/capture";
+import { loadResponseBaseline } from "./response-baseline";
 
 /**
  * #482 / #239 — the monthly recap the owner actually reads.
@@ -22,10 +24,7 @@ import { captureException } from "../observability/capture";
  *
  * # The three guards, and why each exists
  *
- * NO INVENTED ARC. A workspace with no baseline — too new, or nothing answered
- * in its first fortnight — gets nothing. #239 refused to draw that arc in the
- * UI, and an email is a worse place to invent one: a screen can be closed and
- * an email is a claim somebody keeps.
+ * A recap needs a baseline and a current window that starts after it closes.
  *
  * BOTH DIRECTIONS. A crew that got slower still gets told. The panel does not
  * hide the wrong direction and neither does this; a recap that only ever
@@ -75,6 +74,7 @@ interface RecapStats {
   leads: number;
   answered: number;
   unanswered: number;
+  missed_callers?: MissedCallerTotals;
   median_seconds: number | null;
 }
 
@@ -142,6 +142,12 @@ export function recapText(input: {
       `customer${current.leads === 1 ? "" : "s"} never got an answer.\n\n`;
   }
 
+  const missed = current.missed_callers;
+  if (missed && missed.total > 0) {
+    const label = missed.total === 1 ? "missed caller" : "missed callers";
+    out += `${missed.total} ${label}, ${missed.reached} reached and ${missed.unreached} still waiting for a call or text back.\n\n`;
+  }
+
   out += `You can see the detail, and the split between business hours and `;
   out += `after hours, on your home screen.\n\n`;
   out += `To stop these, turn email off in Settings → Notifications.`;
@@ -167,7 +173,7 @@ export async function runResponseTimeRecapJob(
 
   const { data: companies, error } = await db
     .from("companies")
-    .select("id,name,created_at")
+    .select("id,name")
     .eq("subscription_status", "active")
     .not("plan", "is", null)
     .is("deleted_at", null)
@@ -183,45 +189,25 @@ export async function runResponseTimeRecapJob(
   for (const row of (companies ?? []) as {
     id: string;
     name: string;
-    created_at: string;
   }[]) {
     if (attempted >= MAX_RECAPS_PER_RUN) {
       skippedForCap += 1;
       continue;
     }
 
-    // No baseline, no email. The workspace has not been here long enough for
-    // "when you started" to mean anything, and #239's rule is that we do not
-    // invent that number.
-    const baselineUntil = new Date(
-      new Date(row.created_at).getTime() + 14 * 24 * 60 * 60 * 1000,
-    );
-    if (baselineUntil > until) continue;
-
-    const current = await stats(db, row.id, since, until);
-    const baseline = await stats(
-      db,
-      row.id,
-      new Date(row.created_at),
-      baselineUntil,
-    );
-    if (!current || !baseline) continue;
-
-    // `no_answered_leads`: the other half of #239's rule. Nothing was answered
-    // in the first fortnight, so there is no starting point to compare against.
-    if (recapDirection(current.median_seconds, baseline.median_seconds) === null) {
-      continue;
-    }
-
-    const owner = await ownerEmail(db, row.id);
-    if (!owner) continue;
-
-    const text = recapText({
-      companyName: row.name,
-      current,
-      baselineMedian: baseline.median_seconds,
-    });
     try {
+      const first = await loadResponseBaseline(db, row.id, now);
+      if (!("baseline" in first) || new Date(first.baseline.until) > since) continue;
+      const current = await stats(db, row.id, since, until);
+      if (!current || recapDirection(current.median_seconds, first.baseline.median_seconds) === null) continue;
+
+      const owner = await ownerEmail(db, row.id);
+      if (!owner) continue;
+      const text = recapText({
+        companyName: row.name,
+        current,
+        baselineMedian: first.baseline.median_seconds,
+      });
       const delivered = await sendLedgered({
         ...emailLedger(db, row.id, `response_recap:${now.toISOString().slice(0, 7)}`),
         send: async () => {

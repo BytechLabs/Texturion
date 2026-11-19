@@ -152,18 +152,21 @@ each lead's opening instant to ask the shared evaluator.
 
 ## The arc
 
-The before/after is the product story, so the baseline is the workspace's **first
-fourteen days**. Two weeks rather than one because a three-person crew can take
-very few leads in seven days, and an arc drawn from two of them is noise
-presented as progress.
+The baseline starts on the first qualifying lead. It closes after at least
+14 days and once five leads have been answered, with a 60-day cap. The API
+returns `collecting` with the answer count while that window is open,
+`too_new` when it overlaps the selected comparison window, and
+`no_answered_leads` if it closes without an answer.
 
-The baseline is withheld, with a reason, in two cases:
+The workspace baseline is stored on the company with its definition version.
+Trash, restore and spam changes invalidate a baseline that could include the
+affected activity. A member with hidden lines gets a baseline computed from
+their visible conversations. The owner recap uses the workspace baseline.
 
-- `too_new` — the first fortnight still overlaps the window being reported, so
-  comparing them compares the workspace to itself.
-- `no_answered_leads` — nothing was answered in the first fortnight. That is not
-  a baseline of zero; it is no baseline. "You have improved from 0 seconds" is
-  the arc as fiction.
+Details and the owner recap count distinct callers who had a missed or
+voicemail call during the selected window. A caller is reached once the crew
+answers by text or phone before the window closes. The Details link opens the
+live list of conversations awaiting a reply.
 
 ## Per-member numbers are the owner's choice
 

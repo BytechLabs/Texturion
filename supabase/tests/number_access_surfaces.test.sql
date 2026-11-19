@@ -53,6 +53,7 @@ declare
     -- makes it worth more than a row count: a restricted member saw a denied
     -- line's E.164 together with its lead and unanswered totals. Every sibling
     -- read surface filtered and this one did not.
+    'api_response_time_baseline',
     'api_response_time_stats',
     'api_search_v2',
     -- Not in #368's list. It takes the parameter and filters on it correctly;

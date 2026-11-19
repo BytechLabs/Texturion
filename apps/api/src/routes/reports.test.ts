@@ -20,6 +20,7 @@ import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../
 import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { TestAuth } from '../test/support';
+import type { ResponseBaselineResult } from "../reports/response-baseline";
 import { reportsRoutes } from "./reports";
 
 const env = completeEnv();
@@ -91,12 +92,11 @@ function statsPayload(
 }
 
 function stub(options: {
-  createdAt?: string;
   perMember?: boolean;
   hours?: Record<string, { open: string; close: string }>;
   exceptions?: unknown[];
   current: Record<string, unknown>;
-  baseline?: Record<string, unknown>;
+  baseline?: ResponseBaselineResult;
   /** #482: the company's numbers, for the by_number labels. */
   numbers?: { id: string; number_e164: string | null }[];
 }): SupabaseStub {
@@ -106,11 +106,8 @@ function stub(options: {
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, "owner"),
   );
-  // Old enough for a baseline unless a test says otherwise.
-  const createdAt = options.createdAt ?? "2025-01-01T00:00:00Z";
   sb.on("GET", "/rest/v1/companies", () => [
     {
-      created_at: createdAt,
       timezone: "America/Toronto",
       business_hours: options.hours ?? NINE_TO_FIVE,
       business_hours_exceptions: options.exceptions ?? [],
@@ -119,20 +116,11 @@ function stub(options: {
   ]);
   // #482: the numbers the by_number rows are labelled from.
   sb.on("GET", "/rest/v1/phone_numbers", () => options.numbers ?? []);
-  // The route calls the same RPC twice, the current window and the baseline,
-  // at the same time. The baseline is the window that starts at creation.
-  sb.on("POST", "/rest/v1/rpc/api_response_time_stats", (call) =>
-    isBaselineCall(call, createdAt)
-      ? options.baseline ?? statsPayload([])
-      : options.current,
+  sb.on("POST", "/rest/v1/rpc/api_response_time_stats", () => options.current);
+  sb.on("POST", "/rest/v1/rpc/api_response_time_baseline", () =>
+    options.baseline ?? { reason: "no_answered_leads" },
   );
   return sb;
-}
-
-function isBaselineCall(call: { body: unknown }, createdAt: string): boolean {
-  return (
-    (call.body as { p_since: string }).p_since === new Date(createdAt).toISOString()
-  );
 }
 
 async function get(sb: SupabaseStub, query = ""): Promise<Response> {
@@ -346,12 +334,12 @@ describe("GET /v1/reports/response-time", () => {
   });
 
   it("refuses to invent an arc for a workspace too young to have one", async () => {
-    // Signed up yesterday. The first-fortnight baseline would overlap the
-    // current window, so comparing them compares the workspace to itself and
-    // reports the result as progress.
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const sb = stub({
-      createdAt: yesterday,
+      baseline: { baseline: {
+        since: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(), until: yesterday,
+        leads: 7, answered: 5, median_seconds: 1200,
+      } },
       current: statsPayload([
         { opened_at: "2026-07-01T14:00:00Z", response_seconds: 120 },
       ]),
@@ -367,32 +355,43 @@ describe("GET /v1/reports/response-time", () => {
       current: statsPayload([
         { opened_at: "2026-07-01T14:00:00Z", response_seconds: 240 },
       ]),
-      baseline: statsPayload([
-        { opened_at: "2025-01-02T14:00:00Z", response_seconds: 10_800 },
-      ]),
+      baseline: { baseline: {
+        since: "2025-01-20T14:00:00Z", until: "2025-02-03T14:00:00Z",
+        leads: 7, answered: 5, median_seconds: 10_800,
+      } },
     });
     const body = await (await get(sb)).json<Record<string, unknown>>();
-    expect(body.baseline).toMatchObject({ median_seconds: 10_800, answered: 1 });
+    expect(body.baseline).toMatchObject({ since: "2025-01-20T14:00:00Z", median_seconds: 10_800, answered: 5 });
     // Three hours to four minutes. Positive means faster now, which is the
     // sentence the customer repeats to other contractors.
     expect(body.improved_by_seconds).toBe(10_560);
   });
 
-  it("calls a first fortnight with no answers no baseline, not a baseline of zero", async () => {
-    // Reporting "you have improved from 0 seconds" for a workspace that answered
-    // nothing in its first two weeks is the arc as fiction.
+  it("keeps the arc unavailable when the baseline window closes without answers", async () => {
     const sb = stub({
       current: statsPayload([
         { opened_at: "2026-07-01T14:00:00Z", response_seconds: 240 },
       ]),
-      baseline: statsPayload([
-        { opened_at: "2025-01-02T14:00:00Z", response_seconds: null },
-      ]),
+      baseline: { reason: "no_answered_leads" },
     });
     const body = await (await get(sb)).json<Record<string, unknown>>();
     expect(body.baseline).toBeNull();
     expect(body.baseline_unavailable).toBe("no_answered_leads");
     expect(body.improved_by_seconds).toBeNull();
+  });
+
+  it("returns baseline progress and distinct missed-caller totals", async () => {
+    const sb = stub({
+      baseline: { reason: "collecting", answered: 3, required: 5 },
+      current: statsPayload([], { missed_callers: { total: 6, reached: 4, unreached: 2 } }),
+    });
+
+    await expect((await get(sb)).json()).resolves.toMatchObject({
+      baseline: null,
+      baseline_unavailable: "collecting",
+      baseline_progress: { answered: 3, required: 5 },
+      missed_callers: { total: 6, reached: 4, unreached: 2 },
+    });
   });
 
   it("labels response times only when the owner opts in", async () => {
@@ -456,9 +455,7 @@ describe("GET /v1/reports/response-time", () => {
     }>();
     expect(body.window.days).toBe(30);
 
-    const current = sb
-      .find("POST", "/rest/v1/rpc/api_response_time_stats")
-      .find((call) => !isBaselineCall(call, "2025-01-01T00:00:00Z"))!;
+    const [current] = sb.find("POST", "/rest/v1/rpc/api_response_time_stats");
     const since = new Date((current.body as { p_since: string }).p_since);
     const until = new Date((current.body as { p_until: string }).p_until);
     const days = Math.round(

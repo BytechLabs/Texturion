@@ -445,6 +445,8 @@ export const inboxEn = {
   responseToAnswer: "to answer a new customer",
   responseArcDown: "Down from {then} when you started",
   responseArcUp: "Up from {then} when you started",
+  responseBaselineCollecting: "Gathering a baseline. {answered} of {required} leads answered.",
+  responseMissedCallers: "Missed callers {total} · Reached {reached} · Waiting for a reply {unreached}",
   responseNoArcTooNew:
     "Your starting point lands once you have been here a fortnight",
   responseNoArcNoLeads:
@@ -950,6 +952,8 @@ export const inboxFr: Translated<typeof inboxEn> = {
   responseToAnswer: "pour répondre à un nouveau client",
   responseArcDown: "En baisse depuis {then} à vos débuts",
   responseArcUp: "En hausse depuis {then} à vos débuts",
+  responseBaselineCollecting: "Collecte des données de référence. {answered} demandes sur {required} ont reçu une réponse.",
+  responseMissedCallers: "Appels manqués de {total} personnes · {reached} jointes · {unreached} sans réponse",
   responseNoArcTooNew:
     "Votre point de départ sera établi après deux semaines ici",
   responseNoArcNoLeads:

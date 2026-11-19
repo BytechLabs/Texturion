@@ -94,8 +94,16 @@ fun responseArcSentence(report: ResponseTimeReport, locale: String): String? {
 }
 
 /** Why there is no arc yet, said plainly rather than left blank. */
-fun responseNoArcReason(report: ResponseTimeReport, locale: String): String =
-    AppStrings.translate(
+fun responseNoArcReason(report: ResponseTimeReport, locale: String): String {
+    val progress = report.baseline_progress
+    if (report.baseline_unavailable == "collecting" && progress != null) {
+        return AppStrings.translate(
+            locale,
+            "inbox.responseBaselineCollecting",
+            mapOf("answered" to progress.answered.toString(), "required" to progress.required.toString()),
+        )
+    }
+    return AppStrings.translate(
         locale,
         when (report.baseline_unavailable) {
             "too_new" -> "inbox.responseNoArcTooNew"
@@ -105,6 +113,7 @@ fun responseNoArcReason(report: ResponseTimeReport, locale: String): String =
             else -> "inbox.responseNoArcSame"
         },
     )
+}
 
 @Composable
 fun ResponseTimeCard(
@@ -151,13 +160,17 @@ fun ResponseTimeCard(
 
                 // Not a zero. A workspace with no new leads has no response time,
                 // and "0 sec" would read as instant service.
-                report.leads == 0 ->
-                    Text(
-                        t("inbox.responseNoLeads", "days" to days.toString()),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(14.dp),
-                    )
+                report.leads == 0 && (report.missed_callers?.total ?: 0) == 0 ->
+                    Column(Modifier.padding(14.dp)) {
+                        Text(
+                            t("inbox.responseNoLeads", "days" to days.toString()),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        if (report.baseline_progress != null) {
+                            Text(responseNoArcReason(report, LocalAppLocale.current), style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
 
                 else -> ResponseTimeBody(report, onOpenUnanswered)
             }
@@ -173,7 +186,14 @@ private fun ResponseTimeBody(
     var open by remember { mutableStateOf(false) }
     val locale = LocalAppLocale.current
 
-    Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 10.dp)) {
+    if (report.leads == 0) {
+        Text(
+            t("inbox.responseNoLeads", "days" to report.window.days.toString()),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(14.dp),
+        )
+    } else Column(Modifier.padding(start = 14.dp, end = 14.dp, top = 13.dp, bottom = 10.dp)) {
         Row(verticalAlignment = Alignment.Bottom) {
             // #540: how much of the week actually got answered, as a shape. The
             // laptop has had this since the dashboard overhaul and the phones did
@@ -340,6 +360,25 @@ private fun ResponseTimeBody(
     if (open) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
         Column(Modifier.padding(horizontal = 14.dp, vertical = 6.dp)) {
+            val missed = report.missed_callers
+            if (missed != null && missed.total > 0) {
+                Row(
+                    Modifier.fillMaxWidth().minimumInteractiveComponentSize().clickable(onClick = onOpenUnanswered),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        t(
+                            "inbox.responseMissedCallers",
+                            "total" to missed.total.toString(),
+                            "reached" to missed.reached.toString(),
+                            "unreached" to missed.unreached.toString(),
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        modifier = Modifier.weight(1f),
+                    )
+                    Icon(Icons.AutoMirrored.Outlined.ArrowForward, contentDescription = null, modifier = Modifier.size(IconSize.Small))
+                }
+            }
             DetailRow(
                 t("inbox.responseSlowest"),
                 ResponseTimeFormat.format(report.p90_seconds),

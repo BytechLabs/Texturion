@@ -40,6 +40,13 @@ func responseArcSentence(
 /// Why there is no arc yet, said plainly rather than left blank.
 func responseNoArcReason(_ report: ResponseTimeReport, _ locale: String? = nil) -> String {
     switch report.baseline_unavailable {
+    case "collecting":
+        if let progress = report.baseline_progress {
+            return AppStrings.translate(locale, "inbox.responseBaselineCollecting", [
+                "answered": String(progress.answered), "required": String(progress.required),
+            ])
+        }
+        return AppStrings.translate(locale, "inbox.responseNoArcTooNew")
     case "too_new":
         return AppStrings.translate(locale, "inbox.responseNoArcTooNew")
     case "no_answered_leads":
@@ -107,17 +114,16 @@ struct ResponseTimeCard: View {
 
             PaperCard {
                 if let report {
-                    if report.leads == 0 {
+                    if report.leads == 0 && (report.missed_callers?.total ?? 0) == 0 {
                         // Not a zero. A workspace with no new leads has no
                         // response time, and "0 sec" would read as instant
                         // service.
-                        Text(
-                            AppStrings.translate(
-                                appLocale,
-                                "inbox.responseNoLeads",
-                                ["days": String(days)]
-                            )
-                        )
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(AppStrings.translate(appLocale, "inbox.responseNoLeads", ["days": String(days)]))
+                            if report.baseline_progress != nil {
+                                Text(responseNoArcReason(report, appLocale))
+                            }
+                        }
                         .font(.golos(13))
                         .foregroundStyle(BrandColor.muted600)
                         .padding(14)
@@ -137,68 +143,75 @@ struct ResponseTimeCard: View {
 
     @ViewBuilder
     private func content(for report: ResponseTimeReport) -> some View {
-        VStack(alignment: .leading, spacing: 3) {
-            HStack(alignment: .lastTextBaseline, spacing: 6) {
-                // #540: how much of the week actually got answered, as a shape.
-                // The laptop has had this since the dashboard overhaul and the
-                // phones did not, which read as two different products. Absent
-                // when there were no new customers in the window, because an
-                // empty ring beside a dash is a picture of nothing.
-                if report.leads > 0 {
-                    ProportionRing(
-                        value: Double(report.answered),
-                        total: Double(report.leads),
-                        label: AppStrings.translate(
-                            appLocale,
-                            "inbox.responseRingAria",
-                            [
-                                "answered": String(report.answered),
-                                "leads": String(report.leads),
-                            ]
-                        ),
-                        color: BrandColor.olive,
-                        // #540: the same mark web draws — 40, with the count
-                        // inside it. At 20 the arc is an icon, and there is no
-                        // room for the figure that says what it is counting.
-                        size: 40,
-                        centre: String(report.answered)
-                    )
+        if report.leads == 0 {
+            Text(AppStrings.translate(appLocale, "inbox.responseNoLeads", ["days": String(days)]))
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted600)
+                .padding(14)
+        } else {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(alignment: .lastTextBaseline, spacing: 6) {
+                    // #540: how much of the week actually got answered, as a shape.
+                    // The laptop has had this since the dashboard overhaul and the
+                    // phones did not, which read as two different products. Absent
+                    // when there were no new customers in the window, because an
+                    // empty ring beside a dash is a picture of nothing.
+                    if report.leads > 0 {
+                        ProportionRing(
+                            value: Double(report.answered),
+                            total: Double(report.leads),
+                            label: AppStrings.translate(
+                                appLocale,
+                                "inbox.responseRingAria",
+                                [
+                                    "answered": String(report.answered),
+                                    "leads": String(report.leads),
+                                ]
+                            ),
+                            color: BrandColor.olive,
+                            // #540: the same mark web draws — 40, with the count
+                            // inside it. At 20 the arc is an icon, and there is no
+                            // room for the figure that says what it is counting.
+                            size: 40,
+                            centre: String(report.answered)
+                        )
+                    }
+                    Image(systemName: "clock")
+                        .font(.scaled(IconSize.small, weight: .medium))
+                        .foregroundStyle(BrandColor.muted500)
+                    Text(ResponseTimeFormat.format(report.median_seconds))
+                        .font(.golos(24, weight: .semibold))
+                        .monospacedDigit()
+                    Text(AppStrings.translate(appLocale, "inbox.responseToAnswer"))
+                        .font(.golos(13))
+                        .foregroundStyle(BrandColor.muted600)
                 }
-                Image(systemName: "clock")
-                    .font(.scaled(IconSize.small, weight: .medium))
-                    .foregroundStyle(BrandColor.muted500)
-                Text(ResponseTimeFormat.format(report.median_seconds))
-                    .font(.golos(24, weight: .semibold))
-                    .monospacedDigit()
-                Text(AppStrings.translate(appLocale, "inbox.responseToAnswer"))
-                    .font(.golos(13))
-                    .foregroundStyle(BrandColor.muted600)
-            }
 
-            if let arc = responseArcSentence(report, appLocale) {
-                let direction = ResponseTimeFormat.arcDirection(report.improved_by_seconds)
-                HStack(spacing: 5) {
-                    Image(
-                        systemName: direction == "faster"
-                            ? "arrow.down.right" : "arrow.up.right"
-                    )
-                    .font(.scaled(11, weight: .bold))
-                    Text(arc)
-                        .font(.golos(13, weight: .medium))
+                if let arc = responseArcSentence(report, appLocale) {
+                    let direction = ResponseTimeFormat.arcDirection(report.improved_by_seconds)
+                    HStack(spacing: 5) {
+                        Image(
+                            systemName: direction == "faster"
+                                ? "arrow.down.right" : "arrow.up.right"
+                        )
+                        .font(.scaled(11, weight: .bold))
+                        Text(arc)
+                            .font(.golos(13, weight: .medium))
+                    }
+                    // Olive for the good direction, coral for the wrong one. A
+                    // workspace that got slower is TOLD — a metric that only reports
+                    // improvement is one nobody believes.
+                    .foregroundStyle(direction == "faster" ? BrandColor.olive : BrandColor.coral)
+                } else {
+                    Text(responseNoArcReason(report, appLocale))
+                        .font(.golos(13))
+                        .foregroundStyle(BrandColor.muted600)
                 }
-                // Olive for the good direction, coral for the wrong one. A
-                // workspace that got slower is TOLD — a metric that only reports
-                // improvement is one nobody believes.
-                .foregroundStyle(direction == "faster" ? BrandColor.olive : BrandColor.coral)
-            } else {
-                Text(responseNoArcReason(report, appLocale))
-                    .font(.golos(13))
-                    .foregroundStyle(BrandColor.muted600)
             }
+            .padding(.horizontal, 14)
+            .padding(.top, 13)
+            .padding(.bottom, 10)
         }
-        .padding(.horizontal, 14)
-        .padding(.top, 13)
-        .padding(.bottom, 10)
 
         // #508: the leak, named, and a way to act on it. The chevron is the
         // promise that the row goes somewhere, so it appears only because the
@@ -258,6 +271,21 @@ struct ResponseTimeCard: View {
         if open {
             Divider().overlay(BrandColor.muted250)
             VStack(alignment: .leading, spacing: 0) {
+                if let missed = report.missed_callers, missed.total > 0 {
+                    Button(action: onOpenUnanswered) {
+                        HStack(spacing: 8) {
+                            Text(AppStrings.translate(appLocale, "inbox.responseMissedCallers", [
+                                "total": String(missed.total), "reached": String(missed.reached),
+                                "unreached": String(missed.unreached),
+                            ]))
+                            Spacer(minLength: 0)
+                            Image(systemName: "arrow.right").accessibilityHidden(true)
+                        }
+                        .font(.golos(13, weight: .medium))
+                        .padding(.vertical, 8)
+                    }
+                    .buttonStyle(.plain)
+                }
                 detailRow(
                     AppStrings.translate(appLocale, "inbox.responseSlowest"),
                     ResponseTimeFormat.format(report.p90_seconds)

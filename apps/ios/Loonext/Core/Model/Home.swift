@@ -190,6 +190,17 @@ struct ResponseTimeBaseline: Codable, Sendable {
     var median_seconds: Double? = nil
 }
 
+struct ResponseBaselineProgress: Codable, Sendable {
+    var answered: Int
+    var required: Int
+}
+
+struct MissedCallerTotals: Codable, Sendable {
+    var total: Int
+    var reached: Int
+    var unreached: Int
+}
+
 struct ResponseTimeWindowInfo: Codable, Sendable {
     var days: Int = 30
 }
@@ -280,8 +291,9 @@ struct ResponseTimeReport: Codable, Sendable {
     var by_number: [ResponseTimeNumber]? = nil
     var per_member_enabled: Bool = false
     var baseline: ResponseTimeBaseline? = nil
-    /// "too_new" | "no_answered_leads" | nil — why there is no arc.
     var baseline_unavailable: String? = nil
+    var baseline_progress: ResponseBaselineProgress? = nil
+    var missed_callers: MissedCallerTotals? = nil
     var improved_by_seconds: Double? = nil
     var split_truncated: Bool = false
     var split_row_limit: Int = 0

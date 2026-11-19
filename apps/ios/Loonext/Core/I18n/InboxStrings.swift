@@ -389,6 +389,8 @@ enum InboxStrings {
             "inbox.responseToAnswer": "to answer a new customer",
             "inbox.responseArcDown": "Down from {then} when you started",
             "inbox.responseArcUp": "Up from {then} when you started",
+            "inbox.responseBaselineCollecting": "Gathering a baseline. {answered} of {required} leads answered.",
+            "inbox.responseMissedCallers": "Missed callers {total} · Reached {reached} · Waiting for a reply {unreached}",
             "inbox.responseNoArcTooNew":
                 "Your starting point lands once you have been here a fortnight",
             "inbox.responseNoArcNoLeads":
@@ -832,6 +834,8 @@ enum InboxStrings {
             "inbox.responseToAnswer": "pour répondre à un nouveau client",
             "inbox.responseArcDown": "En baisse depuis {then} à vos débuts",
             "inbox.responseArcUp": "En hausse depuis {then} à vos débuts",
+            "inbox.responseBaselineCollecting": "Collecte des données de référence. {answered} demandes sur {required} ont reçu une réponse.",
+            "inbox.responseMissedCallers": "Appels manqués de {total} personnes · {reached} jointes · {unreached} sans réponse",
             "inbox.responseNoArcTooNew":
                 "Votre point de départ sera établi après deux semaines ici",
             "inbox.responseNoArcNoLeads":

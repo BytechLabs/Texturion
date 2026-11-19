@@ -382,6 +382,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.responseToAnswer" to "to answer a new customer",
         "inbox.responseArcDown" to "Down from {then} when you started",
         "inbox.responseArcUp" to "Up from {then} when you started",
+        "inbox.responseBaselineCollecting" to "Gathering a baseline. {answered} of {required} leads answered.",
+        "inbox.responseMissedCallers" to "Missed callers {total} · Reached {reached} · Waiting for a reply {unreached}",
         "inbox.responseNoArcTooNew" to
             "Your starting point lands once you have been here a fortnight",
         "inbox.responseNoArcNoLeads" to
@@ -786,6 +788,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.responseToAnswer" to "pour répondre à un nouveau client",
         "inbox.responseArcDown" to "En baisse depuis {then} à vos débuts",
         "inbox.responseArcUp" to "En hausse depuis {then} à vos débuts",
+        "inbox.responseBaselineCollecting" to "Collecte des données de référence. {answered} demandes sur {required} ont reçu une réponse.",
+        "inbox.responseMissedCallers" to "Appels manqués de {total} personnes · {reached} jointes · {unreached} sans réponse",
         "inbox.responseNoArcTooNew" to
             "Votre point de départ sera établi après deux semaines ici",
         "inbox.responseNoArcNoLeads" to

@@ -73,7 +73,8 @@ export function parseInboxSearchParams(
   if (isTruthy(params.get("unread"))) filters.unread = true;
   if (isTruthy(params.get("spam"))) filters.spam = true;
   if (isTruthy(params.get("snoozed"))) filters.snoozed = true;
-  if (isTruthy(params.get("awaiting"))) filters.awaiting = true;
+  const awaiting = params.get("awaiting");
+  if (awaiting === "only" || isTruthy(awaiting)) filters.awaiting = true;
   const q = params.get("q");
   if (q !== null && q.trim() !== "") filters.q = q;
   return filters;

@@ -505,4 +505,58 @@ begin
   raise notice 'RT-10 PASSED: missed calls start the clock and live calls can answer';
 end $$;
 
+do $day_twenty$
+declare
+  tenant uuid := gen_random_uuid();
+  owner uuid := 'f2000000-0000-4000-8000-00000000000a';
+  line uuid;
+  contact uuid;
+  thread uuid;
+  first_thread uuid;
+  opened_at timestamptz;
+  result jsonb;
+begin
+  insert into public.companies (id, name, owner_user_id, country, requested_area_code, aup_accepted_at, created_at)
+  values (tenant, 'Delayed first lead', owner, 'US', '415', now(), '2026-07-01');
+  insert into public.phone_numbers (company_id, number_e164, status, country, provisioning_key, telnyx_phone_number_id)
+  values (tenant, '+14155550499', 'active', 'US', 'rt-baseline-day-twenty', 'rt-baseline-line')
+  returning id into line;
+
+  for i in 0..5 loop
+    opened_at := '2026-07-20 14:00Z'::timestamptz + i * interval '1 day';
+    insert into public.contacts (company_id, phone_e164)
+    values (tenant, '+1415555040' || i::text) returning id into contact;
+    insert into public.conversations (company_id, contact_id, phone_number_id, status, created_at)
+    values (tenant, contact, line, 'open', opened_at) returning id into thread;
+    insert into public.messages
+      (company_id, conversation_id, direction, body, status, sent_by_user_id, automated, created_at)
+    values
+      (tenant, thread, 'inbound', 'New job', 'delivered', null, false, opened_at),
+      (tenant, thread, 'outbound', 'We can help', 'delivered', owner, false, opened_at + interval '3 minutes');
+    if i = 0 then first_thread := thread; end if;
+  end loop;
+
+  result := public.api_response_time_baseline(tenant, '2026-07-23', 1, 14, 60, 5);
+  if result is distinct from '{"reason":"collecting","answered":3,"required":5}'::jsonb then
+    raise exception 'Baseline progress should reflect three replies, got %', result;
+  end if;
+
+  result := public.api_response_time_baseline(tenant, '2026-08-10', 1, 14, 60, 5);
+  if (result #>> '{baseline,since}')::timestamptz is distinct from '2026-07-20 14:00Z'::timestamptz
+    or (result #>> '{baseline,answered}')::integer is distinct from 6
+    or (select response_baseline from public.companies where id = tenant) is distinct from result->'baseline' then
+    raise exception 'A first lead on day 20 should set a cached baseline, got %', result;
+  end if;
+
+  result := public.api_response_time_baseline(tenant, '2026-08-10', 1, 14, 60, 5, array[line]);
+  if result is distinct from '{"reason":"collecting","answered":0,"required":5}'::jsonb then
+    raise exception 'A caller must not inherit a baseline from denied lines, got %', result;
+  end if;
+
+  update public.conversations set deleted_at = now() where id = first_thread;
+  if (select response_baseline from public.companies where id = tenant) is not null then
+    raise exception 'Trashing historic activity must invalidate its baseline';
+  end if;
+end $day_twenty$;
+
 rollback;
