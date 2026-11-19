@@ -662,6 +662,23 @@ describe("writes", () => {
     });
   });
 
+  it("returns a keyed conflict when a task request reuses an idempotency key", async () => {
+    const sb = stubWithKey(["tasks:write"]);
+    sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => ({ outcome: "key_conflict" }));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      headers: { "Idempotency-Key": "task-create-1" },
+      body: JSON.stringify({ title: "Check the furnace" }),
+    });
+
+    expect(res.status).toBe(409);
+    await expect(res.json()).resolves.toMatchObject({
+      error: { code: "conflict", message_key: "apiRefusals.taskCreateKeyUsed" },
+    });
+  });
+
   it("creates a task with a priority, labels and a repeat (#693)", async () => {
     const TAG = "66666666-0000-4000-8000-000000000066";
     const sb = stubWithKey(["tasks:write"], "owner", false);

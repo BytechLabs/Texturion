@@ -53,6 +53,7 @@ enum ApiErrorStrings {
                 "This workspace has not set up payments yet.",
             "apiRefusals.portAlreadyPending":
                 "A transfer for this number is already in progress.",
+            "apiRefusals.taskCreateKeyUsed": "Idempotency-Key was already used for a task.",
             "apiRefusals.textEnablementAlreadyPending":
                 "This number already has a text-enablement in progress.",
             "apiRefusals.textEnablementNumberInUse":
@@ -139,6 +140,7 @@ enum ApiErrorStrings {
                 "Les paiements ne sont pas encore configurés dans cet espace de travail.",
             "apiRefusals.portAlreadyPending":
                 "Un transfert est déjà en cours pour ce numéro.",
+            "apiRefusals.taskCreateKeyUsed": "Cet en-tête Idempotency-Key a déjà servi à créer une tâche.",
             "apiRefusals.textEnablementAlreadyPending":
                 "L’activation des textos est déjà en cours pour ce numéro.",
             "apiRefusals.textEnablementNumberInUse":
