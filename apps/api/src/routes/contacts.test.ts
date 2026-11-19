@@ -1215,6 +1215,7 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
   it("returns one stream and an OPAQUE cursor when the page is full", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
     sb.on("POST", "/rest/v1/rpc/api_contact_timeline", () => [
       entry(),
       entry({
@@ -1268,6 +1269,10 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
     // message produces.
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    const hiddenNumberId = "eeeeeeee-9999-4222-8333-444444444444";
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: hiddenNumberId, level: "none" },
+    ]);
     let params: Record<string, unknown> | null = null;
     sb.on("POST", "/rest/v1/rpc/api_contact_timeline", (req) => {
       params = req.body as Record<string, unknown>;
@@ -1289,12 +1294,14 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
     expect(params).toMatchObject({
       p_before_ts: "2026-07-19T09:00:00.000Z",
       p_before_id: "0bbb0bbb-1111-4222-8333-444444444444",
+      p_hidden_number_ids: [hiddenNumberId],
     });
   });
 
   it("returns a null cursor on a short page, so the client stops", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/contacts", () => [contactRow()]);
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => []);
     sb.on("POST", "/rest/v1/rpc/api_contact_timeline", () => [entry()]);
     stubFetch(jwksRoute(auth), sb.route);
 

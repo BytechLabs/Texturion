@@ -235,6 +235,7 @@ const SUITES = [
   "calendar_feed_access",
   "reply_suggestion_window",
   "auth_locale",
+  "report_visibility",
 ];
 
 const args = process.argv.slice(2);

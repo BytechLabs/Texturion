@@ -283,6 +283,11 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
+insert into public.messages (company_id, conversation_id, direction, body, status)
+select company_id, id, 'inbound', 'I need a quote', 'delivered'
+from public.conversations
+where company_id = '7c000000-0000-4000-8000-0000000000c1'::uuid;
+
 -- LS-8: the report counts the unknowns, because they decide what it means.
 -- ---------------------------------------------------------------------------
 do $$
@@ -343,21 +348,25 @@ declare
   v_number    bigint;
   v_total     bigint;
   v_person    bigint;
+  v_conversation_id uuid;
+  v_company_id uuid := '7c000000-0000-4000-8000-0000000000c1';
 begin
+  insert into public.contacts (id, company_id, phone_e164) values
+    ('7c000000-0000-4000-8000-0000000000d4', v_company_id, '+14155559004'),
+    ('7c000000-0000-4000-8000-0000000000d5', v_company_id, '+14155559005'),
+    ('7c000000-0000-4000-8000-0000000000d6', v_company_id, '+14155559006');
   -- (1) THE COMMON CASE: a widget visitor did not ring an advertised number,
   -- so nothing puts a source on the conversation and it groups under the NULL
   -- id — right beside the ones we genuinely cannot explain. Without by_widget
   -- a workspace whose website produced most of its work would read "most of
   -- your conversations, we don't know where they came from".
-  --
-  -- d2 on the untracked line b2: a pair no earlier case used, because
-  -- `conversations_open_uq` allows one open thread per (workspace, number,
-  -- contact) and reusing one fails on the constraint rather than the report.
   insert into public.conversations (company_id, contact_id, phone_number_id, first_source)
-  values ('7c000000-0000-4000-8000-0000000000c1'::uuid,
-          '7c000000-0000-4000-8000-0000000000d2'::uuid,
+  values (v_company_id,
+          '7c000000-0000-4000-8000-0000000000d4'::uuid,
           '7c000000-0000-4000-8000-0000000000b2'::uuid,
-          'widget');
+          'widget') returning id into v_conversation_id;
+  insert into public.messages (company_id, conversation_id, direction, body, status)
+  values (v_company_id, v_conversation_id, 'inbound', 'Do you have time this week?', 'delivered');
 
   select by_widget, total into v_widget, v_unknown
     from public.api_lead_source_report(
@@ -381,10 +390,12 @@ begin
   -- fact, and the fact wins. b1 points at e3 by now — LS-4 repointed it — so
   -- the trigger stamps e3 and the report must still credit the website.
   insert into public.conversations (company_id, contact_id, phone_number_id, first_source)
-  values ('7c000000-0000-4000-8000-0000000000c1'::uuid,
-          '7c000000-0000-4000-8000-0000000000d1'::uuid,
+  values (v_company_id,
+          '7c000000-0000-4000-8000-0000000000d5'::uuid,
           '7c000000-0000-4000-8000-0000000000b1'::uuid,
-          'widget');
+          'widget') returning id into v_conversation_id;
+  insert into public.messages (company_id, conversation_id, direction, body, status)
+  values (v_company_id, v_conversation_id, 'inbound', 'Can you give me a quote?', 'delivered');
 
   select by_widget, by_number, total into v_widget, v_number, v_total
     from public.api_lead_source_report(
@@ -422,12 +433,14 @@ begin
   -- own inference — the move #301 forbids, run backwards.
   insert into public.conversations
     (company_id, contact_id, phone_number_id, lead_source_id, lead_source_set_by, first_source)
-  values ('7c000000-0000-4000-8000-0000000000c1'::uuid,
-          '7c000000-0000-4000-8000-0000000000d3'::uuid,
+  values (v_company_id,
+          '7c000000-0000-4000-8000-0000000000d6'::uuid,
           '7c000000-0000-4000-8000-0000000000b2'::uuid,
           '7c000000-0000-4000-8000-0000000000e2'::uuid,
           '7c000000-0000-4000-8000-00000000000a'::uuid,
-          'widget');
+          'widget') returning id into v_conversation_id;
+  insert into public.messages (company_id, conversation_id, direction, body, status)
+  values (v_company_id, v_conversation_id, 'inbound', 'My neighbour recommended you', 'delivered');
 
   select by_widget, by_person into v_widget, v_person
     from public.api_lead_source_report(
@@ -443,6 +456,42 @@ begin
   end if;
 
   raise notice 'LS-9 PASSED: a website conversation is credited to the website, once';
+end $$;
+
+do $$
+declare
+  v_company_id uuid := '7c000000-0000-4000-8000-0000000000c1';
+  v_existing uuid := '7c000000-0000-4000-8000-0000000000d1';
+  v_untracked uuid := '7c000000-0000-4000-8000-0000000000b2';
+  v_tracked uuid := '7c000000-0000-4000-8000-0000000000b1';
+  v_conversation_id uuid;
+  v_new bigint;
+  v_returning bigint;
+  v_outreach bigint;
+begin
+  insert into public.conversations (company_id, contact_id, phone_number_id)
+  values (v_company_id, v_existing, v_tracked) returning id into v_conversation_id;
+  insert into public.messages (company_id, conversation_id, direction, body, status, created_at)
+  values (v_company_id, v_conversation_id, 'inbound', 'Can you help again?', 'delivered', now() + interval '1 minute');
+
+  insert into public.conversations (company_id, contact_id, phone_number_id)
+  values (v_company_id, '7c000000-0000-4000-8000-0000000000d2', v_untracked)
+  returning id into v_conversation_id;
+  insert into public.messages (company_id, conversation_id, direction, body, status, sent_by_user_id)
+  values (v_company_id, v_conversation_id, 'outbound', 'Checking in', 'sent', '7c000000-0000-4000-8000-00000000000a');
+
+  select sum(new_customer), sum("returning"), sum(outreach) into v_new, v_returning, v_outreach
+  from public.api_lead_source_report(v_company_id, now() - interval '1 day', now() + interval '1 day');
+  if v_new is distinct from 6 or v_returning is distinct from 1 or v_outreach is distinct from 1 then
+    raise exception 'LS-10: expected 6 new, 1 returning and 1 outreach, got %, %, %', v_new, v_returning, v_outreach;
+  end if;
+
+  select sum("returning"), sum(outreach) into v_returning, v_outreach
+  from public.api_lead_source_report(v_company_id, now() - interval '1 day', now() + interval '1 day', array[v_tracked]);
+  if v_returning is distinct from 0 or v_outreach is distinct from 1 then
+    raise exception 'LS-10: hidden line should leave 0 returning and 1 outreach, got %, %', v_returning, v_outreach;
+  end if;
+  raise notice 'LS-10 PASSED: only new customers contribute to attribution';
 end $$;
 
 rollback;

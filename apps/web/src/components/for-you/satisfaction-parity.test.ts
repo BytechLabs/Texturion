@@ -89,11 +89,12 @@ const IOS_CATALOGUE = join(
 /** Sentences that live on the CARD in all three clients. */
 const CARD_FRAGMENTS: readonly string[] = [
   "out of 5, from ",
-  "the month before",
+  "the prior {days} days",
   "Up from ",
   "Down from ",
-  "No month before this one to compare against yet",
-  "About the same as the month before",
+  "No comparison data for the prior {days} days",
+  "About the same as the prior {days} days",
+  "Open job",
   "Details",
   "Hide details",
   "Asked",

@@ -20,12 +20,14 @@ import { apiRequest, buildTestApp, membershipResponder, supabaseStub } from '../
 import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { TestAuth } from '../test/support';
+import type { ResponseBaselineResult } from "../reports/response-baseline";
 import { reportsRoutes } from "./reports";
 
 const env = completeEnv();
 const COMPANY_ID = "5c1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "1d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const TECH_ID = "2d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
+const HIDDEN_NUMBER_ID = "eeeeeeee-9999-4222-8333-444444444444";
 
 let auth: TestAuth;
 const app = buildTestApp(reportsRoutes);
@@ -90,12 +92,11 @@ function statsPayload(
 }
 
 function stub(options: {
-  createdAt?: string;
   perMember?: boolean;
   hours?: Record<string, { open: string; close: string }>;
   exceptions?: unknown[];
   current: Record<string, unknown>;
-  baseline?: Record<string, unknown>;
+  baseline?: ResponseBaselineResult;
   /** #482: the company's numbers, for the by_number labels. */
   numbers?: { id: string; number_e164: string | null }[];
 }): SupabaseStub {
@@ -105,11 +106,8 @@ function stub(options: {
     "/rest/v1/rpc/api_authorize_request",
     membershipResponder(MEMBER_ID, "owner"),
   );
-  // Old enough for a baseline unless a test says otherwise.
-  const createdAt = options.createdAt ?? "2025-01-01T00:00:00Z";
   sb.on("GET", "/rest/v1/companies", () => [
     {
-      created_at: createdAt,
       timezone: "America/Toronto",
       business_hours: options.hours ?? NINE_TO_FIVE,
       business_hours_exceptions: options.exceptions ?? [],
@@ -118,20 +116,11 @@ function stub(options: {
   ]);
   // #482: the numbers the by_number rows are labelled from.
   sb.on("GET", "/rest/v1/phone_numbers", () => options.numbers ?? []);
-  // The route calls the same RPC twice, the current window and the baseline,
-  // at the same time. The baseline is the window that starts at creation.
-  sb.on("POST", "/rest/v1/rpc/api_response_time_stats", (call) =>
-    isBaselineCall(call, createdAt)
-      ? options.baseline ?? statsPayload([])
-      : options.current,
+  sb.on("POST", "/rest/v1/rpc/api_response_time_stats", () => options.current);
+  sb.on("POST", "/rest/v1/rpc/api_response_time_baseline", () =>
+    options.baseline ?? { reason: "no_answered_leads" },
   );
   return sb;
-}
-
-function isBaselineCall(call: { body: unknown }, createdAt: string): boolean {
-  return (
-    (call.body as { p_since: string }).p_since === new Date(createdAt).toISOString()
-  );
 }
 
 async function get(sb: SupabaseStub, query = ""): Promise<Response> {
@@ -345,12 +334,12 @@ describe("GET /v1/reports/response-time", () => {
   });
 
   it("refuses to invent an arc for a workspace too young to have one", async () => {
-    // Signed up yesterday. The first-fortnight baseline would overlap the
-    // current window, so comparing them compares the workspace to itself and
-    // reports the result as progress.
     const yesterday = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
     const sb = stub({
-      createdAt: yesterday,
+      baseline: { baseline: {
+        since: new Date(Date.now() - 15 * 24 * 60 * 60 * 1000).toISOString(), until: yesterday,
+        leads: 7, answered: 5, median_seconds: 1200,
+      } },
       current: statsPayload([
         { opened_at: "2026-07-01T14:00:00Z", response_seconds: 120 },
       ]),
@@ -366,32 +355,43 @@ describe("GET /v1/reports/response-time", () => {
       current: statsPayload([
         { opened_at: "2026-07-01T14:00:00Z", response_seconds: 240 },
       ]),
-      baseline: statsPayload([
-        { opened_at: "2025-01-02T14:00:00Z", response_seconds: 10_800 },
-      ]),
+      baseline: { baseline: {
+        since: "2025-01-20T14:00:00Z", until: "2025-02-03T14:00:00Z",
+        leads: 7, answered: 5, median_seconds: 10_800,
+      } },
     });
     const body = await (await get(sb)).json<Record<string, unknown>>();
-    expect(body.baseline).toMatchObject({ median_seconds: 10_800, answered: 1 });
+    expect(body.baseline).toMatchObject({ since: "2025-01-20T14:00:00Z", median_seconds: 10_800, answered: 5 });
     // Three hours to four minutes. Positive means faster now, which is the
     // sentence the customer repeats to other contractors.
     expect(body.improved_by_seconds).toBe(10_560);
   });
 
-  it("calls a first fortnight with no answers no baseline, not a baseline of zero", async () => {
-    // Reporting "you have improved from 0 seconds" for a workspace that answered
-    // nothing in its first two weeks is the arc as fiction.
+  it("keeps the arc unavailable when the baseline window closes without answers", async () => {
     const sb = stub({
       current: statsPayload([
         { opened_at: "2026-07-01T14:00:00Z", response_seconds: 240 },
       ]),
-      baseline: statsPayload([
-        { opened_at: "2025-01-02T14:00:00Z", response_seconds: null },
-      ]),
+      baseline: { reason: "no_answered_leads" },
     });
     const body = await (await get(sb)).json<Record<string, unknown>>();
     expect(body.baseline).toBeNull();
     expect(body.baseline_unavailable).toBe("no_answered_leads");
     expect(body.improved_by_seconds).toBeNull();
+  });
+
+  it("returns baseline progress and distinct missed-caller totals", async () => {
+    const sb = stub({
+      baseline: { reason: "collecting", answered: 3, required: 5 },
+      current: statsPayload([], { missed_callers: { total: 6, reached: 4, unreached: 2 } }),
+    });
+
+    await expect((await get(sb)).json()).resolves.toMatchObject({
+      baseline: null,
+      baseline_unavailable: "collecting",
+      baseline_progress: { answered: 3, required: 5 },
+      missed_callers: { total: 6, reached: 4, unreached: 2 },
+    });
   });
 
   it("labels response times only when the owner opts in", async () => {
@@ -455,9 +455,7 @@ describe("GET /v1/reports/response-time", () => {
     }>();
     expect(body.window.days).toBe(30);
 
-    const current = sb
-      .find("POST", "/rest/v1/rpc/api_response_time_stats")
-      .find((call) => !isBaselineCall(call, "2025-01-01T00:00:00Z"))!;
+    const [current] = sb.find("POST", "/rest/v1/rpc/api_response_time_stats");
     const since = new Date((current.body as { p_since: string }).p_since);
     const until = new Date((current.body as { p_until: string }).p_until);
     const days = Math.round(
@@ -492,12 +490,16 @@ describe("#354 GET /v1/reports/pipeline", () => {
   function stubPipeline(
     role: string,
     windows: { quoted: number; won: number; lost: number; open: number }[],
+    hiddenNumberId?: string,
   ): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on(
       "POST",
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, role),
+    );
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () =>
+      hiddenNumberId ? [{ phone_number_id: hiddenNumberId, level: "none" }] : [],
     );
     let call = 0;
     sb.on("POST", "/rest/v1/rpc/api_pipeline_report", () => {
@@ -517,7 +519,7 @@ describe("#354 GET /v1/reports/pipeline", () => {
     const sb = stubPipeline("member", [
       { quoted: 10, won: 6, lost: 2, open: 2 },
       { quoted: 8, won: 2, lost: 6, open: 0 },
-    ]);
+    ], HIDDEN_NUMBER_ID);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -536,7 +538,11 @@ describe("#354 GET /v1/reports/pipeline", () => {
     ]);
     // Two windows, so the number has a direction. A win rate with nothing to
     // compare it to is a statistic rather than something to act on.
-    expect(sb.find("POST", "/rest/v1/rpc/api_pipeline_report")).toHaveLength(2);
+    const calls = sb.find("POST", "/rest/v1/rpc/api_pipeline_report");
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.body).toMatchObject({ p_hidden_number_ids: [HIDDEN_NUMBER_ID] });
+    }
   });
 
   it("divides by DECIDED jobs, so quoting more work cannot lower the rate", async () => {
@@ -571,6 +577,26 @@ describe("#354 GET /v1/reports/pipeline", () => {
   });
 });
 
+describe("GET /v1/reports/lead-sources", () => {
+  it("scopes attribution to the caller's visible lines", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: HIDDEN_NUMBER_ID, level: "none" },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_lead_source_report", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), "/v1/reports/lead-sources", {
+      companyId: COMPANY_ID,
+    });
+
+    expect(response.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_lead_source_report")[0]?.body)
+      .toMatchObject({ p_hidden_number_ids: [HIDDEN_NUMBER_ID] });
+  });
+});
+
 /**
  * GET /v1/reports/satisfaction (#313).
  *
@@ -589,14 +615,17 @@ interface Rating {
 
 function ratingWorld(
   ratings: Rating[],
-  options: { perMember?: boolean } = {},
+  options: { perMember?: boolean; restrictLine?: boolean } = {},
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
     "POST",
     "/rest/v1/rpc/api_authorize_request",
-    membershipResponder(MEMBER_ID, "owner"),
+    membershipResponder(MEMBER_ID, options.restrictLine ? "member" : "owner"),
   );
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+    { phone_number_id: HIDDEN_NUMBER_ID, level: "none" },
+  ]);
   sb.on("GET", "/rest/v1/companies", () => [
     { response_stats_per_member: options.perMember ?? false },
   ]);
@@ -610,6 +639,9 @@ function ratingWorld(
       const timestamp = new Date(now - rating.ago * 86_400_000).toISOString();
       return {
         id: `aaaaaaaa-0000-4000-8000-${String(ratings.length - index).padStart(12, "0")}`,
+        task_id: `job-${index}`,
+        conversation_id: `thread-${index}`,
+        tasks: { title: `Job ${index}` },
         score: rating.score,
         answered_at: rating.score === null ? null : timestamp,
         rated_user_id: rating.rated_user_id ?? null,
@@ -651,6 +683,18 @@ async function satisfaction(
 }
 
 describe("#313 satisfaction reporting", () => {
+  it("filters hidden lines and trashed jobs before reading rating pages", async () => {
+    const sb = ratingWorld([], { restrictLine: true });
+    await satisfaction(sb);
+    const query = sb.find("GET", "/rest/v1/job_ratings")[0]?.url.searchParams;
+
+    expect(query?.get("conversations.or")).toBe(`(phone_number_id.is.null,phone_number_id.not.in.(${HIDDEN_NUMBER_ID}))`);
+    expect(query?.get("conversations.deleted_at")).toBe("is.null");
+    expect(query?.get("tasks.deleted_at")).toBe("is.null");
+    expect(query?.get("conversations.purged_at")).toBe("is.null");
+    expect(query?.get("tasks.purged_at")).toBe("is.null");
+  });
+
   it.each([1400, 5000, 5001])("counts %i same-time ratings up to the cap", async (count) => {
     const ratings = Array.from({ length: count }, () => ({ score: 5, ago: 1 }));
     const body = await satisfaction(ratingWorld(ratings));
@@ -692,6 +736,7 @@ describe("#313 satisfaction reporting", () => {
     expect(body.average).toBe(4);
     expect(body.sample_too_small).toBe(false);
     expect(body.poor).toBe(1);
+    expect(body.poor_jobs).toEqual([{ task_id: "job-4", conversation_id: "thread-4", score: 2, title: "Job 4" }]);
   });
 
   it("SR-3: 'nobody answered' is not 'we asked nobody'", async () => {

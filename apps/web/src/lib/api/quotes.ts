@@ -81,7 +81,7 @@ export function useOutstandingQuotes(enabled = true) {
   return useQuery({
     queryKey: keys.quotes.outstanding(companyId),
     queryFn: () =>
-      apiFetch<{ data: Quote[] }>("/v1/quotes?status=outstanding", { companyId }),
+      apiFetch<{ data: Quote[]; total?: number }>("/v1/quotes?status=outstanding", { companyId }),
     enabled,
     staleTime: 5 * 60_000,
   });

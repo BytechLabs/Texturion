@@ -23,10 +23,8 @@
  *      one rule". A plpgsql copy would be a fifth, and the copy that drifts is
  *      always the one nobody reads.
  *
- *   2. THE ARC. The before/after is the product story, so the first fourteen
- *      days after signup are the baseline. It is returned as null, with a
- *      reason, whenever the workspace is too young for the two windows to be
- *      distinct — an invented arc is exactly the vanity metric #239 warns about.
+ *   2. THE ARC. The baseline starts at the first qualifying lead.
+ *      The API compares it with the current window once the two stop overlapping.
  *
  *   3. THE PER-MEMBER GATE. `companies.response_stats_per_member` defaults to
  *      FALSE. Per-member numbers are motivating in some crews and toxic in
@@ -43,7 +41,7 @@ import {
   SATISFACTION_MIN_SAMPLE,
   SATISFACTION_POOR_AT_OR_BELOW,
 } from "@loonext/shared";
-import type { BusinessHours,HoursException,PipelineReport } from '@loonext/shared';
+import type { BusinessHours,HoursException,MissedCallerTotals,PipelineReport } from '@loonext/shared';
 import { Hono } from "hono";
 
 import { requireCapability } from "../auth/company";
@@ -54,21 +52,13 @@ import { getEnv } from "../env";
 import { keysetFilter, unwrap } from "./core/http";
 import { buildLeadSourceReport, coverageNote } from '../reports/lead-sources';
 import type { LeadSourceRollupRow } from '../reports/lead-sources';
+import { loadResponseBaseline } from "../reports/response-baseline";
 
 export const reportsRoutes = new Hono<AppEnv>();
 
 /** Windows the clients offer. Bounded so one request cannot scan all history. */
 const ALLOWED_DAYS = [7, 30, 90] as const;
 const DEFAULT_DAYS = 30;
-
-/**
- * The baseline window: the workspace's first fortnight.
- *
- * Two weeks rather than one because a three-person crew can take very few leads
- * in seven days, and an arc drawn from two of them is noise presented as
- * progress.
- */
-const BASELINE_DAYS = 14;
 
 /** Rows the RPC returns for the hours split. Reported when it truncates. */
 const MAX_ROWS = 5000;
@@ -91,6 +81,7 @@ interface StatsPayload {
   call_first?: number;
   auto_text_sent?: number;
   replied_to_auto_text?: number;
+  missed_callers?: MissedCallerTotals;
   median_seconds: number | null;
   p90_seconds: number | null;
   by_member: { user_id: string; answered: number; median_seconds: number }[];
@@ -198,7 +189,6 @@ interface LabelledNumberRow {
 }
 
 interface CompanyRow {
-  created_at: string;
   timezone: string;
   business_hours: BusinessHours | null;
   business_hours_exceptions: HoursException[] | null;
@@ -256,7 +246,7 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     db
       .from("companies")
       .select(
-        "created_at,timezone,business_hours,business_hours_exceptions," +
+        "timezone,business_hours,business_hours_exceptions," +
           "response_stats_per_member",
       )
       .eq("id", companyId)
@@ -291,17 +281,9 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     return data as StatsPayload;
   }
 
-  // The arc. The baseline is the workspace's first fortnight; it is only
-  // meaningful once the current window no longer overlaps it, so a young
-  // workspace gets an explicit reason instead of a comparison against itself.
-  const createdAt = new Date(company.created_at);
-  const baselineUntil = new Date(
-    createdAt.getTime() + BASELINE_DAYS * 24 * 60 * 60 * 1000,
-  );
-  const tooNew = baselineUntil > since;
   const [current, first] = await Promise.all([
     stats(since, until),
-    tooNew ? null : stats(createdAt, baselineUntil),
+    loadResponseBaseline(db, companyId, until, access.hiddenNumberIds),
   ]);
 
   // The split. Each lead is classified by WHEN THE CUSTOMER WROTE, not when we
@@ -320,23 +302,10 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     side.push(row);
   }
 
-  let baseline: (StatsPayload & { since: string; until: string }) | null = null;
-  let baselineUnavailable: string | null = null;
-  if (first === null) {
-    baselineUnavailable = "too_new";
-  } else if (first.answered === 0) {
-    // A first fortnight with no answered lead is not a baseline of zero; it is
-    // no baseline. Reporting it as an improvement from nothing would be the
-    // arc as fiction.
-    baselineUnavailable = "no_answered_leads";
-  } else {
-    baseline = {
-      ...first,
-      since: createdAt.toISOString(),
-      until: baselineUntil.toISOString(),
-    };
-  }
-
+  const baseline = "baseline" in first && new Date(first.baseline.until) <= since
+    ? first.baseline
+    : null;
+  const baselineUnavailable = "reason" in first ? first.reason : baseline ? null : "too_new";
   const improvedBy =
     baseline?.median_seconds != null && current.median_seconds != null
       ? baseline.median_seconds - current.median_seconds
@@ -361,6 +330,7 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     call_first: current.call_first ?? 0,
     auto_text_sent: current.auto_text_sent ?? null,
     replied_to_auto_text: current.replied_to_auto_text ?? null,
+    missed_callers: current.missed_callers ?? null,
     median_seconds: current.median_seconds,
     p90_seconds: current.p90_seconds,
     business_hours: sideOf(inHours),
@@ -400,6 +370,9 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
         }
       : null,
     baseline_unavailable: baselineUnavailable,
+    baseline_progress: "reason" in first && first.reason === "collecting"
+      ? { answered: first.answered, required: first.required }
+      : null,
     improved_by_seconds: improvedBy,
     // The hours split is computed over the returned rows, so if the RPC capped
     // them the split covers a subset. Said out loud rather than implied — a cap
@@ -424,6 +397,11 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
 reportsRoutes.get("/reports/pipeline", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
   const companyId = c.get("companyId");
+  const { hiddenNumberIds } = await resolveNumberAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
 
   const requested = Number(c.req.query("days") ?? DEFAULT_DAYS);
   const days = (ALLOWED_DAYS as readonly number[]).includes(requested)
@@ -439,6 +417,7 @@ reportsRoutes.get("/reports/pipeline", requireCapability("conversations.read"), 
       p_company_id: companyId,
       p_since: from.toISOString(),
       p_until: to.toISOString(),
+      p_hidden_number_ids: hiddenNumberIds,
     });
     if (error) throw new Error(`api_pipeline_report failed: ${error.message}`);
     return data as PipelineReport;
@@ -512,10 +491,13 @@ reportsRoutes.get("/reports/pipeline", requireCapability("conversations.read"), 
  */
 interface RatingRow {
   id: string;
+  task_id: string;
+  conversation_id: string;
   asked_at: string;
   score: number | null;
   answered_at: string | null;
   rated_user_id: string | null;
+  tasks: { title: string };
 }
 
 interface SatisfactionSlice {
@@ -579,6 +561,11 @@ reportsRoutes.get(
   async (c) => {
     const db = getDb(getEnv(c.env));
     const companyId = c.get("companyId");
+    const { hiddenNumberIds } = await resolveNumberAccess(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+    });
 
     const requested = Number(c.req.query("days") ?? DEFAULT_DAYS);
     const days = (ALLOWED_DAYS as readonly number[]).includes(requested)
@@ -592,6 +579,7 @@ reportsRoutes.get(
       p_company_id: companyId,
       p_since: since.toISOString(),
       p_until: until.toISOString(),
+      p_hidden_number_ids: hiddenNumberIds,
     });
     if (error) {
       throw new Error(`api_lead_source_report failed: ${error.message}`);
@@ -618,12 +606,16 @@ reportsRoutes.get(
       ? requested
       : DEFAULT_DAYS;
 
+    const [{ hiddenNumberIds }, companyResult] = await Promise.all([
+      resolveNumberAccess(db, {
+        companyId,
+        userId: c.get("userId"),
+        role: c.get("role"),
+      }),
+      db.from("companies").select("response_stats_per_member").eq("id", companyId).limit(1),
+    ]);
     const companies = unwrap<{ response_stats_per_member: boolean }[]>(
-      await db
-        .from("companies")
-        .select("response_stats_per_member")
-        .eq("id", companyId)
-        .limit(1),
+      companyResult,
       "satisfaction company lookup",
     );
     const [company] = companies;
@@ -640,17 +632,32 @@ reportsRoutes.get(
     while (rows.length <= MAX_ROWS) {
       let ratings = db
         .from("job_ratings")
-        .select("id,asked_at,score,answered_at,rated_user_id")
+        .select("id,task_id,conversation_id,asked_at,score,answered_at,rated_user_id,conversations!inner(),tasks!inner(title)")
         .eq("company_id", companyId)
+        .is("conversations.deleted_at", null)
+        .is("conversations.purged_at", null)
+        .eq("conversations.is_spam", false)
+        .is("tasks.deleted_at", null)
+        .is("tasks.purged_at", null)
         .gte("asked_at", priorSince.toISOString())
+        .lt("asked_at", until.toISOString())
         .order("asked_at", { ascending: false })
         .order("id", { ascending: false });
+      if (hiddenNumberIds?.length) {
+        ratings = ratings.or(
+          `phone_number_id.is.null,phone_number_id.not.in.(${hiddenNumberIds.join(",")})`,
+          { referencedTable: "conversations" },
+        );
+      }
       const last = rows.at(-1);
       if (last) {
         ratings = ratings.or(keysetFilter("asked_at", { ts: last.asked_at, id: last.id }));
       }
       const limit = Math.min(RATINGS_PAGE_SIZE, MAX_ROWS - rows.length + 1);
-      const page = unwrap<RatingRow[]>(await ratings.limit(limit), "satisfaction ratings");
+      const page = unwrap(
+        await ratings.limit(limit).overrideTypes<RatingRow[], { merge: false }>(),
+        "satisfaction ratings",
+      );
       rows.push(...page);
       if (page.length < limit) break;
     }
@@ -666,6 +673,18 @@ reportsRoutes.get(
 
     const now = sliceOf(current, truncated);
     const before = sliceOf(prior, truncated);
+    const poorJobs = current
+      .filter((row): row is RatingRow & { score: number } =>
+        row.score !== null && row.score <= SATISFACTION_POOR_AT_OR_BELOW,
+      )
+      .toSorted((a, b) => (b.answered_at ?? b.asked_at).localeCompare(a.answered_at ?? a.asked_at))
+      .slice(0, 5)
+      .map(({ task_id, conversation_id, score, tasks }) => ({
+        task_id,
+        conversation_id,
+        score,
+        title: tasks?.title ?? null,
+      }));
 
     // Per member, and only when the owner has said so. Same flag as #239's
     // response stats rather than a second toggle: they are the same decision —
@@ -701,6 +720,7 @@ reportsRoutes.get(
       // it happened; this is the count, so a month with three is visible as a
       // pattern rather than as three forgotten pushes.
       poor: now.poor,
+      poor_jobs: poorJobs,
       by_member: company.response_stats_per_member
         ? [...byMember.entries()]
             .map(([user_id, scores]) => ({

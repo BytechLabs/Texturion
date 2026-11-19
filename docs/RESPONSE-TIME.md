@@ -43,8 +43,8 @@ There is a specific trap here, and it is worth naming because it is invisible:
 attributed to the owner, because the outbound-actor CHECK requires an actor. Any
 implementation that tests the actor instead of the `automated` flag silently
 reads every away reply as the owner answering. The #388 lead clock hit this
-first. The report checks the same flag. The #388 escalation ladder still uses
-its existing trigger and clear rules.
+first. The report checks the same flag. The #388 escalation clock also starts
+on a missed call and clears when a crew member reaches the caller.
 
 The API counts text-first and call-first leads separately. It also counts leads
 that received a missed-call text-back and leads that sent an inbound text after
@@ -59,6 +59,21 @@ that text-back.
 | **Deleted activity and hidden lines** | Trashed conversations, calls and texts are excluded, along with conversations on lines the reader cannot see. |
 | **Threads we opened** | See "what starts the clock". |
 | **Reopened threads** | See below. |
+
+Pipeline, lead-source and satisfaction reports also use the viewer’s line
+access. Pipeline and lead-source counts exclude trashed conversations.
+Satisfaction also excludes ratings attached to trashed jobs.
+
+Lead-source rankings count each contact’s first qualifying lead. Reports show
+returning conversations and crew outreach alongside the ranking. A returning
+conversation has an earlier qualifying lead for that contact or new inbound
+activity on a conversation opened before the selected window.
+
+The pipeline card links directly to the oldest actionable quotes and manually
+tracked opportunities in its window. Satisfaction links to the most recently
+answered jobs below the callback threshold and compares equally long windows.
+The outstanding-quote queue shows the full count of unexpired sent or viewed
+quotes and puts the oldest quotes first.
 
 ## A reopened thread is not measured again
 
@@ -148,18 +163,21 @@ each lead's opening instant to ask the shared evaluator.
 
 ## The arc
 
-The before/after is the product story, so the baseline is the workspace's **first
-fourteen days**. Two weeks rather than one because a three-person crew can take
-very few leads in seven days, and an arc drawn from two of them is noise
-presented as progress.
+The baseline starts on the first qualifying lead. It closes after at least
+14 days and once five leads have been answered, with a 60-day cap. The API
+returns `collecting` with the answer count while that window is open,
+`too_new` when it overlaps the selected comparison window, and
+`no_answered_leads` if it closes without an answer.
 
-The baseline is withheld, with a reason, in two cases:
+The workspace baseline is stored on the company with its definition version.
+Trash, restore and spam changes invalidate a baseline that could include the
+affected activity. A member with hidden lines gets a baseline computed from
+their visible conversations. The owner recap uses the workspace baseline.
 
-- `too_new` — the first fortnight still overlaps the window being reported, so
-  comparing them compares the workspace to itself.
-- `no_answered_leads` — nothing was answered in the first fortnight. That is not
-  a baseline of zero; it is no baseline. "You have improved from 0 seconds" is
-  the arc as fiction.
+Details and the owner recap count distinct callers who had a missed or
+voicemail call during the selected window. A caller is reached once the crew
+answers by text or phone before the window closes. The Details link opens the
+live list of conversations awaiting a reply.
 
 ## Per-member numbers are the owner's choice
 

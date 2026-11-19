@@ -328,6 +328,7 @@ object InboxStrings : AppStrings.Section {
 
         // --- Where the customers came from (#301) -------------------------------------
         "inbox.leadSourcesTitle" to "Where your customers come from",
+        "inbox.leadSourcesBreakdown" to "New customers {new} · Returning customers {returning} · Your outreach {outreach}",
         "inbox.leadSourcesNoneSetUp" to
             "You haven't told us yet. Put a source on the numbers you " +
             "advertise — the one on the truck, the one in the ad — and " +
@@ -366,6 +367,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.pipelineQuoted" to "Quoted",
         "inbox.pipelineWon" to "Won",
         "inbox.pipelineStillOut" to "Still out",
+        "inbox.pipelineChase" to "Waiting for follow-up ({count})",
+        "inbox.pipelineOpenConversation" to "Open conversation",
         "inbox.pipelineShareAria" to "Of {quoted} quoted, {won} won and {open} still out",
 
         // --- The referral ask (#288) -------------------------------------------------------
@@ -382,6 +385,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.responseToAnswer" to "to answer a new customer",
         "inbox.responseArcDown" to "Down from {then} when you started",
         "inbox.responseArcUp" to "Up from {then} when you started",
+        "inbox.responseBaselineCollecting" to "Gathering a baseline. {answered} of {required} leads answered.",
+        "inbox.responseMissedCallers" to "Missed callers {total} · Reached {reached} · Waiting for a reply {unreached}",
         "inbox.responseNoArcTooNew" to
             "Your starting point lands once you have been here a fortnight",
         "inbox.responseNoArcNoLeads" to
@@ -415,10 +420,10 @@ object InboxStrings : AppStrings.Section {
             "Too few answers to average yet — {answered} of {minimum}",
         "inbox.satisfactionRingAria" to "{score} out of 5, from {count} answers",
         "inbox.satisfactionOutOfFive" to "out of 5, from {count} answers",
-        "inbox.satisfactionArcUp" to "Up from {then} the month before",
-        "inbox.satisfactionArcDown" to "Down from {then} the month before",
-        "inbox.satisfactionNoBaseline" to "No month before this one to compare against yet",
-        "inbox.satisfactionSame" to "About the same as the month before",
+        "inbox.satisfactionArcUp" to "Up from {then} in the prior {days} days",
+        "inbox.satisfactionArcDown" to "Down from {then} in the prior {days} days",
+        "inbox.satisfactionNoBaseline" to "No comparison data for the prior {days} days",
+        "inbox.satisfactionSame" to "About the same as the prior {days} days",
         "inbox.satisfactionDetails" to "Details",
         "inbox.satisfactionHideDetails" to "Hide details",
         "inbox.satisfactionStarsOne" to "1 star",
@@ -432,6 +437,7 @@ object InboxStrings : AppStrings.Section {
         "inbox.satisfactionMemberFallback" to "Member",
         "inbox.satisfactionPoorOne" to "1 job needed a call back",
         "inbox.satisfactionPoorMany" to "{count} jobs needed a call back",
+        "inbox.satisfactionOpenJob" to "Open job",
         "inbox.satisfactionByMember" to "{name} · {count} answered",
         "inbox.satisfactionMemberTooFew" to "Too few answers to average yet",
         "inbox.satisfactionTruncated" to "Showing the most recent {count} ratings.",
@@ -736,6 +742,7 @@ object InboxStrings : AppStrings.Section {
 
         // --- Where the customers came from -------------------------------------------------------
         "inbox.leadSourcesTitle" to "D'où viennent vos clients",
+        "inbox.leadSourcesBreakdown" to "Nouveaux clients {new} · Clients de retour {returning} · Vos prises de contact {outreach}",
         "inbox.leadSourcesNoneSetUp" to
             "Vous ne nous l'avez pas encore dit. Attribuez une source aux numéros " +
             "que vous annoncez — celui sur le camion, celui dans la publicité — et " +
@@ -769,6 +776,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.pipelineQuoted" to "Envoyés",
         "inbox.pipelineWon" to "Gagnés",
         "inbox.pipelineStillOut" to "En attente",
+        "inbox.pipelineChase" to "En attente de suivi ({count})",
+        "inbox.pipelineOpenConversation" to "Ouvrir la conversation",
         "inbox.pipelineShareAria" to
             "Sur {quoted} devis envoyés, {won} gagnés et {open} en attente",
 
@@ -786,6 +795,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.responseToAnswer" to "pour répondre à un nouveau client",
         "inbox.responseArcDown" to "En baisse depuis {then} à vos débuts",
         "inbox.responseArcUp" to "En hausse depuis {then} à vos débuts",
+        "inbox.responseBaselineCollecting" to "Collecte des données de référence. {answered} demandes sur {required} ont reçu une réponse.",
+        "inbox.responseMissedCallers" to "Appels manqués de {total} personnes · {reached} jointes · {unreached} sans réponse",
         "inbox.responseNoArcTooNew" to
             "Votre point de départ sera établi après deux semaines ici",
         "inbox.responseNoArcNoLeads" to
@@ -821,11 +832,11 @@ object InboxStrings : AppStrings.Section {
             "Trop peu de réponses pour faire une moyenne — {answered} sur {minimum}",
         "inbox.satisfactionRingAria" to "{score} sur 5, à partir de {count} réponses",
         "inbox.satisfactionOutOfFive" to "sur 5, à partir de {count} réponses",
-        "inbox.satisfactionArcUp" to "En hausse depuis {then} le mois précédent",
-        "inbox.satisfactionArcDown" to "En baisse depuis {then} le mois précédent",
+        "inbox.satisfactionArcUp" to "En hausse par rapport à {then} au cours des {days} jours précédents",
+        "inbox.satisfactionArcDown" to "En baisse par rapport à {then} au cours des {days} jours précédents",
         "inbox.satisfactionNoBaseline" to
-            "Aucun mois précédent auquel se comparer pour l'instant",
-        "inbox.satisfactionSame" to "À peu près comme le mois précédent",
+            "Aucune donnée de comparaison pour les {days} jours précédents",
+        "inbox.satisfactionSame" to "À peu près comme les {days} jours précédents",
         "inbox.satisfactionDetails" to "Détails",
         "inbox.satisfactionHideDetails" to "Masquer les détails",
         "inbox.satisfactionStarsOne" to "1 étoile",
@@ -840,6 +851,7 @@ object InboxStrings : AppStrings.Section {
         "inbox.satisfactionMemberFallback" to "Membre",
         "inbox.satisfactionPoorOne" to "1 travail a nécessité un rappel",
         "inbox.satisfactionPoorMany" to "{count} travaux ont nécessité un rappel",
+        "inbox.satisfactionOpenJob" to "Ouvrir le travail",
         "inbox.satisfactionByMember" to "{name} · {count} avec réponse",
         "inbox.satisfactionMemberTooFew" to "Trop peu de réponses pour faire une moyenne",
         "inbox.satisfactionTruncated" to

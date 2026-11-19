@@ -275,14 +275,13 @@ quotesRoutes.post("/quotes/:id/undo-acceptance", requireCapability("settings.man
  * The outstanding queue, and the rest on request.
  *
  * `?status=outstanding` is the one the owner opens every morning: money asked
- * for and not yet answered. It is computed with the shared rule rather than a
- * SQL `where status in (...)`, because "outstanding" includes an expiry that
- * is derived on read — a query filtering on the stored column would happily
- * return a quote that expired last week.
+ * for and not yet answered. Filter by status and expiry before counting or
+ * taking the oldest rows.
  */
 quotesRoutes.get("/quotes", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
   const status = c.req.query("status");
+  const outstanding = status === "outstanding";
   if (status !== undefined && status !== "outstanding" && !QUOTE_STATUSES.includes(status as never)) {
     return errorResponse(c, "validation_failed", `unknown status filter: ${status}`);
   }
@@ -314,9 +313,10 @@ quotesRoutes.get("/quotes", requireCapability("conversations.read"), async (c) =
     role: c.get("role"),
   });
 
+  const now = new Date();
   let query = db
     .from("quotes")
-    .select(`${QUOTE_COLUMNS},conversations!inner(phone_number_id)`)
+    .select(`${QUOTE_COLUMNS},conversations!inner(phone_number_id)`, outstanding ? { count: "exact" } : undefined)
     .eq("company_id", c.get("companyId"))
     .is("conversations.deleted_at", null)
     .is("conversations.purged_at", null);
@@ -330,16 +330,13 @@ quotesRoutes.get("/quotes", requireCapability("conversations.read"), async (c) =
     );
   }
 
-  const rows = unwrap<QuoteRow[]>(
-    await query
-      .order("created_at", { ascending: false })
-      // Defensive bound, same reasoning as the tag list: unpaginated, so cap
-      // it well above any real workspace rather than return the whole table.
-      .limit(500),
-    "quotes list",
-  );
+  query = outstanding
+    ? query.in("status", ["sent", "viewed"]).gt("expires_at", now.toISOString())
+      .order("sent_at", { ascending: true, nullsFirst: false }).order("id")
+    : query.order("created_at", { ascending: false });
+  const result = await query.limit(500);
+  const rows = unwrap<QuoteRow[]>(result, "quotes list");
 
-  const now = new Date();
   const filtered = rows.filter((row: QuoteRow) => {
     if (status === undefined) return true;
     if (status === "outstanding") return isQuoteOutstanding(row, now);
@@ -348,6 +345,7 @@ quotesRoutes.get("/quotes", requireCapability("conversations.read"), async (c) =
 
   return c.json({
     data: filtered.map((row: QuoteRow) => withEffectiveStatus(row, now, c.get("role"))),
+    ...(outstanding ? { total: result.count ?? filtered.length } : {}),
     next_cursor: null,
   });
 });
@@ -358,9 +356,11 @@ quotesRoutes.get("/quotes/:id", requireCapability("conversations.read"), async (
   const rows = unwrap<unknown>(
     await db
       .from("quotes")
-      .select(QUOTE_COLUMNS)
+      .select(`${QUOTE_COLUMNS},conversations!inner()`)
       .eq("company_id", c.get("companyId"))
       .eq("id", id)
+      .is("conversations.deleted_at", null)
+      .is("conversations.purged_at", null)
       .limit(1),
     "quote read",
   ) as QuoteRow[];

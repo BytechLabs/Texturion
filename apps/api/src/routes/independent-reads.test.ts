@@ -454,12 +454,10 @@ describe("independent reads are issued together", () => {
     expectTogether(probe);
   });
 
-  it("GET /v1/reports/response-time reads access with the workspace, then both windows together", async () => {
-    const createdAt = "2025-01-01T00:00:00Z";
+  it("GET /v1/reports/response-time reads access with the workspace, then current stats with the baseline", async () => {
     const sb = memberStub();
     sb.on("GET", "/rest/v1/companies", () => [
       {
-        created_at: createdAt,
         timezone: "America/Toronto",
         business_hours: null,
         business_hours_exceptions: null,
@@ -467,6 +465,7 @@ describe("independent reads are issued together", () => {
       },
     ]);
     sb.on("GET", "/rest/v1/phone_numbers", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_response_time_baseline", () => ({ reason: "collecting", progress: null }));
     sb.on("POST", "/rest/v1/rpc/api_response_time_stats", () => ({
       leads: 0,
       answered: 0,
@@ -478,15 +477,13 @@ describe("independent reads are issued together", () => {
       row_limit: 5000,
       truncated: false,
     }));
-    const isBaseline = (call: HeldCall) =>
-      call.body.p_since === new Date(createdAt).toISOString();
     const first = heldTogether({
       access: rpc("member_number_levels"),
       company: read("companies"),
     });
     const windows = heldTogether({
-      current: (call) => rpc("api_response_time_stats")(call) && !isBaseline(call),
-      baseline: (call) => rpc("api_response_time_stats")(call) && isBaseline(call),
+      current: rpc("api_response_time_stats"),
+      baseline: rpc("api_response_time_baseline"),
     });
     stubFetch(jwksRoute(auth), first.route, windows.route, sb.route);
 

@@ -60,9 +60,10 @@ export function OutstandingQuotesSection() {
    */
   const [chased, setChased] = useState<Record<string, boolean>>({});
 
-  const rows = (quotes.data?.data ?? [])
-    .slice()
-    .toSorted((a, b) => (a.sent_at ?? "").localeCompare(b.sent_at ?? ""))
+  const quotesInQueue = quotes.data?.data ?? [];
+  const total = quotes.data?.total ?? quotesInQueue.length;
+  const rows = quotesInQueue
+    .toSorted((a, b) => (a.sent_at ?? "\uFFFF").localeCompare(b.sent_at ?? "\uFFFF"))
     .slice(0, OUTSTANDING_QUOTES_LIMIT);
 
   // Absent entirely when nothing is waiting. A workspace that has answered
@@ -76,7 +77,7 @@ export function OutstandingQuotesSection() {
   const canChase = roleHasCapability(role, "conversations.note");
 
   return (
-    <Section label={t("quotes.outstandingTitle")} count={rows.length}>
+    <Section label={t("quotes.outstandingTitle")} count={total}>
       {rows.map((quote) => {
         const currency = billingCurrencyOf(quote.currency);
         const amount = formatMoney(quote.amount_cents, currency, currency, locale);

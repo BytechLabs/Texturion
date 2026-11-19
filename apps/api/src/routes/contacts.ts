@@ -1968,6 +1968,11 @@ contactsRoutes.get("/contacts/:id/timeline", requireCapability("conversations.re
 
   const limit = parseLimit(c, 50, 200);
   const cursor = parseCursor(c);
+  const { hiddenNumberIds } = await resolveNumberAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
 
   const { data, error } = await db.rpc("api_contact_timeline", {
     p_company_id: companyId,
@@ -1975,6 +1980,7 @@ contactsRoutes.get("/contacts/:id/timeline", requireCapability("conversations.re
     p_limit: limit,
     p_before_ts: cursor?.ts ?? null,
     p_before_id: cursor?.id ?? null,
+    p_hidden_number_ids: hiddenNumberIds,
   });
   if (error) throw new Error(`contact timeline failed: ${error.message}`);
 

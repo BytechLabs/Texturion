@@ -23,6 +23,18 @@ function rows(...list: LeadSourceRollupRow[]): LeadSourceRollupRow[] {
 }
 
 describe("#301 conversations by source", () => {
+  it("ranks new customers while keeping returning customers and outreach in the breakdown", () => {
+    const report = buildLeadSourceReport(
+      rows(
+        { lead_source_id: TRUCK, name: "Truck", by_number: 3, by_person: 0, by_widget: 1, total: 3, returning: 2, outreach: 4 },
+        { lead_source_id: GOOGLE, name: "Google", by_number: 0, by_person: 0, by_widget: 0, total: 0, returning: 50, outreach: 12 },
+      ),
+      30,
+    );
+    expect(report.sources.map(({ name }) => name)).toEqual(["Truck"]);
+    expect(report).toMatchObject({ total: 4, new_customer: 4, returning: 52, outreach: 16 });
+  });
+
   it("LR-1: ranks by size, and splits how we came to believe each one", () => {
     // A line ringing is a fact about our own infrastructure; a tech tapping a
     // chip is a report of what a customer said. Both are worth having and

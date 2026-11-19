@@ -237,7 +237,7 @@ fun ForYouTab(
         cache = graph.storeCache,
         key = CacheKeys.outstandingQuotes(companyId),
         refreshKey = refreshKey,
-    ) { QuotesRepository(graph.api).outstanding(companyId).data }
+    ) { QuotesRepository(graph.api).outstanding(companyId) }
 
     /*
      * #287 — which rows have been chased in this session.
@@ -476,8 +476,8 @@ fun ForYouTab(
                 },
                 recentCalls = recentCalls,
                 // #287: money asked for and not yet answered.
-                outstandingQuotes =
-                    (outstandingQuotes as? LoadState.Ready)?.value.orEmpty(),
+                outstandingQuotes = (outstandingQuotes as? LoadState.Ready)?.value?.data.orEmpty(),
+                outstandingQuoteTotal = (outstandingQuotes as? LoadState.Ready)?.value?.total,
                 chasedQuotes = if (canChase) chasedQuotes else null,
                 onChaseQuote = { quote, note ->
                     /*
@@ -574,6 +574,7 @@ internal fun ForYouList(
     recentCalls: LoadState<List<Call>>,
     /** #287: already server-filtered to unanswered — see QuotesRepository. */
     outstandingQuotes: List<Quote>,
+    outstandingQuoteTotal: Int? = null,
     /** #287: chased this session. NULL when this member cannot write a note. */
     chasedQuotes: Set<String>?,
     /** #287: the quote, and the note to file against its thread. */
@@ -924,7 +925,7 @@ internal fun ForYouList(
          * days ago is the one going cold.
          */
         val waitingQuotes = outstandingQuotes
-            .sortedBy { it.sent_at ?: "" }
+            .sortedWith(compareBy(nullsLast()) { it.sent_at })
             .take(OUTSTANDING_QUOTES_LIMIT)
 
         shown.forEach { entry ->
@@ -1035,7 +1036,10 @@ internal fun ForYouList(
                 }
 
                 "outstanding_quotes" -> panelItem(entry, waitingQuotes.isNotEmpty()) {
-                    QueueSection(t("quotes.outstandingTitle"), count = waitingQuotes.size) {
+                    QueueSection(
+                        t("quotes.outstandingTitle"),
+                        count = outstandingQuoteTotal ?: outstandingQuotes.size,
+                    ) {
                         waitingQuotes.forEachIndexed { index, quote ->
                             if (index > 0) RowDivider()
                             // Built HERE rather than in the click lambda, because
@@ -1109,7 +1113,7 @@ internal fun ForYouList(
                 }
 
                 // #354: absent entirely until there is something true to say.
-                "pipeline" -> panelItem(entry, true) { PipelineCard(report = pipeline) }
+                "pipeline" -> panelItem(entry, true) { PipelineCard(pipeline, onOpenConversation) }
 
                 // #313: how fast you answered and whether it landed are one
                 // thought; the member now decides whether they sit together.
@@ -1118,7 +1122,7 @@ internal fun ForYouList(
                         report = satisfaction,
                         days = responseDays,
                         onWindow = onResponseWindow,
-                        onOpenPoor = onOpenUnanswered,
+                        onOpenTask = onOpenTask,
                     )
                 }
 

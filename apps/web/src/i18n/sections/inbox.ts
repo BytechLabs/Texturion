@@ -394,6 +394,7 @@ export const inboxEn = {
 
   // --- Where the customers came from (lead-sources-card.tsx) ----------------
   leadSourcesTitle: "Where your customers come from",
+  leadSourcesBreakdown: "New customers {new} · Returning customers {returning} · Your outreach {outreach}",
   leadSourcesLeading:
     "Most of the work you can account for came from {name} — {count} of {total}.",
   leadSourcesMore: "{count} more",
@@ -427,7 +428,8 @@ export const inboxEn = {
   pipelineWon: "Won",
   pipelineStillOut: "Still out",
   pipelineShareAria: "Of {quoted} quoted, {won} won and {open} still out",
-  pipelineChase: "Chase the {count} still waiting",
+  pipelineChase: "Waiting for follow-up ({count})",
+  pipelineOpenConversation: "Open conversation",
 
   // --- The referral ask (referral-ask.tsx) ----------------------------------
   referralGettingLink: "Getting your link…",
@@ -445,6 +447,8 @@ export const inboxEn = {
   responseToAnswer: "to answer a new customer",
   responseArcDown: "Down from {then} when you started",
   responseArcUp: "Up from {then} when you started",
+  responseBaselineCollecting: "Gathering a baseline. {answered} of {required} leads answered.",
+  responseMissedCallers: "Missed callers {total} · Reached {reached} · Waiting for a reply {unreached}",
   responseNoArcTooNew:
     "Your starting point lands once you have been here a fortnight",
   responseNoArcNoLeads:
@@ -476,12 +480,13 @@ export const inboxEn = {
   satisfactionByMemberOff: "Per-person scores are off. In a small crew a bad week is noise, so this stays a coaching signal rather than a scoreboard — turn it on in Settings.",
   satisfactionPoorOne: "1 job needed a call back",
   satisfactionPoorMany: "{count} jobs needed a call back",
+  satisfactionOpenJob: "Open job",
   satisfactionLoadFailed: "Could not load your ratings.",
-  satisfactionArcUp: "Up from {then} the month before",
-  satisfactionArcDown: "Down from {then} the month before",
+  satisfactionArcUp: "Up from {then} in the prior {days} days",
+  satisfactionArcDown: "Down from {then} in the prior {days} days",
   satisfactionGapTooFew: "{copy} — {answered} of {minimum}",
-  satisfactionNoBaseline: "No month before this one to compare against yet",
-  satisfactionSame: "About the same as the month before",
+  satisfactionNoBaseline: "No comparison data for the prior {days} days",
+  satisfactionSame: "About the same as the prior {days} days",
   satisfactionRingAria: "{score} out of 5, from {count} answers",
   satisfactionOutOfFive: "out of 5, from {count} answers",
   satisfactionStarsOne: "1 star",
@@ -901,6 +906,7 @@ export const inboxFr: Translated<typeof inboxEn> = {
 
   // --- Where the customers came from -----------------------------------------
   leadSourcesTitle: "D'où viennent vos clients",
+  leadSourcesBreakdown: "Nouveaux clients {new} · Clients de retour {returning} · Vos prises de contact {outreach}",
   leadSourcesLeading:
     "La majorité du travail que vous pouvez attribuer vient de {name} — " +
     "{count} sur {total}.",
@@ -934,7 +940,8 @@ export const inboxFr: Translated<typeof inboxEn> = {
   pipelineStillOut: "En attente",
   pipelineShareAria:
     "Sur {quoted} devis envoyés, {won} gagnés et {open} en attente",
-  pipelineChase: "Relancer les {count} en attente",
+  pipelineChase: "En attente de suivi ({count})",
+  pipelineOpenConversation: "Ouvrir la conversation",
 
   // --- The referral ask ------------------------------------------------------
   referralGettingLink: "Récupération de votre lien…",
@@ -950,6 +957,8 @@ export const inboxFr: Translated<typeof inboxEn> = {
   responseToAnswer: "pour répondre à un nouveau client",
   responseArcDown: "En baisse depuis {then} à vos débuts",
   responseArcUp: "En hausse depuis {then} à vos débuts",
+  responseBaselineCollecting: "Collecte des données de référence. {answered} demandes sur {required} ont reçu une réponse.",
+  responseMissedCallers: "Appels manqués de {total} personnes · {reached} jointes · {unreached} sans réponse",
   responseNoArcTooNew:
     "Votre point de départ sera établi après deux semaines ici",
   responseNoArcNoLeads:
@@ -978,12 +987,13 @@ export const inboxFr: Translated<typeof inboxEn> = {
   satisfactionByMemberOff: "Les scores par personne sont désactivés. Dans une petite équipe, une mauvaise semaine n'est que du bruit ; cela reste donc un signal d'accompagnement plutôt qu'un tableau de classement — activez-les dans les paramètres.",
   satisfactionPoorOne: "1 travail a nécessité un rappel",
   satisfactionPoorMany: "{count} travaux ont nécessité un rappel",
+  satisfactionOpenJob: "Ouvrir le travail",
   satisfactionLoadFailed: "Impossible de charger vos évaluations.",
-  satisfactionArcUp: "En hausse depuis {then} le mois précédent",
-  satisfactionArcDown: "En baisse depuis {then} le mois précédent",
+  satisfactionArcUp: "En hausse par rapport à {then} au cours des {days} jours précédents",
+  satisfactionArcDown: "En baisse par rapport à {then} au cours des {days} jours précédents",
   satisfactionGapTooFew: "{copy} — {answered} sur {minimum}",
-  satisfactionNoBaseline: "Aucun mois précédent auquel se comparer pour l'instant",
-  satisfactionSame: "À peu près comme le mois précédent",
+  satisfactionNoBaseline: "Aucune donnée de comparaison pour les {days} jours précédents",
+  satisfactionSame: "À peu près comme les {days} jours précédents",
   satisfactionRingAria: "{score} sur 5, à partir de {count} réponses",
   satisfactionOutOfFive: "sur 5, à partir de {count} réponses",
   satisfactionStarsOne: "1 étoile",

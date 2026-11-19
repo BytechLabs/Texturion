@@ -1593,3 +1593,12 @@ The opening lookup used `messages_live_inbound_by_conversation_idx` for one
 inbound message per conversation. It used `calls_conversation_idx` for the
 call candidates and `messages_conv_created_idx` for the earlier outbound check.
 The fixture ran against an isolated database and was rolled back.
+
+A separate PostgreSQL 17 fixture had 2,000 conversations and 4,000 messages.
+With the conversation, call and inbound message indexes in place, the first
+workspace baseline calculation took 613 ms and the cached read took 0.31 ms.
+The response report with missed callers took 484 ms. The cached read touched
+two shared buffers. The lead-source report took 132–151 ms on the full local
+Supabase schema with 2,000 conversations and 4,000 messages. Its plan read
+14,930–15,688 cached shared buffers for the first contact in each thread and
+the activity in the 30-day window.

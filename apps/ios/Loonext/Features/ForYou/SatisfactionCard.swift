@@ -30,9 +30,10 @@ func satisfactionArcSentence(
           let baseline = report.baseline
     else { return nil }
     let then = SatisfactionFormat.format(baseline.average)
+    let values = ["then": then, "days": String(report.window.days)]
     return direction == "better"
-        ? AppStrings.translate(locale, "inbox.satisfactionArcUp", ["then": then])
-        : AppStrings.translate(locale, "inbox.satisfactionArcDown", ["then": then])
+        ? AppStrings.translate(locale, "inbox.satisfactionArcUp", values)
+        : AppStrings.translate(locale, "inbox.satisfactionArcDown", values)
 }
 
 /// Why there is no number yet — four different facts, never collapsed into one.
@@ -63,9 +64,7 @@ struct SatisfactionCard: View {
     let report: SatisfactionReport?
     let days: Int
     let onWindow: (Int) -> Void
-    /// Into the inbox. A `let` with no default, like every other navigation
-    /// callback here: a default is what lets an inert row ship (#503).
-    let onOpenPoor: () -> Void
+    let onOpenTask: @MainActor (String) -> Void
 
     @State private var open = false
     /// #228, and the same arrangement as the card above: every sentence comes
@@ -127,22 +126,34 @@ struct SatisfactionCard: View {
             Text(satisfactionGapReason(report, appLocale))
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.muted600)
-            if report.poor > 0 {
-                Button(action: onOpenPoor) {
-                    HStack(spacing: 8) {
-                        Text(SatisfactionFormat.poorRatingLine(report.poor))
-                            .font(.golos(13, weight: .medium))
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                        Image(systemName: "arrow.right")
-                            .font(.scaled(IconSize.small, weight: .medium))
-                            .foregroundStyle(BrandColor.muted500)
-                    }
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-            }
+            poorJobs(for: report)
         }
         .padding(14)
+    }
+
+    @ViewBuilder
+    private func poorJobs(for report: SatisfactionReport) -> some View {
+        if report.poor > 0 {
+            VStack(alignment: .leading, spacing: 4) {
+                Text(SatisfactionFormat.poorRatingLine(report.poor, locale: appLocale))
+                    .font(.golos(13, weight: .medium))
+                ForEach(report.poor_jobs ?? []) { job in
+                    Button {
+                        onOpenTask(job.task_id)
+                    } label: {
+                        HStack(spacing: 8) {
+                            Text(job.title ?? AppStrings.translate(appLocale, "inbox.satisfactionOpenJob"))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                            Text("\(job.score)/5").monospacedDigit()
+                            Image(systemName: "arrow.right").accessibilityHidden(true)
+                        }
+                        .font(.golos(13))
+                        .padding(.vertical, 8)
+                        .contentShape(Rectangle())
+                    }
+                }
+            }
+        }
     }
 
     @ViewBuilder
@@ -204,8 +215,8 @@ struct SatisfactionCard: View {
             } else {
                 Text(
                     report.baseline == nil
-                        ? AppStrings.translate(appLocale, "inbox.satisfactionNoBaseline")
-                        : AppStrings.translate(appLocale, "inbox.satisfactionSame")
+                        ? AppStrings.translate(appLocale, "inbox.satisfactionNoBaseline", ["days": String(days)])
+                        : AppStrings.translate(appLocale, "inbox.satisfactionSame", ["days": String(days)])
                 )
                 .font(.golos(13))
                 .foregroundStyle(BrandColor.muted600)
@@ -217,23 +228,9 @@ struct SatisfactionCard: View {
 
         if report.poor > 0 {
             Divider().overlay(BrandColor.muted250)
-            Button(action: onOpenPoor) {
-                HStack(spacing: 8) {
-                    Text(SatisfactionFormat.poorRatingLine(report.poor))
-                        .font(.golos(13))
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                    Image(systemName: "arrow.right")
-                        .font(.scaled(IconSize.small, weight: .medium))
-                        .foregroundStyle(BrandColor.muted500)
-                }
+            poorJobs(for: report)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 10)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityHint(
-                AppStrings.translate(appLocale, "inbox.satisfactionPoorHint")
-            )
         }
 
         Divider().overlay(BrandColor.muted250)

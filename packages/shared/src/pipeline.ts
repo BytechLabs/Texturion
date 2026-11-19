@@ -85,6 +85,15 @@ export function pipelineDeleteWarning(stage: PipelineStage): string {
   );
 }
 
+interface PipelineOpenItem {
+  id: string;
+  conversation_id: string;
+  label: string | null;
+  amount_cents: number | null;
+  currency: string | null;
+  opened_at: string;
+}
+
 /** One period's pipeline, as `api_pipeline_report` returns it. */
 export interface PipelineReport {
   /** Conversations first tagged as quoted inside the window. */
@@ -93,6 +102,9 @@ export interface PipelineReport {
   lost: number;
   /** Quoted, and neither won nor lost yet. The money still outstanding. */
   open: number;
+  /** Oldest actionable quotes and manually tracked conversations. */
+  open_items?: PipelineOpenItem[];
+  open_items_total?: number;
   /** Median days from quote to win. Null until something has been won. */
   median_days_to_win: number | null;
 }

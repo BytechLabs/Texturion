@@ -424,4 +424,51 @@ begin
   raise notice 'PS-10 PASSED: a draft is not an offer';
 end $$;
 
+do $$
+declare
+  v_company uuid := (select company_id from pipeline_fixture);
+  v_line uuid := '51000000-0000-4000-8000-0000000000f1';
+  v_contact uuid;
+  v_conversation uuid;
+  v_quote uuid;
+  v_report jsonb;
+  v_before int;
+begin
+  v_report := public.api_pipeline_report(v_company, now() - interval '30 days', now());
+  v_before := (v_report->>'open_items_total')::int;
+
+  insert into public.contacts (company_id, phone_e164)
+  values (v_company, '+14155550304') returning id into v_contact;
+  insert into public.conversations (company_id, contact_id, phone_number_id, status)
+  values (v_company, v_contact, v_line, 'open') returning id into v_conversation;
+
+  insert into public.quotes (company_id, conversation_id, contact_id, amount_cents, currency,
+    description, status, expires_at, sent_at)
+  values (v_company, v_conversation, v_contact, 43000, 'usd', 'Patio repair',
+    'sent', now() + interval '5 days', now() - interval '29 days') returning id into v_quote;
+  insert into public.quotes (company_id, conversation_id, contact_id, amount_cents, currency,
+    description, status, expires_at, sent_at)
+  values (v_company, v_conversation, v_contact, 20000, 'usd', 'Expired price',
+    'viewed', now() - interval '1 day', now() - interval '28 days');
+
+  v_report := public.api_pipeline_report(v_company, now() - interval '30 days', now());
+  if (v_report->>'open_items_total')::int is distinct from v_before + 1
+     or (v_report->'open_items' @> jsonb_build_array(jsonb_build_object(
+       'id', v_quote, 'conversation_id', v_conversation, 'label', 'Patio repair', 'amount_cents', 43000
+     ))) is distinct from true then
+    raise exception 'PS-11: outstanding quote and its destination are missing or double-counted: %', v_report;
+  end if;
+
+  v_report := public.api_pipeline_report(v_company, now() - interval '30 days', now(), array[v_line]);
+  if (v_report->'open_items' @> jsonb_build_array(jsonb_build_object('id', v_quote))) is distinct from false then
+    raise exception 'PS-11: hidden line exposed an outstanding quote';
+  end if;
+
+  update public.conversations set deleted_at = now() where id = v_conversation;
+  v_report := public.api_pipeline_report(v_company, now() - interval '30 days', now());
+  if (v_report->>'open_items_total')::int is distinct from v_before then
+    raise exception 'PS-11: a trashed conversation counted as outstanding';
+  end if;
+end $$;
+
 rollback;

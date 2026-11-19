@@ -6,9 +6,11 @@
  * computed twice is a median that can disagree with itself.
  */
 import type {
+  MissedCallerTotals,
   PipelineInsightKey,
   PipelineReport,
   PipelineStage,
+  ResponseBaselineProgress,
 } from "@loonext/shared";
 import { useQuery } from "@tanstack/react-query";
 
@@ -18,7 +20,7 @@ import { apiFetch } from "./client";
 import { keys } from "./keys";
 
 /** A report over days of history moves slowly and is expensive to compute. */
-const REPORT_CACHE = { staleTime: 10 * 60_000, gcTime: 60 * 60_000 } as const;
+const REPORT_CACHE = { staleTime: 5 * 60_000, gcTime: 60 * 60_000 } as const;
 
 /** Windows the API accepts; anything else is clamped server-side to 30. */
 export type ResponseTimeWindow = 7 | 30 | 90;
@@ -34,6 +36,7 @@ export interface ResponseTimeReport {
   leads: number;
   answered: number;
   unanswered: number;
+  missed_callers?: MissedCallerTotals | null;
   median_seconds: number | null;
   p90_seconds: number | null;
   business_hours: ResponseTimeSide;
@@ -61,8 +64,8 @@ export interface ResponseTimeReport {
     answered: number;
     median_seconds: number | null;
   } | null;
-  /** Why there is no arc: 'too_new' | 'no_answered_leads' | null. */
   baseline_unavailable: string | null;
+  baseline_progress?: ResponseBaselineProgress | null;
   improved_by_seconds: number | null;
   split_truncated: boolean;
   split_row_limit: number;
@@ -152,6 +155,9 @@ export interface LeadSourceReport {
   /** Conversations with no source at all. A row, never an omission. */
   unknown: number;
   total: number;
+  new_customer?: number;
+  returning?: number;
+  outreach?: number;
   /** 0–1, or null when the window held no conversations at all. */
   coverage: number | null;
   /** The caveat to print above the table, or null when there is none. */
@@ -211,6 +217,7 @@ export interface SatisfactionReport {
   minimum_sample: number;
   distribution: Record<string, number>;
   poor: number;
+  poor_jobs?: { task_id: string; conversation_id: string; score: number; title: string | null }[];
   /** Null when the owner has not turned per-person scores on. */
   by_member: SatisfactionMember[] | null;
   per_member_enabled: boolean;

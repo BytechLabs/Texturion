@@ -136,7 +136,7 @@ Web and Android request map tiles from the OpenStreetMap Foundation. The map use
 
 | Table | Holds | Retention |
 |---|---|---|
-| `companies` | business name, country, **CNAM display name**, away/greeting copy, Stripe ids (including a pending downgrade schedule), checkout reminder timestamp and recent invite-attempt timestamps without addresses | Life of the workspace |
+| `companies` | business name, country, **CNAM display name**, away/greeting copy, Stripe ids (including a pending downgrade schedule), checkout reminder timestamp and recent invite-attempt timestamps without addresses, response-time baseline dates and aggregate counts | Life of the workspace |
 | `messaging_registrations` | legal name, address, EIN or BN for standard brands, OTP mobile for sole proprietors | Identity fields cleared at **30 days** for signups that never paid (#381) |
 | `port_requests` | **auth person name**, billing phone, losing-carrier account number and transfer PIN | Credentials cleared when the port completes or is cancelled |
 | `phone_numbers`, `number_access`, `number_health` | the numbers and who may use them | Life of the workspace |

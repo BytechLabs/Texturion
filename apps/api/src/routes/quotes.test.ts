@@ -129,6 +129,25 @@ describe("GET /v1/quotes", () => {
     expect(body.data[0].id).not.toBe(QUOTE_ID);
   });
 
+  it("counts outstanding quotes before limiting the oldest rows", async () => {
+    const sb = stubWithRole("owner");
+    sb.on("GET", "/rest/v1/quotes", (call) => {
+      expect(call.url.searchParams.get("status")).toBe("in.(sent,viewed)");
+      expect(call.url.searchParams.get("expires_at")).toMatch(/^gt\./);
+      expect(call.url.searchParams.get("order")).toBe("sent_at.asc.nullslast,id.asc");
+      return Response.json([row()], { headers: { "Content-Range": "0-0/501" } });
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/quotes?status=outstanding", {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(200);
+    const body = await res.json<{ data: unknown[]; total: number }>();
+    expect(body.data).toHaveLength(1);
+    expect(body.total).toBe(501);
+  });
+
   it("scopes to one conversation when asked", async () => {
     // The thread strip needs this thread's quotes. Filtering client-side
     // would break against the 500-row cap the moment a busy workspace has

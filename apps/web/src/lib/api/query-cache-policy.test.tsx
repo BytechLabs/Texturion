@@ -3,10 +3,8 @@
  *
  * How long each read is trusted before it is asked again.
  *
- * The app default stays 30 s. Reference data that a mutation or a broadcast
- * already invalidates is trusted for five minutes, report windows and the
- * Stripe-backed payout account for ten. Each case seeds a cached answer of a
- * given age, mounts the real hook, and counts what reached the API.
+ * Each case seeds a cached answer of a given age, mounts the real hook, and
+ * counts what reached the API.
  */
 import { QueryClient, QueryClientProvider, useQueryClient } from "@tanstack/react-query";
 import { act, render, renderHook, waitFor } from "@testing-library/react";
@@ -161,35 +159,19 @@ const fiveMinutes: [string, () => unknown, readonly unknown[]][] = [
   ["useOwnership", () => useOwnership(), keys.ownership(C)],
   ["useNumbers", () => useNumbers(), keys.numbers(C)],
   ["useOutstandingQuotes", () => useOutstandingQuotes(), keys.quotes.outstanding(C)],
-];
-
-describe("reference data is trusted for five minutes", () => {
-  it.each(fiveMinutes)("QC-2 %s: a two-minute-old answer is not asked again", async (_name, hook, key) => {
-    await expect(refetchesAt(hook, key, 2 * MINUTE)).resolves.toBe(false);
-  });
-
-  it.each(fiveMinutes)("QC-3 %s: a six-minute-old answer is", async (_name, hook, key) => {
-    await expect(refetchesAt(hook, key, 6 * MINUTE)).resolves.toBe(true);
-  });
-});
-
-const tenMinutes: [string, () => unknown, readonly unknown[]][] = [
-  ["usePayoutAccount", () => usePayoutAccount(), keys.payments.account(C)],
-  ["useReferralMoment", () => useReferralMoment(true), [C, "referral-moment"]],
-  ["useDataExports", () => useDataExports(), [C, "exports"]],
   ["useResponseTime", () => useResponseTime(30), keys.responseTime(C, 30)],
   ["useLeadSourceReport", () => useLeadSourceReport(30), [...keys.pipeline(C, 30), "lead-sources"]],
   ["usePipelineReport", () => usePipelineReport(30), keys.pipeline(C, 30)],
   ["useSatisfaction", () => useSatisfaction(30), keys.satisfaction(C, 30)],
 ];
 
-describe("reports, exports and the payout account are trusted for ten minutes", () => {
-  it.each(tenMinutes)("QC-4 %s: a seven-minute-old answer is not asked again", async (_name, hook, key) => {
-    await expect(refetchesAt(hook, key, 7 * MINUTE)).resolves.toBe(false);
+describe("reference data and reports are trusted for five minutes", () => {
+  it.each(fiveMinutes)("QC-2 %s: a two-minute-old answer is not asked again", async (_name, hook, key) => {
+    await expect(refetchesAt(hook, key, 2 * MINUTE)).resolves.toBe(false);
   });
 
-  it.each(tenMinutes)("QC-5 %s: an eleven-minute-old answer is", async (_name, hook, key) => {
-    await expect(refetchesAt(hook, key, 11 * MINUTE)).resolves.toBe(true);
+  it.each(fiveMinutes)("QC-3 %s: a six-minute-old answer is", async (_name, hook, key) => {
+    await expect(refetchesAt(hook, key, 6 * MINUTE)).resolves.toBe(true);
   });
 
   it("QC-6: a report stays in memory for an hour after its card closes", () => {
@@ -198,6 +180,22 @@ describe("reports, exports and the payout account are trusted for ten minutes", 
     unmount();
     const query = client.getQueryCache().find({ queryKey: keys.responseTime(C, 30), exact: true });
     expect(query?.gcTime).toBe(60 * MINUTE);
+  });
+});
+
+const tenMinutes: [string, () => unknown, readonly unknown[]][] = [
+  ["usePayoutAccount", () => usePayoutAccount(), keys.payments.account(C)],
+  ["useReferralMoment", () => useReferralMoment(true), [C, "referral-moment"]],
+  ["useDataExports", () => useDataExports(), [C, "exports"]],
+];
+
+describe("exports, referral offers and the payout account are trusted for ten minutes", () => {
+  it.each(tenMinutes)("QC-4 %s: a seven-minute-old answer is not asked again", async (_name, hook, key) => {
+    await expect(refetchesAt(hook, key, 7 * MINUTE)).resolves.toBe(false);
+  });
+
+  it.each(tenMinutes)("QC-5 %s: an eleven-minute-old answer is", async (_name, hook, key) => {
+    await expect(refetchesAt(hook, key, 11 * MINUTE)).resolves.toBe(true);
   });
 
   it("QC-7: the settings card reads the payout account fresh every time it opens", async () => {

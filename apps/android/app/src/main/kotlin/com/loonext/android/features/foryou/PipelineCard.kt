@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,6 +21,8 @@ import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.PipelineReportResponse
+import com.loonext.android.features.settings.BillingCurrency
+import com.loonext.android.features.settings.formatMoney
 import com.loonext.android.ui.common.MeasureHeader
 import com.loonext.android.ui.common.ShareBar
 import com.loonext.android.ui.common.ShareSegment
@@ -48,11 +51,12 @@ import com.loonext.android.ui.common.ShareSegment
  * achievement.
  */
 @Composable
-fun PipelineCard(report: PipelineReportResponse?) {
+fun PipelineCard(report: PipelineReportResponse?, onOpenConversation: (String) -> Unit) {
     // Null while it loads, and null forever for a workspace that has not quoted.
     // Both mean the same thing on screen: say nothing.
     if (report == null || report.current.quoted == 0) return
 
+    val locale = LocalAppLocale.current
     val rate = report.win_rate
     val delta = if (rate != null && report.previous_win_rate != null) {
         rate - report.previous_win_rate
@@ -81,7 +85,7 @@ fun PipelineCard(report: PipelineReportResponse?) {
                         // builds that cannot translate; this one can, so it
                         // falls back to the sentence only against an older
                         // server.
-                        pipelineHeadline(report, LocalAppLocale.current),
+                        pipelineHeadline(report, locale),
                         style = MaterialTheme.typography.bodyLarge,
                     )
                 }
@@ -158,6 +162,30 @@ fun PipelineCard(report: PipelineReportResponse?) {
                     "open" to report.current.open.toString(),
                 ),
             )
+            val items = report.current.open_items
+            if (items.isNotEmpty()) {
+                Text(
+                    t(
+                        "inbox.pipelineChase",
+                        "count" to (report.current.open_items_total ?: items.size).toString(),
+                    ),
+                    modifier = Modifier.padding(top = 12.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                )
+                items.forEach { item ->
+                    TextButton(onClick = { onOpenConversation(item.conversation_id) }) {
+                        Text(item.label?.takeIf { it.isNotBlank() } ?: t("inbox.pipelineOpenConversation"))
+                        item.amount_cents?.let { amount ->
+                            val currency = if (item.currency.equals("cad", ignoreCase = true)) {
+                                BillingCurrency.CAD
+                            } else {
+                                BillingCurrency.USD
+                            }
+                            Text(formatMoney(amount, currency, locale = locale), modifier = Modifier.padding(start = 8.dp))
+                        }
+                    }
+                }
+            }
         }
     }
     }

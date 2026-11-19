@@ -33,11 +33,12 @@
  */
 import { ArrowRight, TrendingDown, TrendingUp } from "lucide-react";
 import Link from "next/link";
+import { billingCurrencyOf, formatMoney } from "@loonext/shared";
 
 import { MeasureCard } from "@/components/for-you/measure-card";
 import { ShareBar } from "@/components/ui/share-bar";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT } from "@/i18n/provider";
+import { useLocale } from "@/i18n/provider";
 import { usePipelineReport } from "@/lib/api/reports";
 import { cn } from "@/lib/utils";
 
@@ -74,7 +75,7 @@ export function rateDelta(
 }
 
 export function PipelineCard() {
-  const t = useT();
+  const { locale, t } = useLocale();
   const report = usePipelineReport(30);
 
   if (report.isLoading) {
@@ -89,7 +90,6 @@ export function PipelineCard() {
     insight,
     insight_key: insightKey,
     insight_vars: insightVars,
-    stages,
   } =
     report.data;
 
@@ -99,7 +99,7 @@ export function PipelineCard() {
   if (current.quoted === 0) return null;
 
   const delta = rateDelta(rate, previous);
-  const quoteStage = stages.find((s) => s.stage === "quote_sent");
+  const openItems = current.open_items ?? [];
 
   return (
     // #540: the SAME header treatment as its three neighbours — an uppercase
@@ -222,17 +222,31 @@ export function PipelineCard() {
         })}
       />
 
-      {/* Loss Aversion, and the only action on the card: the outstanding work,
-          one tap away. Linked through the STAGE's tag id rather than a name,
-          so a crew who renamed the tag still lands on their own list. */}
-      {current.open > 0 && quoteStage && (
-        <Link
-          href={`/inbox?status=open&tag=${quoteStage.tag_id}`}
-          className="mt-3 flex items-center gap-1.5 text-sm font-medium text-primary hover:underline"
-        >
-          {t("inbox.pipelineChase", { count: current.open })}
-          <ArrowRight className="size-3.5" strokeWidth={1.75} aria-hidden />
-        </Link>
+      {openItems.length > 0 && (
+        <div className="mt-3 border-t border-app-line pt-3">
+          <p className="text-xs text-app-muted-2">
+            {t("inbox.pipelineChase", { count: current.open_items_total ?? openItems.length })}
+          </p>
+          <ul className="mt-1 space-y-1">
+            {openItems.map((item) => {
+              const currency = billingCurrencyOf(item.currency);
+              return (
+                <li key={item.id}>
+                  <Link
+                    href={`/inbox/${item.conversation_id}`}
+                    className="flex items-center gap-2 py-1 text-sm text-primary hover:underline"
+                  >
+                    <span className="min-w-0 flex-1 truncate">
+                      {item.label || t("inbox.pipelineOpenConversation")}
+                    </span>
+                    {item.amount_cents !== null && formatMoney(item.amount_cents, currency, currency, locale)}
+                    <ArrowRight className="size-3.5 shrink-0" strokeWidth={1.75} aria-hidden />
+                  </Link>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
       )}
     </MeasureCard>
   );

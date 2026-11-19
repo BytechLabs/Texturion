@@ -150,9 +150,22 @@ export function LeadSourcesCard() {
   if (report.isLoading) {
     return <Skeleton className="h-32 w-full rounded-xl" />;
   }
-  const {data} = report;
-  // Nothing happened this month. Silence, not a zero.
-  if (!data || data.total === 0) return null;
+  const { data } = report;
+  if (!data || data.total + (data.returning ?? 0) + (data.outreach ?? 0) === 0) return null;
+
+  const breakdown = data.new_customer === undefined ? null : (
+    <p className="text-xs text-muted-foreground">
+      {t("inbox.leadSourcesBreakdown", {
+        new: data.new_customer,
+        returning: data.returning ?? 0,
+        outreach: data.outreach ?? 0,
+      })}
+    </p>
+  );
+
+  if (data.total === 0) {
+    return <MeasureCard title={t("inbox.leadSourcesTitle")} padded>{breakdown}</MeasureCard>;
+  }
 
   // Sources exist as a feature but this workspace has set none up, so every
   // conversation is unknown. One sentence about how to start beats a table
@@ -168,6 +181,7 @@ export function LeadSourcesCard() {
       // is how a row lines up in a screenshot taken on a busy workspace and
       // stays ragged on the empty one every new crew actually sees first.
       <MeasureCard title={t("inbox.leadSourcesTitle")} padded>
+        {breakdown}
         <p className="text-sm text-muted-foreground">
           {t("inbox.leadSourcesNoneSetUp")}
         </p>
@@ -191,6 +205,7 @@ export function LeadSourcesCard() {
     // tops line up. See pipeline-card.tsx for why the row's alignment is the
     // point rather than a detail.
     <MeasureCard title={t("inbox.leadSourcesTitle")} padded>
+      {breakdown}
       {headline && <p className="text-sm">{headline}</p>}
       {data.note && (
         <p
@@ -218,14 +233,16 @@ export function LeadSourcesCard() {
         )}
       </ul>
 
-      <p className="mt-3 text-xs text-muted-foreground">
-        {t(
-          data.total === 1
-            ? "inbox.leadSourcesFooterOne"
-            : "inbox.leadSourcesFooterMany",
-          { count: data.total },
-        )}
-      </p>
+      {!breakdown && (
+        <p className="mt-3 text-xs text-muted-foreground">
+          {t(
+            data.total === 1
+              ? "inbox.leadSourcesFooterOne"
+              : "inbox.leadSourcesFooterMany",
+            { count: data.total },
+          )}
+        </p>
+      )}
     </MeasureCard>
   );
 }

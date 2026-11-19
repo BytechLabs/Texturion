@@ -37,6 +37,7 @@ struct ForYouTab: View {
     /// failure and an answered-everything workspace look the same, which is the
     /// right answer for a queue that is normally empty.
     @State private var outstandingQuotes: [Quote] = []
+    @State private var outstandingQuoteTotal: Int?
     /// #287: which rows have been chased in this session.
     ///
     /// The queue returns QUOTES and a deferral lives on the CONVERSATION, so
@@ -179,6 +180,7 @@ struct ForYouTab: View {
                     recentCalls: recentCalls,
                     // #287: already server-filtered to unanswered.
                     outstandingQuotes: outstandingQuotes,
+                    outstandingQuoteTotal: outstandingQuoteTotal,
                     // Chasing writes a note on a thread, which read_only cannot
                     // do. The queue itself stays — the list is the report, and
                     // an observer who can see every thread should be able to
@@ -432,6 +434,7 @@ struct ForYouTab: View {
         if let page = try? await QuotesApi(api: graph.api)
             .outstanding(companyId: companyId) {
             outstandingQuotes = page.data
+            outstandingQuoteTotal = page.total
         }
     }
 
@@ -458,6 +461,7 @@ struct ForYouList: View {
     let recentCalls: LoadState<[Call]>
     /// #287: already server-filtered to unanswered — see QuotesApi.outstanding.
     let outstandingQuotes: [Quote]
+    var outstandingQuoteTotal: Int? = nil
     /// #287: chased this session. NIL when this member cannot write a note.
     let chasedQuotes: Set<String>?
     /// #287: the quote, and the note to file against its thread.
@@ -803,13 +807,13 @@ struct ForYouList: View {
                 onOpenUnanswered: onOpenUnanswered
             )
         case "pipeline":
-            PipelineCard(report: pipeline)
+            PipelineCard(report: pipeline, onOpenConversation: onOpenConversation)
         case "satisfaction":
             SatisfactionCard(
                 report: satisfaction,
                 days: responseDays,
                 onWindow: onResponseWindow,
-                onOpenPoor: onOpenUnanswered
+                onOpenTask: openTask
             )
         case "lead_sources":
             LeadSourcesCard(
@@ -1177,7 +1181,7 @@ struct ForYouList: View {
     private var waitingQuotes: [Quote] {
         Array(
             outstandingQuotes
-                .sorted { ($0.sent_at ?? "") < ($1.sent_at ?? "") }
+                .sorted { ($0.sent_at ?? "\u{FFFF}") < ($1.sent_at ?? "\u{FFFF}") }
                 .prefix(6)
         )
     }
@@ -1198,7 +1202,7 @@ struct ForYouList: View {
             VStack(alignment: .leading, spacing: 0) {
                 SectionHeader(
                     label: AppStrings.translate(appLocale, "quotes.outstandingTitle"),
-                    count: waitingQuotes.count
+                    count: outstandingQuoteTotal ?? outstandingQuotes.count
                 )
                 PaperCard {
                     ForEach(Array(waitingQuotes.enumerated()), id: \.element.id) {

@@ -130,7 +130,7 @@ data class Quote(
 }
 
 @Serializable
-data class QuotePage(val data: List<Quote> = emptyList())
+data class QuotePage(val data: List<Quote> = emptyList(), val total: Int? = null)
 
 /** The create body, typed rather than a map: kotlinx cannot serialise Any. */
 @Serializable

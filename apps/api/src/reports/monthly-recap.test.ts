@@ -127,14 +127,15 @@ describe(runResponseTimeRecapJob, () => {
     sb.on("GET", "/rest/v1/companies", () => [
       { id: COMPANY, name: "Bright Spark", created_at: "2026-01-01T00:00:00Z" },
     ]);
-    // Faster than the first fortnight, so a recap is owed.
-    let call = 0;
-    sb.on("POST", "/rest/v1/rpc/api_response_time_stats", () => {
-      call += 1;
-      return call % 2 === 1
-        ? { leads: 10, answered: 10, unanswered: 0, median_seconds: 120 }
-        : { leads: 10, answered: 10, unanswered: 0, median_seconds: 900 };
-    });
+    sb.on("POST", "/rest/v1/rpc/api_response_time_stats", () =>
+      ({ leads: 10, answered: 10, unanswered: 0, median_seconds: 120 }),
+    );
+    sb.on("POST", "/rest/v1/rpc/api_response_time_baseline", () => ({
+      baseline: {
+        since: "2026-01-20T00:00:00Z", until: "2026-02-03T00:00:00Z",
+        leads: 10, answered: 10, median_seconds: 900,
+      },
+    }));
     sb.on("GET", "/rest/v1/company_members", () => [
       { company_id: COMPANY, user_id: OWNER },
     ]);

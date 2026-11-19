@@ -13,13 +13,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.outlined.ArrowForward
 import androidx.compose.material.icons.outlined.TrendingDown
 import androidx.compose.material.icons.outlined.TrendingUp
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.minimumInteractiveComponentSize
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -79,7 +79,7 @@ fun satisfactionArcSentence(report: SatisfactionReport, locale: String): String?
     return AppStrings.translate(
         locale,
         if (direction == "better") "inbox.satisfactionArcUp" else "inbox.satisfactionArcDown",
-        mapOf("then" to then),
+        mapOf("then" to then, "days" to report.window.days.toString()),
     )
 }
 
@@ -109,12 +109,7 @@ fun SatisfactionCard(
     report: SatisfactionReport?,
     days: Int,
     onWindow: (Int) -> Unit,
-    /**
-     * Into the inbox. Required rather than nullable-with-a-default: #508's
-     * lesson is that a defaulted navigation callback turns "nobody wired this"
-     * into a silently inert row instead of a compile error.
-     */
-    onOpenPoor: () -> Unit,
+    onOpenTask: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(modifier.padding(top = 14.dp)) {
@@ -140,9 +135,9 @@ fun SatisfactionCard(
                         modifier = Modifier.padding(14.dp),
                     )
 
-                report.average == null -> SatisfactionGapBody(report, onOpenPoor)
+                report.average == null -> SatisfactionGapBody(report, onOpenTask)
 
-                else -> SatisfactionBody(report, days, onOpenPoor)
+                else -> SatisfactionBody(report, days, onOpenTask)
             }
         }
     }
@@ -156,35 +151,27 @@ fun SatisfactionCard(
  * would be the panel choosing tidiness over the thing that matters.
  */
 @Composable
-private fun SatisfactionGapBody(report: SatisfactionReport, onOpenPoor: () -> Unit) {
+private fun SatisfactionGapBody(report: SatisfactionReport, onOpenTask: (String) -> Unit) {
     Column(Modifier.padding(14.dp)) {
         Text(
             satisfactionGap(report, LocalAppLocale.current),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
-        if (report.poor > 0) {
-            Row(
-                Modifier
-                    .fillMaxWidth()
-                    .minimumInteractiveComponentSize()
-                    .clickable(onClick = onOpenPoor)
-                    .padding(top = 8.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                Text(
-                    SatisfactionFormat.poorRatingLine(report.poor),
-                    style = MaterialTheme.typography.bodySmall.copy(
-                        fontWeight = FontWeight.Medium,
-                    ),
-                    modifier = Modifier.weight(1f),
-                )
-                Icon(
-                    Icons.AutoMirrored.Outlined.ArrowForward,
-                    contentDescription = null,
-                    modifier = Modifier.size(IconSize.Small),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
+        PoorJobs(report, onOpenTask, Modifier.padding(top = 8.dp))
+    }
+}
+
+@Composable
+private fun PoorJobs(report: SatisfactionReport, onOpenTask: (String) -> Unit, modifier: Modifier) {
+    if (report.poor == 0) return
+    val locale = LocalAppLocale.current
+    Column(modifier) {
+        Text(SatisfactionFormat.poorRatingLine(report.poor, locale), style = MaterialTheme.typography.bodySmall)
+        report.poor_jobs.forEach { job ->
+            TextButton(onClick = { onOpenTask(job.task_id) }) {
+                Text(job.title?.takeIf { it.isNotBlank() } ?: t("inbox.satisfactionOpenJob"))
+                Text("${job.score}/5", modifier = Modifier.padding(start = 8.dp))
             }
         }
     }
@@ -194,7 +181,7 @@ private fun SatisfactionGapBody(report: SatisfactionReport, onOpenPoor: () -> Un
 private fun SatisfactionBody(
     report: SatisfactionReport,
     days: Int,
-    onOpenPoor: () -> Unit,
+    onOpenTask: (String) -> Unit,
 ) {
     var open by remember { mutableStateOf(false) }
     val locale = LocalAppLocale.current
@@ -243,9 +230,9 @@ private fun SatisfactionBody(
         if (arc == null) {
             Text(
                 if (report.baseline == null) {
-                    t("inbox.satisfactionNoBaseline")
+                    t("inbox.satisfactionNoBaseline", "days" to days.toString())
                 } else {
-                    t("inbox.satisfactionSame")
+                    t("inbox.satisfactionSame", "days" to days.toString())
                 },
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -291,25 +278,7 @@ private fun SatisfactionBody(
 
     if (report.poor > 0) {
         HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onOpenPoor)
-                .padding(horizontal = 14.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                SatisfactionFormat.poorRatingLine(report.poor),
-                style = MaterialTheme.typography.bodySmall,
-                modifier = Modifier.weight(1f),
-            )
-            Icon(
-                Icons.AutoMirrored.Outlined.ArrowForward,
-                contentDescription = null,
-                modifier = Modifier.size(IconSize.Small),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-        }
+        PoorJobs(report, onOpenTask, Modifier.padding(horizontal = 14.dp, vertical = 10.dp))
     }
 
     HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))

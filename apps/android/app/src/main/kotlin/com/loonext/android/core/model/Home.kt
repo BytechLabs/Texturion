@@ -185,6 +185,12 @@ data class ResponseTimeBaseline(
 )
 
 @Serializable
+data class ResponseBaselineProgress(val answered: Int, val required: Int)
+
+@Serializable
+data class MissedCallerTotals(val total: Int, val reached: Int, val unreached: Int)
+
+@Serializable
 data class ResponseTimeWindow(val days: Int = 30)
 
 /**
@@ -215,6 +221,13 @@ data class SatisfactionBaseline(
 )
 
 @Serializable
+data class PoorRatedJob(
+    val task_id: String,
+    val score: Int,
+    val title: String? = null,
+)
+
+@Serializable
 data class SatisfactionReport(
     val window: ResponseTimeWindow = ResponseTimeWindow(),
     val asked: Int = 0,
@@ -225,6 +238,7 @@ data class SatisfactionReport(
     val distribution: Map<String, Int> = emptyMap(),
     /** Jobs that needed a call back. Each already woke somebody that day. */
     val poor: Int = 0,
+    val poor_jobs: List<PoorRatedJob> = emptyList(),
     val by_member: List<SatisfactionMember>? = null,
     val per_member_enabled: Boolean = false,
     val baseline: SatisfactionBaseline? = null,
@@ -250,8 +264,9 @@ data class ResponseTimeReport(
     val by_number: List<ResponseTimeNumber> = emptyList(),
     val per_member_enabled: Boolean = false,
     val baseline: ResponseTimeBaseline? = null,
-    /** 'too_new' | 'no_answered_leads' | null — why there is no arc. */
     val baseline_unavailable: String? = null,
+    val baseline_progress: ResponseBaselineProgress? = null,
+    val missed_callers: MissedCallerTotals? = null,
     val improved_by_seconds: Double? = null,
     val split_truncated: Boolean = false,
     val split_row_limit: Int = 0,
@@ -421,6 +436,15 @@ data class NotificationPrefs(
  * own business.
  */
 @Serializable
+data class PipelineOpenItem(
+    val id: String,
+    val conversation_id: String,
+    val label: String? = null,
+    val amount_cents: Int? = null,
+    val currency: String? = null,
+)
+
+@Serializable
 data class PipelineReport(
     val quoted: Int = 0,
     val won: Int = 0,
@@ -428,6 +452,8 @@ data class PipelineReport(
     /** Quoted, and neither won nor lost yet. The money still outstanding. */
     val open: Int = 0,
     val median_days_to_win: Double? = null,
+    val open_items: List<PipelineOpenItem> = emptyList(),
+    val open_items_total: Int? = null,
 )
 
 /** Which tag each stage currently IS, so a rename never breaks a link. */
