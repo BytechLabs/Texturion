@@ -671,6 +671,7 @@ export interface Conversation {
    * behalf — a wrong guess would silence a real lead permanently.
    */
   opt_out_hint_at?: string | null;
+  last_outbound_failed_at?: string | null;
   /**
    * #301: where this customer came from, and how we came to believe it.
    *
@@ -779,7 +780,6 @@ export interface ConversationListItem
   extends Conversation,
     SnoozeState,
     MemberThreadState {
-  last_outbound_failed_at?: string | null;
   contact: ContactSummary;
   tags: Tag[];
   unread: boolean;
@@ -902,7 +902,6 @@ export interface ConversationDetail
   messages: Page<Message>;
   /** Null only when a conversation somehow has no contact. */
   destination_clock: DestinationClock | null;
-  last_outbound_failed_at?: string | null;
   /** #106: the caller's access level on this conversation's number — 'note'
    *  means read + internal notes only (the composer hides its SMS mode). */
   viewer_level: "text" | "note";

@@ -27,7 +27,7 @@ begin
     p_company_id, p_phone_number_id, p_from_e164, p_body, p_telnyx_message_id,
     p_timezone, p_email_limit, p_push_limit, p_notify_emergency, p_notify_media_count, p_reaction
   );
-  if not p_notify_opt_out_hint or (v_result->>'created')::boolean is not true
+  if p_notify_opt_out_hint is not true or (v_result->>'created')::boolean is not true
      or v_result->>'notify_reason' = 'reaction' then
     return v_result;
   end if;

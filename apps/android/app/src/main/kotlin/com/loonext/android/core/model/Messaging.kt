@@ -354,6 +354,8 @@ data class ConversationDetail(
      * can opt out, and only they can lift it.
      */
     val opt_out_hint_at: String? = null,
+    /** The latest send failure, cleared when another outbound is accepted. */
+    val last_outbound_failed_at: String? = null,
     /**
      * #250: when the inbound classifier last scored this thread above the
      * threshold. Never set by a person, and never a reason to hide the

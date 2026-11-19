@@ -333,6 +333,8 @@ struct ConversationDetail: Codable, Sendable {
     /// the contact can opt out, and only they can lift it. `var … = nil` so it
     /// does not become a required memberwise-init parameter everywhere.
     var opt_out_hint_at: String? = nil
+    /// The latest send failure, cleared when another outbound is accepted.
+    var last_outbound_failed_at: String? = nil
     let created_at: String
     let updated_at: String
     let contact: ConversationDetailContact
