@@ -892,7 +892,6 @@ describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
     );
   }
 
-  /** The two invariant tail stubs sweepStaleCalls always issues. */
   function tailStubs() {
     return [
       stubRoute(
@@ -900,6 +899,7 @@ describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
         () => new Response(null, { status: 204 }),
       ),
       stubRoute(rpcMatch(env, "api_sweep_stale_calls"), () => 0),
+      stubRoute(restMatch(env, "GET", "calls", (url) => url.searchParams.has("voicemail_pending_since")), () => []),
     ];
   }
 
@@ -910,7 +910,7 @@ describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
         env,
         "GET",
         "calls",
-        (url) => url.searchParams.get("answered_at") !== "is.null",
+        (url) => url.searchParams.get("answered_at") === "not.is.null",
       ),
       () => rows,
     );

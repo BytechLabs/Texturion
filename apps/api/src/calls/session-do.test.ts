@@ -1344,7 +1344,7 @@ describe("a saved voicemail is stored beside the FIFO, not in it", () => {
     expect(calls.errorCount).toBe(0);
   });
 
-  it("a run that keeps failing is dropped after ten tries and reported", async () => {
+  it("hands a run that keeps failing to the hourly sweep after ten tries", async () => {
     const { instance, calls, store } = await toRecording({
       initiated: ctx(),
       voicemailPipeline: () => {
@@ -1361,8 +1361,39 @@ describe("a saved voicemail is stored beside the FIFO, not in it", () => {
     }
 
     expect(calls.voicemailPipelines).toBe(10);
+    expect(calls.deferredVoicemailRecordings).toBe(1);
     expect(store.map.has("voicemail")).toBe(false);
-    expect(calls.errorCount).toBe(1);
+    expect(calls.errorCount).toBe(0);
+  });
+
+  it("keeps its job when the recovery handoff fails", async () => {
+    let handoffs = 0;
+    const { instance, calls, store } = await toRecording({
+      initiated: ctx(),
+      voicemailPipeline: () => {
+        throw new Error("voicemail store failed");
+      },
+      deferVoicemailRecording: () => {
+        handoffs += 1;
+        if (handoffs === 1) throw new Error("database unavailable");
+      },
+    });
+    await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));
+    await instance.whenIdle();
+
+    for (let tick = 0; tick < 9; tick += 1) {
+      vi.setSystemTime(new Date(Date.now() + 31_000));
+      await instance.alarm();
+      await instance.whenIdle();
+    }
+    expect(calls.deferredVoicemailRecordings).toBe(1);
+    expect(store.map.has("voicemail")).toBe(true);
+
+    vi.setSystemTime(new Date(Date.now() + 31_000));
+    await instance.alarm();
+    await instance.whenIdle();
+    expect(calls.deferredVoicemailRecordings).toBe(2);
+    expect(store.map.has("voicemail")).toBe(false);
   });
 
   it("a run that settles after the purge leaves storage empty", async () => {

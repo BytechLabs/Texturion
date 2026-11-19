@@ -576,8 +576,6 @@ export async function handleVoicemailSaved(
       )
     : await storeVoicemailRecording(env, db, payload, resolved, row.caller_e164);
   if (!stored) {
-    // Nothing kept (too short / unfetchable) — the call stays an honest miss.
-    // The Telnyx copy was already deleted on those paths inside store*.
     return;
   }
 

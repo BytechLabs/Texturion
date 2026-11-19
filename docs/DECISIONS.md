@@ -10599,7 +10599,8 @@ probe `messages`.
 
 - **One run per isolate.** A second run would buy the transcript twice.
 - **The alarm reruns a job whose run died** with its isolate. A run still going is given more time instead.
-- **A failed run retries every 30s.** After 10 tries it is dropped and reported as an error. The last try ends inside Telnyx's 10-minute recording link.
+- **A failed run retries every 30s.** After ten tries the job saves its recording times and hands off to the hourly stale-call sweep. The sweep asks Telnyx for a fresh download link and can retry for up to 24 hours. On expiry it requests deletion of the carrier copy and reports the session ID.
+- **The carrier copy stays available until the call and voicemail are recorded.** The pipeline deletes short recordings immediately and refreshes an expired download link once per attempt.
 - **A run that settles after the 15-minute purge writes nothing**, so it cannot bring the purged storage back.
 
 **Rejected.**

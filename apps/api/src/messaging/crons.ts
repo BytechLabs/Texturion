@@ -48,6 +48,7 @@ import {
 import { processStripeEvent } from "../webhooks/stripe";
 import { dispatchTelnyxEvent } from "./dispatch";
 import { STUCK_SEND_SECONDS } from "./send";
+import { sweepPendingVoicemails } from "./voicemail-recovery";
 
 const SWEEP_MIN_AGE_MS = 2 * 60 * 1000;
 const SWEEP_BATCH = 100;
@@ -598,6 +599,7 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
   if (swept > 0) {
     console.warn(`stale calls sweep: ${swept} session(s) finalized`);
   }
+  await sweepPendingVoicemails(env, db);
 }
 
 /** D43: hard ceiling on a single live call's duration (2h) — the cost

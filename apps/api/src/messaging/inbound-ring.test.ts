@@ -29,13 +29,13 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-function store(seconds = 42) {
+function store(seconds = 42, original: string | null = WEBHOOK_LINK) {
   return storeVoicemailRecording(
     env,
     getDb(env),
     {
       call_session_id: SESSION,
-      recording_urls: { mp3: WEBHOOK_LINK },
+      ...(original === null ? {} : { recording_urls: { mp3: original } }),
       recording_started_at: STARTED_AT,
       recording_ended_at: new Date(Date.parse(STARTED_AT) + seconds * 1000).toISOString(),
     },
@@ -81,7 +81,7 @@ function storagePut(): Stub {
 function callsStamp(): Stub {
   return stubRoute(
     restMatch(env, "PATCH", "calls"),
-    () => new Response(null, { status: 204 }),
+    () => [{ id: SESSION }],
   );
 }
 
@@ -162,18 +162,18 @@ describe("storeVoicemailRecording: fetching the recording", () => {
     },
   );
 
-  it("a 403 with no fresh link deletes Telnyx's copy and keeps nothing", async () => {
+  it("a 403 with no fresh link keeps Telnyx's copy for recovery", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const removal = telnyxDelete();
     const upload = storagePut();
     serve(link(WEBHOOK_LINK, 403), listing([{ id: "rec-1" }]), removal, upload);
 
-    await expect(store()).resolves.toBeNull();
-    expect(removal.calls.map((call) => call.url.pathname)).toEqual(["/v2/recordings/rec-1"]);
+    await expect(store()).rejects.toThrow("voicemail fetch unavailable: HTTP 403");
+    expect(removal.calls).toHaveLength(0);
     expect(upload.calls).toHaveLength(0);
   });
 
-  it("a 403 on the fresh link too deletes Telnyx's copy and keeps nothing", async () => {
+  it("a 403 on the fresh link keeps Telnyx's copy for recovery", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const removal = telnyxDelete();
     const upload = storagePut();
@@ -185,8 +185,8 @@ describe("storeVoicemailRecording: fetching the recording", () => {
       upload,
     );
 
-    await expect(store()).resolves.toBeNull();
-    expect(removal.calls).toHaveLength(1);
+    await expect(store()).rejects.toThrow("voicemail fetch unavailable: HTTP 403");
+    expect(removal.calls).toHaveLength(0);
     expect(upload.calls).toHaveLength(0);
   });
 
@@ -217,7 +217,7 @@ describe("storeVoicemailRecording: fetching the recording", () => {
     expect(removal.calls).toHaveLength(0);
   });
 
-  it("a listing Telnyx refuses counts as no fresh link and keeps nothing", async () => {
+  it("a refused listing keeps the voicemail available for another attempt", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
     const upload = storagePut();
     const refused = stubRoute(
@@ -226,8 +226,27 @@ describe("storeVoicemailRecording: fetching the recording", () => {
     );
     serve(link(WEBHOOK_LINK, 403), refused, upload);
 
-    await expect(store()).resolves.toBeNull();
+    await expect(store()).rejects.toThrow("voicemail fetch unavailable: HTTP 403");
     expect(upload.calls).toHaveLength(0);
+  });
+
+  it("uses a fresh URL when recovery has no original download URL", async () => {
+    const fresh = link(FRESH_LINK, 200);
+    const lookup = listing([{ id: "rec-1", download_urls: { mp3: FRESH_LINK } }]);
+    serve(lookup, fresh, storagePut(), callsStamp());
+
+    await expect(store(42, null)).resolves.toMatchObject({ callSessionId: SESSION, seconds: 42 });
+    expect(lookup.calls).toHaveLength(1);
+    expect(fresh.calls).toHaveLength(1);
+  });
+
+  it("keeps the carrier copy when storage succeeded but the call stamp matched no row", async () => {
+    const stamp = stubRoute(restMatch(env, "PATCH", "calls"), () => []);
+    const removal = telnyxDelete();
+    serve(link(WEBHOOK_LINK, 200), storagePut(), stamp, removal);
+
+    await expect(store()).rejects.toThrow("voicemail call row was unavailable at stamp time");
+    expect(removal.calls).toHaveLength(0);
   });
 
   it("a recording under two seconds is never fetched and Telnyx's copy is deleted", async () => {

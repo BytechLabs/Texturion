@@ -30,6 +30,7 @@ import {
 } from "../messaging/inbound-ring";
 import { buildOutboundPlacerState, companyOverVoiceCap, handleTerminalCallEvent, handleVoicemailSaved, normalizeCaller, OUTBOUND_AUTH_MAX_AGE_SECS, parseOutboundNonce, parseOutboundSessionId, threadCallSession } from '../messaging/voice-webhook';
 import type { CompanyVoiceState } from '../messaging/voice-webhook';
+import { deferVoicemail } from "../messaging/voicemail-recovery";
 import { normalizeNanpPhone } from "../routes/core/phone";
 import { notifyMissedCall } from "../notifications/missed-call";
 import { closeBlockedThread, isBlockedSender } from "../messaging/spam-flag";
@@ -249,6 +250,7 @@ export interface SessionRuntime {
     briAnsweredAtIso: string | null,
   ): Promise<void>;
   voicemailPipeline(payload: Record<string, unknown>): Promise<void>;
+  deferVoicemailRecording(payload: Record<string, unknown>): Promise<void>;
   /** A handled condition worth a look, sent to PostHog as a warning. */
   warn(message: string): void;
   reportError(cause: unknown): void;
@@ -1386,6 +1388,10 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
 
     async voicemailPipeline(payload) {
       await handleVoicemailSaved(env, db, payload);
+    },
+
+    async deferVoicemailRecording(payload) {
+      await deferVoicemail(db, payload);
     },
 
     warn(message) {

@@ -1860,8 +1860,16 @@ export class CallSessionDO extends DurableObject<Env> {
     try {
       await this.rt.voicemailPipeline(job.payload);
     } catch (error) {
-      await this.enqueue(() => this.voicemailFailed(error));
-      return;
+      if (job.attempts + 1 < MAX_VOICEMAIL_ATTEMPTS) {
+        await this.enqueue(() => this.voicemailFailed(error));
+        return;
+      }
+      try {
+        await this.rt.deferVoicemailRecording(job.payload);
+      } catch (handoffError) {
+        await this.enqueue(() => this.voicemailFailed(handoffError));
+        return;
+      }
     }
     await this.enqueue(() => this.voicemailDone());
   }
@@ -1876,16 +1884,8 @@ export class CallSessionDO extends DurableObject<Env> {
   private async voicemailFailed(cause: unknown): Promise<void> {
     const job = await this.getVoicemailJob();
     if (!job) return;
-    const attempts = job.attempts + 1;
+    const attempts = Math.min(job.attempts + 1, MAX_VOICEMAIL_ATTEMPTS);
     const reason = cause instanceof Error ? cause.message : String(cause);
-    if (attempts >= MAX_VOICEMAIL_ATTEMPTS) {
-      this.rt.reportError(
-        new Error(`calls-v3 voicemail dropped after ${attempts} failed attempts: ${reason}`),
-      );
-      await this.ctx.storage.delete("voicemail");
-      await this.clearAlarmSlot("voicemail");
-      return;
-    }
     this.rt.warn(`calls-v3 voicemail attempt ${attempts} failed, retrying: ${reason}`);
     await this.ctx.storage.put("voicemail", { ...job, attempts });
     await this.setAlarmSlot("voicemail", Date.now() + VOICEMAIL_RETRY_MS);

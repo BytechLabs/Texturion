@@ -188,12 +188,15 @@ describe(deliverWebhookBatch, () => {
     ]);
     const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
     const outcome = stubRoute(rpcMatch(env, "api_record_webhook_delivery_outcome"), () => false);
-    const secondReceiver = Promise.withResolvers<boolean>();
+    let secondReceiverArrived: (() => void) | undefined;
+    const secondReceiver = new Promise<void>((resolve) => {
+      secondReceiverArrived = resolve;
+    });
     const receiver = stubRoute(
       (url) => url.origin === "https://hooks.example.com",
       async ({ url }) => {
-        if (url.pathname === "/second") secondReceiver.resolve(true);
-        await secondReceiver.promise;
+        if (url.pathname === "/second") secondReceiverArrived?.();
+        await secondReceiver;
         return new Response(null, { status: 204 });
       },
     );

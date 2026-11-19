@@ -30,8 +30,8 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { readWithDeadline } from "../http/deadline";
 import { reportHandledFailure } from "../observability/capture";
-import { fetchWithDeadline } from "../http/deadline";
 import { isDefiniteRefusal, TelnyxApiError, telnyxRequest } from "../telnyx/client";
 import { runAiFeature } from "../ai/run";
 import { captureUnusableModelOutput } from "../ai/output";
@@ -312,13 +312,8 @@ export interface StoredVoicemail {
 }
 
 /**
- * call.recording.saved (vmi leg): copy the message into OUR storage inside
- * Telnyx's 10-minute presigned window, stamp the calls row, then delete the
- * Telnyx copy. Returns what the caller (voice-webhook) needs to upgrade the
- * outcome + thread the voicemail; null when there is nothing to keep (too
- * short, missing URL, or a recording that no link can fetch), and the
- * call stays an honest miss. Throws on a transient fetch failure, keeping
- * Telnyx's copy, so the voicemail job tries again.
+ * Copy a saved recording into our bucket and stamp the call. A failed copy
+ * keeps the carrier recording available for retry.
  */
 export async function storeVoicemailRecording(
   env: Env,
@@ -328,36 +323,30 @@ export async function storeVoicemailRecording(
   caller: string | null,
 ): Promise<StoredVoicemail | null> {
   const sessionId = payload.call_session_id;
-  const url = payload.recording_urls?.mp3;
-  if (!sessionId || !url) return null;
+  if (!sessionId) return null;
 
   const startMs = Date.parse(payload.recording_started_at ?? "");
   const endMs = Date.parse(payload.recording_ended_at ?? "");
-  const seconds =
-    Number.isFinite(startMs) && Number.isFinite(endMs)
-      ? Math.max(0, Math.round((endMs - startMs) / 1000))
-      : 0;
+  if (!Number.isFinite(startMs) || !Number.isFinite(endMs) || endMs < startMs) {
+    throw new Error("voicemail recording has invalid timestamps");
+  }
+  const seconds = Math.round((endMs - startMs) / 1000);
   if (seconds < VOICEMAIL_MIN_SECS) {
     await deleteTelnyxRecording(env, sessionId);
     return null;
   }
 
+  const original = payload.recording_urls?.mp3 || null;
+  const url = original ?? await freshRecordingUrl(env, sessionId);
+  if (!url) throw new Error("voicemail recording URL is unavailable");
   let response = await fetchRecording(url);
-  let fresh: string | null = null;
-  if (!response.ok) {
-    // The webhook's link expires after ten minutes; the listing signs a new one.
-    fresh = await freshRecordingUrl(env, sessionId);
+  if (original && [403, 404, 410].includes(response.status)) {
+    const fresh = await freshRecordingUrl(env, sessionId);
     if (fresh) response = await fetchRecording(fresh);
   }
-  if (!response.ok) {
-    console.error(
-      `voicemail fetch failed for ${sessionId}: HTTP ${response.status}${fresh ? " on a fresh link" : ", no fresh link"}`,
-    );
-    // No link can fetch it, and customer audio must not stay at Telnyx.
-    await deleteTelnyxRecording(env, sessionId);
-    return null;
-  }
-  const audio = await response.arrayBuffer();
+  const { audio } = response;
+  if (!audio) throw new Error(`voicemail fetch unavailable: HTTP ${response.status}`);
+  if (audio.byteLength === 0) throw new Error("voicemail recording is empty");
 
   const path = `${resolved.companyId}/${sessionId}.mp3`;
   const upload = await db.storage
@@ -386,7 +375,7 @@ export async function storeVoicemailRecording(
     transcript,
   });
 
-  const { error: stampError } = await db
+  const { data: stamped, error: stampError } = await db
     .from("calls")
     .update({
       voicemail_path: path,
@@ -405,10 +394,15 @@ export async function storeVoicemailRecording(
         : {}),
       ...(transcript === null ? {} : { voicemail_transcript: transcript }),
     })
-    .eq("call_session_id", sessionId);
+    .eq("call_session_id", sessionId)
+    .eq("company_id", resolved.companyId)
+    .is("deleted_at", null)
+    .is("voicemail_deleted_at", null)
+    .select("id");
   if (stampError) {
     throw new Error(`voicemail stamp failed: ${stampError.message}`);
   }
+  if (!stamped?.length) throw new Error("voicemail call row was unavailable at stamp time");
 
   // NB: the Telnyx copy is deleted by the CALLER (handleVoicemailSaved), only
   // AFTER the outcome/thread/timeline writes commit — deleting here would make
@@ -587,13 +581,16 @@ function listRecordings(env: Env, callSessionId: string): Promise<RecordingListi
 }
 
 /** A 5xx, 429 or 408 throws, keeping Telnyx's copy, so the voicemail job retries. */
-async function fetchRecording(url: string): Promise<Response> {
-  const response = await fetchWithDeadline(url, undefined, VOICEMAIL_FETCH_TIMEOUT_MS);
-  const { status } = response;
-  if (status >= 500 || status === 429 || status === 408) {
-    throw new Error(`voicemail fetch transient: HTTP ${status}`);
-  }
-  return response;
+function fetchRecording(url: string): Promise<{ status: number; audio: ArrayBuffer | null }> {
+  return readWithDeadline(url, undefined, VOICEMAIL_FETCH_TIMEOUT_MS, async (response) => {
+    const { status } = response;
+    if (response.ok) return { status, audio: await response.arrayBuffer() };
+    await response.body?.cancel();
+    if (status >= 500 || status === 429 || status === 408) {
+      throw new Error(`voicemail fetch transient: HTTP ${status}`);
+    }
+    return { status, audio: null };
+  });
 }
 
 /** A newly signed mp3 link for the session's recording, or null when Telnyx has none. */

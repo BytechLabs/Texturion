@@ -106,6 +106,7 @@ export interface FakeConfig {
   pushFanoutThrows?: () => boolean;
   /** May return a promise to hold the voicemail open, or throw to fail it. */
   voicemailPipeline?: () => void | Promise<void>;
+  deferVoicemailRecording?: () => void | Promise<void>;
 }
 
 export function makeRuntime(config: FakeConfig = {}) {
@@ -126,6 +127,7 @@ export function makeRuntime(config: FakeConfig = {}) {
       | undefined
     )[],
     voicemailPipelines: 0,
+    deferredVoicemailRecordings: 0,
     warnings: [] as string[],
     errorCount: 0,
     events: [] as { event: string; companyId: string; properties: Record<string, unknown> }[],
@@ -230,6 +232,11 @@ export function makeRuntime(config: FakeConfig = {}) {
     async voicemailPipeline() {
       calls.voicemailPipelines += 1;
       await config.voicemailPipeline?.();
+    },
+
+    async deferVoicemailRecording() {
+      calls.deferredVoicemailRecordings += 1;
+      await config.deferVoicemailRecording?.();
     },
     warn(message) {
       calls.warnings.push(message);
