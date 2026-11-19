@@ -391,7 +391,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.responseDuringHours" to "During hours ({count})",
         "inbox.responseAfterHours" to "After hours ({count})",
         "inbox.responseByNumber" to "{number} · {count} unanswered",
-        "inbox.responseByMember" to "Member · {count} answered",
+        "inbox.responseByMember" to "{name} · {count} answered",
+        "inbox.responseMemberFallback" to "Member",
         "inbox.responseSplitTruncated" to
             "The hours split covers your most recent {limit} " +
             "leads; the numbers above it cover all {total}.",
@@ -791,7 +792,8 @@ object InboxStrings : AppStrings.Section {
         "inbox.responseDuringHours" to "Pendant les heures ({count})",
         "inbox.responseAfterHours" to "Hors des heures ({count})",
         "inbox.responseByNumber" to "{number} · {count} sans réponse",
-        "inbox.responseByMember" to "Membre · {count} avec réponse",
+        "inbox.responseByMember" to "{name} · {count} avec réponse",
+        "inbox.responseMemberFallback" to "Membre",
         "inbox.responseSplitTruncated" to
             "La répartition par heures couvre vos {limit} clients potentiels les " +
             "plus récents ; les chiffres au-dessus couvrent l'ensemble des {total}.",

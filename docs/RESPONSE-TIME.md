@@ -160,7 +160,9 @@ The baseline is withheld, with a reason, in two cases:
 ## Per-member numbers are the owner's choice
 
 `companies.response_stats_per_member` defaults to **FALSE**, and while it is off
-the API returns `by_member: null` and no member id appears in the payload at all.
+the API returns `by_member: null` and omits member IDs and names. When enabled,
+each row includes the profile's display name. The clients display a localized
+“Member” label when a profile has no name.
 
 Per-member numbers are motivating in some crews and toxic in others, so naming
 individuals is a decision the owner makes rather than one we make for them. Once

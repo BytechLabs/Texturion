@@ -299,7 +299,10 @@ struct ResponseTimeCard: View {
                             AppStrings.translate(
                                 appLocale,
                                 "inbox.responseByMember",
-                                ["count": String(member.answered)]
+                                [
+                                    "name": member.name ?? AppStrings.translate(appLocale, "inbox.responseMemberFallback"),
+                                    "count": String(member.answered)
+                                ]
                             ),
                             ResponseTimeFormat.format(member.median_seconds)
                         )

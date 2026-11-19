@@ -96,6 +96,23 @@ interface StatsPayload {
   truncated: boolean;
 }
 
+async function reportMemberNames(
+  db: ReturnType<typeof getDb>,
+  userIds: string[],
+): Promise<Map<string, string>> {
+  const names = new Map<string, string>();
+  if (userIds.length === 0) return names;
+  const profiles = unwrap<{ user_id: string; display_name: string | null }[]>(
+    await db.from("profiles").select("user_id,display_name").in("user_id", userIds),
+    "report member names",
+  );
+  for (const profile of profiles) {
+    const name = profile.display_name?.trim();
+    if (name) names.set(profile.user_id, name);
+  }
+  return names;
+}
+
 /**
  * #482: attach the number a person would recognise, and suppress the breakdown
  * when it would say nothing.
@@ -315,6 +332,10 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     baseline?.median_seconds != null && current.median_seconds != null
       ? baseline.median_seconds - current.median_seconds
       : null;
+  const memberNames = await reportMemberNames(
+    db,
+    company.response_stats_per_member ? current.by_member.map(({ user_id }) => user_id) : [],
+  );
 
   return c.json({
     window: {
@@ -352,7 +373,9 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
     // Null, not an empty list: "the owner has not opted in" and "nobody has
     // answered anything" are different facts and the clients say different
     // things about them.
-    by_member: company.response_stats_per_member ? current.by_member : null,
+    by_member: company.response_stats_per_member
+      ? current.by_member.map((member) => ({ ...member, name: memberNames.get(member.user_id) ?? null }))
+      : null,
     per_member_enabled: company.response_stats_per_member,
     baseline: baseline
       ? {
@@ -643,25 +666,7 @@ reportsRoutes.get(
       byMember.set(row.rated_user_id, list);
     }
 
-    // Names, resolved here rather than in three clients (#482). An anonymous
-    // per-person list cannot answer the question the issue actually asks —
-    // "which technician customers are consistently happy with" — so a
-    // breakdown without names is a breakdown that is not worth showing.
-    // `profiles` has no FK to company_members, so PostgREST cannot embed it.
-    const memberIds = [...byMember.keys()];
-    const names = new Map<string, string>();
-    if (company.response_stats_per_member && memberIds.length > 0) {
-      const profiles = unwrap<{ user_id: string; display_name: string }[]>(
-        await db
-          .from("profiles")
-          .select("user_id,display_name")
-          .in("user_id", memberIds),
-        "satisfaction member names",
-      );
-      for (const profile of profiles) {
-        if (profile.display_name) names.set(profile.user_id, profile.display_name);
-      }
-    }
+    const names = await reportMemberNames(db, company.response_stats_per_member ? [...byMember.keys()] : []);
 
     return c.json({
       window: {

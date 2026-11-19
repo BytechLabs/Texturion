@@ -454,7 +454,8 @@ export const inboxEn = {
   responseDuringHours: "During hours ({count})",
   responseAfterHours: "After hours ({count})",
   responseByNumber: "{number} · {count} unanswered",
-  responseByMember: "Member · {count} answered",
+  responseByMember: "{name} · {count} answered",
+  responseMemberFallback: "Member",
   responseSplitTruncated:
     "The hours split covers your most recent {limit} leads; the numbers above " +
     "it cover all {total}.",
@@ -955,7 +956,8 @@ export const inboxFr: Translated<typeof inboxEn> = {
   responseDuringHours: "Pendant les heures ({count})",
   responseAfterHours: "Hors des heures ({count})",
   responseByNumber: "{number} · {count} sans réponse",
-  responseByMember: "Membre · {count} avec réponse",
+  responseByMember: "{name} · {count} avec réponse",
+  responseMemberFallback: "Membre",
   responseSplitTruncated:
     "La répartition par heures couvre vos {limit} clients potentiels les plus " +
     "récents ; les chiffres au-dessus couvrent l'ensemble des {total}.",
