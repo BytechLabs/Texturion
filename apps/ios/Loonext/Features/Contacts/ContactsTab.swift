@@ -289,12 +289,17 @@ struct ContactsTab: View {
                     onTagChange: { tagFilter = $0 }
                 )
             }
-            Picker(t("contactsTasks.sort"), selection: $sort) {
-                Text(t("contactsTasks.sortName")).tag("name")
-                Text(t("contactsTasks.sortRecent")).tag("recent")
-                Text(t("contactsTasks.sortAdded")).tag("added")
+            SelectField(
+                options: [
+                    SelectOption("name", title: t("contactsTasks.sortName")),
+                    SelectOption("recent", title: t("contactsTasks.sortRecent")),
+                    SelectOption("added", title: t("contactsTasks.sortAdded")),
+                ],
+                selected: sort,
+                label: t("contactsTasks.sort")
+            ) {
+                sort = $0
             }
-            .pickerStyle(.menu)
             ActiveFilterChips(
                 chips: contactFilterChips,
                 onClearAll: {
