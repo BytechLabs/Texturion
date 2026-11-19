@@ -67,6 +67,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.net.toUri
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.ViewModel
@@ -367,6 +368,10 @@ class MainActivity : FragmentActivity() {
                 "light" -> false
                 "dark" -> true
                 else -> isSystemInDarkTheme()
+            }
+            SideEffect {
+                WindowCompat.getInsetsController(window, window.decorView)
+                    .isAppearanceLightStatusBars = !darkTheme
             }
             // #180: compute the WindowSizeClass ONCE at the top and thread it
             // down via LocalWindowSizeClass, so every surface (tabs, sheets,

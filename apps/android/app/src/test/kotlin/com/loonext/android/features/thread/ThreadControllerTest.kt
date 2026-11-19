@@ -40,6 +40,7 @@ import okhttp3.OkHttpClient
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Before
 import org.junit.Test
 
@@ -319,7 +320,7 @@ class ThreadControllerTest {
      * innocuous tidy-up and is the entire defect.
      */
     @Test
-    fun `a re-ask keeps the customer's STOP on screen while it is in flight`() {
+    fun `reopening a dismissed recap keeps the customer's STOP on screen while it is in flight`() {
         val controller = controller()
         controller.start()
         awaitUntil { controller.load is LoadState.Ready }
@@ -334,6 +335,9 @@ class ThreadControllerTest {
         awaitUntil { !controller.summarizing && controller.summary != null }
         val shown = noteOnScreen(controller)
         assertNotNull("the refusal never carried the STOP to begin with", shown)
+
+        controller.hideSummary()
+        assertNull(noteOnScreen(controller))
 
         // The press. The gate holds the server mid-answer so the in-flight card
         // can be read at all.
@@ -529,7 +533,7 @@ class ThreadControllerTest {
      * so the assertion is about the controller and not about a fixture.
      */
     private fun noteOnScreen(c: ThreadController): String? =
-        catchUpCarrierNote(catchUpState(offered = true, reading = c.summarizing, summary = c.summary))
+        catchUpCarrierNote(catchUpState(offered = true, reading = c.summarizing, summary = c.visibleSummary))
 
     private fun controller(): ThreadController {
         val api = ApiClient(

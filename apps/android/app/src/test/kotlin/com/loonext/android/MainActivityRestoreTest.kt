@@ -8,6 +8,7 @@ import androidx.compose.ui.test.onAllNodesWithText
 import androidx.test.core.app.ActivityScenario
 import androidx.test.core.app.ApplicationProvider
 import com.loonext.android.core.auth.Session
+import com.loonext.android.core.auth.SessionPreferencesRule
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.Membership
 import com.loonext.android.core.model.SubscriptionStatus
@@ -44,6 +45,9 @@ class MainActivityRestoreTest {
     @get:Rule
     val compose = createEmptyComposeRule()
 
+    @get:Rule
+    val sessionPreferences = SessionPreferencesRule()
+
     @Test
     fun `recreation keeps the second task above the original launch link`() {
         val app = ApplicationProvider.getApplicationContext<LoonextApp>()
@@ -66,6 +70,7 @@ class MainActivityRestoreTest {
                 app = app,
                 supabaseUrl = server.url("/gotrue").toString(),
                 apiUrl = server.url("/").toString().trimEnd('/'),
+                sessionPreferences = sessionPreferences.dataStore,
             )
             ReflectionHelpers.setField(app, "graph", graph)
             try {

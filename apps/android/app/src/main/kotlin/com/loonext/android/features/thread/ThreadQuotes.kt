@@ -105,6 +105,8 @@ fun ThreadQuotes(
      * to read — and is offered no way to add or send one.
      */
     canAct: Boolean,
+    draftOpen: Boolean,
+    onCloseDraft: () -> Unit,
     onNotice: (String) -> Unit,
     /** A sent quote goes out as an ordinary text the timeline does not know of. */
     onSent: () -> Unit,
@@ -123,7 +125,6 @@ fun ThreadQuotes(
     val coroutines = rememberCoroutineScope()
     val haptics = rememberHaptics()
     val locale = LocalAppLocale.current
-    var open by remember { mutableStateOf(false) }
     var amount by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
     var sendingId by remember { mutableStateOf<String?>(null) }
@@ -131,11 +132,9 @@ fun ThreadQuotes(
 
     val now = System.currentTimeMillis()
     val shown = rows.filter { isWorthShowing(it, now) }
+    val showForm = canAct && draftOpen
 
-    // Absent entirely when there is nothing to say and nothing to offer. A
-    // strip reserving space on every thread for something almost no thread has
-    // is a permanent cost paid for a rare event.
-    if (shown.isEmpty() && !canAct) return
+    if (shown.isEmpty() && !showForm) return
 
     fun create() {
         val dollars = amount.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
@@ -161,7 +160,7 @@ fun ThreadQuotes(
                 )
                 amount = ""
                 description = ""
-                open = false
+                onCloseDraft()
                 refreshKey++
             } catch (cause: Exception) {
                 onNotice(cause.userMessage(locale))
@@ -198,18 +197,7 @@ fun ThreadQuotes(
             )
         }
 
-        if (canAct && !open) {
-            TextButton(onClick = { open = true }) {
-                Icon(
-                    Icons.Outlined.Description,
-                    contentDescription = null,
-                    modifier = Modifier.padding(end = 4.dp),
-                )
-                Text(t("quotes.newQuote"), fontSize = 13.sp)
-            }
-        }
-
-        if (canAct && open) {
+        if (showForm) {
             Row(
                 Modifier.fillMaxWidth().padding(top = 4.dp),
                 horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -245,7 +233,7 @@ fun ThreadQuotes(
                         fontSize = 13.sp,
                     )
                 }
-                TextButton(onClick = { open = false }) {
+                TextButton(onClick = onCloseDraft) {
                     Text(t("common.cancel"), fontSize = 13.sp)
                 }
             }

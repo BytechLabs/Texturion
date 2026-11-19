@@ -78,7 +78,8 @@ final class ThreadQuotesModel {
         ))?.data ?? []
     }
 
-    func create(amountCents: Int, description: String, locale: String?) async {
+    func create(amountCents: Int, description: String, locale: String?) async -> Bool {
+        notice = nil
         busy = true
         defer { busy = false }
         let expires = ISO8601DateFormatter().string(
@@ -95,8 +96,10 @@ final class ThreadQuotesModel {
                 expiresAt: expires
             )
             await load()
+            return true
         } catch {
             notice = error.userMessage(locale ?? MessageLocale.en)
+            return false
         }
     }
 
@@ -121,13 +124,13 @@ struct ThreadQuotesPane: View {
     let role: String?
     /// #106: 'text' or 'note' on this conversation's number.
     let viewerLevel: String
+    @Binding var draftOpen: Bool
     /// A sent quote goes out as an ordinary text the transcript does not know of.
     let onSent: () -> Void
 
     @Environment(\.appLocale) private var appLocale
 
     @State private var model: ThreadQuotesModel?
-    @State private var open = false
     @State private var amount = ""
     @State private var work = ""
 
@@ -147,7 +150,7 @@ struct ThreadQuotesPane: View {
 
     var body: some View {
         Group {
-            if canSee, let model, !model.visible.isEmpty || canAct {
+            if canSee, let model, !model.visible.isEmpty || (canAct && draftOpen) {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(model.visible) { quote in
                         QuoteStripRow(
@@ -160,15 +163,7 @@ struct ThreadQuotesPane: View {
                             }
                         }
                     }
-                    if canAct {
-                        if open {
-                            form(model)
-                        } else {
-                            Button(t("quotes.newQuote")) { open = true }
-                                .font(.golos(13))
-                                .foregroundStyle(BrandColor.olive)
-                        }
-                    }
+                    if canAct && draftOpen { form(model) }
                     // The API's own words on a refusal, never a paraphrase, and
                     // never swallowed: a create or send that failed silently is
                     // a crew member who thinks a customer has a price.
@@ -213,7 +208,7 @@ struct ThreadQuotesPane: View {
                 .foregroundStyle(BrandColor.olive)
                 .disabled(model.busy)
 
-                Button(t("common.cancel")) { open = false }
+                Button(t("common.cancel")) { draftOpen = false }
                     .font(.golos(13))
                     .foregroundStyle(BrandColor.muted500)
             }
@@ -230,14 +225,15 @@ struct ThreadQuotesPane: View {
             model.notice = t("quotes.needDescription")
             return
         }
-        await model.create(
+        let created = await model.create(
             amountCents: Int((dollars * 100).rounded()),
             description: work.trimmingCharacters(in: .whitespaces),
             locale: appLocale
         )
+        guard created else { return }
         amount = ""
         work = ""
-        open = false
+        draftOpen = false
     }
 }
 

@@ -3,12 +3,15 @@ package com.loonext.android.features.settings
 import androidx.test.core.app.ApplicationProvider
 import com.loonext.android.AppGraph
 import com.loonext.android.core.auth.Session
+import com.loonext.android.core.auth.SessionPreferencesRule
 import com.loonext.android.core.model.Me
 import com.loonext.android.core.model.MemberRole
 import com.loonext.android.core.model.Membership
 import com.loonext.android.core.model.SubscriptionStatus
 import com.loonext.android.core.ownership.HandoverConfirmation
 import java.util.concurrent.CopyOnWriteArrayList
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import mockwebserver3.Dispatcher
@@ -20,6 +23,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Before
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -53,13 +57,16 @@ import org.robolectric.annotation.Config
  * ## What is real here
  *
  * The graph, the OkHttp clients, `SupabaseAuth`, `ApiClient`, `SettingsRepository`, the
- * session store, and `attemptHandover` itself. The only doubles are the two HTTP servers
- * and the session source. In particular the `attempt` closure calls the REAL repository,
+ * session store, and `attemptHandover` itself. The HTTP servers use fixtures and the
+ * session store uses a separate file for each test. The `attempt` closure calls the real repository,
  * so the request our server records is the request the product would have sent.
  */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34])
 class HandoverFunnelRunTest {
+    @get:Rule
+    val sessionPreferences = SessionPreferencesRule()
+
     /** The digits somebody reads off their authenticator. */
     private val code = "864209"
 
@@ -167,14 +174,16 @@ class HandoverFunnelRunTest {
             ApplicationProvider.getApplicationContext(),
             supabaseUrl = gotrue.url("/").toString().trimEnd('/'),
             apiUrl = ours.url("/").toString().trimEnd('/'),
+            sessionPreferences = sessionPreferences.dataStore,
         )
         seedSession()
     }
 
     @After
     fun tearDown() {
-        ours.close()
-        gotrue.close()
+        if (::graph.isInitialized) runBlocking { graph.appScope.coroutineContext.job.cancelAndJoin() }
+        if (::ours.isInitialized) ours.close()
+        if (::gotrue.isInitialized) gotrue.close()
     }
 
     /** The graph's own client, pointed at `ours` — one of everything, like the app. */

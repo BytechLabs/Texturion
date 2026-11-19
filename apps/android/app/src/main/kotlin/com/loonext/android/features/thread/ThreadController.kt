@@ -179,6 +179,8 @@ class ThreadController(
      */
     var summary by mutableStateOf<ThreadSummary?>(null)
         private set
+    private var summaryHidden by mutableStateOf(false)
+    val visibleSummary: ThreadSummary? get() = if (summaryHidden) null else summary
     var summarizing by mutableStateOf(false)
         private set
     var pendingSends by mutableStateOf<List<PendingSend>>(emptyList())
@@ -1359,6 +1361,7 @@ class ThreadController(
      */
     fun askForSummary() {
         if (summarizing) return
+        summaryHidden = false
         summarizing = true
         // Read at the press, off the answer currently on the card. A request the
         // server never answers has no `opt_outs` read of its own, and this is
@@ -1380,6 +1383,10 @@ class ThreadController(
                 summarizing = false
             }
         }
+    }
+
+    fun hideSummary() {
+        summaryHidden = true
     }
 
     fun clearSpamSuspicion() {

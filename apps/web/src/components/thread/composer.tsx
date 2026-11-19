@@ -6,12 +6,23 @@ import {
   FileText,
   Paperclip,
   Plus,
+  ReceiptText,
   Send as SendIcon,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
-import { appendIdentificationSuffix, applyMergeFields, duplicateReplyPrompt, duplicateReplyWarning, formatNanpNumber, hasMergeFields,hasServerOnlyTokens,SERVER_ONLY_TOKENS_NOTE } from '@loonext/shared';
+import {
+  appendIdentificationSuffix,
+  applyMergeFields,
+  duplicateReplyPrompt,
+  duplicateReplyWarning,
+  formatNanpNumber,
+  hasMergeFields,
+  hasServerOnlyTokens,
+  roleHasCapability,
+  SERVER_ONLY_TOKENS_NOTE,
+} from '@loonext/shared';
 import type { MmsMediaType,WorkPhase } from '@loonext/shared';
 
 import {
@@ -554,6 +565,9 @@ export function Composer({
   );
   const [mode, setMode] = useState<"sms" | "note">(noteOnly ? "note" : "sms");
   const isNote = noteOnly || mode === "note";
+  const [quoteDraftOpen, setQuoteDraftOpen] = useState(false);
+  const addToMessageRef = useRef<HTMLButtonElement>(null);
+  const quoteActionTrigger = useRef<HTMLButtonElement | null>(null);
   // Restored from the last visit to THIS conversation. Both phone apps have
   // always kept a per-conversation draft; on web a half-typed reply died the
   // moment you opened another thread to check something.
@@ -751,6 +765,14 @@ export function Composer({
    */
   // #431: needed to report what a human did with Lou's draft.
   const companyId = useCompanyId();
+  const quoteRole = me.data?.memberships?.find(
+    (membership) => membership.company_id === companyId,
+  )?.role;
+  const canQuote = quoteRole !== undefined && roleHasCapability(quoteRole, "conversations.send");
+  const openQuoteDraft = (trigger: HTMLButtonElement | null) => {
+    quoteActionTrigger.current = trigger;
+    setQuoteDraftOpen(true);
+  };
   const pickedSuggestion = useRef<string | null>(null);
   /** #431: suggestions were shown and none was taken — a send now means discarded. */
   const suggestionsWereShown = useRef(false);
@@ -1304,6 +1326,12 @@ export function Composer({
       {!noteOnly && (
         <QuoteStrip
           conversationId={conversationId}
+          canSend={canQuote}
+          draftOpen={!isNote && quoteDraftOpen}
+          onCloseDraft={() => {
+            setQuoteDraftOpen(false);
+            quoteActionTrigger.current?.focus();
+          }}
           onAskForPayment={setPaymentPrefill}
         />
       )}
@@ -1523,13 +1551,30 @@ export function Composer({
                     : t("thread.finishWithLou")}
                 </TooltipContent>
               </Tooltip>
+              {canQuote && (
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label={t("quotes.newQuote")}
+                      onClick={(event) => openQuoteDraft(event.currentTarget)}
+                      className="rounded-full text-muted-foreground"
+                    >
+                      <ReceiptText className="size-5" strokeWidth={1.75} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>{t("quotes.newQuote")}</TooltipContent>
+                </Tooltip>
+              )}
             </div>
 
-            {/* Mobile `+` action menu — Attach · Template. */}
             <div className="self-end pb-0.5 md:hidden">
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
                   <Button
+                    ref={addToMessageRef}
                     type="button"
                     variant="ghost"
                     size="icon-sm"
@@ -1574,6 +1619,12 @@ export function Composer({
                       ? t("thread.draftWithLou")
                       : t("thread.finishWithLou")}
                   </DropdownMenuItem>
+                  {canQuote && (
+                    <DropdownMenuItem onSelect={() => openQuoteDraft(addToMessageRef.current)}>
+                      <ReceiptText className="size-4" strokeWidth={1.75} aria-hidden />
+                      {t("quotes.newQuote")}
+                    </DropdownMenuItem>
+                  )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
