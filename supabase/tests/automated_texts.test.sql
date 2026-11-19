@@ -82,8 +82,9 @@ end $$;
 do $$
 declare
   exempt regprocedure[] := array[
-    -- Customer messages are inbound.
+    -- Customer messages and tapbacks are inbound.
     'public.thread_inbound_message(uuid, uuid, text, text, text, text, integer, integer, text, text)'::regprocedure,
+    'public.thread_inbound_message(uuid, uuid, text, text, text, text, integer, integer, jsonb)'::regprocedure,
     -- Interactive sends apply the matching spend checks inline (P0-3c).
     'public.gate_outbound_send(uuid, uuid, uuid, text, text, integer)'::regprocedure,
     -- Emergency acknowledgments use their own daily cap.

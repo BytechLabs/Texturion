@@ -145,14 +145,10 @@ scheduledMessageRoutes.post(
     });
 
     const needsQuietConfirmation = clock.quiet && !quiet_hours_confirmed;
-    const quietConfirmationError = () => {
-      // Same code and envelope as compose, so a client shows the quiet-hours
-      // dialog by CODE rather than by reading the sentence.
-      return new ApiError(
-        "quiet_hours_confirmation_required",
-        `That lands at ${String(clock.localHour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to schedule it anyway.`,
-      );
-    };
+    const quietConfirmationError = () => new ApiError(
+      "quiet_hours_confirmation_required",
+      `That lands at ${String(clock.localHour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to schedule it anyway.`,
+    );
     if (needsQuietConfirmation && idempotencyKey === null) {
       throw quietConfirmationError();
     }
