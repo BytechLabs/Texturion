@@ -29,7 +29,7 @@ describe(QuotePage, () => {
       currency: "cad",
       description: "Remplacer le chauffe-eau",
       status: "viewed",
-      expires_at: "2030-08-25T12:00:00.000Z",
+      expires_at: new Date(Date.now() + 86_400_000).toISOString(),
       can_accept: true,
       accept_token: "test-accept-credential",
     }} />);
