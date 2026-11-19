@@ -110,6 +110,8 @@ final class TaskSavedViewsTests: XCTestCase {
             ids: nil,
             filters: TaskListFilters(
                 status: "open",
+                assignedUserId: assigneeAll,
+                q: "gutter",
                 contactId: contact,
                 createdBy: "me",
                 source: "none",
@@ -120,6 +122,8 @@ final class TaskSavedViewsTests: XCTestCase {
             unassign: false
         )
         let filter = body["filter"]
+        XCTAssertNil(filter?["assigned_user_id"])
+        XCTAssertEqual(filter?["q"]?.stringValue, "gutter")
         XCTAssertEqual(filter?["contact_id"]?.stringValue, contact)
         XCTAssertEqual(filter?["created_by"]?.stringValue, "me")
         XCTAssertEqual(filter?["source"]?.stringValue, "none")

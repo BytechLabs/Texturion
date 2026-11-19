@@ -91,6 +91,7 @@ function PinnedStatusList({
 
   return (
     <TaskListBody
+      key={JSON.stringify(filters)}
       state={state}
       filters={filters}
       tasks={flattenPages(query.data)}
@@ -155,6 +156,7 @@ function UnionList({
 
   return (
     <TaskListBody
+      key={JSON.stringify(filters)}
       state={state}
       filters={filters}
       tasks={tasks}
@@ -236,8 +238,13 @@ function TaskListBody({
     // `selectionIds` returns null for the filter mode, which is exactly the
     // shape the route wants — ids OR filter, never both, never neither.
     const ids = selectionIds(selection);
+    const { sort: _sort, assigned_user_id, ...match } = filters;
+    const filter: BulkTasksBody["filter"] = {
+      ...match,
+      assigned_user_id: assigned_user_id === "all" ? undefined : assigned_user_id,
+    };
     bulk.mutate(
-      ids === null ? { ...body, filter: filters } : { ...body, ids },
+      ids === null ? { ...body, filter } : { ...body, ids },
       {
         onSuccess: (result) => {
           // The server's count, never one this component worked out. In filter
@@ -266,9 +273,8 @@ function TaskListBody({
         <TaskBulkBar
           selection={selection}
           loadedIds={loadedIds}
-          // POST /v1/tasks/bulk has no search, so "all matching" would reach past the results.
-          hasMore={hasMore && !busy && !filters.q}
-          pending={bulk.isPending}
+          hasMore={hasMore && !busy}
+          pending={bulk.isPending || busy}
           onSelectLoaded={() => setSelection(selectLoaded(loadedIds))}
           onSelectAllMatching={() => setSelection(selectAllMatching())}
           onClear={() => setSelection(EMPTY_SELECTION)}

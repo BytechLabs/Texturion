@@ -210,13 +210,15 @@ class TaskPlanningWireTest {
             "c1", "add_label",
             filters = TaskListFilters(
                 status = "open", assignedUserId = "me",
-                priorities = listOf("urgent", "high"), tagId = "g9",
+                priorities = listOf("urgent", "high"), tagId = "g9", q = "gutter",
             ),
             tagId = "g1",
         )
         val filtered = bodyOf(server.takeRequest())
         assertEquals("g1", filtered["tag_id"]?.jsonPrimitive?.content)
         val filter = filtered["filter"]!!.jsonObject
+        assertEquals("me", filter["assigned_user_id"]?.jsonPrimitive?.content)
+        assertEquals("gutter", filter["q"]?.jsonPrimitive?.content)
         assertEquals("g9", filter["tag_id"]?.jsonPrimitive?.content)
         assertEquals(listOf("urgent", "high"), filter["priority"]?.jsonArray?.map { it.jsonPrimitive.content })
     }

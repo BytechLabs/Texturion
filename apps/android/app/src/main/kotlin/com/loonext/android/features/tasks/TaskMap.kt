@@ -123,6 +123,7 @@ fun TaskMapView(
     q: String = "",
     onOpenTask: (String) -> Unit,
     modifier: Modifier = Modifier,
+    extra: TaskExtraFilters = TaskExtraFilters(),
 ) {
     val mutations = remember(companyId) { TaskMutations(graph.api) }
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
@@ -143,14 +144,14 @@ fun TaskMapView(
 
     val cacheKey = CacheKeys.tasks(
         companyId,
-        taskMapFilterKey(assigneeUserId, unassigned, due, q),
+        taskMapFilterKey(assigneeUserId, unassigned, due, q, extra),
     )
     val state = rememberCacheFirst(
         cache = graph.storeCache,
         key = cacheKey,
         refreshKey = refreshKey,
     ) {
-        drainLocatedTasks(mutations, companyId, assigneeUserId, unassigned, due, q)
+        drainLocatedTasks(mutations, companyId, assigneeUserId, unassigned, due, q, extra)
     }
 
     when (val current = state) {
@@ -179,6 +180,7 @@ internal fun taskMapFilterKey(
     unassigned: Boolean,
     due: DueChip? = null,
     q: String = "",
+    extra: TaskExtraFilters = TaskExtraFilters(),
 ): String =
     listOf(
         "map",
@@ -188,6 +190,13 @@ internal fun taskMapFilterKey(
         if (unassigned) "unassigned" else "-",
         due?.name ?: "-",
         q.trim().ifEmpty { "-" },
+        extra.contactId.orEmpty(),
+        extra.createdBy.orEmpty(),
+        extra.source.orEmpty(),
+        extra.tagId.orEmpty(),
+        extra.priorities.sorted().joinToString(","),
+        extra.dueBefore.orEmpty(),
+        extra.dueAfter.orEmpty(),
     ).joinToString("|")
 
 // Web-parity camera constants (map-island.tsx): continental-US fallback view,

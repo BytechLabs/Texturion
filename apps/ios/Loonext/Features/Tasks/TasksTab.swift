@@ -1508,25 +1508,21 @@ extension TasksTab {
             defer { bulkRunning = false }
             do {
                 let ids = bulkSelection.idsOrNil
+                let arms = ids == nil ? taskListArms(
+                    tab: tab,
+                    assigneeUserId: assigneeChip,
+                    unassigned: unassignedChip,
+                    due: dueChip,
+                    q: debouncedQ.isEmpty ? nil : debouncedQ,
+                    meta: metaFilters
+                ) : []
+                var filters = arms.first
+                if arms.count > 1 { filters?.status = nil }
                 let result = try await graph.tasksApi.bulk(
                     companyId: companyId,
                     action: action,
                     ids: ids,
-                    // The SAME filters the list fetched with, so "everything I
-                    // am looking at" cannot mean something different here.
-                    // The first arm carries the user's filters; the second
-                    // exists only to union open+done on the statusless tabs and
-                    // has no meaning to a bulk route.
-                    filters: ids == nil
-                        ? taskListArms(
-                            tab: tab,
-                            assigneeUserId: assigneeChip,
-                            unassigned: unassignedChip,
-                            due: dueChip,
-                            q: debouncedQ.isEmpty ? nil : debouncedQ,
-                            meta: metaFilters
-                          ).first
-                        : nil,
+                    filters: filters,
                     targetUserId: targetUserId,
                     unassign: unassign,
                     priority: priority,

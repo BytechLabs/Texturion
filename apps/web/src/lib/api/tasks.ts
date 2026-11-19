@@ -124,18 +124,7 @@ export interface BulkTasksBody {
     | "remove_label";
   /** Omit to act on everything matching `filter`. */
   ids?: string[];
-  filter?: Pick<
-    TaskListFilters,
-    | "status"
-    | "assigned_user_id"
-    | "unassigned"
-    | "conversation_id"
-    | "due_before"
-    | "due_after"
-    | "overdue"
-    | "priority"
-    | "tag_id"
-  >;
+  filter?: Omit<TaskListFilters, "sort">;
   target_user_id?: string | null;
   /** #689 C: for `assign`. These people are ADDED to every selected task. */
   assignee_ids?: string[];

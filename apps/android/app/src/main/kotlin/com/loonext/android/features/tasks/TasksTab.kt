@@ -700,6 +700,7 @@ private fun TaskListScreen(
                     q = debouncedQ,
                     onOpenTask = onOpenTask,
                     modifier = Modifier.fillMaxSize(),
+                    extra = extra,
                 )
             } else {
                 // Pull-to-refresh IS the refreshKey bump — the manual refresh
@@ -1033,22 +1034,18 @@ private fun TaskList(
                     bulkRunning = true
                     scope.launch {
                         try {
+                            val ids = selection.idsOrNull()
+                            val filters = if (ids == null) {
+                                val arms = taskListArms(tab, assigneeChip, unassignedChip, dueChip, q, extra = extra)
+                                arms.first().copy(status = arms.singleOrNull()?.status)
+                            } else {
+                                null
+                            }
                             val result = mutations.bulk(
                                 companyId = companyId,
                                 action = action,
-                                ids = selection.idsOrNull(),
-                                // The SAME arms the list fetched with, so
-                                // "everything I am looking at" cannot mean
-                                // something different here. The first arm is
-                                // the one that carries the user's filters —
-                                // the second exists only to union open+done on
-                                // the statusless tabs, and the server's bulk
-                                // route has no cursor to union across.
-                                filters = if (selection.idsOrNull() == null) {
-                                    taskListArms(tab, assigneeChip, unassignedChip, dueChip, q, extra = extra).first()
-                                } else {
-                                    null
-                                },
+                                ids = ids,
+                                filters = filters,
                                 assigneeIds = assigneeIds,
                                 unassign = unassign,
                                 priority = priority,

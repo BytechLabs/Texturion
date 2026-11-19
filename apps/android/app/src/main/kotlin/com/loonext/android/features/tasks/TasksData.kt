@@ -81,11 +81,12 @@ class TaskMutations(private val api: ApiClient) {
             } else if (filters != null) {
                 putJsonObject("filter") {
                     filters.status?.let { put("status", it) }
-                    // "all" is UI sugar for no assignee pin; the server takes ids only.
                     filters.assignedUserId?.takeUnless { it == ASSIGNEE_ALL }
                         ?.let { put("assigned_user_id", it) }
                     if (filters.unassigned) put("unassigned", true)
                     if (filters.overdue) put("overdue", true)
+                    filters.conversationId?.let { put("conversation_id", it) }
+                    filters.q?.let { put("q", it) }
                     if (filters.priorities.isNotEmpty()) {
                         putJsonArray("priority") { filters.priorities.forEach { add(it) } }
                     }
@@ -432,36 +433,14 @@ class TaskMutations(private val api: ApiClient) {
             companyId = companyId,
         )
 
-    /**
-     * The Map view's arm of GET /v1/tasks (#184/D25): `has_location=true`
-     * inner-joins conversations→contacts server-side, so every returned row
-     * embeds the source contact's cached geocode as `contact` and rows whose
-     * contact has no location are excluded by the join. `has_location` is
-     * itself an explicit filter param, so the route's Open·Mine default never
-     * re-applies here (web parity: the map plots open AND done tasks for the
-     * picked assignee scope). No due filters → created-sorted cursor only.
-     */
     suspend fun listLocated(
         companyId: String,
-        assigneeUserId: String?,
-        unassigned: Boolean,
-        due: TaskListFilters,
-        q: String?,
+        filters: TaskListFilters,
         cursor: String?,
         limit: Int = 100,
     ): Page<Task> = api.get(
         "/v1/tasks",
-        query = mapOf(
-            "has_location" to "true",
-            "assigned_user_id" to assigneeUserId,
-            "unassigned" to if (unassigned) "true" else null,
-            "due_before" to due.dueBefore,
-            "due_after" to due.dueAfter,
-            "overdue" to if (due.overdue) "true" else null,
-            "q" to q,
-            "cursor" to cursor,
-            "limit" to limit.toString(),
-        ),
+        query = taskQueryParams(filters, cursor, limit) + ("has_location" to "true"),
         companyId = companyId,
     )
 
@@ -581,22 +560,28 @@ suspend fun drainLocatedTasks(
     unassigned: Boolean,
     due: DueChip? = null,
     q: String? = null,
+    extra: TaskExtraFilters = TaskExtraFilters(),
 ): List<Task> {
     // ASSIGNEE_ALL is UI sugar meaning "no assignee pin" (taskQueryParams
     // parity) — normalize it away before it reaches the wire.
     val assignee = assigneeUserId?.takeUnless { it == ASSIGNEE_ALL }
+    val dueFilters = due?.let { dueChipFilters(it) }
+        ?: TaskListFilters(dueBefore = extra.dueBefore, dueAfter = extra.dueAfter)
+    val filters = dueFilters.copy(
+        assignedUserId = assignee,
+        unassigned = unassigned,
+        q = q?.trim()?.ifEmpty { null },
+        priorities = TaskPriority.PICKER.filter { it in extra.priorities },
+        tagId = extra.tagId,
+        contactId = extra.contactId,
+        createdBy = extra.createdBy,
+        source = extra.source,
+    )
     val acc = mutableListOf<Task>()
     var cursor: String? = null
     var pages = 0
     do {
-        val page = mutations.listLocated(
-            companyId,
-            assignee,
-            unassigned,
-            due?.let { dueChipFilters(it) } ?: TaskListFilters(),
-            q?.trim()?.ifEmpty { null },
-            cursor,
-        )
+        val page = mutations.listLocated(companyId, filters, cursor)
         acc += page.data
         cursor = page.next_cursor
         pages++
