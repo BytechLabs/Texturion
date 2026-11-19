@@ -314,6 +314,7 @@ object ThreadStrings : AppStrings.Section {
         // --- The catch-up card (#247) ----------------------------------------------
         "thread.summaryReading" to "Reading the conversation…",
         "thread.summaryReady" to "Lou's catch-up",
+        "thread.summaryHide" to "Hide",
         "thread.summaryRetry" to "Try the catch-up again",
         "thread.summaryOffer" to "Catch me up",
         // #716: the one-line offer above the composer, and the pins' count label.
@@ -1081,6 +1082,7 @@ object ThreadStrings : AppStrings.Section {
         // --- The catch-up card (#247) ----------------------------------------------
         "thread.summaryReading" to "Lecture de la conversation…",
         "thread.summaryReady" to "Le résumé de Lou",
+        "thread.summaryHide" to "Masquer",
         "thread.summaryRetry" to "Réessayer le résumé",
         "thread.summaryOffer" to "Faites-moi un résumé",
         "thread.catchUpHint" to "Rattraper cette conversation ?",

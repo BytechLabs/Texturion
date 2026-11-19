@@ -239,6 +239,7 @@ struct ThreadComposerView: View {
     ///
     /// Declared after `onScheduleSend` for the memberwise-init reason it gives.
     var searchReferences: (@MainActor (String) async -> [ReferencePick])?
+    var onNewQuote: (@MainActor () -> Void)?
 
     /// #294: the staged photo open in the markup editor, with its decoded bitmap.
     @State private var markingUp: (file: StagedFile, image: UIImage)?
@@ -775,6 +776,11 @@ struct ThreadComposerView: View {
                         templatePickerOpen = true
                     } label: {
                         Label(t("thread.savedReply"), systemImage: "text.badge.plus")
+                    }
+                    if let onNewQuote {
+                        Button(action: onNewQuote) {
+                            Label(t("quotes.newQuote"), systemImage: "doc.text")
+                        }
                     }
                 } label: {
                     Image(systemName: "plus")

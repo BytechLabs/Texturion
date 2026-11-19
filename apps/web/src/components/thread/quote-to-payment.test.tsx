@@ -23,12 +23,6 @@ vi.mock("@/lib/api/quotes", () => ({
   useSendQuote: () => ({ mutate: vi.fn(), isPending: false, variables: undefined }),
 }));
 
-vi.mock("@/lib/company/provider", () => ({
-  useActiveCompany: () => ({ role: "owner" }),
-  useCompanyId: () => "company-1",
-}));
-
-
 const quote = (over: Partial<Quote>): Quote =>
   ({
     id: "q1",
@@ -47,13 +41,25 @@ const quote = (over: Partial<Quote>): Quote =>
     ...over,
   });
 
-const render = () =>
+const render = (draftOpen = false, canSend = true) =>
   renderToStaticMarkup(
     <QuoteStrip
       conversationId="c1"
+      canSend={canSend}
+      draftOpen={draftOpen}
+      onCloseDraft={() => undefined}
       onAskForPayment={(prefill) => asked.push(prefill)}
     />,
   );
+
+describe("quote draft visibility", () => {
+  it("leaves an empty thread clear until the quote action opens the form", () => {
+    rows = [];
+    expect(render()).toBe("");
+    expect(render(true)).toContain("Save draft");
+    expect(render(true, false)).toBe("");
+  });
+});
 
 describe("#287 accepted → pay now", () => {
   it("offers to take payment on an accepted quote", () => {

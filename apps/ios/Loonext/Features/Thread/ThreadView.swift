@@ -129,6 +129,7 @@ private struct ThreadBody: View {
     /// not offering it at all.
     @State private var hasJobToday = false
     @State private var makeTaskFor: Message?
+    @State private var quoteDraftOpen = false
     @State private var newTaskOpen = false
     @State private var detailSheet: ThreadDetailSheet?
     @State private var confirmOptOut = false
@@ -543,6 +544,10 @@ private struct ThreadBody: View {
                     conversationId: detail.id,
                     role: viewerRole,
                     viewerLevel: detail.viewer_level,
+                    draftOpen: Binding(
+                        get: { quoteDraftOpen && composer.mode == .text },
+                        set: { quoteDraftOpen = $0 }
+                    ),
                     onSent: { controller.refreshAfterReconnect() }
                 )
                 // #716: Lou's catch-up offer, one line beside the input.
@@ -1434,6 +1439,12 @@ private struct ThreadBody: View {
             memberName: resolveMemberName,
             meUserId: me.user_id
         )
+        let onNewQuote: (@MainActor () -> Void)?
+        if detail.viewer_level == "text", !viewerReadOnly {
+            onNewQuote = { @MainActor in quoteDraftOpen = true }
+        } else {
+            onNewQuote = nil
+        }
         return ThreadComposerView(
             state: composer,
             noteOnly: detail.viewer_level == "note",
@@ -1547,7 +1558,8 @@ private struct ThreadBody: View {
             wrapUp: wrapUpDictation,
             onScheduleSend: onScheduleSend,
             // #690: `#` in a note points at a task, contact or conversation.
-            searchReferences: referenceSearchClosure(graph: graph, companyId: detail.company_id)
+            searchReferences: referenceSearchClosure(graph: graph, companyId: detail.company_id),
+            onNewQuote: onNewQuote
         )
     }
 }

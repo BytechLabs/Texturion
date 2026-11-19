@@ -162,6 +162,7 @@ import com.loonext.android.core.realtime.viewersOf
 import com.loonext.android.core.snooze.isSnoozed
 import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.features.compose.ComposerDrafts
+import com.loonext.android.features.compose.ComposerMode
 import com.loonext.android.features.compose.DraftSuggestionsCache
 import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.NoteFileUploader
@@ -734,6 +735,7 @@ private fun ThreadLoaded(
         Capability.CONVERSATIONS_NOTE,
     )
     var makeTaskFor by remember { mutableStateOf<Message?>(null) }
+    var quoteDraftOpen by remember(controller.conversationId) { mutableStateOf(false) }
 
     // #520: is there a job on this thread due TODAY? Asked here rather than in
     // the composer, which stays presentational — and "today" is the DEVICE's
@@ -772,7 +774,7 @@ private fun ThreadLoaded(
         mutableStateOf(readCatchUpAnswered(context, controller.conversationId))
     }
     val catchUpOffered = shouldOfferThreadSummaryFor(controller.messages, System.currentTimeMillis())
-    val recapOpen = controller.summary != null || controller.summarizing
+    val recapOpen = controller.visibleSummary != null || controller.summarizing
     val answerCatchUp = {
         newestFromOthers?.let {
             writeCatchUpAnswered(context, controller.conversationId, it)
@@ -874,7 +876,7 @@ private fun ThreadLoaded(
                 // something that answers "there was nothing to summarise".
                 offered = shouldOfferThreadSummaryFor(controller.messages, System.currentTimeMillis()),
                 reading = controller.summarizing,
-                summary = controller.summary,
+                summary = controller.visibleSummary,
             ),
             onAsk = {
                 haptics.tap()
@@ -891,6 +893,7 @@ private fun ThreadLoaded(
                     }
                 }
             },
+            onHide = controller::hideSummary,
         )
 
         Box(Modifier.weight(1f)) {
@@ -1294,6 +1297,8 @@ private fun ThreadLoaded(
                 companyId = companyId,
                 conversationId = controller.conversationId,
                 canAct = !viewerReadOnly,
+                draftOpen = quoteDraftOpen && composer.mode == ComposerMode.Text,
+                onCloseDraft = { quoteDraftOpen = false },
                 onNotice = onNotice,
                 onSent = { controller.refreshAfterReconnect() },
                 modifier = Modifier.padding(bottom = 4.dp),
@@ -1324,6 +1329,11 @@ private fun ThreadLoaded(
             references = references,
             noteOnly = detail.viewer_level == "note",
             readOnly = viewerReadOnly,
+            onNewQuote = if (detail.viewer_level == "text" && !viewerReadOnly) {
+                { quoteDraftOpen = true }
+            } else {
+                null
+            },
             hasJobToday = hasJobToday,
             onSendOnMyWay = { minutes ->
                 // The ORDINARY send path: the opt-out gate, quiet hours and

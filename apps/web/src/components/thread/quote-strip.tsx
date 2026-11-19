@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { FileText, Send } from "lucide-react";
 
 import {
@@ -8,14 +8,12 @@ import {
   formatMoney,
   isQuoteDecided,
   QUOTE_STATUS_KEYS,
-  roleHasCapability,
 } from "@loonext/shared";
 
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import { useCreateQuote, useQuotes, useSendQuote } from '@/lib/api/quotes';
 import type { Quote } from '@/lib/api/quotes';
-import { useActiveCompany } from "@/lib/company/provider";
 import { cn } from "@/lib/utils";
 
 /**
@@ -144,31 +142,37 @@ function QuoteRow({
 
 export function QuoteStrip({
   conversationId,
+  canSend,
+  draftOpen,
+  onCloseDraft,
   onAskForPayment,
 }: {
   conversationId: string;
+  canSend: boolean;
+  draftOpen: boolean;
+  onCloseDraft: () => void;
   /** Handed up to the composer, which owns the payment form beside this. */
   onAskForPayment?: (prefill: { amountCents: number; description: string }) => void;
 }) {
   const t = useT();
-  const { role } = useActiveCompany();
-  const canSend = roleHasCapability(role, "conversations.send");
   const quotes = useQuotes(conversationId);
   const create = useCreateQuote(conversationId);
   const send = useSendQuote(conversationId);
 
-  const [open, setOpen] = useState(false);
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const focusAmount = useCallback((input: HTMLInputElement | null) => {
+    input?.focus();
+  }, []);
+  const showForm = canSend && draftOpen;
 
   const now = Date.now();
   const rows = (quotes.data?.data ?? []).filter((quote) =>
     isWorthShowing(quote, now),
   );
 
-  // Absent entirely when there is nothing to say and nothing to offer.
-  if (rows.length === 0 && !canSend) return null;
+  if (rows.length === 0 && !showForm) return null;
 
   function submit() {
     setError(null);
@@ -193,7 +197,7 @@ export function QuoteStrip({
         onSuccess: () => {
           setAmount("");
           setDescription("");
-          setOpen(false);
+          onCloseDraft();
         },
         // A thread with no contact is the one server-side refusal a person
         // can act on, so it gets its own line rather than the generic one.
@@ -226,21 +230,11 @@ export function QuoteStrip({
         />
       ))}
 
-      {canSend && !open && (
-        <button
-          type="button"
-          onClick={() => setOpen(true)}
-          className="tap-target inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground"
-        >
-          <FileText className="size-3.5" aria-hidden="true" />
-          {t("quotes.newQuote")}
-        </button>
-      )}
-
-      {canSend && open && (
+      {showForm && (
         <div className="mt-1 space-y-2 rounded-app-card border border-app-line p-3">
           <div className="flex gap-2">
             <input
+              ref={focusAmount}
               type="text"
               inputMode="decimal"
               value={amount}
@@ -284,7 +278,7 @@ export function QuoteStrip({
             <button
               type="button"
               onClick={() => {
-                setOpen(false);
+                onCloseDraft();
                 setError(null);
               }}
               className="tap-target rounded-app-ctrl px-3 py-1.5 text-[13px] text-muted-foreground hover:text-foreground"

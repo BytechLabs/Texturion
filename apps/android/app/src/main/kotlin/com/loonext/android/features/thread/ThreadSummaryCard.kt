@@ -24,6 +24,7 @@ import androidx.compose.material.icons.outlined.Block
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -346,6 +347,7 @@ fun ThreadSummaryCard(
     onAsk: () -> Unit,
     /** Jump the thread to a cited message. The proof behind every line. */
     onOpenMessage: (String) -> Unit,
+    onHide: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
     // #716: the resting offer is the composer's one-line hint now, not a row
@@ -418,6 +420,9 @@ fun ThreadSummaryCard(
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(IconSize.Default),
                 )
+            }
+            if (state is CatchUpState.Answered) {
+                TextButton(onClick = onHide) { Text(t("thread.summaryHide")) }
             }
         }
 

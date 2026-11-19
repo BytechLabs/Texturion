@@ -341,6 +341,7 @@ fun ThreadComposer(
     noteOnly: Boolean,
     /** #315: view-only — no text box and no note box, just the reason. */
     readOnly: Boolean = false,
+    onNewQuote: (() -> Unit)? = null,
     /**
      * #302: called on each keystroke of a REPLY so teammates on this thread can
      * see somebody is answering. Throttled by the caller — the keystroke rate is
@@ -1214,6 +1215,18 @@ fun ThreadComposer(
                                 templatePickerOpen = true
                             },
                         )
+                        if (onNewQuote != null) {
+                            DropdownMenuItem(
+                                text = { Text(t("quotes.newQuote")) },
+                                leadingIcon = {
+                                    Icon(Icons.Outlined.DescriptionOutlined, contentDescription = null)
+                                },
+                                onClick = {
+                                    attachMenuOpen = false
+                                    onNewQuote()
+                                },
+                            )
+                        }
                     }
                 }
 
