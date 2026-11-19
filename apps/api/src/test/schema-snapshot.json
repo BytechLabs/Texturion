@@ -671,6 +671,7 @@
     "api_user_has_password": [[{"name":"p_user_id","hasDefault":false}]],
     "api_version_distribution": [[{"name":"p_days","hasDefault":true}]],
     "api_voicemail_audio_overdue": [[{"name":"p_limit","hasDefault":true}]],
+    "api_workspace_export_media": [[{"name":"p_company","hasDefault":false},{"name":"p_before","hasDefault":false},{"name":"p_kind","hasDefault":false},{"name":"p_after","hasDefault":false},{"name":"p_item","hasDefault":false},{"name":"p_limit","hasDefault":false},{"name":"p_hidden","hasDefault":false}]],
     "apply_ownership": [[{"name":"p_company_id","hasDefault":false},{"name":"p_new_owner","hasDefault":false}]],
     "appointment_reminder_rules_cap": [[]],
     "assign_task": [[{"name":"p_company_id","hasDefault":false},{"name":"p_task_id","hasDefault":false},{"name":"p_assigned_user_id","hasDefault":false},{"name":"p_actor_user_id","hasDefault":false}]],
