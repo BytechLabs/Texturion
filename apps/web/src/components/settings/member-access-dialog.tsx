@@ -9,7 +9,7 @@ import {
 } from "@/components/ui/dialog";
 import { sayWith, useT } from "@/i18n/provider";
 import { useMemberNumberAccess } from "@/lib/api/numbers";
-import { formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { cn } from "@/lib/utils";
 import {
   numberAccessIsRestricted,
@@ -92,7 +92,7 @@ export function MemberAccessDialog({
                 <div className="min-w-0">
                   <p className="text-sm font-medium tabular-nums">
                     {row.number_e164
-                      ? formatPhone(row.number_e164)
+                      ? <CopyablePhoneNumber number={row.number_e164} />
                       : t("settings.memberAccessUnnamedNumber")}
                   </p>
                   {/* The reason, quiet and directly under the number it

@@ -439,15 +439,17 @@ private struct NewConversationLoaded: View {
         VStack(alignment: .leading, spacing: 0) {
             SectionHeader(label: t("thread.toLabel"))
             if let selectedContact {
+                let recipientNumber = alternate?.phone_e164 ?? selectedContact.phone_e164
                 HStack {
                     HStack(spacing: 8) {
                         Text(
-                            (selectedContact.name ?? formatPhone(selectedContact.phone_e164))
+                            (selectedContact.name ?? formatPhone(recipientNumber))
                                 + ((alternate.map { $0.opted_out == true } ?? selectedContact.opted_out)
                                     ? optedOutSuffix : "")
                         )
                         .font(.golos(13.5, weight: .semibold))
                         .foregroundStyle(BrandColor.ink)
+                        .phoneNumberCopyMenu(selectedContact.name == nil ? recipientNumber : nil)
                         Button {
                             onContactChange(nil)
                         } label: {
@@ -468,13 +470,16 @@ private struct NewConversationLoaded: View {
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
                 if let phones = selectedContact.phones, !phones.isEmpty {
-                    let main = SelectOption<String?>(nil,
-                        title: t("contactsTasks.phoneMain") + " · " + formatPhone(selectedContact.phone_e164))
+                    let main = SelectOption<String?>(
+                        nil,
+                        title: t("contactsTasks.phoneMain") + " · " + formatPhone(selectedContact.phone_e164),
+                        copyValue: selectedContact.phone_e164
+                    )
                     let other = phones.map { phone in
                         let label = [phone.label, formatPhone(phone.phone_e164),
                                      phone.opted_out == true ? t("contactsTasks.phoneOptedOut") : nil]
                             .compactMap { $0 }.joined(separator: " · ")
-                        return SelectOption<String?>(phone.phone_e164, title: label)
+                        return SelectOption<String?>(phone.phone_e164, title: label, copyValue: phone.phone_e164)
                     }
                     SelectField(options: [main] + other, selected: alternateNumber, label: t("contactsTasks.numberField")) {
                         alternateNumber = $0
@@ -548,6 +553,7 @@ private struct NewConversationLoaded: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .phoneNumberCopyMenu(contact.phone_e164)
                     if contact.id != contactMatches.last?.id {
                         RowDivider()
                     }
@@ -568,7 +574,7 @@ private struct NewConversationLoaded: View {
                     .accessibilityHidden(true)
                 SelectField(
                     options: numbers.map {
-                        SelectOption($0.id, title: formatPhone($0.number_e164))
+                        SelectOption($0.id, title: formatPhone($0.number_e164), copyValue: $0.number_e164)
                     },
                     selected: fromNumberId ?? numbers.first?.id ?? "",
                     label: t("thread.fromNumberLabel"),

@@ -41,6 +41,7 @@ import type { MessageKey, Translate } from '@/i18n/provider';
 import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
 import { formatCallDuration } from "@/lib/format/call";
 import { formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { Timestamp } from "@/components/ui/timestamp";
 import { taskSourceLink, taskThreadId } from "./task-format";
 import { threadHref } from "@/lib/inbox/thread-href";
@@ -623,6 +624,9 @@ function TaskDetailLoaded({
                       ? formatPhone(task.source_call.caller_e164)
                       : t("shell.unknownCaller")),
                 })}
+                {!task.source_call.caller_name && task.source_call.caller_e164 && (
+                  <CopyablePhoneNumber number={task.source_call.caller_e164} iconOnly />
+                )}
               </p>
               <p className="mt-1 text-[12px] tabular-nums text-muted-foreground">
                 <Timestamp at={task.source_call.started_at} style="long" />

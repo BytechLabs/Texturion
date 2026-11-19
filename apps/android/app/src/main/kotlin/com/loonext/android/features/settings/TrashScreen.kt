@@ -42,12 +42,14 @@ import com.loonext.android.core.model.Page
 import com.loonext.android.core.model.TrashItem
 import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.EmptyState
 import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.PaperCard
 import com.loonext.android.ui.common.SkeletonList
+import com.loonext.android.ui.common.formatPhone
 import com.loonext.android.ui.common.rememberCacheFirst
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CancellationException
@@ -255,14 +257,18 @@ private fun TrashRow(
     val locale = LocalAppLocale.current
     val say: Say = { key, vars -> AppStrings.translate(locale, key, vars) }
     val deletedAt = TimestampFormat.label(item.deleted_at, TimestampFormat.Style.LONG, locale)
+    val phone = trashContactPhone(item)
+    val who = trashWhoLabel(item, say)
+    val detail = trashDetailLabel(item, say)
     PaperCard(Modifier.fillMaxWidth()) {
         Column(
             Modifier.padding(start = 15.dp, end = 15.dp, top = 13.dp, bottom = 6.dp),
             verticalArrangement = Arrangement.spacedBy(2.dp),
         ) {
             Row {
-                Text(
-                    trashWhoLabel(item, say),
+                CopyablePhoneNumber(
+                    phone?.takeIf { formatPhone(it) == who },
+                    label = who,
                     style = MaterialTheme.typography.titleSmall,
                     modifier = Modifier.weight(1f, fill = false),
                     maxLines = 1,
@@ -275,8 +281,9 @@ private fun TrashRow(
                     maxLines = 1,
                 )
             }
-            Text(
-                trashDetailLabel(item, say),
+            CopyablePhoneNumber(
+                phone?.takeIf { formatPhone(it) == detail },
+                label = detail,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 2,

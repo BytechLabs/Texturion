@@ -18,6 +18,7 @@ import {
 } from "@/components/thread/panel-width";
 import { SpamSuspectedBanner } from "@/components/thread/spam-suspected-banner";
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import {
   Sheet,
   SheetContent,
@@ -47,7 +48,7 @@ import type {
   Message,
 } from "@/lib/api/types";
 import { useUsage } from "@/lib/api/usage";
-import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { contactDisplayName } from "@/lib/format/phone";
 import {
   inboxHref,
   THREAD_CALL_PARAM,
@@ -241,11 +242,11 @@ function ThreadPlaceholder({ row, backHref }: { row: ConversationListItem; backH
         </span>
         <div className="min-w-0 flex-1">
           <p className="truncate px-1 text-[15px] font-bold leading-tight text-app-ink md:leading-normal">
-            {name}
+            {row.contact.name === null ? <CopyablePhoneNumber number={row.contact.phone_e164} /> : name}
           </p>
           {row.contact.name !== null && (
             <p className="hidden truncate px-1 text-[12.5px] tabular-nums text-app-muted md:block">
-              {formatPhone(row.contact.phone_e164)}
+              <CopyablePhoneNumber number={row.contact.phone_e164} />
             </p>
           )}
         </div>

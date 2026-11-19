@@ -44,6 +44,7 @@ import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { sendAtLabel } from "@/components/thread/scheduled-strip";
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { PageHeader } from "@/components/ui/page-header";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import { scheduledActionAllowed, scheduledRecipient, useCancelScheduledMessage, useScheduledMessages } from '@/lib/api/scheduled-messages';
@@ -215,6 +216,8 @@ function ScheduledListRow({
     },
   });
   const held = row.status === "held";
+  const contact = row.conversations?.contacts;
+  const recipientNumber = contact && !contact.name?.trim() ? contact.phone_e164 : null;
   // #228: the key where this client has words for it, the stored English
   // otherwise.
   const holdText = scheduledHoldText(row.held_reason_key, row.held_reason, t);
@@ -238,12 +241,15 @@ function ScheduledListRow({
         <div className="flex items-baseline justify-between gap-3">
           {/* The thread, not a modal. A queued text only makes sense beside
               what the customer last said, and that lives one click away. */}
-          <Link
-            href={`/inbox/${row.conversation_id}`}
-            className="truncate text-[13.5px] font-medium text-app-ink hover:underline"
-          >
-            {scheduledRecipient(row)}
-          </Link>
+          <div className="flex min-w-0 items-center gap-2">
+            <Link
+              href={`/inbox/${row.conversation_id}`}
+              className="truncate text-[13.5px] font-medium text-app-ink hover:underline"
+            >
+              {scheduledRecipient(row)}
+            </Link>
+            {recipientNumber && <CopyablePhoneNumber number={recipientNumber} iconOnly />}
+          </div>
           <span
             className={cn(
               "shrink-0 text-[12px] tabular-nums",

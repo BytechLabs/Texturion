@@ -46,6 +46,7 @@ import { useContacts } from "@/lib/api/contacts";
 import { ApiError } from "@/lib/api/error";
 import { useNumbers } from "@/lib/api/numbers";
 import { formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { MicPermissionError, useSoftphone } from "@/lib/softphone/provider";
 
 const KEYS = [
@@ -263,12 +264,12 @@ export function Dialer(props: DialerProps) {
               {ranked.map((match) => {
                 const chosen = picked?.number === match.number;
                 return (
-                  <li key={`${match.number}-${match.contactId ?? ""}`}>
+                  <li key={`${match.number}-${match.contactId ?? ""}`} className="flex items-center">
                     <button
                       type="button"
                       onClick={() => pickMatch(match)}
                       aria-pressed={chosen}
-                      className={`flex w-full items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left transition-colors duration-100 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
+                      className={`flex min-w-0 flex-1 items-center justify-between gap-3 rounded-lg px-2.5 py-1.5 text-left transition-colors duration-100 hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                         chosen ? "bg-accent" : ""
                       }`}
                     >
@@ -279,6 +280,7 @@ export function Dialer(props: DialerProps) {
                         {formatPhone(match.number)}
                       </span>
                     </button>
+                    <CopyablePhoneNumber number={match.number} iconOnly className="p-2" />
                   </li>
                 );
               })}
@@ -300,6 +302,7 @@ export function Dialer(props: DialerProps) {
               options={active.map((n) => ({
                 value: n.id,
                 label: t("shell.fromNumber", { number: formatPhone(n.number_e164) }),
+                copyValue: n.number_e164,
               }))}
             />
           )}

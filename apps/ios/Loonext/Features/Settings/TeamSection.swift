@@ -833,7 +833,10 @@ private struct MemberAccessSheet: View {
     private func accessRow(_ row: NumberAccessExplanation) -> some View {
         HStack(alignment: .top, spacing: 10) {
             VStack(alignment: .leading, spacing: 1) {
-                Text(row.number_e164 ?? t("settingsMore.aNumber"))
+                CopyablePhoneNumber(
+                    number: row.number_e164,
+                    label: row.number_e164 ?? t("settingsMore.aNumber")
+                )
                     .font(.golos(13.5))
                     .foregroundStyle(BrandColor.ink)
                 Text(numberAccessReason(row.decided_by, row.principal, locale: appLocale))

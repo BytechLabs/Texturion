@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { PORT_STATE_COPY } from "@/components/porting/copy";
 import {
   provisioningWaitCopy,
@@ -140,11 +141,11 @@ function ChecklistRow({
 /** Sole-prop OTP row (§4.2): 6-digit input + resend with a 60s cooldown. */
 function OtpRow({
   companyId,
-  phoneLabel,
+  phone,
   canEnter,
 }: {
   companyId: string;
-  phoneLabel: string;
+  phone: string | null;
   canEnter: boolean;
 }) {
   const t = useT();
@@ -199,7 +200,8 @@ function OtpRow({
   return (
     <div className="space-y-2">
       <p className="text-sm text-muted-foreground">
-        {REGISTRATION_COPY.otpPending(phoneLabel)}
+        {REGISTRATION_COPY.otpPending(phone ? formatPhone(phone) : t("onboarding.yourMobileFallback"))}
+        {phone && <CopyablePhoneNumber number={phone} iconOnly className="ms-2 align-middle" />}
       </p>
       {canEnter ? (
         <>
@@ -514,8 +516,8 @@ function SettingUp() {
     (brand.status === "submitted" || brand.status === "pending");
   const otpPhone =
     typeof brand?.data?.mobilePhone === "string"
-      ? formatPhone(brand.data.mobilePhone)
-      : t("onboarding.yourMobileFallback");
+      ? brand.data.mobilePhone
+      : null;
   const canActOnRegistration = state.role === "owner" || state.role === "admin";
 
   const numberStatus: RowStatus = activeNumber
@@ -596,7 +598,7 @@ function SettingUp() {
               // emotional-number scale + fade-rise + copy button.
               <NumberReveal
                 value={formatPhone(activeNumber.number_e164)}
-                copyValue={formatPhone(activeNumber.number_e164)}
+                copyValue={activeNumber.number_e164}
                 copyable
               />
             ) : confirming ? (
@@ -661,7 +663,7 @@ function SettingUp() {
           ) : otpPending ? (
             <OtpRow
               companyId={companyId}
-              phoneLabel={otpPhone}
+              phone={otpPhone}
               canEnter={canActOnRegistration}
             />
           ) : (

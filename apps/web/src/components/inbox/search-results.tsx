@@ -16,6 +16,7 @@ import { inboxHref } from "@/lib/inbox/thread-href";
 import { EmptyState } from "@/components/ui/empty-state";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 
 type SearchScope = "all" | "texts" | "tasks" | "contacts";
@@ -25,6 +26,7 @@ interface SearchLink {
   title: string;
   href: string;
   snippet?: string;
+  phone?: string | null;
 }
 
 /**
@@ -89,6 +91,7 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
       hits: voicemails.map((hit) => ({
         id: hit.id,
         title: hit.caller_e164 ? formatPhone(hit.caller_e164) : t("shell.voicemail"),
+        phone: hit.caller_e164,
         href: `/calls/${hit.call_session_id}`,
         snippet: hit.snippet,
       })),
@@ -204,6 +207,9 @@ export function SearchResults({ q, listQuery = "" }: { q: string; listQuery?: st
                     {contact.matched_line ?? formatPhone(contact.phone_e164)}
                   </span>
                 </Link>
+                {(!contact.name || !contact.matched_line) && (
+                  <CopyablePhoneNumber number={contact.phone_e164} iconOnly className="p-2" />
+                )}
                 {thread && (
                   <Link
                     href={compose}
@@ -246,16 +252,18 @@ function SearchLinkGroup({ heading, hits }: { heading: string; hits: SearchLink[
     <section aria-label={heading}>
       <h3 className="px-4 pb-1 pt-3 text-xs font-medium text-muted-foreground">{heading}</h3>
       {hits.map((hit) => (
-        <Link
-          key={hit.id}
-          href={hit.href}
-          className="block border-b border-border-subtle px-4 py-3 hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
-        >
-          <span className="block truncate text-sm font-medium text-foreground">{hit.title}</span>
-          {hit.snippet && (
-            <span className="block truncate text-sm text-muted-foreground">{renderSnippet(hit.snippet)}</span>
-          )}
-        </Link>
+        <div key={hit.id} className="flex items-center border-b border-border-subtle">
+          <Link
+            href={hit.href}
+            className="block min-w-0 flex-1 px-4 py-3 hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+          >
+            <span className="block truncate text-sm font-medium text-foreground">{hit.title}</span>
+            {hit.snippet && (
+              <span className="block truncate text-sm text-muted-foreground">{renderSnippet(hit.snippet)}</span>
+            )}
+          </Link>
+          {hit.phone && <CopyablePhoneNumber number={hit.phone} iconOnly className="mx-2 p-2" />}
+        </div>
       ))}
     </section>
   );

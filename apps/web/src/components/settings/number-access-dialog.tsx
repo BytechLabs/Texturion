@@ -7,6 +7,7 @@ import { ChoiceCards } from "@/components/ui/choice-cards";
 import { SegmentedControl } from "@/components/ui/segmented-control";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import {
   Dialog,
   DialogContent,
@@ -21,6 +22,7 @@ import { ApiError } from "@/lib/api/error";
 import { useNumberAccess, useSetNumberAccess } from "@/lib/api/numbers";
 import { useMembers } from "@/lib/api/team";
 import type { NumberAccess } from "@/lib/api/types";
+import { formatPhone } from "@/lib/format/phone";
 
 /**
  * #106 (#80): "Who can use this number" — the per-number access control in plain
@@ -66,12 +68,12 @@ const PRESETS: { value: Mode; label: MessageKey; hint: MessageKey }[] = [
 
 export function NumberAccessDialog({
   numberId,
-  numberLabel,
+  number,
   open,
   onOpenChange,
 }: {
   numberId: string;
-  numberLabel: string;
+  number: string;
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -146,7 +148,8 @@ export function NumberAccessDialog({
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>
-            {t("settingsMore.numberAccessTitle", { number: numberLabel })}
+            {t("settingsMore.numberAccessTitle", { number: formatPhone(number) })}{" "}
+            <CopyablePhoneNumber number={number} iconOnly />
           </DialogTitle>
           <DialogDescription>
             {t("settingsMore.numberAccessDescription")}

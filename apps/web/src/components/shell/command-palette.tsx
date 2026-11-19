@@ -42,6 +42,7 @@ import { useSearch } from "@/lib/api/search";
 import { useMembers } from "@/lib/api/team";
 import type { ConversationStatus } from "@/lib/api/types";
 import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { threadHref } from "@/lib/inbox/thread-href";
 
 /** ts_headline snippets carry <b> markers; the palette renders plain text. */
@@ -394,6 +395,7 @@ export function CommandPalette() {
                     </span>
                   )}
                 </span>
+                <CopyablePhoneNumber number={contact.phone_e164} iconOnly className="p-1.5" />
               </CommandItem>
             ))}
           </CommandGroup>
@@ -471,6 +473,7 @@ export function CommandPalette() {
                   </span>
                   <span className="ml-2 text-muted-foreground">{plainSnippet(hit.snippet)}</span>
                 </span>
+                {hit.caller_e164 && <CopyablePhoneNumber number={hit.caller_e164} iconOnly className="p-1.5" />}
               </CommandItem>
             ))}
           </CommandGroup>

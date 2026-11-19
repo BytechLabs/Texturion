@@ -1,5 +1,7 @@
 "use client";
 
+import type { KeyboardEvent, MouseEvent } from "react";
+import { CopyablePhoneNumber, useCopyPhoneNumber } from "@/components/ui/copyable-phone-number";
 import {
   Select,
   SelectContent,
@@ -14,6 +16,7 @@ export type SimpleSelectOption = {
   /** One line under the label in the open list. Never shown in the closed field. */
   description?: string;
   disabled?: boolean;
+  copyValue?: string | null;
 };
 
 /**
@@ -58,7 +61,20 @@ export function SimpleSelect({
   contentClassName?: string;
 }) {
   const chosen = options.find((option) => option.value === value);
-  return (
+  const copyPhoneNumber = useCopyPhoneNumber();
+
+  function copyOption(event: MouseEvent | KeyboardEvent, number?: string | null) {
+    if (!number) return;
+    event.preventDefault();
+    event.stopPropagation();
+    void copyPhoneNumber(number);
+  }
+
+  function copyShortcut(event: KeyboardEvent, number?: string | null) {
+    if ((event.metaKey || event.ctrlKey) && (event.key === "c" || event.key === "C")) copyOption(event, number);
+  }
+
+  const select = (
     <Select
       value={value === "" ? undefined : value}
       onValueChange={onValueChange}
@@ -72,6 +88,8 @@ export function SimpleSelect({
         aria-invalid={ariaInvalid}
         data-value={value}
         className={className ?? "w-full"}
+        onContextMenu={(event) => copyOption(event, chosen?.copyValue)}
+        onKeyDown={(event) => copyShortcut(event, chosen?.copyValue)}
       >
         <SelectValue placeholder={placeholder}>{chosen?.label}</SelectValue>
       </SelectTrigger>
@@ -85,11 +103,21 @@ export function SimpleSelect({
             description={option.description}
             disabled={option.disabled}
             data-value={option.value}
+            onContextMenu={(event) => copyOption(event, option.copyValue)}
+            onKeyDown={(event) => copyShortcut(event, option.copyValue)}
           >
             {option.label}
           </SelectItem>
         ))}
       </SelectContent>
     </Select>
+  );
+
+  if (!chosen?.copyValue) return select;
+  return (
+    <div className="flex items-center gap-2">
+      {select}
+      <CopyablePhoneNumber number={chosen.copyValue} iconOnly />
+    </div>
   );
 }

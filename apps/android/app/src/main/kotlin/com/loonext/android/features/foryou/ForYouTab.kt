@@ -106,6 +106,7 @@ import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.DsChip
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.RowDivider
 import com.loonext.android.ui.common.ScreenTitle
 import com.loonext.android.ui.common.SectionHeader
@@ -871,6 +872,7 @@ internal fun ForYouList(
                             PersonRow(
                                 name = row.contact?.name
                                     ?: formatPhone(row.contact?.phone_e164),
+                                phoneNumber = row.contact?.takeIf { it.name == null }?.phone_e164,
                                 // The REASON, not the last-message time: it is what
                                 // the member wrote down, and the only thing that
                                 // makes the card actionable three days later.
@@ -899,6 +901,7 @@ internal fun ForYouList(
                                     if (index > 0) RowDivider()
                                     PersonRow(
                                         name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
+                                        phoneNumber = row.contact?.takeIf { it.name == null }?.phone_e164,
                                         why = timedText { time -> time(row.last_message_at) },
                                         unread = row.unread,
                                         chipLabel = if (row.unread) t("inbox.forYouNewLead") else null,
@@ -926,6 +929,7 @@ internal fun ForYouList(
                             if (index > 0) RowDivider()
                             PersonRow(
                                 name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
+                                phoneNumber = row.contact?.takeIf { it.name == null }?.phone_e164,
                                 why = timedText { time -> time(row.last_message_at) },
                                 unread = row.unread,
                                 onClick = { onOpenConversation(row.conversation_id) },
@@ -955,6 +959,7 @@ internal fun ForYouList(
                             if (index > 0) RowDivider()
                             PersonRow(
                                 name = row.contact?.name ?: formatPhone(row.contact?.phone_e164),
+                                phoneNumber = row.contact?.takeIf { it.name == null }?.phone_e164,
                                 why = timedText { time -> time(row.last_message_at) },
                                 unread = true,
                                 onClick = { onOpenConversation(row.conversation_id) },
@@ -1193,6 +1198,7 @@ private fun RecentCallsHeader(onOpenCalls: (() -> Unit)?) {
 @Composable
 private fun PersonRow(
     name: String?,
+    phoneNumber: String?,
     /** Drawn as [TimedText.visible]; a reader hears [TimedText.spoken], a time and not "22h". */
     why: TimedText,
     unread: Boolean,
@@ -1219,8 +1225,9 @@ private fun PersonRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(7.dp),
             ) {
-                Text(
-                    name?.takeIf { it.isNotBlank() } ?: t("inbox.forYouUnknownCaller"),
+                CopyablePhoneNumber(
+                    phoneNumber,
+                    label = name?.takeIf { it.isNotBlank() } ?: t("inbox.forYouUnknownCaller"),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.SemiBold,
@@ -1341,8 +1348,9 @@ private fun RecentCallRow(call: Call, onClick: (() -> Unit)?) {
     ) {
         AvatarCircle(name, size = 34.dp, fontSize = 11.sp)
         Column(Modifier.weight(1f)) {
-            Text(
-                name,
+            CopyablePhoneNumber(
+                call.caller_e164?.takeIf { name == formatPhone(it) },
+                label = name,
                 style = MaterialTheme.typography.bodyMedium.copy(
                     fontSize = 13.sp,
                     fontWeight = FontWeight.SemiBold,
@@ -1528,8 +1536,9 @@ private fun SpamReviewRow(
             .clickable(onClick = onOpen)
             .padding(horizontal = 15.dp, vertical = 12.dp),
     ) {
-        Text(
-            item.contact?.name ?: formatPhone(item.contact?.phone_e164),
+        CopyablePhoneNumber(
+            item.contact?.takeIf { it.name == null }?.phone_e164,
+            label = item.contact?.name ?: formatPhone(item.contact?.phone_e164),
             style = MaterialTheme.typography.bodyLarge.copy(fontSize = 15.sp),
             color = MaterialTheme.colorScheme.onSurface,
         )

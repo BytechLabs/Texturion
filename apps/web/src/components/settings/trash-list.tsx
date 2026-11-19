@@ -9,6 +9,7 @@ import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SettingsCard } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useT } from "@/i18n/provider";
@@ -22,6 +23,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import {
   daysLeftLabel,
   detailLabel,
+  detailsOf,
   kindLabel,
   whoLabel,
 } from "@/lib/settings/trash-row";
@@ -113,16 +115,23 @@ function TrashItem({ row, onPurge }: { row: TrashRow; onPurge: () => void }) {
         : (members.data?.data.find((m) => m.user_id === row.deleted_by_user_id)
             ?.display_name ?? t("trash.someone")));
   const when = formatTimestamp(row.deleted_at, { style: "long", t });
+  const { contact_name, contact_phone } = detailsOf(row);
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
       <div className="min-w-0 flex-1 space-y-0.5">
         <p className="text-[15px] leading-snug">
-          <span className="font-medium">{whoLabel(row, t)}</span>
+          {contact_phone && !contact_name?.trim() ? (
+            <CopyablePhoneNumber number={contact_phone} className="font-medium" />
+          ) : (
+            <span className="font-medium">{whoLabel(row, t)}</span>
+          )}
           <span className="text-muted-foreground"> · {kindLabel(row, t)}</span>
         </p>
         <p className="truncate text-sm text-muted-foreground">
-          {detailLabel(row, t)}
+          {row.kind === "contact" && contact_phone && contact_name ? (
+            <CopyablePhoneNumber number={contact_phone} />
+          ) : detailLabel(row, t)}
         </p>
         <p className="text-xs text-muted-foreground">
           {deletedBy

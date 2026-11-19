@@ -1,5 +1,6 @@
 package com.loonext.android.features.notifications
 
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.IconSize
 import com.loonext.android.ui.common.InitialsAvatar
 import androidx.compose.material.icons.outlined.NotificationsNone
@@ -571,8 +572,9 @@ private fun NotificationRow(row: NotificationItem, onTap: () -> Unit) {
     ) {
         KindBadge(row)
         Spacer(Modifier.width(11.dp))
-        Text(
-            summary,
+        CopyablePhoneNumber(
+            row.contact?.phone_e164?.takeIf { summary.contains(formatPhone(it)) },
+            label = summary,
             style = MaterialTheme.typography.titleSmall.copy(
                 fontSize = 13.sp,
                 fontWeight = if (row.unread) FontWeight.Bold else FontWeight.SemiBold,

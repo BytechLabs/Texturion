@@ -2,6 +2,7 @@ package com.loonext.android.features.settings
 
 import androidx.compose.foundation.background
 import com.loonext.android.core.model.allows
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.InlineError
 import com.loonext.android.ui.common.LinkButton
 import com.loonext.android.ui.common.ConfirmDialog
@@ -312,6 +313,7 @@ private fun PortCard(
 
     SettingsCard(
         title = t("settingsMore.transferTitle", "number" to formatPhone(port.phone_e164)),
+        phoneNumber = port.phone_e164,
     ) {
         val (pillLabel, pillTone) = portPill(port.status, heldLine, locale)
         StatusPill(pillLabel, pillTone)
@@ -361,8 +363,9 @@ private fun PortCard(
             )
         }
         if (port.bridge_number_e164 != null) {
-            Text(
-                t(
+            CopyablePhoneNumber(
+                number = port.bridge_number_e164,
+                label = t(
                     "settingsMore.bridgeNumber",
                     "number" to formatPhone(port.bridge_number_e164),
                 ),
@@ -760,8 +763,9 @@ private fun StartPortDialog(
                         )
                     }
                 } else {
-                    Text(
-                        t(
+                    CopyablePhoneNumber(
+                        number = checkedE164,
+                        label = t(
                             "settingsMore.canBeTransferred",
                             "number" to formatPhone(checkedE164),
                         ) + (if (wireless) t("settingsMore.wirelessRequires") else ""),

@@ -240,7 +240,8 @@ private struct PortCard: View {
                 appLocale,
                 "settingsMore.transferTitle",
                 ["number": formatPhone(port.phone_e164)]
-            )
+            ),
+            phoneNumber: port.phone_e164
         ) {
             statusPill
             Spacer().frame(height: 8)
@@ -307,8 +308,9 @@ private struct PortCard: View {
                     .padding(.top, 8)
                 }
                 if let bridge = port.bridge_number_e164 {
-                    Text(
-                        AppStrings.translate(
+                    CopyablePhoneNumber(
+                        number: bridge,
+                        label: AppStrings.translate(
                             appLocale,
                             "settingsMore.bridgeNumber",
                             ["number": formatPhone(bridge)]
@@ -708,8 +710,9 @@ private struct StartPortSheet: View {
                                 .padding(.top, 8)
                         }
                     } else if let verdict = check {
-                        Text(
-                            AppStrings.translate(
+                        CopyablePhoneNumber(
+                            number: checkedE164,
+                            label: AppStrings.translate(
                                 appLocale,
                                 "settingsMore.canBeTransferred",
                                 ["number": formatPhone(checkedE164)]

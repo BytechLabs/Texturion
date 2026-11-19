@@ -44,6 +44,7 @@ import com.loonext.android.core.i18n.t
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.userMessage
 
 /** What the picker hands back: a US exact number, or a CA/masked area code. */
@@ -301,8 +302,8 @@ private fun PickerResults(
                             .padding(vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
-                        Text(
-                            formatPhone(number.phone_number),
+                        CopyablePhoneNumber(
+                            number.phone_number,
                             style = MaterialTheme.typography.bodyLarge,
                             modifier = Modifier.weight(1f),
                         )

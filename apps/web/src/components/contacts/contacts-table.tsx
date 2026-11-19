@@ -14,6 +14,7 @@ import { LoadError } from "@/components/ui/load-error";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import {
   Table,
   TableBody,
@@ -32,7 +33,7 @@ import { RecordContextMenu } from "@/components/ui/record-menu";
 import { useT } from "@/i18n/provider";
 import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
 import { flattenPages } from "@/lib/api/pagination";
-import { contactDisplayName, formatPhone } from "@/lib/format/phone";
+import { contactDisplayName } from "@/lib/format/phone";
 import { Timestamp } from "@/components/ui/timestamp";
 import { SearchField } from "@/components/ui/search-field";
 import { SimpleSelect } from "@/components/ui/simple-select";
@@ -213,7 +214,7 @@ const ContactRow = memo(({
           )}
         </TableCell>
         <TableCell className="tabular-nums text-muted-foreground">
-          {formatPhone(contact.phone_e164)}
+          <CopyablePhoneNumber number={contact.phone_e164} />
         </TableCell>
         <TableCell className="text-right tabular-nums text-muted-foreground">
           {/* Conversation activity (G6), never updated_at — a

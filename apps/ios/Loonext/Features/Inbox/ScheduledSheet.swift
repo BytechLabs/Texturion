@@ -159,7 +159,10 @@ private struct ScheduledSheetRow: View {
         // long-press menu both run it.
         .recordContextMenu(
             scheduledActions(allowedActions: row.allowed_actions),
-            exactTime: TimestampFormat.exact(row.send_at, locale: appLocale)
+            exactTime: TimestampFormat.exact(row.send_at, locale: appLocale),
+            copyNumber: (row.conversations?.contacts).flatMap { contact in
+                (contact.name?.trimmingCharacters(in: .whitespaces) ?? "").isEmpty ? contact.phone_e164 : nil
+            }
         ) { actionId, _ in
             switch actionId {
             case ScheduledActionId.open:

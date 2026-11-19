@@ -71,7 +71,8 @@ private struct TextEnableCard: View {
             title: t(
                 "settingsMore.textEnableCardTitle",
                 ["number": formatPhone(order.phone_e164)]
-            )
+            ),
+            phoneNumber: order.phone_e164
         ) {
             statusPill
             Spacer().frame(height: 6)

@@ -9,6 +9,7 @@ import {
   portabilityFailCopy,
   portabilityOkCopy,
 } from "@/components/porting/copy";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -208,6 +209,7 @@ export function StartPortDialog({ country }: { country: Country }) {
             <p className="flex items-start gap-2 text-sm text-success">
               <Check className="mt-0.5 size-4 shrink-0" strokeWidth={2} aria-hidden />
               {portabilityOkCopy(e164 ? formatPhone(e164) : raw)}
+              {e164 && <CopyablePhoneNumber number={e164} iconOnly className="ms-2 align-middle" />}
             </p>
           ) : null}
           {checked && !portable ? (

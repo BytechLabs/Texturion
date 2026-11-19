@@ -158,6 +158,7 @@ export function ActivationEmptyState() {
       <NumberReveal
         value={display}
         copyable
+        copyValue={activeNumber.number_e164}
         copyLabel={t("inbox.activationCopyNumber")}
         // Center the number+copy row; constrain the caption to a calm measure.
         className="flex flex-col items-center [&>div:first-child]:justify-center [&>p]:max-w-[280px] [&>p]:text-[15px] [&>p]:leading-relaxed"
