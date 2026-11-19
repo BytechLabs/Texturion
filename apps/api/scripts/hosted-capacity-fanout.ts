@@ -38,7 +38,7 @@ import { hostedRealtimeLevels } from './hosted-realtime-budget.ts';
 const JOIN_BATCH = 25;
 const JOIN_DEADLINE_MS = 20_000;
 const SETTLE_MAX_MS = 20_000;
-const SETTLE_QUIET_MS = 3_000;
+const SETTLE_QUIET_MS = 3000;
 /** Fictional numbers only (555-0100 to 555-0199). */
 const SENDER = "+16135550111";
 
@@ -127,7 +127,7 @@ async function main(): Promise<void> {
   const startAt = Number(option(args, "--start-at") ?? "0");
 
   /** message id -> every (socket, receive time) for it. */
-  const receipts = new Map<string, Array<{ socket: number; at: number }>>();
+  const receipts = new Map<string, { socket: number; at: number }[]>();
   const sockets: Socket[] = [];
   const joinMs: number[] = [];
   let conversationId: string | undefined;
@@ -196,12 +196,12 @@ async function main(): Promise<void> {
     if (!conversationId) return out;
     let cursor: string | null = null;
     for (let page = 0; page < 40; page += 1) {
-      const url: string = `${apiOrigin}/v1/conversations/${conversationId}/messages?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
+      const url = `${apiOrigin}/v1/conversations/${conversationId}/messages?limit=100${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""}`;
       const response = await fetch(url, {
         headers: { authorization: `Bearer ${token}`, "x-company-id": companyId },
       });
       if (!response.ok) throw new CapacityConfigError(`reading the thread back answered ${response.status}`);
-      const body = (await response.json()) as { data: Array<{ id: string; body: string }>; next_cursor: string | null };
+      const body = (await response.json()) as { data: { id: string; body: string }[]; next_cursor: string | null };
       for (const row of body.data) if (row.body.startsWith(prefix)) out.set(row.body, row.id);
       cursor = body.next_cursor;
       if (!cursor) break;
@@ -212,7 +212,7 @@ async function main(): Promise<void> {
   try {
     for (const { sockets: count, rate } of levels) {
       await growTo(count);
-      await sleep(1_500);
+      await sleep(1500);
       const level = `${runId}-${count}x${rate}`;
       const total = Math.round(rate * seconds);
       const sentAt: number[] = [];
@@ -225,14 +225,17 @@ async function main(): Promise<void> {
       if (startAt > Date.now()) await sleep(startAt - Date.now());
       const origin = performance.timeOrigin + performance.now();
       const sends: Promise<void>[] = [];
-      if (listenOnly) await sleep(seconds * 1_000);
-      for (let i = 0; i < total && !listenOnly; i += 1) {
-        const due = origin + (i * 1_000) / rate;
-        const wait = due - (performance.timeOrigin + performance.now());
-        if (wait > 0) await sleep(wait);
-        sentAt[i] = performance.timeOrigin + performance.now();
-        const event = inbound(`fanout-${level}-${i}`, `fanout-${level}-${i}-msg`, number, `fanout-${level}-${i}`);
-        sends.push(postSigned(apiOrigin, sign, event).then((ack) => void acks.push(ack)));
+      if (listenOnly) {
+        await sleep(seconds * 1000);
+      } else {
+        for (let i = 0; i < total; i += 1) {
+          const due = origin + (i * 1000) / rate;
+          const wait = due - (performance.timeOrigin + performance.now());
+          if (wait > 0) await sleep(wait);
+          sentAt[i] = performance.timeOrigin + performance.now();
+          const event = inbound(`fanout-${level}-${i}`, `fanout-${level}-${i}-msg`, number, `fanout-${level}-${i}`);
+          sends.push(postSigned(apiOrigin, sign, event).then((ack) => void acks.push(ack)));
+        }
       }
       await Promise.all(sends);
 
@@ -270,7 +273,7 @@ async function main(): Promise<void> {
         duplicates += list.length - distinct.size;
         deliveries += distinct.size;
         shares.push(distinct.size / count);
-        const times = list.map((receipt) => receipt.at - (sentAt[i] ?? origin + (i * 1_000) / rate));
+        const times = list.map((receipt) => receipt.at - (sentAt[i] ?? origin + (i * 1000) / rate));
         allLatencies.push(...times);
         if (times.length > 0) {
           firstLatencies.push(Math.min(...times));
@@ -322,10 +325,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((cause: unknown) => {
+main().catch((error: unknown) => {
   process.stderr.write(
-    cause instanceof CapacityConfigError || (cause instanceof Error && /required/.test(cause.message))
-      ? `capacity: ${cause.message}\n`
+    error instanceof CapacityConfigError || (error instanceof Error && error.message.includes("required"))
+      ? `capacity: ${error.message}\n`
       : "capacity: driver failed; no unreviewed error details were printed\n",
   );
   process.exitCode = 1;

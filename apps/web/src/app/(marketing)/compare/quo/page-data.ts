@@ -6,8 +6,8 @@ import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { compareQuoCopy } from "@/i18n/marketing/compare-quo";
 
 import {
-  compareAsOf,
   COMPARE_VERIFIED_ON,
+  compareAsOf,
 } from "../verification";
 
 export const QUO_SEAT_PRICING = {

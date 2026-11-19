@@ -14,9 +14,9 @@ export function formatNanpAsYouType(raw: string): string {
   }
   if (digits.length > 10) return raw;
   if (digits.length === 0) return trimmed.startsWith("+") ? raw : "";
-  if (digits.length <= 3) return "(" + digits;
-  if (digits.length <= 6) return "(" + digits.slice(0, 3) + ") " + digits.slice(3);
-  return "(" + digits.slice(0, 3) + ") " + digits.slice(3, 6) + "-" + digits.slice(6);
+  if (digits.length <= 3) return `(${digits}`;
+  if (digits.length <= 6) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 }
 
 /** True when the input contains any digit (the field is a number, not a name). */

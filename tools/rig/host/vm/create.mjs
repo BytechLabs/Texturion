@@ -367,7 +367,7 @@ async function main(argv) {
     failure = error;
   });
   await snapshotBaseline(vm, paths, userdata);
-  if (failure) throw failure;
+  if (failure) throw failure instanceof Error ? failure : new Error(String(failure), { cause: failure });
   console.log("\ncreate.mjs: done. Measure VM2 (start with nobody logged on) and VM3 (`hostd doctor` with a device booted) next.");
 }
 

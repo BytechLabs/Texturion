@@ -102,15 +102,15 @@ describe("LegalRichText fills slots inside marks", () => {
 describe("every legal page renders with no slot left in braces", () => {
   const rendered: string[] = [];
 
-  for (const [name, body] of Object.entries(BODIES)) {
-    for (const locale of ["en", "fr-CA"] as const) {
-      it(`${name} (${locale})`, () => {
-        const html = render(body(locale));
-        expect(html.match(SLOT_PATTERN) ?? []).toEqual([]);
-        rendered.push(`${name} ${locale}`);
-      });
-    }
-  }
+  const localizedBodies = Object.entries(BODIES).flatMap(([name, body]) =>
+    (["en", "fr-CA"] as const).map((locale) => [name, locale, body] as const),
+  );
+
+  it.each(localizedBodies)("%s (%s)", (name, locale, body) => {
+    const html = render(body(locale));
+    expect(html.match(SLOT_PATTERN) ?? []).toEqual([]);
+    rendered.push(`${name} ${locale}`);
+  });
 
   it("names the Law 25 officer in bold on the privacy page", () => {
     expect(render(BODIES.privacy("en"))).toContain("<strong>our Privacy Officer</strong>");
@@ -139,6 +139,6 @@ describe("every legal page renders with no slot left in braces", () => {
 
 it.each([dpaEn, dpaFr])("lists the same service providers in the DPA", (dpa) => {
   const subprocessors = dpa.slice(dpa.indexOf("## 6."));
-  const names = subprocessors.match(/\*\*([^*]+)\*\*/)?.[1].split(", ");
+  const names = /\*\*([^*]+)\*\*/.exec(subprocessors)?.[1].split(", ");
   expect(names).toEqual(SUBPROCESSORS.map(({ name }) => name));
 });

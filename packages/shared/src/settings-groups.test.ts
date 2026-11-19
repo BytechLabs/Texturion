@@ -16,8 +16,8 @@ describe("#727 settings groups", () => {
     const grouped = SETTINGS_GROUPS.flatMap((g) => g.sections);
     expect([...grouped].toSorted()).toEqual([...ALL_SECTIONS].toSorted());
     for (const id of ALL_SECTIONS) {
-      expect(settingsSectionCapability(id), id).toBeTruthy();
-      expect(settingsGroupOf(id), id).toBeTruthy();
+      expect(Boolean(settingsSectionCapability(id)), id).toBe(true);
+      expect(Boolean(settingsGroupOf(id)), id).toBe(true);
     }
   });
 

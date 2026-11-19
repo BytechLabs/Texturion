@@ -44,7 +44,9 @@ function problemsIn(data) {
     if (entry.date > today) problems.push(`${at}: dated ${entry.date}, after today; entries report what shipped`);
     if (entry.date > previous) problems.push(`${at}: out of order; the list is newest first`);
     previous = entry.date;
-    if (entry.href !== null && !/^\//.test(entry.href ?? "")) problems.push(`${at}: href is an in-app path or null`);
+    if (entry.href !== null && (typeof entry.href !== "string" || !entry.href.startsWith("/"))) {
+      problems.push(`${at}: href is an in-app path or null`);
+    }
     for (const lang of ["en", "fr"]) {
       const copy = entry[lang];
       if (!copy?.title || !copy?.body) {
@@ -82,9 +84,7 @@ function render(shown) {
       [key(entry, "Title"), entry[lang].title],
       [key(entry, "Body"), entry[lang].body],
     ]);
-  const files = {};
-
-  files.shared = `// ${HEADER}
+  const shared = `// ${HEADER}
 import type { WhatsNewEntry } from "./whats-new";
 
 export const WHATS_NEW_ENTRIES: WhatsNewEntry[] = [
@@ -98,7 +98,7 @@ ${shown
 ];
 `;
 
-  files.web = `// ${HEADER}
+  const web = `// ${HEADER}
 import type { Translated } from "../translated";
 
 export const whatsNewEn = {
@@ -110,7 +110,7 @@ ${pairs("fr").map(([name, text]) => `  ${name}: ${ts(text)},`).join("\n")}
 };
 `;
 
-  files.androidStrings = `// ${HEADER}
+  const androidStrings = `// ${HEADER}
 package com.loonext.android.core.i18n
 
 object WhatsNewStrings : AppStrings.Section {
@@ -124,7 +124,7 @@ ${pairs("fr").map(([name, text]) => `        "whatsNew.${name}" to ${kotlin(text
 }
 `;
 
-  files.androidEntries = `// ${HEADER}
+  const androidEntries = `// ${HEADER}
 package com.loonext.android.features.settings
 
 /** Newest first, the newest ${SHOWN}. */
@@ -135,7 +135,7 @@ ${shown
 )
 `;
 
-  files.iosStrings = `// ${HEADER}
+  const iosStrings = `// ${HEADER}
 enum WhatsNewStrings {
     static let section = AppStrings.Section(
         name: "WhatsNewStrings",
@@ -149,7 +149,7 @@ ${pairs("fr").map(([name, text]) => `            "whatsNew.${name}": ${swift(tex
 }
 `;
 
-  files.iosEntries = `// ${HEADER}
+  const iosEntries = `// ${HEADER}
 /// Newest first, the newest ${SHOWN}.
 let whatsNewGeneratedEntries: [WhatsNewEntry] = [
 ${shown
@@ -161,7 +161,7 @@ ${shown
   .join("\n")}
 ]
 `;
-  return files;
+  return { shared, web, androidStrings, androidEntries, iosStrings, iosEntries };
 }
 
 const data = JSON.parse(readFileSync(SOURCE, "utf8"));
@@ -179,7 +179,7 @@ for (const [name, body] of Object.entries(files)) {
   if (check) {
     let current = "";
     try {
-      current = readFileSync(path, "utf8").replace(/\r\n/g, "\n");
+      current = readFileSync(path, "utf8").replaceAll('\r\n', "\n");
     } catch {
       // A missing file is stale.
     }

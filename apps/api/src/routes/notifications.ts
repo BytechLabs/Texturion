@@ -263,7 +263,7 @@ notificationsRoutes.get(
   async (c) => {
     const env = getEnv(c.env);
     const db = getDb(env);
-    const rows = unwrap<PrefsRow[]>(
+    const rows = unwrap<unknown>(
       await db
         .from("notification_prefs")
         .select(PREFS_COLUMNS)
@@ -271,7 +271,7 @@ notificationsRoutes.get(
         .eq("company_id", c.get("companyId"))
         .limit(1),
       "notification prefs lookup",
-    );
+    ) as PrefsRow[];
     // §6 schema defaults — the shape the row would have been created with.
     const prefs = rows[0] ?? {
       email_enabled: true,

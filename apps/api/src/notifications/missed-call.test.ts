@@ -96,7 +96,7 @@ function buildWorld(
   const resendCalls: Record<string, unknown>[] = [];
   const resendRoute: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
-    resendCalls.push((await request.clone().json()) as Record<string, unknown>);
+    resendCalls.push(await request.clone().json<Record<string, unknown>>());
     return Response.json({ id: "email_1" });
   };
 
@@ -139,7 +139,7 @@ it("uses the saved voicemail preference without sending a missed-call page", asy
   ]);
 });
 
-describe("notifyVoicemail", () => {
+describe(notifyVoicemail, () => {
   const onCall = "20000000-aaaa-4000-8000-000000000002";
   const members = [{ user_id: OWNER, role: "owner" }, { user_id: onCall, role: "member" }];
   const intake = { problem: "No heat", address: "42 Elm St", callback: null, name: null };
@@ -159,13 +159,13 @@ describe("notifyVoicemail", () => {
     await notifyVoicemail(pushEnv, getDb(pushEnv), { ...VOICEMAIL, intake, transcript: "Call my home about the furnace." });
 
     expect(service.sends).toHaveLength(1);
-    const message = service.sends[0].message;
+    const [{ message }] = service.sends;
     expect(message).toMatchObject({
       data: { kind: "missed_call", alert_id: "alert-1", title, body },
       apns: { headers: { "apns-collapse-id": `conversation:${CONVERSATION_ID}` } },
     });
     if (!includeContent) expect(JSON.stringify(message)).not.toContain("42 Elm St");
-    const lookup = sb.find("GET", "/rest/v1/alert_escalations")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/alert_escalations");
     expect(lookup.url.searchParams.get("call_session_id")).toBe(`eq.${INPUT.callSessionId}`);
     expect(lookup.url.searchParams.get("acknowledged_at")).toBe("is.null");
     expect(sb.find("GET", "/rest/v1/device_push_tokens")[0].url.searchParams.get("user_id")).toBe(`in.(${onCall})`);
@@ -405,7 +405,7 @@ describe("notifyMissedCall — native device push (#151)", () => {
 
     // Audience-scoped, newest-first, #30-style bounded query. The bound is ten
     // devices PER recipient (#267), so a one-person audience asks for ten.
-    const lookup = world.sb.find("GET", "/rest/v1/device_push_tokens")[0];
+    const [lookup] = world.sb.find("GET", "/rest/v1/device_push_tokens");
     expect(lookup.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
     expect(lookup.url.searchParams.get("limit")).toBe("10");
 
@@ -423,10 +423,9 @@ describe("notifyMissedCall — native device push (#151)", () => {
     const iosSend = service.sends.find(
       (send) => (send.message as { token: string }).token === "tok-b",
     );
-    const {headers} = (
-      iosSend?.message as { apns: { headers: Record<string, string> } }
-    ).apns;
-    expect(headers["apns-collapse-id"]).toBe(`conversation:${CONVERSATION_ID}`);
+    expect(iosSend?.message).toMatchObject({
+      apns: { headers: { "apns-collapse-id": `conversation:${CONVERSATION_ID}` } },
+    });
   });
 
   it("#228: composes the alert in each device's own language", async () => {
@@ -592,7 +591,7 @@ describe("notifyMissedCall — after-hours routing (#244)", () => {
     const opened = world.sb.calls.find(
       (call) => call.path === "/rest/v1/alert_escalations",
     );
-    expect((opened?.body as { on_call_user_id: string }).on_call_user_id).toBe(TECH);
+    expect(opened?.body).toMatchObject({ on_call_user_id: TECH });
 
     vi.useRealTimers();
   });

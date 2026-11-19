@@ -556,11 +556,11 @@ async function readIosBadges(
       const count = Number(row.unread_count);
       if (Number.isSafeInteger(count) && count >= 0) badges.set(row.user_id, count);
     }
-  } catch (cause) {
+  } catch (error) {
     if (limit.signal.aborted) {
-      console.error("push unread count lookup timed out:", errorLogText(cause));
+      console.error("push unread count lookup timed out:", errorLogText(error));
     } else {
-      void reportHandledFailure(env, "push-unread-count-lookup", cause);
+      void reportHandledFailure(env, "push-unread-count-lookup", error);
     }
   } finally {
     limit.clear();
@@ -757,8 +757,7 @@ async function fanOutPush(
       }
     } else if (!result.ok) {
       throw new Error(
-        `push delivery failed with HTTP ${result.status} for subscription ${subscription.id}` +
-          (result.errorBody ? ` — ${result.errorBody}` : ""),
+        `push delivery failed with HTTP ${result.status} for subscription ${subscription.id}${result.errorBody ? ` — ${result.errorBody}` : ""}`,
       );
     }
   };
@@ -816,8 +815,7 @@ async function fanOutPush(
       }
     } else if (!result.ok) {
       throw new Error(
-        `native push delivery failed with HTTP ${result.status} for device token ${device.id}` +
-          (result.errorBody ? ` — ${result.errorBody}` : ""),
+        `native push delivery failed with HTTP ${result.status} for device token ${device.id}${result.errorBody ? ` — ${result.errorBody}` : ""}`,
       );
     }
   };

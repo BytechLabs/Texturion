@@ -1,1 +1,1 @@
-export { default, metadata, viewport } from "../root-document";
+export { EnglishRootLayout as default, metadata, viewport } from "../root-document";

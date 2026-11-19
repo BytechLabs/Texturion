@@ -41,17 +41,17 @@ function Probe({ phone }: { phone: string }) {
   );
 }
 
-describe("BlockNumberDialog", () => {
+describe(BlockNumberDialog, () => {
   it("says what a block does and that the crew can still text the number", () => {
     render(
       <BlockNumberDialog phone="+14165550182" open onOpenChange={vi.fn()} />,
     );
-    expect(screen.getByText("Block (416) 555-0182?")).toBeTruthy();
+    expect(screen.getByText("Block (416) 555-0182?")).toBeInstanceOf(Element);
     expect(
       screen.getByText(
         "Future texts and calls from this number go straight to spam. You can still text them.",
       ),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("blocks the E.164 number on confirm, and not before", () => {
@@ -60,7 +60,7 @@ describe("BlockNumberDialog", () => {
     );
     expect(blockMutate).not.toHaveBeenCalled();
     fireEvent.click(screen.getByRole("button", { name: "Block" }));
-    expect(blockMutate).toHaveBeenCalledTimes(1);
+    expect(blockMutate).toHaveBeenCalledOnce();
     expect(blockMutate.mock.calls[0][0]).toBe("+14165550182");
   });
 
@@ -75,7 +75,7 @@ describe("BlockNumberDialog", () => {
   });
 });
 
-describe("useBlockedNumber", () => {
+describe(useBlockedNumber, () => {
   it("is not blocked when the number is not on the list", () => {
     rows.current = [{ id: "b-1", phone_e164: "+14165559999" }];
     render(<Probe phone="+14165550182" />);

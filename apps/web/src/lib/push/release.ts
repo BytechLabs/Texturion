@@ -40,7 +40,7 @@ export async function releasePushOnThisDevice(
 ): Promise<void> {
   await Promise.race([
     release(companyId),
-    new Promise<void>((resolve) => setTimeout(resolve, RELEASE_TIMEOUT_MS)),
+    new Promise<void>((resolve) => { setTimeout(resolve, RELEASE_TIMEOUT_MS); }),
   ]);
 }
 
@@ -66,7 +66,7 @@ async function release(companyId: string | null): Promise<void> {
         body: subscriptionToKeys(subscription),
       },
     );
-    await apiFetch<void>(`/v1/push-subscriptions/${id}`, {
+    await apiFetch<undefined>(`/v1/push-subscriptions/${id}`, {
       method: "DELETE",
       companyId,
     });

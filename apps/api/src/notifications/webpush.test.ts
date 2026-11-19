@@ -107,7 +107,7 @@ async function decryptPush(
     body.byteLength,
   ).getUint32(16);
   expect(recordSize).toBe(4096);
-  const keyIdLength = body[20];
+  const { 20: keyIdLength } = body;
   expect(keyIdLength).toBe(65); // uncompressed P-256 point
   const serverPublic = body.slice(21, 21 + keyIdLength);
   const ciphertext = body.slice(21 + keyIdLength);
@@ -317,7 +317,7 @@ describe("sendWebPush (RFC 8291 + RFC 8292)", () => {
       env,
       "https://fcm.googleapis.com/fcm/send/xyz",
     );
-    const jwt = /t=([^,]+),/.exec(authorization)![1];
+    const [, jwt] = /t=([^,]+),/.exec(authorization)!;
     const claims = JSON.parse(
       new TextDecoder().decode(decodeBase64Url(jwt.split(".")[1])),
     );

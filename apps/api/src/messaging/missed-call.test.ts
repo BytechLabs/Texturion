@@ -19,7 +19,6 @@ import { fcmEnv, fcmService, makeServiceAccount } from "../test/fcm-account";
 import { messageRow, restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
 import { completeEnv, stubFetch } from '../test/support';
-import type { FetchRoute } from '../test/support';
 import { computeMissedFromEvent, sendMissedCallText } from "./missed-call";
 
 const env: Env = completeEnv();
@@ -264,7 +263,7 @@ function alertStubs(): Stub[] {
 }
 
 function serve(...stubs: Stub[]) {
-  stubFetch(...(stubs.map((s) => s.route) as FetchRoute[]));
+  stubFetch(...stubs.map((s) => s.route));
 }
 
 function run(callerE164 = CALLER) {

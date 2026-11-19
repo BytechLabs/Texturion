@@ -77,16 +77,16 @@ describe("GET /v1/saved-views", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { shared: boolean; filters: unknown }[];
       defaults: Record<string, string | null>;
-    };
+    }>();
     expect(body.data[0].shared).toBe(false);
     expect(body.defaults).toEqual({ conversations: VIEW_ID, tasks: null });
 
     // The list must never include another member's personal views. Their names
     // are free text they wrote.
-    const call = sb.find("GET", "/rest/v1/saved_views")[0];
+    const [call] = sb.find("GET", "/rest/v1/saved_views");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("or")).toContain("owner_user_id.is.null");
   });
@@ -107,7 +107,7 @@ describe("GET /v1/saved-views", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { filters: unknown }[] };
+    const body = await res.json<{ data: { filters: unknown }[] }>();
     expect(body.data[0].filters).toEqual({ status: "open" });
   });
 });
@@ -165,7 +165,7 @@ describe("POST /v1/saved-views", () => {
         filters: { status: "open", cursor: "abc", q: "boiler", overdue: true },
       },
     });
-    const call = sb.find("POST", "/rest/v1/rpc/api_create_saved_view")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_create_saved_view");
     expect((call.body as { p_filters: unknown }).p_filters).toEqual({
       status: "open",
     });
@@ -267,7 +267,7 @@ describe("PATCH /v1/saved-views/:id", () => {
       { method: "PATCH", companyId: COMPANY_ID, body: { shared: false } },
     );
     expect(res.status).toBe(200);
-    const call = sb.find("PATCH", "/rest/v1/saved_views")[0];
+    const [call] = sb.find("PATCH", "/rest/v1/saved_views");
     expect((call.body as { owner_user_id: string }).owner_user_id).toBe(USER_ID);
   });
 });
@@ -344,7 +344,7 @@ describe("PUT /v1/saved-views/default", () => {
       },
     );
     expect(res.status).toBe(200);
-    const call = sb.find("PATCH", "/rest/v1/company_members")[0];
+    const [call] = sb.find("PATCH", "/rest/v1/company_members");
     expect(call.body).toEqual({ default_task_view_id: null });
   });
 });
@@ -385,7 +385,7 @@ describe("GET /v1/saved-views/counts", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ counts: { [VIEW_ID]: 7 } });
 
-    const call = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
     const params = call.body as Record<string, unknown>;
     expect(params.p_status).toBe("open");
     expect(params.p_tag_id).toBe(TAG_ID);
@@ -443,7 +443,7 @@ describe("GET /v1/saved-views/counts", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const call = sb.find("GET", "/rest/v1/saved_views")[0];
+    const [call] = sb.find("GET", "/rest/v1/saved_views");
     const asked = call.url.searchParams.get("id") ?? "";
     expect(asked.split(",").length).toBeLessThanOrEqual(12);
   });

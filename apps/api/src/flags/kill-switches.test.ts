@@ -67,7 +67,7 @@ describe("kill:calls", () => {
     const res = await callWebrtcToken();
 
     expect(res.status).toBe(503);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("service_unavailable");
     // The message has to tell somebody holding a phone what still works.
     expect(body.error.message).toMatch(/texting still works/i);

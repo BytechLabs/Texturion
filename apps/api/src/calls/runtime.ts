@@ -22,7 +22,6 @@ import {
   buildBrowserAnsweredState,
   buildMemberRingState,
   buildVoicemailState,
-  defaultGreeting,
   LOONEXT_CALLER_HEADER,
   LOONEXT_CALLER_NAME_HEADER,
   LOONEXT_SESSION_HEADER,
@@ -54,7 +53,6 @@ import {
   isTerminal,
   MAX_UNAVAILABLE_NOTICES_PER_DAY,
   outcomeForState,
-  RING_WINDOW_SECS,
 } from "./transitions";
 
 /** Result of a dial POST (§7.7 pending-key discipline). */
@@ -295,10 +293,10 @@ export interface SessionRuntime {
  *  re-creation of legacy's durable 'already' verdict. */
 async function legAlive(env: Env, ccid: string): Promise<boolean> {
   try {
-    const response = (await telnyxRequest(env, {
+    const response = await telnyxRequest<{ data?: { is_alive?: boolean } }>(env, {
       method: "GET",
       path: `/v2/calls/${ccid}`,
-    })) as { data?: { is_alive?: boolean } };
+    });
     return response.data?.is_alive === true;
   } catch (error) {
     // #616: a 429 must not answer "not alive" — it is about our own request
@@ -383,7 +381,7 @@ const LINE_BUSY_WINDOW_MS = 4 * 60 * 60 * 1000;
 const CALLER_NAME_LOOKUP_MS = 1000;
 
 function sipCallerName(value: string | null | undefined): string | null {
-  const name = value?.replace(/[\p{Cc}\s]+/gu, " ").trim();
+  const name = value?.replaceAll(/[\p{Cc}\s]+/gu, " ").trim();
   return name ? Array.from(name).slice(0, 80).join("") : null;
 }
 
@@ -435,7 +433,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       async dial(input): Promise<DialResult> {
         try {
           const name = input.caller ? sipCallerName(input.callerName) : null;
-          const response = (await telnyxRequest(env, {
+          const response = await telnyxRequest<{ data?: { call_control_id?: string } }>(env, {
             method: "POST",
             path: "/v2/calls",
             body: {
@@ -466,7 +464,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
                 ...(name ? [{ name: LOONEXT_CALLER_NAME_HEADER, value: name }] : []),
               ],
             },
-          })) as { data?: { call_control_id?: string } };
+          });
           const ccid = response.data?.call_control_id;
           if (!ccid) return { failure: "ambiguous" };
           return { ccid };
@@ -1755,4 +1753,5 @@ export function briTagFor(
 }
 
 /** Re-export for the shell: the greeting fallback. */
-export { defaultGreeting, RING_WINDOW_SECS };
+export { defaultGreeting } from "../messaging/inbound-ring";
+export { RING_WINDOW_SECS } from "./transitions";

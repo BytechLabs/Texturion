@@ -20,8 +20,8 @@ vi.mock("@/lib/api/companies", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 
-afterEach(cleanup);
 beforeEach(() => updateMutate.mockReset());
+afterEach(cleanup);
 
 function company(over: Record<string, unknown> = {}) {
   return { name: "Reed Roofing", locale: "en", ...over } as never;
@@ -84,8 +84,8 @@ describe("#228 workspace language", () => {
   it("LC-5: a member sees the language, not the controls", () => {
     render(<LanguageCard company={company({ locale: "fr-CA" })} canEdit={false} />);
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
-    expect(screen.getByText("Francais (Canada)")).toBeTruthy();
-    expect(screen.getByText(/only owners and admins/i)).toBeTruthy();
+    expect(screen.getByText("Francais (Canada)")).toBeInstanceOf(Element);
+    expect(screen.getByText(/only owners and admins/i)).toBeInstanceOf(Element);
   });
 
   it("LC-6: a failed save says so and leaves the old answer showing", () => {

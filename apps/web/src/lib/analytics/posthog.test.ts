@@ -125,7 +125,7 @@ describe("sanitizeEventProperties (D8: UUIDs, counts, and feature events only)",
 describe("initPostHog (NEXT_PUBLIC_POSTHOG_KEY optional — absent = off)", () => {
   it("is a silent no-op when the key is not configured", async () => {
     const { initPostHog } = await importPostHog(undefined);
-    expect(await initPostHog()).toBeNull();
+    await expect(initPostHog()).resolves.toBeNull();
     expect(initSpy).not.toHaveBeenCalled();
   });
 
@@ -134,8 +134,8 @@ describe("initPostHog (NEXT_PUBLIC_POSTHOG_KEY optional — absent = off)", () =
       await importPostHog(POSTHOG_KEY);
     await initPostHog();
 
-    expect(initSpy).toHaveBeenCalledTimes(1);
-    const [key, config] = initSpy.mock.calls[0];
+    expect(initSpy).toHaveBeenCalledOnce();
+    const [[key, config]] = initSpy.mock.calls;
     expect(key).toBe(POSTHOG_KEY);
     expect(config.api_host).toBe(POSTHOG_HOST);
     expect(config.autocapture).toBe(false);
@@ -159,7 +159,7 @@ describe("initPostHog (NEXT_PUBLIC_POSTHOG_KEY optional — absent = off)", () =
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     await Promise.all([initPostHog(), initPostHog()]);
     await initPostHog();
-    expect(initSpy).toHaveBeenCalledTimes(1);
+    expect(initSpy).toHaveBeenCalledOnce();
   });
 
   it("does not identify when no workspace cookie exists (marketing / signed out)", async () => {
@@ -181,7 +181,7 @@ describe("exception capture (D146)", () => {
     const { initPostHog, scrubExceptionEvent } = await importPostHog(POSTHOG_KEY);
     await initPostHog();
 
-    const [, config] = initSpy.mock.calls[0];
+    const [[, config]] = initSpy.mock.calls;
     expect(config.capture_exceptions).toBe(true);
     expect(config.autocapture).toBe(false);
     expect(config.before_send).toBeTypeOf("function");
@@ -210,12 +210,12 @@ describe("exception capture (D146)", () => {
         ],
         $current_url: "https://app.loonext.com/inbox?q=Jane",
       },
-    } as never);
+    });
 
     expect(JSON.stringify(out)).not.toContain("6135551234");
     expect(JSON.stringify(out)).not.toContain("a@b.co");
-    const [entry] = out?.properties.$exception_list as { value: string }[];
-    expect(entry.value).toBe("[phone redacted] [email redacted]");
+    const [entry] = (out?.properties.$exception_list ?? []) as { value: string }[];
+    expect(entry?.value).toBe("[phone redacted] [email redacted]");
     expect(out?.properties).toMatchObject({
       $current_url: "https://app.loonext.com/inbox",
       environment: "production",
@@ -229,7 +229,7 @@ describe("exception capture (D146)", () => {
       uuid: "u",
       event: "$exception",
       properties: { $exception_list: [{ type: "Error", value: "boom" }], source: "mutation" },
-    } as never);
+    });
     expect(out?.properties.source).toBe("mutation");
   });
 
@@ -240,7 +240,7 @@ describe("exception capture (D146)", () => {
         uuid: "u",
         event: "$exception",
         properties: { $exception_list: [{ type: "TypeError", value: "Failed to fetch" }] },
-      } as never),
+      }),
     ).toBeNull();
   });
 
@@ -254,7 +254,7 @@ describe("exception capture (D146)", () => {
         uuid: "u",
         event: "$exception",
         properties: { $exception_list: [{ type: "Error", value }] },
-      } as never),
+      }),
     ).toBeNull();
   });
 
@@ -265,7 +265,7 @@ describe("exception capture (D146)", () => {
         uuid: "u",
         event: "$exception",
         properties: { $exception_list: [{ type: "TypeError", value: "ResizeObserver is not defined" }] },
-      } as never),
+      }),
     ).not.toBeNull();
   });
 
@@ -289,7 +289,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
 
   it("downloads and starts only once the page has settled", async () => {
     let open = () => {};
-    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    settle.gate = new Promise<void>((resolve) => { open = resolve; });
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     const ready = initPostHog();
     await new Promise((resolve) => {
@@ -297,8 +297,8 @@ describe("the SDK waits for the page to settle (#640)", () => {
     });
     expect(initSpy).not.toHaveBeenCalled();
     open();
-    expect(await ready).not.toBeNull();
-    expect(initSpy).toHaveBeenCalledTimes(1);
+    await expect(ready).resolves.not.toBeNull();
+    expect(initSpy).toHaveBeenCalledOnce();
   });
 
   it("records the landing page when the visitor moved on before the SDK started", async () => {
@@ -306,7 +306,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
       "https://loonext.com/?utm_source=google&utm_campaign=crew&gclid=TESTGCLID&q=1",
     );
     let open = () => {};
-    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    settle.gate = new Promise<void>((resolve) => { open = resolve; });
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     const ready = initPostHog();
     navigate("https://loonext.com/pricing");
@@ -326,14 +326,14 @@ describe("the SDK waits for the page to settle (#640)", () => {
       $pathname: "/",
     });
     expect(registerSpy.mock.invocationCallOrder[0]).toBeLessThan(
-      captureSpy.mock.invocationCallOrder[0]!,
+      captureSpy.mock.invocationCallOrder[0],
     );
   });
 
   it("adds no pageview for an in-page anchor, which the SDK does not count as a new page", async () => {
     const navigate = stubLocation("https://loonext.com/legal/privacy?utm_source=google");
     let open = () => {};
-    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    settle.gate = new Promise<void>((resolve) => { open = resolve; });
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     const ready = initPostHog();
     navigate("https://loonext.com/legal/privacy?utm_source=google#scope");
@@ -345,7 +345,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
   it("adds no pageview for a query change on the same path, but keeps the campaign", async () => {
     const navigate = stubLocation("https://loonext.com/?utm_source=google");
     let open = () => {};
-    settle.gate = new Promise<void>((resolve) => (open = resolve));
+    settle.gate = new Promise<void>((resolve) => { open = resolve; });
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
     const ready = initPostHog();
     navigate("https://loonext.com/?plan=crew");
@@ -368,7 +368,7 @@ describe("the SDK waits for the page to settle (#640)", () => {
     vi.stubGlobal("document", { readyState: "complete", referrer: "", cookie: "" });
     settle.gate = new Promise<void>(() => {});
     const { initPostHog } = await importPostHog(POSTHOG_KEY);
-    expect(await initPostHog()).not.toBeNull();
-    expect(initSpy).toHaveBeenCalledTimes(1);
+    await expect(initPostHog()).resolves.not.toBeNull();
+    expect(initSpy).toHaveBeenCalledOnce();
   });
 });

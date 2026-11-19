@@ -165,7 +165,7 @@ export function brandRowComplete(
 ): boolean {
   if (!row) return false;
   if (pastSubmission(row)) return true;
-  const data = row.data;
+  const { data } = row;
   if (!data) return false;
   if (!BRAND_COMMON_KEYS.every((key) => present(data, key))) return false;
   if (row.sole_proprietor) {
@@ -181,7 +181,7 @@ export function campaignRowComplete(
 ): boolean {
   if (!row) return false;
   if (pastSubmission(row)) return true;
-  const data = row.data;
+  const { data } = row;
   if (!data) return false;
   return ["messageFlow", "sample1", "sample2"].every((key) =>
     present(data, key),
@@ -203,14 +203,14 @@ export function pendingRegistrationStep(snapshot: OnboardingSnapshot): "texting"
 // ---------------------------------------------------------------------------
 
 /** Subscription states that mean "checkout already happened and stuck". */
-const PAID_STATUSES: readonly SubscriptionStatus[] = [
+const PAID_STATUSES: ReadonlySet<SubscriptionStatus> = new Set([
   "active",
   "past_due",
   "unpaid",
-];
+]);
 
 export function hasPaid(status: SubscriptionStatus): boolean {
-  return PAID_STATUSES.includes(status);
+  return PAID_STATUSES.has(status);
 }
 
 /** The steps this signup actually walks (CA-no-US skips the registration pair). */
@@ -230,12 +230,8 @@ export function setupComplete(snapshot: OnboardingSnapshot): boolean {
   const numberActive = company.numbers.some((n) => n.status === "active");
   if (!numberActive) return false;
   if (!owesUsRegistration(company)) return true;
-  const campaign = company.registration.campaign;
-  return (
-    campaign !== null &&
-    campaign.status === "approved" &&
-    campaign.deactivated_at === null
-  );
+  const { campaign } = company.registration;
+  return campaign?.status === "approved" && campaign.deactivated_at === null;
 }
 
 /**

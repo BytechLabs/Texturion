@@ -49,10 +49,10 @@ function renderBar(canMerge: boolean) {
   );
 }
 
-describe("ContactsBulkBar", () => {
+describe(ContactsBulkBar, () => {
   it("offers one Tags control, not Tag and Untag", () => {
     renderBar(false);
-    expect(screen.getByRole("button", { name: "Tags" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Tags" })).toBeInstanceOf(Element);
     expect(screen.queryByRole("button", { name: "Tag" })).toBeNull();
     expect(screen.queryByRole("button", { name: "Untag" })).toBeNull();
     fireEvent.keyDown(screen.getByRole("button", { name: "Tags" }), { key: "Enter" });
@@ -69,10 +69,10 @@ describe("ContactsBulkBar", () => {
   it("shows More when either item is allowed", () => {
     state.canDelete = true;
     renderBar(false);
-    expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "More actions" })).toBeInstanceOf(Element);
     cleanup();
     state.canDelete = false;
     renderBar(true);
-    expect(screen.getByRole("button", { name: "More actions" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "More actions" })).toBeInstanceOf(Element);
   });
 });

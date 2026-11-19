@@ -119,6 +119,28 @@ describe(runScenario, () => {
     await expect(runScenario(deps, "S20", { runId: "../x" })).rejects.toThrow(/run id/);
   });
 
+  it("keeps the runner receiver when a scenario waits", async () => {
+    const { deps } = setup([]);
+    const waits: number[] = [];
+    deps.sleep = async function sleep(this: RunnerDeps, ms: number) {
+      expect(this).toBe(deps);
+      waits.push(ms);
+    };
+    deps.runners = {
+      ...deps.runners,
+      S20: {
+        id: "S20",
+        async run(ctx) {
+          await ctx.sleep(123);
+          return { outcome: "pass" };
+        },
+      },
+    };
+
+    expect((await runScenario(deps, "S20")).status).toBe("pass");
+    expect(waits).toEqual([123]);
+  });
+
   it("retries a failure once, in the next clock hour with room, and reports only when the retry fails too", async () => {
     const flaky = setup([failing("no_ring_within_6s"), { outcome: "pass" }]);
     expect((await runScenario(flaky.deps, "S02")).status).toBe("pass");
@@ -245,10 +267,12 @@ describe(runScenario, () => {
 
     let calls = 0;
     const freed = setup([{ outcome: "pass" }], {
-      acquire: () =>
-        ++calls < 3
+      acquire: () => {
+        calls += 1;
+        return calls < 3
           ? json({ error: "guard_refused", rule: "lease.busy" }, 403, { [HEADER.refusedBy]: "lease.busy" })
-          : json({ lease_id: "lease-late", scenario: "S02", expires_at: "x" }, 201),
+          : json({ lease_id: "lease-late", scenario: "S02", expires_at: "x" }, 201);
+      },
     });
     expect((await runScenario(freed.deps, "S02")).status).toBe("pass");
   });
@@ -300,10 +324,12 @@ describe(runScenario, () => {
     let calls = 0;
     const waited = setup([], {
       at: Date.UTC(2026, 9, 31, 20, 0),
-      acquire: () =>
-        ++calls < 3
+      acquire: () => {
+        calls += 1;
+        return calls < 3
           ? json({ error: "guard_refused", rule: "lease.busy" }, 403, { [HEADER.refusedBy]: "lease.busy" })
-          : json({ lease_id: "lease-late", scenario: "S20", expires_at: "x" }, 201),
+          : json({ lease_id: "lease-late", scenario: "S20", expires_at: "x" }, 201);
+      },
     });
     waited.deps.runners = { ...waited.deps.runners, S20: { id: "S20", guardLease: true, run: async () => ({ outcome: "pass" }) } };
     expect((await runScenario(waited.deps, "S20")).status).toBe("pass");
@@ -319,7 +345,8 @@ describe(runScenario, () => {
         id: "S20",
         async run(ctx) {
           seen.push(await ctx.history.attempts({ since: clock.now() - 7 * 86_400_000 }));
-          ctx.evidence.audio = { heard: ++run === 1 };
+          run += 1;
+          ctx.evidence.audio = { heard: run === 1 };
           return run === 1 ? { outcome: "pass" } : { outcome: "fail", failure_class: "deaf", detail: "x" };
         },
       },
@@ -521,9 +548,9 @@ describe(runScenario, () => {
       release: () => void events.push("hold released"),
     };
     const running = runScenario(slow.deps, "S02");
-    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => { setImmediate(resolve); });
     slow.clock.advance(2 * 60 * 60_000);
-    await new Promise((resolve) => setImmediate(resolve));
+    await new Promise((resolve) => { setImmediate(resolve); });
     expect(events).toEqual([]);
     finishPrepare();
     const summary = await running;
@@ -598,7 +625,7 @@ describe(runScenario, () => {
           return failing("sent_after_stop");
         },
         async afterRelease() {
-          checked++;
+          checked += 1;
           return { outcome: "fail", failure_class: "stop_left_in_place", detail: "still opted out", critical: true };
         },
       },
@@ -618,7 +645,12 @@ describe(runScenario, () => {
     let checked = 0;
     deps.runners = {
       ...deps.runners,
-      S02: { ...deps.runners.S02!, afterRelease: async () => void checked++ },
+      S02: {
+        ...deps.runners.S02!,
+        async afterRelease() {
+          checked += 1;
+        },
+      },
     };
     const summary = await runScenario(deps, "S02");
     expect(checked).toBe(2);
@@ -627,10 +659,10 @@ describe(runScenario, () => {
 
   it("stops an attempt that runs past the lease, before the watchdog would reap it", async () => {
     const { deps } = setup([]);
-    deps.runners = { ...deps.runners, S02: { id: "S02", run: () => new Promise(() => undefined) } };
+    deps.runners = { ...deps.runners, S02: { id: "S02", run: () => new Promise(() => {}) } };
     const running = runScenario(deps, "S02");
     for (let i = 0; i < 400; i++) {
-      await new Promise((resolve) => setImmediate(resolve));
+      await new Promise((resolve) => { setImmediate(resolve); });
       (deps.clock as ManualClock).advance(60_000);
     }
     await expect(running).resolves.toMatchObject({ status: "infra" });

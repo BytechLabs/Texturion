@@ -78,7 +78,8 @@ describe("#228 a consequential notice survives serialization", () => {
     expect(payload.title).toBeTypeOf("string");
     expect(payload.body).toBeTypeOf("string");
     // The real proof: what actually goes on the wire.
-    const wire = JSON.parse(JSON.stringify(payload)) as Record<string, unknown>;
+    const serialized = JSON.stringify(payload);
+    const wire = JSON.parse(serialized) as Record<string, unknown>;
     expect(wire.title).toBe("Title");
     expect(wire.body).toBe("Body");
   });

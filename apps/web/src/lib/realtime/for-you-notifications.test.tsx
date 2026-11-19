@@ -18,7 +18,7 @@ let companyId = "company-a";
 vi.mock(import("@/lib/company/provider"), () => ({ useCompanyId: () => companyId }));
 
 
-const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
+const flush = () => new Promise((resolve) => { setTimeout(resolve, 0); });
 
 function setup(id: string) {
   companyId = id;

@@ -47,7 +47,7 @@ export async function verifyTurnstile(
       }),
     });
     if (!response.ok) return false;
-    const payload = (await response.json()) as { success?: unknown };
+    const payload = await response.json<{ success?: unknown }>();
     return payload.success === true;
   } catch {
     return false;

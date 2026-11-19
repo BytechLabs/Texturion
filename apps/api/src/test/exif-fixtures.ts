@@ -10,11 +10,11 @@
  * still passing.
  */
 
-export const ORIENTATION = 0x0112;
-export const GPS_POINTER = 0x8825;
-export const GPS_LATITUDE = 0x0002;
+export const ORIENTATION = 0x01_12;
+export const GPS_POINTER = 0x88_25;
+export const GPS_LATITUDE = 0x00_02;
 /** A pattern that cannot occur by accident, so "zeroed" is unambiguous. */
-export const LAT_FILL = 0xab;
+export const LAT_FILL = 0xAB;
 
 /**
  * A TIFF block: IFD0 carrying Orientation and a GPS pointer, and a GPS directory
@@ -38,8 +38,8 @@ export function tiffWithGps(options: { little?: boolean } = {}): {
   const u16 = (at: number, value: number) => view.setUint16(at, value, little);
   const u32 = (at: number, value: number) => view.setUint32(at, value, little);
 
-  bytes[0] = little ? 0x49 : 0x4d;
-  bytes[1] = little ? 0x49 : 0x4d;
+  bytes[0] = little ? 0x49 : 0x4D;
+  bytes[1] = little ? 0x49 : 0x4D;
   u16(2, 42);
   u32(4, 8);
 
@@ -71,20 +71,12 @@ export function tiffWithGps(options: { little?: boolean } = {}): {
 export function jpegWithExif(tiff: Uint8Array): { bytes: Uint8Array; tiffAt: number } {
   const header = [0x45, 0x78, 0x69, 0x66, 0x00, 0x00]; // "Exif\0\0"
   const length = 2 + header.length + tiff.length;
-  const bytes = new Uint8Array(2 + 2 + 2 + header.length + tiff.length + 2);
-  let at = 0;
-  bytes[at++] = 0xff;
-  bytes[at++] = 0xd8; // SOI
-  bytes[at++] = 0xff;
-  bytes[at++] = 0xe1; // APP1
-  bytes[at++] = (length >> 8) & 0xff;
-  bytes[at++] = length & 0xff;
-  for (const byte of header) bytes[at++] = byte;
-  const tiffAt = at;
-  bytes.set(tiff, at);
-  at += tiff.length;
-  bytes[at++] = 0xff;
-  bytes[at++] = 0xd9; // EOI
+  const prefix = [0xFF, 0xD8, 0xFF, 0xE1, (length >> 8) & 0xFF, length & 0xFF, ...header];
+  const tiffAt = prefix.length;
+  const bytes = new Uint8Array(tiffAt + tiff.length + 2);
+  bytes.set(prefix);
+  bytes.set(tiff, tiffAt);
+  bytes.set([0xFF, 0xD9], tiffAt + tiff.length);
   return { bytes, tiffAt };
 }
 

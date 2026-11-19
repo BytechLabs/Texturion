@@ -100,7 +100,7 @@ describe(extraNumberBlockedReason, () => {
     ];
     for (const { plan, args } of blocked) {
       const reason = extraNumberBlockedReason(args, sayEn);
-      expect(reason, `${plan} must explain itself`).toBeTruthy();
+      expect(Boolean(reason), `${plan} must explain itself`).toBe(true);
       expect(reason!.length, `${plan} must explain itself`).toBeGreaterThan(20);
     }
   });
@@ -139,13 +139,13 @@ describe("extra numbers are a USD line (#522)", () => {
     // A country-based gate would have refused this sale for no reason.
     expect(
       canBuyExtraNumber({ ...canadianPro, billingCurrency: "usd" }),
-    ).toBeTruthy();
+    ).toBe(true);
   });
 
   it("is not fooled by case or padding", () => {
     expect(
       canBuyExtraNumber({ ...canadianPro, billingCurrency: " USD " }),
-    ).toBeTruthy();
+    ).toBe(true);
     expect(
       canBuyExtraNumber({ ...canadianPro, billingCurrency: "CAD" }),
     ).toBe(false);
@@ -173,7 +173,7 @@ describe("extra numbers are a USD line (#522)", () => {
         ...canadianPro,
         billingCurrency: EXTRA_NUMBER_CURRENCY,
       }),
-    ).toBeTruthy();
+    ).toBe(true);
   });
 });
 

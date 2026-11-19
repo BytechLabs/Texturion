@@ -20,7 +20,7 @@ export async function assigneeMayHear(
     if (conversation.error) {
       throw new Error(`conversation lookup failed: ${conversation.error.message}`);
     }
-    const row = ((conversation.data ?? []) as { phone_number_id: string | null }[])[0];
+    const [row] = (conversation.data ?? []) as { phone_number_id: string | null }[];
     if (!row) return false;
     const viewers = await listConversationViewers(db, {
       companyId: task.company_id,

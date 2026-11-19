@@ -92,8 +92,8 @@ export function buildRig(config: RigdConfig): Rig {
     let value: T | undefined;
     return () => (value ??= make());
   };
-  const numbers = once(() => standingBook(store.readJson<unknown>("standing-numbers.json")));
-  const tenants = once(() => store.readJson<TenantsFile>("tenants.json"));
+  const numbers = once(() => standingBook(store.readJson("standing-numbers.json")));
+  const tenants = once(() => store.readJson("tenants.json") as TenantsFile);
   const posthog = posthogFromStore(store);
   const app = once(() => {
     const supabase = localSupabase(config.home, config.env);
@@ -191,7 +191,7 @@ export function buildRig(config: RigdConfig): Rig {
       hostd: new HostdClient({ origin: config.hostdOrigin, token: () => store.read("hostd-token") }),
       adbServer: config.adbServer,
       audioProof: () => store.readOptional("emulator-audio-proven"),
-      playServicesPins: () => store.readJson<Record<string, unknown>>("play-services-pins.json"),
+      playServicesPins: () => store.readJson("play-services-pins.json") as Record<string, unknown>,
       transcriber: transcriber(),
       numbers: numbers(),
       credentials: (member) => {
@@ -279,7 +279,7 @@ export function buildRig(config: RigdConfig): Rig {
       dialWindow: () => windows().current(),
       caps: config.capsOverride ?? registry().caps,
       clock: systemClock,
-      sleep: (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+      sleep: (ms) => new Promise((resolve) => { setTimeout(resolve, ms); }),
       lateDeliveries: (query) => late.matching(query).length,
       holds,
       deployHold: () => {

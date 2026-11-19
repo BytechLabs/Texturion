@@ -125,8 +125,8 @@ async function resolveNoteOwner(
       .limit(1),
     "note owner lookup",
   );
-  const note = rows[0];
-  if (!note || note.direction !== "note") return null;
+  const [note] = rows;
+  if (note?.direction !== "note") return null;
   return { conversationId: note.conversation_id };
 }
 
@@ -142,12 +142,7 @@ async function resolveCommentOwner(
   userId: string,
   commentId: string,
 ): Promise<{ conversationId: string | null } | null> {
-  const rows = unwrap<
-    {
-      author_user_id: string;
-      tasks: { conversation_id: string | null; deleted_at: string | null } | null;
-    }[]
-  >(
+  const rows = unwrap<unknown>(
     await db
       .from("task_comments")
       .select("author_user_id,tasks!task_id(conversation_id,deleted_at)")
@@ -156,8 +151,11 @@ async function resolveCommentOwner(
       .is("deleted_at", null)
       .limit(1),
     "comment owner lookup",
-  );
-  const comment = rows[0];
+  ) as {
+    author_user_id: string;
+    tasks: { conversation_id: string | null; deleted_at: string | null } | null;
+  }[];
+  const [comment] = rows;
   if (!comment?.tasks || comment.tasks.deleted_at !== null) return null;
   if (comment.author_user_id !== userId) return null;
   return { conversationId: comment.tasks.conversation_id };
@@ -701,7 +699,7 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
       .from("attachments")
       .delete()
       .eq("company_id", companyId)
-      .eq("id", claim.attachment.id as string);
+      .eq("id", claim.attachment.id);
     if (release.error) {
       console.error(
         `attachment claim release failed (${objectPath}): ${release.error.message}`,
@@ -730,7 +728,7 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
         preview_bytes: twin.preview_bytes,
       })
       .eq("company_id", companyId)
-      .eq("id", claim.attachment.id as string);
+      .eq("id", claim.attachment.id);
     if (stamp.error) {
       // The row still points at a real object; it has simply lost its preview
       // and its place in the dedup index. It serves its original, like every
@@ -761,7 +759,7 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
           content_sha256: contentSha256,
         })
         .eq("company_id", companyId)
-        .eq("id", claim.attachment.id as string);
+        .eq("id", claim.attachment.id);
       if (stamp.error) {
         console.error(
           `attachment preview stamp failed (${target}): ${stamp.error.message}`,
@@ -777,7 +775,7 @@ attachmentsRoutes.post("/attachments", requireCapability("conversations.note"), 
       .from("attachments")
       .update({ content_sha256: contentSha256 })
       .eq("company_id", companyId)
-      .eq("id", claim.attachment.id as string);
+      .eq("id", claim.attachment.id);
     if (stamp.error) {
       console.error(
         `attachment hash stamp failed (${objectPath}): ${stamp.error.message}`,
@@ -858,7 +856,7 @@ attachmentsRoutes.delete("/attachments/:id", requireCapability("conversations.no
       .limit(1),
     "attachment lookup",
   );
-  const row = live[0];
+  const [row] = live;
   if (!row) return errorResponse(c, "not_found", "No such attachment.");
 
   // #106: deleting an attachment is a note-level action on its conversation —
@@ -934,7 +932,7 @@ attachmentsRoutes.get("/attachments", requireCapability("conversations.read"), a
   }
 
   const db = getDb(getEnv(c.env));
-  const rows = unwrap<Record<string, unknown>[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("attachments")
       .select(ATTACHMENT_COLUMNS)
@@ -945,7 +943,7 @@ attachmentsRoutes.get("/attachments", requireCapability("conversations.read"), a
       .order("created_at", { ascending: true })
       .order("id", { ascending: true }),
     "attachment list",
-  );
+  ) as Record<string, unknown>[];
   // #106: an owner's attachments all share one conversation — if that number is
   // hidden from the caller, so is the list (404, indistinguishable from empty).
   // Zero rows leak nothing, so the check only runs when there's something to
@@ -1156,16 +1154,14 @@ async function mintAttachmentUrls(
           : { path: previewPath, sizeBytes: row.preview_bytes ?? null },
     });
   }
-  for (const row of unwrap<
-    {
-      id: string;
-      storage_path: string;
-      size_bytes: number | null;
-      content_type?: string | null;
-      quarantined_at?: string | null;
-      messages?: { conversation_id: string | null } | null;
-    }[]
-  >(mmsRows, "mms attachment lookup")) {
+  for (const row of unwrap<unknown>(mmsRows, "mms attachment lookup") as {
+    id: string;
+    storage_path: string;
+    size_bytes: number | null;
+    content_type?: string | null;
+    quarantined_at?: string | null;
+    messages?: { conversation_id: string | null } | null;
+  }[]) {
     // The generic table wins when an id is in both.
     if (candidates.has(row.id)) continue;
     candidates.set(row.id, {

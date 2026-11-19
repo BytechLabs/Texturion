@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import type { ComponentProps } from "react"
 import { Popover as PopoverPrimitive } from "radix-ui"
 
 import { cn } from "@/lib/utils"
@@ -8,13 +8,13 @@ import { keepOpenForCallBar } from "@/components/ui/call-bar-outside"
 
 function Popover({
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Root>) {
+}: ComponentProps<typeof PopoverPrimitive.Root>) {
   return <PopoverPrimitive.Root data-slot="popover" {...props} />
 }
 
 function PopoverTrigger({
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Trigger>) {
+}: ComponentProps<typeof PopoverPrimitive.Trigger>) {
   return <PopoverPrimitive.Trigger data-slot="popover-trigger" {...props} />
 }
 
@@ -25,7 +25,7 @@ function PopoverContent({
   onPointerDownOutside,
   onInteractOutside,
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Content>) {
+}: ComponentProps<typeof PopoverPrimitive.Content>) {
   return (
     <PopoverPrimitive.Portal>
       <PopoverPrimitive.Content
@@ -46,11 +46,11 @@ function PopoverContent({
 
 function PopoverAnchor({
   ...props
-}: React.ComponentProps<typeof PopoverPrimitive.Anchor>) {
+}: ComponentProps<typeof PopoverPrimitive.Anchor>) {
   return <PopoverPrimitive.Anchor data-slot="popover-anchor" {...props} />
 }
 
-function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
+function PopoverHeader({ className, ...props }: ComponentProps<"div">) {
   return (
     <div
       data-slot="popover-header"
@@ -60,7 +60,7 @@ function PopoverHeader({ className, ...props }: React.ComponentProps<"div">) {
   )
 }
 
-function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
+function PopoverTitle({ className, ...props }: ComponentProps<"h2">) {
   return (
     <div
       data-slot="popover-title"
@@ -73,7 +73,7 @@ function PopoverTitle({ className, ...props }: React.ComponentProps<"h2">) {
 function PopoverDescription({
   className,
   ...props
-}: React.ComponentProps<"p">) {
+}: ComponentProps<"p">) {
   return (
     <p
       data-slot="popover-description"

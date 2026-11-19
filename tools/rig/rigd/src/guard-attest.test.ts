@@ -58,9 +58,9 @@ async function stubServer(): Promise<Stub> {
       response.writeHead(answer.status, { "content-type": "application/json" }).end(JSON.stringify(answer.body));
     });
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
   stub.origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
-  stub.close = () => new Promise((resolve) => server.close(() => resolve()));
+  stub.close = () => new Promise((resolve) => { server.close(() => resolve()); });
   return stub;
 }
 
@@ -80,10 +80,6 @@ beforeAll(async () => {
   [cloudflare, github] = await Promise.all([stubServer(), stubServer()]);
 });
 
-afterAll(async () => {
-  await Promise.all([cloudflare, github].map((stub) => stub.close()));
-});
-
 const dirs: string[] = [];
 afterEach(() => {
   for (const dir of dirs.splice(0)) rmSync(dir, { recursive: true, force: true });
@@ -91,6 +87,10 @@ afterEach(() => {
     stub.seen.length = 0;
     stub.answer = () => undefined;
   }
+});
+
+afterAll(async () => {
+  await Promise.all([cloudflare, github].map((stub) => stub.close()));
 });
 
 function storeWith(omit: string[] = []): SecretFiles {

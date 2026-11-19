@@ -1,4 +1,5 @@
-import { MEMBER_ROLES, resolveLocale, roleHasCapability, type Capability, type Locale } from "@loonext/shared";
+import { MEMBER_ROLES, resolveLocale, roleHasCapability } from "@loonext/shared";
+import type { Capability, Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
@@ -55,7 +56,7 @@ async function billingRecipientUsers(db: SupabaseClient, companyId: string, capa
 
   const users: { id: string; email: string; locale: Locale | null }[] = [];
   for (const row of data ?? []) {
-    const userId = (row as { user_id: string }).user_id;
+    const userId = row.user_id;
     const { data: userData, error: userError } =
       await db.auth.admin.getUserById(userId);
     if (userError) {

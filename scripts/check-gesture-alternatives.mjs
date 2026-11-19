@@ -39,8 +39,7 @@
  * catching, because the drag continuing to work is precisely why nobody would
  * notice.
  */
-import { readFileSync, existsSync } from "node:fs";
-import { readdirSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /**

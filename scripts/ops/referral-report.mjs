@@ -87,8 +87,7 @@ function reportSelfReported(companies) {
   // answers would quietly become the largest "source" we have.
   for (const [source, count] of [...counts].sort((a, b) => b[1] - a[1])) {
     console.log(
-      `    ${String(count).padStart(3)}  ${source.padEnd(18)}` +
-        (answered.length >= RATE_FLOOR ? pct(count, answered.length) : ""),
+      `    ${String(count).padStart(3)}  ${source.padEnd(18)}${answered.length >= RATE_FLOOR ? pct(count, answered.length) : ""}`,
     );
   }
 
@@ -148,10 +147,7 @@ await runScript(
     const owed = qualified.filter((row) => row.referrer_rewarded_at === null);
 
     console.log(
-      `\n  Referral channel — last ${days} days\n\n` +
-        `  ${rows.length} referral(s) recorded` +
-        (voided > 0 ? `, ${voided} voided` : "") +
-        "\n",
+      `\n  Referral channel — last ${days} days\n\n  ${rows.length} referral(s) recorded${voided > 0 ? `, ${voided} voided` : ""}\n`,
     );
 
     const line = (label, count, note = "") =>
@@ -179,10 +175,9 @@ await runScript(
     // before it is prompted.
     const monthsGiven = referrerPaid.length + refereePaid.length;
     console.log(
-      `\n  Free months given away: ${monthsGiven}` +
-        (monthsGiven > 0
+      `\n  Free months given away: ${monthsGiven}${monthsGiven > 0
           ? ` (${referrerPaid.length} to referrers, ${refereePaid.length} to referees)`
-          : ""),
+          : ""}`,
     );
 
     if (owed.length > 0) {

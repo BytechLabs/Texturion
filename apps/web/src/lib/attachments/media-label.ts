@@ -55,6 +55,6 @@ export function sharedMediaKind(
   kinds: readonly MmsMediaKind[],
 ): MmsMediaKind | null {
   if (kinds.length === 0) return null;
-  const first = kinds[0];
+  const [first] = kinds;
   return kinds.every((kind) => kind === first) ? first : null;
 }

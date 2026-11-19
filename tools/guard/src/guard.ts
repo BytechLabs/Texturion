@@ -76,7 +76,7 @@ export const CRONS = {
 
 async function bodyOf(request: Request): Promise<Record<string, unknown>> {
   try {
-    const parsed = (await request.json()) as unknown;
+    const parsed = await request.json<unknown>();
     if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) return parsed as Record<string, unknown>;
   } catch {
     // Falls through.
@@ -91,7 +91,11 @@ async function refuseIfKnownUnsafe(ctx: Ctx): Promise<void> {
 }
 
 export class Guard {
-  constructor(readonly ctx: Ctx) {}
+  readonly ctx: Ctx;
+
+  constructor(ctx: Ctx) {
+    this.ctx = ctx;
+  }
 
   async handle(request: Request): Promise<Response> {
     try {

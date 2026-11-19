@@ -40,9 +40,12 @@ const live = {
   restricted: ["rk", "live", "readablestemforthistest"].join("_"),
   telnyx: `KEY${"ABCDEF".repeat(5)}_readablestem`,
   supabase: ["sb", "secret", "readable-stem-for-this-test"].join("_"),
-  pooler:
-    ["postgresql://postgres.projectrefstem:", "stem-password-for-a-test", "@aws-0-us-east-1.pooler."].join("") +
+  pooler: [
+    "postgresql://postgres.projectrefstem:",
+    "stem-password-for-a-test",
+    "@aws-0-us-east-1.pooler.",
     "supabase.com:5432/postgres",
+  ].join(""),
 };
 
 const shapesOf = (text: string) => guard.findShapes(text).map((found) => found.shape);

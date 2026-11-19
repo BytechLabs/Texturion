@@ -20,7 +20,7 @@ describe("#370 crew-size buckets", () => {
   it("labels every bucket, in people rather than seats", () => {
     // "Seats" and "users" are licence words. A plumber has a crew.
     for (const bucket of CREW_SIZE_BUCKETS) {
-      expect(CREW_SIZE_LABELS[bucket]).toBeTruthy();
+      expect(Boolean(CREW_SIZE_LABELS[bucket])).toBe(true);
       expect(CREW_SIZE_LABELS[bucket].toLowerCase()).not.toContain("seat");
       expect(CREW_SIZE_LABELS[bucket].toLowerCase()).not.toContain("user");
     }

@@ -257,8 +257,9 @@ function ChipRow({
           t("inbox.chipAssignee")
         );
       }
-      case "line":
+      case "line": {
         return lines.find((line) => line.id === value)?.label ?? t("inbox.filterGroupLine");
+      }
       case "tag": {
         return (
           tags.data?.data.find((tag) => tag.id === value)?.name ??

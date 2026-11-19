@@ -4,11 +4,8 @@ import { useState } from "react";
 import { toast } from "sonner";
 import { AlertTriangle, Check, Copy, KeyRound } from "lucide-react";
 
-import {
-  API_KEY_SCOPES,
-  apiKeyScopeLabelKey,
-  type ApiKeyScope,
-} from "@loonext/shared";
+import { API_KEY_SCOPES, apiKeyScopeLabelKey } from "@loonext/shared";
+import type { ApiKeyScope } from "@loonext/shared";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
@@ -18,14 +15,11 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
-import {
-  useApiKeys,
-  useCreateApiKey,
-  useRevokeApiKey,
-  type ApiKey,
-} from "@/lib/api/api-keys";
+import { useApiKeys, useCreateApiKey, useRevokeApiKey } from "@/lib/api/api-keys";
+import type { ApiKey } from "@/lib/api/api-keys";
 
 /**
  * #243 — API keys.
@@ -149,9 +143,9 @@ function CreateForm({
     try {
       const result = await create.mutateAsync({ name: name.trim(), scopes });
       onCreated(result.token_once);
-    } catch (cause) {
+    } catch (error) {
       toast.error(
-        cause instanceof ApiError ? cause.message : t("appShell.saveFailed"),
+        error instanceof ApiError ? error.message : t("appShell.saveFailed"),
       );
     }
   }

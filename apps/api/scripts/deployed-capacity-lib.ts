@@ -48,9 +48,9 @@ const TOKEN_EXPIRY_BUFFER_SECONDS = 2 * 60;
 const MAX_CONCURRENCY = 500;
 const MAX_LEVELS = 12;
 const MAX_API_ROUNDS = 10;
-const MIN_DEADLINE_MS = 1_000;
+const MIN_DEADLINE_MS = 1000;
 const MAX_DEADLINE_MS = 60_000;
-const MIN_DWELL_MS = 1_000;
+const MIN_DWELL_MS = 1000;
 const MAX_DWELL_MS = 30_000;
 const DEADLINE_SCHEDULING_TOLERANCE_MS = 100;
 
@@ -180,22 +180,26 @@ export type OpenRealtimeConnection = (
   input: OpenRealtimeInput,
 ) => Promise<RealtimeConnection>;
 
-export class RealtimeJoinFailure extends Error {
+class RealtimeJoinFailureError extends Error {
   readonly code: Exclude<RealtimeConnectionState, "subscribed">;
 
   constructor(code: Exclude<RealtimeConnectionState, "subscribed">) {
     super("Realtime connection did not subscribe");
-    this.name = "RealtimeJoinFailure";
+    this.name = "RealtimeJoinFailureError";
     this.code = code;
   }
 }
 
-export class RealtimeCleanupFailure extends CapacityRunError {
+export { RealtimeJoinFailureError as RealtimeJoinFailure };
+
+class RealtimeCleanupFailureError extends CapacityRunError {
   constructor() {
     super("Realtime cleanup did not complete successfully");
-    this.name = "RealtimeCleanupFailure";
+    this.name = "RealtimeCleanupFailureError";
   }
 }
+
+export { RealtimeCleanupFailureError as RealtimeCleanupFailure };
 
 export interface HostedCapacityDependencies {
   fetch?: typeof globalThis.fetch;
@@ -237,7 +241,7 @@ function normalizeOrigin(raw: string, label: string): URL {
 }
 
 function isLocalOrPrivateHost(hostname: string): boolean {
-  const host = hostname.toLowerCase().replace(/^\[|\]$/g, "");
+  const host = hostname.toLowerCase().replaceAll(/^\[|\]$/g, "");
   if (
     host === "localhost" ||
     host.endsWith(".localhost") ||
@@ -245,10 +249,10 @@ function isLocalOrPrivateHost(hostname: string): boolean {
     host === "::" ||
     host === "::1" ||
     host === "0.0.0.0" ||
-    /^127\./.test(host) ||
-    /^10\./.test(host) ||
-    /^192\.168\./.test(host) ||
-    /^169\.254\./.test(host) ||
+    host.startsWith("127.") ||
+    host.startsWith("10.") ||
+    host.startsWith("192.168.") ||
+    host.startsWith("169.254.") ||
     /^(fc|fd)[0-9a-f]{2}:/i.test(host) ||
     /^fe[89ab][0-9a-f]*:/i.test(host)
   ) {
@@ -265,7 +269,7 @@ function isLocalOrPrivateHost(hostname: string): boolean {
     if (words.length === 2 && words.every((word) => /^[0-9a-f]{1,4}$/i.test(word))) {
       const high = Number.parseInt(words[0], 16);
       const low = Number.parseInt(words[1], 16);
-      return isPrivateV4([high >>> 8, high & 0xff, low >>> 8, low & 0xff]);
+      return isPrivateV4([high >>> 8, high & 0xFF, low >>> 8, low & 0xFF]);
     }
   }
   return false;
@@ -312,8 +316,8 @@ function parseJwtPayload(token: string, label: string): Record<string, unknown> 
       fail(`${label} has an invalid JWT payload`);
     }
     return decoded as Record<string, unknown>;
-  } catch (cause) {
-    if (cause instanceof CapacityConfigError) throw cause;
+  } catch (error) {
+    if (error instanceof CapacityConfigError) throw error;
     fail(`${label} has an invalid JWT payload`);
   }
 }
@@ -466,13 +470,13 @@ function requiredTokenValiditySeconds(input: HostedCapacityInput): number {
   }
   return Math.max(
     MIN_TOKEN_VALIDITY_SECONDS,
-    Math.ceil(worstCaseMs / 1_000) + TOKEN_EXPIRY_BUFFER_SECONDS,
+    Math.ceil(worstCaseMs / 1000) + TOKEN_EXPIRY_BUFFER_SECONDS,
   );
 }
 
 export function validateHostedCapacityInput(
   input: HostedCapacityInput,
-  nowSeconds = Math.floor(Date.now() / 1_000),
+  nowSeconds = Math.floor(Date.now() / 1000),
 ): HostedCapacityConfig {
   if (!TARGET_ID.test(input.targetId) || !NONPROD_MARKER.test(input.targetId)) {
     fail("--target-id must be a safe slug containing staging, nonprod, test, preview, or capacity");
@@ -808,7 +812,7 @@ async function openBefore(
     .then(() => openRealtime(input))
     .then(
       (connection) => ({ ok: true as const, connection }),
-      (cause: unknown) => ({ ok: false as const, cause }),
+      (error: unknown) => ({ ok: false as const, cause: error }),
     );
   try {
     const result = await Promise.race([
@@ -820,7 +824,7 @@ async function openBefore(
         );
       }),
     ]);
-    if (result === DEADLINE) throw new RealtimeJoinFailure("deadline");
+    if (result === DEADLINE) throw new RealtimeJoinFailureError("deadline");
     if (!result.ok) throw result.cause;
     return result.connection;
   } finally {
@@ -899,7 +903,7 @@ export async function openSupabaseRealtimeConnection(
       let failed = false;
       if (client && channel) {
         const removal = await valueSettlementBefore(
-          () => client?.removeChannel(channel as RealtimeChannel),
+          () => client?.removeChannel(channel!),
           remaining(),
         );
         // Supabase fulfills removeChannel with "timed out" or "error" as
@@ -915,7 +919,7 @@ export async function openSupabaseRealtimeConnection(
         failed ||=
           disconnected.state !== "fulfilled" || disconnected.value !== "ok";
       }
-      if (failed) throw new RealtimeCleanupFailure();
+      if (failed) throw new RealtimeCleanupFailureError();
     })();
     return cleanupPromise;
   };
@@ -947,7 +951,7 @@ export async function openSupabaseRealtimeConnection(
     }
     if (authSet !== "set") {
       await cleanup(cleanupReserveMs);
-      throw new RealtimeJoinFailure(authSet === "deadline" ? "deadline" : "network_error");
+      throw new RealtimeJoinFailureError(authSet === "deadline" ? "deadline" : "network_error");
     }
     channel = client.channel(input.topic, { config: { private: true } });
 
@@ -962,10 +966,10 @@ export async function openSupabaseRealtimeConnection(
         try {
           await cleanup(cleanupReserveMs);
         } catch {
-          reject(new RealtimeCleanupFailure());
+          reject(new RealtimeCleanupFailureError());
           return;
         }
-        reject(new RealtimeJoinFailure(code));
+        reject(new RealtimeJoinFailureError(code));
       };
       const deadline = setTimeout(() => {
         if (settled) return;
@@ -1009,22 +1013,22 @@ export async function openSupabaseRealtimeConnection(
         }
       }, remainingJoinMs);
     });
-  } catch (cause) {
+  } catch (error) {
     let cleanupFailed = false;
     try {
       await cleanup(cleanupReserveMs);
     } catch {
       cleanupFailed = true;
     }
-    if (cleanupFailed) throw new RealtimeCleanupFailure();
-    if (cause instanceof RealtimeCleanupFailure) throw cause;
-    if (cause instanceof RealtimeJoinFailure) throw cause;
-    throw new RealtimeJoinFailure("network_error");
+    if (cleanupFailed) throw new RealtimeCleanupFailureError();
+    if (error instanceof RealtimeCleanupFailureError) throw error;
+    if (error instanceof RealtimeJoinFailureError) throw error;
+    throw new RealtimeJoinFailureError("network_error");
   }
 }
 
 function realtimeFailureCode(cause: unknown): Exclude<RealtimeConnectionState, "subscribed"> {
-  return cause instanceof RealtimeJoinFailure ? cause.code : "network_error";
+  return cause instanceof RealtimeJoinFailureError ? cause.code : "network_error";
 }
 
 interface RealtimeAssessment {
@@ -1111,7 +1115,7 @@ async function waitForDwell(
 ): Promise<void> {
   // The configured wait is itself bounded. The extra second is scheduling
   // tolerance, not another observation window.
-  const result = await settlementBefore(() => sleep(dwellMs), dwellMs + 1_000);
+  const result = await settlementBefore(() => sleep(dwellMs), dwellMs + 1000);
   if (result !== "fulfilled") {
     throw new CapacityRunError("configured cooldown/dwell did not complete; the run is invalid");
   }
@@ -1159,11 +1163,11 @@ async function openRealtimeBatch(
           deadlineMs: config.deadlineMs,
         });
         return { kind: "opened" as const, connection };
-      } catch (cause) {
-        if (cause instanceof RealtimeCleanupFailure) {
+      } catch (error) {
+        if (error instanceof RealtimeCleanupFailureError) {
           return { kind: "cleanup_failure" as const };
         }
-        return { kind: "join_failure" as const, code: realtimeFailureCode(cause) };
+        return { kind: "join_failure" as const, code: realtimeFailureCode(error) };
       }
     }),
   );
@@ -1180,9 +1184,9 @@ async function openRealtimeBatch(
     // failure must not reject early and lose a handle that subscribes a moment
     // later; close every successful sibling before propagating the invalid run.
     if (!(await closeConnections(handles, config.deadlineMs))) {
-      throw new RealtimeCleanupFailure();
+      throw new RealtimeCleanupFailureError();
     }
-    throw new RealtimeCleanupFailure();
+    throw new RealtimeCleanupFailureError();
   }
   const failures: Record<string, number> = {};
   for (const attempt of attempts) {
@@ -1275,7 +1279,7 @@ export async function runHostedCapacity(
   }
   const fetcher = dependencies.fetch ?? globalThis.fetch;
   const nowMs = dependencies.nowMs ?? (() => performance.now());
-  const sleep = dependencies.sleep ?? ((ms: number) => new Promise((resolve) => setTimeout(resolve, ms)));
+  const sleep = dependencies.sleep ?? ((ms: number) => new Promise((resolve) => { setTimeout(resolve, ms); }));
   const openRealtime = dependencies.openRealtime ?? openSupabaseRealtimeConnection;
   const results: CapacityEvidence[] = [];
   const emit = (evidence: CapacityEvidence): void => {
@@ -1569,8 +1573,8 @@ export async function runHostedCapacity(
         }
         break;
       }
-    } catch (cause) {
-      realtimeRunFailure = { cause };
+    } catch (error) {
+      realtimeRunFailure = { cause: error };
     }
     if (!(await closeConnections(active, config.deadlineMs))) {
       throw new CapacityRunError("final Realtime cleanup exceeded its deadline");

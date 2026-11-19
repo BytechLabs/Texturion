@@ -7,10 +7,8 @@ import { useEffect } from "react";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
-import {
-  trackOnboardingStepViewed,
-  type OnboardingStep,
-} from "@/lib/analytics/events";
+import { trackOnboardingStepViewed } from "@/lib/analytics/events";
+import type { OnboardingStep } from "@/lib/analytics/events";
 
 import { ProgressDots } from "./progress-dots";
 

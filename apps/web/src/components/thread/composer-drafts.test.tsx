@@ -77,7 +77,7 @@ it("reopens a private draft in Note mode with Save note", () => {
   expect(noteTab.classList.contains("bg-app-amber-bg")).toBe(true);
   const note = screen.getByRole<HTMLTextAreaElement>("textbox", { name: "Internal note" });
   expect(note.value).toBe("Keep the price private.");
-  expect(screen.getByRole("button", { name: "Save note" })).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Save note" })).toBeInstanceOf(Element);
 });
 
 it("stores a failed text and its retry key when the composer has unmounted", async () => {

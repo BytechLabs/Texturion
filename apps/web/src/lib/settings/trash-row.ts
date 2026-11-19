@@ -33,8 +33,9 @@ export function daysLeftLabel(
 
 export function kindLabel(row: TrashRow, t: Translate): string {
   switch (row.kind) {
-    case "contact":
+    case "contact": {
       return t("trash.kindContact");
+    }
     case "conversation": {
       return t("trash.kindConversation");
     }
@@ -54,8 +55,9 @@ export function kindLabel(row: TrashRow, t: Translate): string {
 
 export function detailsOf(row: TrashRow) {
   switch (row.kind) {
-    case "contact":
+    case "contact": {
       return row.contact;
+    }
     case "conversation": {
       return row.conversation;
     }
@@ -83,10 +85,11 @@ export function whoLabel(row: TrashRow, t: Translate): string {
 /** The second line: what is inside, in a few words. */
 export function detailLabel(row: TrashRow, t: Translate): string {
   switch (row.kind) {
-    case "contact":
+    case "contact": {
       return row.contact.contact_name && row.contact.contact_phone
         ? formatPhone(row.contact.contact_phone)
         : "";
+    }
     case "conversation": {
       const count = row.conversation.message_count;
       return count === 1

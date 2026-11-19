@@ -67,7 +67,7 @@ describe("POST /v1/device-push-tokens", () => {
     // No company context was ever resolved (per-user resource).
     expect(sb.find("GET", "/rest/v1/company_members")).toHaveLength(0);
 
-    const upsert = sb.find("POST", "/rest/v1/device_push_tokens")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/device_push_tokens");
     expect(upsert.url.searchParams.get("on_conflict")).toBe("user_id,token");
     expect(upsert.body).toMatchObject({
       user_id: auth.subject,
@@ -117,13 +117,13 @@ describe("POST /v1/device-push-tokens", () => {
     expect(res.status).toBe(201);
 
     // Cap lookup: caller-scoped, newest-first, limited to the cap.
-    const lookup = sb.find("GET", "/rest/v1/device_push_tokens")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/device_push_tokens");
     expect(lookup.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(lookup.url.searchParams.get("order")).toBe("created_at.desc");
     expect(lookup.url.searchParams.get("limit")).toBe("10");
 
     // Eviction: caller-scoped delete of everything OLDER than the 10th-newest.
-    const del = sb.find("DELETE", "/rest/v1/device_push_tokens")[0];
+    const [del] = sb.find("DELETE", "/rest/v1/device_push_tokens");
     expect(del.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(del.url.searchParams.get("created_at")).toBe(
       "lt.2026-07-15T14:00:00+00:00",
@@ -215,7 +215,7 @@ describe("DELETE /v1/device-push-tokens", () => {
     );
     expect(res.status).toBe(204);
 
-    const del = sb.find("DELETE", "/rest/v1/device_push_tokens")[0];
+    const [del] = sb.find("DELETE", "/rest/v1/device_push_tokens");
     expect(del.url.searchParams.get("user_id")).toBe(`eq.${auth.subject}`);
     expect(del.url.searchParams.get("token")).toBe(`eq.${TOKEN}`);
   });

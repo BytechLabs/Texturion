@@ -110,7 +110,7 @@ export function registrationProgress(
   const stage = registrationStage(snapshot);
 
   switch (stage) {
-    case "needs_details":
+    case "needs_details": {
       return {
         stage,
         percent: 10,
@@ -119,8 +119,9 @@ export function registrationProgress(
         expected: null,
         actionNeeded: true,
       };
+    }
 
-    case "submitting":
+    case "submitting": {
       return {
         stage,
         percent: 40,
@@ -132,8 +133,9 @@ export function registrationProgress(
         expected: "domain.regStageExpected",
         actionNeeded: false,
       };
+    }
 
-    case "under_review":
+    case "under_review": {
       return {
         stage,
         percent: 70,
@@ -142,8 +144,9 @@ export function registrationProgress(
         expected: "domain.regStageExpected",
         actionNeeded: false,
       };
+    }
 
-    case "approved":
+    case "approved": {
       return {
         stage,
         percent: 100,
@@ -152,8 +155,9 @@ export function registrationProgress(
         expected: null,
         actionNeeded: false,
       };
+    }
 
-    case "rejected":
+    case "rejected": {
       return {
         stage,
         percent: 40,
@@ -162,6 +166,7 @@ export function registrationProgress(
         expected: null,
         actionNeeded: true,
       };
+    }
   }
 }
 

@@ -120,7 +120,7 @@ export function OutstandingQuotesSection() {
                    * costs a date-picker is one nobody sets. The thread's own
                    * menu re-times it for the crew member who wants Friday.
                    */
-                  const when = followUpPresets()[0];
+                  const [when] = followUpPresets();
                   if (!when) return;
                   setChased((prior) => ({ ...prior, [quote.id]: true }));
                   snooze.mutate(

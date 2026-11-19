@@ -140,6 +140,7 @@ describe("where a webhook may point", () => {
   it("refuses anything that is not https", () => {
     expect(webhookUrlRejection("http://hooks.example.com/x")).toBe("not-https");
     expect(webhookUrlRejection("ftp://hooks.example.com/x")).toBe("not-https");
+    // oxlint-disable-next-line eslint/no-script-url -- The validator must reject this scheme.
     expect(webhookUrlRejection("javascript:alert(1)")).toBe("not-https");
   });
 

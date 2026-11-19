@@ -81,7 +81,7 @@ describe("#651 a UUID is never mistaken for a phone number", () => {
   });
 
   it("keeps a UUID whole in every field a scrubber walks", () => {
-    const uuid = UUIDS[0];
+    const [uuid] = UUIDS;
     expect(
       scrubUnknown({
         message: `company ${uuid} failed`,

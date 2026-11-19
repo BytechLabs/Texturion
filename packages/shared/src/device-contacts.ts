@@ -51,7 +51,7 @@ export function deviceContactMatches(row: DeviceContactListRow, query: string): 
   const trimmed = query.trim().toLowerCase();
   if (trimmed.length < MIN_DEVICE_QUERY) return true;
 
-  const digits = trimmed.replace(/\D/g, "");
+  const digits = trimmed.replaceAll(/\D/g, "");
   // A query that is ONLY digits is a number search. Checking the name too
   // would match "A1 Plumbing" for "1", which is noise dressed as a result.
   if (digits.length > 0 && digits === trimmed) {

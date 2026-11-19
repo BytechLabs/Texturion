@@ -34,8 +34,15 @@
  * never checked out (plan null / no period) reads as zero usage with an
  * empty history and zero storage — it cannot own files or media yet.
  */
-import { roleHasCapability } from '@loonext/shared';
-import type { MemberRole } from '@loonext/shared';
+import {
+  billingCurrencyOf,
+  // #522: These rates use the workspace's billing currency. The names in
+  // ./core/plans refer to USD rates for the internal cost model.
+  OVERAGE_CENTS_PER_SEGMENT as OVERAGE_CENTS_BY_CURRENCY,
+  resolveLocale,
+  roleHasCapability,
+  VOICE_OVERAGE_CENTS_PER_MINUTE as VOICE_OVERAGE_CENTS_BY_CURRENCY,
+} from "@loonext/shared";
 import { Hono } from "hono";
 
 import { summarize } from "../messaging/delivery-by-country";
@@ -52,18 +59,6 @@ import { unwrap } from "./core/http";
 import { readAiUsage } from "../ai/usage";
 import { PLAN_INCLUDED_SEGMENTS, PLAN_VOICE_MINUTES } from './core/plans';
 import type { PlanId } from './core/plans';
-// #522: the CUSTOMER-FACING rates, aliased on import because the USD-only
-// scalars in ./core/plans carry the same two names. Those exist for the internal
-// cost-vs-revenue model, which must stay in the currency our providers invoice
-// us in; these are what the customer will actually be charged. Reading the wrong
-// one is how a Canadian workspace came to be shown $30.00 for an overage its
-// card is charged CA$40 for.
-import {
-  billingCurrencyOf,
-  OVERAGE_CENTS_PER_SEGMENT as OVERAGE_CENTS_BY_CURRENCY,
-  resolveLocale,
-  VOICE_OVERAGE_CENTS_PER_MINUTE as VOICE_OVERAGE_CENTS_BY_CURRENCY,
-} from "@loonext/shared";
 
 interface CompanyUsageRow {
   plan: PlanId | null;
@@ -97,7 +92,7 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
   const companyId = c.get("companyId");
   const db = getDb(getEnv(c.env));
 
-  const companies = unwrap<CompanyUsageRow[]>(
+  const companies = unwrap<unknown>(
     await db
       .from("companies")
       .select(
@@ -113,8 +108,8 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
       .is("deleted_at", null)
       .limit(1),
     "company lookup",
-  );
-  const company = companies[0];
+  ) as CompanyUsageRow[];
+  const [company] = companies;
   if (!company) {
     return errorResponse(c, "not_found", "No such company.");
   }
@@ -317,7 +312,7 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
    *
    * Owners hold it. So does the bookkeeper, whose whole preset is the books.
    */
-  const seesMoney = roleHasCapability(c.get("role") as MemberRole, "billing.manage");
+  const seesMoney = roleHasCapability(c.get("role"), "billing.manage");
 
   return c.json({
     status,

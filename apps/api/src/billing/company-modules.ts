@@ -80,7 +80,7 @@ export async function enabledModuleFlags(
   if (error) {
     throw new Error(`company_modules lookup failed: ${error.message}`);
   }
-  return ((data ?? []) as { module: string; grandfathered: boolean }[])
+  return ((data ?? []) as { module: string; grandfathered: unknown }[])
     .filter((row) => isPlanModule(row.module))
     .map((row) => ({
       module: row.module as PlanModule,
@@ -131,7 +131,7 @@ export function planModuleReconcile(
   const paidSet = new Set(paid);
   const enable = [...paidSet].filter((module) => {
     const row = byModule.get(module);
-    return !row || row.disabled_at !== null || row.grandfathered;
+    return row?.disabled_at !== null || row.grandfathered;
   });
   const disable = [...byModule.entries()]
     .filter(

@@ -57,7 +57,7 @@ describe("the rating ask's inbound watermark", () => {
     });
 
     expect(result.outcome).toBe("asked");
-    const insert = sb.find("POST", "/rest/v1/scheduled_messages")[0];
+    const [insert] = sb.find("POST", "/rest/v1/scheduled_messages");
     expect(insert.body).toMatchObject({
       origin: "rating",
       inbound_watermark: "2026-11-09T18:00:00Z",
@@ -74,7 +74,7 @@ describe("the rating ask's inbound watermark", () => {
       now: NOW,
     });
 
-    const insert = sb.find("POST", "/rest/v1/scheduled_messages")[0];
+    const [insert] = sb.find("POST", "/rest/v1/scheduled_messages");
     expect(insert.body).toMatchObject({ inbound_watermark: null });
   });
 });

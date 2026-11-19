@@ -113,12 +113,12 @@ describe("Board columns (D25)", () => {
 
     expect(tasksRequests("done").map((query) => query.limit)).toEqual([100]);
     expect(tasksRequests("open").map((query) => query.limit)).toEqual([100]);
-    expect(screen.getByRole("region", { name: doneColumn("100+") })).toBeTruthy();
+    expect(screen.getByRole("region", { name: doneColumn("100+") })).toBeInstanceOf(Element);
     expect(screen.queryByText("done job 100")).toBeNull();
 
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.loadMore }));
     await screen.findByText("done job 100", undefined, SLOW);
-    expect(screen.getByRole("region", { name: doneColumn("101") })).toBeTruthy();
+    expect(screen.getByRole("region", { name: doneColumn("101") })).toBeInstanceOf(Element);
     expect(screen.queryByRole("button", { name: EN.tasks.loadMore })).toBeNull();
   });
 
@@ -137,7 +137,7 @@ describe("Board columns (D25)", () => {
 
     server.open = [task("o1", "Fix sink", false)];
     let release = () => {};
-    hold = new Promise<void>((resolve) => (release = resolve));
+    hold = new Promise<void>((resolve) => { release = resolve; });
     rerender({ view: "board", tab: "all" });
     await waitFor(() => expect(screen.queryByText(EN.tasks.emptyMineAny)).toBeNull());
     expect(screen.queryByText(EN.tasks.emptyTitle)).toBeNull();
@@ -153,7 +153,7 @@ describe("Board columns (D25)", () => {
     expect(container.querySelector("article")?.getAttribute("draggable")).toBe("true");
 
     let release = () => {};
-    hold = new Promise<void>((resolve) => (release = resolve));
+    hold = new Promise<void>((resolve) => { release = resolve; });
     rerender({ view: "board", tab: "all" });
     await waitFor(() =>
       expect(container.querySelector("article")?.getAttribute("draggable")).toBe("false"),

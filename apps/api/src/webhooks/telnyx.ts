@@ -42,9 +42,7 @@ telnyxWebhookRoute.post("/", async (c) => {
 
   // 1. VERIFY — reads the raw body; null on ANY failure (bad signature,
   // missing headers, >5-min skew).
-  const event = (await verifyTelnyxWebhook(env, c.req.raw)) as
-    | TelnyxEvent
-    | null;
+  const event = await verifyTelnyxWebhook(env, c.req.raw);
   if (!event) {
     console.warn("telnyx webhook refused: signature verification failed");
     return c.json({ error: "signature verification failed" }, 400);
@@ -102,7 +100,7 @@ telnyxWebhookRoute.post("/", async (c) => {
     return c.json({ received: true });
   }
 
-  if (isMemberDeliveryLeg(event as TelnyxEvent)) {
+  if (isMemberDeliveryLeg(event)) {
     if (data && data.length > 0) await stampProcessed(db, eventId);
     return c.json({ received: true, ignored: true });
   }
@@ -111,9 +109,9 @@ telnyxWebhookRoute.post("/", async (c) => {
   // in the REQUEST PATH before the ACK — a lost event then rides Telnyx's own
   // fast retry ladder instead of our ≥2-min sweeper (an admitted call.answered
   // must never fall to the t+45 alarm).
-  const routeToDO = shouldRouteToDO(event as TelnyxEvent);
+  const routeToDO = shouldRouteToDO(event);
   // #211: breadcrumb an un-attributable hangup (echo dropped its tag+direction).
-  warnIfEchoDropped(event as TelnyxEvent);
+  warnIfEchoDropped(event);
 
   if (!data || data.length === 0) {
     // Duplicate POST. §7.2 companion rule: for an inbound-family event whose
@@ -126,10 +124,9 @@ telnyxWebhookRoute.post("/", async (c) => {
         .eq("provider", "telnyx")
         .eq("event_id", eventId)
         .limit(1);
-      const processedAt = (existing?.[0] as { processed_at: string | null } | undefined)
-        ?.processed_at;
+      const processedAt = existing?.[0]?.processed_at;
       if (!processedAt) {
-        const stamp = await dispatchInboundCallEvent(env, event as TelnyxEvent);
+        const stamp = await dispatchInboundCallEvent(env, event);
         if (stamp) await stampProcessed(db, eventId);
         return c.json({ received: true, redispatched: true });
       }
@@ -142,7 +139,7 @@ telnyxWebhookRoute.post("/", async (c) => {
     // complete via the journal-resume alarm even under immediate eviction),
     // then stamp + ACK. A no-row inbound hangup returns stamp=false so the
     // sweeper can replay it (§7.5.1).
-    const stamp = await dispatchInboundCallEvent(env, event as TelnyxEvent);
+    const stamp = await dispatchInboundCallEvent(env, event);
     if (stamp) await stampProcessed(db, eventId);
     return c.json({ received: true });
   }

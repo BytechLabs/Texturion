@@ -117,7 +117,8 @@ export function HeroInbox({ script }: { script: readonly HeroInboxRow[] }) {
       const {detail} = (event as CustomEvent<{ scriptIndex?: number }>);
       const idx = detail?.scriptIndex;
       if (typeof idx !== "number" || !script[idx]) return;
-      const key = keyRef.current += 1;
+      keyRef.current += 1;
+      const key = keyRef.current;
       // The animation REPLAYS the finished state (P5-SPEC): when a scripted
       // text re-arrives, its previous row leaves before the new one lands, so
       // the same customer never sits in the inbox twice.

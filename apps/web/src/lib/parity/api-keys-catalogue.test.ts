@@ -120,17 +120,23 @@ describe("#243 API key copy is the same product on all three clients", () => {
     expect(webMap(apiKeysFr).size).toBe(webMap(apiKeysEn).size);
   });
 
-  for (const client of CLIENTS) {
-    it(`${client.name} holds exactly the web's keys, both languages`, () => {
+  const clientCases = CLIENTS.map(client => [client.name, client] as const);
+
+  it.each(clientCases)(
+    "%s holds exactly the web's keys, both languages",
+    (_clientName, client) => {
       const web = [...webMap(apiKeysEn).keys()].toSorted();
       // Set equality in BOTH directions. A containment check passes when a
       // client grows a key the others never got, which is how one phone ends
       // up quietly saying something the other cannot.
       expect([...client.en.keys()].toSorted()).toEqual(web);
       expect([...client.fr.keys()].toSorted()).toEqual(web);
-    });
+    },
+  );
 
-    it(`${client.name} says the same English, word for word`, () => {
+  it.each(clientCases)(
+    "%s says the same English, word for word",
+    (_clientName, client) => {
       const web = webMap(apiKeysEn);
       const differences: string[] = [];
       for (const [key, expected] of web) {
@@ -140,9 +146,12 @@ describe("#243 API key copy is the same product on all three clients", () => {
         }
       }
       expect(differences.join("\n\n")).toBe("");
-    });
+    },
+  );
 
-    it(`${client.name} says the same French, word for word`, () => {
+  it.each(clientCases)(
+    "%s says the same French, word for word",
+    (_clientName, client) => {
       // The half that matters more. English drift is visible to whoever wrote
       // it; a French sentence that quietly differs between two devices is seen
       // only by the reader it was translated for, and only as confusion.
@@ -155,8 +164,8 @@ describe("#243 API key copy is the same product on all three clients", () => {
         }
       }
       expect(differences.join("\n\n")).toBe("");
-    });
-  }
+    },
+  );
 
   it("no sentence was left in English on a French screen", () => {
     // The failure this catches is a copy-paste: a French map that carries an

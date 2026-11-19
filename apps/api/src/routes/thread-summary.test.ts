@@ -235,10 +235,10 @@ describe("carrier truth outranks a tidy paragraph", () => {
       optOut: { source: "stop_keyword", created_at: "2026-06-30T09:00:00+00:00" },
     });
     const { ai } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       lines: unknown[];
       opt_out: { source: string; at: string } | null;
-    };
+    }>();
     // Both. A summary that succeeded is exactly the case where burying this
     // would do the damage.
     expect(body.lines.length).toBeGreaterThan(0);
@@ -253,10 +253,10 @@ describe("carrier truth outranks a tidy paragraph", () => {
       settings: { summarize_threads: false },
       optOut: { source: "carrier", created_at: "2026-06-30T09:00:00+00:00" },
     });
-    const body = (await (await summarize(sb, env)).json()) as {
+    const body = await (await summarize(sb, env)).json<{
       reason: string;
       opt_out: { source: string } | null;
-    };
+    }>();
     expect(body.reason).toBe("disabled");
     expect(body.opt_out?.source).toBe("carrier");
   });
@@ -267,10 +267,10 @@ describe("carrier truth outranks a tidy paragraph", () => {
     // downstream can collapse a guess into a fact.
     const sb = stubs({ optOutHintAt: "2026-07-01T08:00:00+00:00" });
     const { ai } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       opt_out: unknown;
       opt_out_hint_at: string | null;
-    };
+    }>();
     expect(body.opt_out).toBeNull();
     expect(body.opt_out_hint_at).toBe("2026-07-01T08:00:00+00:00");
   });
@@ -280,9 +280,9 @@ describe("nothing is spent before the free gates", () => {
   it("never reaches the model for a workspace that turned catch-ups off", async () => {
     const sb = stubs({ settings: { summarize_threads: false } });
     const { ai, run } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       reason: string;
-    };
+    }>();
     expect(body.reason).toBe("disabled");
     expect(run).not.toHaveBeenCalled();
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
@@ -291,9 +291,9 @@ describe("nothing is spent before the free gates", () => {
   it("never spends on a thread a human marked spam", async () => {
     const sb = stubs({ spam: true });
     const { ai, run } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       reason: string;
-    };
+    }>();
     expect(body.reason).toBe("spam");
     expect(run).not.toHaveBeenCalled();
   });
@@ -303,9 +303,9 @@ describe("nothing is spent before the free gates", () => {
     // than the thread, and asking anyway buys an AI unit to say so.
     const sb = stubs({ messages: thread(3) });
     const { ai, run } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       reason: string;
-    };
+    }>();
     expect(body.reason).toBe("too_short");
     expect(run).not.toHaveBeenCalled();
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
@@ -316,10 +316,10 @@ describe("nothing is spent before the free gates", () => {
       reserve: { count: 501, over_cap: true, reached_cap: false },
     });
     const { ai, run } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       lines: unknown[];
       reason: string;
-    };
+    }>();
     expect(body).toMatchObject({ lines: [], reason: "over_cap" });
     expect(run).not.toHaveBeenCalled();
   });
@@ -330,9 +330,9 @@ describe("nothing is spent before the free gates", () => {
       reserve: Response.json({ message: "nope" }, { status: 500 }),
     });
     const { ai, run } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       reason: string;
-    };
+    }>();
     expect(body.reason).toBe("over_cap");
     expect(run).not.toHaveBeenCalled();
   });
@@ -357,9 +357,9 @@ describe("the burst limiters, which the monthly cap cannot stand in for", () => 
     });
     const limiter = fakeLimiter(false);
     const { ai, run } = mockAi(CITED);
-    const body = (await (
+    const body = await (
       await summarize(sb, { ...env, AI: ai, AI_REPLY_RATE_LIMITER: limiter })
-    ).json()) as { lines: unknown[]; reason: string; opt_out: { source: string } | null };
+    ).json<{ lines: unknown[]; reason: string; opt_out: { source: string } | null }>();
 
     expect(body).toMatchObject({ lines: [], reason: "rate_limited" });
     expect(limiter.limit).toHaveBeenCalledWith({ key: COMPANY_ID });
@@ -378,14 +378,14 @@ describe("the burst limiters, which the monthly cap cannot stand in for", () => 
     const company = fakeLimiter(true);
     const member = fakeLimiter(false);
     const { ai, run } = mockAi(CITED);
-    const body = (await (
+    const body = await (
       await summarize(sb, {
         ...env,
         AI: ai,
         AI_REPLY_RATE_LIMITER: company,
         AI_MEMBER_RATE_LIMITER: member,
       })
-    ).json()) as { reason: string };
+    ).json<{ reason: string }>();
 
     expect(body.reason).toBe("rate_limited");
     expect(member.limit).toHaveBeenCalledWith({
@@ -403,14 +403,14 @@ describe("the burst limiters, which the monthly cap cannot stand in for", () => 
     const company = fakeLimiter(true);
     const member = fakeLimiter(true);
     const { ai, run } = mockAi(CITED);
-    const body = (await (
+    const body = await (
       await summarize(sb, {
         ...env,
         AI: ai,
         AI_REPLY_RATE_LIMITER: company,
         AI_MEMBER_RATE_LIMITER: member,
       })
-    ).json()) as { lines: unknown[] };
+    ).json<{ lines: unknown[] }>();
 
     expect(company.limit).toHaveBeenCalledOnce();
     expect(member.limit).toHaveBeenCalledOnce();
@@ -443,9 +443,9 @@ describe("the burst limiters, which the monthly cap cannot stand in for", () => 
     });
     const company = fakeLimiter(true);
     const { ai } = mockAi(CITED);
-    const body = (await (
+    const body = await (
       await summarize(sb, { ...env, AI: ai, AI_REPLY_RATE_LIMITER: company })
-    ).json()) as { cached: boolean };
+    ).json<{ cached: boolean }>();
 
     expect(body.cached).toBe(true);
     expect(company.limit).not.toHaveBeenCalled();
@@ -460,7 +460,7 @@ describe("the window and the prompt", () => {
     const sb = stubs();
     const { ai } = mockAi(CITED);
     await summarize(sb, { ...env, AI: ai });
-    const read = sb.find("GET", "/rest/v1/messages")[0];
+    const [read] = sb.find("GET", "/rest/v1/messages");
     expect(read.url.searchParams.get("direction")).toBe("in.(inbound,outbound)");
     expect(read.url.searchParams.get("limit")).toBe(
       String(THREAD_SUMMARY_CONTEXT_MESSAGES),
@@ -503,9 +503,9 @@ describe("the window and the prompt", () => {
   it("says the card covers a window when the thread is longer than one", async () => {
     const sb = stubs({ messages: thread(THREAD_SUMMARY_CONTEXT_MESSAGES) });
     const { ai } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       truncated: boolean;
-    };
+    }>();
     expect(body.truncated).toBe(true);
   });
 });
@@ -516,11 +516,11 @@ describe("output that cannot be trusted is not shown", () => {
     // which is the honest failure this feature is built to have.
     const sb = stubs();
     const { ai } = mockAi(UNCITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       lines: unknown[];
       reason: string;
       dropped: { uncited: number; candidates: number };
-    };
+    }>();
     expect(body.lines).toEqual([]);
     expect(body.reason).toBe("unusable_output");
     expect(body.dropped.uncited).toBe(1);
@@ -533,11 +533,11 @@ describe("output that cannot be trusted is not shown", () => {
     // nothing grounded in it may be rendered as something the crew said.
     const sb = stubs();
     const { ai } = mockAi(MISATTRIBUTED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       lines: unknown[];
       reason: string;
       dropped: { misattributed: number };
-    };
+    }>();
     expect(body.lines).toEqual([]);
     expect(body.reason).toBe("unusable_output");
     expect(body.dropped.misattributed).toBe(1);
@@ -561,18 +561,18 @@ describe("output that cannot be trusted is not shown", () => {
   it("names the envelope shape when the model answer is unrecognisable", async () => {
     const sb = stubs();
     const { ai } = mockAi({ surprising: "shape" });
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       envelope: string;
-    };
+    }>();
     expect(body.envelope).toBe("surprising");
   });
 
   it("attaches a real message id and timestamp to every line it does show", async () => {
     const sb = stubs();
     const { ai } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       lines: { text: string; message_id: string; at: string }[];
-    };
+    }>();
     expect(body.lines).toHaveLength(2);
     for (const line of body.lines) {
       expect(line.message_id).toMatch(/^msg-\d+$/);
@@ -606,10 +606,10 @@ describe("the cache", () => {
       },
     });
     const { ai, run } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       lines: unknown[];
       cached: boolean;
-    };
+    }>();
     expect(body.cached).toBe(true);
     expect(body.lines).toHaveLength(1);
     expect(run).not.toHaveBeenCalled();
@@ -624,9 +624,9 @@ describe("the cache", () => {
       cache: { last_message_id: "msg-13", lines: { lines: [], truncated: false } },
     });
     const { ai, run } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       cached?: boolean;
-    };
+    }>();
     expect(run).toHaveBeenCalledOnce();
     expect(body.cached).toBeUndefined();
   });
@@ -693,10 +693,10 @@ describe("the cache", () => {
       },
     });
     const { ai, run } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       lines: { text: string }[];
       cached?: boolean;
-    };
+    }>();
     // Not served from cache, and the fresh answer is what comes back.
     expect(body.cached).toBeUndefined();
     expect(run).toHaveBeenCalledOnce();
@@ -710,7 +710,7 @@ describe("the cache", () => {
     const sb = stubs({ messages: rows });
     const { ai } = mockAi(CITED);
     await summarize(sb, { ...env, AI: ai });
-    const write = sb.find("POST", "/rest/v1/conversation_summaries")[0];
+    const [write] = sb.find("POST", "/rest/v1/conversation_summaries");
     expect(write).toBeDefined();
     expect(write.body).toMatchObject({
       conversation_id: CONV_ID,
@@ -728,11 +728,11 @@ describe("the cache", () => {
     const rows = thread(14);
     const sb = stubs({ messages: rows });
     const { ai } = mockAi(UNCITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       reason: string;
-    };
+    }>();
     expect(body.reason).toBe("unusable_output");
-    const write = sb.find("POST", "/rest/v1/conversation_summaries")[0];
+    const [write] = sb.find("POST", "/rest/v1/conversation_summaries");
     expect(write).toBeDefined();
     expect(write.body).toMatchObject({
       last_message_id: rows[0].id,
@@ -750,10 +750,10 @@ describe("the cache", () => {
       cache: { last_message_id: rows[0].id, lines: { truncated: false } },
     });
     const { ai, run } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       lines: unknown[];
       cached?: boolean;
-    };
+    }>();
     expect(run).toHaveBeenCalledOnce();
     expect(body.cached).toBeUndefined();
     expect(body.lines.length).toBeGreaterThan(0);
@@ -766,11 +766,11 @@ describe("the cache", () => {
       cache: { last_message_id: rows[0].id, lines: { version: THREAD_SUMMARY_CACHE_VERSION, lines: [], truncated: false, emptyReason: "unusable_output" } },
     });
     const { ai, run } = mockAi(CITED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
+    const body = await (await summarize(sb, { ...env, AI: ai })).json<{
       lines: unknown[];
       reason: string;
       cached: boolean;
-    };
+    }>();
     expect(body).toMatchObject({
       lines: [],
       reason: "unusable_output",

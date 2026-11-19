@@ -177,7 +177,7 @@ describe("#540 each tile carries a reason, not just a number", () => {
 describe("#540 every tile can be named", () => {
   it("has a label for each id the ordering can return", () => {
     for (const tile of dashboardTiles(EMPTY)) {
-      expect(DASHBOARD_TILE_LABELS[tile.id]).toBeTruthy();
+      expect(Boolean(DASHBOARD_TILE_LABELS[tile.id])).toBe(true);
     }
   });
 });

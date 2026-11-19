@@ -83,10 +83,8 @@ function unscannable(reason: string, message: string): ScanResult {
 export const MAX_SCANNABLE_BYTES = 26 * 1024 * 1024;
 
 /** Entry names that are executable whatever they are wrapped in. */
-const EXECUTABLE_ENTRY = new RegExp(
-  String.raw`\.(exe|scr|com|pif|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|jar|msi|msp|dll|cpl|lnk|reg|sh|app|dmg|deb|rpm)$`,
-  "i",
-);
+const EXECUTABLE_ENTRY =
+  /\.(exe|scr|com|pif|bat|cmd|ps1|psm1|vbs|vbe|js|jse|wsf|wsh|hta|jar|msi|msp|dll|cpl|lnk|reg|sh|app|dmg|deb|rpm)$/i;
 
 /**
  * A ZIP container's expansion ratio above which it is a bomb rather than a
@@ -123,9 +121,9 @@ const u32 = (b: Uint8Array, at: number) =>
 function readZipEntries(bytes: Uint8Array): ZipEntry[] | null {
   // The End of Central Directory record is at the end, after a comment of up
   // to 65535 bytes. Search backwards for its signature.
-  const EOCD_SIG = 0x06054b50;
+  const EOCD_SIG = 0x06_05_4B_50;
   let eocd = -1;
-  const from = Math.max(0, bytes.length - (0xffff + 22));
+  const from = Math.max(0, bytes.length - (0xFF_FF + 22));
   for (let i = bytes.length - 22; i >= from; i--) {
     if (u32(bytes, i) === EOCD_SIG) {
       eocd = i;
@@ -139,12 +137,12 @@ function readZipEntries(bytes: Uint8Array): ZipEntry[] | null {
   // Zip64 stores 0xFFFF/0xFFFFFFFF sentinels here and the real values in an
   // extended record. Rather than half-implement that, say so: the caller holds
   // the file instead of guessing about it.
-  if (count === 0xffff || dirOffset === 0xffffffff) return null;
+  if (count === 0xFF_FF || dirOffset === 0xFF_FF_FF_FF) return null;
   if (dirOffset >= bytes.length) return null;
 
   const entries: ZipEntry[] = [];
   let at = dirOffset;
-  const CEN_SIG = 0x02014b50;
+  const CEN_SIG = 0x02_01_4B_50;
   for (let i = 0; i < count; i++) {
     if (at + 46 > bytes.length || u32(bytes, at) !== CEN_SIG) return null;
     const compressedSize = u32(bytes, at + 20);
@@ -192,7 +190,7 @@ function scanZip(bytes: Uint8Array): ScanResult {
   let compressed = 0;
   let uncompressed = 0;
   for (const entry of entries) {
-    const name = entry.name.replace(/\\/g, "/");
+    const name = entry.name.replaceAll('\\', "/");
     const lower = name.toLowerCase();
 
     // Zip-slip: an entry that escapes the extraction directory. There is no
@@ -248,12 +246,13 @@ function contains(haystack: Uint8Array, needle: string): boolean {
   const n = needle.length;
   if (n === 0 || haystack.length < n) return false;
   const first = needle.charCodeAt(0);
-  outer: for (let i = 0; i <= haystack.length - n; i++) {
+  for (let i = 0; i <= haystack.length - n; i++) {
     if (haystack[i] !== first) continue;
-    for (let j = 1; j < n; j++) {
-      if (haystack[i + j] !== needle.charCodeAt(j)) continue outer;
+    let matched = 1;
+    while (matched < n && haystack[i + matched] === needle.charCodeAt(matched)) {
+      matched += 1;
     }
-    return true;
+    if (matched === n) return true;
   }
   return false;
 }
@@ -289,10 +288,10 @@ function scanPdf(bytes: Uint8Array): ScanResult {
     let name = "";
     // /F (filename) entries in the file specification dictionary.
     for (let i = 0; i < bytes.length - 3; i++) {
-      if (bytes[i] === 0x2f && bytes[i + 1] === 0x46 && bytes[i + 2] === 0x20) {
+      if (bytes[i] === 0x2F && bytes[i + 1] === 0x46 && bytes[i + 2] === 0x20) {
         // "/F " then usually ( ... )
         let j = i + 3;
-        while (j < bytes.length && bytes[j] !== 0x28 && bytes[j] !== 0x0a) j++;
+        while (j < bytes.length && bytes[j] !== 0x28 && bytes[j] !== 0x0A) j += 1;
         if (bytes[j] === 0x28) {
           name = "";
           for (j++; j < bytes.length && bytes[j] !== 0x29 && name.length < 260; j++) {

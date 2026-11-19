@@ -59,7 +59,7 @@ async function main(argv: string[]): Promise<number> {
       };
       process.on("SIGTERM", stop);
       process.on("SIGINT", stop);
-      return new Promise<number>(() => undefined);
+      return new Promise<number>(() => {});
     }
     case "run": {
       if (!positionals[0]) throw new Error("run <scenario>[-<run>]");

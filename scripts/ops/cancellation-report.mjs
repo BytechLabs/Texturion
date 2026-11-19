@@ -100,7 +100,7 @@ await runScript("cancellation-report", async ({ args, db }) => {
   );
 
   console.log("  reason            gone   stayed   median tenure   plans");
-  console.log("  " + "-".repeat(62));
+  console.log(`  ${"-".repeat(62)}`);
   const ordered = [...byReason.entries()].sort(
     (a, b) => b[1].confirmed + b[1].open - (a[1].confirmed + a[1].open),
   );

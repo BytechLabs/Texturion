@@ -1666,9 +1666,9 @@ class CancellationOfferTest {
         val at = source.indexOf(marker)
         if (at < 0) fail("`$marker` not found in the shared source")
         val block = source.substring(at).substringBefore("}")
-        val match = Regex("\\b$key:\\s*(\\d+)").find(block)
-        if (match == null) fail("no `$key:` in the block after `$marker`")
-        return match!!.groupValues[1].toInt()
+        val match = Regex("\\b$key:\\s*(\\d(?:_?\\d)*)(?=\\s*(?:,|$))").find(block)
+        if (match == null) fail("no integer for `$key:` in the block after `$marker`")
+        return match!!.groupValues[1].replace("_", "").toInt()
     }
 
     private fun mainRoot(): File {

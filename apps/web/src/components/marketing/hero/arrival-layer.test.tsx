@@ -51,7 +51,7 @@ it("keeps a saved pause in force before boot and lets the visitor resume", async
   expect(screen.queryByTestId("arrival-field")).toBeNull();
 
   fireEvent.click(resume);
-  expect(await screen.findByTestId("arrival-field")).toBeTruthy();
+  await expect(screen.findByTestId("arrival-field")).resolves.toBeInstanceOf(Element);
   expect(window.localStorage.getItem(PAUSE_KEY)).toBe("0");
 
   fireEvent.click(screen.getByRole("button", { name: LABELS.pauseLabel }));

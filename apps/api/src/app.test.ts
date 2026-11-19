@@ -133,7 +133,7 @@ describe("error envelope (SPEC §7)", () => {
     // customer round a loop that can never succeed.
     const res = await app.request("/__test__/telnyx-400", {}, completeEnv());
     expect(res.status).toBe(500);
-    expect((await res.json() as { error: { code: string } }).error.code).toBe(
+    expect((await res.json<{ error: { code: string } }>()).error.code).toBe(
       "internal_error",
     );
   });

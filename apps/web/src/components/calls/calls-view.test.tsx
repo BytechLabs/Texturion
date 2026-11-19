@@ -357,8 +357,7 @@ it("retries a transfer wake once when the initial leg is recent", async () => {
   ringMe.mockResolvedValue({ rang: false, reason: "recent_leg" });
   mount(<CallsView />);
 
-  expect(ringMe).toHaveBeenCalledOnce();
-  expect(ringMe).toHaveBeenCalledWith({ sessionId: "sess-abc-123", transferId });
+  expect(ringMe).toHaveBeenCalledExactlyOnceWith({ sessionId: "sess-abc-123", transferId });
   await vi.advanceTimersByTimeAsync(12_000);
   expect(ringMe).toHaveBeenCalledTimes(2);
 });

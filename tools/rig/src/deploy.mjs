@@ -15,7 +15,7 @@
  * `--worktree <path>` deploys a checkout in place instead, for a branch an
  * agent is working on; nothing is fetched, created or installed.
  */
-import { createHash } from "node:crypto";
+import { scryptSync } from "node:crypto";
 import {
   appendFileSync,
   existsSync,
@@ -94,8 +94,9 @@ function excludeDerivedFiles() {
   appendFileSync(exclude, `${existing.endsWith("\n") || existing === "" ? "" : "\n"}${missing.map((file) => `/${file}`).join("\n")}\n`);
 }
 
-function hash(...parts) {
-  return createHash("sha256").update(parts.join("\u0000")).digest("hex");
+function configFingerprint(config, kid) {
+  // The generated key ID is random and stable until the signing key rotates.
+  return scryptSync(config, kid, 32).toString("hex");
 }
 
 async function runningKids(apiUrl) {
@@ -118,11 +119,11 @@ async function ensureStack({ workdir, configHash, kid, state, log }) {
   const status = localStatus(workdir);
   const current = status !== null && applied?.configHash === configHash && (await runningKids(status.apiUrl)).includes(kid);
   if (current) return { restarted: false };
-  if (status !== null) {
+  if (status === null) {
+    log("stack: starting");
+  } else {
     log("stack: restarting with the derived config");
     supabase(["stop"], { workdir, inherit: true });
-  } else {
-    log("stack: starting");
   }
   supabase(["start", "-x", STACK_EXCLUDES.join(",")], { workdir, inherit: true });
   mkdirSync(state, { recursive: true });
@@ -234,6 +235,7 @@ export function checkRigdUnits({ nodeBin = process.execPath, runner = run } = {}
     throw new Error(
       `rig deploy: rigd cannot build its units from ${TOOLING_ROOT}, so nothing was changed ` +
         `(run pnpm install there if its packages are missing): ${error.message}`,
+      { cause: error },
     );
   } finally {
     rmSync(out, { recursive: true, force: true });
@@ -283,7 +285,10 @@ export function activate({
       readDeployHold(state) === null
         ? `rigd's units stay as the last install left them until "node tools/rig/rigd/src/cli.ts units --install" succeeds`
         : `runs stay refused while ${deployHoldPath(state)} is there; run the same rig deploy again once rigd's install can succeed`;
-    throw new Error(`rig deploy: ${sha} is deployed and its services restarted, but rigd's units install failed, so ${recovery}: ${error.message}`);
+    throw new Error(
+      `rig deploy: ${sha} is deployed and its services restarted, but rigd's units install failed, so ${recovery}: ${error.message}`,
+      { cause: error },
+    );
   }
   log("rigd: units installed");
   if (readDeployHold(state) !== null) {
@@ -376,7 +381,7 @@ function deriveAll({ root, sha, layout, settings, store, status, partition, endp
       path: join(layout.aiShimDir, "wrangler.jsonc"),
       content: `${JSON.stringify(
         aiShimConfig({
-          main: join(TOOLING_ROOT, "tools", "rig", "ai-shim", "src", "index.mjs").replace(/\\/g, "/"),
+          main: join(TOOLING_ROOT, "tools", "rig", "ai-shim", "src", "index.mjs").replaceAll('\\', "/"),
           compatibilityDate: apiConfig.compatibility_date,
           guardAiUrl: seams(edge).guardAiUrl,
         }),
@@ -443,7 +448,7 @@ export async function deploy({ layout, settings, store, ref, worktree, options, 
   const projectId = projectIdOf(configText);
   const workdir = layout.supabaseWorkdir;
   buildSupabaseWorkdir({ refRoot: root, workdir, configText, signingKeys });
-  await ensureStack({ workdir, configHash: hash(configText, signingKeys[0].kid), kid: signingKeys[0].kid, state: layout.state, log });
+  await ensureStack({ workdir, configHash: configFingerprint(configText, signingKeys[0].kid), kid: signingKeys[0].kid, state: layout.state, log });
   const status = localStatus(workdir);
   if (status === null) throw new Error("rig deploy: the stack is not answering after start");
 

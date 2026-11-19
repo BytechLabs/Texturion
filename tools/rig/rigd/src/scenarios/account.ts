@@ -10,23 +10,20 @@ import type { NumberChoice } from "@loonext/rig-lanes";
 import type { GuardHealth } from "@loonext/rig-protocol";
 import { gpsJpeg, hasGpsExif, NUMBER_ID_PREFIX, sha256Hex } from "@loonext/rig-robot";
 import { memberEmail } from "../../../../../scripts/rig/tenants.mjs";
-import { signUpNumberKey } from "../app-probe.ts";
+import { nonceSlug, signUpNumberKey } from "../app-probe.ts";
 import { deleteStripeObject, STRIPE_DELETE_UNDO } from "../stripe-sandbox.ts";
-import {
-  fail,
-  infra,
-  pass,
-  poll,
-  type ApiAnswer,
-  type MailMessage,
-  type NumberHandoff,
-  type NumberRow,
-  type PublicPageApi,
-  type ScenarioContext,
-  type ScenarioResult,
-  type ScenarioRunner,
-  type SendResult,
-  type SignUpNumber,
+import { fail, infra, pass, poll } from "./context.ts";
+import type {
+  ApiAnswer,
+  MailMessage,
+  NumberHandoff,
+  NumberRow,
+  PublicPageApi,
+  ScenarioContext,
+  ScenarioResult,
+  ScenarioRunner,
+  SendResult,
+  SignUpNumber,
 } from "./context.ts";
 
 /** The bucket both directions of a picture message are stored in, and the edge relays Telnyx's fetch from. */
@@ -48,7 +45,7 @@ const HANDOFF_MAX_AGE_MS = 2 * DAY_MS;
 export const SUGGEST_REPLY_FEATURE = "suggest_reply";
 export const SUGGEST_REPLY_MONTHLY_CAP = 1500;
 /** The guard's AI day (tools/guard/src/limits.ts); a spent day refuses the model, not the app. */
-const GUARD_AI_NEURONS_PER_DAY = 2_000;
+const GUARD_AI_NEURONS_PER_DAY = 2000;
 
 const WIDGET_CODE = /\b(\d{6})\b/;
 
@@ -74,11 +71,6 @@ function mailboxReady(health: GuardHealth): boolean {
 
 const is2xx = (status: number) => status >= 200 && status < 300;
 
-/** A nonce as an address or tag allows it: lower case, letters, digits and dashes. */
-function slug(nonce: string): string {
-  return nonce.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-+|-+$/g, "") || "run";
-}
-
 /** S22: a picture each way. Out, Telnyx fetched the app's own copy; in, the app stored it without its GPS position. */
 export const S22: ScenarioRunner = {
   id: "S22",
@@ -103,21 +95,21 @@ async function outboundPicture(ctx: ScenarioContext): Promise<ScenarioResult | u
     return infra("app-probe", `the picture message could not be sent: ${(error as Error).message}`);
   }
   if (!sent.ok) return fail("send_refused", `the API refused the picture message with ${sent.status}${sent.code ? ` ${sent.code}` : ""}`);
-  const messageId = sent.messageId;
+  const { messageId } = sent;
   const evidence: Record<string, unknown> = { message_id: messageId };
   ctx.evidence.outbound = evidence;
 
   const arrived = await poll(ctx, async () => {
     const inbox = await ctx.robot.inbox({ to_role: "ROBOT-1", since });
     return inbox.find((m) => m.event === "message.received" && m.text === body);
-  }, 90_000, 2_000);
+  }, 90_000, 2000);
   if (!arrived) return fail("picture_not_delivered", "ROBOT-1 did not receive the picture message within 90 s");
   if (arrived.from_role !== "DEV-W1") return fail("wrong_sender", `the picture arrived from ${arrived.from_role}, not DEV-W1`);
   const media = arrived.media?.[0];
   if (!media) return fail("media_missing", "the message reached ROBOT-1 without its picture");
   if (!media.sha256) return infra("telnyx-media-hash", "Telnyx reported no hash for the picture it fetched; its hash_sha256 field is unverified");
 
-  const attachment = await poll(ctx, async () => (await ctx.app.attachments(messageId))[0], 30_000, 2_000);
+  const attachment = await poll(ctx, async () => (await ctx.app.attachments(messageId))[0], 30_000, 2000);
   if (!attachment) return fail("no_attachment_row", "the API kept no attachment row for the picture it sent");
   const stored = await ctx.app.storedObject({ bucket: MEDIA_BUCKET, path: attachment.storage_path });
   const match = sha256Hex(stored) === media.sha256;
@@ -135,9 +127,9 @@ async function inboundPicture(ctx: ScenarioContext): Promise<ScenarioResult | un
   const row = await poll(ctx, async () => {
     const rows = await ctx.app.messages({ tenant: "QA-W", body, since });
     return rows.find((r) => r.direction === "inbound");
-  }, 60_000, 2_000);
+  }, 60_000, 2000);
   if (!row) return fail("picture_not_threaded", "the picture message from ROBOT-1 was not threaded within 60 s");
-  const attachment = await poll(ctx, async () => (await ctx.app.attachments(row.id))[0], 30_000, 2_000);
+  const attachment = await poll(ctx, async () => (await ctx.app.attachments(row.id))[0], 30_000, 2000);
   if (!attachment) return fail("picture_not_stored", "the inbound picture message was threaded with no attachment");
   const stored = await ctx.app.storedObject({ bucket: MEDIA_BUCKET, path: attachment.storage_path });
   const gps = hasGpsExif(stored);
@@ -149,7 +141,7 @@ async function inboundPicture(ctx: ScenarioContext): Promise<ScenarioResult | un
     quarantined: attachment.quarantined_at !== null,
   };
   // hasGpsExif is false for anything that is not a JPEG, so the check means nothing until the bytes are one.
-  if (stored[0] !== 0xff || stored[1] !== 0xd8) return fail("stored_picture_not_jpeg", "the stored copy of the picture is not a JPEG");
+  if (stored[0] !== 0xFF || stored[1] !== 0xD8) return fail("stored_picture_not_jpeg", "the stored copy of the picture is not a JPEG");
   if (gps) return fail("gps_kept", "the stored picture still carries its GPS position");
   if (attachment.quarantined_at !== null) return fail("picture_quarantined", "the scan held a plain JPEG");
   return undefined;
@@ -183,7 +175,7 @@ export const S27: ScenarioRunner = {
     const texted = await poll(ctx, async () => {
       const inbox = await ctx.robot.inbox({ to_role: "ROBOT-1", since });
       return inbox.find((m) => m.event === "message.received" && m.from_role === "DEV-W1" && WIDGET_CODE.test(m.text));
-    }, 60_000, 2_000);
+    }, 60_000, 2000);
     if (!texted) return fail("code_not_delivered", "ROBOT-1 got no widget code from DEV-W1 within 60 s");
     ctx.evidence.code_ms = texted.received_at - since;
 
@@ -239,7 +231,7 @@ export const S28: ScenarioRunner = {
       const row = rows.find((r) => (rowId ? r.id === rowId : r.status !== "released"));
       if (row?.telnyx_phone_number_id && !bought.held) bought.held = await holdNumber(ctx, row, row.telnyx_phone_number_id);
       return row?.status === "active" && row.telnyx_phone_number_id && row.voice_connection_id ? row : undefined;
-    }, 180_000, 5_000);
+    }, 180_000, 5000);
     const number = bought.held;
     if (!number) return fail("number_not_provisioned", "no number row named a Telnyx number within 3 min of the purchase");
     ctx.evidence.number = { phone_number_id: number.phone_number_id, telnyx_phone_number_id: number.telnyx_phone_number_id };
@@ -261,7 +253,7 @@ export const S28: ScenarioRunner = {
       record: false,
       // Ringing is the whole check, so the robot gives up before anything answers.
       hangup_before_answer_ms: 20_000,
-      hangup_after_ms: 1_000,
+      hangup_after_ms: 1000,
       ring_timeout_secs: 30,
     });
     if (dialed.state === "failed") {
@@ -365,7 +357,7 @@ async function groupCheck(ctx: ScenarioContext, telnyxId: string, standingBefore
     blockers = (await poll(ctx, async () => {
       const now = (await ctx.guard.health()).ordering?.blockers ?? [];
       return now.includes("first_order_unverified") ? undefined : now;
-    }, 60_000, 5_000)) ?? blockers;
+    }, 60_000, 5000)) ?? blockers;
   }
   ctx.evidence.ordering_blockers = blockers;
   if (blockers.includes("stopped_after_group_check")) {
@@ -381,7 +373,7 @@ async function groupCheck(ctx: ScenarioContext, telnyxId: string, standingBefore
   if (status.status !== 200 || !status.in_group) {
     return fail("number_outside_group", `the guard answered ${status.status} for the new number, so it is not held in the partition's group`, { critical: true });
   }
-  const standing = (await ctx.guard.partition()).standing;
+  const { standing } = await ctx.guard.partition();
   ctx.evidence.standing = { before: standingBefore, after: standing };
   if (standing !== standingBefore) {
     return fail("standing_number_touched", `the partition held ${standingBefore} standing numbers before the purchase and ${standing} after`, { critical: true });
@@ -447,7 +439,7 @@ async function graceAndRelease(ctx: ScenarioContext): Promise<ScenarioResult> {
   const settled = await poll(ctx, async () => {
     const state = await ctx.app.graceState({ tenant: GRACE_TENANT });
     return state.notices.includes(30) ? state : undefined;
-  }, 120_000, 5_000);
+  }, 120_000, 5000);
   const after = settled ?? (await ctx.app.graceState({ tenant: GRACE_TENANT }));
   const row = number ? after.numbers.find((r) => r.id === number.phone_number_id) : undefined;
   ctx.evidence.grace = {
@@ -461,7 +453,7 @@ async function graceAndRelease(ctx: ScenarioContext): Promise<ScenarioResult> {
   const because = cronError ? ` (the cron answered: ${cronError})` : "";
   const release = await judgeRelease(ctx, number, { held: Boolean(heldRow), row }, because);
 
-  const standing = (await ctx.guard.partition()).standing;
+  const { standing } = await ctx.guard.partition();
   if (standing !== standingBefore) {
     return fail("standing_number_touched", `grace left ${standing} standing numbers where there were ${standingBefore}`, { critical: true });
   }
@@ -492,11 +484,12 @@ async function judgeRelease(
   }
   if (!grace.held) return infra("s28-handoff", "QA-G did not hold the number S28 handed off, so the release half was not covered");
   let result: ScenarioResult | undefined;
-  if (grace.row?.status !== "released") result = fail("number_not_released", `the number's row reads ${grace.row?.status ?? "nothing"} after grace${because}`);
-  else {
+  if (grace.row?.status === "released") {
     const status = await ctx.guard.numberStatus(number.telnyx_phone_number_id);
     ctx.evidence.number_lookup = status.status;
     if (status.status !== 404) result = fail("telnyx_number_kept", `the guard still answers ${status.status} for the released number`);
+  } else {
+    result = fail("number_not_released", `the number's row reads ${grace.row?.status ?? "nothing"} after grace${because}`);
   }
   ctx.evidence.release = result ?? { outcome: "pass" };
   return result;
@@ -538,8 +531,8 @@ export function graduatedAmount(tiers: readonly StripeTier[], quantity: number):
     if (quantity <= floor) break;
     const ceiling = tier.up_to ?? Infinity;
     const units = Math.min(quantity, ceiling) - floor;
-    const unit = tier.unit_amount_decimal != null ? Number(tier.unit_amount_decimal) : (tier.unit_amount ?? 0);
-    const flat = tier.flat_amount_decimal != null ? Number(tier.flat_amount_decimal) : (tier.flat_amount ?? 0);
+    const unit = tier.unit_amount_decimal == null ? (tier.unit_amount ?? 0) : Number(tier.unit_amount_decimal);
+    const flat = tier.flat_amount_decimal == null ? (tier.flat_amount ?? 0) : Number(tier.flat_amount_decimal);
     total += units * unit + flat;
     floor = ceiling;
   }
@@ -595,11 +588,11 @@ async function billingTotals(ctx: ScenarioContext): Promise<ScenarioResult> {
       const summaries = await ctx.stripe.request<{ data?: { aggregated_value?: number }[] }>("GET", `/v1/billing/meters/${meter}/event_summaries`, {
         customer: customer.id,
         start_time: start,
-        end_time: start + 3_600,
+        end_time: start + 3600,
       });
       const sum = (summaries.data ?? []).reduce((total, summary) => total + (summary.aggregated_value ?? 0), 0);
       return sum >= S29_SEGMENTS ? sum : undefined;
-    }, 120_000, 5_000);
+    }, 120_000, 5000);
     evidence.metered = counted ?? null;
     if (counted === undefined) return infra("stripe", "the meter had not counted the usage 2 minutes after it was reported");
 
@@ -608,7 +601,7 @@ async function billingTotals(ctx: ScenarioContext): Promise<ScenarioResult> {
       const state = await ctx.stripe.request<{ status?: string }>("GET", clockPath!);
       if (state.status === "internal_failure") throw new Error("the test clock failed while advancing");
       return state.status === "ready" ? true : undefined;
-    }, 300_000, 5_000);
+    }, 300_000, 5000);
     if (!advanced) return infra("stripe", "the test clock had not finished advancing after 5 minutes");
 
     const invoices = await ctx.stripe.request<{ data?: { id?: string; billing_reason?: string; subtotal?: number }[] }>("GET", "/v1/invoices", {
@@ -642,7 +635,7 @@ async function removeFromSandbox(ctx: ScenarioContext, path: string): Promise<vo
 const DRAFT_SETUP_REASONS: ReadonlySet<string> = new Set(["disabled", "unavailable", "rate_limited", "subscription_inactive", "nothing_to_reply", "spam"]);
 
 function draftOf(answer: ApiAnswer<{ suggestions?: unknown[]; reason?: string }>) {
-  const body = answer.body;
+  const { body } = answer;
   return { status: answer.status, drafts: Array.isArray(body?.suggestions) ? body.suggestions.length : 0, reason: body?.reason ?? null };
 }
 
@@ -694,7 +687,7 @@ export const S31: ScenarioRunner = {
 
 /** The address S32 and S35 sign up with; the app probe's deleteSignUp removes nothing else. */
 export function signUpAddress(scenario: "S32" | "S35", nonce: string): string {
-  return `delivered+rig-${scenario.toLowerCase()}-${slug(nonce)}@resend.dev`;
+  return `delivered+rig-${scenario.toLowerCase()}-${nonceSlug(nonce)}@resend.dev`;
 }
 
 /** The sign-up's password: made per run, typed once, kept nowhere. */
@@ -727,7 +720,7 @@ async function signUpAndConfirm(
     if (signedUp.alert && /captcha|turnstile/i.test(signedUp.alert)) return infra("turnstile", signedUp.alert);
     return fail("sign_up_refused", `the sign-up form refused the new owner${signedUp.alert ? `: ${signedUp.alert}` : ""}`);
   }
-  const confirmation = await poll(ctx, async () => (await ctx.mail.mailpit({ to: email, since })).find((mail) => mail.links.length > 0), 120_000, 3_000);
+  const confirmation = await poll(ctx, async () => (await ctx.mail.mailpit({ to: email, since })).find((mail) => mail.links.length > 0), 120_000, 3000);
   if (!confirmation) return fail("no_confirmation_mail", "no confirmation mail with a link reached Mailpit within 2 min");
   await page.goto(confirmationLink(confirmation));
   const path = await page.path();
@@ -753,7 +746,7 @@ const S32_AREA_CODES = ["416", "647", "437", "905", "289"] as const;
 /** A Toronto postal code: Checkout's automatic tax needs the customer's country and postal code. */
 const S32_POSTAL_CODE = "M5V 3L9";
 /** The grace notice still looks the owner up and pushes after the cancellation is mirrored. */
-const CANCELLATION_SETTLE_MS = 5_000;
+const CANCELLATION_SETTLE_MS = 5000;
 /** The Telnyx writes that buy, bind, profile or release a number: S32 must forward none of them. */
 const NUMBER_WRITES: ReadonlySet<string> = new Set([
   ORDER,
@@ -855,7 +848,7 @@ async function adoptLate(ctx: ScenarioContext, email: string, made: CheckoutObje
   const workspace = await poll(ctx, async () => {
     const found = await ctx.app.workspaceOf({ ownerEmail: email });
     return found?.stripe_subscription_id ? found : undefined;
-  }, LATE_SUBSCRIPTION_MS, 3_000);
+  }, LATE_SUBSCRIPTION_MS, 3000);
   ctx.evidence.late_subscription = workspace?.stripe_subscription_id !== undefined;
   if (!workspace?.stripe_subscription_id) return;
   try {
@@ -885,7 +878,7 @@ async function payAndJudge(
   const workspace = await poll(ctx, async () => {
     const found = await ctx.app.workspaceOf({ ownerEmail: email });
     return found?.stripe_subscription_id ? found : undefined;
-  }, 90_000, 3_000);
+  }, 90_000, 3000);
   if (!workspace?.stripe_subscription_id) return fail("no_subscription", "the workspace named no subscription within 90 s of Checkout");
   try {
     await adoptCheckoutObjects(ctx, email, { stripe_subscription_id: workspace.stripe_subscription_id, stripe_customer_id: workspace.stripe_customer_id }, made);
@@ -951,7 +944,7 @@ async function purchaseSkipped(ctx: ScenarioContext, email: string, fixture: Sig
   const event = await poll(ctx, async () => {
     const found = await ctx.app.checkoutEvent({ ownerEmail: email });
     return found?.processed ? found : undefined;
-  }, 90_000, 3_000);
+  }, 90_000, 3000);
   if (!event) {
     const last = await ctx.app.checkoutEvent({ ownerEmail: email });
     return fail("checkout_webhook_unfinished", last ? `the paid webhook did not finish within 90 s${last.last_error ? `: ${last.last_error}` : ""}` : "no paid webhook reached the app within 90 s");
@@ -994,7 +987,7 @@ function judgeSignUpActivity(ctx: ScenarioContext, activity: Record<string, numb
  * for the day-1 grace notice. Recorded, not judged.
  */
 async function cancellationMirrored(ctx: ScenarioContext, email: string): Promise<void> {
-  const canceled = await poll(ctx, async () => (await ctx.app.workspaceOf({ ownerEmail: email }))?.subscription_status === "canceled", 60_000, 3_000);
+  const canceled = await poll(ctx, async () => (await ctx.app.workspaceOf({ ownerEmail: email }))?.subscription_status === "canceled", 60_000, 3000);
   ctx.evidence.cancellation_mirrored = canceled === true;
   if (canceled) await ctx.sleep(CANCELLATION_SETTLE_MS);
 }
@@ -1042,7 +1035,7 @@ export const S34: ScenarioRunner = {
   // The guard mails the robot mailbox only under a live S34 lease of its own.
   guardLease: true,
   async run(ctx) {
-    const tag = `s34-acct-${slug(ctx.nonce)}`;
+    const tag = `s34-acct-${nonceSlug(ctx.nonce)}`;
     const address = ctx.mail.robotAddress(tag);
     if (!address) return infra("robot-mailbox", "the rig's private config names no robot mailbox");
     if (!mailboxReady(await ctx.guard.health())) return infra("robot-mailbox", "the guard's mailbox heartbeat is stale or its mail is halted");
@@ -1074,7 +1067,7 @@ export const S34: ScenarioRunner = {
 
     const [invite, reset] = await Promise.all([
       poll(ctx, async () => (await ctx.mail.robotMail({ since, tag }))[0], 600_000, 15_000),
-      poll(ctx, async () => (await ctx.mail.mailpit({ to: memberEmail(RESET_MEMBER.tenant, RESET_MEMBER.member), since }))[0], 120_000, 3_000),
+      poll(ctx, async () => (await ctx.mail.mailpit({ to: memberEmail(RESET_MEMBER.tenant, RESET_MEMBER.member), since }))[0], 120_000, 3000),
     ]);
     if (!invite) {
       // Local auth can mail a moment after its answer, so the first look above may precede its mail.

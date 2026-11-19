@@ -1,4 +1,5 @@
-import { resolveLocale, type Locale } from "@loonext/shared";
+import { resolveLocale } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import { storedBytes } from './stored-bytes';
 import type { StorageUsageRow } from './stored-bytes';

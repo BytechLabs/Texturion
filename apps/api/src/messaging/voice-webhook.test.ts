@@ -18,7 +18,6 @@ import type { Env } from "../env";
 import { messageRow, restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
 import { completeEnv, stubFetch } from '../test/support';
-import type { FetchRoute } from '../test/support';
 import {
   buildOutboundPlacerState,
   buildOutboundState,
@@ -245,13 +244,9 @@ function upsertCallStub(merged: Record<string, unknown> = {}): Stub {
 }
 
 /** #129: api_thread_call RPC — default threads into a conversation. */
-function threadCallStub(
-  result: Record<string, unknown> = {
-    contact_id: "ct-1",
-    conversation_id: CONVERSATION_ID,
-  },
-): Stub {
-  return stubRoute(rpcMatch(env, "api_thread_call"), () => result);
+function threadCallStub(result?: Record<string, unknown>): Stub {
+  const payload = result ?? { contact_id: "ct-1", conversation_id: CONVERSATION_ID };
+  return stubRoute(rpcMatch(env, "api_thread_call"), () => payload);
 }
 
 /** #129: the calls-row contact/conversation link PATCH. */
@@ -337,9 +332,9 @@ function serve(...stubs: Stub[]) {
     stubRoute(restMatch(env, "GET", "calls"), () => [{ id: "existing-row" }]),
   ];
   stubFetch(
-    ...([...stubs, ...callsModelStubs(), ...d43Defaults].map(
+    ...[...stubs, ...callsModelStubs(), ...d43Defaults].map(
       (s) => s.route,
-    ) as FetchRoute[]),
+    ),
   );
 }
 

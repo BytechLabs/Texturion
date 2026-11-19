@@ -341,21 +341,25 @@ export interface CalendarWorkerDependencies {
 }
 
 class CalendarLeaseEndedError extends Error {
-  constructor(
-    readonly operation: string,
-    readonly outcome: "lease_lost" | "superseded",
-  ) {
+  readonly operation: string;
+  readonly outcome: "lease_lost" | "superseded";
+
+  constructor(operation: string, outcome: "lease_lost" | "superseded") {
     super(`${operation}: ${outcome}`);
+    this.operation = operation;
+    this.outcome = outcome;
     this.name = "CalendarLeaseEndedError";
   }
 }
 
 class CalendarMutationRejectedError extends Error {
-  constructor(
-    readonly operation: string,
-    readonly outcome: string,
-  ) {
+  readonly operation: string;
+  readonly outcome: string;
+
+  constructor(operation: string, outcome: string) {
     super(`${operation}: unexpected outcome ${outcome}`);
+    this.operation = operation;
+    this.outcome = outcome;
     this.name = "CalendarMutationRejectedError";
   }
 }
@@ -633,7 +637,6 @@ async function applyInbound(
       expectMutationOutcome("mark calendar recurrence refusal", result, [
         "refused",
       ]);
-      return;
     }
   }
 }

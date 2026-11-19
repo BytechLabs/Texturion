@@ -31,7 +31,7 @@ export function groupTasks(tasks: Task[], group: Exclude<TaskGroup, "status">): 
   const byPerson = new Map<string, Task[]>();
   const nobody: Task[] = [];
   for (const task of tasks) {
-    const first = taskAssigneeIds(task)[0];
+    const [first] = taskAssigneeIds(task);
     if (first === undefined) nobody.push(task);
     else byPerson.set(first, [...(byPerson.get(first) ?? []), task]);
   }

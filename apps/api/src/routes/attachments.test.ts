@@ -106,7 +106,7 @@ function overlapProbe(route: FetchRoute) {
     inFlight.set(path, (inFlight.get(path) ?? 0) + 1);
     try {
       const response = await answer;
-      await new Promise((resolve) => setTimeout(resolve, 5));
+      await new Promise((resolve) => { setTimeout(resolve, 5); });
       return response;
     } finally {
       const left = (inFlight.get(path) ?? 1) - 1;
@@ -120,7 +120,7 @@ function overlapProbe(route: FetchRoute) {
 }
 
 /** A 1×1 PNG's leading magic bytes (enough for the byte sniff). */
-const PNG_MAGIC = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const PNG_MAGIC = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A];
 function pngBytes(): Uint8Array {
   const bytes = new Uint8Array(64);
   bytes.set(PNG_MAGIC, 0);
@@ -204,11 +204,11 @@ describe("GET /v1/attachments/:id/url", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       url: string;
       expires_at: string;
       ttl_seconds: number;
-    };
+    }>();
     expect(body.url).toContain("token=sig");
     // Generic TTL is 300s (D19 §2.5), said beside the URL so a client can
     // cache it for exactly as long as it works.
@@ -216,21 +216,21 @@ describe("GET /v1/attachments/:id/url", () => {
 
     // Generic arm is company-scoped and live-only; it signs the `attachments`
     // bucket.
-    const lookup = sb.find("GET", "/rest/v1/attachments")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/attachments");
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(lookup.url.searchParams.get("deleted_at")).toBe("is.null");
     expect(signedObjects(sb)).toEqual([
       `attachments/${COMPANY_ID}/task/${TASK_ID}/uuid-quote.pdf`,
     ]);
-    const sign = sb.find("POST", /^\/storage\/v1\/object\/sign\//)[0];
+    const [sign] = sb.find("POST", /^\/storage\/v1\/object\/sign\//);
     expect(sign.body).toMatchObject({ expiresIn: 300 });
 
     // #16: the mint claimed the object's bytes against the fixed allowance
     // (#121), keyed on the billing period, BEFORE the sign call.
-    const claim = sb.find(
+    const [claim] = sb.find(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress_objects",
-    )[0];
+    );
     expect(claim.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_since: PERIOD_START,
@@ -269,9 +269,9 @@ describe("GET /v1/attachments/:id/url", () => {
         {
           id: ATTACHMENT_ID,
           storage_path: ORIGINAL,
-          size_bytes: 20971520,
+          size_bytes: 20_971_520,
           preview_path: PREVIEW,
-          preview_bytes: 184320,
+          preview_bytes: 184_320,
           content_type: "image/jpeg",
         },
       ]);
@@ -299,7 +299,7 @@ describe("GET /v1/attachments/:id/url", () => {
       rowWithPreview(sb);
       const res = await mint(sb);
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ variant: "preview" });
+      await expect(res.json()).resolves.toMatchObject({ variant: "preview" });
       expect(signedObjects(sb)).toEqual([`attachments/${PREVIEW}`]);
     });
 
@@ -310,12 +310,12 @@ describe("GET /v1/attachments/:id/url", () => {
       const sb = stubWithRole("member");
       rowWithPreview(sb);
       await mint(sb);
-      const claim = sb.find(
+      const [claim] = sb.find(
         "POST",
         "/rest/v1/rpc/claim_signed_url_egress_objects",
-      )[0];
+      );
       expect(claim.body).toMatchObject({
-        p_objects: [{ key: `attachments/${PREVIEW}`, bytes: 184320 }],
+        p_objects: [{ key: `attachments/${PREVIEW}`, bytes: 184_320 }],
       });
     });
 
@@ -325,14 +325,14 @@ describe("GET /v1/attachments/:id/url", () => {
       const sb = stubWithRole("member");
       rowWithPreview(sb);
       const res = await mint(sb, "?variant=original");
-      expect(await res.json()).toMatchObject({ variant: "original" });
+      await expect(res.json()).resolves.toMatchObject({ variant: "original" });
       expect(signedObjects(sb)).toEqual([`attachments/${ORIGINAL}`]);
-      const claim = sb.find(
+      const [claim] = sb.find(
         "POST",
         "/rest/v1/rpc/claim_signed_url_egress_objects",
-      )[0];
+      );
       expect(claim.body).toMatchObject({
-        p_objects: [{ key: `attachments/${ORIGINAL}`, bytes: 20971520 }],
+        p_objects: [{ key: `attachments/${ORIGINAL}`, bytes: 20_971_520 }],
       });
     });
 
@@ -347,7 +347,7 @@ describe("GET /v1/attachments/:id/url", () => {
         {
           id: ATTACHMENT_ID,
           storage_path: ORIGINAL,
-          size_bytes: 20971520,
+          size_bytes: 20_971_520,
           content_type: "image/jpeg",
         },
       ]);
@@ -356,7 +356,7 @@ describe("GET /v1/attachments/:id/url", () => {
       stubSigning(sb);
       const res = await mint(sb);
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ variant: "original" });
+      await expect(res.json()).resolves.toMatchObject({ variant: "original" });
       expect(signedObjects(sb)).toEqual([`attachments/${ORIGINAL}`]);
     });
 
@@ -369,9 +369,9 @@ describe("GET /v1/attachments/:id/url", () => {
           {
             id: ATTACHMENT_ID,
             storage_path: ORIGINAL,
-            size_bytes: 20971520,
+            size_bytes: 20_971_520,
             preview_path: PREVIEW,
-            preview_bytes: 184320,
+            preview_bytes: 184_320,
             content_type: "image/jpeg",
             quarantined_at: "2026-08-01T00:00:00Z",
           },
@@ -394,7 +394,7 @@ describe("GET /v1/attachments/:id/url", () => {
         {
           id: ATTACHMENT_ID,
           storage_path: "mms-media/co/msg/img.jpg",
-          size_bytes: 900000,
+          size_bytes: 900_000,
           content_type: "image/jpeg",
           messages: { conversation_id: CONV_ID },
         },
@@ -403,7 +403,7 @@ describe("GET /v1/attachments/:id/url", () => {
       stubSigning(sb);
       const res = await mint(sb);
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({ variant: "original" });
+      await expect(res.json()).resolves.toMatchObject({ variant: "original" });
     });
   });
 
@@ -434,7 +434,7 @@ describe("GET /v1/attachments/:id/url", () => {
     async function mintedUrl(sb: SupabaseStub): Promise<string> {
       const res = await mint(sb);
       expect(res.status).toBe(200);
-      return ((await res.json()) as { url: string }).url;
+      return (await res.json<{ url: string }>()).url;
     }
 
     async function mint(sb: SupabaseStub): Promise<Response> {
@@ -453,7 +453,7 @@ describe("GET /v1/attachments/:id/url", () => {
         { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/quote.pdf`,
           size_bytes: 2048, content_type: "application/pdf" },
       ]);
-      expect(await mintedUrl(sb)).toMatch(/[?&]download(=|$)/);
+      await expect(mintedUrl(sb)).resolves.toMatch(/[?&]download(=|$)/);
     });
 
     it("forces a download for the ZIP-container document formats", async () => {
@@ -467,7 +467,8 @@ describe("GET /v1/attachments/:id/url", () => {
           { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/doc`, size_bytes: 10,
             content_type: type },
         ]);
-        expect(await mintedUrl(sb), type).toMatch(/[?&]download(=|$)/);
+        const url = await mintedUrl(sb);
+        expect(url, type).toMatch(/[?&]download(=|$)/);
       }
     });
 
@@ -481,7 +482,7 @@ describe("GET /v1/attachments/:id/url", () => {
         { id: ATTACHMENT_ID, storage_path: `${COMPANY_ID}/note/x/photo.jpg`,
           size_bytes: 2048, content_type: "image/jpeg" },
       ]);
-      expect(await mintedUrl(sb)).not.toMatch(/[?&]download(=|$)/);
+      await expect(mintedUrl(sb)).resolves.not.toMatch(/[?&]download(=|$)/);
     });
 
     it("forces a download when the type is missing or unrecognised", async () => {
@@ -498,7 +499,8 @@ describe("GET /v1/attachments/:id/url", () => {
       ]) {
         const sb = stubWithRole("member");
         sb.on("GET", "/rest/v1/attachments", () => [row]);
-        expect(await mintedUrl(sb), JSON.stringify(row)).toMatch(
+        const url = await mintedUrl(sb);
+        expect(url, JSON.stringify(row)).toMatch(
           /[?&]download(=|$)/,
         );
       }
@@ -529,30 +531,30 @@ describe("GET /v1/attachments/:id/url", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       url: string;
       expires_at: string;
       ttl_seconds: number;
-    };
+    }>();
     expect(body.url).toContain("token=sig");
     expect(body.ttl_seconds).toBe(3600);
     const expires = new Date(body.expires_at).getTime();
-    expect(expires).toBeGreaterThanOrEqual(before + 3595_000);
-    expect(expires).toBeLessThanOrEqual(before + 3605_000);
+    expect(expires).toBeGreaterThanOrEqual(before + 3_595_000);
+    expect(expires).toBeLessThanOrEqual(before + 3_605_000);
 
-    const lookup = sb.find("GET", "/rest/v1/message_attachments")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/message_attachments");
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     // Bucket prefix stripped for the Storage sign call.
     expect(signedObjects(sb)).toEqual([`mms-media/${COMPANY_ID}/msg-1/0`]);
-    const sign = sb.find("POST", /^\/storage\/v1\/object\/sign\//)[0];
+    const [sign] = sb.find("POST", /^\/storage\/v1\/object\/sign\//);
     expect(sign.body).toMatchObject({ expiresIn: 3600 });
     // MMS media draws on the same egress pool; a legacy NULL size claims 0.
     // The key uses the STRIPPED path — the same spelling the gallery claims
     // on, so one photo is never charged twice for being asked two ways (#261).
-    const claim = sb.find(
+    const [claim] = sb.find(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress_objects",
-    )[0];
+    );
     expect(claim.body).toMatchObject({
       p_objects: [
         {
@@ -587,9 +589,9 @@ describe("GET /v1/attachments/:id/url", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(402);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       error: { code: string; message: string };
-    };
+    }>();
     expect(body.error.code).toBe("usage_cap_reached");
     expect(body.error.message).toContain("200 GB");
     // Cap-and-drop: over the allowance, NOTHING is signed.
@@ -612,7 +614,7 @@ describe("GET /v1/attachments/:id/url", () => {
     sb.on(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress_objects",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -649,7 +651,7 @@ describe("GET /v1/attachments/:id/url", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0];
+    const [claim] = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
     const now = new Date();
     expect((claim.body as { p_since: string }).p_since).toBe(
       new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1)).toISOString(),
@@ -786,9 +788,9 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
       {
         id: PHOTO,
         storage_path: `${COMPANY_ID}/note/${NOTE_ID}/roof.jpg`,
-        size_bytes: 20971520,
+        size_bytes: 20_971_520,
         preview_path: PHOTO_PREVIEW,
-        preview_bytes: 184320,
+        preview_bytes: 184_320,
         conversation_id: CONV_ID,
         content_type: "image/jpeg",
         quarantined_at: null,
@@ -814,7 +816,7 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
       {
         id: TEXTED,
         storage_path: `mms-media/${TEXTED_PATH}`,
-        size_bytes: 900000,
+        size_bytes: 900_000,
         content_type: "image/jpeg",
         quarantined_at: null,
         messages: { conversation_id: CONV_ID },
@@ -855,10 +857,10 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     stubSigning(sb);
     const res = await mintBatch(sb, everything);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: Record<string, unknown>[];
       errors: { id: string; code: string; message: string }[];
-    };
+    }>();
 
     expect(body.data).toEqual([
       expect.objectContaining({
@@ -920,8 +922,8 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
       .sort((a, b) => a - b);
     expect(windows[0]).toBeGreaterThanOrEqual(300_000 - 5000);
     expect(windows[0]).toBeLessThan(300_000 + 5000);
-    expect(windows[1]).toBeGreaterThanOrEqual(3600_000 - 5000);
-    expect(windows[1]).toBeLessThan(3600_000 + 5000);
+    expect(windows[1]).toBeGreaterThanOrEqual(3_600_000 - 5000);
+    expect(windows[1]).toBeLessThan(3_600_000 + 5000);
     // The anchor was read with the lookups, never once per claim.
     expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(1);
 
@@ -937,7 +939,7 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     sb.on(
       "POST",
       "/rest/v1/rpc/claim_signed_url_egress_objects",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on("GET", "/rest/v1/attachments", () => [
       { id: PHOTO, storage_path: `${COMPANY_ID}/note/n/a.jpg`, size_bytes: 10 },
@@ -957,10 +959,10 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     stubSigning(sb);
     const res = await mintBatch(sb, [{ id: PHOTO, variant: "original" }, { id: TEXTED }]);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string }[];
       errors: { id: string; requested_variant: string; code: string }[];
-    };
+    }>();
     expect(body.data.map((item) => item.id)).toEqual([TEXTED]);
     expect(body.errors).toEqual([
       expect.objectContaining({
@@ -985,11 +987,12 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     const res = await mintBatch(
       sb,
       [{ id: PHOTO }, { id: TEXTED }, { id: MISSING }],
-      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter } as typeof env,
+      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter },
     );
     expect(res.status).toBe(200);
+    const rateLimitKey = `attachment-url:${COMPANY_ID}:${auth.subject}`;
     expect(keys).toEqual(
-      Array(3).fill(`attachment-url:${COMPANY_ID}:${auth.subject}`),
+      Array.from({ length: 3 }, () => rateLimitKey),
     );
   });
 
@@ -999,7 +1002,7 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     const res = await mintBatch(
       sb,
       [{ id: PHOTO }],
-      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter } as typeof env,
+      { ...env, ATTACHMENT_URL_RATE_LIMITER: limiter },
     );
     expect(res.status).toBe(429);
     expect(sb.find("GET", "/rest/v1/attachments")).toHaveLength(0);
@@ -1018,10 +1021,10 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     });
     const res = await mintBatch(sb, [{ id: PHOTO }, { id: TEXTED }]);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string }[];
       errors: { id: string; code: string }[];
-    };
+    }>();
     expect(body.data.map((item) => item.id)).toEqual([PHOTO]);
     expect(body.errors).toEqual([
       expect.objectContaining({ id: TEXTED, code: "internal_error" }),
@@ -1048,7 +1051,7 @@ describe("POST /v1/attachments/urls (a thread's attachments in one request)", ()
     const signs = sb.find("POST", /^\/storage\/v1\/object\/sign\//);
     // Two images inline in one call, the PDF as a download in another.
     expect(signs).toHaveLength(2);
-    const body = (await res.json()) as { data: { id: string; url: string }[] };
+    const body = await res.json<{ data: { id: string; url: string }[] }>();
     const pdf = body.data.find((item) => item.id === HIDDEN);
     expect(pdf?.url).toMatch(/[?&]download(=|$)/);
     const photo = body.data.find((item) => item.id === PHOTO);
@@ -1131,7 +1134,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
   describe("the preview that rides along", () => {
     function bigJpeg(sizeBytes: number): Uint8Array {
       const bytes = new Uint8Array(sizeBytes);
-      bytes.set([0xff, 0xd8, 0xff, 0xe0], 0);
+      bytes.set([0xFF, 0xD8, 0xFF, 0xE0], 0);
       return bytes;
     }
 
@@ -1178,7 +1181,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
         ),
       );
       expect(res.status).toBe(201);
-      expect(await res.json()).toMatchObject({ has_preview: true });
+      await expect(res.json()).resolves.toMatchObject({ has_preview: true });
 
       // Two objects, the preview keyed beside its original so the pair is
       // legible in a bucket listing.
@@ -1189,7 +1192,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       expect(writes[1].path).toMatch(/\/preview-[0-9a-f-]+-roof\.jpg$/);
 
       // …and the row points at it, with the size the egress claim will charge.
-      const stamp = sb.find("PATCH", "/rest/v1/attachments")[0];
+      const [stamp] = sb.find("PATCH", "/rest/v1/attachments");
       expect(stamp.body).toMatchObject({ preview_bytes: 120 * 1024 });
     });
 
@@ -1281,8 +1284,8 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       sb.on("POST", /^\/storage\/v1\/object\/attachments\//, () => {
         write += 1;
         return write === 1
-          ? ({ Key: "attachments/x" } as unknown as Record<string, unknown>)
-          : new Response(JSON.stringify({ message: "storage is having a day" }), {
+          ? ({ Key: "attachments/x" })
+          : Response.json({ message: "storage is having a day" }, {
               status: 500,
             });
       });
@@ -1300,7 +1303,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
         ),
       );
       expect(res.status).toBe(201);
-      expect(await res.json()).toMatchObject({ has_preview: false });
+      await expect(res.json()).resolves.toMatchObject({ has_preview: false });
       // Nothing was stamped, so nothing points at a half-written object.
       expect(sb.find("PATCH", "/rest/v1/attachments")).toHaveLength(0);
     });
@@ -1350,7 +1353,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
         }),
       );
       expect(res.status).toBe(201);
-      expect(await res.json()).toMatchObject({ has_preview: false });
+      await expect(res.json()).resolves.toMatchObject({ has_preview: false });
       expect(sb.find("POST", /^\/storage\/v1\/object\/attachments\//)).toHaveLength(1);
       // One stamp, and it carries the hash ONLY — there is no preview to point
       // at, and writing a null over one would be a different bug.
@@ -1420,17 +1423,17 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       twinStubs(sb, {
         storage_path: TWIN_PATH,
         preview_path: `${COMPANY_ID}/note/${NOTE_ID}/preview-uuid-original.pdf`,
-        preview_bytes: 150000,
+        preview_bytes: 150_000,
       });
       uploadStubs(sb);
       sb.on("PATCH", "/rest/v1/attachments", () => []);
       sb.on("POST", "/rest/v1/conversation_events", () => []);
 
       const res = await upload(sb);
-      expect(await res.json()).toMatchObject({ has_preview: true });
+      await expect(res.json()).resolves.toMatchObject({ has_preview: true });
       expect(sb.find("PATCH", "/rest/v1/attachments")[0].body).toMatchObject({
         preview_path: `${COMPANY_ID}/note/${NOTE_ID}/preview-uuid-original.pdf`,
-        preview_bytes: 150000,
+        preview_bytes: 150_000,
       });
     });
 
@@ -1448,7 +1451,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       sb.on("POST", "/rest/v1/conversation_events", () => []);
 
       await upload(sb);
-      const lookup = sb.find("POST", "/rest/v1/rpc/api_attachment_by_content")[0];
+      const [lookup] = sb.find("POST", "/rest/v1/rpc/api_attachment_by_content");
       expect(lookup.body).toMatchObject({ p_company_id: COMPANY_ID });
       // SHA-256 of "%PDF-1.4 the same spec sheet", hex — pinned so a change of
       // algorithm or encoding cannot pass silently and split every workspace's
@@ -1471,7 +1474,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       const res = await upload(sb);
       expect(res.status).toBe(201);
       expect(sb.find("POST", /^\/storage\/v1\/object\/attachments\//)).toHaveLength(1);
-      const stamp = sb.find("PATCH", "/rest/v1/attachments")[0];
+      const [stamp] = sb.find("PATCH", "/rest/v1/attachments");
       expect((stamp.body as { content_sha256: string }).content_sha256).toMatch(
         /^[0-9a-f]{64}$/,
       );
@@ -1503,7 +1506,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       },
     );
     expect(res.status).toBe(201);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body).toMatchObject({ owner_type: "note", owner_id: NOTE_ID });
     // Never leaks storage_path (the RPC returns to_jsonb of the full row; the
     // route projects to the API columns).
@@ -1511,7 +1514,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
     expect(body).not.toHaveProperty("uploaded_by_user_id");
 
     // Note ownership was company-scoped.
-    const ownerLookup = sb.find("GET", "/rest/v1/messages")[0];
+    const [ownerLookup] = sb.find("GET", "/rest/v1/messages");
     expect(ownerLookup.url.searchParams.get("company_id")).toBe(
       `eq.${COMPANY_ID}`,
     );
@@ -1527,7 +1530,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
     // (no companies read at all on POST).
     expect(sb.find("GET", "/rest/v1/companies")).toHaveLength(0);
     // Upload keyed {company}/{owner_type}/{owner_id}/{uuid}-{safe_name}.
-    const upload = sb.find("POST", /^\/storage\/v1\/object\/attachments\//)[0];
+    const [upload] = sb.find("POST", /^\/storage\/v1\/object\/attachments\//);
     expect(upload.path).toMatch(
       new RegExp(
         `/storage/v1/object/attachments/${COMPANY_ID}/note/${NOTE_ID}/[0-9a-f-]+-photo\\.png$`,
@@ -1536,7 +1539,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
     // The atomic claim carried the owner + the storage path + the #121
     // UNBOUNDED budget (storage never blocks); there is NO separate PostgREST
     // insert (the RPC inserts under the lock).
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_attachment_storage")[0];
+    const [claim] = sb.find("POST", "/rest/v1/rpc/claim_attachment_storage");
     const p = claim.body as Record<string, unknown>;
     expect(p).toMatchObject({
       p_company_id: COMPANY_ID,
@@ -1553,12 +1556,12 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
     expect(sb.find("POST", "/rest/v1/attachments")).toHaveLength(0);
     // A note_attachment_added audit event on the owner's conversation (D22),
     // referencing the claimed row id.
-    const event = (
+    const [event] = (
       sb.find("POST", "/rest/v1/conversation_events")[0].body as Record<
         string,
         unknown
       >[]
-    )[0];
+    );
     expect(event).toMatchObject({
       type: "note_attachment_added",
       conversation_id: CONV_ID,
@@ -1587,9 +1590,9 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       error: { code: string; message: string };
-    };
+    }>();
     expect(body.error.code).toBe("validation_failed");
     expect(body.error.message).toContain("attach them to a note");
     // Rejected before any owner lookup, storage, or insert work.
@@ -1687,7 +1690,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
         rawBody: uploadForm("note", NOTE_ID, {
           name: "run.exe",
           type: "application/x-msdownload",
-          bytes: new Uint8Array([0x4d, 0x5a]),
+          bytes: new Uint8Array([0x4D, 0x5A]),
         }),
       },
     );
@@ -1730,7 +1733,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
     uploadStubs(sb);
     stubFetch(jwksRoute(auth), sb.route);
 
-    const mzBytes = new Uint8Array([0x4d, 0x5a, 0x90, 0x00]); // Windows PE
+    const mzBytes = new Uint8Array([0x4D, 0x5A, 0x90, 0x00]); // Windows PE
     const res = await apiRequest(
       app,
       env,
@@ -1835,10 +1838,10 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
     acceptUpload(sb);
     const res = await uploadPng(sb);
     expect(res.status).toBe(201);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body).toMatchObject({ id: ATTACHMENT_ID, owner_type: "note" });
     // Claim → upload → audit event, all landed.
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_attachment_storage")[0];
+    const [claim] = sb.find("POST", "/rest/v1/rpc/claim_attachment_storage");
     expect((claim.body as Record<string, unknown>).p_budget_bytes).toBe(
       Number.MAX_SAFE_INTEGER,
     );
@@ -1864,7 +1867,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
       "POST",
       /^\/storage\/v1\/object\/attachments\//,
       () =>
-        new Response(JSON.stringify({ error: "boom", message: "boom" }), {
+        Response.json({ error: "boom", message: "boom" }, {
           status: 500,
         }),
     );
@@ -1873,7 +1876,7 @@ describe("POST /v1/attachments (generic upload — notes-only, D19/D28/#121)", (
     expect(res.status).toBe(500);
 
     // The claimed row was released (scoped hard-delete by company + id)…
-    const release = sb.find("DELETE", "/rest/v1/attachments")[0];
+    const [release] = sb.find("DELETE", "/rest/v1/attachments");
     expect(release.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(release.url.searchParams.get("id")).toBe(`eq.${ATTACHMENT_ID}`);
     // …and no audit event was written for the failed upload.
@@ -1959,9 +1962,9 @@ describe("GET /v1/attachments (list one owner)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: unknown[] };
+    const body = await res.json<{ data: unknown[] }>();
     expect(body.data).toHaveLength(1);
-    const call = sb.find("GET", "/rest/v1/attachments")[0];
+    const [call] = sb.find("GET", "/rest/v1/attachments");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("owner_type")).toBe("eq.task");
     expect(call.url.searchParams.get("owner_id")).toBe(`eq.${TASK_ID}`);
@@ -1972,7 +1975,7 @@ describe("GET /v1/attachments (list one owner)", () => {
     const sb = stubWithRole("member");
     stubFetch(jwksRoute(auth), sb.route);
     for (const qs of [
-      "owner_type=bogus&owner_id=" + TASK_ID,
+      `owner_type=bogus&owner_id=${TASK_ID}`,
       "owner_type=task",
     ]) {
       const res = await apiRequest(
@@ -2018,7 +2021,7 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
 
     // The pre-mutation lookup is company-scoped, live-only, and projects
     // owner_id/conversation_id (needed for the task_id payload + the #106 gate).
-    const lookup = sb.find("GET", "/rest/v1/attachments")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/attachments");
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(lookup.url.searchParams.get("id")).toBe(`eq.${ATTACHMENT_ID}`);
     expect(lookup.url.searchParams.get("deleted_at")).toBe("is.null");
@@ -2026,19 +2029,19 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
 
     // Company-scoped, live-only soft-delete (never a hard row delete here — the
     // sweep cron reclaims the Storage object after the grace window).
-    const patch = sb.find("PATCH", "/rest/v1/attachments")[0];
+    const [patch] = sb.find("PATCH", "/rest/v1/attachments");
     expect(patch.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(patch.url.searchParams.get("id")).toBe(`eq.${ATTACHMENT_ID}`);
     expect(patch.url.searchParams.get("deleted_at")).toBe("is.null");
     expect(patch.body).toMatchObject({ deleted_at: expect.any(String) });
     expect(sb.find("DELETE", "/rest/v1/attachments")).toHaveLength(0);
 
-    const event = (
+    const [event] = (
       sb.find("POST", "/rest/v1/conversation_events")[0].body as Record<
         string,
         unknown
       >[]
-    )[0];
+    );
     expect(event).toMatchObject({
       type: "task_attachment_removed",
       conversation_id: CONV_ID,
@@ -2074,12 +2077,12 @@ describe("DELETE /v1/attachments/:id (soft-delete; sweep reclaims the object)", 
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(204);
-    const event = (
+    const [event] = (
       sb.find("POST", "/rest/v1/conversation_events")[0].body as Record<
         string,
         unknown
       >[]
-    )[0];
+    );
     expect(event).toMatchObject({ type: "note_attachment_removed" });
     // A note removal carries NO task_id (owner_id is a message id, not a task).
     expect(event.payload).not.toHaveProperty("task_id");
@@ -2322,9 +2325,9 @@ describe("POST /v1/attachments/:id/report — a member pulls a file back for eve
       { companyId: COMPANY_ID, method: "POST", body: { note: "looks wrong" } },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ quarantined: true });
+    await expect(res.json()).resolves.toMatchObject({ quarantined: true });
 
-    const patch = sb.find("PATCH", "/rest/v1/attachments")[0];
+    const [patch] = sb.find("PATCH", "/rest/v1/attachments");
     // Company-scoped, and guarded on still-unquarantined so two techs racing
     // produce one stamp rather than overwriting each other's.
     expect(patch.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
@@ -2338,7 +2341,7 @@ describe("POST /v1/attachments/:id/report — a member pulls a file back for eve
 
     // One member's judgement overriding everybody else's access is exactly the
     // kind of thing "who did this, and when" gets asked about afterwards.
-    const audit = sb.find("POST", "/rest/v1/audit_log")[0];
+    const [audit] = sb.find("POST", "/rest/v1/audit_log");
     expect((audit.body as { action: string }).action).toBe("attachment.quarantined");
   });
 
@@ -2383,7 +2386,7 @@ describe("POST /v1/attachments/:id/report — a member pulls a file back for eve
       { companyId: COMPANY_ID, method: "POST", body: {} },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ quarantined: true });
+    await expect(res.json()).resolves.toMatchObject({ quarantined: true });
     // Nothing written a second time.
     expect(sb.find("PATCH", "/rest/v1/attachments")).toHaveLength(0);
   });
@@ -2414,7 +2417,7 @@ describe("POST /v1/attachments/:id/report — a member pulls a file back for eve
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(403);
-    const held = (await res.json()) as { error: { message: string } };
+    const held = await res.json<{ error: { message: string } }>();
     expect(held.error.message).toContain("on hold");
     // Refused BEFORE signing: no URL was ever minted for a held file.
     expect(sb.find("POST", /^\/storage\/v1\/object\/sign\//)).toHaveLength(0);
@@ -2452,7 +2455,7 @@ describe("POST /v1/attachments/:id/release — standing it down is a different c
       { companyId: COMPANY_ID, method: "POST" },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ quarantined: false });
+    await expect(res.json()).resolves.toMatchObject({ quarantined: false });
     expect(sb.find("PATCH", "/rest/v1/attachments")[0].body).toMatchObject({
       quarantined_at: null,
     });

@@ -32,7 +32,7 @@ async function readsOnMount(ageMs: number): Promise<number> {
     ),
   });
   await act(async () => {
-    await new Promise((resolve) => setTimeout(resolve, 0));
+    await new Promise((resolve) => { setTimeout(resolve, 0); });
   });
   return apiFetch.mock.calls.length;
 }

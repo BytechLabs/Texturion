@@ -111,11 +111,11 @@ describe("inbox shortcuts", () => {
   it("? opens the cheat sheet, listing keys from the keymap", () => {
     render(<Harness />);
     fireEvent.keyDown(document.body, { key: "?" });
-    expect(screen.getByRole("dialog")).toBeTruthy();
-    expect(screen.getByText("Keyboard shortcuts")).toBeTruthy();
-    expect(screen.getByText("Next conversation")).toBeTruthy();
-    expect(screen.getByText("Alt+T")).toBeTruthy();
-    expect(screen.getByText("Focus the notifications and Undo actions")).toBeTruthy();
+    expect(screen.getByRole("dialog")).toBeInstanceOf(Element);
+    expect(screen.getByText("Keyboard shortcuts")).toBeInstanceOf(Element);
+    expect(screen.getByText("Next conversation")).toBeInstanceOf(Element);
+    expect(screen.getByText("Alt+T")).toBeInstanceOf(Element);
+    expect(screen.getByText("Focus the notifications and Undo actions")).toBeInstanceOf(Element);
   });
 
   it("does nothing when single-key shortcuts are turned off", () => {

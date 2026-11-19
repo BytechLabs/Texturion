@@ -3,6 +3,9 @@ import type { WorkPhase } from '@loonext/shared';
 
 import { makeTranslate } from "@/i18n/translate";
 
+type JobPhoto = { id: string; work_phase: WorkPhase | null; url: string };
+const EMPTY_PHOTOS: JobPhoto[] = [];
+
 /**
  * #294 — the job photo record, as the homeowner sees it.
  *
@@ -39,13 +42,13 @@ import { makeTranslate } from "@/i18n/translate";
  */
 export function JobPhotoPage({
   businessName,
-  photos = [],
+  photos = EMPTY_PHOTOS,
   truncated = false,
   locale,
   notAvailable = false,
 }: {
   businessName?: string;
-  photos?: { id: string; work_phase: WorkPhase | null; url: string }[];
+  photos?: JobPhoto[];
   /**
    * #581/9: the job had more photos than one page carries.
    *

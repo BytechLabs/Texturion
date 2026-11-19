@@ -22,7 +22,7 @@ import { createHash, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 
-import { TENANTS, memberEmail } from "./tenants.mjs";
+import { memberEmail, TENANTS } from "./tenants.mjs";
 import { localSupabaseUrl } from "../local-supabase.mjs";
 import { fetchPartition, recordStanding, standingNumbers } from "../../tools/rig/src/guard.mjs";
 import { rigLayout } from "../../tools/rig/src/layout.mjs";
@@ -33,7 +33,7 @@ import { localStatus, psql } from "../../tools/rig/src/supabase.mjs";
 /** A UUID fixed by its inputs, so a number's row id survives a reseed. */
 export function stableUuid(...parts) {
   const hex = createHash("sha256").update(parts.join("\u0000")).digest("hex");
-  const variant = ((parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
+  const variant = ((Number.parseInt(hex[16], 16) & 0x3) | 0x8).toString(16);
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-4${hex.slice(13, 16)}-${variant}${hex.slice(17, 20)}-${hex.slice(20, 32)}`;
 }
 
@@ -98,7 +98,7 @@ export function checkTenantIds(ids, tenants = TENANTS) {
 function lit(value) {
   if (value === null || value === undefined) return "null";
   if (typeof value === "boolean") return value ? "true" : "false";
-  return `'${String(value).replace(/'/g, "''")}'`;
+  return `'${String(value).replaceAll('\'', "''")}'`;
 }
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -160,9 +160,9 @@ on conflict (company_id, user_id) do update set role = excluded.role, deactivate
     }
 
     // Every number is Canadian and takes calls. MMS is no longer a module.
-    for (const module of ["voice", "regions_ca"]) {
+    for (const moduleKey of ["voice", "regions_ca"]) {
       statements.push(`
-insert into public.company_modules (company_id, module) values (${lit(companyId)}, ${lit(module)})
+insert into public.company_modules (company_id, module) values (${lit(companyId)}, ${lit(moduleKey)})
 on conflict (company_id, module) do update set disabled_at = null;`);
     }
 
@@ -173,7 +173,8 @@ on conflict (company_id, module) do update set disabled_at = null;`);
       // a standing number.
       const connection = number.connection === "robot" ? robotConnectionId : voiceConnectionId;
       if (!connection) throw new Error(`rig seed: no ${number.connection ?? "voice"} connection id for ${number.role}`);
-      statements.push(`
+      statements.push(
+        `
 insert into public.phone_numbers
   (id, company_id, status, provisioning_key, requested_area_code, country, number_e164,
    telnyx_phone_number_id, source, label, voice_connection_id, voice_enabled)
@@ -187,14 +188,13 @@ on conflict (id) do update set
   telnyx_phone_number_id = excluded.telnyx_phone_number_id,
   label = excluded.label,
   voice_connection_id = excluded.voice_connection_id,
-  voice_enabled = excluded.voice_enabled;`);
-
-      // The audience at rest. Every member is note level unless listed, and
-      // a rule naming a member beats the rule for everyone (#106).
-      statements.push(`delete from public.number_access where phone_number_id = ${lit(numberId)};`);
-      statements.push(`
+  voice_enabled = excluded.voice_enabled;`,
+        // A named member's rule overrides the default note audience (#106).
+        `delete from public.number_access where phone_number_id = ${lit(numberId)};`,
+        `
 insert into public.number_access (company_id, phone_number_id, principal_kind, principal, level)
-values (${lit(companyId)}, ${lit(numberId)}, 'all', null, 'note');`);
+values (${lit(companyId)}, ${lit(numberId)}, 'all', null, 'note');`,
+      );
       for (const memberKey of number.rings) {
         const member = tenant.members.find((candidate) => candidate.key === memberKey);
         if (!member) throw new Error(`rig seed: ${number.role} rings ${memberKey}, who is not in ${tenant.name}`);
@@ -306,7 +306,7 @@ export async function ensureStripeCustomers({ store, tenants = TENANTS, fetchImp
       });
       const body = await made.json().catch(() => ({}));
       if (!made.ok || typeof body.id !== "string") throw new Error(`rig seed: Stripe refused to create ${tenant.name}'s customer (${made.status})`);
-      id = body.id;
+      ({ id } = body);
       known[tenant.key] = id;
       changed = true;
     }
@@ -340,12 +340,12 @@ export function totpCode(secret, now = Date.now()) {
     if (index === -1) throw new Error("rig seed: the TOTP secret is not base32");
     bits += index.toString(2).padStart(5, "0");
   }
-  const key = Buffer.from(bits.match(/.{8}/g).map((byte) => parseInt(byte, 2)));
+  const key = Buffer.from(bits.match(/.{8}/g).map((byte) => Number.parseInt(byte, 2)));
   const counter = Buffer.alloc(8);
   counter.writeBigUInt64BE(BigInt(Math.floor(now / 1000 / 30)));
   const digest = createHmac("sha1", key).update(counter).digest();
-  const offset = digest[digest.length - 1] & 0xf;
-  const code = (digest.readUInt32BE(offset) & 0x7fffffff) % 1_000_000;
+  const offset = digest[digest.length - 1] & 0xF;
+  const code = (digest.readUInt32BE(offset) & 0x7F_FF_FF_FF) % 1_000_000;
   return String(code).padStart(6, "0");
 }
 

@@ -8,7 +8,8 @@ import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { OAuthButtons } from "@/components/auth/oauth-buttons";
-import { Turnstile, type TurnstileHandle } from "@/components/auth/turnstile";
+import { Turnstile } from "@/components/auth/turnstile";
+import type { TurnstileHandle } from "@/components/auth/turnstile";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -21,17 +22,15 @@ import {
 import { Input } from "@/components/ui/input";
 import { PasswordInput } from "@/components/ui/password-input";
 import { publicEnv } from "@/env";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import {
   trackSignupCompleted,
   trackSignupStarted,
 } from "@/lib/analytics/events";
 import { authErrorMessage } from "@/lib/auth/messages";
-import {
-  planIntentSearch,
-  stashPlanIntentFromSearch,
-  type PlanIntent,
-} from "@/lib/marketing/plan-intent";
+import { planIntentSearch, stashPlanIntentFromSearch } from "@/lib/marketing/plan-intent";
+import type { PlanIntent } from "@/lib/marketing/plan-intent";
 import { getSupabaseBrowser } from "@/lib/supabase/browser";
 
 const RESEND_COOLDOWN_MS = 60_000;
@@ -95,7 +94,7 @@ export default function SignupPage() {
   // confirm-email link opened in another browser/profile).
   const onboardingParams = new URLSearchParams(planIntent ? planIntentSearch(planIntent) : "");
   if (t.locale === "fr-CA") onboardingParams.set("lang", t.locale);
-  const onboardingPath = onboardingParams.size
+  const onboardingPath = onboardingParams.size > 0
     ? `/onboarding?${onboardingParams}`
     : "/onboarding";
 

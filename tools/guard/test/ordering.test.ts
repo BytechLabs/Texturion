@@ -377,8 +377,12 @@ describe("a first order recorded before the read-back kept what it asked for", (
 });
 
 describe("resuming ordering after number_unreadable", () => {
-  const resume = (h: Harness, body: unknown = { by: "operator-1", reason: "Read-back now lists the number" }) =>
-    h.call("/admin/numbers/resume-ordering", { caller: "admin", method: "POST", body });
+  const resume = (h: Harness, body?: unknown) =>
+    h.call("/admin/numbers/resume-ordering", {
+      caller: "admin",
+      method: "POST",
+      body: body === undefined ? { by: "operator-1", reason: "Read-back now lists the number" } : body,
+    });
 
   /** The incident: ROBOT-1 ordered and complete, then the old read-back's 404 stopped ordering as number_unreadable. */
   async function stoppedAfterRobot1(): Promise<Harness> {
@@ -513,7 +517,7 @@ describe("resuming ordering after number_unreadable", () => {
 
 async function ruleOfOrderStanding(h: Harness): Promise<string | undefined> {
   const response = await h.call("/admin/numbers/order-standing", { caller: "admin", method: "POST" });
-  return ((await response.json()) as { rule?: string }).rule;
+  return (await response.json<{ rule?: string }>()).rule;
 }
 
 describe("ordering's gate", () => {

@@ -25,7 +25,7 @@ describe("#732 page headers", () => {
   it("a main action is a filled button, never an outline or ghost one", () => {
     for (const file of PAGES) {
       const source = readFileSync(join(SRC, file), "utf8");
-      const primary = source.match(/primary=\{([\s\S]*?)\n\s{8}\}/)?.[1] ?? "";
+      const primary = /primary=\{([\s\S]*?)\n\s{8}\}/.exec(source)?.[1] ?? "";
       expect(primary, file).not.toMatch(/variant="(outline|ghost)"/);
     }
   });

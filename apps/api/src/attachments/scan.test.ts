@@ -19,9 +19,9 @@ function zip(
   options: { corruptDirectory?: boolean } = {},
 ): Uint8Array {
   const parts: number[] = [];
-  const push16 = (v: number) => parts.push(v & 0xff, (v >> 8) & 0xff);
+  const push16 = (v: number) => parts.push(v & 0xFF, (v >> 8) & 0xFF);
   const push32 = (v: number) =>
-    parts.push(v & 0xff, (v >> 8) & 0xff, (v >> 16) & 0xff, (v >>> 24) & 0xff);
+    parts.push(v & 0xFF, (v >> 8) & 0xFF, (v >> 16) & 0xFF, (v >>> 24) & 0xFF);
 
   // Local file headers are not read by the scanner (it walks the central
   // directory, exactly as an unzip does), so a single filler keeps the offsets
@@ -31,7 +31,7 @@ function zip(
 
   const dirOffset = parts.length;
   for (const entry of entries) {
-    push32(options.corruptDirectory ? 0x01020304 : 0x02014b50); // central header
+    push32(options.corruptDirectory ? 0x01_02_03_04 : 0x02_01_4B_50); // central header
     push16(20); // version made by
     push16(20); // version needed
     push16(0); // flags
@@ -53,7 +53,7 @@ function zip(
   }
   const dirSize = parts.length - dirOffset;
 
-  push32(0x06054b50); // EOCD
+  push32(0x06_05_4B_50); // EOCD
   push16(0); // disk
   push16(0); // disk with dir
   push16(entries.length);
@@ -132,13 +132,13 @@ describe("#317 scanAttachment — ZIP containers", () => {
   it("blocks a decompression bomb but not ordinary XML compression", () => {
     // XML compresses hard — around 10:1 is normal and must not trip.
     const ordinary = scanAttachment(
-      zip([{ name: "xl/sheet.xml", compressed: 1_000, uncompressed: 12_000 }]),
+      zip([{ name: "xl/sheet.xml", compressed: 1000, uncompressed: 12_000 }]),
       XLSX,
     );
     expect(ordinary.verdict).toBe("clean");
 
     const bomb = scanAttachment(
-      zip([{ name: "xl/sheet.xml", compressed: 1_000, uncompressed: 900_000 }]),
+      zip([{ name: "xl/sheet.xml", compressed: 1000, uncompressed: 900_000 }]),
       XLSX,
     );
     expect(bomb.verdict).toBe("blocked");
@@ -257,7 +257,7 @@ describe("#317 scanAttachment — the boundaries", () => {
     ];
     for (const result of results) {
       expect(result.verdict).not.toBe("clean");
-      expect(result.reason, JSON.stringify(result)).toBeTruthy();
+      expect(Boolean(result.reason), JSON.stringify(result)).toBe(true);
       expect(result.message!.length).toBeGreaterThan(30);
     }
   });

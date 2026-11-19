@@ -8,7 +8,7 @@
  */
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, render, waitFor } from "@testing-library/react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, assert, beforeEach, describe, expect, it, vi } from "vitest";
 
 const sent = vi.hoisted(() => [] as [string | null | undefined, string, string | null | undefined][]);
 
@@ -104,7 +104,7 @@ function Probe() {
 }
 
 function notify(call: FakeCall) {
-  const handler = sdk.clients[0]!.handlers.get("telnyx.notification")!;
+  const handler = sdk.clients[0].handlers.get("telnyx.notification")!;
   act(() => handler({ type: "callUpdate", call }));
 }
 
@@ -151,7 +151,7 @@ beforeEach(async () => {
     </QueryClientProvider>,
   );
   // Registration waits for the app's requests to go quiet, as it does in the app.
-  await waitFor(() => expect(sdk.clients).toHaveLength(1), { timeout: 4000 });
+  await waitFor(() => assert.lengthOf(sdk.clients, 1), { timeout: 4000 });
 });
 
 afterEach(() => {

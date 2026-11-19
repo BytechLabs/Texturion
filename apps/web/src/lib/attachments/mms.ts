@@ -15,7 +15,7 @@ import { isHeicImage } from "./preview";
 export { MMS_MAX_MEDIA_BYTES, MMS_MAX_MEDIA_ITEMS } from '@loonext/shared';
 
 
-export type { MmsMediaType };
+export type { MmsMediaType } from "@loonext/shared";
 
 /**
  * The `accept` attribute for the composers' hidden <input type="file">. Not a
@@ -98,8 +98,8 @@ function displayName(file: FileLike, say: SayMmsRejection): string {
  * Validate one candidate against the MMS limits. `currentCount` is how many
  * items the draft already holds (staged + this batch's admissions).
  */
-export function validateMmsFile<T extends FileLike>(
-  file: T,
+export function validateMmsFile(
+  file: FileLike,
   currentCount: number,
   say: SayMmsRejection,
 ):

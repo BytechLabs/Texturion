@@ -1,6 +1,7 @@
 "use client";
 
-import { ASSIGNABLE_ROLES, type AssignableRole } from "@loonext/shared";
+import { ASSIGNABLE_ROLES, avatarInitials, roleHasCapability, SELF_DOWNGRADE_ACK } from "@loonext/shared";
+import type { AssignableRole } from "@loonext/shared";
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { ChevronRight } from "lucide-react";
@@ -11,19 +12,13 @@ import { toast } from "sonner";
 import { z } from "zod";
 
 import {
-  avatarInitials,
-  roleHasCapability,
-  SELF_DOWNGRADE_ACK,
-} from "@loonext/shared";
-
-import {
   GiveUpAccessDialog,
   roleChangeNeedsConfirming,
 } from "@/components/settings/give-up-access-dialog";
 import {
-  RoleSelect,
   roleBlurbs,
   roleLabels,
+  RoleSelect,
 } from "@/components/settings/role-select";
 import { SimpleSelect } from "@/components/ui/simple-select";
 import { OwnershipCard } from "@/components/settings/ownership-card";
@@ -53,15 +48,16 @@ import {
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { MemberAccessDialog } from "@/components/settings/member-access-dialog";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateInvite,
   useDeactivateMember,
-  useMemberHoldings,
   useInvites,
+  useMemberHoldings,
   useMembers,
   useResendInvite,
   useRevokeInvite,
@@ -76,11 +72,13 @@ import {
   seatUsage,
 } from "@/lib/settings/seat-line";
 
+const EMPTY_TEAMMATES: Member[] = [];
+
 function MemberRow({
   member,
   canManage,
   isSelf,
-  teammates = [],
+  teammates = EMPTY_TEAMMATES,
 }: {
   member: Member;
   canManage: boolean;
@@ -137,7 +135,7 @@ function MemberRow({
         <p className="text-xs text-muted-foreground">
           {deactivated
             ? t("appShell.teamDeactivatedAgo", {
-                when: formatTimestamp(member.deactivated_at as string, { style: "long", t }),
+                when: formatTimestamp(member.deactivated_at!, { style: "long", t }),
               })
             : t("appShell.teamJoinedAgo", {
                 when: formatTimestamp(member.created_at, { style: "long", t }),

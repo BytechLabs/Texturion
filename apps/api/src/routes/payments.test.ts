@@ -263,7 +263,7 @@ describe("#224 the account", () => {
     });
     const response = await harness.request("/v1/payments/account/onboarding", { method: "POST" });
     expect(response.status).toBe(503);
-    const body = (await response.json()) as { error: { code: string; message: string } };
+    const body = await response.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("service_unavailable");
     expect(body.error.message).toMatch(/isn't open yet/);
   });
@@ -278,7 +278,7 @@ describe("#224 the account", () => {
     const harness = buildHarness({ account: null });
     const response = await harness.request("/v1/payments/account");
     expect(response.status).toBe(200);
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body.connected).toBe(false);
     expect(body.readiness).toBe("not_connected");
     expect(body.action).toBe("Set up payments");
@@ -300,7 +300,7 @@ describe("#224 the account", () => {
     // A member, so `scopeFor` answers "sender": no `billing.manage`.
     const harness = buildHarness({ account: null, role: "member" });
     const response = await harness.request("/v1/payments/account");
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body.action).toBeNull();
     expect(body.action_key).toBeNull();
     // The state itself still speaks: a workspace that cannot charge has to be
@@ -312,7 +312,7 @@ describe("#224 the account", () => {
     const harness = buildHarness({ account: null });
     const response = await harness.request("/v1/payments/account/dashboard");
     expect(response.status).toBe(409);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       error: { message_key: "apiRefusals.paymentsNotSetUp" },
     });
   });
@@ -331,7 +331,7 @@ describe("#224 the account", () => {
       },
     });
     const response = await harness.request("/v1/payments/account");
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body.readiness).toBe("onboarding_incomplete");
     expect(body.requirements_due).toEqual([
       "external_account",
@@ -357,7 +357,7 @@ describe("#224 the account", () => {
     );
     const response = await harness.request("/v1/payments/account");
     expect(response.status).toBe(200);
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body.readiness).toBe("ready");
   });
 });
@@ -377,7 +377,7 @@ describe("#224 who may ask whether payments are on", () => {
     const harness = buildHarness({ role: "member" });
     const response = await harness.request("/v1/payments/account");
     expect(response.status).toBe(200);
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body.readiness).toBe("ready");
     expect(body.currency).toBe("usd");
   });
@@ -396,8 +396,7 @@ describe("#224 who may ask whether payments are on", () => {
         },
       },
     });
-    const body = (await (await harness.request("/v1/payments/account")).json()) as
-      Record<string, unknown>;
+    const body = await (await harness.request("/v1/payments/account")).json<Record<string, unknown>>();
     // Enough to decide whether to draw a control.
     expect(body.readiness).toBe("restricted");
     // And nothing about the owner's identity documents or the business's
@@ -411,8 +410,7 @@ describe("#224 who may ask whether payments are on", () => {
 
   it("gives the bookkeeper the whole object", async () => {
     const harness = buildHarness({ role: "bookkeeper" });
-    const body = (await (await harness.request("/v1/payments/account")).json()) as
-      Record<string, unknown>;
+    const body = await (await harness.request("/v1/payments/account")).json<Record<string, unknown>>();
     expect(body.requirements_due).toEqual([]);
     expect(body.action).toBe("Open Stripe");
   });
@@ -432,7 +430,7 @@ describe("#224 asking for money", () => {
       post({ amount_cents: 25_000, description: "Deposit" }),
     );
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("Set up payments in Settings");
     // Nothing was created at Stripe for a request that was never going to send.
     expect(harness.stripeCalls.filter((call) => call.method === "POST")).toHaveLength(0);
@@ -559,7 +557,7 @@ describe("#224 calling it off", () => {
       { method: "POST" },
     );
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("Refund it from your Stripe dashboard");
   });
 
@@ -734,7 +732,7 @@ describe("#224 the customer's page", () => {
     }));
     const response = await harness.request("/pay/".concat("z".repeat(43)));
     expect(response.status).toBe(404);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     // The word "expired" may appear as a possibility, never as the verdict —
     // a holder who can tell expired from never-existed has an oracle (D75).
     expect(body.error.message).toContain("may have expired");
@@ -768,7 +766,7 @@ describe("#224 the customer's page", () => {
     }));
     const response = await harness.request("/pay/".concat("a".repeat(43)));
     expect(response.status).toBe(200);
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body.state).toBe("paid");
     expect(body.pay_url).toBeNull();
   });
@@ -803,7 +801,7 @@ describe("#224 the customer's page", () => {
       subject_id: "55555555-0000-4000-8000-000000000057",
     }));
     const response = await harness.request("/pay/".concat("b".repeat(43)));
-    const body = (await response.json()) as Record<string, unknown>;
+    const body = await response.json<Record<string, unknown>>();
     expect(body.business_name).toBe("Northline Plumbing");
     expect(body.amount).toBe(amount);
     expect(body.locale).toBe(locale);

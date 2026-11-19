@@ -208,13 +208,13 @@ describe("GET /v1/contacts", () => {
     const token = await auth.token();
     const first = await apiRequest(app, env, token, "/v1/contacts?sort=name&limit=1", { companyId: COMPANY_ID });
     expect(first.status).toBe(200);
-    const page = (await first.json()) as { data: { id: string }[]; next_cursor: string };
+    const page = await first.json<{ data: { id: string }[]; next_cursor: string }>();
     expect(page.data.map((row) => row.id)).toEqual([CONTACT_ID]);
-    expect(page.next_cursor).toBeTruthy();
+    expect(page.next_cursor).toMatch(/\S/);
     const second = await apiRequest(app, env, token,
       `/v1/contacts?sort=name&limit=1&cursor=${encodeURIComponent(page.next_cursor)}`, { companyId: COMPANY_ID });
     expect(second.status).toBe(200);
-    expect(await second.json()).toMatchObject({ data: [{ id: secondId }], next_cursor: null });
+    await expect(second.json()).resolves.toMatchObject({ data: [{ id: secondId }], next_cursor: null });
     expect(sb.find("POST", rpc).at(-1)?.body).toMatchObject({
       p_company: COMPANY_ID,
       p_sort: "name",
@@ -242,12 +242,12 @@ describe("GET /v1/contacts", () => {
     const token = await auth.token();
     const first = await apiRequest(app, env, token, path, { companyId: COMPANY_ID });
     expect(first.status).toBe(200);
-    const { next_cursor } = await first.json() as { next_cursor: string };
+    const { next_cursor } = await first.json<{ next_cursor: string }>();
     expect(decodeCursor(next_cursor)).toEqual({ id: CONTACT_ID, ts: contactRow().created_at });
     const second = await apiRequest(app, env, token, `${path}&cursor=${encodeURIComponent(next_cursor)}`, {
       companyId: COMPANY_ID,
     });
-    expect(await second.json()).toMatchObject({ data: [{ id: OTHER_ID }], next_cursor: null });
+    await expect(second.json()).resolves.toMatchObject({ data: [{ id: OTHER_ID }], next_cursor: null });
     const calls = sb.find("POST", "/rest/v1/rpc/api_sorted_contacts");
     expect(calls[0].body).toMatchObject({ p_company: COMPANY_ID, p_q: q, p_sort: "added", p_limit: 2 });
     expect(calls[0].url.searchParams.get("select")).not.toContain("notes");
@@ -307,9 +307,9 @@ describe("GET /v1/contacts", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string; opted_out: boolean; last_activity_at: string | null }[];
-    };
+    }>();
     expect(body.data).toEqual([
       expect.objectContaining({
         id: CONTACT_ID,
@@ -323,14 +323,14 @@ describe("GET /v1/contacts", () => {
       }),
     ]);
 
-    const lookup = sb.find("GET", "/rest/v1/opt_outs")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/opt_outs");
     expect(lookup.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(lookup.url.searchParams.get("revoked_at")).toBe("is.null");
     expect(lookup.url.searchParams.get("phone_e164")).toBe(
       "in.(+14165550199,+15125550105)",
     );
 
-    const activity = sb.find("GET", "/rest/v1/conversations")[0];
+    const [activity] = sb.find("GET", "/rest/v1/conversations");
     expect(activity.url.searchParams.get("company_id")).toBe(
       `eq.${COMPANY_ID}`,
     );
@@ -351,7 +351,7 @@ describe("GET /v1/contacts", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [], next_cursor: null });
+    await expect(res.json()).resolves.toEqual({ data: [], next_cursor: null });
     expect(sb.find("GET", "/rest/v1/opt_outs")).toHaveLength(0);
     expect(sb.find("GET", "/rest/v1/conversations")).toHaveLength(0);
   });
@@ -368,7 +368,7 @@ describe("GET /v1/contacts", () => {
       `/v1/contacts?t9=1&q=${encodeURIComponent('a%b_("c"),d')}`,
       { companyId: COMPANY_ID },
     );
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("or")).toContain("name.ilike.*abcd*");
   });
 
@@ -429,7 +429,7 @@ describe("POST /v1/contacts (upsert semantics)", () => {
       method: "POST", companyId: COMPANY_ID, body: { phone_e164: "+14165550198" },
     });
     expect(res.status).toBe(422);
-    expect(await res.json()).toMatchObject({ error: { existing_contact_id: CONTACT_ID } });
+    await expect(res.json()).resolves.toMatchObject({ error: { existing_contact_id: CONTACT_ID } });
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 
@@ -446,7 +446,7 @@ describe("POST /v1/contacts (upsert semantics)", () => {
     });
     expect(res.status).toBe(201);
 
-    const upsert = sb.find("POST", "/rest/v1/contacts")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/contacts");
     expect(upsert.body).toEqual({
       company_id: COMPANY_ID,
       phone_e164: "+14165550199",
@@ -490,7 +490,7 @@ describe("imported alternate numbers", () => {
       method: "POST", companyId: COMPANY_ID, rawBody: form(),
     });
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       imported: 0, updated: 0, skipped: 1, errors: [{ row, reason: "already on file under Jo Smith" }],
     });
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
@@ -507,12 +507,14 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       const params = call.url.searchParams;
       expect(params.get("company_id")).toBe(`eq.${COMPANY_ID}`);
       switch (params.get("id")) {
-        case `eq.${CONTACT_ID}`: return [contactRow({ merged_into: SECOND_CONTACT })];
-        case `eq.${SECOND_CONTACT}`:
+        case `eq.${CONTACT_ID}`: { return [contactRow({ merged_into: SECOND_CONTACT })]; }
+        case `eq.${SECOND_CONTACT}`: {
           return [contactRow({ id: SECOND_CONTACT, merged_into: SURVIVOR })];
-        case `eq.${SURVIVOR}`:
+        }
+        case `eq.${SURVIVOR}`: {
           return [contactRow({ id: SURVIVOR, merged_into: null, name: "Survivor" })];
-        default: return [];
+        }
+        default: { return []; }
       }
     });
     sb.on("GET", "/rest/v1/opt_outs", () => []);
@@ -523,7 +525,8 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ id: SURVIVOR, merged_into: SURVIVOR, name: "Survivor" });
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({ id: SURVIVOR, merged_into: SURVIVOR, name: "Survivor" });
     for (const relation of ["contact_addresses", "contact_phones", "contact_tags"]) {
       const [read] = sb.find("GET", `/rest/v1/${relation}`);
       expect(read.url.searchParams.get("contact_id")).toContain(SURVIVOR);
@@ -606,7 +609,8 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       id: CONTACT_ID,
       opted_out: true,
     });
@@ -633,7 +637,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.first_conversation_at).toBe("2026-03-04T10:00:00+00:00");
     expect(body).toHaveProperty("conversation_count");
 
@@ -709,10 +713,10 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       { method: "PATCH", companyId: COMPANY_ID, body: { name: "Jo S." } },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       opted_out: boolean;
       opt_out_source: string | null;
-    };
+    }>();
     expect(body.opted_out).toBe(true);
     expect(body.opt_out_source).toBe("stop_keyword");
   });
@@ -796,7 +800,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       .body as Record<string, unknown>;
     expect(update.name).toBe("Jo S.");
     expect(update.consent_source).toBe("attested");
-    expect(typeof update.consent_at).toBe("string");
+    expect(update.consent_at).toBeTypeOf("string");
     expect(update.consent_attested_by).toBe(auth.subject);
 
     const events = sb.find("POST", "/rest/v1/conversation_events")[0]
@@ -843,7 +847,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONSENT_ATTEST_REFUSED_OPTED_OUT);
     // Whole request or nothing: a saved name beside a refused attestation is a
     // response that looks like success while the one thing they asked for did
@@ -884,7 +888,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONSENT_ATTEST_ALREADY_RECORDED);
     expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
   });
@@ -929,7 +933,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONSENT_ATTEST_REFUSED_OPTED_OUT);
     expect(body.error.message).not.toBe(CONSENT_ATTEST_ALREADY_RECORDED);
     expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
@@ -987,7 +991,8 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     // that merely already had a basis — nothing was going to be written there,
     // so nothing was refused, and naming it would inflate a count people learn
     // to ignore.
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       consent_refused: 1,
       consent_refusals: [
         { row: 2, reason: contactImportConsentRefusedReason(STOPPED_PHONE) },
@@ -1019,7 +1024,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     sb.on(
       "GET",
       "/rest/v1/opt_outs",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -1056,7 +1061,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     sb.on(
       "GET",
       "/rest/v1/opt_outs",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route);
 
@@ -1069,7 +1074,7 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
     );
     expect(res.status).toBe(500);
     // And it is not a 200 carrying a quiet lie.
-    expect(await res.text()).not.toContain('"opted_out":false');
+    await expect(res.text()).resolves.not.toContain('"opted_out":false');
   });
 
   it("#248 B4: an ordinary edit still costs one opt-out read, not two", async () => {
@@ -1127,11 +1132,10 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ kind: "contact", id: CONTACT_ID });
-    const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
-    expect(typeof (patch.body as Record<string, unknown>).deleted_at).toBe(
-      "string",
-    );
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({ kind: "contact", id: CONTACT_ID });
+    const [patch] = sb.find("PATCH", "/rest/v1/contacts");
+    expect((patch.body as Record<string, unknown>).deleted_at).toBeTypeOf("string");
     expect(sb.find("POST", "/rest/v1/audit_log")[0].body).toMatchObject({
       action: "record.deleted",
       target_type: "contact",
@@ -1188,12 +1192,12 @@ describe("customer erasure", () => {
     const token = await auth.token();
     const preview = await apiRequest(app, env, token, path, { companyId: COMPANY_ID });
     expect(preview.status).toBe(200);
-    expect(await preview.json()).toEqual({ state: "ready", counts });
+    await expect(preview.json()).resolves.toEqual({ state: "ready", counts });
     const started = await apiRequest(app, env, token, path, {
       companyId: COMPANY_ID, method: "POST", body: { confirmation: "ERASE" },
     });
     expect(started.status).toBe(202);
-    expect(await started.json()).toEqual({ state: "erasing", counts });
+    await expect(started.json()).resolves.toEqual({ state: "erasing", counts });
   });
 });
 
@@ -1236,10 +1240,10 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       entries: { kind: string; answered_by_user_id?: string }[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.entries.map((e) => e.kind)).toEqual(["conversation", "call"]);
     // #517: the call row carries its answerer; the conversation row does not
     // grow a field it has no meaning for.
@@ -1249,10 +1253,10 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
     // SPEC §7/D10: base64url of the full (ts, id) sort key, not a raw
     // timestamp. A raw timestamptz carries a `+`, which URLComponents does not
     // escape and Hono decodes as a space — a 422 on every iOS "Show earlier".
-    expect(body.next_cursor).toBeTruthy();
+    expect(Boolean(body.next_cursor)).toBe(true);
     expect(body.next_cursor).not.toContain("+");
     expect(body.next_cursor).not.toContain(":");
-    expect(decodeCursor(body.next_cursor as string)).toEqual({
+    expect(decodeCursor(body.next_cursor!)).toEqual({
       ts: "2026-07-19T09:00:00.000Z",
       id: "0bbb0bbb-1111-4222-8333-444444444444",
     });
@@ -1301,7 +1305,7 @@ describe("GET /v1/contacts/:id/timeline (#324)", () => {
       `/v1/contacts/${CONTACT_ID}/timeline?limit=50`,
       { companyId: COMPANY_ID },
     );
-    expect(((await res.json()) as { next_cursor: string | null }).next_cursor).toBeNull();
+    expect((await res.json<{ next_cursor: string | null }>()).next_cursor).toBeNull();
   });
 
   it("404s an unknown contact BEFORE reading the timeline", async () => {
@@ -1454,7 +1458,8 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       id: CONTACT_ID,
       created_by_user_id: auth.subject,
       created_by_name: "Casey Owner",
@@ -1462,7 +1467,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       updated_by_name: "Pat Rivera",
     });
     // Names resolve via a single batched profiles lookup on the actor ids.
-    const lookup = sb.find("GET", "/rest/v1/profiles")[0];
+    const [lookup] = sb.find("GET", "/rest/v1/profiles");
     expect(lookup.url.searchParams.get("user_id")).toBe(
       `in.(${auth.subject},${OTHER})`,
     );
@@ -1483,7 +1488,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.created_by_name).toBeNull();
     expect(body.updated_by_name).toBeNull();
     // No actor ids → no profiles round-trip.
@@ -1509,7 +1514,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    expect((await res.json()) as Record<string, unknown>).toMatchObject({
+    await expect(res.json<Record<string, unknown>>()).resolves.toMatchObject({
       created_by_user_id: auth.subject,
       created_by_name: null,
     });
@@ -1555,7 +1560,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
     expect(res.status).toBe(200);
     const patch = sb.find("PATCH", "/rest/v1/contacts")[0]
       .body as Record<string, unknown>;
-    expect(typeof patch.deleted_at).toBe("string");
+    expect(patch.deleted_at).toBeTypeOf("string");
     expect(patch.deleted_by_user_id).toBe(auth.subject);
   });
 
@@ -1597,7 +1602,7 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imported: 1, updated: 1 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 1, updated: 1 });
     const rows = sb.find("POST", "/rest/v1/contacts").flatMap(
       (call) => call.body as Record<string, unknown>[],
     );
@@ -1654,9 +1659,9 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { created_by_name: string | null }[];
-    };
+    }>();
     expect(body.data[0].created_by_name).toBe("Casey Owner");
   });
 });
@@ -1684,7 +1689,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     );
 
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("validation_failed");
     expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
   });
@@ -1708,7 +1713,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
 
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
   });
 
@@ -1773,7 +1778,8 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       imported: 1, // +14165550101
       updated: 1, // +14165550100 existed
       kept: 0,
@@ -1918,7 +1924,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
     expect(res.status).toBe(429);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("rate_limited");
     expect(keys).toEqual([`contact-import:${COMPANY_ID}`]);
     // Refused before the body was read: no contacts were touched.
@@ -1993,7 +1999,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       consent_source: "attested",
       consent_attested_by: auth.subject,
     });
-    expect(typeof upsert[0].consent_at).toBe("string");
+    expect(upsert[0].consent_at).toBeTypeOf("string");
   });
 
   it("#248: re-uploading the same file writes no consent at all the second time", async () => {
@@ -2034,7 +2040,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     );
     expect(res.status).toBe(200);
     // Everything is an update, and not one consent key crosses the wire.
-    expect(await res.json()).toMatchObject({ imported: 0, updated: 2 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 0, updated: 2 });
     const rows = sb
       .find("POST", "/rest/v1/contacts")
       .flatMap((call) => call.body as Record<string, unknown>[]);
@@ -2103,7 +2109,8 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     // the person who uploaded the file otherwise believes it covered everyone.
     // Against the shipped strings, so a reworded sentence has to be rewritten
     // in one place rather than agreed with in two.
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       imported: 1,
       consent_refused: 1,
       consent_refusals: [
@@ -2210,7 +2217,8 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       consent_refused: 1,
       consent_refusals: [
         { row: 2, reason: contactImportConsentRefusedReason(STOPPED_PHONE) },
@@ -2268,7 +2276,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       consent_refused: 0,
       consent_refusals: [],
       consent_refused_note: null,
@@ -2323,7 +2331,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     expect(optOuts).toEqual(["+14165550100", "+14165550101"]);
     // The extra ROW is still discarded and still reported — which of two
     // spellings of a name to keep is not a judgement to make silently.
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       imported: 2,
       skipped: 2,
       errors: [
@@ -2397,7 +2405,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     sb.on(
       "POST",
       "/rest/v1/contacts",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on("PATCH", "/rest/v1/opt_outs", () => []);
     sb.on("POST", "/rest/v1/opt_outs", () => [{ id: OTHER_ID }]);
@@ -2595,9 +2603,9 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
     expect(res.status).toBe(200);
-    const revive = sb.find("PATCH", "/rest/v1/opt_outs")[0];
+    const [revive] = sb.find("PATCH", "/rest/v1/opt_outs");
     expect(revive.url.searchParams.get("revoked_at")).toBe("not.is.null");
-    const insert = sb.find("POST", "/rest/v1/opt_outs")[0];
+    const [insert] = sb.find("POST", "/rest/v1/opt_outs");
     expect(insert.url.searchParams.get("on_conflict")).toBe(
       "company_id,phone_e164",
     );
@@ -2606,7 +2614,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     // is for the DISAGREEMENTS — rows the uploader believed their attestation
     // covered — and padding it with rows they flagged themselves is how a
     // count becomes something people stop reading.
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       consent_refused: 0,
       consent_refusals: [],
       consent_refused_note: null,
@@ -2727,7 +2735,7 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("validation_failed");
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
@@ -2758,7 +2766,7 @@ describe("import row numbering", () => {
     );
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { errors: { row: number; reason: string }[] };
+    const body = await res.json<{ errors: { row: number; reason: string }[] }>();
     expect(body.errors).toEqual([
       { row: 3, reason: "invalid phone: not-a-phone" },
     ]);
@@ -2831,7 +2839,7 @@ describe("import name handling", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imported: 1, skipped: 0 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 1, skipped: 0 });
     const rows = sb
       .find("POST", "/rest/v1/contacts")
       .flatMap((call) => call.body as Record<string, unknown>[]);
@@ -2879,12 +2887,12 @@ describe("import and a standing carrier STOP", () => {
 
     // The insert must be ON CONFLICT DO NOTHING, so an active row of ANY
     // source is left exactly as it stands.
-    const insert = sb.find("POST", "/rest/v1/opt_outs")[0];
+    const [insert] = sb.find("POST", "/rest/v1/opt_outs");
     expect(insert.url.searchParams.get("on_conflict")).toBe("company_id,phone_e164");
     expect(insert.headers.get("prefer") ?? "").toContain("ignore-duplicates");
 
     // The revive only ever touches rows that are already revoked.
-    const revive = sb.find("PATCH", "/rest/v1/opt_outs")[0];
+    const [revive] = sb.find("PATCH", "/rest/v1/opt_outs");
     expect(revive.url.searchParams.get("revoked_at")).toBe("not.is.null");
   });
 });
@@ -2949,7 +2957,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // The shipped sentence, so a reworded refusal is rewritten in one place
     // rather than agreed with in two. `phone` and `name` are named too: this
     // gate does not ask which columns look suspicious, it asks whether every
@@ -3001,7 +3009,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUndeclaredColumnsMessage(
         [{ index: 2, header: "Marketing Status" }],
@@ -3106,7 +3114,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUndeclaredColumnsMessage([{ index: 2, header: "" }], 3),
     );
@@ -3140,7 +3148,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUndeclaredColumnsMessage([{ index: 3, header: "" }], 4),
     );
@@ -3217,7 +3225,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportColumnMismatchMessage(
         `column 3 was declared as "Marketing status" and this file calls it "Marketing Status"`,
@@ -3256,7 +3264,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // Named by POSITION, and the first one wrong is the one reported.
     expect(body.error.message).toBe(
       contactImportColumnMismatchMessage(
@@ -3312,7 +3320,7 @@ describe("#248 every column of the file is answered for", () => {
         },
       );
       expect(res.status, detail).toBe(422);
-      const body = (await res.json()) as { error: { message: string } };
+      const body = await res.json<{ error: { message: string } }>();
       expect(body.error.message).toBe(contactImportColumnMismatchMessage(detail));
       expect(sb.find("POST", "/rest/v1/contacts"), detail).toHaveLength(0);
     }
@@ -3395,7 +3403,7 @@ describe("#248 every column of the file is answered for", () => {
         { method: "POST", companyId: COMPANY_ID, rawBody: form },
       );
       expect(res.status, raw).toBe(422);
-      const body = (await res.json()) as { error: { message: string } };
+      const body = await res.json<{ error: { message: string } }>();
       // The exact sentence, so a lenient parser that reads it as SOME column is
       // caught by the message even when it still ends in a 422.
       expect(body.error.message, raw).toBe(
@@ -3425,7 +3433,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imported: 4 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 4 });
     // And the workspace's claim is on the audit row, next to the consent
     // attestation it stands beside — it is a claim, not a fact we verified.
     const audit = sb
@@ -3505,7 +3513,7 @@ describe("#248 every column of the file is answered for", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUnreadableFlagMessage("Do Not Contact", [
         "Subscribed",
@@ -3544,7 +3552,7 @@ describe("#248 every column of the file is answered for", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imported: 3 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 3 });
     // And nobody was blocked. An `ignore` is a person saying the column says
     // nothing about who may be texted, so it must not quietly become one.
     expect(sb.find("POST", "/rest/v1/opt_outs")).toHaveLength(0);
@@ -3559,7 +3567,7 @@ describe("#248 every column of the file is answered for", () => {
     const sb = refusingStub();
     const lines = ["phone"];
     for (let i = 0; i <= CONTACT_IMPORT_MAX_ROWS; i += 1) {
-      lines.push(`+1416${String(5550000 + i).padStart(7, "0")}`);
+      lines.push(`+1416${String(5_550_000 + i).padStart(7, "0")}`);
     }
     const res = await apiRequest(
       app,
@@ -3573,7 +3581,7 @@ describe("#248 every column of the file is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       `file: too many rows (max ${CONTACT_IMPORT_MAX_ROWS}).`,
     );
@@ -3625,7 +3633,7 @@ describe("#248 H5 a file that cannot be read is refused, not half-read", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // The shipped sentence, naming the line the quote OPENED on — by EOF the
     // position is the one place in the file that looks fine.
     expect(body.error.message).toBe(contactImportUnterminatedQuoteMessage(3));
@@ -3640,7 +3648,7 @@ describe("#248 H5 a file that cannot be read is refused, not half-read", () => {
     // answer; crashing is not.
     const sb = refusingStub();
     const utf16 = new Uint8Array([
-      0xff, 0xfe, // BOM, as Excel writes it
+      0xFF, 0xFE, // BOM, as Excel writes it
       ...Array.from("phone,name\n+14165550100,Bo\n").flatMap((char) => [
         char.charCodeAt(0),
         0x00,
@@ -3660,7 +3668,7 @@ describe("#248 H5 a file that cannot be read is refused, not half-read", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: form },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONTACT_IMPORT_UNREADABLE_ENCODING);
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
@@ -3687,7 +3695,7 @@ describe("#248 H5 a file that cannot be read is refused, not half-read", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: form },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(CONTACT_IMPORT_UNREADABLE_ENCODING);
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
@@ -3744,7 +3752,7 @@ describe("#248 the import bounds a file has to stay inside", () => {
     const rows = (count: number) => {
       const lines = ["phone"];
       for (let i = 0; i < count; i += 1) {
-        lines.push(`+1416${String(5550000 + i).padStart(7, "0")}`);
+        lines.push(`+1416${String(5_550_000 + i).padStart(7, "0")}`);
       }
       return `${lines.join("\n")}\n`;
     };
@@ -3761,7 +3769,7 @@ describe("#248 the import bounds a file has to stay inside", () => {
       },
     );
     expect(over.status).toBe(422);
-    const body = (await over.json()) as { error: { message: string } };
+    const body = await over.json<{ error: { message: string } }>();
     expect(body.error.message).toContain(String(CONTACT_IMPORT_MAX_ROWS));
 
     const atCap = await apiRequest(
@@ -3797,7 +3805,7 @@ describe("#248 the import bounds a file has to stay inside", () => {
         { method: "POST", companyId: COMPANY_ID, rawBody: form },
       );
       expect(res.status).toBe(422);
-      const body = (await res.json()) as { error: { message: string } };
+      const body = await res.json<{ error: { message: string } }>();
       expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
     }
   });
@@ -3889,10 +3897,10 @@ describe("#248 what an import says about the rows it refused", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       consent_refused: number;
       consent_refusals: { row: number; reason: string }[];
-    };
+    }>();
     expect(body.consent_refusals).toHaveLength(stopped.length);
     expect(body.consent_refused).toBe(body.consent_refusals.length);
     expect(body.consent_refusals.map((r) => r.reason)).toEqual(
@@ -3911,7 +3919,7 @@ describe("#248 what an import says about the rows it refused", () => {
     sb.on(
       "POST",
       "/rest/v1/contacts",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on("GET", "/rest/v1/opt_outs", () => [
       { phone_e164: STOPPED_PHONE, source: "stop_keyword" },
@@ -3947,7 +3955,7 @@ describe("#248 what an import says about the rows it refused", () => {
     sb.on(
       "GET",
       "/rest/v1/opt_outs",
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     sb.on("GET", "/rest/v1/contacts", () => []);
     sb.on("POST", "/rest/v1/audit_log", () => new Response(null, { status: 201 }));
@@ -4070,10 +4078,10 @@ describe("opt-out mark/revoke (SPEC §5)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       opted_out: boolean;
       opt_out_source: string | null;
-    };
+    }>();
     expect(body.opted_out).toBe(true);
     expect(body.opt_out_source).toBe("stop_keyword");
   });
@@ -4144,7 +4152,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     // strips a leading BOM per the WHATWG decode algorithm, so assert on the raw
     // bytes (what a browser download / Excel actually receives).
     const bytes = new Uint8Array(await res.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual([0xef, 0xbb, 0xbf]);
+    expect(Array.from(bytes.slice(0, 3))).toEqual([0xEF, 0xBB, 0xBF]);
     const text = new TextDecoder("utf-8").decode(bytes.slice(3));
     const lines = text.split("\r\n");
     expect(lines[0]).toBe(
@@ -4157,7 +4165,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
       `"Jo, Smith",'+14165550199,Quote sent;Won,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00,,,,,,true,`,
     );
     // Export respects company scope + soft-delete exclusion.
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("deleted_at")).toBe("is.null");
   });
@@ -4200,12 +4208,12 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
   it("exports 3,000 contacts across pages even when their timestamps match", async () => {
     const sb = stubWithRole("member");
     noStandingOptOuts(sb);
-    const contacts = Array.from({ length: 3_000 }, (_, index) => {
-      const number = 3_000 - index;
+    const contacts = Array.from({ length: 3000 }, (_, index) => {
+      const number = 3000 - index;
       return {
         id: `00000000-0000-4000-8000-${String(number).padStart(12, "0")}`,
         name: `Contact ${number}`,
-        phone_e164: `+1416555${1_000 + number}`,
+        phone_e164: `+1416555${1000 + number}`,
         consent_source: null,
         consent_at: null,
         created_at: "2026-05-01T00:00:00+00:00",
@@ -4215,7 +4223,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
       const cursor = url.searchParams.getAll("or")
         .map((filter) => /id\.lt\.([\da-f-]+)/.exec(filter)?.[1])
         .find(Boolean);
-      const limit = Math.min(Number(url.searchParams.get("limit")), 1_000);
+      const limit = Math.min(Number(url.searchParams.get("limit")), 1000);
       return contacts.filter(({ id }) => cursor === undefined || id < cursor).slice(0, limit);
     });
     sb.on("GET", "/rest/v1/conversations", () => []);
@@ -4262,7 +4270,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     expect(res.status).toBe(200);
     const bytes = new Uint8Array(await res.arrayBuffer());
     const text = new TextDecoder("utf-8").decode(bytes.slice(3));
-    const line = text.split("\r\n")[1];
+    const [, line] = text.split("\r\n");
     // The formula name is apostrophe-guarded (then RFC-quoted because it also
     // contains a comma); the tag is guarded; and so is the phone, whose leading
     // "+" Excel would otherwise evaluate, showing 1.6478E+10 and losing the
@@ -4361,7 +4369,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: importForm(csv) },
     );
     expect(importRes.status).toBe(200);
-    expect(await importRes.json()).toMatchObject({ imported: 1, skipped: 0 });
+    await expect(importRes.json()).resolves.toMatchObject({ imported: 1, skipped: 0 });
     const landed = importSb
       .find("POST", "/rest/v1/contacts")
       .flatMap((call) => call.body as Record<string, unknown>[]);
@@ -4395,7 +4403,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     );
     expect(res.status).toBe(200);
     // The literal /export route ran (not /:id, which would 404 on a non-uuid).
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("or")).toContain("name.ilike.*smi*");
     expect(call.url.searchParams.get("or")).toContain("contact_addresses.not.is.null");
     expect(call.url.searchParams.get("contact_addresses.address")).toBe("ilike.*smi*");
@@ -4458,7 +4466,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("validation_failed");
     // The same sentence the CSV route answers with — one gate, one wording.
     expect(body.error.message).toBe(CONTACT_IMPORT_CONSENT_REQUIRED);
@@ -4558,7 +4566,8 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     // Reported with the same three fields the CSV route answers with — a
     // client that had to branch on which door it used would eventually show
     // the note on one and not the other.
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       consent_refused: 1,
       consent_refusals: [
         { row: 1, reason: contactImportConsentRefusedReason(STOPPED_PHONE) },
@@ -4630,12 +4639,12 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       imported: number;
       updated: number;
       skipped: number;
       errors: { row: number; reason: string }[];
-    };
+    }>();
     expect(body.imported).toBe(2);
     expect(body.updated).toBe(0);
     // The card with no TEL is skipped with a reason.
@@ -4643,7 +4652,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     expect(body.errors[0].reason).toBe("no phone number");
 
     // The upsert carried the E.164-normalized phones + names, company-scoped.
-    const upsert = sb.find("POST", "/rest/v1/contacts")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/contacts");
     const rows = upsert.body as { phone_e164: string; name?: string; company_id: string }[];
     const phones = rows.map((r) => r.phone_e164).sort();
     expect(phones).toEqual(["+14165550111", "+15125550122"].sort());
@@ -4685,7 +4694,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       companyId: COMPANY_ID, method: "POST", rawBody: form,
     });
     expect(result.status).toBe(200);
-    expect(await result.json()).toMatchObject({ updated: 1, skipped: 0 });
+    await expect(result.json()).resolves.toMatchObject({ updated: 1, skipped: 0 });
     expect(sb.find("POST", "/rest/v1/opt_outs")[0].body).toMatchObject([
       { phone_e164: primary }, { phone_e164: other },
     ]);
@@ -4723,7 +4732,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { imported: number; updated: number };
+    const body = await res.json<{ imported: number; updated: number }>();
     expect(body.imported).toBe(0);
     expect(body.updated).toBe(1);
   });
@@ -4757,11 +4766,11 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       imported: number;
       skipped: number;
       errors: { row: number; reason: string }[];
-    };
+    }>();
     expect(body.imported).toBe(1); // only +14165550111, once
     const reasons = body.errors.map((e) => e.reason);
     expect(reasons.some((r) => r.startsWith("invalid phone"))).toBe(true);
@@ -4821,7 +4830,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("validation_failed");
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
@@ -4872,7 +4881,7 @@ describe("#248 every property on the cards is answered for", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUndeclaredPropertiesMessage(["CATEGORIES", "NOTE"]),
     );
@@ -5112,7 +5121,7 @@ describe("#248 every property on the cards is answered for", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ imported: 2 });
+    await expect(res.json()).resolves.toMatchObject({ imported: 2 });
     expect(sb.find("POST", "/rest/v1/opt_outs")).toHaveLength(0);
   });
 
@@ -5143,7 +5152,7 @@ describe("#248 every property on the cards is answered for", () => {
       { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // Both parameters, under the shared token shape — a client that enumerated
     // fewer than the server does is refused forever, so the two have to agree
     // on the string as well as on the rule.
@@ -5250,7 +5259,7 @@ describe("#248 every property on the cards is answered for", () => {
         { method: "POST", companyId: COMPANY_ID, rawBody: vcardForm(vcf) },
       );
       expect(res.status, line).toBe(422);
-      const body = (await res.json()) as { error: { message: string } };
+      const body = await res.json<{ error: { message: string } }>();
       expect(body.error.message, line).toBe(
         contactImportUndeclaredPropertiesMessage(expected),
       );
@@ -5289,7 +5298,7 @@ describe("#248 every property on the cards is answered for", () => {
       },
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toBe(
       contactImportUndeclaredPropertiesMessage(["X-DNC"]),
     );
@@ -5482,7 +5491,7 @@ describe("#246 merging two contacts for the same customer", () => {
       },
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       merged: true,
       moved: 3,
       closed: 1,
@@ -5542,7 +5551,7 @@ describe("#246 merging two contacts for the same customer", () => {
       },
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("surviving contact");
   });
 
@@ -5615,7 +5624,7 @@ describe("#246 merging two contacts for the same customer", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { reason: string }[] };
+    const body = await res.json<{ data: { reason: string }[] }>();
     expect(body.data[0].reason).toBe("same digits");
   });
 });
@@ -5789,7 +5798,7 @@ describe("#291 contact addresses", () => {
       },
     );
 
-    const demote = sb.find("PATCH", "/rest/v1/contact_addresses")[0];
+    const [demote] = sb.find("PATCH", "/rest/v1/contact_addresses");
     expect(demote).toBeDefined();
     expect(demote.body).toMatchObject({ is_primary: false });
     // And it happened BEFORE the insert, which is the whole point.
@@ -5871,7 +5880,7 @@ describe("#291 contact addresses", () => {
     );
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { addresses: unknown[] };
+    const body = await res.json<{ addresses: unknown[] }>();
     expect(body.addresses).toHaveLength(1);
   });
 });
@@ -5906,13 +5915,13 @@ describe("contact field definitions", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { key: string }[]; cap: number };
+    const body = await res.json<{ data: { key: string }[]; cap: number }>();
     expect(body.data.map((f) => f.key)).toEqual(["boiler_model", "gate_code"]);
     // The cap travels with the list so the UI can say "that is all 10" without
     // hardcoding a number that then drifts from the server's.
     expect(body.cap).toBe(10);
 
-    const call = sb.find("GET", "/rest/v1/contact_field_defs")[0];
+    const [call] = sb.find("GET", "/rest/v1/contact_field_defs");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("order")).toContain("position.asc");
   });
@@ -5937,10 +5946,10 @@ describe("contact field definitions", () => {
 
     // The delete is SCOPED. An unscoped one would empty every workspace on the
     // platform, and the test that only checks the response would pass.
-    const del = sb.find("DELETE", "/rest/v1/contact_field_defs")[0];
+    const [del] = sb.find("DELETE", "/rest/v1/contact_field_defs");
     expect(del.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
 
-    const insert = sb.find("POST", "/rest/v1/contact_field_defs")[0];
+    const [insert] = sb.find("POST", "/rest/v1/contact_field_defs");
     const rows = insert.body as Record<string, unknown>[];
     expect(rows.map((r) => [r.key, r.position])).toEqual([
       ["gate_code", 0],
@@ -6049,7 +6058,7 @@ describe("contact field definitions", () => {
       },
     );
     expect(res.status).toBe(422);
-    expect(await res.text()).toContain("gate_code");
+    await expect(res.text()).resolves.toContain("gate_code");
     expect(sb.find("PATCH", "/rest/v1/contacts")).toHaveLength(0);
   });
 
@@ -6076,7 +6085,7 @@ describe("contact field definitions", () => {
     expect(res.status).toBe(422);
     // The LABEL, not the key — a form with ten fields and one error reading
     // "invalid" is a form somebody edits at random until it saves.
-    expect(await res.text()).toContain("Warranty expiry");
+    await expect(res.text()).resolves.toContain("Warranty expiry");
   });
 
   it("CFA-9: writes a good value, and validates against the LIVE definitions", async () => {
@@ -6103,13 +6112,13 @@ describe("contact field definitions", () => {
       },
     );
     expect(res.status).toBe(200);
-    const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
+    const [patch] = sb.find("PATCH", "/rest/v1/contacts");
     expect((patch.body as Record<string, unknown>).custom_fields).toEqual({
       system_type: "Combi",
     });
     // Read from the SERVER's definitions, scoped to this workspace — not from
     // whatever the client believed the fields were.
-    const read = sb.find("GET", "/rest/v1/contact_field_defs")[0];
+    const [read] = sb.find("GET", "/rest/v1/contact_field_defs");
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
 
@@ -6208,7 +6217,7 @@ describe("contact phone numbers", () => {
       },
     );
     expect(res.status).toBe(201);
-    const insert = sb.find("POST", "/rest/v1/contact_phones")[0];
+    const [insert] = sb.find("POST", "/rest/v1/contact_phones");
     const row = (insert.body as Record<string, unknown>[])[0] ??
       (insert.body as Record<string, unknown>);
     expect(row.phone_e164).toBe("+14165550177");
@@ -6339,7 +6348,7 @@ describe("contact phone numbers", () => {
       { method: "DELETE", companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const call = sb.find("DELETE", "/rest/v1/contact_phones")[0];
+    const [call] = sb.find("DELETE", "/rest/v1/contact_phones");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("contact_id")).toBe(`eq.${CONTACT_ID}`);
     expect(call.url.searchParams.get("id")).toBe(`eq.${CONTACT_PHONE_ID}`);
@@ -6479,7 +6488,7 @@ describe("dialer search for a customer's other numbers", () => {
       "/v1/contacts?t9=1&q=555",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { data: { id: string }[] };
+    const body = await res.json<{ data: { id: string }[] }>();
     expect(body.data.map((row) => row.id).sort()).toEqual(
       [CONTACT_ID, OTHER_ID].sort(),
     );
@@ -6503,7 +6512,7 @@ describe("dialer search for a customer's other numbers", () => {
       "/v1/contacts?t9=1&q=555",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { data: { id: string }[] };
+    const body = await res.json<{ data: { id: string }[] }>();
     expect(body.data).toHaveLength(1);
   });
 
@@ -6529,7 +6538,7 @@ describe("dialer search for a customer's other numbers", () => {
       "/v1/contacts?t9=1&q=555",
       { companyId: COMPANY_ID },
     );
-    expect(await res.text()).not.toContain("contact_phones");
+    await expect(res.text()).resolves.not.toContain("contact_phones");
   });
 
   it("CS-5: a name search costs no extra round trip", async () => {
@@ -6578,7 +6587,7 @@ describe("dialer search for a customer's other numbers", () => {
       "/v1/contacts?t9=1&q=555",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as { data: { id: string }[] };
+    const body = await res.json<{ data: { id: string }[] }>();
     expect(body.data.map((row) => row.id)).toEqual([OTHER_ID, CONTACT_ID]);
   });
 });
@@ -6616,7 +6625,7 @@ describe("filtering contacts by a custom field", () => {
     );
     expect(res.status).toBe(200);
 
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     // `->>` so the comparison is against the TEXT. Comparing the jsonb would
     // make "Combi" and a quoted "Combi" different answers, and the picker
     // only ever sends one of them.
@@ -6640,7 +6649,7 @@ describe("filtering contacts by a custom field", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(422);
-    expect(await res.text()).toContain("nonexistent");
+    await expect(res.text()).resolves.toContain("nonexistent");
     expect(sb.find("GET", "/rest/v1/contacts")).toHaveLength(0);
   });
 
@@ -6702,7 +6711,7 @@ describe("filtering contacts by a custom field", () => {
       "/v1/contacts?field=system_type&value=",
       { companyId: COMPANY_ID },
     );
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("custom_fields->>system_type")).toBe("eq.");
   });
 
@@ -6731,7 +6740,7 @@ describe("filtering contacts by a custom field", () => {
       "/v1/contacts?field=system_type&value=Combi",
       { companyId: COMPANY_ID },
     );
-    const call = sb.find("GET", "/rest/v1/contact_field_defs")[0];
+    const [call] = sb.find("GET", "/rest/v1/contact_field_defs");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
 });

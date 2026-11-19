@@ -18,7 +18,7 @@
 const SPAM_LIKELY = "spam_likely";
 
 function isSpamLikelyWord(value: string): boolean {
-  return value.trim().toLowerCase().replace(/[\s-]+/g, "_") === SPAM_LIKELY;
+  return value.trim().toLowerCase().replaceAll(/[\s-]+/g, "_") === SPAM_LIKELY;
 }
 
 function resultSaysSpamLikely(result: string): boolean {
@@ -46,5 +46,5 @@ export function callLooksSpam(
   callerName?: string | null,
 ): boolean {
   if (screeningResult && resultSaysSpamLikely(screeningResult)) return true;
-  return !!callerName && isSpamLikelyWord(callerName);
+  return Boolean(callerName && isSpamLikelyWord(callerName));
 }

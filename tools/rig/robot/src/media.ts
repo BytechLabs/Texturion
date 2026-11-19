@@ -25,8 +25,10 @@ function exifWithGps(): number[] {
   tiff.push(...u16le(1), ...u16le(0x88_25), ...u16le(4), ...u32le(1), ...u32le(gpsIfdAt), ...u32le(0));
   // GPS IFD: GPSLatitudeRef "N", GPSLatitude as three RATIONALs stored after it.
   const latitudeAt = gpsIfdAt + 2 + 2 * 12 + 4;
-  tiff.push(...u16le(2), ...u16le(0x00_01), ...u16le(2), ...u32le(2), 0x4E, 0x00, 0x00, 0x00);
-  tiff.push(...u16le(0x00_02), ...u16le(5), ...u32le(3), ...u32le(latitudeAt), ...u32le(0));
+  tiff.push(
+    ...u16le(2), ...u16le(0x00_01), ...u16le(2), ...u32le(2), 0x4E, 0x00, 0x00, 0x00,
+    ...u16le(0x00_02), ...u16le(5), ...u32le(3), ...u32le(latitudeAt), ...u32le(0),
+  );
   for (const [numerator, denominator] of [
     [43, 1],
     [39, 1],
@@ -41,11 +43,11 @@ export function gpsJpeg(): Uint8Array<ArrayBuffer> {
   const bytes = [
     0xFF, 0xD8,
     ...segment(0xE1, exifWithGps()),
-    ...segment(0xDB, [0x00, ...new Array<number>(64).fill(1)]),
+    ...segment(0xDB, [0x00, ...Array.from({ length: 64 }, () => 1)]),
     ...segment(0xC0, [8, ...u16(8), ...u16(8), 1, 1, 0x11, 0]),
     // DC table 0 and AC table 0, each a single one-bit code: category 0, and end of block.
-    ...segment(0xC4, [0x00, 1, ...new Array<number>(15).fill(0), 0x00]),
-    ...segment(0xC4, [0x10, 1, ...new Array<number>(15).fill(0), 0x00]),
+    ...segment(0xC4, [0x00, 1, ...Array.from({ length: 15 }, () => 0), 0x00]),
+    ...segment(0xC4, [0x10, 1, ...Array.from({ length: 15 }, () => 0), 0x00]),
     ...segment(0xDA, [1, 1, 0x00, 0, 63, 0]),
     // "0" for the DC difference, "0" for end of block, padded with ones.
     0x3F,

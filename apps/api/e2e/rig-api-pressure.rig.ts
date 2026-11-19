@@ -21,6 +21,8 @@
  *     the SPEC envelope, never a 500 "Something went wrong." that reads as a bug;
  *  4. **and it recovers**: when the load stops, the next request succeeds.
  */
+import assert from "node:assert/strict";
+
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import {
@@ -75,7 +77,7 @@ beforeAll(async () => {
   );
   token = await stack.token(OWNER_ID);
   const warm = await stack.call("GET", "/v1/for-you", { token, companyId: COMPANY_ID });
-  expect(warm.status, `the first request: ${stack.logTail(15)}`).toBe(200);
+  assert.equal(warm.status, 200, `the first request: ${stack.logTail(15)}`);
 });
 
 afterAll(async () => {
@@ -146,7 +148,7 @@ describe("#251 the API under database saturation answers honestly, ramped", () =
       let recoveredMs: number | null = null;
       let polls = 0;
       while (Date.now() - recoveryStart < RECOVERY_DEADLINE_MS) {
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        await new Promise((resolve) => { setTimeout(resolve, 500); });
         polls += 1;
         if ((await forYou()).status === 200) {
           recoveredMs = Date.now() - recoveryStart;
@@ -157,7 +159,7 @@ describe("#251 the API under database saturation answers honestly, ramped", () =
       // What the Worker says it finished, to tell a request stuck inside it
       // from one lost between the driver and it.
       // wrangler prints its access log a little behind the response.
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await new Promise((resolve) => { setTimeout(resolve, 2000); });
       const servedAfter = stack.servedTotals();
       const workerFinished: Record<string, number> = {};
       for (const [key, total] of Object.entries(servedAfter)) {

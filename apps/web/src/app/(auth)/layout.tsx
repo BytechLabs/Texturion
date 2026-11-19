@@ -7,7 +7,7 @@ import { AUTH_LOCALE_HEADER, authLocale } from "@/i18n/auth-locale";
 import { LocaleProvider } from "@/i18n/provider";
 
 import { AppProviders } from "../app-providers";
-import { metadata as rootMetadata, RootDocument } from "../root-document";
+import { RootDocument, metadata as rootMetadata } from "../root-document";
 
 export { viewport } from "../root-document";
 

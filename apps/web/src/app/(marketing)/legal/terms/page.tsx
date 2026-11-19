@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { TermsPageBody, TERMS_EN_PATH } from "@/components/marketing/legal/terms-page";
+import { TERMS_EN_PATH, TermsPageBody } from "@/components/marketing/legal/terms-page";
 import { legalTermsEn } from "@/i18n/marketing/legal-terms";
 import { buildMetadata } from "@/lib/marketing/seo";
 

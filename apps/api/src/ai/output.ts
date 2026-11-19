@@ -44,7 +44,7 @@ export function modelJson(raw: unknown): unknown {
   for (const [open, close] of [["{", "}"], ["[", "]"]]) {
     const start = payload.indexOf(open);
     const end = payload.lastIndexOf(close);
-    if (start >= 0 && end > start) candidates.push(payload.slice(start, end + 1));
+    if (start !== -1 && end > start) candidates.push(payload.slice(start, end + 1));
   }
   for (const candidate of candidates) {
     try {

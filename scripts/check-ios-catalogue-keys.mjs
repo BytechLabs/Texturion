@@ -57,7 +57,7 @@
  * seen" is not evidence of anything, and failing on it would punish correct
  * code. Missing is provable; unused is not.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const REPO_ROOT = join(import.meta.dirname, "..");
@@ -174,7 +174,7 @@ const undefinedLiterals = new Map();
 for (const { relative, source } of appSources) {
   for (const match of source.matchAll(KEY_LITERAL)) {
     literalsChecked += 1;
-    const key = match[1];
+    const [, key] = match;
     if (NOT_KEYS.has(key)) {
       seenNotKeys.add(key);
       continue;
@@ -221,7 +221,7 @@ for (const file of swiftFiles(CATALOGUE)) {
     const side = match[1] === "En" ? "en" : "fr";
     // Fold Swift's leading-plus concatenation so a sentence split across lines
     // is measured whole — otherwise every long string looks token-free.
-    const body = match[2].replace(/"\s*\+\s*"/g, "");
+    const body = match[2].replaceAll(/"\s*\+\s*"/g, "");
     /*
      * The value pattern must survive an ESCAPED QUOTE. `settings.callerIdConfirm`
      * is `"Update your caller ID to \"{name}\"?"` — a naive `"[^"]*"` stops at

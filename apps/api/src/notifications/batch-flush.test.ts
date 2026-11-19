@@ -62,7 +62,7 @@ describe(runBatchFlush, () => {
     expect(sb.find("POST", "/rest/v1/rpc/api_consume_notification_batch")[0]?.body).toEqual({
       p_company_id: COMPANY,
       p_user_id: MEMBER,
-      p_lease_id: (lease?.body as { p_lease_id: string }).p_lease_id,
+      p_lease_id: (lease.body as { p_lease_id: string }).p_lease_id,
     });
   });
 
@@ -189,7 +189,7 @@ describe(runBatchFlush, () => {
     );
     stubFetch(sb.route, ...service.routes);
 
-    expect(await runBatchFlush(fcmEnv(account))).toEqual({ members: 0, notifications: 0 });
+    await expect(runBatchFlush(fcmEnv(account))).resolves.toEqual({ members: 0, notifications: 0 });
     expect(service.sends).toHaveLength(0);
   });
 
@@ -201,7 +201,7 @@ describe(runBatchFlush, () => {
       ? new Response('{"message":"token lookup failed"}', { status: 400 })
       : undefined, sb.route, ...service.routes);
 
-    expect(await runBatchFlush(fcmEnv(account))).toEqual({ members: 0, notifications: 0 });
+    await expect(runBatchFlush(fcmEnv(account))).resolves.toEqual({ members: 0, notifications: 0 });
     expect(sb.find("POST", "/rest/v1/rpc/api_consume_notification_batch")).toHaveLength(0);
     expect(service.sends).toHaveLength(0);
   });

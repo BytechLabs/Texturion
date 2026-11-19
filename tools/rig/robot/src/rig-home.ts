@@ -87,8 +87,8 @@ export class SecretFiles {
     return this.#store.readOptional(name);
   }
 
-  readJson<T>(name: string): T {
-    return this.#store.readJson(name) as T;
+  readJson(name: string): unknown {
+    return this.#store.readJson(name);
   }
 
   write(name: string, value: string): void {
@@ -151,11 +151,11 @@ export function publishState(home: RigHome, name: string, value: unknown): void 
   renameSync(temp, path);
 }
 
-export function readState<T>(home: RigHome, name: string): T | undefined {
+export function readState(home: RigHome, name: string): unknown {
   const path = join(home.state, name);
   if (!existsSync(path)) return undefined;
   try {
-    return JSON.parse(readFileSync(path, "utf8")) as T;
+    return JSON.parse(readFileSync(path, "utf8"));
   } catch {
     return undefined;
   }

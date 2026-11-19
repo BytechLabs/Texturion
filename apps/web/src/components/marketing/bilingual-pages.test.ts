@@ -219,11 +219,15 @@ describe("#228/D138 the bilingual page bodies carry no words of their own", () =
     ).toBe(true);
   });
 
-  for (const file of bilingualBodies()) {
+  const bilingualPages = bilingualBodies().map(file => {
     const name = file.split(/[\\/]/).pop() ?? file;
     const source = readFileSync(file, "utf8");
+    return [name, source] as const;
+  });
 
-    it(`${name} has no prose in its markup`, () => {
+  it.each(bilingualPages)(
+    "%s has no prose in its markup",
+    (name, source) => {
       const found = [...decodeEntities(source).matchAll(TEXT_NODE)].map((m) =>
         m[1].trim(),
       );
@@ -232,9 +236,12 @@ describe("#228/D138 the bilingual page bodies carry no words of their own", () =
         `${name} renders in both languages, so a sentence written here shows ` +
           `to a French reader in English. Move it to the catalogue.`,
       ).toEqual([]);
-    });
+    },
+  );
 
-    it(`${name} has no prose in a prop a reader sees`, () => {
+  it.each(bilingualPages)(
+    "%s has no prose in a prop a reader sees",
+    (name, source) => {
       // `alt` and `ariaLabel` are the ones that hide — invisible on screen
       // and read aloud, so an English one on a French page is caught by nobody
       // LOOKING at the page. `ariaLabel` was missing from the list until a
@@ -245,9 +252,12 @@ describe("#228/D138 the bilingual page bodies carry no words of their own", () =
         found,
         `${name} passes a literal to a prop a reader or a screen reader sees`,
       ).toEqual([]);
-    });
+    },
+  );
 
-    it(`${name} builds no sentence inside a template literal`, () => {
+  it.each(bilingualPages)(
+    "%s builds no sentence inside a template literal",
+    (name, source) => {
       // The check that found six shipped pages closing in English. A prop
       // taking a backtick string is the one shape a quote-anchored scan
       // cannot see, and it is the shape a CTA reaches for the moment it needs
@@ -261,9 +271,12 @@ describe("#228/D138 the bilingual page bodies carry no words of their own", () =
           `The interpolated part comes from the catalogue; the words around ` +
           `it have to as well.`,
       ).toEqual([]);
-    });
+    },
+  );
 
-    it(`${name} has no copy hiding in a data array`, () => {
+  it.each(bilingualPages)(
+    "%s has no copy hiding in a data array",
+    (name, source) => {
       // Where every miss has actually been. A visual's example thread is data
       // to the code and prose to the reader.
       const found = [...source.matchAll(DATA_COPY)].map((m) => m[1]);
@@ -272,6 +285,6 @@ describe("#228/D138 the bilingual page bodies carry no words of their own", () =
         `${name} holds text in a data field. It renders on screen, so it has ` +
           `to come from the catalogue like everything else.`,
       ).toEqual([]);
-    });
-  }
+    },
+  );
 });

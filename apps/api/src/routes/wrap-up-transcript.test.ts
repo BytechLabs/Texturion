@@ -85,10 +85,10 @@ describe("POST /conversations/:id/wrap-up-transcript (#507)", () => {
     const res = await post(env, wrapUpForm(18));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       text: "Quoted him $2,400 for the tank, parts Thursday.",
     });
-    expect(run).toHaveBeenCalledTimes(1);
+    expect(run).toHaveBeenCalledOnce();
     // The positive control for the cost test below: a real wrap-up DOES
     // reserve against the monthly ledger, so "never reserved" means something.
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve").length).toBeGreaterThan(0);
@@ -106,7 +106,7 @@ describe("POST /conversations/:id/wrap-up-transcript (#507)", () => {
     const res = await post(env, wrapUpForm(CALL_WRAPUP_MAX_SECONDS + 1));
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ text: null, reason: "too_long" });
+    await expect(res.json()).resolves.toEqual({ text: null, reason: "too_long" });
     expect(run).not.toHaveBeenCalled();
     // ...and nothing was reserved against the monthly ledger either.
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(0);
@@ -128,7 +128,7 @@ describe("POST /conversations/:id/wrap-up-transcript (#507)", () => {
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await post(env, wrapUpForm(12));
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
 
     // Nothing was written anywhere it could be read back from.
     expect(sb.find("POST", "/rest/v1/attachments")).toHaveLength(0);
@@ -148,13 +148,13 @@ describe("POST /conversations/:id/wrap-up-transcript (#507)", () => {
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await post(env, wrapUpForm(15));
-    const body = (await res.json()) as { text: null; reason: string };
+    const body = await res.json<{ text: null; reason: string }>();
 
     // The member is left in the note composer with a keyboard, and told which
     // of the failures it was rather than "something went wrong".
     expect(res.status).toBe(200);
     expect(body.text).toBeNull();
-    expect(body.reason).toBeTruthy();
+    expect(Boolean(body.reason)).toBe(true);
   });
 
   it("404s a conversation that is not there", async () => {

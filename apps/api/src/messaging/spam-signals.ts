@@ -123,7 +123,7 @@ export function scoreInboundSpam(args: {
  */
 export function scoreContent(
   from: string,
-  rawBody: string | null | undefined,
+  rawBody: string | null = "",
 ): SpamVerdict {
   const body = rawBody ?? "";
   const signals: SpamSignal[] = [];

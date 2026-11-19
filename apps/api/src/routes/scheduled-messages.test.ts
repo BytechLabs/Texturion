@@ -112,9 +112,9 @@ describe("GET /v1/scheduled-messages allowed actions (#722)", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       scheduled_messages: { id: string; allowed_actions: string[] }[];
-    };
+    }>();
     return Object.fromEntries(body.scheduled_messages.map((row) => [row.id, row.allowed_actions]));
   }
 

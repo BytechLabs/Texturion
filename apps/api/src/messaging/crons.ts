@@ -36,7 +36,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { METER_TIMEOUT_MS, reportSegmentUsage, reportVoiceSeconds } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { captureException } from "../observability/capture";
+import { captureException, scrubbedError } from "../observability/capture";
 import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
 import { processResendEvent } from "../webhooks/resend";
 import { processStripeEvent } from "../webhooks/stripe";
@@ -359,6 +359,7 @@ async function retryMeterRows(
     const stripeCustomerId = row.companies?.stripe_customer_id;
     if (!stripeCustomerId) continue;
 
+    let failure: { error: unknown } | undefined;
     try {
       await report(
         env,
@@ -374,24 +375,30 @@ async function retryMeterRows(
       );
     } catch (error) {
       if (!isDuplicateMeterIdentifierError(error)) {
-        failed += 1;
-        lastFailure = error;
-        const delayHours = Math.min(24, 2 ** Math.min(row.report_attempts, 5));
-        const { error: retryError } = await db
-          .from(table)
-          .update({
-            report_attempts: row.report_attempts + 1,
-            report_next_at: new Date(Date.now() + delayHours * HOUR_MS).toISOString(),
-          })
-          .eq("id", row.id)
-          .eq("company_id", row.company_id)
-          .eq("report_attempts", row.report_attempts)
-          .is("stripe_reported_at", null);
-        if (retryError) {
-          throw new Error(`${table} meter retry scheduling failed: ${retryError.message}`);
-        }
-        continue;
+        failure = { error };
       }
+    }
+
+    if (failure) {
+      failed += 1;
+      lastFailure = failure.error;
+      const delayHours = Math.min(24, 2 ** Math.min(row.report_attempts, 5));
+      const { error: retryError } = await db
+        .from(table)
+        .update({
+          report_attempts: row.report_attempts + 1,
+          report_next_at: new Date(Date.now() + delayHours * HOUR_MS).toISOString(),
+        })
+        .eq("id", row.id)
+        .eq("company_id", row.company_id)
+        .eq("report_attempts", row.report_attempts)
+        .is("stripe_reported_at", null);
+      if (retryError) {
+        throw new Error(`${table} meter retry scheduling failed: ${retryError.message}`, {
+          cause: scrubbedError(failure.error),
+        });
+      }
+      continue;
     }
 
     const { error } = await db

@@ -33,11 +33,11 @@ vi.mock("@/lib/api/voicemail-greetings", () => ({
 vi.mock("sonner", () => ({ toast: { success: vi.fn(), error: vi.fn() } }));
 
 
-afterEach(cleanup);
 beforeEach(() => {
   updateMutate.mockReset();
   greetingRows.current = [];
 });
+afterEach(cleanup);
 
 const WEEKDAYS = {
   mon: { open: "08:00", close: "17:00" },
@@ -123,7 +123,7 @@ describe("#278 after-hours calling", () => {
         canEdit
       />,
     );
-    expect(screen.getByLabelText("After-hours voice")).toBeTruthy();
+    expect(screen.getByLabelText("After-hours voice")).toBeInstanceOf(Element);
   });
 
   it("AH-C6: a member who cannot edit sees the state, not the controls", () => {
@@ -131,6 +131,6 @@ describe("#278 after-hours calling", () => {
     for (const option of screen.getAllByRole("radio")) {
       expect((option as HTMLButtonElement).disabled).toBe(true);
     }
-    expect(screen.getByText(/only owners and admins/i)).toBeTruthy();
+    expect(screen.getByText(/only owners and admins/i)).toBeInstanceOf(Element);
   });
 });

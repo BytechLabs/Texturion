@@ -10,7 +10,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { PasswordInput } from "@/components/ui/password-input";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import { fetchMe, useUpdateDisplayName } from "@/lib/api/me";
 import { useAcceptInvite } from "@/lib/api/team";
@@ -70,7 +71,7 @@ function inviteErrorCopy(
 export default function InviteAcceptPage() {
   const t = useT();
   const params = useParams<{ token: string }>();
-  const token = params.token;
+  const { token } = params;
   const router = useRouter();
   const accept = useAcceptInvite();
   const updateName = useUpdateDisplayName();

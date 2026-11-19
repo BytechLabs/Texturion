@@ -48,7 +48,7 @@ function normalizeNotificationUrl(rawUrl, origin) {
     return "/inbox";
   }
   if (url.origin !== origin) return "/inbox";
-  const thread = url.pathname.match(/^\/conversations\/([^/]+)\/?$/);
+  const thread = /^\/conversations\/([^/]+)\/?$/.exec(url.pathname);
   const path = thread ? `/inbox/${thread[1]}` : url.pathname;
   if (!path.startsWith("/")) return "/inbox";
   // Preserve the query for non-thread links — the incoming-call push carries
@@ -123,7 +123,7 @@ function formatPushNotification(rawText, origin) {
 function coalescingTag(payload, url) {
   const tag =
     payload && typeof payload.tag === "string" ? payload.tag.trim() : "";
-  return `loonext:${tag !== "" ? tag : url}`;
+  return `loonext:${tag || url}`;
 }
 
 function conversationNotificationTags(id) {
@@ -139,7 +139,7 @@ function conversationNotificationTags(id) {
 async function clearConversationNotifications(id) {
   const tags = new Set(conversationNotificationTags(id));
   for (const notification of await self.registration.getNotifications()) {
-    const data = notification.data;
+    const { data } = notification;
     if (tags.has(notification.tag) ||
         (data?.kind === "missed_call" &&
           threadId(normalizeNotificationUrl(data.url, self.location.origin).split("?")[0]) === id)) {
@@ -149,7 +149,7 @@ async function clearConversationNotifications(id) {
 }
 
 function threadId(path) {
-  return path.match(/^\/inbox\/([^/]+)\/?$/)?.[1] ?? null;
+  return /^\/inbox\/([^/]+)\/?$/.exec(path)?.[1] ?? null;
 }
 
 async function showPushNotification(title, options) {
@@ -217,7 +217,7 @@ function callEndNotification(rawText, origin) {
   } catch {
     return null;
   }
-  if (!payload || payload.kind !== "call_end") return null;
+  if (payload?.kind !== "call_end") return null;
   const url = normalizeNotificationUrl(payload.url, origin);
   const tag = callTag(url, origin);
   return {
@@ -367,8 +367,7 @@ function routeInTab(client, path) {
       resolve(routed);
     };
     const timer = setTimeout(() => finish(false), ROUTE_REPLY_MS);
-    channel.port1.onmessage = (event) =>
-      finish(Boolean(event.data && event.data.ok === true));
+    channel.port1.onmessage = (event) => finish(event.data?.ok === true);
     client.postMessage({ type: "loonext:navigate", path }, [channel.port2]);
   });
 }
@@ -447,11 +446,9 @@ function subscriptionSaveBody(json) {
  * immediately through the authenticated client instead of waiting for a reload.
  */
 async function handlePushSubscriptionChange(event) {
-  let subscription = event && event.newSubscription ? event.newSubscription : null;
+  let subscription = event?.newSubscription ?? null;
   if (!subscription) {
-    const old = event && event.oldSubscription;
-    const applicationServerKey =
-      old && old.options ? old.options.applicationServerKey : undefined;
+    const applicationServerKey = event?.oldSubscription?.options?.applicationServerKey;
     if (!applicationServerKey) return; // no key to renew with — reconcile handles it
     try {
       subscription = await self.registration.pushManager.subscribe({
@@ -470,6 +467,7 @@ async function handlePushSubscriptionChange(event) {
   });
   for (const client of windows) {
     if (typeof client.postMessage === "function") {
+      // oxlint-disable-next-line unicorn/require-post-message-target-origin -- Service Worker clients have no target-origin argument.
       client.postMessage({ type: "loonext:push-subscription-changed" });
     }
   }
@@ -507,7 +505,7 @@ async function navigationResponse(event) {
   }
   const waits = event.request.method === "GET" ? [0, ...NAVIGATION_RETRY_MS] : [0];
   for (const wait of waits) {
-    if (wait > 0) await new Promise((resolve) => setTimeout(resolve, wait));
+    if (wait > 0) await new Promise((resolve) => { setTimeout(resolve, wait); });
     try {
       return await fetch(event.request);
     } catch {

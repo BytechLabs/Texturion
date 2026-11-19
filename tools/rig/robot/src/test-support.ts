@@ -41,7 +41,7 @@ export class ManualClock implements Clock {
   advance(ms: number): void {
     const target = this.#now + ms;
     for (;;) {
-      const due = this.#timers.filter((t) => t.at <= target).toSorted((a, b) => a.at - b.at)[0];
+      const [due] = this.#timers.filter((t) => t.at <= target).toSorted((a, b) => a.at - b.at);
       if (!due) break;
       this.#timers = this.#timers.filter((t) => t !== due);
       this.#now = due.at;
@@ -79,7 +79,7 @@ export class FakeCallControl implements CallControlApi {
 
   async dial(command: Parameters<CallControlApi["dial"]>[0], context: RequestContext): Promise<CallIds> {
     this.#log("dial", undefined, command, context);
-    this.#legs++;
+    this.#legs += 1;
     return { call_control_id: `ccid-${this.#legs}`, call_leg_id: `leg-${this.#legs}`, call_session_id: `session-${this.#legs}` };
   }
   async answer(id: string, body: unknown, context: RequestContext) {

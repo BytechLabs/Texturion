@@ -18,13 +18,13 @@ function renderHint() {
  * #716: the composer's catch-up offer. The hook decides when it shows
  * (`use-catch-up.test.tsx`); this is what the line itself must do.
  */
-describe("CatchUpHint", () => {
+describe(CatchUpHint, () => {
   it("is announced, and its two answers are real buttons", () => {
     renderHint();
     const status = screen.getByRole("status");
     expect(status.textContent).toContain("Catch up on this conversation?");
-    expect(screen.getByRole("button", { name: "Recap" })).toBeTruthy();
-    expect(screen.getByRole("button", { name: "Not now" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Recap" })).toBeInstanceOf(Element);
+    expect(screen.getByRole("button", { name: "Not now" })).toBeInstanceOf(Element);
   });
 
   it("says what Recap does before it is pressed, since pressing it is what costs", () => {
@@ -37,17 +37,17 @@ describe("CatchUpHint", () => {
   it("asks on Recap and dismisses on Not now", () => {
     const handlers = renderHint();
     fireEvent.click(screen.getByText("Recap"), { detail: 1 });
-    expect(handlers.onRecap).toHaveBeenCalledTimes(1);
+    expect(handlers.onRecap).toHaveBeenCalledOnce();
     fireEvent.click(screen.getByText("Not now"), { detail: 1 });
-    expect(handlers.onNotNow).toHaveBeenCalledTimes(1);
+    expect(handlers.onNotNow).toHaveBeenCalledOnce();
   });
 
   it("dismisses on Escape from inside it, and hands focus back", () => {
     const handlers = renderHint();
     fireEvent.keyDown(screen.getByText("Not now"), { key: "Escape" });
-    expect(handlers.onNotNow).toHaveBeenCalledTimes(1);
+    expect(handlers.onNotNow).toHaveBeenCalledOnce();
     expect(handlers.onRecap).not.toHaveBeenCalled();
-    expect(handlers.returnFocus).toHaveBeenCalledTimes(1);
+    expect(handlers.returnFocus).toHaveBeenCalledOnce();
   });
 
   /**
@@ -59,10 +59,10 @@ describe("CatchUpHint", () => {
     const handlers = renderHint();
     // Enter or Space on a button fires a click whose detail is 0.
     fireEvent.click(screen.getByText("Not now"), { detail: 0 });
-    expect(handlers.returnFocus).toHaveBeenCalledTimes(1);
+    expect(handlers.returnFocus).toHaveBeenCalledOnce();
 
     fireEvent.click(screen.getByText("Recap"), { detail: 1 });
-    expect(handlers.returnFocus).toHaveBeenCalledTimes(1);
+    expect(handlers.returnFocus).toHaveBeenCalledOnce();
   });
 
   it("carries no em or en dash", () => {

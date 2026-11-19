@@ -31,7 +31,7 @@
  * vocabulary is DERIVED rather than listed, so a type added next year is
  * covered without anybody remembering this file exists.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const APP = "apps/ios/Loonext";
@@ -142,7 +142,7 @@ for (const file of walk(TESTS)) {
 
   if (used.size > 0) {
     findings.push(
-      `${file.replace(/\\/g, "/")} names ${[...used].slice(0, 4).join(", ")}` +
+      `${file.replaceAll('\\', "/")} names ${[...used].slice(0, 4).join(", ")}` +
         `${used.size > 4 ? ` and ${used.size - 4} more` : ""} but does not ` +
         "`@testable import Loonext`",
     );

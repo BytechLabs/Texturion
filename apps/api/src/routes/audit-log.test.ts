@@ -68,11 +68,11 @@ describe("GET /v1/audit-log", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: unknown[]; next_cursor: null };
+    const body = await res.json<{ data: unknown[]; next_cursor: null }>();
     expect(body.data).toHaveLength(1);
     expect(body.next_cursor).toBeNull();
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_audit_log")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_audit_log");
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_actor: ACTOR_ID,
@@ -106,10 +106,10 @@ describe("GET /v1/audit-log", () => {
       "/v1/audit-log?limit=1",
       { companyId: COMPANY_ID },
     );
-    const body = (await first.json()) as {
+    const body = await first.json<{
       data: { id: string }[];
       next_cursor: string;
-    };
+    }>();
     expect(body.data).toHaveLength(1);
     expect(body.next_cursor).toBe(
       "2026-07-20T15:04:05+00:00|aaaaaaaa-0000-4000-8000-000000000001",
@@ -123,7 +123,7 @@ describe("GET /v1/audit-log", () => {
       `/v1/audit-log?limit=1&cursor=${encodeURIComponent(body.next_cursor)}`,
       { companyId: COMPANY_ID },
     );
-    const second = sb.find("POST", "/rest/v1/rpc/api_list_audit_log")[1];
+    const [, second] = sb.find("POST", "/rest/v1/rpc/api_list_audit_log");
     expect(second.body).toMatchObject({
       p_cursor_ts: "2026-07-20T15:04:05+00:00",
       p_cursor_id: "aaaaaaaa-0000-4000-8000-000000000001",
@@ -169,7 +169,7 @@ describe("GET /v1/audit-log", () => {
     );
   });
 
-  it.each([2_200, 10_000, 10_001])("exports and reports the cap for %i matching entries", async (count) => {
+  it.each([2200, 10_000, 10_001])("exports and reports the cap for %i matching entries", async (count) => {
     const cap = 10_000;
     const occurredAt = "2026-07-20T15:04:05+00:00";
     const sb = supabaseStub(env);
@@ -177,7 +177,7 @@ describe("GET /v1/audit-log", () => {
     sb.on("POST", "/rest/v1/rpc/api_list_audit_log", (call) => {
       const body = call.body as { p_limit: number; p_cursor_ts: string | null; p_cursor_id: string | null };
       const after = body.p_cursor_id === null ? count + 1 : Number(body.p_cursor_id.slice(-12));
-      expect(body.p_limit).toBe(after === count - cap + 1 ? 1 : 1_000);
+      expect(body.p_limit).toBe(after === count - cap + 1 ? 1 : 1000);
       expect(body.p_cursor_ts).toBe(body.p_cursor_id === null ? null : occurredAt);
       expect(body).toMatchObject({ p_company_id: COMPANY_ID, p_actor: ACTOR_ID });
       return Array.from({ length: Math.min(body.p_limit, after - 1) }, (_, index) => {

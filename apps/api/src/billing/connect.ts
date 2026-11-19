@@ -105,7 +105,7 @@ export function mirrorFrom(account: Stripe.Account): {
   requirements_due: string[];
   requirements_deadline: string | null;
 } {
-  const requirements = account.requirements;
+  const { requirements } = account;
   const deadline = requirements?.current_deadline ?? null;
   return {
     country: account.country ?? "US",

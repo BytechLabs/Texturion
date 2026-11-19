@@ -28,7 +28,7 @@ export async function notifyFailedText(
 ): Promise<void> {
   const conversationId = message.conversation_id;
   const companyId = message.company_id;
-  if (message.automated !== false || !message.sent_by_user_id || !conversationId) return;
+  if (message.automated || !message.sent_by_user_id || !conversationId) return;
 
   try {
     const [scheduled, conversation, prefs] = await Promise.all([

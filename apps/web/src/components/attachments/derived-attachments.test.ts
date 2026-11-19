@@ -116,11 +116,12 @@ describe("taskAttachmentView (D28 read-view state table)", () => {
     },
   ];
 
-  for (const { name, input, expected } of table) {
-    it(name, () => {
+  it.each(table.map(({ name, input, expected }) => [name, input, expected] as const))(
+    "%s",
+    (_name, input, expected) => {
       expect(taskAttachmentView(input)).toEqual(expected);
-    });
-  }
+    },
+  );
 });
 
 describe("attachmentLabel / isImageAttachment (shared row helpers)", () => {

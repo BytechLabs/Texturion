@@ -62,8 +62,8 @@ function appSourceFiles(dir = join(REPO, "apps", "web", "src")): string[] {
 
 function withoutComments(source: string): string {
   return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^\s*\/\/.*$/gm, "");
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^\s*\/\/.*$/gm, "");
 }
 
 /** The `@media (prefers-reduced-motion: reduce)` blocks, brace-balanced. */

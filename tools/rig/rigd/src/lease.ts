@@ -16,8 +16,10 @@
 import { randomBytes } from "node:crypto";
 import { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-import { EDGE_PATHS, GUARD_ROUTES, HEADER, LEASE_MAX_MS, type GuardRefusal, type LeaseGrant } from "@loonext/rig-protocol";
-import { GuardRefusedError, systemClock, type Clock } from "@loonext/rig-robot";
+import { EDGE_PATHS, GUARD_ROUTES, HEADER, LEASE_MAX_MS, stripTrailingSlashes } from "@loonext/rig-protocol";
+import type { GuardRefusal, LeaseGrant } from "@loonext/rig-protocol";
+import { GuardRefusedError, systemClock } from "@loonext/rig-robot";
+import type { Clock } from "@loonext/rig-robot";
 
 export interface UndoAction {
   /** A handler name, e.g. `robot.sms`. */
@@ -189,12 +191,12 @@ export class LeaseClient {
   async runUndo(entry: JournalEntry): Promise<Omit<ReleaseResult, "reaped" | "lease_id">> {
     const failed: ReleaseResult["failed"] = [];
     let undone = 0;
-    for (const action of [...entry.undo].reverse()) {
+    for (const action of entry.undo.toReversed()) {
       const handler = this.#o.handlers[action.kind];
       try {
         if (!handler) throw new Error("no handler for this undo");
         await handler(action.params);
-        undone++;
+        undone += 1;
       } catch (error) {
         failed.push({ kind: action.kind, error: error instanceof Error ? error.message : String(error) });
       }
@@ -223,12 +225,12 @@ export class LeaseClient {
   }
 
   #path(leaseId: string, suffix?: string): string {
-    const safe = leaseId.replace(/[^A-Za-z0-9_-]/g, "_");
+    const safe = leaseId.replaceAll(/[^A-Za-z0-9_-]/g, "_");
     return join(this.#dir, suffix ? `${safe}.${suffix}.json` : `${safe}.json`);
   }
 
   #url(leaseId?: string): string {
-    const base = `${this.#o.edgeOrigin.replace(/\/+$/, "")}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.lease}`;
+    const base = `${stripTrailingSlashes(this.#o.edgeOrigin)}${EDGE_PATHS.guardPrefix}${GUARD_ROUTES.lease}`;
     return leaseId ? `${base}/${encodeURIComponent(leaseId)}` : base;
   }
 }

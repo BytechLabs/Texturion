@@ -99,9 +99,7 @@ const PATHS = ["/health", "/v1/me"];
 function expectedHeaders() {
   const source = readFileSync(SOURCE, "utf8");
 
-  const block = source.match(
-    /export const API_SECURITY_HEADERS[^=]*=\s*\{([\s\S]*?)\n\};/,
-  );
+  const block = /export const API_SECURITY_HEADERS[^=]*=\s*\{([\s\S]*?)\n\};/.exec(source);
   if (!block) {
     console.error(
       `Could not find API_SECURITY_HEADERS in ${SOURCE}. If it was renamed or ` +
@@ -113,18 +111,20 @@ function expectedHeaders() {
 
   const expected = {};
   for (const line of block[1].split("\n")) {
-    const entry = line.match(/^\s*"([^"]+)":\s*"([^"]*)",?\s*$/);
-    if (entry) expected[entry[1]] = entry[2];
+    const entry = /^\s*"([^"]+)":\s*"([^"]*)",?\s*$/.exec(line);
+    if (entry) {
+      const [, header, value] = entry;
+      expected[header] = value;
+    }
   }
 
-  const fallback = source.match(
-    /export const DEFAULT_CACHE_CONTROL\s*=\s*"([^"]*)"/,
-  );
+  const fallback = /export const DEFAULT_CACHE_CONTROL\s*=\s*"([^"]*)"/.exec(source);
   if (!fallback) {
     console.error(`Could not find DEFAULT_CACHE_CONTROL in ${SOURCE}.`);
     process.exit(2);
   }
-  expected["Cache-Control"] = fallback[1];
+  const [, cacheControl] = fallback;
+  expected["Cache-Control"] = cacheControl;
 
   // A parse that silently found nothing would pass everything. Four is what the
   // module holds today; the floor is "more than the Cache-Control we just added".
@@ -182,14 +182,20 @@ function identify(status, bodyText) {
   // Cloudflare's JSON block page is an RFC 9457 problem document, and its `type`
   // points at their own docs. Named so the failure says what happened rather
   // than "unrecognised".
-  if (typeof body?.type === "string" && body.type.includes("cloudflare.com")) {
-    return { ours: false, why: "it is a Cloudflare block page" };
+  const problemType = typeof body?.type === "string" && URL.canParse(body.type)
+    ? new URL(body.type)
+    : null;
+  if (problemType?.protocol === "https:") {
+    const { hostname } = problemType;
+    if (hostname === "cloudflare.com" || hostname.endsWith(".cloudflare.com")) {
+      return { ours: false, why: "it is a Cloudflare block page" };
+    }
   }
   return { ours: false, why: "it is JSON but carries no error.code" };
 }
 
 function baseFromArgv() {
-  const flag = process.argv.findIndex((arg) => arg === "--base");
+  const flag = process.argv.indexOf("--base");
   if (flag === -1) return DEFAULT_BASE;
   const value = process.argv[flag + 1];
   if (!value || value.startsWith("--")) {
@@ -205,7 +211,7 @@ async function main() {
   const names = Object.keys(expected);
 
   console.log(`target         ${base}`);
-  console.log(`expectations   ${SOURCE.replace(/\\/g, "/")}`);
+  console.log(`expectations   ${SOURCE.replaceAll('\\', "/")}`);
   console.log("");
 
   const problems = [];
@@ -216,8 +222,8 @@ async function main() {
       response = await fetch(`${base}${path}`, {
         headers: { "User-Agent": PROBE_UA, Accept: "application/json" },
       });
-    } catch (cause) {
-      problems.push(`${path}: request failed (${cause.message})`);
+    } catch (error) {
+      problems.push(`${path}: request failed (${error.message})`);
       console.log(`${path}  REQUEST FAILED`);
       continue;
     }

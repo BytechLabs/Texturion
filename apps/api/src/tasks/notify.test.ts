@@ -128,7 +128,7 @@ describe("each kind of change reaches the people following the task", () => {
     await run({ kind: "completed" });
 
     expect(sent()).toHaveLength(1);
-    const delivery = sent()[0];
+    const [delivery] = sent();
     expect(delivery.category).toBe("tasks");
     expect(delivery.userIds.toSorted()).toEqual([PAT, SAM].toSorted());
     expect(delivery.web("en")).toMatchObject({
@@ -222,8 +222,9 @@ describe("the person who made the change is never told about it", () => {
     "mentioned",
   ];
 
-  for (const kind of kinds) {
-    it(`${kind}: the actor follows the task and is still left out`, async () => {
+  it.each(kinds)(
+    "%s: the actor follows the task and is still left out",
+    async (kind) => {
       world({ followers: [ACTOR] });
       await run({
         kind,
@@ -232,8 +233,8 @@ describe("the person who made the change is never told about it", () => {
         commentBody: "note to self",
       });
       expect(sent()).toHaveLength(0);
-    });
-  }
+    },
+  );
 
   it("a comment that names the actor does not tell them either", async () => {
     world({ followers: [ACTOR, SAM] });
@@ -250,7 +251,7 @@ describe("only people who still follow it are told", () => {
     await run({ kind: "completed" });
 
     expect(sent()[0].userIds).toEqual([SAM]);
-    const query = sb.find("GET", "/rest/v1/task_subscribers")[0];
+    const [query] = sb.find("GET", "/rest/v1/task_subscribers");
     expect(query.url.searchParams.get("unsubscribed_at")).toBe("is.null");
   });
 
@@ -304,7 +305,7 @@ describe("a number somebody is denied does not leak the task", () => {
     // by deliverPush from the `withheld` this call declares.
     world();
     return run({ kind: "comment", commentBody: "Gate code 4417" }).then(() => {
-      const delivery = sent()[0];
+      const [delivery] = sent();
       expect(delivery.content).toMatchObject({ written: "people", companyId: COMPANY_ID });
       if (delivery.content.written !== "people") throw new Error("unreachable");
       expect(delivery.content.withheld("en")).toEqual({ body: "Open the app to see it" });
@@ -342,7 +343,7 @@ describe("rapid edits by one person collapse into one push", () => {
   it("the claim runs after every filter, so a denied member never spends a window", async () => {
     const sb = world({ conversationId: CONVERSATION_ID, deniedOnNumber: [SAM] });
     await run({ kind: "completed" });
-    const claim = sb.find("POST", "/rest/v1/rpc/task_notify_claim")[0];
+    const [claim] = sb.find("POST", "/rest/v1/rpc/task_notify_claim");
     expect((claim.body as { p_recipients: string[] }).p_recipients).toEqual([PAT]);
   });
 

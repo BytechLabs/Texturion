@@ -91,7 +91,7 @@ export interface DialerMatch {
  * "+14165550123", "14165550123" and "4165550123" all compare equal.
  */
 export function nationalDigits(value: string): string {
-  const digits = value.replace(/\D/g, "");
+  const digits = value.replaceAll(/\D/g, "");
   return digits.length === 11 && digits.startsWith("1") ? digits.slice(1) : digits;
 }
 

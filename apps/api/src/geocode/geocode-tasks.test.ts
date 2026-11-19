@@ -48,14 +48,12 @@ function stubWorld(
       captured.scans.push(url);
       return Response.json(scanRows);
     }
-    if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/tasks`)) {
-      if (request.method === "PATCH") {
-        return (async () => {
-          const body = await request.clone().json();
-          captured.updates.push({ url, body });
-          return Response.json([]);
-        })();
-      }
+    if (url.href.startsWith(`${env.SUPABASE_URL}/rest/v1/tasks`) && request.method === "PATCH") {
+      return (async () => {
+        const body = await request.clone().json();
+        captured.updates.push({ url, body });
+        return Response.json([]);
+      })();
     }
     if (url.href.startsWith(`${NOMINATIM_BASE}/search`)) {
       captured.nominatim.push(url);
@@ -98,7 +96,7 @@ describe(geocodeTasksJob, () => {
       "CN Tower, Toronto, ON, Canada",
     );
     expect(captured.updates).toHaveLength(1);
-    const write = captured.updates[0];
+    const [write] = captured.updates;
     expect(write.url.searchParams.get("id")).toBe("eq.t1");
     // The write-back gates on the address columns (concurrent edit wins).
     expect(write.url.searchParams.get("addr_street")).toBe("eq.CN Tower");

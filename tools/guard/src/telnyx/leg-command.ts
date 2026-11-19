@@ -18,7 +18,7 @@ export const handleLegCommand: Handler = async (request) => {
   const { ctx } = request;
   if (request.entry.key === "DELETE /v2/recordings/:id") return deleteRecording(request);
 
-  const callControlId = request.ids[0];
+  const [callControlId] = request.ids;
   if (!(await liveLeg(ctx, callControlId))) throw new Refusal("leg.not_registered");
   if (request.bodyInvalid) throw new Refusal("request.body_invalid");
   const action = request.path.split("/").pop() ?? "";
@@ -45,7 +45,7 @@ async function deleteRecording(request: Parameters<Handler>[0]): Promise<Respons
   const { ctx } = request;
   const {telnyx} = ctx;
   if (!telnyx) throw new Refusal("telnyx.key_missing");
-  const id = request.ids[0];
+  const [id] = request.ids;
   const reply = await telnyx.send("GET", `/v2/recordings/${encodeURIComponent(id)}`);
   const data = (reply.body as { data?: Record<string, unknown> } | undefined)?.data;
   if (reply.status === 404) return relay(reply);

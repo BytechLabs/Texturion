@@ -252,7 +252,7 @@ describe("suppression (#386)", () => {
       },
       async (url: URL, request: Request) => {
         if (url.href !== "https://api.resend.com/emails") return undefined;
-        sent.push((await request.clone().json()) as Record<string, unknown>);
+        sent.push(await request.clone().json<Record<string, unknown>>());
         return Response.json({ id: "re_ok" });
       },
     ];
@@ -316,7 +316,7 @@ describe("suppression (#386)", () => {
           : undefined,
       async (url, request) => {
         if (url.href !== "https://api.resend.com/emails") return undefined;
-        sent.push((await request.clone().json()) as Record<string, unknown>);
+        sent.push(await request.clone().json<Record<string, unknown>>());
         return Response.json({ id: "re_ok" });
       },
     );
@@ -343,7 +343,7 @@ describe("#252 the critical stream", () => {
     const sent: Record<string, unknown>[] = [];
     stubFetch(async (url, request) => {
       if (url.href !== "https://api.resend.com/emails") return undefined;
-      sent.push((await request.clone().json()) as Record<string, unknown>);
+      sent.push(await request.clone().json<Record<string, unknown>>());
       return Response.json({ id: "email_1" });
     });
     return { sent, critical };

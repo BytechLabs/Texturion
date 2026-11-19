@@ -39,7 +39,7 @@
  * `check-doc-citations.mjs` failing when a cited path moves: actionable, quick,
  * and the alternative is a document nobody can trust.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const DOCS = "docs";

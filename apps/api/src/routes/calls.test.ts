@@ -70,12 +70,13 @@ describe("GET /v1/calls", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       data: [callRow()],
       next_cursor: null,
     });
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_calls")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_calls");
     expect(rpc.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_limit: 26, // limit + 1 sentinel row
@@ -101,7 +102,7 @@ describe("GET /v1/calls", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { answered_by_name: string | null }[] };
+    const body = await res.json<{ data: { answered_by_name: string | null }[] }>();
     expect(body.data[0].answered_by_name).toBe("Sam Owner");
     // The lookup was scoped to the page's actor ids.
     const lookup = sb.find("GET", "/rest/v1/profiles");
@@ -116,7 +117,7 @@ describe("GET /v1/calls", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: { answered_by_name: string | null }[] };
+    const body = await res.json<{ data: { answered_by_name: string | null }[] }>();
     expect(body.data[0].answered_by_name).toBeNull();
     // No actor ids on the page → the profiles lookup is skipped entirely.
     expect(sb.find("GET", "/rest/v1/profiles")).toHaveLength(0);
@@ -133,7 +134,7 @@ describe("GET /v1/calls", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/calls", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as { data: { allowed_actions?: string[] }[] };
+    const body = await res.json<{ data: { allowed_actions?: string[] }[] }>();
     expect(body.data[0].allowed_actions).toEqual(["call_back"]);
     expect(body.data[1].allowed_actions).toEqual(["hang_up", "transfer"]);
     expect(body.data[2].allowed_actions).toBeUndefined();
@@ -152,7 +153,7 @@ describe("GET /v1/calls", () => {
     });
     expect(res.status).toBe(200);
 
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_calls")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_calls");
     expect(rpc.body).toMatchObject({
       p_hidden_number_ids: [HIDDEN_NUMBER],
     });
@@ -166,7 +167,7 @@ describe("GET /v1/calls", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_calls")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_list_calls");
     expect((rpc.body as { p_hidden_number_ids: unknown }).p_hidden_number_ids).toBeNull();
     expect(sb.find("POST", "/rest/v1/rpc/member_number_levels")).toHaveLength(0);
   });
@@ -210,7 +211,7 @@ describe("GET /v1/calls", () => {
       { companyId: COMPANY_ID },
     );
     expect(ok.status).toBe(200);
-    const body = (await ok.json()) as { data: { contact_id: string }[] };
+    const body = await ok.json<{ data: { contact_id: string }[] }>();
     expect(body.data).toHaveLength(1);
     expect(body.data[0].contact_id).toBe(contactId);
     expect(
@@ -294,10 +295,10 @@ describe("GET /v1/calls", () => {
       { companyId: COMPANY_ID },
     );
     expect(first.status).toBe(200);
-    const page = (await first.json()) as {
+    const page = await first.json<{
       data: unknown[];
       next_cursor: string | null;
-    };
+    }>();
     expect(page.data).toHaveLength(1);
     expect(page.next_cursor).toEqual(expect.any(String));
 
@@ -306,12 +307,12 @@ describe("GET /v1/calls", () => {
       env,
       await auth.token(),
       `/v1/calls?contact_id=${contactId}&limit=1&cursor=${encodeURIComponent(
-        page.next_cursor as string,
+        page.next_cursor!,
       )}`,
       { companyId: COMPANY_ID },
     );
     expect(second.status).toBe(200);
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_list_calls")[1];
+    const [, rpc] = sb.find("POST", "/rest/v1/rpc/api_list_calls");
     expect(rpc.body).toMatchObject({
       p_contact_id: contactId,
       p_cursor_ts: "2026-07-10T15:00:00+00:00",
@@ -337,10 +338,10 @@ describe("GET /v1/calls", () => {
       "/v1/calls?limit=1",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: unknown[];
       next_cursor: string | null;
-    };
+    }>();
     expect(body.data).toHaveLength(1);
     expect(body.next_cursor).toEqual(expect.any(String));
   });
@@ -462,12 +463,12 @@ describe("POST /v1/calls/browser (D43)", () => {
       { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
     );
     expect(res.status).toBe(200);
-    const bodyOut = (await res.json()) as {
+    const bodyOut = await res.json<{
       from: string;
       to: string;
       client_state: string;
       call_session_id: string | null;
-    };
+    }>();
     expect(bodyOut.from).toBe("+16135550100");
     expect(bodyOut.to).toBe("+16135551000");
     // #211: the tag is the 4-part base64("oc_customer|<customer>|<nonce>|<S>").
@@ -477,8 +478,8 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(decoded).toHaveLength(4);
     expect(decoded[0]).toBe("oc_customer");
     expect(decoded[1]).toBe("+16135551000");
-    expect(decoded[2]).toBeTruthy(); // a nonce is present
-    expect(bodyOut.call_session_id).toBeTruthy();
+    expect(Boolean(decoded[2])).toBe(true); // a nonce is present
+    expect(Boolean(bodyOut.call_session_id)).toBe(true);
     expect(decoded[3]).toBe(bodyOut.call_session_id); // part-4 == S
     // The atomic line-claim RPC was called with that exact nonce + caller ID.
     const claim = sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line");
@@ -489,7 +490,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       p_customer: "+16135551000",
       p_call_session_id: bodyOut.call_session_id,
     });
-    expect((claim[0].body as { p_user_id?: string }).p_user_id).toBeTruthy();
+    expect(Boolean((claim[0].body as { p_user_id?: string }).p_user_id)).toBe(true);
     // #213: the SERVER dials the customer as a real Call-Control leg — the exact
     // oc tag + X-Loonext-Session=S so the leg's webhook flows to the DO keyed on S
     // and stamps customer_call_control_id = THIS controllable customer leg.
@@ -521,7 +522,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
     );
     expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "subscription_inactive" },
     });
   });
@@ -538,7 +539,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
     );
     expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "usage_cap_reached" },
     });
   });
@@ -557,7 +558,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { conversation_id: CONVERSATION },
     });
     expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "usage_cap_reached" },
     });
   });
@@ -594,7 +595,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { conversation_id: CONVERSATION },
     });
     expect(res.status).toBe(402);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "usage_cap_reached" },
     });
     // The atomic line claim is never reached — the cap refuses first.
@@ -628,7 +629,8 @@ describe("POST /v1/calls/browser (D43)", () => {
       { companyId: COMPANY_ID, method: "POST", body: { conversation_id: CONVERSATION } },
     );
     expect(res.status).toBe(409);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       error: { message: expect.stringContaining("on another call") },
     });
   });
@@ -643,7 +645,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { contact_id: CONTACT_ID },
     });
     expect(res.status).toBe(200);
-    const out = (await res.json()) as { from: string; to: string };
+    const out = await res.json<{ from: string; to: string }>();
     expect(out.from).toBe("+16135550100"); // the company's sole active number
     expect(out.to).toBe("+16475551234"); // the contact's stored number
     const claim = sb.find("POST", "/rest/v1/rpc/api_claim_outbound_line");
@@ -664,7 +666,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { to: "(418) 655-3839" }, // human-typed → normalized to +1418…
     });
     expect(res.status).toBe(200);
-    const out = (await res.json()) as { from: string; to: string };
+    const out = await res.json<{ from: string; to: string }>();
     expect(out.from).toBe("+16135550100");
     expect(out.to).toBe("+14186553839");
   });
@@ -679,7 +681,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { to: "123" },
     });
     expect(res.status).toBe(422);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       error: { code: "validation_failed" },
     });
   });
@@ -699,7 +701,8 @@ describe("POST /v1/calls/browser (D43)", () => {
       body: { to: "+14186553839" },
     });
     expect(res.status).toBe(422);
-    expect(await res.json()).toMatchObject({
+    const responseBody = await res.json();
+    expect(responseBody).toMatchObject({
       error: { message: expect.stringContaining("which of your numbers") },
     });
   });
@@ -710,7 +713,7 @@ describe("POST /v1/calls/browser (D43)", () => {
     const dial = stubRoute(
       (url, request) =>
         request.method === "POST" && url.href === "https://api.telnyx.com/v2/calls",
-      () => new Response(JSON.stringify({ errors: [{ code: "10015" }] }), { status: 422 }),
+      () => Response.json({ errors: [{ code: "10015" }] }, { status: 422 }),
     );
     stubFetch(jwksRoute(auth), sb.route, dial.route);
 
@@ -762,7 +765,7 @@ describe("POST /v1/calls/browser (D43)", () => {
       },
     });
     expect(res.status).toBe(200);
-    const out = (await res.json()) as { from: string };
+    const out = await res.json<{ from: string }>();
     expect(out.from).toBe("+14165550200"); // the chosen number
   });
 
@@ -797,7 +800,7 @@ describe("POST /v1/calls/browser (D43)", () => {
         body: { conversation_id: CONVERSATION },
       });
       expect(res.status).toBe(402);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         error: { code: "workspace_paused" },
       });
       // The two things that cost money or wedge a line, both untouched: no
@@ -818,7 +821,7 @@ describe("POST /v1/calls/browser (D43)", () => {
         method: "POST",
         body: { conversation_id: CONVERSATION },
       });
-      const body = (await res.json()) as { error: { code: string; message: string } };
+      const body = await res.json<{ error: { code: string; message: string } }>();
       expect(body.error.code).not.toBe("subscription_inactive");
       expect(body.error.code).not.toBe("sending_suspended");
       const message = body.error.message.toLowerCase();
@@ -842,7 +845,7 @@ describe("POST /v1/calls/browser (D43)", () => {
         body: { conversation_id: CONVERSATION },
       });
       expect(res.status).toBe(402);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         error: { code: "subscription_inactive" },
       });
     });
@@ -877,7 +880,7 @@ describe("POST /v1/calls/browser (D43)", () => {
         method: "POST",
         body: { conversation_id: CONVERSATION },
       });
-      const read = sb.find("GET", "/rest/v1/companies")[0];
+      const [read] = sb.find("GET", "/rest/v1/companies");
       expect(read.url.searchParams.get("select")).toContain("paused_at");
 
       // And the other half of the coalesce: a row with no such key is "not
@@ -954,7 +957,7 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
         ended_at: "2026-07-29T10:00:40.000Z",
         direction: "inbound",
         contacts: null,
-        ...(opts.row ?? {}),
+        ...opts.row,
       },
     ]);
     sb.on("GET", "/rest/v1/profiles", () => []);
@@ -973,7 +976,7 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.call_session_id).toBe(SESSION);
     expect(body.voicemail_transcript).toBe("Leaking tap upstairs.");
     expect(body.outcome).toBe("voicemail");
@@ -993,7 +996,7 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
       `/v1/calls/${SESSION}`,
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.has_voicemail).toBe(true);
     expect(body.voicemail_path).toBeUndefined();
     expect(JSON.stringify(body)).not.toContain(".mp3");
@@ -1055,7 +1058,7 @@ describe("GET /v1/calls/:sessionId (#336 — a call has an address)", () => {
       `/v1/calls/${SESSION}`,
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.voicemail_transcript).toBeNull();
     expect(body.voicemail_transcript_attempted_at).toBe("2026-07-29T10:01:00.000Z");
     expect(body.has_voicemail).toBe(true);
@@ -1113,7 +1116,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     return sb;
   }
 
-  const origin = new URL(env.SUPABASE_URL).origin;
+  const { origin } = new URL(env.SUPABASE_URL);
 
   function listRoute(): Stub {
     return stubRoute(
@@ -1188,6 +1191,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const claims = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
     expect(claimedBytes(claims[0].body)).toBe(0);
   });
+
   it("does not buy a transcript twice for a recording that had nothing in it", async () => {
     // A hang-up after the beep transcribes to nothing, so no words are stored
     // and the column stays null. The clients mint a fresh URL on every tap and
@@ -1200,10 +1204,11 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const res = await play(sb, [listRoute(), signRoute()]);
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ transcript: null });
+    await expect(res.json()).resolves.toMatchObject({ transcript: null });
     // Nothing was written, which is what proves the model was never called.
     expect(sb.find("PATCH", "/rest/v1/calls")).toHaveLength(0);
   });
+
   it("claims both copies when the words still have to be written down", async () => {
     // Writing the words down pulls its own copy from storage, so an open that
     // backfills moves the file twice. The meter has to see both.
@@ -1211,7 +1216,7 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const res = await play(sb, [listRoute(), signRoute()]);
 
     expect(res.status).toBe(200);
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0];
+    const [claim] = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
     expect(claimedBytes(claim.body)).toBe(26_374 * 2);
   });
 
@@ -1222,10 +1227,11 @@ describe("GET /v1/calls/:sessionId/voicemail", () => {
     const res = await play(sb, [listRoute(), signRoute()]);
 
     expect(res.status).toBe(200);
-    const claim = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0];
+    const [claim] = sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects");
     expect(claimedBytes(claim.body)).toBe(26_374);
-    expect(await res.json()).toMatchObject({ transcript: null });
+    await expect(res.json()).resolves.toMatchObject({ transcript: null });
   });
+
   it("does not mark a recording tried when nothing was ever spent on it", async () => {
     // Over the monthly cap, or a ledger the gate could not read and so treated
     // as over cap, says nothing about this recording. Recording it as an
@@ -1264,7 +1270,7 @@ describe("#725 calls by reason", () => {
   it("counts each reason once per call over the last 30 days", async () => {
     const sb = callsStub([], { role: "owner" });
     sb.on("POST", "/rest/v1/rpc/api_call_effect_counts", () => ({
-      after_hours: 1_200,
+      after_hours: 1200,
       left_voicemail: 500,
       nobody_reachable: 1,
     }));
@@ -1273,10 +1279,10 @@ describe("#725 calls by reason", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       days: 30,
       counts: {
-        after_hours: 1_200,
+        after_hours: 1200,
         left_voicemail: 500,
         nobody_reachable: 1,
       },

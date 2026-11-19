@@ -1,7 +1,8 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
 import { derivePortUiState } from "@/components/porting/port-ui-state";
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from "@/i18n/translate";
+import type { Translate } from "@/i18n/translate";
 import type { PortRequest } from "@/lib/api/types";
 
 /** English, for a caller with no provider around it — the unit tests. */
@@ -41,11 +42,11 @@ export interface PortChecklistItem {
 }
 
 /** The phases where the port sits still until someone at the company acts. */
-const ACTION_PHASES: readonly PortItemPhase[] = [
+const ACTION_PHASES: ReadonlySet<PortItemPhase> = new Set([
   "needs_documents",
   "needs_submit",
   "needs_fix",
-];
+]);
 
 function phaseOf(port: PortRequest): PortItemPhase {
   const ui = derivePortUiState(port);
@@ -83,7 +84,7 @@ export function resolvePortChecklistItem(
   const port = ports.find((p) => !derivePortUiState(p).cancelled);
   if (!port) return null;
   const phase = phaseOf(port);
-  return { port, phase, actionNeeded: ACTION_PHASES.includes(phase) };
+  return { port, phase, actionNeeded: ACTION_PHASES.has(phase) };
 }
 
 /**

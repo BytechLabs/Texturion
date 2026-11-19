@@ -31,7 +31,7 @@ const PLANS = Object.keys(PLAN_SEATS) as (keyof typeof PLAN_SEATS)[];
 
 it("uses Canadian French grouping, decimals and currency placement", () => {
   expect(formatMoney(125_050, "cad", "cad", "fr-CA")).toBe("1 250,50 $");
-  expect(formatMoney(3_900, "cad", "cad", "fr-CA")).toBe("39 $");
+  expect(formatMoney(3900, "cad", "cad", "fr-CA")).toBe("39 $");
   expect(formatMoney(500, "usd", "cad", "fr-CA")).toBe("5 $ US");
 });
 

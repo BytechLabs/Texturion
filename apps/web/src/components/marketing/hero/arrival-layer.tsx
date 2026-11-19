@@ -29,7 +29,10 @@ import { cn } from "@/lib/utils";
 
 import { ArrivalStatic } from "./arrival-static";
 
-const ArrivalField = dynamic(() => import("./arrival-field"), { ssr: false });
+const ArrivalField = dynamic(
+  () => import("./arrival-field").then((module) => module.ArrivalField),
+  { ssr: false },
+);
 const MOTION_QUERY = "(prefers-reduced-motion: reduce)";
 const PAUSE_KEY = "loonext-hero-animation-paused";
 

@@ -64,7 +64,7 @@ describe("money tiers", () => {
     h.clock.now = Date.parse("2026-12-01T05:00:00Z");
     expect((await readTier(h.ctx)).rentals_usd).toBe(0);
     // Any read of the partition notes what is held; /health reads it.
-    const health = (await (await h.call("/health", { caller: "admin" })).json()) as { money: Record<string, number> };
+    const health = await (await h.call("/health", { caller: "admin" })).json<{ money: Record<string, number> }>();
     const held = h.telnyx.numbers.filter((item) => item.billing_group_id === "bg-nonprod").length;
     expect(health.money.rentals_usd).toBeCloseTo(held * 1.1);
     expect(health.money.next_month_reserve_usd).toBeCloseTo(held * 1.1);

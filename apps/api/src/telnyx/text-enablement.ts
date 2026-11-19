@@ -408,7 +408,7 @@ async function telnyxApiErrorFrom(
 ): Promise<TelnyxApiError> {
   let errors: TelnyxErrorItem[] = [];
   try {
-    const parsed = (await response.json()) as { errors?: unknown };
+    const parsed = await response.json<{ errors?: unknown }>();
     if (Array.isArray(parsed.errors)) {
       errors = parsed.errors.filter(
         (item): item is TelnyxErrorItem =>
@@ -599,7 +599,7 @@ type TextEnablementPassResult =
  */
 export async function resumeTextEnablement(
   env: Env,
-  order: TextEnablementOrderRow,
+  initialOrder: TextEnablementOrderRow,
 ): Promise<TextEnablementOrderRow> {
   const db = getDb(env);
 
@@ -608,8 +608,8 @@ export async function resumeTextEnablement(
   // execution runs the saga; the rest return the order untouched — so ONE hosted
   // number never places TWO carrier-reviewed orders. Released at end-of-pass; a
   // crash mid-lease is healed by expiry + the persisted order id / idempotency key.
-  const leased = await claimTextEnablementLease(db, order.id);
-  if (!leased) return order;
+  const leased = await claimTextEnablementLease(db, initialOrder.id);
+  if (!leased) return initialOrder;
 
   try {
     const result = await runTextEnablementPass(env, db, leased);
@@ -624,8 +624,9 @@ export async function resumeTextEnablement(
 async function runTextEnablementPass(
   env: Env,
   db: SupabaseClient,
-  order: TextEnablementOrderRow,
+  initialOrder: TextEnablementOrderRow,
 ): Promise<TextEnablementPassResult> {
+  let order = initialOrder;
   try {
     const company = await fetchProvisioningCompany(db, order.company_id);
 

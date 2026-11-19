@@ -22,8 +22,8 @@ import { useNumbers } from "@/lib/api/numbers";
 import { usePortRequests } from "@/lib/api/porting";
 import { useActiveCompany } from "@/lib/company/provider";
 import {
-  extraNumberBlockedReason, roleHasCapability,
-  billingCurrencyOf,
+  billingCurrencyOf, extraNumberBlockedReason,
+  roleHasCapability,
 } from "@loonext/shared";
 
 /** SPEC §2: Pro includes 2 numbers, Starter 1. */

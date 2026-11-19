@@ -147,7 +147,7 @@ describe("#303 the AUP enforcement ladder", () => {
     const offenders: string[] = [];
     for (const path of sourceFiles(join(process.cwd(), "src"), [".ts"])) {
       if (path.endsWith('.test.ts')) continue;
-      const rel = path.replaceAll('\\', "/").split("/src/")[1];
+      const [, rel] = path.replaceAll('\\', "/").split("/src/");
       if (ALLOWED_TO_ENFORCE.includes(rel)) continue;
 
       const code = stripComments(sourceText(path));

@@ -78,7 +78,7 @@ export function opsClient() {
   const base = url.replace(/\/+$/, "");
   const headers = {
     apikey: key,
-    Authorization: "Bearer " + key,
+    Authorization: `Bearer ${key}`,
     "Content-Type": "application/json",
   };
 
@@ -91,7 +91,7 @@ export function opsClient() {
   const send = async (what, url, init = {}) => {
     const response = await fetch(url, {
       ...init,
-      headers: { ...headers, ...(init.headers ?? {}) },
+      headers: { ...headers, ...init.headers },
     });
     const text = await response.text();
     if (!response.ok) {
@@ -176,7 +176,7 @@ export function opsClient() {
  * the word APPLY before anybody presses return.
  */
 export function announceTarget(apply, readOnly = false) {
-  const host = new URL(process.env.SUPABASE_URL ?? "http://unset").host;
+  const { host } = new URL(process.env.SUPABASE_URL ?? "http://unset");
   const mode = readOnly
     ? "report — this script has no write path"
     : apply
@@ -198,10 +198,9 @@ export function showRows(label, rows) {
   }
   for (const row of rows) {
     console.log(
-      "    " +
-        Object.entries(row)
+      `    ${Object.entries(row)
           .map(([key, value]) => `${key}=${value === null ? "null" : value}`)
-          .join("  "),
+          .join("  ")}`,
     );
   }
   console.log("");
@@ -232,9 +231,9 @@ export async function recordPlatformAudit(db, entry) {
       before: entry.before ?? {},
       after: entry.after ?? {},
     });
-  } catch (cause) {
+  } catch (error) {
     fail(
-      `the change was made but the audit row FAILED: ${cause.message}\n` +
+      `the change was made but the audit row FAILED: ${error.message}\n` +
         "  Write the record by hand before doing anything else — an " +
         "unrecorded support edit is the thing this tooling exists to prevent.",
     );
@@ -260,8 +259,8 @@ export async function runScript(name, run, { readOnly = false } = {}) {
   announceTarget(apply, readOnly);
   try {
     await run({ args, apply, db: opsClient(), script: name });
-  } catch (cause) {
-    fail(cause instanceof Error ? cause.message : String(cause));
+  } catch (error) {
+    fail(error instanceof Error ? error.message : String(error));
   }
   if (!apply && !readOnly) {
     console.log("  Nothing was written. Re-run with --apply to make it real.\n");

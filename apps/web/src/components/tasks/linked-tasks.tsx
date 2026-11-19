@@ -11,6 +11,8 @@ import { useLinkedTasks } from "@/lib/api/task-links";
 import type { LinkedTask } from "@/lib/api/types";
 import { cn } from "@/lib/utils";
 
+const EMPTY_TASK_IDS: readonly string[] = [];
+
 /**
  * #690: the tasks a conversation or a customer is tied to: made from one of its
  * texts, mentioned in one of its notes, or pointing at it from their own words.
@@ -21,7 +23,7 @@ export function LinkedTasks({
   kind,
   id,
   active = true,
-  shownElsewhere = [],
+  shownElsewhere = EMPTY_TASK_IDS,
   limit,
   empty,
 }: {

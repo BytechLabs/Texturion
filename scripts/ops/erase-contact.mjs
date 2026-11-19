@@ -22,7 +22,7 @@ import { fail, runScript, showRows } from "./lib.mjs";
 
 await runScript("erase-contact", async ({ args, apply, db, script }) => {
   const email = typeof args.email === "string" ? args.email.trim() : "";
-  if (!email || !email.includes("@")) {
+  if (!email.includes("@")) {
     fail("--email <address> is required. This never runs against everybody.");
   }
 

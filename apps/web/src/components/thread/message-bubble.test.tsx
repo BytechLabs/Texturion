@@ -70,11 +70,11 @@ it("describes each repeated action with that message's sender and text", () => {
   expect(screen.getByRole("button", {
     name: "Mark done",
     description: "Maria: Is Tuesday free?",
-  })).toBeTruthy();
+  })).toBeInstanceOf(Element);
   expect(screen.getByRole("button", {
     name: "More actions",
     description: "Dana: Tuesday works.",
-  })).toBeTruthy();
+  })).toBeInstanceOf(Element);
   expect(screen.getByText("👍").textContent).toBe("👍");
   expect(container.querySelector("time.sr-only")?.getAttribute("datetime")).toBe(message.created_at);
 });
@@ -94,5 +94,5 @@ it("speaks the automated sender in French", () => {
   expect(screen.getByRole("button", {
     name: "Plus d'actions",
     description: "Envoyé automatiquement : À bientôt.",
-  })).toBeTruthy();
+  })).toBeInstanceOf(Element);
 });

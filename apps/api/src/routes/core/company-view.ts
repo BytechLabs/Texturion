@@ -487,7 +487,7 @@ export async function loadCompanyView(
       .is("disabled_at", null),
     resolveNumberAccess(db, { companyId, userId: caller.userId, role: caller.role }),
   ]);
-  const company = unwrap<Record<string, unknown>[]>(companiesRes, "company lookup")[0];
+  const [company] = unwrap<unknown>(companiesRes, "company lookup") as Record<string, unknown>[];
   if (!company) return null;
   const mfaProgress = company.mfa_required_at
     ? await db.rpc("workspace_mfa_progress", { p_company_id: companyId, p_user_id: caller.userId })
@@ -500,10 +500,10 @@ export async function loadCompanyView(
     hidden === null
       ? allNumbers
       : allNumbers.filter((n) => !hidden.includes((n as { id: string }).id));
-  const registrations = unwrap<RegistrationRow[]>(
+  const registrations = unwrap<unknown>(
     registrationsRes,
     "messaging_registrations lookup",
-  );
+  ) as RegistrationRow[];
   const modules = unwrap<{ module: string }[]>(
     modulesRes,
     "company_modules lookup",

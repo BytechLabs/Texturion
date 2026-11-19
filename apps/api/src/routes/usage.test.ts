@@ -301,20 +301,20 @@ describe("GET /v1/usage", () => {
     // bearing half — it means "this period is still running", and a `now()`
     // here instead would trim the period by whichever clock answered and quietly
     // drop the sends that happened in the gap.
-    const rpc = sb.find("POST", "/rest/v1/rpc/api_usage_window")[0];
+    const [rpc] = sb.find("POST", "/rest/v1/rpc/api_usage_window");
     expect(rpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_from: "2026-06-15T00:00:00+00:00",
       p_to: null,
     });
     // DESIGN G8: 6-month history bars ride along on the same response.
-    const historyRpc = sb.find("POST", "/rest/v1/rpc/api_usage_history")[0];
+    const [historyRpc] = sb.find("POST", "/rest/v1/rpc/api_usage_history");
     expect(historyRpc.body).toEqual({
       p_company_id: COMPANY_ID,
       p_months: 6,
     });
     // D30: the storage arm rides along too, from the exact-sum RPC.
-    const storageRpc = sb.find("POST", "/rest/v1/rpc/api_storage_usage")[0];
+    const [storageRpc] = sb.find("POST", "/rest/v1/rpc/api_storage_usage");
     expect(storageRpc.body).toEqual({ p_company_id: COMPANY_ID });
   });
 
@@ -589,7 +589,7 @@ describe("GET /v1/usage — what a member may not see (#515)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
 
     expect(res.status).toBe(200);
     // The commercial picture: gone.
@@ -613,7 +613,7 @@ describe("GET /v1/usage — what a member may not see (#515)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = await res.json() as { voice: object };
+    const body = await res.json<{ voice: object }>();
 
     expect(res.status).toBe(200);
     expect(body).toMatchObject({
@@ -632,7 +632,7 @@ describe("GET /v1/usage — what a member may not see (#515)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
 
     // The positive control. Without it, "member sees null" would pass even if
     // the field had been deleted outright.
@@ -661,10 +661,10 @@ describe("GET /v1/usage prices in the workspace's own currency (#522)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       currency: string;
       projected_overage_cents: number;
-    };
+    }>();
 
     expect(body.currency).toBe("cad");
     // 120 over × 4¢ CAD = 480. At the USD rate it would read 360, which is the
@@ -679,10 +679,10 @@ describe("GET /v1/usage prices in the workspace's own currency (#522)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       currency: string;
       projected_overage_cents: number;
-    };
+    }>();
 
     expect(body.currency).toBe("usd");
     expect(body.projected_overage_cents).toBe(360); // 120 × 3¢
@@ -698,10 +698,10 @@ describe("GET /v1/usage prices in the workspace's own currency (#522)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       currency: string;
       projected_overage_cents: number;
-    };
+    }>();
 
     expect(body.currency).toBe("usd");
     expect(body.projected_overage_cents).toBe(360);
@@ -717,18 +717,18 @@ describe("GET /v1/usage prices in the workspace's own currency (#522)", () => {
     const cadRes = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const cadBody = (await cadRes.json()) as {
+    const cadBody = await cadRes.json<{
       overage_projection: { projected_overage_cents: number };
-    };
+    }>();
 
     const usd = usageStub({ ...starterCompany, billing_currency: "usd" }, 900);
     stubFetch(jwksRoute(auth), usd.route);
     const usdRes = await apiRequest(app, env, await auth.token(), "/v1/usage", {
       companyId: COMPANY_ID,
     });
-    const usdBody = (await usdRes.json()) as {
+    const usdBody = await usdRes.json<{
       overage_projection: { projected_overage_cents: number };
-    };
+    }>();
 
     // Both are the same volume extrapolated the same way; only the price book
     // differs, and CAD is dearer on every tier. Asserted as a RATIO rather than

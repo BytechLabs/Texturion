@@ -390,7 +390,7 @@ export async function apiRequest(
 ): Promise<Response> {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
-    ...(options.headers ?? {}),
+    ...options.headers,
   };
   if (options.companyId !== null && options.companyId !== undefined) {
     headers["X-Company-Id"] = options.companyId;

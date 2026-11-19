@@ -1,9 +1,9 @@
 import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import {
-  makeTranslate,
-  type MessageKey,
-  type Translate,
+import { makeTranslate } from "@/i18n/translate";
+import type {
+  MessageKey,
+  Translate,
 } from "@/i18n/translate";
 
 /** English, for a caller with no provider around it. */

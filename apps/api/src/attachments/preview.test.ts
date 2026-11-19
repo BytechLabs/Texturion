@@ -174,7 +174,7 @@ describe("a preview is a client-supplied file", () => {
         { bytes: jpeg(half + 1), contentType: "image/jpeg" },
         small,
       ),
-    ).toThrow();
+    ).toThrow("materially smaller");
   });
 
   it("refuses one over the absolute ceiling, however big the original", () => {

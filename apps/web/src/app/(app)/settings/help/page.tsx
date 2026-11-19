@@ -2,14 +2,14 @@
 
 import {
   feedbackMailto,
-  supportBody,
-  supportMailto,
   SUPPORT_EMAIL,
   SUPPORT_FIX_PROMISE_KEY,
   SUPPORT_RESPONSE_TIME_KEY,
   SUPPORT_TOPICS,
+  supportBody,
+  supportMailto,
 } from "@loonext/shared";
-import { Lightbulb, LifeBuoy, Mail } from "lucide-react";
+import { LifeBuoy, Lightbulb, Mail } from "lucide-react";
 
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";

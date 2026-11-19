@@ -103,7 +103,7 @@ export const apiKeysRoutes = new Hono<AppEnv>();
 
 apiKeysRoutes.get("/api-keys", requireCapability("settings.manage"), async (c) => {
   const db = getDb(getEnv(c.env));
-  const rows = unwrap<KeyRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("api_keys")
       .select(KEY_COLUMNS)
@@ -115,7 +115,7 @@ apiKeysRoutes.get("/api-keys", requireCapability("settings.manage"), async (c) =
       // so the history is visible without being unbounded.
       .limit(50),
     "api keys list",
-  );
+  ) as KeyRow[];
   return c.json({
     keys: rows,
     cap: API_KEY_CAP,
@@ -159,7 +159,7 @@ apiKeysRoutes.post("/api-keys", requireCapability("settings.manage"), async (c) 
     throw new Error(`api key create failed: ${error.message}`);
   }
 
-  const row = (data as unknown as KeyRow[])[0];
+  const [row] = (data as unknown as KeyRow[]);
   await recordAuditFromRequest(db, c, {
     companyId,
     action: "api_key.created",
@@ -190,7 +190,7 @@ apiKeysRoutes.delete(
     const db = getDb(getEnv(c.env));
     const companyId = c.get("companyId");
 
-    const updated = unwrap<KeyRow[]>(
+    const updated = unwrap<unknown>(
       await db
         .from("api_keys")
         .update({ revoked_at: new Date().toISOString(), revoked_by: c.get("userId") })
@@ -203,7 +203,7 @@ apiKeysRoutes.delete(
         .select(KEY_COLUMNS)
         .limit(1),
       "api key revoke",
-    );
+    ) as KeyRow[];
 
     if (!updated[0]) {
       // Either no such key, or it was already off. Both are "the key is not

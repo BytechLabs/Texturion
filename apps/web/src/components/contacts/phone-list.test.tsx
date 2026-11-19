@@ -49,14 +49,14 @@ function contact(phones: ContactDetail["phones"]): ContactDetail {
   return { id: "c1", phones } as ContactDetail;
 }
 
-afterEach(cleanup);
-
 beforeEach(() => {
   addPhone.mockReset();
   addPhone.mockResolvedValue({ data: { id: "p1" } });
   removePhone.mockReset();
   toastError.mockReset();
 });
+
+afterEach(cleanup);
 
 describe("#291 the other numbers", () => {
   it("PL-1: stays out of the way when there is nothing to say", () => {

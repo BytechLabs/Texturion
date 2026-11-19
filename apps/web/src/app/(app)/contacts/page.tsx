@@ -7,9 +7,9 @@ import { useState } from "react";
 
 import {
   ContactsActions,
-  type ImportSource,
   NewContactAction,
 } from "@/components/contacts/contacts-actions";
+import type { ImportSource } from "@/components/contacts/contacts-actions";
 import { ContactsTable } from "@/components/contacts/contacts-table";
 import { Button } from "@/components/ui/button";
 import { DuplicateContactsCard } from "@/components/contacts/duplicate-contacts-card";

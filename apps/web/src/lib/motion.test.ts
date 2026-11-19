@@ -5,7 +5,7 @@ import {
   reducedMotionScrollBehavior,
 } from "./motion";
 
-describe("prefersReducedMotion", () => {
+describe(prefersReducedMotion, () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
@@ -25,7 +25,7 @@ describe("prefersReducedMotion", () => {
   });
 
   it("is SSR-safe when matchMedia is unavailable", () => {
-    vi.stubGlobal("window", {} as unknown);
+    vi.stubGlobal("window", {});
     expect(prefersReducedMotion()).toBe(false);
   });
 

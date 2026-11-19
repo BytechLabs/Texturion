@@ -43,10 +43,10 @@ function makeDO() {
 }
 
 /** The object's real runtime, with only its Telnyx and database calls faked. */
-function withRealReporting(instance: CallSessionDO, config: FakeConfig = { initiated: ctx() }) {
+function withRealReporting(instance: CallSessionDO, config?: FakeConfig) {
   const {rt} = (instance as unknown as { rt: SessionRuntime });
   const { warn, reportError, capture } = rt;
-  const fake = makeRuntime(config);
+  const fake = makeRuntime(config ?? { initiated: ctx() });
   Object.assign(rt, fake.runtime, { warn, reportError, capture });
   return fake.calls;
 }

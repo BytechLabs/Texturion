@@ -50,12 +50,12 @@ const TEST_SUPPORT_DIR = "apps/api/src/test/";
  * the same rule as apps/api/src/test/source-tree.ts.
  */
 export function stripComments(source) {
-  const blank = (text) => text.replace(/[^\n]/g, " ");
+  const blank = (text) => text.replaceAll(/[^\n]/g, " ");
   return source
-    .replace(/(^|[(,={]|\breturn\b)([ \t]*)\/\*[\s\S]*?\*\//gm, (match, lead, gap) =>
+    .replaceAll(/(^|[(,={]|\breturn\b)([ \t]*)\/\*[\s\S]*?\*\//gm, (match, lead, gap) =>
       lead + gap + blank(match.slice(lead.length + gap.length)),
     )
-    .replace(/(^|\s)\/\/[^\n]*/g, (match, lead) => lead + blank(match.slice(lead.length)));
+    .replaceAll(/(^|\s)\/\/[^\n]*/g, (match, lead) => lead + blank(match.slice(lead.length)));
 }
 
 const MENTION = /\bDEPLOY_ENV\b/g;
@@ -104,7 +104,7 @@ function environmentImports(path, code) {
     const [, keyword, clause, specifier] = match;
     const line = lineOf(code, match.index);
     const fromEnvironments = ENVIRONMENTS_SPECIFIER.test(specifier);
-    const withoutBraces = clause.replace(/\{[^}]*\}/, "").replace(/,/g, " ").trim();
+    const withoutBraces = clause.replace(/\{[^}]*\}/, "").replaceAll(',', " ").trim();
     if (fromEnvironments && withoutBraces.length > 0) {
       offences.push({
         path,
@@ -230,7 +230,7 @@ export function coverageProblems(files) {
     for (const importer of importers) {
       const file = files.find((entry) => entry.path === importer);
       const seen = file && environmentImports(file.path, stripComments(file.text)).revealed;
-      if (!seen || !seen.includes(name)) {
+      if (!seen?.includes(name)) {
         problems.push(
           `${importer} is allowed ${name} but does not import it; drop it from MODE_REVEALING_IMPORTERS`,
         );

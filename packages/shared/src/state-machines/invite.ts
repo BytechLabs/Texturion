@@ -1,4 +1,5 @@
-import { capabilityActions, defineMachine, type CapabilityAction } from "./define-machine";
+import { capabilityActions, defineMachine } from "./define-machine";
+import type { CapabilityAction } from "./define-machine";
 
 const OPEN_INVITE_ACTIONS: readonly CapabilityAction[] = [
   { action: "revoke", capability: "team.manage" },

@@ -21,12 +21,12 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { subscriptionPause, syncSubscription } from "../webhooks/stripe";
+import { ensureVoiceMeteredItem, subscriptionPause, syncSubscription } from "../webhooks/stripe";
+import { hasScheduledCancellation } from "./cancellation-notice";
 import { idempotencyKey } from "./idempotency";
 import { FIXED_MONTHLY_COST_CENTS } from "./costs";
 import { convergeExtraNumberQuantity } from "./extra-numbers";
 import { retiredModulePrices } from "./modules";
-import { ensureVoiceMeteredItem } from "../webhooks/stripe";
 import type { PlanId } from "./plans";
 import { applyPriceToSchedulePhases } from "./schedule-phases";
 import { getStripe } from './stripe';
@@ -245,10 +245,10 @@ export async function runSubscriptionReconcileJob(
     try {
       await syncSubscription(env, row.stripe_subscription_id, db);
       summary.reconciled += 1;
-    } catch (cause) {
+    } catch (error_) {
       // One broken tenant must not starve the rest; rethrown below so the
       // cron run still reports failure (the scheduled handler reports it).
-      failures.push(cause);
+      failures.push(error_);
     }
   }
 
@@ -407,7 +407,7 @@ async function sweepOrphanSubscriptions(
        * ours to guarantee — the retired-item sweep below already guards it.)
        */
       const pause =
-        stored && stored.items && !stored.items.has_more
+        stored?.items && !stored.items.has_more
           ? subscriptionPause(env, stored)
           : { reading: "unknown" as const, priceCents: null };
       const pausedNow =
@@ -500,8 +500,8 @@ async function sweepOrphanSubscriptions(
             summary.numbersHeldOverAllowance += converged.desired - converged.billed;
             summary.workspacesHoldingNumbers += 1;
           }
-        } catch (cause) {
-          void captureException(env, cause, { source: "cron" });
+        } catch (error_) {
+          void captureException(env, error_, { source: "cron" });
           void captureException(
             env,
             `subscription reconcile: extra-number convergence failed for company ${row.id} — will retry next sweep.`,
@@ -513,7 +513,7 @@ async function sweepOrphanSubscriptions(
       for (const s of subs.data) {
         if (s.id === row.stripe_subscription_id) continue;
         if (!COLLECTIBLE_STATUSES.has(s.status)) continue;
-        if (s.cancel_at_period_end === true) continue;
+        if (hasScheduledCancellation(s)) continue;
         if (nowEpoch - s.created < ORPHAN_SUBSCRIPTION_MIN_AGE_S) continue;
 
         if (!settled) {
@@ -585,9 +585,9 @@ async function sweepOrphanSubscriptions(
           { source: "cron", level: "warning" },
         );
       }
-    } catch (cause) {
+    } catch (error_) {
       // A LIST failure for one tenant reddens the run without starving siblings.
-      failures.push(cause);
+      failures.push(error_);
     }
   }
 }
@@ -644,34 +644,24 @@ async function stripRetiredModuleItems(
   for (const item of stored.items?.data ?? []) {
     if (!item.price || !retired.includes(item.price.id)) continue;
     try {
-      if (scheduleId) {
-        // Rebuild every remaining phase without the retired price — the only
-        // mutation Stripe accepts on a schedule-managed subscription, and the
-        // only one the schedule's pinned phases won't undo at rollover.
-        await applyPriceToSchedulePhases(
-          stripe,
-          scheduleId,
-          item.price.id,
-          false,
-          "create_prorations",
-        );
-      } else {
-        await stripe.subscriptionItems.del(
-          item.id,
-          { proration_behavior: "create_prorations" },
-          { idempotencyKey: idempotencyKey(companyId, "retired_item", item.id, day) },
-        );
-      }
+      // The schedule's pinned phases would restore the retired price at rollover.
+      await (scheduleId
+        ? applyPriceToSchedulePhases(stripe, scheduleId, item.price.id, false, "create_prorations")
+        : stripe.subscriptionItems.del(
+            item.id,
+            { proration_behavior: "create_prorations" },
+            { idempotencyKey: idempotencyKey(companyId, "retired_item", item.id, day) },
+          ));
       summary.retiredModuleItemsRemoved += 1;
       void captureException(
         env,
         `subscription reconcile: removed retired-module item ${item.id} (price ${item.price.id}) from ${scheduleId ? `schedule ${scheduleId} phases of ` : ""}subscription ${stored.id} for company ${companyId} — the mms module is retired (#103); the unused remainder was credited via proration.`,
         { source: "cron", level: "warning" },
       );
-    } catch (cause) {
-      const code = (cause as { code?: string }).code;
+    } catch (error) {
+      const { code } = (error as { code?: string });
       if (code === "resource_missing") continue; // already gone — done
-      void captureException(env, cause, { source: "cron" });
+      void captureException(env, error, { source: "cron" });
       void captureException(
         env,
         `subscription reconcile: failed to remove retired-module item ${item.id} from subscription ${stored.id} for company ${companyId} — will retry next sweep.`,

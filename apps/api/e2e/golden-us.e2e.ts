@@ -286,7 +286,7 @@ describe("D31 golden path 1: US sole-prop full spine", () => {
     expect(h.telnyx.callsTo("POST", /\/v2\/10dlc\/brand\/[^/]+\/smsOtp$/)).toHaveLength(1);
     const brand = await registrationRow("brand");
     expect(brand.status).toBe("submitted");
-    expect(brand.telnyx_id).toBeTruthy();
+    expect(Boolean(brand.telnyx_id)).toBe(true);
     // The campaign waits for brand approval — still a draft, no Telnyx id yet.
     const campaign = await registrationRow("campaign");
     expect(campaign.status).toBe("draft");
@@ -384,7 +384,7 @@ describe("D31 golden path 1: US sole-prop full spine", () => {
     const campaign = await registrationRow("campaign");
     expect(campaign.status).toBe("submitted");
     const campaignTelnyxId = campaign.telnyx_id!;
-    expect(campaignTelnyxId).toBeTruthy();
+    expect(Boolean(campaignTelnyxId)).toBe(true);
 
     // Campaign approval webhook (MNO review accepted) → approved → US unlocks.
     await h.injectTelnyx({

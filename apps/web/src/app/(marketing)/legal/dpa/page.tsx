@@ -1,7 +1,7 @@
 import statement from "@root/docs/DPA.md";
 import type { Metadata } from "next";
 
-import { DpaPageBody, DPA_EN_PATH } from "@/components/marketing/legal/dpa-page";
+import { DPA_EN_PATH, DpaPageBody } from "@/components/marketing/legal/dpa-page";
 import { legalDpaEn } from "@/i18n/marketing/legal-dpa";
 import { buildMetadata } from "@/lib/marketing/seo";
 

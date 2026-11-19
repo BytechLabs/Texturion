@@ -111,7 +111,7 @@ describe("attachment upload — multipart request shape", () => {
       file,
     });
 
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     expect(String(url)).toBe("https://api.loonext.test/v1/attachments");
     expect(init?.method).toBe("POST");
 
@@ -245,7 +245,7 @@ describe("uploadFilesSequentially (the staged-note-upload chain, D28)", () => {
     const uploadOne = async () => {
       inFlight += 1;
       maxInFlight = Math.max(maxInFlight, inFlight);
-      await new Promise((resolve) => setTimeout(resolve, 0));
+      await new Promise((resolve) => { setTimeout(resolve, 0); });
       inFlight -= 1;
     };
 
@@ -276,9 +276,7 @@ describe("uploadFilesSequentially (the staged-note-upload chain, D28)", () => {
   });
 
   it("never rejects — even when every upload throws non-Errors", async () => {
-    const uploadOne = async () => {
-      throw "boom"; // deliberately not an Error — the chain must not trust shape
-    };
+    const uploadOne = vi.fn().mockRejectedValue("boom");
     const result = await uploadFilesSequentially(uploadOne, [file("a.pdf")]);
     expect(result.uploaded).toBe(0);
     expect(result.failed).toEqual([
@@ -300,12 +298,12 @@ describe("attachment delete — request shape (D19 soft-delete / D30 free space)
       () => new Response(null, { status: 204 }),
     );
 
-    await request<void>("/v1/attachments/att-1", {
+    await request<undefined>("/v1/attachments/att-1", {
       method: "DELETE",
       companyId: "company-1",
     });
 
-    const [url, init] = fetchSpy.mock.calls[0];
+    const [[url, init]] = fetchSpy.mock.calls;
     expect(String(url)).toBe("https://api.loonext.test/v1/attachments/att-1");
     expect(init?.method).toBe("DELETE");
     const headers = init?.headers as Record<string, string>;
@@ -319,7 +317,7 @@ describe("attachment delete — request shape (D19 soft-delete / D30 free space)
       }),
     );
     await expect(
-      request<void>("/v1/attachments/att-9", {
+      request<undefined>("/v1/attachments/att-9", {
         method: "DELETE",
         companyId: "company-1",
       }),
@@ -394,7 +392,6 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
   let minted = 0;
   let refuse = new Set<string>();
 
-  afterEach(cleanup);
   beforeEach(() => {
     minted = 0;
     refuse = new Set();
@@ -425,6 +422,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
       };
     });
   });
+  afterEach(cleanup);
 
   function harness() {
     const queryClient = new QueryClient({
@@ -464,7 +462,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
 
     expect(result.current.data?.url).toBe("https://storage.test/cached");
     expect(result.current.isStale).toBe(false);
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => { setTimeout(resolve, 40); });
     expect(batchCalls()).toHaveLength(0);
     expect(
       queryClient.getQueryCache().find({ queryKey: keys.attachmentUrl(COMPANY, "att-1") })
@@ -545,7 +543,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
     );
 
     await waitFor(() => expect(result.current.error).toMatchObject({ code: "forbidden" }));
-    await new Promise((resolve) => setTimeout(resolve, 1500));
+    await new Promise((resolve) => { setTimeout(resolve, 1500); });
     expect(batchCalls()).toHaveLength(1);
   });
 
@@ -626,7 +624,7 @@ describe("useAttachmentUrl: cached for the URL's own lifetime", () => {
     await waitFor(() => expect(first.result.current.isSuccess).toBe(true));
     first.unmount();
     const again = renderHook(() => useAttachmentGallery("conv-3"), { wrapper });
-    await new Promise((resolve) => setTimeout(resolve, 40));
+    await new Promise((resolve) => { setTimeout(resolve, 40); });
 
     expect(again.result.current.isSuccess).toBe(true);
     expect(apiFetch).toHaveBeenCalledOnce();

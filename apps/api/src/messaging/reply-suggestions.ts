@@ -152,8 +152,11 @@ export function selectRecentContext(
   for (let i = messages.length - 1; i >= 0 && kept.length < limit; i -= 1) {
     const message = messages[i];
     const at = message.created_at ? Date.parse(message.created_at) : Number.NaN;
-    if (kept.length > 0 && nextTime !== null && Number.isFinite(at)) {
-      if (nextTime - at > SUGGEST_REPLY_CONTEXT_GAP_MS) break;
+    if (
+      kept.length > 0 && nextTime !== null && Number.isFinite(at) &&
+      nextTime - at > SUGGEST_REPLY_CONTEXT_GAP_MS
+    ) {
+      break;
     }
     kept.push(message);
     if (Number.isFinite(at)) nextTime = at;

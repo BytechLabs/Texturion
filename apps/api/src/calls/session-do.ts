@@ -426,7 +426,8 @@ export class CallSessionDO extends DurableObject<Env> {
       await this.resumeJournalIfAny();
       const machine = await this.load();
       if (!machine) return { state: "ended_missed", registered: false };
-      const transferCannotStart = input.transferId && (machine.intent || machine.state !== "answered");
+      const transferCannotStart =
+        input.transferId && (Boolean(machine.intent) || machine.state !== "answered");
       if (machine.intent?.transferId || transferCannotStart) {
         return { state: machine.state, registered: false };
       }
@@ -633,7 +634,7 @@ export class CallSessionDO extends DurableObject<Env> {
       await this.resumeJournalIfAny();
       const machine = await this.load();
       if (!machine) return false;
-      const intent = machine.intent;
+      const { intent } = machine;
       if (intent?.kind === "consult") {
         if (!intent.transferId) return false;
         await this.admitAndDrain({ type: "clear-intent" }, null);
@@ -755,7 +756,6 @@ export class CallSessionDO extends DurableObject<Env> {
     }
     if (slot === "intent-expiry") {
       await this.admitAndDrain({ type: "alarm-intent-expiry" }, null);
-      return;
     }
   }
 
@@ -1269,9 +1269,9 @@ export class CallSessionDO extends DurableObject<Env> {
                 }
               : undefined,
           );
-        } else {
-          await this.rt.terminalMergeSynthetic(machine, effect.outcome, effect.briAnsweredAtIso);
+          return [];
         }
+        await this.rt.terminalMergeSynthetic(machine, effect.outcome, effect.briAnsweredAtIso);
         return [];
       }
       case "voicemail-pipeline": {
@@ -1339,7 +1339,6 @@ export class CallSessionDO extends DurableObject<Env> {
   ): Promise<void> {
     try {
       await this.rt.mirror(sessionId, set);
-      return;
     } catch (error) {
       this.rt.reportError(error);
       // MERGE into any existing pending mirror rather than overwriting it: a
@@ -1683,7 +1682,7 @@ export class CallSessionDO extends DurableObject<Env> {
     } catch {
       return "untagged";
     }
-    const tag = decoded.split("|")[0];
+    const [tag] = decoded.split("|");
     if (tag === BROWSER_INBOUND_STATE) return "bri";
     if (tag === VOICEMAIL_INBOUND_STATE) return "vmi";
     return "untagged";

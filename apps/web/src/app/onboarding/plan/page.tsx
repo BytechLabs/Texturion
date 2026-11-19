@@ -37,12 +37,10 @@ import { ApiError } from "@/lib/api/error";
 import { keys } from "@/lib/api/keys";
 import { useOnboardingCheckout } from "@/lib/api/onboarding";
 import { usePortRequestsForCompany } from "@/lib/api/porting";
-import {
-  PLAN_MODULE_CARDS,
-  type PlanId,
-  type PlanModule,
-} from "@/lib/api/types";
-import { consumePlanIntent, type PlanIntent } from "@/lib/marketing/plan-intent";
+import { PLAN_MODULE_CARDS } from "@/lib/api/types";
+import type { PlanId, PlanModule } from "@/lib/api/types";
+import { consumePlanIntent } from "@/lib/marketing/plan-intent";
+import type { PlanIntent } from "@/lib/marketing/plan-intent";
 import { cn } from "@/lib/utils";
 
 import { StepError, StepLoading, StepShell } from "../step-shell";
@@ -126,8 +124,8 @@ function PlanStep() {
     return <StepLoading />;
   }
 
-  const company = state.company;
-  const companyId = state.companyId;
+  const { company } = state;
+  const { companyId } = state;
   const progress = stepProgress("plan", state.snapshot);
   const owes = owesUsRegistration(company);
   const priceAudience = currencyForCountry(company.country);
@@ -163,13 +161,13 @@ function PlanStep() {
       trackCheckoutStarted(plan, modules);
       window.location.assign(url);
       // Keep the button in its busy state while the browser navigates.
-    } catch (cause) {
+    } catch (error) {
       setChoosing(null);
-      if (cause instanceof ApiError && cause.code === "conflict") {
+      if (error instanceof ApiError && error.code === "conflict") {
         // A live subscription or missing draft changed under us — the message
         // is specific and actionable; surface it inline (no retry — refetch
         // re-routes the step guard to the honest surface).
-        setFormError(cause.message);
+        setFormError(error.message);
         void queryClient.invalidateQueries({
           queryKey: keys.company(companyId),
         });
@@ -180,8 +178,8 @@ function PlanStep() {
       }
       // G10 error toast: what happened + what to do, with a one-tap retry.
       const message =
-        cause instanceof ApiError
-          ? cause.message
+        error instanceof ApiError
+          ? error.message
           : t("onboarding.checkoutOpenFailed");
       toast.error(message, {
         action: {
@@ -380,9 +378,9 @@ function PlanStep() {
           onClick={() => choose(selectedPlan)}
           disabled={choosing !== null}
         >
-          {choosing !== null
-            ? t("onboarding.sendingToCheckout")
-            : t("onboarding.continueToCheckout")}
+          {choosing === null
+            ? t("onboarding.continueToCheckout")
+            : t("onboarding.sendingToCheckout")}
         </Button>
 
         <p className="text-[13px] text-muted-foreground">

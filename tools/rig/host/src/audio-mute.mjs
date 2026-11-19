@@ -226,14 +226,13 @@ export function createAudioMuter({
   function watch({ key, roots, onResult = () => {}, onEnd = () => {} }) {
     let stopped = false;
     const done = (async () => {
-      while (!stopped) {
+      for (;;) {
+        if (stopped) break;
         const current = roots();
         if (current === null) break;
-        let result;
-        if (current.filter(isRoot).length === 0) {
-          result = { state: "waiting", sessions: 0, muted: 0, pids: [], checked_at: new Date(now()).toISOString() };
-        } else {
-          result = await sweep(current, { key }).catch((/** @type {unknown} */ error) => ({
+        const result = current.filter(isRoot).length === 0
+          ? { state: "waiting", sessions: 0, muted: 0, pids: [], checked_at: new Date(now()).toISOString() }
+          : await sweep(current, { key }).catch((/** @type {unknown} */ error) => ({
             state: "error",
             sessions: 0,
             muted: 0,
@@ -241,7 +240,6 @@ export function createAudioMuter({
             error: error instanceof Error ? error.message : String(error),
             checked_at: new Date(now()).toISOString(),
           }));
-        }
         if (stopped) break;
         try {
           onResult(result);

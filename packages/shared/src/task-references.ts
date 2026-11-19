@@ -48,10 +48,10 @@ export function parseReferenceTokens(text: string): ReferenceToken[] {
     if (isWordChar(text[end])) continue;
     if (m[1] !== undefined) {
       out.push({ kind: "task", key: String(Number(m[2])), start, end, raw: m[0] });
-    } else if (m[3] !== undefined) {
-      out.push({ kind: "contact", key: m[3].toLowerCase(), start, end, raw: m[0] });
-    } else {
+    } else if (m[3] === undefined) {
       out.push({ kind: "conversation", key: m[4].toLowerCase(), start, end, raw: m[0] });
+    } else {
+      out.push({ kind: "contact", key: m[3].toLowerCase(), start, end, raw: m[0] });
     }
   }
   return out;
@@ -69,7 +69,7 @@ export function taskReferenceText(number: number): string {
 
 /** The text a picker inserts for a contact or a conversation. */
 export function recordReferenceText(kind: "contact" | "conversation", id: string): string {
-  const prefix = id.replace(/-/g, "").slice(0, 8).toLowerCase();
+  const prefix = id.replaceAll('-', "").slice(0, 8).toLowerCase();
   return `#${kind === "contact" ? "contact" : "conv"}-${prefix}`;
 }
 

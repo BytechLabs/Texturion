@@ -13,7 +13,10 @@ import type { InitiatedContext, OutboundInitiatedContext, SessionEvent, SessionM
 
 function keyGen(): () => string {
   let n = 0;
-  return () => `k${n += 1}`;
+  return () => {
+    n += 1;
+    return `k${n}`;
+  };
 }
 
 function initCtx(overrides: Partial<InitiatedContext> = {}): InitiatedContext {
@@ -72,7 +75,7 @@ function drive(
     const result = reduce(machine, event, now, key);
     if (result.machine) {
       steps.push(...callStepsBetween(machine, result.machine, now));
-      machine = result.machine;
+      ({ machine } = result);
     }
     now += 1000;
   }

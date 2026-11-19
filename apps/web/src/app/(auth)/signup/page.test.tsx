@@ -46,7 +46,7 @@ it("requires a fresh captcha and keeps the plan when resending after a minute", 
     fireEvent.click(screen.getByRole("button", { name: "Create account" }));
   });
 
-  expect(screen.getByText(/spam folder/i)).toBeTruthy();
+    expect(screen.getByText(/spam folder/i)).toBeInstanceOf(Element);
   const resend = screen.getByRole("button", { name: "Resend confirmation email" });
   expect(resend.hasAttribute("disabled")).toBe(true);
   await act(async () => { await vi.advanceTimersByTimeAsync(59_999); });

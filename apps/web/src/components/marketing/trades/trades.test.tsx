@@ -149,7 +149,7 @@ describe("coverage map + deck copy (each trade's own worst minute)", () => {
 
   it("each page's scripted thread stages the dateline's exact minute", () => {
     for (const page of PAGES) {
-      const minute = page.dateline.split(" · ")[0]; // e.g. "9:04 PM"
+      const [minute] = page.dateline.split(" · "); // e.g. "9:04 PM"
       const times = page.script.beats.flatMap((b) =>
         "time" in b ? [b.time] : [],
       );

@@ -65,35 +65,31 @@ describe(`instantFromZonedWallClock in Alberta (America/Edmonton) on tzdata ${TZ
     });
   });
 
-  if (TZDATA_ERA === "pre-2026c") {
-    it("pre-2026c: refuses 2026-11-01T01:30, which fall-back repeats", () => {
-      expect(instantFromZonedWallClock("2026-11-01T01:30", zone)).toEqual({
-        ok: false,
-        reason: "ambiguous",
-      });
+  it.runIf(TZDATA_ERA === "pre-2026c")("pre-2026c: refuses 2026-11-01T01:30, which fall-back repeats", () => {
+    expect(instantFromZonedWallClock("2026-11-01T01:30", zone)).toEqual({
+      ok: false,
+      reason: "ambiguous",
     });
+  });
 
-    it("pre-2026c: reads 2026-11-03T09:30 at UTC-7", () => {
-      expect(instantFromZonedWallClock("2026-11-03T09:30", zone)).toEqual({
-        ok: true,
-        iso: "2026-11-03T16:30:00.000Z",
-      });
+  it.runIf(TZDATA_ERA === "pre-2026c")("pre-2026c: reads 2026-11-03T09:30 at UTC-7", () => {
+    expect(instantFromZonedWallClock("2026-11-03T09:30", zone)).toEqual({
+      ok: true,
+      iso: "2026-11-03T16:30:00.000Z",
     });
-  }
+  });
 
-  if (TZDATA_ERA === "2026c+") {
-    it("2026c+: reads 2026-11-01T01:30 as its only instant, as Alberta no longer falls back", () => {
-      expect(instantFromZonedWallClock("2026-11-01T01:30", zone)).toEqual({
-        ok: true,
-        iso: "2026-11-01T07:30:00.000Z",
-      });
+  it.runIf(TZDATA_ERA === "2026c+")("2026c+: reads 2026-11-01T01:30 as its only instant, as Alberta no longer falls back", () => {
+    expect(instantFromZonedWallClock("2026-11-01T01:30", zone)).toEqual({
+      ok: true,
+      iso: "2026-11-01T07:30:00.000Z",
     });
+  });
 
-    it("2026c+: reads 2026-11-03T09:30 at UTC-6", () => {
-      expect(instantFromZonedWallClock("2026-11-03T09:30", zone)).toEqual({
-        ok: true,
-        iso: "2026-11-03T15:30:00.000Z",
-      });
+  it.runIf(TZDATA_ERA === "2026c+")("2026c+: reads 2026-11-03T09:30 at UTC-6", () => {
+    expect(instantFromZonedWallClock("2026-11-03T09:30", zone)).toEqual({
+      ok: true,
+      iso: "2026-11-03T15:30:00.000Z",
     });
-  }
+  });
 });

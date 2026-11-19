@@ -108,8 +108,8 @@ export function hasBusinessHours(
   if (!hours) return false;
   return WEEKDAYS.some((day) => {
     const window = hours[day];
+    if (!window) return false;
     return (
-      !!window &&
       parseHhmm(window.open) !== null &&
       parseHhmm(window.close) !== null &&
       window.open !== window.close
@@ -413,7 +413,7 @@ export function closureReason(
   // An exception with HOURS that we are simply outside of is an ordinary
   // evening, not a closure: the shop opened today, it is just shut now. Only a
   // full-day closure earns the different message.
-  if (exception && exception.hours === null) {
+  if (exception?.hours === null) {
     return { kind: "exception", note: exception.note?.trim() || null };
   }
   return { kind: "weekly", note: null };

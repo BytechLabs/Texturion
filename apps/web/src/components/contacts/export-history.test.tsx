@@ -44,8 +44,6 @@ vi.mock("sonner", () => ({
 const EXPORT_HISTORY_ACTION = contactsEn.exportHistoryAction;
 const EXPORT_HISTORY_NOTE = contactsEn.exportHistoryNote;
 
-afterEach(cleanup);
-
 beforeEach(() => {
   role.current = "owner";
   requestExport.mockReset();
@@ -53,6 +51,8 @@ beforeEach(() => {
   toastSuccess.mockReset();
   toastError.mockReset();
 });
+
+afterEach(cleanup);
 
 describe("#304 exporting one customer's history", () => {
   it("EH-1: is absent for somebody who cannot take data out", () => {

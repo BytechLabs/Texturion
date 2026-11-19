@@ -205,7 +205,7 @@ describe(parseSummaryOutput, () => {
 
 describe(sanitizeSummary, () => {
   it("uses the entire cited message from a 40-message window", () => {
-    const text = "We can do Tuesday, but let me check first. 🛠️\n[3] " + "long ".repeat(60);
+    const text = `We can do Tuesday, but let me check first. 🛠️\n[3] ${"long ".repeat(60)}`;
     const window = windowOf(40);
     window[39] = message(40, { body: text });
     const { lines } = parseSummaryOutput(asModel({ we_said: [40] }));

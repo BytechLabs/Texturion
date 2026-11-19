@@ -1,7 +1,7 @@
 "use client";
 
-import { roleHasCapability, type MemberRole } from "@loonext/shared";
-
+import { roleHasCapability } from "@loonext/shared";
+import type { MemberRole } from "@loonext/shared";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -18,14 +18,8 @@ import {
 } from "@/lib/company/cookie";
 
 import { readOnboardingDraft } from "./local-draft";
-import {
-  pathForLocation,
-  resolveOnboardingLocation,
-  stepAllowed,
-  type OnboardingDraft,
-  type OnboardingSnapshot,
-  type WizardStep,
-} from "./steps";
+import { pathForLocation, resolveOnboardingLocation, stepAllowed } from "./steps";
+import type { OnboardingDraft, OnboardingSnapshot, WizardStep } from "./steps";
 
 export interface OnboardingState {
   /**

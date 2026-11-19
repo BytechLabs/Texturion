@@ -125,7 +125,7 @@ async function orderStanding(ctx: Ctx): Promise<Response> {
   if (missing.length === 0) return json({ ordered: null, remaining: [], voice_deferred: unbound, unlisted, tagged, bound });
   if (heldCount(view) >= MAX_NUMBERS_HELD) throw new Refusal("provisioning.numbers_held");
 
-  const role = missing[0];
+  const [role] = missing;
   const binding = standingBinding(view, role.role);
   if (!binding?.connection_id || !binding.messaging_profile_id) throw new Refusal("startup.unconfigured");
 

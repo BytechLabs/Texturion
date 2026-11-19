@@ -109,7 +109,7 @@ function mailStub(): { sent: { to: string[]; subject: string }[]; route: ReturnT
   const sent: { to: string[]; subject: string }[] = [];
   const route = vi.fn(async (url: URL, request: Request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
-    const body = (await request.json()) as { to: string[]; subject: string };
+    const body = await request.json<{ to: string[]; subject: string }>();
     sent.push(body);
     return Response.json({ id: "re_1" });
   });
@@ -179,10 +179,10 @@ describe("GET /v1/company/ownership", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/company/ownership", {
       companyId: COMPANY_ID,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       pending: { ready: boolean; mine: boolean };
       can_cancel: boolean;
-    };
+    }>();
     expect(body.pending.ready).toBe(false);
     expect(body.pending.mine).toBe(false);
     // The owner's veto is live for the whole waiting period. This is the
@@ -246,7 +246,7 @@ describe("POST /v1/company/ownership/backup", () => {
       { method: "POST", companyId: COMPANY_ID, body: { member_id: MEMBER_ID } },
     );
     expect(res.status).toBe(422);
-    expect(((await res.json()) as { error: { message: string } }).error.message).toContain(
+    expect((await res.json<{ error: { message: string } }>()).error.message).toContain(
       "not a backup",
     );
   });
@@ -366,7 +366,7 @@ describe("POST /v1/company/ownership/claim", () => {
       { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     expect(res.status).toBe(403);
-    const {message} = ((await res.json()) as { error: { message: string } }).error;
+    const {message} = (await res.json<{ error: { message: string } }>()).error;
     // Somebody probing this route learns only that it is not them.
     expect(message).not.toContain("@");
     expect(message).toContain("named as backup");
@@ -498,8 +498,11 @@ describe("#537 — proving it is you before the business moves", () => {
     { path: "accept" },
   ];
 
-  for (const move of MOVES) {
-    it(`asks an enrolled owner for a code before ${move.path}`, async () => {
+  const ownershipMoves = MOVES.map(move => [move.path, move] as const);
+
+  it.each(ownershipMoves)(
+    "asks an enrolled owner for a code before %s",
+    async (_movePath, move) => {
       const sb = stub({ enrolled: true });
       stubFetch(jwksRoute(auth), sb.route);
 
@@ -524,16 +527,19 @@ describe("#537 — proving it is you before the business moves", () => {
       // and the real caller was waved straight through. Now the gate asks about
       // FRESHNESS instead of assurance, which is a question aal2 does not answer,
       // and the token above carries no `amr` at all.
-      const refusal = (await res.json()) as { error: { code: string } };
+      const refusal = await res.json<{ error: { code: string } }>();
       expect(refusal.error.code).toBe("mfa_reprove_required");
       // And nothing happened. A refusal that still moved the business would be
       // the worst of both.
       expect(
         sb.find("POST", `/rest/v1/rpc/api_${move.path}_ownership`),
       ).toHaveLength(0);
-    });
+    },
+  );
 
-    it(`lets them through once they have presented it: ${move.path}`, async () => {
+  it.each(ownershipMoves)(
+    "lets them through once they have presented it: %s",
+    async (_movePath, move) => {
       const sb = stub({ enrolled: true });
       sb.on("POST", `/rest/v1/rpc/api_${move.path}_ownership`, () => ({
         outcome: "forbidden",
@@ -554,15 +560,15 @@ describe("#537 — proving it is you before the business moves", () => {
       // Past the step-up and into the SQL, which is what this asserts — the
       // outcome beyond it is that route's own business. Asserted on the CODE
       // rather than the status, because the stubbed outcome is itself a 403.
-      const body = (await passed.json()) as { error?: { code: string } };
+      const body = await passed.json<{ error?: { code: string } }>();
       expect(body.error?.code).not.toBe("mfa_reprove_required");
       expect(body.error?.code).not.toBe("mfa_challenge_required");
       expect(body.error?.code).not.toBe("confirmation_code_required");
       expect(
         sb.find("POST", `/rest/v1/rpc/api_${move.path}_ownership`),
       ).toHaveLength(1);
-    });
-  }
+    },
+  );
 
   it("NEVER asks for a code to cancel", async () => {
     // THE ONE THAT MATTERS MOST. Cancelling is the safe direction: it is how an
@@ -584,7 +590,7 @@ describe("#537 — proving it is you before the business moves", () => {
       { method: "POST", companyId: COMPANY_ID, body: { confirmation_code: "424242" } },
     );
     // Neither kind of confirmation was demanded, and the veto went through.
-    const body = (await cancelled.json()) as { error?: { code: string } };
+    const body = await cancelled.json<{ error?: { code: string } }>();
     expect(body.error?.code).not.toBe("mfa_challenge_required");
     expect(body.error?.code).not.toBe("confirmation_code_required");
     expect(
@@ -609,7 +615,7 @@ describe("#537 — proving it is you before the business moves", () => {
       { method: "POST", companyId: COMPANY_ID, body: { member_id: PARTNER_MEMBER_ID } },
     );
     expect(res.status).toBe(403);
-    const refusal = (await res.json()) as { error: { code: string } };
+    const refusal = await res.json<{ error: { code: string } }>();
     expect(refusal.error.code).toBe("confirmation_code_required");
     expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(0);
   });
@@ -635,7 +641,7 @@ describe("#537 — proving it is you before the business moves", () => {
       },
     );
     expect(res.status).toBe(403);
-    const refusal = (await res.json()) as { error: { message: string } };
+    const refusal = await res.json<{ error: { message: string } }>();
     expect(refusal.error.message).not.toContain("expired");
     expect(refusal.error.message).not.toContain("attempts");
     expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(0);
@@ -669,7 +675,7 @@ describe("#537 — proving it is you before the business moves", () => {
       },
     );
     expect(res.status).toBe(403);
-    expect(((await res.json()) as { error: { code: string } }).error.code).toBe(
+    expect((await res.json<{ error: { code: string } }>()).error.code).toBe(
       "mfa_reprove_required",
     );
     // And the business did not move, which is the half that matters.
@@ -700,7 +706,7 @@ describe("#537 — proving it is you before the business moves", () => {
           body: { member_id: PARTNER_MEMBER_ID },
         },
       );
-      const body = (await res.json()) as { error?: { code: string } };
+      const body = await res.json<{ error?: { code: string } }>();
       if (shouldPass) {
         expect(body.error?.code).not.toBe("mfa_reprove_required");
         expect(sb.find("POST", "/rest/v1/rpc/api_offer_ownership")).toHaveLength(1);
@@ -734,7 +740,7 @@ describe("#537 — proving it is you before the business moves", () => {
       },
     );
     expect(res.status).toBe(403);
-    const refusal = (await res.json()) as { error: { code: string } };
+    const refusal = await res.json<{ error: { code: string } }>();
     // #581/#7: the PROPERTY is unchanged and is the point — a factor-holder's
     // emailed code is refused. Only the code names the remedy more precisely now:
     // `mfa_challenge_required` is the wall in front of the whole workspace,

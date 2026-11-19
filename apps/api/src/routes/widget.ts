@@ -36,7 +36,9 @@
  * is advice a real person can act on and it reveals only that they themselves
  * pressed the button too often.
  */
-import { type Context, Hono } from "hono";
+import { randomInt } from "node:crypto";
+import { Hono } from "hono";
+import type { Context } from "hono";
 import { cors } from "hono/cors";
 import { z } from "zod";
 
@@ -45,7 +47,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { verifyTurnstile } from "../http/turnstile";
-import { finishThreadedInbound, inboundNotificationLimits, INBOUND_COMPANY_COLUMNS } from "../messaging/inbound";
+import { finishThreadedInbound, INBOUND_COMPANY_COLUMNS, inboundNotificationLimits } from "../messaging/inbound";
 import type { InboundCompany, InboundThreadResult } from "../messaging/inbound";
 import { runPreSendGates, sendSystemText } from "../messaging/send";
 import { reportHandledFailure } from "../observability/capture";
@@ -112,7 +114,7 @@ export type WidgetStartBody = z.infer<typeof startSchema>;
  * send gates refuse anything else anyway.
  */
 export function normaliseVisitorNumber(raw: string): string | null {
-  const digits = raw.replace(/[^\d+]/g, "");
+  const digits = raw.replaceAll(/[^\d+]/g, "");
   const bare = digits.startsWith("+") ? digits.slice(1) : digits;
   if (!/^\d+$/.test(bare)) return null;
   if (bare.length === 10) return `+1${bare}`;
@@ -126,14 +128,10 @@ export function normaliseVisitorNumber(raw: string): string | null {
 /**
  * The code a visitor reads off their phone.
  *
- * Six digits from `crypto.getRandomValues` rather than `Math.random`: this is
- * the only thing standing between a stranger and somebody else's conversation,
- * and a predictable code is not a code. Leading zeros are kept — a five-digit
- * code that happens to start with one would be a quietly weaker code.
+ * Use a uniform six-digit code and retain leading zeros.
  */
 export function mintWidgetCode(): string {
-  const buffer = crypto.getRandomValues(new Uint32Array(1));
-  return String(buffer[0] % 1_000_000).padStart(6, "0");
+  return String(randomInt(1_000_000)).padStart(6, "0");
 }
 
 /**
@@ -297,9 +295,9 @@ widgetRoutes.post("/widget/start", async (c) => {
    */
   try {
     clearance = await runPreSendGates(env, companyId, phone);
-  } catch (cause) {
-    if (cause instanceof ApiError && widgetMayDiscloseGateError(cause.code)) {
-      throw cause;
+  } catch (error) {
+    if (error instanceof ApiError && widgetMayDiscloseGateError(error.code)) {
+      throw error;
     }
     /*
      * Everything else becomes the same sentence a resolver failure gives, so

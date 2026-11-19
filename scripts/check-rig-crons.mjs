@@ -57,7 +57,7 @@ const ENTRY_KEYS = {
   skip: ["config", "cron", "class", "jobs", "reason"],
 };
 export const OUTCOMES = ["job-fails", "captured"];
-const REFUSAL_KEYS = ["job", "code", "outcome", "telnyx_paths", "when", "caught_in", "follow_on_events"];
+const REFUSAL_KEYS = new Set(["job", "code", "outcome", "telnyx_paths", "when", "caught_in", "follow_on_events"]);
 const CAUGHT_IN = /^([\w./-]+\.ts)#(\w+)$/;
 
 /** Comments and trailing commas out, outside strings only: a `//` in a URL is not a comment. */
@@ -101,7 +101,7 @@ export function cronsFromConfig(file, text) {
   if (file.endsWith(".toml")) {
     throw new Error(`${file}: a TOML Worker config cannot be read here; use wrangler.jsonc`);
   }
-  const config = JSON.parse(stripJsonc(text.replace(/\r\n/g, "\n")));
+  const config = JSON.parse(stripJsonc(text.replaceAll('\r\n', "\n")));
   const crons = config?.triggers?.crons ?? [];
   if (!Array.isArray(crons) || crons.some((cron) => typeof cron !== "string")) {
     throw new Error(`${file}: triggers.crons is not a list of strings`);
@@ -115,7 +115,7 @@ export function cronsFromConfig(file, text) {
  * comments removed first because they quote job keys.
  */
 export function cronJobsFromSource(text) {
-  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const lines = text.replaceAll('\r\n', "\n").split("\n");
   const start = lines.findIndex((line) => line.startsWith("export const CRON_JOBS"));
   if (start === -1) return null;
   const end = lines.findIndex((line, i) => i > start && /^};\s*$/.test(line));
@@ -125,7 +125,7 @@ export function cronJobsFromSource(text) {
   let current = null;
   for (const match of body.matchAll(/"([^"\n]+)"\s*:\s*\[|\bjob\(\s*"([^"\n]+)"/g)) {
     if (match[1] !== undefined) {
-      current = match[1];
+      ([, current] = match);
       jobs.set(current, []);
     } else if (current !== null) {
       jobs.get(current).push(match[2]);
@@ -237,7 +237,7 @@ function checkClassFields(entry, at, problems, families, sourceAt) {
       continue;
     }
     for (const key of Object.keys(refusal)) {
-      if (!REFUSAL_KEYS.includes(key)) problems.push(`${where}: "${key}" is not a refusal field`);
+      if (!REFUSAL_KEYS.has(key)) problems.push(`${where}: "${key}" is not a refusal field`);
     }
     if (typeof refusal.job !== "string" || refusal.job === "") {
       problems.push(`${where}: job is missing`);
@@ -264,7 +264,7 @@ function checkClassFields(entry, at, problems, families, sourceAt) {
       problems.push(`${where}: telnyx_paths must list /v2/ paths`);
     } else if (families !== null) {
       for (const path of refusal.telnyx_paths) {
-        const family = path.slice("/v2/".length).split("/")[0];
+        const [family] = path.slice("/v2/".length).split("/");
         if (!families.includes(family)) {
           problems.push(
             `${where}: rig mode does not refuse ${path} (policy.ts refuses ${families.join(", ")}), ` +

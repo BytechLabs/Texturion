@@ -50,7 +50,7 @@ describe("the uplink", () => {
     await call(await telnyxDelivery("/t/m", messageEvent("message.sent", {})), env);
     const frame = await second.next((f) => f.t === "webhook");
     expect(frame.t).toBe("webhook");
-    await expect(first.next((f) => f.t === "webhook", 200)).rejects.toThrow();
+    await expect(first.next((f) => f.t === "webhook", 200)).rejects.toThrow("no matching frame from the edge");
     second.close();
   });
 
@@ -76,7 +76,7 @@ describe("the queue", () => {
     expect(first).toMatchObject({ attempt: 1 });
 
     // No ack. Nothing more is sent until the backoff passes.
-    await expect(rig.next((f) => f.t === "webhook", 150)).rejects.toThrow();
+    await expect(rig.next((f) => f.t === "webhook", 150)).rejects.toThrow("no matching frame from the edge");
     await makeDue();
     await expect(runDurableObjectAlarm(uplinkStub())).resolves.toBe(true);
     const second = await rig.next((f) => f.t === "webhook");
@@ -89,7 +89,7 @@ describe("the queue", () => {
     expect((await counters())["queue.delivered"]).toBe(1);
     await makeDue();
     await runDurableObjectAlarm(uplinkStub());
-    await expect(rig.next((f) => f.t === "webhook", 150)).rejects.toThrow();
+    await expect(rig.next((f) => f.t === "webhook", 150)).rejects.toThrow("no matching frame from the edge");
     rig.close();
   });
 
@@ -103,7 +103,7 @@ describe("the queue", () => {
     expect(second.t === "webhook" && first.t === "webhook" && second.id !== first.id).toBe(true);
     await runDurableObjectAlarm(uplinkStub());
     await uplinkStub().tick(Date.now());
-    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow();
+    await expect(rig.next((f) => f.t === "webhook", 200)).rejects.toThrow("no matching frame from the edge");
     rig.close();
   });
 

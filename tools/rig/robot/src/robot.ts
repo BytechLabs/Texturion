@@ -10,13 +10,16 @@
  * verdict on its recording, judged here and then deleted from Telnyx.
  */
 import { randomUUID } from "node:crypto";
+import { LEASE_MAX_MS } from "@loonext/rig-protocol";
 import type { StandingRole } from "@loonext/rig-protocol";
 import type { Calibration } from "./audio/calibrate.ts";
 import type { Margins } from "./audio/detect.ts";
-import { type Surface } from "./audio/surfaces.ts";
-import { judgeRecording, type RecordingJudgement } from "./judge.ts";
+import type { Surface } from "./audio/surfaces.ts";
+import { judgeRecording } from "./judge.ts";
+import type { RecordingJudgement } from "./judge.ts";
 import type { ProbeSource } from "./probe.ts";
-import { GuardRefusedError, type CallControlApi, type RequestContext } from "./telnyx.ts";
+import { GuardRefusedError } from "./telnyx.ts";
+import type { CallControlApi, RequestContext } from "./telnyx.ts";
 import type { Transcriber } from "./audio/transcribe.ts";
 
 /** How a plan names a number held for one scenario: by its Telnyx id, never its digits. */
@@ -113,7 +116,8 @@ export interface Clock {
 export const systemClock: Clock = {
   now: () => Date.now(),
   after(ms, fn) {
-    const timer = setTimeout(fn, ms);
+    const delay = Number.isFinite(ms) && ms > 0 ? ms : 0;
+    const timer = setTimeout(fn, delay <= LEASE_MAX_MS ? delay : LEASE_MAX_MS);
     return () => clearTimeout(timer);
   },
 };
@@ -144,7 +148,7 @@ export interface RobotOptions {
 const DEFAULT_EXPECT_WITHIN_MS = 120_000;
 const DEFAULT_RECORDING_WAIT_MS = 120_000;
 const DEFAULT_BEEP_TIMEOUT_MS = 30_000;
-const HANGUP_AFTER_SPEECH_MS = 1_500;
+const HANGUP_AFTER_SPEECH_MS = 1500;
 const FINAL_STATES: ReadonlySet<CallState> = new Set(["done", "failed"]);
 
 interface TelnyxEvent {
@@ -195,7 +199,7 @@ export class Robot {
 
   /** Settles every command and judgement started so far; for tests and shutdown. */
   async idle(): Promise<void> {
-    while (this.#pending.size > 0) await Promise.allSettled([...this.#pending]);
+    while (this.#pending.size > 0) await Promise.allSettled(this.#pending);
   }
 
   async dial(plan: CallPlan): Promise<CallRecord> {
@@ -274,37 +278,45 @@ export class Robot {
     if (!record) return;
     record.events.push({ type: event.type, at: event.occurredAt });
     switch (event.type) {
-      case "call.answered":
+      case "call.answered": {
         this.#answered(record, event);
         break;
+      }
       case "call.machine.detection.ended":
-      case "call.machine.premium.detection.ended":
+      case "call.machine.premium.detection.ended": {
         record.amd = { ...record.amd, detection: str(event.payload.result) };
         break;
+      }
       case "call.machine.greeting.ended":
-      case "call.machine.premium.greeting.ended":
+      case "call.machine.premium.greeting.ended": {
         record.amd = { ...record.amd, greeting: str(event.payload.result) };
         this.#speakVoicemail(record);
         break;
-      case "call.speak.ended":
+      }
+      case "call.speak.ended": {
         if (record.plan.voicemail && record.spoke) {
           this.#timer(record, HANGUP_AFTER_SPEECH_MS, () =>
             this.#command(record, "hangup", (leg, c) => this.#o.telnyx.hangup(leg, c)),
           );
         }
         break;
-      case "call.dtmf.received":
+      }
+      case "call.dtmf.received": {
         record.dtmf += str(event.payload.digit) ?? "";
         break;
-      case "call.gather.ended":
+      }
+      case "call.gather.ended": {
         record.gathered = { digits: str(event.payload.digits) ?? "", status: str(event.payload.status) };
         break;
-      case "call.hangup":
+      }
+      case "call.hangup": {
         this.#hungUp(record, event);
         break;
-      case "call.recording.saved":
+      }
+      case "call.recording.saved": {
         this.#track(this.#recordingSaved(record, event));
         break;
+      }
     }
   }
 
@@ -367,7 +379,7 @@ export class Robot {
       );
     }
     if (plan.gather) {
-      const gather = plan.gather;
+      const { gather } = plan;
       this.#command(record, "gather", (leg, c) =>
         this.#o.telnyx.gather(
           leg,
@@ -397,7 +409,7 @@ export class Robot {
   }
 
   #speakVoicemail(record: CallRecord): void {
-    const voicemail = record.plan.voicemail;
+    const { voicemail } = record.plan;
     if (!voicemail || record.spoke || record.state !== "answered") return;
     record.spoke = voicemail.phrase;
     this.#command(record, "speak", (leg, c) =>
@@ -452,8 +464,8 @@ export class Robot {
       });
       if (record.judgement.announcement_ms > 0) this.#reportAnnouncement(record.judgement.announcement_ms);
       if (record.plan.transcribe) {
-        if (!this.#o.transcriber) record.errors.push("transcribe: the robot has no transcriber");
-        else record.transcript = await this.#o.transcriber.transcribe(wav);
+        if (this.#o.transcriber) record.transcript = await this.#o.transcriber.transcribe(wav);
+        else record.errors.push("transcribe: the robot has no transcriber");
       }
       if (record.judgement.calibration) this.#o.onCalibration?.(record.judgement.calibration);
     } catch (error) {
@@ -574,11 +586,12 @@ export class Robot {
    * its concurrent limit. The call's verdict never depends on the report.
    */
   #reportAnnouncement(announcementMs: number): void {
-    const report = this.#o.telnyx.reportLevelEvidence;
+    const { telnyx } = this.#o;
+    const report = telnyx.reportLevelEvidence?.bind(telnyx);
     if (!report) return;
     const evidence = { announcement_ms: announcementMs, at: this.#iso() };
     this.#track(
-      report.call(this.#o.telnyx, evidence).catch((error: unknown) => {
+      report(evidence).catch((error: unknown) => {
         console.warn(`robot: level evidence not filed: ${describe(error)}`);
       }),
     );

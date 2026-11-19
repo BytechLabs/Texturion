@@ -1588,7 +1588,7 @@ function normalizeEvent(event: unknown): {
     (event as { data?: unknown }).data !== null &&
     typeof (event as { data?: unknown }).data === "object"
   ) {
-    data = (event as { data: TelnyxEventData }).data;
+    ({ data } = (event as { data: TelnyxEventData }));
   }
   if (typeof data.event_type !== "string") return null;
   const payload =
@@ -1697,7 +1697,6 @@ export async function handle10dlcEvent(
         portAssignmentBlockedCopy(phoneNumber, env),
       );
     }
-    return;
   }
 
   // Unknown 10dlc.* event — ack and ignore (SPEC §4.4).

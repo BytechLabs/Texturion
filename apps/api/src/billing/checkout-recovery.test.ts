@@ -121,13 +121,13 @@ describe("checkout recovery reminder", () => {
 
     expect(sent).toHaveLength(1);
     expect(sent[0].headers.get("Idempotency-Key")).toBe(`checkout-recovery:${COMPANY_ID}:${session.id}`);
-    const mail = await sent[0].json() as {
+    const mail = await sent[0].json<{
       to: string[];
       subject: string;
       text: string;
       html: string;
       headers: Record<string, string>;
-    };
+    }>();
     expect(mail.to).toEqual([EMAIL]);
     expect(mail.subject).toBe("Terminez votre inscription à Loonext");
     for (const part of [mail.text, mail.html]) {

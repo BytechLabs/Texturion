@@ -318,7 +318,7 @@ test("the build's properties go through the environment and name rig hosts only"
   assert.equal(env.ORG_GRADLE_PROJECT_loonextNonprodSupabaseUrl, "https://db.rig.internal");
   // Exactly the list the build file reads, which fails a half-configured build.
   const gradle = readFileSync(join(TOOLING_ROOT, "apps", "android", "app", "build.gradle.kts"), "utf8");
-  const list = /val nonprodPropertyNames = listOf\(([\s\S]*?)\)/.exec(gradle)[1];
+  const [, list] = /val nonprodPropertyNames = listOf\(([\s\S]*?)\)/.exec(gradle);
   const wanted = [...list.matchAll(/"(loonextNonprod\w+)"/g)].map((match) => match[1]).toSorted();
   const names = Object.keys(env).map((key) => key.replace("ORG_GRADLE_PROJECT_", ""));
   assert.ok(wanted.length >= 8);

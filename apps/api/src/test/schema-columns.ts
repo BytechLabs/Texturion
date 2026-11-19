@@ -48,8 +48,8 @@ function splitTopLevel(text: string): string[] {
   let start = 0;
   for (let i = 0; i < text.length; i++) {
     const ch = text[i];
-    if (ch === "(") depth++;
-    else if (ch === ")") depth--;
+    if (ch === "(") depth += 1;
+    else if (ch === ")") depth -= 1;
     else if (ch === "," && depth === 0) {
       parts.push(text.slice(start, i));
       start = i + 1;
@@ -85,8 +85,8 @@ export function parseSelect(select: string): SelectItem[] {
       };
     }
     let name = stripAlias(raw);
-    name = name.split("::")[0];
-    name = name.split("->")[0];
+    ([name] = name.split("::"));
+    ([name] = name.split("->"));
     name = name.replace(/\.(sum|avg|max|min|count)\(\)$/, "");
     return { kind: "column", name: name.trim() };
   });
@@ -370,7 +370,7 @@ export function schemaViolationResponse(
 
   const match = /^\/rest\/v1\/([A-Za-z0-9_]+)$/.exec(url.pathname);
   if (!match) return undefined;
-  const table = match[1];
+    const [, table] = match;
   const problems = checkRestRequest(method, table, url, body);
   if (problems.length === 0) {
     const onConflict = url.searchParams.get("on_conflict");

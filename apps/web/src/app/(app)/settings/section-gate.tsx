@@ -8,7 +8,8 @@ import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
 import { useActiveCompany } from "@/lib/company/provider";
 
-import { settingsAccessFor, type SettingsAccess } from "./section-access";
+import { settingsAccessFor } from "./section-access";
+import type { SettingsAccess } from "./section-access";
 
 import type { SettingsSection } from "@/components/settings/settings-nav";
 
@@ -40,7 +41,7 @@ export function SettingsSectionGate({
   const access: SettingsAccess = settingsAccessFor(pathname, role);
 
   if (access.kind === "index" || access.kind === "allowed") {
-    return <>{children}</>;
+    return children;
   }
 
   return <NoAccess section={access.kind === "denied" ? access.section : null} />;

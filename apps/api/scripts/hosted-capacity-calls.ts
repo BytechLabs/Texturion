@@ -29,7 +29,7 @@ import { assertHostedTarget, CapacityConfigError } from "./deployed-capacity-lib
 import { countStatuses, loadSigner, postSigned, requiredEnv, sleep, summarize } from './capacity-support.ts';
 import type { Ack, Signer } from './capacity-support.ts';
 
-const QUIET_MS = 1_500;
+const QUIET_MS = 1500;
 /** Fictional numbers only (555-0100 to 555-0199). */
 const farEnd = (index: number) => `+16135550${String(100 + index)}`;
 
@@ -85,7 +85,7 @@ async function main(): Promise<void> {
   }
   const levels = (option(args, "--levels") ?? "2,8,16,32").split(",").map(Number);
   const gapMs = Number(option(args, "--gap-ms") ?? "3000");
-  const lines = (JSON.parse(readFileSync(linesFile, "utf8")) as { lines: Line[] }).lines;
+  const { lines } = (JSON.parse(readFileSync(linesFile, "utf8")) as { lines: Line[] });
   if (lines.length < Math.max(...levels)) throw new CapacityConfigError("the lines file has fewer lines than the top level");
 
   const sign = await loadSigner(requiredEnv("LOONEXT_CAPACITY_SIGNING_KEY_FILE"));
@@ -112,7 +112,7 @@ async function main(): Promise<void> {
     let quietSince: number | null = null;
     let lastActivity = performance.now();
     for (;;) {
-      const events = await ctl<Array<{ data: { id: string } }>>("events");
+      const events = await ctl<{ data: { id: string } }[]>("events");
       if (events.length > 0) {
         quietSince = null;
         acks.push(...(await Promise.all(events.map((event) => postSigned(apiOrigin, sign, event)))));
@@ -179,7 +179,7 @@ async function main(): Promise<void> {
       const ended = others.filter((leg) => lineOf(leg) === index && leg.endedAtMs !== null);
       const pickedAt = answeredAt.get(picked.callControlId) ?? null;
       return ended.length > 0 && pickedAt !== null
-        ? [Math.max(...ended.map((leg) => leg.endedAtMs as number)) - pickedAt]
+        ? [Math.max(...ended.map((leg) => leg.endedAtMs!)) - pickedAt]
         : [];
     });
     const strandedRinging = others.filter((leg) => leg.state === "ringing").length;
@@ -231,10 +231,10 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((cause: unknown) => {
+main().catch((error: unknown) => {
   process.stderr.write(
-    cause instanceof CapacityConfigError || (cause instanceof Error && /required|switch control/.test(cause.message))
-      ? `capacity: ${cause.message}\n`
+    error instanceof CapacityConfigError || (error instanceof Error && /required|switch control/.test(error.message))
+      ? `capacity: ${error.message}\n`
       : "capacity: driver failed; no unreviewed error details were printed\n",
   );
   process.exitCode = 1;

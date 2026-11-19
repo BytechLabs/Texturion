@@ -15,7 +15,7 @@
  * Mounted app-wide (inside the company shell) by
  * components/notifications/unread-title-manager.tsx.
  */
-import { useEffect, useState } from "react";
+import { useEffect, useRef } from "react";
 
 import { createTitleController, faviconHref } from "./title";
 import { useUnreadConversationCount } from "./use-unread-count";
@@ -29,7 +29,7 @@ function svgFaviconLink(): HTMLLinkElement {
     link = document.createElement("link");
     link.rel = "icon";
     link.type = "image/svg+xml";
-    document.head.appendChild(link);
+    document.head.append(link);
   }
   return link;
 }
@@ -37,7 +37,9 @@ function svgFaviconLink(): HTMLLinkElement {
 export function useUnreadTitle(): number {
   // Remembers exactly what it wrote, so page-authored titles (including ones
   // that legitimately start with parentheses) are never mis-stripped.
-  const [controller] = useState(createTitleController);
+  const titleController = useRef<ReturnType<typeof createTitleController> | null>(null);
+  titleController.current ??= createTitleController();
+  const controller = titleController.current;
 
   // The single derived unread count (shared with the nav-rail numeral).
   const unread = useUnreadConversationCount();

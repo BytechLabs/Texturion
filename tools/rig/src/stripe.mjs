@@ -37,7 +37,10 @@ export function parseCatalogOutput(stdout) {
   const catalog = {};
   for (const line of stdout.split(/\r?\n/)) {
     const match = /^(STRIPE_[A-Z0-9_]+)=(\S+)$/.exec(line.trim());
-    if (match) catalog[match[1]] = match[2];
+    if (match) {
+      const [, key, value] = match;
+      catalog[key] = value;
+    }
   }
   return catalog;
 }

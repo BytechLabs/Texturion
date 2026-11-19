@@ -37,7 +37,7 @@ describe("searchInventory (number-picker feed)", () => {
       { phone_number: "+14165550100", region: "Toronto", features: ["sms", "mms"] },
     ]);
 
-    const call = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    const [call] = telnyx.callsTo("GET", /available_phone_numbers/);
     expect(call.query.get("filter[country_code]")).toBe("CA");
     expect(call.query.get("filter[features]")).toBe("sms");
     expect(call.query.get("filter[phone_number_type]")).toBe("local");
@@ -65,7 +65,7 @@ describe("searchInventory (number-picker feed)", () => {
     expect(result.data).toEqual([
       { phone_number: "+13035550123", region: "Denver", features: ["sms"] },
     ]);
-    const call = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    const [call] = telnyx.callsTo("GET", /available_phone_numbers/);
     expect(call.query.get("filter[country_code]")).toBe("US");
     expect(call.query.get("filter[national_destination_code]")).toBeNull();
   });
@@ -125,7 +125,7 @@ describe("searchInventory (number-picker feed)", () => {
       areaCode: "212",
       bestEffort: true,
     });
-    const call = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    const [call] = telnyx.callsTo("GET", /available_phone_numbers/);
     expect(call.query.get("filter[best_effort]")).toBe("true");
   });
 
@@ -139,7 +139,7 @@ describe("searchInventory (number-picker feed)", () => {
 
     await expect(
       searchInventory(env, { country: "US", areaCode: "212" }),
-    ).rejects.toThrow();
+    ).rejects.toMatchObject({ status: 503 });
   });
 });
 
@@ -164,7 +164,7 @@ describe("searchInventory digit filter (#513)", () => {
 
     await searchInventory(env, { country: "US", areaCode: "212", contains: "777" });
 
-    const call = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    const [call] = telnyx.callsTo("GET", /available_phone_numbers/);
     expect(call.query.get("filter[phone_number][contains]")).toBe("777");
     // ...and the area code still applies, so the two narrow together rather
     // than one replacing the other.
@@ -181,7 +181,7 @@ describe("searchInventory digit filter (#513)", () => {
 
     // The negative control for the test above: an unconditional parameter
     // would make that assertion pass while proving nothing.
-    const call = telnyx.callsTo("GET", /available_phone_numbers/)[0];
+    const [call] = telnyx.callsTo("GET", /available_phone_numbers/);
     expect(call.query.get("filter[phone_number][contains]")).toBeNull();
   });
 });

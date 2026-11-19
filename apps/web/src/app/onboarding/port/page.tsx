@@ -2,6 +2,7 @@
 
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowRight, Check, X } from "lucide-react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -30,7 +31,7 @@ import {
 
 import { writeOnboardingPortDraft } from "../local-draft";
 import { StepError, StepLoading, StepShell } from "../step-shell";
-import { areaCodeOf, apiFetchCheck, toE164 } from "./port-shared";
+import { apiFetchCheck, areaCodeOf, toE164 } from "./port-shared";
 import { portStepProgress, usePortWizardGuard } from "./use-port-wizard";
 
 /**
@@ -74,7 +75,7 @@ export default function PortNumberPage() {
 
   const country = draft.country ?? "US";
   const e164 = toE164(raw);
-  const companyId = onboarding.companyId;
+  const { companyId } = onboarding;
   const progress = portStepProgress(onboarding.snapshot);
 
   async function checkAndContinue() {
@@ -124,14 +125,14 @@ export default function PortNumberPage() {
           isWireless: check.is_wireless,
         });
       }
-    } catch (cause) {
+    } catch (error_) {
       // Actionable validation messages (e.g. not-portable, bad number) pass
       // through; a server/upstream outage (internal_error) gets a plain, calm
       // retry line instead of the raw "Something went wrong."
       const friendly = t("onboarding.portCheckFailed");
       setError(
-        cause instanceof ApiError && cause.code !== "internal_error"
-          ? cause.message
+        error_ instanceof ApiError && error_.code !== "internal_error"
+          ? error_.message
           : friendly,
       );
     } finally {
@@ -196,9 +197,9 @@ export default function PortNumberPage() {
               <p className="text-sm">{portabilityFailCopy(result.reason)}</p>
             </div>
             <Button asChild variant="outline" size="sm">
-              <a href="/onboarding/number">
+              <Link href="/onboarding/number">
                 {t("onboarding.portGetNewInstead")}
-              </a>
+              </Link>
             </Button>
           </div>
         ) : null}

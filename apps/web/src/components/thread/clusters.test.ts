@@ -98,7 +98,7 @@ describe("buildThreadItems clustering", () => {
       [],
       NOW,
     );
-    const cluster = items[1];
+    const [, cluster] = items;
     expect(cluster.kind).toBe("cluster");
     expect(
       cluster.kind === "cluster" && cluster.messages.map((m) => m.id),

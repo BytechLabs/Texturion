@@ -66,7 +66,7 @@ export function isApiKeyScope(value: string): value is ApiKeyScope {
  * hand-written table does.
  */
 export function apiKeyScopeLabelKey(scope: ApiKeyScope): string {
-  const camel = scope.replace(/:(\w)/g, (_, c: string) => c.toUpperCase());
+  const camel = scope.replaceAll(/:(\w)/g, (_, c: string) => c.toUpperCase());
   return `apiKeys.scope.${camel}`;
 }
 

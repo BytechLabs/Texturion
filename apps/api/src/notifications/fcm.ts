@@ -136,8 +136,8 @@ function parseServiceAccount(raw: string): ServiceAccount {
 /** PEM PKCS#8 → DER bytes (strip armor + whitespace, standard base64 decode). */
 function pemToPkcs8(pem: string): Uint8Array {
   const base64 = pem
-    .replace(/-----(?:BEGIN|END) PRIVATE KEY-----/g, "")
-    .replace(/\s+/g, "");
+    .replaceAll(/-----(?:BEGIN|END) PRIVATE KEY-----/g, "")
+    .replaceAll(/\s+/g, "");
   let binary: string;
   try {
     binary = atob(base64);
@@ -153,7 +153,7 @@ const encoder = new TextEncoder();
 async function signOauthJwt(account: ServiceAccount): Promise<string> {
   const key = await crypto.subtle.importKey(
     "pkcs8",
-    pemToPkcs8(account.private_key) as BufferSource,
+    pemToPkcs8(account.private_key),
     { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" },
     false,
     ["sign"],
@@ -203,8 +203,7 @@ async function getAccessToken(
 ): Promise<string> {
   const now = Date.now();
   if (
-    cachedAccessToken !== null &&
-    cachedAccessToken.tokenUrl === tokenUrl &&
+    cachedAccessToken?.tokenUrl === tokenUrl &&
     cachedAccessToken.clientEmail === account.client_email &&
     now < cachedAccessToken.expiresAt
   ) {
@@ -225,14 +224,13 @@ async function getAccessToken(
       .slice(0, 300)
       .trim();
     throw new Error(
-      `FCM OAuth token exchange failed with HTTP ${response.status}` +
-        (detail ? ` — ${detail}` : ""),
+      `FCM OAuth token exchange failed with HTTP ${response.status}${detail ? ` — ${detail}` : ""}`,
     );
   }
-  const body = (await response.json()) as {
+  const body = await response.json<{
     access_token?: string;
     expires_in?: number;
-  };
+  }>();
   if (typeof body.access_token !== "string" || body.access_token.length === 0) {
     throw new Error("FCM OAuth token exchange returned no access_token");
   }
@@ -439,7 +437,7 @@ export async function sendFcm(
     );
     return { ok: true, status: 0, gone: false, errorBody: "" };
   }
-  const account = parseServiceAccount(env.FCM_SERVICE_ACCOUNT_JSON as string);
+  const account = parseServiceAccount(env.FCM_SERVICE_ACCOUNT_JSON!);
   const message = buildMessage(target, payload, ttlSeconds, urgency, collapseId);
   const base = sendBaseFor(env, credential);
   const bearer = await bearerFor(env, account, credential);

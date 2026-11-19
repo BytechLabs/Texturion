@@ -8,22 +8,23 @@ const unkeyedBudget = { errorResponse: 513, ApiError: 298 };
 
 it("does not add unkeyed API errors", () => {
   const counts = { errorResponse: 0, ApiError: 0 };
+  const visit = (node: ts.Node): void => {
+    if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) &&
+      node.expression.text === "errorResponse" && !node.arguments[3]) {
+      counts.errorResponse += 1;
+    }
+    if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) &&
+      node.expression.text === "ApiError" && !node.arguments?.[2]) {
+      counts.ApiError += 1;
+    }
+    ts.forEachChild(node, visit);
+  };
+
   for (const name of readdirSync(apiSource, { recursive: true, encoding: "utf8" })) {
     if (!name.endsWith(".ts") || name.endsWith(".test.ts")) continue;
     const content = readFileSync(join(apiSource, name), "utf8");
     if (!content.includes("errorResponse") && !content.includes("ApiError")) continue;
     const source = ts.createSourceFile(name, content, ts.ScriptTarget.Latest);
-    function visit(node: ts.Node): void {
-      if (ts.isCallExpression(node) && ts.isIdentifier(node.expression) &&
-        node.expression.text === "errorResponse" && !node.arguments[3]) {
-        counts.errorResponse++;
-      }
-      if (ts.isNewExpression(node) && ts.isIdentifier(node.expression) &&
-        node.expression.text === "ApiError" && !node.arguments?.[2]) {
-        counts.ApiError++;
-      }
-      ts.forEachChild(node, visit);
-    }
     visit(source);
   }
   for (const name of ["errorResponse", "ApiError"] as const) {

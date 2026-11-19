@@ -181,7 +181,8 @@ describe("GET /v1/billing/held-numbers (#523)", () => {
     const harness = makeHarness([companyEndpoint(companyRow()), heldRows([HELD])]);
     const response = await get("/v1/billing/held-numbers", harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    const responseBody = await response.json();
+    expect(responseBody).toEqual({
       plan: "starter",
       included: 1,
       paid_extras: 0,
@@ -207,21 +208,21 @@ describe("GET /v1/billing/held-numbers (#523)", () => {
       companyEndpoint(companyRow({ subscription_status: "canceled" })),
       heldRows([HELD]),
     ]);
-    const body = (await (await get("/v1/billing/held-numbers", harness)).json()) as {
+    const body = await (await get("/v1/billing/held-numbers", harness)).json<{
       reason: string;
       can_reinstate: boolean;
-    };
+    }>();
     expect(body.reason).toBe("subscription_inactive");
     expect(body.can_reinstate).toBe(false);
   });
 
   it("holds nothing: null reason, and no offer to buy anything", async () => {
     const harness = makeHarness([companyEndpoint(companyRow()), heldRows([])]);
-    const body = (await (await get("/v1/billing/held-numbers", harness)).json()) as {
+    const body = await (await get("/v1/billing/held-numbers", harness)).json<{
       reason: string | null;
       held: unknown[];
       can_reinstate: boolean;
-    };
+    }>();
     expect(body.reason).toBeNull();
     expect(body.held).toEqual([]);
     expect(body.can_reinstate).toBe(false);
@@ -232,11 +233,11 @@ describe("GET /v1/billing/held-numbers (#523)", () => {
       companyEndpoint(companyRow({ paid_extra_numbers: 1 })),
       heldRows([HELD]),
     ]);
-    const body = (await (await get("/v1/billing/held-numbers", harness)).json()) as {
+    const body = await (await get("/v1/billing/held-numbers", harness)).json<{
       can_reinstate: boolean;
       can_upgrade: boolean;
       allowance: number;
-    };
+    }>();
     expect(body.allowance).toBe(2);
     expect(body.can_reinstate).toBe(false);
     expect(body.can_upgrade).toBe(true);
@@ -247,9 +248,9 @@ describe("GET /v1/billing/held-numbers (#523)", () => {
       companyEndpoint(companyRow({ paused_at: "2026-11-04T00:00:00.000Z" })),
       heldRows([HELD]),
     ]);
-    const body = (await (await get("/v1/billing/held-numbers", harness)).json()) as {
+    const body = await (await get("/v1/billing/held-numbers", harness)).json<{
       can_reinstate: boolean;
-    };
+    }>();
     expect(body.can_reinstate).toBe(false);
   });
 
@@ -279,7 +280,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({
+    await expect(response.json()).resolves.toEqual({
       reinstated: true,
       paid_extras: 1,
       allowance: 2,
@@ -291,10 +292,10 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     // Charge-first is what let a fenced claim take the money and leave the
     // number held.
     const claimIndex = harness.calls.findIndex((call) =>
-      /rpc\/claim_number_allowance/.test(call.url.href),
+      call.url.href.includes("rpc/claim_number_allowance"),
     );
     const chargeIndex = harness.calls.findIndex((call) =>
-      /subscription_items$/.test(call.url.href),
+      call.url.href.endsWith("subscription_items"),
     );
     expect(claimIndex).toBeGreaterThanOrEqual(0);
     expect(chargeIndex).toBeGreaterThan(claimIndex);
@@ -309,7 +310,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     expect(form.get("quantity")).toBe("1");
     expect(form.get("proration_behavior")).toBe("always_invoice");
     // Keyed on the request's Idempotency-Key, so a retry cannot double-charge.
-    expect(items[0].headers.get("Idempotency-Key")).toBeTruthy();
+    expect(Boolean(items[0].headers.get("Idempotency-Key"))).toBe(true);
 
     // The claim names the number being bought (so THAT one comes back, not the
     // oldest) and carries the fence epoch read before Stripe was ever asked.
@@ -368,7 +369,8 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     expect(response.status).toBe(200);
     // Read off the claim, not retyped: a body pinned to literals cannot pass
     // this, and neither can one that reports the figures we ASKED Stripe for.
-    expect(await response.json()).toEqual({
+    const responseBody = await response.json();
+    expect(responseBody).toEqual({
       reinstated: true,
       paid_extras: CLAIM.capacity,
       allowance: CLAIM.allowance,
@@ -397,7 +399,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toMatch(/try again/i);
     expect(harness.callsTo("POST", /subscription_items/)).toHaveLength(0);
   });
@@ -416,7 +418,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toMatch(/still being set up/i);
     expect(harness.callsTo("POST", /subscription_items/)).toHaveLength(0);
   });
@@ -466,8 +468,8 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
         "POST",
         /api\.stripe\.com\/v1\/subscription_items$/,
         () =>
-          new Response(
-            JSON.stringify({ error: { type: "card_error", message: "Your card was declined." } }),
+          Response.json(
+            { error: { type: "card_error", message: "Your card was declined." } },
             { status: 402 },
           ),
       ),
@@ -524,7 +526,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toMatchObject({ reinstated: true, paid_extras: 1 });
+    await expect(response.json()).resolves.toMatchObject({ reinstated: true, paid_extras: 1 });
     // Nothing was taken back and no capacity was returned.
     expect(harness.callsTo("PATCH", /phone_numbers/)).toHaveLength(0);
     expect(harness.callsTo("POST", /rpc\/claim_number_allowance/)).toHaveLength(1);
@@ -537,7 +539,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(200);
-    expect(await response.json()).toEqual({ reinstated: false, already_active: true });
+    await expect(response.json()).resolves.toEqual({ reinstated: false, already_active: true });
     expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
   });
 
@@ -548,7 +550,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toMatch(/2 numbers/);
     expect(body.error.message).toMatch(/Pro/);
     expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
@@ -562,7 +564,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     // `workspace_paused` carries its own status (402) — the same one every
     // other paused refusal in the product answers with.
     expect(response.status).toBe(402);
-    const body = (await response.json()) as { error: { code: string } };
+    const body = await response.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("workspace_paused");
     expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
   });
@@ -586,7 +588,7 @@ describe("POST /v1/billing/held-numbers/:id/reinstate (#523)", () => {
     ]);
     const response = await reinstate(harness);
     expect(response.status).toBe(409);
-    const body = (await response.json()) as { error: { message: string } };
+    const body = await response.json<{ error: { message: string } }>();
     expect(body.error.message).toMatch(/subscription again/i);
   });
 

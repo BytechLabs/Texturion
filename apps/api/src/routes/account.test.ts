@@ -90,17 +90,17 @@ function mailbox(sb: SupabaseStub, options: { fails?: boolean } = {}) {
     [];
   const route: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
-    const body = (await request.clone().json()) as {
+    const body = await request.clone().json<{
       to: string[];
       subject: string;
       text: string;
-    };
+    }>();
     sent.push({
       ...body,
       severedBefore: sb.find("PUT", /^\/auth\/v1\/admin\/users\//).length,
     });
     return options.fails
-      ? new Response(JSON.stringify({ message: "boom" }), { status: 500 })
+      ? Response.json({ message: "boom" }, { status: 500 })
       : Response.json({ id: "email_1" });
   };
   return { route, sent };
@@ -120,7 +120,7 @@ describe("GET /v1/account/deletion-preview", () => {
       "/v1/account/deletion-preview",
     );
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       blocked_by: null,
       owned_workspaces: [],
       memberships: 1,
@@ -147,7 +147,7 @@ describe("GET /v1/account/deletion-preview", () => {
       await auth.token(),
       "/v1/account/deletion-preview",
     );
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       blocked_by: "owner",
       owned_workspaces: [{ name: "Brightside Plumbing" }],
     });
@@ -168,7 +168,8 @@ describe("DELETE /v1/account", () => {
       method: "DELETE",
     });
     expect(res.status).toBe(403);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       error: { code: "mfa_challenge_required", message: expect.any(String) },
     });
     // And nothing happened. A destructive route that refuses AFTER acting is
@@ -198,7 +199,7 @@ describe("DELETE /v1/account", () => {
       method: "DELETE",
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    await expect(res.json()).resolves.toEqual({
       deleted: true,
       workspaces_left: 1,
       personal_rows_removed: 7,
@@ -227,7 +228,7 @@ describe("DELETE /v1/account", () => {
       ban_duration: string;
     };
     expect(severed.email).toContain("@account.invalid");
-    expect(severed.ban_duration).toBeTruthy();
+    expect(Boolean(severed.ban_duration)).toBe(true);
   });
 
   it("#581/C7: deletes the softphone credential AT TELNYX, not just its row", async () => {
@@ -270,7 +271,7 @@ describe("DELETE /v1/account", () => {
 
     expect(res.status).toBe(200);
     expect(deleted).toEqual(["cred-leaver"]);
-    expect(await res.json()).toMatchObject({ voice_credentials_revoked: 1 });
+    await expect(res.json()).resolves.toMatchObject({ voice_credentials_revoked: 1 });
   });
 
   it("#581/C7: still deletes the account when Telnyx refuses", async () => {
@@ -296,7 +297,7 @@ describe("DELETE /v1/account", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({
+    await expect(res.json()).resolves.toMatchObject({
       deleted: true,
       voice_credentials_revoked: 0,
     });
@@ -317,7 +318,7 @@ describe("DELETE /v1/account", () => {
       method: "DELETE",
     });
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("Brightside Plumbing");
     // Nothing was touched.
     expect(sb.find("POST", "/rest/v1/rpc/offboard_member")).toHaveLength(0);
@@ -331,7 +332,7 @@ describe("DELETE /v1/account", () => {
     sb.on(
       "PUT",
       /^\/auth\/v1\/admin\/users\//,
-      () => new Response(JSON.stringify({ message: "boom" }), { status: 500 }),
+      () => Response.json({ message: "boom" }, { status: 500 }),
     );
     stubFetch(jwksRoute(auth), sb.route, mailbox(sb).route);
 
@@ -339,7 +340,7 @@ describe("DELETE /v1/account", () => {
       method: "DELETE",
     });
     expect(res.status).toBe(200);
-    expect(await res.json()).toMatchObject({ deleted: true });
+    await expect(res.json()).resolves.toMatchObject({ deleted: true });
   });
 
   it("handles becoming an owner between the preview and the delete", async () => {
@@ -387,7 +388,7 @@ describe("DELETE /v1/account", () => {
         method: "DELETE",
       });
       expect(res.status).toBe(200);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         deleted: true,
         receipt_emailed: false,
       });
@@ -407,7 +408,7 @@ describe("DELETE /v1/account", () => {
       const res = await apiRequest(app, env, await auth.token(), "/v1/account", {
         method: "DELETE",
       });
-      expect(await res.json()).toMatchObject({ receipt_emailed: false });
+      await expect(res.json()).resolves.toMatchObject({ receipt_emailed: false });
       expect(mail.sent).toEqual([]);
     });
   });

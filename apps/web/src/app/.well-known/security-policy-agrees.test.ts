@@ -43,7 +43,7 @@ const policy = readFileSync(join(REPO_ROOT, "SECURITY.md"), "utf8");
  * exactly what it is supposed to say. The sentence is the contract; the wrap is
  * formatting.
  */
-const prose = policy.replace(/\s+/g, " ");
+const prose = policy.replaceAll(/\s+/g, " ");
 
 /** The served file, parsed the way a researcher's tooling would read it. */
 async function served(): Promise<Map<string, string>> {
@@ -72,11 +72,11 @@ describe("#285 the security policy and security.txt agree", () => {
    */
   it("names the served contact and no other address", async () => {
     const contact = (await served()).get("Contact");
-    expect(contact, "security.txt lost its Contact field").toBeTruthy();
+    expect(Boolean(contact), "security.txt lost its Contact field").toBe(true);
     const address = contact!.replace(/^mailto:/, "");
     expect(address).toMatch(/@/);
 
-    const named = new Set(policy.match(/[\w.+-]+@[\w.-]+\.\w+/g) ?? []);
+    const named = new Set(policy.match(/[\w.+-]+@[\w.-]+\.\w+/g));
     expect(named.size, "SECURITY.md names no address at all").toBeGreaterThan(0);
     expect([...named].sort()).toEqual([address]);
   });
@@ -84,7 +84,7 @@ describe("#285 the security policy and security.txt agree", () => {
   /** Same rule for the policy URL: every `/security` link is the served one. */
   it("sends a researcher to the policy page security.txt points at", async () => {
     const url = (await served()).get("Policy");
-    expect(url, "security.txt lost its Policy field").toBeTruthy();
+    expect(Boolean(url), "security.txt lost its Policy field").toBe(true);
 
     const linked = new Set(
       (policy.match(/https:\/\/loonext\.com\/[\w./-]*/g) ?? []).filter(

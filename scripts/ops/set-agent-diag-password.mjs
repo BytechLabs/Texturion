@@ -88,7 +88,7 @@ export function newPassword() {
 /** `KEY=value` from a .dev.vars text, commented lines included, or null. */
 export function devVar(text, key) {
   const match = new RegExp(`^#?\\s*${key}=(.*)$`, "m").exec(text);
-  return match ? match[1].trim().replace(/^["']|["']$/g, "") || null : null;
+  return match ? match[1].trim().replaceAll(/^["']|["']$/g, "") || null : null;
 }
 
 function devVarsCandidates(root) {
@@ -117,7 +117,7 @@ export function localDbPort(root = REPO_ROOT) {
   } catch {
     // Fall through to the CLI's default.
   }
-  return 54322;
+  return 54_322;
 }
 
 /**
@@ -152,8 +152,8 @@ export function resolveTarget(target, { env = process.env, root = REPO_ROOT, dbP
     for (const path of devVarsCandidates(root)) {
       if (!existsSync(path)) continue;
       const text = readFileSync(path, "utf8");
-      ref = ref || devVar(text, "SUPABASE_PROJECT_REF");
-      password = password || devVar(text, "SUPABASE_DB_PASSWORD");
+      ref ||= devVar(text, "SUPABASE_PROJECT_REF");
+      password ||= devVar(text, "SUPABASE_DB_PASSWORD");
       if (ref && password) {
         source = "apps/api/.dev.vars";
         break;
@@ -288,7 +288,7 @@ function scrub(text, secrets) {
 
 function lastError(stderr) {
   const lines = stderr.trim().split(/\r?\n/);
-  const error = [...lines].reverse().find((line) => /ERROR:/.test(line));
+  const error = lines.findLast((line) => /ERROR:/.test(line));
   return (error ?? lines.slice(-2).join(" | ")).replace(/^.*?ERROR:\s*/, "");
 }
 
@@ -311,7 +311,7 @@ function main() {
   if ([dryRun, check, withdraw].filter(Boolean).length > 1) fail("--dry-run, --check and --withdraw are separate runs");
   const container = typeof args["psql-container"] === "string" ? args["psql-container"] : undefined;
   const dbPort = typeof args["db-port"] === "string" ? Number(args["db-port"]) : undefined;
-  if (dbPort !== undefined && !(Number.isInteger(dbPort) && dbPort > 0 && dbPort < 65536)) {
+  if (dbPort !== undefined && !(Number.isInteger(dbPort) && dbPort > 0 && dbPort < 65_536)) {
     fail("--db-port takes a port number");
   }
 

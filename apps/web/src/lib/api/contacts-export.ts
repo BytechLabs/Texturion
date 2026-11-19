@@ -22,7 +22,7 @@ import { ApiError, parseErrorBody } from "./error";
 const EXPORT_FILENAME = "contacts.csv";
 
 export interface ExportDeps {
-  fetch: typeof fetch;
+  fetch: (url: string, init: RequestInit) => Promise<Response>;
   getToken: () => Promise<string | null>;
   baseUrl: string;
   /**
@@ -141,7 +141,7 @@ export function triggerBlobDownload(blob: Blob, filename: string): void {
   anchor.href = objectUrl;
   anchor.download = filename;
   anchor.rel = "noopener";
-  document.body.appendChild(anchor);
+  document.body.append(anchor);
   anchor.click();
   anchor.remove();
   URL.revokeObjectURL(objectUrl);

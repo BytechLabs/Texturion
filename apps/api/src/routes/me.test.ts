@@ -112,7 +112,7 @@ describe("GET /v1/me", () => {
       ],
     });
     // Membership query is scoped to the verified sub and active rows only.
-    const membershipCall = sb.find("GET", "/rest/v1/company_members")[0];
+    const [membershipCall] = sb.find("GET", "/rest/v1/company_members");
     expect(membershipCall.url.searchParams.get("user_id")).toBe(
       `eq.${auth.subject}`,
     );
@@ -163,7 +163,7 @@ describe("GET /v1/me", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       company: {
         plan: string;
         subscription_status: string;
@@ -171,7 +171,7 @@ describe("GET /v1/me", () => {
         billing_writes_enabled: boolean;
         registration: { brand: unknown; campaign: unknown };
       };
-    };
+    }>();
     expect(body.company.plan).toBe("starter");
     expect(body.company.subscription_status).toBe("active");
     expect(body.company.numbers).toHaveLength(1);
@@ -216,9 +216,9 @@ describe("GET /v1/me", () => {
         { companyId: COMPANY_ID },
       );
       expect(res.status, flag).toBe(200);
-      const body = (await res.json()) as {
+      const body = await res.json<{
         company: { billing_writes_enabled: boolean };
-      };
+      }>();
       expect(body.company.billing_writes_enabled, flag).toBe(false);
     }
 
@@ -230,9 +230,9 @@ describe("GET /v1/me", () => {
       "/v1/me",
       { companyId: COMPANY_ID },
     );
-    const body = (await res.json()) as {
+    const body = await res.json<{
       company: { billing_writes_enabled: boolean };
-    };
+    }>();
     expect(body.company.billing_writes_enabled).toBe(true);
   });
 
@@ -313,7 +313,7 @@ describe("GET /v1/me withholds the workspace at aal1 (#581)", () => {
     // from this response, so refusing it would lock somebody out of the flow
     // that satisfies the challenge.
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.company).toBeUndefined();
     expect(body.flags).toBeUndefined();
     // The half that MUST survive: the memberships the switcher reads, and the
@@ -331,7 +331,7 @@ describe("GET /v1/me withholds the workspace at aal1 (#581)", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.company).toBeUndefined();
   });
 
@@ -347,7 +347,7 @@ describe("GET /v1/me withholds the workspace at aal1 (#581)", () => {
       { companyId: COMPANY_ID },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { company?: { plan: string } };
+    const body = await res.json<{ company?: { plan: string } }>();
     expect(body.company?.plan).toBe("starter");
     // No posture can produce a demand at aal2, so neither lookup is paid for on
     // the hottest route in the product.
@@ -365,7 +365,7 @@ describe("GET /v1/me withholds the workspace at aal1 (#581)", () => {
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { company?: { plan: string } };
+    const body = await res.json<{ company?: { plan: string } }>();
     expect(body.company?.plan).toBe("starter");
   });
 });
@@ -396,7 +396,7 @@ describe("PATCH /v1/me (#112: set your own display name)", () => {
     // THE assertion. This is an UPSERT, so an absent display_name spread into
     // the row would write the column default over a name somebody chose — a
     // member switching to French would be renamed to nothing.
-    const upsert = sb.find("POST", "/rest/v1/profiles")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/profiles");
     expect(upsert.body).toEqual({ user_id: auth.subject, locale: "fr-CA" });
   });
 
@@ -416,7 +416,7 @@ describe("PATCH /v1/me (#112: set your own display name)", () => {
     // Null is a VALUE here, not an absence: it means "go back to asking my
     // device, then the workspace". A handler that treated it as absent would
     // make the setting one-way.
-    const upsert = sb.find("POST", "/rest/v1/profiles")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/profiles");
     expect(upsert.body).toEqual({ user_id: auth.subject, locale: null });
   });
 
@@ -462,7 +462,7 @@ describe("PATCH /v1/me (#112: set your own display name)", () => {
 
     // Upsert on user_id, scoped to the CALLER (the sub, never a body field),
     // with the whitespace trimmed.
-    const upsert = sb.find("POST", "/rest/v1/profiles")[0];
+    const [upsert] = sb.find("POST", "/rest/v1/profiles");
     expect(upsert.url.searchParams.get("on_conflict")).toBe("user_id");
     expect(upsert.body).toMatchObject({
       user_id: auth.subject,
@@ -513,7 +513,7 @@ describe("POST /v1/me/oriented (#286: the joining orientation)", () => {
     // The user id is the verified `sub`. There is no body on this route at
     // all, which is the point: "I have been oriented" is only ever a statement
     // about yourself, and a body would be somewhere to put somebody else's id.
-    const call = sb.find("POST", "/rest/v1/rpc/api_mark_oriented")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_mark_oriented");
     expect(call.body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -611,7 +611,7 @@ describe("PUT /v1/me/dashboard (#540: a member puts a panel away)", () => {
 
     // The user id is the verified `sub`, never the body — there is no request a
     // caller can make that rearranges somebody else's dashboard.
-    const call = sb.find("POST", "/rest/v1/rpc/api_set_dashboard_hidden")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_set_dashboard_hidden");
     expect(call.body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -634,7 +634,7 @@ describe("PUT /v1/me/dashboard (#540: a member puts a panel away)", () => {
       companyId: COMPANY_ID,
       body: { hidden: ["recent_calls", "response_time", "recent_calls"] },
     });
-    const call = sb.find("POST", "/rest/v1/rpc/api_set_dashboard_hidden")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_set_dashboard_hidden");
     expect(call.body).toMatchObject({
       p_hidden: ["response_time", "recent_calls"],
     });
@@ -767,7 +767,7 @@ describe("PUT /v1/me/dashboard-layout (#736: a member arranges their own page)",
     });
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ layout: stored });
-    const call = sb.find("POST", "/rest/v1/rpc/api_set_dashboard_layout")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_set_dashboard_layout");
     expect(call.body).toEqual({
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
@@ -832,9 +832,9 @@ describe("GET /v1/me carries the dashboard preference (#540)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
       companyId: null,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       memberships: { dashboard_hidden: string[] }[];
-    };
+    }>();
     // Normalised on the way out: the stale id is DROPPED rather than handed to
     // three clients to defend against, and the order is the declared one.
     expect(body.memberships[0].dashboard_hidden).toEqual([
@@ -865,9 +865,9 @@ describe("GET /v1/me carries the dashboard preference (#540)", () => {
     const res = await apiRequest(app, env, await auth.token(), "/v1/me", {
       companyId: null,
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       memberships: { dashboard_hidden: string[] }[];
-    };
+    }>();
     expect(body.memberships[0].dashboard_hidden).toEqual([]);
   });
 });
@@ -897,7 +897,7 @@ describe("GET /v1/me/joining-note names who it came from (#750)", () => {
     );
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ note: "Welcome aboard", from: "Casey Owner" });
-    const profile = sb.find("GET", "/rest/v1/profiles")[0];
+    const [profile] = sb.find("GET", "/rest/v1/profiles");
     expect(profile.url.searchParams.get("user_id")).toBe(`eq.${OWNER_ID}`);
   });
 });

@@ -29,7 +29,7 @@ import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage } from "../http/pagination";
-import { TRASH_KINDS, purgeTrashItem } from "../trash/purge";
+import { purgeTrashItem, TRASH_KINDS } from "../trash/purge";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
 import {
   parseCursor,

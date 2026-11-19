@@ -34,7 +34,7 @@
  * crew's spelling is theirs.
  */
 export function normalizeTagName(raw: string): string {
-  return raw.toLowerCase().replace(/[^a-z0-9]/g, "");
+  return raw.toLowerCase().replaceAll(/[^a-z0-9]/g, "");
 }
 
 /**

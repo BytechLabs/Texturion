@@ -11,13 +11,14 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { AUTO_RETRY_LIMIT, retryInterruptedSends } from "./retry-interrupted";
 import type { Env } from "../env";
+import type * as MessageSend from "./send";
 
 const dispatched: string[] = [];
 const gated: string[] = [];
 const failedOut: string[] = [];
 
 vi.mock("./send", async (importOriginal) => {
-  const actual = await importOriginal<typeof import("./send")>();
+  const actual = await importOriginal<typeof MessageSend>();
   return {
     ...actual,
     runPreSendGates: vi.fn(async (_env: unknown, companyId: string, to: string) => {

@@ -19,7 +19,7 @@
  * `metadata.loonext_catalog`, prices by `lookup_key` — reruns reuse existing
  * objects and only print the ids. Prints the exact env lines the Worker needs.
  */
-import Stripe from "stripe";
+import { Stripe } from "stripe";
 
 const METER_EVENT_NAME = "sms_segments";
 
@@ -155,13 +155,13 @@ async function ensureProduct(
       // #133: converge the display name — a catalog rename (e.g. "Call
       // forwarding" → "Calling") must reach the LIVE product, or invoices
       // keep the old name forever.
-      if (product.name !== name) {
+      if (product.name === name) {
+        console.error(`product: reusing ${product.id} (${catalogKey})`);
+      } else {
         await stripe.products.update(product.id, { name });
         console.error(
           `product: reusing ${product.id} (${catalogKey}), renamed to "${name}"`,
         );
-      } else {
-        console.error(`product: reusing ${product.id} (${catalogKey})`);
       }
       return product;
     }
@@ -186,7 +186,7 @@ async function ensurePrice(
     // below would re-add CAD on every run.
     expand: ["data.currency_options"],
   });
-  const found = existing.data[0];
+  const [found] = existing.data;
   if (found) {
     // #328: a price created before CAD existed carries no `currency_options`,
     // and plain "reusing" would leave every Canadian on USD while this script
@@ -286,7 +286,7 @@ try {
     unit_amount: 7900,
     currency_options: {
       cad: {
-        unit_amount: 10900,
+        unit_amount: 10_900,
         tax_behavior: "exclusive",
       },
     },
@@ -353,10 +353,10 @@ try {
   const starterYear = await ensurePrice("loonext_starter_year", {
     product: starterProduct.id,
     currency: "usd",
-    unit_amount: 29000,
+    unit_amount: 29_000,
     currency_options: {
       cad: {
-        unit_amount: 39000,
+        unit_amount: 39_000,
         tax_behavior: "exclusive",
       },
     },
@@ -365,10 +365,10 @@ try {
   const proYear = await ensurePrice("loonext_pro_year", {
     product: proProduct.id,
     currency: "usd",
-    unit_amount: 79000,
+    unit_amount: 79_000,
     currency_options: {
       cad: {
-        unit_amount: 109000,
+        unit_amount: 109_000,
         tax_behavior: "exclusive",
       },
     },

@@ -120,7 +120,7 @@ describe(vapidKeyToApplicationServerKey, () => {
     expect(() => vapidKeyToApplicationServerKey(b64u(new Uint8Array(32)))).toThrow(
       /P-256/,
     );
-    expect(() => vapidKeyToApplicationServerKey("!not-base64!")).toThrow();
+    expect(() => vapidKeyToApplicationServerKey("!not-base64!")).toThrow("VAPID public key is not base64url.");
   });
 });
 
@@ -219,8 +219,7 @@ describe("init", () => {
     // and (#170 CALLS-V3 §9.2) a PRE-v3 row gains the 'call_end' cap on the
     // first app open after this deploy — the reconcile upsert IS the upgrade
     // path that turns on call_end delivery for existing subscribers.
-    expect(env.saveSubscription).toHaveBeenCalledOnce();
-    expect(env.saveSubscription).toHaveBeenCalledWith({
+    expect(env.saveSubscription).toHaveBeenCalledExactlyOnceWith({
       endpoint: "https://push.example.net/rotated",
       keys: { p256dh: "P256DH", auth: "AUTH" },
       caps: ["call_end"],

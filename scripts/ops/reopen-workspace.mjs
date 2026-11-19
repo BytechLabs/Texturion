@@ -40,9 +40,9 @@ await runScript("reopen-workspace", async ({ args, apply, db, script }) => {
   const rows = await db.select(
     "companies",
     "id,name,deleted_at,purge_after,subscription_status",
-    { id: "eq." + companyId },
+    { id: `eq.${companyId}` },
   );
-  const company = rows[0];
+  const [company] = rows;
   if (!company) fail(`no company with id ${companyId}`);
 
   if (!company.deleted_at) {
@@ -72,7 +72,7 @@ await runScript("reopen-workspace", async ({ args, apply, db, script }) => {
 
   // The part the customer will ask about first.
   const numbers = await db.select("phone_numbers", "id,number_e164,status", {
-    company_id: "eq." + companyId,
+    company_id: `eq.${companyId}`,
   });
   showRows("numbers", numbers);
 
@@ -89,7 +89,7 @@ await runScript("reopen-workspace", async ({ args, apply, db, script }) => {
   const members = await db.select(
     "company_members",
     "id,user_id,role,deactivated_at",
-    { company_id: "eq." + companyId },
+    { company_id: `eq.${companyId}` },
   );
   showRows("members who regain access", members);
 
@@ -99,7 +99,7 @@ await runScript("reopen-workspace", async ({ args, apply, db, script }) => {
   // closed. A concurrent purge must not race this into resurrecting a shell.
   await db.patch(
     "companies",
-    { id: "eq." + companyId, deleted_at: "not.is.null" },
+    { id: `eq.${companyId}`, deleted_at: "not.is.null" },
     { deleted_at: null, purge_after: null },
   );
 

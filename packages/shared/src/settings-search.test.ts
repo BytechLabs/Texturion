@@ -16,8 +16,8 @@ describe("#719 settings search", () => {
     expect(new Set(anchors).size).toBe(anchors.length);
     expect(new Set(SETTINGS_INDEX.map((e) => e.id)).size).toBe(SETTINGS_INDEX.length);
     for (const item of SETTINGS_INDEX) {
-      expect(item.en[0], item.id).toBeTruthy();
-      expect(item.fr[0], item.id).toBeTruthy();
+      expect(Boolean(item.en[0]), item.id).toBe(true);
+      expect(Boolean(item.fr[0]), item.id).toBe(true);
     }
   });
 

@@ -83,7 +83,7 @@ async function identityFor(
     call_control_id: "ccid-307",
     from: "+14155559001",
     to: "+14155550001",
-  } as never);
+  });
 }
 
 describe("#307 the caller meets the LINE's identity", () => {
@@ -95,7 +95,7 @@ describe("#307 the caller meets the LINE's identity", () => {
     // Narrowed on `typeof`, not on the one string I remembered: the return is
     // `InitiatedContext | "drop" | "replay-ended"`, and excluding only "drop"
     // left a union vitest ran happily and tsc rejected.
-    if (typeof ctx === "string") throw new Error(`expected a context, got ${ctx}`);
+    if (typeof ctx === "string") throw new TypeError(`expected a context, got ${ctx}`);
 
     expect(ctx.companyName).toBe("Reed Roofing");
     expect(ctx.greeting).toBe(COMPANY_GREETING);
@@ -106,7 +106,7 @@ describe("#307 the caller meets the LINE's identity", () => {
       label: "Reed Roofing Sales",
       voicemail_greeting: "Sales line. Leave your number and we will call back.",
     });
-    if (typeof ctx === "string") throw new Error(`expected a context, got ${ctx}`);
+    if (typeof ctx === "string") throw new TypeError(`expected a context, got ${ctx}`);
 
     expect(ctx.companyName).toBe("Reed Roofing Sales");
     expect(ctx.greeting).toBe("Sales line. Leave your number and we will call back.");
@@ -122,7 +122,7 @@ describe("#307 the caller meets the LINE's identity", () => {
       label: "Reed Roofing Sales",
       voicemail_greeting: null,
     });
-    if (typeof ctx === "string") throw new Error(`expected a context, got ${ctx}`);
+    if (typeof ctx === "string") throw new TypeError(`expected a context, got ${ctx}`);
 
     expect(ctx.companyName).toBe("Reed Roofing Sales");
     expect(ctx.greeting).toBe(COMPANY_GREETING);
@@ -132,7 +132,7 @@ describe("#307 the caller meets the LINE's identity", () => {
     // A form that posts "" when somebody clears the box would otherwise
     // silence a live call while the company row still holds a greeting.
     const ctx = await identityFor({ label: "   ", voicemail_greeting: "" });
-    if (typeof ctx === "string") throw new Error(`expected a context, got ${ctx}`);
+    if (typeof ctx === "string") throw new TypeError(`expected a context, got ${ctx}`);
 
     expect(ctx.companyName).toBe("Reed Roofing");
     expect(ctx.greeting).toBe(COMPANY_GREETING);
@@ -149,12 +149,12 @@ describe("#307 the caller meets the LINE's identity", () => {
       call_control_id: "ccid-307",
       from: "+14155559001",
       to: "+14155550001",
-    } as never);
+    });
 
     const numberRead = routes.calls.find((call) =>
       call.url.pathname.includes("/phone_numbers"),
     );
-    expect(numberRead, "the number row was never read").toBeTruthy();
+    expect(Boolean(numberRead), "the number row was never read").toBe(true);
     const select = numberRead!.url.searchParams.get("select") ?? "";
     expect(select).toContain("label");
     expect(select).toContain("voicemail_greeting");
@@ -170,7 +170,7 @@ describe("#307 the caller meets the LINE's identity", () => {
       { label: "Reed Roofing Sales", voicemail_greeting: null },
       null,
     );
-    if (typeof ctx === "string") throw new Error(`expected a context, got ${ctx}`);
+    if (typeof ctx === "string") throw new TypeError(`expected a context, got ${ctx}`);
 
     expect(ctx.greeting).toBeNull();
     // The name the runtime will speak, since the greeting itself is absent.
@@ -193,7 +193,7 @@ describe("inbound caller display names", () => {
       from: caller,
       to: "+14155550001",
       caller_id_name: "Network name",
-    } as never);
+    });
 
     expect(ctx).toMatchObject({ callerName: expected });
     const searches = routes.calls.filter((call) =>

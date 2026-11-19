@@ -14,8 +14,8 @@ import {
 import {
   WEBHOOK_EVENT_TYPES,
   webhookEventLabelKey,
-  type WebhookEventType,
 } from "@loonext/shared";
+import type { WebhookEventType } from "@loonext/shared";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { SettingsCard, SettingsPage } from "@/components/settings/section";
@@ -31,7 +31,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type MessageKey } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { MessageKey } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useCreateWebhookEndpoint,
@@ -41,8 +42,8 @@ import {
   useUpdateWebhookEndpoint,
   useWebhookDeliveries,
   useWebhookEndpoints,
-  type WebhookEndpoint,
 } from "@/lib/api/webhooks";
+import type { WebhookEndpoint } from "@/lib/api/webhooks";
 
 /**
  * #243 — Connections.
@@ -227,13 +228,13 @@ function AddForm({
         ...(description.trim() ? { description: description.trim() } : {}),
       });
       onCreated(result.secret_once);
-    } catch (cause) {
+    } catch (error) {
       // The API answers with a catalogue KEY for every address rule, so the
       // reason is said in the reader's own language rather than as "invalid
       // URL", which tells them nothing they can act on.
       const message =
-        cause instanceof ApiError && cause.message.startsWith("webhooks.")
-          ? t(cause.message as MessageKey)
+        error instanceof ApiError && error.message.startsWith("webhooks.")
+          ? t(error.message as MessageKey)
           : t("appShell.saveFailed");
       toast.error(message);
     }
@@ -345,9 +346,9 @@ function Deliveries({ endpointId }: { endpointId: string }) {
           <span className="font-mono text-xs">{delivery.event_type}</span>
           <span className="text-muted-foreground">
             {t(STATUS[delivery.status] ?? "webhooks.deliveryPending")}
-            {delivery.response_status !== null
-              ? ` · ${delivery.response_status}`
-              : ""}
+            {delivery.response_status === null
+              ? ""
+              : ` · ${delivery.response_status}`}
             {delivery.attempts > 1
               ? ` · ${t("webhooks.deliveryAttempts", { count: delivery.attempts })}`
               : ""}

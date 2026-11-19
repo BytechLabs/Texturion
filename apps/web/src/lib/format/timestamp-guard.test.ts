@@ -36,7 +36,7 @@ import { sourceFiles, sourceText, stripComments } from "@/test/source-tree";
 const SRC = join(process.cwd(), "src");
 
 /** The two files that ARE the formatter. */
-const FORMATTER_FILES = ["lib/format/time.ts", "components/ui/timestamp.tsx"];
+const FORMATTER_FILES = new Set(["lib/format/time.ts", "components/ui/timestamp.tsx"]);
 
 const relative = (path: string): string =>
   path.slice(SRC.length + 1).replaceAll('\\', "/");
@@ -44,7 +44,7 @@ const relative = (path: string): string =>
 const files = sourceFiles(SRC, [".ts", ".tsx"])
   .filter((file) => !/\.test\.tsx?$/.test(file))
   .map((file) => ({ rel: relative(file), text: stripComments(sourceText(file)) }))
-  .filter((file) => !FORMATTER_FILES.includes(file.rel));
+  .filter((file) => !FORMATTER_FILES.has(file.rel));
 
 /** The text of the argument list that opens at `open` (just after the `(`). */
 function argumentList(text: string, open: number): string {

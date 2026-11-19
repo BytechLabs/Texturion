@@ -160,13 +160,13 @@ beforeAll(async () => {
     const page = PAGES[path] ?? (path.startsWith("/onboarding/") ? "<!doctype html><title>step</title>" : LOOPBACK_PAGE);
     response.writeHead(200, { "content-type": "text/html" }).end(page);
   });
-  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  await new Promise<void>((resolve) => { server.listen(0, "127.0.0.1", resolve); });
   origin = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
   writeFakeMicWavs(join(dir, "mic"));
 });
 
 afterAll(async () => {
-  await new Promise((resolve) => server.close(resolve));
+  await new Promise((resolve) => { server.close(resolve); });
   rmSync(dir, { recursive: true, force: true });
 });
 
@@ -299,7 +299,7 @@ describe("the browser lane in Chromium", () => {
         await page.route("https://checkout.stripe.com/**", async (route) => {
           const url = new URL(route.request().url());
           if (url.pathname.startsWith("/v1/payment_pages/")) {
-            await new Promise((resolve) => setTimeout(resolve, 500));
+            await new Promise((resolve) => { setTimeout(resolve, 500); });
             events.push("reprice");
             return route.fulfill({ status: 200, contentType: "application/json", body: "{}" });
           }
@@ -312,7 +312,7 @@ describe("the browser lane in Chromium", () => {
         await page.goto(`https://checkout.stripe.com/pay?app=${encodeURIComponent(origin)}${swallow ? "&swallow=1" : ""}`);
         const lane = new PublicPage(page, origin, () => Promise.resolve());
         await expect(lane.checkout({ card: "4242424242424242", email: "owner@example.invalid", postalCode: "M5V 3L9" })).resolves.toEqual({ challenged: false, submitted: true, returned: true });
-        expect(events, String(swallow)).toEqual(["reprice", ...Array(presses).fill("press")]);
+        expect(events, String(swallow)).toEqual(["reprice", ...Array.from({ length: presses }, () => "press")]);
         expect(new URL(page.url()).pathname).toBe("/inbox");
         await page.close();
       }

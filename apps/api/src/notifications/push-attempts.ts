@@ -90,7 +90,7 @@ export async function timedPush<T extends PushOutcome>(
   let result: T;
   try {
     result = await send();
-  } catch (cause) {
+  } catch (error) {
     log.push({
       ...target,
       responseClass: "transport_error",
@@ -98,7 +98,7 @@ export async function timedPush<T extends PushOutcome>(
       latencyMs: Date.now() - started,
       startedAt: started,
     });
-    throw cause;
+    throw error;
   }
   if (result.status !== 0) {
     log.push({

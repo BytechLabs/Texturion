@@ -148,7 +148,7 @@ export function referralShareText(
    * message. Both phones have carried this key since their own pass; the web
    * built it inline.
    */
-  const tail = link ? link : say("domain.referralCodeFallback", { code });
+  const tail = link || say("domain.referralCodeFallback", { code });
   return written.length === 0 ? tail : `${written}\n\n${tail}`;
 }
 

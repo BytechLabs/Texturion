@@ -160,7 +160,7 @@ const problems = [];
 
 for (const file of sources(ROOT)) {
   if (file === SHARED_CSV_MODULE) continue;
-  const source = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+  const source = readFileSync(file, "utf8").replaceAll('\r\n', "\n");
   if (!MENTIONS_CSV.test(source)) continue;
 
   const imported = sharedImports(source);
@@ -226,7 +226,7 @@ for (const file of sources(ROOT)) {
  * before it happens.
  */
 {
-  const shared = readFileSync(SHARED_CSV_MODULE, "utf8").replace(/\r\n/g, "\n");
+  const shared = readFileSync(SHARED_CSV_MODULE, "utf8").replaceAll('\r\n', "\n");
   const body = /export function serializeCsv\(([\s\S]*?)\n}/.exec(shared);
   if (body === null) {
     problems.push(
@@ -234,14 +234,14 @@ for (const file of sources(ROOT)) {
         `one function all five exports now route their cells through, and every ` +
         `check above would pass vacuously.`,
     );
-  } else if (!/csvSafeText\(/.test(body[1])) {
+  } else if (!body[1].includes("csvSafeText(")) {
     problems.push(
       `serializeCsv no longer applies csvSafeText (#580). Every export depends on ` +
         `it doing so — that is why they stopped calling it per column — so an ` +
         `unguarded serializer is the injection back in all five at once, with ` +
         `nothing in the producers to notice.`,
     );
-  } else if (!/csvField\(csvSafeText\(/.test(body[1])) {
+  } else if (!body[1].includes("csvField(csvSafeText(")) {
     problems.push(
       `serializeCsv applies csvSafeText but not inside csvField (#580). Order ` +
         `matters: guard first, quote second, so the apostrophe ends up INSIDE ` +
@@ -276,9 +276,9 @@ for (const file of sources(ROOT)) {
   for (const file of sources(ROOT)) {
     if (file === SHARED_CSV_MODULE) continue;
     const code = readFileSync(file, "utf8")
-      .replace(/\r\n/g, "\n")
-      .replace(/\/\*[\s\S]*?\*\//g, "")
-      .replace(/^[ \t]*\/\/.*$/gm, "");
+      .replaceAll('\r\n', "\n")
+      .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+      .replaceAll(/^[ \t]*\/\/.*$/gm, "");
     if (/\bserializeCsv\s*\(/.test(code)) callers.push(file);
   }
   if (callers.length > 0) {
@@ -293,7 +293,7 @@ for (const file of sources(ROOT)) {
     );
   }
 
-  const shared = readFileSync(SHARED_CSV_MODULE, "utf8").replace(/\r\n/g, "\n");
+  const shared = readFileSync(SHARED_CSV_MODULE, "utf8").replaceAll('\r\n', "\n");
   if (!/0xef,\s*0xbb,\s*0xbf/i.test(shared)) {
     problems.push(
       `${SHARED_CSV_MODULE} no longer writes the UTF-8 byte-order mark (#587). ` +
@@ -302,7 +302,7 @@ for (const file of sources(ROOT)) {
         `five at once, with nothing in the producers to notice.`,
     );
   }
-  if (!/export function csvResponse/.test(shared)) {
+  if (!shared.includes("export function csvResponse")) {
     problems.push(
       `csvResponse is gone from ${SHARED_CSV_MODULE} (#587), so the download ` +
         `headers and the mark have stopped travelling together and each route is ` +

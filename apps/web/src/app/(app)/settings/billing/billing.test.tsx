@@ -73,6 +73,18 @@ describe("billing plan facts trace to PLAN_PRICING (findings 6 + 9)", () => {
  * subscribed. Every one of those is a property of the screen that a later
  * "small copy change" could quietly remove, so each is pinned here.
  */
+const companyQuery = vi.hoisted<{
+  data: CompanyView | undefined;
+  isPending: boolean;
+  isError: boolean;
+  refetch: ReturnType<typeof vi.fn>;
+}>(() => ({
+  data: undefined,
+  isPending: false,
+  isError: false,
+  refetch: vi.fn(),
+}));
+
 const {
   portal,
   record,
@@ -87,7 +99,6 @@ const {
   resumePlan,
   toasted,
   activeRole,
-  companyQuery,
   heldNumbers,
 } = vi.hoisted(() => ({
   portal: { mutate: vi.fn(), isPending: false },
@@ -98,7 +109,7 @@ const {
    * property under test, not decoration.
    */
   heldNumbers: {
-    data: undefined as unknown,
+    data: undefined,
     asked: undefined as boolean | undefined,
   },
   /**
@@ -161,13 +172,6 @@ const {
   toasted: vi.fn(),
   /** The role the page renders for. Only the page-level tests move it. */
   activeRole: { current: "owner" },
-  /** What `useCompany()` answers the PAGE with (the card tests pass props). */
-  companyQuery: {
-    data: undefined as unknown,
-    isPending: false,
-    isError: false,
-    refetch: vi.fn(),
-  },
 }));
 
 vi.mock("@/lib/api/billing", () => ({
@@ -528,8 +532,6 @@ function pausedNow(
   });
 }
 
-afterEach(cleanup);
-
 beforeEach(() => {
   portal.mutate.mockReset();
   portal.isPending = false;
@@ -558,6 +560,8 @@ beforeEach(() => {
   companyQuery.data = undefined;
 });
 
+afterEach(cleanup);
+
 describe("#277 saying why, on the way out", () => {
   it("CR-1: the codes are the ones every client sends", () => {
     // The label is this screen's; the CODE is the record, and a report that
@@ -582,10 +586,10 @@ describe("#277 saying why, on the way out", () => {
     // beside the plan card that already offers the cheaper plan.
     const leave = renderCard();
     for (const { label } of CANCELLATION_REASONS) {
-      expect(screen.getByText(label), label).toBeTruthy();
+      expect(screen.getByText(label), label).toBeInstanceOf(Element);
     }
-    expect(screen.getByText(CANCEL_EXPORT_ACTION)).toBeTruthy();
-    expect(leave).toBeTruthy();
+    expect(screen.getByText(CANCEL_EXPORT_ACTION)).toBeInstanceOf(Element);
+    expect(leave).toBeInstanceOf(Element);
     expect(screen.queryByRole("dialog")).toBeNull();
   });
 
@@ -629,7 +633,7 @@ describe("#277 saying why, on the way out", () => {
     // disabled-until-you-pick. One click from this screen to the portal, and
     // the press IS the assertion — see `expectTheExitLeaves`.
     expectTheExitLeaves(renderCard(), "nothing answered");
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
   });
 
   it("CR-5: skipping is RECORDED as a skip, not as an opinion", () => {
@@ -652,7 +656,7 @@ describe("#277 saying why, on the way out", () => {
       reason: "too_expensive",
       detail: "Pro is more than we use.",
     });
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
   });
 
   it("CR-7: an answer given by accident can be taken back", () => {
@@ -677,7 +681,7 @@ describe("#277 saying why, on the way out", () => {
     const leave = renderCard();
     fireEvent.click(leave);
 
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
     expect(screen.queryByRole("alert")).toBeNull();
   });
 
@@ -700,14 +704,14 @@ describe("#277 saying why, on the way out", () => {
     // way out is the only primary here; the export beside it is an outline,
     // and nothing at all competes with the confirm.
     const leave = renderCard();
-    expect(leave.getAttribute("data-variant")).toBe("default");
+    expect(leave.dataset.variant).toBe("default");
     expect(
-      screen.getByText(CANCEL_EXPORT_ACTION).getAttribute("data-variant"),
+      screen.getByText(CANCEL_EXPORT_ACTION).dataset.variant,
     ).toBe("outline");
     expect(
       screen
         .getAllByRole("button")
-        .filter((button) => button.getAttribute("data-variant") === "default"),
+        .filter((button) => button.dataset.variant === "default"),
     ).toHaveLength(1);
   });
 
@@ -756,7 +760,7 @@ describe("#277 saying why, on the way out", () => {
     // #421 split the portal by role: an admin lands on Stripe's card-update
     // flow, which has no cancellation surface at all.
     render(<CancelSubscriptionCard isOwner={false} company={company()} />);
-    expect(screen.getByText(CANCEL_ADMIN_NOTE)).toBeTruthy();
+    expect(screen.getByText(CANCEL_ADMIN_NOTE)).toBeInstanceOf(Element);
     expect(screen.queryAllByRole("button")).toHaveLength(0);
     expect(screen.queryAllByRole("radio")).toHaveLength(0);
   });
@@ -886,10 +890,11 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     // this shipped — CR-2a's two buttons, and no answer to a question nobody
     // has answered.
     renderCard();
-    for (const { code } of CANCELLATION_REASONS) {
+    const visibleOffers = CANCELLATION_REASONS.flatMap(({ code }) => {
       const offer = cancellationOffer({ reason: code, plan: "pro" }, sayEnglish);
-      if (offer) expect(screen.queryByText(offer.heading), code).toBeNull();
-    }
+      return offer && screen.queryByText(offer.heading) ? [code] : [];
+    });
+    expect(visibleOffers).toEqual([]);
   });
 
   it("OFFER-2: THE EXIT DOES NOT MOVE — the answer renders after the button", () => {
@@ -906,13 +911,13 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     // response to somebody having cooperated with an optional question. So it
     // goes last, and this is what stops a later "it reads better up there".
     expect(
-      leave.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+      Boolean(leave.compareDocumentPosition(heading) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
 
     // And leaving is unchanged: one press, and it lands.
     expect(screen.queryByRole("dialog")).toBeNull();
     expectTheExitLeaves(leave, "with the answer up");
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
   });
 
   it("OFFER-3: quotes Starter's real price, from the book", () => {
@@ -978,8 +983,8 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     renderCard();
     pick("Quiet season, I'll be back");
     const offer = offerFor({ reason: "seasonal", plan: "pro" });
-    expect(screen.getByText(offer.heading)).toBeTruthy();
-    expect(screen.getByText(offer.body)).toBeTruthy();
+    expect(screen.getByText(offer.heading)).toBeInstanceOf(Element);
+    expect(screen.getByText(offer.body)).toBeInstanceOf(Element);
     expect(
       screen.getAllByRole("button").map((b) => b.textContent?.trim()),
     ).toEqual(QUIET_CARD_BUTTONS);
@@ -1028,7 +1033,7 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
       const primaries = [
         ...screen.getAllByRole("button"),
         ...screen.queryAllByRole("link"),
-      ].filter((node) => node.getAttribute("data-variant") === "default");
+      ].filter((node) => node.dataset.variant === "default");
       expect(primaries.map((n) => n.textContent?.trim()), label).toEqual([
         CANCEL_ACTION,
       ]);
@@ -1056,7 +1061,7 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
       name: offer.actionLabel ?? "",
     });
     expect(control.getAttribute("aria-haspopup")).toBe("dialog");
-    expect(control.getAttribute("data-state")).toBe("closed");
+    expect(control.dataset.state).toBe("closed");
     expect(changePlan.mutate).not.toHaveBeenCalled();
   });
 
@@ -1064,7 +1069,7 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
     renderCard();
     pick("Too expensive");
     const { heading } = offerFor({ reason: "too_expensive", plan: "pro" });
-    expect(screen.getByText(heading)).toBeTruthy();
+    expect(screen.getByText(heading)).toBeInstanceOf(Element);
 
     fireEvent.click(screen.getByText("Clear"));
     expect(screen.queryByText(heading)).toBeNull();
@@ -1129,13 +1134,12 @@ describe("#277 follow-up: answering the reason, on the cancel card", () => {
           pick(label);
         },
       ]),
+      // An admin may relay this deadline to the owner.
+      [
+        "admin",
+        () => render(<CancelSubscriptionCard isOwner={false} company={company()} />),
+      ],
     );
-    // Including the version an admin reads and relays to the owner — an admin
-    // who counts the deadline wrong passes the wrong deadline on.
-    surfaces.push([
-      "admin",
-      () => render(<CancelSubscriptionCard isOwner={false} company={company()} />),
-    ]);
 
     for (const [name, mount] of surfaces) {
       mount();
@@ -1250,15 +1254,15 @@ describe("#277 the paid pause, on the cancel card", () => {
     renderCard();
     pick("Quiet season, I'll be back");
 
-    expect(screen.getByText(heading())).toBeTruthy();
-    expect(screen.getByText(pauseOfferBody(PAUSE_CENTS))).toBeTruthy();
+    expect(screen.getByText(heading())).toBeInstanceOf(Element);
+    expect(screen.getByText(pauseOfferBody(PAUSE_CENTS))).toBeInstanceOf(Element);
     expect(
       screen.queryByText(offerFor({ reason: "seasonal", plan: "pro" }).heading),
     ).toBeNull();
 
     // The amount is on the CONTROL, not only in the prose. Nobody agrees to a
     // recurring charge whose figure was a paragraph away from the button.
-    expect(screen.getByRole("button", { name: action() })).toBeTruthy();
+    expect(screen.getByRole("button", { name: action() })).toBeInstanceOf(Element);
   });
 
   it("PAUSE-3: THE EXIT DOES NOT MOVE — one action, still, with the offer up", () => {
@@ -1272,12 +1276,12 @@ describe("#277 the paid pause, on the cancel card", () => {
     pick("Quiet season, I'll be back");
 
     expect(
-      leave.compareDocumentPosition(screen.getByText(heading())) &
-        Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+      Boolean(leave.compareDocumentPosition(screen.getByText(heading())) &
+        Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
     expect(screen.queryByRole("dialog")).toBeNull();
     expectTheExitLeaves(leave, "with the pause offered");
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
     // And pressing the exit does not quietly pause anybody on the way out.
     expect(pausePlan.mutate).not.toHaveBeenCalled();
   });
@@ -1289,12 +1293,12 @@ describe("#277 the paid pause, on the cancel card", () => {
     renderCard();
     pick("Quiet season, I'll be back");
 
-    expect(screen.getByRole("button", { name: action() }).getAttribute("data-variant")).toBe(
+    expect(screen.getByRole("button", { name: action() }).dataset.variant).toBe(
       "outline",
     );
     expect(
       [...screen.getAllByRole("button"), ...screen.queryAllByRole("link")]
-        .filter((node) => node.getAttribute("data-variant") === "default")
+        .filter((node) => node.dataset.variant === "default")
         .map((node) => node.textContent?.trim()),
     ).toEqual([CANCEL_ACTION]);
   });
@@ -1343,7 +1347,7 @@ describe("#277 the paid pause, on the cancel card", () => {
     pick("Quiet season, I'll be back");
     fireEvent.click(screen.getByRole("button", { name: action() }));
 
-    expect(pausePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(pausePlan.mutate).toHaveBeenCalledOnce();
     // Said where the press happened. The paused state lands at the top of this
     // page, a scroll away from a button near the bottom of it.
     expect(toasted).toHaveBeenCalledWith(PAUSE_CONFIRMATION);
@@ -1371,7 +1375,7 @@ describe("#277 the paid pause, on the cancel card", () => {
     expect(screen.getByRole("alert").textContent).toBe(refusal);
     // And the way out is exactly where it was, still one press.
     expectTheExitLeaves(leave, "after the pause was refused");
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
   });
 
   it("PAUSE-9: not asked for on a card that could not render it", () => {
@@ -1392,7 +1396,7 @@ describe("#277 the paid pause, on the cancel card", () => {
     render(<CancelSubscriptionCard isOwner company={company({ plan: null })} />);
     // The card itself is on screen — this is a gate that closed, not a card that
     // never rendered.
-    expect(screen.getByRole("button", { name: new RegExp(CANCEL_ACTION) })).toBeTruthy();
+    expect(screen.getByRole("button", { name: new RegExp(CANCEL_ACTION) })).toBeInstanceOf(Element);
     expect(pause.asked).toBe(false);
   });
 
@@ -1421,7 +1425,7 @@ describe("#277 the paid pause, on the cancel card", () => {
 
     expect(
       screen.getByRole("button", { name: `Pause for ${ODD_PRICE} a month` }),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     // Stated in the prose AND again on the control — nobody agrees to a
     // recurring charge whose figure was a paragraph away from the button — and
     // no other figure, no bare "$", anywhere on the card.
@@ -1490,7 +1494,7 @@ describe("#277 the paid pause, on the cancel card", () => {
       // Pressed, and required to have LANDED — see `expectTheExitLeaves`. The
       // question is never how a state took the exit away, only whether it did.
       expectTheExitLeaves(leave, name);
-      expect(portal.mutate, name).toHaveBeenCalledTimes(1);
+      expect(portal.mutate, name).toHaveBeenCalledOnce();
       cleanup();
     }
   });
@@ -1509,7 +1513,7 @@ describe("#277 the paid pause, on the cancel card", () => {
     pick("Quiet season, I'll be back");
     fireEvent.click(screen.getByRole("button", { name: action() }));
 
-    expect(pausePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(pausePlan.mutate).toHaveBeenCalledOnce();
     expect(toasted).not.toHaveBeenCalled();
     cleanup();
 
@@ -1590,7 +1594,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
     // and dropping the answer entirely would leave somebody cancelling over $79
     // never hearing about the $29 plan they can have. What the API refuses is
     // the click, not the fact.
-    expect(screen.getByText(answer.body)).toBeTruthy();
+    expect(screen.getByText(answer.body)).toBeInstanceOf(Element);
     expect(document.body.textContent).toContain(
       "resume first, then switch plans",
     );
@@ -1609,7 +1613,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
     pick("Quiet season, I'll be back");
 
     const answer = offerFor({ reason: "seasonal", plan: "pro", paused: true });
-    expect(screen.getByText(answer.heading)).toBeTruthy();
+    expect(screen.getByText(answer.heading)).toBeInstanceOf(Element);
     expect(
       screen.queryByText(offerFor({ reason: "seasonal", plan: "pro" }).heading),
     ).toBeNull();
@@ -1658,7 +1662,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
       expect(
         screen.getByText(offerFor({ reason: "too_expensive", plan: "pro" }).body),
         name,
-      ).toBeTruthy();
+      ).toBeInstanceOf(Element);
       expect(
         screen.queryByRole("button", { name: "Switch to Starter" }),
         name,
@@ -1675,7 +1679,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
     pause.data = running();
     renderCard();
     pick("Too expensive");
-    expect(screen.getByRole("button", { name: "Switch to Starter" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Switch to Starter" })).toBeInstanceOf(Element);
   });
 
   it("OFFER-P4: a slow pause read does not take the help route away", () => {
@@ -1695,7 +1699,7 @@ describe("#277 the answers a paused workspace gets on the cancel card", () => {
       expect(
         screen.getByRole("link", { name: offer.actionLabel ?? "" }),
         name,
-      ).toBeTruthy();
+      ).toBeInstanceOf(Element);
       cleanup();
     }
   });
@@ -1738,7 +1742,7 @@ describe("#277 the paused state, on the billing screen", () => {
     expect(copy).toContain("message history");
     // The fee, from the API rather than from a guess about what a pause costs.
     expect(document.body.textContent).toContain(`$${PAUSE_CENTS / 100} a month`);
-    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInstanceOf(Element);
   });
 
   it("PAUSED-2: renders nothing at all unless this workspace IS paused", () => {
@@ -1777,7 +1781,7 @@ describe("#277 the paused state, on the billing screen", () => {
     expect((document.body.textContent ?? "").toLowerCase()).toContain(
       "texting is off",
     );
-    expect(screen.getByRole("button", { name: "Resume" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Resume" })).toBeInstanceOf(Element);
   });
 
   it("PAUSED-4: Resume sends one request, and a refusal is the API's sentence", () => {
@@ -1792,7 +1796,7 @@ describe("#277 the paused state, on the billing screen", () => {
     render(<PausedPlanCard show />);
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
 
-    expect(resumePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(resumePlan.mutate).toHaveBeenCalledOnce();
     expect(screen.getByRole("alert").textContent).toBe(refusal);
   });
 
@@ -1884,7 +1888,7 @@ describe("#277 the paused state, on the billing screen", () => {
     render(<PausedPlanCard show />);
     fireEvent.click(screen.getByRole("button", { name: "Resume" }));
 
-    expect(resumePlan.mutate).toHaveBeenCalledTimes(1);
+    expect(resumePlan.mutate).toHaveBeenCalledOnce();
     expect(toasted).not.toHaveBeenCalled();
     cleanup();
 
@@ -1931,8 +1935,8 @@ describe("#277 follow-up: the win-back inside the canceled-state card", () => {
       plan: "pro",
       phase: "grace",
     });
-    expect(screen.getByText(grace.heading)).toBeTruthy();
-    expect(screen.getByText(grace.body)).toBeTruthy();
+    expect(screen.getByText(grace.heading)).toBeInstanceOf(Element);
+    expect(screen.getByText(grace.body)).toBeInstanceOf(Element);
     // Not the cancel card's wording: the subscription is over, so the verb is
     // coming back rather than switching.
     expect(
@@ -1972,7 +1976,7 @@ describe("#277 follow-up: the win-back inside the canceled-state card", () => {
       screen.getByText(
         offerFor({ reason: "seasonal", plan: "pro", phase: "grace" }).heading,
       ),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
   });
 
   it("WIN-4: a dismissal belongs to ONE cancellation", () => {
@@ -2003,7 +2007,7 @@ describe("#277 follow-up: the win-back inside the canceled-state card", () => {
     stated.data = { reason: "seasonal", stated_at: daysAgo(3) };
     renderWinback();
     fireEvent.click(screen.getByRole("button", { name: "No thanks" }));
-    expect(dismiss.mutate).toHaveBeenCalledTimes(1);
+    expect(dismiss.mutate).toHaveBeenCalledOnce();
     expect(document.body.textContent).toBe("");
   });
 
@@ -2220,7 +2224,7 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
     // sharing #315 exists to end.
     renderPage("bookkeeper");
     expect(billingControlsVisible()).toBe(true);
-    expect(screen.getByRole("button", { name: "Resubscribe" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Resubscribe" })).toBeInstanceOf(Element);
   });
 
   it("BILL-2: and the win-back, which is served on the same capability", () => {
@@ -2234,7 +2238,7 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
       plan: "pro",
       phase: "grace",
     });
-    expect(screen.getByText(grace.heading)).toBeTruthy();
+    expect(screen.getByText(grace.heading)).toBeInstanceOf(Element);
   });
 
   it("shows the scheduled Starter date and lets a bookkeeper keep Pro", () => {
@@ -2245,7 +2249,7 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
       pending_plan: "starter",
       pending_plan_effective_at: new Date(Date.now() + 86_400_000).toISOString(),
     });
-    expect(screen.getByText(/Starter starts/)).toBeTruthy();
+    expect(screen.getByText(/Starter starts/)).toBeInstanceOf(Element);
     fireEvent.click(screen.getByRole("button", { name: "Keep Pro" }));
     expect(cancelPlanChange.mutate).toHaveBeenCalledOnce();
   });
@@ -2307,7 +2311,7 @@ describe("#315 the billing screen is gated by capability, not by rank", () => {
     // being nothing to ask on behalf of.
     expect(
       screen.getByRole("button", { name: new RegExp(CANCEL_ACTION) }),
-    ).toBeTruthy();
+    ).toBeInstanceOf(Element);
     expect(pause.asked).toBe(false);
   });
 
@@ -2428,7 +2432,7 @@ describe("#277 the billing screen while paused", () => {
     for (const [name, apply] of READ_STATES) {
       renderBilling(apply);
       if (name === "running") {
-        expect(screen.getByText("Active"), name).toBeTruthy();
+        expect(screen.getByText("Active"), name).toBeInstanceOf(Element);
       } else {
         expect(screen.queryByText("Active"), name).toBeNull();
       }
@@ -2440,13 +2444,13 @@ describe("#277 the billing screen while paused", () => {
     // neutral pill while we are still asking, and nothing at all after a read
     // that failed — because there is nothing to claim, in either direction.
     renderBilling(() => { pause.data = pausedNow(); });
-    expect(screen.getByText("Your plan is paused")).toBeTruthy();
-    expect(screen.getByText("Paused")).toBeTruthy();
+    expect(screen.getByText("Your plan is paused")).toBeInstanceOf(Element);
+    expect(screen.getByText("Paused")).toBeInstanceOf(Element);
     expect(screen.queryByText("Checking…")).toBeNull();
     cleanup();
 
     renderBilling(() => {});
-    expect(screen.getByText("Checking…")).toBeTruthy();
+    expect(screen.getByText("Checking…")).toBeInstanceOf(Element);
     cleanup();
 
     renderBilling(() => {
@@ -2523,10 +2527,10 @@ describe("#277 the billing screen while paused", () => {
     // reading it back at somebody looking at their own plan explains nothing
     // they can act on.
     expect(copy).not.toContain("Couldn't reach Stripe");
-    expect(screen.getByRole("button", { name: "Try again" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Try again" })).toBeInstanceOf(Element);
 
     fireEvent.click(screen.getByRole("button", { name: "Try again" }));
-    expect(pause.refetch).toHaveBeenCalledTimes(1);
+    expect(pause.refetch).toHaveBeenCalledOnce();
   });
 
   it("PAGE-PAUSE-2: leaving is STILL one action from landing on this screen", () => {
@@ -2539,7 +2543,7 @@ describe("#277 the billing screen while paused", () => {
     });
     expect(screen.queryByRole("dialog")).toBeNull();
     expectTheExitLeaves(leave, "on a paused workspace");
-    expect(portal.mutate).toHaveBeenCalledTimes(1);
+    expect(portal.mutate).toHaveBeenCalledOnce();
   });
 
   it("PAGE-PAUSE-3: the pause is not offered again to somebody already paused", () => {
@@ -2563,7 +2567,7 @@ describe("#277 the billing screen while paused", () => {
       plan: "pro",
       paused: true,
     });
-    expect(screen.getByText(pausedAnswer.heading)).toBeTruthy();
+    expect(screen.getByText(pausedAnswer.heading)).toBeInstanceOf(Element);
     expect(
       screen.queryByText(offerFor({ reason: "seasonal", plan: "pro" }).heading),
     ).toBeNull();
@@ -2638,7 +2642,7 @@ describe("#277 the billing screen while paused", () => {
       // away, the observable is the same one: nothing reached Stripe.
       expect(screen.queryByRole("dialog"), name).toBeNull();
       expectTheExitLeaves(leave, name);
-      expect(portal.mutate, name).toHaveBeenCalledTimes(1);
+      expect(portal.mutate, name).toHaveBeenCalledOnce();
       cleanup();
     }
   });
@@ -2754,8 +2758,8 @@ describe("#277 the billing screen while paused", () => {
     });
 
     expect(
-      leave.compareDocumentPosition(offer) & Node.DOCUMENT_POSITION_FOLLOWING,
-    ).toBeTruthy();
+      Boolean(leave.compareDocumentPosition(offer) & Node.DOCUMENT_POSITION_FOLLOWING),
+    ).toBe(true);
     expectTheExitLeaves(leave, "with the pause offer on the page");
   });
 });
@@ -3047,7 +3051,7 @@ describe("CR-#529: no other busy state can hold the exit shut", () => {
     portal.isPending = true;
     render(<CancelSubscriptionCard isOwner company={company()} />);
     const leave = screen.getByRole("button", { name: /Opening…/ });
-    expect(leave).toBeTruthy();
+    expect(leave).toBeInstanceOf(Element);
     expect((leave as HTMLButtonElement).disabled).toBe(true);
   });
 

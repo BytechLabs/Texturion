@@ -126,7 +126,7 @@ describe("POST /v1/webrtc/token (D43)", () => {
       body: {},
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { sip_username: string }).sip_username).toBe(
+    expect((await res.json<{ sip_username: string }>()).sip_username).toBe(
       "gencredBBB",
     );
     expect(w.create.calls).toHaveLength(0);
@@ -205,7 +205,7 @@ describe("POST /v1/webrtc/token (D43)", () => {
       body: {},
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { sip_username: string }).sip_username).toBe(
+    expect((await res.json<{ sip_username: string }>()).sip_username).toBe(
       "gencredWIN",
     );
     expect(orphanDelete.calls).toHaveLength(1);

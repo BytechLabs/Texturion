@@ -8,7 +8,7 @@
 export function isValidIanaTimezone(timezone: string): boolean {
   if (timezone !== "UTC" && !timezone.includes("/")) return false;
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: timezone });
+    Intl.DateTimeFormat("en-US", { timeZone: timezone });
     return true;
   } catch {
     return false;

@@ -250,9 +250,9 @@ export async function runAiFeature(
           // actually failed. A thunk that throws is this attempt's failure like
           // any other, which is what the per-attempt catch is for.
           env.AI.run(attempt.model, resolveAiInput(attempt.input)),
-          new Promise<typeof TIMED_OUT>((resolve) =>
-            setTimeout(() => resolve(TIMED_OUT), spec.timeoutMs),
-          ),
+          new Promise<typeof TIMED_OUT>((resolve) => {
+            setTimeout(() => resolve(TIMED_OUT), spec.timeoutMs);
+          }),
         ]);
       } catch (error) {
         console.error(

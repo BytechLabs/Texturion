@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AppReleasePolicy, UpdateRequirement } from "@loonext/shared";
 
 import type { WebBuild } from "@/lib/api/app-release";
+import type * as AppRelease from "@/lib/api/app-release";
 
 /**
  * #339 — the update surfaces, and mostly the one property that matters:
@@ -32,7 +33,7 @@ let deployed: WebBuild | null = null;
 let liveCall = false;
 
 vi.mock("@/lib/api/app-release", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/app-release")>()),
+  ...(await importOriginal<typeof AppRelease>()),
   APP_VERSION: "1.0.0",
   THIS_BUILD: { version: "1.0.0", build: "build-a" },
   useUpdateRequirement: () => requirement,
@@ -172,7 +173,7 @@ describe("#710 a different build reloads the tab only while nobody is looking", 
     show();
     vi.advanceTimersByTime(10 * 60_000);
     expect(reload).not.toHaveBeenCalled();
-    expect(screen.getByText("Reload now")).toBeTruthy();
+    expect(screen.getByText("Reload now")).toBeInstanceOf(Element);
   });
 
   it("reloads once the tab has been hidden for a minute", () => {
@@ -181,7 +182,7 @@ describe("#710 a different build reloads the tab only while nobody is looking", 
     vi.advanceTimersByTime(59_999);
     expect(reload).not.toHaveBeenCalled();
     vi.advanceTimersByTime(1);
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledOnce();
   });
 
   it("does not reload a tab that came back within the minute", () => {
@@ -202,13 +203,13 @@ describe("#710 a different build reloads the tab only while nobody is looking", 
     expect(reload).not.toHaveBeenCalled();
     liveCall = false;
     vi.advanceTimersByTime(60_000);
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledOnce();
   });
 
   it("does not reload over an open dialog or a save in flight", () => {
     const dialog = document.createElement("div");
     dialog.setAttribute("role", "dialog");
-    dialog.setAttribute("data-state", "open");
+    dialog.dataset.state = "open";
     document.body.append(dialog);
     show();
     setVisibility("hidden");
@@ -222,7 +223,7 @@ describe("#710 a different build reloads the tab only while nobody is looking", 
 
     saving.mockReturnValue(0);
     vi.advanceTimersByTime(60_000);
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledOnce();
   });
 
   it("never reloads when the live build is this one", () => {

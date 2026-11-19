@@ -174,7 +174,7 @@ afterAll(async () => {
   }
 }, 300_000);
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
 interface DeliveryTally {
   posts: number;

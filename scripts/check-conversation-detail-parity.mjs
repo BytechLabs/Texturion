@@ -60,8 +60,8 @@ const CLIENTS = [
 /** Strip comments so a `,` or `:` inside prose cannot be read as syntax. */
 function stripComments(source) {
   return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^\s*\/\/\/?.*$/gm, "");
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^\s*\/\/\/?.*$/gm, "");
 }
 
 const problems = [];
@@ -72,7 +72,7 @@ const problems = [];
 
 let serverColumns = [];
 try {
-  const api = readFileSync(API_FILE, "utf8").replace(/\r\n/g, "\n");
+  const api = readFileSync(API_FILE, "utf8").replaceAll('\r\n', "\n");
   const declaration = /const CONVERSATION_COLUMNS =([\s\S]*?);\n/.exec(api);
   if (declaration === null) {
     problems.push(
@@ -108,7 +108,7 @@ if (serverColumns.length < 5) {
 for (const client of CLIENTS) {
   let source;
   try {
-    source = readFileSync(client.file, "utf8").replace(/\r\n/g, "\n");
+    source = readFileSync(client.file, "utf8").replaceAll('\r\n', "\n");
   } catch {
     problems.push(`${client.label}: cannot read ${client.file}`);
     continue;

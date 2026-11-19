@@ -24,8 +24,8 @@ export function stackUnitState(systemctl = systemctlUser) {
 export async function waitForStackUnit({
   state = stackUnitState,
   timeoutMs = STACK_UNIT_WAIT_MS,
-  intervalMs = 3_000,
-  sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms)),
+  intervalMs = 3000,
+  sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); }),
   now = Date.now,
   log = () => {},
 } = {}) {

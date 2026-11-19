@@ -280,7 +280,7 @@ async function authorizedProviderForAttention(input: {
   provider: CalendarProvider;
 }> {
   const db = getDb(input.env);
-  const rows = unwrap<OwnedCalendarCredentialRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("calendar_connections")
       .select(
@@ -294,8 +294,8 @@ async function authorizedProviderForAttention(input: {
       .is("revoked_at", null)
       .limit(1),
     "calendar attention connection",
-  );
-  const connection = rows[0];
+  ) as OwnedCalendarCredentialRow[];
+  const [connection] = rows;
   if (!connection || connection.provider !== input.expectedProvider) {
     throw new ApiError("not_found", "No such calendar attention item.");
   }
@@ -510,7 +510,7 @@ calendarConnectionRoutes.get(
     const companyId = c.get("companyId");
     const userId = c.get("userId");
 
-    const connections = unwrap<CalendarConnectionRow[]>(
+    const connections = unwrap<unknown>(
       await db
         .from("calendar_connections")
         .select(
@@ -523,7 +523,7 @@ calendarConnectionRoutes.get(
         .is("revoked_at", null)
         .order("created_at", { ascending: true }),
       "calendar connection list",
-    );
+    ) as CalendarConnectionRow[];
 
     const ids = connections.map((connection) => connection.id);
     const conflicts = ids.length === 0
@@ -569,7 +569,7 @@ calendarConnectionRoutes.get(
         allowed_actions: stateMachines.allowedActions(
           stateMachines.calendarConnectionMachine,
           connection.status as stateMachines.CalendarConnectionState,
-          c.get("role") as MemberRole,
+          c.get("role"),
         ),
       })),
       disclosures,
@@ -594,7 +594,7 @@ calendarConnectionRoutes.get(
       }),
       "calendar attention list",
     );
-    return c.json({ attention: rows.map((row) => attentionView(row, c.get("role") as MemberRole)) });
+    return c.json({ attention: rows.map((row) => attentionView(row, c.get("role"))) });
   },
 );
 
@@ -610,7 +610,7 @@ calendarConnectionRoutes.get(
       pathUuid(c, "id"),
     );
     return c.json({
-      attention: attentionView(attention, c.get("role") as MemberRole),
+      attention: attentionView(attention, c.get("role")),
     });
   },
 );
@@ -631,7 +631,7 @@ calendarConnectionRoutes.post(
     const offered = stateMachines.allowedActions(
       stateMachines.calendarLinkMachine,
       attention.link_state,
-      c.get("role") as MemberRole,
+      c.get("role"),
     );
     const resolveAction =
       attention.link_state === "conflict"
@@ -914,7 +914,7 @@ calendarConnectionRoutes.delete(
         .allowedActions(
           stateMachines.calendarConnectionMachine,
           owned[0].status as stateMachines.CalendarConnectionState,
-          c.get("role") as MemberRole,
+          c.get("role"),
         )
         .includes("disconnect")
     ) {

@@ -1,6 +1,7 @@
 import { isLocale } from "@loonext/shared";
 import { createServerClient } from "@supabase/ssr";
-import { NextResponse, type NextRequest } from "next/server";
+import { NextResponse } from "next/server";
+import type { NextRequest } from "next/server";
 
 import {
   decideAuthRedirect,
@@ -11,8 +12,8 @@ import {
 import { AUTH_LOCALE_COOKIE, AUTH_LOCALE_HEADER, authLocale } from "@/i18n/auth-locale";
 import { decideBlogRoute, decideHostRedirect } from "@/lib/hosts";
 import {
-  CSP_HEADER,
   createNonce,
+  CSP_HEADER,
   cspStagingEnabled,
   nonceContentSecurityPolicy,
   reportingEndpointsHeader,

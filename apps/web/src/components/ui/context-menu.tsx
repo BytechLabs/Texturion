@@ -1,6 +1,6 @@
 "use client"
 
-import * as React from "react"
+import type { ComponentProps } from "react"
 import { ChevronRightIcon, SquareCheckBigIcon, SquareIcon } from "lucide-react"
 import { ContextMenu as ContextMenuPrimitive } from "radix-ui"
 
@@ -14,12 +14,12 @@ import { STATE_ITEM_CLASSES } from "./dropdown-menu"
  * and the same menu opened from a right-click are drawn identically. What goes
  * IN them is decided once, by a record's action definition (`RecordMenuItems`).
  */
-function ContextMenu(props: React.ComponentProps<typeof ContextMenuPrimitive.Root>) {
+function ContextMenu(props: ComponentProps<typeof ContextMenuPrimitive.Root>) {
   return <ContextMenuPrimitive.Root data-slot="context-menu" {...props} />
 }
 
 function ContextMenuTrigger(
-  props: React.ComponentProps<typeof ContextMenuPrimitive.Trigger>
+  props: ComponentProps<typeof ContextMenuPrimitive.Trigger>
 ) {
   return (
     <ContextMenuPrimitive.Trigger data-slot="context-menu-trigger" {...props} />
@@ -29,7 +29,7 @@ function ContextMenuTrigger(
 function ContextMenuContent({
   className,
   ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.Content>) {
+}: ComponentProps<typeof ContextMenuPrimitive.Content>) {
   return (
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
@@ -48,7 +48,7 @@ function ContextMenuItem({
   className,
   variant = "default",
   ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.Item> & {
+}: ComponentProps<typeof ContextMenuPrimitive.Item> & {
   variant?: "default" | "destructive"
 }) {
   return (
@@ -70,7 +70,7 @@ function ContextMenuToggleItem({
   children,
   checked,
   ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.CheckboxItem>) {
+}: ComponentProps<typeof ContextMenuPrimitive.CheckboxItem>) {
   return (
     <ContextMenuPrimitive.CheckboxItem
       data-slot="context-menu-toggle-item"
@@ -90,7 +90,7 @@ function ContextMenuToggleItem({
 function ContextMenuLabel({
   className,
   ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.Label>) {
+}: ComponentProps<typeof ContextMenuPrimitive.Label>) {
   return (
     <ContextMenuPrimitive.Label
       data-slot="context-menu-label"
@@ -103,7 +103,7 @@ function ContextMenuLabel({
 function ContextMenuSeparator({
   className,
   ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.Separator>) {
+}: ComponentProps<typeof ContextMenuPrimitive.Separator>) {
   return (
     <ContextMenuPrimitive.Separator
       data-slot="context-menu-separator"
@@ -113,7 +113,7 @@ function ContextMenuSeparator({
   )
 }
 
-function ContextMenuSub(props: React.ComponentProps<typeof ContextMenuPrimitive.Sub>) {
+function ContextMenuSub(props: ComponentProps<typeof ContextMenuPrimitive.Sub>) {
   return <ContextMenuPrimitive.Sub data-slot="context-menu-sub" {...props} />
 }
 
@@ -121,7 +121,7 @@ function ContextMenuSubTrigger({
   className,
   children,
   ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.SubTrigger>) {
+}: ComponentProps<typeof ContextMenuPrimitive.SubTrigger>) {
   return (
     <ContextMenuPrimitive.SubTrigger
       data-slot="context-menu-sub-trigger"
@@ -140,7 +140,7 @@ function ContextMenuSubTrigger({
 function ContextMenuSubContent({
   className,
   ...props
-}: React.ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
+}: ComponentProps<typeof ContextMenuPrimitive.SubContent>) {
   return (
     <ContextMenuPrimitive.SubContent
       data-slot="context-menu-sub-content"

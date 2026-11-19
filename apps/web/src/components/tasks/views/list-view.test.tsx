@@ -140,10 +140,10 @@ describe("Tasks list status control (#743)", () => {
     const { container } = renderList(MINE);
     await screen.findByText("Send quote");
     const items = container.querySelectorAll("li");
-    expect(items.length).toBe(2);
+    expect(items).toHaveLength(2);
     for (const li of items) {
       const boxes = li.querySelectorAll('input[type="checkbox"], [role="checkbox"]');
-      expect(boxes.length).toBe(1);
+      expect(boxes).toHaveLength(1);
       expect(boxes[0].getAttribute("aria-label")).toMatch(/^Select /);
     }
     expect(screen.queryByRole("checkbox", { name: /mark (not )?done/i })).toBeNull();
@@ -151,7 +151,7 @@ describe("Tasks list status control (#743)", () => {
 
   it("changes status from the Status cell and offers Undo", async () => {
     renderList(MINE);
-    const trigger = (await screen.findAllByRole("button", { name: /Status of Call Ana: Open/ }))[0];
+    const [trigger] = await screen.findAllByRole("button", { name: /Status of Call Ana: Open/ });
     fireEvent.keyDown(trigger, { key: "Enter" });
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Done" }));
     expect(mutate).toHaveBeenCalledWith({
@@ -167,7 +167,7 @@ describe("Tasks list status control (#743)", () => {
 
   it("reopens a done task, and is reachable by keyboard", async () => {
     renderList(MINE);
-    const trigger = (await screen.findAllByRole("button", { name: /Status of Send quote: Done/ }))[0];
+    const [trigger] = await screen.findAllByRole("button", { name: /Status of Send quote: Done/ });
     trigger.focus();
     expect(document.activeElement).toBe(trigger);
     fireEvent.keyDown(trigger, { key: "ArrowDown" });
@@ -179,7 +179,7 @@ describe("Tasks list status control (#743)", () => {
 
   it("does nothing when the current status is picked again", async () => {
     renderList(MINE);
-    const trigger = (await screen.findAllByRole("button", { name: /Status of Call Ana/ }))[0];
+    const [trigger] = await screen.findAllByRole("button", { name: /Status of Call Ana/ });
     fireEvent.keyDown(trigger, { key: "Enter" });
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Open" }));
     expect(mutate).not.toHaveBeenCalled();
@@ -192,7 +192,7 @@ describe("what the List asks for", () => {
     renderList(OPEN);
     await screen.findByText("o job 0");
     // A second read here would be a page nobody asked for.
-    await act(() => new Promise((resolve) => setTimeout(resolve, 20)));
+    await act(() => new Promise((resolve) => { setTimeout(resolve, 20); }));
     expect(tasksRequests()).toHaveLength(1);
 
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.loadMore }));
@@ -214,7 +214,7 @@ describe("what the List asks for", () => {
     fireEvent.click(screen.getByRole("button", { name: EN.tasks.loadMore }));
     await screen.findByText("d job 100", undefined, SLOW);
     expect(tasksRequests("done")).toHaveLength(2);
-  });
+  }, SLOW.timeout);
 
   it("offers every matching task while done has more pages", async () => {
     server.open = many("o", 1, false);
@@ -227,7 +227,7 @@ describe("what the List asks for", () => {
         name: EN.tasks.bulkSelectThese.replace("{count}", "101"),
       }),
     );
-    expect(screen.getByRole("button", { name: EN.tasks.bulkSelectAllMatching })).toBeTruthy();
+    expect(screen.getByRole("button", { name: EN.tasks.bulkSelectAllMatching })).toBeInstanceOf(Element);
   });
 
   it("keeps the last rows, dimmed and busy, while a changed tab loads", async () => {
@@ -237,10 +237,10 @@ describe("what the List asks for", () => {
     await screen.findByText("Call Ana");
 
     let release = () => {};
-    hold = { status: "done", release: new Promise<void>((resolve) => (release = resolve)) };
+    hold = { status: "done", release: new Promise<void>((resolve) => { release = resolve; }) };
     rerender(DONE);
     await waitFor(() => expect(tasksRequests("done")).toHaveLength(1));
-    expect(screen.getByText("Call Ana")).toBeTruthy();
+    expect(screen.getByText("Call Ana")).toBeInstanceOf(Element);
     expect(container.querySelector('[aria-busy="true"]')).not.toBeNull();
 
     release();
@@ -255,7 +255,7 @@ describe("what the List asks for", () => {
     await screen.findByText(EN.tasks.emptyMine);
 
     let release = () => {};
-    hold = { status: "done", release: new Promise<void>((resolve) => (release = resolve)) };
+    hold = { status: "done", release: new Promise<void>((resolve) => { release = resolve; }) };
     rerender(DONE);
     await waitFor(() => expect(tasksRequests("done")).toHaveLength(1));
     expect(screen.queryByText(EN.tasks.emptyMineDone)).toBeNull();
@@ -300,12 +300,12 @@ describe("what the List asks for", () => {
 
     vi.useFakeTimers();
     const rows = container.querySelectorAll("li > div");
-    fireEvent.pointerEnter(rows[1]!);
-    fireEvent.pointerLeave(rows[1]!);
+    fireEvent.pointerEnter(rows[1]);
+    fireEvent.pointerLeave(rows[1]);
     await vi.advanceTimersByTimeAsync(200);
     expect(detailReads()).toEqual(["/v1/tasks/t1"]);
 
-    fireEvent.pointerEnter(rows[1]!);
+    fireEvent.pointerEnter(rows[1]);
     await vi.advanceTimersByTimeAsync(99);
     expect(detailReads()).toEqual(["/v1/tasks/t1"]);
     await vi.advanceTimersByTimeAsync(1);

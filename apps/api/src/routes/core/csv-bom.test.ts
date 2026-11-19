@@ -23,7 +23,7 @@ import {
 } from "./csv";
 
 /** EF BB BF. Written out so a failure message shows the bytes, not a constant. */
-const BOM = [0xef, 0xbb, 0xbf];
+const BOM = [0xEF, 0xBB, 0xBF];
 
 const ACCENTED = [
   ["actor", "action"],
@@ -34,14 +34,14 @@ const ACCENTED = [
 describe("#587 csvBytes", () => {
   it("puts the mark first, before anything else", async () => {
     const bytes = csvBytes(ACCENTED);
-    expect([...bytes.slice(0, 3)]).toEqual(BOM);
+    expect(Array.from(bytes.slice(0, 3))).toEqual(BOM);
   });
 
   it("adds it exactly once, whatever the content", () => {
     // Two marks would show up in the first cell as an invisible character that
     // breaks a header match on re-import — a quieter defect than none at all.
     const bytes = csvBytes(ACCENTED);
-    expect([...bytes.slice(3, 6)]).not.toEqual(BOM);
+    expect(Array.from(bytes.slice(3, 6))).not.toEqual(BOM);
   });
 
   it("leaves the serialized text untouched behind the mark", () => {
@@ -55,7 +55,7 @@ describe("#587 csvBytes", () => {
   it("still emits a mark for an empty export", () => {
     // A workspace with nothing to export still gets a file, and a spreadsheet
     // still has to be told how to read the header row.
-    expect([...csvBytes([["actor", "action"]]).slice(0, 3)]).toEqual(BOM);
+    expect(Array.from(csvBytes([["actor", "action"]]).slice(0, 3))).toEqual(BOM);
   });
 });
 
@@ -65,7 +65,7 @@ describe("#587 csvResponse", () => {
     // U+FEFF character could in principle be dropped and where the bytes cannot.
     const response = csvResponse(ACCENTED, "audit-log.csv");
     const bytes = new Uint8Array(await response.arrayBuffer());
-    expect([...bytes.slice(0, 3)]).toEqual(BOM);
+    expect(Array.from(bytes.slice(0, 3))).toEqual(BOM);
   });
 
   it("carries the download headers with it", () => {
@@ -108,12 +108,12 @@ describe("#587 the export → import round trip stays lossless", () => {
       ignoreBOM: true,
       fatal: false,
     }).decode(csvBytes(rows));
-    expect(exported.codePointAt(0)).toBe(0xfeff);
+    expect(exported.codePointAt(0)).toBe(0xFE_FF);
 
     const parsed = parseCsv(exported);
     // The header survives, which is the half the mark could have broken.
     expect(parsed[0][0]).toBe("phone_e164");
-    expect(parsed[0][0].codePointAt(0)).not.toBe(0xfeff);
+    expect(parsed[0][0].codePointAt(0)).not.toBe(0xFE_FF);
 
     /**
      * And the row survives THROUGH THE IMPORTER, which is the honest contract.

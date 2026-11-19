@@ -68,7 +68,7 @@ export async function loadSendView(
   companyId: string,
   conversationId: string,
 ): Promise<ConversationSendView> {
-  const rows = unwrap<ConversationSendView[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("conversations")
       .select(
@@ -85,8 +85,8 @@ export async function loadSendView(
       .is("deleted_at", null)
       .limit(1),
     "conversation lookup",
-  );
-  const view = rows[0];
+  ) as ConversationSendView[];
+  const [view] = rows;
   if (!view) throw new ApiError("not_found", "No such conversation.");
   return view;
 }

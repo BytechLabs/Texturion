@@ -66,10 +66,7 @@ describe(escalatePoorRating, () => {
     const claim = sb.calls.find(
       (call) => call.method === "PATCH" && call.path === "/rest/v1/job_ratings",
     );
-    expect(claim).toBeDefined();
-    expect((claim?.body as { escalated_at?: string }).escalated_at).toEqual(
-      expect.any(String),
-    );
+    expect(claim?.body).toMatchObject({ escalated_at: expect.any(String) });
     expect(
       sb.calls.some((call) => call.path === "/rest/v1/company_members"),
     ).toBe(true);

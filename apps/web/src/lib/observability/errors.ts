@@ -34,12 +34,12 @@ export function isNetworkError(error: unknown): boolean {
  * waits for it.
  */
 export function reportClientError(
-  error: unknown,
+  caughtError: unknown,
   properties?: Record<string, string>,
 ): void {
-  if (isNetworkError(error)) return;
+  if (isNetworkError(caughtError)) return;
   void initPostHog()
-    .then((posthog) => posthog?.captureException(error, properties))
+    .then((posthog) => posthog?.captureException(caughtError, properties))
     .catch(() => {
       /* observability must never break the app */
     });

@@ -7,7 +7,7 @@ export function maxTransitionDurationMs(raw) {
     const token = part.trim();
     const value = Number.parseFloat(token);
     if (!Number.isFinite(value)) return Number.POSITIVE_INFINITY;
-    return token.endsWith("ms") ? value : value * 1_000;
+    return token.endsWith("ms") ? value : value * 1000;
   });
   return Math.max(...durations);
 }

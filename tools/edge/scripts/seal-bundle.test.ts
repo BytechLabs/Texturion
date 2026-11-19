@@ -49,9 +49,9 @@ describe("the sealed bundle", () => {
       bytes[0] ^= 1;
       return toBase64Url(bytes);
     };
-    await expect(openBundle(key, { ...bundle, ct: flip(bundle.ct) })).rejects.toThrow();
-    await expect(openBundle(key, { ...bundle, iv: flip(bundle.iv) })).rejects.toThrow();
-    await expect(openBundle(key, { ...bundle, sealed_at: "2020-01-01T00:00:00.000Z" })).rejects.toThrow();
+    await expect(openBundle(key, { ...bundle, ct: flip(bundle.ct) })).rejects.toMatchObject({ name: "OperationError" });
+    await expect(openBundle(key, { ...bundle, iv: flip(bundle.iv) })).rejects.toMatchObject({ name: "OperationError" });
+    await expect(openBundle(key, { ...bundle, sealed_at: "2020-01-01T00:00:00.000Z" })).rejects.toMatchObject({ name: "OperationError" });
     await expect(openBundle(key, { ...bundle, v: 2 })).rejects.toThrow(/version/);
   });
 
@@ -59,7 +59,11 @@ describe("the sealed bundle", () => {
     const recipient = await generateRecipient();
     const key = await importRecipientKey(recipient.privateKeyJwk);
     const bundle = await sealBundle(recipient.publicKey, plaintext);
-    await expect(openBundle(key, { ...bundle, epk: toBase64Url(new Uint8Array(32)) })).rejects.toThrow();
+    await expect(
+      openBundle(key, { ...bundle, epk: toBase64Url(new Uint8Array(32)) }),
+    ).rejects.toSatisfy((error: Error) =>
+      error.name === "OperationError" || error.message === "low-order ephemeral key",
+    );
   });
 
   it("splits into parts the edge reassembles, and refuses a bundle too large for them", async () => {

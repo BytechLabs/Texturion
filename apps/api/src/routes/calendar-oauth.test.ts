@@ -127,7 +127,7 @@ describe("calendar OAuth callback", () => {
         url.href ===
         "https://www.googleapis.com/calendar/v3/calendars/primary/events/watch"
       ) {
-        watchBody = (await request.clone().json()) as Record<string, unknown>;
+        watchBody = await request.clone().json<Record<string, unknown>>();
         expect(watchBody.address).toBe(
           "https://api.loonext.com/calendar/webhooks/google",
         );
@@ -262,7 +262,7 @@ describe("calendar OAuth callback", () => {
         });
       }
       if (url.href === "https://graph.microsoft.com/v1.0/subscriptions") {
-        subscriptionBody = (await request.clone().json()) as Record<string, unknown>;
+        subscriptionBody = await request.clone().json<Record<string, unknown>>();
         return Response.json({
           id: "graph-subscription",
           resource: "/me/events",
@@ -349,7 +349,7 @@ describe("calendar OAuth callback", () => {
         "https://www.googleapis.com/calendar/v3/calendars/primary/events/watch"
       ) {
         watchStarted = true;
-        const body = (await request.clone().json()) as Record<string, unknown>;
+        const body = await request.clone().json<Record<string, unknown>>();
         return Response.json({
           id: body.id,
           resourceId: "provisional-resource",
@@ -357,7 +357,7 @@ describe("calendar OAuth callback", () => {
         });
       }
       if (url.href === "https://www.googleapis.com/calendar/v3/channels/stop") {
-        stopBody = (await request.clone().json()) as Record<string, unknown>;
+        stopBody = await request.clone().json<Record<string, unknown>>();
         return new Response(null, { status: 204 });
       }
       return undefined;
@@ -439,11 +439,10 @@ describe("calendar provider webhooks", () => {
     const env = configuredEnv();
     const sb = supabaseStub(env);
     let generation = 0;
-    sb.on("POST", "/rest/v1/rpc/api_request_calendar_pull", () => ({
-      outcome: "queued",
-      connection_id: CONNECTION_ID,
-      generation: generation += 1,
-    }));
+    sb.on("POST", "/rest/v1/rpc/api_request_calendar_pull", () => {
+      generation += 1;
+      return { outcome: "queued", connection_id: CONNECTION_ID, generation };
+    });
     stubFetch(sb.route);
     const token = "T".repeat(43);
     const init: RequestInit = {
@@ -502,7 +501,7 @@ describe("calendar provider webhooks", () => {
     expect(response.status).toBe(202);
     const calls = sb.find("POST", "/rest/v1/rpc/api_request_calendar_pull");
     expect(calls).toHaveLength(1);
-    const call = calls[0];
+    const [call] = calls;
     expect(call.body).toEqual({
       p_provider: "microsoft",
       p_subscription_id: "graph-watch",
@@ -540,7 +539,7 @@ describe("calendar provider webhooks", () => {
         active += 1;
         calls += 1;
         maximumActive = Math.max(maximumActive, active);
-        await new Promise((resolve) => setTimeout(resolve, 5));
+        await new Promise((resolve) => { setTimeout(resolve, 5); });
         active -= 1;
         return Response.json({ outcome: "queued" });
       }

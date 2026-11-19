@@ -44,6 +44,8 @@ const SPENT_MARGIN_MS = 30_000;
 /** A file link with this little left is re-minted before it opens. */
 const OPEN_MARGIN_MS = 60_000;
 
+type ReportAttachmentResult = { id: string; quarantined: true };
+
 function lifetimeMs(url: AttachmentUrl | undefined): number {
   return (url?.ttl_seconds ?? FALLBACK_TTL_SECONDS) * 1000;
 }
@@ -331,9 +333,9 @@ export function useUploadNoteFiles() {
 export function useDeleteAttachment() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
-  return useMutation<void, ApiError, { attachmentId: string }>({
+  return useMutation<undefined, ApiError, { attachmentId: string }>({
     mutationFn: ({ attachmentId }) =>
-      apiFetch<void>(`/v1/attachments/${attachmentId}`, {
+      apiFetch<undefined>(`/v1/attachments/${attachmentId}`, {
         method: "DELETE",
         companyId,
       }),
@@ -364,9 +366,9 @@ export function useDeleteAttachment() {
 export function useReportAttachment() {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
-  return useMutation<void, ApiError, { attachmentId: string; note?: string }>({
+  return useMutation<ReportAttachmentResult, ApiError, { attachmentId: string; note?: string }>({
     mutationFn: ({ attachmentId, note }) =>
-      apiFetch<void>(`/v1/attachments/${attachmentId}/report`, {
+      apiFetch<ReportAttachmentResult>(`/v1/attachments/${attachmentId}/report`, {
         method: "POST",
         companyId,
         body: note ? { note } : {},

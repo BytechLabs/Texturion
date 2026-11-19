@@ -76,7 +76,7 @@ describe("#362 — every app/fr colour utility has a @theme entry", () => {
         .replaceAll(/\/\*[\s\S]*?\*\//g, "");
       for (const match of body.matchAll(UTILITY)) {
         // Strip a Tailwind opacity modifier: `text-fr-ink/70` themes on `fr-ink`.
-        const name = match[1].split("/")[0];
+        const [name] = match[1].split("/");
         if (!OWNED.test(name) || themed.has(name)) continue;
         const where = `${relative(process.cwd(), file)}: ${match[0].trim()}`;
         if (!offenders.includes(where)) offenders.push(where);

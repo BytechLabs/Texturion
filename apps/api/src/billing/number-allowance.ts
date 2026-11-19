@@ -195,7 +195,7 @@ export async function claimNumberAllowance(
     typeof row.applied !== "boolean" ||
     !Array.isArray(row.restored)
   ) {
-    throw new Error("claim_number_allowance returned an unexpected shape");
+    throw new TypeError("claim_number_allowance returned an unexpected shape");
   }
   return {
     applied: row.applied,

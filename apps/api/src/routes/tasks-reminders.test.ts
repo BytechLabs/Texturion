@@ -108,7 +108,7 @@ describe("PUT /v1/tasks/:id/reminders", () => {
       { method: "PUT", companyId: COMPANY_ID, body: { off: false } },
     );
     expect(response.status).toBe(422);
-    expect(await response.json()).toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       error: { message_key: "apiRefusals.remindersNeedCustomer" },
     });
     expect(order).toEqual(["set-flag"]);

@@ -23,7 +23,8 @@ import { useId, useState } from "react";
 
 import { APP_LINKS } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
-import { CrewSizeSliderSource, type SliderRival } from "./crew-size-slider-source";
+import { CrewSizeSliderSource } from "./crew-size-slider-source";
+import type { SliderRival } from "./crew-size-slider-source";
 
 /** The published monthly Starter seat price of a leading per-user tool (July 2026). */
 /**

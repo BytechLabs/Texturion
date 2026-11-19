@@ -82,7 +82,7 @@ export interface RequestGeo {
  * broken one.
  */
 export function requestGeo(c: Context<AppEnv>): RequestGeo {
-  const cf = (c.req.raw as { cf?: Record<string, unknown> }).cf;
+  const { cf } = (c.req.raw as { cf?: Record<string, unknown> });
   const pick = (key: string): string | null => {
     const value = cf?.[key];
     return typeof value === "string" && value.length > 0 ? value : null;

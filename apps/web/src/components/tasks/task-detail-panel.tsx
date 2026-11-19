@@ -134,22 +134,31 @@ function confirmedLine(
 function reminderLine(task: TaskDetail, t: Translate): string {
   if (task.conversation_id === null) return t("tasks.remindersNoCustomerThread");
   switch (task.reminders?.state) {
-    case "no_customer_thread": return t("tasks.remindersNoCustomerThread");
-    case "none_configured": return t("tasks.remindersNoneConfigured");
-    case "off": return t("tasks.remindersOffForJob");
-    case "sent": return t("tasks.remindersSent");
-    case "held": return t("tasks.remindersHeld");
-    case "confirmed": return confirmedLine(task.confirmed_by, t);
-    case "none_queued": return t("tasks.remindersNoneQueued");
-    case "queued":
+    case "no_customer_thread": { return t("tasks.remindersNoCustomerThread");
+    }
+    case "none_configured": { return t("tasks.remindersNoneConfigured");
+    }
+    case "off": { return t("tasks.remindersOffForJob");
+    }
+    case "sent": { return t("tasks.remindersSent");
+    }
+    case "held": { return t("tasks.remindersHeld");
+    }
+    case "confirmed": { return confirmedLine(task.confirmed_by, t);
+    }
+    case "none_queued": { return t("tasks.remindersNoneQueued");
+    }
+    case "queued": {
       return task.reminders.next_send_at
         ? t("tasks.remindersQueued", {
             when: formatTimestamp(task.reminders.next_send_at, { style: "long", t }),
           })
         : t("tasks.remindersNoneQueued");
-    default:
+    }
+    default: {
       if (task.confirmed_at) return confirmedLine(task.confirmed_by, t);
       return t(task.reminders_off ? "tasks.remindersOffForJob" : "tasks.remindersFromWorkspace");
+    }
   }
 }
 

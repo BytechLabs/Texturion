@@ -108,7 +108,7 @@
  * prose is one function for all three, because "is this a sentence or an
  * identifier" is not a platform question.
  */
-import { readFileSync, readdirSync, writeFileSync } from "node:fs";
+import { readdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, relative } from "node:path";
 
 /**
@@ -129,7 +129,7 @@ const CLIENTS = {
      * lifted OUT of a component stayed English.
      */
     exts: [".tsx", ".ts"],
-    find: findWebLiterals,
+    findLiterals: findWebLiterals,
     fix:
       "route them through useT()/makeTranslate and add the keys to a file in " +
       "apps/web/src/i18n/sections/ (both languages — tsc enforces it)",
@@ -138,7 +138,7 @@ const CLIENTS = {
     root: "apps/android/app/src/main/kotlin",
     ledger: "scripts/hardcoded-strings.android.json",
     exts: [".kt"],
-    find: findKotlinLiterals,
+    findLiterals: findKotlinLiterals,
     fix: "move them into res/values/strings.xml and read them with stringResource()",
   },
   /*
@@ -156,7 +156,7 @@ const CLIENTS = {
     root: "packages/shared/src",
     ledger: "scripts/hardcoded-strings.shared.json",
     exts: [".ts"],
-    find: findWebLiterals,
+    findLiterals: findWebLiterals,
     fix:
       "give the function a locale parameter and move the sentences into a " +
       "catalogue the three clients share, the way cancellation-offers.ts will",
@@ -165,7 +165,7 @@ const CLIENTS = {
     root: "apps/ios/Loonext",
     ledger: "scripts/hardcoded-strings.ios.json",
     exts: [".swift"],
-    find: findSwiftLiterals,
+    findLiterals: findSwiftLiterals,
     fix:
       "move them into the String Catalog and read them with a LocalizedStringKey",
   },
@@ -604,8 +604,8 @@ export function findWebLiterals(source, path = "") {
   const found = [];
   // Strip comments so prose ABOUT the UI is not counted as UI.
   const code = source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ \t]*\/\/.*$/gm, "");
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^[ \t]*\/\/.*$/gm, "");
 
   /*
    * 1. JSX text: between a `>` that closes a tag and the next `<`.
@@ -657,7 +657,7 @@ export function findWebLiterals(source, path = "") {
      * reading what the guard still had not noticed.
      */
     for (const fragment of match[2].split(/\{[^{}]*\}/)) {
-      const text = fragment.replace(/\s+/g, " ");
+      const text = fragment.replaceAll(/\s+/g, " ");
       /*
        * A STRAY BRACE means the split did not do its job.
        *
@@ -739,8 +739,8 @@ export function findWebLiterals(source, path = "") {
    * here — that site is its own deliverable.
    */
   for (const match of code.matchAll(/`((?:[^`\\]|\\.)*)`/g)) {
-    const raw = match[1].replace(/\s+/g, " ").trim();
-    const stripped = raw.replace(/\$\{[^{}]*\}/g, " ").replace(/\s+/g, " ").trim();
+    const raw = match[1].replaceAll(/\s+/g, " ").trim();
+    const stripped = raw.replaceAll(/\$\{[^{}]*\}/g, " ").replaceAll(/\s+/g, " ").trim();
     if (BILINGUAL_PAIR_ENGLISH.has(raw) || BILINGUAL_PAIR_ENGLISH.has(stripped)) continue;
     /*
      * Judged on the STRIPPED text, reported RAW.
@@ -823,8 +823,8 @@ function isSentenceLiteral(value) {
  */
 function isOnlyInterpolation(text) {
   const bare = text
-    .replace(/\\\([^)]*\)/g, "")
-    .replace(/\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*/g, "");
+    .replaceAll(/\\\([^)]*\)/g, "")
+    .replaceAll(/\$\{[^}]*\}|\$[A-Za-z_][A-Za-z0-9_]*/g, "");
   return !/[A-Za-z]/.test(bare);
 }
 
@@ -849,8 +849,8 @@ function isDateFormatPattern(text) {
 /** Comments stripped, so prose ABOUT the UI is never counted as UI. */
 function stripComments(source) {
   return source
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ 	]*\/\/\/?.*$/gm, "");
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^[ 	]*\/\/\/?.*$/gm, "");
 }
 
 /**
@@ -1153,7 +1153,7 @@ function isSwiftDiagnosticLog(code, matchIndex, loggers) {
  * Read once, at module load, so `--show` and the gate agree.
  */
 const EXEMPT = JSON.parse(
-  readFileSync(new URL("./hardcoded-strings.exempt.json", import.meta.url), "utf8"),
+  readFileSync(new URL("hardcoded-strings.exempt.json", import.meta.url), "utf8"),
 );
 
 /**
@@ -1177,8 +1177,8 @@ function scan(client, clientName) {
     // re-reading the tree a second time to answer it would double the walk.
     if (!isScannable(file, client.exts, source)) continue;
     const rel = relative(client.root, file).replaceAll("\\", "/");
-    const excused = new Set(exemptForClient[rel]?.literals ?? []);
-    const literals = client.find(source, file).filter((text) => {
+    const excused = new Set(exemptForClient[rel]?.literals);
+    const literals = client.findLiterals(source, file).filter((text) => {
       if (!excused.has(text)) return true;
       exemptionsUsed.add(`${clientName}\u0000${rel}\u0000${text}`);
       return false;
@@ -1254,9 +1254,7 @@ function readLedger(path) {
  * functions that decide the ledger were therefore the only part of it nothing
  * could test. Same shape as `check-do-not-build.mjs`.
  */
-if (!(process.argv[1] && import.meta.filename === process.argv[1])) {
-  // Imported for its exports; the scan below is not ours to run.
-} else {
+if (process.argv[1] && import.meta.filename === process.argv[1]) {
 const baseline = process.argv.includes("--baseline");
 /** `--only web` narrows a run while one client is being worked on. */
 const onlyIndex = process.argv.indexOf("--only");
@@ -1316,19 +1314,18 @@ for (const [name, client] of Object.entries(CLIENTS)) {
     if (allowed === undefined) {
       problems.push(
         `  ${file}: ${count} hardcoded user-facing string(s) in a file that had none.
-` +
-          `    → ${client.fix}.` +
-          nameThem(literalsByFile[file]),
+    → ${client.fix}.${nameThem(literalsByFile[file])}`,
       );
       continue;
     }
     if (count > allowed) {
       problems.push(
-        `  ${file}: ${count} hardcoded string(s), the ledger allows ${allowed}.
-` +
-          "    → a NEW literal joined a file that was already waiting to be " +
-          "extracted. Translate it now rather than adding to the backlog." +
+        [
+          `  ${file}: ${count} hardcoded string(s), the ledger allows ${allowed}.\n`,
+          "    → a NEW literal joined a file that was already waiting to be extracted. ",
+          "Translate it now rather than adding to the backlog.",
           nameThem(literalsByFile[file]),
+        ].join(""),
       );
     } else if (count < allowed) {
       problems.push(

@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { portingRoutes } from "./porting";
 import type { AppEnv, MemberRole } from "../context";
-import type { Bindings } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { FakeRest, resendRoute, TelnyxMock } from '../telnyx/test-support';
 import type { SentEmailCapture } from '../telnyx/test-support';
@@ -81,7 +80,7 @@ function installPortSlotRpc(rest: FakeRest) {
           row.kind === "brand" &&
           row.sole_proprietor === true,
       );
-    if (soleProp && nonReleased.length >= 1) {
+    if (soleProp && nonReleased.length > 0) {
       return { outcome: "sole_prop_cap", number: null };
     }
     // #110 (mirrors the RPC): effective max = included + the company's
@@ -178,7 +177,7 @@ function buildHarness(
     emails,
     state,
     request: (path: string, init?: RequestInit) =>
-      app.request(path, init, env as unknown as Bindings),
+      app.request(path, init, env),
   };
 }
 
@@ -216,7 +215,7 @@ describe("POST /v1/port-requests/check", () => {
       jsonInit("POST", { phone_e164: PORT_E164 }),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { portable: boolean; country: string };
+    const body = await res.json<{ portable: boolean; country: string }>();
     expect(body.portable).toBe(true);
     expect(body.country).toBe("US");
   });
@@ -228,7 +227,7 @@ describe("POST /v1/port-requests/check", () => {
       jsonInit("POST", { phone_e164: "+18005550123" }),
     );
     expect(res.status).toBe(422);
-    expect((await res.json()) as unknown).toMatchObject({
+    await expect(res.json<unknown>()).resolves.toMatchObject({
       error: { code: "validation_failed" },
     });
     expect(harness.telnyx.callsTo("POST", /portability_checks/)).toHaveLength(0);
@@ -251,7 +250,7 @@ describe("POST /v1/port-requests/check", () => {
       jsonInit("POST", { phone_e164: PORT_E164 }),
     );
     expect(res.status).toBe(402);
-    expect((await res.json()) as unknown).toMatchObject({
+    await expect(res.json<unknown>()).resolves.toMatchObject({
       error: { code: "subscription_inactive" },
     });
     expect(harness.telnyx.callsTo("POST", /portability_checks/)).toHaveLength(0);
@@ -279,7 +278,7 @@ describe("POST /v1/port-requests/check", () => {
       jsonInit("POST", { phone_e164: PORT_E164 }),
     );
     expect(res.status).toBe(429);
-    expect((await res.json()) as unknown).toMatchObject({
+    await expect(res.json<unknown>()).resolves.toMatchObject({
       error: { code: "rate_limited" },
     });
     expect(limit).toHaveBeenCalledExactlyOnceWith({
@@ -326,7 +325,7 @@ describe("POST /v1/port-requests", () => {
       jsonInit("POST", CREATE_BODY, KEY),
     );
     expect(res.status).toBe(201);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.phone_e164).toBe(PORT_E164);
     expect(body.status).toBe("draft");
     // §2.2 PII omission: pin/account are NEVER returned.
@@ -341,12 +340,12 @@ describe("POST /v1/port-requests", () => {
     expect(harness.telnyx.callsTo("POST", /portability_checks/)).toHaveLength(1);
 
     // Rows exist: phone (source='ported', provisioning) + port (draft).
-    const phone = harness.rest.rows("phone_numbers")[0];
+    const [phone] = harness.rest.rows("phone_numbers");
     expect(phone.source).toBe("ported");
     expect(phone.status).toBe("provisioning");
     expect(phone.provisioning_key).toBe(KEY);
     expect(harness.rest.rows("port_requests")).toHaveLength(1);
-    const port = harness.rest.rows("port_requests")[0];
+    const [port] = harness.rest.rows("port_requests");
     expect(port.is_wireless).toBe(false);
     expect(port.ssn_sin_last4 ?? null).toBeNull();
   });
@@ -383,11 +382,11 @@ describe("POST /v1/port-requests", () => {
         jsonInit("POST", intake, KEY),
       );
       expect(ok.status).toBe(201);
-      const body = (await ok.json()) as Record<string, unknown>;
+      const body = await ok.json<Record<string, unknown>>();
       expect(body.is_wireless).toBe(true);
       expect(body.ssn_sin_last4).toBeUndefined();
       expect(body.has_ssn_sin_last4).toBe(false);
-      const port = harness.rest.rows("port_requests")[0];
+      const [port] = harness.rest.rows("port_requests");
       expect(port.is_wireless).toBe(true);
       expect(port.ssn_sin_last4 ?? null).toBeNull();
 
@@ -416,7 +415,7 @@ describe("POST /v1/port-requests", () => {
       jsonInit("POST", CREATE_BODY, KEY),
     );
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("validation_failed");
     expect(body.error.message).toContain("pending disconnect");
     // No rows and no porting order created for a non-portable number.
@@ -510,7 +509,7 @@ describe("POST /v1/port-requests", () => {
       jsonInit("POST", CREATE_BODY, KEY),
     );
     expect(res.status).toBe(409);
-    expect((await res.json()) as unknown).toMatchObject({
+    await expect(res.json<unknown>()).resolves.toMatchObject({
       error: { code: "conflict" },
     });
     // No 2nd phone_numbers row was inserted, and no port order was created.
@@ -640,7 +639,7 @@ describe("GET /v1/port-requests(/:id)", () => {
     harness.state.role = "member";
     const res = await harness.request("/v1/port-requests");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    const body = await res.json<{ data: Record<string, unknown>[] }>();
     expect(body.data).toHaveLength(1);
     expect(body.data[0].pin_passcode).toBeUndefined();
     expect(body.data[0].has_pin).toBe(true);
@@ -669,12 +668,12 @@ describe("GET /v1/port-requests(/:id)", () => {
 
     const list = await harness.request("/v1/port-requests");
     expect(list.status).toBe(200);
-    const listBody = (await list.json()) as { data: Record<string, unknown>[] };
+    const listBody = await list.json<{ data: Record<string, unknown>[] }>();
     expect(listBody.data[0].assignment_blocked).toBe(true);
 
     const detail = await harness.request(`/v1/port-requests/${port.id}`);
     expect(detail.status).toBe(200);
-    const detailBody = (await detail.json()) as Record<string, unknown>;
+    const detailBody = await detail.json<Record<string, unknown>>();
     expect(detailBody.assignment_blocked).toBe(true);
   });
 
@@ -693,7 +692,7 @@ describe("GET /v1/port-requests(/:id)", () => {
       data: { numberAssignments: { [PORT_E164]: "added" } },
     });
     const res = await harness.request("/v1/port-requests");
-    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    const body = await res.json<{ data: Record<string, unknown>[] }>();
     expect(body.data[0].assignment_blocked).toBe(false);
   });
 
@@ -716,12 +715,12 @@ describe("GET /v1/port-requests(/:id)", () => {
 
     const list = await harness.request("/v1/port-requests");
     expect(list.status).toBe(200);
-    const listBody = (await list.json()) as { data: Record<string, unknown>[] };
+    const listBody = await list.json<{ data: Record<string, unknown>[] }>();
     expect(listBody.data[0].bridge_number_e164).toBe("+13035550777");
 
     const detail = await harness.request(`/v1/port-requests/${port.id}`);
     expect(detail.status).toBe(200);
-    const detailBody = (await detail.json()) as Record<string, unknown>;
+    const detailBody = await detail.json<Record<string, unknown>>();
     expect(detailBody.bridge_number_e164).toBe("+13035550777");
   });
 
@@ -740,7 +739,7 @@ describe("GET /v1/port-requests(/:id)", () => {
     });
 
     const res = await harness.request("/v1/port-requests");
-    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    const body = await res.json<{ data: Record<string, unknown>[] }>();
     // Linked but not yet live → null (never promise a number that can't send).
     expect(body.data[0].bridge_number_e164).toBeNull();
 
@@ -748,7 +747,7 @@ describe("GET /v1/port-requests(/:id)", () => {
     const noBridge = buildHarness();
     seedPort(noBridge.rest);
     const plain = await noBridge.request("/v1/port-requests");
-    const plainBody = (await plain.json()) as { data: Record<string, unknown>[] };
+    const plainBody = await plain.json<{ data: Record<string, unknown>[] }>();
     expect(plainBody.data[0]).toHaveProperty("bridge_number_e164", null);
   });
 
@@ -813,12 +812,12 @@ describe("POST /v1/port-requests/:id/resubmit", () => {
       { method: "POST" },
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { status: string; submission_count: number };
+    const body = await res.json<{ status: string; submission_count: number }>();
     expect(body.status).toBe("in-process");
     expect(body.submission_count).toBe(2);
 
     // The resubmit PATCH re-sends messaging.enable_messaging=true (§6).
-    const patch = harness.telnyx.callsTo("PATCH", /porting_orders/)[0];
+    const [patch] = harness.telnyx.callsTo("PATCH", /porting_orders/);
     expect((patch.body as { messaging: unknown }).messaging).toEqual({
       enable_messaging: true,
     });
@@ -858,7 +857,7 @@ describe("POST /v1/port-requests/:id/resubmit", () => {
       { method: "POST" },
     );
     expect(res.status).toBe(409);
-    expect((await res.json()) as unknown).toMatchObject({
+    await expect(res.json<unknown>()).resolves.toMatchObject({
       error: { code: "conflict" },
     });
     // No Telnyx confirm without both documents.
@@ -964,7 +963,7 @@ describe("POST /v1/port-requests/:id/submit (FIX 1 — documents-gated confirm)"
       { method: "POST" },
     );
     expect(res.status).toBe(409);
-    expect((await res.json()) as unknown).toMatchObject({
+    await expect(res.json<unknown>()).resolves.toMatchObject({
       error: { code: "conflict" },
     });
     expect(harness.telnyx.callsTo("POST", /actions\/confirm/)).toHaveLength(0);
@@ -992,7 +991,7 @@ describe("POST /v1/port-requests/:id/submit (FIX 1 — documents-gated confirm)"
       { method: "POST" },
     );
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { status: string }).status).toBe("in-process");
+    expect((await res.json<{ status: string }>()).status).toBe("in-process");
     expect(harness.telnyx.callsTo("POST", /actions\/confirm/)).toHaveLength(1);
   });
 
@@ -1059,13 +1058,13 @@ describe("PUT /v1/port-requests/:id/documents (paid-first gate)", () => {
       body: docForm(),
     });
     expect(res.status).toBe(402);
-    expect((await res.json()) as unknown).toMatchObject({
+    await expect(res.json<unknown>()).resolves.toMatchObject({
       error: { code: "subscription_inactive" },
     });
     // The paid-first guard runs BEFORE any Telnyx upload.
     expect(harness.telnyx.callsTo("POST", /\/v2\/documents/)).toHaveLength(0);
     // No document UUID was stored on the row.
-    const row = harness.rest.rows("port_requests")[0];
+    const [row] = harness.rest.rows("port_requests");
     expect(row.telnyx_loa_document_id ?? null).toBeNull();
   });
 
@@ -1082,7 +1081,7 @@ describe("PUT /v1/port-requests/:id/documents (paid-first gate)", () => {
     });
     expect(res.status).toBe(200);
     expect(harness.telnyx.callsTo("POST", /\/v2\/documents/)).toHaveLength(1);
-    const row = harness.rest.rows("port_requests")[0];
+    const [row] = harness.rest.rows("port_requests");
     expect(row.telnyx_loa_document_id).toBe("doc-loa-1");
   });
 });
@@ -1131,7 +1130,7 @@ describe("POST /v1/port-requests/:id/cancel", () => {
       { method: "POST" },
     );
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { status: string }).status).toBe("cancel-pending");
+    expect((await res.json<{ status: string }>()).status).toBe("cancel-pending");
     expect(harness.telnyx.callsTo("POST", /actions\/cancel/)).toHaveLength(1);
   });
 
@@ -1174,9 +1173,9 @@ describe("POST /v1/port-requests/:id/cancel", () => {
     );
     expect(res.status).toBe(200);
     // Completed, not parked in cancel-pending.
-    const body = (await res.json()) as { status: string; cancelled_at: string };
+    const body = await res.json<{ status: string; cancelled_at: string }>();
     expect(body.status).toBe("cancelled");
-    expect(body.cancelled_at).toBeTruthy();
+    expect(Boolean(body.cancelled_at)).toBe(true);
     // No Telnyx cancel — there was no order to cancel.
     expect(harness.telnyx.callsTo("POST", /actions\/cancel/)).toHaveLength(0);
     // The linked number is released, freeing the company's slot.
@@ -1216,13 +1215,14 @@ describe("port allowed actions (#722)", () => {
     const exception = seed(harness, "exception");
     const ported = seed(harness, "ported");
     const actionsOf = async () => {
-      const body = (await (await harness.request("/v1/port-requests")).json()) as {
+      const body = await (await harness.request("/v1/port-requests")).json<{
         data: { id: string; allowed_actions: string[] }[];
-      };
+      }>();
       return Object.fromEntries(body.data.map((row) => [row.id, row.allowed_actions]));
     };
     harness.state.role = "owner";
-    expect(await actionsOf()).toEqual({
+    const actions = await actionsOf();
+    expect(actions).toEqual({
       [draft.id as string]: ["edit", "submit", "cancel"],
       [exception.id as string]: ["edit", "fix_and_resubmit", "cancel"],
       [ported.id as string]: [],

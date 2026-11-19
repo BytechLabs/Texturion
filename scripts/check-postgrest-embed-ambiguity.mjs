@@ -29,7 +29,7 @@
  * between them, in either direction. If a second one is genuinely needed, the
  * embeds have to carry the `!constraint_name` hint and this list has to say so.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const MIGRATIONS = "supabase/migrations";
@@ -68,9 +68,9 @@ for (const file of walk(API_SRC).filter((f) => f.endsWith(".ts"))) {
   for (const match of source.matchAll(
     /\.from\(\s*"([a-z_]+)"\s*\)[\s\S]{0,400}?\.select\(\s*(?:"|`)([\s\S]*?)(?:"|`)\s*[,)]/g,
   )) {
-    const root = match[1];
+    const [, root] = match;
     for (const embed of match[2].matchAll(/([a-z_]+)\s*(!\s*[a-z_]+\s*)?\(/g)) {
-      const child = embed[1];
+      const [, child] = embed;
       if (child === root) continue;
       // An embed that NAMES its constraint is already unambiguous — that is
       // the whole fix — so it does not put the pair at risk. Counting it did:
@@ -106,8 +106,8 @@ for (const file of readdirSync(MIGRATIONS).filter((f) => f.endsWith(".sql")).sor
   const statements = sql.split(/;\s*\n/);
   for (const statement of statements) {
     const owner =
-      statement.match(/create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_]+)/i)?.[1] ??
-      statement.match(/alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_]+)/i)?.[1];
+      /create\s+table\s+(?:if\s+not\s+exists\s+)?(?:public\.)?([a-z_]+)/i.exec(statement)?.[1] ??
+      /alter\s+table\s+(?:only\s+)?(?:public\.)?([a-z_]+)/i.exec(statement)?.[1];
     if (!owner) continue;
     // A migration that DROPS a constraint is removing an edge, not adding one.
     if (/drop\s+constraint/i.test(statement) && !/references/i.test(statement)) continue;

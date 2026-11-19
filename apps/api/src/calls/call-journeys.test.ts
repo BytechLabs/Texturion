@@ -141,7 +141,7 @@ function inMemoryPostgrest(tables: Record<string, Row[]>, rpcs: Record<string, R
         surprises.push(`${request.method} ${url.pathname}`);
         throw new Error(`in-memory PostgREST: unexpected ${request.method} ${url.pathname}`);
       }
-      return Response.json(rpc((await request.json()) as Row));
+      return Response.json(rpc(await request.json<Row>()));
     }
 
     const rows = tables[path];
@@ -161,7 +161,7 @@ function inMemoryPostgrest(tables: Record<string, Row[]>, rpcs: Record<string, R
         : Response.json(project(limited, select), { headers });
     }
     if (request.method === "POST") {
-      const body = (await request.json()) as Row | Row[];
+      const body = await request.json<Row | Row[]>();
       const conflict = (url.searchParams.get("on_conflict") ?? "").split(",").filter(Boolean);
       const ignore = prefer.includes("ignore-duplicates");
       const written: Row[] = [];
@@ -185,7 +185,7 @@ function inMemoryPostgrest(tables: Record<string, Row[]>, rpcs: Record<string, R
         : new Response(null, { status: 201 });
     }
     if (request.method === "PATCH") {
-      const body = (await request.json()) as Row;
+      const body = await request.json<Row>();
       const updated = rows.filter((row) => matches(row, url.searchParams));
       for (const row of updated) Object.assign(row, body);
       return representation ? Response.json(project(updated, select)) : new Response(null, { status: 204 });
@@ -438,7 +438,7 @@ const driver = (): JourneyDriver => ({
       phone_number_id: (crew as SeededCrew).phoneNumberId,
     });
     expect(placed.status, await placed.clone().text()).toBe(200);
-    return ((await placed.json()) as { call_session_id: string }).call_session_id;
+    return (await placed.json<{ call_session_id: string }>()).call_session_id;
   },
   async transfer(crew, sessionId, sender, target) {
     const transferred = await as(sender, crew, `/v1/calls/live/${sessionId}/transfer`, {
@@ -514,7 +514,7 @@ async function seedCrew(journey: string, size: number): Promise<SeededCrew> {
   for (const userId of userIds) {
     const minted = await as({ userId, sipUsername: "" }, crew, "/v1/webrtc/token");
     expect(minted.status, await minted.clone().text()).toBe(200);
-    const { sip_username: sipUsername } = (await minted.json()) as { sip_username: string };
+    const { sip_username: sipUsername } = await minted.json<{ sip_username: string }>();
     crew.members.push({ userId, sipUsername });
   }
   return crew;
@@ -546,11 +546,6 @@ beforeAll(async () => {
   }
 });
 
-afterAll(async () => {
-  vi.unstubAllGlobals();
-  await fake.close();
-});
-
 beforeEach(() => {
   fake.reset();
   dbHalves = new Map();
@@ -558,6 +553,11 @@ beforeEach(() => {
   tables.call_member_legs.length = 0;
   tables.outbound_call_authorizations.length = 0;
   resetCaptures();
+});
+
+afterAll(async () => {
+  vi.unstubAllGlobals();
+  await fake.close();
 });
 
 function crewFor(journey: string): SeededCrew {
@@ -751,8 +751,8 @@ describe("hermetic call journeys (session layer)", () => {
 
     const path = `/v1/calls/live/${sessionId}/transfer/ring-me`;
     const wake = () => as(technician, crew, path, { transfer_id: transferId, no_local_leg: true });
-    expect(await (await wake()).json()).toMatchObject({ rang: true });
-    expect(await (await wake()).json()).toMatchObject({ rang: false, reason: "live_leg" });
+    await expect((await wake()).json()).resolves.toMatchObject({ rang: true });
+    await expect((await wake()).json()).resolves.toMatchObject({ rang: false, reason: "live_leg" });
     await settle();
     const secondLeg = fake.voice.live().find((leg) => leg.to === targetSip)!;
     expect(secondLeg.callControlId).not.toBe(firstLeg.callControlId);
@@ -800,8 +800,8 @@ describe("hermetic call journeys (session layer)", () => {
       await settle();
       const ringPath = `/v1/calls/live/${sessionId}/transfer/ring-me`;
       const ring = () => as(technician, crew, ringPath, { transfer_id: consultId, no_local_leg: true });
-      expect(await (await ring()).json()).toMatchObject({ rang: true });
-      expect(await (await ring()).json()).toMatchObject({ rang: false, reason: "live_leg" });
+      await expect((await ring()).json()).resolves.toMatchObject({ rang: true });
+      await expect((await ring()).json()).resolves.toMatchObject({ rang: false, reason: "live_leg" });
       await settle();
       const secondLeg = dialedTo(technician);
       expect(secondLeg.callControlId).not.toBe(targetLeg.callControlId);

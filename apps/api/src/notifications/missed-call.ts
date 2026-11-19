@@ -116,7 +116,7 @@ async function notifyCallActivity(
       .limit(1),
     "conversation lookup",
   );
-  const conversation = conversations[0];
+  const [conversation] = conversations;
   if (!conversation) {
     throw new Error(
       `missed-call alert: conversation ${input.conversationId} vanished`,
@@ -248,7 +248,7 @@ async function notifyCallActivity(
   } satisfies PushDelivery;
 
   if (routing?.alertId) {
-    const alertId = routing.alertId;
+    const { alertId } = routing;
     const pageUsers = pushUsers.filter((userId) => routing.userIds.includes(userId));
     const followers = pushUsers.filter((userId) => !routing.userIds.includes(userId));
     await Promise.all([

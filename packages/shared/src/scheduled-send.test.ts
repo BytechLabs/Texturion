@@ -84,7 +84,7 @@ describe("#233 presets land on the destination's wall clock", () => {
 
   it("lands Monday on a Monday, in that zone", () => {
     const now = new Date("2026-06-17T15:00:00Z"); // a Wednesday
-    const monday = schedulePresets(now, "America/New_York", sayEn)[1];
+    const [, monday] = schedulePresets(now, "America/New_York", sayEn);
     expect(weekdayIn(monday.at!, "America/New_York")).toBe("Mon");
     expect(hourIn(monday.at!, "America/New_York")).toBe(8);
   });
@@ -93,7 +93,7 @@ describe("#233 presets land on the destination's wall clock", () => {
     // Otherwise "Monday 8am" on a Monday afternoon is a time that has passed,
     // which the API would reject as in_the_past — a preset that cannot be used.
     const now = new Date("2026-06-15T18:00:00Z"); // Monday
-    const monday = schedulePresets(now, "America/New_York", sayEn)[1];
+    const [, monday] = schedulePresets(now, "America/New_York", sayEn);
     expect(weekdayIn(monday.at!, "America/New_York")).toBe("Mon");
     expect((monday.at!).getTime()).toBeGreaterThan(now.getTime());
   });
@@ -103,9 +103,10 @@ describe("#233 presets land on the destination's wall clock", () => {
     // refuse is worse than no preset.
     for (let hour = 0; hour < 24; hour += 1) {
       const now = new Date(Date.UTC(2026, 5, 15, hour));
-      for (const preset of schedulePresets(now, "America/Los_Angeles", sayEn)) {
-        if (preset.at) expect(preset.at.getTime()).toBeGreaterThan(now.getTime());
-      }
+      const past = schedulePresets(now, "America/Los_Angeles", sayEn).filter(
+        ({ at }) => at !== null && at.getTime() <= now.getTime(),
+      );
+      expect(past, `UTC hour ${hour}`).toEqual([]);
     }
   });
 
@@ -242,7 +243,7 @@ describe("#233 whose clock it was", () => {
  * the key gets nothing at all). Both are silent, and both land on the one
  * screen where the product is delivering bad news.
  */
-describe("SCHEDULED_HOLD_REASON_KEYS", () => {
+describe("Scheduled hold reason keys", () => {
   it("covers exactly the reasons that have sentences, both directions", () => {
     // Set equality. A reason added to one map and not the other is the whole
     // failure mode, and `satisfies` only catches the missing-key half.
@@ -259,7 +260,7 @@ describe("SCHEDULED_HOLD_REASON_KEYS", () => {
   });
 });
 
-describe("scheduledHoldText", () => {
+describe(scheduledHoldText, () => {
   const words = (key: string) =>
     key === "domain.scheduledHoldExpired" ? "La fenêtre est passée." : key;
 

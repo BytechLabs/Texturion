@@ -42,7 +42,7 @@ function open(
   return { ...props, rerender: view.rerender };
 }
 
-const field = () => screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)) as HTMLInputElement;
+const field = () => screen.getByLabelText<HTMLInputElement>(sayEnglish(HANDOVER_CONFIRM_FIELD));
 /**
  * Radix renders the real attribute, and this project has no jest-dom matchers.
  *
@@ -51,9 +51,9 @@ const field = () => screen.getByLabelText(sayEnglish(HANDOVER_CONFIRM_FIELD)) as
  * turns any rewording of the button into a red suite with nothing behind it.
  */
 const confirmButton = () =>
-  screen.getByRole("button", {
+  screen.getByRole<HTMLButtonElement>("button", {
     name: sayEnglish(HANDOVER_CONFIRM_SUBMIT),
-  }) as HTMLButtonElement;
+  });
 
 describe("answering the demand", () => {
   it("keeps Confirm quiet until there is something worth sending", () => {
@@ -80,7 +80,7 @@ describe("answering the demand", () => {
     const { onConfirm, rerender } = open();
     fireEvent.change(field(), { target: { value: "123456" } });
     fireEvent.keyDown(field(), { key: "Enter" });
-    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onConfirm).toHaveBeenCalledOnce();
 
     rerender(
       <HandoverConfirmDialog
@@ -93,7 +93,7 @@ describe("answering the demand", () => {
       />,
     );
     fireEvent.keyDown(field(), { key: "Enter" });
-    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onConfirm).toHaveBeenCalledOnce();
   });
 });
 
@@ -122,7 +122,7 @@ describe("when the code came back refused", () => {
       />,
     );
 
-    expect(screen.getByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toBeTruthy();
+    expect(screen.getByText(sayEnglish(HANDOVER_CONFIRM_REJECTED))).toBeInstanceOf(Element);
     expect(field().value).toBe("");
     expect(confirmButton().disabled).toBe(true);
   });
@@ -134,7 +134,7 @@ describe("what can be resent", () => {
     // button would imply we could send them one. Same for the stale-factor demand,
     // which reads identically on screen and is answered the same way.
     open({ kind: "email" });
-    expect(screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_RESEND) })).toBeTruthy();
+    expect(screen.getByRole("button", { name: sayEnglish(HANDOVER_CONFIRM_RESEND) })).toBeInstanceOf(Element);
     cleanup();
 
     for (const kind of ["authenticator", "reprove"] as const) {

@@ -115,7 +115,7 @@ const englishPrepaidCopy = (key) => {
   const [section, name] = key.split(".");
   const value = section === "settings" ? settingsEn[name] : undefined;
   if (typeof value !== "string") {
-    throw new Error(`no English for ${key} — the vectors cannot be generated`);
+    throw new TypeError(`no English for ${key} — the vectors cannot be generated`);
   }
   return value;
 };
@@ -125,10 +125,10 @@ const OUT_DIR = join("packages", "shared", "vectors");
 function moneyVectors() {
   return [
     [125_050, "cad", "cad", "fr-CA"],
-    [3_900, "cad", "cad", "fr-CA"],
+    [3900, "cad", "cad", "fr-CA"],
     [500, "usd", "cad", "fr-CA"],
     [500, "cad", "usd", "fr-CA"],
-    [-5_050, "cad", "cad", "fr-CA"],
+    [-5050, "cad", "cad", "fr-CA"],
     [125_050, "usd", "usd", "en"],
     [500, "usd", "cad", "en"],
   ].map(([cents, currency, audience, locale]) => ({
@@ -198,9 +198,9 @@ const PHONE_INPUTS = [
   "5015550123",
   ...Object.entries(NANP_AREA_CODES)
     .filter(([npa, area]) => npa.startsWith("5") && !area.geographic)
-    .map(([npa]) => npa + "5550123"),
-  ...["800", "833", "844", "855", "866", "877", "888"].map((npa) => npa + "5550123"),
-  ...["211", "311", "411", "511", "611", "711", "811", "911"],
+    .map(([npa]) => `${npa}5550123`),
+  ...["800", "833", "844", "855", "866", "877", "888"].map((npa) => `${npa}5550123`),
+  "211", "311", "411", "511", "611", "711", "811", "911",
   "112",
   "988",
   " 988 ",

@@ -70,7 +70,9 @@ export async function sendLedgered({ claim, release, send }: LedgerSend): Promis
     try {
       await release();
     } catch (releaseError) {
-      throw new AggregateError([error, releaseError], "Notice failed and the ledger could not be released");
+      throw new AggregateError([error, releaseError], "Notice failed and the ledger could not be released", {
+        cause: releaseError,
+      });
     }
     throw error;
   }

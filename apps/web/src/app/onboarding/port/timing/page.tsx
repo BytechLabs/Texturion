@@ -68,7 +68,7 @@ export default function PortTimingPage() {
   }
   if (!ready || !onboarding.snapshot) return <StepLoading />;
 
-  const companyId = onboarding.companyId;
+  const { companyId } = onboarding;
   const progress = portStepProgress(onboarding.snapshot);
 
   async function onSubmit() {
@@ -127,10 +127,10 @@ export default function PortTimingPage() {
       await queryClient.invalidateQueries({ queryKey: keys.company(companyId) });
       trackOnboardingStepCompleted("port_timing");
       router.push("/onboarding");
-    } catch (cause) {
+    } catch (error_) {
       setError(
-        cause instanceof ApiError
-          ? cause.message
+        error_ instanceof ApiError
+          ? error_.message
           : t("onboarding.portSaveFailed"),
       );
     }

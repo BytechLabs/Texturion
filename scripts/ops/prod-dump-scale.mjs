@@ -64,10 +64,10 @@ function productionDsn() {
     }
     const read = (key) => {
       const match = new RegExp(`^#?\\s*${key}=(.*)$`, "m").exec(raw);
-      return match ? match[1].trim().replace(/^["']|["']$/g, "") : null;
+      return match ? match[1].trim().replaceAll(/^["']|["']$/g, "") : null;
     };
-    ref = ref || read("SUPABASE_PROJECT_REF");
-    password = password || read("SUPABASE_DB_PASSWORD");
+    ref ||= read("SUPABASE_PROJECT_REF");
+    password ||= read("SUPABASE_DB_PASSWORD");
   }
 
   if (!ref || !password) {
@@ -105,10 +105,10 @@ function inContainer(command, { needsDsn = false, quiet = true } = {}) {
       maxBuffer: 64 * 1024 * 1024,
       stdio: quiet ? ["pipe", "pipe", "pipe"] : ["pipe", "pipe", "inherit"],
     });
-  } catch (cause) {
+  } catch (error) {
     // Deliberately does NOT echo the failing command: it would print the DSN
     // back out on the one path where something has already gone wrong.
-    fail(`command failed in ${container}: ${String(cause.message ?? cause)}`);
+    fail(`command failed in ${container}: ${String(error.message ?? error)}`);
   }
 }
 

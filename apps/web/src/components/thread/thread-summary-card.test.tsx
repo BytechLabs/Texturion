@@ -1,4 +1,3 @@
-import { makeTranslate } from "@/i18n/translate";
 /**
  * @vitest-environment happy-dom
  */
@@ -8,9 +7,10 @@ import { StrictMode } from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/error";
-import { sayEnglish } from "@/i18n/translate";
+import { makeTranslate, sayEnglish } from "@/i18n/translate";
 import { threadSummaryRequestFailure as rawThreadSummaryRequestFailure } from '@/lib/api/thread-summary';
 import type { ThreadSummaryResult } from '@/lib/api/thread-summary';
+import type * as ThreadSummary from "@/lib/api/thread-summary";
 
 import { ThreadSummaryCard } from "./thread-summary-card";
 
@@ -41,7 +41,7 @@ const hook: {
 };
 
 vi.mock("@/lib/api/thread-summary", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/thread-summary")>()),
+  ...(await importOriginal<typeof ThreadSummary>()),
   useThreadSummary: () => hook,
 }));
 
@@ -182,7 +182,7 @@ const standingNode = () =>
   screen.queryByRole("status") ?? screen.queryByRole("alert");
 /** The mark's own word for what it is doing, from the shipped `AiOrbState`. */
 const orbState = () =>
-  document.querySelector(".ai-orb")?.getAttribute("data-state");
+  document.querySelector<HTMLElement>(".ai-orb")?.dataset.state;
 
 /**
  * Ask, get an answer, then press the card's own re-ask control and stop with
@@ -258,7 +258,7 @@ describe("the catch-up card — what it costs", () => {
     expect(view.container.innerHTML).toBe("");
 
     view.rerender(cardAt(1));
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
   });
 
   /** A re-render is not an ask: only a new token spends. */
@@ -268,7 +268,7 @@ describe("the catch-up card — what it costs", () => {
     const view = render(cardAt(1));
     view.rerender(cardAt(1));
     view.rerender(cardAt(1));
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
 
     view.rerender(cardAt(2));
     expect(mutate).toHaveBeenCalledTimes(2);
@@ -279,7 +279,7 @@ describe("the catch-up card — what it costs", () => {
     const mutate = vi.fn();
     hook.mutate = mutate;
     render(<StrictMode>{cardAt(1)}</StrictMode>);
-    expect(mutate).toHaveBeenCalledTimes(1);
+    expect(mutate).toHaveBeenCalledOnce();
   });
 
   /**
@@ -308,15 +308,15 @@ describe("the catch-up card — what it costs", () => {
     };
     const view = render(cardAt(1));
     view.rerender(cardAt(1));
-    expect(screen.getByText(A_LINE)).toBeTruthy();
+    expect(screen.getByText(A_LINE)).toBeInstanceOf(Element);
 
     fireEvent.click(screen.getByText("Dismiss"));
-    expect(onDismiss).toHaveBeenCalledTimes(1);
+    expect(onDismiss).toHaveBeenCalledOnce();
     expect(view.container.innerHTML).toBe("");
 
     view.rerender(cardAt(2));
     expect(calls).toBe(2);
-    expect(screen.getByText(A_LINE)).toBeTruthy();
+    expect(screen.getByText(A_LINE)).toBeInstanceOf(Element);
   });
 });
 
@@ -358,7 +358,7 @@ describe("the catch-up card — never invent a fact", () => {
    */
   it("shows only the sections that came back with lines", () => {
     ask(result({ lines: [line(WE_SAID, "Quoted 2,400", "msg-a")] }));
-    expect(screen.getByText(say(WE_SAID.label))).toBeTruthy();
+    expect(screen.getByText(say(WE_SAID.label))).toBeInstanceOf(Element);
     expect(screen.queryByText(say(ASKED.label))).toBeNull();
     expect(screen.queryByText(say(OPEN.label))).toBeNull();
   });
@@ -375,10 +375,10 @@ describe("the catch-up card — never invent a fact", () => {
 
     view.newMessageArrives("m-newer");
     expect(bodyText().length).toBeGreaterThan(settled.length);
-    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.getByRole("status")).toBeInstanceOf(Element);
     // And it offers to ask again — the server answers an unchanged thread from
     // its cache, so re-asking a moved thread is the only press that costs.
-    expect(screen.getByText("Catch me up again")).toBeTruthy();
+    expect(screen.getByText("Catch me up again")).toBeInstanceOf(Element);
   });
 
   it("does not cry staleness on a thread that has not moved", () => {
@@ -404,7 +404,7 @@ describe("the catch-up card — never bury an opt-out", () => {
   it("puts the standing above everything Lou wrote", () => {
     ask(optedOut("stop_keyword"));
     const strip = standingNode();
-    expect(strip).toBeTruthy();
+    expect(strip).toBeInstanceOf(Element);
     // The card's very first child, so no line can be read before it.
     expect(strip).toBe(cardSection().firstElementChild);
 
@@ -438,8 +438,8 @@ describe("the catch-up card — never bury an opt-out", () => {
     ask(optedOut("manual"));
     const byHand = standingNode()?.textContent;
 
-    expect(carrier).toBeTruthy();
-    expect(byHand).toBeTruthy();
+    expect(Boolean(carrier)).toBe(true);
+    expect(Boolean(byHand)).toBe(true);
     expect(carrier).not.toBe(byHand);
   });
 
@@ -477,7 +477,7 @@ describe("the catch-up card — the standing survives a re-ask", () => {
 
   it("keeps the standing on screen while the re-ask is in flight", () => {
     const again = reAsk(optedOut("stop_keyword"));
-    expect(again.said).toBeTruthy();
+    expect(Boolean(again.said)).toBe(true);
     // Genuinely mid-request: Lou's own line went with the answer that carried
     // it, and the mark says so. That is the same clearing that used to take
     // the standing with it.
@@ -520,7 +520,7 @@ describe("the catch-up card — the standing survives a re-ask", () => {
    */
   it("drops the standing the moment an answer says it is gone", () => {
     const again = reAsk(optedOut("stop_keyword"));
-    expect(standingNode()).toBeTruthy();
+    expect(standingNode()).toBeInstanceOf(Element);
 
     again.lands(result({ lines: [line(ASKED, A_LINE, "msg-a")] }));
     expect(standingNode()).toBeNull();
@@ -566,7 +566,7 @@ describe("the catch-up card — a refusal is silence, not an error", () => {
     cleanup();
 
     ask(result({ reason: "model_error" }));
-    expect(screen.getByText("Try again")).toBeTruthy();
+    expect(screen.getByText("Try again")).toBeInstanceOf(Element);
   });
 });
 
@@ -585,7 +585,7 @@ describe("the catch-up card — a failed request is not a refusal", () => {
     askAndFail(offline);
     // Falling back to rest is what this used to do, which after #716 is
     // rendering nothing: an ask with no visible outcome at all.
-    expect(cardSection()).toBeTruthy();
+    expect(cardSection()).toBeInstanceOf(Element);
     expect(bodyText()).toContain(threadSummaryRequestFailure(offline).message);
   });
 
@@ -608,7 +608,7 @@ describe("the catch-up card — a failed request is not a refusal", () => {
 
   it("offers a second press only where a second press could work", () => {
     askAndFail(offline);
-    expect(screen.getByText("Try again")).toBeTruthy();
+    expect(screen.getByText("Try again")).toBeInstanceOf(Element);
     cleanup();
 
     askAndFail(role);
@@ -621,11 +621,11 @@ describe("the catch-up card — a failed request is not a refusal", () => {
    */
   it("does not wear the answered mark for a request nothing answered", () => {
     askAndFail(offline);
-    const failed = document.querySelector(".ai-orb")?.getAttribute("data-state");
+    const failed = document.querySelector<HTMLElement>(".ai-orb")?.dataset.state;
     cleanup();
 
     ask(result({ reason: "model_error" }));
-    const refused = document.querySelector(".ai-orb")?.getAttribute("data-state");
+    const refused = document.querySelector<HTMLElement>(".ai-orb")?.dataset.state;
 
     expect(failed).not.toBe(refused);
   });
@@ -650,8 +650,7 @@ describe("the catch-up card — what gets reported", () => {
     fireEvent.click(screen.getByText("Asked what a new tank costs"));
     fireEvent.click(screen.getByText("Nobody has answered the quote"));
 
-    expect(reportAiOutcome).toHaveBeenCalledTimes(1);
-    expect(reportAiOutcome).toHaveBeenCalledWith("company-1", "thread_summary", "used");
+    expect(reportAiOutcome).toHaveBeenCalledExactlyOnceWith("company-1", "thread_summary", "used");
   });
 
   it("reports nothing for a catch-up nobody opened a message from", () => {

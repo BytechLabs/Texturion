@@ -193,4 +193,18 @@ describe(createAttachmentUrlBatcher, () => {
       { status: "rejected", reason: limited },
     ]);
   });
+
+  it("passes the original rejection to every waiter on a failed batch", async () => {
+    const reason = { status: 404 };
+    const request = vi.fn().mockRejectedValue(reason);
+    const load = createAttachmentUrlBatcher(request);
+    const results = [
+      load("co-1", "a", "preview"),
+      load("co-1", "a", "preview"),
+      load("co-1", "b", "preview"),
+    ];
+
+    await Promise.all(results.map((result) => expect(result).rejects.toBe(reason)));
+    expect(request).toHaveBeenCalledOnce();
+  });
 });

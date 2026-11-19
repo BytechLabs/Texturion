@@ -7,6 +7,8 @@ import type { Translate } from '@/i18n/translate';
 import type { ConversationFilters } from "@/lib/api/filters";
 import type { ConversationStatus } from "@/lib/api/types";
 
+const DEFAULT_CONVERSATION_NOUN = { one: "conversation", many: "conversations" };
+
 /**
  * #275 — what "selected" means, kept out of the component so it can be reasoned
  * about and tested.
@@ -149,10 +151,7 @@ export function bulkResultMessage(
   verb: string,
   result: { applied?: unknown[]; failed?: unknown[]; matched?: number; capped?: boolean },
   /** #478: what was acted on. Defaulted so every existing call is unchanged. */
-  noun: { one: string; many: string } = {
-    one: "conversation",
-    many: "conversations",
-  },
+  noun: { one: string; many: string } = DEFAULT_CONVERSATION_NOUN,
   t: Translate = makeTranslate(DEFAULT_LOCALE),
 ): string {
   const applied = result.applied?.length ?? 0;

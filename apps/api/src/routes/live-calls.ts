@@ -455,7 +455,7 @@ liveCallsRoutes.get(
         .limit(1),
       "state read",
     );
-    const row = rows[0];
+    const [row] = rows;
     if (!row || row.company_id !== companyId) {
       return errorResponse(c, "not_found", "No such call.");
     }
@@ -478,7 +478,7 @@ liveCallsRoutes.get(
     if (stub) {
       const snap: SessionSnapshot | null = await stub.snapshot(sessionId);
       if (snap) {
-        state = snap.state;
+        ({ state } = snap);
         const mine = snap.legs.find((leg) => leg.user_id === c.get("userId"));
         if (mine) {
           yourLeg = { call_control_id: mine.call_control_id, status: mine.status };

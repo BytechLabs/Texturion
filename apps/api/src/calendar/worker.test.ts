@@ -270,7 +270,7 @@ describe("calendar sync worker", () => {
     });
 
     expect(db.purgeOauthStates).toHaveBeenCalledWith(1000);
-    const purgeOrder = vi.mocked(db.purgeOauthStates).mock.invocationCallOrder[0];
+    const [purgeOrder] = vi.mocked(db.purgeOauthStates).mock.invocationCallOrder;
     expect(purgeOrder).toBeLessThan(
       vi.mocked(db.claimReminderReplans).mock.invocationCallOrder[0],
     );
@@ -436,8 +436,7 @@ describe("calendar sync worker", () => {
     ).resolves.toMatchObject({ accessToken: "fresh-access-token" });
 
     expect(commitCredentialRefresh).toHaveBeenCalledTimes(2);
-    const first = commitCredentialRefresh.mock.calls[0][0];
-    const second = commitCredentialRefresh.mock.calls[1][0];
+    const [[first], [second]] = commitCredentialRefresh.mock.calls;
     expect(second.credential).toEqual(first.credential);
     await expect(openCalendarCredential(
       first.credential,
@@ -452,12 +451,13 @@ describe("calendar sync worker", () => {
     expect(db.retryCredentialRefresh).not.toHaveBeenCalled();
   });
 
-  it("never releases or exposes a rotated token while its commit remains ambiguous", async () => {
+  it.each([
+    ["database error", new Error("database transport unavailable"), "database transport unavailable"],
+    ["empty rejection", undefined, "calendar credential refresh commit failed"],
+  ])("withholds the rotated token while its commit remains ambiguous (%s)", async (_case, reason, message) => {
     const db = store({
       claimCredentialRefresh: vi.fn().mockResolvedValue(await credentialClaim()),
-      commitCredentialRefresh: vi.fn().mockRejectedValue(
-        new Error("database transport unavailable"),
-      ),
+      commitCredentialRefresh: vi.fn().mockRejectedValue(reason),
     });
     vi.stubGlobal("fetch", vi.fn().mockResolvedValue(Response.json({
       access_token: "must-not-escape",
@@ -467,7 +467,7 @@ describe("calendar sync worker", () => {
 
     await expect(
       calendarAuthorizer(configuredEnv(), db, "credential-worker")(CONNECTION),
-    ).rejects.toThrow("database transport unavailable");
+    ).rejects.toThrow(message);
     expect(db.commitCredentialRefresh).toHaveBeenCalledTimes(3);
     expect(db.retryCredentialRefresh).not.toHaveBeenCalled();
   });
@@ -550,7 +550,7 @@ describe("calendar sync worker", () => {
     expect(
       vi.mocked(db.markProviderEffectStarted).mock.invocationCallOrder[0],
     ).toBeLessThan(vi.mocked(calendar.createEvent).mock.invocationCallOrder[0]);
-    const input = vi.mocked(calendar.createEvent).mock.calls[0][0];
+    const [[input]] = vi.mocked(calendar.createEvent).mock.calls;
     expect(input.idempotencyKey).toBe(OUTBOX.id);
     expect(input.schedule).toMatchObject({
       start: TASK.due_at,
@@ -1116,11 +1116,11 @@ describe("calendar sync worker", () => {
       workerId: "worker-1",
     });
 
-    const readOrder = vi.mocked(calendar.getEvent).mock.invocationCallOrder[0];
-    const markOrder = vi.mocked(db.markProviderEffectStarted).mock
-      .invocationCallOrder[0];
-    const writeOrder = vi.mocked(calendar.deleteEvent).mock
-      .invocationCallOrder[0];
+    const [readOrder] = vi.mocked(calendar.getEvent).mock.invocationCallOrder;
+    const [markOrder] = vi.mocked(db.markProviderEffectStarted).mock
+      .invocationCallOrder;
+    const [writeOrder] = vi.mocked(calendar.deleteEvent).mock
+      .invocationCallOrder;
     expect(readOrder).toBeLessThan(markOrder);
     expect(markOrder).toBeLessThan(writeOrder);
   });
@@ -1584,13 +1584,11 @@ describe("calendar sync worker", () => {
       now: new Date("2026-08-25T12:00:00.000Z"),
     });
 
-    expect(db.applyProviderEvent).toHaveBeenCalledOnce();
     // The privacy policy promises we never read an event we did not create.
-    expect(calendar.getEvent).toHaveBeenCalledOnce();
-    expect(calendar.getEvent).toHaveBeenCalledWith(
+    expect(calendar.getEvent).toHaveBeenCalledExactlyOnceWith(
       expect.objectContaining({ instanceId: LINK.provider_instance_id }),
     );
-    expect(db.applyProviderEvent).toHaveBeenCalledWith({
+    expect(db.applyProviderEvent).toHaveBeenCalledExactlyOnceWith({
       connection: CONNECTION,
       link: LINK,
       remote: mapped,
@@ -1999,11 +1997,10 @@ describe("calendar sync worker", () => {
   it("records an explicit retry when a provider exceeds the page safety cap", async () => {
     const calendar = provider();
     let page = 0;
-    vi.mocked(calendar.listChanges).mockImplementation(async () => ({
-      events: [],
-      nextPageToken: `page-${page += 1}`,
-      nextCursor: null,
-    }));
+    vi.mocked(calendar.listChanges).mockImplementation(async () => {
+      page += 1;
+      return { events: [], nextPageToken: `page-${page}`, nextCursor: null };
+    });
     const db = store({ claimPulls: vi.fn().mockResolvedValue([CONNECTION]) });
 
     await drainCalendarSync({
@@ -2334,7 +2331,7 @@ describe("calendar sync worker", () => {
       now: new Date("2026-08-25T12:00:00.000Z"),
     });
 
-    const watchInput = vi.mocked(calendar.startWatch).mock.calls[0][0];
+    const [[watchInput]] = vi.mocked(calendar.startWatch).mock.calls;
     expect(watchInput).toMatchObject({
       calendarId: CONNECTION.selected_calendar_id,
       callbackUrl: "https://api.example/calendar/webhooks/google",

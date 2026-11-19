@@ -45,18 +45,15 @@ function encode(response: FakeResponse): Response {
   });
 }
 
-const json = (value: unknown): Response =>
-  new Response(JSON.stringify(value), { headers: { "content-type": "application/json" } });
+const json = (value: object): Response => Response.json(value);
 
 export class Switch {
   private readonly model = createVoiceModel();
 
-  constructor(_state: unknown, _env: unknown) {}
-
   async fetch(request: Request): Promise<Response> {
     const url = new URL(request.url);
     this.model.setOrigin(url.origin);
-    const voice = this.model.voice;
+    const { voice } = this.model;
 
     if (url.pathname.startsWith("/__ctl/")) {
       const op = url.pathname.slice("/__ctl/".length);
@@ -71,21 +68,27 @@ export class Switch {
           for (let event = voice.takeEvent(); event; event = voice.takeEvent()) events.push(event);
           return json(events);
         }
-        case "answer":
+        case "answer": {
           voice.answer(input.callControlId ?? "");
           return json({});
-        case "hangup":
+        }
+        case "hangup": {
           voice.hangup(input.callControlId ?? "");
           return json({});
-        case "legs":
+        }
+        case "legs": {
           return json(voice.legs().map((leg) => ({ ...leg, commandIds: undefined })));
-        case "ledger":
+        }
+        case "ledger": {
           return json({ ledger: voice.ledger(), pending: voice.pendingEvents() });
-        case "reset":
+        }
+        case "reset": {
           voice.resetCalls();
           return json({});
-        default:
+        }
+        default: {
           return new Response("unknown control operation", { status: 404 });
+        }
       }
     }
 

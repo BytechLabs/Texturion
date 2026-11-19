@@ -10,6 +10,7 @@
  * for any other), and a tap on the row opens the call's details, never the
  * conversation. Everything else is in the row's ⋯ / right-click menu.
  */
+import { avatarInitials, hasVoicemailIntake } from "@loonext/shared";
 import {
   MessageSquare,
   Phone,
@@ -39,7 +40,6 @@ import { avatarColorClass } from "@/components/shell/avatar-color";
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import type { Call } from "@/lib/api/types";
-import { hasVoicemailIntake } from "@loonext/shared";
 import { useAiSettings } from "@/lib/api/ai-settings";
 import { useActiveCompany } from "@/lib/company/provider";
 import { callOutcomeLabel } from "@/lib/format/call";
@@ -47,7 +47,6 @@ import { formatPhone } from "@/lib/format/phone";
 import { RecordContextMenu } from "@/components/ui/record-menu";
 import { Timestamp } from "@/components/ui/timestamp";
 import { cn } from "@/lib/utils";
-import { avatarInitials } from "@loonext/shared";
 
 /** The one caller-identity resolution (#210 reuses it on the Ongoing card):
  *  linked contact name, else the CNAM dip, else the formatted number. */

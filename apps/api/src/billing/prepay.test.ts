@@ -465,9 +465,9 @@ describe("#400 grantPrepaidYear", () => {
     );
     await withStripe(stub, () => grantPrepaidYear(env, fakeDb(), session()));
     expect(stub.updates).toHaveLength(1);
-    const item = (
+    const [item] = (
       stub.updates[0].params as { items: { discounts: { coupon: string }[] }[] }
-    ).items[0];
+    ).items;
     expect(item.discounts.map((d) => d.coupon)).toEqual([
       env.STRIPE_REFERRAL_MONTH_COUPON_ID,
       COUPON,

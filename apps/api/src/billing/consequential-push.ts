@@ -98,10 +98,10 @@ export async function pushConsequentialNotice(
     if (failures.length > 0) {
       throw new AggregateError(failures, "consequential notice push failed");
     }
-  } catch (cause) {
+  } catch (error) {
     console.error(
       `consequential push failed for ${args.companyId} (${args.collapseKey}):`,
-      cause instanceof Error ? (cause.stack ?? cause.message) : String(cause),
+      error instanceof Error ? (error.stack ?? error.message) : String(error),
     );
   }
 }

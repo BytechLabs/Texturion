@@ -136,7 +136,7 @@ export function MakeTaskForm({
     call ? call.title : messageTaskTitle(message?.body ?? ""),
   );
   const [description, setDescription] = useState(call?.voicemailDescription ?? "");
-  const voicemailCallId = call?.voicemailDescription !== undefined ? call.id : null;
+  const voicemailCallId = call?.voicemailDescription === undefined ? null : call.id;
   const [due, setDue] = useState<string>("");
   const [dueSuggested, setDueSuggested] = useState(false);
   const [assigneeOverride, setAssigneeOverride] = useState<string | null>(null);

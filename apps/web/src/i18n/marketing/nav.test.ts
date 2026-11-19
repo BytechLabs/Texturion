@@ -128,8 +128,9 @@ describe("the nav and the footer do not drift apart", () => {
     expect(shared.length).toBeGreaterThan(10);
   });
 
-  for (const locale of ["en", "fr-CA"] as const) {
-    it(`agrees on every shared page name in ${locale}`, () => {
+  it.each(["en", "fr-CA"] as const)(
+    "agrees on every shared page name in %s",
+    (locale) => {
       const nav = locale === "en" ? navEn : navFr;
       const footer = locale === "en" ? footerEn : footerFr;
       const disagreements = shared.filter(
@@ -141,8 +142,8 @@ describe("the nav and the footer do not drift apart", () => {
         disagreements,
         `the nav and the footer name these pages differently in ${locale}`,
       ).toEqual([]);
-    });
-  }
+    },
+  );
 });
 
 describe("the two nav catalogues", () => {

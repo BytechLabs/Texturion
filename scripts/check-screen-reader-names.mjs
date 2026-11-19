@@ -29,7 +29,7 @@
  * guard whose healthy state is "0 findings" is indistinguishable from a broken
  * one unless it also says how many sites it looked at.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const reportOnly = process.argv.includes("--report");
@@ -120,7 +120,7 @@ for (const file of walk("apps/ios/Loonext").filter((f) => f.endsWith(".swift")))
     at = hit + 1;
     // A word ENDING in Button — `EditButton`, `saveButton` — is not this.
     if (/[A-Za-z0-9_]/.test(source[hit - 1] ?? "")) continue;
-    const opener = source.slice(hit + "Button".length).match(/^\s*([({])/);
+    const opener = /^\s*([({])/.exec(source.slice(hit + "Button".length));
     if (!opener) continue;
     checked += 1;
 

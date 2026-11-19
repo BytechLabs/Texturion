@@ -33,14 +33,14 @@ afterEach(cleanup);
 const t = makeTranslate("en");
 
 /** Every handler a builder asks for, as a no-op. Only WHAT is offered is under test. */
-function noopRun<T>(): T {
-  return new Proxy({}, { get: () => () => {} }) as T;
+function noopRun(): unknown {
+  return new Proxy({}, { get: () => () => {} });
 }
 
 function ids(menuRoot: ParentNode = document): string[] {
   return Array.from(
-    menuRoot.querySelectorAll('[role="menu"] [data-action]'),
-  ).map((el) => el.getAttribute("data-action") ?? "");
+    menuRoot.querySelectorAll<HTMLElement>('[role="menu"] [data-action]'),
+  ).map((el) => el.dataset.action ?? "");
 }
 
 /** What the ⋯ button lists. */
@@ -112,7 +112,7 @@ describe("#712 conversation", () => {
     blocked: false,
     unblocking: false,
     surface: { openHref: "/inbox/c-1", hasGallery: false, hasCatchUp: false },
-    run: noopRun<Parameters<typeof buildConversationActions>[0]["run"]>(),
+    run: noopRun() as Parameters<typeof buildConversationActions>[0]["run"],
   };
   const build = (canWrite: boolean, canDelete: boolean) =>
     buildConversationActions({ ...base, viewer: { canWrite, canDelete } });
@@ -203,7 +203,7 @@ describe("#712 message", () => {
     retryable: false,
     retrying: false,
     deleting: false,
-    run: noopRun<Parameters<typeof buildMessageActions>[0]["run"]>(),
+    run: noopRun() as Parameters<typeof buildMessageActions>[0]["run"],
   };
   expectOneList("owner", buildMessageActions({ ...base, canDelete: true }), [
     "copy-text", "make-task", "pin", "delete",
@@ -248,7 +248,7 @@ describe("#712 call", () => {
     calling: false,
     deletingCall: false,
     deletingVoicemail: false,
-    run: noopRun<Parameters<typeof buildCallActions>[0]["run"]>(),
+    run: noopRun() as Parameters<typeof buildCallActions>[0]["run"],
   };
   expectOneList("owner", buildCallActions({ ...base, canDelete: true }), [
     "call-back", "text", "copy-number", "contact", "details", "delete-voicemail", "delete-call",
@@ -282,7 +282,7 @@ describe("#712 task", () => {
     task: { done: false, due_at: null },
     deleting: false,
     now: new Date("2026-11-10T12:00:00Z"),
-    run: noopRun<Parameters<typeof buildTaskActions>[0]["run"]>(),
+    run: noopRun() as Parameters<typeof buildTaskActions>[0]["run"],
   };
   const row = { ...base, openHref: "/tasks?task=t-1", canCopyLink: true };
   expectOneList("owner on a row", buildTaskActions({ ...row, hasAccess: true, canDelete: true }), [
@@ -318,7 +318,7 @@ describe("#712 task: due date without dragging (WCAG 2.5.7)", () => {
       deleting: false,
       canCopyLink: false,
       now: new Date("2026-11-10T12:00:00Z"),
-      run: noopRun<Parameters<typeof buildTaskActions>[0]["run"]>(),
+      run: noopRun() as Parameters<typeof buildTaskActions>[0]["run"],
     });
     const due = list.find((action) => action.id === "due");
     expect(due && submenuItems(due).map((move) => move.id)).toEqual(["-1", "1", "7"]);
@@ -334,7 +334,7 @@ describe("#712 contact", () => {
     unblocking: false,
     calling: false,
     openHref: "/contacts/k-1",
-    run: noopRun<Parameters<typeof buildContactActions>[0]["run"]>(),
+    run: noopRun() as Parameters<typeof buildContactActions>[0]["run"],
   };
   expectOneList(
     "owner",
@@ -376,7 +376,7 @@ describe("#712 scheduled text", () => {
   const list = buildScheduledActions({
     t,
     cancelling: false,
-    run: noopRun<Parameters<typeof buildScheduledActions>[0]["run"]>(),
+    run: noopRun() as Parameters<typeof buildScheduledActions>[0]["run"],
   });
   expectOneList("any member", list, ["open", "cancel"]);
 });

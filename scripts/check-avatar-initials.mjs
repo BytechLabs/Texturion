@@ -33,7 +33,7 @@
  * a stream of false positives, and a guard people switch off protects nothing. What
  * catches that one is the parity vectors disagreeing, or review.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 /**
@@ -84,9 +84,9 @@ function sources(dir) {
 /** Comments are prose. Explaining the rule must not count as declaring it. */
 function stripComments(source) {
   return source
-    .replace(/\r\n/g, "\n")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ \t]*(\/\/|\*|\/\/\/).*$/gm, "");
+    .replaceAll('\r\n', "\n")
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^[ \t]*(\/\/|\*|\/\/\/).*$/gm, "");
 }
 
 const problems = [];

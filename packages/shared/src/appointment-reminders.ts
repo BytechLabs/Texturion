@@ -10,6 +10,8 @@
  * inherits all of that from #233.
  */
 
+import { trimTrailingCharacters } from "./trim-trailing-characters";
+
 /**
  * How many reminder rules one workspace may hold.
  *
@@ -22,7 +24,7 @@ export const REMINDER_RULES_CAP = 2;
 
 /** The window an offset may sit in. Mirrors the column's CHECK. */
 export const REMINDER_OFFSET_MIN_MINUTES = 15;
-export const REMINDER_OFFSET_MAX_MINUTES = 20160; // 14 days
+export const REMINDER_OFFSET_MAX_MINUTES = 20_160; // 14 days
 
 /**
  * What a workspace gets before it has opened the setting.
@@ -143,15 +145,12 @@ export const CONFIRM_KEYWORDS_ALSO_CARRIER: readonly string[] = ["YES"];
  * {@link CONFIRM_KEYWORDS_ALSO_CARRIER}.
  */
 export function isAppointmentConfirmation(body: string): boolean {
-  const word = body
+  const normalized = body
     .trim()
     .toUpperCase()
     .normalize("NFD")
-    .replaceAll(/\p{M}/gu, "")
-    // Trailing punctuation only. Stripping INNER punctuation would fold
-    // "c'mon over" into "CMONOVER" — harmless — but also turn "no, c" into
-    // something this could match, and "no" is the opposite answer.
-    .replace(/[.!,;:'"]+$/g, "")
+    .replaceAll(/\p{M}/gu, "");
+  const word = trimTrailingCharacters(normalized, ".!,;:'\"")
     .trim()
     .replace(/^D['’]ACCORD$/u, "DACCORD");
   return APPOINTMENT_CONFIRM_KEYWORDS.includes(word);

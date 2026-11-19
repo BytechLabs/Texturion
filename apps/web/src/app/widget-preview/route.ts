@@ -36,7 +36,8 @@
  * identifying goes in this URL. The card passes what it is already rendering
  * in, so the preview does not sit in English inside a French settings page.
  */
-import { DEFAULT_LOCALE, LOCALES, type Locale } from "@loonext/shared";
+import { DEFAULT_LOCALE } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 import { CATALOGS } from "@/i18n/catalog";
 
@@ -59,19 +60,17 @@ const PREVIEW_CSS = [
   ".hint{position:absolute;inset:auto auto 12px 14px;margin:0;font-size:12px}",
 ].join("");
 
-function localeFrom(url: string): Locale {
-  const asked = new URL(url).searchParams.get("lang");
-  return (LOCALES as readonly string[]).includes(asked ?? "")
-    ? (asked as Locale)
-    : DEFAULT_LOCALE;
-}
+const PREVIEW_DOCUMENTS: Record<Locale, string> = {
+  en: documentFor("en"),
+  "fr-CA": documentFor("fr-CA"),
+};
 
 /**
  * Two keys with no interpolation, read straight off the catalogue. Never import
  * `makeTranslate` from the "use client" `i18n/provider.tsx` in a route handler:
  * it throws at request time. `@/i18n/translate` is the server-safe one.
  */
-const documentFor = (locale: Locale) => {
+function documentFor(locale: Locale) {
   const words = CATALOGS[locale].settings as Record<string, string>;
   const t = (key: string) => words[key] ?? key;
   return `<!doctype html>
@@ -87,10 +86,12 @@ const documentFor = (locale: Locale) => {
 <script src="/widget.js" data-key="preview" data-lang="${locale}" defer></script>
 </body>
 </html>`;
-};
+}
 
 export function GET(request: Request) {
-  return new Response(documentFor(localeFrom(request.url)), {
+  const lang = new URL(request.url).searchParams.get("lang");
+  const locale = lang === "fr-CA" ? "fr-CA" : DEFAULT_LOCALE;
+  return new Response(PREVIEW_DOCUMENTS[locale], {
     headers: {
       "content-type": "text/html; charset=utf-8",
       // This document's own policy, not the app's. It loads one same-origin

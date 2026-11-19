@@ -216,7 +216,7 @@ async function deliverIncomingCallPush(
     // the sort is newest-first, so it was always the same people.
     .order("created_at", { ascending: false })
     .limit(pushUserIds.length * MAX_TARGETS_PER_USER);
-  const transfer = input.transfer;
+  const { transfer } = input;
   const [{ data, error }, { localeFor }, senderName] = await Promise.all([
     readSubscriptions,
     loadCallPushCopySettings(db, input.companyId, pushUserIds),

@@ -10,7 +10,7 @@
  * included. The relay passes on only that shape, and storage itself checks the
  * token's signature, so a path without a valid one reads nothing.
  */
-import { EDGE_PATHS, MEDIA_BUCKETS, MEDIA_MAX_BYTES } from "@loonext/rig-protocol";
+import { EDGE_PATHS, MEDIA_BUCKETS, MEDIA_MAX_BYTES, stripTrailingSlashes } from "@loonext/rig-protocol";
 import type { MediaFrame, MediaResult } from "./uplink.ts";
 
 export interface MediaRelayOptions {
@@ -54,7 +54,7 @@ export function storageUrlFor(supabaseUrl: string, framePath: string): { url: st
     return { status: 403 };
   }
   const download = parsed.searchParams.get("download");
-  const base = supabaseUrl.replace(/\/+$/, "");
+  const base = stripTrailingSlashes(supabaseUrl);
   const query = `token=${encodeURIComponent(token)}${download === null ? "" : `&download=${encodeURIComponent(download)}`}`;
   return { url: `${base}/storage/v1/object/sign/${bucket}/${object}?${query}` };
 }
@@ -74,7 +74,7 @@ export function mediaRelay(options: MediaRelayOptions) {
     try {
       response = await doFetch(target.url, {
         redirect: "error",
-        signal: AbortSignal.timeout(options.timeoutMs ?? 8_000),
+        signal: AbortSignal.timeout(options.timeoutMs ?? 8000),
       });
     } catch {
       return { status: 502 };

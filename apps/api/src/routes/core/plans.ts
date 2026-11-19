@@ -9,7 +9,7 @@ import {
   PLAN_SEATS as SHARED_PLAN_SEATS,
 } from "@loonext/shared";
 
-import { PLAN_INCLUDED_SEGMENTS, PLAN_LIMITS, PLAN_OVERAGE_CENTS_PER_SEGMENT, PLAN_VOICE_MINUTES, VOICE_OVERAGE_CENTS_PER_MINUTE } from '../../billing/plans';
+import { PLAN_LIMITS } from "../../billing/plans";
 import type { PlanId } from '../../billing/plans';
 
 export {
@@ -17,8 +17,8 @@ export {
   PLAN_OVERAGE_CENTS_PER_SEGMENT,
   PLAN_VOICE_MINUTES,
   VOICE_OVERAGE_CENTS_PER_MINUTE,
-  type PlanId,
-};
+} from "../../billing/plans";
+export type { PlanId } from "../../billing/plans";
 
 /** Seats per plan (SPEC §2), derived from the canonical limits table. Both
  *  self-serve plans are capped (#83: Starter 3, Pro 15); unlimited is the

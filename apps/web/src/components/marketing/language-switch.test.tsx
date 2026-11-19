@@ -65,7 +65,7 @@ describe("the language switch", () => {
     pathname.current = "/contact";
     render(<LanguageSwitch />);
     expect(screen.queryByText("French")).toBeNull();
-    expect(screen.getByText("Français")).toBeTruthy();
+    expect(screen.getByText("Français")).toBeInstanceOf(Element);
   });
 
   it("marks the link's own language so it is pronounced correctly", () => {

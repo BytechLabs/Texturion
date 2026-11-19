@@ -202,7 +202,7 @@ export function useTrash() {
 /** Delete forever: gone, with its files. 409 under a legal hold. */
 export function usePurgeTrashItem() {
   return useDeletion((target: TrashTarget, companyId) =>
-    apiFetch<void>(
+    apiFetch<undefined>(
       `/v1/trash/${target.kind}/${encodeURIComponent(target.id)}`,
       { method: "DELETE", companyId },
     ),

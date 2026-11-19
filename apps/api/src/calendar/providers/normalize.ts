@@ -125,7 +125,7 @@ function offsetAt(instant: number, timeZone: string): number {
 
 export function isIanaTimeZone(value: string): boolean {
   try {
-    new Intl.DateTimeFormat("en-US", { timeZone: value });
+    Intl.DateTimeFormat("en-US", { timeZone: value });
     // ECMA-402 also accepts numeric offsets in some runtimes. Provider offsets
     // are not zone rules and cannot safely schedule a future event.
     return !/^[+-]\d{2}(?::?\d{2})?$/.test(value);

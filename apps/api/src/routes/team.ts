@@ -1,4 +1,3 @@
-import { ASSIGNABLE_ROLES, type AssignableRole } from "@loonext/shared";
 /**
  * Team routes (SPEC §7, §10):
  *
@@ -25,15 +24,24 @@ import { ASSIGNABLE_ROLES, type AssignableRole } from "@loonext/shared";
  *          the same formula; creates the membership AND a notification_prefs
  *          row (defaults true/true).
  */
-import { isDowngrade, roleHasCapability, SELF_DOWNGRADE_ACK, SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY, shouldShowOrientation, stateMachines } from '@loonext/shared';
-import type { MemberRole } from '@loonext/shared';
-import { Hono, type Context } from "hono";
+import {
+  ASSIGNABLE_ROLES,
+  isDowngrade,
+  roleHasCapability,
+  SELF_DOWNGRADE_ACK,
+  SELF_DOWNGRADE_REQUIRED_MESSAGE_KEY,
+  shouldShowOrientation,
+  stateMachines,
+} from "@loonext/shared";
+import type { AssignableRole, MemberRole } from "@loonext/shared";
+import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 
 import { recordAuditFromRequest } from "../audit/log";
 import { PENDING_PLAN_SEAT_LIMIT } from "../billing/pending-plan";
 import { billingRecipients } from "../billing/recipients";
-import { emailLayout,escapeHtml,renderEmailHtml } from "../email/html";
+import { emailLayout, escapeHtml, renderEmailHtml } from "../email/html";
 import { capture } from "../analytics/posthog";
 import { requireCapability } from "../auth/company";
 import { revokeSessions } from "../auth/revoke-sessions";
@@ -136,7 +144,7 @@ async function seatUsage(
 }
 
 async function companyPlan(db: Db, companyId: string) {
-  const rows = unwrap<{ plan: string | null; pending_plan?: string | null }[]>(
+  const [company] = unwrap<{ plan: string | null; pending_plan?: string | null }[]>(
     await db
       .from("companies")
       .select("plan,pending_plan")
@@ -145,10 +153,10 @@ async function companyPlan(db: Db, companyId: string) {
       .limit(1),
     "company lookup",
   );
-  if (!rows[0]) {
+  if (!company) {
     throw new ApiError("not_found", "No such company.");
   }
-  const { plan, pending_plan: pending } = rows[0];
+  const { plan, pending_plan: pending } = company;
   return { plan, seatPlan: pending ?? plan };
 }
 
@@ -217,7 +225,7 @@ teamRoutes.patch("/members/:id", requireCapability("team.manage"), async (c) => 
       .limit(1),
     "member lookup",
   );
-  const target = rows[0];
+  const [target] = rows;
   if (!target) {
     return errorResponse(c, "not_found", "No such member.");
   }
@@ -390,7 +398,7 @@ teamRoutes.delete("/members/me", requireCapability("workspace.access"), async (c
       .limit(1),
     "own membership lookup",
   );
-  const membership = rows[0];
+  const [membership] = rows;
   if (!membership) {
     return errorResponse(c, "not_found", "You are not on this workspace.");
   }
@@ -642,9 +650,8 @@ async function endMemberAccess(
       actor: null,
       reason: "member_removed",
     });
-    sessions = result.sessions;
+    ({ sessions, voice } = result);
     devices += result.devices;
-    voice = result.voice;
   } catch (error) {
     console.error(
       `session revoke on deactivation failed for user ${userId}:`,
@@ -703,15 +710,15 @@ function inviteState(row: InviteRow, now: Date): stateMachines.InviteState {
 
 teamRoutes.get("/invites", requireCapability("team.manage"), async (c) => {
   const db = getDb(getEnv(c.env));
-  const rows = unwrap<InviteRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("invites")
       .select(INVITE_COLUMNS)
       .eq("company_id", c.get("companyId"))
       .order("created_at", { ascending: false }),
     "invites list",
-  );
-  const role = c.get("role") as MemberRole;
+  ) as InviteRow[];
+  const role = c.get("role");
   const now = new Date();
   return c.json({
     data: rows.map((row) => ({
@@ -800,7 +807,7 @@ async function createOrResendInvite(c: Context<AppEnv>) {
   }
   if (result.outcome !== "created") throw new Error("Unknown invite creation outcome.");
 
-  const invite = result.invite;
+  const { invite } = result;
   const { id: inviteId, email, note, role } = invite;
   const { data: linkData, error } = await db.auth.admin.generateLink({
     type: "invite",
@@ -900,19 +907,19 @@ async function sendWorkspaceInvite(
         .eq("user_id", args.invitedBy)
         .limit(1),
     ]);
-    const company = unwrap<{ name: string | null; locale: string }[]>(
+    const [company] = unwrap<{ name: string | null; locale: string }[]>(
       companies,
       "invite workspace lookup",
-    )[0];
-    const profile = unwrap<{ display_name: string | null }[]>(
+    );
+    const [profile] = unwrap<{ display_name: string | null }[]>(
       profiles,
       "inviter name lookup",
-    )[0];
+    );
     const locale = company?.locale === "fr-CA" ? "fr-CA" : "en";
     const french = locale === "fr-CA";
-    const companyName = company?.name?.trim().replace(/\s+/g, " ") ||
+    const companyName = company?.name?.trim().replaceAll(/\s+/g, " ") ||
       (french ? "un espace de travail" : "a Loonext workspace");
-    const inviter = profile?.display_name?.trim().replace(/\s+/g, " ");
+    const inviter = profile?.display_name?.trim().replaceAll(/\s+/g, " ");
     const subject = french
       ? `${inviter ? `${inviter} vous invite` : "Vous êtes invité"} à rejoindre ${companyName} sur Loonext`
       : `${inviter ? `${inviter} invited you` : "You've been invited"} to join ${companyName} on Loonext`;
@@ -999,7 +1006,7 @@ teamRoutes.get("/invites/mine", async (c) => {
     [key: string]: unknown;
   }
   // invites.email is citext → the eq match is case-insensitive at the DB.
-  const rows = unwrap<MyInviteRow[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("invites")
       .select(`${INVITE_COLUMNS},companies(name)`)
@@ -1009,7 +1016,7 @@ teamRoutes.get("/invites/mine", async (c) => {
       .gt("expires_at", new Date().toISOString())
       .order("created_at", { ascending: false }),
     "my invites",
-  );
+  ) as MyInviteRow[];
   const data = rows.map(({ companies, ...invite }) => ({
     ...invite,
     company_name: companies?.name ?? null,
@@ -1035,11 +1042,11 @@ teamRoutes.post("/invites/accept", async (c) => {
     /** #521: why the owner said they were adding this person, or null. */
     note: string | null;
   }
-  const invites = unwrap<InviteRow[]>(
+  const invites = unwrap<unknown>(
     await db.from("invites").select(INVITE_COLUMNS).eq("id", body.invite_id).limit(1),
     "invite lookup",
-  );
-  const invite = invites[0];
+  ) as InviteRow[];
+  const [invite] = invites;
   if (!invite) {
     return errorResponse(c, "not_found", "No such invite.");
   }
@@ -1126,7 +1133,7 @@ teamRoutes.post("/invites/accept", async (c) => {
         .limit(1),
       "membership lookup",
     );
-    const priorMembership = existing[0];
+    const [priorMembership] = existing;
 
     if (!priorMembership || priorMembership.deactivated_at === null) {
       // Genuinely an active member: a duplicate or stale invite. Consume the

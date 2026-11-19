@@ -157,9 +157,10 @@ describe(runResponseTimeRecapJob, () => {
       return new Response(null, { status: 204 });
     });
     const emails: SentEmailCapture[] = [];
+    let failNextSend = failFirstSend;
     stubFetch(async (url, request) => {
-      if (failFirstSend && url.href === "https://api.resend.com/emails") {
-        failFirstSend = false;
+      if (failNextSend && url.href === "https://api.resend.com/emails") {
+        failNextSend = false;
         return Response.json({ message: "Provider unavailable" }, { status: 503 });
       }
       const mail = await resendRoute(emails)(url, request);

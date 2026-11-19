@@ -34,7 +34,7 @@ function item(name: string) {
   return screen.getByRole("menuitemcheckbox", { name });
 }
 
-describe("TagChecklist", () => {
+describe(TagChecklist, () => {
   it("shows every, some and none of the selection", () => {
     open([["warranty"], ["warranty", "vip"]]);
     expect(item("Warranty").getAttribute("aria-checked")).toBe("true");
@@ -70,6 +70,6 @@ describe("TagChecklist", () => {
       />,
     );
     fireEvent.keyDown(screen.getByRole("button", { name: "Tags" }), { key: "Enter" });
-    expect(screen.getByText("No tags yet.")).toBeTruthy();
+    expect(screen.getByText("No tags yet.")).toBeInstanceOf(Element);
   });
 });

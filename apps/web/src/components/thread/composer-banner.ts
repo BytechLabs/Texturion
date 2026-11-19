@@ -152,11 +152,8 @@ export function selectComposerBanner(input: ComposerGateInput): ComposerBanner {
     if (input.usSuspended) return { kind: "registration_suspended" };
     return { kind: "registration_pending" };
   }
-  if (
-    input.usage !== null &&
-    (input.usage.sending_capped ??
-      (input.usage.cap_segments !== null && input.usage.used_segments >= input.usage.cap_segments))
-  ) {
+  const { usage } = input;
+  if (usage?.sending_capped ?? (usage?.cap_segments != null && usage.used_segments >= usage.cap_segments)) {
     return { kind: "usage_cap" };
   }
   // #396 LAST, and deliberately: every banner above says a message CANNOT go,

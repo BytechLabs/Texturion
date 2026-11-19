@@ -95,7 +95,7 @@ describe("GET /q/:token", () => {
 
     const res = await call(`/q/${TOKEN}`);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.business_name).toBe("Apex Plumbing");
     expect(body.amount_cents).toBe(45_000);
     expect(body.can_accept).toBe(true);
@@ -112,7 +112,7 @@ describe("GET /q/:token", () => {
     stubFetch(sb.route);
 
     const res = await call(`/q/${TOKEN}`);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.status).toBe("expired");
     expect(body.can_accept).toBe(false);
   });
@@ -214,7 +214,7 @@ describe("POST /q/:token/accept", () => {
     expect(res.status).toBe(200);
     await expect(res.json()).resolves.toEqual({ accepted: true, status: "accepted" });
 
-    const revoke = sb.find("PATCH", "/rest/v1/public_links")[0];
+    const [revoke] = sb.find("PATCH", "/rest/v1/public_links");
     expect(Object.fromEntries(revoke.url.searchParams)).toMatchObject({
       company_id: `eq.${COMPANY_ID}`,
       subject_type: "eq.quote",
@@ -380,7 +380,7 @@ describe("POST /q/:token/accept", () => {
     stubFetch(sb.route);
 
     await call(`/q/${TOKEN}/accept`, { method: "POST" });
-    const write = sb.find("PATCH", "/rest/v1/quotes")[0];
+    const [write] = sb.find("PATCH", "/rest/v1/quotes");
     expect(write.url.searchParams.get("status")).toBe("in.(sent,viewed)");
     expect(write.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
@@ -432,8 +432,8 @@ describe("#581 the view token is not the accept token", () => {
     // And asserted at the source rather than only through the status, so this
     // fails CLEANLY if the route ever asks for the view purpose again — a 404
     // can be reached several ways, and only one of them is this one.
-    const resolve = sb.find("POST", "/rest/v1/rpc/api_resolve_public_link")[0];
-    expect((resolve?.body as { p_purpose: string }).p_purpose).toBe("quote_accept");
+    const [resolve] = sb.find("POST", "/rest/v1/rpc/api_resolve_public_link");
+    expect(resolve?.body).toMatchObject({ p_purpose: "quote_accept" });
   });
 
   it("hands the accept credential to whoever opened the page", async () => {
@@ -442,10 +442,10 @@ describe("#581 the view token is not the accept token", () => {
     stubFetch(sb.route);
 
     const response = await call(`/q/${TOKEN}`);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       can_accept: boolean;
       accept_token: string | null;
-    };
+    }>();
 
     expect(response.status).toBe(200);
     expect(body.can_accept).toBe(true);
@@ -464,7 +464,7 @@ describe("#581 the view token is not the accept token", () => {
 
     await call(`/q/${TOKEN}`);
 
-    const mint = sb.find("POST", "/rest/v1/rpc/api_mint_public_link")[0];
+    const [mint] = sb.find("POST", "/rest/v1/rpc/api_mint_public_link");
     const body = mint?.body as { p_purpose: string; p_max_uses: number | null };
     expect(body.p_purpose).toBe("quote_accept");
     expect(body.p_max_uses).toBe(1);
@@ -480,10 +480,10 @@ describe("#581 the view token is not the accept token", () => {
     stubFetch(sb.route);
 
     const response = await call(`/q/${TOKEN}`);
-    const body = (await response.json()) as {
+    const body = await response.json<{
       can_accept: boolean;
       accept_token: string | null;
-    };
+    }>();
 
     expect(body.can_accept).toBe(false);
     expect(body.accept_token).toBeNull();

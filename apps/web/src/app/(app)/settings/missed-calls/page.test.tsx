@@ -8,6 +8,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { CompanyView, Usage } from "@/lib/api/types";
 import CallingSettingsPage from "./page";
+import type * as VoicemailGreetings from "@/lib/api/voicemail-greetings";
 
 // #725: the effect note reads company and query context these tests do not mount.
 vi.mock("@/components/settings/setting-choice-note", () => ({ SettingChoiceNote: () => null }));
@@ -123,7 +124,7 @@ vi.mock("@/lib/company/provider", () => ({
 // greeting and the caller-ID flow, and the card has its own suite.
 vi.mock("@/lib/api/voicemail-greetings", async () => {
   const actual = await vi.importActual<
-    typeof import("@/lib/api/voicemail-greetings")
+    typeof VoicemailGreetings
   >("@/lib/api/voicemail-greetings");
   return {
     ...actual,

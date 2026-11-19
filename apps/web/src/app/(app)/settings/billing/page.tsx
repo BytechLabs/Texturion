@@ -1,12 +1,12 @@
 "use client";
 
-import { numberReleaseAt } from "@loonext/shared";
-
 import {
   billingCurrencyOf,
   CANCELLATION_GRACE_DAYS,
+  numberReleaseAt,
   roleHasCapability,
 } from "@loonext/shared";
+
 import { ExternalLink } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -27,12 +27,12 @@ import {
   pauseQueryEnabled,
 } from "@/components/settings/pause-plan";
 import {
-  type PlanBadge,
   pauseReadOf,
   planBadge,
   planStateUnknownNote,
   readSaysRunning,
 } from "@/components/settings/pause-read";
+import type { PlanBadge } from "@/components/settings/pause-read";
 import { PlanModulesCard } from "@/components/settings/plan-modules-card";
 import { PrepaidYearCard } from "@/components/settings/prepaid-year-card";
 import { ReferralCard } from "@/components/settings/referral-card";

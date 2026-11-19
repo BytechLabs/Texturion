@@ -72,7 +72,10 @@ function wakeWorld(scenario: string) {
   const dial = robot.dial.bind(robot);
   robot.dial = async (plan: CallPlan) => {
     const lane = LANES[plan.to ?? ""];
-    if (lane) wake(lane.tenant, lane.member, `call-${++sessions}`, script.callStages);
+    if (lane) {
+      sessions += 1;
+      wake(lane.tenant, lane.member, `call-${sessions}`, script.callStages);
+    }
     return dial(plan);
   };
   app.simulateIncoming = async (args?: unknown) => {
@@ -597,24 +600,42 @@ describe("D04, Android variants", () => {
     expect(D04_VARIANTS.every((v) => !v.expect.confirmed)).toBe(true);
   });
 
-  for (const variant of D04_VARIANTS) {
+  const variants = D04_VARIANTS.map((variant) => {
     const rings = variant.expect.ringsWithinMs !== null;
     const where = d04Device(variant);
-    it(`${variant.name}: puts the ${where === "pixel" ? "device lane" : "day's E01 AVD"} in it, passes when it ${rings ? "rings" : "stays quiet"} and fails when it does not`, async () => {
-      const world = d04World(variant.name);
-      if (!rings) world.device.rings = undefined;
-      expect((await D04.run(world.ctx)).outcome).toBe("pass");
-      expect(world.device.actions).toEqual(SETUP[variant.name]);
-      expect(world.undo[0]).toEqual({ kind: "device.reset", params: { device: world.device.name } });
-      if (variant.undo) expect(world.undo[1]).toEqual({ kind: variant.undo, params: { device: world.device.name } });
-      expect(world.robot.plans[0]).toMatchObject({ to: where === "pixel" ? "DEV-A1" : "DEV-E1", play: null, record: false, lease_id: "lease-test" });
-      expect(world.ctx.evidence).toMatchObject({ variant: variant.name, expected: variant.expect, device_name: world.device.name, device: { locked: true } });
+    const target = where === "pixel" ? "device lane" : "day's E01 AVD";
+    const expected = rings ? "rings" : "stays quiet";
+    const name = `${variant.name}: puts the ${target} in it, passes when it ${expected} and fails when it does not`;
+    return [name, variant, rings, where] as const;
+  });
 
-      const wrong = d04World(variant.name);
-      if (rings) wrong.device.rings = undefined;
-      await expect(D04.run(wrong.ctx)).resolves.toMatchObject({ outcome: "fail", failure_class: `unconfirmed_${variant.name.replaceAll("-", "_")}` });
+  it.each(variants)("%s", async (_name, variant, rings, where) => {
+    const world = d04World(variant.name);
+    if (!rings) world.device.rings = undefined;
+    expect((await D04.run(world.ctx)).outcome).toBe("pass");
+    expect(world.device.actions).toEqual(SETUP[variant.name]);
+    expect(world.undo[0]).toEqual({ kind: "device.reset", params: { device: world.device.name } });
+    if (variant.undo) expect(world.undo[1]).toEqual({ kind: variant.undo, params: { device: world.device.name } });
+    expect(world.robot.plans[0]).toMatchObject({
+      to: where === "pixel" ? "DEV-A1" : "DEV-E1",
+      play: null,
+      record: false,
+      lease_id: "lease-test",
     });
-  }
+    expect(world.ctx.evidence).toMatchObject({
+      variant: variant.name,
+      expected: variant.expect,
+      device_name: world.device.name,
+      device: { locked: true },
+    });
+
+    const wrong = d04World(variant.name);
+    if (rings) wrong.device.rings = undefined;
+    await expect(D04.run(wrong.ctx)).resolves.toMatchObject({
+      outcome: "fail",
+      failure_class: `unconfirmed_${variant.name.replaceAll("-", "_")}`,
+    });
+  });
 
   it("never runs a ring that must not come on the device lane", async () => {
     const quiet = D04_VARIANTS.filter((v) => v.expect.ringsWithinMs === null);
@@ -1022,7 +1043,7 @@ describe("D11, unattended recovery", () => {
     const world = recoveryWorld();
     let calls = 0;
     world.rig.health = async () => {
-      calls++;
+      calls += 1;
       if (calls === 1) throw new Error("rig health exited 1");
       return world.rig.report;
     };
@@ -1040,7 +1061,10 @@ describe("D11, unattended recovery", () => {
   it("fails a device lane that health calls green but adb cannot see, and unlocks one its restart left locked", async () => {
     const lost = recoveryWorld();
     let seen = 0;
-    lost.pixel.reachable = async () => ++seen <= 1;
+    lost.pixel.reachable = async () => {
+      seen += 1;
+      return seen <= 1;
+    };
     await expect(D11.run(lost.ctx)).resolves.toMatchObject({ failure_class: "health_not_green_in_10min", detail: expect.stringContaining("pixel") });
     expect(lost.simulated).toEqual([]);
 
@@ -1222,9 +1246,14 @@ describe("the wake runners' budgets", () => {
     [E01, () => undefined],
   ];
 
-  for (const [runner, arrange] of runners) {
+  const runnerCases = runners.map(([runner, arrange]) => {
     const row = scenarios.find((s) => s.id === runner.id)!;
-    it(`${runner.id} places at most its ${row.far_end_legs} far-end leg(s) in every registry run`, async () => {
+    return [runner.id, row.far_end_legs, runner, arrange, row] as const;
+  });
+
+  it.each(runnerCases)(
+    "%s places at most its %s far-end leg(s) in every registry run",
+    async (_id, _legs, runner, arrange, row) => {
       for (const run of row.runs) {
         const world = wakeWorld(runner.id);
         world.ctx.slot = { index: 0, ...(run.label ? { label: run.label } : {}) };
@@ -1234,6 +1263,6 @@ describe("the wake runners' budgets", () => {
         expect(world.robot.plans.length).toBeLessThanOrEqual(row.far_end_legs);
         if (row.dials === 0) expect(world.robot.plans).toEqual([]);
       }
-    });
-  }
+    },
+  );
 });

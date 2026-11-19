@@ -1,7 +1,8 @@
 "use client";
 
 import { Check, Copy } from "lucide-react";
-import * as React from "react";
+import { useEffect, useRef, useState } from "react";
+import type { CSSProperties, ReactNode } from "react";
 
 import { Button } from "@/components/ui/button";
 import { useT } from "@/i18n/provider";
@@ -44,7 +45,7 @@ export interface NumberRevealProps {
    * "This is your business number." Rendered quiet, not tertiary — it is
    * essential.
    */
-  caption?: React.ReactNode;
+  caption?: ReactNode;
   /** Accessible label for the copy button. Defaults to `Copy ${value}`. */
   copyLabel?: string;
   className?: string;
@@ -61,9 +62,9 @@ export function NumberReveal({
   className,
 }: NumberRevealProps) {
   const t = useT();
-  const [copied, setCopied] = React.useState(false);
+  const [copied, setCopied] = useState(false);
 
-  React.useEffect(() => {
+  useEffect(() => {
     if (!copied) return;
     const t = setTimeout(() => setCopied(false), COPIED_RESET_MS);
     return () => clearTimeout(t);
@@ -131,8 +132,8 @@ export function CheckCascade({
   stepMs?: number;
   className?: string;
 }) {
-  const reduced = React.useRef(false);
-  React.useEffect(() => {
+  const reduced = useRef(false);
+  useEffect(() => {
     reduced.current = prefersReducedMotion();
   }, []);
 
@@ -142,7 +143,7 @@ export function CheckCascade({
         <span
           key={i}
           className="app-motion-check-cascade flex size-5 items-center justify-center rounded-full bg-success text-white"
-          style={{ "--cascade-delay": `${i * stepMs}ms` } as React.CSSProperties}
+          style={{ "--cascade-delay": `${i * stepMs}ms` } as CSSProperties}
         >
           <Check className="size-3" strokeWidth={2.5} />
         </span>

@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { Window } from "happy-dom";
 
-import { TRANSLATED_PAGES, localizedPath } from "../src/lib/marketing/translated-pages.ts";
+import { localizedPath, TRANSLATED_PAGES } from "../src/lib/marketing/translated-pages.ts";
 
 const origin = "https://loonext.com";
 const dom = new Window();
@@ -22,13 +22,13 @@ for (const page of TRANSLATED_PAGES) {
   if (openGraphLocale?.getAttribute("content") !== "fr_CA") {
     errors.push(`${page.fr}: expected og:locale="fr_CA"`);
   }
-  pages++;
+  pages += 1;
 
   for (const anchor of document.querySelectorAll("a[href]")) {
     const href = anchor.getAttribute("href");
     const target = new URL(href, new URL(page.fr, origin));
     if (target.origin !== origin || anchor.getAttribute("hreflang") === "en") continue;
-    links++;
+    links += 1;
     const expected = localizedPath(target.pathname, "fr-CA");
     if (expected !== target.pathname) {
       errors.push(`${page.fr}: ${href} should link to ${expected}`);

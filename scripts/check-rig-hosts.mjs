@@ -220,7 +220,7 @@ export function boxFindings(path, text) {
         if (gateway[1] !== GATEWAY) findings.problems.push(`${where}  defines the gateway as ${gateway[1]}, not VMnet8's ${GATEWAY}`);
         return;
       }
-      line = line.replace(IPV4_BLOCK, " ");
+      line = line.replaceAll(IPV4_BLOCK, " ");
     }
     judgeHosts(where, hostsInText(line), findings);
   });
@@ -233,7 +233,7 @@ export function templateFindings(path, text) {
   text.split(/\r?\n/).forEach((raw, index) => {
     const line = raw.trim();
     if (line === "" || line.startsWith("#")) return;
-    const hosts = hostsInText(line.replace(/(?:\{\{[^}]*\}\})+/g, STAND_IN))
+    const hosts = hostsInText(line.replaceAll(/(?:\{\{[^}]*\}\})+/g, STAND_IN))
       .filter((host) => host !== STAND_IN)
       .map((host) => host.split(STAND_IN).join("{{...}}"));
     judgeHosts(`${path}:${index + 1}`, hosts, findings);
@@ -420,9 +420,9 @@ async function main() {
         surface("derived"),
         derivedFindings(`${source} with production routes`, deriveRigConfig({ ...config, ...PRODUCTION_WIRING }, options)),
       );
-    } catch (cause) {
+    } catch (error) {
       surface("derived").problems.push(
-        `${source}  the deploy CLI refuses to derive it: ${cause instanceof Error ? cause.message : String(cause)}`,
+        `${source}  the deploy CLI refuses to derive it: ${error instanceof Error ? error.message : String(error)}`,
       );
     }
   }
@@ -449,9 +449,9 @@ async function main() {
         tomlFindings(`${supabaseSource} (derived config.toml${label})`, deriveSupabaseConfig(text, options)),
       );
     }
-  } catch (cause) {
+  } catch (error) {
     surface("supabase").problems.push(
-      `${supabaseSource}  the deploy CLI refuses to derive it: ${cause instanceof Error ? cause.message : String(cause)}`,
+      `${supabaseSource}  the deploy CLI refuses to derive it: ${error instanceof Error ? error.message : String(error)}`,
     );
   }
 

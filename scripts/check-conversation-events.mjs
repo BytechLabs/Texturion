@@ -47,7 +47,7 @@
  * also means this guard runs with no Docker and no credentials, which is what
  * lets it sit in the cheap guard step rather than the SQL job.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 
 const MIGRATIONS = "supabase/migrations";
 const UNION_FILE = "apps/api/src/routes/core/events.ts";
@@ -64,7 +64,7 @@ function labelsFromMigrations() {
     // Comments are stripped first. Several migrations discuss the enum in prose
     // above the statement that changes it, and a doc block quoting a value it
     // deliberately does NOT add would otherwise be read as adding it.
-    const sql = readFileSync(`${MIGRATIONS}/${name}`, "utf8").replace(
+    const sql = readFileSync(`${MIGRATIONS}/${name}`, "utf8").replaceAll(
       /--[^\n]*/g,
       "",
     );
@@ -101,7 +101,7 @@ function labelsFromUnion() {
   // and then stripped comments, and one of the union's own doc comments contains
   // a semicolon — so it read a union of ten members, reported the other sixteen
   // as missing, and would have had somebody "fix" a file that was already right.
-  const source = readFileSync(UNION_FILE, "utf8").replace(/\/\/[^\n]*/g, "");
+  const source = readFileSync(UNION_FILE, "utf8").replaceAll(/\/\/[^\n]*/g, "");
   const start = source.indexOf("export type ConversationEventType");
   if (start === -1) {
     fail(`ConversationEventType is gone from ${UNION_FILE}. Point this at it.`);

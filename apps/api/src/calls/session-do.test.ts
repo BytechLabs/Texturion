@@ -709,25 +709,31 @@ describe("Transfer wake", () => {
     const targetUserId = "u2";
     const firstLeg = { transferId, targetUserId, memberCcid: "transfer-first" };
     const wake = { transferId, userId: targetUserId };
-    expect(await instance.registerIntent({
+    await expect(instance.registerIntent({
       sessionId: SESSION, kind: "transfer", targetUserId, transferId, senderUserId: "u1",
-    })).toMatchObject({ state: "answered", registered: true });
+    })).resolves.toMatchObject({ state: "answered", registered: true });
     await instance.bindTransferLeg(firstLeg);
-    expect(await instance.reserveTransferWake({ ...wake, userId: "u3" })).toMatchObject({ reason: "not_ringing" });
-    expect(await instance.reserveTransferWake(wake)).toMatchObject({ reason: "recent_leg" });
-    expect(await instance.endTransferAttempt({ ...wake, memberCcid: firstLeg.memberCcid, waitForWake: true })).toBe("waiting");
+    await expect(instance.reserveTransferWake({ ...wake, userId: "u3" })).resolves.toMatchObject({
+      reason: "not_ringing",
+    });
+    await expect(instance.reserveTransferWake(wake)).resolves.toMatchObject({ reason: "recent_leg" });
+    await expect(
+      instance.endTransferAttempt({ ...wake, memberCcid: firstLeg.memberCcid, waitForWake: true }),
+    ).resolves.toBe("waiting");
     expect(calls.bridges).toHaveLength(1);
 
     const revived = reviveDO(store, { initiated: ctx() });
     const reserved = await revived.instance.reserveTransferWake(wake);
     expect(reserved).toMatchObject({ state: "answered", senderUserId: "u1" });
     if (!("wakeId" in reserved)) throw new Error("Transfer wake was refused");
-    expect(await revived.instance.reserveTransferWake(wake)).toMatchObject({ reason: "live_leg" });
-    expect(await revived.instance.endTransferAttempt({ ...wake, memberCcid: firstLeg.memberCcid, waitForWake: false })).toBe("stale");
-    expect(await revived.instance.completeTransfer(firstLeg)).toBe(false);
+    await expect(revived.instance.reserveTransferWake(wake)).resolves.toMatchObject({ reason: "live_leg" });
+    await expect(
+      revived.instance.endTransferAttempt({ ...wake, memberCcid: firstLeg.memberCcid, waitForWake: false }),
+    ).resolves.toBe("stale");
+    await expect(revived.instance.completeTransfer(firstLeg)).resolves.toBe(false);
     const secondLeg = { ...firstLeg, wakeId: reserved.wakeId, memberCcid: "transfer-wake" };
     await revived.instance.bindTransferLeg(secondLeg);
-    expect(await revived.instance.completeTransfer(secondLeg)).toBe(true);
+    await expect(revived.instance.completeTransfer(secondLeg)).resolves.toBe(true);
     expect(revived.calls.bridges).toEqual([{ member: "transfer-wake", inbound: "cust-ccid" }]);
   });
 });
@@ -1314,11 +1320,12 @@ describe("a saved voicemail is stored beside the FIFO, not in it", () => {
   });
 
   it("a failed run is retried until it is stored", async () => {
-    let failures = 2;
+    let attempts = 0;
     const { instance, calls, store } = await toRecording({
       initiated: ctx(),
       voicemailPipeline: () => {
-        if (failures-- > 0) throw new Error("voicemail store failed: timeout");
+        attempts += 1;
+        if (attempts <= 2) throw new Error("voicemail store failed: timeout");
       },
     });
     await instance.onTelnyxEvent(vmiEvent("call.recording.saved"));

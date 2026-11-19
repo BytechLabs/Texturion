@@ -94,7 +94,7 @@ export async function prepareMmsImage(file: File): Promise<File | null> {
       for (const quality of MMS_PHOTO_QUALITIES) {
         const jpeg = await drawToJpeg(bitmap, { width, height }, quality, true);
         if (jpeg && jpeg.size > 0 && jpeg.size <= MMS_MAX_MEDIA_BYTES) {
-          const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+          const name = `${file.name.replace(/\.[^.]+$/, "")}.jpg`;
           return new File([jpeg], name, { type: "image/jpeg" });
         }
       }
@@ -135,5 +135,7 @@ async function drawToJpeg(
   }
   context.drawImage(bitmap, 0, 0, size.width, size.height);
   if ("convertToBlob" in canvas) return canvas.convertToBlob({ type: "image/jpeg", quality });
-  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
+  return new Promise<Blob | null>((resolve) => {
+    canvas.toBlob(resolve, "image/jpeg", quality);
+  });
 }

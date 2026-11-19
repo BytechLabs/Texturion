@@ -121,7 +121,7 @@ describe("#742 panel width", () => {
     fireEvent.keyDown(screen.getByRole("button", { name: "Panel options" }), {
       key: "Enter",
     });
-    expect(screen.getByText("Panel width")).toBeTruthy();
+    expect(screen.getByText("Panel width")).toBeInstanceOf(Element);
     fireEvent.click(screen.getByRole("menuitemradio", { name: "Wide" }));
     expect(shown()).toBe(440);
     expect(saved()).toBe("440");

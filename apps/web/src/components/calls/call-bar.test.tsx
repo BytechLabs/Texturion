@@ -151,8 +151,8 @@ it("offers a separate talk-first action and controls for a connected consult", a
   actions.endConsult.mockResolvedValue(undefined);
   const view = mount(<CallBar />);
   fireEvent.click(screen.getByRole("button", { name: "Transfer this call" }));
-  expect(screen.getByRole("button", { name: "Transfer to Sam" })).toBeTruthy();
-  expect(screen.getByText("Push alerts set up")).toBeTruthy();
+  expect(screen.getByRole("button", { name: "Transfer to Sam" })).toBeInstanceOf(Element);
+  expect(screen.getByText("Push alerts set up")).toBeInstanceOf(Element);
   fireEvent.click(screen.getByRole("button", { name: "Talk first with Sam" }));
   await waitFor(() => expect(actions.startConsult).toHaveBeenCalledWith("sess-out-1", "sam", "Sam"));
 
@@ -162,7 +162,11 @@ it("offers a separate talk-first action and controls for a connected consult", a
   view.rerender(<CallBar />);
   fireEvent.click(screen.getByRole("button", { name: "Hand over" }));
   await waitFor(() => expect(actions.endConsult).toHaveBeenCalledWith("complete"));
-  await waitFor(() => expect((screen.getByRole("button", { name: "Back to caller" }) as HTMLButtonElement).disabled).toBe(false));
+  await waitFor(() =>
+    expect(
+      screen.getByRole<HTMLButtonElement>("button", { name: "Back to caller" }).disabled,
+    ).toBe(false),
+  );
   fireEvent.click(screen.getByRole("button", { name: "Back to caller" }));
   await waitFor(() => expect(actions.endConsult).toHaveBeenCalledWith("cancel"));
 });

@@ -50,7 +50,7 @@
  * For every non-test module in `packages/shared/src`: it is referenced by the barrel,
  * and every `export`ed name in it is either forwarded or marked `@internal`.
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const SRC = "packages/shared/src";
@@ -63,9 +63,9 @@ const BARREL = `${SRC}/index.ts`;
  */
 function stripComments(source) {
   return source
-    .replace(/\r\n/g, "\n")
-    .replace(/\/\*[\s\S]*?\*\//g, "")
-    .replace(/^[ \t]*(\/\/|\*).*$/gm, "");
+    .replaceAll('\r\n', "\n")
+    .replaceAll(/\/\*[\s\S]*?\*\//g, "")
+    .replaceAll(/^[ \t]*(\/\/|\*).*$/gm, "");
 }
 
 /**
@@ -92,7 +92,7 @@ function forwarded(barrel) {
     if (byModule.get(name) === null) continue;
     const names = byModule.get(name) ?? new Set();
     for (const raw of clause.slice(1, -1).split(",")) {
-      const symbol = raw.replace(/^\s*type\s+/, "").trim().split(/\s+as\s+/)[0];
+      const [symbol] = raw.replace(/^\s*type\s+/, "").trim().split(/\s+as\s+/);
       if (symbol) names.add(symbol);
     }
     byModule.set(name, names);
@@ -141,9 +141,9 @@ function internalAt(raw, _stripped, name) {
     `^export\\s+(?:declare\\s+)?(?:abstract\\s+)?(?:async\\s+)?(?:const|let|var|function\\s*\\*?|class|type|interface|enum)\\s+${name}\\b`,
     "m",
   );
-  const at = raw.replace(/\r\n/g, "\n").search(declaration);
+  const at = raw.replaceAll('\r\n', "\n").search(declaration);
   if (at === -1) return false;
-  const before = raw.replace(/\r\n/g, "\n").slice(0, at);
+  const before = raw.replaceAll('\r\n', "\n").slice(0, at);
   const closes = before.lastIndexOf("*/");
   if (closes === -1) return false;
   // Nothing but whitespace between the comment and the declaration, or it belongs to
@@ -229,7 +229,9 @@ if (problems.length > 0) {
 }
 
 console.log(
-  `Shared barrel: ${checkedNames} exported name(s) across ${checkedModules} ` +
-    `module(s), every one forwarded from index.ts` +
+  [
+    `Shared barrel: ${checkedNames} exported name(s) across ${checkedModules} `,
+    `module(s), every one forwarded from index.ts`,
     (keptInternal > 0 ? `; ${keptInternal} marked @internal.` : "."),
+  ].join(""),
 );

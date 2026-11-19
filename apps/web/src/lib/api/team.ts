@@ -1,4 +1,5 @@
-import { SELF_DOWNGRADE_ACK, type AssignableRole } from "@loonext/shared";
+import { SELF_DOWNGRADE_ACK } from "@loonext/shared";
+import type { AssignableRole } from "@loonext/shared";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
@@ -184,7 +185,7 @@ export function useRevokeInvite() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (inviteId: string) =>
-      apiFetch<void>(`/v1/invites/${inviteId}`, {
+      apiFetch<undefined>(`/v1/invites/${inviteId}`, {
         method: "DELETE",
         companyId,
       }),

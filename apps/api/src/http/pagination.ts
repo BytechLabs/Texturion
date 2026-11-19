@@ -90,7 +90,7 @@ export function buildPage<T extends { id: string }>(
   const ts = (last as Record<string, unknown>)[timestampColumn];
   if (typeof ts !== "string") {
     // Programmer error (wrong column for the row shape) — surface loudly.
-    throw new Error(
+    throw new TypeError(
       `buildPage: row is missing string timestamp column "${timestampColumn}"`,
     );
   }

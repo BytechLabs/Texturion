@@ -67,9 +67,14 @@ describe("the iOS catalogue registry knows about every section", () => {
     expect(files.length).toBeGreaterThan(5);
   });
 
-  for (const file of files) {
+  const catalogueCases = files.map(file => {
     const enumName = file.replace(/\.swift$/, "");
-    it(`${enumName} is in AppStrings.sections`, () => {
+    return [enumName, file] as const;
+  });
+
+  it.each(catalogueCases)(
+    "%s is in AppStrings.sections",
+    (enumName, file) => {
       // The registry line is `WebhooksStrings.section,` — matched precisely so
       // a mention in a comment or a docstring does not count as registration.
       const registered = new RegExp(
@@ -81,14 +86,17 @@ describe("the iOS catalogue registry knows about every section", () => {
         `${file} defines a catalogue section that AppStrings.sections never lists. ` +
           `Every screen reading it renders bare keys, in both languages.`,
       ).toBe(true);
-    });
+    },
+  );
 
-    it(`${enumName} declares the name AppStrings reports it by`, () => {
+  it.each(catalogueCases)(
+    "%s declares the name AppStrings reports it by",
+    (enumName, file) => {
       // `Section.name` exists so a failing test can say WHICH section
       // disagrees with itself. A name that does not match the file is a report
       // that sends the next person to the wrong place.
       const source = readFileSync(join(I18N_DIR, file), "utf8");
       expect(source).toContain(`name: "${enumName}"`);
-    });
-  }
+    },
+  );
 });

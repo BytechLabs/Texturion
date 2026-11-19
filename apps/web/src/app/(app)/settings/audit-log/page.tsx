@@ -14,16 +14,17 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
-import { useAuditLog, type AuditLogFilters } from "@/lib/api/audit-log";
+import { useAuditLog } from "@/lib/api/audit-log";
+import type { AuditLogFilters } from "@/lib/api/audit-log";
 import { getApiBaseUrl } from "@/lib/api/client";
 import { useMembers } from "@/lib/api/team";
 import type { AuditEntry } from "@/lib/api/types";
 import { useCompanyId } from "@/lib/company/provider";
 import { Timestamp } from "@/components/ui/timestamp";
 import {
+  AUDIT_ACTION_LABELS,
   auditActor,
   auditSentence,
-  AUDIT_ACTION_LABELS,
 } from "@/lib/settings/audit-sentence";
 import { useCanDeleteRecords } from "@/lib/hooks/use-records-delete";
 import { getAccessToken } from "@/lib/supabase/browser";

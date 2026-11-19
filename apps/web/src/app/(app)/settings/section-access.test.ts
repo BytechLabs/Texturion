@@ -152,12 +152,16 @@ function opensFor(role: MemberRole): SettingsSectionId[] {
 }
 
 describe("settingsAccessFor — every role against every section", () => {
-  for (const role of MEMBER_ROLES) {
-    it(`opens exactly the right sections for a ${role}`, () => {
+  it.each(MEMBER_ROLES)(
+    "opens exactly the right sections for a %s",
+    (role) => {
       expect(opensFor(role)).toEqual(OPENS[role]);
-    });
+    },
+  );
 
-    it(`refuses a ${role} everything else, by URL`, () => {
+  it.each(MEMBER_ROLES)(
+    "refuses a %s everything else, by URL",
+    (role) => {
       const refused = SETTINGS_SECTIONS.filter(
         (section) => !OPENS[role].includes(section.id),
       );
@@ -165,8 +169,8 @@ describe("settingsAccessFor — every role against every section", () => {
         const access = settingsAccessFor(settingsSectionHref(section), role);
         expect(access.kind, `${role} → ${section.slug}`).toBe("denied");
       }
-    });
-  }
+    },
+  );
 
   it("answers with the same rule the nav draws with", () => {
     // The whole point: one model. If these ever disagree, a row is hidden from

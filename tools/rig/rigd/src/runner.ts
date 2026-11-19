@@ -324,7 +324,7 @@ async function attemptHeld(
     attempt,
     slot: { index: slot.index, ...(slot.label ? { label: slot.label } : {}) },
     now: () => deps.clock.now(),
-    sleep: deps.sleep,
+    sleep: deps.sleep.bind(deps),
     nonce: `${runId}-${attempt}`.slice(-24),
     evidence,
     history: historyOf(deps, entry.id),
@@ -408,12 +408,15 @@ async function attemptHeld(
 
   // The apps place some dials themselves, through Telnyx's SDK, past the guard's log.
   const placed = { byApp: 0, byRobot: 0 };
+  const countAppDial = () => {
+    placed.byApp += 1;
+  };
   const ctx: ScenarioContext = {
     ...base,
     lease,
-    browser: dialsOnPages(lanes.browser, () => placed.byApp += 1),
+    browser: dialsOnPages(lanes.browser, countAppDial),
     guard: lanes.guard,
-    devices: dialsOnDevices(lanes.devices, () => placed.byApp += 1),
+    devices: dialsOnDevices(lanes.devices, countAppDial),
     rig: lanes.rig,
     mail: lanes.mail,
     stripe: lanes.stripe,
@@ -421,7 +424,9 @@ async function attemptHeld(
     robot: noting(
       noting(lanes.robot, "sms", (message: { text: string }) => texts.add(textHash(message.text))),
       "dial",
-      () => placed.byRobot += 1,
+      () => {
+        placed.byRobot += 1;
+      },
     ),
     app: noting(lanes.app, "sendText", (args: { body: string }) => texts.add(textHash(args.body))),
   };
@@ -596,14 +601,20 @@ function historyOf(deps: RunnerDeps, scenario: string): ScenarioHistoryApi {
   };
 }
 
+type FirstArgument<F> = F extends (arg: infer A, ...rest: never[]) => unknown ? A : never;
+
 /** The same object, with one method also telling `note` what it was called with. */
-function noting<T extends object, A>(target: T, method: string, note: (arg: A) => void): T {
+function noting<T extends object, K extends keyof T>(
+  target: T,
+  method: K,
+  note: (arg: FirstArgument<T[K]>) => void,
+): T {
   return new Proxy(target, {
     get(object, property) {
       const value: unknown = Reflect.get(object, property);
       if (typeof value !== "function") return value;
       if (property !== method) return value.bind(object);
-      return (arg: A, ...rest: unknown[]) => {
+      return (arg: FirstArgument<T[K]>, ...rest: unknown[]) => {
         note(arg);
         return (value as (...args: unknown[]) => unknown).call(object, arg, ...rest);
       };
@@ -644,7 +655,7 @@ async function finish(deps: RunnerDeps, entry: RegisteredScenario, runId: string
   const summary: RunSummary = { scenario: entry.id, run_id: runId, status: last.outcome, verdicts, detail: last.detail };
   // The event describes this run's last attempt that actually judged
   // something, never a later "skipped" from the window or the cap.
-  const judged = verdicts.filter((v) => DECISIVE.has(v.outcome)).at(-1);
+  const judged = verdicts.findLast((v) => DECISIVE.has(v.outcome));
   if (!judged || judged.outcome === "pass" || !deps.posthog?.canSend) return summary;
 
   const critical = verdicts.find((v) => v.critical);

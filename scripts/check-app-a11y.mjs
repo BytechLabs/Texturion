@@ -204,12 +204,12 @@ try {
       const scaleLoaded = await page.evaluate(() => {
         const probe = document.createElement("input");
         probe.className = "text-base";
-        document.body.appendChild(probe);
+        document.body.append(probe);
         const size = getComputedStyle(probe).fontSize;
         probe.remove();
         return size;
       });
-      if (parseFloat(scaleLoaded) !== 16) {
+      if (Number.parseFloat(scaleLoaded) !== 16) {
         problems.push(
           `${where}: a probe \`<input class="text-base">\` computed ` +
             `${scaleLoaded} instead of 16px, so this page is not styled the way ` +
@@ -270,7 +270,7 @@ try {
             const type = element.getAttribute("type");
             if (type === "hidden" || type === "checkbox" || type === "radio") return false;
             if (element.offsetParent === null) return false;
-            return parseFloat(getComputedStyle(element).fontSize) < 16;
+            return Number.parseFloat(getComputedStyle(element).fontSize) < 16;
           })
           .map((element) => element.id || element.name || element.className || "input")
           .slice(0, 5);
@@ -292,8 +292,8 @@ try {
       const reducedTransitionDuration = await page.evaluate(() => {
         const probe = document.createElement("div");
         probe.style.transition = "opacity 1s linear";
-        probe.setAttribute("data-a11y-probe", "");
-        document.body.appendChild(probe);
+        probe.dataset.a11yProbe = "";
+        document.body.append(probe);
         const raw = getComputedStyle(probe).transitionDuration;
         probe.remove();
         return raw;

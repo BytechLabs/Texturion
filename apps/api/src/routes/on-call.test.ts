@@ -91,7 +91,7 @@ describe("#244 the rota", () => {
     const res = await call("GET", "");
 
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { data: unknown[] }).data).toHaveLength(1);
+    expect((await res.json<{ data: unknown[] }>()).data).toHaveLength(1);
   });
 
   it("ON-2: only an owner or admin decides whose night it is", async () => {
@@ -135,7 +135,7 @@ describe("#244 the rota", () => {
     const res = await call("POST", "", TONIGHT);
 
     expect(res.status).toBe(422);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("not in this crew");
   });
 });
@@ -147,7 +147,7 @@ describe("#244 acknowledging", () => {
     const res = await call("POST", `/alerts/${ALERT_ID}/acknowledge`);
 
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { outcome: string }).outcome).toBe(
+    expect((await res.json<{ outcome: string }>()).outcome).toBe(
       "acknowledged",
     );
     // The AUTHENTICATED user's id, not the membership row's — the name that
@@ -155,7 +155,7 @@ describe("#244 acknowledging", () => {
     const rpc = sb.calls.find(
       (c) => c.path === "/rest/v1/rpc/api_acknowledge_alert",
     );
-    expect((rpc?.body as { p_user_id: string }).p_user_id).toBe(auth.subject);
+    expect(rpc?.body).toMatchObject({ p_user_id: auth.subject });
   });
 
   it("ON-7: the second tapper is told WHOSE it is, not that they claimed it", async () => {
@@ -175,10 +175,10 @@ describe("#244 acknowledging", () => {
     // 200, not 409: the caller did nothing wrong, and what the app needs is
     // the name so it can say "Sam has this" rather than "conflict".
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       outcome: string;
       acknowledged_by: string;
-    };
+    }>();
     expect(body.outcome).toBe("already_acknowledged");
     expect(body.acknowledged_by).toBe(TECH_ID);
   });

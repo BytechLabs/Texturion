@@ -1,11 +1,8 @@
-import {
-  DEFAULT_LOCALE,
-  isBeyondSupportedCrew,
-  planFitForCrew,
-  type CrewSizeBucket,
-} from "@loonext/shared";
+import { DEFAULT_LOCALE, isBeyondSupportedCrew, planFitForCrew } from "@loonext/shared";
+import type { CrewSizeBucket } from "@loonext/shared";
 
-import { makeTranslate, type Translate } from "@/i18n/translate";
+import { makeTranslate } from "@/i18n/translate";
+import type { Translate } from "@/i18n/translate";
 import { PLAN_PRICING } from "@/lib/api/types";
 
 /** English, for a caller with no provider around it — the unit tests. */

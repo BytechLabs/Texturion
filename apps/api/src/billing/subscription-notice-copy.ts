@@ -20,7 +20,8 @@
  * next door explains why, and `subscription-notice-copy.test.ts` is the check
  * that keeps them one sentence.
  */
-import { CANCELLATION_GRACE_DAYS, type Locale } from "@loonext/shared";
+import { CANCELLATION_GRACE_DAYS } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
 
 interface SubscriptionNoticeCopy {
   /**

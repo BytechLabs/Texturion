@@ -155,7 +155,7 @@ export async function readAiUsage(
   // still needs a line, or the screen looks like it does not exist.
   return AI_USAGE_FEATURES.map((spec) => {
     const row = rows.get(spec.key);
-    const copy = AI_USAGE_COPY[locale][spec.key]!;
+    const copy = AI_USAGE_COPY[locale][spec.key];
     const counts = {
       used: Number(row?.outcome_used_count ?? 0),
       edited: Number(row?.outcome_edited_count ?? 0),

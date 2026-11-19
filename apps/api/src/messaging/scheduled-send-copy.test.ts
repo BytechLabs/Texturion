@@ -32,7 +32,7 @@ function catalogue(): { en: string; fr: string } {
   );
   const start = file.indexOf("export const domainEn");
   const boundary = file.indexOf("export const domainFr");
-  if (start < 0 || boundary < 0) {
+  if (start === -1 || boundary === -1) {
     throw new Error("domain.ts no longer has both language blocks");
   }
   return { en: file.slice(start, boundary), fr: file.slice(boundary) };
@@ -53,10 +53,10 @@ describe("#228 the scheduled disclosure a push goes out in", () => {
       ] as const) {
         const sentence = SCHEDULED_DISCLOSURE_COPY[locale].reason[key];
         expect(
-          block.includes(JSON.stringify(sentence)),
+          block,
           `${reason} differs between the push and the ${locale} catalogue. ` +
             `The push says:\n  ${sentence}`,
-        ).toBe(true);
+        ).toContain(JSON.stringify(sentence));
       }
     }
   });
@@ -104,7 +104,7 @@ describe("#228 the two titles", () => {
     // title for both states would promise a retry against a STOP.
     for (const locale of LOCALES) {
       const copy = SCHEDULED_DISCLOSURE_COPY[locale];
-      expect(copy.waitingTitle, `${locale} has no waiting title`).toBeTruthy();
+      expect(Boolean(copy.waitingTitle), `${locale} has no waiting title`).toBe(true);
       expect(
         copy.notSentTitle,
         `${locale} says the same thing whether or not it is coming`,
@@ -117,7 +117,7 @@ describe("#228 the two titles", () => {
     // that already had the reader's language in hand, so a French member got a
     // French reason under an English headline.
     const fr = SCHEDULED_DISCLOSURE_COPY["fr-CA"];
-    const en = SCHEDULED_DISCLOSURE_COPY.en;
+    const { en } = SCHEDULED_DISCLOSURE_COPY;
     expect(fr.waitingTitle).not.toBe(en.waitingTitle);
     expect(fr.notSentTitle).not.toBe(en.notSentTitle);
   });

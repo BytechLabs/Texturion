@@ -353,8 +353,7 @@ await runScript(
     console.log(`    gross margin       ${money(netTotal - costTotal)}`);
     // Never a bare percentage: the count is the thing that makes it readable.
     console.log(
-      `    unprofitable       ${losing.length} of ${priced.length}` +
-        (losing.length > 0 ? ` (${losing.map((p) => p.row.name).join(", ")})` : ""),
+      `    unprofitable       ${losing.length} of ${priced.length}${losing.length > 0 ? ` (${losing.map((p) => p.row.name).join(", ")})` : ""}`,
     );
 
     // #277: named, because a paused workspace is the row most likely to be
@@ -366,15 +365,11 @@ await runScript(
     const paused = priced.filter((p) => p.paused);
     if (paused.length > 0) {
       const unpriced = paused.filter((p) => p.row.paused_price_cents == null);
+      // The pause fee lives in Stripe. Report a missing mirror as an explicit $0.
       console.log(
-        `    paused             ${paused.length} of ${priced.length}` +
-          ` (${paused.map((p) => p.row.name).join(", ")})` +
-          // The fee is provisioned in Stripe, not held here, so a missing one
-          // cannot be looked up. Counted as $0 rather than at list price, and
-          // SAID so — an unexplained zero is its own misleading number.
-          (unpriced.length > 0
+        `    paused             ${paused.length} of ${priced.length} (${paused.map((p) => p.row.name).join(", ")})${unpriced.length > 0
             ? `\n    ${" ".repeat(19)}${unpriced.length} with no mirrored pause fee, counted as $0`
-            : ""),
+            : ""}`,
       );
       // #525: the pause fee is chosen in a Stripe dashboard against a cost
       // nothing in this repository could previously show. These are the two
@@ -525,15 +520,17 @@ await runScript(
       );
       for (const p of [...priced].sort((a, b) => a.margin - b.margin)) {
         console.log(
-          `    ${pad(p.row.name.slice(0, 24), 26)}${pad(p.row.plan, 9)}` +
-            `${pad(money(p.net), 10)}${pad(money(p.cost), 10)}` +
-            `${pad(money(p.margin), 10)}${pad(`${(p.near * 100).toFixed(0)}%`, 8)}` +
+          [
+            `    ${pad(p.row.name.slice(0, 24), 26)}${pad(p.row.plan, 9)}`,
+            `${pad(money(p.net), 10)}${pad(money(p.cost), 10)}`,
+            `${pad(money(p.margin), 10)}${pad(`${(p.near * 100).toFixed(0)}%`, 8)}`,
             // #277: the plan column says `pro` for a paused workspace, because
             // that is the plan it will resume onto. Without this the row reads
             // as a Pro tenant paying $5, which looks like a billing bug. A
             // cancelled row needs the same sentence for the same reason — `pro`
             // at $0 reads as an unpaid invoice rather than as somebody who left.
             (p.churned ? "cancelled" : p.paused ? "paused" : ""),
+          ].join(""),
         );
       }
     }

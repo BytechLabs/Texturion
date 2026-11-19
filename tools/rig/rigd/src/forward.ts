@@ -17,9 +17,10 @@
  * the real signature itself.
  */
 import type { KeyObject } from "node:crypto";
-import { CALL_EVENT_RELAY_TIMEOUT_MS, EDGE_PATHS, TELNYX_SIGNATURE_WINDOW_S } from "@loonext/rig-protocol";
+import { CALL_EVENT_RELAY_TIMEOUT_MS, EDGE_PATHS, stripTrailingSlashes, TELNYX_SIGNATURE_WINDOW_S } from "@loonext/rig-protocol";
 import { ROBOT_TOKEN_HEADER } from "@loonext/rig-robot";
-import { messageText, signatureAge, signedByTelnyx, textHash, type LateDelivery } from "./late.ts";
+import { messageText, signatureAge, signedByTelnyx, textHash } from "./late.ts";
+import type { LateDelivery } from "./late.ts";
 import type { WebhookFrame, WebhookResult } from "./uplink.ts";
 
 export const RIG_PATH_HEADER = "x-rig-path";
@@ -68,8 +69,8 @@ export function robotEndOf(body: string): string | undefined {
 export function webhookForwarder(targets: ForwardTargets) {
   const doFetch = targets.fetch ?? fetch;
   const now = targets.now ?? Date.now;
-  const api = `${targets.apiBase.replace(/\/+$/, "")}${targets.apiWebhookPath ?? "/webhooks/telnyx"}`;
-  const robot = targets.robotBase.replace(/\/+$/, "");
+  const api = `${stripTrailingSlashes(targets.apiBase)}${targets.apiWebhookPath ?? "/webhooks/telnyx"}`;
+  const robot = stripTrailingSlashes(targets.robotBase);
   const robotText = (frame: WebhookFrame) => {
     if (frame.path === EDGE_PATHS.telnyxRobot) return true;
     const end = targets.robotNumber ? robotEndOf(frame.body) : undefined;

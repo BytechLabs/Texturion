@@ -43,6 +43,7 @@ import { PAYMENT_EVENT_TYPES, REALTIME_EVENTS } from "./events";
 import { REORDER_WINDOW_MS } from "./sequence";
 import { useForYouNotificationsRealtime } from "./for-you-notifications";
 import { RealtimeProvider } from "./provider";
+import type * as ApiClient from "@/lib/api/client";
 
 const COMPANY = "11111111-1111-1111-1111-111111111111";
 const USER = "22222222-2222-2222-2222-222222222222";
@@ -153,7 +154,7 @@ vi.mock("@/lib/supabase/browser", () => ({
   getAccessToken: () => Promise.resolve("token"),
 }));
 vi.mock("@/lib/api/client", async (importOriginal) => ({
-  ...(await importOriginal<typeof import("@/lib/api/client")>()),
+  ...(await importOriginal<typeof ApiClient>()),
   apiFetch: api.fetch,
 }));
 vi.mock("sonner", () => ({ toast: () => {} }));
@@ -245,9 +246,9 @@ function setup({ listener = false }: { listener?: boolean } = {}) {
       handler({ payload });
     },
     loadedPages: () =>
-      (queryClient.getQueryData(keys.conversations.lists(COMPANY)) as {
+      queryClient.getQueryData<{
         pages: unknown[];
-      }).pages.length,
+      }>(keys.conversations.lists(COMPANY))!.pages.length,
     /**
      * `keys.me` invalidations. Two paths in the effect do this and both are
      * asserted below: the reconnect backfill (the only one that ALSO trims, so
@@ -364,7 +365,7 @@ beforeEach(() => {
   visibleNumbers = [];
   numberListRead = "ok";
   api.fetch.mockReset();
-  api.fetch.mockImplementation(() => Promise.reject(new Error("no answer")));
+    api.fetch.mockRejectedValue(new Error("no answer"));
 });
 afterEach(cleanup);
 
@@ -649,7 +650,7 @@ describe("a bootstrap number list that failed to read", () => {
       // one instant. Armed together, a slow /v1/me would have all three in flight.
       await vi.advanceTimersByTimeAsync(1);
       expect(meInvalidations()).toBe(1);
-      await vi.advanceTimersByTimeAsync(4_000);
+      await vi.advanceTimersByTimeAsync(4000);
       expect(meInvalidations()).toBe(2);
       await vi.advanceTimersByTimeAsync(12_000);
       expect(meInvalidations()).toBe(3);
@@ -672,7 +673,7 @@ describe("a bootstrap number list that failed to read", () => {
       const { rerender, meInvalidations } = setup();
       await flush();
 
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(1000);
       expect(meInvalidations()).toBe(1);
 
       // The retry landed. The remaining rungs must not fire at a server that has
@@ -888,7 +889,7 @@ describe("payment.updated", () => {
         payload: { amount_cents: 25_000, currency: "usd" },
         created_at: "2026-08-11T10:00:00Z",
       };
-      expect(eventSentence(event, () => null), type).toBeTruthy();
+      expect(Boolean(eventSentence(event, () => null)), type).toBe(true);
     }
   });
 
@@ -918,7 +919,7 @@ describe("payment.updated", () => {
         queryFn: fetcher,
       });
     });
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledOnce();
 
     emit(numberTopic("n1"), "payment.updated", {
       conversation_id: CONVERSATION,
@@ -928,7 +929,7 @@ describe("payment.updated", () => {
     await flush();
     await flush();
 
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledOnce();
     // …and the MARK is there, so the strip is right the moment that thread is
     // opened. Without this half, the test would pass just as happily on a
     // handler that did nothing at all.
@@ -964,7 +965,7 @@ describe("payment.updated", () => {
     await vi.waitFor(() =>
       expect(observer.getCurrentResult().isSuccess).toBe(true),
     );
-    expect(fetcher).toHaveBeenCalledTimes(1);
+    expect(fetcher).toHaveBeenCalledOnce();
 
     emit(numberTopic("n1"), "payment.updated", {
       conversation_id: CONVERSATION,
@@ -1033,23 +1034,23 @@ describe("what a read costs", () => {
       const feed = await watch(queryClient, keys.notifications.feed(COMPANY), { data: [] });
 
       emit(COMPANY_TOPIC, "read.conversation", { user_id: USER, conversation_id: CONVERSATION });
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(1000);
 
-      expect(badge.fetcher).toHaveBeenCalledTimes(1);
+      expect(badge.fetcher).toHaveBeenCalledOnce();
       expect(feed.fetcher).not.toHaveBeenCalled();
       expect(inbox.fetcher).not.toHaveBeenCalled();
       expect(unreadOnly.fetcher).not.toHaveBeenCalled();
-      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
+      expect(forYou.fetcher).toHaveBeenCalledOnce();
       expect(
-        (queryClient.getQueryData(unreadKey) as { pages: { data: unknown[] }[] }).pages[0].data,
+        queryClient.getQueryData<{ pages: { data: unknown[] }[] }>(unreadKey)!.pages[0].data,
       ).toEqual([]);
 
       emit(COMPANY_TOPIC, "read.notifications", { user_id: USER });
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(1000);
 
       expect(badge.fetcher).toHaveBeenCalledTimes(2);
-      expect(feed.fetcher).toHaveBeenCalledTimes(1);
-      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
+      expect(feed.fetcher).toHaveBeenCalledOnce();
+      expect(forYou.fetcher).toHaveBeenCalledOnce();
       expect(inbox.fetcher).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -1068,7 +1069,7 @@ describe("what a read costs", () => {
 
       emit(COMPANY_TOPIC, "read.conversation", { user_id: USER, conversation_id: CONVERSATION });
 
-      const rows = (queryClient.getQueryData(inboxKey) as { pages: { data: { unread: boolean }[] }[] })
+      const rows = queryClient.getQueryData<{ pages: { data: { unread: boolean }[] }[] }>(inboxKey)!
         .pages[0].data;
       expect(rows.map((row) => row.unread)).toEqual([false]);
     } finally {
@@ -1104,10 +1105,10 @@ describe("what a delivery receipt costs", () => {
       };
 
       emit(numberTopic("n1"), "message.status", receipt);
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(1000);
 
       const cached = () =>
-        (queryClient.getQueryData(threadKey) as { pages: { data: { status: string; done_at: string | null }[] }[] })
+        queryClient.getQueryData<{ pages: { data: { status: string; done_at: string | null }[] }[] }>(threadKey)!
           .pages[0].data[0];
       expect(cached().status).toBe("delivered");
       expect(forYou.fetcher).not.toHaveBeenCalled();
@@ -1123,10 +1124,10 @@ describe("what a delivery receipt costs", () => {
       await vi.advanceTimersByTimeAsync(399);
       expect(forYou.fetcher).not.toHaveBeenCalled();
       await vi.advanceTimersByTimeAsync(1);
-      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
-      await vi.advanceTimersByTimeAsync(2_000);
-      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
-      expect(timeline.fetcher).toHaveBeenCalledTimes(1);
+      expect(forYou.fetcher).toHaveBeenCalledOnce();
+      await vi.advanceTimersByTimeAsync(2000);
+      expect(forYou.fetcher).toHaveBeenCalledOnce();
+      expect(timeline.fetcher).toHaveBeenCalledOnce();
       expect(badge.fetcher).not.toHaveBeenCalled();
     } finally {
       vi.useRealTimers();
@@ -1148,11 +1149,11 @@ describe("conversation.updated", () => {
       const badge = await watch(queryClient, keys.notifications.unreadCount(COMPANY), { count: 0 });
 
       emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
-      await vi.advanceTimersByTimeAsync(2_000);
+      await vi.advanceTimersByTimeAsync(2000);
 
       expect(apiCalls(`/v1/conversations/${CONVERSATION}`)).toHaveLength(0);
-      expect(forYou.fetcher).toHaveBeenCalledTimes(1);
-      expect(badge.fetcher).toHaveBeenCalledTimes(1);
+      expect(forYou.fetcher).toHaveBeenCalledOnce();
+      expect(badge.fetcher).toHaveBeenCalledOnce();
     } finally {
       vi.useRealTimers();
     }
@@ -1183,7 +1184,7 @@ describe("conversation.updated", () => {
       );
 
       emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(1000);
       expect(apiCalls(`/v1/conversations/${CONVERSATION}`)).toHaveLength(1);
       expect(timeline.fetcher).not.toHaveBeenCalled();
 
@@ -1193,8 +1194,8 @@ describe("conversation.updated", () => {
           : Promise.reject(new Error("no answer")),
       );
       emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
-      await vi.advanceTimersByTimeAsync(1_000);
-      expect(timeline.fetcher).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(timeline.fetcher).toHaveBeenCalledOnce();
       // A thread that was never opened is not created by an update.
       expect(queryClient.getQueryData(keys.thread(COMPANY, CONVERSATION))).toBeUndefined();
     } finally {
@@ -1228,14 +1229,14 @@ describe("conversation.updated", () => {
 
       answer(detail);
       emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(1000);
       expect(apiCalls(`/v1/conversations/${CONVERSATION}`)).toHaveLength(1);
       expect(pinned.fetcher).not.toHaveBeenCalled();
 
       answer({ ...detail, assigned_user_id: USER });
       emit(numberTopic("n1"), "conversation.updated", { conversation_id: CONVERSATION });
-      await vi.advanceTimersByTimeAsync(1_000);
-      expect(pinned.fetcher).toHaveBeenCalledTimes(1);
+      await vi.advanceTimersByTimeAsync(1000);
+      expect(pinned.fetcher).toHaveBeenCalledOnce();
     } finally {
       vi.useRealTimers();
     }
@@ -1275,9 +1276,9 @@ describe("message.created", () => {
   it("asks for one message when the thread was never opened", async () => {
     const queryClient = await arrive();
     expect(limits()).toEqual([1]);
-    const row = (queryClient.getQueryData(keys.conversations.list(COMPANY, {})) as {
+    const [row] = queryClient.getQueryData<{
       pages: { data: { unread: boolean; last_message: { id: string } | null }[] }[];
-    }).pages[0].data[0];
+    }>(keys.conversations.list(COMPANY, {}))!.pages[0].data;
     expect(row.unread).toBe(true);
     expect(row.last_message?.id).toBe(MESSAGE_ID);
   });
@@ -1347,7 +1348,7 @@ describe("the away-tab resync", () => {
 
       await away(31_000);
       focus();
-      await vi.advanceTimersByTimeAsync(3_000);
+      await vi.advanceTimersByTimeAsync(3000);
 
       expect(invalidated(queryClient, inbox)).toBe(true);
       expect(invalidated(queryClient, oldTemplates)).toBe(true);
@@ -1372,7 +1373,7 @@ describe("the away-tab resync", () => {
       fake.setConnected(true);
       report(COMPANY_TOPIC, "SUBSCRIBED");
       focus();
-      await vi.advanceTimersByTimeAsync(5_000);
+      await vi.advanceTimersByTimeAsync(5000);
 
       expect(resyncWaves()).toBe(1);
     } finally {
@@ -1391,12 +1392,12 @@ describe("the away-tab resync", () => {
 
       await away(40_000);
       focus();
-      await vi.advanceTimersByTimeAsync(1_000);
+      await vi.advanceTimersByTimeAsync(1000);
       fake.setConnected(false);
       report(COMPANY_TOPIC, "CHANNEL_ERROR");
       fake.setConnected(true);
       report(COMPANY_TOPIC, "SUBSCRIBED");
-      await vi.advanceTimersByTimeAsync(5_000);
+      await vi.advanceTimersByTimeAsync(5000);
 
       expect(resyncWaves()).toBe(1);
     } finally {
@@ -1414,7 +1415,7 @@ describe("the away-tab resync", () => {
       await away(40_000);
       fake.setConnected(false);
       focus();
-      await vi.advanceTimersByTimeAsync(5_000);
+      await vi.advanceTimersByTimeAsync(5000);
       expect(resyncWaves()).toBe(0);
 
       fake.setConnected(true);
@@ -1438,7 +1439,7 @@ describe("the away-tab resync", () => {
 
       await away(40_000);
       focus();
-      await vi.advanceTimersByTimeAsync(9_999);
+      await vi.advanceTimersByTimeAsync(9999);
       expect(resyncWaves()).toBe(0);
       await vi.advanceTimersByTimeAsync(1);
       expect(resyncWaves()).toBe(1);
@@ -1457,7 +1458,7 @@ describe("the away-tab resync", () => {
 
       await away(40_000);
       focus();
-      await vi.advanceTimersByTimeAsync(2_999);
+      await vi.advanceTimersByTimeAsync(2999);
       expect(resyncWaves()).toBe(0);
       await vi.advanceTimersByTimeAsync(1);
       expect(resyncWaves()).toBe(1);

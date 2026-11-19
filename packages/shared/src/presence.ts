@@ -67,14 +67,14 @@ export const PRESENCE_HEARTBEAT_MS = 15_000;
  * presence failure in miniature, and the cost of it expiring early is only that
  * the label falls back to "also here", which is still true.
  */
-export const TYPING_TTL_MS = 6_000;
+export const TYPING_TTL_MS = 6000;
 
 /**
  * How often a client may re-announce typing. The keystroke rate is not the
  * broadcast rate: presence is chatty by nature and #251 has never measured this
  * fan-out, so the client sends at most one update per interval.
  */
-export const TYPING_THROTTLE_MS = 2_000;
+export const TYPING_THROTTLE_MS = 2000;
 
 export interface Viewer {
   user_id: string;

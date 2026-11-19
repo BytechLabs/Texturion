@@ -173,11 +173,11 @@ export type LegStatus =
   | "dead"
   | "ambiguous";
 
-const LIVE_LEG_STATUSES: readonly LegStatus[] = [
+const LIVE_LEG_STATUSES: ReadonlySet<LegStatus> = new Set([
   "dialing",
   "ringing",
   "canceling",
-];
+]);
 
 export interface LegRecord {
   /** Storage key: `leg:pending:{uuid}` before the dial POST returns, re-keyed
@@ -716,7 +716,7 @@ export interface ReduceResult {
 }
 
 function liveLegs(machine: SessionMachine): LegRecord[] {
-  return machine.legs.filter((leg) => LIVE_LEG_STATUSES.includes(leg.status));
+  return machine.legs.filter((leg) => LIVE_LEG_STATUSES.has(leg.status));
 }
 
 function cloneMachine(machine: SessionMachine): SessionMachine {
@@ -738,7 +738,7 @@ function cancelAllLiveLegs(
   terminal: boolean,
 ): void {
   for (const leg of machine.legs) {
-    if (!LIVE_LEG_STATUSES.includes(leg.status)) continue;
+    if (!LIVE_LEG_STATUSES.has(leg.status)) continue;
     if (leg.status === "canceling") continue;
     leg.status = "canceling";
     if (leg.ccid) {
@@ -765,12 +765,15 @@ function vmEntry(
   machine.queuedTargets = [];
   if (routing) machine.routing = routing;
   machine.voicemailCause = cause;
-  effects.push({
-    kind: "mirror",
-    set: routing ? { state: "voicemail_greeting", routing } : { state: "voicemail_greeting" },
-    terminal: false,
-  }, { kind: "clear-alarm", alarm: "ring" });
-  effects.push({ kind: "clear-alarm", alarm: "ring-step" });
+  effects.push(
+    {
+      kind: "mirror",
+      set: routing ? { state: "voicemail_greeting", routing } : { state: "voicemail_greeting" },
+      terminal: false,
+    },
+    { kind: "clear-alarm", alarm: "ring" },
+    { kind: "clear-alarm", alarm: "ring-step" },
+  );
   if (machine.customerCcid) {
     // Terminal-path exemption class (§13): the voicemail answer must never
     // drop at the command cap — it is how the session ends honestly.
@@ -907,8 +910,12 @@ function terminalize(
     effects.push({ kind: "push-call-end", reason: callEndReason });
   }
   if (!upgrade) {
-    effects.push({ kind: "clear-alarm", alarm: "ring" }, { kind: "clear-alarm", alarm: "ring-step" });
-    effects.push({ kind: "clear-alarm", alarm: "fanout-settle" }, { kind: "arm-alarm", alarm: "purge", atMs: nowMs + PURGE_DELAY_MS });
+    effects.push(
+      { kind: "clear-alarm", alarm: "ring" },
+      { kind: "clear-alarm", alarm: "ring-step" },
+      { kind: "clear-alarm", alarm: "fanout-settle" },
+      { kind: "arm-alarm", alarm: "purge", atMs: nowMs + PURGE_DELAY_MS },
+    );
   }
 }
 
@@ -1202,7 +1209,7 @@ export function reduce(
       const waiting = queue.filter((candidate) =>
         !next.declinedUserIds.includes(candidate.userId) &&
         !next.legs.some((leg) =>
-          leg.userId === candidate.userId && LIVE_LEG_STATUSES.includes(leg.status),
+          leg.userId === candidate.userId && LIVE_LEG_STATUSES.has(leg.status),
         ),
       );
       const target = waiting.shift();
@@ -1380,12 +1387,8 @@ export function reduce(
         if (leg.status === "dialing") leg.status = "ringing";
         return { machine: next, effects };
       }
-      if (event.failure === "ambiguous") {
-        // Counted as NOT live for the ladder, retained for reconciliation.
-        leg.status = "ambiguous";
-      } else {
-        leg.status = "dead"; // T3's "dial POST threw with a KNOWN-dead outcome"
-      }
+      // Ambiguous legs stay for reconciliation without counting as live.
+      leg.status = event.failure === "ambiguous" ? "ambiguous" : "dead";
       // #213: for an OUTBOUND call the failed dial is the PLACER (op) leg — the
       // avenue ladder is inbound-only (and no-ops outside 'ringing' anyway). A
       // KNOWN-dead placer dial means the placer can never connect, so resolve the
@@ -2044,7 +2047,7 @@ function reduceMemberAnswered(
 
   if (
     next.state !== "ringing" ||
-    !LIVE_LEG_STATUSES.includes(leg.status)
+    !LIVE_LEG_STATUSES.has(leg.status)
   ) {
     // T14 / guard no-op: a late answer against voicemail/ended states is
     // reaped by the T2/T9 exit sweeps; nothing to do here beyond a defensive
@@ -2133,15 +2136,19 @@ function reduceAnswerOutcome(
   // (5) Cancel all sibling legs.
   for (const leg of next.legs) {
     if (leg.ccid === event.memberCcid) continue;
-    if (LIVE_LEG_STATUSES.includes(leg.status) && leg.status !== "canceling") {
+    if (LIVE_LEG_STATUSES.has(leg.status) && leg.status !== "canceling") {
       leg.status = "canceling";
       if (leg.ccid) {
         effects.push({ kind: "telnyx-hangup", ccid: leg.ccid, terminal: false });
       }
     }
   }
-  effects.push({ kind: "thread-at-answer" }, { kind: "clear-alarm", alarm: "ring" });
-  effects.push({ kind: "clear-alarm", alarm: "fanout-settle" }, { kind: "push-call-end", reason: "answered" });
+  effects.push(
+    { kind: "thread-at-answer" },
+    { kind: "clear-alarm", alarm: "ring" },
+    { kind: "clear-alarm", alarm: "fanout-settle" },
+    { kind: "push-call-end", reason: "answered" },
+  );
   next.answerIntent = null; // step 3: clear on success
   return { machine: next, effects };
 }
@@ -2390,7 +2397,7 @@ function reduceRingMe(
   }
 
   const memberLive = next.legs.filter(
-    (leg) => leg.userId === event.userId && LIVE_LEG_STATUSES.includes(leg.status),
+    (leg) => leg.userId === event.userId && LIVE_LEG_STATUSES.has(leg.status),
   );
 
   if (event.noLocalLeg) {
@@ -2407,16 +2414,13 @@ function reduceRingMe(
         reply: { rang: false, state: next.state, reason: "recent_leg" },
       };
     }
-  } else {
-    // T4a — pre-v3 client: ANY live leg for this member, any age, any source
-    // → NO-OP. An unasserted request can NEVER dial past a live leg.
-    if (memberLive.length > 0) {
-      return {
-        machine: next,
-        effects,
-        reply: { rang: false, state: next.state, reason: "live_leg" },
-      };
-    }
+  } else if (memberLive.length > 0) {
+    // Pre-v3 clients cannot dial past an existing live leg.
+    return {
+      machine: next,
+      effects,
+      reply: { rang: false, state: next.state, reason: "live_leg" },
+    };
   }
 
   // §13: past MAX_LEGS_PER_SESSION, ring-me returns dial_failed.
@@ -2560,7 +2564,7 @@ function reduceDecline(
   // is that a decliner's device kept holding the ring open.
   for (const leg of next.legs) {
     if (leg.userId !== event.userId) continue;
-    if (!LIVE_LEG_STATUSES.includes(leg.status)) continue;
+    if (!LIVE_LEG_STATUSES.has(leg.status)) continue;
     if (leg.ccid) {
       effects.push({ kind: "telnyx-hangup", ccid: leg.ccid, terminal: false });
     }

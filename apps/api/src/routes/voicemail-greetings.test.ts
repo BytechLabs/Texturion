@@ -64,7 +64,7 @@ function telnyxDialRoute() {
     if (request.method !== "POST" || url.href !== "https://api.telnyx.com/v2/calls") {
       return undefined;
     }
-    dials.push((await request.json()) as Record<string, unknown>);
+    dials.push(await request.json<Record<string, unknown>>());
     return Response.json({ data: { call_control_id: "ccid-capture-1" } });
   };
   return { route, dials };
@@ -208,7 +208,7 @@ describe("#309 recording a greeting", () => {
       upload({ name: "After hours", durationMs: "8200" }),
     );
     expect(res.status).toBe(201);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.name).toBe("After hours");
     expect(body.duration_ms).toBe(8200);
     expect(harness.storage.uploads).toHaveLength(1);
@@ -283,7 +283,7 @@ describe("#309 recording a greeting by phone", () => {
     );
     expect(res.status).toBe(202);
     expect(harness.dials).toHaveLength(1);
-    const dial = harness.dials[0];
+    const [dial] = harness.dials;
     expect(dial.to).toBe("+16135550199");
     expect(dial.from).toBe("+16135550100");
     // The two ceilings a capture leg carries: how long it rings, and how long

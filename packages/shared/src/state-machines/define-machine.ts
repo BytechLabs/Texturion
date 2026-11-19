@@ -137,7 +137,7 @@ export function defineMachine<const S extends string>(
     transitions: definition.transitions as Machine<S>["transitions"],
     entryEffects: (definition.entryEffects ?? {}) as Machine<S>["entryEffects"],
     unwritten: definition.unwritten ?? [],
-    actions: (definition.actions ?? (() => [])) as Machine<S>["actions"],
+    actions: (definition.actions ?? (() => [])),
   });
 }
 

@@ -11,17 +11,17 @@
  *   - tests that read packages/shared/src/<module>.ts by path
  *   - tests (any tree) containing one of its sentences verbatim
  */
-import { readFileSync, readdirSync } from "node:fs";
+import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 
 const R = "D:/projects/JobText";
-const module = process.argv[2];
+const { 2: module } = process.argv;
 if (!module) {
   console.log("usage: node pins.mjs <module-basename>");
   process.exit(1);
 }
 
-const source = readFileSync(join(R, "packages/shared/src", `${module}.ts`), "utf8");
+const source = readFileSync(join(R, "packages/shared/src", `${moduleName}.ts`), "utf8");
 
 /* Sentences worth pinning: long enough that a test would quote them. */
 const sentences = [
@@ -71,9 +71,9 @@ for (const file of files) {
     continue;
   }
   const rel = file.replaceAll("\\", "/").replace(`${R}/`, "");
-  if (rel === `packages/shared/src/${module}.ts`) continue;
+  if (rel === `packages/shared/src/${moduleName}.ts`) continue;
 
-  if (text.includes(`packages/shared/src/${module}.ts`)) byPath.push(rel);
+  if (text.includes(`packages/shared/src/${moduleName}.ts`)) byPath.push(rel);
 
   for (const s of sentences) {
     if (!text.includes(s)) continue;
@@ -82,9 +82,9 @@ for (const file of files) {
   }
 }
 
-console.log(`--- ${module}.ts: ${sentences.length} sentence(s) worth pinning\n`);
+console.log(`--- ${moduleName}.ts: ${sentences.length} sentence(s) worth pinning\n`);
 console.log("READS THE FILE BY PATH:");
-console.log(byPath.length ? byPath.map((p) => `  ${p}`).join("\n") : "  (none)");
+console.log(byPath.length > 0 ? byPath.map((p) => `  ${p}`).join("\n") : "  (none)");
 console.log("\nQUOTES A SENTENCE:");
 if (bySentence.size === 0) console.log("  (none)");
 for (const [s, where] of bySentence) {

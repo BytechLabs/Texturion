@@ -20,7 +20,7 @@ import { configDefaults, defineConfig } from "vitest/config";
  * project) — vitest fails loudly on a missing export.
  */
 const telnyxDouble = (name: string) =>
-  fileURLToPath(new URL(`./src/test/telnyx-doubles/${name}.ts`, import.meta.url));
+  fileURLToPath(new URL(`src/test/telnyx-doubles/${name}.ts`, import.meta.url));
 
 /**
  * Calls v3 (#170 §15.2): `cloudflare:workers` is a Workers-runtime module node

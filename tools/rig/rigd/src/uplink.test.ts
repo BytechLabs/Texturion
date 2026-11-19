@@ -5,7 +5,7 @@ import { FakeSocket, TinyWsServer } from "./test-support.ts";
 import { parseFrame, Uplink, uplinkUrl } from './uplink.ts';
 import type { UplinkHandlers } from './uplink.ts';
 
-const flush = () => new Promise((resolve) => setImmediate(resolve));
+const flush = () => new Promise((resolve) => { setImmediate(resolve); });
 
 function webhook(kind: "call" | "message" | "robot-call" | "robot-webhook", id = "evt-1") {
   return {
@@ -64,7 +64,7 @@ describe("the uplink", () => {
   });
 
   it("answers 503 when the local API is slower than the relay timeout", async () => {
-    const { socket, clock } = setup({ webhook: () => new Promise(() => undefined) });
+    const { socket, clock } = setup({ webhook: () => new Promise(() => {}) });
     socket.receive(webhook("call"));
     await flush();
     clock.advance(CALL_EVENT_RELAY_TIMEOUT_MS - 1);
@@ -122,7 +122,7 @@ describe("the uplink", () => {
   });
 
   it("answers an rpc with an error before the edge's 60 s timeout", async () => {
-    const { socket, clock } = setup({ rpc: () => new Promise(() => undefined) });
+    const { socket, clock } = setup({ rpc: () => new Promise(() => {}) });
     socket.receive({ t: "rpc", id: "slow", method: "triage.unresolved", params: {}, caller: "triage" });
     await flush();
     clock.advance(55_000);
@@ -238,7 +238,7 @@ describe("the uplink over a real WebSocket", () => {
     });
     uplink.start();
     const until = async (check: () => boolean) => {
-      for (let i = 0; i < 200 && !check(); i++) await new Promise((resolve) => setTimeout(resolve, 10));
+      for (let i = 0; i < 200 && !check(); i++) await new Promise((resolve) => { setTimeout(resolve, 10); });
       expect(check()).toBe(true);
     };
     await until(() => server!.upgrades.length > 0);

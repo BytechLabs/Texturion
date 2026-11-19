@@ -20,9 +20,9 @@ import type { ImportResult } from "@/lib/api/types";
 import { answerProperty, ignoreRemainingProperties, propertyDeclarations, readVCardProperties } from '@/lib/contacts/vcard-properties';
 import type { VCardProperty } from '@/lib/contacts/vcard-properties';
 import {
+  canImportVCardProperty,
   CONTACT_IMPORT_IGNORE,
   CONTACT_IMPORT_SHOW_FEWER_VALUES_KEY,
-  canImportVCardProperty,
   contactImportHiddenValuesLabel,
   contactImportShowAllValuesLabel,
   contactImportValueCeilingNote,

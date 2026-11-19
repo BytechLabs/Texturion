@@ -1,6 +1,7 @@
 "use client"
 
-import * as React from "react"
+import { createContext, useContext, useId, useMemo } from "react"
+import type { ComponentProps } from "react"
 import type { Label as LabelPrimitive } from "radix-ui"
 import { Slot } from "radix-ui"
 import { Controller, FormProvider, useFormContext, useFormState } from 'react-hook-form';
@@ -18,26 +19,30 @@ type FormFieldContextValue<
   name: TName
 }
 
-const FormFieldContext = React.createContext<FormFieldContextValue>(
+const FormFieldContext = createContext<FormFieldContextValue>(
   {} as FormFieldContextValue
 )
 
-const FormField = <
+function FormField<
   TFieldValues extends FieldValues = FieldValues,
   TName extends FieldPath<TFieldValues> = FieldPath<TFieldValues>,
 >({
+  name,
   ...props
-}: ControllerProps<TFieldValues, TName>) => 
-  (
-    <FormFieldContext.Provider value={{ name: props.name }}>
-      <Controller {...props} />
+}: ControllerProps<TFieldValues, TName>) {
+  const field = useMemo(() => ({ name }), [name])
+
+  return (
+    <FormFieldContext.Provider value={field}>
+      <Controller name={name} {...props} />
     </FormFieldContext.Provider>
   )
+}
 
 
 const useFormField = () => {
-  const fieldContext = React.useContext(FormFieldContext)
-  const itemContext = React.useContext(FormItemContext)
+  const fieldContext = useContext(FormFieldContext)
+  const itemContext = useContext(FormItemContext)
   const { getFieldState } = useFormContext()
   const formState = useFormState({ name: fieldContext.name })
   const fieldState = getFieldState(fieldContext.name, formState)
@@ -62,15 +67,16 @@ type FormItemContextValue = {
   id: string
 }
 
-const FormItemContext = React.createContext<FormItemContextValue>(
+const FormItemContext = createContext<FormItemContextValue>(
   {} as FormItemContextValue
 )
 
-function FormItem({ className, ...props }: React.ComponentProps<"div">) {
-  const id = React.useId()
+function FormItem({ className, ...props }: ComponentProps<"div">) {
+  const id = useId()
+  const item = useMemo(() => ({ id }), [id])
 
   return (
-    <FormItemContext.Provider value={{ id }}>
+    <FormItemContext.Provider value={item}>
       <div
         data-slot="form-item"
         className={cn("grid gap-2", className)}
@@ -83,7 +89,7 @@ function FormItem({ className, ...props }: React.ComponentProps<"div">) {
 function FormLabel({
   className,
   ...props
-}: React.ComponentProps<typeof LabelPrimitive.Root>) {
+}: ComponentProps<typeof LabelPrimitive.Root>) {
   const { error, formItemId } = useFormField()
 
   return (
@@ -97,7 +103,7 @@ function FormLabel({
   )
 }
 
-function FormControl({ ...props }: React.ComponentProps<typeof Slot.Root>) {
+function FormControl({ ...props }: ComponentProps<typeof Slot.Root>) {
   const { error, formItemId, formDescriptionId, formMessageId } = useFormField()
 
   return (
@@ -115,7 +121,7 @@ function FormControl({ ...props }: React.ComponentProps<typeof Slot.Root>) {
   )
 }
 
-function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
+function FormDescription({ className, ...props }: ComponentProps<"p">) {
   const { formDescriptionId } = useFormField()
 
   return (
@@ -128,7 +134,7 @@ function FormDescription({ className, ...props }: React.ComponentProps<"p">) {
   )
 }
 
-function FormMessage({ className, ...props }: React.ComponentProps<"p">) {
+function FormMessage({ className, ...props }: ComponentProps<"p">) {
   const { error, formMessageId } = useFormField()
   const body = error ? (error?.message ?? "") : props.children
 

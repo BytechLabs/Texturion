@@ -73,11 +73,6 @@ function renderFields(custom: Record<string, string> = {}) {
   );
 }
 
-// This repo has no global setup file, so nothing unmounts between tests.
-// Without it the second render finds two "Boiler model" labels — the leftover
-// one from the first — and every query by label throws.
-afterEach(cleanup);
-
 beforeEach(() => {
   patched.mockClear();
   fieldDefs.mockReturnValue({
@@ -88,6 +83,9 @@ beforeEach(() => {
     ],
   });
 });
+
+// Testing Library's automatic cleanup requires Vitest globals.
+afterEach(cleanup);
 
 describe(ContactCustomFields, () => {
   it("CW-1: renders nothing at all until the workspace defines a field", async () => {
@@ -102,11 +100,11 @@ describe(ContactCustomFields, () => {
     // The unanswered ones are the point — an empty "Warranty expiry" is the
     // prompt to go and find out.
     renderFields({ boiler_model: "Worcester 8000" });
-    const model = (await screen.findByLabelText("Boiler model")) as HTMLInputElement;
+    const model = await screen.findByLabelText<HTMLInputElement>("Boiler model");
     expect(model.value).toBe("Worcester 8000");
-    const warranty = (await screen.findByLabelText(
+    const warranty = await screen.findByLabelText<HTMLInputElement>(
       "Warranty expiry",
-    )) as HTMLInputElement;
+    );
     expect(warranty.value).toBe("");
   });
 
@@ -153,7 +151,7 @@ describe(ContactCustomFields, () => {
     renderFields({ boiler_model: "Worcester 8000" });
     const input = await screen.findByLabelText("Boiler model");
     fireEvent.blur(input);
-    await new Promise((resolve) => setTimeout(resolve, 20));
+    await new Promise((resolve) => { setTimeout(resolve, 20); });
     expect(patched).not.toHaveBeenCalled();
   });
 

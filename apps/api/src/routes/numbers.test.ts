@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { identityBodySchema, numbersRoutes } from "./numbers";
 import type { AppEnv, MemberRole } from "../context";
-import type { Bindings } from "../env";
 import { ApiError, errorResponse } from "../http/errors";
 import { FakeRest, registerProvisioningRpcs, resendRoute, telnyxError, TelnyxMock } from '../telnyx/test-support';
 import type { SentEmailCapture } from '../telnyx/test-support';
@@ -55,7 +54,7 @@ function installSlotRpc(rest: FakeRest) {
           row.kind === "brand" &&
           row.sole_proprietor === true,
       );
-    if (soleProp && nonReleased.length >= 1) {
+    if (soleProp && nonReleased.length > 0) {
       return { outcome: "sole_prop_cap", number: null };
     }
     // #110 (mirrors the RPC): effective max = included + the company's
@@ -198,7 +197,7 @@ function buildHarness(
     telnyx,
     state,
     request: (path: string, init?: RequestInit) =>
-      app.request(path, init, env as unknown as Bindings),
+      app.request(path, init, env),
   };
 }
 
@@ -262,10 +261,10 @@ describe("GET /v1/numbers", () => {
 
     const res = await harness.request("/v1/numbers");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: Record<string, unknown>[];
       next_cursor: null;
-    };
+    }>();
     expect(body.next_cursor).toBeNull();
     expect(body.data).toHaveLength(1);
     expect(body.data[0]).toMatchObject({
@@ -296,8 +295,8 @@ describe("GET /v1/numbers", () => {
 
     const res = await harness.request("/v1/numbers");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: Record<string, unknown>[] };
-    const row = body.data[0];
+    const body = await res.json<{ data: Record<string, unknown>[] }>();
+    const [row] = body.data;
     expect(row).toMatchObject({
       status: "provision_failed",
       failure_reason: "no_inventory",
@@ -338,10 +337,10 @@ describe("GET /v1/numbers", () => {
 
     const res = await harness.request("/v1/numbers");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       data: { id: string }[];
       hidden_count: number;
-    };
+    }>();
     expect(body.data.map((n) => n.id)).toEqual([visibleId]);
 
     // #286: and the member is TOLD one is missing. The filter above is
@@ -366,7 +365,7 @@ describe("GET /v1/numbers", () => {
     harness.rest.rpc("member_number_levels", () => []);
 
     const res = await harness.request("/v1/numbers");
-    const body = (await res.json()) as { data: unknown[]; hidden_count: number };
+    const body = await res.json<{ data: unknown[]; hidden_count: number }>();
     expect(body.data).toHaveLength(1);
     expect(body.hidden_count).toBe(0);
   });
@@ -456,7 +455,7 @@ describe("GET/PUT /v1/numbers/:id/access (#106)", () => {
     expect(put.status).toBe(200);
 
     const get = await harness.request(`/v1/numbers/${NUMBER_ID}/access`);
-    expect(await get.json()).toEqual({
+    await expect(get.json()).resolves.toEqual({
       access: "role",
       role: "admin",
       level: "note",
@@ -487,9 +486,9 @@ describe("GET/PUT /v1/numbers/:id/access (#106)", () => {
       putInit({ access: "users", user_ids: [ALICE], level: "text" }),
     );
     expect(ok.status).toBe(200);
-    const get = (await (
+    const get = await (
       await harness.request(`/v1/numbers/${NUMBER_ID}/access`)
-    ).json()) as { access: string; user_ids: string[] };
+    ).json<{ access: string; user_ids: string[] }>();
     expect(get.access).toBe("users");
     expect(get.user_ids).toEqual([ALICE]);
   });
@@ -532,7 +531,7 @@ describe("GET/PUT /v1/numbers/:id/access (#106)", () => {
     );
     expect(put.status).toBe(200);
     const get = await harness.request(`/v1/numbers/${NUMBER_ID}/access`);
-    expect(await get.json()).toEqual({ access: "everyone" });
+    await expect(get.json()).resolves.toEqual({ access: "everyone" });
     expect(harness.rest.rows("number_access")).toHaveLength(0);
   });
 });
@@ -588,7 +587,7 @@ describe("POST /v1/numbers/provision", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(402);
-    const body = (await res.json()) as { error: { code: string } };
+    const body = await res.json<{ error: { code: string } }>();
     expect(body.error.code).toBe("subscription_inactive");
   });
 
@@ -609,14 +608,14 @@ describe("POST /v1/numbers/provision", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(201);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.status).toBe("active");
     expect(body.number_e164).toBe("+16465550123");
     expect(body.requested_area_code).toBe("646");
 
     // The saga started from S2: the existing profile was reused.
     expect(harness.telnyx.callsTo("POST", /messaging_profiles/)).toHaveLength(0);
-    const order = harness.telnyx.callsTo("POST", /number_orders/)[0];
+    const [order] = harness.telnyx.callsTo("POST", /number_orders/);
     expect(order.body).toMatchObject({
       messaging_profile_id: "profile-1",
       customer_reference: COMPANY_ID,
@@ -630,11 +629,11 @@ describe("POST /v1/numbers/provision", () => {
 
     const first = await harness.request("/v1/numbers/provision", provisionInit(key));
     expect(first.status).toBe(201);
-    const firstBody = (await first.json()) as { id: string };
+    const firstBody = await first.json<{ id: string }>();
 
     const second = await harness.request("/v1/numbers/provision", provisionInit(key));
     expect(second.status).toBe(200);
-    const secondBody = (await second.json()) as { id: string };
+    const secondBody = await second.json<{ id: string }>();
     expect(secondBody.id).toBe(firstBody.id);
     expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(1);
   });
@@ -666,7 +665,7 @@ describe("POST /v1/numbers/provision", () => {
       body: JSON.stringify({ chosen_number_e164: "+16465550777" }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.status).toBe("active");
     expect(body.number_e164).toBe("+16465550777");
     // The area code is derived from the chosen number (646 = NY).
@@ -675,7 +674,7 @@ describe("POST /v1/numbers/provision", () => {
     expect(
       harness.telnyx.callsTo("GET", /available_phone_numbers/),
     ).toHaveLength(0);
-    const order = harness.telnyx.callsTo("POST", /number_orders/)[0];
+    const [order] = harness.telnyx.callsTo("POST", /number_orders/);
     expect(order.body).toMatchObject({
       phone_numbers: [{ phone_number: "+16465550777" }],
     });
@@ -723,7 +722,7 @@ describe("POST /v1/numbers/provision", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("US texting");
   });
 
@@ -738,7 +737,7 @@ describe("POST /v1/numbers/provision", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("Contact support");
     // No Telnyx order was placed — the cap stops us before any purchase.
     expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
@@ -779,7 +778,7 @@ describe("POST /v1/numbers/provision", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("Sole Proprietor");
   });
 });
@@ -831,7 +830,7 @@ describe("POST /v1/numbers/provision — #277 the pause", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(402);
-    const body = (await res.json()) as { error: { code: string; message: string } };
+    const body = await res.json<{ error: { code: string; message: string } }>();
     expect(body.error.code).toBe("workspace_paused");
     // Nothing was bought and nothing was admitted.
     expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
@@ -903,14 +902,14 @@ describe("POST /v1/numbers/provision — #277 the pause", () => {
 
     const first = await harness.request("/v1/numbers/provision", provisionInit(key));
     expect(first.status).toBe(201);
-    const bought = (await first.json()) as { id: string };
+    const bought = await first.json<{ id: string }>();
 
     // They pause in between.
     harness.rest.rows("companies")[0].paused_at = PAUSED_AT;
 
     const replay = await harness.request("/v1/numbers/provision", provisionInit(key));
     expect(replay.status).toBe(200);
-    expect(((await replay.json()) as { id: string }).id).toBe(bought.id);
+    expect((await replay.json<{ id: string }>()).id).toBe(bought.id);
     // Still exactly one order — the replay bought nothing.
     expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(1);
   });
@@ -980,7 +979,7 @@ function stripeStub(
             id: item.id,
             object: "subscription_item",
             price: { id: item.price, object: "price" },
-            ...(item.quantity !== undefined ? { quantity: item.quantity } : {}),
+            ...(item.quantity === undefined ? {} : { quantity: item.quantity }),
           })),
         },
       });
@@ -1004,14 +1003,14 @@ function stripeStub(
       const item = items.find((i) => i.id === id);
       if (item) {
         item.quantity = Number(form.get("quantity") ?? item.quantity ?? 1);
-        if (form.get("price")) item.price = form.get("price") as string;
+        if (form.get("price")) item.price = form.get("price")!;
       }
       return Response.json({ id, object: "subscription_item" });
     }
     if (request.method === "DELETE") {
       const id = url.pathname.split("/").pop();
       const at = items.findIndex((i) => i.id === id);
-      if (at >= 0) items.splice(at, 1);
+      if (at !== -1) items.splice(at, 1);
       return Response.json({ id, deleted: true });
     }
     return Response.json(
@@ -1087,7 +1086,7 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("billing update just ran");
     // Nothing was admitted: still just the seeded first number, no order.
     expect(harness.rest.rows("phone_numbers")).toHaveLength(1);
@@ -1124,7 +1123,7 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("didn't complete");
     expect(harness.rest.rows("phone_numbers")).toHaveLength(1);
     expect(harness.telnyx.callsTo("POST", /number_orders/)).toHaveLength(0);
@@ -1147,7 +1146,7 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("Pro");
     expect(stripe.calls).toHaveLength(0);
   });
@@ -1192,7 +1191,7 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("aren't available yet");
   });
 
@@ -1206,7 +1205,7 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("plan change is scheduled");
     // Retrieved the subscription, but never wrote to it.
     expect(
@@ -1226,7 +1225,7 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
       provisionInit(key),
     );
     expect(first.status).toBe(201);
-    const bought = (await first.json()) as { id: string };
+    const bought = await first.json<{ id: string }>();
     const stripeWrites = stripe.calls.filter((c) => c.method === "POST").length;
 
     // The retry must return the SAME row (200) and never touch Stripe again —
@@ -1236,10 +1235,10 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
       provisionInit(key),
     );
     expect(retry.status).toBe(200);
-    expect(((await retry.json()) as { id: string }).id).toBe(bought.id);
+    expect((await retry.json<{ id: string }>()).id).toBe(bought.id);
     expect(
-      stripe.calls.filter((c) => c.method === "POST").length,
-    ).toBe(stripeWrites);
+      stripe.calls.filter((c) => c.method === "POST"),
+    ).toHaveLength(stripeWrites);
   });
 
   it("refuses a sole-prop paid extra BEFORE any Stripe write (never charge-then-409)", async () => {
@@ -1257,7 +1256,7 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("Sole Proprietor");
     expect(stripe.calls).toHaveLength(0);
   });
@@ -1275,7 +1274,7 @@ describe("POST /v1/numbers/provision — paid extras (#105/#80)", () => {
       provisionInit(crypto.randomUUID()),
     );
     expect(res.status).toBe(409);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("Contact support");
     expect(stripe.calls).toHaveLength(0);
   });
@@ -1386,7 +1385,7 @@ describe("DELETE /v1/numbers/:id", () => {
       const res = await harness.request(`/v1/numbers/${id}`, { method: "DELETE" });
 
       expect(res.status).toBe(403);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
         error: { code: "confirmation_code_required" },
       });
       // Still ours: nothing was said to Telnyx.
@@ -1416,7 +1415,7 @@ describe("DELETE /v1/numbers/:id", () => {
       });
 
       expect(res.status).toBe(403);
-      expect(await res.json()).toMatchObject({
+      await expect(res.json()).resolves.toMatchObject({
       // #581/#7: the code changed, the property did not. `mfa_challenge_required`
       // is the wall in front of the whole workspace; `mfa_reprove_required` is
       // "tap your authenticator for THIS act". The old assertion also passed for
@@ -1524,9 +1523,9 @@ describe("DELETE /v1/numbers/:id", () => {
       ...withCode(),
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.status).toBe("released");
-    expect(body.released_at).toBeTruthy();
+    expect(Boolean(body.released_at)).toBe(true);
     expect(harness.telnyx.callsTo("DELETE", /phone_numbers/)).toHaveLength(1);
     expect(harness.rest.rows("phone_numbers")[0].status).toBe("released");
   });
@@ -1633,7 +1632,7 @@ describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
       remediateInit({ chosen_number_e164: "+12125550188" }),
     );
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.status).toBe("active");
     expect(body.number_e164).toBe("+12125550188");
     // No new phone_numbers row => provision_number_slot (the paid claim) was
@@ -1660,7 +1659,7 @@ describe("POST /v1/numbers/:id/remediate (no-recharge)", () => {
       remediateInit({ chosen_number_e164: "+16475550100" }),
     );
     expect(res.status).toBe(200);
-    expect(((await res.json()) as Record<string, unknown>).number_e164).toBe(
+    expect((await res.json<Record<string, unknown>>()).number_e164).toBe(
       "+16475550100",
     );
   });
@@ -1758,9 +1757,9 @@ describe("GET /v1/numbers/access/me (#286)", () => {
 
     const res = await harness.request("/v1/numbers/access/me");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       numbers: { phone_number_id: string; level: string; decided_by: string }[];
-    };
+    }>();
     expect(body.numbers).toHaveLength(2);
     const hidden = body.numbers.find((row) => row.phone_number_id === HIDDEN);
     expect(hidden?.level).toBe("none");
@@ -1782,7 +1781,7 @@ describe("GET /v1/numbers/access/me (#286)", () => {
     });
     const res = await harness.request("/v1/numbers/access/me");
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { user_id: string }).user_id).toBe(OWNER_ID);
+    expect((await res.json<{ user_id: string }>()).user_id).toBe(OWNER_ID);
   });
 
   it("SA-3: a hidden number gives up its digits and nothing else", async () => {
@@ -1796,7 +1795,7 @@ describe("GET /v1/numbers/access/me (#286)", () => {
       { phone_number_id: HIDDEN, level: "none", decided_by: "no-match", principal: null },
     ]);
     const res = await harness.request("/v1/numbers/access/me");
-    const row = ((await res.json()) as { numbers: Record<string, unknown>[] }).numbers[0];
+    const [row] = (await res.json<{ numbers: Record<string, unknown>[] }>()).numbers;
     expect(Object.keys(row).sort()).toEqual(
       ["decided_by", "level", "number_e164", "phone_number_id", "principal"],
     );
@@ -1844,10 +1843,10 @@ describe("GET /v1/numbers/access/explain/:userId (#348)", () => {
 
     const res = await harness.request(`/v1/numbers/access/explain/${MEMBER}`);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       user_id: string;
       numbers: { level: string; decided_by: string; principal: string | null; number_e164: string }[];
-    };
+    }>();
     expect(body.user_id).toBe(MEMBER);
     expect(body.numbers).toHaveLength(1);
     // The whole point of #348: not just what, but why.
@@ -1870,7 +1869,7 @@ describe("GET /v1/numbers/access/explain/:userId (#348)", () => {
     ]);
 
     const res = await harness.request(`/v1/numbers/access/explain/${MEMBER}`);
-    const body = (await res.json()) as { numbers: { phone_number_id: string }[] };
+    const body = await res.json<{ numbers: { phone_number_id: string }[] }>();
     expect(body.numbers.map((n) => n.phone_number_id)).toEqual([NUMBER_ID]);
   });
 });
@@ -1928,7 +1927,7 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
 
     const res = await harness.request(`/v1/numbers/${ID}/identity`);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, { value: unknown; inherited: boolean }>;
+    const body = await res.json<Record<string, { value: unknown; inherited: boolean }>>();
 
     expect(body.label).toEqual({ value: "Acme Plumbing", inherited: true });
     expect(body.voicemail_greeting.inherited).toBe(true);
@@ -1952,9 +1951,9 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
     });
     expect(set.status).toBe(200);
 
-    const after = (await (
+    const after = await (
       await harness.request(`/v1/numbers/${ID}/identity`)
-    ).json()) as Record<string, { value: unknown; inherited: boolean }>;
+    ).json<Record<string, { value: unknown; inherited: boolean }>>();
     expect(after.timezone).toEqual({
       value: "America/Vancouver",
       inherited: false,
@@ -1968,9 +1967,9 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ timezone: null, business_hours: null }),
     });
-    const back = (await (
+    const back = await (
       await harness.request(`/v1/numbers/${ID}/identity`)
-    ).json()) as Record<string, { value: unknown; inherited: boolean }>;
+    ).json<Record<string, { value: unknown; inherited: boolean }>>();
     expect(back.timezone).toEqual({ value: "America/Toronto", inherited: true });
     expect(back.business_hours).toEqual({
       value: { mon: { open: "08:00", close: "17:00" } },
@@ -1993,9 +1992,9 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
     });
     expect(res.status).toBe(422);
 
-    const after = (await (
+    const after = await (
       await harness.request(`/v1/numbers/${ID}/identity`)
-    ).json()) as Record<string, { value: unknown; inherited: boolean }>;
+    ).json<Record<string, { value: unknown; inherited: boolean }>>();
     expect(after.timezone.inherited).toBe(true);
   });
 
@@ -2027,9 +2026,9 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
     });
     expect(set.status).toBe(200);
 
-    const after = (await (
+    const after = await (
       await harness.request(`/v1/numbers/${ID}/identity`)
-    ).json()) as Record<string, { value: unknown; inherited: boolean }>;
+    ).json<Record<string, { value: unknown; inherited: boolean }>>();
     expect(after.voicemail_greeting_id).toEqual({
       value: RECORDING,
       inherited: false,
@@ -2040,9 +2039,9 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ voicemail_greeting_id: null }),
     });
-    const back = (await (
+    const back = await (
       await harness.request(`/v1/numbers/${ID}/identity`)
-    ).json()) as Record<string, { value: unknown; inherited: boolean }>;
+    ).json<Record<string, { value: unknown; inherited: boolean }>>();
     expect(back.voicemail_greeting_id).toEqual({ value: null, inherited: true });
   });
 
@@ -2061,7 +2060,7 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
 
     const res = await harness.request(`/v1/numbers/${ID}/identity`);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
 
     for (const field of Object.keys(identityBodySchema._def.shape)) {
       expect(body, `PATCH accepts ${field} and GET never returns it`).toHaveProperty(
@@ -2159,7 +2158,7 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       body: JSON.stringify({ voicemail_greeting: null }),
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as Record<string, { value: unknown; inherited: boolean }>;
+    const body = await res.json<Record<string, { value: unknown; inherited: boolean }>>();
 
     expect(body.voicemail_greeting).toEqual({
       value: "You have reached Acme Plumbing.",
@@ -2179,7 +2178,7 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ voicemail_greeting: "   ", label: "" }),
     });
-    const body = (await res.json()) as Record<string, { value: unknown; inherited: boolean }>;
+    const body = await res.json<Record<string, { value: unknown; inherited: boolean }>>();
 
     expect(body.voicemail_greeting.inherited).toBe(true);
     expect(body.label).toEqual({ value: "Acme Plumbing", inherited: true });
@@ -2205,7 +2204,7 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ label: "Acme Plumbing Sales" }),
     });
-    const body = (await res.json()) as Record<string, { value: unknown; inherited: boolean }>;
+    const body = await res.json<Record<string, { value: unknown; inherited: boolean }>>();
 
     expect(body.label.value).toBe("Acme Plumbing Sales");
     expect(body.voicemail_greeting).toEqual({ value: "Sales line.", inherited: false });
@@ -2218,10 +2217,10 @@ describe("GET/PATCH /v1/numbers/:id/identity (#307)", () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ away_message: "Sales is closed." }),
     });
-    const after = (await second.json()) as Record<
+    const after = await second.json<Record<
       string,
       { value: unknown; inherited: boolean }
-    >;
+    >>();
     expect(after.away_message.value).toBe("Sales is closed.");
     expect(after.label.value).toBe("Acme Plumbing Sales");
     expect(after.voicemail_greeting.value).toBe("Sales line.");
@@ -2297,13 +2296,13 @@ describe("GET /v1/numbers allowed actions (#722)", () => {
       country: "US",
     });
     const actionsOf = async () => {
-      const body = (await (await harness.request("/v1/numbers")).json()) as {
+      const body = await (await harness.request("/v1/numbers")).json<{
         data: { id: string; allowed_actions: string[] }[];
-      };
+      }>();
       return Object.fromEntries(body.data.map((row) => [row.id.slice(-2), row.allowed_actions]));
     };
-    expect(await actionsOf()).toEqual({ f1: ["remediate"], f2: [] });
+    await expect(actionsOf()).resolves.toEqual({ f1: ["remediate"], f2: [] });
     harness.state.role = "member";
-    expect(await actionsOf()).toEqual({ f1: [], f2: [] });
+    await expect(actionsOf()).resolves.toEqual({ f1: [], f2: [] });
   });
 });

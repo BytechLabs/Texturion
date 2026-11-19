@@ -52,8 +52,6 @@ vi.mock("sonner", () => ({
 }));
 
 
-afterEach(cleanup);
-
 beforeEach(() => {
   addLabel.mockReset();
   addLabel.mockResolvedValue({ labels: [] });
@@ -62,6 +60,8 @@ beforeEach(() => {
   toastSuccess.mockReset();
   toastError.mockReset();
 });
+
+afterEach(cleanup);
 
 function openWith(context = {}) {
   render(<NewTaskDialog />);
@@ -77,19 +77,19 @@ function typeTitle(value: string) {
 describe("#689 New task", () => {
   it("asks for a title and hides everything else under More", () => {
     openWith();
-    expect(screen.getByLabelText("What needs doing?")).toBeTruthy();
+    expect(screen.getByLabelText("What needs doing?")).toBeInstanceOf(Element);
     expect(screen.queryByLabelText("Assignee")).toBeNull();
     expect(screen.queryByLabelText("Due")).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "More" }));
-    expect(screen.getByLabelText("Due")).toBeTruthy();
-    expect((screen.getByLabelText("Due") as HTMLInputElement).value).toBe("");
+    expect(screen.getByLabelText("Due")).toBeInstanceOf(Element);
+    expect(screen.getByLabelText<HTMLInputElement>("Due").value).toBe("");
   });
 
   it("creates from the title alone: assigned to me, no due, no link", async () => {
     openWith();
     typeTitle("  Order a furnace filter ");
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledOnce());
     expect(mutateAsync).toHaveBeenCalledWith({
       title: "Order a furnace filter",
       assignee_ids: ["me-1"],
@@ -112,7 +112,7 @@ describe("#689 New task", () => {
     fireEvent.click(screen.getByRole("option", { name: "Ben" }));
     fireEvent.keyDown(screen.getByRole("listbox"), { key: "Escape" });
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
-    await waitFor(() => expect(mutateAsync).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mutateAsync).toHaveBeenCalledOnce());
     expect(mutateAsync).toHaveBeenCalledWith({
       title: "Two-person install",
       assignee_ids: ["me-1", "u2"],
@@ -128,7 +128,7 @@ describe("#689 New task", () => {
 
   it("links a contact when opened from a contact", async () => {
     openWith({ contactId: "c1", contactName: "Pat Plumber" });
-    expect(screen.getByText("For Pat Plumber")).toBeTruthy();
+    expect(screen.getByText("For Pat Plumber")).toBeInstanceOf(Element);
     typeTitle("Quote the boiler");
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
@@ -141,7 +141,7 @@ describe("#689 New task", () => {
     typeTitle("Call back");
     fireEvent.click(screen.getByRole("button", { name: "Create task" }));
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
-    const body = mutateAsync.mock.calls[0][0];
+    const [[body]] = mutateAsync.mock.calls;
     expect(body).toMatchObject({ conversation_id: "v1" });
     expect(body).not.toHaveProperty("contact_id");
   });
@@ -175,9 +175,9 @@ describe("#689 New task", () => {
     typeTitle("Monthly filter");
     fireEvent.click(screen.getByRole("button", { name: "More" }));
     fireEvent.click(screen.getByLabelText("Repeat"));
-    expect(await screen.findByText(/needs a due date/)).toBeTruthy();
+    await expect(screen.findByText(/needs a due date/)).resolves.toBeInstanceOf(Element);
     expect(
-      (screen.getByRole("button", { name: "Apply" }) as HTMLButtonElement).disabled,
+      screen.getByRole<HTMLButtonElement>("button", { name: "Apply" }).disabled,
     ).toBe(true);
   });
 });
@@ -185,12 +185,12 @@ describe("#689 New task", () => {
 describe("#739 New task from the calendar", () => {
   it("opens with the clicked due on screen and reads it in the workspace zone", async () => {
     openWith({ due: "2026-11-12T09:00", timeZone: "America/Toronto" });
-    const field = screen.getByLabelText("Due") as HTMLInputElement;
+    const field = screen.getByLabelText<HTMLInputElement>("Due");
     expect(field.value).toBe("2026-11-12T09:00");
     typeTitle("Fix the boiler");
     fireEvent.submit(field.closest("form")!);
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
-    expect(mutateAsync.mock.calls[0]![0].due_at).toBe("2026-11-12T14:00:00.000Z");
+    expect(mutateAsync.mock.calls[0][0].due_at).toBe("2026-11-12T14:00:00.000Z");
   });
 
   it("does the same in Los Angeles", async () => {
@@ -198,6 +198,6 @@ describe("#739 New task from the calendar", () => {
     typeTitle("Fix the boiler");
     fireEvent.submit(screen.getByLabelText("Due").closest("form")!);
     await waitFor(() => expect(mutateAsync).toHaveBeenCalled());
-    expect(mutateAsync.mock.calls[0]![0].due_at).toBe("2026-11-12T17:00:00.000Z");
+    expect(mutateAsync.mock.calls[0][0].due_at).toBe("2026-11-12T17:00:00.000Z");
   });
 });

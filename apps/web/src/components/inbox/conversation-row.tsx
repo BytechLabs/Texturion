@@ -147,7 +147,9 @@ function TagChip({ tag, emphasis }: { tag: Tag; emphasis: boolean }) {
 // Memoized: the virtualized inbox list re-renders on every scroll + #11 FLIP
 // animation, but each cached `conversation` object + the boolean props are
 // referentially stable, so a shallow compare skips re-rendering every row.
-export const ConversationRow = memo(({
+export const ConversationRow = memo(ConversationRowView);
+
+function ConversationRowView({
   conversation,
   active,
   cursor = false,
@@ -160,7 +162,7 @@ export const ConversationRow = memo(({
   cursor?: boolean;
   spamView: boolean;
   listQuery?: string;
-}) => {
+}) {
   const t = useT();
   const memberNames = useMemberNames();
   const snippet = useSnippet(conversation);
@@ -402,4 +404,4 @@ export const ConversationRow = memo(({
     {dialogs}
     </>
   );
-});
+}

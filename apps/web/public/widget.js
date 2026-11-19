@@ -65,7 +65,7 @@
   const host = document.createElement("div");
   host.dataset.loonextWidget = "";
   const root = host.attachShadow({ mode: "open" });
-  document.body.appendChild(host);
+  document.body.append(host);
 
   const style = document.createElement("style");
   style.textContent = [
@@ -111,7 +111,7 @@
     ".panel{animation:pop .16s ease-out}",
     "@keyframes pop{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}}",
   ].join("");
-  root.appendChild(style);
+  root.append(style);
 
   const wrap = document.createElement("div");
   wrap.className = "wrap";
@@ -164,7 +164,7 @@
     `<p class="by"><a href="https://loonext.com/?ref=widget" target="_blank" ` +
     `rel="noopener">${  t.poweredBy  }</a></p>` +
     `</div></div>`;
-  root.appendChild(wrap);
+  root.append(wrap);
 
   const launcher = root.querySelector(".launch");
   const panel = root.querySelector(".panel");
@@ -237,17 +237,19 @@
     }
   });
 
+  function unpackResponse(response) {
+    return response
+      .json()
+      .catch(() => ({}))
+      .then((payload) => ({ ok: response.ok, payload }));
+  }
+
   function post(path, body) {
     return fetch(origin.replace("//app.", "//api.") + path, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(body),
-    }).then((response) =>
-      response
-        .json()
-        .catch(() => ({}))
-        .then((payload) => ({ ok: response.ok, payload })),
-    );
+    }).then(unpackResponse);
   }
 
   function turnstileToken() {
@@ -310,7 +312,7 @@
           return;
         }
         if (verificationId === null) {
-          verificationId = result.payload.verificationId;
+          ({ verificationId } = result.payload);
           paint();
           note.textContent = t.sentCode;
           const code = root.querySelector("#lx-code");

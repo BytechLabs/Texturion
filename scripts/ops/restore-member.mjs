@@ -29,9 +29,9 @@ await runScript("restore-member", async ({ args, apply, db, script }) => {
   const rows = await db.select(
     "company_members",
     "id,company_id,user_id,role,deactivated_at,created_at",
-    { id: "eq." + memberId, company_id: "eq." + companyId },
+    { id: `eq.${memberId}`, company_id: `eq.${companyId}` },
   );
-  const member = rows[0];
+  const [member] = rows;
   if (!member) {
     fail(`no member ${memberId} in company ${companyId}.`);
   }
@@ -47,7 +47,7 @@ await runScript("restore-member", async ({ args, apply, db, script }) => {
   // support restore that ignores it puts the workspace over its plan silently
   // and the next legitimate invite is the one that gets refused.
   const active = await db.count("company_members", {
-    company_id: "eq." + companyId,
+    company_id: `eq.${companyId}`,
     deactivated_at: "is.null",
   });
   console.log(`  active members after this: ${active + 1}`);
@@ -57,7 +57,7 @@ await runScript("restore-member", async ({ args, apply, db, script }) => {
 
   await db.patch(
     "company_members",
-    { id: "eq." + memberId, company_id: "eq." + companyId },
+    { id: `eq.${memberId}`, company_id: `eq.${companyId}` },
     { deactivated_at: null, role: "member" },
   );
 

@@ -181,7 +181,7 @@ test("a rigd install that fails fails the deploy, after the services restarted, 
     assert.throws(
       () => activate(activation(failing)),
       (error) => {
-        message = error.message;
+        ({ message } = error);
         return /abc123 is deployed and its services restarted, but rigd's units install failed.*exited with 1: systemctl --user enable failed/.test(message);
       },
     );
@@ -336,7 +336,7 @@ test("a rigd that cannot build its units refuses the deploy, naming the fix", ()
       checkRigdUnits({
         nodeBin: NODE,
         runner: (command, args) => {
-          out = args[3];
+          ({ 3: out } = args);
           throw new CommandFailed(command, 1, "Error [ERR_MODULE_NOT_FOUND]: Cannot find package '@loonext/rig-robot'");
         },
       }),

@@ -18,7 +18,7 @@ export const TOAST_SHORTCUT = {
   cap: "Alt+T",
 };
 
-const Toaster = ({ ...props }: ToasterProps) => {
+function Toaster(props: ToasterProps) {
   const { theme = "system" } = useTheme()
   const t = useT();
   const label = t("shell.recentNotifications");

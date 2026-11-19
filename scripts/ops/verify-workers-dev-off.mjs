@@ -48,9 +48,9 @@ async function probe(host, path) {
       redirect: "manual",
     });
     return { status: response.status };
-  } catch (cause) {
+  } catch (error) {
     // DNS failure is the strongest possible "off" — the name does not resolve.
-    return { status: null, why: cause.message };
+    return { status: null, why: error.message };
   }
 }
 

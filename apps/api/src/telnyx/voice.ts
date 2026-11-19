@@ -138,10 +138,10 @@ export async function enableVoiceOnNumber(
       row.company_id,
       row.telnyx_phone_number_id,
     );
-  } catch (cause) {
+  } catch (error_) {
     console.error(
       `call settings catch-up failed for number ${row.id}:`,
-      cause instanceof Error ? cause.message : String(cause),
+      error_ instanceof Error ? error_.message : String(error_),
     );
   }
 
@@ -179,13 +179,13 @@ export async function enableVoiceForCompany(
     if (!row.telnyx_phone_number_id) continue;
     try {
       results.push(await enableVoiceOnNumber(env, db, row));
-    } catch (cause) {
+    } catch (error_) {
       // #134 review: one un-bindable number must never abort the company's
       // remaining numbers on this pass — the 15-min reconcile is the durable
       // per-number retry.
       console.error(
         `voice bind failed for number ${row.id}:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error_ instanceof Error ? error_.message : String(error_),
       );
     }
   }
@@ -201,8 +201,8 @@ export async function enableVoiceForCompany(
  */
 export function sanitizeCnamDisplayName(name: string): string | null {
   const cleaned = name
-    .replace(/[^A-Za-z0-9 ]+/g, " ")
-    .replace(/\s+/g, " ")
+    .replaceAll(/[^A-Za-z0-9 ]+/g, " ")
+    .replaceAll(/\s+/g, " ")
     .trim()
     .slice(0, 15)
     .trim();
@@ -306,10 +306,10 @@ export async function syncCallSettingsForCompany(
         body: voicePatch,
       });
       pushed += 1;
-    } catch (cause) {
+    } catch (error_) {
       console.error(
         `call settings sync failed for number ${row.id as string}:`,
-        cause instanceof Error ? cause.message : String(cause),
+        error_ instanceof Error ? error_.message : String(error_),
       );
     }
   }
@@ -347,12 +347,12 @@ export async function pushCallSettingsToNumber(
 
   const listing = effectiveCnamDisplayName(company);
   const voicePatch = buildVoicePatch({
-    ...(company.call_screening != null
-      ? { callScreening: company.call_screening }
-      : {}),
-    ...(company.caller_id_lookup != null
-      ? { callerIdLookup: company.caller_id_lookup }
-      : {}),
+    ...(company.call_screening == null
+      ? {}
+      : { callScreening: company.call_screening }),
+    ...(company.caller_id_lookup == null
+      ? {}
+      : { callerIdLookup: company.caller_id_lookup }),
     cnamDisplayName: listing,
   });
   await telnyxRequest(env, {
@@ -410,7 +410,7 @@ export async function reconcileVoiceEnablement(
   if (companiesError) {
     throw new Error(`companies lookup failed: ${companiesError.message}`);
   }
-  const companyIds = (companies ?? []).map((row) => (row as { id: string }).id);
+  const companyIds = (companies ?? []).map((row) => row.id);
   if (companyIds.length === 0) return summary;
 
   // Chunk the company-id filter: a single .in() over every active company would
@@ -436,10 +436,10 @@ export async function reconcileVoiceEnablement(
     try {
       const result = await enableVoiceOnNumber(env, db, row);
       if (result.changed) summary.enabled += 1;
-    } catch (cause) {
+    } catch (error) {
       // One number's failure never starves the rest; the cron re-runs in 15m.
-      void captureException(env, cause, { source: "api" });
-      failures.push(cause);
+      void captureException(env, error, { source: "api" });
+      failures.push(error);
     }
   }
   if (failures.length > 0) {

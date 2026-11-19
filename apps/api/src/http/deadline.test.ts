@@ -27,7 +27,10 @@ describe(fetchWithDeadline, () => {
     vi.spyOn(globalThis, "fetch").mockImplementation(
       (_input, init) =>
         new Promise((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => reject(init.signal?.reason));
+          init?.signal?.addEventListener("abort", () => {
+            const reason: unknown = init.signal?.reason;
+            reject(reason instanceof Error ? reason : new Error("Fetch aborted"));
+          });
         }),
     );
     const error = await fetchWithDeadline("https://example.test/", undefined, 5).catch((error_: unknown) => error_);
@@ -57,7 +60,7 @@ describe(deadline, () => {
   it("does not abort after clear", async () => {
     const limit = deadline(5);
     limit.clear();
-    await new Promise((resolve) => setTimeout(resolve, 30));
+    await new Promise((resolve) => { setTimeout(resolve, 30); });
     expect(limit.signal.aborted).toBe(false);
   });
 });
@@ -76,9 +79,10 @@ describe(readWithDeadline, () => {
     const result = readWithDeadline("https://example.test/", undefined, 10_000, (response) =>
       response.text(),
     );
-    const check = expect(result).rejects.toHaveProperty("name", "TimeoutError");
-    await vi.advanceTimersByTimeAsync(10_000);
-    await check;
+    await Promise.all([
+      expect(result).rejects.toHaveProperty("name", "TimeoutError"),
+      vi.advanceTimersByTimeAsync(10_000),
+    ]);
     expect(vi.getTimerCount()).toBe(0);
   });
 });

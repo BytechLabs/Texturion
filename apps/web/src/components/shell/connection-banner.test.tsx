@@ -49,7 +49,7 @@ describe("the connection banner", () => {
     render(<ConnectionBanner />);
     setOnline(false);
 
-    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.getByRole("status")).toBeInstanceOf(Element);
   });
 
   it("says what still works, not only what broke", () => {
@@ -68,7 +68,7 @@ describe("the connection banner", () => {
     // condition, so it disappears when the condition does.
     const { container } = render(<ConnectionBanner />);
     setOnline(false);
-    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.getByRole("status")).toBeInstanceOf(Element);
 
     setOnline(true);
     expect(container.innerHTML).toBe("");
@@ -84,7 +84,7 @@ describe("the connection banner", () => {
     });
     render(<ConnectionBanner />);
 
-    expect(screen.getByRole("status")).toBeTruthy();
+    expect(screen.getByRole("status")).toBeInstanceOf(Element);
   });
 
   it("announces politely rather than interrupting", () => {

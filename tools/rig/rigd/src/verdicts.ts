@@ -143,7 +143,8 @@ export class VerdictStore {
   saveEvidence(runId: string, attempt: number, evidence: unknown): void {
     const path = this.#evidencePath(runId);
     const existing = existsSync(path) ? (JSON.parse(readFileSync(path, "utf8")) as unknown[]) : [];
-    existing.push({ attempt, ...((evidence ?? {})) });
+    const fields = evidence as Record<string, unknown> | null | undefined;
+    existing.push({ attempt, ...fields });
     writeFileSync(path, JSON.stringify(existing));
   }
 

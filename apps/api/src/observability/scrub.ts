@@ -35,13 +35,13 @@ const EMAIL_REDACTED = "[email redacted]";
 const NAME_REDACTED = "[name redacted]";
 
 export function redactPhones(text: string): string {
-  return text.replace(UUID_OR_PHONE, (_match, uuid?: string) =>
+  return text.replaceAll(UUID_OR_PHONE, (_match, uuid?: string) =>
     uuid ?? PHONE_REDACTED,
   );
 }
 
 export function redactEmails(text: string): string {
-  return text.replace(EMAIL_PATTERN, EMAIL_REDACTED);
+  return text.replaceAll(EMAIL_PATTERN, EMAIL_REDACTED);
 }
 
 /**
@@ -64,7 +64,7 @@ const TOKEN_SEGMENT_PATTERN = new RegExp(
 
 /** `/photos/<256 bits of secret>` → `/photos/[token]`. */
 export function redactTokenPaths(text: string): string {
-  return text.replace(TOKEN_SEGMENT_PATTERN, `/$1/${TOKEN_REDACTED}`);
+  return text.replaceAll(TOKEN_SEGMENT_PATTERN, `/$1/${TOKEN_REDACTED}`);
 }
 
 /**
@@ -201,7 +201,7 @@ export function scrubUnknown(value: unknown): unknown {
  * catches the careless author and misses the one who writes
  * `{ contact: "+16135551234" }`. What matters is what the VALUE is.
  */
-const FORBIDDEN_PROPERTY: ReadonlyArray<{ what: string; pattern: RegExp }> = [
+const FORBIDDEN_PROPERTY: readonly { what: string; pattern: RegExp }[] = [
   // E.164 and the loose North American forms people actually type, anywhere in
   // the value.
   { what: "phone number", pattern: /\+?\d[\d\s().-]{8,}\d/ },

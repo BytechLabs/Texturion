@@ -150,7 +150,8 @@ describe("GET /v1/calls/live/:id/targets", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({
       targets: [
         { user_id: TARGET_ID, busy: true, has_push_channel: true },
         { user_id: offlineId, busy: false, has_push_channel: false },
@@ -176,7 +177,8 @@ describe("GET /v1/calls/live/:id/targets", () => {
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ targets: [{ user_id: TARGET_ID, busy: false }] });
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({ targets: [{ user_id: TARGET_ID, busy: false }] });
   });
 });
 
@@ -324,10 +326,19 @@ describe("POST /v1/calls/live/:id/transfer (D43 phase 3)", () => {
     const ring = (token: string, transferId = activeId) => apiRequest(app, doEnv, token, `${base}/ring-me`, {
       companyId: COMPANY_ID, method: "POST", body: { transfer_id: transferId, no_local_leg: true },
     });
-    expect(await (await ring(senderToken)).json()).toMatchObject({ rang: false, reason: "not_ringing" });
-    expect(await (await ring(targetToken, crypto.randomUUID())).json()).toMatchObject({ rang: false, reason: "not_ringing" });
-    expect(await (await ring(targetToken)).json()).toMatchObject({ rang: true });
-    expect(await (await ring(targetToken)).json()).toMatchObject({ rang: false, reason: "live_leg" });
+    await expect((await ring(senderToken)).json()).resolves.toMatchObject({
+      rang: false,
+      reason: "not_ringing",
+    });
+    await expect((await ring(targetToken, crypto.randomUUID())).json()).resolves.toMatchObject({
+      rang: false,
+      reason: "not_ringing",
+    });
+    await expect((await ring(targetToken)).json()).resolves.toMatchObject({ rang: true });
+    await expect((await ring(targetToken)).json()).resolves.toMatchObject({
+      rang: false,
+      reason: "live_leg",
+    });
     expect(fcm.sends).toHaveLength(1);
     expect(transfer.calls).toHaveLength(2);
     expect(transfer.calls[1].body).toMatchObject({
@@ -759,7 +770,7 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { calls: Record<string, unknown>[] };
+    const body = await res.json<{ calls: Record<string, unknown>[] }>();
     expect(body.calls).toHaveLength(1);
     expect(body.calls[0]).toMatchObject({
       call_session_id: SESSION,
@@ -774,7 +785,7 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
 
     // The liveness contract is enforced IN the query: my answered, un-ended
     // calls only, company-scoped, inside the stale-call window.
-    const read = sb.find("GET", "/rest/v1/calls")[0];
+    const [read] = sb.find("GET", "/rest/v1/calls");
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(read.url.searchParams.get("answered_by_user_id")).toBe(
       `eq.${auth.subject}`,
@@ -798,7 +809,7 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { calls: unknown[] }).calls).toHaveLength(0);
+    expect((await res.json<{ calls: unknown[] }>()).calls).toHaveLength(0);
   });
 
   it("returns an empty list when no call is live (the relaunch found nothing to recover)", async () => {
@@ -809,7 +820,7 @@ describe("GET /v1/calls/live/mine (#168 part D — post-crash recovery)", () => 
       companyId: COMPANY_ID,
     });
     expect(res.status).toBe(200);
-    expect(((await res.json()) as { calls: unknown[] }).calls).toHaveLength(0);
+    expect((await res.json<{ calls: unknown[] }>()).calls).toHaveLength(0);
   });
 });
 
@@ -930,7 +941,7 @@ describe("POST /v1/calls/live/:id/decline (#171)", () => {
     const sb = liveWorld({ call: { answered_at: null, outcome: null } });
     const res = await post(sb);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { declined: boolean; state: string; reason?: string };
+    const body = await res.json<{ declined: boolean; state: string; reason?: string }>();
     expect(body).toMatchObject({ declined: false, reason: "not_ringing" });
     expect(body.state).toBe("ringing");
   });
@@ -939,7 +950,7 @@ describe("POST /v1/calls/live/:id/decline (#171)", () => {
     const sb = liveWorld({ call: { answered_at: null, outcome: "missed" } });
     const res = await post(sb);
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { declined: boolean; state: string };
+    const body = await res.json<{ declined: boolean; state: string }>();
     expect(body).toMatchObject({ declined: false, state: "ended_missed" });
   });
 
@@ -1050,10 +1061,10 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       declined: boolean;
       sessions: { session_id: string; state: string }[];
-    };
+    }>();
     expect(body.declined).toBe(true);
     expect(body.sessions).toEqual([
       { session_id: SESSION, state: "voicemail_greeting" },
@@ -1064,7 +1075,7 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     // The queryable truth: company-scoped, state='ringing', outcome null, and
     // (#581) inside the same live window /calls/live/mine uses — an older
     // 'ringing' row is a crashed session, not a call anyone can decline.
-    const read = sb.find("GET", "/rest/v1/calls")[0];
+    const [read] = sb.find("GET", "/rest/v1/calls");
     expect(read.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(read.url.searchParams.get("state")).toBe("eq.ringing");
     expect(read.url.searchParams.get("outcome")).toBe("is.null");
@@ -1099,10 +1110,10 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       declined: boolean;
       sessions: { session_id: string }[];
-    };
+    }>();
     expect(body.sessions).toEqual([
       { session_id: SESSION, state: "voicemail_greeting" },
     ]);
@@ -1129,10 +1140,10 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       declined: boolean;
       sessions: unknown[];
-    };
+    }>();
     expect(body).toEqual({ declined: false, sessions: [] });
     // It DID route the no-op decline (the DO is the authority on membership)…
     expect(routed).toEqual([{ sessionId: OTHER, userId: auth.subject }]);
@@ -1159,10 +1170,10 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       declined: boolean;
       sessions: { session_id: string }[];
-    };
+    }>();
     expect(body.declined).toBe(true);
     expect(body.sessions).toEqual([
       { session_id: MINE, state: "voicemail_greeting" },
@@ -1221,10 +1232,10 @@ describe("POST /v1/calls/live/decline-mine (#171 R1)", () => {
     const res = await post(doEnv, sb);
 
     expect(res.status).toBe(200);
-    const body = (await res.json()) as {
+    const body = await res.json<{
       declined: boolean;
       sessions: { session_id: string }[];
-    };
+    }>();
     expect(body.declined).toBe(true);
     expect(body.sessions).toEqual([
       { session_id: GOOD, state: "voicemail_greeting" },

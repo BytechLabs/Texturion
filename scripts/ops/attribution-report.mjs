@@ -85,11 +85,7 @@ await runScript(
     }
 
     const header =
-      "  page".padEnd(34) +
-      "signups".padStart(8) +
-      "active".padStart(8) +
-      "rate".padStart(7) +
-      "  first      last";
+      `${"  page".padEnd(34)}${"signups".padStart(8)}${"active".padStart(8)}${"rate".padStart(7)}  first      last`;
     console.log(header);
     console.log(`  ${"─".repeat(header.length - 2)}`);
 
@@ -99,12 +95,12 @@ await runScript(
     for (const row of [...rankable, ...thin]) {
       const name = String(row.landing_path).slice(0, 32);
       console.log(
-        `  ${name.padEnd(32)}` +
-          String(row.signups).padStart(8) +
-          String(row.activated).padStart(8) +
-          (row.is_small ? "      —" : pct(row.activation_rate).padStart(7)) +
-          `  ${day(row.first_signup_at)} ${day(row.last_signup_at)}` +
-          (row.is_small ? "  (too thin to rank)" : ""),
+        [
+          `  ${name.padEnd(32)}${String(row.signups).padStart(8)}${String(row.activated).padStart(8)}`,
+          row.is_small ? "      —" : pct(row.activation_rate).padStart(7),
+          `  ${day(row.first_signup_at)} ${day(row.last_signup_at)}`,
+          row.is_small ? "  (too thin to rank)" : "",
+        ].join(""),
       );
     }
 
@@ -118,7 +114,7 @@ await runScript(
       return;
     }
 
-    const best = rankable[0];
+    const [best] = rankable;
     console.log(
       `\n  Most activations: ${best.landing_path} — ${best.activated} of ` +
         `${best.signups} (${pct(best.activation_rate).trim()})\n`,

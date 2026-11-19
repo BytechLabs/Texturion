@@ -1,3 +1,7 @@
+import { trimTrailingCharacters } from "@loonext/shared";
+import { defaultTreeAdapter, parse } from "parse5";
+import type { DefaultTreeAdapterMap } from "parse5";
+
 import {
   calendarProviderSignal,
   providerJson,
@@ -6,43 +10,43 @@ import {
 import {
   appendUnlinkNote,
   calendarTitleRefusalReason,
-  hasTaskLink,
   hashCalendarDescription,
+  hasTaskLink,
   instantFromRfc3339OrWallClock,
   isIanaTimeZone,
   normalizeCalendarText,
   wallClockFromInstant,
-  withTaskLink,
   withoutTaskLink,
+  withTaskLink,
 } from "./normalize";
-import {
-  type AnnotateCalendarEventInput,
-  type CalendarChangePage,
-  type CalendarChangeNotice,
-  type CalendarFetch,
-  type CalendarOAuthClient,
-  type CalendarOAuthTokens,
-  type CalendarProvider,
-  CalendarProviderError,
-  type CalendarRemoteEvent,
-  CalendarReauthRequiredError,
-  type CalendarWatch,
-  type CreateCalendarEventInput,
-  type DeleteCalendarEventInput,
-  type GetCalendarEventInput,
-  InvalidCalendarEventError,
-  type ListCalendarChangesInput,
-  type PatchCalendarEventInput,
-  type RenewCalendarWatchInput,
-  type ScrubCalendarEventInput,
-  type StartCalendarWatchInput,
-  type StopCalendarWatchInput,
-  type WriteCalendarEventInput,
+import { CalendarProviderError, CalendarReauthRequiredError, InvalidCalendarEventError } from "./types";
+import type {
+  AnnotateCalendarEventInput,
+  CalendarChangeNotice,
+  CalendarChangePage,
+  CalendarFetch,
+  CalendarOAuthClient,
+  CalendarOAuthTokens,
+  CalendarProvider,
+  CalendarRemoteEvent,
+  CalendarWatch,
+  CreateCalendarEventInput,
+  DeleteCalendarEventInput,
+  GetCalendarEventInput,
+  ListCalendarChangesInput,
+  PatchCalendarEventInput,
+  RenewCalendarWatchInput,
+  ScrubCalendarEventInput,
+  StartCalendarWatchInput,
+  StopCalendarWatchInput,
+  WriteCalendarEventInput,
 } from "./types";
 import { windowsZoneToIana } from "./windows-zones";
 
 const GRAPH_API = "https://graph.microsoft.com/v1.0";
 const SCRUBBED_EVENT_TITLE = "Loonext event removed";
+const DESCRIPTION_LINE_BREAKS = new Set(["br", "p", "div", "li", "h1", "h2", "h3", "h4", "h5", "h6"]);
+const HIDDEN_DESCRIPTION_TAGS = new Set(["head", "script", "style"]);
 
 export const MICROSOFT_CALENDAR_SCOPES = [
   "offline_access",
@@ -128,39 +132,34 @@ function sameEmail(left: string | undefined, right: string | undefined): boolean
   return Boolean(left && right && left.trim().toLowerCase() === right.trim().toLowerCase());
 }
 
-function decodeNumericHtmlEntity(value: number): string {
-  return Number.isInteger(value) && value >= 0 && value <= 0x10ffff
-    ? String.fromCodePoint(value)
-    : "";
-}
-
 function graphBodyText(body: GraphEvent["body"]): string {
   const content = body?.content ?? "";
   if (body?.contentType !== "html") return normalizeCalendarText(content);
-  const withoutActiveContent = content.replace(
-    /<(script|style)\b[^>]*>[\s\S]*?<\/\1\s*>/gi,
-    "",
-  );
-  const withoutTags = withoutActiveContent
-    .replace(/<br\s*\/?>/gi, "\n")
-    .replace(/<\/(?:p|div|li|h[1-6])\s*>/gi, "\n")
-    .replace(/<[^>]*>/g, "");
-  const decoded = withoutTags
-    .replace(/&#(\d+);/g, (_match, decimal: string) =>
-      decodeNumericHtmlEntity(Number(decimal)),
-    )
-    .replace(/&#x([0-9a-f]+);/gi, (_match, hex: string) =>
-      decodeNumericHtmlEntity(Number.parseInt(hex, 16)),
-    )
-    .replace(/&(amp|lt|gt|quot|apos|nbsp);/gi, (_match, name: string) => ({
-      amp: "&",
-      lt: "<",
-      gt: ">",
-      quot: '"',
-      apos: "'",
-      nbsp: " ",
-    })[name.toLowerCase()] ?? "");
-  return normalizeCalendarText(decoded).replace(/\n+$/, "");
+
+  const text: string[] = [];
+  const pending: (DefaultTreeAdapterMap["node"] | "\n")[] = [parse(content)];
+  while (pending.length > 0) {
+    const node = pending.pop()!;
+    if (node === "\n") {
+      text.push(node);
+      continue;
+    }
+    if (defaultTreeAdapter.isTextNode(node)) {
+      text.push(node.value.replaceAll("\u00A0", " "));
+      continue;
+    }
+    if (defaultTreeAdapter.isElementNode(node)) {
+      if (HIDDEN_DESCRIPTION_TAGS.has(node.tagName)) continue;
+      if (DESCRIPTION_LINE_BREAKS.has(node.tagName)) pending.push("\n");
+    }
+    if ("childNodes" in node) {
+      for (let index = node.childNodes.length - 1; index >= 0; index -= 1) {
+        pending.push(node.childNodes[index]);
+      }
+    }
+  }
+
+  return trimTrailingCharacters(normalizeCalendarText(text.join("")), "\n");
 }
 
 function assertVersion(version: string, operation: string): void {
@@ -209,11 +208,11 @@ function assertGraphCursor(value: string): string {
 
 function escapeHtml(value: string): string {
   return value
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/"/g, "&quot;")
-    .replace(/'/g, "&#39;");
+    .replaceAll('&', "&amp;")
+    .replaceAll('<', "&lt;")
+    .replaceAll('>', "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll('\'', "&#39;");
 }
 
 function annotatedBody(input: AnnotateCalendarEventInput): {
@@ -550,9 +549,9 @@ function oauthTokens(
   }
   return {
     accessToken: token.access_token,
-    refreshToken: (token.refresh_token as string | undefined) ?? fallbackRefreshToken,
-    expiresInSeconds: (token.expires_in as number | undefined) ?? null,
-    scope: (token.scope as string | undefined) ?? null,
+    refreshToken: token.refresh_token ?? fallbackRefreshToken,
+    expiresInSeconds: token.expires_in ?? null,
+    scope: token.scope ?? null,
   };
 }
 
@@ -603,9 +602,12 @@ export async function refreshMicrosoftAccessToken(
 }
 
 export class MicrosoftCalendarProvider implements CalendarProvider {
+  private readonly fetcher: CalendarFetch;
   readonly name = "microsoft" as const;
 
-  constructor(private readonly fetcher: CalendarFetch = fetch) {}
+  constructor(fetcher: CalendarFetch = fetch) {
+    this.fetcher = fetcher;
+  }
 
   async listChanges(
     input: ListCalendarChangesInput,

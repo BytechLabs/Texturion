@@ -34,10 +34,10 @@ async function waitForHttp(url, child) {
   for (let attempt = 0; attempt < 90; attempt += 1) {
     assert.equal(child.exitCode, null, `Process exited while waiting for ${url}`);
     try {
-      await fetch(url, { signal: AbortSignal.timeout(1_000) });
+      await fetch(url, { signal: AbortSignal.timeout(1000) });
       return;
     } catch {
-      await delay(1_000);
+      await delay(1000);
     }
   }
   throw new Error(`Timed out waiting for ${url}`);
@@ -141,12 +141,10 @@ async function checkJourney(page, web, api, telnyx) {
         status: result.status(),
         result: await result.json(),
       });
-      if (attempts.length === 1) {
-        // The Worker has already sent the text. Lose only the browser response.
-        await route.abort("connectionreset");
-      } else {
-        await route.fulfill({ response: result });
-      }
+      // The Worker has already sent the text. Lose only the browser response on the first attempt.
+      await (attempts.length === 1
+        ? route.abort("connectionreset")
+        : route.fulfill({ response: result }));
     });
 
     const composer = inbox.locator("[data-composer]");

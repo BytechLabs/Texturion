@@ -95,7 +95,7 @@ async function probeProfileId(ctx: Ctx, spec: TelnyxSpec): Promise<string | null
   const profiles = await telnyx.listAll<Item>("/v2/outbound_voice_profiles");
   const found = profiles.filter((item) => item.name === spec.limit_probe.name);
   if (found.length !== 1 || typeof found[0].id !== "string" || !found[0].id) return null;
-  const {id} = found[0];
+  const [{id}] = found;
   if (found[0].billing_group_id !== record.billing_group_id) return null;
   if (Object.values(record.outbound_voice_profiles ?? {}).includes(id)) return null;
   const connections = [

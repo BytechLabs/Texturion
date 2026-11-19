@@ -126,10 +126,10 @@ await runScript("set-flag", async ({ args, apply, db, script }) => {
     );
   }
 
-  const before = await db.select("feature_flags", notes.columns(FLAG_COLUMNS), { key: "eq." + key });
+  const before = await db.select("feature_flags", notes.columns(FLAG_COLUMNS), { key: `eq.${key}` });
   showRows(
     "Flag now",
-    before.length ? notes.rows(FLAG_COLUMNS, before) : [{ key, state: "(no row — code default)" }],
+    before.length > 0 ? notes.rows(FLAG_COLUMNS, before) : [{ key, state: "(no row — code default)" }],
   );
   showRows("Flag after", [
     {

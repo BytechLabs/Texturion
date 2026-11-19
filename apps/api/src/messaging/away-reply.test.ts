@@ -12,7 +12,6 @@ import type { Env } from "../env";
 import { messageRow, restMatch, rpcMatch, stubRoute } from '../test/messaging-support';
 import type { Stub } from '../test/messaging-support';
 import { completeEnv, stubFetch } from '../test/support';
-import type { FetchRoute } from '../test/support';
 import { maybeSendAwayReply } from "./away-reply";
 
 const env: Env = completeEnv();
@@ -151,7 +150,7 @@ function telnyxStub(): Stub {
 }
 
 function serve(...stubs: Stub[]) {
-  stubFetch(...(stubs.map((s) => s.route) as FetchRoute[]));
+  stubFetch(...stubs.map((s) => s.route));
 }
 
 function call(triggerBody = "no hot water", atUtc = AFTER_HOURS) {

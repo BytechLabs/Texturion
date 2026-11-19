@@ -1,7 +1,8 @@
 "use client";
 
 import { CallEffectNote } from "@/components/settings/call-effect-note";
-import { DEFAULT_LOCALE, type BillingCurrency } from "@loonext/shared";
+import { DEFAULT_LOCALE } from "@loonext/shared";
+import type { BillingCurrency } from "@loonext/shared";
 import { Gauge, OctagonPause, TrendingUp } from "lucide-react";
 import Link from "next/link";
 
@@ -14,7 +15,8 @@ import { SettingsCard, SettingsPage } from "@/components/settings/section";
 import { LoadError } from "@/components/ui/load-error";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useUsage } from "@/lib/api/usage";
 import type { Usage, UsageMonth } from "@/lib/api/types";
@@ -362,7 +364,7 @@ function HistoryBars({ history }: { history: UsageMonth[] }) {
 function UsageDetails({ usage }: { usage: Usage }) {
   const t = useT();
   const pauseAt = usage.cap_segments ?? capSegments(usage.included_segments, null);
-  const voice = usage.voice;
+  const { voice } = usage;
   return (
     <details className="group">
       <summary className="inline-flex min-h-[44px] cursor-pointer list-none items-center gap-1 text-sm font-medium text-muted-foreground transition-colors duration-150 ease-out hover:text-foreground [&::-webkit-details-marker]:hidden">
@@ -518,7 +520,7 @@ function countryLabel(t: Translate, code: string): string {
  */
 function DeliveryCard({ usage }: { usage: Usage }) {
   const t = useT();
-  const delivery = usage.delivery;
+  const { delivery } = usage;
   if (!delivery) return null;
 
   const settled = delivery.delivered + delivery.failed;

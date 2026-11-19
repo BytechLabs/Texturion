@@ -877,8 +877,8 @@ function ContactNumberChoice({
         options={[
           {
             value: contact.data.phone_e164,
-            label: t("contacts.phoneMain") + " · " + formatPhone(contact.data.phone_e164),
             copyValue: contact.data.phone_e164,
+            label: `${t("contacts.phoneMain")} · ${formatPhone(contact.data.phone_e164)}`,
           },
           ...phones.map((entry) => ({
             value: entry.phone_e164,

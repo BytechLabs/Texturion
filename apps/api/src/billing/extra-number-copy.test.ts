@@ -30,7 +30,7 @@ function catalogueEnglish(): string {
   );
   const start = file.indexOf("export const settingsMoreEn");
   const end = file.indexOf("export const settingsMoreFr");
-  if (start < 0 || end < 0) {
+  if (start === -1 || end === -1) {
     throw new Error("settingsMore.ts no longer has both language blocks");
   }
   return file.slice(start, end);
@@ -42,12 +42,12 @@ describe("#228 the extra-number refusals the wire sends", () => {
     const entries = Object.entries(EXTRA_NUMBER_REASONS_EN);
     // A count, so "they all match" is a claim with a number behind it. An
     // empty table would otherwise pass this loop in silence.
-    expect(entries.length).toBe(3);
+    expect(entries).toHaveLength(3);
     for (const [key, sentence] of entries) {
       expect(
-        catalogue.includes(JSON.stringify(sentence)),
+        catalogue,
         `${key} differs between the wire and the catalogue. The wire says:\n  ${sentence}`,
-      ).toBe(true);
+      ).toContain(JSON.stringify(sentence));
     }
   });
 
@@ -59,7 +59,7 @@ describe("#228 the extra-number refusals the wire sends", () => {
       "settingsMore.extraNumberStarterCap",
       "settingsMore.extraNumberCurrency",
     ] as const) {
-      expect(EXTRA_NUMBER_REASONS_EN[key], key).toBeTruthy();
+      expect(Boolean(EXTRA_NUMBER_REASONS_EN[key]), key).toBe(true);
     }
   });
 

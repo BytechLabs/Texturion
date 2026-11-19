@@ -10,11 +10,13 @@
 import { NextRequest } from "next/server";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { middleware as middlewareHandler } from "./middleware";
+
 /** vitest.config.ts sets NEXT_PUBLIC_SUPABASE_URL to https://project.supabase.co. */
 const COOKIE = "sb-project-auth-token";
 const KID = "middleware-test-key";
 
-let middleware: typeof import("./middleware").middleware;
+let middleware: typeof middlewareHandler;
 let signingKey: CryptoKey;
 let publicJwk: JsonWebKey & { kid: string };
 let calls: string[] = [];

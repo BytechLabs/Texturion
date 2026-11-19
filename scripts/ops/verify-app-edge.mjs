@@ -21,7 +21,7 @@
 const args = process.argv.slice(2);
 const arg = (name, fallback) => {
   const at = args.indexOf(name);
-  return (at >= 0 ? args[at + 1] : fallback).replace(/\/$/, "");
+  return (at === -1 ? fallback : args[at + 1]).replace(/\/$/, "");
 };
 const APP = arg("--app", "https://app.loonext.com");
 const SITE = arg("--site", "https://loonext.com");
@@ -34,8 +34,8 @@ const passes = [];
 async function get(url) {
   try {
     return await fetch(url, { redirect: "manual", headers: HEADERS });
-  } catch (cause) {
-    failures.push(`${url}: network error ${String(cause?.message ?? cause).slice(0, 80)}`);
+  } catch (error) {
+    failures.push(`${url}: network error ${String(error?.message ?? error).slice(0, 80)}`);
     return null;
   }
 }
@@ -64,16 +64,16 @@ if (login) {
   }
 
   const chunk = /\/_next\/static\/chunks\/[^"'\s]+\.js/.exec(html)?.[0];
-  if (!chunk) {
-    failures.push(`${APP}/login names no /_next/static/chunks/*.js file, so the cache rule cannot be checked`);
-  } else {
+  if (chunk) {
     const response = await get(`${APP}${chunk}`);
     const cache = response?.headers.get("cache-control") ?? "";
     check(
-      response?.status === 200 && /immutable/.test(cache) && /max-age=31536000/.test(cache),
+      response?.status === 200 && cache.includes("immutable") && cache.includes("max-age=31536000"),
       `hashed chunk is immutable (${cache})`,
       `${APP}${chunk} answered ${response?.status} with Cache-Control "${cache}", not a year of immutable`,
     );
+  } else {
+    failures.push(`${APP}/login names no /_next/static/chunks/*.js file, so the cache rule cannot be checked`);
   }
 }
 
@@ -82,7 +82,7 @@ const sw = await get(`${APP}/sw.js`);
 if (sw) {
   const cache = sw.headers.get("cache-control") ?? "";
   check(
-    sw.status === 200 && !/immutable/.test(cache) && !/max-age=[1-9]/.test(cache),
+    sw.status === 200 && !cache.includes("immutable") && !/max-age=[1-9]/.test(cache),
     `/sw.js is revalidated (${cache})`,
     `${APP}/sw.js answered ${sw.status} with Cache-Control "${cache}"; it must be checked on every use`,
   );
@@ -103,7 +103,7 @@ const manifest = await get(`${APP}/manifest.webmanifest`);
 if (manifest) {
   const cache = manifest.headers.get("cache-control") ?? "";
   check(
-    manifest.status === 200 && /max-age=86400/.test(cache),
+    manifest.status === 200 && cache.includes("max-age=86400"),
     `manifest is cached for a day (${cache})`,
     `${APP}/manifest.webmanifest answered ${manifest.status} with Cache-Control "${cache}"`,
   );

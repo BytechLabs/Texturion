@@ -187,14 +187,14 @@ describe("texting through the Worker and Supabase", () => {
       await deliver(finalized);
       await deliver(receipt(carrierId, carrierStatus));
 
-      expect(await outbound()).toMatchObject({ status, error_code: errorCode, segments: 2 });
+      await expect(outbound()).resolves.toMatchObject({ status, error_code: errorCode, segments: 2 });
       await expectBilledOnce(id, carrierId);
     },
   );
 
   it.each(["STOP", "ARRET"])("%s blocks the next send until the customer texts START", async (keyword) => {
     await inbound(keyword);
-    expect(await optOut()).toEqual({ source: "stop_keyword", revoked_at: null });
+    await expect(optOut()).resolves.toEqual({ source: "stop_keyword", revoked_at: null });
 
     const before = h.telnyx.callsTo("POST", /\/v2\/messages$/).length;
     const sendWhileBlocked = await send();
@@ -207,17 +207,17 @@ describe("texting through the Worker and Supabase", () => {
       companyId: COMPANY,
     });
     expect(lift.status).toBe(409);
-    expect(await optOut()).toEqual({ source: "stop_keyword", revoked_at: null });
+    await expect(optOut()).resolves.toEqual({ source: "stop_keyword", revoked_at: null });
 
     await inbound("START");
-    expect(await optOut()).toEqual({ source: "stop_keyword", revoked_at: expect.any(String) });
+    await expect(optOut()).resolves.toEqual({ source: "stop_keyword", revoked_at: expect.any(String) });
     expect((await send()).status).toBe(201);
     expect(h.telnyx.callsTo("POST", /\/v2\/messages$/)).toHaveLength(before + 1);
   });
 
   it("keeps a bare YES as an ordinary message when no opt-out is active", async () => {
     await inbound("YES");
-    expect(await optOut()).toBeNull();
+    await expect(optOut()).resolves.toBeNull();
     const message = await h.db
       .from("messages")
       .select("body")

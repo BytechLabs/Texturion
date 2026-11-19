@@ -68,10 +68,13 @@ function itemError(error: BatchError): ApiError {
 }
 
 function settle(item: Pending, outcome: Promise<AttachmentUrl>): void {
-  outcome.then(
-    (url) => item.waiters.forEach((waiter) => waiter.resolve(url)),
-    (error: unknown) => item.waiters.forEach((waiter) => waiter.reject(error)),
-  );
+  void outcome
+    .then((url) => item.waiters.forEach((waiter) => waiter.resolve(url)))
+    .catch((error: unknown) => rejectItem(item, error));
+}
+
+function rejectItem(item: Pending, error: unknown): void {
+  for (const waiter of item.waiters) waiter.reject(error);
 }
 
 /** Sends a company's mints from one render as POST /v1/attachments/urls, each caller getting its own item's URL or refusal. */
@@ -94,7 +97,7 @@ export function createAttachmentUrlBatcher(request: ApiRequest): LoadAttachmentU
         }
         return;
       }
-      for (const item of chunk) settle(item, Promise.reject(error));
+      for (const item of chunk) rejectItem(item, error);
       return;
     }
 

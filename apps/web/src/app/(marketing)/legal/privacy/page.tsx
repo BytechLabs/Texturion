@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 
-import { PrivacyPageBody, PRIVACY_EN_PATH } from "@/components/marketing/legal/privacy-page";
+import { PRIVACY_EN_PATH, PrivacyPageBody } from "@/components/marketing/legal/privacy-page";
 import { legalPrivacyEn } from "@/i18n/marketing/legal-privacy";
 import { buildMetadata } from "@/lib/marketing/seo";
 

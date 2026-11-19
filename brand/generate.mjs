@@ -17,25 +17,13 @@
  */
 import { createRequire } from "node:module";
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
-
-const require = createRequire(import.meta.url);
-/** pnpm keeps no root `sharp` link - resolve through the virtual store. */
-function loadSharp(root) {
-  try {
-    return require("sharp");
-  } catch {
-    const store = join(root, "node_modules", ".pnpm");
-    const entry = readdirSync(store).find((d) => d.startsWith("sharp@"));
-    if (!entry) throw new Error("sharp not found in the pnpm store");
-    return require(join(store, entry, "node_modules", "sharp"));
-  }
-}
 
 const brandDir = import.meta.dirname;
 const root = join(brandDir, "..");
-const sharp = loadSharp(root);
+const require = createRequire(new URL("../apps/web/package.json", import.meta.url));
+const sharp = require("sharp");
 const pub = join(root, "apps", "web", "public");
 
 // The DARK pair is the shipped icon everywhere (founder direction

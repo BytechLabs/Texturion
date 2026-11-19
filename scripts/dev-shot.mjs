@@ -33,7 +33,7 @@
  *   node scripts/dev-shot.mjs --click "[aria-label='Conversation info']" /inbox/<id>
  *   node scripts/dev-shot.mjs --mobile --click "[aria-label='Conversation info']" /inbox/<id>
  */
-import { mkdirSync, existsSync } from "node:fs";
+import { existsSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 import { chromium } from "playwright";
 
@@ -58,17 +58,21 @@ let fresh = false;
 
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
+  const nextArg = () => {
+    i += 1;
+    return args[i];
+  };
   if (a === "--mobile") mobile = true;
   else if (a === "--dark") dark = true;
   else if (a === "--full") fullPage = true;
   else if (a === "--fresh") fresh = true;
-  else if (a === "--click") clicks.push(args[++i]);
-  else if (a === "--fill") fills.push([args[++i], args[++i]]);
-  else if (a === "--hover") hover = args[++i];
-  else if (a === "--el") element = args[++i];
-  else if (a === "--wait") settle = Number(args[++i]);
-  else if (a === "--out") outDir = args[++i];
-  else if (a === "--base") base = args[++i];
+  else if (a === "--click") clicks.push(nextArg());
+  else if (a === "--fill") fills.push([nextArg(), nextArg()]);
+  else if (a === "--hover") hover = nextArg();
+  else if (a === "--el") element = nextArg();
+  else if (a === "--wait") settle = Number(nextArg());
+  else if (a === "--out") outDir = nextArg();
+  else if (a === "--base") base = nextArg();
   else paths.push(a);
 }
 
@@ -90,7 +94,9 @@ async function applyTheme(context) {
   await context.addInitScript((theme) => {
     try {
       window.localStorage.setItem("theme", theme);
-    } catch {}
+    } catch {
+      // Initial documents can deny access to storage.
+    }
   }, dark ? "dark" : "light");
 }
 
@@ -178,16 +184,14 @@ async function shoot(page, path) {
   await page.waitForTimeout(settle);
   const slug = path.replaceAll("/", "_").replaceAll(/[^\w-]/g, "") || "root";
   const file = join(outDir, `${slug}${mobile ? ".mobile" : ""}${dark ? ".dark" : ""}.png`);
-  if (element) {
-    await page.locator(element).first().screenshot({ path: file });
-  } else {
-    await page.screenshot({ path: file, fullPage });
-  }
+  await (element
+    ? page.locator(element).first().screenshot({ path: file })
+    : page.screenshot({ path: file, fullPage }));
   console.log(file);
 
   // One line per distinct complaint: a single fault that fires on every render
   // would otherwise bury the rest.
-  for (const problem of [...new Set(problems)]) {
+  for (const problem of new Set(problems)) {
     console.log(`  ! ${problem}`);
   }
 }

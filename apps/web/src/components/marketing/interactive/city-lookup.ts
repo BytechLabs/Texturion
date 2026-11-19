@@ -96,7 +96,7 @@ export function resolveQuery(query: string, limit = 5): AreaCodeResult[] {
 
   for (const entry of CITY_NPA_INDEX) {
     if (seenCities.has(entry.city)) continue;
-    const primary = entry.codes[0];
+    const [primary] = entry.codes;
     if (!primary) continue;
 
     if (entry.search.startsWith(q)) {

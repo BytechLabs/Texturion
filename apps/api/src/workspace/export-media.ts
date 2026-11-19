@@ -103,7 +103,7 @@ export async function signWorkspaceMedia(c: Context<AppEnv>, cutoff: string) {
         key: "apiRefusals.exportFileSizeUnavailable",
       });
     }
-    size = data.size;
+    ({ size } = data);
   }
   await assertEgressWithinAllowance(db, companyId, [{ bucket, path, sizeBytes: size }], mediaTtl);
   const download = dispositionOptions("application/octet-stream");

@@ -73,7 +73,7 @@ function presentedToken(header: string | undefined): string | null {
   if (!header) return null;
   const match = /^Bearer\s+(\S+)$/i.exec(header.trim());
   if (!match) return null;
-  const token = match[1];
+  const [, token] = match;
   if (!token.startsWith(API_KEY_PREFIX)) return null;
   // Long enough to be one of ours, bounded so a megabyte of "Bearer aaaa…"
   // cannot make us hash it.
@@ -107,7 +107,7 @@ export function apiKeyAuth() {
       throw new Error(`api key resolution failed: ${error.message}`);
     }
 
-    const key = ((data ?? []) as ResolvedKey[])[0];
+    const [key] = (data ?? []) as ResolvedKey[];
     if (!key) {
       // Deliberately the same answer for unknown, revoked and expired. A
       // public endpoint that distinguishes them tells whoever is guessing

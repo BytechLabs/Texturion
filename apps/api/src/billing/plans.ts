@@ -264,7 +264,7 @@ export const STORAGE_ABUSE_TIERS_GB = [25, 50, 100, 200, 400] as const;
  * first word about it.
  */
 export const INBOUND_ABUSE_TIERS_SEGMENTS = [
-  2_500, 5_000, 10_000, 25_000, 50_000,
+  2500, 5000, 10_000, 25_000, 50_000,
 ] as const;
 
 

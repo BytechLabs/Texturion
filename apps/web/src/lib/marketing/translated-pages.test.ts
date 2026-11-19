@@ -52,7 +52,7 @@ describe("#228/D138 the French pages and the registry agree", () => {
     const title = "Boîte de réception partagée";
     const metadata = buildMetadata({
       title,
-      description: (title + " pour toute votre équipe. ").repeat(5).trim(),
+      description: `${title} pour toute votre équipe. `.repeat(5).trim(),
       path: "/fr/boite-partagee",
     });
     expect(metadata.openGraph?.locale).toBe("fr_CA");

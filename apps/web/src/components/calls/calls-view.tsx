@@ -108,11 +108,16 @@ export function CallsView() {
     const request = { sessionId: pendingCall, transferId };
     let cancelled = false;
     let retry: ReturnType<typeof setTimeout> | undefined;
-    void ringMe(request).then((ack) => {
-      if (!cancelled && transferId && ack.rang === false && ack.reason === "recent_leg") {
-        retry = setTimeout(() => { void ringMe(request).catch(() => {}); }, 4_000);
-      }
-    }).catch(() => {});
+    function retryRing() {
+      void ringMe(request).catch(() => {});
+    }
+    void ringMe(request)
+      .then((ack) => {
+        if (!cancelled && transferId && ack.rang === false && ack.reason === "recent_leg") {
+          retry = setTimeout(retryRing, 4000);
+        }
+      })
+      .catch(() => {});
     return () => {
       cancelled = true;
       clearTimeout(retry);

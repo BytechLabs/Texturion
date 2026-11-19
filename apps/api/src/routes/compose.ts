@@ -177,9 +177,9 @@ async function resolveComposeContact(
         .limit(1),
       "contact lookup",
     );
-    const contact = rows[0];
+    const [contact] = rows;
     if (!contact) throw new ApiError("not_found", "No such contact.");
-    const updated = unwrap<ContactRow[]>(
+    const [updated] = unwrap<ContactRow[]>(
       await db
         .from("contacts")
         .update({ deleted_at: null })
@@ -188,7 +188,7 @@ async function resolveComposeContact(
         .is("merged_into", null)
         .select(columns),
       "contact resurrect",
-    )[0];
+    );
     return updated ?? contact;
   }
 
@@ -324,7 +324,7 @@ async function createOrReuseConversation(
     throw new Error(`conversation insert failed: ${inserted.error.message}`);
   }
 
-  const rows = unwrap<Record<string, unknown>[]>(
+  const rows = unwrap<unknown>(
     await db
       .from("conversations")
       .select(CONVERSATION_COLUMNS)
@@ -335,8 +335,8 @@ async function createOrReuseConversation(
       .is("closed_at", null)
       .limit(1),
     "open conversation lookup",
-  );
-  const row = rows[0];
+  ) as Record<string, unknown>[];
+  const [row] = rows;
   if (!row) throw new Error("open conversation vanished after conflict");
   return { conversation: row, created: false };
 }
@@ -387,7 +387,7 @@ export async function composeConversation(
 
   // Idempotent replay (§7): the same key returns the existing conversation
   // and message with 200 — before re-running any side effect.
-  const replay = unwrap<MessageRow[]>(
+  const [replay] = unwrap<MessageRow[]>(
     await db
       .from("messages")
       .select("*")
@@ -395,9 +395,9 @@ export async function composeConversation(
       .eq("idempotency_key", idempotencyKey)
       .limit(1),
     "idempotency lookup",
-  )[0];
+  );
   if (replay) {
-    const conversation = unwrap<Record<string, unknown>[]>(
+    const [conversation] = unwrap<unknown>(
       await db
         .from("conversations")
         .select(CONVERSATION_COLUMNS)
@@ -405,7 +405,7 @@ export async function composeConversation(
         .eq("id", replay.conversation_id)
         .limit(1),
       "conversation lookup",
-    )[0];
+    ) as Record<string, unknown>[];
     if (!conversation) {
       throw new ApiError("not_found", "No such conversation.", {
         key: "apiRefusals.conversationNotFound",
@@ -433,7 +433,7 @@ export async function composeConversation(
   const phoneNumberId = body.phone_number_id ?? await defaultComposeNumber(db, {
     companyId, userId, role: c.get("role"),
   });
-  const number = unwrap<
+  const [number] = unwrap<
     { id: string; number_e164: string | null; status: string }[]
   >(
     await db
@@ -443,7 +443,7 @@ export async function composeConversation(
       .eq("id", phoneNumberId)
       .limit(1),
     "phone number lookup",
-  )[0];
+  );
   if (!number) throw new ApiError("not_found", "No such phone number.");
   // #106: composing from a number needs level 'text' on it (hidden → 404,
   // notes-only → the honest 403).
@@ -462,7 +462,7 @@ export async function composeConversation(
   // #225 the night-texting confirmation). Optional, because a row read against a
   // Worker deployed ahead of the migration has no such column — and the gate
   // below reads absent as ON so the missing case fails toward asking.
-  const company = unwrap<
+  const [company] = unwrap<
     {
       id: string;
       name: string;
@@ -479,7 +479,7 @@ export async function composeConversation(
       .eq("id", companyId)
       .limit(1),
     "company lookup",
-  )[0];
+  );
   if (!company) throw new ApiError("not_found", "No such company.");
 
   // Destination phone BEFORE any write: contact_id path reads the stored

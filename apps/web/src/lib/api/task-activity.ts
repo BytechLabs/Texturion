@@ -84,9 +84,9 @@ export function useEditTaskComment(taskId: string) {
 export function useDeleteTaskComment(taskId: string) {
   const companyId = useCompanyId();
   const refresh = useRefreshActivity(taskId);
-  return useMutation<void, ApiError, { commentId: string }>({
+  return useMutation<undefined, ApiError, { commentId: string }>({
     mutationFn: ({ commentId }) =>
-      apiFetch<void>(`/v1/tasks/${taskId}/comments/${commentId}`, {
+      apiFetch<undefined>(`/v1/tasks/${taskId}/comments/${commentId}`, {
         method: "DELETE",
         companyId,
       }),

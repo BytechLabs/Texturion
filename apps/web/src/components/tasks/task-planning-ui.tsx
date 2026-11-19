@@ -609,7 +609,7 @@ function nthName(nth: number, t: ReturnType<typeof useT>): string {
 /** The detail panel's repeat line: the saved rule's sentence, or "Never". */
 export function RepeatSummaryText({ repeat }: { repeat: TaskRepeat | null | undefined }) {
   const t = useT();
-  return <>{repeat ? repeatSummary(repeat, t) : t("tasks.repeatNone")}</>;
+  return repeat ? repeatSummary(repeat, t) : t("tasks.repeatNone");
 }
 
 // ---------------------------------------------------------------------------

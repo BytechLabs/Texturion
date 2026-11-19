@@ -134,7 +134,7 @@ async function main(): Promise<void> {
     return;
   }
   const { values, keep } = parseArguments(process.argv.slice(2));
-  const conversations = integer(values, "--conversations", 5_000);
+  const conversations = integer(values, "--conversations", 5000);
   const messages = integer(values, "--messages", conversations * 4);
   const scenario = (values.get("--scenario") ?? "all") as HostedScenario;
 
@@ -165,8 +165,7 @@ async function main(): Promise<void> {
     // fictional, and nothing here dispatches it, so the gate is lifted for
     // this one transaction and for no other statement.
     psqlSync(
-      "begin;\nset local loonext.deploy_env = 'local';\n" +
-      volumeFixtureSql({
+      `begin;\nset local loonext.deploy_env = 'local';\n${volumeFixtureSql({
         company: COMPANY,
         owner: ownerId,
         number: NUMBER,
@@ -178,7 +177,7 @@ async function main(): Promise<void> {
         provisioningKey: "capacity-251-rig",
         companyName: "Rig Capacity Fixture",
         active: true,
-      }) + "\ncommit;\n",
+      })}\ncommit;\n`,
     );
     process.stderr.write(
       `capacity: seeded ${conversations} conversations and ${messages} messages in ` +
@@ -216,7 +215,7 @@ async function main(): Promise<void> {
       ),
       apiRounds: integer(values, "--api-rounds", 3),
       deadlineMs: integer(values, "--deadline-ms", 10_000),
-      dwellMs: integer(values, "--dwell-ms", 2_000),
+      dwellMs: integer(values, "--dwell-ms", 2000),
       fixture: {
         workspace_conversations: conversations,
         workspace_messages: messages,
@@ -237,13 +236,13 @@ async function main(): Promise<void> {
   }
 }
 
-main().catch((cause: unknown) => {
+main().catch((error: unknown) => {
   if (
-    cause instanceof CapacityConfigError ||
-    cause instanceof CapacityRunError ||
-    cause instanceof NotTheRigError
+    error instanceof CapacityConfigError ||
+    error instanceof CapacityRunError ||
+    error instanceof NotTheRigError
   ) {
-    process.stderr.write(`capacity: ${cause.message}\n`);
+    process.stderr.write(`capacity: ${error.message}\n`);
   } else {
     // External libraries sometimes put URLs or response bodies in an Error.
     process.stderr.write("capacity: driver failed; no unreviewed error details were printed\n");

@@ -131,7 +131,7 @@ const server = createServer((req, res) => {
   res.writeHead(200, { "content-type": "text/html; charset=utf-8" });
   res.end(FIXTURE);
 });
-await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+await new Promise((resolve) => { server.listen(0, "127.0.0.1", resolve); });
 const origin = `http://127.0.0.1:${server.address().port}`;
 
 const browser = await chromium.launch();
@@ -168,8 +168,8 @@ try {
    * ignore this. `resultTypes: ["violations"]` skips axe's much slower
    * "incomplete" pass, which we do not read.
    */
-  async function audit(label) {
-    return page.evaluate(async (name) => {
+  const audit = (label) =>
+    page.evaluate(async (name) => {
       const results = await window.axe.run("[data-loonext-widget]", {
         resultTypes: ["violations"],
       });
@@ -184,7 +184,6 @@ try {
         })),
       };
     }, label);
-  }
 
   const collapsed = await audit("collapsed");
 
@@ -221,8 +220,7 @@ try {
   const focusInsidePanel = await page.evaluate(() => {
     const host = document.querySelector("[data-loonext-widget]");
     const root = host?.shadowRoot;
-    const active = root?.activeElement;
-    return Boolean(active && active.closest("[role='dialog']"));
+    return Boolean(root?.activeElement?.closest("[role='dialog']"));
   });
   if (!focusInsidePanel) {
     problems.push(
@@ -241,7 +239,7 @@ try {
     // this guard's first run failed on its own assertion rather than on the
     // code. A guard that cries wolf gets deleted before it ever catches
     // anything.
-    return Boolean(panel && panel.hidden);
+    return Boolean(panel?.hidden);
   });
   if (!closedByEscape) {
     problems.push(

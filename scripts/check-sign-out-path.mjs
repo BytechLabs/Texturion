@@ -38,7 +38,7 @@
  * inventing a shared helper for a single call site would be ceremony, but a
  * silently-dropped revoke would look identical to the bug.
  */
-import { readFileSync, readdirSync, statSync } from "node:fs";
+import { readdirSync, readFileSync, statSync } from "node:fs";
 import { join } from "node:path";
 
 const WEB_ROOT = "apps/web/src";
@@ -78,7 +78,7 @@ function sources(dir) {
 
 /** Comment lines are prose. Without this, documenting the rule breaks it. */
 function stripComments(source) {
-  return source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/^[ \t]*(\/\/|\*).*$/gm, "");
+  return source.replaceAll(/\/\*[\s\S]*?\*\//g, "").replaceAll(/^[ \t]*(\/\/|\*).*$/gm, "");
 }
 
 const problems = [];
@@ -90,7 +90,7 @@ for (const file of sources(WEB_ROOT)) {
   // ends there.
   if (/\.test\.(ts|tsx)$/.test(file)) continue;
   scanned += 1;
-  const source = stripComments(readFileSync(file, "utf8").replace(/\r\n/g, "\n"));
+  const source = stripComments(readFileSync(file, "utf8").replaceAll('\r\n', "\n"));
   if (!/auth\.signOut\(/.test(source)) continue;
   callers += 1;
   if (file !== WEB_OWNER) {
@@ -115,7 +115,7 @@ for (const file of sources(WEB_ROOT)) {
     // substring check even with the request replaced — and `releasePushOnThisDevice`
     // stayed matched by its own import line after the call was commented out. A
     // guard that reads the prose beside the code cannot see the code stop working.
-    owner = stripComments(readFileSync(WEB_OWNER, "utf8").replace(/\r\n/g, "\n"));
+    owner = stripComments(readFileSync(WEB_OWNER, "utf8").replaceAll('\r\n', "\n"));
   } catch {
     problems.push(
       `cannot read ${WEB_OWNER} — this guard has lost the function every web ` +
@@ -152,7 +152,7 @@ for (const file of sources(WEB_ROOT)) {
 for (const { file, needs, marker } of NATIVE) {
   let source = null;
   try {
-    source = readFileSync(file, "utf8").replace(/\r\n/g, "\n");
+    source = readFileSync(file, "utf8").replaceAll('\r\n', "\n");
   } catch {
     problems.push(
       `cannot read ${file} — the native sign-out path named here has moved, so it ` +

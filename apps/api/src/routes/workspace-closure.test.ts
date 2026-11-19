@@ -128,11 +128,11 @@ function world(
   const resendRoute: FetchRoute = async (url, request) => {
     if (url.href !== "https://api.resend.com/emails") return undefined;
     emails.push(
-      (await request.clone().json()) as {
+      await request.clone().json<{
         to: string[];
         subject: string;
         text: string;
-      },
+      }>(),
     );
     return Response.json({ id: `email_${emails.length}` });
   };
@@ -154,13 +154,14 @@ async function close(
   routes: FetchRoute[],
   // `null` means send NO body — an explicit `undefined` would take the default,
   // which is how the first version of this quietly sent a code it meant to omit.
-  body: Record<string, unknown> | null = { confirmation_code: "123456" },
+  body?: Record<string, unknown> | null,
 ) {
+  const payload = body === undefined ? { confirmation_code: "123456" } : body;
   stubFetch(jwksRoute(auth), ...routes);
   return apiRequest(app, env, await auth.token(), "/v1/company", {
     method: "DELETE",
     companyId: COMPANY_ID,
-    body: body ?? undefined,
+    body: payload ?? undefined,
   });
 }
 
@@ -334,7 +335,7 @@ describe("DELETE /v1/company (#341 phase 1)", () => {
 
       // The address is written to the workspace, because 30 days from now the
       // members table is one of the things the purge will have deleted.
-      const patch = sb.find("PATCH", "/rest/v1/companies")[0];
+      const [patch] = sb.find("PATCH", "/rest/v1/companies");
       expect(patch.body).toEqual({ purge_receipt_email: "owner@acme.test" });
 
       expect(

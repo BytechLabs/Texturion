@@ -103,7 +103,7 @@ function publicRequest(path: string, init: RequestInit = {}) {
       headers: {
         Authorization: `Bearer ${TOKEN}`,
         "content-type": "application/json",
-        ...((init.headers as Record<string, string> | undefined) ?? {}),
+        ...(init.headers as Record<string, string> | undefined),
       },
     },
     env,
@@ -149,7 +149,7 @@ describe("the door", () => {
 
     const res = await publicRequest("/public/v1/me");
     expect(res.status).toBe(401);
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     // Nothing in the answer says which of the three it was — a public endpoint
     // that distinguishes them tells whoever is guessing which guess was real.
     expect(body.error.message).toBe("That API key is not valid.");
@@ -178,7 +178,7 @@ describe("the door", () => {
     // disabled — the capability gate downstream refused a caller with no role
     // and produced the same 403. A guard whose answer is indistinguishable
     // from its neighbour's is measuring the neighbour.
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("no longer active in this workspace");
   });
 
@@ -219,7 +219,7 @@ describe("the door", () => {
 
     await publicRequest("/public/v1/me");
 
-    const call = sb.find("POST", "/rest/v1/rpc/api_resolve_key")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_resolve_key");
     const body = call.body as { p_token_hash: string };
     expect(body.p_token_hash).toMatch(/^[0-9a-f]{64}$/);
     // The token itself must not appear anywhere in what we send.
@@ -235,11 +235,11 @@ describe("scopes are the second gate", () => {
 
     const res = await publicRequest("/public/v1/contacts");
     expect(res.status).toBe(200);
-    const body = (await res.json()) as { data: unknown[]; limit: number };
+    const body = await res.json<{ data: unknown[]; limit: number }>();
     expect(body.data).toHaveLength(1);
     expect(body.limit).toBe(25);
 
-    const call = sb.find("GET", "/rest/v1/contacts")[0];
+    const [call] = sb.find("GET", "/rest/v1/contacts");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     // The published column list is the enforcement — a `select("*")` here
     // would publish every internal column as a shape somebody parses.
@@ -259,7 +259,7 @@ describe("scopes are the second gate", () => {
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await publicRequest("/public/v1/contacts");
-    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    const body = await res.json<{ data: Record<string, unknown>[] }>();
     expect(body.data[0].tags).toEqual(["Commercial", "Warranty"]);
     expect(body.data[0]).not.toHaveProperty("contact_tags");
     expect(body.data[1].tags).toEqual([]);
@@ -385,7 +385,8 @@ describe("public list pagination", () => {
 
     const second = await publicRequest(`${path}&cursor=${page.next_cursor}`);
     expect(second.status).toBe(200);
-    expect(await second.json()).toMatchObject({ data: [{ id: ids[2] }], next_cursor: null });
+    const nextPage = await second.json();
+    expect(nextPage).toMatchObject({ data: [{ id: ids[2] }], next_cursor: null });
     const calls = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
     expect(calls[0].body).toMatchObject({ p_cursor_id: null, p_cursor_ts: null, p_limit: 3 });
     expect(calls[1].body).toMatchObject({
@@ -464,7 +465,7 @@ describe("#106 travels with the key", () => {
     // THE ONE THAT MATTERS. A key must not enumerate conversations on a number
     // its creator cannot see, and the deny list has to reach the query — not
     // merely be computed and dropped.
-    const call = sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_list_conversations");
     const body = call.body as { p_hidden_number_ids: string[] };
     expect(body.p_hidden_number_ids).toEqual([
       "nnnnnnnn-1111-4222-8333-444444444444",
@@ -507,7 +508,7 @@ describe("#106 travels with the key", () => {
     const res = await publicRequest(`/public/v1/conversations/${CONVERSATION_ID}/messages`);
     expect(res.status).toBe(200);
 
-    const call = sb.find("GET", "/rest/v1/messages")[0];
+    const [call] = sb.find("GET", "/rest/v1/messages");
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
     expect(call.url.searchParams.get("conversation_id")).toBe(`eq.${CONVERSATION_ID}`);
     // A deliberate subset. Every column published becomes a shape somebody
@@ -589,7 +590,7 @@ describe("writes", () => {
     });
     expect(res.status).toBe(201);
 
-    const call = sb.find("POST", "/rest/v1/contacts")[0];
+    const [call] = sb.find("POST", "/rest/v1/contacts");
     // A replayed queue is the normal case for an integration, not the
     // exception, so the conflict target has to be the one the first-party
     // route uses.
@@ -632,7 +633,7 @@ describe("writes", () => {
     });
     expect(res.status).toBe(201);
 
-    const call = sb.find("POST", "/rest/v1/rpc/api_create_public_task")[0];
+    const [call] = sb.find("POST", "/rest/v1/rpc/api_create_public_task");
     expect(call.body).toMatchObject({
       p_company_id: COMPANY_ID,
       p_actor_user_id: CREATOR,
@@ -713,9 +714,9 @@ describe("writes", () => {
     expect(sb.find("POST", "/rest/v1/rpc/api_create_public_task")[0].body).toMatchObject({
       p_task: { priority: "high", label_ids: [TAG], repeat: { kind: "schedule", unit: "year" } },
     });
-    const body = (await res.json()) as {
+    const body = await res.json<{
       priority: string; labels: { name: string }[]; repeat: { unit: string }; series_id?: string;
-    };
+    }>();
     expect(body.priority).toBe("high");
     expect(body.labels[0].name).toBe("inspection");
     expect(body.repeat.unit).toBe("year");
@@ -784,7 +785,7 @@ describe("writes", () => {
     expect(sb.find("POST", "/rest/v1/rpc/api_create_public_task")[0].body).toMatchObject({
       p_task: { assignee_ids: [A, B] },
     });
-    const body = (await res.json()) as Record<string, unknown>;
+    const body = await res.json<Record<string, unknown>>();
     expect(body.assigned_user_id).toBe(A);
     expect(body.assignee_ids).toEqual([A, B]);
     // Names stay internal.
@@ -833,7 +834,7 @@ describe("writes", () => {
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await publicRequest("/public/v1/tasks");
-    const body = (await res.json()) as { data: Record<string, unknown>[] };
+    const body = await res.json<{ data: Record<string, unknown>[] }>();
     expect(body.data[0]).toMatchObject({
       message_id: "m1",
       source: { kind: "message", id: "m1" },
@@ -852,7 +853,7 @@ describe("writes", () => {
 
     const res = await publicRequest("/public/v1/tasks?limit=100000");
     expect(res.status).toBe(200);
-    expect((await res.json()) as { limit: number }).toMatchObject({ limit: 100 });
+    await expect(res.json<{ limit: number }>()).resolves.toMatchObject({ limit: 100 });
   });
 });
 
@@ -872,7 +873,7 @@ describe("REST hooks — how Zapier and Make actually work", () => {
       }),
     });
     expect(res.status).toBe(201);
-    const body = (await res.json()) as { secret_once: string };
+    const body = await res.json<{ secret_once: string }>();
     expect(body.secret_once.startsWith("whsec_")).toBe(true);
 
     const insert = sb.find("POST", "/rest/v1/webhook_endpoints")[0].body as {
@@ -915,7 +916,7 @@ describe("REST hooks — how Zapier and Make actually work", () => {
     // THE ONE THAT MATTERS. Without this filter a Zap could tear down a
     // webhook the same person set up by hand in Settings, or one belonging to
     // a different Zap — invisible until the messages stopped arriving.
-    const call = sb.find("DELETE", "/rest/v1/webhook_endpoints")[0];
+    const [call] = sb.find("DELETE", "/rest/v1/webhook_endpoints");
     expect(call.url.searchParams.get("created_by_api_key_id")).toBe(`eq.${KEY_ID}`);
     expect(call.url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
   });
@@ -1096,7 +1097,7 @@ describe("#581 a key cannot subscribe past its own scopes", () => {
     expect(res.status).toBe(403);
     // The refusal NAMES the scope. A connector author reading "forbidden"
     // learns nothing, and the next thing they try is a broader key.
-    const body = (await res.json()) as { error: { message: string } };
+    const body = await res.json<{ error: { message: string } }>();
     expect(body.error.message).toContain("messages:read");
     // And nothing was created on the way to refusing.
     expect(sb.find("POST", "/rest/v1/webhook_endpoints")).toHaveLength(0);
@@ -1118,7 +1119,7 @@ describe("#581 a key cannot subscribe past its own scopes", () => {
 
     expect(res.status).toBe(403);
     expect(
-      ((await res.json()) as { error: { message: string } }).error.message,
+      (await res.json<{ error: { message: string } }>()).error.message,
     ).toContain("conversations:read");
   });
 
@@ -1249,7 +1250,7 @@ describe("#581 replaying a contact preserves its attribution", () => {
       method: "POST", body: JSON.stringify({ phone_e164: "+14165550101" }),
     });
     expect(res.status).toBe(422);
-    expect(await res.json()).toMatchObject({ error: { existing_contact_id: "ct-existing" } });
+    await expect(res.json()).resolves.toMatchObject({ error: { existing_contact_id: "ct-existing" } });
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
   });
 
@@ -1273,7 +1274,7 @@ describe("#581 replaying a contact preserves its attribution", () => {
 
     // THE ASSERTION: no INSERT at all, so there is nothing to overwrite with.
     expect(sb.find("POST", "/rest/v1/contacts")).toHaveLength(0);
-    const patch = sb.find("PATCH", "/rest/v1/contacts")[0];
+    const [patch] = sb.find("PATCH", "/rest/v1/contacts");
     expect(patch.body).toMatchObject({
       name: "Maria Alvarez",
       updated_by_user_id: CREATOR,
@@ -1303,7 +1304,7 @@ describe("#581 replaying a contact preserves its attribution", () => {
     });
     expect(res.status).toBe(201);
 
-    const insert = sb.find("POST", "/rest/v1/contacts")[0];
+    const [insert] = sb.find("POST", "/rest/v1/contacts");
     expect(insert.body).toMatchObject({
       created_by_user_id: CREATOR,
       deleted_at: null,

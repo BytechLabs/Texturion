@@ -98,12 +98,12 @@ function crc32(buf: Uint8Array): number {
   const table: number[] = [];
   for (let n = 0; n < 256; n++) {
     c = n;
-    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1;
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xED_B8_83_20 ^ (c >>> 1) : c >>> 1;
     table[n] = c >>> 0;
   }
-  let crc = 0xffffffff;
-  for (const b of buf) crc = table[(crc ^ b) & 0xff] ^ (crc >>> 8);
-  return (crc ^ 0xffffffff) >>> 0;
+  let crc = 0xFF_FF_FF_FF;
+  for (const b of buf) crc = table[(crc ^ b) & 0xFF] ^ (crc >>> 8);
+  return (crc ^ 0xFF_FF_FF_FF) >>> 0;
 }
 
 function pngChunk(type: string, data: Uint8Array): Uint8Array {
@@ -365,7 +365,10 @@ async function main() {
 
   /* ------------------------------- messages ------------------------------ */
   let msgSeq = 0;
-  const tid = () => `devseed-msg-${++msgSeq}`;
+  const tid = () => {
+    msgSeq += 1;
+    return `devseed-msg-${msgSeq}`;
+  };
   const messages = [
     // Dana — new, unread (two inbound in one cluster)
     { c: "dana", dir: "inbound", body: "Hi, do you do water heater replacements? Ours is leaking from the bottom.", at: minutesAgo(8) },

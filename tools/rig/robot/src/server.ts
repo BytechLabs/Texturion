@@ -3,11 +3,13 @@
  * events and sink deliveries here as they come up the uplink; scenario runs
  * post plans and read the records back.
  */
-import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
+import { createServer } from "node:http";
+import type { IncomingMessage, Server, ServerResponse } from "node:http";
 import type { Inbox, WebhookSink } from "./inbox.ts";
 import type { ProbeSource } from "./probe.ts";
 import type { CallControlApi, RequestContext } from "./telnyx.ts";
-import { isRobotRole, type CallPlan, type NumberBook, type Robot } from "./robot.ts";
+import { isRobotRole } from "./robot.ts";
+import type { CallPlan, NumberBook, Robot } from "./robot.ts";
 
 export const ROBOT_TOKEN_HEADER = "x-robot-token";
 const MAX_BODY_BYTES = 1024 * 1024;
@@ -28,7 +30,8 @@ export interface RobotServerDeps {
 export function robotServer(deps: RobotServerDeps): Server {
   return createServer((request, response) => {
     handle(deps, request, response).catch((error: unknown) => {
-      send(response, 500, { error: error instanceof Error ? error.message : "internal" });
+      console.error("robot request failed:", error instanceof Error ? error.message : String(error));
+      send(response, 500, { error: "internal" });
     });
   });
 }

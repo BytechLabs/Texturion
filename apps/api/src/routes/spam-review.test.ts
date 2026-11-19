@@ -81,7 +81,8 @@ describe("GET /v1/spam-review (#342)", () => {
     );
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ data: [flaggedRow()] });
+    const responseBody = await res.json();
+    expect(responseBody).toEqual({ data: [flaggedRow()] });
 
     const call = sb.find("POST", "/rest/v1/rpc/api_spam_review")[0].body as {
       p_company_id: string;
@@ -156,7 +157,7 @@ describe("PATCH /v1/conversations/:id — answering the review prompt (#342)", (
     const written = sb.find("PATCH", "/rest/v1/conversations")[0].body as {
       spam_reviewed_at?: string;
     };
-    expect(written.spam_reviewed_at).toBeTruthy();
+    expect(Boolean(written.spam_reviewed_at)).toBe(true);
     // No timeline row: "no change" is the answer, and a row per dismissal is
     // the noise this whole feature exists to avoid.
     expect(sb.find("POST", "/rest/v1/conversation_events")).toHaveLength(0);

@@ -106,8 +106,9 @@ export function isPlanModule(value: string): value is PlanModule {
  */
 export function modulePrice(env: Env, module: PlanModule): string | null {
   switch (module) {
-    case "regions_ca":
+    case "regions_ca": {
       return env.STRIPE_MODULE_REGIONS_CA_PRICE_ID ?? null;
+    }
   }
 }
 
@@ -116,8 +117,8 @@ export function modulePrice(env: Env, module: PlanModule): string | null {
  *  enablement is decided by the licensed item alone (#17 reconcile), and the
  *  metered item just rides along with it. */
 export function moduleForPrice(env: Env, priceId: string): PlanModule | null {
-  for (const module of PLAN_MODULES) {
-    if (modulePrice(env, module) === priceId) return module;
+  for (const moduleKey of PLAN_MODULES) {
+    if (modulePrice(env, moduleKey) === priceId) return moduleKey;
   }
   return null;
 }

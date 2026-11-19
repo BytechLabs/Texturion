@@ -9,10 +9,10 @@ import { z } from "zod";
 import {
   CREW_SIZE_BUCKETS,
   CREW_SIZE_LABELS,
-  SIGNUP_SOURCES,
   SIGNUP_SOURCE_HINT,
   SIGNUP_SOURCE_LABELS,
   SIGNUP_SOURCE_PROMPT,
+  SIGNUP_SOURCES,
 } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
@@ -28,7 +28,8 @@ import {
 import { Input } from "@/components/ui/input";
 import { ChoiceCards } from "@/components/ui/choice-cards";
 import { SegmentedControl } from "@/components/ui/segmented-control";
-import { useT, type Translate } from "@/i18n/provider";
+import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/provider";
 import { trackOnboardingStepCompleted } from "@/lib/analytics/events";
 
 import { crewFitCopy, crewFitPrompt } from "../crew-copy";

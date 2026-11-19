@@ -1,4 +1,5 @@
-import { MESSAGE_AUTOMATIONS, type MessageAutomation } from "@loonext/shared";
+import { MESSAGE_AUTOMATIONS } from "@loonext/shared";
+import type { MessageAutomation } from "@loonext/shared";
 import { describe, expect, it } from "vitest";
 
 import { buildCampaignContent, buildCampaignContentUpdate, buildReviewSample, REVIEW_SAMPLE_LINK, TCR_UPDATE_SAMPLE_MAX_LENGTH } from './wizard';

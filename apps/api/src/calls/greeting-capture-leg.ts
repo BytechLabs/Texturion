@@ -142,7 +142,7 @@ async function speakPrompt(
     .select("name,locale")
     .eq("id", tag.companyId)
     .limit(1);
-  const company = data?.[0] as { name: string; locale: string | null } | undefined;
+  const [company] = data ?? [];
   const locale = resolveLocale(tag.locale, company?.locale);
   await onLiveLeg(env, `/v2/calls/${ccid}/actions/speak`, {
     payload: greetingCapturePrompt(company?.name ?? "", locale),

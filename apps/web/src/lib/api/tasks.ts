@@ -25,7 +25,6 @@ import type {
   TaskDetail,
   TaskLabel,
   TaskPriority,
-  TaskStatus,
 } from "./types";
 
 /** #214 a task address in a create/update body — the fields + their provenance. */
@@ -59,7 +58,8 @@ export type TaskAddressInput = TaskAddress & {
 // without importing this hook chain. Re-exported here so existing consumers
 // (`import { TaskListFilters, taskSearchParams } from "@/lib/api/tasks"`) are
 // unaffected.
-export type { TaskListFilters, TaskListRequest };
+export type { TaskListFilters } from "./task-filters";
+export type { TaskListRequest } from "./task-params";
 
 // ---------------------------------------------------------------------------
 // Fetchers (pure — reused by prefetch/tests)
@@ -596,7 +596,7 @@ export function useRemoveTaskLabel(conversationId: string) {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: (input: { taskId: string; tagId: string; scope?: TaskScope }) =>
-      apiFetch<void>(`/v1/tasks/${input.taskId}/tags/${input.tagId}`, {
+      apiFetch<undefined>(`/v1/tasks/${input.taskId}/tags/${input.tagId}`, {
         method: "DELETE",
         companyId,
         searchParams: { scope: input.scope },
@@ -697,7 +697,7 @@ export function useDeleteTask(conversationId: string) {
     mutationFn: (input: string | { taskId: string; scope?: TaskScope }) => {
       const { taskId, scope } =
         typeof input === "string" ? { taskId: input, scope: undefined } : input;
-      return apiFetch<void>(`/v1/tasks/${taskId}`, {
+      return apiFetch<undefined>(`/v1/tasks/${taskId}`, {
         method: "DELETE",
         companyId,
         searchParams: { scope },
@@ -753,14 +753,14 @@ function checklistPatchDone(
 ): { data: ChecklistTask[] } | undefined {
   if (!data) return data;
   let changed = false;
-  const next = data.data.map((task) => {
+  const next = data.data.map<ChecklistTask>((task) => {
     const same =
       match.messageId === null
         ? task.id === match.taskId
         : task.message_id === match.messageId;
     if (!same) return task;
     changed = true;
-    return { ...task, done, status: (done ? "done" : "open") as TaskStatus };
+    return { ...task, done, status: done ? "done" : "open" };
   });
   if (!changed) return data;
   return { data: next };

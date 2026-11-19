@@ -76,7 +76,7 @@ const quote = (over: Partial<Quote> = {}): Quote =>
     decided_at: null,
     created_at: "2026-08-07T09:00:00Z",
     ...over,
-  }) as Quote;
+  });
 
 const chase = () => fireEvent.click(screen.getByRole("button", { name: "Chase" }));
 
@@ -90,10 +90,10 @@ describe("#287 chasing an unanswered quote", () => {
     chase();
 
     expect(sent).toHaveLength(1);
-    expect(sent[0]!.conversationId).toBe("conv-42");
+    expect(sent[0].conversationId).toBe("conv-42");
     // 'follow_up', not 'snooze'. Both hide the thread while pending; only this
     // one brings it back as something to chase, which is the entire ask.
-    expect(sent[0]!.kind).toBe("follow_up");
+    expect(sent[0].kind).toBe("follow_up");
   });
 
   it("uses the follow-up ladder rather than a fourth clock", () => {
@@ -105,8 +105,8 @@ describe("#287 chasing an unanswered quote", () => {
     render(<OutstandingQuotesSection />);
     chase();
 
-    const expected = followUpPresets()[0]!;
-    expect(Date.parse(sent[0]!.until)).toBe(expected.at);
+    const [expected] = followUpPresets();
+    expect(Date.parse(sent[0].until)).toBe(expected.at);
   });
 
   it("writes a note that still means something in three days", () => {
@@ -117,8 +117,8 @@ describe("#287 chasing an unanswered quote", () => {
     render(<OutstandingQuotesSection />);
     chase();
 
-    expect(sent[0]!.note).toContain("450");
-    expect(sent[0]!.note).toContain("Replace the water heater");
+    expect(sent[0].note).toContain("450");
+    expect(sent[0].note).toContain("Replace the water heater");
   });
 
   it("keeps the note inside the length the API accepts", () => {
@@ -130,7 +130,7 @@ describe("#287 chasing an unanswered quote", () => {
     render(<OutstandingQuotesSection />);
     chase();
 
-    expect(sent[0]!.note!.length).toBeLessThanOrEqual(120);
+    expect(sent[0].note!.length).toBeLessThanOrEqual(120);
   });
 
   it("says it is chasing once it has been pressed", () => {
@@ -141,7 +141,7 @@ describe("#287 chasing an unanswered quote", () => {
     chase();
 
     expect(screen.queryByRole("button", { name: "Chase" })).toBeNull();
-    expect(screen.getByText("Chasing")).toBeTruthy();
+    expect(screen.getByText("Chasing")).toBeInstanceOf(Element);
   });
 
   it("puts the button back when the schedule did not take", () => {
@@ -153,7 +153,7 @@ describe("#287 chasing an unanswered quote", () => {
     render(<OutstandingQuotesSection />);
     chase();
 
-    expect(screen.getByRole("button", { name: "Chase" })).toBeTruthy();
+    expect(screen.getByRole("button", { name: "Chase" })).toBeInstanceOf(Element);
   });
 
   it("does not offer it to somebody who cannot write on a thread", () => {
@@ -165,7 +165,7 @@ describe("#287 chasing an unanswered quote", () => {
     render(<OutstandingQuotesSection />);
 
     expect(screen.queryByRole("button", { name: "Chase" })).toBeNull();
-    expect(screen.getByText("Replace the water heater")).toBeTruthy();
+    expect(screen.getByText("Replace the water heater")).toBeInstanceOf(Element);
     role = "owner";
   });
 });

@@ -12,7 +12,7 @@ describe("read class", () => {
     expect(response.status).toBe(200);
     const sent = h.telnyx.requests("GET", "/v2/phone_numbers").at(-1);
     expect(sent?.query.getAll("filter[billing_group_id]")).toEqual(["bg-nonprod"]);
-    const numbers = ((await response.json()) as Listing).data.map((item) => item.phone_number);
+    const numbers = (await response.json<Listing>()).data.map((item) => item.phone_number);
     expect(numbers).not.toContain(N.production);
     expect(numbers).toContain(N.devW1);
   });
@@ -21,7 +21,7 @@ describe("read class", () => {
     const h = await ready();
     h.telnyx.ignoreFilters = true;
     const response = await h.call("/telnyx/v2/phone_numbers");
-    const numbers = ((await response.json()) as Listing).data;
+    const numbers = (await response.json<Listing>()).data;
     expect(numbers.length).toBeGreaterThan(0);
     expect(numbers.every((item) => item.billing_group_id === "bg-nonprod")).toBe(true);
   });
@@ -58,7 +58,7 @@ describe("read class", () => {
     );
     await expect(ruleOf(await h.call("/telnyx/v2/recordings"))).resolves.toBe("read.filter_required");
     const response = await h.call("/telnyx/v2/recordings?filter[call_session_id]=s1");
-    expect(((await response.json()) as Listing).data.map((item) => item.id)).toEqual(["rec-rig"]);
+    expect((await response.json<Listing>()).data.map((item) => item.id)).toEqual(["rec-rig"]);
   });
 
   it("refuses an unfiltered or foreign opt-out list, and keeps only nonprod rows", async () => {
@@ -73,7 +73,7 @@ describe("read class", () => {
       "read.filter_not_nonprod",
     );
     const response = await h.call("/telnyx/v2/messaging_optouts?filter[messaging_profile_id]=prof-qa-e");
-    expect(((await response.json()) as Listing).data).toEqual([{ from: N.robot2, messaging_profile_id: "prof-qa-e" }]);
+    expect((await response.json<Listing>()).data).toEqual([{ from: N.robot2, messaging_profile_id: "prof-qa-e" }]);
   });
 
   it("refuses a number order outside the partition", async () => {
@@ -137,7 +137,7 @@ describe("the owned set, when Telnyx ignores the group filter", () => {
   it("still leaves production's numbers out of the partition", async () => {
     const h = await ready();
     h.telnyx.ignoreFilters = true;
-    const partition = (await (await h.call("/partition", { caller: "edge" })).json()) as { owned_e164: string[] };
+    const partition = await (await h.call("/partition", { caller: "edge" })).json<{ owned_e164: string[] }>();
     expect(partition.owned_e164).toContain(N.devW1);
     expect(partition.owned_e164).not.toContain(N.production);
   });
@@ -162,7 +162,7 @@ describe("every read", () => {
     const h = await ready();
     h.telnyx.numbers[0].v1_secret = "fake-v1-secret";
     h.telnyx.numbers[0].settings = { password: "fake-password" };
-    const listing = (await (await h.call("/telnyx/v2/phone_numbers")).json()) as Listing;
+    const listing = await (await h.call("/telnyx/v2/phone_numbers")).json<Listing>();
     expect(listing.data.length).toBeGreaterThan(0);
     expect(JSON.stringify(listing)).not.toMatch(/fake-v1-secret|fake-password/);
   });

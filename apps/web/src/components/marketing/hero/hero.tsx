@@ -1,5 +1,4 @@
 import { navCopy } from "@/i18n/marketing/nav";
-import { appLink } from "@/lib/marketing/site";
 import { localizedPath } from "@/lib/marketing/translated-pages";
 import { avatarInitials } from "@loonext/shared";
 
@@ -12,7 +11,7 @@ import {
   SIGNUP_HREF,
 } from "@/components/marketing/nav-links";
 import { PlanPrice } from "@/components/marketing/pricing/plan-price";
-import { LIVE_ROUTES } from "@/lib/marketing/site";
+import { appLink, LIVE_ROUTES } from "@/lib/marketing/site";
 import { AppSurface } from "@/components/marketing/thread-demo/app-surface";
 
 import { ARRIVAL_DOCK_ATTR, arrivalScript } from "./arrival-script";

@@ -1,6 +1,11 @@
 "use client";
 
-import { hasBusinessHours } from "@loonext/shared";
+import {
+  awayEmergencyNotice,
+  effectiveEmergencyKeywords,
+  emergencyWordList,
+  hasBusinessHours,
+} from "@loonext/shared";
 import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 
@@ -23,20 +28,11 @@ import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { SettingChoiceNote } from "@/components/settings/setting-choice-note";
 import { WeeklyHoursGrid } from "@/components/settings/weekly-hours-grid";
 import { ApiError } from "@/lib/api/error";
-import {
-  awayEmergencyNotice,
-  effectiveEmergencyKeywords,
-  emergencyWordList,
-} from "@loonext/shared";
 
 import { useT } from "@/i18n/provider";
 import { previewAwayMessage } from "@/lib/settings/away-preview";
-import {
-  isDirty,
-  toBusinessHours,
-  toFormState,
-  type DayFormState,
-} from "@/lib/settings/business-hours-form";
+import { isDirty, toBusinessHours, toFormState } from "@/lib/settings/business-hours-form";
+import type { DayFormState } from "@/lib/settings/business-hours-form";
 import type { CompanyView } from "@/lib/api/types";
 import { useActiveCompany } from "@/lib/company/provider";
 
@@ -97,7 +93,7 @@ function BusinessHoursCard({
     <SettingsCard id="business-hours"
       title={t("appShell.hoursTitle")}
       description={t("appShell.hoursDescription", {
-        timezone: company.timezone.replace(/_/g, " "),
+        timezone: company.timezone.replaceAll('_', " "),
       })}
       footer={
         canEdit ? (

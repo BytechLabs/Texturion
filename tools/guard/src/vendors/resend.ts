@@ -70,7 +70,7 @@ export async function handleResend(ctx: Ctx, request: Request, path: string): Pr
 
   let body: Record<string, unknown>;
   try {
-    body = (await request.json()) as Record<string, unknown>;
+    body = await request.json<Record<string, unknown>>();
   } catch {
     throw new Refusal("request.body_invalid");
   }
