@@ -492,9 +492,24 @@ declare
   co    uuid := 'd1000000-0000-4000-8000-000000000002';
   us    uuid := 'd1000000-0000-4000-8000-000000000001';
   conv  uuid := 'd1000000-0000-4000-8000-000000000030';
+  customer uuid := 'd1000000-0000-4000-8000-000000000020';
   paths text[];
   res   jsonb;
 begin
+  insert into public.scheduled_messages (
+    company_id, conversation_id, body, send_at, clock_timezone, clock_source, expires_at, created_by
+  ) values (co, conv, 'Text with a private address', now() + interval '1 day',
+    'America/Edmonton', 'contact', now() + interval '2 days', us);
+  insert into public.conversation_snoozes (company_id, conversation_id, user_id, until, note)
+  values (co, conv, us, now() + interval '1 day', 'Call to verify the private address');
+  insert into public.quotes (company_id, conversation_id, contact_id, amount_cents, currency,
+    description, status, expires_at)
+  values (co, conv, customer, 20000, 'cad', 'Quote for the private address', 'accepted', now());
+  insert into public.payment_requests (company_id, conversation_id, contact_id, amount_cents,
+    currency, description, stripe_account_id, status, amount_received_cents, expires_at)
+  values (co, conv, customer, 15000, 'cad',
+    'Payment for the private address', 'acct_test', 'paid', 15000, now());
+
   perform public.api_trash_conversations(co, us, array[conv]);
 
   -- Everything that lives in a bucket is named BEFORE the rows go.
@@ -520,6 +535,22 @@ begin
   if exists (select 1 from public.messages
               where conversation_id = conv and (body <> '' or purged_at is null)) then
     raise exception 'DT-5 FAILED: a message body survived purge';
+  end if;
+  if not exists (
+    select 1 from public.scheduled_messages where conversation_id = conv and body = '' and status = 'canceled'
+  ) or exists (
+    select 1 from public.conversation_snoozes where conversation_id = conv
+  ) then
+    raise exception 'DT-5 FAILED: scheduled text or snooze content survived purge';
+  end if;
+  if not exists (
+    select 1 from public.quotes where conversation_id = conv and description = 'Removed'
+      and status = 'accepted' and amount_cents = 20000 and currency = 'cad'
+  ) or not exists (
+    select 1 from public.payment_requests where conversation_id = conv and description = 'Removed'
+      and status = 'paid' and amount_cents = 15000 and amount_received_cents = 15000 and currency = 'cad'
+  ) then
+    raise exception 'DT-5 FAILED: financial descriptions survived or payment facts changed';
   end if;
   if exists (select 1 from public.calls
               where id = 'd1000000-0000-4000-8000-000000000080'
