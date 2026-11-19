@@ -72,7 +72,7 @@ begin
    where e.type = 'missed_call'
      and (not coalesce(m.automated, false)
           or m.automation is distinct from 'missed_call_text');
-  if stale <> 0 then
+  if stale is distinct from 0 then
     raise exception 'AT-3 FAILED: % missed-call texts are still marked as human', stale;
   end if;
   raise notice 'AT-3 PASSED: every event-linked missed-call text is marked automated';
