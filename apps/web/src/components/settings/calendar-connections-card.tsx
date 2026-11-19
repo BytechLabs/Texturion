@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-import { CalendarAttentionPanel, calendarProviderName, offersCalendarAction } from "@/components/calendar/calendar-attention-panel";
+import { CalendarAttentionPanel, calendarProviderName, offersCalendarAction } from "@/components/for-you/calendar-attention-panel";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";

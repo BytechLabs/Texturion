@@ -55,7 +55,7 @@ const ROSTER: Record<string, Served> = {
   },
   calendar_link: {
     api: "apps/api/src/routes/calendar-connections.ts",
-    web: "apps/web/src/components/calendar/calendar-attention-panel.tsx",
+    web: "apps/web/src/components/for-you/calendar-attention-panel.tsx",
     android: `${ANDROID  }features/foryou/ScheduleDecisionsCard.kt`,
     ios: `${IOS  }Features/ForYou/ScheduleDecisionsSection.swift`,
   },

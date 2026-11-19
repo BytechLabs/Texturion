@@ -6,7 +6,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
-import { CalendarAttentionPanel } from "@/components/calendar/calendar-attention-panel";
+import { CalendarAttentionPanel } from "@/components/for-you/calendar-attention-panel";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
