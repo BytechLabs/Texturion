@@ -718,11 +718,24 @@ begin
   if exists (select 1 from public.tasks t where t.series_id = series and t.deleted_at is null and not t.reminders_off) then
     raise exception 'Opting out did not turn off the remaining appointment reminders';
   end if;
+  perform public.api_edit_task_series(company, job, owner_id,
+    jsonb_build_object('due_at', t0 + interval '1 hour'));
+  if not exists (select 1 from public.tasks t where t.series_id = series and t.occurrence_no = 2
+                  and t.due_at is not null and t.due_on is null and t.reminders_off) then
+    raise exception 'Adding a time to future visits lost the date or reenabled reminders';
+  end if;
   outcome := public.api_set_task_repeat(company, job, owner_id,
     '{"kind":"after_done","unit":"day","remind_customer":true}');
   series := (outcome->'task'->>'series_id')::uuid;
   if (select remind_customer from public.task_series where id = series) is distinct from false then
     raise exception 'An after-done series accepted customer reminders: %', outcome;
+  end if;
+  perform public.set_task_done(company, job, true, owner_id);
+  if not exists (select 1 from public.tasks t where t.series_id = series and t.occurrence_no = 2
+                  and t.reminders_off and not exists (
+                    select 1 from public.calendar_reminder_replans r where r.task_id = t.id
+                  )) then
+    raise exception 'An after-done repeat did not spawn a visit with reminders off';
   end if;
 end $$;
 

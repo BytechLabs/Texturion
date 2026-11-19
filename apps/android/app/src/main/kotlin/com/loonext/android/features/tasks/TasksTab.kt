@@ -234,7 +234,7 @@ private fun TaskListScreen(
     var refreshKey by remember(companyId) { mutableIntStateOf(0) }
     var newTaskOpen by remember { mutableStateOf(false) }
     // #739: set by a tap on a calendar day; the New task form opens due that day.
-    var calendarDueIso by remember { mutableStateOf<String?>(null) }
+    var calendarDueOn by remember { mutableStateOf<String?>(null) }
     val workspaceZone = remember(me.company?.timezone) { workspaceZone(me.company?.timezone) }
     var pullRefreshing by remember(companyId) { mutableStateOf(false) }
     // #228: the done-toggle below writes from a coroutine, and the failure it
@@ -423,16 +423,16 @@ private fun TaskListScreen(
         AppStrings.translate(locale, key)
     }
 
-    calendarDueIso?.let { dueIso ->
+    calendarDueOn?.let { day ->
         NewTaskSheetHost(
             graph = graph,
             companyId = companyId,
             conversationId = null,
             contactId = null,
             contactName = "",
-            onDismiss = { calendarDueIso = null },
+            onDismiss = { calendarDueOn = null },
             onCreated = { refreshKey++ },
-            initialDueOn = dueIso,
+            initialDueOn = day,
             zone = workspaceZone,
         )
     }
@@ -769,8 +769,9 @@ private fun TaskListScreen(
                             onToggleDone = onToggleDone,
                             zone = workspaceZone,
                             onCreateTask = { day ->
-                                calendarDueIso = day.toString()
+                                calendarDueOn = day.toString()
                             },
+                            notConfirmed = notConfirmedFilter,
                         )
 
                         else -> TaskList(

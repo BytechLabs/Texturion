@@ -21,6 +21,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Add
 import androidx.compose.material.icons.outlined.Check
+import androidx.compose.material.icons.outlined.EventAvailable
 import androidx.compose.material.icons.outlined.Flag
 import androidx.compose.material.icons.outlined.Remove
 import androidx.compose.material.icons.outlined.Repeat
@@ -190,7 +191,12 @@ internal fun TaskBadges(task: Task, modifier: Modifier = Modifier, maxLabels: In
             Text(t("contactsTasks.calendarHold"), style = MaterialTheme.typography.labelSmall)
         }
         if (task.confirmed_at != null) {
-            Text(t("contactsTasks.mapConfirmed"), style = MaterialTheme.typography.labelSmall)
+            Icon(
+                Icons.Outlined.EventAvailable,
+                contentDescription = t("contactsTasks.mapConfirmed"),
+                modifier = Modifier.size(IconSize.Small),
+                tint = MaterialTheme.colorScheme.primary,
+            )
         }
     }
 }

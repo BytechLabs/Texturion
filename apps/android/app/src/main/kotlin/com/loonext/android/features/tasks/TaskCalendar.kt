@@ -258,6 +258,7 @@ internal fun TaskCalendarView(
     zone: ZoneId = ZoneId.systemDefault(),
     /** #739: asked to open New task due on this day. */
     onCreateTask: (LocalDate) -> Unit = {},
+    notConfirmed: Boolean = false,
 ) {
     val haptics = rememberHaptics()
 
@@ -304,7 +305,8 @@ internal fun TaskCalendarView(
     val unassigned = unassignedChip && assigneeChip == null
     val cacheKey = CacheKeys.tasks(
         companyId,
-        taskCalendarFilterKey(month, baseAssignee, unassigned, query),
+        taskCalendarFilterKey(month, baseAssignee, unassigned, query) +
+            if (notConfirmed) "|unconfirmed" else "",
     )
     val state = rememberCacheFirst(
         cache = cache,
@@ -323,6 +325,7 @@ internal fun TaskCalendarView(
                 dueBefore = isoAtStartOfDay(gridEnd.plusDays(1), zone),
                 dueOnBefore = gridEnd.toString(),
                 dueOnAfter = gridStart.toString(),
+                confirmed = if (notConfirmed) false else null,
                 q = query,
             ),
             undatedArms = taskListArms(
@@ -331,6 +334,7 @@ internal fun TaskCalendarView(
                 unassigned = unassignedChip,
                 due = null,
                 q = query,
+                extra = TaskExtraFilters(notConfirmed = notConfirmed),
             ),
         )
     }

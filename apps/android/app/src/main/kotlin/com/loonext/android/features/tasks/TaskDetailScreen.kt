@@ -224,6 +224,7 @@ internal fun TaskDetailScreen(
     var members by remember(companyId) { mutableStateOf<List<Member>>(emptyList()) }
     var refreshKey by remember(taskId) { mutableStateOf(0) }
     var actionError by remember(taskId) { mutableStateOf<String?>(null) }
+    var correction by remember(taskId) { mutableStateOf<Pair<BookingCorrection, Boolean>?>(null) }
 
     LaunchedEffect(taskId, refreshKey) {
         try {
@@ -291,6 +292,17 @@ internal fun TaskDetailScreen(
         ?: failure
         ?: LoadState.Loading
 
+    correction?.let { (queued, deleted) ->
+        BookingCorrectionDialog(
+            notice = queued,
+            repository = remember(graph) { MessagingRepository(graph.api) },
+            companyId = companyId,
+            onClose = {
+                correction = null
+                if (deleted) onBack()
+            },
+        )
+    }
     when (val current = state) {
         is LoadState.Loading -> Column(modifier.fillMaxSize()) {
             DetailTopBar(onBack = onBack, menu = { Spacer(Modifier.size(44.dp)) })
@@ -324,6 +336,7 @@ internal fun TaskDetailScreen(
             onChanged = { refreshKey++ },
             onPatched = { graph.storeCache.put(cacheKey, it) },
             onDeleted = onBack,
+            onCorrection = { queued, deleted -> correction = queued to deleted },
             onBack = onBack,
             onOpenConversation = onOpenConversation,
             onOpenTask = onOpenTask,
@@ -425,6 +438,7 @@ private fun TaskDetailBody(
     onChanged: () -> Unit,
     onPatched: (TaskDetail) -> Unit,
     onDeleted: () -> Unit,
+    onCorrection: (BookingCorrection, Boolean) -> Unit,
     onBack: () -> Unit,
     onOpenConversation: ((String, String?) -> Unit)?,
     onOpenTask: ((String) -> Unit)?,
@@ -447,8 +461,6 @@ private fun TaskDetailBody(
     val notSavedLabel = t("contactsTasks.scopeNotSaved")
     val noAccess = detail.viewer_level == "none"
     var pickBookingCustomer by remember(detail.id) { mutableStateOf(false) }
-    var correction by remember(detail.id) { mutableStateOf<BookingCorrection?>(null) }
-    var deletedWithCorrection by remember(detail.id) { mutableStateOf(false) }
     if (pickBookingCustomer) {
         ContactPickerSheet(
             repo = remember(graph) { ReferenceRepository(graph.api) },
@@ -504,7 +516,7 @@ private fun TaskDetailBody(
     fun patched(newDetail: TaskDetail) = onPatched(newDetail)
 
     fun applyTask(task: com.loonext.android.core.model.Task) {
-        task.correction?.let { correction = it }
+        task.correction?.let { onCorrection(it, false) }
         // A due change can replace the reminder queue.
         if (task.due_at != detail.due_at || task.due_on != detail.due_on) {
             onChanged()
@@ -625,8 +637,7 @@ private fun TaskDetailBody(
             try {
                 val queued = mutations.delete(companyId, detail.id, deleteScope)
                 if (queued != null) {
-                    deletedWithCorrection = true
-                    correction = queued
+                    onCorrection(queued, true)
                 } else {
                     onDeleted()
                 }
@@ -644,17 +655,6 @@ private fun TaskDetailBody(
         }
     }
 
-    correction?.let { queued ->
-        BookingCorrectionDialog(
-            notice = queued,
-            repository = remember(graph) { MessagingRepository(graph.api) },
-            companyId = companyId,
-            onClose = {
-                correction = null
-                if (deletedWithCorrection) onDeleted()
-            },
-        )
-    }
     Column(modifier.fillMaxSize()) {
         DetailTopBar(onBack = onBack, menu = { Spacer(Modifier.size(44.dp)) })
 
