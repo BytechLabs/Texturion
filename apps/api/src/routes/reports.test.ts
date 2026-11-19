@@ -26,6 +26,7 @@ const env = completeEnv();
 const COMPANY_ID = "5c1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "1d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const TECH_ID = "2d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
+const HIDDEN_NUMBER_ID = "eeeeeeee-9999-4222-8333-444444444444";
 
 let auth: TestAuth;
 const app = buildTestApp(reportsRoutes);
@@ -492,12 +493,16 @@ describe("#354 GET /v1/reports/pipeline", () => {
   function stubPipeline(
     role: string,
     windows: { quoted: number; won: number; lost: number; open: number }[],
+    hiddenNumberId?: string,
   ): SupabaseStub {
     const sb = supabaseStub(env);
     sb.on(
       "POST",
       "/rest/v1/rpc/api_authorize_request",
       membershipResponder(MEMBER_ID, role),
+    );
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () =>
+      hiddenNumberId ? [{ phone_number_id: hiddenNumberId, level: "none" }] : [],
     );
     let call = 0;
     sb.on("POST", "/rest/v1/rpc/api_pipeline_report", () => {
@@ -517,7 +522,7 @@ describe("#354 GET /v1/reports/pipeline", () => {
     const sb = stubPipeline("member", [
       { quoted: 10, won: 6, lost: 2, open: 2 },
       { quoted: 8, won: 2, lost: 6, open: 0 },
-    ]);
+    ], HIDDEN_NUMBER_ID);
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -536,7 +541,11 @@ describe("#354 GET /v1/reports/pipeline", () => {
     ]);
     // Two windows, so the number has a direction. A win rate with nothing to
     // compare it to is a statistic rather than something to act on.
-    expect(sb.find("POST", "/rest/v1/rpc/api_pipeline_report")).toHaveLength(2);
+    const calls = sb.find("POST", "/rest/v1/rpc/api_pipeline_report");
+    expect(calls).toHaveLength(2);
+    for (const call of calls) {
+      expect(call.body).toMatchObject({ p_hidden_number_ids: [HIDDEN_NUMBER_ID] });
+    }
   });
 
   it("divides by DECIDED jobs, so quoting more work cannot lower the rate", async () => {
@@ -571,6 +580,26 @@ describe("#354 GET /v1/reports/pipeline", () => {
   });
 });
 
+describe("GET /v1/reports/lead-sources", () => {
+  it("scopes attribution to the caller's visible lines", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "member"));
+    sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+      { phone_number_id: HIDDEN_NUMBER_ID, level: "none" },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_lead_source_report", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await apiRequest(app, env, await auth.token(), "/v1/reports/lead-sources", {
+      companyId: COMPANY_ID,
+    });
+
+    expect(response.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_lead_source_report")[0]?.body)
+      .toMatchObject({ p_hidden_number_ids: [HIDDEN_NUMBER_ID] });
+  });
+});
+
 /**
  * GET /v1/reports/satisfaction (#313).
  *
@@ -589,14 +618,17 @@ interface Rating {
 
 function ratingWorld(
   ratings: Rating[],
-  options: { perMember?: boolean } = {},
+  options: { perMember?: boolean; restrictLine?: boolean } = {},
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
     "POST",
     "/rest/v1/rpc/api_authorize_request",
-    membershipResponder(MEMBER_ID, "owner"),
+    membershipResponder(MEMBER_ID, options.restrictLine ? "member" : "owner"),
   );
+  sb.on("POST", "/rest/v1/rpc/member_number_levels", () => [
+    { phone_number_id: HIDDEN_NUMBER_ID, level: "none" },
+  ]);
   sb.on("GET", "/rest/v1/companies", () => [
     { response_stats_per_member: options.perMember ?? false },
   ]);
@@ -651,6 +683,16 @@ async function satisfaction(
 }
 
 describe("#313 satisfaction reporting", () => {
+  it("filters hidden lines and trashed jobs before reading rating pages", async () => {
+    const sb = ratingWorld([], { restrictLine: true });
+    await satisfaction(sb);
+    const query = sb.find("GET", "/rest/v1/job_ratings")[0]?.url.searchParams;
+
+    expect(query?.get("conversations.or")).toBe(`(phone_number_id.is.null,phone_number_id.not.in.(${HIDDEN_NUMBER_ID}))`);
+    expect(query?.get("conversations.deleted_at")).toBe("is.null");
+    expect(query?.get("tasks.deleted_at")).toBe("is.null");
+  });
+
   it.each([1400, 5000, 5001])("counts %i same-time ratings up to the cap", async (count) => {
     const ratings = Array.from({ length: count }, () => ({ score: 5, ago: 1 }));
     const body = await satisfaction(ratingWorld(ratings));

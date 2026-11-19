@@ -358,9 +358,11 @@ quotesRoutes.get("/quotes/:id", requireCapability("conversations.read"), async (
   const rows = unwrap<unknown>(
     await db
       .from("quotes")
-      .select(QUOTE_COLUMNS)
+      .select(`${QUOTE_COLUMNS},conversations!inner()`)
       .eq("company_id", c.get("companyId"))
       .eq("id", id)
+      .is("conversations.deleted_at", null)
+      .is("conversations.purged_at", null)
       .limit(1),
     "quote read",
   ) as QuoteRow[];

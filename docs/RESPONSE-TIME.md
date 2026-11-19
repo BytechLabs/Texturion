@@ -60,6 +60,10 @@ that text-back.
 | **Threads we opened** | See "what starts the clock". |
 | **Reopened threads** | See below. |
 
+Pipeline, lead-source and satisfaction reports also use the viewer’s line
+access. Pipeline and lead-source counts exclude trashed conversations.
+Satisfaction also excludes ratings attached to trashed jobs.
+
 ## A reopened thread is not measured again
 
 Someone who texts again three weeks later is a returning customer, not a new

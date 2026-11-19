@@ -424,6 +424,11 @@ reportsRoutes.get("/reports/response-time", requireCapability("conversations.rea
 reportsRoutes.get("/reports/pipeline", requireCapability("conversations.read"), async (c) => {
   const db = getDb(getEnv(c.env));
   const companyId = c.get("companyId");
+  const { hiddenNumberIds } = await resolveNumberAccess(db, {
+    companyId,
+    userId: c.get("userId"),
+    role: c.get("role"),
+  });
 
   const requested = Number(c.req.query("days") ?? DEFAULT_DAYS);
   const days = (ALLOWED_DAYS as readonly number[]).includes(requested)
@@ -439,6 +444,7 @@ reportsRoutes.get("/reports/pipeline", requireCapability("conversations.read"), 
       p_company_id: companyId,
       p_since: from.toISOString(),
       p_until: to.toISOString(),
+      p_hidden_number_ids: hiddenNumberIds,
     });
     if (error) throw new Error(`api_pipeline_report failed: ${error.message}`);
     return data as PipelineReport;
@@ -579,6 +585,11 @@ reportsRoutes.get(
   async (c) => {
     const db = getDb(getEnv(c.env));
     const companyId = c.get("companyId");
+    const { hiddenNumberIds } = await resolveNumberAccess(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+    });
 
     const requested = Number(c.req.query("days") ?? DEFAULT_DAYS);
     const days = (ALLOWED_DAYS as readonly number[]).includes(requested)
@@ -592,6 +603,7 @@ reportsRoutes.get(
       p_company_id: companyId,
       p_since: since.toISOString(),
       p_until: until.toISOString(),
+      p_hidden_number_ids: hiddenNumberIds,
     });
     if (error) {
       throw new Error(`api_lead_source_report failed: ${error.message}`);
@@ -618,12 +630,16 @@ reportsRoutes.get(
       ? requested
       : DEFAULT_DAYS;
 
+    const [{ hiddenNumberIds }, companyResult] = await Promise.all([
+      resolveNumberAccess(db, {
+        companyId,
+        userId: c.get("userId"),
+        role: c.get("role"),
+      }),
+      db.from("companies").select("response_stats_per_member").eq("id", companyId).limit(1),
+    ]);
     const companies = unwrap<{ response_stats_per_member: boolean }[]>(
-      await db
-        .from("companies")
-        .select("response_stats_per_member")
-        .eq("id", companyId)
-        .limit(1),
+      companyResult,
       "satisfaction company lookup",
     );
     const [company] = companies;
@@ -640,11 +656,19 @@ reportsRoutes.get(
     while (rows.length <= MAX_ROWS) {
       let ratings = db
         .from("job_ratings")
-        .select("id,asked_at,score,answered_at,rated_user_id")
+        .select("id,asked_at,score,answered_at,rated_user_id,conversations!inner(),tasks!inner()")
         .eq("company_id", companyId)
+        .is("conversations.deleted_at", null)
+        .is("tasks.deleted_at", null)
         .gte("asked_at", priorSince.toISOString())
         .order("asked_at", { ascending: false })
         .order("id", { ascending: false });
+      if (hiddenNumberIds?.length) {
+        ratings = ratings.or(
+          `phone_number_id.is.null,phone_number_id.not.in.(${hiddenNumberIds.join(",")})`,
+          { referencedTable: "conversations" },
+        );
+      }
       const last = rows.at(-1);
       if (last) {
         ratings = ratings.or(keysetFilter("asked_at", { ts: last.asked_at, id: last.id }));
