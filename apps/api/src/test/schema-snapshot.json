@@ -803,6 +803,7 @@
     "referrals_for_company": [[{"name":"p_company_id","hasDefault":false}]],
     "release_workspace_mfa_notice": [[{"name":"p_member_id","hasDefault":false},{"name":"p_required_at","hasDefault":false},{"name":"p_kind","hasDefault":false}]],
     "reopen_workspace": [[{"name":"p_company_id","hasDefault":false}]],
+    "report_lead_opening": [[{"name":"p_company_id","hasDefault":false},{"name":"p_conversation_id","hasDefault":false}]],
     "request_data_export": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false},{"name":"p_ttl","hasDefault":true},{"name":"p_kind","hasDefault":true},{"name":"p_filters","hasDefault":true}]],
     "revoke_prepayment": [[{"name":"p_stripe_session_id","hasDefault":false},{"name":"p_reason","hasDefault":false}]],
     "rig_database_posture": [[]],
