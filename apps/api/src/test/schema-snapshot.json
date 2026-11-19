@@ -788,6 +788,7 @@
     "record_call_steps": [[{"name":"p_company_id","hasDefault":false},{"name":"p_call_session_id","hasDefault":false},{"name":"p_steps","hasDefault":false}]],
     "record_email_event": [[{"name":"p_email","hasDefault":false},{"name":"p_event","hasDefault":false},{"name":"p_occurred_at","hasDefault":false},{"name":"p_bounce_type","hasDefault":true},{"name":"p_resend_id","hasDefault":true},{"name":"p_subject","hasDefault":true}]],
     "record_export_table": [[{"name":"p_export_id","hasDefault":false},{"name":"p_table","hasDefault":false},{"name":"p_rows","hasDefault":false}]],
+    "record_inbound_call_consent": [[{"name":"p_company_id","hasDefault":false},{"name":"p_contact_id","hasDefault":false},{"name":"p_caller_e164","hasDefault":false},{"name":"p_call_id","hasDefault":false}]],
     "record_referral": [[{"name":"p_company_id","hasDefault":false},{"name":"p_referee_company","hasDefault":false},{"name":"p_code","hasDefault":false}]],
     "referral_claim_facts": [[{"name":"p_code","hasDefault":false},{"name":"p_referee_company","hasDefault":false}]],
     "referrals_for_company": [[{"name":"p_company_id","hasDefault":false}]],
