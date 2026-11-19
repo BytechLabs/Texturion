@@ -10,6 +10,16 @@ import { ApiError } from "../../http/errors";
 import { decodeCursor } from '../../http/pagination';
 import type { Cursor } from '../../http/pagination';
 
+export function optionalIdempotencyKey(c: Context): string | null {
+  const header = c.req.header("Idempotency-Key");
+  if (header === undefined) return null;
+  const key = header.trim();
+  if (!key || key.length > 255) {
+    throw new ApiError("validation_failed", "Idempotency-Key must contain 1 to 255 characters.");
+  }
+  return key;
+}
+
 /** Parse and zod-validate a JSON body; any failure is 422 `validation_failed`. */
 export async function parseJsonBody<S extends z.ZodType>(
   c: Context,

@@ -54,6 +54,8 @@ A task row names what it came from in `source` (`{ "kind": "message" | "call", "
 
 Every task carries `number`, its per-workspace number (shown to people as `T-142`). It is assigned when the task is created, never changes and is never reused, even after the task is deleted. It is read-only.
 
+Send an optional `Idempotency-Key` header of up to 255 characters when creating a task. A retry with the same API key, header and body returns the existing task with `200`. The initial create returns `201`. Reusing the header with a different body or for a task that has since been deleted returns `409`.
+
 A task can have up to ten assignees. Every task carries `assignee_ids`, everyone on it, first assignee first, and `assigned_user_id` is the first of them, kept so existing integrations keep working (it is read-only in effect: change the crew with `assignee_ids`). `POST` takes `assignee_ids` (up to ten workspace members, which wins) or the one-person shorthand `assigned_user_id`; a non-member is a 422, and so is an eleventh person. `task.created` webhooks carry both fields.
 
 A task row also carries `priority`, `labels` and `repeat` (#693):

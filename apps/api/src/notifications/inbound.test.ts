@@ -464,6 +464,33 @@ describe("notifyInboundMessage — native device push (#151)", () => {
     expect(deletes[0].url.searchParams.get("id")).toBe(`eq.${DEVICE_ROW_ID}`);
   });
 
+  it("does not resend after dead-device cleanup fails", async () => {
+    const account = await makeServiceAccount();
+    const service = fcmService({
+      sendStatus: 404,
+      sendBody: JSON.stringify({
+        error: { code: 404, details: [{ errorCode: "UNREGISTERED" }] },
+      }),
+    });
+    const world = buildWorld({ members: [OWNER] });
+    world.sb.on("GET", "/rest/v1/device_push_tokens", () => [
+      { id: DEVICE_ROW_ID, user_id: OWNER, platform: "android", token: "dead" },
+    ]);
+    world.sb.on("DELETE", "/rest/v1/device_push_tokens", () =>
+      Response.json({ message: "cleanup failed" }, { status: 500 }),
+    );
+    stubFetch(...world.routes, ...service.routes);
+
+    const beforeSend = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const input = { ...INPUT, beforeSend };
+    await expect(notifyInboundMessage(fcmEnv(account), input)).rejects.toThrow(/delivery step\(s\) failed/);
+    await notifyInboundMessage(fcmEnv(account), input);
+
+    expect(service.sends).toHaveLength(1);
+    expect(world.sb.find("DELETE", "/rest/v1/device_push_tokens")).toHaveLength(1);
+    expect(world.resend.calls).toHaveLength(1);
+  });
+
   it("collects native-push failures and throws (never silent), after email + web push", async () => {
     const account = await makeServiceAccount();
     const service = fcmService({ sendStatus: 500 });

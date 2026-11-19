@@ -978,6 +978,7 @@ export function Composer({
   const [pickTimeOpen, setPickTimeOpen] = useState(false);
   const [quietConfirmFor, setQuietConfirmFor] = useState<string | null>(null);
   const schedule = useScheduleMessage();
+  const scheduleAttempt = useRef<{ conversationId: string; body: string; sendAt: string; key: string } | null>(null);
 
   const doSend = useCallback(async () => {
     if (!canSend) return;
@@ -1262,14 +1263,23 @@ export function Composer({
       }
       const body = text.trim();
       if (body === "") return;
+      let attempt = scheduleAttempt.current;
+      if (attempt?.conversationId !== conversationId || attempt.body !== body || attempt.sendAt !== sendAtIso) {
+        attempt = { conversationId, body, sendAt: sendAtIso, key: crypto.randomUUID() };
+        scheduleAttempt.current = attempt;
+      }
       try {
         await schedule.mutateAsync({
           conversationId,
           body,
           sendAt: sendAtIso,
           quietHoursConfirmed,
+          idempotencyKey: attempt.key,
         });
-        setText("");
+        if (scheduleAttempt.current === attempt) {
+          scheduleAttempt.current = null;
+          setText((current) => current.trim() === body ? "" : current);
+        }
         setQuietConfirmFor(null);
         toast.success(
           t("thread.scheduledFor", {

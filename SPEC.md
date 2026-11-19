@@ -942,7 +942,8 @@ There is **no** `POST /auth/*` on the Worker — all auth flows (signup, login, 
 **Telnyx `event_type` dispatch:**
 - `message.received` → threading transaction (§6), opt-out keyword handling (§5), MMS media download (idempotent: fetch each `media[].url` **immediately** — URLs expire after ~30 days but we never wait — into `mms-media/{company_id}/{message_id}/{n}`, insert `message_attachments`), notification pipeline (§8).
 - `message.sent` → `messages.status='sent'` by `telnyx_message_id`.
-- `message.finalized` → status `delivered`/`failed` (+`error_code`/`error_detail`), **authoritative `parts` + `encoding` stored**, `provider_cost` from payload cost when present, then the metering step (§9): insert `usage_events` + fire the Stripe meter event. Status webhooks whose `telnyx_message_id` matches no row are acked as no-ops.
+- `message.finalized` → status `delivered`/`failed` (+`error_code`/`error_detail`), **authoritative `parts` + `encoding` stored**, `provider_cost` from payload cost when present, then the metering step (§9): insert `usage_events` + fire the Stripe meter event. When the carrier ID is still unknown, replay recent outbound finalized receipts for up to 15 minutes. Known website verification texts are excluded from conversation status handling and metering.
+- The inbox marks a thread after a failed outbound text. The marker clears when the carrier accepts a later send or a retry.
 - `10dlc.brand.update` / `10dlc.campaign.update` / `10dlc.phone_number.update` → registration state machine (§4.4 webhook event mapping). Unknown `event_type`s → ack, no-op.
 
 **Stripe events handled** (configured on the webhook endpoint): `checkout.session.completed`, `customer.subscription.created`, `customer.subscription.updated`, `customer.subscription.deleted`, `invoice.paid`, `invoice.payment_failed`, `invoice.payment_action_required`, and (#422) `charge.dispute.created`, `charge.dispute.updated`, `charge.dispute.closed`. Handlers treat events as **triggers** and re-fetch the subscription from the Stripe API before applying state (out-of-order guard) — see §9.
@@ -1087,6 +1088,10 @@ POST /v1/messages/send
  → webhooks: message.sent → 'sent'; message.finalized → 'delivered'/'failed'
    (+error_code) — status badges push live via message.status broadcasts
 ```
+
+`POST /v1/scheduled-messages` accepts an optional `Idempotency-Key` up to 255 characters. A retry with the same workspace, member, key, conversation, text and send time returns the existing scheduled message with `200`, even if it was edited or canceled. Reusing the key for different content, time or conversation returns `409`. A new schedule still requires confirmation when the requested time falls in quiet hours.
+
+The scheduled strip lets members with text access expand the message, edit its wording or pick a new time. Rescheduling a held text releases its old claim and counts only later customer replies toward the reply hold. The member who canceled a text can undo that cancellation for five minutes while the original schedule is still valid and queue capacity is available.
 
 ### Notifications (D9)
 

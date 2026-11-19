@@ -778,6 +778,7 @@ export interface ConversationListItem
   extends Conversation,
     SnoozeState,
     MemberThreadState {
+  last_outbound_failed_at?: string | null;
   contact: ContactSummary;
   tags: Tag[];
   unread: boolean;

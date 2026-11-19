@@ -365,6 +365,13 @@ widgetRoutes.post("/widget/start", async (c) => {
     return widgetUnavailable(c);
   }
 
+  const { error: carrierIdError } = await db.from("widget_verifications")
+    .update({ telnyx_message_id: sent.telnyxMessageId })
+    .eq("id", claimed.id);
+  if (carrierIdError) {
+    console.error(`widget carrier id write failed for ${claimed.id}: ${carrierIdError.message}`);
+  }
+
   return c.json({ ok: true, verificationId: claimed.id }, 202);
 });
 

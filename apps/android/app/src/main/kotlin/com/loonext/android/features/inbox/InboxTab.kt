@@ -2178,6 +2178,20 @@ private fun ConversationRow(row: ConversationListItem, assigneeName: String?, ou
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                if (row.last_outbound_failed_at != null) {
+                    Icon(
+                        Icons.Outlined.WarningAmber,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(IconSize.Small),
+                    )
+                    Text(
+                        t("inbox.rowNotDelivered"),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.error,
+                        maxLines = 1,
+                    )
+                }
                 if (row.last_message?.has_attachments == true) {
                     Icon(
                         Icons.Outlined.AttachFile,

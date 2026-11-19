@@ -36,6 +36,7 @@ import {
   stateMachines,
 } from "@loonext/shared";
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
@@ -50,7 +51,7 @@ import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
 import { loadAutomaticTextSettings } from "../messaging/automatic-text-settings";
 import { resolveDestinationClock } from "../messaging/destination-clock";
-import { parseJsonBody, pathUuid, unwrap, unwrapOptional } from "./core/http";
+import { optionalIdempotencyKey, parseJsonBody, pathUuid, unwrap, unwrapOptional } from "./core/http";
 
 export const scheduledMessageRoutes = new Hono<AppEnv>();
 
@@ -91,6 +92,7 @@ scheduledMessageRoutes.post(
     const companyId = c.get("companyId");
     const userId = c.get("userId");
     const db = getDb(getEnv(c.env));
+    const idempotencyKey = optionalIdempotencyKey(c);
 
     // The shared parser, so a malformed body fails with the same envelope and
     // the same field-level summary as every other route rather than a sentence
@@ -142,13 +144,13 @@ scheduledMessageRoutes.post(
       contactTimezone: conversation?.contacts?.timezone ?? null,
     });
 
-    if (clock.quiet && !quiet_hours_confirmed) {
-      // Same code and envelope as compose, so a client shows the quiet-hours
-      // dialog by CODE rather than by reading the sentence.
-      throw new ApiError(
-        "quiet_hours_confirmation_required",
-        `That lands at ${String(clock.localHour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to schedule it anyway.`,
-      );
+    const needsQuietConfirmation = clock.quiet && !quiet_hours_confirmed;
+    const quietConfirmationError = () => new ApiError(
+      "quiet_hours_confirmation_required",
+      `That lands at ${String(clock.localHour).padStart(2, "0")}:00 where this customer is. Confirm with quiet_hours_confirmed to schedule it anyway.`,
+    );
+    if (needsQuietConfirmation && idempotencyKey === null) {
+      throw quietConfirmationError();
     }
 
     const settings = await loadAutomaticTextSettings(db, companyId);
@@ -161,6 +163,8 @@ scheduledMessageRoutes.post(
         p_send_at: sendAt.toISOString(),
         p_clock_timezone: clock.timezone,
         p_clock_source: clock.source,
+        p_idempotency_key: idempotencyKey,
+        p_needs_quiet_confirmation: needsQuietConfirmation,
         p_expires_at: new Date(
           sendAt.getTime() + settings.scheduled_text_expiry_hours * 3_600_000,
         ).toISOString(),
@@ -169,8 +173,15 @@ scheduledMessageRoutes.post(
     );
 
     switch (result.outcome) {
-      case "scheduled": {
-        return c.json({ scheduled_message: result.scheduled_message }, 201);
+      case "scheduled":
+      case "replayed": {
+        return c.json({ scheduled_message: result.scheduled_message }, result.outcome === "replayed" ? 200 : 201);
+      }
+      case "quiet_confirmation": {
+        throw quietConfirmationError();
+      }
+      case "key_conflict": {
+        throw new ApiError("conflict", "Idempotency-Key was already used for a different scheduled text.");
       }
       case "not_found": {
         throw new ApiError("not_found", "That conversation is not here.");
@@ -381,10 +392,17 @@ scheduledMessageRoutes.patch(
 
     if (patchBody.send_at !== undefined) {
       const sendAt = new Date(patchBody.send_at);
-      if (Number.isNaN(sendAt.getTime()) || sendAt <= new Date()) {
+      const now = Date.now();
+      if (Number.isNaN(sendAt.getTime()) || sendAt.getTime() <= now) {
         throw new ApiError(
           "validation_failed",
           "That time has already passed. Pick one in the future.",
+        );
+      }
+      if (sendAt.getTime() > now + SCHEDULED_HORIZON_DAYS * 86_400_000) {
+        throw new ApiError(
+          "validation_failed",
+          `We can hold a message for up to ${SCHEDULED_HORIZON_DAYS} days.`,
         );
       }
       const destination = existing.conversations?.contact_phone_e164;
@@ -409,6 +427,18 @@ scheduledMessageRoutes.patch(
       }
       patch.send_at = sendAt.toISOString();
       const settings = await loadAutomaticTextSettings(db, companyId);
+      const lastInbound = unwrapOptional<{ created_at: string }>(
+        await db.from("messages")
+          .select("created_at")
+          .eq("company_id", companyId)
+          .eq("conversation_id", existing.conversation_id)
+          .eq("direction", "inbound")
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        "scheduled text's newest customer reply",
+      );
+      patch.inbound_watermark = lastInbound?.created_at ?? null;
       patch.expires_at = new Date(
         sendAt.getTime() + settings.scheduled_text_expiry_hours * 3_600_000,
       ).toISOString();
@@ -444,37 +474,40 @@ scheduledMessageRoutes.patch(
   },
 );
 
-/** Cancel it. Idempotent-ish: cancelling something already gone is a 404. */
+async function requireScheduledTextAccess(c: Context<AppEnv>) {
+  const companyId = c.get("companyId");
+  const userId = c.get("userId");
+  const db = getDb(getEnv(c.env));
+  const id = pathUuid(c, "id");
+
+  const existing = unwrapOptional<{
+    conversations: { phone_number_id: string | null } | null;
+  }>(
+    await db
+      .from("scheduled_messages")
+      .select("conversations(phone_number_id)")
+      .eq("id", id)
+      .eq("company_id", companyId)
+      .maybeSingle(),
+    "scheduled message lookup",
+  );
+  if (!existing) throw new ApiError("not_found", "That message is not here.");
+  await assertNumberLevel(db, {
+    companyId,
+    userId,
+    role: c.get("role"),
+    phoneNumberId: existing.conversations?.phone_number_id ?? null,
+    need: "text",
+  });
+  return { companyId, userId, db, id };
+}
+
 scheduledMessageRoutes.delete(
   "/scheduled-messages/:id",
   requireCapability("conversations.send"),
   async (c) => {
-    const companyId = c.get("companyId");
-    const userId = c.get("userId");
-    const db = getDb(getEnv(c.env));
-    const id = pathUuid(c, "id");
-
-    const existing = unwrapOptional<{
-      conversations: { phone_number_id: string | null } | null;
-    }>(
-      await db
-        .from("scheduled_messages")
-        .select("conversations(phone_number_id)")
-        .eq("id", id)
-        .eq("company_id", companyId)
-        .maybeSingle(),
-      "scheduled message lookup",
-    );
-    if (!existing) throw new ApiError("not_found", "That message is not here.");
-    await assertNumberLevel(db, {
-      companyId,
-      userId,
-      role: c.get("role"),
-      phoneNumberId: existing.conversations?.phone_number_id ?? null,
-      need: "text",
-    });
-
-    const result = unwrap<{ outcome: string }>(
+    const { companyId, userId, db, id } = await requireScheduledTextAccess(c);
+    const result = unwrap<{ outcome: string; scheduled_message?: { canceled_at: string } }>(
       await db.rpc("api_cancel_scheduled_message", {
         p_id: id,
         p_company_id: companyId,
@@ -485,6 +518,31 @@ scheduledMessageRoutes.delete(
     if (result.outcome !== "canceled") {
       throw new ApiError("not_found", "That message is not waiting to send.");
     }
+    if (c.req.query("undo_receipt") === "1" && result.scheduled_message) {
+      return c.json({ canceled_at: result.scheduled_message.canceled_at });
+    }
     return c.body(null, 204);
+  },
+);
+
+const restoreSchema = z.object({ canceled_at: z.iso.datetime({ offset: true }) });
+
+scheduledMessageRoutes.post(
+  "/scheduled-messages/:id/restore",
+  requireCapability("conversations.send"),
+  async (c) => {
+    const { companyId, userId, db, id } = await requireScheduledTextAccess(c);
+    const { canceled_at } = await parseJsonBody(c, restoreSchema);
+    const restored = unwrap<boolean>(
+      await db.rpc("api_restore_scheduled_message", {
+        p_id: id,
+        p_company_id: companyId,
+        p_user_id: userId,
+        p_canceled_at: canceled_at,
+      }),
+      "restore scheduled message",
+    );
+    if (!restored) throw new ApiError("conflict", "That scheduled text can no longer be restored.");
+    return c.json({ restored: true });
   },
 );

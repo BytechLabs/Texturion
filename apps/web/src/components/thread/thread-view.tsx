@@ -550,7 +550,7 @@ function ThreadLoaded({
               alert={conversation.open_alert ?? null}
               viewerId={me.data?.user_id ?? null}
             />
-            <ScheduledStrip conversationId={conversationId} />
+            <ScheduledStrip conversationId={conversationId} clock={conversation.destination_clock} />
             <PresenceStrip viewers={presence.viewers} />
             <Composer
               key={`composer-${conversationId}`}
@@ -580,7 +580,7 @@ function ThreadLoaded({
               alert={conversation.open_alert ?? null}
               viewerId={me.data?.user_id ?? null}
             />
-            <ScheduledStrip conversationId={conversationId} />
+            <ScheduledStrip conversationId={conversationId} clock={conversation.destination_clock} />
             <PresenceStrip viewers={presence.viewers} />
             <Composer
               key={`composer-${conversationId}`}

@@ -9,23 +9,21 @@ import SwiftUI
 ///   one. Putting it in the transcript would mean a reader has to check a badge
 ///   before believing that anything above the fold was actually sent, which is
 ///   the failure the separate table exists to prevent.
-/// - **Zen of Clarity.** One line each, and the strip disappears entirely when
-///   nothing is queued — which is almost always. A permanently-present empty
-///   panel would cost every reader attention to tell them nothing.
+/// - A row opens to show the full text. The strip hides when the queue is empty.
 /// - **Disclosure is the point.** A held message says WHY in the API's own
 ///   words, in the amber this product already uses for "needs a human".
 ///   `docs/DECISIONS.md` makes that binding: silent disappearance is the one
 ///   unacceptable option, and a strip showing only a time would be silent about
 ///   the only state that matters.
-/// - **No ethical friction.** Cancelling something that has not gone is
-///   reversible in the only sense that counts — you can schedule it again — so
-///   it is one tap and a toast, not a confirmation.
+/// - Cancel takes effect immediately. The toast offers Undo.
 ///
 /// Mirrors apps/web/src/components/thread/scheduled-strip.tsx and the Android
 /// ScheduledStrip.kt.
 @MainActor
 struct ScheduledStrip: View {
     let rows: [ScheduledMessage]
+    let clock: DestinationClock?
+    let onUpdate: @MainActor (String, String?, String?, Bool) async -> ScheduleOutcome
     let onCancel: @MainActor (String) -> Void
 
     var body: some View {
@@ -35,7 +33,12 @@ struct ScheduledStrip: View {
         if !rows.isEmpty {
             VStack(spacing: 4) {
                 ForEach(rows) { row in
-                    ScheduledStripRow(row: row) { onCancel(row.id) }
+                    ScheduledStripRow(
+                        row: row,
+                        clock: clock,
+                        onUpdate: { body, at, confirmed in await onUpdate(row.id, body, at, confirmed) },
+                        onCancel: { onCancel(row.id) }
+                    )
                 }
             }
             .padding(.horizontal, 12)
@@ -47,9 +50,19 @@ struct ScheduledStrip: View {
 @MainActor
 private struct ScheduledStripRow: View {
     let row: ScheduledMessage
+    let clock: DestinationClock?
+    let onUpdate: @MainActor (String?, String?, Bool) async -> ScheduleOutcome
     let onCancel: @MainActor () -> Void
 
     @Environment(\.appLocale) private var appLocale
+    @State private var expanded = false
+    @State private var editing = false
+    @State private var pickingTime = false
+    @State private var quietTime: Date?
+    @State private var saving = false
+    @State private var draft = ""
+
+    private func t(_ key: String) -> String { AppStrings.translate(appLocale, key) }
 
     var body: some View {
         HStack(alignment: .top, spacing: 8) {
@@ -62,14 +75,21 @@ private struct ScheduledStripRow: View {
                 let lead = row.isHeld
                     ? AppStrings.translate(appLocale, "thread.scheduledWaiting")
                     : sendAtOf(row, locale: appLocale)
-                Text("\(lead) — \(row.body)")
-                    .font(.caption)
-                    .lineLimit(2)
+                Button {
+                    expanded.toggle()
+                } label: {
+                    Text("\(lead) — \(row.body)")
+                        .font(.caption)
+                        .lineLimit(expanded ? nil : 2)
+                        .multilineTextAlignment(.leading)
+                }
+                .buttonStyle(.plain)
 
-                // The reason, in the API's own words. Not paraphrased here:
-                // three clients paraphrasing one sentence is how one of them
-                // ends up saying nothing at all.
-                if row.isHeld, let reason = row.held_reason, !reason.isEmpty {
+                if row.isHeld, let reason = ScheduledSend.holdText(
+                    reasonKey: row.held_reason_key,
+                    storedEnglish: row.held_reason,
+                    locale: appLocale
+                ), !reason.isEmpty {
                     Text(reason)
                         .font(.caption2)
                         .foregroundStyle(NoteAmber.ink)
@@ -78,8 +98,35 @@ private struct ScheduledStripRow: View {
                         .font(.caption2)
                         .foregroundStyle(BrandColor.muted500)
                 }
+                if row.isHeld, row.allowed_actions.allows("edit") {
+                    Button(t("thread.pickAnotherTime")) { pickingTime = true }
+                        .font(.caption2)
+                        .disabled(saving)
+                }
             }
             .frame(maxWidth: .infinity, alignment: .leading)
+
+            if row.allowed_actions.allows("edit") {
+                HStack(spacing: 8) {
+                    Button {
+                        draft = row.body
+                        editing = true
+                    } label: {
+                        Label(t("thread.scheduledEditText"), systemImage: "square.and.pencil")
+                    }
+                    if !row.isHeld {
+                        Button {
+                            pickingTime = true
+                        } label: {
+                            Label(t("thread.scheduledChangeTime"), systemImage: "clock")
+                        }
+                    }
+                }
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .font(.caption)
+                .disabled(saving)
+            }
 
             // #722: no cancel where the server will not take it.
             if row.allowed_actions.allows("cancel") {
@@ -95,6 +142,7 @@ private struct ScheduledStripRow: View {
                         .foregroundStyle(BrandColor.muted500)
                 }
                 .buttonStyle(.plain)
+                .disabled(saving)
                 .accessibilityLabel(
                     AppStrings.translate(
                         appLocale,
@@ -117,6 +165,55 @@ private struct ScheduledStripRow: View {
                         )
                 )
         )
+        .sheet(isPresented: $editing) {
+            NavigationStack {
+                TextEditor(text: $draft)
+                    .padding()
+                    .accessibilityLabel(t("thread.scheduledEditText"))
+                    .navigationTitle(t("thread.scheduledEditText"))
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button(t("common.cancel")) { editing = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(t("common.save")) { save(body: draft) }
+                                .disabled(saving || draft.utf16.count > ScheduledSend.bodyMax
+                                    || draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                        }
+                    }
+            }
+        }
+        .sheet(isPresented: $pickingTime) {
+            SendLaterPicker(clock: clock) { at in save(at: at) }
+        }
+        .confirmDialog(
+            t("thread.quietHoursTitle"),
+            item: $quietTime,
+            message: { _ in quietHoursScheduleMessage(localHour: nil, locale: appLocale) },
+            confirmLabel: t("thread.scheduleAnyway"),
+            cancelLabel: t("thread.pickAnotherTime"),
+            tone: .standard,
+            onCancel: { pickingTime = true }
+        ) { at in
+            save(at: at, confirmed: true)
+        }
+    }
+
+    private func save(body: String? = nil, at: Date? = nil, confirmed: Bool = false) {
+        guard !saving else { return }
+        saving = true
+        Task { @MainActor in
+            defer { saving = false }
+            let iso = at.map { ISO8601DateFormatter().string(from: $0) }
+            switch await onUpdate(body, iso, confirmed) {
+            case .scheduled:
+                editing = false
+            case .needsQuietHoursConfirm:
+                quietTime = at
+            case .failed:
+                break
+            }
+        }
     }
 }
 

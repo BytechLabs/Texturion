@@ -532,9 +532,12 @@ private struct ThreadBody: View {
                 ) { id in
                     controller.acknowledgeAlert(id)
                 }
-                ScheduledStrip(rows: controller.scheduled) { id in
-                    controller.cancelScheduled(id)
-                }
+                ScheduledStrip(
+                    rows: controller.scheduled,
+                    clock: detail.destination_clock,
+                    onUpdate: controller.updateScheduled,
+                    onCancel: controller.cancelScheduled
+                )
                 // #224: what this thread is owed, what it was paid, and the ask.
                 // Directly above the composer for the same reason the scheduled
                 // strip is — it is STATE, not history, and it changes without

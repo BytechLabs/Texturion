@@ -52,4 +52,37 @@ begin
   raise notice 'ML PASSED: texts only move forward, and a failed one can be retried';
 end $$;
 
+do $$
+declare
+  v_company constant uuid := '72200000-0000-4000-8000-000000000101';
+  v_owner constant uuid := '72200000-0000-4000-8000-000000000102';
+  v_conversation constant uuid := '72200000-0000-4000-8000-000000000103';
+  v_message constant uuid := '72200000-0000-4000-8000-000000000111';
+  v_failure_at timestamptz;
+begin
+  update public.messages set status = 'failed', error_code = 'send_interrupted'
+   where id = v_message;
+  select last_outbound_failed_at into v_failure_at
+    from public.conversations where id = v_conversation;
+  if v_failure_at is null then
+    raise exception 'A failed outbound did not mark its thread';
+  end if;
+
+  if (select (item->>'last_outbound_failed_at')::timestamptz
+        from public.api_list_conversations(v_company, v_owner, 10) as listed(item)
+       where item->>'id' = v_conversation::text) is distinct from v_failure_at then
+    raise exception 'The inbox row did not include the failed-send marker';
+  end if;
+
+  update public.messages set status = 'queued' where id = v_message;
+  if (select last_outbound_failed_at from public.conversations where id = v_conversation)
+      is distinct from v_failure_at then
+    raise exception 'Queuing a retry cleared the failed-send marker';
+  end if;
+  update public.messages set telnyx_message_id = 'test-retried-message' where id = v_message;
+  if (select last_outbound_failed_at from public.conversations where id = v_conversation) is not null then
+    raise exception 'Carrier acceptance did not clear the failed-send marker';
+  end if;
+end $$;
+
 rollback;

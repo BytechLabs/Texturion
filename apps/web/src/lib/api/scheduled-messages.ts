@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import type { ScheduledMessageStatus } from "@loonext/shared";
 
+import { undoableToast } from "@/components/ui/optimistic-undo";
 import { useT } from "@/i18n/provider";
 
 import { apiFetch } from "./client";
@@ -109,6 +110,7 @@ export function useScheduledMessages(conversationId?: string) {
 export interface ScheduleInput {
   conversationId: string;
   body: string;
+  idempotencyKey?: string;
   /** The instant, absolute. The picker resolves the wall clock. */
   sendAt: string;
   /**
@@ -128,6 +130,7 @@ export function useScheduleMessage() {
         {
           method: "POST",
           companyId,
+          idempotencyKey: input.idempotencyKey,
           body: {
             conversation_id: input.conversationId,
             body: input.body,
@@ -147,24 +150,60 @@ export function useScheduleMessage() {
   });
 }
 
+export function useUpdateScheduledMessage() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ id, ...body }: {
+      id: string;
+      body?: string;
+      send_at?: string;
+      quiet_hours_confirmed?: boolean;
+    }) => apiFetch<{ scheduled_message: ScheduledMessage }>(`/v1/scheduled-messages/${id}`, {
+      method: "PATCH",
+      companyId,
+      body,
+    }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: scheduledKeys.all(companyId) });
+    },
+  });
+}
+
 export function useCancelScheduledMessage() {
   const t = useT();
   const companyId = useCompanyId();
   const queryClient = useQueryClient();
+  const refresh = () => queryClient.invalidateQueries({ queryKey: scheduledKeys.all(companyId) });
+  const restore = useMutation({
+    mutationFn: ({ id, canceled_at }: { id: string; canceled_at: string }) =>
+      apiFetch(`/v1/scheduled-messages/${id}/restore`, {
+        method: "POST",
+        companyId,
+        body: { canceled_at },
+      }),
+    onSuccess: () => { void refresh(); },
+    onError: () => { toast.error(t("thread.scheduledRestoreFailed")); },
+  });
   return useMutation({
     mutationFn: (id: string) =>
-      apiFetch<void>(`/v1/scheduled-messages/${id}`, {
+      apiFetch<{ canceled_at: string } | undefined>(`/v1/scheduled-messages/${id}`, {
         method: "DELETE",
         companyId,
+        searchParams: { undo_receipt: 1 },
       }),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({
-        queryKey: scheduledKeys.all(companyId),
+    onSuccess: (receipt, id) => {
+      void refresh();
+      const message = t("thread.scheduledCancelled");
+      if (!receipt) {
+        toast.success(message);
+        return;
+      }
+      undoableToast({
+        message,
+        undoLabel: t("thread.undo"),
+        onUndo: () => restore.mutate({ id, canceled_at: receipt.canceled_at }),
       });
-      // Plain confirmation, not a dialog. Cancelling something that has not
-      // gone is reversible in the only sense that matters — you can schedule it
-      // again — so friction here would be friction for its own sake.
-      toast.success(t("thread.scheduledCancelled"));
     },
   });
 }

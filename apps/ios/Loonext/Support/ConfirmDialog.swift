@@ -174,6 +174,7 @@ extension View {
         confirmLabel: String,
         cancelLabel: String? = nil,
         tone: ConfirmTone = .destructive,
+        onCancel: @escaping @MainActor () -> Void = {},
         onConfirm: @escaping @MainActor (Item) -> Void
     ) -> some View {
         modifier(
@@ -184,6 +185,7 @@ extension View {
                 confirmLabel: confirmLabel,
                 cancelLabel: cancelLabel,
                 tone: tone,
+                onCancel: onCancel,
                 onConfirm: onConfirm
             )
         )
@@ -230,6 +232,7 @@ private struct ConfirmItemDialogModifier<Item>: ViewModifier {
     let confirmLabel: String
     let cancelLabel: String?
     let tone: ConfirmTone
+    let onCancel: @MainActor () -> Void
     let onConfirm: @MainActor (Item) -> Void
 
     @Environment(\.appLocale) private var appLocale
@@ -250,7 +253,7 @@ private struct ConfirmItemDialogModifier<Item>: ViewModifier {
             Button(
                 cancelLabel ?? AppStrings.translate(appLocale, "common.cancel"),
                 role: .cancel
-            ) {}
+            ) { onCancel() }
             Button(confirmLabel, role: role) { onConfirm(data) }
         } message: { data in
             Text(messageFor(data))
