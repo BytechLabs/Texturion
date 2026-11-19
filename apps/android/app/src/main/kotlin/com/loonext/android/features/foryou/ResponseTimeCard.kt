@@ -368,7 +368,11 @@ private fun ResponseTimeBody(
             }
             report.by_member?.forEach { member ->
                 DetailRow(
-                    t("inbox.responseByMember", "count" to member.answered.toString()),
+                    t(
+                        "inbox.responseByMember",
+                        "name" to (member.name ?: t("inbox.responseMemberFallback")),
+                        "count" to member.answered.toString(),
+                    ),
                     ResponseTimeFormat.format(member.median_seconds),
                 )
             }

@@ -161,6 +161,7 @@ struct ResponseTimeMember: Codable, Sendable, Identifiable {
     var user_id: String = ""
     var answered: Int = 0
     var median_seconds: Double? = nil
+    var name: String? = nil
 
     var id: String { user_id }
 }

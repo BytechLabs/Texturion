@@ -303,6 +303,7 @@ export function ResponseTimeCard() {
                   <Row
                     key={member.user_id}
                     label={t("inbox.responseByMember", {
+                      name: member.name ?? t("inbox.responseMemberFallback"),
                       count: member.answered,
                     })}
                     value={formatResponseTime(member.median_seconds)}

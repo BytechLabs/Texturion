@@ -373,8 +373,11 @@ describe("GET /v1/reports/response-time", () => {
     expect(body.improved_by_seconds).toBeNull();
   });
 
-  it("withholds per-member numbers until the owner opts in", async () => {
-    const byMember = [{ user_id: TECH_ID, answered: 3, median_seconds: 90 }];
+  it("labels response times only when the owner opts in", async () => {
+    const byMember = [
+      { user_id: TECH_ID, answered: 3, median_seconds: 90 },
+      { user_id: MEMBER_ID, answered: 2, median_seconds: 120 },
+    ];
     const off = stub({
       perMember: false,
       current: statsPayload(
@@ -389,6 +392,7 @@ describe("GET /v1/reports/response-time", () => {
     expect(offBody.by_member).toBeNull();
     expect(offBody.per_member_enabled).toBe(false);
     expect(JSON.stringify(offBody)).not.toContain(TECH_ID);
+    expect(off.find("GET", "/rest/v1/profiles")).toHaveLength(0);
 
     vi.unstubAllGlobals();
 
@@ -399,8 +403,12 @@ describe("GET /v1/reports/response-time", () => {
         { by_member: byMember },
       ),
     });
+    on.on("GET", "/rest/v1/profiles", () => [{ user_id: TECH_ID, display_name: "  Caroline  " }]);
     const onBody = (await (await get(on)).json()) as Record<string, unknown>;
-    expect(onBody.by_member).toEqual(byMember);
+    expect(onBody.by_member).toEqual([
+      { ...byMember[0], name: "Caroline" },
+      { ...byMember[1], name: null },
+    ]);
     expect(onBody.per_member_enabled).toBe(true);
   });
 

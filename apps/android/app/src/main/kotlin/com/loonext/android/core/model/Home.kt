@@ -155,6 +155,7 @@ data class ResponseTimeMember(
     val user_id: String,
     val answered: Int = 0,
     val median_seconds: Double? = null,
+    val name: String? = null,
 )
 
 /**

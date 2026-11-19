@@ -52,7 +52,7 @@ export interface ResponseTimeReport {
     median_seconds: number | null;
   }[];
   /** Null when the owner has not opted in — NOT the same as an empty crew. */
-  by_member: { user_id: string; answered: number; median_seconds: number }[] | null;
+  by_member: { user_id: string; name?: string | null; answered: number; median_seconds: number }[] | null;
   per_member_enabled: boolean;
   baseline: {
     since: string;

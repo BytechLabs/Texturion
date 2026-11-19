@@ -396,7 +396,8 @@ enum InboxStrings {
             "inbox.responseDuringHours": "During hours ({count})",
             "inbox.responseAfterHours": "After hours ({count})",
             "inbox.responseByNumber": "{number} · {count} unanswered",
-            "inbox.responseByMember": "Member · {count} answered",
+            "inbox.responseByMember": "{name} · {count} answered",
+            "inbox.responseMemberFallback": "Member",
             "inbox.responseUnansweredHint":
                 "Opens the inbox filtered to conversations nobody has answered",
             "inbox.responseSplitTruncated":
@@ -835,7 +836,8 @@ enum InboxStrings {
             "inbox.responseDuringHours": "Pendant les heures ({count})",
             "inbox.responseAfterHours": "Hors des heures ({count})",
             "inbox.responseByNumber": "{number} · {count} sans réponse",
-            "inbox.responseByMember": "Membre · {count} avec réponse",
+            "inbox.responseByMember": "{name} · {count} avec réponse",
+            "inbox.responseMemberFallback": "Membre",
             "inbox.responseUnansweredHint":
                 "Ouvre la boîte de réception filtrée sur les conversations sans "
                 + "réponse",
