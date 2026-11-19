@@ -37,6 +37,7 @@ describe("#733 search fields", () => {
         "components/contacts/contacts-table.tsx",
         "components/inbox/filter-bar.tsx",
         "components/settings/settings-search.tsx",
+        "components/tasks/task-customer-field.tsx",
         "components/tasks/task-filter-bar.tsx",
         "components/thread/thread-find-bar.tsx",
       ].toSorted(),
