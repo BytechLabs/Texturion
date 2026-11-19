@@ -58,7 +58,7 @@ describe("#481 the off-ramp exemption is unreachable from anywhere else", () => 
     const afterExemption = gate.slice(gate.indexOf("offRampAllowed(env, companyId)"));
     expect(preSend).toMatch(/await checkSendAvailability\([^;]+offRamp[^;]+\);[\s\S]*\.from\("opt_outs"\)/);
     expect(afterExemption).toContain("registration_pending");
-    expect(afterExemption).toContain("Destination must be a US or Canada number");
+    expect(afterExemption).toContain("!isUsCaDestination(destinationE164)");
   });
 
   it("ends when our control of the number does", () => {

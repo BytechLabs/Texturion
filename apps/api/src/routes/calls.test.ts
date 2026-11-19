@@ -671,18 +671,18 @@ describe("POST /v1/calls/browser (D43)", () => {
     expect(out.to).toBe("+14186553839");
   });
 
-  it("422s an uncallable dialer number", async () => {
+  it.each(["123", "+18765550123", "+442079460958"])("422s an uncallable dialer number %s", async (to) => {
     const sb = browserWorld();
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(app, env, await auth.token(), "/v1/calls/browser", {
       companyId: COMPANY_ID,
       method: "POST",
-      body: { to: "123" },
+      body: { to },
     });
     expect(res.status).toBe(422);
     await expect(res.json()).resolves.toMatchObject({
-      error: { code: "validation_failed" },
+      error: { code: "validation_failed", message_key: "apiRefusals.outboundDestination" },
     });
   });
 

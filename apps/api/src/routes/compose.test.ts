@@ -50,7 +50,7 @@ app.route("/v1", composeRoutes);
 app.route("/", publicApiRoutes);
 app.onError((error, c) => {
   if (error instanceof ApiError) {
-    return errorResponse(c, error.code, error.message);
+    return errorResponse(c, error.code, error.message, error.reference);
   }
   return c.json(
     { error: { code: "internal_error", message: String(error) } },
@@ -453,6 +453,19 @@ describe("POST /v1/conversations — consent attestation (§5, D4)", () => {
     });
     expect(response.status).toBe(422);
     expect(stubs.conversationInsert.calls).toHaveLength(0);
+    expect(stubs.telnyx.calls).toHaveLength(0);
+  });
+
+  it.each(["+18765550123", "+442079460958"])("refuses to start a conversation with %s", async (phone_e164) => {
+    const stubs = composeStubs();
+    stubFetch(...stubs.all);
+
+    const response = await postCompose({ ...VALID_BODY, phone_e164 });
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "validation_failed", message_key: "apiRefusals.outboundDestination" },
+    });
+    expect(stubs.gateRpc.calls).toHaveLength(0);
     expect(stubs.telnyx.calls).toHaveLength(0);
   });
 

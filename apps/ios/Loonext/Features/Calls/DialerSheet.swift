@@ -152,7 +152,7 @@ struct DialerSheet: View {
                 .phoneNumberCopyMenu(dialable)
 
             if dialable == nil && digits.filter(\.isNumber).count >= 10 {
-                Text(t("contactsTasks.dialableNumbersOnly"))
+                Text(t("apiRefusals.outboundDestination"))
                     .font(.golos(14))
                     .foregroundStyle(BrandColor.muted500)
                     .multilineTextAlignment(.center)

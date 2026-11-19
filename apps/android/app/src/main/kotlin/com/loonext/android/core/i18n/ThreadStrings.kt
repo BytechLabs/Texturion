@@ -502,7 +502,6 @@ object ThreadStrings : AppStrings.Section {
         "thread.messageLabel" to "Message",
         "thread.recipientPlaceholder" to "Name or phone number",
         "thread.clearRecipient" to "Clear recipient",
-        "thread.nanpOnly" to "US and Canadian numbers only.",
         "thread.noContactMatch" to
             "No match in contacts. This starts a new conversation.",
         "thread.willText" to "Will text {number}",
@@ -1316,7 +1315,6 @@ object ThreadStrings : AppStrings.Section {
         "thread.messageLabel" to "Message",
         "thread.recipientPlaceholder" to "Nom ou numéro de téléphone",
         "thread.clearRecipient" to "Effacer le destinataire",
-        "thread.nanpOnly" to "Numéros américains et canadiens seulement.",
         "thread.noContactMatch" to
             "Aucune correspondance dans les contacts. Ceci démarre une nouvelle " +
             "conversation.",

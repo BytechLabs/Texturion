@@ -2,6 +2,11 @@ import { ERROR_CODE_STATUS, INTERNAL_ERROR_CODE, INTERNAL_ERROR_STATUS } from '@
 import type { ErrorCode } from '@loonext/shared';
 import type { Context } from "hono";
 
+export const OUTBOUND_DESTINATION_REFUSAL = {
+  message: "Use a US or Canadian number, or a supported toll-free number.",
+  key: "apiRefusals.outboundDestination",
+};
+
 /**
  * SPEC §7 error envelope: `{ error: { code, message } }` with an optional
  * catalogue reference for clients that can localize the specific sentence.

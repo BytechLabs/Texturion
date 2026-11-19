@@ -41,7 +41,7 @@ import { assertNumberLevel, resolveNumberAccess } from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
-import { ApiError } from "../http/errors";
+import { ApiError, OUTBOUND_DESTINATION_REFUSAL } from "../http/errors";
 import {
   decodeOutboundMedia,
   MAX_OUTBOUND_MEDIA_BODY_BYTES,
@@ -508,7 +508,8 @@ export async function composeConversation(
     if (!normalized) {
       throw new ApiError(
         "validation_failed",
-        "phone_e164 must be a valid US or Canada number.",
+        OUTBOUND_DESTINATION_REFUSAL.message,
+        OUTBOUND_DESTINATION_REFUSAL,
       );
     }
     destination = normalized;

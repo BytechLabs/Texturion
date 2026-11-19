@@ -286,6 +286,10 @@ enum ApiErrorStrings {
             "apiRefusals.numberNotAssigned":
                 "chosen_number_e164 is not an assigned US/CA geographic number.",
             "apiRefusals.optOutNotActive": "This number is not opted out.",
+            "apiRefusals.outboundDestination":
+                "Use a US or Canadian number, or a supported toll-free number.",
+            "apiRefusals.outboundLocalTextDestination":
+                "This text can only go to an eligible US or Canadian number.",
             "apiRefusals.outboundSendPaused":
                 "Texting is paused while we deal with an issue. Nothing you sent was lost.",
             "apiRefusals.paymentsNotSetUp":
@@ -644,6 +648,10 @@ enum ApiErrorStrings {
             "apiRefusals.numberNotAssigned":
                 "Choisissez un numéro géographique attribué au Canada ou aux États-Unis.",
             "apiRefusals.optOutNotActive": "Ce numéro ne figure pas dans la liste de désabonnement.",
+            "apiRefusals.outboundDestination":
+                "Utilisez un numéro américain ou canadien, ou un numéro sans frais pris en charge.",
+            "apiRefusals.outboundLocalTextDestination":
+                "Ce texto ne peut être envoyé qu’à un numéro américain ou canadien admissible.",
             "apiRefusals.outboundSendPaused":
                 "L’envoi de textos est suspendu pendant que nous réglons un problème. Vos textos ont été conservés.",
             "apiRefusals.paymentsNotSetUp":

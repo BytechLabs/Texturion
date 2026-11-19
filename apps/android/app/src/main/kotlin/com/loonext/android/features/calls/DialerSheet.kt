@@ -321,7 +321,7 @@ fun DialerSheet(
 
                 if (dialable == null && digits.count(Char::isDigit) >= 10) {
                     Text(
-                        t("contactsTasks.dialableNumbersOnly"),
+                        t("apiRefusals.outboundDestination"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         textAlign = TextAlign.Center,
