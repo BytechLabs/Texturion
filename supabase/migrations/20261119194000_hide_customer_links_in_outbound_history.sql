@@ -125,6 +125,10 @@ begin
     when link.source_link_id is not null and not exists (
       select 1 from public.public_links source
       where source.id = link.source_link_id and source.revoked_at is null and source.expires_at > now()
+        and (source.source_link_id is null or exists (
+          select 1 from public.public_links root
+          where root.id = source.source_link_id and root.revoked_at is null and root.expires_at > now()
+        ))
     ) then 'revoked'
     else 'ok'
   end;

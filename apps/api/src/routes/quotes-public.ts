@@ -15,7 +15,7 @@ import {
   publicLinkNotAvailable,
 } from "../public-links/guard";
 import {
-  mintPublicLink,
+  issueQuoteAcceptToken,
   resolvePublicLink,
 } from "../public-links/tokens";
 import { insertConversationEvents } from "./core/events";
@@ -88,13 +88,14 @@ export const publicQuoteRoutes = new Hono<AppEnv>();
  */
 publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
   const db = getDb(getEnv(c.env));
+  const viewToken = c.req.param("token");
   const resolved = await resolvePublicLink(
     db,
-    c.req.param("token"),
+    viewToken,
     "quote_view",
     callerCountry(c),
   );
-  if (!resolved.ok || !resolved.subject_id || !resolved.company_id) {
+  if (!resolved.ok || !resolved.link_id || !resolved.subject_id || !resolved.company_id) {
     return publicLinkNotAvailable(c);
   }
 
@@ -127,30 +128,8 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
 
   const now = new Date();
   const status = effectiveQuoteStatus(row, now);
-  const canAccept = status === "sent" || status === "viewed";
-
-  /*
-   * Minted BEFORE the view stamp below, which moves `sent` to `viewed` —
-   * both are acceptable states, so the order does not change the answer, but
-   * reading the status once and using it twice is what keeps that true.
-   *
-   * Expiry rides the quote's own deadline: this credential must not outlive
-   * the offer it accepts. `maxUses: 1` because accepting twice is not a thing
-   * a customer does, and a credential that survives its use is one that can be
-   * replayed out of a browser history or a shared screenshot.
-   */
-  const acceptToken = canAccept
-    ? (
-        await mintPublicLink(db, {
-          companyId: resolved.company_id,
-          purpose: "quote_accept",
-          subjectType: "quote",
-          subjectId: row.id,
-          expiresAt: new Date(row.expires_at),
-          maxUses: 1,
-          actorUserId: null,
-        })
-      ).token
+  const acceptToken = status === "sent" || status === "viewed"
+    ? await issueQuoteAcceptToken(db, viewToken, resolved.link_id)
     : null;
 
   /*
@@ -182,7 +161,7 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
     status,
     expires_at: row.expires_at,
     /** Whether pressing accept would do anything, decided here not on a client. */
-    can_accept: canAccept,
+    can_accept: acceptToken !== null,
     accept_token: acceptToken,
   });
 });

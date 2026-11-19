@@ -3911,7 +3911,8 @@ below follows from that sentence.
 - **Expiry is NOT NULL.** A link with no expiry is the failure this exists to
   prevent, and making it representable would guarantee somebody creates one.
 - **Revocation is always individual.** `max_uses: 1` spends a quote acceptance
-  token. A decision revokes the other acceptance tokens and keeps the quote
+  token. Opening a quote again reuses the unspent credential for that view
+  link. A decision revokes the other acceptance tokens and keeps the quote
   view open until its own expiry. A payment page stays open for receipt and
   status checks until 30 days after the request expires, with its state
   controlling whether it offers the Stripe link. Explicit revocation still

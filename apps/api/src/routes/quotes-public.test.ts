@@ -88,8 +88,7 @@ function stubResolving(purpose: string, over: Record<string, unknown> = {}): Sup
   });
   sb.on("GET", "/rest/v1/companies", () => [{ name: "Apex Plumbing" }]);
   sb.on("GET", "/rest/v1/conversations", () => []);
-  // #581: viewing an acceptable quote now mints the accept credential.
-  sb.on("POST", "/rest/v1/rpc/api_mint_public_link", () => "minted-accept-token");
+  sb.on("POST", "/rest/v1/rpc/api_issue_quote_accept_link", () => "ready");
   return sb;
 }
 
@@ -111,7 +110,7 @@ it.each([
 
   expect(response.status).toBe(404);
   expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
-  expect(sb.find("POST", "/rest/v1/rpc/api_mint_public_link")).toHaveLength(0);
+  expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_accept_link")).toHaveLength(0);
 });
 
 describe("GET /q/:token", () => {
@@ -174,7 +173,7 @@ describe("GET /q/:token", () => {
       can_accept: false,
       accept_token: null,
     });
-    expect(sb.find("POST", "/rest/v1/rpc/api_mint_public_link")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_accept_link")).toHaveLength(0);
   });
 
   it("stamps the first view once, and never over a decision", async () => {
@@ -509,17 +508,23 @@ describe("#581 the view token is not the accept token", () => {
     expect(body.accept_token).not.toBe(TOKEN);
   });
 
-  it("mints it single-use, so it cannot be replayed", async () => {
+  it("reuses the same live accept credential when the customer opens the quote twice", async () => {
     const sb = stubResolving("quote_view");
     sb.on("GET", "/rest/v1/quotes", () => [quote()]);
     stubFetch(sb.route);
 
-    await call(`/q/${TOKEN}`);
+    const first = await (await call(`/q/${TOKEN}`)).json<{ accept_token: string }>();
+    const second = await (await call(`/q/${TOKEN}`)).json<{ accept_token: string }>();
+    expect(first.accept_token).toHaveLength(43);
+    expect(second.accept_token).toBe(first.accept_token);
 
-    const [mint] = sb.find("POST", "/rest/v1/rpc/api_mint_public_link");
-    const body = mint?.body as { p_purpose: string; p_max_uses: number | null };
-    expect(body.p_purpose).toBe("quote_accept");
-    expect(body.p_max_uses).toBe(1);
+    const issues = sb.find("POST", "/rest/v1/rpc/api_issue_quote_accept_link");
+    expect(issues).toHaveLength(2);
+    expect(issues[0]?.body).toEqual(issues[1]?.body);
+    expect(issues[0]?.body).toMatchObject({
+      p_view_link_id: "11111111-2222-4333-8444-555555555555",
+      p_token_hash: expect.stringMatching(/^[a-f0-9]{64}$/),
+    });
   });
 
   it("mints nothing for a quote nobody can accept", async () => {
@@ -539,6 +544,6 @@ describe("#581 the view token is not the accept token", () => {
 
     expect(body.can_accept).toBe(false);
     expect(body.accept_token).toBeNull();
-    expect(sb.find("POST", "/rest/v1/rpc/api_mint_public_link")).toHaveLength(0);
+    expect(sb.find("POST", "/rest/v1/rpc/api_issue_quote_accept_link")).toHaveLength(0);
   });
 });

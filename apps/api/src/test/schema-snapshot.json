@@ -530,6 +530,7 @@
     "api_insert_voicemail_event": [[{"name":"p_company_id","hasDefault":false},{"name":"p_conversation_id","hasDefault":false},{"name":"p_call_session_id","hasDefault":false},{"name":"p_caller","hasDefault":false},{"name":"p_seconds","hasDefault":false},{"name":"p_transcript","hasDefault":false}]],
     "api_install_calendar_webhook_subscription": [[{"name":"p_company_id","hasDefault":false},{"name":"p_connection_id","hasDefault":false},{"name":"p_provider_subscription_id","hasDefault":false},{"name":"p_provider_resource_id","hasDefault":false},{"name":"p_provider_calendar_id","hasDefault":false},{"name":"p_client_state_hash","hasDefault":false},{"name":"p_expires_at","hasDefault":false}]],
     "api_issue_ownership_code": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false},{"name":"p_action","hasDefault":false}]],
+    "api_issue_quote_accept_link": [[{"name":"p_view_link_id","hasDefault":false},{"name":"p_token_hash","hasDefault":false}]],
     "api_latest_setting_changes": [[{"name":"p_company_id","hasDefault":false},{"name":"p_keys","hasDefault":false}]],
     "api_lead_source_report": [[{"name":"p_company_id","hasDefault":false},{"name":"p_since","hasDefault":false},{"name":"p_until","hasDefault":false}]],
     "api_lease_notification_batches": [[{"name":"p_now","hasDefault":false},{"name":"p_lease_id","hasDefault":false},{"name":"p_limit","hasDefault":true}]],
