@@ -112,6 +112,20 @@ describe("what we store", () => {
     expect(intake?.problem).toBe("no hot water");
   });
 
+  it("drops French placeholders for missing information", () => {
+    expect(buildIntake({
+      problem: "Fuite au sous-sol",
+      address: "Aucune.",
+      callback: "inconnu",
+      name: "Non précisé",
+    })).toEqual({
+      problem: "Fuite au sous-sol",
+      address: null,
+      callback: null,
+      name: null,
+    });
+  });
+
   it("returns null when the model found nothing at all", () => {
     // Not an empty object: that renders as a labelled section with four blanks.
     expect(

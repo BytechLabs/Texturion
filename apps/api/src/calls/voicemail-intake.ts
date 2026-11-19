@@ -294,7 +294,7 @@ function cleanField(value: string | null | undefined, max: number): string | nul
   // A model asked for a field the caller never mentioned sometimes answers with
   // the word for absence rather than with null. Storing "none" as an address is
   // worse than storing nothing, because it reads as an answer.
-  if (/^(none|n\/a|na|null|unknown|not (stated|given|provided|mentioned|specified))\.?$/i.test(collapsed)) {
+  if (/^(none|n\/a|na|null|unknown|not (stated|given|provided|mentioned|specified)|aucune?|inconnu[e]?|non (indiqu[ée]e?|pr[ée]cis[ée]e?|mentionn[ée]e?))\.?$/iu.test(collapsed)) {
     return null;
   }
   if (collapsed.replaceAll(/[^\p{L}\p{N}]/gu, "").length < 2) return null;

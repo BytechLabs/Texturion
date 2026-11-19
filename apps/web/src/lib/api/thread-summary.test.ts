@@ -1,3 +1,4 @@
+import { makeTranslate } from "@/i18n/translate";
 import {
   THREAD_SUMMARY_IDLE_MIN_MESSAGES,
   THREAD_SUMMARY_IDLE_MS,
@@ -8,9 +9,12 @@ import {
 import { describe, expect, it } from "vitest";
 
 import { ApiError } from "./error";
-import { canRetryThreadSummary, groupThreadSummary, offerThreadSummary, threadSummaryFailureMessage, threadSummaryRequestFailure } from './thread-summary';
+import { canRetryThreadSummary, groupThreadSummary, offerThreadSummary, threadSummaryFailureMessage as rawThreadSummaryFailureMessage, threadSummaryRequestFailure as rawThreadSummaryRequestFailure } from './thread-summary';
 import type { ThreadSummaryLine, ThreadSummaryReason } from './thread-summary';
 import type { MessageDirection } from "./types";
+
+const threadSummaryFailureMessage = (value: Parameters<typeof rawThreadSummaryFailureMessage>[0]) => rawThreadSummaryFailureMessage(value, makeTranslate("en"));
+const threadSummaryRequestFailure = (value: Parameters<typeof rawThreadSummaryRequestFailure>[0]) => rawThreadSummaryRequestFailure(value, makeTranslate("en"));
 
 /**
  * #247 — the client half of the catch-up, guarded.

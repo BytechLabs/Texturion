@@ -114,6 +114,10 @@ export const APPOINTMENT_CONFIRM_KEYWORDS: readonly string[] = [
   "YEAH",
   "OK",
   "OKAY",
+  "OUI",
+  "O",
+  "DACCORD",
+  "CONFIRME",
 ];
 
 /**
@@ -142,11 +146,14 @@ export function isAppointmentConfirmation(body: string): boolean {
   const word = body
     .trim()
     .toUpperCase()
+    .normalize("NFD")
+    .replaceAll(/\p{M}/gu, "")
     // Trailing punctuation only. Stripping INNER punctuation would fold
     // "c'mon over" into "CMONOVER" — harmless — but also turn "no, c" into
     // something this could match, and "no" is the opposite answer.
     .replace(/[.!,;:'"]+$/g, "")
-    .trim();
+    .trim()
+    .replace(/^D['’]ACCORD$/u, "DACCORD");
   return APPOINTMENT_CONFIRM_KEYWORDS.includes(word);
 }
 

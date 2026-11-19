@@ -36,8 +36,10 @@
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import type { AiFeatureSpec } from "../ai/run";
 import { closureReason, formatZonedStamp, hasBusinessHours, isAfterHours, parseHhmm } from '@loonext/shared';
-import type { BusinessHours, HoursException } from '@loonext/shared';
+import type { BusinessHours, HoursException, Locale } from '@loonext/shared';
 import { z } from "zod";
+
+import { moneyAmounts } from "./money-mentions";
 
 /**
  * A small-but-capable instruct model. Enrichment's 1B model extracts fields;
@@ -162,6 +164,7 @@ export interface SuggestionContext {
   companyName: string;
   /** The customer's name, when we know it (drives a natural greeting). */
   contactName: string | null;
+  customerLocale: Locale;
   /** Customer-visible history, oldest-first. Notes are excluded upstream. */
   messages: SuggestionMessage[];
   /** IANA zone for the shop's clock (companies.timezone). */
@@ -275,7 +278,7 @@ export function hasReplyableInbound(messages: SuggestionMessage[]): boolean {
  * from it produces invented history offered up ready to send.
  */
 const GREETING_ONLY =
-  /^(?:hi|hey|hello|yo|hiya|howdy|good (?:morning|afternoon|evening)|morning|hi there|hey there)[\s!.,]*$/i;
+  /^(?:hi|hey|hello|yo|hiya|howdy|good (?:morning|afternoon|evening)|morning|hi there|hey there|bonjour|bonsoir|salut|all[oô])[\s!.,]*$/iu;
 
 /** Nothing but a wave: no information to follow up on. */
 function isGreetingOnly(text: string): boolean {
@@ -367,7 +370,9 @@ export function buildSuggestionMessages(
     .find((m) => m.direction === "inbound" && m.body.trim() !== "");
 
   const description = collapse(ctx.businessDescription ?? "");
+  const language = ctx.customerLocale === "fr-CA" ? "Canadian French" : "English";
   const lines = [
+    `Write in ${language} unless the latest customer message is in the other language.`,
     `Business: ${collapse(ctx.companyName) || "the business"}`,
     ...(description ? [`What the business does: ${description}`] : []),
     `Customer: ${collapse(ctx.contactName ?? "") || "unknown name"}`,
@@ -696,7 +701,7 @@ function containsPhoneNumber(text: string): boolean {
  * exactly the kind of fact a customer would hold the business to.
  */
 const HOURS_CLAIM =
-  /\b(?:we(?:'re| are)\s+(?:open|closed)|we\s+open|we\s+close|open\s+(?:until|till|from|at)\b|closed\s+(?:until|till|from|at)\b|our\s+(?:business\s+)?hours|opening\s+hours)\b/i;
+  /(?<!\p{L})(?:we(?:['’]re| are)\s+(?:open|closed)|we\s+(?:open|close)|(?:open|closed)\s+(?:until|till|from|at)|our\s+(?:business\s+)?hours|opening\s+hours|(?:nous sommes|on est)\s+(?:ouvert|ferm[ée])s?|nous\s+(?:ouvrons|fermons)|(?:ouvert|ferm[ée])s?\s+(?:jusqu|dès|à)|nos\s+heures|heures\s+d['’]ouverture|nos\s+horaires)(?!\p{L})/iu;
 
 /**
  * The model describing the business back to the customer.
@@ -706,24 +711,11 @@ const HOURS_CLAIM =
  * prompt forbids it; this is the part that holds, exactly as with hours.
  */
 const SELF_DESCRIPTION =
-  /\b(?:we(?:'re| are)\s+(?:a|an)\s+(?:\w+\s+){0,2}(?:business|company|firm|team|shop|contractor|service|agency)|we\s+specialize|we\s+specialise|our\s+specialty|our\s+speciality)\b/i;
-
-/** Money, in the shapes a model writes it. */
-const MONEY = /(\$\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{1,2})?\s?(?:dollars|bucks|usd|cad)\b)/gi;
+  /(?<!\p{L})(?:we(?:['’]re| are)\s+(?:a|an)\s+(?:\p{L}+\s+){0,2}(?:business|company|firm|team|shop|contractor|service|agency)|we\s+speciali[sz]e|our\s+speciali?ty|(?:nous sommes|on est)\s+une?\s+(?:\p{L}+\s+){0,2}(?:entreprise|compagnie|équipe|agence|service|entrepreneur)|nous\s+(?:nous spécialisons|sommes spécialisés)|notre\s+spécialité)(?!\p{L})/iu;
 
 /** Collapse whitespace to single spaces and trim. */
 function collapse(text: string): string {
   return text.replaceAll(/\s+/g, " ").trim();
-}
-
-/** Bare digits of a money mention, for comparing a draft's amount to the thread's. */
-function moneyAmounts(text: string): Set<string> {
-  const found = new Set<string>();
-  for (const match of text.matchAll(MONEY)) {
-    const digits = match[0].replaceAll(/[^\d.]/g, "").replace(/\.0+$/, "");
-    if (digits) found.add(digits);
-  }
-  return found;
 }
 
 /**

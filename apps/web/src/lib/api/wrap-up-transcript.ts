@@ -1,9 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -86,7 +84,7 @@ export interface WrapUpTranscript {
  */
 export function wrapUpFailureMessage(
   reason: WrapUpFailureReason | undefined,
-  t: Translate = makeTranslate(DEFAULT_LOCALE),
+  t: Translate,
 ): string {
   switch (reason) {
     case "too_long": {

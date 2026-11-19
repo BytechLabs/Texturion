@@ -257,8 +257,8 @@ class SettingsRepository(
      */
     suspend fun retryOwnEmail(): JsonObject = api.post("/v1/me/email/retry")
 
-    suspend fun usage(companyId: String): Usage =
-        api.get("/v1/usage", companyId = companyId)
+    suspend fun usage(companyId: String, locale: String? = null): Usage =
+        api.get("/v1/usage", query = mapOf("lang" to locale), companyId = companyId)
 
     /**
      * #595: ask for this workspace's metered usage over a period, as a file.

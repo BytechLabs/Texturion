@@ -221,8 +221,8 @@ describe("#228 the carrier is told which voice to use", () => {
     vi.unstubAllGlobals();
   });
 
-  it("puts the language on the Telnyx speak body, beside the female voice", async () => {
-    const bodies: { voice?: string; language?: string }[] = [];
+  it("selects a Canadian French voice and preserves the English voice", async () => {
+    const bodies: { voice?: string; language?: string; service_level?: string }[] = [];
     stubFetch(async (url, request) => {
       if (url.pathname !== "/v2/calls/cust-ccid/actions/speak" || request.method !== "POST") {
         return undefined;
@@ -233,9 +233,9 @@ describe("#228 the carrier is told which voice to use", () => {
     const rt = createSessionRuntime(completeEnv());
     await rt.telnyx.speak("cust-ccid", "Bonjour", "vmi-state", "fr-CA");
     await rt.telnyx.speak("cust-ccid", "Hello", "vmi-state", "en-US");
-    expect(bodies.map((body) => [body.voice, body.language])).toEqual([
-      ["female", "fr-CA"],
-      ["female", "en-US"],
+    expect(bodies).toMatchObject([
+      { voice: "AWS.Polly.Chantal", language: "fr-CA", service_level: "premium" },
+      { voice: "female", language: "en-US" },
     ]);
   });
 });

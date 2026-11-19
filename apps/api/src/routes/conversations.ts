@@ -44,6 +44,7 @@
 import type { BusinessHours, HoursException } from "@loonext/shared";
 import {
   companySettingDefault,
+  resolveLocale,
   hasBusinessHours,
   roleHasCapability,
   shouldOfferThreadSummary,
@@ -1608,12 +1609,13 @@ conversationsRoutes.post(
     const [company, contact] = await Promise.all([
       db
         .from("companies")
-        .select("name,timezone,business_hours,business_hours_exceptions")
+        .select("name,locale,timezone,business_hours,business_hours_exceptions")
         .eq("id", companyId)
         .limit(1)
         .then(
           firstRowOrNull<{
             name: string | null;
+            locale: string | null;
             timezone: string | null;
             business_hours: BusinessHours | null;
             business_hours_exceptions: HoursException[] | null;
@@ -1625,17 +1627,18 @@ conversationsRoutes.post(
         // composer. Greeting the customer by name is the strongest signal a
         // draft has, so getting this column wrong costs every draft.
         .from("contacts")
-        .select("name")
+        .select("name,locale")
         .eq("company_id", companyId)
         .eq("id", conversation.contact_id as string)
         .limit(1)
-        .then(firstRowOrNull<{ name: string | null }>("contact")),
+        .then(firstRowOrNull<{ name: string | null; locale: string | null }>("contact")),
     ]);
     const contactName = contact?.name?.trim() || null;
 
     const prompt = buildSuggestionMessages({
       companyName: company?.name ?? "",
       contactName,
+      customerLocale: resolveLocale(contact?.locale, company?.locale),
       messages,
       timezone: company?.timezone ?? companySettingDefault("timezone"),
       now: new Date(),

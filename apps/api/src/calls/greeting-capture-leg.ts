@@ -22,6 +22,7 @@
  * greeting they already had, and it can never leave a line pointing at audio
  * that does not exist — which is the silence #309 says must never happen.
  */
+import { resolveLocale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
@@ -31,6 +32,7 @@ import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
 
 import { GREETING_CAPTURE_MAX_SECONDS, GREETING_CAPTURE_MIN_SECONDS, GREETING_CAPTURE_SILENCE_SECS, greetingCapturePrompt, parseGreetingCaptureState } from './greeting-capture';
 import type { GreetingCaptureTag } from './greeting-capture';
+import { speechVoice } from "./speech";
 
 /** The private bucket recorded greetings live in (20260804360000). */
 /**
@@ -137,14 +139,14 @@ async function speakPrompt(
 ): Promise<void> {
   const { data } = await db
     .from("companies")
-    .select("name")
+    .select("name,locale")
     .eq("id", tag.companyId)
     .limit(1);
-  const companyName = (data?.[0] as { name?: string } | undefined)?.name ?? "";
+  const company = data?.[0] as { name: string; locale: string | null } | undefined;
+  const locale = resolveLocale(tag.locale, company?.locale);
   await onLiveLeg(env, `/v2/calls/${ccid}/actions/speak`, {
-    payload: greetingCapturePrompt(companyName),
-    voice: "female",
-    language: "en-US",
+    payload: greetingCapturePrompt(company?.name ?? "", locale),
+    ...speechVoice(locale === "fr-CA" ? "fr-CA" : "en-US"),
     client_state: clientState,
   });
 }

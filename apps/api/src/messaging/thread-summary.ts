@@ -129,6 +129,7 @@ import type { ThreadSummarySection } from '@loonext/shared';
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import { workersAiTokenPrice } from "../billing/workers-ai-prices";
 import type { AiFeatureSpec } from "../ai/run";
+import { moneyAmounts } from "./money-mentions";
 
 /**
  * The same instruct model reply drafting uses.
@@ -746,20 +747,6 @@ const PHONE_LIKE = /(\+?\d[\d\s().-]{8,}\d)/;
 /** Date and clock shapes, which are made of the same characters and are not. */
 const DATE_OR_TIME =
   /\b\d{4}-\d{2}-\d{2}\b|\b\d{1,2}[/.]\d{1,2}(?:[/.]\d{2,4})?\b|\b\d{1,2}:\d{2}\b/g;
-/** Money, in the shapes a model writes it. */
-const MONEY =
-  /(\$\s?\d[\d,]*(?:\.\d{1,2})?|\b\d[\d,]*(?:\.\d{1,2})?\s?(?:dollars|bucks|usd|cad)\b)/gi;
-
-/** Bare digits of every money mention, for comparing a line to its source. */
-function moneyAmounts(text: string): Set<string> {
-  const found = new Set<string>();
-  for (const match of text.matchAll(MONEY)) {
-    const digits = match[0].replaceAll(/[^\d.]/g, "").replace(/\.0+$/, "");
-    if (digits) found.add(digits);
-  }
-  return found;
-}
-
 /**
  * Are the TOKENS in `line` — links, phone numbers, amounts — present in the
  * message it cites?

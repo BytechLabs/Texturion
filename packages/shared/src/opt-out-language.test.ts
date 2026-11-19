@@ -37,6 +37,14 @@ describe("what a person actually types to be left alone", () => {
     "wrong number",
     "delete my number",
     "I don't want any more texts",
+    "Arrêtez de m’écrire, merci.",
+    "arrête de me contacter",
+    "Ne me textez plus!",
+    "Retirez-moi de votre liste",
+    "ENLEVEZ-MOI DE LA LISTE",
+    "Désabonnez-moi",
+    "Je ne veux plus recevoir de textos.",
+    "Mauvais numéro",
   ])("flags %j", (body) => {
     expect(looksLikeOptOut(body)).toBe(true);
   });
@@ -69,6 +77,10 @@ describe("what must NOT fire, because a banner nobody believes is worse than non
     "the tap is still dripping",
     "sounds good, see you then",
     "no more leaks since you left, thanks",
+    "Ne m’appelez pas avant 9 h",
+    "Ne me textez plus après 17 h",
+    "C'est le bon numéro, appelez-moi demain",
+    "Merci de vérifier le fauxmauvais numéro",
     "",
   ])("stays quiet on %j", (body) => {
     expect(looksLikeOptOut(body)).toBe(false);

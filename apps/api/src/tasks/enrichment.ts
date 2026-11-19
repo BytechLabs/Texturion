@@ -140,13 +140,19 @@ const ADDRESS_SIGNAL =
 const DUE_SIGNAL =
   /\b(today|tonight|tomorrow|tmrw|tmr|yesterday|monday|tuesday|wednesday|thursday|friday|saturday|sunday|mon|tues?|wed|thur?s?|fri|sat|sun|january|february|march|april|may|june|july|august|september|october|november|december|jan|feb|mar|apr|jun|jul|aug|sept?|oct|nov|dec|noon|midnight|asap|eod|eow|weekend)\b|\b(next|this|by|end of|before|after|due)\s+\w|\b\d{1,2}\s*(:\d{2})?\s*(am|pm)\b|\b\d{1,2}[/-]\d{1,2}([/-]\d{2,4})?\b|\bin\s+\d+\s+(day|days|week|weeks|hour|hours|month|months)\b/i;
 
+const FRENCH_ADDRESS_SIGNAL =
+  /(?<!\p{L})(?:rue|chemin|boul(?:evard)?|rang|route|impasse|appartement)(?!\p{L})/iu;
+
+const FRENCH_DUE_SIGNAL =
+  /(?<!\p{L})(?:aujourd['’]hui|demain|hier|lundi|mardi|mercredi|jeudi|vendredi|samedi|dimanche|midi|minuit)(?!\p{L})|(?<![\p{L}\p{N}])\d{1,2}\s*h(?:\s*\d{2})?(?![\p{L}\p{N}])/iu;
+
 export function detectEnrichmentSignals(text: string): {
   address: boolean;
   due: boolean;
 } {
   return {
-    address: ADDRESS_SIGNAL.test(text),
-    due: DUE_SIGNAL.test(text),
+    address: ADDRESS_SIGNAL.test(text) || FRENCH_ADDRESS_SIGNAL.test(text),
+    due: DUE_SIGNAL.test(text) || FRENCH_DUE_SIGNAL.test(text),
   };
 }
 

@@ -752,7 +752,7 @@ export function Composer({
           suggestionsWereShown.current = true;
           return;
         }
-        toast(suggestionFailureMessage(result.reason));
+        toast(suggestionFailureMessage(result.reason, t));
       },
       onError: () => toast.error(t("thread.draftReplyFailed")),
     });
@@ -875,7 +875,7 @@ export function Composer({
             // Every failure below leaves them exactly where they were: this
             // composer, with a keyboard and whatever they had already typed.
             if (result.text === null) {
-              setWrapUpError(wrapUpFailureMessage(result.reason));
+              setWrapUpError(wrapUpFailureMessage(result.reason, t));
               textareaRef.current?.focus();
               return;
             }

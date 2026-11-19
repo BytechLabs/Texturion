@@ -20,6 +20,14 @@ import org.junit.Test
  */
 class AppStringsTest {
     @Test
+    fun `the support response window is translated into Canadian French`() {
+        assertEquals(
+            "dans les deux jours ouvrables, généralement plus tôt",
+            AppStrings.translate(MessageLocale.FR_CA, "settings.helpResponseTime"),
+        )
+    }
+
+    @Test
     fun `every section has the same keys in both languages`() {
         for (section in AppStrings.SECTIONS) {
             val name = section::class.simpleName

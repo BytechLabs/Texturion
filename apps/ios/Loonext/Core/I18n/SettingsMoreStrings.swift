@@ -1242,7 +1242,7 @@ private let settingsMoreIosHelpFr: [String: String] = [
         + "le courriel plutôt qu'une fenêtre de clavardage, et nous lisons "
         + "tout ce qui arrive. Si vos textos ont cessé d'arriver, dites-le "
         + "dans l'objet et nous commencerons par là.",
-    "settings.helpResponseTime": "within two business days, usually sooner",
+    "settings.helpResponseTime": "dans les deux jours ouvrables, généralement plus tôt",
     "settings.supportBodyApp": "Application : ios {version}",
     "settings.supportBodyAppNoVersion": "Application : ios",
     "settings.supportBodyErrors":

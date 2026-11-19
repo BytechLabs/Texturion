@@ -47,27 +47,32 @@
  * flattened — "STOP TEXTING ME!!!" and "stop texting me" are the same request.
  */
 const OPT_OUT_PHRASES: readonly RegExp[] = [
+  /(?<![\p{L}\p{N}])arretez? de (?:me |m')(?:texter|ecrire|appeler|contacter)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])ne (?:me |m')(?:textez|ecrivez|appelez|contactez) plus(?![\p{L}\p{N}]| (?:avant|apres|pendant) )/u,
+  /(?<![\p{L}\p{N}])(?:retirez|enlevez) moi de (?:votre|la) liste(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])(?:desabonnez moi|mauvais numero)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])je ne veux plus recevoir(?![\p{L}\p{N}])/u,
   // Direct instructions to stop.
-  /\bstop (texting|messaging|contacting|calling) (me|us)\b/,
-  /\bdon'?t (text|message|contact|call) (me|us)( again)?\b/,
-  /\bdo not (text|message|contact|call) (me|us)( again)?\b/,
-  /\bno more (texts?|messages?|calls?)\b/,
-  /\bquit (texting|messaging|contacting) (me|us)\b/,
-  /\bleave me alone\b/,
+  /(?<![\p{L}\p{N}])stop (texting|messaging|contacting|calling) (me|us)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])don'?t (text|message|contact|call) (me|us)( again)?(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])do not (text|message|contact|call) (me|us)( again)?(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])no more (texts?|messages?|calls?)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])quit (texting|messaging|contacting) (me|us)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])leave me alone(?![\p{L}\p{N}])/u,
   // List-removal language.
-  /\b(take|remove) (me|us) off (your |the |this )?(list|mailing list|texts?)\b/,
-  /\b(take|remove) (me|us) off\b/,
-  /\bunsubscribe (me|us)?\b/,
-  /\bopt (me |us )?out\b/,
+  /(?<![\p{L}\p{N}])(take|remove) (me|us) off (your |the |this )?(list|mailing list|texts?)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])(take|remove) (me|us) off(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])unsubscribe (me|us)?(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])opt (me |us )?out(?![\p{L}\p{N}])/u,
   // "Never contact me on this number again" and its relatives.
-  /\bnever (text|message|contact|call) (me|us)\b/,
-  /\b(lose|delete) (my|this) number\b/,
-  /\bwrong number\b/,
+  /(?<![\p{L}\p{N}])never (text|message|contact|call) (me|us)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])(lose|delete) (my|this) number(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])wrong number(?![\p{L}\p{N}])/u,
   // Consent withdrawn in as many words.
-  /\bi (do not|don'?t) (want|wish) to (be )?(receive|get|be contacted)/,
-  /\bi (do not|don'?t) want (any more|anymore|more) (texts?|messages?)\b/,
-  /\bstop\b.{0,12}\bplease\b/,
-  /\bplease\b.{0,12}\bstop\b/,
+  /(?<![\p{L}\p{N}])i (do not|don'?t) (want|wish) to (be )?(receive|get|be contacted)/u,
+  /(?<![\p{L}\p{N}])i (do not|don'?t) want (any more|anymore|more) (texts?|messages?)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])stop(?![\p{L}\p{N}]).{0,12}(?<![\p{L}\p{N}])please(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])please(?![\p{L}\p{N}]).{0,12}(?<![\p{L}\p{N}])stop(?![\p{L}\p{N}])/u,
 ];
 
 /**
@@ -80,13 +85,13 @@ const OPT_OUT_PHRASES: readonly RegExp[] = [
  */
 const NOT_OPT_OUT: readonly RegExp[] = [
   // "stop by", "stop in", "stop at the shop" — an invitation, the opposite.
-  /\bstop (by|in|at|over|round)\b/,
+  /(?<![\p{L}\p{N}])stop (by|in|at|over|round)(?![\p{L}\p{N}])/u,
   // Talking about the keyword rather than using it.
-  /\breply stop\b/,
-  /\bsaid stop\b/,
+  /(?<![\p{L}\p{N}])reply stop(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])said stop(?![\p{L}\p{N}])/u,
   // "don't call me until", "don't text me before 9" — a timing instruction.
-  /\bdon'?t (text|message|call) (me|us) (until|till|before|after|while)\b/,
-  /\bdo not (text|message|call) (me|us) (until|till|before|after|while)\b/,
+  /(?<![\p{L}\p{N}])don'?t (text|message|call) (me|us) (until|till|before|after|while)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])do not (text|message|call) (me|us) (until|till|before|after|while)(?![\p{L}\p{N}])/u,
 ];
 
 /**
@@ -107,6 +112,9 @@ const CARRIER_KEYWORDS = new Set([
 function normalize(body: string): string {
   return body
     .toLowerCase()
+    .normalize("NFD")
+    .replaceAll(/\p{M}/gu, "")
+    .replaceAll("’", "'")
     .replace(/[^\p{L}\p{N}'\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();

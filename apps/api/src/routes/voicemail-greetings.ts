@@ -15,6 +15,7 @@
  * it did, and a recording that turns out to be unplayable falls back to the
  * words at call time (see `greetingAudioUrl` in calls/runtime.ts).
  */
+import { resolveLocale } from "@loonext/shared";
 import { Hono } from "hono";
 import { z } from "zod";
 
@@ -292,14 +293,14 @@ voicemailGreetingsRoutes.post(
 
     const { data: companyRows, error: companyError } = await db
       .from("companies")
-      .select("subscription_status")
+      .select("subscription_status,locale")
       .eq("id", companyId)
       .limit(1);
     if (companyError) {
       throw new Error(`company lookup failed: ${companyError.message}`);
     }
     const company = companyRows?.[0] as
-      | { subscription_status: string }
+      | { subscription_status: string; locale: string | null }
       | undefined;
     if (company?.subscription_status !== "active") {
       return errorResponse(
@@ -374,6 +375,16 @@ voicemailGreetingsRoutes.post(
       );
     }
 
+    const { data: profiles, error: profileError } = await db
+      .from("profiles")
+      .select("locale")
+      .eq("user_id", c.get("userId"))
+      .limit(1);
+    if (profileError) {
+      throw new Error(`recording member lookup failed: ${profileError.message}`);
+    }
+    const profile = profiles?.[0] as { locale: string | null } | undefined;
+
     // BEFORE the dial, and a failure here refuses the call.
     //
     // Everywhere else in this codebase the audit write is best-effort, because
@@ -409,6 +420,7 @@ voicemailGreetingsRoutes.post(
       companyId,
       body.name,
       nowMs,
+      resolveLocale(profile?.locale, company.locale),
     );
 
     try {

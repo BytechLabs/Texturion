@@ -13,7 +13,7 @@
  * still INVITES one. A list that says URGENT on one side and not the other
  * re-creates the defect with extra steps.
  */
-export const EMERGENCY_KEYWORDS = ["URGENT", "EMERGENCY", "911", "SOS"] as const;
+export const EMERGENCY_KEYWORDS = ["URGENT", "EMERGENCY", "911", "SOS", "URGENCE"] as const;
 
 /**
  * #460 — the product's list is a DEFAULT, not the law.

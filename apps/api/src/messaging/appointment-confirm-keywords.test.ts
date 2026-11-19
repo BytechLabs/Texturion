@@ -73,6 +73,13 @@ describe("#237 confirmation replies against the carrier vocabulary", () => {
     }
   });
 
+  it.each(["Oui!", "o", "Daccord", "D’accord!", "Confirmé.", "confirme"])(
+    "confirms on the French reply %j",
+    (reply) => {
+      expect(isAppointmentConfirmation(reply)).toBe(true);
+    },
+  );
+
   it("does not confirm on a sentence that merely contains one", () => {
     // The reschedule request #237 asks to route to a human. "No, Tuesday is
     // better" contains no confirm word; "can we confirm another day?" contains
@@ -82,6 +89,8 @@ describe("#237 confirmation replies against the carrier vocabulary", () => {
       "No, Tuesday is better",
       "yes but can you come earlier",
       "ok so what time exactly",
+      "Oui, mais pouvez-vous venir plus tôt?",
+      "Non, d’accord pour mardi plutôt.",
     ]) {
       expect(isAppointmentConfirmation(shape), shape).toBe(false);
     }
