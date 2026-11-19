@@ -82,6 +82,8 @@ export interface PublicPageApi {
   waitForText(text: string, timeoutMs: number): Promise<boolean>;
   /** The public sign-up form, passed by Turnstile's always-pass test key. */
   signUp(args: { email: string; password: string; name: string }): Promise<{ ok: boolean; alert?: string }>;
+  startWidget(args: { widgetKey: string; phone: string; name: string; message: string }): Promise<ApiAnswer<{ verificationId?: string }>>;
+  submitWidgetCode(code: string): Promise<ApiAnswer>;
   /**
    * Walks the onboarding wizard from its name step with this business name and
    * stops on the number step, which it never touches. Null when the wizard is
@@ -397,6 +399,7 @@ export interface AppApi {
   greetings(args: { tenant: string; since: number }): Promise<{ id: string; created_at: string; storage_path: string; mime_type: string | null; duration_ms: number | null }[]>;
   /** The website widget: start with a Turnstile token or none, then verify with the texted code. */
   widgetStart(args: { tenant: string; phoneRole: StandingRole; turnstileToken?: string }): Promise<ApiAnswer<{ verificationId?: string }>>;
+  widgetTarget(args: { tenant: string; phoneRole: StandingRole }): Promise<{ widgetKey: string; phone: string }>;
   widgetVerify(args: { verificationId: string; code: string; message: string }): Promise<ApiAnswer>;
   widgetVerifications(args: { tenant: string; since: number }): Promise<number>;
   /** Signs in with password and the member's TOTP factor; `meStatus` is `GET /v1/me` on the second-level session. */

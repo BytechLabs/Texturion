@@ -11,7 +11,9 @@
  * "Hang up", "Call"). The web app has no test-id contract for calls yet;
  * `SELECTORS` is the one place to change when it lands.
  */
+import { once } from "node:events";
 import { mkdirSync } from "node:fs";
+import { createServer } from "node:http";
 import { join } from "node:path";
 import { chromium } from 'playwright';
 import type { BrowserContext, BrowserType, Page } from 'playwright';
@@ -290,6 +292,54 @@ export class PublicPage {
     } catch {
       return false;
     }
+  }
+
+  async startWidget(args: { widgetKey: string; phone: string; name: string; message: string }) {
+    const site = createServer((_request, response) => {
+      response.writeHead(200, { "content-type": "text/html" });
+      response.end('<!doctype html><html lang="en"><title>Widget preview</title><body></body></html>');
+    });
+    // Chromium needs a real loopback response to load other local origins.
+    try {
+      await once(site.listen(0, "127.0.0.1"), "listening");
+      const address = site.address();
+      if (!address || typeof address === "string") throw new Error("The widget test site has no port");
+      await this.page.goto(`http://127.0.0.1:${address.port}/`);
+    } finally {
+      site.close();
+    }
+    await this.page.evaluate(({ src, widgetKey }) => new Promise<void>((resolve, reject) => {
+      const script = document.createElement("script");
+      script.dataset.key = widgetKey;
+      script.onload = () => resolve();
+      script.onerror = () => reject(new Error("The widget script could not load"));
+      script.src = src;
+      document.body.append(script);
+    }), { src: new URL("/widget.js", this.#origin).href, widgetKey: args.widgetKey });
+    await this.page.getByRole("button", { name: "Text us", exact: true }).click();
+    await this.page.getByLabel("Your name", { exact: true }).fill(args.name);
+    await this.page.getByLabel("Mobile number", { exact: true }).fill(args.phone);
+    await this.page.getByLabel("How can we help?", { exact: true }).fill(args.message);
+    return this.#submitWidget("start", "Text me a code");
+  }
+
+  async submitWidgetCode(code: string) {
+    await this.page.getByLabel("The 6-digit code we just texted you", { exact: true }).fill(code);
+    const result = await this.#submitWidget("verify", "Send my message");
+    if (result.status >= 200 && result.status < 300) {
+      await this.page.getByText("Sent. They will text you back on that number.", { exact: true }).waitFor();
+    }
+    return result;
+  }
+
+  async #submitWidget(step: "start" | "verify", button: string) {
+    const [response] = await Promise.all([
+      this.page.waitForResponse((reply) => reply.request().method() === "POST" && new URL(reply.url()).pathname === `/widget/${step}`),
+      this.page.getByRole("button", { name: button, exact: true }).click(),
+    ]);
+    const body = (await response.json().catch(() => ({}))) as { verificationId?: string; error?: { code?: string } };
+    const code = body.error?.code;
+    return { status: response.status(), body, ...(code ? { code } : {}) };
   }
 
   async signUp(args: { email: string; password: string; name: string }): Promise<{ ok: boolean; alert?: string }> {

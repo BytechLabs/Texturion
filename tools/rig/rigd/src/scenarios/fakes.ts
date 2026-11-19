@@ -477,6 +477,9 @@ export class FakeApp implements AppApi {
   async widgetStart(args: { turnstileToken?: string }) {
     return args.turnstileToken === undefined ? { status: 403, code: "turnstile_required" } : this.widget.start;
   }
+  async widgetTarget() {
+    return { widgetKey: "widget-rig-key", phone: "+16045550149" };
+  }
   async widgetVerify() {
     return this.widget.verify;
   }
@@ -696,6 +699,12 @@ export class FakeBrowser implements BrowserApi {
       async signUp(args) {
         actions.push(`public sign up ${args.email}`);
         return script.signUp;
+      },
+      async startWidget() {
+        return { status: 202, body: { verificationId: "verification-1" } };
+      },
+      async submitWidgetCode() {
+        return { status: 201 };
       },
       async walkOnboarding() {
         return script.onboarding;

@@ -50,8 +50,6 @@ export const SUGGEST_REPLY_MONTHLY_CAP = 1500;
 /** The guard's AI day (tools/guard/src/limits.ts); a spent day refuses the model, not the app. */
 const GUARD_AI_NEURONS_PER_DAY = 2_000;
 
-/** The rig's always-pass Turnstile secret accepts any token, this one included. */
-export const TURNSTILE_TEST_TOKEN = "XXXX.DUMMY.TOKEN.XXXX";
 const WIDGET_CODE = /\b(\d{6})\b/;
 
 export const STRIPE_TEST_CARD = "4242424242424242";
@@ -157,7 +155,7 @@ async function inboundPicture(ctx: ScenarioContext): Promise<ScenarioResult | un
   return undefined;
 }
 
-/** S27: the widget refuses a start with no Turnstile token, texts ROBOT-1 a code for one with a token, and takes the code back. */
+/** S27: the widget requires Turnstile and delivers a message from a visitor. */
 export const S27: ScenarioRunner = {
   id: "S27",
   async run(ctx) {
@@ -171,7 +169,9 @@ export const S27: ScenarioRunner = {
       return fail("captcha_not_required", `the widget answered ${blocked.status} to a start with no Turnstile token`);
     }
 
-    const started = await ctx.app.widgetStart({ tenant: "QA-W", phoneRole: "ROBOT-1", turnstileToken: TURNSTILE_TEST_TOKEN });
+    const page = await ctx.browser.openPublic("/widget-preview");
+    const target = await ctx.app.widgetTarget({ tenant: "QA-W", phoneRole: "ROBOT-1" });
+    const started = await page.startWidget({ ...target, name: "Rig visitor", message: `Rig S27 widget ${ctx.nonce}` });
     ctx.evidence.start = { status: started.status, code: started.code };
     if (started.status === 429) return infra("widget-limit", "the widget's per-IP limit refused the start");
     const verificationId = started.body?.verificationId;
@@ -188,7 +188,7 @@ export const S27: ScenarioRunner = {
     ctx.evidence.code_ms = texted.received_at - since;
 
     const code = WIDGET_CODE.exec(texted.text)![1]!;
-    const verified = await ctx.app.widgetVerify({ verificationId, code, message: `Rig S27 widget ${ctx.nonce}` });
+    const verified = await page.submitWidgetCode(code);
     ctx.evidence.verify = { status: verified.status, code: verified.code };
     if (verified.status === 429) return infra("widget-limit", "the widget's per-IP limit refused the verify");
     if (!is2xx(verified.status)) return fail("code_refused", `the widget answered ${verified.status}${verified.code ? ` ${verified.code}` : ""} to the code it texted`);
