@@ -670,6 +670,11 @@ paymentRequestRoutes.post(
         .select(REQUEST_COLUMNS),
       "payment request cancel",
     )[0];
+    if (!updated) {
+      const current = await loadRequest(db, companyId, requestId);
+      if (!current) return errorResponse(c, "not_found", "No such payment request.");
+      return c.json(requestJson(current, c.get("role")));
+    }
 
     await insertConversationEvents(db, [
       {
@@ -694,7 +699,7 @@ paymentRequestRoutes.post(
       after: { status: "cancelled" },
     });
 
-    return c.json(requestJson(updated ?? row, c.get("role")));
+    return c.json(requestJson(updated, c.get("role")));
   },
 );
 
