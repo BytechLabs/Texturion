@@ -13,33 +13,20 @@ struct ShareTargetSheet: View {
     @State private var loadError: String?
 
     var body: some View {
-        NavigationStack {
-            List {
-                if loading {
-                    ProgressView()
-                } else if let loadError {
-                    Text(loadError)
-                } else if threads.isEmpty {
-                    Text(AppStrings.translate(locale, "thread.noShareThreads"))
-                } else {
-                    ForEach(threads, id: \.id) { thread in
-                        Button {
-                            onSelect(thread.id)
-                        } label: {
-                            Text(thread.contact.name ?? formatPhone(thread.contact.phone_e164))
-                        }
-                    }
-                }
-            }
-            .searchable(text: $search, prompt: Text(AppStrings.translate(locale, "common.pickerSearch")))
-            .navigationTitle(AppStrings.translate(locale, "thread.shareToThread"))
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(AppStrings.translate(locale, "common.cancel"), action: onCancel)
-                }
-            }
-        }
+        SearchablePickerSheet(
+            options: threads.map { thread in
+                PickerOption(thread.id, title: thread.contact.name ?? formatPhone(thread.contact.phone_e164))
+            },
+            selected: nil,
+            title: AppStrings.translate(locale, "thread.shareToThread"),
+            searchPrompt: AppStrings.translate(locale, "common.pickerSearch"),
+            onPick: onSelect,
+            onDismiss: onCancel,
+            search: $search,
+            loading: loading,
+            loadError: loadError,
+            emptyMessage: AppStrings.translate(locale, "thread.noShareThreads")
+        )
         .interactiveDismissDisabled()
         .task(id: search) {
             loading = true

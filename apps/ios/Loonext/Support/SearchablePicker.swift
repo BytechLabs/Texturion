@@ -29,12 +29,17 @@ struct SearchablePickerSheet<Value: Hashable>: View {
     let searchPrompt: String
     let onPick: @MainActor (Value) -> Void
     let onDismiss: @MainActor () -> Void
+    var search: Binding<String>? = nil
+    var loading = false
+    var loadError: String? = nil
+    var emptyMessage: String? = nil
 
     @State private var query = ""
 
     @Environment(\.appLocale) private var appLocale
 
     private var matches: [PickerOption<Value>] {
+        if search != nil { return options }
         let needle = query.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: " ", with: "_")
         if needle.isEmpty { return options }
         return options.filter {
@@ -46,8 +51,14 @@ struct SearchablePickerSheet<Value: Hashable>: View {
     var body: some View {
         NavigationStack {
             List {
-                if matches.isEmpty {
-                    Text(AppStrings.translate(appLocale, "common.pickerNoMatch"))
+                if loading {
+                    ProgressView()
+                } else if let loadError {
+                    Text(loadError)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                } else if matches.isEmpty {
+                    Text(emptyMessage ?? AppStrings.translate(appLocale, "common.pickerNoMatch"))
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 } else {
@@ -58,7 +69,7 @@ struct SearchablePickerSheet<Value: Hashable>: View {
             }
             .listStyle(.plain)
             .searchable(
-                text: $query,
+                text: search ?? $query,
                 placement: .navigationBarDrawer(displayMode: .always),
                 prompt: searchPrompt
             )
