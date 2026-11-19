@@ -32,7 +32,7 @@ class PageHeaderGuardTest {
         ),
         roster = listOf(
             GuardException("features/calls/CallActivity.kt", ownTitle, 2, "The caller's name and number as the hero of the full-screen incoming call, not a page title."),
-            GuardException("features/calls/DialerSheet.kt", ownTitle, 2, "The number readout above the dial pad, not a page title."),
+            GuardException("features/calls/DialerSheet.kt", ownTitle, 1, "The preview number readout above the dial pad."),
             GuardException("features/foryou/ForYouTab.kt", ownCircle, 1, "The inbox attention button: an animated dot and its own state description sit on the circle."),
         ),
     )

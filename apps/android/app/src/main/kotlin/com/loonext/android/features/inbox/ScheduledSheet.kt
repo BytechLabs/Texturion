@@ -1,5 +1,6 @@
 package com.loonext.android.features.inbox
 
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.IconSize
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -181,8 +182,9 @@ private fun ScheduledSheetRow(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
             ) {
-                Text(
-                    scheduledRecipient(row, LocalAppLocale.current),
+                CopyablePhoneNumber(
+                    row.conversations?.contacts?.takeIf { it.name.isNullOrBlank() }?.phone_e164,
+                    label = scheduledRecipient(row, LocalAppLocale.current),
                     style = MaterialTheme.typography.bodyMedium.copy(
                         fontSize = 13.5.sp,
                         fontWeight = FontWeight.Medium,

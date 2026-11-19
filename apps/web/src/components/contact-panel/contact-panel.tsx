@@ -163,7 +163,7 @@ export function ContactPanel({
 
   const copyNumber = async () => {
     try {
-      await navigator.clipboard.writeText(phone);
+      await navigator.clipboard.writeText(contact.phone_e164);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {

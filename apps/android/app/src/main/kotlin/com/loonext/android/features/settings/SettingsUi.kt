@@ -43,6 +43,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
 import androidx.core.net.toUri
 import com.loonext.android.core.i18n.t
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.assertAboveIme
 import com.loonext.android.ui.theme.BrandColor
 
@@ -71,6 +72,7 @@ fun SettingsCard(
     modifier: Modifier = Modifier,
     /** #719: this card's id in the settings index (see SettingsSearch.kt). */
     anchor: String? = null,
+    phoneNumber: String? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val target = LocalSettingsAnchor.current
@@ -116,7 +118,7 @@ fun SettingsCard(
             )
             .padding(16.dp),
     ) {
-        Text(title, style = MaterialTheme.typography.titleMedium)
+        CopyablePhoneNumber(phoneNumber, label = title, style = MaterialTheme.typography.titleMedium)
         if (description != null) {
             Text(
                 description,

@@ -33,6 +33,7 @@ import { useNumbers } from "@/lib/api/numbers";
 import { useMembers } from "@/lib/api/team";
 import type { Call } from "@/lib/api/types";
 import { formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { cn } from "@/lib/utils";
 import { avatarInitials } from "@loonext/shared";
 
@@ -124,7 +125,9 @@ function OngoingCallRow({
       </span>
       <span className="min-w-0 flex-1">
         <span className="block truncate text-[14px] font-medium text-app-ink">
-          {name}
+          {call.contact_name || !call.caller_e164
+            ? name
+            : <CopyablePhoneNumber number={call.caller_e164} />}
         </span>
         {/* #566: `min-w-0` — the answered phase renders "With <display_name>",
             and display_name is capped at 80 characters (routes/me.ts), so this
@@ -164,7 +167,8 @@ function OngoingCallRow({
           )}
           {line && (
             <span className="ml-auto shrink-0 text-[12px] text-app-muted-2">
-              {t("shell.onLine", { number: line })}
+              {t("shell.onLine", { number: formatPhone(line) })}
+              <CopyablePhoneNumber number={line} iconOnly className="ml-1" />
             </span>
           )}
         </span>
@@ -194,10 +198,10 @@ export function OngoingCalls({ calls }: { calls: Call[] }) {
   const activeLines = (numbers.data?.data ?? []).filter(
     (n) => n.number_e164 && !n.released_at,
   );
-  const lineLabel = (phoneNumberId: string | null): string | null => {
+  const visibleLine = (phoneNumberId: string | null): string | null => {
     if (activeLines.length < 2 || !phoneNumberId) return null;
     const match = activeLines.find((n) => n.id === phoneNumberId);
-    return match?.number_e164 ? formatPhone(match.number_e164) : null;
+    return match?.number_e164 ?? null;
   };
 
   return (
@@ -211,7 +215,7 @@ export function OngoingCalls({ calls }: { calls: Call[] }) {
             key={call.id}
             call={call}
             memberName={memberName(call.answered_by_user_id)}
-            line={lineLabel(call.phone_number_id)}
+            line={visibleLine(call.phone_number_id)}
             t={t}
           />
         ))}

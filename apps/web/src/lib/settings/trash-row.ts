@@ -52,7 +52,7 @@ export function kindLabel(row: TrashRow, t: Translate): string {
   }
 }
 
-function detailsOf(row: TrashRow) {
+export function detailsOf(row: TrashRow) {
   switch (row.kind) {
     case "contact":
       return row.contact;

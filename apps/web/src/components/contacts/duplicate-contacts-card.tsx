@@ -5,6 +5,7 @@ import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import {
   Dialog,
@@ -69,10 +70,12 @@ export function DuplicateContactsCard({ canMerge }: { canMerge: boolean }) {
               <div className="min-w-0 flex-1 text-sm">
                 <p className="truncate">
                   {describe(pair.name_a, pair.phone_a)}
+                  <CopyablePhoneNumber number={pair.phone_a} iconOnly className="mx-1" />
                   <span className="text-muted-foreground">
                     {t("contacts.duplicateAnd")}
                   </span>
                   {describe(pair.name_b, pair.phone_b)}
+                  <CopyablePhoneNumber number={pair.phone_b} iconOnly className="mx-1" />
                 </p>
                 {/* The reason, in the words the server used. A suggestion
                     somebody cannot verify is one they learn to dismiss. */}
@@ -157,18 +160,21 @@ export function MergeDialog({
                 ? { name: pair.name_a, phone: pair.phone_a }
                 : { name: pair.name_b, phone: pair.phone_b };
               return (
-                <label
+                <div
                   key={String(first)}
                   className="flex items-center gap-2 text-sm"
                 >
-                  <input
-                    type="radio"
-                    name="survivor"
-                    checked={keepFirst === first}
-                    onChange={() => setKeepFirst(first)}
-                  />
-                  {describe(option.name, option.phone)}
-                </label>
+                  <label className="flex items-center gap-2">
+                    <input
+                      type="radio"
+                      name="survivor"
+                      checked={keepFirst === first}
+                      onChange={() => setKeepFirst(first)}
+                    />
+                    {describe(option.name, option.phone)}
+                  </label>
+                  <CopyablePhoneNumber number={option.phone} iconOnly />
+                </div>
               );
             })}
           </fieldset>

@@ -80,6 +80,7 @@ import com.loonext.android.features.thread.ComposeBody
 import com.loonext.android.features.thread.MessagingRepository
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.CenteredLoading
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.InitialsAvatar
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.RowDivider
@@ -437,6 +438,7 @@ private fun NewConversationLoaded(
                                     SelectOption(
                                         selectedContact.phone_e164,
                                         t("contactsTasks.phoneMain") + " · " + formatPhone(selectedContact.phone_e164),
+                                        copyValue = selectedContact.phone_e164,
                                     ),
                                 ) + selectedContact.phones.map { phone ->
                                     val label = listOfNotNull(
@@ -444,7 +446,7 @@ private fun NewConversationLoaded(
                                         formatPhone(phone.phone_e164),
                                         t("contactsTasks.phoneOptedOut").takeIf { phone.opted_out },
                                     ).joinToString(" · ")
-                                    SelectOption(phone.phone_e164, label)
+                                    SelectOption(phone.phone_e164, label, copyValue = phone.phone_e164)
                                 },
                                 selected = alternate?.phone_e164 ?: selectedContact.phone_e164,
                                 label = t("contactsTasks.numberField"),
@@ -469,8 +471,9 @@ private fun NewConversationLoaded(
                             else -> null
                         }
                         if (hint != null) {
-                            Text(
-                                hint,
+                            CopyablePhoneNumber(
+                                rawE164?.takeIf { contactMatches.isNotEmpty() },
+                                label = hint,
                                 style = MaterialTheme.typography.labelSmall.copy(
                                     fontSize = 10.5.sp,
                                 ),
@@ -518,7 +521,7 @@ private fun NewConversationLoaded(
                             modifier = Modifier.padding(end = 8.dp),
                         )
                         SelectField(
-                            options = numbers.map { SelectOption(it.id, formatPhone(it.number_e164)) },
+                            options = numbers.map { SelectOption(it.id, formatPhone(it.number_e164), copyValue = it.number_e164) },
                             selected = fromNumberId,
                             label = t("thread.fromLabel"),
                             onSelect = { fromNumberId = it },
@@ -859,8 +862,9 @@ private fun RecipientChip(
         ) {
             InitialsAvatar(contact.name ?: formatPhone(contact.phone_e164), size = 28.dp)
             Spacer(Modifier.width(10.dp))
-            Text(
-                (contact.name ?: formatPhone(contact.phone_e164)) +
+            CopyablePhoneNumber(
+                contact.phone_e164.takeIf { contact.name == null },
+                label = (contact.name ?: formatPhone(contact.phone_e164)) +
                     if (contact.opted_out) " · " + t("thread.optedOut") else "",
                 style = MaterialTheme.typography.bodyLarge.copy(
                     fontSize = 15.sp,
@@ -904,8 +908,9 @@ private fun ContactMatchRow(
                     fontWeight = FontWeight.SemiBold,
                 ),
             )
-            Text(
-                formatPhone(contact.phone_e164) +
+            CopyablePhoneNumber(
+                contact.phone_e164,
+                label = formatPhone(contact.phone_e164) +
                     if (contact.opted_out) " · " + t("thread.optedOut") else "",
                 style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.5.sp),
                 color = MaterialTheme.colorScheme.onSurfaceVariant,

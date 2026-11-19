@@ -149,6 +149,7 @@ struct DialerSheet: View {
                 .padding(.top, 12 * scale)
                 .padding(.bottom, 2)
                 .monospacedDigit()
+                .phoneNumberCopyMenu(dialable)
 
             if dialable == nil && digits.filter(\.isNumber).count >= 10 {
                 Text(t("contactsTasks.dialableNumbersOnly"))
@@ -209,6 +210,7 @@ struct DialerSheet: View {
                                     )
                             }
                             .buttonStyle(.plain)
+                            .phoneNumberCopyMenu(number.number_e164)
                         }
                     }
                     .padding(.horizontal, 24)
@@ -410,6 +412,7 @@ struct DialerSheet: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .phoneNumberCopyMenu(match.number)
     }
 
     /// The matched contact name. Empty otherwise — the fixed-height slot holds

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { toast } from "sonner";
 
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { useT } from "@/i18n/provider";
 import { useCompany } from "@/lib/api/companies";
 import { useRegistration } from "@/lib/api/registration";
@@ -83,10 +84,7 @@ export function WorkspaceStatusBanner() {
   // OTP target phone: wizard data rides GET /v1/registration for owner/admin
   // (the only roles that can enter the code); members get a neutral label.
   const brandData = registration.data?.brand?.data;
-  const otpPhone =
-    typeof brandData?.mobilePhone === "string"
-      ? formatPhone(brandData.mobilePhone)
-      : t("shell.regBannerYourMobile");
+  const otpPhone = typeof brandData?.mobilePhone === "string" ? brandData.mobilePhone : null;
 
   const message =
     state.kind === "setup_unfinished_member"
@@ -104,7 +102,7 @@ export function WorkspaceStatusBanner() {
                 : state.kind === "number_hosted_review"
                   ? t("shell.regHostedReview")
                 : state.kind === "otp_pending"
-                  ? REGISTRATION_COPY.otpPending(otpPhone, t)
+                  ? REGISTRATION_COPY.otpPending(otpPhone ? formatPhone(otpPhone) : t("shell.regBannerYourMobile"), t)
                   : state.kind === "rejected"
                     ? REGISTRATION_COPY.rejected(
                         state.reason ?? t("shell.regBannerReasonUnknown"),
@@ -162,6 +160,7 @@ export function WorkspaceStatusBanner() {
       <p className="min-w-0 flex-1 line-clamp-2 text-[13px] leading-snug text-foreground/80">
         {message}
       </p>
+      {state.kind === "otp_pending" && otpPhone && <CopyablePhoneNumber number={otpPhone} iconOnly />}
       {action && (
         <Link
           href={action.href}

@@ -216,14 +216,24 @@ struct TrashRowView: View {
 
     var body: some View {
         let subject = TrashText.subject(row, locale: appLocale)
+        let phone = row.details?.contact_phone
+        let detail = TrashText.detailLabel(row, locale: appLocale)
         return VStack(alignment: .leading, spacing: 6) {
-            Text(subject)
-                .font(.golos(15, weight: .semibold))
-                .foregroundStyle(BrandColor.ink)
-            Text(TrashText.detailLabel(row, locale: appLocale))
-                .font(.golos(13))
-                .foregroundStyle(BrandColor.muted700)
-                .lineLimit(2)
+            CopyablePhoneNumber(
+                number: phone.flatMap { subject.contains(formatPhone($0)) ? $0 : nil },
+                label: subject,
+                minimumHeight: 44
+            )
+            .font(.golos(15, weight: .semibold))
+            .foregroundStyle(BrandColor.ink)
+            CopyablePhoneNumber(
+                number: phone.flatMap { detail == formatPhone($0) ? $0 : nil },
+                label: detail,
+                minimumHeight: 44
+            )
+            .font(.golos(13))
+            .foregroundStyle(BrandColor.muted700)
+            .lineLimit(2)
             Text(TrashText.metaLine(
                 row,
                 locale: appLocale,

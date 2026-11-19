@@ -97,6 +97,7 @@ private fun TextEnableCard(
 
     SettingsCard(
         title = t("settingsMore.textEnableCardTitle", "number" to formatPhone(order.phone_e164)),
+        phoneNumber = order.phone_e164,
     ) {
         when (order.status) {
             TextEnablementStatus.COMPLETED ->

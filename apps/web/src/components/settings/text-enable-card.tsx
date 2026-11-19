@@ -41,6 +41,7 @@ import type {
 } from "@/lib/api/types";
 import { useActiveCompany, useCompanyId } from "@/lib/company/provider";
 import { formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { cn } from "@/lib/utils";
 
 /**
@@ -520,7 +521,7 @@ export function TextEnableCard({
       <div className="rounded-lg border bg-card px-4 py-4 sm:px-5">
         <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
           <p className="text-lg font-medium tabular-nums text-muted-foreground line-through">
-            {display}
+            <CopyablePhoneNumber number={order.phone_e164} label={display} />
           </p>
           <span className="text-[13px] text-muted-foreground">
             {t("settingsMore.hostedCancelledPill")}
@@ -555,7 +556,7 @@ export function TextEnableCard({
             ui.live && "text-success",
           )}
         >
-          {display}
+          <CopyablePhoneNumber number={order.phone_e164} label={display} />
         </p>
         <span className="text-[13px] text-muted-foreground">
           {ui.live

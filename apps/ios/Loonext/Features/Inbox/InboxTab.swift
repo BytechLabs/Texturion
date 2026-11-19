@@ -2488,6 +2488,7 @@ private struct SearchResultsPane: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.plain)
+            .phoneNumberCopyMenu(contact.phone_e164)
 
             if contact.conversation != nil {
                 Button {

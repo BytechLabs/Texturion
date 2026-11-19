@@ -71,6 +71,7 @@ import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.LoadState
 import com.loonext.android.ui.common.ResyncOnResume
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.spokenAs
 import com.loonext.android.ui.common.timedText
 import com.loonext.android.ui.common.rememberCacheFirst
@@ -351,8 +352,8 @@ private fun NumberCard(
 
         when {
             released -> {
-                Text(
-                    number.number_e164?.let(::formatPhone).orEmpty(),
+                CopyablePhoneNumber(
+                    number = number.number_e164,
                     style = MaterialTheme.typography.bodyMedium.copy(
                         textDecoration = TextDecoration.LineThrough,
                     ),
@@ -1333,8 +1334,9 @@ private fun MyAccessCard(scope: SettingsScope) {
         restricted.forEach { row ->
             Column(Modifier.fillMaxWidth().padding(top = 10.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        row.number_e164?.let { formatPhone(it) } ?: aNumber,
+                    CopyablePhoneNumber(
+                        number = row.number_e164,
+                        label = row.number_e164?.let { formatPhone(it) } ?: aNumber,
                         style = MaterialTheme.typography.bodyMedium,
                     )
                     Spacer(Modifier.width(10.dp))

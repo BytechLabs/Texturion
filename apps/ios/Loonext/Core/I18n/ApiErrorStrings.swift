@@ -32,6 +32,10 @@ enum ApiErrorStrings {
                 "requested_area_code is not an assigned US/CA geographic area code.",
             "apiRefusals.billingAlreadySubscribed":
                 "This company already has a subscription.",
+            "apiRefusals.contactNumberNotFound":
+                "No such contact number.",
+            "apiRefusals.contactUnmergeMainNumberInUse":
+                "Choose a different main number before undoing this merge.",
             "apiRefusals.inviteAlreadyPending":
                 "A pending invite for this email already exists.",
             "apiRefusals.numberCountryMismatch":
@@ -109,6 +113,10 @@ enum ApiErrorStrings {
                 "Choisissez un indicatif régional géographique attribué au Canada ou aux États-Unis.",
             "apiRefusals.billingAlreadySubscribed":
                 "Cet espace de travail a déjà un abonnement.",
+            "apiRefusals.contactNumberNotFound":
+                "Ce numéro ne figure pas dans cette fiche de contact.",
+            "apiRefusals.contactUnmergeMainNumberInUse":
+                "Choisissez un autre numéro principal avant d’annuler la fusion.",
             "apiRefusals.inviteAlreadyPending":
                 "Une invitation à cette adresse courriel est déjà en attente.",
             "apiRefusals.numberCountryMismatch":

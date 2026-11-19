@@ -41,6 +41,7 @@ data class SelectOption<T>(
     val label: String,
     val description: String? = null,
     val enabled: Boolean = true,
+    val copyValue: String? = null,
 )
 
 /**
@@ -71,13 +72,18 @@ fun <T> SelectField(
     var open by remember { mutableStateOf(false) }
     val chosen = options.firstOrNull { it.value == selected }
     Box(modifier) {
-        SelectTrigger(
-            text = chosen?.label ?: placeholder,
-            label = label,
-            enabled = enabled,
-            fillWidth = fillWidth,
-            onClick = { open = true },
-        )
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(if (fillWidth) Modifier.weight(1f) else Modifier) {
+                SelectTrigger(
+                    text = chosen?.label ?: placeholder,
+                    label = label,
+                    enabled = enabled,
+                    fillWidth = fillWidth,
+                    onClick = { open = true },
+                )
+            }
+            chosen?.copyValue?.let { CopyPhoneNumberButton(it) }
+        }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             options.forEach { option ->
                 DropdownMenuItem(
@@ -93,13 +99,18 @@ fun <T> SelectField(
                             }
                         }
                     },
-                    trailingIcon = if (option.value == selected) {
+                    trailingIcon = if (option.value == selected || option.copyValue != null) {
                         {
-                            Icon(
-                                Icons.Outlined.Check,
-                                contentDescription = t("contactsTasks.selected"),
-                                modifier = Modifier.size(IconSize.Default),
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                option.copyValue?.let { CopyPhoneNumberButton(it) }
+                                if (option.value == selected) {
+                                    Icon(
+                                        Icons.Outlined.Check,
+                                        contentDescription = t("contactsTasks.selected"),
+                                        modifier = Modifier.size(IconSize.Default),
+                                    )
+                                }
+                            }
                         }
                     } else {
                         null

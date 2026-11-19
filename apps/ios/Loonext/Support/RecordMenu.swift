@@ -142,14 +142,16 @@ extension View {
     func recordContextMenu(
         _ actions: [RecordAction],
         exactTime: String? = nil,
+        copyNumber: String? = nil,
         onSelect: @escaping @MainActor (_ actionId: String, _ subId: String?) -> Void
     ) -> some View {
-        if actions.visible.isEmpty {
+        if actions.visible.isEmpty && copyNumber == nil {
             self
         } else {
             environment(\.recordMenuOwnsLongPress, true)
                 .contextMenu {
                     RecordMenuContent(actions: actions, exactTime: exactTime, onSelect: onSelect)
+                    if let copyNumber { CopyPhoneNumberAction(number: copyNumber) }
                 }
         }
     }

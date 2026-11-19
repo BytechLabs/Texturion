@@ -92,9 +92,9 @@ struct WebsiteWidgetCard: View {
     /// unset choice, and a default that does not say what it resolves to is a setting
     /// somebody has to test to understand. *Applying: Smart Defaults.*
     private var lineOptions: [SelectOption<String?>] {
-        var options: [SelectOption<String?>] = [SelectOption<String?>(nil, title: defaultLineLabel)]
+        var options: [SelectOption<String?>] = [SelectOption<String?>(nil, title: defaultLineLabel, copyValue: firstLine?.number_e164)]
         for number in explicitLines {
-            options.append(SelectOption<String?>(number.id, title: formatPhone(number.number_e164)))
+            options.append(SelectOption<String?>(number.id, title: formatPhone(number.number_e164), copyValue: number.number_e164))
         }
         return options
     }

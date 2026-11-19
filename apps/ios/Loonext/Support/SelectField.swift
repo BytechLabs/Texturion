@@ -8,12 +8,14 @@ struct SelectOption<Value: Hashable> {
     /// Shown in the open list but not choosable: a value another row already holds, or the
     /// "not answered yet" placeholder.
     var isDisabled: Bool
+    var copyValue: String?
 
-    init(_ value: Value, title: String, detail: String? = nil, isDisabled: Bool = false) {
+    init(_ value: Value, title: String, detail: String? = nil, isDisabled: Bool = false, copyValue: String? = nil) {
         self.value = value
         self.title = title
         self.detail = detail
         self.isDisabled = isDisabled
+        self.copyValue = copyValue
     }
 }
 
@@ -37,6 +39,7 @@ struct SelectField<Value: Hashable>: View {
     /// crowded row and the detail is in the open list only.
     var showsDetail: Bool
     let onSelect: @MainActor (Value) -> Void
+    @Environment(\.appLocale) private var appLocale
 
     init(
         options: [SelectOption<Value>],
@@ -54,34 +57,84 @@ struct SelectField<Value: Hashable>: View {
         self.onSelect = onSelect
     }
 
-    private var chosenDetail: String? {
-        options.first(where: { $0.value == selected })?.detail
+    private var chosen: SelectOption<Value>? {
+        options.first(where: { $0.value == selected })
     }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 2) {
-            Picker(
-                label,
-                selection: Binding(get: { selected }, set: { next in onSelect(next) })
-            ) {
-                ForEach(options.indices, id: \.self) { index in
-                    Text(options[index].title)
-                        .tag(options[index].value)
-                        .disabled(options[index].isDisabled)
+            if options.contains(where: { $0.copyValue != nil }) {
+                HStack(spacing: 8) {
+                    phoneMenu
+                    if let number = chosen?.copyValue {
+                        CopyPhoneNumberAction(number: number)
+                            .labelStyle(.iconOnly)
+                            .buttonStyle(.plain)
+                            .frame(minHeight: 44)
+                    }
                 }
+            } else {
+                picker
             }
-            .pickerStyle(.menu)
-            .labelsHidden()
-            .tint(BrandColor.olive)
-            .frame(minHeight: 44, alignment: .leading)
-            .disabled(!enabled)
-            .accessibilityLabel(label)
-            if showsDetail, let chosenDetail {
-                Text(chosenDetail)
+            if showsDetail, let detail = chosen?.detail {
+                Text(detail)
                     .font(.golos(12))
                     .foregroundStyle(BrandColor.muted600)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
+    }
+
+    private var picker: some View {
+        Picker(
+            label,
+            selection: Binding(get: { selected }, set: { next in onSelect(next) })
+        ) {
+            ForEach(options.indices, id: \.self) { index in
+                Text(options[index].title)
+                    .tag(options[index].value)
+                    .disabled(options[index].isDisabled)
+            }
+        }
+        .pickerStyle(.menu)
+        .labelsHidden()
+        .tint(BrandColor.olive)
+        .frame(minHeight: 44, alignment: .leading)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
+    }
+
+    private var phoneMenu: some View {
+        Menu {
+            ForEach(options.indices, id: \.self) { index in
+                let option = options[index]
+                Button {
+                    onSelect(option.value)
+                } label: {
+                    if option.value == selected {
+                        Label(option.title, systemImage: "checkmark")
+                    } else {
+                        Text(option.title)
+                    }
+                }
+                .disabled(option.isDisabled)
+            }
+            Menu {
+                ForEach(options.indices, id: \.self) { index in
+                    let option = options[index]
+                    if let number = option.copyValue {
+                        CopyPhoneNumberAction(number: number, label: option.title)
+                    }
+                }
+            } label: {
+                Label(AppStrings.translate(appLocale, "contactsTasks.copyNumber"), systemImage: "doc.on.doc")
+            }
+        } label: {
+            Label(chosen?.title ?? label, systemImage: "chevron.up.chevron.down")
+        }
+        .tint(BrandColor.olive)
+        .frame(minHeight: 44, alignment: .leading)
+        .disabled(!enabled)
+        .accessibilityLabel(label)
     }
 }

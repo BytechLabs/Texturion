@@ -986,6 +986,7 @@ struct ForYouList: View {
                         if index > 0 { RowDivider() }
                         PersonRow(
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
+                            phoneNumber: row.contact?.name == nil ? row.contact?.phone_e164 : nil,
                             meta: timedText(locale: appLocale) { time in time(row.last_message_at) },
                             unread: row.unread
                         ) { onOpenConversation(row.conversation_id) }
@@ -1025,6 +1026,7 @@ struct ForYouList: View {
                         PersonRow(
                             name: row.contact?.name
                                 ?? formatPhone(row.contact?.phone_e164),
+                            phoneNumber: row.contact?.name == nil ? row.contact?.phone_e164 : nil,
                             // The REASON, not the last-message time: it is what
                             // the member wrote down, and the only thing that
                             // makes the card actionable three days later.
@@ -1063,6 +1065,7 @@ struct ForYouList: View {
                         if index > 0 { RowDivider() }
                         PersonRow(
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
+                            phoneNumber: row.contact?.name == nil ? row.contact?.phone_e164 : nil,
                             meta: timedText(locale: appLocale) { time in time(row.last_message_at) },
                             unread: row.unread
                         ) { onOpenConversation(row.conversation_id) }
@@ -1113,6 +1116,7 @@ struct ForYouList: View {
                         if index > 0 { RowDivider() }
                         PersonRow(
                             name: row.contact?.name ?? formatPhone(row.contact?.phone_e164),
+                            phoneNumber: row.contact?.name == nil ? row.contact?.phone_e164 : nil,
                             meta: timedText(locale: appLocale) { time in time(row.last_message_at) },
                             unread: true
                         ) { onOpenConversation(row.conversation_id) }
@@ -1363,11 +1367,13 @@ private struct RecentCallRow: View {
         .padding(.vertical, 10)
         .contentShape(Rectangle())
         .onTapGesture { onTap?() }
+        .phoneNumberCopyMenu(call.caller_e164.flatMap { name == formatPhone($0) ? $0 : nil })
     }
 }
 
 private struct PersonRow: View {
     let name: String?
+    let phoneNumber: String?
     let meta: TimedText
     let unread: Bool
     let onTap: @MainActor () -> Void
@@ -1408,6 +1414,7 @@ private struct PersonRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        .phoneNumberCopyMenu(phoneNumber)
         // Same as the inbox + notification rows: the AttentionDot is the only
         // unread signal, and it is invisible to VoiceOver.
         .accessibilityValue(
@@ -1707,6 +1714,7 @@ private struct SpamReviewRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
             .buttonStyle(.plain)
+            .phoneNumberCopyMenu(item.contact?.name == nil ? item.contact?.phone_e164 : nil)
 
             HStack(spacing: 10) {
                 Button(AppStrings.translate(appLocale, "inbox.forYouNotSpam")) {

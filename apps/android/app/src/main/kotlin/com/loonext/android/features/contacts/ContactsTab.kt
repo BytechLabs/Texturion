@@ -127,6 +127,7 @@ import com.loonext.android.features.contacts.device.DeviceContactListRow
 import com.loonext.android.features.contacts.device.deviceContactRows
 import com.loonext.android.features.contacts.device.filterDeviceContacts
 import com.loonext.android.ui.common.formatPhone
+import com.loonext.android.ui.common.CopyablePhoneNumber
 import com.loonext.android.ui.common.pressScale
 import com.loonext.android.ui.common.spokenAs
 import com.loonext.android.ui.common.timedText
@@ -1272,8 +1273,8 @@ private fun DeviceContactRowItem(
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,
             )
-            Text(
-                formatPhone(row.number),
+            CopyablePhoneNumber(
+                row.number,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1,

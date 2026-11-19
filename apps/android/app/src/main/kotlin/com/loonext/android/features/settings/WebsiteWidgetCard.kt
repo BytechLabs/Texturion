@@ -247,8 +247,8 @@ fun WebsiteWidgetCard(
             // is a setting somebody has to test to understand.
             // *Applying: Smart Defaults.*
             SelectField<String?>(
-                options = listOf(SelectOption<String?>(null, defaultLineLabel)) +
-                    explicitLines.map { SelectOption<String?>(it.id, formatPhone(it.number_e164)) },
+                options = listOf(SelectOption<String?>(null, defaultLineLabel, copyValue = firstLine?.number_e164)) +
+                    explicitLines.map { SelectOption<String?>(it.id, formatPhone(it.number_e164), copyValue = it.number_e164) },
                 selected = chosen?.id,
                 enabled = !busy,
                 label = t("settings.widgetLineLabel"),

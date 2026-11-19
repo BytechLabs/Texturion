@@ -31,6 +31,10 @@ object ApiErrorStrings : AppStrings.Section {
             "requested_area_code is not an assigned US/CA geographic area code.",
         "apiRefusals.billingAlreadySubscribed" to
             "This company already has a subscription.",
+        "apiRefusals.contactNumberNotFound" to
+            "No such contact number.",
+        "apiRefusals.contactUnmergeMainNumberInUse" to
+            "Choose a different main number before undoing this merge.",
         "apiRefusals.inviteAlreadyPending" to
             "A pending invite for this email already exists.",
         "apiRefusals.numberCountryMismatch" to
@@ -107,6 +111,10 @@ object ApiErrorStrings : AppStrings.Section {
             "Choisissez un indicatif régional géographique attribué au Canada ou aux États-Unis.",
         "apiRefusals.billingAlreadySubscribed" to
             "Cet espace de travail a déjà un abonnement.",
+        "apiRefusals.contactNumberNotFound" to
+            "Ce numéro ne figure pas dans cette fiche de contact.",
+        "apiRefusals.contactUnmergeMainNumberInUse" to
+            "Choisissez un autre numéro principal avant d’annuler la fusion.",
         "apiRefusals.inviteAlreadyPending" to
             "Une invitation à cette adresse courriel est déjà en attente.",
         "apiRefusals.numberCountryMismatch" to

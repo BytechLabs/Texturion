@@ -14,6 +14,7 @@ import { admitFiles, AttachmentChips, fileToBase64, MediaErrors, MergeFieldPrevi
 import type { DraftAttachment } from '@/components/thread/composer';
 import { TemplatePicker } from "@/components/thread/template-picker";
 import { Button } from "@/components/ui/button";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -481,11 +482,11 @@ export function NewConversation() {
                 <span className="font-medium">
                   {recipient.kind === "contact"
                     ? contactDisplayName(recipient.contact)
-                    : formatPhone(recipient.e164)}
+                    : <CopyablePhoneNumber number={recipient.e164} />}
                 </span>
                 {recipient.kind === "contact" && (
                   <span className="tabular-nums text-muted-foreground">
-                    {formatPhone(selectedNumber ?? recipient.contact.phone_e164)}
+                    <CopyablePhoneNumber number={selectedNumber ?? recipient.contact.phone_e164} />
                   </span>
                 )}
                 <button
@@ -577,27 +578,29 @@ export function NewConversation() {
                   className="absolute inset-x-0 top-full z-20 mt-1 overflow-hidden rounded-md border border-border bg-popover"
                 >
                   {contactRows.map((contact, index) => (
-                    <button
-                      key={contact.id}
-                      type="button"
-                      id={recipientOptionId(listboxId, index)}
-                      role="option"
-                      aria-selected={index === active}
-                      tabIndex={-1}
-                      onClick={() => selectContact(contact)}
-                      onMouseMove={() => setActiveIndex(index)}
-                      className={cn(
-                        "flex w-full items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 ease-out hover:bg-app-hover",
-                        index === active && "bg-secondary/60",
-                      )}
-                    >
-                      <span className="truncate font-medium">
-                        {contactDisplayName(contact)}
-                      </span>
-                      <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
-                        {formatPhone(contact.phone_e164)}
-                      </span>
-                    </button>
+                    <div key={contact.id} className="flex items-center">
+                      <button
+                        type="button"
+                        id={recipientOptionId(listboxId, index)}
+                        role="option"
+                        aria-selected={index === active}
+                        tabIndex={-1}
+                        onClick={() => selectContact(contact)}
+                        onMouseMove={() => setActiveIndex(index)}
+                        className={cn(
+                          "flex min-w-0 flex-1 items-center justify-between gap-2 px-3 py-2 text-left text-sm transition-colors duration-150 ease-out hover:bg-app-hover",
+                          index === active && "bg-secondary/60",
+                        )}
+                      >
+                        <span className="truncate font-medium">
+                          {contactDisplayName(contact)}
+                        </span>
+                        <span className="shrink-0 text-xs tabular-nums text-muted-foreground">
+                          {formatPhone(contact.phone_e164)}
+                        </span>
+                      </button>
+                      <CopyablePhoneNumber number={contact.phone_e164} iconOnly className="p-2" />
+                    </div>
                   ))}
                   {typedE164 && (
                     <button
@@ -653,6 +656,7 @@ export function NewConversation() {
               options={activeNumbers.map((number) => ({
                 value: number.id,
                 label: formatPhone(number.number_e164!),
+                copyValue: number.number_e164,
               }))}
             />
           </div>
@@ -873,9 +877,14 @@ function ContactNumberChoice({
         value={selected ?? contact.data.phone_e164}
         onValueChange={(value) => onNumberChange(value === contact.data?.phone_e164 ? null : value)}
         options={[
-          { value: contact.data.phone_e164, label: t("contacts.phoneMain") + " · " + formatPhone(contact.data.phone_e164) },
+          {
+            value: contact.data.phone_e164,
+            label: t("contacts.phoneMain") + " · " + formatPhone(contact.data.phone_e164),
+            copyValue: contact.data.phone_e164,
+          },
           ...phones.map((entry) => ({
             value: entry.phone_e164,
+            copyValue: entry.phone_e164,
             label: [entry.label, formatPhone(entry.phone_e164), entry.opted_out ? t("contacts.phoneOptedOut") : null]
               .filter(Boolean).join(" · "),
           })),

@@ -411,10 +411,11 @@ private struct NumberCard: View {
     @ViewBuilder
     private var statusBody: some View {
         if released {
-            Text(number.number_e164.map(formatPhone) ?? "")
-                .font(.callout)
-                .strikethrough()
-                .foregroundStyle(.secondary)
+            if let e164 = number.number_e164 {
+                CopyablePhoneNumber(number: e164, struckThrough: true)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
             if let at = number.released_at {
                 let releasedLine = timedText(locale: appLocale) { time in
                     AppStrings.translate(
@@ -1145,8 +1146,9 @@ private struct MyAccessCard: View {
                 ForEach(rows.sortedForOwner().filter { $0.level != "text" }) { row in
                     VStack(alignment: .leading, spacing: 2) {
                         HStack(spacing: 10) {
-                            Text(
-                                row.number_e164.map(formatPhone)
+                            CopyablePhoneNumber(
+                                number: row.number_e164,
+                                label: row.number_e164.map(formatPhone)
                                     ?? AppStrings.translate(
                                         appLocale, "settingsMore.aNumber"
                                     )

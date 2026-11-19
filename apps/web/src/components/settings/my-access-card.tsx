@@ -8,7 +8,7 @@ import { SettingsCard } from "@/components/settings/section";
 import { sayWith, useT } from "@/i18n/provider";
 import { apiFetch } from "@/lib/api/client";
 import { useActiveCompany } from "@/lib/company/provider";
-import { formatPhone } from "@/lib/format/phone";
+import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 
 /**
  * #286 — what a member cannot reach, and why.
@@ -86,7 +86,7 @@ export function MyAccessCard() {
             >
               <span className="min-w-[9rem] text-sm tabular-nums">
                 {row.number_e164
-                  ? formatPhone(row.number_e164)
+                  ? <CopyablePhoneNumber number={row.number_e164} />
                   : t("settings.myAccessUnnamedNumber")}
               </span>
               <span className="text-sm text-muted-foreground">
