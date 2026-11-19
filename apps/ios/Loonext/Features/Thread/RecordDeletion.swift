@@ -10,6 +10,19 @@ enum TrashKind: String, Sendable {
     case contact
 }
 
+struct RestoredRecord: Decodable, Sendable {
+    var scheduled_missed: Int?
+
+    func notice(locale: String, fallback: String) -> String {
+        let count = scheduled_missed ?? 0
+        switch count {
+        case 0: return AppStrings.translate(locale, fallback)
+        case 1: return AppStrings.translate(locale, "trash.restoredOneMissed")
+        default: return AppStrings.translate(locale, "trash.restoredManyMissed", ["count": String(count)])
+        }
+    }
+}
+
 /// The delete and restore calls for messages, conversations, calls and
 /// voicemails. A delete moves the record to the workspace Trash for 30 days;
 /// restore is what an Undo calls. The Trash screen (#735) restores and purges
@@ -36,8 +49,9 @@ struct RecordDeletionRepository: Sendable {
     }
 
     /// 409 when the record's conversation is still in the Trash.
-    func restore(companyId: String, kind: TrashKind, id: String) async throws {
-        let _: JSONValue = try await api.post(
+    @discardableResult
+    func restore(companyId: String, kind: TrashKind, id: String) async throws -> RestoredRecord {
+        try await api.post(
             "/v1/trash/restore",
             body: JSONValue.object([
                 "kind": .string(kind.rawValue),

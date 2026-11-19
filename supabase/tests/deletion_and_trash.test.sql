@@ -424,6 +424,63 @@ begin
   raise notice 'DT-3b PASSED: the thread''s jobs follow it into the Trash and back';
 end $$;
 
+savepoint scheduled_restore;
+
+do $$
+declare
+  v_company uuid := 'd1000000-0000-4000-8000-000000000002';
+  v_owner uuid := 'd1000000-0000-4000-8000-000000000001';
+  v_conversation uuid := 'd1000000-0000-4000-8000-000000000030';
+  v_task uuid := 'd1000000-0000-4000-8000-0000000000a0';
+  v_future uuid;
+  v_result jsonb;
+begin
+  update public.tasks set due_at = now() + interval '2 days', reminders_off = false
+   where id = v_task;
+  insert into public.scheduled_messages (
+    company_id, conversation_id, body, send_at, clock_timezone, clock_source, expires_at, created_by
+  ) values (
+    v_company, v_conversation, 'Future text', now() + interval '1 day',
+    'America/Edmonton', 'contact', now() + interval '2 days', v_owner
+  ) returning id into v_future;
+  insert into public.scheduled_messages (
+    company_id, conversation_id, body, send_at, clock_timezone, clock_source, expires_at, created_by, status
+  ) values
+    (v_company, v_conversation, 'Missed text', now() - interval '1 minute',
+     'America/Edmonton', 'contact', now() + interval '2 days', v_owner, 'held'),
+    (v_company, v_conversation, 'Already canceled', now() + interval '1 day',
+     'America/Edmonton', 'contact', now() + interval '2 days', v_owner, 'canceled');
+
+  perform public.api_trash_conversations(v_company, v_owner, array[v_conversation]);
+  v_result := public.api_restore_trash(v_company, v_owner, 'conversation', v_conversation);
+  if (v_result->>'scheduled_restored')::int is distinct from 1
+     or (v_result->>'scheduled_missed')::int is distinct from 1
+     or (select status from public.scheduled_messages where id = v_future) is distinct from 'canceled'
+     or not exists (
+       select 1 from public.scheduled_messages copy
+       join public.scheduled_messages original on original.id = v_future
+      where copy.conversation_id = v_conversation and copy.id <> v_future
+        and copy.status = 'pending' and copy.body = original.body
+        and copy.send_at = original.send_at and copy.created_by = original.created_by
+     ) or exists (
+       select 1 from public.scheduled_messages where conversation_id = v_conversation
+         and status = 'pending' and body in ('Missed text', 'Already canceled')
+     ) or not exists (
+       select 1 from public.calendar_reminder_replans where task_id = v_task and state = 'queued'
+     ) then
+    raise exception 'Scheduled texts and reminders did not restore correctly: %', v_result;
+  end if;
+
+  perform public.api_trash_conversations(v_company, v_owner, array[v_conversation]);
+  v_result := public.api_restore_trash(v_company, v_owner, 'conversation', v_conversation);
+  if (v_result->>'scheduled_restored')::int is distinct from 1
+     or (v_result->>'scheduled_missed')::int is distinct from 0 then
+    raise exception 'A second restore reused an earlier cancellation: %', v_result;
+  end if;
+end $$;
+
+rollback to savepoint scheduled_restore;
+
 -- ===========================================================================
 -- DT-4. Tenant isolation and the #106 deny list.
 -- ===========================================================================

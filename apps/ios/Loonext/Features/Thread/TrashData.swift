@@ -262,11 +262,11 @@ final class TrashModel {
         busy.insert(row.rowKey)
         defer { busy.remove(row.rowKey) }
         do {
-            try await deletion.restore(companyId: companyId, kind: kind, id: row.id)
+            let result = try await deletion.restore(companyId: companyId, kind: kind, id: row.id)
             rows.removeAll { $0.rowKey == row.rowKey }
             // Restoring a conversation also takes its calls out of the Trash.
             await refresh()
-            return AppStrings.translate(locale, "trash.restored")
+            return result.notice(locale: locale, fallback: "trash.restored")
         } catch {
             return error.userMessage
         }

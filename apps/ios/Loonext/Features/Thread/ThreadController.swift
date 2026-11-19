@@ -1405,14 +1405,14 @@ final class ThreadController {
     func restoreConversation() {
         Task {
             do {
-                try await deletion.restore(
+                let result = try await deletion.restore(
                     companyId: companyId,
                     kind: .conversation,
                     id: conversationId
                 )
                 conversationDeleted = false
                 refreshAfterReconnect()
-                notify(t(RecordDeletion.restoredKey(.conversation)))
+                notify(result.notice(locale: locale, fallback: RecordDeletion.restoredKey(.conversation)))
             } catch {
                 notify(restoreFailureText(error))
             }

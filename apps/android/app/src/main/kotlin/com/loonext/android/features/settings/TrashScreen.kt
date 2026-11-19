@@ -101,9 +101,9 @@ fun TrashScreen(
         busy = trashKey(item)
         scope.launch {
             val message = try {
-                repo.restore(companyId, item)
+                val result = repo.restore(companyId, item)
                 drop(item)
-                say("trash.restored", emptyMap())
+                result.notice(locale, "trash.restored")
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Exception) {

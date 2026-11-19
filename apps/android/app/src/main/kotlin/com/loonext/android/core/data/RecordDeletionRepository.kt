@@ -1,6 +1,7 @@
 package com.loonext.android.core.data
 
 import com.loonext.android.core.model.DeletedRecord
+import com.loonext.android.core.model.RestoredRecord
 import com.loonext.android.core.model.TrashKind
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.json.JsonObject
@@ -30,8 +31,8 @@ class RecordDeletionRepository(private val api: ApiClient) {
         api.deleteReturning("/v1/calls/$callId/voicemail", companyId = companyId)
 
     /** 409 when the record's conversation is itself still in the Trash. */
-    suspend fun restore(companyId: String, kind: String, id: String) {
-        api.post<JsonObject, JsonObject>(
+    suspend fun restore(companyId: String, kind: String, id: String): RestoredRecord =
+        api.post<RestoredRecord, JsonObject>(
             "/v1/trash/restore",
             buildJsonObject {
                 put("kind", kind)
@@ -39,7 +40,6 @@ class RecordDeletionRepository(private val api: ApiClient) {
             },
             companyId = companyId,
         )
-    }
 
     suspend fun restoreMessage(companyId: String, id: String) =
         restore(companyId, TrashKind.MESSAGE, id)

@@ -2,6 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TrashRow } from "@/lib/api/trash";
@@ -72,6 +73,13 @@ describe("TrashList", () => {
     expect(restoreMutate.mock.calls[0][0]).toEqual([
       { kind: "conversation", id: "c-1" },
     ]);
+  });
+
+  it("tells the crew how many scheduled texts missed their send time", () => {
+    restoreMutate.mockImplementation((_targets, options) => options.onSuccess({ scheduledMissed: 2 }));
+    render(<TrashList />);
+    fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+    expect(toast.success).toHaveBeenCalledWith("Restored. 2 scheduled texts missed their send times.");
   });
 
   it("keeps a call and its voicemail apart even though they share an id", () => {

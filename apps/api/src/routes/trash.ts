@@ -270,7 +270,7 @@ trashRoutes.post(
     const body = await parseJsonBody(c, restoreSchema);
     const who = await whoIs(c);
 
-    const result = unwrap<{ outcome: string }>(
+    const result = unwrap<{ outcome: string; scheduled_restored?: number; scheduled_missed?: number }>(
       await who.db.rpc("api_restore_trash", {
         p_company_id: who.companyId,
         p_user_id: who.userId,
@@ -295,7 +295,14 @@ trashRoutes.post(
       targetType: body.kind,
       targetId: body.id,
     });
-    return c.json({ kind: body.kind, id: body.id });
+    return c.json({
+      kind: body.kind,
+      id: body.id,
+      ...(body.kind === "conversation" && {
+        scheduled_restored: result.scheduled_restored ?? 0,
+        scheduled_missed: result.scheduled_missed ?? 0,
+      }),
+    });
   },
 );
 

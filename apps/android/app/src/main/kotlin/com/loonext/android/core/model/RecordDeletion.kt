@@ -1,5 +1,6 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.core.i18n.AppStrings
 import kotlinx.serialization.Serializable
 
 /** #691: what POST /v1/trash/restore brings back. Mirrors the server's kinds. */
@@ -17,6 +18,18 @@ data class DeletedRecord(
     val kind: String,
     val id: String,
 )
+
+@Serializable
+data class RestoredRecord(val scheduled_missed: Int = 0) {
+    fun notice(locale: String?, fallback: String): String {
+        val key = when (scheduled_missed) {
+            0 -> fallback
+            1 -> "trash.restoredOneMissed"
+            else -> "trash.restoredManyMissed"
+        }
+        return AppStrings.translate(locale, key, mapOf("count" to scheduled_missed.toString()))
+    }
+}
 
 /** #691: deleting is its own permission, held by owners and admins by default. */
 fun canDeleteRecords(role: String?): Boolean = MemberRole.has(role, Capability.RECORDS_DELETE)

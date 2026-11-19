@@ -265,6 +265,16 @@ describe("#691 trash, restore, delete forever", () => {
     expect((await call(sb, "DELETE", `/trash/task/${MESSAGE_ID}`)).status).toBe(422);
   });
 
+  it("returns the scheduled text counts when a conversation is restored", async () => {
+    const sb = world("admin", {
+      api_restore_trash: () => ({ outcome: "restored", scheduled_restored: 2, scheduled_missed: 1 }),
+    });
+    const body = { kind: "conversation", id: CONV_ID };
+    const response = await call(sb, "POST", "/trash/restore", body);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ...body, scheduled_restored: 2, scheduled_missed: 1 });
+  });
+
   it("removes the objects first, then the rows, scoped to the caller", async () => {
     const order: string[] = [];
     const sb = world(

@@ -175,13 +175,16 @@ export function useDeleteVoicemail() {
 /** Undo for every delete, and the Trash page's Restore. */
 export function useRestoreFromTrash() {
   return useDeletion(async (targets: readonly TrashTarget[], companyId) => {
+    let scheduledMissed = 0;
     for (const target of targets) {
-      await apiFetch<unknown>("/v1/trash/restore", {
+      const result = await apiFetch<{ scheduled_missed?: number }>("/v1/trash/restore", {
         method: "POST",
         companyId,
         body: target,
       });
+      scheduledMissed += result.scheduled_missed ?? 0;
     }
+    return { scheduledMissed };
   });
 }
 

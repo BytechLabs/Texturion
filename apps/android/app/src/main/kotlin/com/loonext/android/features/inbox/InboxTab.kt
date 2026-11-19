@@ -1348,8 +1348,9 @@ private class InboxController(
                     notify(say("thread.conversationDeleted"), actionLabel = say("inbox.undo")) {
                         scope.launch {
                             try {
-                                repo.deletion.restoreConversation(companyId, row.id)
+                                val result = repo.deletion.restoreConversation(companyId, row.id)
                                 scheduleRealtimeRefresh()
+                                if (result.scheduled_missed > 0) notify(result.notice(locale, "trash.restored"))
                             } catch (cause: Exception) {
                                 notify(cause.userMessage(locale))
                             }

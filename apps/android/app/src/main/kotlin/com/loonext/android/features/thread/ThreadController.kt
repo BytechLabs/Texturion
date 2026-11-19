@@ -1200,9 +1200,10 @@ class ThreadController(
     fun restoreConversation() {
         scope.launch {
             try {
-                repo.deletion.restoreConversation(companyId, conversationId)
+                val result = repo.deletion.restoreConversation(companyId, conversationId)
                 conversationDeleted = false
                 refreshAfterReconnect()
+                if (result.scheduled_missed > 0) notify(result.notice(locale, "trash.restored"))
             } catch (cause: Exception) {
                 notify(say("thread.restoreFailed"))
             }

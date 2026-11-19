@@ -10,6 +10,8 @@ import type { Translated } from "../translated";
 export const trashEn = {
   // Shared
   restored: "Restored",
+  restoredOneMissed: "Restored. One scheduled text missed its send time.",
+  restoredManyMissed: "Restored. {count} scheduled texts missed their send times.",
   restoreFailed: "Couldn't restore that. Try again in a moment.",
   keep: "Keep it",
   moveToTrash: "Move to Trash",
@@ -28,7 +30,7 @@ export const trashEn = {
   deleteConversationTitle: "Delete this conversation?",
   deleteConversationsTitle: "Delete {count} conversations?",
   deleteConversationBody:
-    "It moves to the Trash for 30 days, then it's erased for good. Texts you already sent stay on the customer's phone; this removes them from Loonext only. If the customer texted STOP, that stays on record.",
+    "Messages, calls, and jobs go to the Trash for 30 days. Scheduled texts and reminders stop while the conversation is there. Texts you already sent stay on the customer's phone. If the customer texted STOP, that stays on record.",
   conversationDeleted: "Conversation moved to Trash",
   conversationsDeleted: "{count} conversations moved to Trash",
   conversationDeleteFailed:
@@ -116,6 +118,8 @@ export const trashEn = {
 
 export const trashFr: Translated<typeof trashEn> = {
   restored: "Restauré",
+  restoredOneMissed: "Restauré. Un texto programmé a dépassé son heure d’envoi.",
+  restoredManyMissed: "Restauré. {count} textos programmés ont dépassé leur heure d’envoi.",
   restoreFailed: "Impossible de restaurer. Réessayez dans un instant.",
   keep: "Le garder",
   moveToTrash: "Mettre à la corbeille",
@@ -133,7 +137,7 @@ export const trashFr: Translated<typeof trashEn> = {
   deleteConversationTitle: "Supprimer cette conversation?",
   deleteConversationsTitle: "Supprimer {count} conversations?",
   deleteConversationBody:
-    "Elle va à la corbeille pendant 30 jours, puis elle est effacée définitivement. Les textos déjà envoyés restent sur le téléphone du client; cela les retire de Loonext seulement. Si le client a écrit STOP, cela reste au dossier.",
+    "Les messages, les appels et les tâches vont à la corbeille pendant 30 jours. Les textos programmés et les rappels sont interrompus tant que la conversation s’y trouve. Les textos déjà envoyés restent sur le téléphone du client. Si le client a écrit STOP, cela reste au dossier.",
   conversationDeleted: "Conversation mise à la corbeille",
   conversationsDeleted: "{count} conversations mises à la corbeille",
   conversationDeleteFailed:

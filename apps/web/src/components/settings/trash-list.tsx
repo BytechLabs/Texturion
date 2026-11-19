@@ -18,6 +18,7 @@ import { usePurgeTrashItem, useRestoreFromTrash, useTrash } from '@/lib/api/tras
 import type { TrashRow } from '@/lib/api/trash';
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatTimestamp } from "@/lib/format/time";
+import { restoreNotice } from "@/lib/hooks/use-records-delete";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   daysLeftLabel,
@@ -139,7 +140,7 @@ function TrashItem({ row, onPurge }: { row: TrashRow; onPurge: () => void }) {
           disabled={restore.isPending}
           onClick={() =>
             restore.mutate([{ kind: row.kind, id: row.id }], {
-              onSuccess: () => toast.success(t("trash.restored")),
+              onSuccess: ({ scheduledMissed }) => toast.success(restoreNotice(t, scheduledMissed)),
               onError: (error) =>
                 // A 409 here is "restore the conversation first": the server
                 // wrote that sentence, so show it.

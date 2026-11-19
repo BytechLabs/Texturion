@@ -9,6 +9,8 @@ object TrashStrings : AppStrings.Section {
     override val en = mapOf(
         "trash.restored" to
             "Restored",
+        "trash.restoredOneMissed" to "Restored. One scheduled text missed its send time.",
+        "trash.restoredManyMissed" to "Restored. {count} scheduled texts missed their send times.",
         "trash.restoreFailed" to
             "Couldn't restore that. Try again in a moment.",
         "trash.keep" to
@@ -88,6 +90,8 @@ object TrashStrings : AppStrings.Section {
     override val frCA = mapOf(
         "trash.restored" to
             "Restauré",
+        "trash.restoredOneMissed" to "Restauré. Un texto programmé a dépassé son heure d’envoi.",
+        "trash.restoredManyMissed" to "Restauré. {count} textos programmés ont dépassé leur heure d’envoi.",
         "trash.restoreFailed" to
             "Impossible de restaurer. Réessayez dans un instant.",
         "trash.keep" to
