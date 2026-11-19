@@ -108,26 +108,26 @@ describe(validateMmsFile, () => {
 });
 
 describe(partitionMmsFiles, () => {
-  it("admits up to the cap and rejects the tail with the cap sentence", () => {
+  it("admits up to the cap and rejects the tail with the cap sentence", async () => {
     const files = Array.from({ length: 5 }, (_, i) => ({
       name: `photo-${i}.jpg`,
       type: "image/jpeg",
       size: 1000,
     }));
-    const { accepted, rejected } = partitionMmsFiles(files, 0, sayEn);
+    const { accepted, rejected } = await partitionMmsFiles(files, 0, sayEn);
     expect(accepted).toHaveLength(MMS_MAX_MEDIA_ITEMS);
     expect(rejected).toHaveLength(5 - MMS_MAX_MEDIA_ITEMS);
     expect(rejected[0].reason).toContain("up to");
   });
 
-  it("counts already-staged items toward the cap", () => {
-    const { accepted, rejected } = partitionMmsFiles([jpeg, jpeg], 2, sayEn);
+  it("counts already-staged items toward the cap", async () => {
+    const { accepted, rejected } = await partitionMmsFiles([jpeg, jpeg], 2, sayEn);
     expect(accepted).toHaveLength(1);
     expect(rejected).toHaveLength(1);
   });
 
-  it("keeps admitting valid files after a rejection", () => {
-    const { accepted, rejected } = partitionMmsFiles([
+  it("keeps admitting valid files after a rejection", async () => {
+    const { accepted, rejected } = await partitionMmsFiles([
       { name: "logo.svg", type: "image/svg+xml", size: 1000 },
       { name: "quote.pdf", type: "application/pdf", size: 1000 },
     ], 0, sayEn);

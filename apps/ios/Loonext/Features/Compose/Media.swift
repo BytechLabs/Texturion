@@ -5,6 +5,9 @@ import UniformTypeIdentifiers
 /// SPEC §7 outbound MMS limits — validated here AND by the API.
 let maxPhotos = 3
 let maxPhotoBytes = 1024 * 1024
+private let photoLongEdge: CGFloat = 2048
+private let photoResizeRounds = 4
+private let photoQualities: [CGFloat] = [0.85, 0.70, 0.55, 0.40]
 let acceptedPhotoTypes: Set<String> = ["image/jpeg", "image/png", "image/gif"]
 
 /// Everything a text can actually carry outbound (#189). Photos are only the
@@ -231,8 +234,8 @@ private nonisolated func transcodeToJpeg(_ raw: Data) -> Data? {
     // Downscale toward ≤2048pt on the long edge first — keeps peak memory
     // flat for huge camera originals.
     let longEdge = max(image.size.width, image.size.height)
-    if longEdge > 2048 {
-        let scale = 2048 / longEdge
+    if longEdge > photoLongEdge {
+        let scale = photoLongEdge / longEdge
         guard let scaled = resized(
             image,
             to: CGSize(width: image.size.width * scale, height: image.size.height * scale)
@@ -241,8 +244,8 @@ private nonisolated func transcodeToJpeg(_ raw: Data) -> Data? {
     }
 
     // Quality steps, then halve dimensions and try again — always terminates.
-    for _ in 0 ..< 4 {
-        for quality in [0.85, 0.7, 0.55, 0.4] {
+    for _ in 0 ..< photoResizeRounds {
+        for quality in photoQualities {
             if let bytes = image.jpegData(compressionQuality: quality),
                bytes.count <= maxPhotoBytes {
                 return bytes

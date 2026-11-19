@@ -10,6 +10,7 @@
  */
 import {MMS_MAX_MEDIA_BYTES, MMS_MAX_MEDIA_ITEMS, MMS_OUTBOUND_MEDIA_TYPES, mmsMediaTypeForFile} from '@loonext/shared';
 import type { MmsMediaType } from '@loonext/shared';
+import { isHeicImage } from "./preview";
 
 export { MMS_MAX_MEDIA_BYTES, MMS_MAX_MEDIA_ITEMS } from '@loonext/shared';
 
@@ -29,6 +30,10 @@ export const MMS_ACCEPT = [
   ".png",
   ".gif",
   ".webp",
+  "image/heic",
+  "image/heif",
+  ".heic",
+  ".heif",
   ".mp3",
   ".m4a",
   ".amr",
@@ -68,7 +73,9 @@ export type MmsRejectionKey =
   | "thread.attachLimitText"
   | "thread.mmsUnsupportedFile"
   | "thread.mmsFileEmpty"
-  | "thread.mmsFileTooBig";
+  | "thread.mmsFileTooBig"
+  | "thread.mmsHeicUnreadable"
+  | "thread.mmsPrepFailed";
 
 /** The reader's resolver. */
 export type SayMmsRejection = (
@@ -113,7 +120,7 @@ export function validateMmsFile<T extends FileLike>(
   if (contentType === null) {
     return {
       ok: false,
-      reason: say("thread.mmsUnsupportedFile", {
+      reason: say(isHeicImage(file) ? "thread.mmsHeicUnreadable" : "thread.mmsUnsupportedFile", {
         name: displayName(file, say),
       }),
     };
@@ -133,22 +140,19 @@ export function validateMmsFile<T extends FileLike>(
   return { ok: true, contentType };
 }
 
-/**
- * Validate a batch (picker multi-select, drop, paste) against the MMS limits,
- * counting each admission toward the 3-item cap as it goes — dropping 5 files
- * onto an empty draft admits the first 3 and rejects the rest with the cap
- * sentence. Pure; callers stage `accepted` and surface `rejected[].reason`
- * inline.
- */
-export function partitionMmsFiles<T extends FileLike>(
+/** Skip decoding files once the draft has no free slots. */
+export async function partitionMmsFiles<T extends FileLike>(
   incoming: readonly T[],
   currentCount: number,
   say: SayMmsRejection,
-): { accepted: AdmittedMmsFile<T>[]; rejected: RejectedMmsFile<T>[] } {
+  prepare?: (file: T) => Promise<T>,
+): Promise<{ accepted: AdmittedMmsFile<T>[]; rejected: RejectedMmsFile<T>[] }> {
   const accepted: AdmittedMmsFile<T>[] = [];
   const rejected: RejectedMmsFile<T>[] = [];
-  for (const file of incoming) {
-    const check = validateMmsFile(file, currentCount + accepted.length, say);
+  for (const original of incoming) {
+    const count = currentCount + accepted.length;
+    const file = count < MMS_MAX_MEDIA_ITEMS && prepare ? await prepare(original) : original;
+    const check = validateMmsFile(file, count, say);
     if (check.ok) accepted.push({ file, contentType: check.contentType });
     else rejected.push({ file, reason: check.reason });
   }

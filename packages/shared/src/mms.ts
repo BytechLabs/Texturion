@@ -49,6 +49,10 @@ export const MMS_MAX_MEDIA_BYTES = 1024 * 1024;
 /** Per-message item cap (SPEC §7). */
 export const MMS_MAX_MEDIA_ITEMS = 3;
 
+export const MMS_PHOTO_LONG_EDGE = 2048;
+export const MMS_PHOTO_QUALITIES = [0.85, 0.7, 0.55, 0.4] as const;
+export const MMS_PHOTO_RESIZE_ROUNDS = 4;
+
 /**
  * Vendor/legacy MIME spellings normalized onto the canonical allow-list —
  * carriers and OSes report these for files the platform can deliver fine.

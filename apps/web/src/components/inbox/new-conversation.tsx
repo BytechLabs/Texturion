@@ -10,7 +10,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "sonner";
 
 import { DropOverlay, useFileDrop } from "@/components/attachments/use-file-drop";
-import { admitFiles, AttachmentChips, fileToBase64, MediaErrors, MergeFieldPreview, SegmentMeterLabel, useAutoGrow } from '@/components/thread/composer';
+import { AttachmentChips, fileToBase64, MediaErrors, MergeFieldPreview, SegmentMeterLabel, useAutoGrow, useMmsAdmission } from '@/components/thread/composer';
 import type { DraftAttachment } from '@/components/thread/composer';
 import { TemplatePicker } from "@/components/thread/template-picker";
 import { Button } from "@/components/ui/button";
@@ -189,26 +189,15 @@ export function NewConversation() {
   );
 
   const removeAttachment = (id: string) => {
-    setAttachments((current) => {
-      const found = current.find((a) => a.id === id);
-      if (found?.previewUrl) URL.revokeObjectURL(found.previewUrl);
-      return current.filter((a) => a.id !== id);
-    });
+    const found = attachmentsRef.current.find((attachment) => attachment.id === id);
+    if (found?.previewUrl) URL.revokeObjectURL(found.previewUrl);
+    const next = attachmentsRef.current.filter((attachment) => attachment.id !== id);
+    attachmentsRef.current = next;
+    setAttachments(next);
   };
 
-  // D28/#189 intake — the attach button, dropped files, and pasted files all
-  // funnel through the shared admitFiles (count/type/size validation); the
-  // rejections render INLINE under the field, never as a doomed round-trip.
-  const admitIncoming = (files: FileList) => {
-    const { attachments: next, errors } = admitFiles(
-      attachmentsRef.current,
-      files,
-      t,
-    );
-    setAttachments(next);
-    setMediaErrors(errors);
-  };
-  const drop = useFileDrop(admitIncoming);
+  const mediaAdmission = useMmsAdmission(attachmentsRef, setAttachments, setMediaErrors, t);
+  const drop = useFileDrop(mediaAdmission.admit);
 
   // Insert a saved reply's body into the draft (one space if the draft doesn't
   // already end in one), then refocus the field. Merge tokens resolve
@@ -326,6 +315,7 @@ export function NewConversation() {
 
   const canSend =
     !start.isPending &&
+    !mediaAdmission.pending &&
     destinationE164 !== null &&
     destinationE164 !== undefined &&
     body.trim() !== "" &&
@@ -333,7 +323,7 @@ export function NewConversation() {
     banner === null;
 
   const submit = async (quietConfirmed: boolean) => {
-    if (!destinationE164 || numberId === null) return;
+    if (!destinationE164 || numberId === null || mediaAdmission.pending) return;
     if (submittingRef.current) return; // one send in flight at a time
     submittingRef.current = true;
     // Read the staged files into base64 up front. Attachments are never
@@ -718,12 +708,12 @@ export function NewConversation() {
             multiple
             hidden
             onChange={(event) => {
-              if (event.target.files) admitIncoming(event.target.files);
+              if (event.target.files) mediaAdmission.admit(event.target.files);
               event.target.value = "";
             }}
           />
           <MediaErrors errors={mediaErrors} />
-          <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
+          <AttachmentChips attachments={attachments} onRemove={removeAttachment} resizing={mediaAdmission.resizing} />
           <textarea
             id="compose-body"
             ref={textareaRef}
@@ -745,7 +735,7 @@ export function NewConversation() {
               // a rich-text/Office copy keeps its normal text paste (finding #10).
               if (!isFilePaste(event.clipboardData)) return;
               event.preventDefault();
-              admitIncoming(event.clipboardData.files);
+              mediaAdmission.admit(event.clipboardData.files);
             }}
             rows={3}
             placeholder={t("inbox.composeBodyPlaceholder")}
