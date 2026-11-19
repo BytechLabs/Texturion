@@ -363,36 +363,36 @@ begin
 
   view_id := public.api_mint_public_link(pg_temp.h('decision-view'), tenant,
     'quote_view', 'quote', offer, now() + interval '1 day');
-  if public.api_issue_quote_decision_link(view_id, pg_temp.h('accept-v1'), 'quote_accept', 1) <> 'ready'
-    or public.api_issue_quote_decision_link(view_id, pg_temp.h('decline-v1'), 'quote_decline', 1) <> 'ready' then
+  if public.api_issue_quote_decision_link(view_id, pg_temp.h('accept-v1'), 'quote_accept', 1) is distinct from 'ready'
+    or public.api_issue_quote_decision_link(view_id, pg_temp.h('decline-v1'), 'quote_decline', 1) is distinct from 'ready' then
     raise exception 'Could not issue the first decision credentials';
   end if;
   acceptance := (public.api_resolve_public_link(pg_temp.h('accept-v1'), 'quote_accept', 'CA')->>'link_id')::uuid;
-  if not public.api_record_quote_decision(tenant, offer, 'accepted', null, acceptance, 'Camille', null, 'CA') then
+  if public.api_record_quote_decision(tenant, offer, 'accepted', null, acceptance, 'Camille', null, 'CA') is distinct from true then
     raise exception 'First acceptance failed';
   end if;
-  if public.api_record_quote_decision(tenant, offer, 'accepted', null, acceptance, 'Camille', null, 'CA') then
+  if public.api_record_quote_decision(tenant, offer, 'accepted', null, acceptance, 'Camille', null, 'CA') is distinct from false then
     raise exception 'The quote accepted a second time';
   end if;
   if (select count(*) from public.conversation_events
-      where conversation_id = thread and type = 'quote_accepted' and payload->>'ip_country' = 'CA') <> 1 then
+      where conversation_id = thread and type = 'quote_accepted' and payload->>'ip_country' = 'CA') is distinct from 1 then
     raise exception 'Acceptance must record one event and country';
   end if;
-  if not public.api_undo_quote_acceptance(tenant, offer, owner) then
+  if public.api_undo_quote_acceptance(tenant, offer, owner) is distinct from true then
     raise exception 'The owner could not undo acceptance';
   end if;
-  if public.api_record_quote_decision(tenant, offer, 'accepted', null, acceptance, 'Camille', null, 'CA')
-    or public.api_issue_quote_decision_link(view_id, pg_temp.h('decline-v1'), 'quote_decline', 1) <> 'unavailable'
-    or public.api_issue_quote_decision_link(view_id, pg_temp.h('decline-v2'), 'quote_decline', 2) <> 'ready' then
+  if public.api_record_quote_decision(tenant, offer, 'accepted', null, acceptance, 'Camille', null, 'CA') is distinct from false
+    or public.api_issue_quote_decision_link(view_id, pg_temp.h('decline-v1'), 'quote_decline', 1) is distinct from 'unavailable'
+    or public.api_issue_quote_decision_link(view_id, pg_temp.h('decline-v2'), 'quote_decline', 2) is distinct from 'ready' then
     raise exception 'Undo must invalidate the previous credentials';
   end if;
   decline := (public.api_resolve_public_link(pg_temp.h('decline-v2'), 'quote_decline', 'CA')->>'link_id')::uuid;
   update public.conversations set deleted_at = now() where id = thread;
-  if public.api_record_quote_decision(tenant, offer, 'declined', null, decline, null, null, 'CA') then
+  if public.api_record_quote_decision(tenant, offer, 'declined', null, decline, null, null, 'CA') is distinct from false then
     raise exception 'A trashed quote cannot be declined';
   end if;
   update public.conversations set deleted_at = null where id = thread;
-  if not public.api_record_quote_decision(tenant, offer, 'declined', null, decline, null, null, 'CA') then
+  if public.api_record_quote_decision(tenant, offer, 'declined', null, decline, null, null, 'CA') is distinct from true then
     raise exception 'The restored quote should accept the scoped decline';
   end if;
 end $quote_decisions$;
