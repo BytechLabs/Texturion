@@ -184,6 +184,25 @@ describe("notifyVoicemail", () => {
     expect(sb.find("POST", "/rest/v1/alert_escalations")).toHaveLength(0);
   });
 
+  it("falls back to the authorized audience if the on-call member loses number access", async () => {
+    const { sb, routes } = buildWorld({
+      members,
+      openAlertUserId: onCall,
+      phoneNumberId: "30000000-aaaa-4000-8000-000000000003",
+      accessRules: [
+        { user_id: OWNER, role: "owner", level: "text" },
+        { user_id: onCall, role: "member", level: "none" },
+      ],
+    });
+    stubFetch(...routes);
+
+    await notifyVoicemail(env, getDb(env), VOICEMAIL);
+
+    const [recipientLookup] = sb.find("GET", "/rest/v1/push_subscriptions");
+    expect(recipientLookup.url.searchParams.get("user_id")).toBe(`in.(${OWNER})`);
+    expect(sb.find("POST", "/rest/v1/alert_escalations")).toHaveLength(0);
+  });
+
   it.each([
     [null, "Voicemail · 35 s"],
     ["🧰".repeat(141), "🧰".repeat(140)],
