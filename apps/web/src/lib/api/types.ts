@@ -647,6 +647,7 @@ export interface Conversation {
   id: string;
   company_id: string;
   contact_id: string;
+  contact_phone_e164?: string | null;
   phone_number_id: string;
   status: ConversationStatus;
   is_spam: boolean;
@@ -894,7 +895,6 @@ export interface ConversationDetail
   extends Conversation,
     SnoozeState,
     MemberThreadState {
-  contact_phone_e164?: string | null;
   opted_out?: boolean;
   opt_out_source?: OptOutSource | null;
   contact: ConversationDetailContact;

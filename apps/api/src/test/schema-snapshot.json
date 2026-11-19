@@ -442,6 +442,7 @@
     "api_cancel_ownership_transfer": [[{"name":"p_company_id","hasDefault":false},{"name":"p_actor","hasDefault":false}]],
     "api_cancel_scheduled_for_company": [[{"name":"p_company_id","hasDefault":false},{"name":"p_reason","hasDefault":false}]],
     "api_cancel_scheduled_message": [[{"name":"p_id","hasDefault":false},{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false}]],
+    "api_change_manual_opt_out": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false},{"name":"p_contact_id","hasDefault":false},{"name":"p_conversation_id","hasDefault":false},{"name":"p_enabled","hasDefault":false}]],
     "api_claim_backup_owner_prompt": [[{"name":"p_company_id","hasDefault":false}]],
     "api_claim_calendar_credential_refresh": [[{"name":"p_company_id","hasDefault":false},{"name":"p_connection_id","hasDefault":false},{"name":"p_user_id","hasDefault":false},{"name":"p_worker_id","hasDefault":false},{"name":"p_expected_generation","hasDefault":true},{"name":"p_lease_seconds","hasDefault":true}]],
     "api_claim_calendar_outbox": [[{"name":"p_worker_id","hasDefault":false},{"name":"p_limit","hasDefault":true},{"name":"p_lease_seconds","hasDefault":true}]],
