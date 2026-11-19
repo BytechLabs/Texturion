@@ -1702,6 +1702,8 @@ describe("§9 event → state table", () => {
     await sweepWebhookEvents(env);
     expect(harness.callsTo("PATCH", /webhook_events/).at(-1)?.json()).toEqual({
       processed_at: expect.any(String),
+      claimed_at: null,
+      next_attempt_at: null,
     });
 
     await deliver(

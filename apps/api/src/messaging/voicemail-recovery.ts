@@ -35,7 +35,7 @@ export async function sweepPendingVoicemails(env: Env, db: SupabaseClient): Prom
   const leaseCutoff = new Date(now - RECOVERY_LEASE_MS).toISOString();
   const due = `voicemail_pending_attempted_at.is.null,voicemail_pending_attempted_at.lte.${leaseCutoff}`;
   const { data, error } = await db.from("calls")
-    .select("id,call_session_id,voicemail_path,voicemail_pending_since,voicemail_pending_started_at,voicemail_pending_ended_at")
+    .select("id,company_id,call_session_id,voicemail_path,voicemail_pending_since,voicemail_pending_started_at,voicemail_pending_ended_at")
     .not("voicemail_pending_since", "is", null)
     .is("deleted_at", null)
     .is("voicemail_deleted_at", null)
@@ -49,6 +49,7 @@ export async function sweepPendingVoicemails(env: Env, db: SupabaseClient): Prom
   for (const row of data ?? []) {
     const { data: claimed, error: claimError } = await db.from("calls")
       .update({ voicemail_pending_attempted_at: attemptedAt })
+      .eq("company_id", row.company_id)
       .eq("id", row.id)
       .eq("voicemail_pending_since", row.voicemail_pending_since)
       .is("deleted_at", null)
@@ -81,6 +82,7 @@ export async function sweepPendingVoicemails(env: Env, db: SupabaseClient): Prom
         voicemail_pending_ended_at: null,
         voicemail_pending_attempted_at: null,
       })
+      .eq("company_id", row.company_id)
       .eq("id", row.id)
       .eq("voicemail_pending_since", row.voicemail_pending_since)
       .eq("voicemail_pending_attempted_at", attemptedAt)

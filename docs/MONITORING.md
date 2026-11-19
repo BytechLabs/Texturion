@@ -523,6 +523,14 @@ them (403). A change is made in the dashboard, signed in as the owner. The
 dashboard's own API refuses scripted writes, so it has to be done through the
 forms.
 
+### Outbound webhook notices
+
+An endpoint pauses after the configured failure threshold and six hours without
+a successful delivery. The audit entry appears in the notification feed for
+owners and admins. The five-minute job sends one email to the workspace owner
+through Resend with the audit ID as its idempotency key. The job reports notices
+that could not be delivered within 23 hours.
+
 ### Re-arming an abandoned inbound webhook
 
 The ledger emits PostHog exceptions at the fifth failure and at abandonment.

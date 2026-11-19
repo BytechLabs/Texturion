@@ -322,9 +322,9 @@ export async function handleInboundMessage(
     p_push_limit: limits.push,
     p_notify_emergency: emergency,
     p_notify_media_count: media.length,
-    p_notify_opt_out_hint: optOutHint,
     p_occurred_at: Number.isFinite(occurredAt) ? new Date(occurredAt).toISOString() : null,
     ...(reaction ? { p_reaction: reaction } : {}),
+    ...(optOutHint ? { p_notify_opt_out_hint: true } : {}),
   });
   if (error) throw new Error(`thread_inbound_message failed: ${error.message}`);
   const threaded = data as InboundThreadResult | null;

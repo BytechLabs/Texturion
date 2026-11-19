@@ -64,8 +64,8 @@ create function public.thread_inbound_message(
   p_push_limit integer,
   p_notify_emergency boolean,
   p_notify_media_count integer,
-  p_notify_opt_out_hint boolean,
   p_occurred_at timestamptz,
+  p_notify_opt_out_hint boolean default false,
   p_reaction jsonb default null
 ) returns jsonb
 language sql
@@ -83,8 +83,8 @@ as $$
 $$;
 
 revoke execute on function public.thread_inbound_message(
-  uuid, uuid, text, text, text, text, integer, integer, boolean, integer, boolean, timestamptz, jsonb
+  uuid, uuid, text, text, text, text, integer, integer, boolean, integer, timestamptz, boolean, jsonb
 ) from public, anon, authenticated;
 grant execute on function public.thread_inbound_message(
-  uuid, uuid, text, text, text, text, integer, integer, boolean, integer, boolean, timestamptz, jsonb
+  uuid, uuid, text, text, text, text, integer, integer, boolean, integer, timestamptz, boolean, jsonb
 ) to service_role;

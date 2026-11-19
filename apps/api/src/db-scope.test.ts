@@ -126,7 +126,7 @@ const TENANT_TABLES = new Set([
   // signing secret another workspace could forge our signature with, and
   // `webhook_deliveries` holds the payloads themselves — which are the
   // workspace's own messages, calls and contacts, copied.
-  "webhook_endpoints", "webhook_deliveries",
+  "webhook_endpoints", "webhook_deliveries", "webhook_disable_emails",
   // #243: the workspace API credentials. An unscoped read would hand one
   // tenant the hash of another tenant own live key.
   "api_keys",
@@ -260,6 +260,10 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
     count: 2,
     why: "stale-call sweeper: finds calls wedged in-flight across all tenants",
   },
+  "messaging/voicemail-recovery.ts::calls": {
+    count: 1,
+    why: "Finds a bounded batch of pending voicemail recordings across workspaces. Each claim and completion uses the call’s company ID.",
+  },
 
 
 
@@ -298,6 +302,10 @@ const ALLOWED: Record<string, { count: number; why: string }> = {
   "workspace/export.ts::data_exports": {
     count: 1,
     why: "pruneExpiredExports finds expired copies across all workspaces",
+  },
+  "webhooks/disable-notice.ts::webhook_disable_emails": {
+    count: 1,
+    why: "Expires undelivered notices across workspaces before the email idempotency window ends",
   },
   "routes/team.ts::invites": {
     count: 1,

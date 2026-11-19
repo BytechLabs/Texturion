@@ -17,6 +17,7 @@ struct NotificationsView: View {
     let meUserId: String
     let onOpenConversation: @MainActor (_ conversationId: String, _ messageId: String?) -> Void
     let onOpenTask: @MainActor (_ taskId: String) -> Void
+    let onOpenWebhooks: @MainActor () -> Void
 
     @State private var model: NotificationsFeedModel
     @State private var refreshKey = 0
@@ -28,13 +29,15 @@ struct NotificationsView: View {
         companyId: String,
         meUserId: String,
         onOpenConversation: @escaping @MainActor (_ conversationId: String, _ messageId: String?) -> Void,
-        onOpenTask: @escaping @MainActor (_ taskId: String) -> Void
+        onOpenTask: @escaping @MainActor (_ taskId: String) -> Void,
+        onOpenWebhooks: @escaping @MainActor () -> Void
     ) {
         self.graph = graph
         self.companyId = companyId
         self.meUserId = meUserId
         self.onOpenConversation = onOpenConversation
         self.onOpenTask = onOpenTask
+        self.onOpenWebhooks = onOpenWebhooks
         _model = State(initialValue: NotificationsFeedModel(
             api: NotificationsFeedApi(api: graph.api),
             companyId: companyId
@@ -143,6 +146,8 @@ struct NotificationsView: View {
                                     switch notificationTarget(row) {
                                     case .task(let taskId):
                                         onOpenTask(taskId)
+                                    case .webhooks:
+                                        onOpenWebhooks()
                                     case .thread(let conversationId, let messageId):
                                         onOpenConversation(conversationId, messageId)
                                     case nil:
@@ -213,8 +218,6 @@ private struct NotificationRow: View {
     @Environment(\.appLocale) private var appLocale
 
     var body: some View {
-        // Every derived type today links to its conversation; a future type
-        // without one renders disabled instead of dead-tapping.
         Button(action: onTap) {
             HStack(alignment: .top, spacing: 11) {
                 Image(systemName: iconFor(row.type))
@@ -248,7 +251,7 @@ private struct NotificationRow: View {
             .opacity(row.unread ? 1 : 0.7)
         }
         .buttonStyle(.plain)
-        .disabled(row.conversation_id == nil)
+        .disabled(notificationTarget(row) == nil)
         // Announce read/unread to VoiceOver — the visual AttentionDot + bold
         // weight that convey it to sighted users aren't otherwise exposed.
         .accessibilityValue(
@@ -305,6 +308,8 @@ private func summaryFor(_ row: NotificationItem, _ locale: String) -> String {
         return say("inbox.notifMissedCallFrom", "inbox.notifMissedCall")
     case NotificationType.mention:
         return say("inbox.notifMentionFrom", "inbox.notifMention")
+    case NotificationType.webhookDisabled:
+        return AppStrings.translate(locale, "inbox.notifWebhookDisabled")
     default:
         // A type added server-side after this build shipped — show something
         // honest instead of crashing or hiding it.
@@ -319,6 +324,7 @@ private func iconFor(_ type: String) -> String {
     case NotificationType.taskAssigned: "checklist"
     case NotificationType.missedCall: "phone.arrow.down.left"
     case NotificationType.mention: "at"
+    case NotificationType.webhookDisabled: "powerplug"
     default: "bell"
     }
 }

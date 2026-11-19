@@ -59,6 +59,7 @@ import {
   sweepStaleCalls,
   sweepWebhookEvents,
 } from "./messaging/crons";
+import { runWebhookDisableEmails } from "./webhooks/disable-notice";
 import {
   deliverOutboundWebhooks,
   pruneWebhookDeliveries,
@@ -530,6 +531,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       sweepStuckProvisioning,
       runCalendarSyncJob,
       processCustomerErasures,
+      runWebhookDisableEmails,
       deliverOutboundWebhooks,
     ]);
     expect(runs("*/15 * * * *")).toEqual([

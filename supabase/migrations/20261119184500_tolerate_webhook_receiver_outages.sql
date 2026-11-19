@@ -60,6 +60,7 @@ declare
   streak integer;
   streak_started_at timestamptz;
   should_disable boolean;
+  disable_id uuid;
 begin
   select * into endpoint from public.webhook_endpoints
    where id = p_endpoint_id and active for update;
@@ -96,7 +97,11 @@ begin
     insert into public.audit_log (company_id, action, target_type, target_id, before, after)
     values (endpoint.company_id, 'webhook.endpoint_disabled', 'webhook_endpoint', p_endpoint_id::text,
             jsonb_build_object('active', true),
-            jsonb_build_object('active', false, 'consecutive_failures', streak));
+            jsonb_build_object('active', false, 'consecutive_failures', streak))
+    returning id into disable_id;
+
+    insert into public.webhook_disable_emails (audit_id, company_id)
+    values (disable_id, endpoint.company_id);
   end if;
   return should_disable;
 end $$;

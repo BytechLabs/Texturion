@@ -356,6 +356,7 @@ object NotificationType {
     const val TASK_ASSIGNED = "task_assigned"
     const val MISSED_CALL = "missed_call"
     const val MENTION = "mention"
+    const val WEBHOOK_DISABLED = "webhook_disabled"
 }
 
 @Serializable

@@ -51,6 +51,7 @@ const TYPE_ICON: Record<NotificationType, typeof MessageSquareText> = {
   task_assigned: ListChecks,
   missed_call: PhoneMissed,
   mention: AtSign,
+  webhook_disabled: Bell,
 };
 
 /** One-line, past-tense summary of a notification (calm — the name is the hero). */
@@ -68,6 +69,9 @@ function describe(item: NotificationItem, name: string, t: Translate): string {
     case "missed_call": {
       return t("misc.notifMissedCall", { name });
     }
+    case "webhook_disabled": {
+      return t("misc.notifWebhookDisabled");
+    }
     case "mention": {
       // The thread is the customer's; what changed is that someone needs THIS
       // reader specifically.
@@ -79,15 +83,8 @@ function describe(item: NotificationItem, name: string, t: Translate): string {
   }
 }
 
-/**
- * The deep-link target for a notification (D24). Every item ties back to a
- * conversation thread — a task-assigned notification opens the thread the task
- * lives in (the /tasks page has its own surface; the notification points at the
- * conversation the work is about). Null when there is nothing to open.
- */
 function deepLink(item: NotificationItem): string | null {
-  // #718: a task assignment is about the task, so it opens the task; every
-  // other item opens its thread at the message it names, when it names one.
+  if (item.type === "webhook_disabled") return "/settings/webhooks";
   if (item.type === "task_assigned" && item.task_id) {
     return `/tasks?task=${item.task_id}`;
   }
@@ -140,10 +137,7 @@ function NotificationRow({
     </>
   );
 
-  // No deep-link (e.g. the source conversation is gone) → nothing to open, so
-  // render a plain readable row instead of a disabled <button>. A disabled
-  // button is dropped from the a11y tree entirely — keyboard and screen-reader
-  // users could neither focus nor hear it. "Mark all read" clears it.
+  // A notification without a destination remains readable outside a button.
   if (!href) {
     return (
       <div className="flex w-full items-start gap-3 px-4 py-3 text-left">

@@ -162,6 +162,13 @@ final class ThreadAnchorTests: XCTestCase {
         )
     }
 
+    func testAPausedWebhookOpensWebhookSettingsWithoutAConversation() throws {
+        XCTAssertEqual(
+            notificationTarget(try notification(type: "webhook_disabled", conversationId: nil, messageId: nil)),
+            .webhooks
+        )
+    }
+
     func testANotificationThatNamesNothingOpensNothing() throws {
         XCTAssertNil(
             notificationTarget(try notification(type: "x", conversationId: nil, messageId: nil))

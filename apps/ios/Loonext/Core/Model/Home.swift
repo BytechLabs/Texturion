@@ -375,6 +375,7 @@ enum NotificationType {
     static let taskAssigned = "task_assigned"
     static let missedCall = "missed_call"
     static let mention = "mention"
+    static let webhookDisabled = "webhook_disabled"
 }
 
 struct NotificationItem: Codable, Sendable {

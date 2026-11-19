@@ -23,6 +23,7 @@ function pendingCall(hoursAgo: number, ownsClaim = true) {
   const since = new Date(Date.now() - hoursAgo * HOUR_MS).toISOString();
   const row = {
     id: "11111111-1111-4111-8111-111111111111",
+    company_id: "22222222-2222-4222-8222-222222222222",
     call_session_id: SESSION_ID,
     voicemail_path: null,
     voicemail_pending_since: since,
@@ -52,6 +53,8 @@ describe(sweepPendingVoicemails, () => {
       recording_ended_at: row.voicemail_pending_ended_at,
     });
     expect(clear.calls[0]?.body).toMatchObject({ voicemail_pending_since: null });
+    expect(claim.calls[0]?.url.searchParams.get("company_id")).toBe(`eq.${row.company_id}`);
+    expect(clear.calls[0]?.url.searchParams.get("company_id")).toBe(`eq.${row.company_id}`);
     expect(clear.calls[0]?.url.searchParams.get("voicemail_pending_since"))
       .toBe(`eq.${row.voicemail_pending_since}`);
     expect(lookup.calls[0]?.url.searchParams.get("order")).toBe(

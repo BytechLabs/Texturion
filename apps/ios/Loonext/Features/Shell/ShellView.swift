@@ -901,7 +901,11 @@ struct ShellView: View {
                     AppRouter.shared.pendingHighlightMessageId = messageId
                     AppRouter.shared.openConversationId = conversationId
                 },
-                onOpenTask: { AppRouter.shared.openTaskId = $0 }
+                onOpenTask: { AppRouter.shared.openTaskId = $0 },
+                onOpenWebhooks: {
+                    pendingSettingsSection = .webhooks
+                    activeSheet = .settings
+                }
             )
         case .settings:
             SettingsHome(

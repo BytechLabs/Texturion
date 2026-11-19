@@ -167,7 +167,7 @@ describe(deliverWebhookBatch, () => {
   it("leaves claimed deliveries untouched when the endpoint lookup fails", async () => {
     const claim = stubRoute(rpcMatch(env, "api_claim_webhook_deliveries"), () => [claimed()]);
     const endpoints = stubRoute(restMatch(env, "GET", "webhook_endpoints"), () =>
-      Response.json({ message: "database unavailable" }, { status: 503 }),
+      Response.json({ message: "endpoint query failed" }, { status: 400 }),
     );
     const update = stubRoute(restMatch(env, "PATCH", "webhook_deliveries"), () => []);
     stubFetch(claim.route, endpoints.route, update.route);
