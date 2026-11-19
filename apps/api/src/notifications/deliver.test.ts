@@ -138,9 +138,17 @@ describe(deliverPush, () => {
     const reads = sb.find("POST", "/rest/v1/rpc/api_unread_push_badges");
     expect(reads).toHaveLength(1);
     expect(reads[0].body).toMatchObject({ p_company_id: companyId, p_user_ids: [USER, otherUser] });
-    expect(service.sends.map(({ message }) => (message.apns as {
-      payload: { aps: { badge: number } };
-    } | undefined)?.payload.aps.badge)).toEqual([undefined, 4, 4, 0]);
+    expect(service.sends).toHaveLength(4);
+    const badges = new Map(service.sends.map(({ message }) => [
+      message.token,
+      (message.apns as { payload: { aps: { badge: number } } } | undefined)?.payload.aps.badge,
+    ]));
+    expect(badges).toEqual(new Map([
+      [DEVICE.token, undefined],
+      [deviceIds[0], 4],
+      [deviceIds[1], 4],
+      [deviceIds[2], 0],
+    ]));
   });
 
   it("logs a failed badge lookup as text and still sends the push", async () => {
