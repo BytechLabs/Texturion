@@ -39,6 +39,8 @@ object ApiErrorStrings : AppStrings.Section {
             "chosen_number_e164 is not an assigned US/CA geographic number.",
         "apiRefusals.outboundSendPaused" to
             "Texting is paused while we deal with an issue. Nothing you sent was lost.",
+        "apiRefusals.paymentsNotSetUp" to
+            "This workspace has not set up payments yet.",
         "apiRefusals.portAlreadyPending" to
             "A transfer for this number is already in progress.",
         "apiRefusals.textEnablementAlreadyPending" to
@@ -113,6 +115,8 @@ object ApiErrorStrings : AppStrings.Section {
             "Choisissez un numéro géographique attribué au Canada ou aux États-Unis.",
         "apiRefusals.outboundSendPaused" to
             "L’envoi de textos est suspendu pendant que nous réglons un problème. Vos textos ont été conservés.",
+        "apiRefusals.paymentsNotSetUp" to
+            "Les paiements ne sont pas encore configurés dans cet espace de travail.",
         "apiRefusals.portAlreadyPending" to
             "Un transfert est déjà en cours pour ce numéro.",
         "apiRefusals.textEnablementAlreadyPending" to

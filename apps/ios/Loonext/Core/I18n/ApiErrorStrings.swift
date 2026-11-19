@@ -40,6 +40,8 @@ enum ApiErrorStrings {
                 "chosen_number_e164 is not an assigned US/CA geographic number.",
             "apiRefusals.outboundSendPaused":
                 "Texting is paused while we deal with an issue. Nothing you sent was lost.",
+            "apiRefusals.paymentsNotSetUp":
+                "This workspace has not set up payments yet.",
             "apiRefusals.portAlreadyPending":
                 "A transfer for this number is already in progress.",
             "apiRefusals.textEnablementAlreadyPending":
@@ -115,6 +117,8 @@ enum ApiErrorStrings {
                 "Choisissez un numéro géographique attribué au Canada ou aux États-Unis.",
             "apiRefusals.outboundSendPaused":
                 "L’envoi de textos est suspendu pendant que nous réglons un problème. Vos textos ont été conservés.",
+            "apiRefusals.paymentsNotSetUp":
+                "Les paiements ne sont pas encore configurés dans cet espace de travail.",
             "apiRefusals.portAlreadyPending":
                 "Un transfert est déjà en cours pour ce numéro.",
             "apiRefusals.textEnablementAlreadyPending":

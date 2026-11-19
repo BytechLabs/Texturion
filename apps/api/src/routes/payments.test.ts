@@ -308,6 +308,15 @@ describe("#224 the account", () => {
     expect(body.title_key).toBe("payments.payoutNotConnectedTitle");
   });
 
+  it("returns a translatable refusal if the payments dashboard is unavailable before setup", async () => {
+    const harness = buildHarness({ account: null });
+    const response = await harness.request("/v1/payments/account/dashboard");
+    expect(response.status).toBe(409);
+    expect(await response.json()).toMatchObject({
+      error: { message_key: "apiRefusals.paymentsNotSetUp" },
+    });
+  });
+
   it("names the outstanding requirements rather than saying 'pending'", async () => {
     const harness = buildHarness({
       account: { charges_enabled: false, details_submitted: false },

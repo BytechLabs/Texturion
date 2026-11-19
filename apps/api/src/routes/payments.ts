@@ -326,6 +326,7 @@ paymentAccountRoutes.get(
         c,
         "conflict",
         "This workspace has not set up payments yet.",
+        { key: "apiRefusals.paymentsNotSetUp" },
       );
     }
     const url = await createDashboardLink(env, row.stripe_account_id);
