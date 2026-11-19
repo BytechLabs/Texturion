@@ -525,7 +525,7 @@ enum ThreadStrings {
                 "{name} isn't something a text can carry. Try a photo, video, audio "
                 + "clip, contact card, or PDF.",
             "thread.mmsFileEmpty": "{name} is empty.",
-            "thread.mmsFileTooBig": "{name} is over 1 MB, the most a text can carry.",
+            "thread.mmsFileTooBig": "{name} is over 1 MB, the most a text can carry. Attach a smaller file.",
             "thread.fileReadFailedPick":
                 "Couldn't read that file. Try picking it again.",
             "thread.fileSizeReadFailed":
@@ -1316,7 +1316,7 @@ enum ThreadStrings {
                 + "ou un PDF.",
             "thread.mmsFileEmpty": "{name} est vide.",
             "thread.mmsFileTooBig":
-                "{name} dépasse 1 Mo, le maximum qu'un texto peut transporter.",
+                "{name} dépasse 1 Mo, le maximum qu'un texto peut transporter. Joignez un fichier plus petit.",
             "thread.fileReadFailedPick":
                 "Impossible de lire ce fichier. Choisissez-le de nouveau.",
             "thread.fileSizeReadFailed":

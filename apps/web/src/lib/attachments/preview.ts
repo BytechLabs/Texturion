@@ -1,4 +1,9 @@
 import {
+  MMS_MAX_MEDIA_BYTES,
+  MMS_PHOTO_LONG_EDGE,
+  MMS_PHOTO_QUALITIES,
+  MMS_PHOTO_RESIZE_ROUNDS,
+  mmsMediaTypeForFile,
   PREVIEW_JPEG_QUALITY,
   previewDimensions,
   previewIsUseful,
@@ -65,6 +70,46 @@ export async function makeAttachmentPreview(file: File): Promise<File | null> {
   }
 }
 
+export function isHeicImage(file: { name?: string | null; type?: string | null }): boolean {
+  return /^image\/hei[cf](?:-sequence)?$/i.test(file.type ?? "") || /\.hei[cf]$/i.test(file.name ?? "");
+}
+
+export function needsMmsImageResize(file: File): boolean {
+  if (file.size === 0) return false;
+  if (isHeicImage(file)) return true;
+  if (file.size <= MMS_MAX_MEDIA_BYTES) return false;
+  const type = mmsMediaTypeForFile(file);
+  return type === "image/jpeg" || type === "image/png" || type === "image/webp";
+}
+
+export async function prepareMmsImage(file: File): Promise<File | null> {
+  if (typeof createImageBitmap !== "function") return null;
+  let bitmap: ImageBitmap | undefined;
+  try {
+    bitmap = await createImageBitmap(file);
+    const scale = Math.min(1, MMS_PHOTO_LONG_EDGE / Math.max(bitmap.width, bitmap.height));
+    let width = Math.max(1, Math.floor(bitmap.width * scale));
+    let height = Math.max(1, Math.floor(bitmap.height * scale));
+    for (let round = 0; round < MMS_PHOTO_RESIZE_ROUNDS; round += 1) {
+      for (const quality of MMS_PHOTO_QUALITIES) {
+        const jpeg = await drawToJpeg(bitmap, { width, height }, quality, true);
+        if (jpeg && jpeg.size > 0 && jpeg.size <= MMS_MAX_MEDIA_BYTES) {
+          const name = file.name.replace(/\.[^.]+$/, "") + ".jpg";
+          return new File([jpeg], name, { type: "image/jpeg" });
+        }
+      }
+      if (width === 1 && height === 1) break;
+      width = Math.max(1, Math.floor(width / 2));
+      height = Math.max(1, Math.floor(height / 2));
+    }
+    return null;
+  } catch {
+    return null;
+  } finally {
+    bitmap?.close();
+  }
+}
+
 /**
  * Draw the bitmap at `size` and encode it as JPEG.
  *
@@ -76,29 +121,19 @@ export async function makeAttachmentPreview(file: File): Promise<File | null> {
 async function drawToJpeg(
   bitmap: ImageBitmap,
   size: { width: number; height: number },
+  quality = PREVIEW_JPEG_QUALITY,
+  whiteBackground = false,
 ): Promise<Blob | null> {
-  if (typeof OffscreenCanvas === "function") {
-    const canvas = new OffscreenCanvas(size.width, size.height);
-    const context = canvas.getContext("2d");
-    if (!context) return null;
-    context.drawImage(bitmap, 0, 0, size.width, size.height);
-    return canvas.convertToBlob({
-      type: "image/jpeg",
-      quality: PREVIEW_JPEG_QUALITY,
-    });
-  }
-
-  const canvas = document.createElement("canvas");
-  canvas.width = size.width;
-  canvas.height = size.height;
+  const canvas = typeof OffscreenCanvas === "function" && typeof OffscreenCanvas.prototype.convertToBlob === "function"
+    ? new OffscreenCanvas(size.width, size.height)
+    : Object.assign(document.createElement("canvas"), size);
   const context = canvas.getContext("2d");
   if (!context) return null;
+  if (whiteBackground) {
+    context.fillStyle = "#fff";
+    context.fillRect(0, 0, size.width, size.height);
+  }
   context.drawImage(bitmap, 0, 0, size.width, size.height);
-  return new Promise<Blob | null>((resolve) => {
-    canvas.toBlob(
-      (blob) => resolve(blob),
-      "image/jpeg",
-      PREVIEW_JPEG_QUALITY,
-    );
-  });
+  if ("convertToBlob" in canvas) return canvas.convertToBlob({ type: "image/jpeg", quality });
+  return new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", quality));
 }

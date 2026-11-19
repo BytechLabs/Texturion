@@ -102,6 +102,7 @@ import { useMe } from "@/lib/api/me";
 import { useMembers } from "@/lib/api/team";
 import { isFilePaste } from "@/lib/attachments/clipboard";
 import { MMS_ACCEPT, MMS_MAX_MEDIA_ITEMS, partitionMmsFiles } from '@/lib/attachments/mms';
+import { needsMmsImageResize, prepareMmsImage } from "@/lib/attachments/preview";
 import type { SayMmsRejection } from '@/lib/attachments/mms';
 import {
   ATTACHMENT_ACCEPT,
@@ -172,12 +173,14 @@ export function fileToBase64(file: File): Promise<string> {
 export function AttachmentChips({
   attachments,
   onRemove,
+  resizing = false,
 }: {
   attachments: DraftAttachment[];
   onRemove: (id: string) => void;
+  resizing?: boolean;
 }) {
   const t = useT();
-  if (attachments.length === 0) return null;
+  if (attachments.length === 0 && !resizing) return null;
   return (
     <div className="mx-auto flex max-w-[42rem] flex-wrap items-center gap-2 px-1 pb-2">
       {attachments.map((attachment) => {
@@ -227,6 +230,11 @@ export function AttachmentChips({
           </span>
         );
       })}
+      {resizing && (
+        <span role="status" className="rounded-full bg-secondary px-2 py-1 text-xs text-muted-foreground">
+          {t("thread.mmsResizing")}
+        </span>
+      )}
     </div>
   );
 }
@@ -239,34 +247,75 @@ export interface AdmitFilesResult {
   errors: string[];
 }
 
-/**
- * Validate + admit files into the draft (#189): the shared MMS matrix
- * (type + size + count, extension fallback for empty OS types) runs locally
- * so a valid pick never round-trips to fail. Image admissions get an object
- * URL for their preview chip; other kinds render as name chips.
- */
-export function admitFiles(
-  current: DraftAttachment[],
-  incoming: FileList | File[],
+export async function admitFiles(
+  currentCount: number,
+  incoming: File[],
   say: SayMmsRejection,
-): AdmitFilesResult {
-  const { accepted, rejected } = partitionMmsFiles(
-    Array.from(incoming),
-    current.length,
-    say,
+): Promise<AdmitFilesResult> {
+  const { accepted, rejected } = await partitionMmsFiles(incoming, currentCount, say, async (file) =>
+    needsMmsImageResize(file) ? (await prepareMmsImage(file)) ?? file : file,
   );
-  const next = [...current];
-  for (const { file, contentType } of accepted) {
-    next.push({
-      id: crypto.randomUUID(),
-      file,
-      contentType,
-      previewUrl: contentType.startsWith("image/")
-        ? URL.createObjectURL(file)
-        : null,
-    });
+  const attachments = accepted.map(({ file, contentType }) => ({
+    id: crypto.randomUUID(),
+    file,
+    contentType,
+    previewUrl: contentType.startsWith("image/") ? URL.createObjectURL(file) : null,
+  }));
+  return { attachments, errors: rejected.map(({ reason }) => reason) };
+}
+
+export function useMmsAdmission(
+  attachmentsRef: { current: DraftAttachment[] },
+  setAttachments: (attachments: DraftAttachment[]) => void,
+  setErrors: (errors: string[]) => void,
+  say: SayMmsRejection,
+) {
+  const [queued, setQueued] = useState(0);
+  const [resizing, setResizing] = useState(false);
+  const queue = useRef(Promise.resolve());
+  const mounted = useRef(false);
+
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+
+  async function stage(files: File[]) {
+    if (!mounted.current) return;
+    try {
+      const count = attachmentsRef.current.length;
+      setResizing(count < MMS_MAX_MEDIA_ITEMS && files.some(needsMmsImageResize));
+      const result = await admitFiles(count, files, say);
+      const current = attachmentsRef.current;
+      const slots = mounted.current ? Math.max(0, MMS_MAX_MEDIA_ITEMS - current.length) : 0;
+      for (const attachment of result.attachments.slice(slots)) {
+        if (attachment.previewUrl !== null) URL.revokeObjectURL(attachment.previewUrl);
+      }
+      if (!mounted.current) return;
+      const next = [...current, ...result.attachments.slice(0, slots)];
+      attachmentsRef.current = next;
+      setAttachments(next);
+      setErrors(result.attachments.length > slots
+        ? [...result.errors, say("thread.attachLimitText", { max: String(MMS_MAX_MEDIA_ITEMS) })]
+        : result.errors);
+    } catch {
+      if (mounted.current) setErrors([say("thread.mmsPrepFailed")]);
+    } finally {
+      if (mounted.current) {
+        setResizing(false);
+        setQueued((count) => count - 1);
+      }
+    }
   }
-  return { attachments: next, errors: rejected.map((r) => r.reason) };
+
+  function admit(incoming: FileList | File[]) {
+    const files = Array.from(incoming);
+    if (files.length === 0) return;
+    setQueued((count) => count + 1);
+    queue.current = queue.current.then(() => stage(files));
+  }
+
+  return { admit, pending: queued > 0, resizing };
 }
 
 /** Inline (not toast) rejection lines under the draft chips (#189). */
@@ -764,12 +813,14 @@ export function Composer({
   );
 
   const removeAttachment = (id: string) => {
-    setAttachments((current) => {
-      const found = current.find((a) => a.id === id);
-      if (found?.previewUrl) URL.revokeObjectURL(found.previewUrl);
-      return current.filter((a) => a.id !== id);
-    });
+    const found = attachmentsRef.current.find((attachment) => attachment.id === id);
+    if (found?.previewUrl) URL.revokeObjectURL(found.previewUrl);
+    const next = attachmentsRef.current.filter((attachment) => attachment.id !== id);
+    attachmentsRef.current = next;
+    setAttachments(next);
   };
+
+  const mediaAdmission = useMmsAdmission(attachmentsRef, setAttachments, setMediaErrors, t);
 
   const pending = send.isPending || createNote.isPending;
   // §3.1 derive-send-from-content: send enables purely on "field non-empty"
@@ -778,7 +829,7 @@ export function Composer({
     !pending &&
     (isNote
       ? text.trim() !== "" || noteStage.files.length > 0
-      : text.trim() !== "" || attachments.length > 0);
+      : !mediaAdmission.pending && (text.trim() !== "" || attachments.length > 0));
 
   const openFilePicker = () => fileRef.current?.click();
 
@@ -1225,17 +1276,9 @@ export function Composer({
     });
   };
 
-  // #189 text-mode intake: run the shared MMS matrix locally and surface the
-  // rejections INLINE (never a round-trip for a pick this gate can decide).
-  const admitDraftFiles = (files: FileList | File[]) => {
-    const { attachments: next, errors } = admitFiles(attachments, files, t);
-    setAttachments(next);
-    setMediaErrors(errors);
-  };
-
   const onFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     if (event.target.files) {
-      admitDraftFiles(event.target.files);
+      mediaAdmission.admit(event.target.files);
     }
     event.target.value = "";
   };
@@ -1256,7 +1299,7 @@ export function Composer({
       noteStage.admit(files);
       return;
     }
-    admitDraftFiles(files);
+    mediaAdmission.admit(files);
   };
 
   const drop = useFileDrop(admitIncoming);
@@ -1483,7 +1526,7 @@ export function Composer({
         </div>
       )}
       {!isNote && (
-        <AttachmentChips attachments={attachments} onRemove={removeAttachment} />
+        <AttachmentChips attachments={attachments} onRemove={removeAttachment} resizing={mediaAdmission.resizing} />
       )}
       {isNote && (
         <StagedFileChips

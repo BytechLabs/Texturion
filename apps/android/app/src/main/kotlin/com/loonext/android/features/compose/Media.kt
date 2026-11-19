@@ -17,6 +17,9 @@ import com.loonext.android.core.jobs.PhotoMarkup
 /** SPEC §7 outbound MMS limits — validated here AND by the API. */
 const val MAX_PHOTOS = 3
 const val MAX_PHOTO_BYTES = 1024 * 1024
+private const val PHOTO_LONG_EDGE = 2048
+private const val PHOTO_RESIZE_ROUNDS = 4
+private val PHOTO_QUALITIES = intArrayOf(85, 70, 55, 40)
 val ACCEPTED_PHOTO_TYPES = setOf("image/jpeg", "image/png", "image/gif")
 
 /** D19 note-file limits (server: 10 files per owner, 25 MB each). */
@@ -118,7 +121,7 @@ private fun transcodeToJpeg(raw: ByteArray): ByteArray? {
     // keeps peak memory flat for 100-megapixel camera originals.
     var sample = 1
     val longEdge = maxOf(bounds.outWidth, bounds.outHeight)
-    while (longEdge / sample > 2048) sample *= 2
+    while (longEdge / sample > PHOTO_LONG_EDGE) sample *= 2
 
     var bitmap = BitmapFactory.decodeByteArray(
         raw,
@@ -128,8 +131,8 @@ private fun transcodeToJpeg(raw: ByteArray): ByteArray? {
     ) ?: return null
 
     // Quality steps, then halve dimensions and try again — always terminates.
-    repeat(4) {
-        for (quality in intArrayOf(85, 70, 55, 40)) {
+    repeat(PHOTO_RESIZE_ROUNDS) {
+        for (quality in PHOTO_QUALITIES) {
             val out = ByteArrayOutputStream()
             bitmap.compress(Bitmap.CompressFormat.JPEG, quality, out)
             val bytes = out.toByteArray()

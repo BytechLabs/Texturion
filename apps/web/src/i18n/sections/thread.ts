@@ -35,7 +35,10 @@ export const threadEn = {
   attachLimitText: "You can attach up to {max} files per text.",
   mmsUnsupportedFile: "{name} isn't something a text can carry. Try a photo, video, audio clip, contact card, or PDF.",
   mmsFileEmpty: "{name} is empty.",
-  mmsFileTooBig: "{name} is over 1 MB, the most a text can carry.",
+  mmsFileTooBig: "{name} is over 1 MB, the most a text can carry. Attach a smaller file.",
+  mmsHeicUnreadable: "This browser couldn’t open {name}. Save it as a JPEG or PNG and attach it again.",
+  mmsResizing: "Resizing photo…",
+  mmsPrepFailed: "Couldn’t prepare the attachments. Choose the files again.",
   /* #228 — somebody already answered (#408). Both phones have had these
      eight; the web read the sentence off packages/shared in English. */
   duplicateReplyNamed: "{name} replied {ago}.",
@@ -849,7 +852,10 @@ export const threadFr: Translated<typeof threadEn> = {
   attachLimitText: "Vous pouvez joindre jusqu'à {max} fichiers par texto.",
   mmsUnsupportedFile: "{name} n'est pas quelque chose qu'un texto peut transporter. Essayez une photo, une vidéo, un clip audio, une fiche de contact ou un PDF.",
   mmsFileEmpty: "{name} est vide.",
-  mmsFileTooBig: "{name} dépasse 1 Mo, le maximum qu'un texto peut transporter.",
+  mmsFileTooBig: "{name} dépasse 1 Mo, le maximum qu'un texto peut transporter. Joignez un fichier plus petit.",
+  mmsHeicUnreadable: "Ce navigateur n’a pas pu ouvrir {name}. Enregistrez le fichier au format JPEG ou PNG et joignez-le à nouveau.",
+  mmsResizing: "Redimensionnement de la photo…",
+  mmsPrepFailed: "Impossible de préparer les pièces jointes. Sélectionnez les fichiers à nouveau.",
   duplicateReplyNamed: "{name} a répondu {ago}.",
   duplicateReplyAuto: "Une réponse automatique est partie {ago}.",
   agoJustNow: "à l'instant",

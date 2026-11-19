@@ -566,7 +566,7 @@ object ThreadStrings : AppStrings.Section {
             "{name} isn't something a text can carry. Try a photo, video, " +
             "audio clip, contact card, or PDF.",
         "thread.mmsFileEmpty" to "{name} is empty.",
-        "thread.mmsFileTooBig" to "{name} is over 1 MB, the most a text can carry.",
+        "thread.mmsFileTooBig" to "{name} is over 1 MB, the most a text can carry. Attach a smaller file.",
         "thread.photoReadFailed" to "Couldn't read that photo. Try attaching it again.",
         "thread.imageCantBeSent" to "That image can't be sent. Try a different photo.",
         "thread.fileReadFailedPick" to "Couldn't read that file. Try picking it again.",
@@ -1372,7 +1372,7 @@ object ThreadStrings : AppStrings.Section {
             "une photo, une vidéo, un clip audio, une fiche de contact ou un PDF.",
         "thread.mmsFileEmpty" to "{name} est vide.",
         "thread.mmsFileTooBig" to
-            "{name} dépasse 1 Mo, le maximum qu'un texto peut transporter.",
+            "{name} dépasse 1 Mo, le maximum qu'un texto peut transporter. Joignez un fichier plus petit.",
         "thread.photoReadFailed" to
             "Impossible de lire cette photo. Joignez-la de nouveau.",
         "thread.imageCantBeSent" to
