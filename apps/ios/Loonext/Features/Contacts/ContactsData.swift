@@ -10,6 +10,20 @@ let contactNotesMax = 5000
 
 private let posixLocale = Locale(identifier: "en_US_POSIX")
 
+struct CustomerErasure: Decodable, Sendable {
+    struct Counts: Decodable, Sendable {
+        let conversations: Int
+        let messages: Int
+        let calls: Int
+        let tasks: Int
+    }
+
+    let state: String
+    let date: String?
+    let legal_hold: Bool
+    let counts: Counts
+}
+
 // MARK: - Wire bodies (pure, tested)
 
 /// PATCH one field; blank input clears it (an explicit JSON null).
@@ -40,6 +54,18 @@ struct ContactMutations: Sendable {
 
     func detail(companyId: String, contactId: String) async throws -> Contact {
         try await api.get("/v1/contacts/\(contactId)", companyId: companyId)
+    }
+
+    func erasure(companyId: String, contactId: String) async throws -> CustomerErasure {
+        try await api.get("/v1/contacts/\(contactId)/erase", companyId: companyId)
+    }
+
+    func erase(companyId: String, contactId: String, confirmation: String) async throws -> CustomerErasure {
+        try await api.post(
+            "/v1/contacts/\(contactId)/erase",
+            body: JSONValue.object(["confirmation": .string(confirmation)]),
+            companyId: companyId
+        )
     }
 
     func members(companyId: String) async throws -> Page<Member> {

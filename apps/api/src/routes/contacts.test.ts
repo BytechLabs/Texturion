@@ -1104,6 +1104,50 @@ describe("GET/PATCH/DELETE /v1/contacts/:id", () => {
   });
 });
 
+describe("customer erasure", () => {
+  const rpc = "/rest/v1/rpc/api_contact_erasure";
+  const path = `/v1/contacts/${CONTACT_ID}/erase`;
+
+  it("requires deletion permission and the typed confirmation", async () => {
+    const token = await auth.token();
+    const member = stubWithRole("member");
+    stubFetch(jwksRoute(auth), member.route);
+    const denied = await apiRequest(app, env, token, path, {
+      companyId: COMPANY_ID, method: "POST", body: { confirmation: "ERASE" },
+    });
+    expect(denied.status).toBe(403);
+    expect(member.find("POST", rpc)).toHaveLength(0);
+
+    const admin = stubWithRole("admin");
+    stubFetch(jwksRoute(auth), admin.route);
+    const invalid = await apiRequest(app, env, token, path, {
+      companyId: COMPANY_ID, method: "POST", body: { confirmation: "erase" },
+    });
+    expect(invalid.status).toBe(422);
+    expect(admin.find("POST", rpc)).toHaveLength(0);
+  });
+
+  it("returns the preview and starts erasure for the authorized workspace", async () => {
+    const sb = stubWithRole("owner");
+    const counts = { conversations: 1, messages: 8, calls: 2, tasks: 3 };
+    sb.on("POST", rpc, ({ body }) => {
+      const args = body as { p_actor: string | null };
+      expect(body).toMatchObject({ p_company: COMPANY_ID, p_contact: CONTACT_ID });
+      return { state: args.p_actor ? "erasing" : "ready", counts };
+    });
+    stubFetch(jwksRoute(auth), sb.route);
+    const token = await auth.token();
+    const preview = await apiRequest(app, env, token, path, { companyId: COMPANY_ID });
+    expect(preview.status).toBe(200);
+    expect(await preview.json()).toEqual({ state: "ready", counts });
+    const started = await apiRequest(app, env, token, path, {
+      companyId: COMPANY_ID, method: "POST", body: { confirmation: "ERASE" },
+    });
+    expect(started.status).toBe(202);
+    expect(await started.json()).toEqual({ state: "erasing", counts });
+  });
+});
+
 describe("GET /v1/contacts/:id/timeline (#324)", () => {
   const entry = (over: Record<string, unknown> = {}) => ({
     kind: "conversation",

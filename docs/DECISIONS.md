@@ -10115,10 +10115,15 @@ task made from it visible, because the job is still real; the task's title,
 description, address and map position are blanked only when that content is
 erased for good (the message's purge, or its conversation's or call's).
 
-**Not built.** There is no per-customer "forget this customer" erasure; only
-workspace closure (docs/DELETION.md) erases customer data in bulk. Search
-(`api_search_v2`) still lists tasks from a trashed conversation until the task
-work gates them.
+**Customer erasure.** A member with `records.delete` and access to all of the
+customer's lines can confirm erasure in the contact's Manage section. The
+contact and its records disappear immediately. The job removes files before
+record content and resumes from the remaining records after a failed sweep.
+A legal hold blocks the request or pauses an in-progress erasure. The dated
+receipt shows the affected record counts and what survives. The primary phone,
+consent evidence and opt-outs stay. For this path, `call_records.caller_e164`
+is cleared while the billed duration stays. Completion records `contact.erased`
+and queues an ID-only `contact.deleted` webhook in the same transaction.
 
 
 ## D151 - every broadcast carries a gapless topic sequence, and a hole triggers the resync (#251)

@@ -108,6 +108,7 @@ import com.loonext.android.core.model.Member
 import com.loonext.android.core.model.Tag
 import com.loonext.android.core.net.ApiErrorCode
 import com.loonext.android.core.net.ApiException
+import com.loonext.android.core.time.TimestampFormat
 import com.loonext.android.telephony.SoftphoneManager
 import com.loonext.android.ui.common.LoadError
 import com.loonext.android.ui.common.DsChip
@@ -136,6 +137,8 @@ import com.loonext.android.ui.common.rememberDebouncedTextSave
 import com.loonext.android.ui.common.rememberHaptics
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 /** Auto-save lifecycle for one field: idle → saving → saved / failed. */
@@ -207,6 +210,8 @@ internal fun ContactDetailScreen(
     var members by remember(companyId) { mutableStateOf<List<Member>>(emptyList()) }
     var conversation by remember(contactId) { mutableStateOf<ConversationListItem?>(null) }
     var refreshKey by remember(contactId) { mutableIntStateOf(0) }
+    var erasure by remember(contactId) { mutableStateOf<CustomerErasure?>(null) }
+    var showErasure by remember(contactId) { mutableStateOf(false) }
 
     // #176 cache-first: a reopened contact paints instantly from StoreCache
     // while the fetch revalidates silently; the loading state can only ever
@@ -241,6 +246,21 @@ internal fun ContactDetailScreen(
     }
     LaunchedEffect(companyId) {
         runCatching { mutations.members(companyId) }.onSuccess { members = it.data }
+    }
+    val erasureStarted = erasure?.state == "erasing"
+    LaunchedEffect(contactId, notFound, erasureStarted) {
+        if (!canDelete || (!notFound && !erasureStarted)) return@LaunchedEffect
+        do {
+            try {
+                erasure = mutations.erasure(companyId, contactId)
+            } catch (cause: CancellationException) {
+                throw cause
+            } catch (_: Exception) {
+                if (!erasureStarted) break
+            }
+            if (erasure?.state != "erasing") break
+            delay(10_000)
+        } while (true)
     }
     // #82: the primary pill is contextual — find this contact's existing
     // thread once the phone is known. A lookup failure just leaves the
@@ -278,7 +298,10 @@ internal fun ContactDetailScreen(
             Spacer(Modifier.size(44.dp))
         }
 
-        when (val current = state) {
+        val receipt = erasure?.takeIf { it.state == "erasing" || (notFound && it.state == "erased") }
+        if (receipt != null) {
+            CustomerErasureReceipt(receipt)
+        } else when (val current = state) {
             is LoadState.Loading -> ContactDetailSkeleton()
             is LoadState.Failed ->
                 if (notFound) {
@@ -306,10 +329,19 @@ internal fun ContactDetailScreen(
                 conversation = conversation,
                 onChanged = { refreshKey++ },
                 onDeleted = onContactDeleted,
+                onErase = { showErasure = true },
                 onOpenConversation = onOpenConversation,
                 onComposeNew = onComposeNew,
                 onOpenTask = onOpenTask,
             )
+        }
+    }
+    if (showErasure) {
+        CustomerErasureDialog(mutations, companyId, contactId, onDismiss = { showErasure = false }) {
+            erasure = it
+            showErasure = false
+            graph.storeCache.flowOf<Contact>(CacheKeys.contact(companyId, contactId)).value = null
+            refreshKey++
         }
     }
 }
@@ -329,6 +361,7 @@ private fun ContactDetailBody(
     conversation: ConversationListItem?,
     onChanged: () -> Unit,
     onDeleted: () -> Unit,
+    onErase: () -> Unit,
     onOpenConversation: ((String) -> Unit)?,
     onComposeNew: ((String) -> Unit)?,
     onOpenTask: ((String) -> Unit)?,
@@ -1233,6 +1266,13 @@ private fun ContactDetailBody(
                     enabled = !working,
                     onClick = { confirmDelete = true },
                 )
+                FooterAction(
+                    label = t("contactsTasks.customerErasureAction"),
+                    caption = t("contactsTasks.customerErasureHint"),
+                    color = MaterialTheme.colorScheme.error,
+                    enabled = !working,
+                    onClick = onErase,
+                )
             }
         }
 
@@ -1305,6 +1345,93 @@ private fun ContactDetailBody(
         )
     }
 }
+
+@Composable
+private fun CustomerErasureDialog(
+    mutations: ContactMutations,
+    companyId: String,
+    contactId: String,
+    onDismiss: () -> Unit,
+    onStarted: (CustomerErasure) -> Unit,
+) {
+    var status by remember { mutableStateOf<CustomerErasure?>(null) }
+    var confirmation by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    var working by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
+    val locale = LocalAppLocale.current
+    val allowed = status?.let { it.state == "ready" && !it.legal_hold } == true
+    LaunchedEffect(contactId) {
+        try {
+            val preview = mutations.erasure(companyId, contactId)
+            if (preview.state == "ready") status = preview else onStarted(preview)
+        } catch (cause: CancellationException) {
+            throw cause
+        } catch (cause: Exception) {
+            error = cause.userMessage(locale)
+        }
+    }
+    ConfirmDialog(
+        title = t("contactsTasks.customerErasureAction"),
+        body = t("contactsTasks.customerErasureHint"),
+        confirmLabel = t("contactsTasks.customerErasureAction"),
+        destructive = true,
+        pending = working,
+        error = error,
+        confirmEnabled = allowed && confirmation == "ERASE",
+        onDismiss = onDismiss,
+        onConfirm = {
+            working = true
+            error = null
+            scope.launch {
+                try {
+                    onStarted(mutations.erase(companyId, contactId, confirmation))
+                } catch (cause: CancellationException) {
+                    throw cause
+                } catch (cause: Exception) {
+                    error = cause.userMessage(locale)
+                } finally {
+                    working = false
+                }
+            }
+        },
+        extraContent = {
+            status?.let { Text(erasureCounts(it.counts), modifier = Modifier.padding(top = 12.dp)) }
+            if (status?.legal_hold == true) Text(t("contactsTasks.customerErasureHeld"))
+            if (allowed) OutlinedTextField(
+                value = confirmation,
+                onValueChange = { confirmation = it },
+                label = { Text(t("contactsTasks.customerErasureConfirm")) },
+                modifier = Modifier.padding(top = 12.dp),
+                enabled = !working,
+                singleLine = true,
+            )
+        },
+    )
+}
+
+@Composable
+private fun CustomerErasureReceipt(status: CustomerErasure) {
+    Column(Modifier.padding(24.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            t(if (status.state == "erased") "contactsTasks.customerErasureDone" else "contactsTasks.customerErasureInProgress"),
+            style = MaterialTheme.typography.titleMedium,
+        )
+        status.date?.let { Text(TimestampFormat.exact(it, locale = LocalAppLocale.current)) }
+        Text(erasureCounts(status.counts))
+        Text(t("contactsTasks.customerErasureKept"))
+        if (status.state == "erasing" && status.legal_hold) Text(t("contactsTasks.customerErasureHeld"))
+    }
+}
+
+@Composable
+private fun erasureCounts(counts: CustomerErasure.Counts) = t(
+    "contactsTasks.customerErasureCounts",
+    "conversations" to counts.conversations.toString(),
+    "messages" to counts.messages.toString(),
+    "calls" to counts.calls.toString(),
+    "tasks" to counts.tasks.toString(),
+)
 
 /**
  * First-open stand-in shimmering in the detail's real grammar: squircle

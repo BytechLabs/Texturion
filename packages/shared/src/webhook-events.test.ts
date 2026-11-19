@@ -27,6 +27,7 @@ describe("the event vocabulary", () => {
         "call.completed",
         "call.deleted",
         "contact.created",
+        "contact.deleted",
         "conversation.deleted",
         "message.deleted",
         "message.failed",

@@ -21,6 +21,7 @@ import { PhoneList } from "@/components/contacts/phone-list";
 import { ExportHistory } from "@/components/contacts/export-history";
 import { ContactCustomFields } from "@/components/contacts/custom-fields";
 import { ContactHistory } from "@/components/contacts/contact-history";
+import { CustomerErasureAction, CustomerErasureReceipt } from "@/components/contacts/customer-erasure";
 import {
   CONTACT_PANES,
   PHONE_ACTIVITY_PANES,
@@ -51,6 +52,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useT } from "@/i18n/provider";
 import {
   useContact,
+  useCustomerErasure,
   useDeleteContact,
   useOptOutContact,
   useRevokeOptOut,
@@ -768,6 +770,7 @@ function ContactBody({ contact }: { contact: ContactDetail }) {
                   </Button>
                 </div>
               )}
+              {canDelete && <CustomerErasureAction contactId={contact.id} />}
             </div>
           </SettingsCard>
         </div>
@@ -888,6 +891,11 @@ export default function ContactDetailPage({
   const { id } = use(params);
   const router = useRouter();
   const contact = useContact(id);
+  const canDelete = useCanDeleteRecords();
+  const notFound = contact.error instanceof ApiError && contact.error.code === "not_found";
+  const erasure = useCustomerErasure(id, canDelete && notFound);
+  const receipt = erasure.data && (erasure.data.state === "erasing" || (notFound && erasure.data.state === "erased"))
+    ? erasure.data : null;
   const resolvedId = contact.data?.id;
   const redirecting = !contact.isError && resolvedId !== undefined && resolvedId !== id;
   useEffect(() => {
@@ -908,14 +916,13 @@ export default function ContactDetailPage({
         {t("appShell.contactsTitle")}
       </Link>
 
-      {contact.isPending || redirecting ? (
+      {receipt ? <CustomerErasureReceipt status={receipt} /> : contact.isPending || redirecting ? (
         <div className="space-y-4" aria-label={t("appShell.contactLoading")}>
           <Skeleton className="h-8 w-52" />
           <Skeleton className="h-64 w-full rounded-lg" />
         </div>
       ) : contact.isError ? (
-        contact.error instanceof ApiError &&
-        contact.error.code === "not_found" ? (
+        notFound ? (
           <p className="rounded-lg border bg-card px-4 py-6 text-sm text-muted-foreground">
             {t("appShell.contactNotFound")}
           </p>

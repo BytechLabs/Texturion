@@ -22,6 +22,8 @@ const state = {
   pending: false,
 };
 
+const erase = vi.fn();
+
 const { router, activityReads } = vi.hoisted(() => ({
   router: { push: vi.fn(), replace: vi.fn() },
   activityReads: [] as unknown[][],
@@ -96,6 +98,9 @@ vi.mock("@/lib/api/contacts", () => ({
   useOptOutContact: () => ({ isPending: false, mutate: vi.fn() }),
   useRevokeOptOut: () => ({ isPending: false, mutate: vi.fn() }),
   useDeleteContact: () => ({ isPending: false, mutate: vi.fn() }),
+  useCustomerErasure: () => ({ data: { state: "ready", legal_hold: false,
+    counts: { conversations: 1, messages: 4, calls: 2, tasks: 3 } } }),
+  useEraseCustomer: () => ({ isPending: false, mutate: erase, reset: vi.fn() }),
   // #695: tags on the customer, and the way back from a merge.
   useAddContactTag: () => ({ isPending: false, mutate: vi.fn() }),
   useRemoveContactTag: () => ({ isPending: false, mutate: vi.fn() }),
@@ -389,6 +394,20 @@ describe("/contacts/[id] activity (#714)", () => {
     for (const filter of ["All", "Messages", "Calls", "Changes"]) expect(html).toContain(filter);
     expect(html).not.toContain("Call history");
   });
+});
+
+it("shows the affected counts and requires ERASE before submitting", async () => {
+  erase.mockClear();
+  mount(<ContactDetailPage params={resolvedParams("c-1")} />);
+  fireEvent.click(screen.getByRole("button", { name: "Erase customer" }));
+  const dialog = await screen.findByRole("dialog");
+  expect(dialog.textContent).toContain("Conversations 1, messages 4, calls 2, tasks 3");
+  const confirm = [...dialog.querySelectorAll("button")].find((button) => button.textContent === "Erase customer");
+  expect(confirm?.disabled).toBe(true);
+  fireEvent.change(screen.getByLabelText("Type ERASE to confirm"), { target: { value: "ERASE" } });
+  expect(confirm?.disabled).toBe(false);
+  if (confirm) fireEvent.click(confirm);
+  expect(erase).toHaveBeenCalledExactlyOnceWith("ERASE");
 });
 
 describe("/contacts/[id] block number (#696)", () => {

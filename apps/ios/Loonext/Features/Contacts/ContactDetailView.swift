@@ -38,6 +38,7 @@ struct ContactDetailView: View {
         case loading
         case failed(message: String, notFound: Bool)
         case ready(Contact)
+        case erasure(CustomerErasure)
     }
 
     @State private var state: DetailState = .loading
@@ -55,6 +56,10 @@ struct ContactDetailView: View {
     @State private var newTaskOpen = false
     @State private var confirmBlock = false
     @State private var confirmDelete = false
+    @State private var showErasure = false
+    @State private var erasurePreview: CustomerErasure?
+    @State private var erasureConfirmation = ""
+    @State private var erasureError: String?
     /// #696: this number's row on the block list, or nil when it is not.
     @State private var blockedSender: BlockedSender?
     @State private var working = false
@@ -103,6 +108,11 @@ struct ContactDetailView: View {
         return nil
     }
 
+    private var erasurePending: Bool {
+        if case .erasure(let receipt) = state { return receipt.state == "erasing" }
+        return false
+    }
+
     var body: some View {
         Group {
             switch state {
@@ -120,6 +130,8 @@ struct ContactDetailView: View {
                 }
             case .ready(let contact):
                 readyBody(contact)
+            case .erasure(let receipt):
+                erasureReceipt(receipt)
             }
         }
         .background(BrandColor.canvas.ignoresSafeArea())
@@ -128,6 +140,20 @@ struct ContactDetailView: View {
         // The tab's list screen hides the bar; the pushed detail shows it.
         .toolbar(.visible, for: .navigationBar)
         .task(id: "\(contactId)|\(refreshKey)") { await load() }
+        .task(id: erasurePending) {
+            while erasurePending && !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(10))
+                if Task.isCancelled { break }
+                if let result = try? await mutations.erasure(companyId: companyId, contactId: contactId) {
+                    if result.state == "ready" {
+                        await load()
+                    } else {
+                        state = .erasure(result)
+                    }
+                }
+            }
+        }
+        .sheet(isPresented: $showErasure) { erasureSheet }
         .task(id: companyId) {
             if let page = try? await mutations.members(companyId: companyId) {
                 members = page.data
@@ -224,6 +250,11 @@ struct ContactDetailView: View {
             if initiallyEmpty == nil { initiallyEmpty = emptyContactDetailFields(loaded) }
             state = .ready(loaded)
         } catch let error as ApiError where error.code == ApiErrorCode.notFound {
+            if canDelete, let receipt = try? await mutations.erasure(companyId: companyId, contactId: contactId),
+               receipt.state != "ready" {
+                state = .erasure(receipt)
+                return
+            }
             state = .failed(
                 message: t("contactsTasks.contactGone"), notFound: true
             )
@@ -1341,6 +1372,17 @@ struct ContactDetailView: View {
                         actionLabel: t("contactsTasks.deleteContact"),
                         destructive: false
                     ) { confirmDelete = true }
+                    RowDivider()
+                    manageRow(
+                        text: t("contactsTasks.customerErasureHint"),
+                        actionLabel: t("contactsTasks.customerErasureAction"),
+                        destructive: true
+                    ) {
+                        erasurePreview = nil
+                        erasureConfirmation = ""
+                        erasureError = nil
+                        showErasure = true
+                    }
                 }
             }
         }
@@ -1366,6 +1408,85 @@ struct ContactDetailView: View {
         }
         .padding(.horizontal, 15)
         .padding(.vertical, 12)
+    }
+
+    private var erasureSheet: some View {
+        NavigationStack {
+            Form {
+                Text(t("contactsTasks.customerErasureHint"))
+                if let preview = erasurePreview {
+                    Text(erasureCounts(preview.counts))
+                    if preview.legal_hold {
+                        Text(t("contactsTasks.customerErasureHeld"))
+                    } else {
+                        TextField(t("contactsTasks.customerErasureConfirm"), text: $erasureConfirmation)
+                            .textInputAutocapitalization(.characters)
+                            .autocorrectionDisabled()
+                            .disabled(working)
+                    }
+                }
+                if let erasureError { Text(erasureError).foregroundStyle(BrandColor.destructive) }
+                Button(t("contactsTasks.customerErasureAction"), role: .destructive) {
+                    erasureError = nil
+                    working = true
+                    Task {
+                        defer { working = false }
+                        do {
+                            state = .erasure(try await mutations.erase(
+                                companyId: companyId, contactId: contactId, confirmation: erasureConfirmation
+                            ))
+                            showErasure = false
+                        } catch {
+                            erasureError = error.userMessage
+                        }
+                    }
+                }
+                .disabled(working || erasureConfirmation != "ERASE" || erasurePreview?.legal_hold != false)
+            }
+            .navigationTitle(t("contactsTasks.customerErasureAction"))
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button(t("common.cancel")) { showErasure = false }.disabled(working)
+                }
+            }
+        }
+        .interactiveDismissDisabled(working)
+        .task {
+            do {
+                let preview = try await mutations.erasure(companyId: companyId, contactId: contactId)
+                if preview.state == "ready" {
+                    erasurePreview = preview
+                } else {
+                    state = .erasure(preview)
+                    showErasure = false
+                }
+            } catch {
+                erasureError = error.userMessage
+            }
+        }
+    }
+
+    private func erasureReceipt(_ receipt: CustomerErasure) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(t(receipt.state == "erased" ? "contactsTasks.customerErasureDone" : "contactsTasks.customerErasureInProgress"))
+                .font(.headline)
+            if let date = receipt.date {
+                Text(TimestampFormat.exact(date, locale: appLocale))
+            }
+            Text(erasureCounts(receipt.counts))
+            Text(t("contactsTasks.customerErasureKept"))
+            if receipt.state == "erasing" && receipt.legal_hold { Text(t("contactsTasks.customerErasureHeld")) }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .padding(24)
+    }
+
+    private func erasureCounts(_ counts: CustomerErasure.Counts) -> String {
+        t("contactsTasks.customerErasureCounts", [
+            "conversations": String(counts.conversations), "messages": String(counts.messages),
+            "calls": String(counts.calls), "tasks": String(counts.tasks),
+        ])
     }
 }
 

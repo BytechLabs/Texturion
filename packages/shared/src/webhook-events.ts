@@ -32,6 +32,7 @@ export const WEBHOOK_EVENT_TYPES = [
   "task.created",
   "task.completed",
   "contact.created",
+  "contact.deleted",
   // #691: tell the other system to forget it too. The payload is ids only, so
   // nothing the customer wrote leaves in a deletion notice.
   "message.deleted",
@@ -357,6 +358,7 @@ export const WEBHOOK_EVENT_SCOPE: Record<WebhookEventType, ApiKeyScope> = {
   // Ids only, but they name the thread or call the scope governs.
   "message.deleted": "messages:read",
   "conversation.deleted": "conversations:read",
+  "contact.deleted": "contacts:read",
   "call.deleted": "conversations:read",
 };
 

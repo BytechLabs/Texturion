@@ -56,7 +56,7 @@ export const legalDeleteMyDataEn = {
   helpUser:
     "If you have lost access to your account and cannot use the in-app controls, email {privacyEmail} from the address on the account and we will handle it. Under PIPEDA and Quebec Law 25 we respond within the timelines the law sets.",
   helpCustomer:
-    "If you are a *customer* of a business that uses Loonext rather than a Loonext user, meaning you received a text from one of our customers, then that business controls your information, and we will route your request to them. To stop the texts immediately, reply **STOP** to any message from them.",
+    "If you are a *customer* of a business that uses Loonext, that business controls your information and we will route your request to them. The business can choose **Erase customer** in Loonext to erase your profile, conversations, calls, tasks and files and get a dated receipt. We keep the primary number and consent record, opt-outs and billing totals. To stop texts immediately, reply **STOP** to any message from the business.",
 } as const;
 
 export const legalDeleteMyDataFr: Translated<typeof legalDeleteMyDataEn> = {
@@ -113,7 +113,7 @@ export const legalDeleteMyDataFr: Translated<typeof legalDeleteMyDataEn> = {
   helpUser:
     "Si vous avez perdu l'accès à votre compte et ne pouvez pas utiliser les commandes dans l'application, écrivez à {privacyEmail} à partir de l'adresse associée au compte et nous nous en occuperons. En vertu de la LPRPDE et de la Loi 25 du Québec, nous répondons dans les délais prévus par la loi.",
   helpCustomer:
-    "Si vous êtes *client ou cliente* d'une entreprise qui utilise Loonext, plutôt qu'une personne qui utilise Loonext, c'est-à-dire si vous avez reçu un texto de l'un de nos clients, cette entreprise contrôle vos renseignements et nous lui transmettrons votre demande. Pour arrêter immédiatement les textos, répondez **STOP** à n'importe lequel de ses messages.",
+    "Si vous êtes *client ou cliente* d'une entreprise qui utilise Loonext, cette entreprise contrôle vos renseignements et nous lui transmettrons votre demande. Elle peut choisir **Effacer les données du client** dans Loonext pour effacer votre profil, vos conversations, vos appels, vos tâches et vos fichiers, puis obtenir un reçu daté. Nous conservons le numéro principal et la preuve de consentement, les désabonnements et les totaux de facturation. Pour arrêter immédiatement les textos, répondez **STOP** à un message de l’entreprise.",
 };
 
 const COPY = {
