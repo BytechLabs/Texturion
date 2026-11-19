@@ -116,6 +116,9 @@ enum WebhooksStrings {
             "webhooks.event.messageDeleted": "A message is deleted",
             "webhooks.event.conversationDeleted": "A conversation is deleted",
             "webhooks.event.callDeleted": "A call or voicemail is deleted",
+            "webhooks.event.paymentPaid": "A payment is received",
+            "webhooks.event.paymentRefunded": "A payment is refunded",
+            "webhooks.event.quoteAccepted": "A quote is accepted",
             "webhooks.urlError.notAUrl": "That doesn't look like a web address.",
             "webhooks.urlError.notHttps":
                 "The address has to start with https:// — http isn't secure enough to send "
@@ -231,6 +234,9 @@ enum WebhooksStrings {
             "webhooks.event.messageDeleted": "Un message est supprimé",
             "webhooks.event.conversationDeleted": "Une conversation est supprimée",
             "webhooks.event.callDeleted": "Un appel ou un message vocal est supprimé",
+            "webhooks.event.paymentPaid": "Un paiement est reçu",
+            "webhooks.event.paymentRefunded": "Un paiement est remboursé",
+            "webhooks.event.quoteAccepted": "Un devis est accepté",
             "webhooks.urlError.notAUrl": "Ça ne ressemble pas à une adresse web.",
             "webhooks.urlError.notHttps":
                 "L'adresse doit commencer par https:// — http n'est pas assez sécuritaire "

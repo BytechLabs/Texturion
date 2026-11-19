@@ -264,6 +264,8 @@ struct ImportResult: Codable, Sendable {
     /// for the case this is absent while rows are not — see the note there for
     /// why a second copy is safe here and normally would not be.
     var consent_refused_note: String? = nil
+    @Default<DefaultZero> var kept: Int = 0
+    @Default<DefaultEmptyList<ImportRowError>> var detail_warnings: [ImportRowError] = []
 }
 
 /// #292/D49: how honest to be about the clock we are showing.

@@ -11,6 +11,31 @@ import { summarizeImport } from "@/lib/contacts/import-summary";
 
 import { ImportConsentRefused } from "./import-consent-refused";
 
+export function ImportDetailsReport({ result }: { result: ImportResult }) {
+  const t = useT();
+  const kept = result.kept ?? 0;
+  const warnings = result.detail_warnings ?? [];
+  const visibleWarnings = warnings.slice(0, 50);
+  return (
+    <>
+      {kept > 0 && <p className="text-sm">{t("contacts.importKept", { count: kept.toLocaleString(t.locale) })}</p>}
+      {warnings.length > 0 && (
+        <div className="space-y-2">
+          <p className="text-sm text-muted-foreground">{t("contacts.importDetailWarnings")}</p>
+          <ul className="max-h-44 space-y-1 overflow-y-auto text-sm">
+            {visibleWarnings.map(({ row, reason }, index) => (
+              <li key={`${row}-${index}`}>{row}. {reason}</li>
+            ))}
+            {warnings.length > visibleWarnings.length && (
+              <li>{t("contacts.andMore", { count: (warnings.length - visibleWarnings.length).toLocaleString(t.locale) })}</li>
+            )}
+          </ul>
+        </div>
+      )}
+    </>
+  );
+}
+
 /**
  * Shared "Import finished" summary body for the vCard and phone-picker dialogs
  * (D20 §3.2/§3.3). Renders the API's authoritative
@@ -42,6 +67,7 @@ export function ImportSummaryView({
           surprising item and the consequential one: people who are now in their
           list and must not be texted. The unexpected fact leads. */}
       <ImportConsentRefused result={result} />
+      <ImportDetailsReport result={result} />
       {summary.hasErrors && (
         <div className="space-y-2">
           <p className="text-sm text-muted-foreground">{errorsHeading}</p>

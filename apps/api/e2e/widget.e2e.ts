@@ -215,10 +215,15 @@ describe("#748 the website widget, from a customer's page to the inbox", () => {
     expect(contacts?.[0]?.name).toBe("Pat");
     const { data: messages } = await h.db
       .from("messages")
-      .select("body,direction")
+      .select("body,direction,source,telnyx_message_id")
       .eq("company_id", COMPANY_ID)
       .eq("direction", "inbound");
-    expect(messages?.map((m) => m.body)).toContain("Burst pipe in the basement");
+    expect(messages).toContainEqual({
+      body: "Burst pipe in the basement",
+      direction: "inbound",
+      source: "widget",
+      telnyx_message_id: null,
+    });
     const { data: days } = await h.db.from("inbound_notification_days")
       .select("email_limit,push_limit").eq("company_id", COMPANY_ID);
     expect(days).toEqual([{ email_limit: 100, push_limit: 2000 }]);
@@ -235,7 +240,7 @@ describe("#748 the website widget, from a customer's page to the inbox", () => {
         data: expect.objectContaining({ body: "Burst pipe in the basement", source: "widget" }),
       }) }),
       expect.objectContaining({ event_type: "contact.created", payload: expect.objectContaining({
-        data: expect.objectContaining({ name: "Pat" }),
+        data: expect.objectContaining({ name: "Pat", origin: "inbound" }),
       }) }),
     ]));
   }, 90_000);

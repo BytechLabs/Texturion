@@ -804,6 +804,6 @@ describe("#248 D2: the preview tells the truth about duplicates", () => {
     const csv = await blobs[0].text();
     // The person's own row, handed back with the reason beside it. Renumber the
     // rows and this line is blank except for the reason.
-    expect(csv.split("\r\n")[1]).toBe("nope,Pat,,,,,,invalid phone: nope");
+    expect(csv.split("\r\n")[1]).toBe("nope,Pat,,,,,,,,,,,invalid phone: nope");
   });
 });

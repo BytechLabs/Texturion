@@ -466,20 +466,19 @@ widgetRoutes.post("/widget/verify", async (c) => {
   const limits = inboundNotificationLimits(company);
 
   const { data: threaded, error: threadError } = await db.rpc(
-    "thread_inbound_message",
+    "thread_widget_message",
     {
       p_company_id: companyId,
       p_phone_number_id: line.id,
       p_from_e164: result.phone_e164,
       p_body: body.message,
-      p_telnyx_message_id: null,
       p_timezone: company.timezone ?? null,
       p_email_limit: limits.email,
       p_push_limit: limits.push,
-      p_source: "widget",
       // The VERIFICATION is the key. A visitor who double-taps submit answers
       // the same verification twice, and both attempts must be one thread.
       p_idempotency_key: `widget:${body.verificationId}`,
+      p_contact_name: body.name ?? null,
     },
   );
   if (threadError) {
@@ -491,22 +490,6 @@ widgetRoutes.post("/widget/verify", async (c) => {
   }
   if (!landed.created) return c.json({ ok: true }, 201);
 
-  let contactName: string | null = null;
-  if (landed.contact_id && body.name) {
-    const saved = await db.from("contacts").update({ name: body.name })
-      .eq("company_id", companyId)
-      .eq("id", landed.contact_id)
-      .is("deleted_at", null)
-      .or("name.is.null,name.eq.")
-      .select("name")
-      .maybeSingle();
-    if (saved.error) {
-      await reportHandledFailure(env, "widget-contact-name", new Error(saved.error.message));
-    } else {
-      contactName = saved.data?.name ?? null;
-    }
-  }
-
   await finishThreadedInbound(env, db, {
     threaded: landed,
     companyId,
@@ -516,7 +499,6 @@ widgetRoutes.post("/widget/verify", async (c) => {
     body: body.message,
     segments: null,
     mediaCount: 0,
-    contactName,
     source: "widget",
   }).catch((error: unknown) => reportHandledFailure(env, "widget-inbound-delivery", error));
 

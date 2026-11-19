@@ -1,4 +1,4 @@
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -95,5 +95,37 @@ export function useExportUsage() {
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: [companyId, "exports"] });
     },
+  });
+}
+
+export type WorkspaceExportMediaKind = "attachment" | "mms" | "voicemail";
+
+interface WorkspaceExportMedia {
+  id: string;
+  file_name: string | null;
+  content_type: string | null;
+  size_bytes: number | null;
+}
+
+export function useWorkspaceExportMedia(exportId: string, kind: WorkspaceExportMediaKind, enabled: boolean) {
+  const companyId = useCompanyId();
+  return useInfiniteQuery({
+    queryKey: [companyId, "export-media", exportId, kind],
+    enabled,
+    initialPageParam: null as string | null,
+    queryFn: ({ pageParam }) => {
+      const params = new URLSearchParams({ kind });
+      if (pageParam) params.set("after", pageParam);
+      return apiFetch<Page<WorkspaceExportMedia>>(`/v1/exports/${exportId}/media?${params}`, { companyId });
+    },
+    getNextPageParam: (page) => page.next_cursor,
+  });
+}
+
+export function useSignWorkspaceExportMedia(exportId: string) {
+  const companyId = useCompanyId();
+  return useMutation({
+    mutationFn: ({ kind, id }: { kind: WorkspaceExportMediaKind; id: string }) =>
+      apiFetch<{ url: string }>(`/v1/exports/${exportId}/media/${kind}/${id}`, { companyId }),
   });
 }

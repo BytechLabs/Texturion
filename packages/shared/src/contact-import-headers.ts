@@ -20,6 +20,11 @@ export type ContactImportField =
   | "last_name"
   | "address"
   | "notes"
+  | "other_phone"
+  | "email"
+  | "business_name"
+  | "tags"
+  | "custom_fields"
   | "opted_out";
 
 /** Case, spaces, and punctuation are noise: "Phone Number" → "phonenumber". */
@@ -58,6 +63,11 @@ const FIELD_PATTERNS: readonly [ContactImportField, RegExp[]][] = [
       /blocked/,
     ],
   ],
+  ["other_phone", [/^otherphones?$/, /^alternatephones?$/, /^secondaryphone$/]],
+  ["email", [/^email$/, /^emailaddress$/, /^email[0-9]*value$/]],
+  ["business_name", [/^businessname$/, /^companyname$/, /^company$/, /^organization$/]],
+  ["tags", [/^tags?$/, /^labels?$/, /^categories$/]],
+  ["custom_fields", [/^customfields$/]],
   [
     "phone",
     [

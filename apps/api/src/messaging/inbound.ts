@@ -103,7 +103,6 @@ export type InboundThreadResult = ThreadResult & {
   crew_notify_state?: "none" | "pending" | "attempted";
   crew_notify_verdict?: CrewNotifyVerdict | null;
   contact_id?: string;
-  contact_created?: boolean;
   notification_alert?: number | null;
   /**
    * #343: the per-channel verdicts and the crossings, both additive. An older
@@ -136,7 +135,6 @@ interface ThreadedInboundInput {
   segments: number | null;
   mediaCount: number;
   receivedMediaCount?: number;
-  contactName?: string | null;
   emergency?: boolean;
   source: "carrier" | "widget";
 }
@@ -389,13 +387,6 @@ export async function finishThreadedInbound(
   // cannot slow anything down when nobody is subscribed: it is one indexed
   // lookup that returns no rows.
   if (threaded.created) {
-    if (threaded.contact_created && threaded.contact_id) {
-      await enqueueWebhookEvent(db, {
-        companyId,
-        type: "contact.created",
-        data: { contact_id: threaded.contact_id, phone_e164: fromE164, name: input.contactName ?? null },
-      });
-    }
     await enqueueWebhookEvent(db, {
       companyId,
       type: "message.received",

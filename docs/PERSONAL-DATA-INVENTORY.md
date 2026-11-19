@@ -91,7 +91,7 @@ The most sensitive category, because the person never chose us.
 | `opt_outs` | phone number | **Outlives the workspace.** A do-not-text record belongs to the person who sent the STOP, not the business that received it |
 | `blocked_senders` | phone number, plus a free-text reason a member typed (#250) | Life of the workspace; purged with it. Deliberately NOT like `opt_outs`: a block is one business refusing one number, which says nothing about what any other business may do, so it must not outlive the workspace that made it |
 | `contact_consent_events` | consent attestations, stripped | **3 years**, names and message contents removed — CASL requires the record, not the content |
-| `tasks` | free-text description, **job address** | The Trash sweep clears these values 30 days after task deletion, unless the workspace is on legal hold. Workspace closure purges the row. |
+| `tasks` | free-text description, **job address**, and whether newer tasks were created through the app or public API | The Trash sweep clears the description and address 30 days after task deletion, unless the workspace is on legal hold. Workspace closure purges the row. |
 | `task_events` | the previous and new **title, description, job address**, assignee and times of one task, with the member who changed it (#689) | Life of the task; deleted with it and purged with the workspace |
 | `record_activity` | one row per event on a contact, task, conversation or call: who did it, when, and a link to the source. Field edits hold the field **before and after** (name, email, address, notes, task title), never a message body (#714) | Life of the workspace. Purging a contact or task clears the old and new field values from its edit events. Workspace closure purges the activity rows. |
 | `task_comments` | the free text a member typed about a task, and the author; files on a comment are `attachments` rows (#689) | The Trash sweep purges comments after 30 days and when it purges their task, unless the workspace is on legal hold. Workspace closure purges the row. |
@@ -180,7 +180,7 @@ gets overlooked.
 | `webhook_endpoints` | a **URL** the business chose, its **signing secret**, and the **user id** who added it. No contact data | Life of the endpoint; deleted with the workspace. The secret is readable by `service_role` alone — no policy and no grant reaches it from a client key, because anything that can read it can forge our signature |
 | `webhook_subscriptions` | opaque Google/Graph subscription and resource ids plus a client-state **hash**; no event body or customer content (#245) | Renewed for the live connection, revoked on disconnect/replacement, and purged with the workspace |
 | `api_keys` | a **name** the owner typed, a **token hash**, the **user id** who created it and the one who revoked it. No contact data, and the token itself is never stored (#243) | Life of the key. A revocation is a STAMP, not a delete: "when was that turned off, and by whom" is the first question after an incident and a deleted row cannot answer it. Rows go with the workspace in the teardown — a workspace that has been erased must not leave a live token that still resolves to its id |
-| `data_exports` | a notify-email id, and the export objects **contain everything above** | Expired exports deleted at 7 days (#378) |
+| `data_exports` | a notify-email id and copies of the records listed in [Workspace export coverage](#workspace-export-coverage) | Expired exports deleted at 7 days (#378) |
 | `usage_events`, `usage_alerts`, `egress_events`, `company_ai_usage`, `call_records`, `provider_costs`, `billing_disputes`, `prepayments`, `referrals` | volumes and Stripe ids; no names or bodies | Billing record |
 
 Push and ring evidence (D142) is not kept in the database. The API sends it to
@@ -243,6 +243,34 @@ would move this row to section 5 and is its own decision, which is exactly why
 they were left out rather than added "in case".
 
 ---
+
+## Workspace export coverage
+
+The workspace download contains the active contact and work records described
+below. Member records include display names and role history. Data covered by
+a separate download remains available through that download.
+
+The export's files list contains eligible attachments, text message files and
+voicemail recordings. Each download checks the current file and charges the
+workspace's egress allowance before issuing a short-lived link.
+
+| Reason | Tables or fields |
+|---|---|
+| Included in the contact file or used only as its search index | `contacts.custom_fields`, `contacts.custom_values` |
+| Display names are included with member records. Account-wide profile settings belong to the member. | `profiles` |
+| Generated from exported messages or other records | `conversation_summaries`, `conversation_unread_basis`, `task_counters` |
+| Event logs support operational review. The owner can download the audit log separately. | `conversation_events`, `task_events`, `record_activity`, `audit_log`, `call_member_legs` |
+| Individual workflow preferences and delivery state | `conversation_snoozes`, `conversation_member_prefs`, `saved_views`, `task_subscribers`, `task_notify_windows`, `notification_prefs`, `notification_reads`, `notification_read_items`, `alert_escalations`, `pending_notifications` |
+| Workspace configuration and routing records | `appointment_reminder_rules`, `blocked_senders`, `invites`, `on_call_shifts`, `companies`, `phone_numbers`, `number_access`, `number_health`, `company_ai_settings`, `voicemail_greetings`, `lead_sources` |
+| Contact fields include the source and time of consent. Compliance evidence is retained separately. | `contact_consent_events` |
+| Task relationship and external calendar synchronization state | `task_tags`, `record_references`, `task_links`, `task_calendar_links`, `calendar_outbox`, `calendar_reminder_replans` |
+| Carrier provisioning records can contain identity proofs. | `number_port_outs`, `text_enablement_orders`, `messaging_registrations`, `port_requests` |
+| Sessions, credentials, tokens, recovery and security controls | `user_sessions`, `push_subscriptions`, `device_push_tokens`, `calendar_feed_tokens`, `calendar_connections`, `oauth_states`, `member_telephony_credentials`, `mfa_recovery_codes`, `mfa_recovery_attempts`, `public_links`, `webhook_endpoints`, `webhook_subscriptions`, `api_keys` |
+| Private feedback sent to Loonext | `cancellation_reasons` |
+| Prospect records, member email routing and delivery diagnostics | `contact_messages`, `widget_verifications`, `marketing_contacts`, `email_events`, `email_suppressions`, `email_ledger` |
+| Short-lived access, carrier and outgoing delivery logs | `public_link_access`, `webhook_events`, `webhook_deliveries` |
+| Audit metadata about downloads | `data_exports` |
+| Provider account, billing and metering records. Usage has a separate export. | `stripe_connect_accounts`, `usage_events`, `usage_alerts`, `egress_events`, `company_ai_usage`, `call_records`, `provider_costs`, `billing_disputes`, `prepayments`, `referrals` |
 
 ## What this tells the three issues that depend on it
 

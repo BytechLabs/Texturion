@@ -5,6 +5,7 @@ import {
   API_KEY_SCOPES,
   PUBLIC_API_BASE,
   PUBLIC_API_VERSION,
+  WEBHOOK_EVENT_SCOPE,
   WEBHOOK_EVENT_TYPES,
   WEBHOOK_MAX_ATTEMPTS,
 } from "@loonext/shared";
@@ -180,12 +181,16 @@ export function DevelopersPageBody({
             {copy.webhooksAfterBeforeRetries} {WEBHOOK_MAX_ATTEMPTS}{" "}
             {copy.webhooksAfterRetries}
           </p>
+          <p className="fr-body mt-4 text-[color:var(--fr-ink-70)]">
+            {copy.webhookCreationOrigins}
+          </p>
         </div>
 
         <div className="mt-10 grid gap-3 sm:grid-cols-2">
           {WEBHOOK_EVENT_TYPES.map((event) => (
-            <FrCard key={event} className="p-4">
+            <FrCard key={event} className="flex flex-wrap items-center justify-between gap-2 p-4">
               <Mono>{event}</Mono>
+              <Mono>{WEBHOOK_EVENT_SCOPE[event]}</Mono>
             </FrCard>
           ))}
         </div>

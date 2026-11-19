@@ -39,6 +39,11 @@ export const IMPORT_FIELDS = [
   "last_name",
   "address",
   "notes",
+  "other_phone",
+  "email",
+  "business_name",
+  "tags",
+  "custom_fields",
   "opted_out",
 ] as const;
 export type ImportField = (typeof IMPORT_FIELDS)[number];

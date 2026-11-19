@@ -1,7 +1,6 @@
 /**
  * Minimal hand-rolled vCard parser for `POST /v1/contacts/import-vcard`
- * (D20 / APP-FEATURES-V2 §3.2). No dependency — vCard is a simple line format,
- * and the importer only needs `FN`/`N` (name) and `TEL` (phone).
+ * (D20 / APP-FEATURES-V2 §3.2).
  *
  * Handles vCard 3.0 AND 4.0 (the formats phones / Google / Apple export):
  *   - one or many `BEGIN:VCARD … END:VCARD` blocks per file;
@@ -11,23 +10,23 @@
  *     part before the first unescaped `:` is name+params, the rest is the value;
  *   - grouped properties (`item1.TEL:…`) by stripping the leading `group.`;
  *   - a `tel:` URI scheme value (4.0) by stripping the scheme;
- *   - escaped `\,` `\;` `\\` `\n` in text values (for FN/N).
+ *   - escaped `\,` `\;` `\\` `\n` in text values.
  *
- * E.164 normalization and per-row consent/upsert are the ROUTE's job — this
- * parser only extracts raw name + raw TEL strings, one entry per distinct TEL.
- *
- * #248 round 3: it also enumerates everything it did NOT read, because the
- * route can only demand a declaration for what the parser told it about. See
- * `properties` below.
+ * The parser preserves TEL order and enumerates properties and parameters so
+ * the route can require declarations before importing a contact.
  */
 import { vcardParameterProperty } from "@loonext/shared";
 
-/** One card's extracted data: a display name and its raw TEL strings. */
+/** One card’s profile and numbers in file order. */
 export interface ParsedVCard {
   /** Best display name (FN, else assembled from N), or null when absent. */
   name: string | null;
   /** Raw TEL values, de-duplicated within the card, in document order. */
   tels: string[];
+  email?: string;
+  businessName?: string;
+  address?: string;
+  notes?: string;
   /**
    * #248 round 3: every property this card carried, upper-cased, once each —
    * INCLUDING the ones below that this parser reads, and including each
@@ -194,17 +193,16 @@ function parseContentLine(line: string): ContentLine | null {
   return { name: propName.toUpperCase(), params, value };
 }
 
-/** Unescape RFC text-value escapes for FN/N (\\ \, \; \n). */
-function unescapeText(value: string): string {
-  return value
-    .replaceAll(/\\n/gi, " ")
-    .replaceAll(String.raw`\,`, ",")
-    .replaceAll(String.raw`\;`, ";")
-    .replaceAll(String.raw`\\`, "\\")
-    .trim();
+function unescapeText(value: string, lineBreak = " "): string {
+  return value.replaceAll(/\\([nN,;\\])/g, (_, char: string) =>
+    char.toLowerCase() === "n" ? lineBreak : char,
+  ).trim();
 }
 
-/** Assemble a name from a structured `N` value: Family;Given;… → "Given Family". */
+function structuredParts(value: string): string[] {
+  return (value.match(/(?:\\[\s\S]|[^\\;])+/g) ?? []).map((part) => unescapeText(part));
+}
+
 function nameFromN(value: string): string | null {
   const parts = value.split(";").map((part) => unescapeText(part));
   const [family = "", given = "", additional = ""] = parts;
@@ -235,17 +233,19 @@ export function parseVCards(text: string): ParsedVCard[] {
   let inCard = false;
   let fn: string | null = null;
   let nName: string | null = null;
-  let tels: string[] = [];
+  let tels = new Set<string>();
   let properties = new Set<string>();
+  let profile: Pick<ParsedVCard, 'email' | 'businessName' | 'address' | 'notes'> = {};
 
   const flush = () => {
     if (!inCard) return;
-    cards.push({ name: fn ?? nName, tels, properties: [...properties] });
+    cards.push({ name: fn ?? nName, tels: [...tels], properties: [...properties], ...profile });
     inCard = false;
     fn = null;
     nName = null;
-    tels = [];
+    tels = new Set<string>();
     properties = new Set<string>();
+    profile = {};
   };
 
   for (const logical of lines) {
@@ -308,7 +308,19 @@ export function parseVCards(text: string): ParsedVCard[] {
       nName = nameFromN(parsed.value);
     } else if (parsed.name === "TEL") {
       const tel = cleanTel(parsed.value);
-      if (tel !== "" && !tels.includes(tel)) tels.push(tel);
+      if (tel !== "") tels.add(tel);
+    } else if (parsed.name === "EMAIL" && !profile.email) {
+      const email = unescapeText(parsed.value);
+      if (email) profile.email = email;
+    } else if (parsed.name === "ORG" && !profile.businessName) {
+      const business = structuredParts(parsed.value).filter(Boolean).join(", ");
+      if (business) profile.businessName = business;
+    } else if (parsed.name === "ADR" && !profile.address) {
+      const address = structuredParts(parsed.value).filter(Boolean).join(", ");
+      if (address) profile.address = address;
+    } else if (parsed.name === "NOTE") {
+      const note = unescapeText(parsed.value, "\n");
+      if (note) profile.notes = profile.notes ? `${profile.notes}\n${note}` : note;
     }
   }
   // Tolerate a missing final END:VCARD.

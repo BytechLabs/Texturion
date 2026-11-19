@@ -11,7 +11,7 @@ import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/suppo
 import type { TestAuth } from '../test/support';
 import { decodeCursor, encodeCursor } from "../http/pagination";
 import { CONTACT_IMPORT_COLUMN_FIELD, CONTACT_IMPORT_CONSENT_FIELD, CONTACT_IMPORT_CONSENT_REFUSED_NOTE, CONTACT_IMPORT_CONSENT_REQUIRED, CONTACT_IMPORT_CONSENT_VALUE, CONTACT_IMPORT_IGNORE, CONTACT_IMPORT_MAX_ROWS, CONTACT_IMPORT_UNREADABLE_ENCODING, CONTACT_IMPORT_VCARD_PROPERTY_FIELD, contactImportColumnMismatchMessage, contactImportConsentRefusedReason, contactImportUndeclaredColumnsMessage, contactImportUndeclaredColumnsReference, contactImportUndeclaredPropertiesMessage, contactImportUndeclaredPropertiesReference, contactImportUnreadableFlagMessage, contactImportUnreadableFlagReference, contactImportUnterminatedQuoteMessage, defaultContactImportColumns, formatContactImportColumn, formatVCardProperty, vcardParameterProperty } from '@loonext/shared';
-import type { ContactImportColumnDeclaration, ContactImportColumnGuess } from '@loonext/shared';
+import type { ContactImportColumnDeclaration, ContactImportColumnGuess, VCardPropertyDeclaration } from '@loonext/shared';
 
 import { parseCsvRows } from "./core/csv";
 import {
@@ -61,6 +61,7 @@ function stubWithRole(
    * test fails with the DEFAULT answer rather than the one it set up.
    */
   phones?: (call: { url: URL }) => Record<string, unknown>[],
+  importDetails: (call: { body: unknown }) => unknown[] = () => [],
 ): SupabaseStub {
   const sb = supabaseStub(env);
   sb.on(
@@ -79,6 +80,7 @@ function stubWithRole(
   sb.on("GET", "/rest/v1/contact_phones", (call) =>
     phones ? phones(call) : [],
   );
+  sb.on("POST", "/rest/v1/rpc/api_merge_import_contact_details", importDetails);
   return sb;
 }
 
@@ -1629,8 +1631,11 @@ describe("#191 contact attribution (created/updated/deleted actors + names)", ()
       company_id: COMPANY_ID,
       phone_e164: "+14165550100",
       deleted_at: null,
-      name: "A",
     }]);
+    expect(sb.find("POST", "/rest/v1/rpc/api_merge_import_contact_details")[0].body).toMatchObject({
+      p_replace: false,
+      p_rows: [{ contact_id: CONTACT_ID, profile: { name: "A" } }],
+    });
   });
 
   it("list rows carry resolved created_by_name via a batched profiles lookup", async () => {
@@ -1771,7 +1776,9 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
     expect(await res.json()).toEqual({
       imported: 1, // +14165550101
       updated: 1, // +14165550100 existed
+      kept: 0,
       skipped: 3,
+      detail_warnings: [],
       errors: [
         { row: 4, reason: expect.stringContaining("invalid phone") },
         { row: 5, reason: expect.stringContaining("duplicate phone") },
@@ -1812,21 +1819,20 @@ describe("POST /v1/contacts/import (O/A, CSV)", () => {
         company_id: COMPANY_ID,
         phone_e164: "+14165550100",
         deleted_at: null,
-        name: "Smith, Jo",
-        address: "1 Main St",
-        lat: null,
-        lng: null,
-        geocoded_at: null,
-        geocode_status: "pending",
       },
       {
         company_id: COMPANY_ID,
         phone_e164: "+14165550101",
         deleted_at: null,
         created_by_user_id: auth.subject, // #191 attribution
+        creation_origin: "import",
         name: "New Person",
       },
     ]);
+    expect(sb.find("POST", "/rest/v1/rpc/api_merge_import_contact_details")[0].body).toMatchObject({
+      p_rows: [{ profile: { name: "Smith, Jo", address: "1 Main St" } }],
+      p_replace: false,
+    });
     for (const upsert of upserts) {
       expect(upsert.url.searchParams.get("on_conflict")).toBe(
         "company_id,phone_e164",
@@ -4082,7 +4088,7 @@ function vcardForm(
    * of them need none — the gate is asserted directly by the tests that add a
    * `CATEGORIES` or a `NOTE`.
    */
-  properties: { property: string; action: "ignore" | "opted_out" }[] = [],
+  properties: VCardPropertyDeclaration[] = [],
 ): FormData {
   const form = new FormData();
   form.append("file", new File([vcf], "contacts.vcf", { type: "text/vcard" }));
@@ -4104,6 +4110,7 @@ function vcardForm(
 describe("GET /v1/contacts/export (D20 §3.1)", () => {
   it("streams a BOM-prefixed CSV with the round-trip columns and joined tags", async () => {
     const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/opt_outs", () => [{ phone_e164: "+14165550199" }]);
     sb.on("GET", "/rest/v1/contacts", () => [
       {
         id: CONTACT_ID,
@@ -4141,13 +4148,13 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     const text = new TextDecoder("utf-8").decode(bytes.slice(3));
     const lines = text.split("\r\n");
     expect(lines[0]).toBe(
-      "name,phone,tags,consent_source,consent_at,created_at",
+      "name,phone,tags,consent_source,consent_at,created_at,email,business_name,address,notes,other_phones,opted_out,custom_fields",
     );
     // Comma-containing name is quoted; tags ';'-joined. The phone carries the
     // injection guard because E.164 always starts with "+", which a spreadsheet
     // evaluates as arithmetic.
     expect(lines[1]).toBe(
-      `"Jo, Smith",'+14165550199,Quote sent;Won,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00`,
+      `"Jo, Smith",'+14165550199,Quote sent;Won,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00,,,,,,true,`,
     );
     // Export respects company scope + soft-delete exclusion.
     const call = sb.find("GET", "/rest/v1/contacts")[0];
@@ -4157,6 +4164,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
 
   it("chunks the tag lookup so a large export never builds an over-long .in() URL", async () => {
     const sb = stubWithRole("member");
+    noStandingOptOuts(sb);
     const contacts = Array.from({ length: 250 }, (_, i) => ({
       id: `00000000-0000-4000-8000-${String(i).padStart(12, "0")}`,
       name: `C${i}`,
@@ -4191,6 +4199,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
 
   it("exports 3,000 contacts across pages even when their timestamps match", async () => {
     const sb = stubWithRole("member");
+    noStandingOptOuts(sb);
     const contacts = Array.from({ length: 3_000 }, (_, index) => {
       const number = 3_000 - index;
       return {
@@ -4223,6 +4232,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
 
   it("neutralizes CSV/formula injection in every column including the phone (OWASP)", async () => {
     const sb = stubWithRole("member");
+    noStandingOptOuts(sb);
     sb.on("GET", "/rest/v1/contacts", () => [
       {
         id: CONTACT_ID,
@@ -4258,7 +4268,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     // "+" Excel would otherwise evaluate, showing 1.6478E+10 and losing the
     // country code from anything the user copies out to dial.
     expect(line).toBe(
-      `"'=HYPERLINK(""http://evil"",""click"")",'+14165550199,'+1+1,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00`,
+      `"'=HYPERLINK(""http://evil"",""click"")",'+14165550199,'+1+1,attested,2026-06-01T00:00:00+00:00,2026-05-01T00:00:00+00:00,,,,,,,`,
     );
   });
 
@@ -4297,11 +4307,18 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
       id: CONTACT_ID,
       name: "=Jo, Smith",
       phone_e164: "+14165550199",
+      email: "jo@example.invalid",
+      business_name: "Jo and Sons",
+      address: "99 New St",
+      notes: "=gate code",
+      custom_fields: { access: "side door" },
+      contact_phones: [{ phone_e164: "+14165550198" }],
       consent_source: "attested",
       consent_at: "2026-06-01T00:00:00+00:00",
       created_at: "2026-05-01T00:00:00+00:00",
     };
     const exportSb = stubWithRole("admin");
+    noStandingOptOuts(exportSb);
     exportSb.on("GET", "/rest/v1/contacts", () => [exported]);
     exportSb.on("GET", "/rest/v1/conversations", () => [
       {
@@ -4325,6 +4342,7 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     const importSb = stubWithRole("admin");
     noStandingOptOuts(importSb);
     importSb.on("GET", "/rest/v1/contacts", () => []);
+    importSb.on("GET", "/rest/v1/contact_field_defs", () => [{ key: "access", kind: "text", label: "Access", options: null }]);
     importSb.on("POST", "/rest/v1/contacts", (call) =>
       (call.body as { phone_e164: string }[]).map((row) => ({
         id: CONTACT_ID,
@@ -4351,6 +4369,14 @@ describe("GET /v1/contacts/export (D20 §3.1)", () => {
     expect(landed[0]).toMatchObject({
       phone_e164: exported.phone_e164,
       name: exported.name,
+      email: exported.email,
+      business_name: exported.business_name,
+      address: exported.address,
+      notes: exported.notes,
+      custom_fields: exported.custom_fields,
+    });
+    expect(importSb.find("POST", "/rest/v1/rpc/api_merge_import_contact_details")[0].body).toMatchObject({
+      p_rows: [{ contact_id: CONTACT_ID, other_phones: ["+14165550198"], tags: ["Quote sent"] }],
     });
   });
 
@@ -4587,7 +4613,9 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     const sb = stubWithRole("admin");
     noStandingOptOuts(sb);
     sb.on("GET", "/rest/v1/contacts", () => []); // none pre-existing → all imported
-    sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID }]);
+    sb.on("POST", "/rest/v1/contacts", ({ body }) =>
+      (body as { phone_e164: string }[]).map(({ phone_e164 }) => ({ id: CONTACT_ID, phone_e164 })),
+    );
     stubFetch(jwksRoute(auth), sb.route);
 
     const res = await apiRequest(
@@ -4608,8 +4636,7 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
       skipped: number;
       errors: { row: number; reason: string }[];
     };
-    // Three distinct valid numbers across the cards (Alice ×1, Bob ×2).
-    expect(body.imported).toBe(3);
+    expect(body.imported).toBe(2);
     expect(body.updated).toBe(0);
     // The card with no TEL is skipped with a reason.
     expect(body.skipped).toBe(1);
@@ -4619,13 +4646,59 @@ describe("POST /v1/contacts/import-vcard (D20 §3.2)", () => {
     const upsert = sb.find("POST", "/rest/v1/contacts")[0];
     const rows = upsert.body as { phone_e164: string; name?: string; company_id: string }[];
     const phones = rows.map((r) => r.phone_e164).sort();
-    expect(phones).toEqual(["+14165550111", "+12125550133", "+15125550122"].sort());
+    expect(phones).toEqual(["+14165550111", "+15125550122"].sort());
     for (const row of rows) {
       expect(row.company_id).toBe(COMPANY_ID);
     }
-    // Bob's two numbers both carry his name.
     const bobRow = rows.find((r) => r.phone_e164 === "+15125550122");
     expect(bobRow?.name).toBe("Bob Baker");
+    expect(sb.find("POST", "/rest/v1/rpc/api_merge_import_contact_details")[0].body).toMatchObject({
+      p_rows: [{ contact_id: CONTACT_ID, other_phones: ["+12125550133"] }],
+    });
+  });
+
+  it("imports explicitly reviewed vCard details and applies a stop to every number on the card", async () => {
+    const sb = stubWithRole("admin");
+    noStandingOptOuts(sb);
+    const primary = "+14165550111";
+    const other = "+14165550112";
+    sb.on("GET", "/rest/v1/contacts", () => [{ phone_e164: primary }]);
+    sb.on("POST", "/rest/v1/contacts", () => [{ id: CONTACT_ID, phone_e164: primary }]);
+    sb.on("PATCH", "/rest/v1/opt_outs", () => []);
+    sb.on("POST", "/rest/v1/opt_outs", () => []);
+    sb.on("GET", "/rest/v1/conversations", () => []);
+    sb.on("POST", "/rest/v1/conversation_events", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const file = [
+      "BEGIN:VCARD", "VERSION:4.0", "FN:Jo", `TEL:${primary}`, `TEL:${other}`,
+      "EMAIL:jo@example.invalid", "ORG:Manufacturing;Service", "ADR:;;1 New St;Ottawa;ON;K1A 0B1;CA",
+      String.raw`NOTE:Use the side door\nRing the bell`, "CATEGORIES:Do not text", "END:VCARD",
+    ].join("\r\n");
+    const form = vcardForm(file, true, [
+      { property: "EMAIL", action: "import" }, { property: "ORG", action: "import" },
+      { property: "ADR", action: "import" }, { property: "NOTE", action: "import" },
+      { property: "CATEGORIES", action: "opted_out" },
+    ]);
+    form.append("replace_existing_details", "true");
+    const result = await apiRequest(app, env, await auth.token(), "/v1/contacts/import-vcard", {
+      companyId: COMPANY_ID, method: "POST", rawBody: form,
+    });
+    expect(result.status).toBe(200);
+    expect(await result.json()).toMatchObject({ updated: 1, skipped: 0 });
+    expect(sb.find("POST", "/rest/v1/opt_outs")[0].body).toMatchObject([
+      { phone_e164: primary }, { phone_e164: other },
+    ]);
+    expect(sb.find("POST", "/rest/v1/rpc/api_merge_import_contact_details")[0].body).toMatchObject({
+      p_replace: true,
+      p_rows: [{
+        contact_id: CONTACT_ID, other_phones: [other],
+        profile: {
+          name: "Jo", email: "jo@example.invalid", business_name: "Manufacturing, Service",
+          address: "1 New St, Ottawa, ON, K1A 0B1, CA", notes: "Use the side door\nRing the bell",
+        },
+      }],
+    });
   });
 
   it("counts pre-existing numbers as updated, not imported", async () => {
@@ -5311,7 +5384,7 @@ describe("geocode cache reset on address writes (D25)", () => {
     expect(patch).toMatchObject({ address: null, geocode_status: "no_address" });
   });
 
-  it("re-queues geocoding for a supplied address and keeps blank details", async () => {
+  it("passes only populated details to the database and requires explicit replacement", async () => {
     const sb = stubWithRole("admin");
     noStandingOptOuts(sb);
     // Pre-existing contact (already geocoded in reality) → this is an UPDATE.
@@ -5325,6 +5398,8 @@ describe("geocode cache reset on address writes (D25)", () => {
     });
     stubFetch(jwksRoute(auth), sb.route);
 
+    const form = importForm("phone,address,notes\n+14165550100,99 New St,Gate code\n+14165550101,,\n");
+    form.append("replace_existing_details", "true");
     const res = await apiRequest(
       app,
       env,
@@ -5333,20 +5408,17 @@ describe("geocode cache reset on address writes (D25)", () => {
       {
         method: "POST",
         companyId: COMPANY_ID,
-        // One row with a (changed) address, one with an empty address cell.
-        rawBody: importForm("phone,address,notes\n+14165550100,99 New St,Gate code\n+14165550101,,\n"),
+        rawBody: form,
       },
     );
     expect(res.status).toBe(200);
     const upsert = sb.find("POST", "/rest/v1/contacts")
       .flatMap(({ body }) => body as Record<string, unknown>[]);
-    expect(upsert[0]).toMatchObject({
-      address: "99 New St",
-      notes: "Gate code",
-      lat: null,
-      lng: null,
-      geocoded_at: null,
-      geocode_status: "pending",
+    expect(upsert).toHaveLength(2);
+    expect(upsert[0]).not.toHaveProperty("address");
+    expect(sb.find("POST", "/rest/v1/rpc/api_merge_import_contact_details")[0].body).toMatchObject({
+      p_replace: true,
+      p_rows: [{ contact_id: CONTACT_ID, profile: { address: "99 New St", notes: "Gate code" } }],
     });
     expect(upsert[1]).not.toHaveProperty("address");
     expect(upsert[1]).not.toHaveProperty("geocode_status");

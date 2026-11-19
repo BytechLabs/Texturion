@@ -15,6 +15,7 @@ import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, stubFetch } from '../test/support';
 import type { FetchRoute } from '../test/support';
 import { buildDataExports, pruneExpiredExports } from "./export";
+import { EXPORT_TABLES } from "./export-tables";
 
 vi.mock(import("../observability/capture"), async () =>
   (await import("../test/capture-mock")).captureModuleMock(),
@@ -24,6 +25,13 @@ const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const EXPORT_ID = "77777777-1111-4222-8333-444444444444";
 const USER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
+const LEASE = "first-lease";
+const PREFIX = `${COMPANY_ID}/${EXPORT_ID}`;
+
+function checkpointWrites(sb: SupabaseStub) {
+  return sb.find("PATCH", "/rest/v1/data_exports")
+    .filter(({ body }) => !Object.hasOwn(body as object, "notify_email_id"));
+}
 
 afterEach(() => {
   vi.unstubAllGlobals();
@@ -32,18 +40,7 @@ afterEach(() => {
 });
 
 /** Every table the export walks, so an unstubbed read never fails a test. */
-const TABLES = [
-  "contacts",
-  "conversations",
-  "messages",
-  "tasks",
-  "calls",
-  "templates",
-  "tags",
-  "opt_outs",
-  "attachments",
-  "message_attachments",
-];
+const TABLES = EXPORT_TABLES.map(({ table }) => table);
 
 interface WorldOptions {
   queue?: Record<string, unknown>[];
@@ -53,10 +50,11 @@ interface WorldOptions {
   uploadFails?: boolean;
   /** The write that marks the export ready fails. */
   readyStampFails?: boolean;
-  /** Answers the queue read itself, so a test can model the table's own filter. */
-  queueFor?: (query: URLSearchParams) => Record<string, unknown>[];
-  /** Sees every write to the export row. */
+  queueFor?: () => Record<string, unknown>[];
+  lease?: string;
+  leaseLost?: boolean;
   onWrite?: (body: { status?: string }) => void;
+  onUpload?: (path: string, body: string) => void;
 }
 
 function messagePages(table: string, query: URLSearchParams): { id: string }[] {
@@ -74,31 +72,33 @@ function world(options: WorldOptions = {}): {
   uploaded: string[];
 } {
   const sb = supabaseStub(env);
-  sb.on("GET", "/rest/v1/data_exports", (call) =>
-    options.queueFor?.(call.url.searchParams) ?? options.queue ?? [
-      {
-        id: EXPORT_ID,
-        company_id: COMPANY_ID,
-        requested_by: USER_ID,
-        storage_prefix: null,
-        completed_tables: [],
-        row_counts: {},
-      },
-    ],
-  );
+  sb.on("POST", "/rest/v1/rpc/claim_data_exports", () => {
+    const queued = options.queueFor?.() ?? options.queue ?? [{}];
+    return queued.map((row) => ({
+      id: EXPORT_ID,
+      company_id: COMPANY_ID,
+      requested_by: USER_ID,
+      completed_tables: [],
+      row_counts: {},
+      table_cursors: {},
+      ...row,
+      storage_prefix: PREFIX,
+      lease_token: options.lease ?? LEASE,
+    }));
+  });
   sb.on("PATCH", "/rest/v1/data_exports", (call) => {
     options.onWrite?.(call.body as { status?: string });
     return options.readyStampFails && (call.body as { status?: string }).status === "ready"
       ? pgError("57014", "statement timeout")
-      : [];
+      : options.leaseLost ? [] : [{ id: EXPORT_ID }];
   });
-  sb.on("POST", "/rest/v1/rpc/record_export_table", () => null);
   for (const table of TABLES) {
     sb.on("GET", `/rest/v1/${table}`, ({ url }) =>
       options.tablePage?.(table, url.searchParams) ??
       (options.rowsFor?.table === table ? options.rowsFor.rows : []),
     );
   }
+  sb.on("GET", "/rest/v1/profiles", () => [{ user_id: USER_ID, display_name: "Owner" }]);
   sb.on("GET", /^\/auth\/v1\/admin\/users\//, () => ({
     id: USER_ID,
     email: "owner@crew.example",
@@ -106,12 +106,17 @@ function world(options: WorldOptions = {}): {
 
   const uploaded: string[] = [];
   // Storage first: the Supabase stub claims every URL on that origin.
-  const storageRoute: FetchRoute = (url) => {
+  const storageRoute: FetchRoute = async (url, request) => {
     if (!url.pathname.startsWith("/storage/v1/object")) return undefined;
     if (options.uploadFails) {
       return Response.json({ message: "nope" }, { status: 500 });
     }
     uploaded.push(url.pathname.replace("/storage/v1/object/exports/", ""));
+    if (options.onUpload) {
+      const object: unknown = (await request.formData()).get("");
+      if (!(object instanceof Blob)) throw new Error("Expected an export file upload");
+      options.onUpload(url.pathname, await object.text());
+    }
     return Response.json({ Key: url.pathname });
   };
   const resendRoute: FetchRoute = (url) =>
@@ -130,16 +135,21 @@ describe(buildDataExports, () => {
     const summary = await buildDataExports(env);
 
     expect(summary).toMatchObject({ exports: 1, completed: 1 });
-    expect(uploaded).toContain(`${COMPANY_ID}/${EXPORT_ID}/messages-0001.jsonl`);
+    expect(uploaded).toContain(`${PREFIX}/${LEASE}-messages-0001.jsonl`);
     // The manifest is the "this export is whole" marker, so it goes last.
     expect(uploaded[uploaded.length - 1]).toBe(
-      `${COMPANY_ID}/${EXPORT_ID}/manifest.json`,
+      `${PREFIX}/${LEASE}-manifest.json`,
     );
     // Every table is recorded, including the empty ones — a reader has to be
     // able to tell "no contacts" from "contacts were skipped".
-    expect(sb.find("POST", "/rest/v1/rpc/record_export_table")).toHaveLength(
-      TABLES.length,
-    );
+    const writes = checkpointWrites(sb);
+    expect(writes).toHaveLength(TABLES.length + 1);
+    expect(writes.at(-1)?.body).toMatchObject({
+      stored_files: {
+        "messages-0001.jsonl": `${LEASE}-messages-0001.jsonl`,
+        "manifest.json": `${LEASE}-manifest.json`,
+      },
+    });
     const ready = sb.find("PATCH", "/rest/v1/data_exports")
       .map(({ body }) => body as { status: string; completed_at: string; expires_at: string })
       .find((patch) => patch.status === "ready");
@@ -173,9 +183,50 @@ describe(buildDataExports, () => {
     expect(sb.find("GET", "/rest/v1/messages")).toHaveLength(0);
     expect(sb.find("GET", "/rest/v1/tasks")).toHaveLength(1);
     // And the finished tables keep their counts in the manifest.
-    expect(sb.find("POST", "/rest/v1/rpc/record_export_table")).toHaveLength(
-      TABLES.length - 3,
-    );
+    const writes = checkpointWrites(sb);
+    expect(writes).toHaveLength(TABLES.length - 3 + 1);
+    expect(writes.at(-1)?.body).toMatchObject({
+      stored_files: { "contacts-0001.jsonl": "contacts-0001.jsonl" },
+    });
+  });
+
+  it("pages tag links by both keys without reading links under deleted contacts", async () => {
+    const tags = Array.from({ length: 1_001 }, (_, index) => ({
+      contact_id: "same-contact",
+      tag_id: String(index + 1).padStart(4, "0"),
+    }));
+    const { sb, routes, uploaded } = world({
+      tablePage: (table, query) => {
+        if (table !== "contact_tags") return [];
+        return query.has("or") ? tags.slice(1_000) : tags.slice(0, 1_000);
+      },
+    });
+    stubFetch(...routes);
+
+    expect((await buildDataExports(env)).completed).toBe(1);
+    expect(uploaded.filter((name) => name.includes("contact_tags-"))).toHaveLength(2);
+    const [first, next] = sb.find("GET", "/rest/v1/contact_tags").map(({ url }) => url.searchParams);
+    expect(first.get("order")).toBe("contact_id.asc,tag_id.asc");
+    expect(first.get("active_parent.company_id")).toBe(`eq.${COMPANY_ID}`);
+    expect(first.get("active_parent.deleted_at")).toBe("is.null");
+    expect(next.get("or")).toBe("(contact_id.gt.same-contact,and(contact_id.eq.same-contact,tag_id.gt.1000))");
+    expect(checkpointWrites(sb).at(-1)?.body).toMatchObject({
+      row_counts: { contact_tags: 1_001 },
+    });
+  });
+
+  it("adds display names to the workspace member directory", async () => {
+    const members: unknown[] = [];
+    const { routes } = world({
+      rowsFor: { table: "company_members", rows: [{ id: "member", user_id: USER_ID, role: "owner" }] },
+      onUpload: (path, body) => {
+        if (path.endsWith("company_members-0001.jsonl")) members.push(JSON.parse(body));
+      },
+    });
+    stubFetch(...routes);
+
+    expect((await buildDataExports(env)).completed).toBe(1);
+    expect(members).toEqual([{ id: "member", user_id: USER_ID, role: "owner", display_name: "Owner" }]);
   });
 
   it("resumes a 61-page table at its last exported row on the next run", async () => {
@@ -194,25 +245,27 @@ describe(buildDataExports, () => {
     });
     stubFetch(...first.routes);
     expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 60, completed: 0 });
-    const completed = first.sb.find("POST", "/rest/v1/rpc/record_export_table");
-    const finishedTables = completed.map(({ body }) => (body as { p_table: string }).p_table);
-    expect(finishedTables).toEqual(["contacts", "conversations"]);
+    expect(row.completed_tables).toEqual(TABLES.slice(0, TABLES.indexOf("messages")));
     expect(first.uploaded).toHaveLength(60);
     expect(first.uploaded.at(-1)).toMatch(/messages-0060\.jsonl$/);
 
     const second = world({
-      queue: [{ ...row, completed_tables: finishedTables, row_counts: { contacts: 0, conversations: 0 } }],
+      queue: [row],
+      lease: "second-lease",
       tablePage: messagePages,
     });
     stubFetch(...second.routes);
     expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 1, completed: 1 });
     expect(second.uploaded.map((path) => path.split("/").at(-1))).toEqual([
-      "messages-0061.jsonl",
-      "manifest.json",
+      "second-lease-messages-0061.jsonl",
+      "second-lease-manifest.json",
     ]);
-    expect(second.sb.find("POST", "/rest/v1/rpc/record_export_table")[0].body).toMatchObject({
-      p_table: "messages",
-      p_rows: 61_000,
+    expect(checkpointWrites(second.sb).at(-1)?.body).toMatchObject({
+      row_counts: { messages: 61_000 },
+      stored_files: {
+        "messages-0060.jsonl": `${LEASE}-messages-0060.jsonl`,
+        "messages-0061.jsonl": "second-lease-messages-0061.jsonl",
+      },
     });
   });
 
@@ -277,33 +330,32 @@ describe(buildDataExports, () => {
     expect(mails).toHaveLength(0);
   });
 
-  it("asks only for exports still owed work", async () => {
+  it("claims work as a batch and fences progress writes by lease", async () => {
     const { sb, routes } = world();
     stubFetch(...routes);
     await buildDataExports(env);
 
-    const query = sb.find("GET", "/rest/v1/data_exports")[0].url.searchParams;
-    expect(query.get("status")).toBe("in.(pending,running)");
+    expect(sb.find("POST", "/rest/v1/rpc/claim_data_exports")[0].body)
+      .toEqual({ p_limit: 3 });
+    const writes = checkpointWrites(sb);
+    expect(writes.length).toBeGreaterThan(0);
+    expect(writes.every((call) => call.url.searchParams.get("lease_token") === `eq.${LEASE}`))
+      .toBe(true);
+  });
+
+  it("stops a worker that lost ownership without publishing a ready export", async () => {
+    const { sb, routes } = world({ leaseLost: true });
+    stubFetch(...routes);
+
+    expect(await buildDataExports(env)).toEqual({ exports: 1, parts: 0, completed: 0 });
+    expect(sb.find("PATCH", "/rest/v1/data_exports")).toHaveLength(1);
+    expect(sb.find("GET", /^\/auth\/v1\/admin\/users\//)).toHaveLength(0);
   });
 
   it("a second run after the export is ready emails the person once, not twice", async () => {
-    // A queue that behaves like the table: it answers the status filter the
-    // job sends, and the ready stamp moves the row out of it.
     let status = "pending";
     const { routes } = world({
-      queueFor: (query) =>
-        (query.get("status") ?? "").includes(status)
-          ? [
-              {
-                id: EXPORT_ID,
-                company_id: COMPANY_ID,
-                requested_by: USER_ID,
-                storage_prefix: null,
-                completed_tables: [],
-                row_counts: {},
-              },
-            ]
-          : [],
+      queueFor: () => status === "pending" ? [{}] : [],
       onWrite: (body) => {
         if (body.status) status = body.status;
       },

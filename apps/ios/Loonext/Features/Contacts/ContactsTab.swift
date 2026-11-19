@@ -990,7 +990,8 @@ struct ContactsTab: View {
                         fileName: candidate.fileName,
                         bytes: candidate.bytes,
                         consentAttested: candidate.consentAttested,
-                        columns: candidate.declaredColumns
+                        columns: candidate.declaredColumns,
+                        replaceDetails: candidate.replaceDetails
                     )
                 case .vcard:
                     result = try await mutations.importVcard(
@@ -998,7 +999,8 @@ struct ContactsTab: View {
                         fileName: candidate.fileName,
                         bytes: candidate.bytes,
                         consentAttested: candidate.consentAttested,
-                        properties: candidate.declaredProperties
+                        properties: candidate.declaredProperties,
+                        replaceDetails: candidate.replaceDetails
                     )
                 }
                 importReport = ImportReport(kind: candidate.kind, result: result)
@@ -1301,6 +1303,13 @@ private struct ImportReportSheet: View {
                 summary
                 if !consent.isEmpty { consentSection }
                 if !report.result.errors.isEmpty { skippedSection }
+                if report.result.kept > 0 {
+                    Text(AppStrings.translate(appLocale, "contactsTasks.importKept", ["count": "\(report.result.kept)"]))
+                }
+                if !report.result.detail_warnings.isEmpty {
+                    Text(AppStrings.translate(appLocale, "contactsTasks.importDetailWarnings"))
+                    rowList(report.result.detail_warnings)
+                }
             }
             .padding(16)
             .frame(maxWidth: .infinity, alignment: .leading)

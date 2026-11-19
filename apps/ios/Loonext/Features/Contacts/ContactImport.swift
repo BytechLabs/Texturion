@@ -128,11 +128,15 @@ enum ContactImport {
     static func formFields(
         consentAttested: Bool,
         columns: [ContactImportColumnDeclaration],
-        properties: [VCardPropertyDeclaration]
+        properties: [VCardPropertyDeclaration],
+        replaceDetails: Bool = false
     ) -> [(name: String, value: String)] {
         var fields: [(name: String, value: String)] = []
         if consentAttested {
             fields.append((name: consentField, value: consentValue))
+        }
+        if replaceDetails {
+            fields.append((name: "replace_existing_details", value: "true"))
         }
         for declaration in columns {
             fields.append((name: columnField, value: declaration.wire))
@@ -510,6 +514,7 @@ struct ContactImportCandidate: Identifiable {
     /// attesting on a person's behalf, so `ContactImportConsentTests` scans the
     /// feature for that literal and fails on it.
     var consentAttested = false
+    var replaceDetails = false
 
     /// #248 round 3: what somebody said each column is.
     ///
@@ -557,6 +562,7 @@ struct ContactImportConsentSheet: View {
     /// default would be a defect rather than a courtesy: a box that arrives
     /// already ticked is not an attestation anybody made.
     @State private var attested = false
+    @State private var replaceDetails = false
 
     /// What each column has been said to be, by index. A column ABSENT from
     /// this dictionary is unanswered, which is the state the gate reads.
@@ -683,6 +689,9 @@ struct ContactImportConsentSheet: View {
                     if !candidate.columns.isEmpty { columnsCard }
                     if !candidate.properties.isEmpty { propertiesCard }
                     attestationCard
+                    Toggle(isOn: $replaceDetails) {
+                        Text(AppStrings.translate(appLocale, "contactsTasks.replaceExistingDetails"))
+                    }
                     consequences
                     if let reason = gateReason { gateLine(reason) }
                 }
@@ -1094,7 +1103,7 @@ struct ContactImportConsentSheet: View {
                 SelectOption<VCardPropertyAction?>(nil, title: unansweredLabel, isDisabled: true)
             )
         }
-        for action in VCardPropertyAction.allCases {
+        for action in VCardPropertyAction.allCases where action != .importDetail || VCardPropertyAction.canImport(property.name) {
             options.append(
                 SelectOption<VCardPropertyAction?>(action, title: action.localizedLabel(appLocale))
             )
@@ -1233,6 +1242,7 @@ struct ContactImportConsentSheet: View {
         guard canConfirm else { return }
         var confirmed = candidate
         confirmed.consentAttested = true
+        confirmed.replaceDetails = replaceDetails
         // Built out of the answered menus, never out of the column list — see
         // `ContactImport.declarations`. A client that posted a declaration for
         // every column because the gate above said they were all answered would

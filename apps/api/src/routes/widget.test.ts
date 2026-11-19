@@ -128,20 +128,17 @@ describe("what the two endpoints refuse to tell a caller", () => {
       new URL("widget.ts", import.meta.url),
       "utf8",
     );
-    expect(source.indexOf("api_answer_widget_verification")).toBeLessThan(
-      source.indexOf("thread_inbound_message"),
-    );
+    const verify = source.indexOf("api_answer_widget_verification");
+    expect(verify).toBeGreaterThanOrEqual(0);
+    expect(source.indexOf('"thread_widget_message"')).toBeGreaterThan(verify);
   });
 
-  it("threads a widget message with no carrier id and our own key", () => {
-    // The whole point of the #232 source discriminator: no invented Telnyx id,
-    // and a key that makes a double-tapped submit one thread.
+  it("threads a widget submission with its verification key", () => {
     const source = readFileSync(
       new URL("widget.ts", import.meta.url),
       "utf8",
     );
-    expect(source).toContain("p_telnyx_message_id: null");
-    expect(source).toContain('p_source: "widget"');
+    expect(source).toContain('"thread_widget_message"');
     expect(source).toContain("p_idempotency_key: `widget:${body.verificationId}`");
   });
 
@@ -149,7 +146,9 @@ describe("what the two endpoints refuse to tell a caller", () => {
     const route = readFileSync(new URL("widget.ts", import.meta.url), "utf8");
     const pipeline = readFileSync(new URL("../messaging/inbound.ts", import.meta.url), "utf8");
     const guard = route.indexOf("if (!landed.created)");
-    expect(guard).toBeGreaterThan(route.indexOf('"thread_inbound_message"'));
+    const thread = route.indexOf('"thread_widget_message"');
+    expect(thread).toBeGreaterThanOrEqual(0);
+    expect(guard).toBeGreaterThan(thread);
     expect(route.indexOf("await finishThreadedInbound")).toBeGreaterThan(guard);
     const shared = pipeline.slice(pipeline.indexOf("export async function finishThreadedInbound"));
     expect(shared).toContain("await maybeSendAwayReply(env, db,");

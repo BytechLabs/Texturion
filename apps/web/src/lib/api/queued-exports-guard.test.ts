@@ -31,6 +31,10 @@ const ALLOWED_CALLERS = new Map<string, string>([
     "the workspace data export: the one this pipeline exists for",
   ],
   [
+    "components/settings/export-data-files.tsx",
+    "the file downloads for a ready workspace data export",
+  ],
+  [
     "components/settings/export-usage.tsx",
     "the bookkeeper's usage summary: a built period document, not a list of rows",
   ],

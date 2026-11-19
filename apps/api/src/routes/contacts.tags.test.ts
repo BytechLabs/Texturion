@@ -119,6 +119,7 @@ describe("GET /v1/contacts with a tag", () => {
 describe("GET /v1/contacts/export with tags and a selection", () => {
   it("puts a contact's own tags in the tags column, beside its conversation tags", async () => {
     const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/opt_outs", () => []);
     sb.on("GET", "/rest/v1/contacts", () => [
       {
         id: CONTACT_A,

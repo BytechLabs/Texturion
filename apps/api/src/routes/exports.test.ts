@@ -18,6 +18,14 @@ const env = completeEnv();
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
 const EXPORT_ID = "77777777-1111-4222-8333-444444444444";
+const PHOTO_ID = "88888888-1111-4222-8333-444444444444";
+const PHOTO = {
+  id: PHOTO_ID,
+  file_name: "job-site.jpg",
+  content_type: "image/jpeg",
+  size_bytes: 2_048,
+  storage_path: `${COMPANY_ID}/job-site.jpg`,
+};
 
 let auth: TestAuth;
 const app = buildTestApp(exportsRoutes);
@@ -75,6 +83,7 @@ function world(
     const rows = options.rows ?? [readyRow()];
     const filter = call.url.searchParams.get("kind");
     if (filter === null) return rows;
+    if (filter.startsWith("eq.")) return rows.filter((row) => row.kind === filter.slice(3));
     const allowed = new Set(
       filter.replace(/^in\.\(/, "").replace(/\)$/, "").split(",").filter(Boolean),
     );
@@ -102,6 +111,70 @@ function world(
   };
   return { sb, routes: [storageRoute, sb.route] };
 }
+
+describe("workspace export media", () => {
+  it("paginates file metadata before issuing any storage links", async () => {
+    const { sb, routes } = world();
+    const second = { ...PHOTO, id: "99999999-1111-4222-8333-444444444444" };
+    sb.on("POST", "/rest/v1/rpc/api_workspace_export_media", () => [PHOTO, second]);
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), `/v1/exports/${EXPORT_ID}/media?limit=1`, {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({
+      data: [{ id: PHOTO_ID, file_name: "job-site.jpg", content_type: "image/jpeg", size_bytes: 2_048 }],
+      next_cursor: PHOTO_ID,
+    });
+    expect(sb.find("POST", "/rest/v1/rpc/api_workspace_export_media")[0].body)
+      .toMatchObject({ p_company: COMPANY_ID, p_kind: "attachment", p_limit: 2 });
+    expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")).toHaveLength(0);
+  });
+
+  it.each([true, false])("charges egress before signing when allowance is available = %s", async (allowed) => {
+    const { sb, routes } = world();
+    let claimed = false;
+    let signed = false;
+    sb.on("POST", "/rest/v1/rpc/api_workspace_export_media", () => [PHOTO]);
+    sb.on("GET", "/rest/v1/companies", () => [{ plan: "starter", current_period_start: null }]);
+    sb.on("POST", "/rest/v1/rpc/claim_signed_url_egress_objects", () => {
+      claimed = true;
+      return { allowed, used_bytes: 2_048, claimed_bytes: allowed ? 2_048 : 0 };
+    });
+    stubFetch(jwksRoute(auth), (url) => {
+      if (!url.pathname.startsWith("/storage/v1/object/sign/attachments/")) return undefined;
+      signed = true;
+      expect(claimed).toBe(true);
+      return Response.json({ signedURL: "/object/sign/attachments/job-site.jpg?token=sig" });
+    }, ...routes);
+
+    const res = await apiRequest(
+      app, env, await auth.token(), `/v1/exports/${EXPORT_ID}/media/attachment/${PHOTO_ID}`,
+      { companyId: COMPANY_ID },
+    );
+
+    expect(claimed).toBe(true);
+    expect(signed).toBe(allowed);
+    expect(res.ok).toBe(allowed);
+    expect(sb.find("POST", "/rest/v1/rpc/claim_signed_url_egress_objects")[0].body)
+      .toMatchObject({ p_objects: [{ bucket: "attachments", bytes: 2_048 }] });
+    if (allowed) {
+      expect(await res.json()).toEqual({ url: expect.stringContaining("download=job-site.jpg") });
+    }
+  });
+
+  it("refuses files after the export expires", async () => {
+    const { sb, routes } = world({ rows: [readyRow({ expires_at: "2020-01-01T00:00:00Z" })] });
+    stubFetch(jwksRoute(auth), ...routes);
+    const res = await apiRequest(app, env, await auth.token(), `/v1/exports/${EXPORT_ID}/media`, {
+      companyId: COMPANY_ID,
+    });
+    expect(res.status).toBe(404);
+    expect(sb.find("POST", "/rest/v1/rpc/api_workspace_export_media")).toHaveLength(0);
+  });
+});
 
 describe("POST /v1/exports", () => {
   it("queues one and records it as the privileged act it is", async () => {
@@ -292,6 +365,26 @@ describe("GET /v1/exports", () => {
     expect(res.status).toBe(200);
     const body = (await res.json()) as { files: { name: string }[] };
     expect(body.files.map(({ name }) => name)).toEqual(files.map(({ name }) => name));
+  });
+
+  it("signs the published files and skips objects from an earlier build attempt", async () => {
+    const { routes } = world({
+      rows: [readyRow({ stored_files: { "manifest.json": "winning-lease-manifest.json" } })],
+      files: [{ id: "stale-file", name: "abandoned-lease-manifest.json" }],
+    });
+    stubFetch(jwksRoute(auth), ...routes);
+
+    const res = await apiRequest(app, env, await auth.token(), `/v1/exports/${EXPORT_ID}`, {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({
+      files: [{
+        name: "manifest.json",
+        url: expect.stringContaining("winning-lease-manifest.json?token=sig&download=manifest.json"),
+      }],
+    });
   });
 
   it("offers no links for one still building, and says why it failed", async () => {
