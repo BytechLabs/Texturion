@@ -996,6 +996,20 @@ describe("GET /v1/tasks — list filters + derived status", () => {
     expect(q.get("phone_number_id")).toBeNull();
   });
 
+  it("keeps map predicates for customer, creator and source", async () => {
+    const map = mapStub([]);
+    const threads = stubRoute(restMatch(env, "GET", "conversations"), () => []);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), map.route, threads.route);
+
+    const response = await request("GET", `/v1/tasks?has_location=true&contact_id=${OTHER_USER}&created_by=me&source=call`);
+
+    expect(response.status).toBe(200);
+    const filters = map.calls[0].url.searchParams;
+    expect(filters.get("or")).toBe(`(contact_id.eq.${OTHER_USER})`);
+    expect(filters.get("created_by_user_id")).toBe(`eq.${auth.subject}`);
+    expect(filters.get("source_call_id")).toBe("not.is.null");
+  });
+
   it("#106/#107: the map view excludes tasks on numbers hidden from the caller", async () => {
     // The map projects the source contact's name + geocode (conversation
     // content), so a restricted member must not see hidden-number pins. The
@@ -2173,6 +2187,35 @@ describe("POST /v1/tasks/bulk (#478)", () => {
     expect(list.calls[0].url.searchParams.get("task_assignees.user_id")).toBe(
       `eq.${OTHER_USER}`,
     );
+  });
+
+  it.each([
+    { q: " gutter ", predicate: "title", value: "ilike.%gutter%" },
+    { q: "T-142", predicate: "or", value: "(title.ilike.%142%,number.eq.142)" },
+  ])("uses the list's search for $q and resolves me", async ({ q, predicate, value }) => {
+    const list = stubRoute(restMatch(env, "GET", "tasks"), () => [{ id: TASK_ID }]);
+    const rpc = rpcStub(ok);
+    stubFetch(jwksRoute(auth), membersRoute(), numberAccessRoute(), list.route, rpc.route);
+
+    const response = await request("POST", "/v1/tasks/bulk", {
+      action: "mark_done",
+      filter: { assigned_user_id: "me", q },
+    });
+
+    expect(response.status).toBe(200);
+    expect(list.calls[0].url.searchParams.get(predicate)).toBe(value);
+    expect(list.calls[0].url.searchParams.get("task_assignees.user_id")).toBe(`eq.${auth.subject}`);
+    expect(rpc.calls[0].body).toMatchObject({ p_ids: [TASK_ID] });
+  });
+
+  it.each([{ unknown: true }, { due_after: "yesterday" }])("rejects invalid filters %j", async (filter) => {
+    const rpc = rpcStub(ok);
+    stubFetch(jwksRoute(auth), membersRoute(), rpc.route);
+
+    const response = await request("POST", "/v1/tasks/bulk", { action: "mark_done", filter });
+
+    expect(response.status).toBe(422);
+    expect(rpc.calls).toHaveLength(0);
   });
 
   it("answers an empty filter match without calling the RPC", async () => {

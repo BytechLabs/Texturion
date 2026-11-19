@@ -96,7 +96,7 @@ import { mayHoldReference, syncReferences } from "../tasks/references";
 import { assigneeIdsSchema, MAX_ASSIGNEES } from "../tasks/assignees";
 import { notifyTaskChangeSafely } from '../tasks/notify';
 import type { TaskChange } from '../tasks/notify';
-import { PRIORITIES, PRIORITY_RANK, prioritySchema, repeatSchema, scopeSchema, withLabelsAndRepeat, withLabelsAndRepeatOne } from '../tasks/repeat';
+import { PRIORITY_RANK, prioritySchema, repeatSchema, scopeSchema, withLabelsAndRepeat, withLabelsAndRepeatOne } from '../tasks/repeat';
 import type { TaskPriority } from '../tasks/repeat';
 import { decodeCursor, encodeCursor } from "../http/pagination";
 import {
@@ -213,9 +213,7 @@ function parseDueCursor(rawCursor: string | undefined): DueCursor | null {
  * the first time somebody added a filter to one — silently, and in the direction
  * where a bulk action reaches rows the user never saw.
  *
- * Deliberately NOT including the ordering, the cursor or `q`. The first two are
- * pagination, which a bulk selection has no use for; `q` stays at the call site
- * because it needs its own length validation and throws rather than filtering.
+ * The ordering and cursor belong to pagination, outside the selection.
  */
 interface TaskFilters {
   /** The workspace, so the assignee embed is read through its company-led index. */
@@ -230,6 +228,7 @@ interface TaskFilters {
   dueBefore: string | undefined;
   dueAfter: string | undefined;
   overdue: boolean;
+  search?: string;
   /** #693: any of these priorities. */
   priorities?: string[];
   /** #693: carries this tag. The caller adds the `task_tags!inner` embed. */
@@ -261,6 +260,7 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
     gte(col: string, value: string): typeof q;
     lt(col: string, value: string): typeof q;
     in(col: string, values: string[]): typeof q;
+    ilike(col: string, value: string): typeof q;
     or(filters: string, options?: { referencedTable: string }): typeof q;
   };
   const { doneAtCol } = filters;
@@ -297,6 +297,12 @@ function applyTaskFilters<T>(query: T, filters: TaskFilters): T {
   if (filters.source === "call") q = q.not("source_call_id", "is", null);
   if (filters.source === "none") q = q.is("message_id", null).is("source_call_id", null);
   if (filters.hasAttachments) q = q.eq("task_has_attachments", "true");
+  if (filters.search) {
+    const number = /^#?t?-?(\d{1,9})$/i.exec(filters.search)?.[1];
+    q = number === undefined
+      ? q.ilike("title", `%${escapeLike(filters.search)}%`)
+      : q.or(`title.ilike.%${number}%,number.eq.${Number(number)}`);
+  }
   if (filters.referencedHidden !== undefined && filters.referencedHidden.length > 0) {
     // A reference written on a denied number does not count for this member.
     q = q.or(
@@ -340,7 +346,7 @@ function excludeCalendarAttentionHolds<T>(query: T, companyId: string): T {
 interface ExtraTaskFilterInput {
   contact_id?: string;
   created_by?: string;
-  source?: string;
+  source?: TaskFilters["source"];
   has_attachments?: boolean;
   has_references?: boolean;
 }
@@ -386,7 +392,7 @@ async function resolveExtraTaskFilters(
   if (input.created_by !== undefined) {
     out.createdBy = input.created_by === "me" ? c.get("userId") : input.created_by;
   }
-  if (input.source !== undefined) out.source = input.source as (typeof TASK_SOURCES)[number];
+  if (input.source !== undefined) out.source = input.source;
   if (input.has_attachments === true) out.hasAttachments = true;
   if (input.has_references === true) {
     const access = await resolveNumberAccess(db, {
@@ -397,22 +403,6 @@ async function resolveExtraTaskFilters(
     out.referencedHidden = access.hiddenNumberIds ?? [];
   }
   return out;
-}
-
-function validateExtraTaskFilters(input: ExtraTaskFilterInput): void {
-  if (input.contact_id !== undefined && !z.uuid().safeParse(input.contact_id).success) {
-    throw new ApiError("validation_failed", "contact_id must be a UUID.");
-  }
-  if (
-    input.created_by !== undefined &&
-    input.created_by !== "me" &&
-    !z.uuid().safeParse(input.created_by).success
-  ) {
-    throw new ApiError("validation_failed", "created_by must be a UUID or 'me'.");
-  }
-  if (input.source !== undefined && !TASK_SOURCES.includes(input.source as never)) {
-    throw new ApiError("validation_failed", "source must be text, call or none.");
-  }
 }
 
 function dueKeysetFilter(cursor: DueCursor): string {
@@ -1429,134 +1419,80 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
   return c.json(result);
 });
 
-/**
- * The list's query string, read and validated. One function for `GET /v1/tasks`
- * and `GET /v1/tasks/export.csv`, so a filter added to the list cannot be
- * forgotten by the export: the file holds what the list shows.
- */
+const taskMemberFilter = z.union([z.literal("me"), z.uuid()]);
+const taskDueFilter = z.iso.datetime({ offset: true });
+
+const taskSelectionSchema = z.strictObject({
+  status: z.enum(STATUS_VALUES).optional(),
+  assigned_user_id: taskMemberFilter.optional(),
+  unassigned: z.boolean().optional(),
+  conversation_id: z.uuid().optional(),
+  due_before: taskDueFilter.optional(),
+  due_after: taskDueFilter.optional(),
+  overdue: z.boolean().optional(),
+  has_location: z.boolean().optional(),
+  q: z.string().trim().max(200).optional(),
+  priority: z.array(prioritySchema).min(1).optional(),
+  tag_id: z.uuid().optional(),
+  contact_id: z.uuid().optional(),
+  created_by: taskMemberFilter.optional(),
+  source: z.enum(TASK_SOURCES).optional(),
+  has_attachments: z.boolean().optional(),
+  has_references: z.boolean().optional(),
+}).refine(
+  (filters) => !filters.has_location || (!filters.has_attachments && !filters.has_references),
+  { message: "The map cannot be narrowed by files or references." },
+);
+
 function parseTaskListQuery(c: Context<AppEnv>, userId: string) {
-  const status = c.req.query("status");
-  if (status !== undefined && !STATUS_VALUES.includes(status as never)) {
-    throw new ApiError("validation_failed", "status must be open or done.");
+  const query = c.req.query();
+  const inputs = {
+    status: query.status,
+    assigned_user_id: query.assigned_user_id,
+    unassigned: query.unassigned === "true" || undefined,
+    conversation_id: query.conversation_id,
+    due_before: query.due_before,
+    due_after: query.due_after,
+    overdue: query.overdue === "true" || undefined,
+    has_location: query.has_location === "true" || undefined,
+    q: query.q,
+    priority: query.priority
+      ? [...new Set(query.priority.split(",").map((value) => value.trim()))]
+      : undefined,
+    tag_id: query.tag_id,
+    contact_id: query.contact_id,
+    created_by: query.created_by,
+    source: query.source,
+    has_attachments: query.has_attachments === "true" || undefined,
+    has_references: query.has_references === "true" || undefined,
+  } satisfies Record<keyof z.input<typeof taskSelectionSchema>, unknown>;
+  const parsed = taskSelectionSchema.safeParse(inputs);
+  if (!parsed.success) {
+    throw new ApiError("validation_failed", parsed.error.issues[0]?.message ?? "Check the task filters.");
   }
-  const overdue = c.req.query("overdue") === "true";
-  const hasLocation = c.req.query("has_location") === "true";
-  const dueBefore = c.req.query("due_before");
-  const dueAfter = c.req.query("due_after");
-  const conversationId = c.req.query("conversation_id");
-  const rawAssignee = c.req.query("assigned_user_id");
-  const unassigned = c.req.query("unassigned") === "true";
-  const rawQ = c.req.query("q")?.trim();
-  // #693: filter by priority (comma list) and by tag; sort by created, due or priority.
-  const rawPriority = c.req.query("priority");
-  const priorities =
-    rawPriority === undefined || rawPriority === ""
-      ? undefined
-      : [...new Set(rawPriority.split(",").map((p) => p.trim()))];
-  if (priorities?.some((p) => !PRIORITIES.includes(p as TaskPriority))) {
-    throw new ApiError(
-      "validation_failed",
-      `priority must be a comma list of ${PRIORITIES.join(", ")}.`,
-    );
-  }
-  const tagId = c.req.query("tag_id");
-  if (tagId !== undefined && !z.uuid().safeParse(tagId).success) {
-    throw new ApiError("validation_failed", "tag_id must be a UUID.");
-  }
-  const sort = c.req.query("sort");
+  const filters = parsed.data;
+  const sort = query.sort;
   if (sort !== undefined && !["created", "due", "priority", "updated"].includes(sort)) {
     throw new ApiError("validation_failed", "sort must be created, due, priority or updated.");
   }
-  // #690: contact, who made it, where it came from, files, references.
-  const extraInput: ExtraTaskFilterInput = {
-    contact_id: c.req.query("contact_id"),
-    created_by: c.req.query("created_by"),
-    source: c.req.query("source"),
-    has_attachments: c.req.query("has_attachments") === "true" ? true : undefined,
-    has_references: c.req.query("has_references") === "true" ? true : undefined,
-  };
-  validateExtraTaskFilters(extraInput);
-  const anyExtra =
-    extraInput.contact_id !== undefined ||
-    extraInput.created_by !== undefined ||
-    extraInput.source !== undefined ||
-    extraInput.has_attachments === true ||
-    extraInput.has_references === true;
 
-  // Validate the filter params before they reach PostgREST — a malformed
-  // uuid/timestamp otherwise raises a PostgREST type error (22P02) that surfaces
-  // as a 500 + error noise instead of a clean 422 (matches GET /v1/conversations).
-  if (conversationId !== undefined && !z.uuid().safeParse(conversationId).success) {
-    throw new ApiError("validation_failed", "conversation_id must be a UUID.");
-  }
-  if (
-    rawAssignee !== undefined &&
-    rawAssignee !== "me" &&
-    !z.uuid().safeParse(rawAssignee).success
-  ) {
-    throw new ApiError(
-      "validation_failed",
-      "assigned_user_id must be a UUID or 'me'.",
-    );
-  }
-  for (const [name, value] of [
-    ["due_before", dueBefore],
-    ["due_after", dueAfter],
-  ] as const) {
-    if (
-      value !== undefined &&
-      !z.iso.datetime({ offset: true }).safeParse(value).success
-    ) {
-      throw new ApiError(
-        "validation_failed",
-        `${name} must be an ISO 8601 datetime.`,
-      );
-    }
-  }
-
-  // Any explicit filter opts out of the "what needs me now" default. Only when
-  // NO filter param at all is present does the default (status=open,
-  // assignee=me) apply (T6.1 "one obvious view").
-  const anyFilter =
-    status !== undefined ||
-    overdue ||
-    hasLocation ||
-    dueBefore !== undefined ||
-    dueAfter !== undefined ||
-    conversationId !== undefined ||
-    rawAssignee !== undefined ||
-    unassigned ||
-    priorities !== undefined ||
-    tagId !== undefined ||
-    anyExtra ||
-    (rawQ !== undefined && rawQ !== "");
-  if (hasLocation && anyExtra) {
-    throw new ApiError(
-      "validation_failed",
-      "The map cannot be narrowed by contact, creator, source, files or references.",
-    );
-  }
-  const effectiveStatus = status ?? (anyFilter ? undefined : "open");
-  const assignee =
-    rawAssignee === "me"
-      ? userId
-      : rawAssignee ?? (anyFilter || unassigned ? undefined : userId);
-
+  const anyFilter = Object.values(filters).some(Boolean);
+  const assignee = filters.assigned_user_id === "me"
+    ? userId
+    : filters.assigned_user_id ?? (anyFilter ? undefined : userId);
   return {
-    status,
-    overdue,
-    hasLocation,
-    dueBefore,
-    dueAfter,
-    conversationId,
-    unassigned,
-    rawQ,
-    priorities,
-    tagId,
+    overdue: filters.overdue === true,
+    hasLocation: filters.has_location === true,
+    dueBefore: filters.due_before,
+    dueAfter: filters.due_after,
+    conversationId: filters.conversation_id,
+    unassigned: filters.unassigned === true,
+    search: filters.q,
+    priorities: filters.priority,
+    tagId: filters.tag_id,
     sort,
-    extraInput,
-    anyExtra,
-    effectiveStatus,
+    extraInput: filters,
+    effectiveStatus: filters.status ?? (anyFilter ? undefined : "open"),
     assignee,
   };
 }
@@ -1579,7 +1515,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     dueAfter,
     conversationId,
     unassigned,
-    rawQ,
+    search,
     priorities,
     tagId,
     sort,
@@ -1658,6 +1594,7 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
     dueBefore,
     dueAfter,
     overdue,
+    search,
     priorities,
     tagId,
     ...extra,
@@ -1682,18 +1619,6 @@ tasksRoutes.get("/tasks", requireCapability("conversations.read"), async (c) => 
       );
     }
   }
-  if (rawQ !== undefined && rawQ !== "") {
-    if (rawQ.length > 200) {
-      throw new ApiError("validation_failed", "q: too long (max 200).");
-    }
-    // "T-142", "t142" and "#142" find the task with that number as well.
-    const asNumber = /^#?t?-?(\d{1,9})$/i.exec(rawQ);
-    query =
-      asNumber === null
-        ? query.ilike("title", `%${escapeLike(rawQ)}%`)
-        : query.or(`title.ilike.%${asNumber[1]}%,number.eq.${Number(asNumber[1])}`);
-  }
-
   if (dueSorted) {
     query = query
       .order("due_at", { ascending: true, nullsFirst: false })
@@ -1846,9 +1771,6 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
   const userId = c.get("userId");
   const db = getDb(getEnv(c.env));
   const q = parseTaskListQuery(c, userId);
-  if (q.rawQ !== undefined && q.rawQ.length > 200) {
-    throw new ApiError("validation_failed", "q: too long (max 200).");
-  }
   const extra = await resolveExtraTaskFilters(c, db, q.extraInput);
   const embeds =
     (q.tagId === undefined ? "" : ",task_tags!inner(tag_id)") +
@@ -1861,9 +1783,8 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
     requestedBy: userId,
     filters: {},
     embeds,
-    refine: (query) => {
-      let next = excludeCalendarAttentionHolds(query, companyId);
-      next = applyTaskFilters(next, {
+    refine: (query) =>
+      applyTaskFilters(excludeCalendarAttentionHolds(query, companyId), {
         companyId,
         doneAtCol: TASK_DONE_AT,
         effectiveStatus: q.effectiveStatus,
@@ -1873,25 +1794,11 @@ tasksRoutes.get("/tasks/export.csv", requireCapability("contacts.bulk"), async (
         dueBefore: q.dueBefore,
         dueAfter: q.dueAfter,
         overdue: q.overdue,
-        priorities: q.priorities as TaskPriority[] | undefined,
+        search: q.search,
+        priorities: q.priorities,
         tagId: q.tagId,
         ...extra,
-      });
-      if (q.rawQ !== undefined && q.rawQ !== "") {
-        const asNumber = /^#?t?-?(\d{1,9})$/i.exec(q.rawQ);
-        const search = next as never as {
-          ilike(col: string, pattern: string): typeof search;
-          or(filters: string): typeof search;
-        };
-        next =
-          asNumber === null
-            ? (search.ilike("title", `%${escapeLike(q.rawQ)}%`) as never as typeof next)
-            : (search.or(
-                `title.ilike.%${asNumber[1]}%,number.eq.${Number(asNumber[1])}`,
-              ) as never as typeof next);
-      }
-      return next;
-    },
+      }),
   });
 
   await recordAuditFromRequest(db, c, {
@@ -1991,25 +1898,7 @@ const taskBulkSchema = z
     /** Explicit selection. Omit to act on everything matching `filter`. */
     ids: z.array(z.uuid()).min(1).max(1000).optional(),
     /** Select-all-matching. Same field names as GET /v1/tasks. */
-    filter: z
-      .object({
-        status: z.enum(["open", "done"]).optional(),
-        assigned_user_id: z.uuid().optional(),
-        unassigned: z.boolean().optional(),
-        conversation_id: z.uuid().optional(),
-        due_before: z.string().optional(),
-        due_after: z.string().optional(),
-        overdue: z.boolean().optional(),
-        priority: z.array(prioritySchema).min(1).optional(),
-        tag_id: z.uuid().optional(),
-        // #690: the same names the list takes.
-        contact_id: z.uuid().optional(),
-        created_by: z.union([z.literal("me"), z.uuid()]).optional(),
-        source: z.enum(TASK_SOURCES).optional(),
-        has_attachments: z.boolean().optional(),
-        has_references: z.boolean().optional(),
-      })
-      .optional(),
+    filter: taskSelectionSchema.optional(),
     target_user_id: z.uuid().nullable().optional(),
     /**
      * #689 C: `assign` ADDS these people to every selected task and removes
@@ -2061,6 +1950,7 @@ tasksRoutes.post(
     const db = getDb(getEnv(c.env));
     const companyId = c.get("companyId");
     const userId = c.get("userId");
+    const access = await resolveNumberAccess(db, { companyId, userId, role: c.get("role") });
 
     let ids = body.ids;
     if (ids === undefined) {
@@ -2068,29 +1958,37 @@ tasksRoutes.post(
       // what was on screen.
       const filter = body.filter ?? {};
       const extra = await resolveExtraTaskFilters(c, db, filter);
+      const assignee = filter.assigned_user_id === "me" ? userId : filter.assigned_user_id;
+      let taskQuery = db
+        .from(filter.has_location ? "task_map_rows" : "tasks")
+        .select(
+          `id,${CALENDAR_HOLD_EMBED}${filter.tag_id ? ",task_tags!inner(tag_id)" : ""}${
+            assignee ? ",task_assignees!inner(user_id)" : ""
+          }${extra.referencedHidden === undefined ? "" : REFERENCE_EMBED}`,
+        )
+        .eq("company_id", companyId)
+        .is("deleted_at", null);
+      if (filter.has_location) {
+        taskQuery = taskQuery.not("map_lat", "is", null);
+        if (access.hiddenNumberIds?.length) {
+          taskQuery = taskQuery.or(
+            `phone_number_id.is.null,phone_number_id.not.in.(${access.hiddenNumberIds.join(",")})`,
+          );
+        }
+      }
       const query = applyTaskFilters(
-        excludeCalendarAttentionHolds(
-          db
-            .from("tasks")
-            .select(
-              `id,${CALENDAR_HOLD_EMBED}${filter.tag_id ? ",task_tags!inner(tag_id)" : ""}${
-                filter.assigned_user_id ? ",task_assignees!inner(user_id)" : ""
-              }${extra.referencedHidden === undefined ? "" : REFERENCE_EMBED}`,
-            )
-            .eq("company_id", companyId)
-            .is("deleted_at", null),
-          companyId,
-        ),
+        excludeCalendarAttentionHolds(taskQuery, companyId),
         {
           companyId,
-          doneAtCol: TASK_DONE_AT,
+          doneAtCol: filter.has_location ? "done_at" : TASK_DONE_AT,
           effectiveStatus: filter.status,
-          assignee: filter.assigned_user_id,
+          assignee,
           unassigned: filter.unassigned === true,
           conversationId: filter.conversation_id,
           dueBefore: filter.due_before,
           dueAfter: filter.due_after,
           overdue: filter.overdue === true,
+          search: filter.q,
           priorities: filter.priority,
           tagId: filter.tag_id,
           ...extra,
@@ -2115,12 +2013,6 @@ tasksRoutes.post(
         });
       }
     }
-
-    const access = await resolveNumberAccess(db, {
-      companyId,
-      userId,
-      role: c.get("role"),
-    });
 
     const result = unwrap<TaskBulkResult>(
       await db.rpc("api_bulk_tasks", {

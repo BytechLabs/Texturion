@@ -165,11 +165,13 @@ func taskBulkBody(
     } else if let filters {
         var filter: [String: JSONValue] = [:]
         if let status = filters.status { filter["status"] = .string(status) }
-        if let assignee = filters.assignedUserId {
+        if let assignee = filters.assignedUserId, assignee != assigneeAll {
             filter["assigned_user_id"] = .string(assignee)
         }
         if filters.unassigned { filter["unassigned"] = .bool(true) }
         if filters.overdue { filter["overdue"] = .bool(true) }
+        if let conversation = filters.conversationId { filter["conversation_id"] = .string(conversation) }
+        if let q = filters.q { filter["q"] = .string(q) }
         if !filters.priority.isEmpty {
             filter["priority"] = .array(filters.priority.map { .string($0) })
         }

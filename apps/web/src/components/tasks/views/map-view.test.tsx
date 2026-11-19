@@ -9,6 +9,7 @@ import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { EN } from "@/i18n/catalog";
+import type { TaskPageState } from "../task-view-url";
 import { MapView } from "./map-view";
 
 const { useAllTasks, useTasks } = vi.hoisted(() => ({
@@ -27,7 +28,7 @@ vi.mock("../task-empty", () => ({
 }));
 
 
-const state = { tab: "all", chips: {} } as never;
+const state: TaskPageState = { view: "map", tab: "all" };
 const page = (rows: unknown[]) => ({
   isPending: false,
   isError: false,
@@ -66,6 +67,16 @@ describe("Map view empty states (#752)", () => {
     expect(filters.has_location).toBeUndefined();
     expect(options).toEqual({ enabled: true });
     expect(useAllTasks.mock.calls[0]![0]).toMatchObject({ has_location: true });
+  });
+
+  it("keeps customer, creator and source filters when opening the map from a filtered list", () => {
+    answer(page([]), page([]));
+    render(<MapView state={{ ...state, contact: "customer", createdBy: "me", source: "call", files: true, refs: true }} />);
+
+    expect(useAllTasks.mock.calls[0]![0]).toMatchObject({
+      contact_id: "customer", created_by: "me", source: "call",
+      has_attachments: undefined, has_references: undefined,
+    });
   });
 
   it("falls back to the plain empty state only when there are no tasks at all", () => {

@@ -49,7 +49,13 @@ export function MapView({ state }: { state: TaskPageState }) {
   // `has_location=true` narrows to tasks whose contact has cached coords (the
   // frozen route uses the geocode to filter; `taskCoords` plots whatever
   // coordinates the row actually carries and counts the rest as unlocated).
-  const filters = { ...toTaskFilters(state), status: undefined, has_location: true };
+  const filters = {
+    ...toTaskFilters(state),
+    status: undefined,
+    has_location: true,
+    has_attachments: undefined,
+    has_references: undefined,
+  };
   // Drain every page so all located tasks are plotted, not just the first one.
   const query = useAllTasks(filters);
   const tasks = flattenPages(query.data);

@@ -92,6 +92,7 @@ beforeEach(() => {
   server = { open: [], done: [] };
   apiFetch.mockReset();
   apiFetch.mockImplementation(async (path, options) => {
+    if (path === "/v1/tasks/bulk") return { matched: 1, applied: [], failed: [], capped: false };
     if (path !== "/v1/tasks") return path.startsWith("/v1/tasks/") ? { id: path } : { data: [] };
     const query = options?.searchParams ?? {};
     const status = query.status === "done" ? "done" : "open";
@@ -265,10 +266,10 @@ describe("what the List asks for", () => {
     await screen.findByText("Send quote");
   });
 
-  it("does not offer every matching task under a search the bulk route cannot apply", async () => {
+  it("sends the title search when selecting all matches across both statuses", async () => {
     server.open = many("o", 1, false);
     server.done = many("d", 101, true);
-    renderList({ ...MINE, q: "job" });
+    renderList({ ...MINE, tab: "all", q: "job", sort: "due" });
     await screen.findByText("d job 99", undefined, SLOW);
     fireEvent.click(screen.getByRole("checkbox", { name: "Select o job 0" }));
     fireEvent.click(
@@ -276,7 +277,15 @@ describe("what the List asks for", () => {
         name: EN.tasks.bulkSelectThese.replace("{count}", "101"),
       }),
     );
-    expect(screen.queryByRole("button", { name: EN.tasks.bulkSelectAllMatching })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: EN.tasks.bulkSelectAllMatching }));
+    fireEvent.click(screen.getByRole("button", { name: EN.tasks.markDoneAction }));
+    await waitFor(() => {
+      const bulkRequest = apiFetch.mock.calls.find(([path]) => path === "/v1/tasks/bulk");
+      expect(bulkRequest?.[1]).toMatchObject({ body: { action: "mark_done", filter: { q: "job" } } });
+      expect(bulkRequest?.[1]).not.toHaveProperty("body.filter.sort");
+      expect(bulkRequest?.[1]).not.toHaveProperty("body.filter.status");
+      expect(bulkRequest?.[1]).not.toHaveProperty("body.filter.assigned_user_id", "all");
+    });
   });
 
   it("warms a task's detail on focus and on a resting pointer, not on a pass", async () => {

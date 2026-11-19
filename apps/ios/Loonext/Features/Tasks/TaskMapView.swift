@@ -201,8 +201,6 @@ struct TaskMapView: View {
                         "contact_id": meta.contactId,
                         "created_by": meta.createdBy,
                         "source": meta.source,
-                        "has_attachments": meta.hasAttachments ? "true" : nil,
-                        "has_references": meta.hasReferences ? "true" : nil,
                         "cursor": cursor,
                         "limit": "100",
                     ],
