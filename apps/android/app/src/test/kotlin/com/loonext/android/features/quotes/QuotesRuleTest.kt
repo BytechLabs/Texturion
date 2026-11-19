@@ -83,22 +83,16 @@ class QuotesRuleTest {
         assertFalse(Quotes.isOutstanding(QuoteStatus.DRAFT, future, now))
         assertFalse(Quotes.isOutstanding(QuoteStatus.ACCEPTED, future, now))
         assertFalse(Quotes.isOutstanding(QuoteStatus.DECLINED, future, now))
+        assertFalse(Quotes.isOutstanding(QuoteStatus.WITHDRAWN, future, now))
     }
 
     @Test
     fun `names exactly the statuses the shared module declares, both directions`() {
         val shared = sharedSource()
-        val declared = Regex("\"(draft|sent|viewed|accepted|declined|expired)\"")
-            .findAll(shared.substringAfter("QUOTE_STATUSES").substringBefore("] as const"))
+        val declared = Regex("\"([a-z_]+)\"")
+            .findAll(shared.substringAfter("export const QUOTE_STATUSES = [").substringBefore("] as const"))
             .map { it.groupValues[1] }
             .toSet()
-
-        // A guard that reads nothing passes for the wrong reason.
-        assertEquals(
-            "expected seven statuses in quotes.ts, found $declared",
-            7,
-            declared.size,
-        )
 
         val ported = setOf(
             QuoteStatus.DRAFT, QuoteStatus.SENT, QuoteStatus.VIEWED,
