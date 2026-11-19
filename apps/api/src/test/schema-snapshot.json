@@ -800,6 +800,7 @@
     "scheduled_messages_horizon_days": [[]],
     "scheduled_messages_per_company_cap": [[]],
     "scheduled_messages_per_thread_cap": [[]],
+    "search_text_snippet": [[{"name":"p_text","hasDefault":false},{"name":"p_query","hasDefault":false}]],
     "search_tsquery": [[{"name":"p_query","hasDefault":false}]],
     "seed_pipeline": [[{"name":"p_company_id","hasDefault":false},{"name":"p_owner_user_id","hasDefault":false}]],
     "set_message_done": [[{"name":"p_company_id","hasDefault":false},{"name":"p_message_id","hasDefault":false},{"name":"p_done","hasDefault":false},{"name":"p_actor_user_id","hasDefault":false}]],
