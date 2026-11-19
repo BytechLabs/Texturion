@@ -9,6 +9,7 @@ import { toast } from "sonner";
 import { parseQuickAdd } from "@loonext/shared";
 
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { createdToast } from "@/components/ui/created-toast";
 import {
   Dialog,
@@ -356,14 +357,18 @@ function NewTaskForm({
                 value={due}
                 onChange={(event) => setDue(event.target.value)}
               />
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={dateOnly} onChange={(event) => {
-                  const { checked } = event.target;
-                  setDateOnly(checked);
-                  setDue(checked ? due.slice(0, 10) : "");
-                }} />
-                {t("tasks.anyTime")}
-              </label>
+              <div className="flex min-h-11 items-center gap-2 md:min-h-0">
+                <Checkbox
+                  id="new-task-any-time"
+                  checked={dateOnly}
+                  onCheckedChange={(checked) => {
+                    const nextDateOnly = checked === true;
+                    setDateOnly(nextDateOnly);
+                    setDue(nextDateOnly ? due.slice(0, 10) : "");
+                  }}
+                />
+                <Label htmlFor="new-task-any-time">{t("tasks.anyTime")}</Label>
+              </div>
               {dueZone && dueZone !== browserTimezone() && (
                 <p className="text-[12px] text-muted-foreground">
                   {t("tasks.newTaskDueZone", { zone: dueZone.replaceAll('_', " ") })}

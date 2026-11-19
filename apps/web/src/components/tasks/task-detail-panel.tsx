@@ -27,6 +27,7 @@ import {
 import { useStagedFiles } from "@/components/attachments/use-staged-files";
 import { VoicemailPlayer } from "@/components/calls/voicemail-player";
 import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 import { RecordHeader } from "@/components/ui/record-header";
 import { useIsXl } from "@/lib/use-is-xl";
 import { CountryPicker } from "@/components/ui/country-picker";
@@ -773,13 +774,17 @@ function TaskDetailLoaded({
                 }
               }}
             />
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={dateOnly} onChange={(event) => {
-                setDateOnly(event.target.checked);
-                setDueKey((key) => key + 1);
-              }} />
-              {t("tasks.anyTime")}
-            </label>
+            <div className="flex min-h-11 items-center gap-2 md:min-h-0">
+              <Checkbox
+                id="task-any-time"
+                checked={dateOnly}
+                onCheckedChange={(checked) => {
+                  setDateOnly(checked === true);
+                  setDueKey((key) => key + 1);
+                }}
+              />
+              <Label htmlFor="task-any-time">{t("tasks.anyTime")}</Label>
+            </div>
           </div>
         </section>
         {!noAccess && (!task.done && (task.due_at || task.due_on) || task.confirmed_at) && (
