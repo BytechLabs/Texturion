@@ -3494,7 +3494,9 @@ contactsRoutes.post(
       return contactNumberTaken(c, result.existing_contact_id);
     }
     if (result.outcome === "replacement_number_required") {
-      return errorResponse(c, "conflict", "Choose a different main number before undoing this merge.");
+      return errorResponse(c, "conflict", "Choose a different main number before undoing this merge.", {
+        key: "apiRefusals.contactUnmergeMainNumberInUse",
+      });
     }
 
     await recordAuditFromRequest(db, c, {
@@ -3924,7 +3926,11 @@ contactsRoutes.post(
       }),
       "change primary contact number",
     );
-    if (result.outcome !== "updated") return errorResponse(c, "not_found", "No such contact number.");
+    if (result.outcome !== "updated") {
+      return errorResponse(c, "not_found", "No such contact number.", {
+        key: "apiRefusals.contactNumberNotFound",
+      });
+    }
     await recordActivity(db, {
       companyId, recordType: "contact", recordId: id, kind: "edited", actorUserId: userId,
       payload: { field: "phone_e164", from: result.previous_number, to: result.phone_e164 },
