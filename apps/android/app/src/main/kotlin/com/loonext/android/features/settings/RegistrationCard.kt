@@ -216,7 +216,7 @@ private fun EnableUsCard(
     // #228: the same reader [enableUsCopy] is written for, kept for the failure
     // the confirm coroutine reports — outside composition, where `t` cannot go.
     val locale = LocalAppLocale.current
-    val fee = usRegistrationFee(company.billing_currency, company.country)
+    val fee = usRegistrationFee(company.billing_currency, company.country, locale)
     // #525: the WORDS come from the fact, and there is no control to withhold —
     // see [enableUsCopy]. `isPaused` is true only on an ANSWERED read, so a read
     // in flight or one that failed leaves every sentence exactly as it was

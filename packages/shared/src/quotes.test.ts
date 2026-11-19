@@ -2,7 +2,6 @@ import { describe, expect, it } from "vitest";
 
 import { EN as WEB_EN, FR_CA as WEB_FR } from "../../../apps/web/src/i18n/catalog";
 
-import { formatMoney } from "./billing-currency";
 import { canTransitionQuote,effectiveQuoteStatus,isQuoteDecided,isQuoteDecidedForWinRate,isQuoteOutstanding,isQuoteStatus,QUOTE_STATUS_KEYS,QUOTE_STATUSES,quoteSms } from "./quotes";
 
 import type { QuoteState, QuoteStatus } from './quotes';
@@ -227,16 +226,11 @@ describe("#228 the quote text speaks the customer's language", () => {
     expect(text).toContain("See the quote and accept it here");
   });
 
-  it("leaves the FIGURE alone in both", () => {
-    // The number is not copy. A customer quoted $450 must read $450 in the text
-    // and on the page they accept — a price that changes shape between two
-    // screens is a price somebody disputes, and this feature exists to prevent
-    // exactly that argument.
+  it("formats the same total in the reader's locale", () => {
     const fr = quoteSms({ ...args, locale: "fr-CA" });
     const en = quoteSms({ ...args, locale: "en" });
-    const amount = formatMoney(45_000, "cad");
-    expect(fr).toContain(amount);
-    expect(en).toContain(amount);
+    expect(fr).toContain("450 $");
+    expect(en).toContain("$450");
   });
 
   it("carries the link unchanged, because a URL is not a sentence", () => {

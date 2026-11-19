@@ -148,7 +148,7 @@ export function AskForPayment({
         idempotencyKey,
       });
       toast.success(
-        t("payments.asked", { amount: formatMoney(cents, currency) }),
+        t("payments.asked", { amount: formatMoney(cents, currency, currency, t.locale) }),
       );
       setOpen(false);
       setAmount("");
@@ -251,7 +251,7 @@ export function AskForPayment({
           onClick={() => void submit()}
         >
           {cents !== null && problem === null
-            ? t("payments.askFor", { amount: formatMoney(cents, currency) })
+            ? t("payments.askFor", { amount: formatMoney(cents, currency, currency, t.locale) })
             : t("payments.askAction")}
         </Button>
         <Button

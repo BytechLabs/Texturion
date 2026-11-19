@@ -133,6 +133,7 @@ function PlanStep() {
     US_REGISTRATION_FEE_CENTS.usd,
     "usd",
     priceAudience,
+    t.locale,
   );
 
   const owesFee = owes && company.registration_fee_paid_at === null;

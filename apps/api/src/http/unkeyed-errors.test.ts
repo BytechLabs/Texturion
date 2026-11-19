@@ -4,7 +4,7 @@ import ts from "typescript";
 import { expect, it } from "vitest";
 
 const apiSource = join(import.meta.dirname, "..");
-const unkeyedBudget = { errorResponse: 513, ApiError: 298 };
+const unkeyedBudget = { errorResponse: 392, ApiError: 297 };
 
 it("does not add unkeyed API errors", () => {
   const counts = { errorResponse: 0, ApiError: 0 };

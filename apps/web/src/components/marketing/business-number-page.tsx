@@ -95,7 +95,7 @@ export function BusinessNumberPageBody({
         ground="frost"
         eyebrow={copy.localEyebrow}
         heading={copy.localTitle}
-        visual={<CityAreaCodeWidget />}
+        visual={<CityAreaCodeWidget locale={locale} />}
       >
         <p>
           {copy.localBodyOne}
@@ -197,7 +197,7 @@ export function BusinessNumberPageBody({
       <CountryOnly country="ca">
         <PlainDetails
           heading={copy.edgesEyebrow}
-          lead="A phone number is a serious thing to hand your customers, so here is exactly how Loonext numbers work, including the limits."
+          lead={copy.edgesCaLead}
           items={[portDetail(copy), paidPlanDetail(copy)]}
         />
       </CountryOnly>

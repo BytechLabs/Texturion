@@ -224,28 +224,26 @@ const e164Schema = z
  * (geographic) number. Toll-free / non-US-CA is rejected with validation_failed
  * (D16 scope).
  */
-function classifyNumber(e164: string): {
-  ok: boolean;
-  country: "US" | "CA" | null;
-  reason: string | null;
-} {
+function classifyNumber(e164: string):
+  | { ok: true; country: "US" | "CA" }
+  | { ok: false; reason: string; key: string } {
   const entry = lookupAreaCode(e164);
   if (!entry) {
     return {
       ok: false,
-      country: null,
       reason: "This number isn't a US or Canadian number we can transfer.",
+      key: "apiRefusals.portNumberIneligible",
     };
   }
   if (!entry.geographic) {
     return {
       ok: false,
-      country: entry.country,
       reason:
         "Toll-free numbers can't be transferred in this flow. Start with a new local number instead.",
+      key: "apiRefusals.portTollFreeUnsupported",
     };
   }
-  return { ok: true, country: entry.country, reason: null };
+  return { ok: true, country: entry.country };
 }
 
 const checkBodySchema = z.strictObject({ phone_e164: e164Schema });
@@ -293,7 +291,7 @@ portingRoutes.post("/check", requireCapability("numbers.manage"), async (c) => {
 
   const local = classifyNumber(body.phone_e164);
   if (!local.ok) {
-    return errorResponse(c, "validation_failed", local.reason!);
+    return errorResponse(c, "validation_failed", local.reason, { key: local.key });
   }
 
   // #32 gate 1: same statuses the create route accepts (active, or the
@@ -400,6 +398,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
       c,
       "validation_failed",
       "Idempotency-Key header (a client-generated UUID) is required.",
+      { key: "apiRefusals.idempotencyKeyRequired" },
     );
   }
   const body = await parseJsonBody(c, createBodySchema);
@@ -407,13 +406,20 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
 
   const local = classifyNumber(body.phone_e164);
   if (!local.ok) {
-    return errorResponse(c, "validation_failed", local.reason!);
+    return errorResponse(c, "validation_failed", local.reason, { key: local.key });
   }
   if (local.country !== company.country) {
     return errorResponse(
       c,
       "validation_failed",
       `This number is a ${local.country} number; your company is registered in ${company.country}.`,
+      {
+        key: "apiRefusals.workspaceNumberCountry",
+        vars: {
+          numberCountry: local.country,
+          workspaceCountry: company.country,
+        },
+      },
     );
   }
 
@@ -481,6 +487,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
       portability.notPortableReason
         ? `We can't transfer this number: ${portability.notPortableReason}`
         : "We can't transfer this number — the carrier reports it isn't portable.",
+      { key: "apiRefusals.portCarrierRefused" },
     );
   }
   if (isWireless && !body.pin_passcode) {
@@ -488,6 +495,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
       c,
       "validation_failed",
       "This is a wireless number — the port-out PIN / passcode from your current carrier is required to transfer it.",
+      { key: "apiRefusals.portWirelessPinRequired" },
     );
   }
 
@@ -523,7 +531,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
     p_included_numbers: included,
   });
   if (slotError?.code === PENDING_PLAN_NUMBER_LIMIT) {
-    return errorResponse(c, "conflict", "Your scheduled plan has no room for another phone number.");
+    return errorResponse(c, "conflict", "Your scheduled plan has no room for another phone number.", { key: "apiRefusals.scheduledPlanNumberLimit" });
   }
   if (slotError) throw new Error(`claim_port_slot failed: ${slotError.message}`);
   const slot = parseWith(
@@ -545,6 +553,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
       // means every included AND paid slot is full. Buying MORE capacity at
       // port time is out of scope, so the honest remedy is release or upgrade.
       `You're using all ${max} of your phone number${max === 1 ? "" : "s"}, and transferring one in needs a free slot. Release a number or upgrade first.`,
+      { key: "apiRefusals.portNeedsFreeNumberSlot", vars: { count: String(max) } },
     );
   }
   if (slot.outcome === "sole_prop_cap") {
@@ -553,6 +562,7 @@ portingRoutes.post("/", requireCapability("numbers.manage"), async (c) => {
       c,
       "conflict",
       "Sole Proprietor registration allows 1 phone number.",
+      { key: "apiRefusals.soleProprietorNumberLimit" },
     );
   }
   if (!slot.number) throw new Error("claim_port_slot returned no row");
@@ -673,6 +683,7 @@ function assertEditable(port: PortRequestRow, role: MemberRole): void {
     throw new ApiError(
       "validation_failed",
       `This port is ${port.status} and can no longer be edited.`,
+      { key: "apiRefusals.portCannotEdit" },
     );
   }
 }
@@ -771,6 +782,7 @@ portingRoutes.put("/:id/documents", requireCapability("numbers.manage"), async (
       c,
       "validation_failed",
       "Expected multipart/form-data with loa and/or invoice file parts.",
+      { key: "apiRefusals.portUploadForm" },
     );
   }
 
@@ -792,6 +804,7 @@ portingRoutes.put("/:id/documents", requireCapability("numbers.manage"), async (
         c,
         "validation_failed",
         `${field} must be a file upload.`,
+        { key: "apiRefusals.numberDocumentFileRequired", vars: { field } },
       );
     }
     const size = file.size ?? 0;
@@ -800,6 +813,7 @@ portingRoutes.put("/:id/documents", requireCapability("numbers.manage"), async (
         c,
         "validation_failed",
         `${field} must be a non-empty file under 10 MB.`,
+        { key: "apiRefusals.numberDocumentSize", vars: { field, limit: "10" } },
       );
     }
     const contentType = file.type || "application/pdf";
@@ -808,6 +822,7 @@ portingRoutes.put("/:id/documents", requireCapability("numbers.manage"), async (
         c,
         "validation_failed",
         `${field} must be a PDF, PNG, or JPEG.`,
+        { key: "apiRefusals.portDocumentType", vars: { field } },
       );
     }
     const bytes = await file.arrayBuffer();
@@ -830,6 +845,7 @@ portingRoutes.put("/:id/documents", requireCapability("numbers.manage"), async (
       c,
       "validation_failed",
       "Provide a loa and/or invoice file part.",
+      { key: "apiRefusals.portUploadDocumentRequired" },
     );
   }
 
@@ -872,6 +888,7 @@ portingRoutes.post("/:id/submit", requireCapability("numbers.manage"), async (c)
       port.status === "in-process" || port.status === "submitted"
         ? "This transfer has already been submitted."
         : `This port is ${port.status} and can no longer be submitted.`,
+      { key: "apiRefusals.portCannotSubmit" },
     );
   }
   // Confirm gate (§6): reject before any Telnyx confirm when a document is
@@ -881,6 +898,7 @@ portingRoutes.post("/:id/submit", requireCapability("numbers.manage"), async (c)
       c,
       "conflict",
       "Upload the signed LOA and a recent bill before submitting the transfer.",
+      { key: "apiRefusals.portDocumentsRequired" },
     );
   }
 
@@ -912,6 +930,7 @@ portingRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), async (
       c,
       "conflict",
       "Only a port that needs a fix can be resubmitted.",
+      { key: "apiRefusals.portResubmitNeedsFix" },
     );
   }
   if (!hasRequiredDocuments(port)) {
@@ -919,6 +938,7 @@ portingRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), async (
       c,
       "conflict",
       "Upload the signed LOA and a recent bill before resubmitting the transfer.",
+      { key: "apiRefusals.portResubmitDocumentsRequired" },
     );
   }
 
@@ -935,7 +955,7 @@ portingRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), async (
     });
   } catch (error) {
     if (error instanceof PortDocumentsMissingError) {
-      return errorResponse(c, "conflict", error.message);
+      return errorResponse(c, "conflict", error.message, { key: "apiRefusals.portResubmitUnavailable" });
     }
     throw error;
   }
@@ -961,6 +981,7 @@ portingRoutes.post("/:id/cancel", requireCapability("workspace.own"), async (c) 
       c,
       "conflict",
       `This port is ${port.status} and can no longer be cancelled.`,
+      { key: "apiRefusals.portCannotCancel" },
     );
   }
 

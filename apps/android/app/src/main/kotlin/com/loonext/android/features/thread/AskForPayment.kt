@@ -294,7 +294,7 @@ fun AskForPayment(
                         // The button says the figure, so the last thing read
                         // before the tap is the amount rather than the verb.
                         cents != null && problem == null ->
-                            t("payments.askFor", "amount" to formatMoney(cents, currency))
+                            t("payments.askFor", "amount" to formatMoney(cents, currency, locale = LocalAppLocale.current))
 
                         else -> t("payments.askAction")
                     },

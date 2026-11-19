@@ -578,8 +578,11 @@ fun portStepIndex(status: String): Int = when (status) {
 // ---------------------------------------------------------------------------
 
 /** "$5" for 500 cents, "$7.50" for 750 — whole dollars drop the cents. */
-fun formatMonthlyCents(cents: Long): String {
+fun formatMonthlyCents(cents: Long, locale: String? = null): String {
     val dollars = cents / 100.0
+    if (locale == "fr-CA") {
+        return if (cents % 100 == 0L) "${cents / 100} $" else formatCents(cents, locale)
+    }
     return if (cents % 100 == 0L) "$${cents / 100}"
     else "$" + String.format(Locale.US, "%.2f", dollars)
 }
@@ -600,8 +603,9 @@ fun formatMonthlyCents(cents: Long): String {
  * Use [formatMoney] for anything filed in one currency and quoted to everybody,
  * like the USD-only extra-number line.
  */
-fun formatCents(cents: Long): String =
-    "$" + String.format(Locale.US, "%.2f", cents / 100.0)
+fun formatCents(cents: Long, locale: String? = null): String =
+    if (locale == "fr-CA") String.format(Locale.CANADA_FRENCH, "%.2f $", cents / 100.0)
+    else "$" + String.format(Locale.US, "%.2f", cents / 100.0)
 
 /** Human bytes: "0 B", "412 KB", "1.2 GB". */
 fun formatBytes(bytes: Long): String {
@@ -656,10 +660,11 @@ fun planFacts(
     plan: String?,
     billingCurrency: String?,
     country: String?,
+    locale: String? = null,
 ): PlanFacts? = when (plan) {
     "starter" -> PlanFacts(
         name = "Starter",
-        price = planPrice("starter", billingCurrency, country),
+        price = planPrice("starter", billingCurrency, country, locale),
         seats = STARTER_SEATS,
         numbers = STARTER_NUMBERS,
         voiceMinutes = 2500,
@@ -667,7 +672,7 @@ fun planFacts(
 
     "pro" -> PlanFacts(
         name = "Pro",
-        price = planPrice("pro", billingCurrency, country),
+        price = planPrice("pro", billingCurrency, country, locale),
         seats = PRO_SEATS,
         numbers = PRO_NUMBERS,
         voiceMinutes = 6000,
@@ -677,9 +682,10 @@ fun planFacts(
 }
 
 /** "$29/mo" or "$39/mo" — the same price book both routes charge from. */
-private fun planPrice(plan: String, billingCurrency: String?, country: String?): String {
+private fun planPrice(plan: String, billingCurrency: String?, country: String?, locale: String?): String {
     val currency = resolveBillingCurrency(billingCurrency, country)
-    return formatMoney(PLAN_PRICE_CENTS.getValue(currency).getValue(plan), currency) + "/mo"
+    return formatMoney(PLAN_PRICE_CENTS.getValue(currency).getValue(plan), currency, locale = locale) +
+        if (locale == "fr-CA") "/mois" else "/mo"
 }
 
 /**
@@ -855,9 +861,9 @@ internal val US_REGISTRATION_FEE_CENTS: Map<BillingCurrency, Int> = mapOf(
  * by the same person, and a screen quoting two currencies at one reader is the
  * defect, not the fix.
  */
-fun usRegistrationFee(billingCurrency: String?, country: String?): String {
+fun usRegistrationFee(billingCurrency: String?, country: String?, locale: String? = null): String {
     val currency = resolveBillingCurrency(billingCurrency, country)
-    return formatMoney(US_REGISTRATION_FEE_CENTS.getValue(currency), currency)
+    return formatMoney(US_REGISTRATION_FEE_CENTS.getValue(currency), currency, locale = locale)
 }
 
 /** `companies.billing_currency`, narrowed. Null for anything we do not bill in. */
@@ -1043,13 +1049,14 @@ internal val EXTRA_NUMBER_PRICE_CURRENCY: BillingCurrency = BillingCurrency.USD
  * rather than a zero. Same resolution as [planFacts] and [usRegistrationFee]:
  * the stored currency wins, the country is only consulted when there is none.
  */
-fun extraNumberMonthly(plan: String?, billingCurrency: String?, country: String?): String? {
+fun extraNumberMonthly(plan: String?, billingCurrency: String?, country: String?, locale: String? = null): String? {
     // Looked up STRICTLY rather than defaulted to Starter. A workspace with no
     // plan is not a Starter workspace, and quoting it Starter's extra-number
     // price would be naming a figure for a purchase that cannot happen.
     val cents = EXTRA_NUMBER_MONTHLY_CENTS[plan] ?: return null
     val audience = resolveBillingCurrency(billingCurrency, country)
-    return formatMoney(cents, EXTRA_NUMBER_PRICE_CURRENCY, audience) + "/mo"
+    return formatMoney(cents, EXTRA_NUMBER_PRICE_CURRENCY, audience, locale) +
+        if (locale == "fr-CA") "/mois" else "/mo"
 }
 
 // ---------------------------------------------------------------------------
@@ -1257,8 +1264,8 @@ private fun tooExpensiveOffer(
 
     val currency = resolveBillingCurrency(billingCurrency, country)
     val prices = PLAN_PRICE_CENTS.getValue(currency)
-    val starter = formatMoney(prices.getValue("starter"), currency)
-    val pro = formatMoney(prices.getValue("pro"), currency)
+    val starter = formatMoney(prices.getValue("starter"), currency, locale = locale)
+    val pro = formatMoney(prices.getValue("pro"), currency, locale = locale)
     val numbers = STARTER_NUMBERS
 
     // True on both routes back, because both end at a Starter subscription
@@ -1628,7 +1635,7 @@ data class PauseOfferCopy(
 fun pauseOfferCopy(pause: PauseState?, locale: String? = null): PauseOfferCopy? {
     if (pause == null || !pause.eligible) return null
     val cents = pause.monthly_cents ?: return null
-    val price = formatMonthlyCents(cents)
+    val price = formatMonthlyCents(cents, locale)
     val money = mapOf("price" to price)
     val amount = mapOf("amount" to price)
 
@@ -1690,7 +1697,7 @@ fun pausedStateCopy(
     locale: String? = null,
 ): PausedStateCopy? {
     if (pause?.paused_at == null) return null
-    val price = pause.monthly_cents?.let { formatMonthlyCents(it) }
+    val price = pause.monthly_cents?.let { formatMonthlyCents(it, locale) }
 
     // #228: the named-plan and unnamed forms are SEPARATE KEYS rather than one
     // sentence with an optional insert. A plan name is a noun that has to sit in

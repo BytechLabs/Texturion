@@ -174,6 +174,7 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
       c,
       "validation_failed",
       "Idempotency-Key header (a client-generated UUID) is required.",
+      { key: "apiRefusals.idempotencyKeyRequired" },
     );
   }
   const body = await parseJsonBody(c, createSchema);
@@ -185,6 +186,7 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
       c,
       "validation_failed",
       "This number isn't a US or Canadian local number we can text-enable.",
+      { key: "apiRefusals.textEnablementUnsupportedNumber" },
     );
   }
   if (entry.country !== company.country) {
@@ -192,6 +194,13 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
       c,
       "validation_failed",
       `This number is a ${entry.country} number; your company is registered in ${company.country}.`,
+      {
+        key: "apiRefusals.workspaceNumberCountry",
+        vars: {
+          numberCountry: entry.country,
+          workspaceCountry: company.country,
+        },
+      },
     );
   }
 
@@ -297,6 +306,7 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
       // is out of scope, so the honest remedy is releasing a number or
       // upgrading.
       `You're using all ${max} of your phone number${max === 1 ? "" : "s"}, and enabling texting on another needs a free slot. Release a number or upgrade first.`,
+      { key: "apiRefusals.textEnablementNeedsFreeSlot", vars: { count: String(max) } },
     );
   }
   if (slot.outcome === "sole_prop_cap") {
@@ -304,6 +314,7 @@ textEnablementRoutes.post("/", requireCapability("numbers.manage"), async (c) =>
       c,
       "conflict",
       "Sole Proprietor registration allows 1 phone number.",
+      { key: "apiRefusals.soleProprietorNumberLimit" },
     );
   }
   if (!slot.order) throw new Error("claim_text_enablement_slot returned no order");
@@ -392,6 +403,7 @@ textEnablementRoutes.put("/:id/documents", requireCapability("numbers.manage"), 
       c,
       "conflict",
       `This text-enablement is ${order.status}; documents can no longer be uploaded.`,
+      { key: "apiRefusals.textEnablementCannotUpload" },
     );
   }
   // Paid-first (mirrors the porting documents route): the upload is a
@@ -416,6 +428,7 @@ textEnablementRoutes.put("/:id/documents", requireCapability("numbers.manage"), 
       c,
       "validation_failed",
       "Expected multipart/form-data with loa and/or bill file parts.",
+      { key: "apiRefusals.textEnablementUploadForm" },
     );
   }
 
@@ -437,6 +450,7 @@ textEnablementRoutes.put("/:id/documents", requireCapability("numbers.manage"), 
         c,
         "validation_failed",
         `${field} must be a file upload.`,
+        { key: "apiRefusals.numberDocumentFileRequired", vars: { field } },
       );
     }
     const size = file.size ?? 0;
@@ -445,6 +459,7 @@ textEnablementRoutes.put("/:id/documents", requireCapability("numbers.manage"), 
         c,
         "validation_failed",
         `${field} must be a non-empty file under 5 MB (the carrier's hosted-SMS file limit).`,
+        { key: "apiRefusals.numberDocumentSize", vars: { field, limit: "5" } },
       );
     }
     const contentType = file.type || "application/pdf";
@@ -453,6 +468,7 @@ textEnablementRoutes.put("/:id/documents", requireCapability("numbers.manage"), 
         c,
         "validation_failed",
         `${field} must be a PDF (the carrier accepts only PDF for hosted-SMS documents).`,
+        { key: "apiRefusals.textEnablementDocumentType", vars: { field } },
       );
     }
     const bytes = await file.arrayBuffer();
@@ -476,6 +492,7 @@ textEnablementRoutes.put("/:id/documents", requireCapability("numbers.manage"), 
       c,
       "validation_failed",
       "Provide a loa and/or bill file part.",
+      { key: "apiRefusals.textEnablementUploadDocumentRequired" },
     );
   }
 
@@ -535,6 +552,7 @@ textEnablementRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), 
       c,
       "conflict",
       `Only a failed or action-required text-enablement can be resubmitted (this one is ${order.status}).`,
+      { key: "apiRefusals.textEnablementCannotResubmit" },
     );
   }
   const company = await fetchCompany(db, companyId);
@@ -556,6 +574,7 @@ textEnablementRoutes.post("/:id/resubmit", requireCapability("numbers.manage"), 
       c,
       "conflict",
       "This order has been resubmitted too many times — cancel it and start again, or contact support.",
+      { key: "apiRefusals.textEnablementResubmitLimit" },
     );
   }
 
@@ -691,6 +710,7 @@ function verificationGate(
       c,
       "conflict",
       "The hosted-messaging order hasn't been created yet; verification isn't available until it exists.",
+      { key: "apiRefusals.textEnablementVerificationUnavailable" },
     );
   }
   if (
@@ -702,6 +722,7 @@ function verificationGate(
       c,
       "conflict",
       `This text-enablement is ${order.status}; ownership verification no longer applies.`,
+      { key: "apiRefusals.textEnablementCannotVerify" },
     );
   }
   return null;
@@ -750,6 +771,7 @@ textEnablementRoutes.post(
         c,
         "conflict",
         "Too many verification attempts for this order — cancel it and start again, or contact support.",
+        { key: "apiRefusals.textEnablementVerificationLimit" },
       );
     }
 
@@ -765,6 +787,7 @@ textEnablementRoutes.post(
         c,
         "validation_failed",
         `The verification code couldn't be sent by ${body.verification_method}: ${error}`,
+        { key: "apiRefusals.textEnablementCodeSendFailed" },
       );
     }
     return c.json({
@@ -829,6 +852,7 @@ textEnablementRoutes.post("/:id/cancel", requireCapability("workspace.own"), asy
       c,
       "conflict",
       `This text-enablement is ${order.status} and can no longer be cancelled.`,
+      { key: "apiRefusals.textEnablementCannotCancel" },
     );
   }
   const updated = await cancelTextEnablement(env, order);

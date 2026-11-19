@@ -192,7 +192,7 @@ private fun PacingCard(usage: Usage) {
                 "settingsMore.pacingBody",
                 "subject" to t(pacingSubjectKey(usage)),
             ) + if (projected > 0) {
-                t("settingsMore.pacingProjection", "amount" to formatCents(projected))
+                t("settingsMore.pacingProjection", "amount" to formatCents(projected, LocalAppLocale.current))
             } else {
                 ""
             },
@@ -662,7 +662,7 @@ private fun MessagesDetail(usage: Usage) {
             t(
                 "settingsMore.messagesOverage",
                 "over" to groupDigits(usage.overage_segments),
-                "amount" to formatCents(usage.projected_overage_cents),
+                "amount" to formatCents(usage.projected_overage_cents, LocalAppLocale.current),
             ),
         )
     } else {
@@ -704,7 +704,7 @@ private fun VoiceDetail(usage: Usage) {
             t(
                 "settingsMore.minutesOverage",
                 "extra" to groupDigits(voice.overage_minutes),
-                "amount" to formatCents(voice.projected_overage_cents),
+                "amount" to formatCents(voice.projected_overage_cents, LocalAppLocale.current),
             ),
         )
     }

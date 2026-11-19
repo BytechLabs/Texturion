@@ -24,11 +24,15 @@ struct SettingsAuthClient: Sendable {
     /// existing `SettingsAuthClient()` compiles unchanged.
     var transport: HTTPClient = URLSessionHTTPClient()
 
-    func updateEmail(accessToken: String, newEmail: String) async throws {
+    func updateEmail(accessToken: String, newEmail: String, locale: String? = nil) async throws {
+        var body: [String: JSONValue] = ["email": .string(newEmail)]
+        if let locale {
+            body["data"] = .object(["locale": .string(MessageLocale.resolve(contact: locale, company: nil))])
+        }
         _ = try await request(
             method: "PUT",
             path: "user",
-            body: ["email": .string(newEmail)],
+            body: body,
             bearer: accessToken
         )
     }

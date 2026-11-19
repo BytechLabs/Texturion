@@ -923,7 +923,7 @@ private struct AddNumberCard: View {
            // call site has to say whose money it is even though it reads only
            // `facts.numbers`. That is the point of the requirement: the day
            // this card starts printing a price, it prints the right one.
-           let facts = planFacts(company.plan, company.billedIn) {
+           let facts = planFacts(company.plan, company.billedIn, locale: appLocale) {
             let liveCount = numbers.filter { $0.status != NumberStatus.released }.count
             let starterAtCap = company.plan == "starter" && liveCount >= 2
             let nextIsExtra = liveCount >= facts.numbers
@@ -960,7 +960,8 @@ private struct AddNumberCard: View {
                 // US$5 for.
                 let extraPrice = extraNumberMonthly(
                     company.plan,
-                    audience: company.billedIn
+                    audience: company.billedIn,
+                    locale: appLocale
                 )
                 SettingsCard(
                     title: AppStrings.translate(appLocale, "settingsMore.addNumber"),

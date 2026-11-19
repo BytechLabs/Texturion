@@ -342,7 +342,7 @@ class RegistrationFeeTest {
         assertTrue(
             "the enable-US card must resolve the fee through usRegistrationFee() " +
                 "with the company's stored currency AND its country",
-            src.contains("usRegistrationFee(company.billing_currency, company.country)"),
+            src.contains("usRegistrationFee(company.billing_currency, company.country, locale)"),
         )
     }
 

@@ -1,14 +1,12 @@
 import { CANCELLATION_GRACE_DAYS, numberReleaseAt } from "@loonext/shared";
 import type { Locale } from "@loonext/shared";
 
-import { sendLedgered } from "./send-ledgered";
+import { sendBillingEmailGroups, sendLedgered } from "./send-ledgered";
 import { captureException } from "../observability/capture";
 import { getStripe } from "./stripe";
-import { billingRecipients } from "./recipients";
+import { billingRecipientsByLocale } from "./recipients";
 import { NUMBER_NOTICE_COPY } from "../notifications/number-copy";
 import { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { pushConsequentialNotice } from "./consequential-push";
@@ -57,6 +55,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 interface CanceledCompany {
   id: string;
   name: string;
+  locale?: string | null;
   canceled_at: string;
   stripe_subscription_id?: string | null;
   current_period_end?: string | null;
@@ -126,13 +125,27 @@ function warningCopy(
   day: GraceThresholdDay,
   env: Env,
   daysLeft: number,
+  locale: Locale,
 ): { subject: string; text: string } {
   const resubscribeUrl = `${env.APP_ORIGIN}/settings/billing`;
-  // ENGLISH, PINNED. `billingRecipients` returns addresses, not readers, and the
-  // body below is English prose with no translation — a French subject on an
-  // English letter would be worse than an English one. The reader's language
-  // only enters on the push, which knows who it is waking.
-  const subject = graceTitle("en", day, daysLeft);
+  const subject = graceTitle(locale, day, daysLeft);
+  if (locale === "fr-CA") {
+    const paragraphs = [
+      "Bonjour,",
+      `L’abonnement Loonext de ${company.name} est annulé. Votre numéro d’entreprise est suspendu, mais il vous est réservé pendant ${GRACE_PERIOD_DAYS} jours après la fin du forfait. Il vous reste environ ${daysLeft} ${daysLeft === 1 ? "jour" : "jours"} pour vous réabonner et conserver le numéro ainsi que tout l’historique de vos messages.`,
+    ];
+    if (day >= 15) {
+      paragraphs.push(`Après ${GRACE_PERIOD_DAYS} jours, le numéro retournera au fournisseur et pourra être attribué à une autre entreprise. Vos clients qui l’ont encore dans leurs contacts joindront alors cette entreprise s’ils lui envoient un texto.`);
+    }
+    if (day === 27) {
+      paragraphs.push(
+        `Pour garder le numéro, transférez-le à un autre fournisseur ou à une ligne personnelle avant le ${releaseDateLabel(company.canceled_at, locale)}. Votre nouveau fournisseur lance la démarche, qui prend quelques jours ouvrables. Mieux vaut commencer dès maintenant.`,
+        "Pensez aussi à donner votre nouveau numéro à vos clients avant l’échéance.",
+      );
+    }
+    paragraphs.push(`Vous réabonner : ${resubscribeUrl}`, "Loonext");
+    return { subject, text: paragraphs.join("\n\n") };
+  }
   const opening =
     `Hi,\n\nThe Loonext subscription for ${company.name} is canceled. ` +
     `Your business phone number is suspended but reserved for ${GRACE_PERIOD_DAYS} days ` +
@@ -174,7 +187,7 @@ function warningCopy(
    */
   const wayOut =
     `If you want to keep this number, port it out to another carrier or a personal ` +
-    `line before ${releaseDateLabel(company.canceled_at)}. Your new carrier starts ` +
+    `line before ${releaseDateLabel(company.canceled_at, locale)}. Your new carrier starts ` +
     `that, not us, and it takes them a few business days — so begin now rather than ` +
     `on the last day.\n\n` +
     `It is also worth telling your own customers your new number before the ` +
@@ -194,14 +207,11 @@ function warningCopy(
  * The release date, as a person reads it. #413 ask 2 needs a concrete deadline —
  * "before the deadline" is not something anybody can act on.
  *
- * UTC, and deliberately not localised: the grace clock is computed in UTC, so
- * formatting in a guessed timezone could print a date a day either side of the one
- * the job will actually act on. A date that is off by one in a final notice is
- * worse than a date with no timezone.
+ * The deadline stays in UTC even when its display language changes.
  */
-function releaseDateLabel(canceledAt: string): string {
+function releaseDateLabel(canceledAt: string, locale: Locale): string {
   const release = new Date(new Date(canceledAt).getTime() + GRACE_PERIOD_DAYS * DAY_MS);
-  return release.toLocaleDateString("en-US", {
+  return release.toLocaleDateString(locale === "en" ? "en-US" : locale, {
     timeZone: "UTC",
     year: "numeric",
     month: "long",
@@ -209,13 +219,23 @@ function releaseDateLabel(canceledAt: string): string {
   });
 }
 
-function releasedCopy(company: CanceledCompany): {
+function releasedCopy(company: CanceledCompany, locale: Locale): {
   subject: string;
   text: string;
 } {
+  if (locale === "fr-CA") {
+    return {
+      subject: NUMBER_NOTICE_COPY[locale].numberReleasedTitle,
+      text: [
+        "Bonjour,",
+        `Le délai de grâce de ${GRACE_PERIOD_DAYS} jours de ${company.name} a pris fin. Votre numéro d’entreprise a été libéré. Vous pouvez toujours retrouver vos conversations en vous reconnectant.`,
+        "Le numéro a été rendu au fournisseur et pourrait être attribué à une autre entreprise. Les personnes qui lui écrivent pourraient joindre cette entreprise. Loonext ne peut plus récupérer le numéro.",
+        "Loonext",
+      ].join("\n\n"),
+    };
+  }
   return {
-    // English, pinned, for the same reason as the warnings' subject above.
-    subject: NUMBER_NOTICE_COPY.en.numberReleasedTitle,
+    subject: NUMBER_NOTICE_COPY[locale].numberReleasedTitle,
     text:
       `Hi,\n\nThe ${GRACE_PERIOD_DAYS}-day grace period for ${company.name} has ended, ` +
       `and your business phone number has been released. Your conversation history ` +
@@ -283,18 +303,18 @@ async function sendGraceEmail(
   env: Env,
   db: Db,
   company: CanceledCompany,
-  { subject, text }: { subject: string; text: string },
+  threshold: GraceNoticeDay,
+  copy: (locale: Locale) => { subject: string; text: string },
 ): Promise<boolean> {
-  const to = await billingRecipients(env, company.id, db);
-  if (to.length === 0) {
+  const groups = await billingRecipientsByLocale(db, company.id, company.locale);
+  if (groups.size === 0) {
     void captureException(env, "No billing contacts for grace notice", {
       source: "cron",
       company_id: company.id,
     });
     return false;
   }
-  const email = await sendEmail(env, { to, subject, text, html: renderEmailHtml(text), critical: true });
-  return email.id !== null;
+  return sendBillingEmailGroups(env, db, company.id, `grace:${company.canceled_at}:${threshold}`, groups, copy, { critical: true });
 }
 
 export async function recordAndSendGraceNotice(
@@ -311,7 +331,8 @@ export async function recordAndSendGraceNotice(
     release: () => releaseGraceNotice(db, company, thresholdDay),
     send: async () => {
       await pushGraceWarning(env, db, company, thresholdDay, daysLeft);
-      return sendGraceEmail(env, db, company, warningCopy(company, thresholdDay, env, daysLeft));
+      return sendGraceEmail(env, db, company, thresholdDay, (locale) =>
+        warningCopy(company, thresholdDay, env, daysLeft, locale));
     },
   });
 }
@@ -373,7 +394,7 @@ async function companiesWithUnreleasedResources(
 
   const { data: numbers, error: numbersError } = await db
     .from("phone_numbers")
-    .select("company_id,companies!inner(id,name,canceled_at,stripe_subscription_id,current_period_end)")
+    .select("company_id,companies!inner(id,name,locale,canceled_at,stripe_subscription_id,current_period_end)")
     .neq("status", "released")
     .eq("companies.subscription_status", "canceled")
     .is("companies.deleted_at", null)
@@ -385,7 +406,7 @@ async function companiesWithUnreleasedResources(
 
   const { data: campaigns, error: campaignsError } = await db
     .from("messaging_registrations")
-    .select("company_id,companies!inner(id,name,canceled_at,stripe_subscription_id,current_period_end)")
+    .select("company_id,companies!inner(id,name,locale,canceled_at,stripe_subscription_id,current_period_end)")
     .eq("kind", "campaign")
     .not("telnyx_id", "is", null)
     .is("deactivated_at", null)
@@ -465,7 +486,7 @@ async function releaseExpiredCompany(
         path: "/settings/billing",
         collapseKey: `grace:${company.id}:released`,
       });
-      return sendGraceEmail(env, db, company, releasedCopy(company));
+      return sendGraceEmail(env, db, company, GRACE_RELEASED_NOTICE_DAY, (locale) => releasedCopy(company, locale));
     },
   });
 }
@@ -498,7 +519,7 @@ export async function runGraceJob(
   ).toISOString();
   const { data, error } = await db
     .from("companies")
-    .select("id,name,canceled_at,stripe_subscription_id,current_period_end")
+    .select("id,name,locale,canceled_at,stripe_subscription_id,current_period_end")
     .eq("subscription_status", "canceled")
     .not("canceled_at", "is", null)
     .gte("canceled_at", graceCutoff)

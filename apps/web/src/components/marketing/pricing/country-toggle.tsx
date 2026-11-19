@@ -14,6 +14,7 @@
 
 import type { MarketingLocale } from "@/i18n/marketing/footer";
 import { fill } from "@/i18n/marketing/fill";
+import { navCopy } from "@/i18n/marketing/nav";
 import { pricingCopy } from '@/i18n/marketing/pricing';
 import type { PricingCopy } from '@/i18n/marketing/pricing';
 import type { KeyboardEvent } from 'react';
@@ -50,8 +51,9 @@ export function CountryToggle({
   locale?: MarketingLocale;
 }) {
   const copy = pricingCopy(locale);
+  const nav = navCopy(locale);
   const { country, setCountry } = useCountry();
-  const fee = formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd");
+  const fee = formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", "usd", locale);
 
   function onKeyDown(e: KeyboardEvent<HTMLButtonElement>) {
     if (["ArrowLeft", "ArrowRight", "ArrowUp", "ArrowDown"].includes(e.key)) {
@@ -88,7 +90,7 @@ export function CountryToggle({
                   : "text-[color:var(--fr-ink-70)] hover:text-[color:var(--fr-ink)]",
               )}
             >
-              {option.label}
+              {option.id === "us" ? nav.countryUS : nav.countryCanada}
             </button>
           );
         })}

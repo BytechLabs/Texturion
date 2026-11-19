@@ -22,7 +22,7 @@ export function CrewSizeSliderSource({ rival, perUserMonthly, locale, audience }
   const source = SOURCES[rival];
   const copy = compareUiCopy(locale);
   const pricing = copy.sliderSourceRate
-    .replace("{rate}", formatMoney(perUserMonthly * 100, "usd", audience))
+    .replace("{rate}", formatMoney(perUserMonthly * 100, "usd", audience, locale))
     .replace("{rival}", source.name)
     .replace("{asOf}", compareAsOf(locale));
 

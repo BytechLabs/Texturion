@@ -123,10 +123,12 @@ function usageEndpoints(state: UsageState): StubEndpoint[] {
     endpoint("GET", /\/rest\/v1\/company_members/, () => [
       { user_id: "11111111-1111-4111-8111-111111111111" },
     ]),
+    endpoint("GET", /\/rest\/v1\/profiles/, () => []),
     endpoint("GET", /\/auth\/v1\/admin\/users\//, () => ({
       id: "11111111-1111-4111-8111-111111111111",
       email: "owner@example.com",
     })),
+    endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => [call.json()]),
     endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
   ];
 }
@@ -172,6 +174,55 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
     expect(emails[0].subject).toContain("80%");
     expect(emails[0].to).toEqual(["owner@example.com"]);
     expect(state.ledger).toEqual(new Set(["segments:80"]));
+  });
+
+  it("retries only the failed language when a bilingual usage alert partly delivers", async () => {
+    const owner = "11111111-1111-4111-8111-111111111111";
+    const admin = "22222222-2222-4222-8222-222222222222";
+    const state: UsageState = { used: 400, ledger: new Set() };
+    const delivered = new Set<string>();
+    let failFrench = true;
+    const harness = makeHarness([
+      endpoint("GET", /\/rest\/v1\/company_members/, () => [{ user_id: owner }, { user_id: admin }]),
+      endpoint("GET", /\/rest\/v1\/profiles/, () => [{ user_id: admin, locale: "fr-CA" }]),
+      endpoint("GET", /\/auth\/v1\/admin\/users\//, ({ url }) => {
+        const id = url.pathname.split("/").at(-1);
+        return { id, email: id === owner ? "owner@example.com" : "admin@example.com" };
+      }),
+      endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => {
+        const row = call.json() as { email_key: string };
+        if (delivered.has(row.email_key)) return [];
+        delivered.add(row.email_key);
+        return [row];
+      }),
+      endpoint("DELETE", /\/rest\/v1\/email_ledger/, ({ url }) => {
+        delivered.delete(url.searchParams.get("email_key")?.slice(3) ?? "");
+        return [];
+      }),
+      endpoint("DELETE", /\/rest\/v1\/usage_alerts/, () => {
+        state.ledger.delete("segments:80");
+        return [];
+      }),
+      endpoint("POST", /api\.resend\.com\/emails/, (call) => {
+        const email = call.json() as { to: string[] };
+        if (failFrench && email.to.includes("admin@example.com")) return new Response(null, { status: 500 });
+        return { id: "sent" };
+      }),
+      ...usageEndpoints(state),
+    ]);
+    stubFetch(harness.route);
+    await expect(runUsageAlertsJob(env, new Date(NOW))).rejects.toThrow("usage-alert job failed");
+    failFrench = false;
+    await runUsageAlertsJob(env, new Date(NOW));
+
+    const emails = sentEmails(harness);
+    expect(emails.filter(({ to }) => to.includes("owner@example.com"))).toHaveLength(1);
+    expect(emails.filter(({ to }) => to.includes("admin@example.com"))).toHaveLength(2);
+    expect(emails.at(-1)).toMatchObject({
+      subject: expect.stringContaining("80 %"),
+      text: expect.stringContaining("Consulter votre utilisation"),
+      html: expect.stringContaining('<html lang="fr-CA">'),
+    });
   });
 
   it("re-running with the 80% ledger row present sends nothing (PK idempotency)", async () => {
@@ -518,10 +569,12 @@ describe("runUsageAlertsJob (SPEC §9 usage-alert check)", () => {
       endpoint("GET", /\/rest\/v1\/company_members/, () => [
         { user_id: "11111111-1111-4111-8111-111111111111" },
       ]),
+      endpoint("GET", /\/rest\/v1\/profiles/, () => []),
       endpoint("GET", /\/auth\/v1\/admin\/users\//, () => ({
         id: "11111111-1111-4111-8111-111111111111",
         email: "owner@example.com",
       })),
+      endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => [call.json()]),
       endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
     ]);
     stubFetch(harness.route);

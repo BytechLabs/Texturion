@@ -81,7 +81,7 @@ export function ReferralCard({
     referrals.data;
   // Bare "$" for their own money: `formatMoney` keeps the "US$"/"CA$" prefix
   // for a price quoted to somebody who thinks in the other currency.
-  const monthly = formatMoney(PLAN_PRICE_CENTS[currency][plan], currency);
+  const monthly = formatMoney(PLAN_PRICE_CENTS[currency][plan], currency, currency, t.locale);
 
   return (
     <SettingsCard id="referral" title={t("settingsMore.referralTitle")}>

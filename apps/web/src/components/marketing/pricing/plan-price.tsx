@@ -17,19 +17,23 @@ export function usePriceAudience(): BillingCurrency {
 }
 
 export function PlanPrice({ plan }: { plan: PlanId }) {
-  return <>{formatMoney(PLAN_PRICE_CENTS.usd[plan], "usd", usePriceAudience())}</>;
+  const { locale } = useCountry();
+  return <>{formatMoney(PLAN_PRICE_CENTS.usd[plan], "usd", usePriceAudience(), locale)}</>;
 }
 
 export function ExtraNumberPrice({ plan }: { plan: PlanId }) {
   const audience = usePriceAudience();
-  return <>{formatMoney(EXTRA_NUMBER_MONTHLY_CENTS[plan], EXTRA_NUMBER_CURRENCY, audience)}</>;
+  const { locale } = useCountry();
+  return <>{formatMoney(EXTRA_NUMBER_MONTHLY_CENTS[plan], EXTRA_NUMBER_CURRENCY, audience, locale)}</>;
 }
 
 export function RegistrationFee() {
-  return <>{formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", usePriceAudience())}</>;
+  const { locale } = useCountry();
+  return <>{formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", usePriceAudience(), locale)}</>;
 }
 
 export function FirstMonthTotal({ plan }: { plan: PlanId }) {
   const total = PLAN_PRICE_CENTS.usd[plan] + US_REGISTRATION_FEE_CENTS.usd;
-  return <>{formatMoney(total, "usd", usePriceAudience())}</>;
+  const { locale } = useCountry();
+  return <>{formatMoney(total, "usd", usePriceAudience(), locale)}</>;
 }

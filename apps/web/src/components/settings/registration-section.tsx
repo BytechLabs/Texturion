@@ -221,7 +221,7 @@ function EnableUsCard({ company }: { company: CompanyView }) {
   const timing = usRegistrationTiming(pauseReadOf(askPause, pauseQuery));
 
   const currency = billingCurrencyOf(company.billing_currency);
-  const fee = usRegistrationFee(currency);
+  const fee = usRegistrationFee(currency, t.locale);
   const tail = usRegistrationTail(timing, t);
 
   return (

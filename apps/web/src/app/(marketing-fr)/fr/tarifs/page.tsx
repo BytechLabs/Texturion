@@ -16,9 +16,9 @@ const PATH = "/fr/tarifs";
  * reader's own country.
  */
 const FIGURES = {
-  starter: formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd"),
-  pro: formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd"),
-  fee: formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd"),
+  starter: formatMoney(PLAN_PRICE_CENTS.usd.starter, "usd", "cad", "fr-CA"),
+  pro: formatMoney(PLAN_PRICE_CENTS.usd.pro, "usd", "cad", "fr-CA"),
+  fee: formatMoney(US_REGISTRATION_FEE_CENTS.usd, "usd", "cad", "fr-CA"),
 };
 
 const OG_TITLE = fill(pricingFr.ogTitle, FIGURES);

@@ -60,6 +60,7 @@ export function WorkspaceSummary({
     US_REGISTRATION_FEE_CENTS.usd,
     "usd",
     currencyForCountry(country),
+    t.locale,
   );
 
   const areaHint = areaCode

@@ -263,6 +263,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
       c,
       "validation_failed",
       "Idempotency-Key header (a client-generated UUID) is required.",
+      { key: "apiRefusals.idempotencyKeyRequired" },
     );
   }
   const body = await parseJsonBody(c, provisionBodySchema);
@@ -420,7 +421,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
   const included = PLAN_LIMITS[company.plan].numbers;
   const currentCount = await countNonReleasedNumbers(db, companyId);
   if (company.pending_plan && currentCount >= PLAN_LIMITS[company.pending_plan].numbers) {
-    return errorResponse(c, "conflict", "Your scheduled plan has no room for another phone number.");
+    return errorResponse(c, "conflict", "Your scheduled plan has no room for another phone number.", { key: "apiRefusals.scheduledPlanNumberLimit" });
   }
   if (currentCount >= included) {
     const purchasable = extraNumberPurchasable({
@@ -431,7 +432,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
       billingCurrency: billingCurrencyOf(company.billing_currency),
     });
     if (!purchasable.ok) {
-      return errorResponse(c, "conflict", purchasable.reason);
+      return errorResponse(c, "conflict", purchasable.reason, { key: "apiRefusals.extraNumberPlanLimit" });
     }
     // §4.2 sole-prop cap — mirror the RPC's predicate so the refusal lands
     // before any money moves.
@@ -450,6 +451,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
         c,
         "conflict",
         "Sole Proprietor registration allows 1 phone number.",
+        { key: "apiRefusals.soleProprietorNumberLimit" },
       );
     }
     // #74 churn cap — same pre-check, same copy as the RPC outcome.
@@ -467,6 +469,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
         c,
         "conflict",
         "You've set up new numbers many times on this account. Contact support to add another.",
+        { key: "apiRefusals.numberSetupLimit" },
       );
     }
     const price = extraNumberPrice(env, company.plan);
@@ -477,6 +480,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
         c,
         "conflict",
         "Extra numbers aren't available yet. Contact support.",
+        { key: "apiRefusals.extraNumberUnavailable" },
       );
     }
     const stripe = getStripe(env);
@@ -490,6 +494,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
         c,
         "conflict",
         "A plan change is scheduled on your account. Add the number after it completes at the period end.",
+        { key: "apiRefusals.numberWaitForPlanChange" },
       );
     }
     const quantity = desiredExtraQuantity(currentCount + 1, company.plan);
@@ -518,6 +523,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
           c,
           "conflict",
           "Another number purchase just went through on this account. Try again in a moment.",
+          { key: "apiRefusals.numberPurchaseInProgress" },
         );
       }
       throw error;
@@ -538,6 +544,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
         c,
         "conflict",
         "A billing update just ran on this account and the purchase didn't complete. Try again.",
+        { key: "apiRefusals.numberBillingChangedRetry" },
       );
     }
     // Mirror the bought capacity into companies.paid_extra_numbers — the slot
@@ -556,6 +563,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
         c,
         "conflict",
         "A billing update just ran on this account. Try again in a moment.",
+        { key: "apiRefusals.numberBillingChangedRetry" },
       );
     }
   }
@@ -576,7 +584,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
   );
   if (slotError) {
     if (slotError.code === PENDING_PLAN_NUMBER_LIMIT) {
-      return errorResponse(c, "conflict", "Your scheduled plan has no room for another phone number.");
+      return errorResponse(c, "conflict", "Your scheduled plan has no room for another phone number.", { key: "apiRefusals.scheduledPlanNumberLimit" });
     }
     throw new Error(`provision_number_slot failed: ${slotError.message}`);
   }
@@ -602,6 +610,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
       c,
       "conflict",
       "Another number was just added on this account. Check Settings › Numbers, then try again if you still need one more.",
+      { key: "apiRefusals.numberCheckNewPurchase" },
     );
   }
   if (slot.outcome === "sole_prop_cap") {
@@ -610,6 +619,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
       c,
       "conflict",
       "Sole Proprietor registration allows 1 phone number.",
+      { key: "apiRefusals.soleProprietorNumberLimit" },
     );
   }
   if (slot.outcome === "provision_cap") {
@@ -620,6 +630,7 @@ numbersRoutes.post("/provision", requireCapability("numbers.manage"), async (c) 
       c,
       "conflict",
       "You've set up new numbers many times on this account. Contact support to add another.",
+      { key: "apiRefusals.numberSetupLimit" },
     );
   }
   if (!slot.number) throw new Error("provision_number_slot returned no row");
@@ -667,7 +678,7 @@ numbersRoutes.delete("/:id", requireCapability("workspace.own"), async (c) => {
   const row = (data?.[0] ?? null) as unknown as NumberRowFull | null;
   if (!row) return errorResponse(c, "not_found", "No such number.");
   if (row.status === "released") {
-    return errorResponse(c, "conflict", "This number is already released.");
+    return errorResponse(c, "conflict", "This number is already released.", { key: "apiRefusals.numberAlreadyReleased" });
   }
 
   // #537 audit: permanent, and whoever holds this number next receives the texts
@@ -989,6 +1000,7 @@ numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async 
       throw new ApiError(
         "validation_failed",
         "timezone must be a valid IANA zone, like America/Toronto.",
+        { key: "apiRefusals.numberInvalidTimezone" },
       );
     }
     patch.timezone = zone;
@@ -1001,6 +1013,7 @@ numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async 
       throw new ApiError(
         "validation_failed",
         "business_hours must map weekdays (mon..sun) to { open, close } HH:MM windows.",
+        { key: "apiRefusals.numberInvalidBusinessHours" },
       );
     }
     patch.business_hours = body.business_hours ?? null;
@@ -1052,6 +1065,7 @@ numbersRoutes.patch("/:id/identity", requireCapability("numbers.manage"), async 
         "validation_failed",
         "Each closed date needs a from and to date (YYYY-MM-DD, to on or after from) " +
           "and either no hours or an { open, close } HH:MM window.",
+        { key: "apiRefusals.numberInvalidClosedDates" },
       );
     }
     patch.business_hours_exceptions = body.business_hours_exceptions ?? null;
@@ -1338,6 +1352,7 @@ numbersRoutes.put("/:id/access", requireCapability("numbers.manage"), async (c) 
         c,
         "validation_failed",
         "Every person must be an active member of this workspace.",
+        { key: "apiRefusals.numberMembersMustBeActive" },
       );
     }
   }
@@ -1438,7 +1453,7 @@ numbersRoutes.post("/:id/remediate", requireCapability("numbers.manage"), async 
   // Only a failed BUY-saga row is remediable: a ported/hosted number has no
   // inventory to search, and an active/released one is nothing to fix.
   if (row.source !== "provisioned") {
-    return errorResponse(c, "conflict", "This number can't be set up this way.");
+    return errorResponse(c, "conflict", "This number can't be set up this way.", { key: "apiRefusals.numberSetupUnavailable" });
   }
   if (
     !stateMachines
@@ -1449,7 +1464,7 @@ numbersRoutes.post("/:id/remediate", requireCapability("numbers.manage"), async 
       )
       .includes("remediate")
   ) {
-    return errorResponse(c, "conflict", "This number isn't waiting to be set up.");
+    return errorResponse(c, "conflict", "This number isn't waiting to be set up.", { key: "apiRefusals.numberNotAwaitingSetup" });
   }
 
   const { data: companyRows, error: companyError } = await db
@@ -1473,6 +1488,7 @@ numbersRoutes.post("/:id/remediate", requireCapability("numbers.manage"), async 
         c,
         "validation_failed",
         `That number isn't a ${country} local number.`,
+        { key: "apiRefusals.numberLocalCountryRequired", vars: { country } },
       );
     }
     // A live order for the auto-searched number would pre-empt the pick (and
@@ -1483,6 +1499,7 @@ numbersRoutes.post("/:id/remediate", requireCapability("numbers.manage"), async 
         c,
         "conflict",
         "We're finishing an earlier order. Try choosing again in a minute.",
+        { key: "apiRefusals.numberOrderStillRunning" },
       );
     }
     chosen = body.chosen_number_e164;
@@ -1494,6 +1511,7 @@ numbersRoutes.post("/:id/remediate", requireCapability("numbers.manage"), async 
         c,
         "validation_failed",
         `Area code ${body.requested_area_code} isn't a ${country} area code.`,
+        { key: "apiRefusals.areaCodeChooseCountry", vars: { areaCode: body.requested_area_code, country } },
       );
     }
     areaCode = body.requested_area_code;
@@ -1518,7 +1536,7 @@ numbersRoutes.post("/:id/remediate", requireCapability("numbers.manage"), async 
   if (armError) throw new Error(`remediate update failed: ${armError.message}`);
   const armed = (armedRows?.[0] ?? null) as unknown as PhoneNumberRow | null;
   if (!armed) {
-    return errorResponse(c, "conflict", "A retry is already in progress.");
+    return errorResponse(c, "conflict", "A retry is already in progress.", { key: "apiRefusals.numberRetryInProgress" });
   }
 
   const result = await resumeProvisioning(env, armed);

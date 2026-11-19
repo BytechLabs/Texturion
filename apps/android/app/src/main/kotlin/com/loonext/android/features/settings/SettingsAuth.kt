@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.jsonPrimitive
 import kotlinx.serialization.json.put
+import kotlinx.serialization.json.putJsonObject
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -45,7 +46,12 @@ class SettingsAuthClient(
         request(
             method = "PUT",
             path = "user",
-            body = buildJsonObject { put("email", newEmail) },
+            body = buildJsonObject {
+                put("email", newEmail)
+                if (locale != null) {
+                    putJsonObject("data") { put("locale", if (locale == "fr-CA") "fr-CA" else "en") }
+                }
+            },
             bearer = accessToken,
             locale = locale,
         )

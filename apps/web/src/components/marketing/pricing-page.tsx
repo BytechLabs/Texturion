@@ -326,6 +326,7 @@ export function PricingPageBody({
                 asOf: COMPARE_AS_OF,
               })}
               columns={elsewhereColumns(locale)}
+              locale={locale}
               rows={elsewhereRows(locale)}
             />
           </Reveal>

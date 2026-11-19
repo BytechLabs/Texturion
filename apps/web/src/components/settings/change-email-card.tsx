@@ -73,6 +73,7 @@ export function ChangeEmailCard({ email }: { email: string | null }) {
     }
     const { error } = await getSupabaseBrowser().auth.updateUser({
       email: values.email.trim(),
+      data: { locale: t.locale },
     });
     if (error) {
       form.setError("email", { message: authErrorMessage(error) });

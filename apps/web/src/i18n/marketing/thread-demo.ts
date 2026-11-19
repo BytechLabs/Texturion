@@ -30,6 +30,13 @@ import type { MarketingLocale } from "./footer";
  */
 export const threadDemoEn = {
   statusNew: "New",
+  delivered: "Delivered",
+  sending: "Sending…",
+  sent: "Sent",
+  internalNote: "Internal note",
+  playVoicemail: "Play voicemail",
+  composerPlaceholder: "Text message",
+  composerSend: "Send",
   statusOpen: "Open",
   statusWaiting: "Waiting",
   statusClosed: "Closed",
@@ -87,6 +94,13 @@ export const threadDemoEn = {
 
 export const threadDemoFr: Translated<typeof threadDemoEn> = {
   statusNew: "Nouveau",
+  delivered: "Livré",
+  sending: "Envoi…",
+  sent: "Envoyé",
+  internalNote: "Note interne",
+  playVoicemail: "Écouter le message vocal",
+  composerPlaceholder: "Texto",
+  composerSend: "Envoyer",
   statusOpen: "Ouvert",
   statusWaiting: "En attente",
   statusClosed: "Fermé",

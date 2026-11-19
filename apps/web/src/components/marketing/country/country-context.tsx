@@ -20,6 +20,8 @@ import { usePathname } from "next/navigation";
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 
+import type { MarketingLocale } from "@/i18n/marketing/footer";
+
 import { readStoredCountry, writeStoredCountry } from './country-storage';
 import type {Country} from './country-storage';
 
@@ -42,6 +44,7 @@ export const COUNTRY_OPTIONS: readonly CountryLabel[] = [
 
 interface CountryContextValue {
   country: Country;
+  locale: MarketingLocale;
   /** Set the country, mark the visitor as having chosen, and persist it. */
   setCountry: (country: Country) => void;
   /** True once the visitor has picked (this session, or via a stored choice). */
@@ -50,6 +53,7 @@ interface CountryContextValue {
 
 const CountryContext = createContext<CountryContextValue>({
   country: "us",
+  locale: "en",
   setCountry: () => {},
   hasChosen: false,
 });
@@ -57,9 +61,11 @@ const CountryContext = createContext<CountryContextValue>({
 export function CountryProvider({
   children,
   initialCountry = "us",
+  locale = "en",
 }: {
   children: ReactNode;
   initialCountry?: Country;
+  locale?: MarketingLocale;
 }) {
   const pathname = usePathname();
   const [chosenCountry, setChosenCountry] = useState<Country | null>(null);
@@ -82,8 +88,8 @@ export function CountryProvider({
   }, []);
 
   const value = useMemo(
-    () => ({ country, setCountry, hasChosen }),
-    [country, setCountry, hasChosen],
+    () => ({ country, locale, setCountry, hasChosen }),
+    [country, locale, setCountry, hasChosen],
   );
 
   return (

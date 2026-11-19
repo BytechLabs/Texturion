@@ -1,19 +1,16 @@
-import { resolveLocale } from "@loonext/shared";
 import type { Locale } from "@loonext/shared";
 
 import { storedBytes } from './stored-bytes';
 import type { StorageUsageRow } from './stored-bytes';
 
 import { pushConsequentialNotice } from "./consequential-push";
-import { sendLedgered, usageAlertLedger } from "./send-ledgered";
-import { billingRecipients } from "./recipients";
+import { sendBillingEmailGroups, sendLedgered, usageAlertLedger } from "./send-ledgered";
+import { billingRecipientsByLocale } from "./recipients";
 import { UNIT_COST_CENTS } from "./costs";
 import { EGRESS_ALLOWANCE_BYTES } from "../attachments/egress";
 import { dialCeilings, INBOUND_ABUSE_TIERS_SEGMENTS, PLAN_INCLUDED_SEGMENTS, PLAN_VOICE_MINUTES, STORAGE_ABUSE_TIERS_GB, voiceSpendingCapSeconds } from './plans';
 import type { PlanId } from './plans';
 import { getDb } from "../db";
-import { renderEmailHtml } from "../email/html";
-import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { captureEvent, captureException } from "../observability/capture";
 
@@ -110,8 +107,9 @@ async function trailingInboundBaseline(
 }
 
 /** "5 GB" / "2.3 GB" for the storage-alert copy. */
-function formatGb(bytes: number): string {
+function formatGb(bytes: number, locale: Locale): string {
   const gb = bytes / (1024 * 1024 * 1024);
+  if (locale === "fr-CA") return `${gb.toLocaleString(locale, { maximumFractionDigits: 1 })} Go`;
   return `${Number.isInteger(gb) ? gb : gb.toFixed(1)} GB`;
 }
 
@@ -121,8 +119,21 @@ function segmentAlertCopy(
   included: number,
   used: number,
   env: Env,
+  locale: Locale,
 ): { subject: string; text: string } {
   const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
+  if (locale === "fr-CA") {
+    const usage = `${company.name} a utilisé ${used} des ${included} segments de texto sortants inclus dans votre forfait pour cette période de facturation.`;
+    return threshold === 100
+      ? {
+        subject: `${company.name} a utilisé tous ses textos inclus`,
+        text: `Bonjour,\n\n${usage} Vous pouvez continuer à envoyer des textos. Les segments supplémentaires seront facturés sur votre prochaine facture, jusqu’à votre plafond de dépenses.\n\nConsulter votre utilisation et gérer votre plafond : ${usageUrl}\n\nLoonext`,
+      }
+      : {
+        subject: `${company.name} a utilisé 80 % de ses textos inclus`,
+        text: `Bonjour,\n\n${usage} Lorsque le quota est atteint, les segments supplémentaires sont facturés sur votre prochaine facture.\n\nConsulter votre utilisation : ${usageUrl}\n\nLoonext`,
+      };
+  }
   if (threshold === 100) {
     return {
       subject: `${company.name} has used all ${included} included messages this period`,
@@ -156,32 +167,37 @@ function storageAbuseCopy(
   company: ActiveCompanyRow,
   usedBytes: number,
   env: Env,
-): { customer: { subject: string; text: string } } {
-  const used = formatGb(usedBytes);
+  locale: Locale,
+): { subject: string; text: string } {
+  const used = formatGb(usedBytes, locale);
   const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
+  if (locale === "fr-CA") {
+    return {
+      subject: `À propos du stockage de ${company.name}`,
+      text: `Bonjour,\n\nLe stockage sur Loonext est gratuit et reste disponible. ${company.name} stocke maintenant environ ${used} de fichiers et de photos, ce qui dépasse l’utilisation habituelle d’une équipe. Si c’est normal pour votre entreprise, vous n’avez rien à faire. Vous trouverez vos fichiers dans vos conversations et pouvez les trier en tout temps.\n\nNotre politique d’utilisation raisonnable prévoit que le stockage serve aux conversations d’une seule entreprise avec sa clientèle. Si nous avons besoin de vous joindre, une personne de notre équipe vous écrira. Vos fichiers ne seront ni bloqués ni supprimés automatiquement.\n\nConsulter votre utilisation : ${usageUrl}\n\nLoonext`,
+    };
+  }
   return {
-    customer: {
-      subject: `A note about ${company.name}'s storage`,
-      text:
-        `Hi,
+    subject: `A note about ${company.name}'s storage`,
+    text:
+      `Hi,
 
 Storage on Loonext is free and nothing is paused, so this is ` +
-        `just a heads-up: ${company.name} is now storing about ${used} of ` +
-        `files and pictures, which is a lot more than a typical crew. If ` +
-        `that's simply how you work, great — carry on and ignore this. If it ` +
-        `looks surprising, your files are listed under each conversation and ` +
-        `you can tidy up any time.
+      `just a heads-up: ${company.name} is now storing about ${used} of ` +
+      `files and pictures, which is a lot more than a typical crew. If ` +
+      `that's simply how you work, great — carry on and ignore this. If it ` +
+      `looks surprising, your files are listed under each conversation and ` +
+      `you can tidy up any time.
 
 Our fair use policy asks only that ` +
-        `storage stays about one business keeping its own customer ` +
-        `conversations. If we ever need anything from you, a human will ` +
-        `email you personally — nothing automatic will ever block or delete ` +
-        `your files.
+      `storage stays about one business keeping its own customer ` +
+      `conversations. If we ever need anything from you, a human will ` +
+      `email you personally — nothing automatic will ever block or delete ` +
+      `your files.
 
 See usage: ${usageUrl}
 
 Loonext`,
-    },
   };
 }
 
@@ -199,8 +215,20 @@ function voiceAlertCopy(
   includedMinutes: number,
   usedMinutes: number,
   env: Env,
+  locale: Locale,
 ): { subject: string; text: string } {
   const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
+  if (locale === "fr-CA") {
+    return threshold === 100
+      ? {
+        subject: `${company.name} a utilisé toutes ses minutes d’appel incluses`,
+        text: `Bonjour,\n\n${company.name} a utilisé les ${includedMinutes} minutes d’appel incluses dans son forfait pour cette période, y compris les appels transférés et sortants. Vous pouvez continuer à appeler. Les minutes supplémentaires coûtent 1 ¢ chacune, jusqu’à votre plafond de dépenses. Au plafond, les appels sont mis en pause jusqu’à la prochaine période et les personnes dont vous manquez l’appel reçoivent toujours votre texto automatique.\n\nConsulter votre utilisation et gérer votre plafond : ${usageUrl}\n\nLoonext`,
+      }
+      : {
+        subject: `${company.name} a utilisé 80 % de ses minutes d’appel incluses`,
+        text: `Bonjour,\n\n${company.name} a utilisé ${usedMinutes} des ${includedMinutes} minutes d’appel incluses pour cette période, y compris les appels transférés et sortants. Ensuite, les minutes supplémentaires coûtent 1 ¢ chacune et sont facturées sur votre prochaine facture, jusqu’à votre plafond de dépenses.\n\nConsulter votre utilisation : ${usageUrl}\n\nLoonext`,
+      };
+  }
   if (threshold === 100) {
     return {
       subject: `${company.name} has used all ${includedMinutes} included calling minutes this period`,
@@ -238,10 +266,22 @@ function egressAlertCopy(
   allowanceBytes: number,
   usedBytes: number,
   env: Env,
+  locale: Locale,
 ): { subject: string; text: string } {
   const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
-  const allowance = formatGb(allowanceBytes);
-  const used = formatGb(usedBytes);
+  const allowance = formatGb(allowanceBytes, locale);
+  const used = formatGb(usedBytes, locale);
+  if (locale === "fr-CA") {
+    return threshold === 100
+      ? {
+        subject: `${company.name} a atteint sa limite de téléchargement`,
+        text: `Bonjour,\n\n${company.name} a téléchargé les ${allowance} de fichiers et de photos inclus pour cette période. Les nouveaux téléchargements sont mis en pause jusqu’à la prochaine période. Vos fichiers restent stockés en toute sécurité. Si vous atteignez cette limite pendant votre utilisation habituelle, répondez à ce courriel.\n\nConsulter votre utilisation : ${usageUrl}\n\nLoonext`,
+      }
+      : {
+        subject: `${company.name} approche de sa limite de téléchargement`,
+        text: `Bonjour,\n\n${company.name} a téléchargé ${used} des ${allowance} de fichiers et de photos inclus pour cette période. À la limite, les nouveaux téléchargements sont mis en pause jusqu’à la prochaine période et vos fichiers restent stockés en toute sécurité. Si vous atteignez cette limite pendant votre utilisation habituelle, répondez à ce courriel.\n\nConsulter votre utilisation : ${usageUrl}\n\nLoonext`,
+      };
+  }
   if (threshold === 100) {
     return {
       subject: `${company.name} has used all its included file downloads this period`,
@@ -280,10 +320,10 @@ function egressAlertCopy(
  */
 export async function recordAndSendAlert(
   env: Env,
-  company: Pick<ActiveCompanyRow, "id" | "current_period_start">,
+  company: Pick<ActiveCompanyRow, "id" | "current_period_start" | "locale">,
   metric: UsageAlertMetric,
   threshold: number,
-  copy: { subject: string; text: string },
+  copy: (locale: Locale) => { subject: string; text: string },
   measured: Record<string, number | null> = {},
   pushCopy?: (locale: Locale) => { subject: string; text: string },
 ): Promise<boolean> {
@@ -305,8 +345,8 @@ export async function recordAndSendAlert(
           path: SPENDING_CAP_PATH,
         });
       }
-      const to = await billingRecipients(env, company.id, db);
-      if (to.length === 0) {
+      const groups = await billingRecipientsByLocale(db, company.id, company.locale);
+      if (groups.size === 0) {
         void captureException(env, "No billing contacts for usage alert", {
           source: "api",
           company_id: company.id,
@@ -314,14 +354,8 @@ export async function recordAndSendAlert(
         return false;
       }
 
-      const email = await sendEmail(env, {
-        to,
-        subject: copy.subject,
-        text: copy.text,
-        html: renderEmailHtml(copy.text),
-        critical: pushCopy !== undefined,
-      });
-      if (email.id === null) return false;
+      const key = `usage:${company.current_period_start}:${metric}:${threshold}`;
+      if (!await sendBillingEmailGroups(env, db, company.id, key, groups, copy, { critical: pushCopy !== undefined })) return false;
       void captureEvent(
         env,
         metric === "cost_projection" ? "overage_projected" : "usage_threshold_crossed",
@@ -357,13 +391,15 @@ function recordSpendingCapAlert(
   threshold: SpendingCapThreshold,
   measured: Record<string, number> = {},
 ): Promise<boolean> {
-  const copy = spendingCapCopy(resolveLocale(null, company.locale), metric, threshold);
   return recordAndSendAlert(
     env,
     company,
     metric,
     threshold,
-    { subject: copy.subject, text: `${copy.text}\n\n${env.APP_ORIGIN}${SPENDING_CAP_PATH}` },
+    (locale) => {
+      const copy = spendingCapCopy(locale, metric, threshold);
+      return { subject: copy.subject, text: `${copy.text}\n\n${env.APP_ORIGIN}${SPENDING_CAP_PATH}` };
+    },
     measured,
     (locale) => spendingCapCopy(locale, metric, threshold),
   );
@@ -466,7 +502,7 @@ export async function runUsageAlertsJob(
             company,
             "segments",
             threshold,
-            segmentAlertCopy(company, threshold, included, used, env),
+            (locale) => segmentAlertCopy(company, threshold, included, used, env, locale),
           );
         }
       }
@@ -494,13 +530,12 @@ export async function runUsageAlertsJob(
       const totalStoredBytes = storedBytes(storage as StorageUsageRow);
       for (const tierGb of STORAGE_ABUSE_TIERS_GB) {
         if (totalStoredBytes >= tierGb * 1024 ** 3) {
-          const abuse = storageAbuseCopy(company, totalStoredBytes, env);
           await recordAndSendAlert(
             env,
             company,
             "storage_abuse",
             tierGb,
-            abuse.customer,
+            (locale) => storageAbuseCopy(company, totalStoredBytes, env, locale),
             { stored_gb: Math.round((totalStoredBytes / 1024 ** 3) * 10) / 10 },
           );
         }
@@ -533,12 +568,13 @@ export async function runUsageAlertsJob(
             company,
             "voice_minutes",
             threshold,
-            voiceAlertCopy(
+            (locale) => voiceAlertCopy(
               company,
               threshold,
               includedVoiceMinutes,
               Math.floor(usedVoiceSeconds / 60),
               env,
+              locale,
             ),
           );
         }
@@ -578,7 +614,10 @@ export async function runUsageAlertsJob(
           // One row per (company, period): the ledger PK treats the threshold
           // purely as a dedupe key, and there is only one line to cross.
           lines.alertAt,
-          {
+          (locale) => locale === "fr-CA" ? {
+            subject: `${company.name} : volume d’appels inhabituel`,
+            text: `${company.name} a passé ${dials} appels pendant cette période. Vous pouvez continuer à appeler comme d’habitude.\n\nSi ce nombre vous surprend, il est possible qu’un appareil compose des numéros automatiquement. Écrivez-nous et nous regarderons avec vous.`,
+          } : {
             subject: `${company.name}: unusual call volume`,
             text:
               `${company.name} has placed ${dials} calls this period.\n\n` +
@@ -633,7 +672,10 @@ export async function runUsageAlertsJob(
           company,
           "inbound_volume",
           tier,
-          {
+          (locale) => locale === "fr-CA" ? {
+            subject: `À propos des textos que reçoit ${company.name}`,
+            text: `Bonjour,\n\n${company.name} a reçu environ ${inbound.toLocaleString(locale)} textos pendant cette période de facturation. C’est beaucoup plus que ce que reçoit une équipe en moyenne. Les textos entrants restent gratuits et disponibles.\n\nSi c’est une période occupée, vous n’avez rien à faire. Si ce volume vous surprend, un numéro vous envoie peut-être le même message à répétition. Nous pouvons vous aider à vérifier.\n\nLoonext`,
+          } : {
             subject: `A note about the texts coming in to ${company.name}`,
             text:
               `Hi,\n\nNothing is blocked and nothing is charged for this — ` +
@@ -673,7 +715,7 @@ export async function runUsageAlertsJob(
             company,
             "egress",
             threshold,
-            egressAlertCopy(company, threshold, egressAllowance, usedEgress, env),
+            (locale) => egressAlertCopy(company, threshold, egressAllowance, usedEgress, env, locale),
           );
         }
       }

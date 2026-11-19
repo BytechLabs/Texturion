@@ -86,10 +86,12 @@ function endpoints(state: State): StubEndpoint[] {
     endpoint("GET", /\/rest\/v1\/company_members/, () => [
       { user_id: "11111111-1111-4111-8111-111111111111" },
     ]),
+    endpoint("GET", /\/rest\/v1\/profiles/, () => []),
     endpoint("GET", /\/auth\/v1\/admin\/users\//, () => ({
       id: "11111111-1111-4111-8111-111111111111",
       email: "owner@example.com",
     })),
+    endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => [call.json()]),
     endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
   ];
 }

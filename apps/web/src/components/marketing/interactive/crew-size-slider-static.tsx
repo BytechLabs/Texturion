@@ -22,7 +22,7 @@ import { compareUiCopy } from "@/i18n/marketing/compare-ui";
 import { homeCopy } from "@/i18n/marketing/home";
 import { formatMoney } from '@loonext/shared';
 import type { BillingCurrency } from '@loonext/shared';
-import { APP_LINKS } from "@/lib/marketing/site";
+import { APP_LINKS, appLink } from "@/lib/marketing/site";
 import { PLAN_PRICING } from "@/lib/api/types";
 import { CrewSizeSliderSource } from "./crew-size-slider-source";
 import type { RivalSeatPricing } from "./crew-size-slider";
@@ -57,8 +57,8 @@ const LOONEXT_PRICE = PLAN_PRICING.pro.monthlyDollars;
 
 
 /** Both plans in the comparison are priced in USD. */
-function usd(n: number, audience: BillingCurrency): string {
-  return formatMoney(n * 100, "usd", audience);
+function usd(n: number, audience: BillingCurrency, locale: MarketingLocale): string {
+  return formatMoney(n * 100, "usd", audience, locale);
 }
 
 export function CrewSizeSliderStatic({
@@ -111,7 +111,7 @@ export function CrewSizeSliderStatic({
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                {usd(LOONEXT_PRICE, audience)}{ui.perMonth}
+                {usd(LOONEXT_PRICE, audience, locale)}{ui.perMonth}
               </span>
               <span className="text-[color:var(--fr-ink-55)]">{copy.sliderFlat}</span>
             </span>
@@ -128,12 +128,12 @@ export function CrewSizeSliderStatic({
         <div>
           <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-0.5 text-[0.875rem]">
             <span className="font-medium text-[color:var(--fr-ink)]">
-              {copy.sliderRivalBefore} {usd(perUserMonthly, audience)}
+              {copy.sliderRivalBefore} {usd(perUserMonthly, audience, locale)}
               {copy.sliderRivalAfter}
             </span>
             <span className="whitespace-nowrap">
               <span className="fr-mono-data text-[color:var(--fr-ink)]">
-                {usd(PER_USER, audience)}{ui.perMonth}
+                {usd(PER_USER, audience, locale)}{ui.perMonth}
               </span>
               <span className="text-[color:var(--fr-ink-55)]">
                 {copy.sliderClimbing}
@@ -152,17 +152,17 @@ export function CrewSizeSliderStatic({
       <p className="mt-5 text-[0.9375rem] text-[color:var(--fr-ink)]">
         {copy.sliderAtBefore} {SEATS} {copy.sliderAtMiddle}{" "}
         <span className="fr-mono-data text-[color:var(--fr-ink)]">
-          {usd(SAVINGS, audience)} {copy.sliderLessAMonth}
+          {usd(SAVINGS, audience, locale)} {copy.sliderLessAMonth}
         </span>{" "}
-        {copy.sliderWithLoonext} {usd(LOONEXT_PRICE, audience)}{" "}
-        {copy.sliderFlatInsteadOf} {SEATS} × {usd(perUserMonthly, audience)}.
+        {copy.sliderWithLoonext} {usd(LOONEXT_PRICE, audience, locale)}{" "}
+        {copy.sliderFlatInsteadOf} {SEATS} × {usd(perUserMonthly, audience, locale)}.
       </p>
 
       <a
-        href={APP_LINKS.signupForPlan("pro")}
+        href={appLink(APP_LINKS.signupForPlan("pro"), locale)}
         className="mt-4 inline-flex items-center gap-1 text-[0.9375rem] font-semibold text-[color:var(--fr-olive)] underline-offset-2 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
       >
-        {ui.startForBefore} {usd(LOONEXT_PRICE, audience)} {ui.startForAfter}
+        {ui.startForBefore} {usd(LOONEXT_PRICE, audience, locale)} {ui.startForAfter}
       </a>
 
       <CrewSizeSliderSource

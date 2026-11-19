@@ -18,10 +18,8 @@ import { threadDemoCopy } from "@/i18n/marketing/thread-demo";
 import Link from "next/link";
 
 import { Eyebrow, PanelFrame } from "@/components/marketing/fr";
-import {
-  PRIMARY_CTA_LABEL,
-  SIGNUP_HREF,
-} from "@/components/marketing/nav-links";
+import { SIGNUP_HREF } from "@/components/marketing/nav-links";
+import { appLink } from "@/lib/marketing/site";
 
 import type { ThreadScript } from "./script";
 import { StaticThread } from "./static-thread";
@@ -117,13 +115,13 @@ export function DeepDiveCaption({
 }
 
 /** The quiet inline CTA under the frame (§S4: "Inline CTA (quiet)"). */
-export function DeepDiveInlineCta() {
+export function DeepDiveInlineCta({ locale }: { locale: MarketingLocale }) {
   return (
     <Link
-      href={SIGNUP_HREF}
+      href={appLink(SIGNUP_HREF, locale)}
       className="font-body-mkt text-sm font-medium text-[color:var(--fr-olive)] underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[color:var(--fr-olive)]"
     >
-      {PRIMARY_CTA_LABEL}
+      {threadDemoCopy(locale).frameCta}
     </Link>
   );
 }
@@ -162,7 +160,7 @@ export function ThreadDeepDiveStatic({
           />
         </PanelFrame>
         <div className="mt-3">
-          <DeepDiveInlineCta />
+          <DeepDiveInlineCta locale={locale} />
         </div>
       </div>
     </div>

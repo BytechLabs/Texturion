@@ -59,6 +59,7 @@ export const tasksEn = {
   viewCalendarTitle: "Calendar",
   viewCalendarBody:
     "See what is due by week or by month. Connect your Microsoft 365 calendar to see scheduled jobs assigned to you in Outlook.",
+  viewMapTitle: "Map",
   viewMapBody:
     "Every job with an address, plotted. Two calls on the same street stop being two separate trips, which is the one view that saves fuel rather than time.",
   viewThreadTitle: "In the conversation",
@@ -165,6 +166,7 @@ export const tasksFr: Translated<typeof tasksEn> = {
   viewCalendarTitle: "Calendrier",
   viewCalendarBody:
     "Voyez les échéances par semaine ou par mois. Connectez votre calendrier Microsoft 365 pour voir les travaux planifiés qui vous sont attribués dans Outlook.",
+  viewMapTitle: "Carte",
   viewMapBody:
     "Chaque travail avec une adresse, placé sur la carte. Deux appels sur la même rue cessent d'être deux déplacements distincts, et c'est la seule vue qui économise du carburant plutôt que du temps.",
   viewThreadTitle: "Dans la conversation",

@@ -99,7 +99,7 @@ export function TasksPageBody({ locale = "en" }: { locale?: MarketingLocale }) {
             body: copy.viewCalendarBody,
           },
           {
-            title: "Map",
+            title: copy.viewMapTitle,
             body: copy.viewMapBody,
           },
           {

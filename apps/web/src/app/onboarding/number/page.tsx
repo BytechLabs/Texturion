@@ -322,6 +322,7 @@ export default function NumberStepPage() {
                   US_REGISTRATION_FEE_CENTS.usd,
                   "usd",
                   currencyForCountry(country),
+                  t.locale,
                 ),
               })}
             </p>

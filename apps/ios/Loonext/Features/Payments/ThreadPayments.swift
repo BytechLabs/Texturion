@@ -401,7 +401,7 @@ private struct PaymentStripRow: View {
             appLocale,
             paymentRequestLabel(request.resolvedState)
         )
-        return "\(state) · \(request.amountLabel)"
+        return "\(state) · \(request.amountLabel(locale: appLocale))"
             + " — \(request.description)"
     }
 
@@ -428,7 +428,8 @@ private struct PaymentStripRow: View {
                                 "amount": formatMoneyIn(
                                     refunded,
                                     request.billingCurrency,
-                                    audience: request.billingCurrency
+                                    audience: request.billingCurrency,
+                                    locale: appLocale
                                 ),
                             ]
                         )
@@ -468,7 +469,7 @@ private struct PaymentStripRow: View {
                         appLocale,
                         "payments.cancelLabel",
                         [
-                            "amount": request.amountLabel,
+                            "amount": request.amountLabel(locale: appLocale),
                             "description": request.description,
                         ]
                     )
@@ -705,7 +706,7 @@ private struct AskForPaymentSheet: View {
         return AppStrings.translate(
             appLocale,
             "payments.askFor",
-            ["amount": formatMoneyIn(chargeable, currency, audience: currency)]
+            ["amount": formatMoneyIn(chargeable, currency, audience: currency, locale: appLocale)]
         )
     }
 

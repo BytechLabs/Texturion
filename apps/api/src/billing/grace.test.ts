@@ -60,10 +60,12 @@ function graceEndpoints(state: GraceState): StubEndpoint[] {
     endpoint("GET", /\/rest\/v1\/company_members/, () => [
       { user_id: "11111111-1111-4111-8111-111111111111" },
     ]),
+    endpoint("GET", /\/rest\/v1\/profiles/, () => []),
     endpoint("GET", /\/auth\/v1\/admin\/users\//, () => ({
       id: "11111111-1111-4111-8111-111111111111",
       email: "owner@example.com",
     })),
+    endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => [call.json()]),
     endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
     // #252: the warning now also goes to the phone, because losing a business
     // number is too consequential to depend on one channel. Answering "nobody
@@ -382,10 +384,12 @@ describe("runGraceJob — day 1/15/27/30 transitions, ledger-gated", () => {
       ]),
       // #252: the release warning also pushes; nobody is subscribed here.
       endpoint("GET", /\/rest\/v1\/push_subscriptions/, () => []),
+      endpoint("GET", /\/rest\/v1\/profiles/, () => []),
       endpoint("GET", /\/auth\/v1\/admin\/users\//, () => ({
         id: "11111111-1111-4111-8111-111111111111",
         email: "owner@example.com",
       })),
+      endpoint("POST", /\/rest\/v1\/email_ledger/, (call) => [call.json()]),
       endpoint("POST", /api\.resend\.com\/emails/, () => ({ id: "email_1" })),
     ]);
     stubFetch(harness.route);

@@ -101,8 +101,8 @@ export function usRegistrationTiming(read: PauseRead): UsRegistrationTiming {
  * from the shared price book, so no caller can hand the copy a number of its
  * own: every figure this card prints resolves to `US_REGISTRATION_FEE_CENTS`.
  */
-export function usRegistrationFee(currency: BillingCurrency): string {
-  return formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency);
+export function usRegistrationFee(currency: BillingCurrency, locale = DEFAULT_LOCALE): string {
+  return formatMoney(US_REGISTRATION_FEE_CENTS[currency], currency, currency, locale);
 }
 
 /**
@@ -137,7 +137,7 @@ export function usRegistrationTerms(
   currency: BillingCurrency,
   t: Translate = EN,
 ): string {
-  return t("settingsMore.usRegTerms", { fee: usRegistrationFee(currency) });
+  return t("settingsMore.usRegTerms", { fee: usRegistrationFee(currency, t.locale) });
 }
 
 /**
@@ -173,7 +173,7 @@ export function usRegistrationPausedTerms(
 ): readonly string[] {
   return [
     t("settingsMore.usRegPausedTermMoney", {
-      fee: usRegistrationFee(currency),
+      fee: usRegistrationFee(currency, t.locale),
     }),
     t("settingsMore.usRegPausedTermWait"),
     t("settingsMore.usRegPausedTermLimit"),

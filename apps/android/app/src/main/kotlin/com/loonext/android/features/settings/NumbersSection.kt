@@ -981,7 +981,7 @@ private fun AddNumberCard(
     onChanged: () -> Unit,
 ) {
     if (!SettingsRoleGate.canManageNumbers(scope.role) || !company.subscriptionActive) return
-    val facts = planFacts(company.plan, company.billing_currency, company.country) ?: return
+    val facts = planFacts(company.plan, company.billing_currency, company.country, LocalAppLocale.current) ?: return
 
     val liveCount = numbers.count { it.status != NumberStatus.RELEASED }
     val starterAtCap = company.plan == "starter" && liveCount >= 2
@@ -1014,7 +1014,7 @@ private fun AddNumberCard(
     // CA$5) for a line their card takes US$5 for. [extraNumberMonthly] resolves
     // the audience the same way the plan price and the registration fee do, and
     // `ExtraNumberPriceTest` pins the figures against the TypeScript.
-    val extraPrice = extraNumberMonthly(company.plan, company.billing_currency, company.country)
+    val extraPrice = extraNumberMonthly(company.plan, company.billing_currency, company.country, locale)
 
     var picking by remember { mutableStateOf(false) }
     var idempotencyKey by remember { mutableStateOf("") }

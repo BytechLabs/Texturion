@@ -267,7 +267,7 @@ class ExtraNumberPriceTest {
             "the add-a-number card must resolve the price through " +
                 "extraNumberMonthly() with the company's stored currency AND country",
             src.contains(
-                "extraNumberMonthly(company.plan, company.billing_currency, company.country)",
+                "extraNumberMonthly(company.plan, company.billing_currency, company.country, locale)",
             ),
         )
         // #228 MOVED THE SENTENCE, NOT THE RULE. The card's words now live in

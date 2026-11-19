@@ -260,7 +260,7 @@ private struct PacingCard: View {
                         ? AppStrings.translate(
                             appLocale,
                             "settingsMore.pacingProjection",
-                            ["amount": formatCents(projected)]
+                            ["amount": formatCents(projected, locale: appLocale)]
                         )
                         : "")
             )
@@ -550,7 +550,7 @@ private struct MessagesDetail: View {
                         "settingsMore.messagesOverage",
                         [
                             "over": groupDigits(usage.overage_segments),
-                            "amount": formatCents(usage.projected_overage_cents),
+                            "amount": formatCents(usage.projected_overage_cents, locale: appLocale),
                         ]
                     )
                 )
@@ -606,7 +606,7 @@ private struct VoiceDetail: View {
                             "settingsMore.minutesOverage",
                             [
                                 "extra": groupDigits(voice.overage_minutes),
-                                "amount": formatCents(voice.projected_overage_cents),
+                                "amount": formatCents(voice.projected_overage_cents, locale: appLocale),
                             ]
                         )
                     )

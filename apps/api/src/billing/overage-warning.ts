@@ -15,6 +15,8 @@
  * gates remain the only thing that ever pauses usage. This only warns + (in the
  * later children) points the owner at the controls.
  */
+import type { Locale } from "@loonext/shared";
+
 import { getDb } from "../db";
 import type { Env } from "../env";
 import { decideOverage } from './overage-projection';
@@ -24,6 +26,7 @@ import { recordAndSendAlert } from "./usage-alerts";
 /** The company shape the warning job selects: {@link OverageCompany} + a name. */
 interface OverageWarningCompany extends OverageCompany {
   name: string;
+  locale: string | null;
 }
 
 /** The owner-facing heads-up. Honest and non-alarming: nothing is blocked, and
@@ -33,8 +36,15 @@ interface OverageWarningCompany extends OverageCompany {
 function overageWarningCopy(
   company: OverageWarningCompany,
   env: Env,
+  locale: Locale,
 ): { subject: string; text: string } {
   const usageUrl = `${env.APP_ORIGIN}/settings/usage`;
+  if (locale === "fr-CA") {
+    return {
+      subject: `À propos de l’utilisation de ${company.name} pour cette période`,
+      text: `Bonjour,\n\nAu rythme actuel, ${company.name} pourrait dépasser l’utilisation prévue par son forfait avant la fin de cette période. Vos services continuent de fonctionner et vous n’avez aucun paiement en retard.\n\nVous pouvez consulter votre utilisation et ajuster votre plafond de dépenses en tout temps pour limiter les frais supplémentaires.\n\nConsulter votre utilisation et votre plafond : ${usageUrl}\n\nLoonext`,
+    };
+  }
   return {
     subject: `A heads-up about ${company.name}'s usage this period`,
     text:
@@ -69,7 +79,7 @@ export async function runOverageWarningJob(
       // fact and counts an unreadable fee as zero, so dropping `paused_at` here
       // would silently restore the full plan price for every paused tenant
       // while `paused_price_cents` sat in the row unused.
-      "id,name,plan,current_period_start,current_period_end,us_texting_enabled,overage_cap_multiplier,paid_extra_numbers,paused_at,paused_price_cents",
+      "id,name,plan,current_period_start,current_period_end,us_texting_enabled,overage_cap_multiplier,paid_extra_numbers,paused_at,paused_price_cents,locale",
     )
     .eq("subscription_status", "active")
     .not("plan", "is", null)
@@ -89,7 +99,7 @@ export async function runOverageWarningJob(
           company,
           "cost_projection",
           100,
-          overageWarningCopy(company, env),
+          (locale) => overageWarningCopy(company, env, locale),
           // #447: the money rides the SAME ledger row as the customer's copy,
           // in the `overage_projected` event, because we are the only
           // audience for whom the margin means anything.

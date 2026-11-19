@@ -123,6 +123,7 @@
 
 import { billingCurrencyOf, currencyForCountry, formatMoney, isBillingCurrency, PLAN_PRICE_CENTS } from './billing-currency';
 import type { BillingCurrency } from './billing-currency';
+import type { Locale } from './locale';
 import { PLAN_NUMBERS, PLAN_SEATS } from './seats';
 import type { SeatPlan } from './seats';
 import { SUPPORT_FIX_PROMISE_KEY, SUPPORT_RESPONSE_TIME_KEY } from './support';
@@ -254,6 +255,7 @@ export interface CancellationOfferInput {
   reason: string | null | undefined;
   /** `companies.plan`. Null (never checked out) is treated as Starter. */
   plan: string | null | undefined;
+  locale?: Locale;
   /** Default "before" — the cancel card. */
   phase?: CancellationOfferPhase;
   /**
@@ -372,8 +374,9 @@ function tooExpensiveOffer(
   if (resolvePlan(input.plan) !== "pro") return null;
 
   const currency = resolveCurrency(input);
-  const starter = formatMoney(PLAN_PRICE_CENTS[currency].starter, currency);
-  const pro = formatMoney(PLAN_PRICE_CENTS[currency].pro, currency);
+  const { locale = "en" } = input;
+  const starter = formatMoney(PLAN_PRICE_CENTS[currency].starter, currency, currency, locale);
+  const pro = formatMoney(PLAN_PRICE_CENTS[currency].pro, currency, currency, locale);
   const numbers = PLAN_NUMBERS.starter;
 
   /**

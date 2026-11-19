@@ -32,6 +32,7 @@ import com.loonext.android.features.payments.PaymentRequest
 import com.loonext.android.features.payments.PaymentState
 import com.loonext.android.features.payments.Payments
 import com.loonext.android.features.compose.NoteAmber
+import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.features.settings.formatMoney
 import com.loonext.android.ui.common.rememberHaptics
 
@@ -146,7 +147,8 @@ private fun PaymentRow(row: PaymentRequest, onCancel: (() -> Unit)?, cancelling:
     // Through the money formatter, never typed: this figure is in the STRIPE
     // ACCOUNT's currency, which is not necessarily the one the workspace is
     // billed in, and a bare "$" at the wrong reader is #522 with a new figure.
-    val amount = formatMoney(row.amount_cents, row.money)
+    val locale = LocalAppLocale.current
+    val amount = formatMoney(row.amount_cents, row.money, locale = locale)
 
     Row(
         Modifier
@@ -204,7 +206,7 @@ private fun PaymentRow(row: PaymentRequest, onCancel: (() -> Unit)?, cancelling:
                 Text(
                     t(
                         "payments.refundedBack",
-                        "amount" to formatMoney(refunded, row.money),
+                        "amount" to formatMoney(refunded, row.money, locale = locale),
                     ),
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 11.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant,

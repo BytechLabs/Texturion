@@ -1,9 +1,15 @@
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
+
+import { renderEmailHtml } from "../email/html";
+import { sendEmail } from "../email/resend";
+import type { Env } from "../env";
 
 interface LedgerSend {
   claim: () => Promise<boolean>;
   release: () => Promise<void>;
   send: () => Promise<boolean>;
+  alreadyClaimed?: boolean;
 }
 
 export function emailLedger(db: SupabaseClient, companyId: string, emailKey: string) {
@@ -60,8 +66,8 @@ export function usageAlertLedger(
   };
 }
 
-export async function sendLedgered({ claim, release, send }: LedgerSend): Promise<boolean> {
-  if (!(await claim())) return false;
+export async function sendLedgered({ claim, release, send, alreadyClaimed = false }: LedgerSend): Promise<boolean> {
+  if (!(await claim())) return alreadyClaimed;
 
   let sent: boolean;
   try {
@@ -78,4 +84,38 @@ export async function sendLedgered({ claim, release, send }: LedgerSend): Promis
   }
   if (!sent) await release();
   return sent;
+}
+
+export async function sendBillingEmailGroups(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+  noticeKey: string,
+  groups: Map<Locale, string[]>,
+  copy: (locale: Locale) => { subject: string; text: string },
+  { critical }: { critical: boolean },
+): Promise<boolean> {
+  const outcomes = await Promise.allSettled(Array.from(groups, ([locale, to]) => {
+    const key = `${noticeKey}:${locale}`;
+    return sendLedgered({
+      ...emailLedger(db, companyId, key),
+      alreadyClaimed: true,
+      send: async () => {
+        const { subject, text } = copy(locale);
+        const { id } = await sendEmail(env, {
+          to,
+          subject,
+          text,
+          html: renderEmailHtml(text, locale),
+          locale,
+          critical,
+          idempotencyKey: `${companyId}:${key}`,
+        });
+        return id !== null;
+      },
+    });
+  }));
+  const failures = outcomes.flatMap((outcome) => outcome.status === "rejected" ? [outcome.reason] : []);
+  if (failures.length > 0) throw new AggregateError(failures, "Billing email could not be sent");
+  return outcomes.some((outcome) => outcome.status === "fulfilled" && outcome.value);
 }

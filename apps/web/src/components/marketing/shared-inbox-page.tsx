@@ -59,7 +59,7 @@ export function SharedInboxPageBody({
       />
 
       <FeatureHero locale={locale}
-        dateline="1 OWNER PER CONVERSATION"
+        dateline={copy.dateline}
         title={copy.h1}
         sub={copy.heroSub}
         panel={

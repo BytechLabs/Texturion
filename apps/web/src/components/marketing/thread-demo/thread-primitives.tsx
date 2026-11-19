@@ -120,20 +120,20 @@ function PhotoThumb({ label, outbound }: { label: string; outbound?: boolean }) 
 }
 
 /** Delivery-state line, the app's grammar: Sending… → Sent ✓ → Delivered ✓✓. */
-function DeliveryLine({ time, state }: { time: string; state: DeliveryState }) {
+function DeliveryLine({ time, state, copy }: { time: string; state: DeliveryState; copy: ThreadDemoCopy }) {
   return (
     <span className="text-[12px] text-app-muted-2">
       <span className="tabular-nums">{time}</span>
       <span aria-hidden> · </span>
-      {state === "sending" && <span>Sending…</span>}
+      {state === "sending" && <span>{copy.sending}</span>}
       {state === "sent" && (
         <span>
-          Sent <Check aria-hidden className="inline size-3" strokeWidth={1.75} />
+          {copy.sent} <Check aria-hidden className="inline size-3" strokeWidth={1.75} />
         </span>
       )}
       {state === "delivered" && (
         <span>
-          Delivered{" "}
+          {copy.delivered}{" "}
           <CheckCheck aria-hidden className="inline size-3" strokeWidth={1.75} />
         </span>
       )}
@@ -162,8 +162,10 @@ export function InboundBubble({ beat }: { beat: InboundBeat }) {
 export function OutboundBubble({
   beat,
   state,
+  locale = "en",
 }: {
   beat: OutboundBeat;
+  locale?: MarketingLocale;
   /** Live delivery state (drives the Sending… → Delivered animation). */
   state: DeliveryState;
 }) {
@@ -173,14 +175,14 @@ export function OutboundBubble({
       <div className="app-bubble-out max-w-[85%] whitespace-pre-wrap break-words rounded-app-bub px-3.5 py-2.5 text-[14px] leading-[1.5] [border-top-right-radius:5px] md:max-w-[80%]">
         {beat.body}
       </div>
-      <DeliveryLine time={beat.time} state={state} />
+      <DeliveryLine time={beat.time} state={state} copy={threadDemoCopy(locale)} />
     </div>
   );
 }
 
 /** Internal note: the app's amber tint card + amber lock label, locked and
  *  never sent to the customer. */
-export function NoteBubble({ beat }: { beat: NoteBeat }) {
+export function NoteBubble({ beat, locale = "en" }: { beat: NoteBeat; locale?: MarketingLocale }) {
   return (
     <div className="flex w-full flex-col items-end gap-1">
       <div className="max-w-[85%] whitespace-pre-wrap break-words rounded-app-bub border border-app-amber-line bg-app-amber-bg px-3.5 py-2.5 text-[14px] leading-[1.5] text-app-amber-ink [border-bottom-right-radius:5px] md:max-w-[80%]">
@@ -193,7 +195,7 @@ export function NoteBubble({ beat }: { beat: NoteBeat }) {
             strokeWidth={1.75}
             aria-hidden
           />
-          Internal note · {beat.by}
+          {threadDemoCopy(locale).internalNote} · {beat.by}
         </span>
         {beat.body}
       </div>
@@ -250,11 +252,11 @@ export const MISSED_CALL_TEXT_BACK_LINE = threadDemoEn.missedCallTextBack;
  * tokens rendered as a span, because the demo adds zero tab stops (§7) and
  * there is no recording behind it. Same rule the composer's Send follows.
  */
-function VoicemailPill({ seconds }: { seconds: number }) {
+export function VoicemailPill({ seconds, copy }: { seconds: number; copy: ThreadDemoCopy }) {
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-app-line bg-app-paper px-2.5 py-1 text-[12px] font-medium text-app-ink">
       <Play className="size-3.5" strokeWidth={1.75} aria-hidden />
-      Play voicemail ({formatCallDuration(seconds)})
+      {copy.playVoicemail} ({formatCallDuration(seconds)})
     </span>
   );
 }
@@ -292,7 +294,7 @@ export function CallLine({
     <div className="space-y-1.5 py-1 text-center">
       <p className="text-xs text-muted-foreground">{sentence}</p>
       <div className="flex justify-center">
-        <VoicemailPill seconds={beat.voicemail.seconds} />
+        <VoicemailPill seconds={beat.voicemail.seconds} copy={copy} />
       </div>
       {/* The words, right where the message is (#367 voicemail transcripts):
           without them the line only says a voicemail exists, which still

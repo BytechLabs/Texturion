@@ -89,7 +89,7 @@ export function heymarketRows(
     {
       label: c.totalLabel,
       total: true,
-      cells: ["$29", "~$172/mo"],
+      cells: [c.totalOurs, c.totalRival],
     },
   ];
 }

@@ -143,7 +143,7 @@ export function PrepaidYearCard({
   // The workspace's own money, so bare "$" — `formatMoney` reserves the "US$"
   // and "CA$" prefixes for a price shown to somebody who thinks in the other
   // one. Same rule the plan card above this follows.
-  const money = (cents: number) => formatMoney(cents, currency);
+  const money = (cents: number) => formatMoney(cents, currency, currency, t.locale);
 
   return (
     <SettingsCard id="prepaid-year" title={t("settingsMore.prepaidYearTitle")}>

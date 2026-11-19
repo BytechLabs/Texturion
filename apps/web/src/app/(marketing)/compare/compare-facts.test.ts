@@ -407,7 +407,7 @@ describe("#370 the crew-size chart states THIS page's rival rate", () => {
   ])("renders $name's slider rate and source in both languages", ({ Page, name, slug, pricing }) => {
     for (const locale of ["en", "fr-CA"] as const) {
       const html = renderToStaticMarkup(createElement(Page, { locale }));
-      const rate = formatMoney(pricing.perUserMonthly * 100, "usd", "usd");
+      const rate = formatMoney(pricing.perUserMonthly * 100, "usd", "usd", locale);
       const lead = locale === "en"
         ? `The ${name} plan shown costs ${rate}`
         : `Le forfait ${name} présenté coûte ${rate}`;

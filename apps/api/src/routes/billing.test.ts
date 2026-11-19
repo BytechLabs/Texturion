@@ -337,7 +337,7 @@ describe("POST /v1/billing/checkout — roles and body", () => {
     expect(response.status).toBe(422);
     const responseBody = await response.json();
     expect(responseBody).toEqual({
-      error: { code: "validation_failed", message: expect.any(String) },
+      error: { code: "validation_failed", message: expect.any(String), message_key: "apiRefusals.billingInvalidPlan" },
     });
   });
 });
@@ -610,7 +610,12 @@ describe("POST /v1/billing/checkout — session composition (SPEC §9)", () => {
     expect(response.status).toBe(422);
     const responseBody = await response.json();
     expect(responseBody).toEqual({
-      error: { code: "validation_failed", message: expect.any(String) },
+      error: {
+        code: "validation_failed",
+        message: expect.any(String),
+        message_key: "apiRefusals.billingModuleUnavailable",
+        message_vars: { module: "Canada numbers" },
+      },
     });
     expect(harness.callsTo("POST", /api\.stripe\.com/)).toHaveLength(0);
   });
@@ -2138,6 +2143,7 @@ describe("plan-builder modules (#12)", () => {
       error: {
         code: "conflict",
         message: expect.stringContaining("resubscribe"),
+        message_key: "apiRefusals.billingResubscribeForAddOns",
       },
     });
     expect(harness.callsTo("GET", /api\.stripe\.com/)).toHaveLength(0);

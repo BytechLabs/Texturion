@@ -173,7 +173,8 @@ final class AuthViewModel {
                 email: email,
                 password: password,
                 displayName: name,
-                captchaToken: captchaToken
+                captchaToken: captchaToken,
+                locale: locale
             )
             if !signedIn {
                 confirmationEmail = email

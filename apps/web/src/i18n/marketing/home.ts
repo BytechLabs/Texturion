@@ -172,6 +172,7 @@ export const homeEn = {
   embedTemplateFollowUp: "Quote follow-up",
   embedTemplateFollowUpBefore: "Hi",
   embedTemplateFollowUpAfter: ", checking in on the quote we sent over.",
+  embedTemplatePlaceholder: "Type / for saved replies",
   embedTemplateBooking: "Booking confirmation",
   embedTemplateBookingBody:
     "You're booked. We'll text you when we're on the way.",
@@ -197,6 +198,9 @@ export const homeEn = {
   mathJobValue: "Average job value",
   mathThatsAbout: "That's about",
   mathPerMonth: "a month",
+  mathWeeks: "4.33 weeks",
+  mathNoteBefore: "This is arithmetic on your numbers, not a claim of ours. Change any of them. We only multiply what you type. That's",
+  mathNoteAfter: "a month against the figure above.",
   mathLost: "in work that went somewhere else.",
   dealTitle: "One flat price for the whole crew.",
   dealSub:
@@ -487,6 +491,7 @@ export const homeFr: Translated<typeof homeEn> = {
   embedTemplateFollowUpBefore: "Bonjour",
   embedTemplateFollowUpAfter:
     ", je fais un suivi sur la soumission qu'on vous a envoyée.",
+  embedTemplatePlaceholder: "Tapez / pour les réponses enregistrées",
   embedTemplateBooking: "Confirmation de rendez-vous",
   embedTemplateBookingBody:
     "C'est réservé. On vous écrit quand on est en route.",
@@ -514,6 +519,9 @@ export const homeFr: Translated<typeof homeEn> = {
   mathJobValue: "Valeur moyenne d'une job",
   mathThatsAbout: "Ça fait environ",
   mathPerMonth: "par mois",
+  mathWeeks: "4,33 semaines",
+  mathNoteBefore: "Le calcul repose sur vos chiffres. Modifiez-les pour voir leur effet sur l’estimation. Loonext vous coûte",
+  mathNoteAfter: "par mois, à comparer au montant ci-dessus.",
   mathLost: "en travail qui est allé ailleurs.",
   dealTitle: "Un seul prix fixe pour toute l'équipe.",
   dealSub:

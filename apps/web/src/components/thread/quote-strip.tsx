@@ -83,7 +83,8 @@ function QuoteRow({
   // The row carries its own currency, the way a payment request does: a
   // quote is denominated at the moment it is written, and a workspace that
   // later changes billing currency must not restate old prices.
-  const amount = formatMoney(quote.amount_cents, billingCurrencyOf(quote.currency));
+  const currency = billingCurrencyOf(quote.currency);
+  const amount = formatMoney(quote.amount_cents, currency, currency, t.locale);
   const isDraft = quote.effective_status === "draft";
 
   return (

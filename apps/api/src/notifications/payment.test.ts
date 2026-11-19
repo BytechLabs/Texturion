@@ -190,10 +190,10 @@ describe("what the alert says", () => {
 
     // The figure arrives from `formatMoney` and is not this table's to
     // reformat: it is the same string the French billing screens already show.
-    expect(paid.title("fr-CA")).toBe("Maria Alvarez a payé $250");
-    expect(refunded.title("fr-CA")).toBe("$250 a été remboursé à Maria Alvarez");
+    expect(paid.title("fr-CA")).toBe("Maria Alvarez a payé 250 $");
+    expect(refunded.title("fr-CA")).toBe("250 $ a été remboursé à Maria Alvarez");
     expect(disputed.title("fr-CA")).toBe(
-      "La banque de Maria Alvarez a repris $250",
+      "La banque de Maria Alvarez a repris 250 $",
     );
     // And our own line, which is what a dispute with no description says.
     expect(disputed.body("fr-CA")).toBe(
@@ -379,7 +379,7 @@ describe("what reaches the phones", () => {
     await notifyPayment(fcmEnv(account), PAID, getDb(env));
 
     const data = service.sends[0].message.data as Record<string, string>;
-    expect(data.title).toBe("Maria Alvarez a payé $250");
+    expect(data.title).toBe("Maria Alvarez a payé 250 $");
     // The routing discriminator and the collapse tag are not language: two
     // translations of one alert must still replace each other on a phone.
     expect(data.kind).toBe(PAYMENT_PUSH_KIND);

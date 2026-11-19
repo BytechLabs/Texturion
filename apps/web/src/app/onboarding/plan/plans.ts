@@ -45,12 +45,12 @@ function planCard(
   return {
     id,
     name,
-    price: formatMoney(p.monthlyDollars * 100, "usd", audience),
+    price: formatMoney(p.monthlyDollars * 100, "usd", audience, t.locale),
     // 30 days, not 30.44: a round month is what somebody checks on their
     // fingers, and being a cent optimistic about our own price is the wrong
     // direction to be imprecise in.
     daily: t("onboarding.planCardDaily", {
-      amount: formatMoney(Math.round(p.monthlyDollars * 100 / 30), "usd", audience),
+      amount: formatMoney(Math.round(p.monthlyDollars * 100 / 30), "usd", audience, t.locale),
     }),
     lines: [
       t("onboarding.planCardTextingIncluded"),

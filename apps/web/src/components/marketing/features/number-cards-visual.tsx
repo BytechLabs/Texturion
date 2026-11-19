@@ -76,7 +76,7 @@ export function NumberCardsVisual({
                 {copy.visualActive}
               </span>
               <span className="rounded-full border border-app-tint-line bg-app-tint px-2 py-[2.5px] text-[11px] font-semibold leading-none tabular-nums text-app-olive-deep">
-                {card.unread} new
+                {copy.visualNew.replace("{count}", String(card.unread))}
               </span>
             </div>
           </div>

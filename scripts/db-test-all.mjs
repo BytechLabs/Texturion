@@ -234,6 +234,7 @@ const SUITES = [
   "thread_tapbacks",
   "calendar_feed_access",
   "reply_suggestion_window",
+  "auth_locale",
 ];
 
 const args = process.argv.slice(2);

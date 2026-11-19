@@ -939,7 +939,7 @@ private fun hubUsageLine(status: String, usage: Usage): String = when (status) {
         val projected = usage.overage_projection.projected_overage_cents
         t("settingsMore.hubPacing", "subject" to t(pacingSubjectKey(usage))) +
             if (projected > 0) {
-                t("settingsMore.hubPacingExtra", "amount" to formatCents(projected))
+                t("settingsMore.hubPacingExtra", "amount" to formatCents(projected, LocalAppLocale.current))
             } else {
                 ""
             }

@@ -224,7 +224,7 @@ export function CanadaPageBody({ locale = "en" }: { locale?: MarketingLocale }) 
             caption={copy.consentPanelCaption}
             ariaLabel={copy.consentPanelAlt}
           >
-            <ConsentVisual />
+            <ConsentVisual locale={locale} />
           </PanelFrame>
         }
         flip
