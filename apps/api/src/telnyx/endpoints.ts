@@ -71,6 +71,7 @@ export const TELNYX_ENDPOINTS = [
   { method: "GET", path: "/v2/documents/:id/download", policy: "refused" },
 
   { method: "POST", path: "/v2/messages", policy: "message" },
+  { method: "GET", path: "/v2/messages/:id", policy: "refused" },
 
   { method: "POST", path: "/v2/messaging_hosted_number_orders", policy: "refused" },
   { method: "GET", path: "/v2/messaging_hosted_number_orders/:id", policy: "refused" },

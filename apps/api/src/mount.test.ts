@@ -32,6 +32,7 @@ import { runDailySummary } from "./notifications/daily-summary";
 import { runEscalationSweep } from "./notifications/escalation-sweep";
 import { runSubscriptionReconcileJob } from "./billing/reconcile";
 import { reconcileOptOuts } from "./messaging/opt-out-reconcile";
+import { reconcileOutboundReceipts } from "./messaging/receipt-reconcile";
 import { runOverageWarningJob } from "./billing/overage-warning";
 import { runUsageAlertsJob } from "./billing/usage-alerts";
 import { sweepDeletedAttachments } from "./attachments/sweep";
@@ -557,6 +558,7 @@ describe("scheduled jobs (SPEC §11: cron map ↔ wrangler.jsonc lockstep)", () 
       // stops showing "Waiting" for a link that no longer opens.
       expirePaymentRequests,
       sendWorkspaceMfaNotices,
+      reconcileOutboundReceipts,
     ]);
     expect(runs("30 * * * *")).toEqual([nudgeSoleProprietorOtp]);
     expect(runs("20 * * * *")).toEqual([geocodeContactsJob]);

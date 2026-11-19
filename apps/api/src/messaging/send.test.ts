@@ -171,6 +171,7 @@ describe("dispatchOutbound — §10 layer 3 rate limiter", () => {
     const row = await dispatchOutbound(env, getDb(env), message(), SEND_ARGS);
     expect(row.telnyx_message_id).toBe(TELNYX_ID);
     expect(stubs.telnyx.calls).toHaveLength(1);
+    expect(stubs.telnyx.calls[0].headers.get("Idempotency-Key")).toBe(`message-${MESSAGE_ID}`);
   });
 
   it("checks the limiter keyed on company_id before Telnyx and proceeds when allowed", async () => {

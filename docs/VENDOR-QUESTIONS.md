@@ -27,17 +27,12 @@ never on a schedule. Several could go in one support message.
 
 ## OPEN
 
-### Telnyx STOP punctuation, HELP copy, and campaign samples
+### Telnyx STOP punctuation and HELP copy
 
-Run S24 on the guarded rig with `STOP.`, `HELP`, and `ARRET` to record
-which replies Telnyx sends and whether the profile blocks after punctuation.
-Have the robot send `START` to clean up a block. Confirm with Telnyx whether
-adding samples to an approved 10DLC campaign triggers re-vetting before
-backfilling existing campaigns. The app records punctuated STOP independently.
-
-Telnyx says a content update can return a rejected native campaign to review.
-We still need confirmation for sample-only updates to approved campaigns.
-[Telnyx guidance on native campaign appeals](https://github.com/team-telnyx/knowledge-base/blob/main/wiki/dev-docs/10dlc-messaging--part-4.md#native-campaign-appeals)
+Run S24 after #773 restores the rig guard. Send `STOP.`, `HELP`, and `ARRET`
+to record the carrier replies and whether the profile blocks after punctuation.
+Have the robot send `START` to clear the block. The app records punctuated STOP
+independently.
 
 Rig run `S24-20261117215818-fef4cd` stopped before any dials. The guard reported
 `room 0 is under 2`, so carrier behavior remains unverified.
@@ -166,6 +161,13 @@ exactly this. **Nothing is built until the answer exists** — #393 is explicit.
 
 A register that only lists open questions gets re-litigated. These are closed,
 with the answer, so nobody spends an afternoon rediscovering them.
+
+### Existing approved 10DLC campaigns (#810)
+
+Keep samples 4 and 5 on new campaign registrations. Telnyx documents sample
+edits and a separate appeal for rejected campaigns. The effect of a sample edit
+on an approved campaign's approval remains unspecified. The daily poll keeps
+its legacy sample 3 backfill for campaigns that lack it. [Telnyx campaign update](https://developers.telnyx.com/api-reference/campaign/update-campaign) [Telnyx campaign appeal](https://developers.telnyx.com/api-reference/campaign/submit-campaign-appeal-for-manual-review)
 
 ### R1 — what `POST /v2/calls` returns for a repeated `command_id` · ANSWERED
 
