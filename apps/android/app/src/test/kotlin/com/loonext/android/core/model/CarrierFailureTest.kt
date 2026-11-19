@@ -16,6 +16,16 @@ import org.junit.Test
  */
 class CarrierFailureTest {
     @Test
+    fun `only a non-textable number is offered a call`() {
+        assertEquals(null, sendFailureAction("opt_out", "40012"))
+        assertEquals(null, sendFailureAction(null, "40300"))
+        assertEquals(SendFailureAction.Call, sendFailureAction("unreachable", "40012"))
+        assertEquals(SendFailureAction.Call, sendFailureAction(null, "40310"))
+        assertEquals(SendFailureAction.SendAgain, sendFailureAction("unreachable", "40006"))
+        assertEquals(SendFailureAction.SendAgain, sendFailureAction("content_blocked", "40009"))
+    }
+
+    @Test
     fun `classifies the opt-out, which is the one with a legal meaning`() {
         assertEquals(CarrierFailureReason.OPT_OUT, classifySendFailure("40300"))
     }

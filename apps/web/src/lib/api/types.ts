@@ -671,6 +671,7 @@ export interface Conversation {
    * behalf — a wrong guess would silence a real lead permanently.
    */
   opt_out_hint_at?: string | null;
+  last_outbound_failed_at?: string | null;
   /**
    * #301: where this customer came from, and how we came to believe it.
    *
@@ -779,7 +780,6 @@ export interface ConversationListItem
   extends Conversation,
     SnoozeState,
     MemberThreadState {
-  last_outbound_failed_at?: string | null;
   contact: ContactSummary;
   tags: Tag[];
   unread: boolean;
@@ -2601,6 +2601,12 @@ export interface ForYouWaiting {
   urgency: number;
 }
 
+export interface ForYouTextAlert {
+  conversation_id: string;
+  kind: "opt_out_hint" | "text_failed";
+  contact: ContactSummary;
+}
+
 /**
  * #293 — one follow-up reminder that has come DUE, in the /for-you queue.
  *
@@ -2704,6 +2710,7 @@ export interface ForYou {
    * pre-#293 behaviour rather than a crash.
    */
   follow_ups?: ForYouFollowUp[];
+  text_alerts?: ForYouTextAlert[];
   waiting_on_you: ForYouWaiting[];
   my_tasks: ForYouTask[];
   unread: ForYouUnread[];

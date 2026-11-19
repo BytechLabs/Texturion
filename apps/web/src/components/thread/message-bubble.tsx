@@ -14,6 +14,7 @@ import {
 import {
   failureReasonOf,
   mmsMediaKind,
+  sendFailureAction,
   sendFailureMessageKey,
 } from "@loonext/shared";
 
@@ -25,9 +26,11 @@ import {
 } from "@/components/ui/tooltip";
 import { Timestamp } from "@/components/ui/timestamp";
 import { useT } from "@/i18n/provider";
+import { CallButton } from "@/components/calls/call-button";
 import { useRetryMessage } from "@/lib/api/messages";
 import type { Message, MessageTaskLink } from "@/lib/api/types";
 import { formatAbsoluteDateTime, formatTimestamp } from "@/lib/format/time";
+import { requestSendAgain } from "@/lib/messaging/composer-drafts";
 import { cn } from "@/lib/utils";
 
 import { NoteAttachments } from "@/components/attachments/note-attachments";
@@ -56,9 +59,13 @@ export function DeliveryState({
   message,
   conversationId,
   elsewhere,
+  contactName,
+  allowFailureActions = false,
 }: {
   message: Message;
   conversationId: string;
+  contactName?: string;
+  allowFailureActions?: boolean;
   /** The customer's clock, said in the time's tooltip when it differs. */
   elsewhere?: { timeZone: string; whose: string };
 }) {
@@ -67,12 +74,17 @@ export function DeliveryState({
 
   if (message.status === "failed") {
     // #241: the reason, not the vendor code it was derived from.
-    const optedOut =
-      failureReasonOf(message.error_reason, message.error_code) === "opt_out";
+    const optedOut = failureReasonOf(message.error_reason, message.error_code) === "opt_out";
+    const nextAction = allowFailureActions && !message.automated
+      ? sendFailureAction(message.error_reason, message.error_code)
+      : null;
+    const call = nextAction === "call" && contactName;
+    const sendAgain = nextAction === "send_again" && message.error_code !== "send_interrupted"
+      && message.body.trim() !== "";
     const retryable =
       (message.allowed_actions?.includes("retry") ?? true) &&
       message.telnyx_message_id === null &&
-      !optedOut;
+      !optedOut && !call && !sendAgain;
     // red-600 clears 4.5:1 on every light bubble; red-400 is needed on the
     // dark teal-950 outbound bubble (red-500 there is only 3.79:1). 12px.
     return (
@@ -81,6 +93,24 @@ export function DeliveryState({
         role="status"
       >
         {t(sendFailureMessageKey(message.error_code))}
+        {call && (
+          <CallButton
+            conversationId={conversationId}
+            contactName={call}
+            label={t("thread.callThemInstead")}
+            variant="outline"
+            className="ml-1.5"
+          />
+        )}
+        {sendAgain && (
+          <button
+            type="button"
+            className="tap-target ml-1.5 rounded-sm font-medium underline-offset-2 hover:underline"
+            onClick={() => requestSendAgain(conversationId, message.body)}
+          >
+            {t("thread.sendAgain")}
+          </button>
+        )}
         {retryable && (
           <>
             {". "}
@@ -258,6 +288,7 @@ export const MessageBubble = memo(({
   contactTimeZone = null,
   senderName = null,
   onSelectPhone,
+  allowFailureActions = false,
 }: {
   message: Message;
   reaction?: string;
@@ -272,6 +303,7 @@ export const MessageBubble = memo(({
    * timeline's event lines already narrate those). */
   senderName?: string | null;
   onSelectPhone?: (number: string) => void;
+  allowFailureActions?: boolean;
 }) => {
   const t = useT();
   const elsewhere = contactTimeZone
@@ -488,6 +520,8 @@ export const MessageBubble = memo(({
                   message={message}
                   conversationId={conversationId}
                   elsewhere={elsewhere}
+                  contactName={contactName}
+                  allowFailureActions={allowFailureActions}
                 />
               ))}
           </span>

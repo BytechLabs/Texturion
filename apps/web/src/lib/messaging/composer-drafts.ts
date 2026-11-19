@@ -10,6 +10,7 @@
 
 const PREFIX = "loonext:composer-draft:";
 const DRAFT_RESTORED = "loonext:composer-draft-restored";
+const SEND_AGAIN = "loonext:composer-send-again";
 const STARTED_AT_PREFIX = "loonext:composer-draft-started-at:";
 export const MODE_PREFIX = "loonext:composer-draft-mode:";
 
@@ -100,6 +101,19 @@ export function onComposerDraftRestored(conversationId: string, listener: () => 
   };
   window.addEventListener(DRAFT_RESTORED, onRestore);
   return () => window.removeEventListener(DRAFT_RESTORED, onRestore);
+}
+
+export function requestSendAgain(conversationId: string, body: string): void {
+  window.dispatchEvent(new CustomEvent(SEND_AGAIN, { detail: { conversationId, body } }));
+}
+
+export function onSendAgain(conversationId: string, listener: (body: string) => void): () => void {
+  const receive = (event: Event) => {
+    if (event instanceof CustomEvent && event.detail?.conversationId === conversationId &&
+        typeof event.detail.body === "string") listener(event.detail.body);
+  };
+  window.addEventListener(SEND_AGAIN, receive);
+  return () => window.removeEventListener(SEND_AGAIN, receive);
 }
 
 /**

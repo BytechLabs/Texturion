@@ -39,6 +39,7 @@ import type {
   ForYou,
   ForYouFollowUp,
   ForYouTask,
+  ForYouTextAlert,
   ForYouTriageConversation,
   ForYouTriageTask,
   ForYouUnread,
@@ -137,6 +138,30 @@ function Card({
       </Link>
       {copyNumber && <CopyablePhoneNumber number={copyNumber} iconOnly className="mr-2 p-2" />}
     </div>
+  );
+}
+
+function TextAlertRow({ item }: { item: ForYouTextAlert }) {
+  const t = useT();
+  const name = contactDisplayName(item.contact);
+  const reason = item.kind === "opt_out_hint"
+    ? t("inbox.forYouOptOutHint")
+    : t("inbox.forYouTextFailed");
+  return (
+    <Card
+      href={`/inbox/${item.conversation_id}`}
+      copyNumber={item.contact.name === null ? item.contact.phone_e164 : null}
+    >
+      <Avatar name={name} />
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-[13.5px] font-semibold text-app-ink">
+          {name}
+        </span>
+        <span className="mt-0.5 block">
+          <Why text={reason} warn />
+        </span>
+      </span>
+    </Card>
   );
 }
 
@@ -1037,6 +1062,7 @@ function ForYouSections({
   const [announcement, setAnnouncement] = useState("");
 
   const { waiting_on_you, my_tasks, unread, triage } = data;
+  const textAlerts = data.text_alerts ?? [];
   // #293: absent from an older Worker, which is "no reminders".
   const followUps = data.follow_ups ?? [];
   // #306: the heading count is what the section HOLDS; the rows are a page of it.
@@ -1050,6 +1076,7 @@ function ForYouSections({
   const followUpTotal = totals?.follow_ups ?? followUps.length;
 
   const queuesEmpty =
+    textAlerts.length === 0 &&
     followUps.length === 0 &&
     waiting_on_you.length === 0 &&
     my_tasks.length === 0 &&
@@ -1210,6 +1237,17 @@ function ForYouSections({
       {/* #342: the one strip whose absence is the whole problem it solves;
           read before anything else. */}
       <SpamReviewSection />
+      {textAlerts.length > 0 && (
+        <Section
+          id="for-you-text-alerts"
+          label={t("inbox.forYouTextAlerts")}
+          count={textAlerts.length}
+        >
+          {textAlerts.map((item) => (
+            <TextAlertRow key={`${item.conversation_id}:${item.kind}`} item={item} />
+          ))}
+        </Section>
+      )}
       {queuesEmpty && <CaughtUpCard />}
       <OffPageWork items={offPage} onShow={show} />
       {editing && (

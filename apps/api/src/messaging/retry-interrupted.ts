@@ -1,44 +1,8 @@
 /**
- * #411 — re-send the one message we can PROVE never reached the carrier.
- *
- * Automatic retry of a text is genuinely dangerous, and the conservative
- * default was right. If we retry a send that actually succeeded and we simply
- * did not hear the response, the customer gets the same message twice — and
- * for a business texting its customers, double-sending is worse than
- * late-sending. It is the kind of error that erodes trust in the tool
- * immediately.
- *
- * But there is exactly one case where that risk does not exist, and it is the
- * case this codebase already detects. STUCK is DEFINED as a send that crashed
- * BETWEEN the gate insert and the Telnyx call: `queued`, no
- * `telnyx_message_id`, untouched past the safety window. By that definition
- * Telnyx was never reached and nothing went out, so a retry cannot duplicate
- * anything — there is nothing to duplicate.
- *
- * That is the case we were failing out. It is the only retry we can perform
- * with a proof of safety, and we were declining to take it.
- *
- * ---------------------------------------------------------------------------
- * WHY IT MATTERS MORE THAN ITS FREQUENCY SUGGESTS.
- *
- * #388 argues the five-minute lead-response window is where jobs are won. A
- * send that fails transiently and then waits for a human to notice has missed
- * that window by construction. #391 compounds it: the notification that
- * prompted the reply is itself deferred in Doze. Customer texts, alert arrives
- * late, tech replies promptly, send fails, nobody retries — each link is
- * defensible and the chain loses the customer.
- *
- * And rarity cuts both ways. A failure nobody will recognise when it happens
- * is a better candidate for automatic handling, not a worse one.
- *
- * ---------------------------------------------------------------------------
- * WHAT THIS DELIBERATELY DOES NOT DO.
- *
- * Everything else stays manual. A Telnyx 4xx, a 40300 opt-out, a registration
- * gate — none of them may retry themselves, and none reach here, because the
- * claim only returns rows matching the stuck predicate. A bounded auto-retry
- * for provider 5xx is a separate judgement about duplicate risk that belongs
- * to the founder, not to this file.
+ * Retry old queued sends with no recorded carrier ID. The same message key
+ * also covers a lost response or an ID write that failed after acceptance.
+ * Telnyx can refuse a replay if the payload changed, for example when an MMS
+ * attachment URL has been signed again.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -153,7 +117,7 @@ async function retryOne(
 }
 
 /**
- * Re-dispatch every send that crashed before reaching the carrier.
+ * Re-dispatch queued sends with no recorded carrier ID past the retry window.
  *
  * Returns how many went out. Runs BEFORE `failStuckOutboundSends` in the same
  * sweep, so a row this declines still gets failed out in the same tick rather

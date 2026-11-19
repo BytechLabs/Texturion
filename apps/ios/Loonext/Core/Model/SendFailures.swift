@@ -154,3 +154,14 @@ func failureReasonOf(_ reason: String?, _ errorCode: String?) -> CarrierFailureR
 func isRetryableFailure(_ reason: CarrierFailureReason) -> Bool {
     reason != .optOut
 }
+
+enum SendFailureAction: Equatable {
+    case call, sendAgain
+}
+
+func sendFailureAction(_ storedReason: String?, _ errorCode: String?) -> SendFailureAction? {
+    let reason = failureReasonOf(storedReason, errorCode)
+    if reason == .optOut { return nil }
+    let code = errorCode?.trimmingCharacters(in: .whitespacesAndNewlines)
+    return reason == .unreachable && (code == "40012" || code == "40310") ? .call : .sendAgain
+}

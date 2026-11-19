@@ -130,6 +130,8 @@ enum ThreadStrings {
             "thread.delivered": "Delivered",
             "thread.sendNow": "Send now",
             "thread.retry": "Retry",
+            "thread.sendAgain": "Send again",
+            "thread.finishCurrentDraft": "Finish or clear your current draft first.",
             "thread.onePhoto": "1 photo",
             "thread.manyPhotos": "{count} photos",
 
@@ -902,6 +904,8 @@ enum ThreadStrings {
             "thread.delivered": "Livré",
             "thread.sendNow": "Envoyer maintenant",
             "thread.retry": "Réessayer",
+            "thread.sendAgain": "Renvoyer",
+            "thread.finishCurrentDraft": "Terminez ou effacez d’abord votre brouillon.",
             "thread.onePhoto": "1 photo",
             "thread.manyPhotos": "{count} photos",
 

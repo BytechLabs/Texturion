@@ -114,6 +114,8 @@ object ThreadStrings : AppStrings.Section {
         "thread.delivered" to "Delivered",
         "thread.sendNow" to "Send now",
         "thread.retry" to "Retry",
+        "thread.sendAgain" to "Send again",
+        "thread.finishCurrentDraft" to "Finish or clear your current draft first.",
         "thread.oneAttachment" to "1 attachment",
         "thread.manyAttachments" to "{count} attachments",
 
@@ -897,6 +899,8 @@ object ThreadStrings : AppStrings.Section {
         "thread.delivered" to "Livré",
         "thread.sendNow" to "Envoyer maintenant",
         "thread.retry" to "Réessayer",
+        "thread.sendAgain" to "Renvoyer",
+        "thread.finishCurrentDraft" to "Terminez ou effacez d’abord votre brouillon.",
         "thread.oneAttachment" to "1 pièce jointe",
         "thread.manyAttachments" to "{count} pièces jointes",
 

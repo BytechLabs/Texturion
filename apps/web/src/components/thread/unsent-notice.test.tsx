@@ -1,8 +1,8 @@
 /**
  * @vitest-environment happy-dom
  */
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { UnsentNotice } from "./composer";
 
@@ -20,6 +20,20 @@ afterEach(cleanup);
  * went out, which is the more expensive way to be wrong.
  */
 describe("#299 the unsent notice", () => {
+  it("shows sending while pending and exposes retry and edit after failure", () => {
+    const retry = vi.fn();
+    const edit = vi.fn();
+    const view = render(<UnsentNotice show={false} sending onRetry={retry} onEdit={edit} />);
+    expect(screen.getByRole("status").textContent).toBe("Sending…");
+    expect(screen.queryByRole("button")).toBeNull();
+
+    view.rerender(<UnsentNotice show onRetry={retry} onEdit={edit} />);
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    expect(retry).toHaveBeenCalledOnce();
+    expect(edit).toHaveBeenCalledOnce();
+  });
+
   it("says it did not send, and that retrying is safe", () => {
     render(<UnsentNotice show />);
     // Both halves matter. The first removes the ambiguity; the second is the

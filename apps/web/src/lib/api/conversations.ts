@@ -23,6 +23,7 @@ import type {
   ConversationEvent,
   ConversationListItem,
   ConversationStatus,
+  ForYou,
   MemberThreadState,
   MentionableMember,
   Message,
@@ -678,7 +679,11 @@ export function useMarkConversationRead() {
         return { ...row, unread: false };
       });
       // With no cached row there is no telling whether the queue counted it.
-      return { queueMayChange: flipped || !found };
+      const hasFailedText = queryClient.getQueryData<ForYou>(keys.forYou(companyId))
+        ?.text_alerts?.some((row) =>
+          row.kind === "text_failed" && row.conversation_id === conversationId
+        );
+      return { queueMayChange: flipped || !found || hasFailedText };
     },
     onSuccess: (receipt, conversationId, context) => {
       if (receipt?.last_read_at) {

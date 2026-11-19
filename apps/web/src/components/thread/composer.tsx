@@ -65,6 +65,7 @@ import {
   loadDraftStartedAt,
   loadFailedSend,
   onComposerDraftRestored,
+  onSendAgain,
   restoreComposerDraft,
   saveDraft,
   saveDraftMentions,
@@ -308,16 +309,42 @@ export function MediaErrors({ errors }: { errors: string[] }) {
  *
  * *Applying: G10 (system states must be precise) and the Safety principle.*
  */
-export function UnsentNotice({ show }: { show: boolean }) {
+export function UnsentNotice({
+  show,
+  sending = false,
+  onRetry,
+  onEdit,
+}: {
+  show: boolean;
+  sending?: boolean;
+  onRetry?: () => void;
+  onEdit?: () => void;
+}) {
   const t = useT();
-  if (!show) return null;
+  if (!show && !sending) return null;
   return (
     <div
       role="status"
       aria-live="polite"
       className="mx-auto max-w-[42rem] px-1 pb-2"
     >
-      <p className="text-xs text-app-amber-ink">{t("thread.unsentNotice")}</p>
+      <p className={sending ? "text-xs text-muted-foreground" : "text-xs text-app-amber-ink"}>
+        {t(sending ? "thread.deliverySending" : "thread.unsentNotice")}
+      </p>
+      {!sending && (onRetry || onEdit) && (
+        <span className="flex gap-3">
+          {onRetry && (
+            <button type="button" className="tap-target text-xs underline" onClick={onRetry}>
+              {t("thread.retry")}
+            </button>
+          )}
+          {onEdit && (
+            <button type="button" className="tap-target text-xs underline" onClick={onEdit}>
+              {t("thread.editFailedDraft")}
+            </button>
+          )}
+        </span>
+      )}
     </div>
   );
 }
@@ -687,6 +714,28 @@ export function Composer({
     lastFailedSendRef.current = failed;
     setFailedSignature(failed?.signature ?? null);
   }), [conversationId]);
+  useEffect(() => onSendAgain(conversationId, (body) => {
+    if (noteOnly) return;
+    if (draftRef.current.text.trim() !== "" || attachments.length > 0 || noteStage.files.length > 0 ||
+        send.isPending || createNote.isPending) {
+      toast.info(t("thread.finishCurrentDraft"));
+      return;
+    }
+    const startedAt = new Date().toISOString();
+    draftRef.current = { conversationId, text: body, mode: "sms", draftStartedAt: startedAt, picked: [] };
+    clearFailedSend(conversationId);
+    lastFailedSendRef.current = null;
+    setFailedSignature(null);
+    saveDraft(conversationId, body, "sms", startedAt);
+    setMode("sms");
+    setPicked([]);
+    setDraftStartedAt(startedAt);
+    setText(body);
+    textareaRef.current?.focus();
+  }), [
+    attachments.length, conversationId, createNote.isPending, noteOnly,
+    noteStage.files.length, send.isPending, t, textareaRef,
+  ]);
   // #690: `#` in a NOTE offers tasks, customers and conversations. The picker
   // below is rendered for notes only; a text to a customer never gets one.
   const noteRefs = useReferenceTrigger(() => draftRef.current.text, setText);
@@ -1399,6 +1448,9 @@ export function Composer({
       )}
       {!isNote && (
         <UnsentNotice
+          sending={send.isPending}
+          onRetry={canSend ? requestSend : undefined}
+          onEdit={() => textareaRef.current?.focus()}
           // Only while the box still holds the message that failed. Recomputed
           // rather than stored, so an edit retires the notice on the keystroke
           // that makes it untrue.

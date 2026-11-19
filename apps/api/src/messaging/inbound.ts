@@ -297,6 +297,7 @@ export async function handleInboundMessage(
       typeof item.url === "string" && item.url.length > 0,
   );
 
+  const optOutHint = looksLikeOptOut(body);
   // The §6 threading transaction, atomically in the database.
   const reaction = payload.media?.length ? null : parseTapback(body);
   const { data, error } = await db.rpc("thread_inbound_message", {
@@ -311,6 +312,7 @@ export async function handleInboundMessage(
     p_notify_emergency: emergency,
     p_notify_media_count: media.length,
     ...(reaction ? { p_reaction: reaction } : {}),
+    ...(optOutHint ? { p_notify_opt_out_hint: true } : {}),
   });
   if (error) throw new Error(`thread_inbound_message failed: ${error.message}`);
   const threaded = data as InboundThreadResult | null;
@@ -496,21 +498,9 @@ export async function finishThreadedInbound(
       })
     : { blocked: false, suspected: false };
 
-  // #396: a plain-English opt-out is legally binding and only the KEYWORD was
-  // ever detected. "Please stop texting me" is not an exact STOP, so Telnyx
-  // does not block it, `stop_keyword` never fires, and no 40300 is produced for
-  // the carrier reconciliation to find. It lands as ordinary text.
-  //
-  // This FLAGS the thread and does not opt anyone out — deliberately. An
-  // opt-out cannot be lifted by us (#331): only the contact texting START
-  // clears it, so a false positive would permanently silence a paying
-  // customer's real lead with no way back for either of them. Warn loudly, let
-  // a human decide.
-  //
-  // Best-effort: the inbound message is already durable, and a failure to raise
-  // a WARNING must never wedge it in a retry loop.
   const optOutHint = looksLikeOptOut(body);
-  if (optOutHint && threaded.created) {
+  // Widget submissions use the original threading overload.
+  if (!carrier && optOutHint && threaded.created) {
     try {
       await db
         .from("conversations")

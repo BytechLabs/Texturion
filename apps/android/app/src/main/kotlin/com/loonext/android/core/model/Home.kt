@@ -282,12 +282,20 @@ data class ForYouTotals(
 )
 
 @Serializable
+data class ForYouTextAlert(
+    val conversation_id: String,
+    val kind: String,
+    val contact: ContactSummary,
+)
+
+@Serializable
 data class ForYou(
     /**
      * #293. Empty from an older Worker, which is "no reminders" — the state
      * every client written before this shipped was already rendering.
      */
     val follow_ups: List<ForYouFollowUp> = emptyList(),
+    val text_alerts: List<ForYouTextAlert> = emptyList(),
     val waiting_on_you: List<ForYouWaiting> = emptyList(),
     val my_tasks: List<ForYouTask> = emptyList(),
     val unread: List<ForYouUnread> = emptyList(),
@@ -308,6 +316,7 @@ fun forYouHeadlineWork(forYou: ForYou): Int {
     forYou.totals?.let { return it.distinct_work }
     val conversations = buildSet {
         forYou.waiting_on_you.forEach { add(it.conversation_id) }
+        forYou.text_alerts.forEach { add(it.conversation_id) }
         forYou.unread.forEach { add(it.conversation_id) }
         forYou.triage?.conversations?.forEach { add(it.conversation_id) }
         // #293: a due reminder is work. Leaving it out made the header say

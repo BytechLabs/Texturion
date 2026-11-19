@@ -261,6 +261,22 @@ describe("ForYouView follow-up reminders (#293)", () => {
   });
 });
 
+it("links text alerts to their conversations and keeps the caught-up state hidden", () => {
+  const contact = { id: "contact", name: "Dana Fields", phone_e164: "+14155550100" };
+  state.forYou = queue({
+    text_alerts: [
+      { conversation_id: "conv-hint", kind: "opt_out_hint", contact },
+      { conversation_id: "conv-failed", kind: "text_failed", contact },
+    ],
+  });
+  const html = render();
+  expect(html).toContain("Review opt-out request");
+  expect(html).toContain("Didn&#x27;t go through");
+  expect(html).toContain('href="/inbox/conv-hint"');
+  expect(html).toContain('href="/inbox/conv-failed"');
+  expect(html).not.toContain("You&#x27;re all caught up.");
+});
+
 describe("ForYouView Recent calls (#133)", () => {
   it("renders the section below the queue with row anatomy and the /calls jump", () => {
     state.forYou = queue({ waiting_on_you: [waitingItem] });

@@ -9,6 +9,15 @@ import XCTest
 /// which is exactly why the port gets its own test, and why it matters that
 /// iOS compiles only in CI.
 final class CarrierFailureTests: XCTestCase {
+    func testOnlyANonTextableNumberIsOfferedACall() {
+        XCTAssertNil(sendFailureAction("opt_out", "40012"))
+        XCTAssertNil(sendFailureAction(nil, "40300"))
+        XCTAssertEqual(sendFailureAction("unreachable", "40012"), .call)
+        XCTAssertEqual(sendFailureAction(nil, "40310"), .call)
+        XCTAssertEqual(sendFailureAction("unreachable", "40006"), .sendAgain)
+        XCTAssertEqual(sendFailureAction("content_blocked", "40009"), .sendAgain)
+    }
+
     func testClassifiesTheOptOutWhichIsTheOneWithALegalMeaning() {
         XCTAssertEqual(classifySendFailure("40300"), .optOut)
     }

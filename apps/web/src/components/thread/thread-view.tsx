@@ -382,20 +382,24 @@ function ThreadLoaded({
   const other = newestNotSentBy(messages.data?.pages, userId);
   const otherAt = other?.created_at ?? null;
   const otherFromCustomer = other?.direction === "inbound";
+  const failedAt = conversation.last_outbound_failed_at;
   // #718: an anchored window that stops short of the newest cannot vouch for it.
   const windowHasNewer =  messages.hasPreviousPage;
   const markReadMutate = markRead.mutate;
   useEffect(() => {
     const markReadWhenVisible = () => {
       if (document.visibilityState !== "visible") return;
+      const coveredThrough = readCoveredThrough(conversationId, userId);
+      const failedAfterRead = failedAt != null &&
+        (!coveredThrough || Date.parse(failedAt) > Date.parse(coveredThrough));
       const current =
-        !windowHasNewer &&
+        !windowHasNewer && !failedAfterRead &&
         readIsCurrent({
           row: findListRow(queryClient, companyId, conversationId),
           newestIsMine,
           otherAt,
           otherFromCustomer,
-          coveredThrough: readCoveredThrough(conversationId, userId),
+          coveredThrough,
         });
       if (!current) markReadMutate(conversationId);
     };
@@ -408,6 +412,7 @@ function ThreadLoaded({
     newestIsMine,
     otherAt,
     otherFromCustomer,
+    failedAt,
     windowHasNewer,
     queryClient,
     companyId,
@@ -506,6 +511,7 @@ function ThreadLoaded({
           findHit={findHit}
           onJumpToLatest={jumpToLatest}
           onSelectPhone={canLinkPhones ? setMessagePhone : undefined}
+          allowFailureActions={role !== "read_only" && conversation.viewer_level === "text" && !banner}
           catchUp={{
             offered: catchUp.offered,
             askToken: catchUp.askToken,

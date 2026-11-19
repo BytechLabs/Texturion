@@ -307,10 +307,10 @@ async function sendsInLastHour(env: Env, companyId: string): Promise<number> {
 
 /**
  * #20: how long an outbound row may sit `queued` without a telnyx_message_id
- * before it counts as STUCK (the send crashed between the gate insert and the
- * Telnyx call) — far beyond any Worker request's wall clock, so an in-flight
- * dispatch is never mistaken for a crash. Shared by the retry route's
- * eligibility pre-check, claim_message_retry, and the fail-out sweeper cron.
+ * before it counts as stuck. An interrupted send can leave Telnyx's ID
+ * unrecorded after acceptance. Telnyx replays successful responses for
+ * up to 24 hours when the same key is used with the same request body (#797).
+ * https://developers.telnyx.com/api-reference/messages/send-a-message
  */
 export const STUCK_SEND_SECONDS = 15 * 60;
 

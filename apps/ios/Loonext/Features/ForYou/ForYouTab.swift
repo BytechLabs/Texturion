@@ -257,10 +257,12 @@ struct ForYouTab: View {
             // Any conversation/task/call movement can change the queue —
             // refetch quietly.
             for await event in await graph.realtime.events() {
+                let ownRead = event.event == "read.conversation" &&
+                    event.payload["user_id"]?.stringValue == me.user_id
                 if event.event.hasPrefix("message.") ||
                     event.event.hasPrefix("conversation.") ||
                     event.event.hasPrefix("task.") ||
-                    event.event.hasPrefix("call.") {
+                    event.event.hasPrefix("call.") || ownRead {
                     refreshKey += 1
                 }
             }
@@ -562,6 +564,7 @@ struct ForYouList: View {
                 // #342: above the queue, because "you're all caught up" is not
                 // true if somebody has been texting a thread nobody can see.
                 spamReviewSection
+                textAlertsSection
                 // #736: work the member took off the page is still said out loud.
                 offPageLines
                 if editing {
@@ -1001,6 +1004,33 @@ struct ForYouList: View {
                             overdue: row.overdue,
                             dueAt: row.due_at
                         ) { openTask(row.task_id) }
+                    }
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private var textAlertsSection: some View {
+        if !forYou.text_alerts.isEmpty {
+            VStack(alignment: .leading, spacing: 0) {
+                SectionHeader(
+                    label: AppStrings.translate(appLocale, "inbox.forYouTextAlerts"),
+                    count: forYou.text_alerts.count
+                )
+                PaperCard {
+                    ForEach(Array(forYou.text_alerts.enumerated()), id: \.element.id) { index, row in
+                        if index > 0 { RowDivider() }
+                        let reason = AppStrings.translate(
+                            appLocale,
+                            row.kind == "opt_out_hint" ? "inbox.forYouOptOutHint" : "inbox.forYouTextFailed"
+                        )
+                        PersonRow(
+                            name: row.contact.name ?? formatPhone(row.contact.phone_e164),
+                            phoneNumber: row.contact.name == nil ? row.contact.phone_e164 : nil,
+                            meta: TimedText(visible: reason, spoken: reason),
+                            unread: false
+                        ) { onOpenConversation(row.conversation_id) }
                     }
                 }
             }

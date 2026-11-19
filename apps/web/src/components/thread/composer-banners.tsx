@@ -282,7 +282,8 @@ function OptOutHintActions({ contactId, conversationId, hintAt }: {
       const contact = contactId ? client.invalidateQueries({
         queryKey: keys.contacts.detail(companyId, contactId),
       }) : undefined;
-      await Promise.all([detail, contact]);
+      const forYou = client.invalidateQueries({ queryKey: keys.forYou(companyId) });
+      await Promise.all([detail, contact, forYou]);
     },
     onError: () => toast.error(t("thread.optOutHintFailed")),
   });

@@ -65,6 +65,7 @@ export async function deliverSavedInboundAlert(
     allowPush: verdict.allow_push,
     emergency: verdict.emergency,
     emergencyClaimed: verdict.emergency_claimed,
+    optOutHint: verdict.notify_reason === "opt_out_hint",
     lead: verdict.notify_reason === "new" || verdict.notify_reason === "reopened",
     replyUsers: verdict.reply_user_ids ?? undefined,
     beforeSend: async () => {
