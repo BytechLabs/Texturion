@@ -30,10 +30,7 @@ vi.mock("@/lib/api/conversations", () => ({
   useMuteConversation: () => ({ mutate: muteMutate, isPending: false }),
   useUnmuteConversation: () => ({ mutate: unmuteMutate, isPending: false }),
   useFollowConversation: () => ({ mutate: followMutate, isPending: false }),
-}));
-vi.mock("@/lib/api/contacts", () => ({
-  useOptOutContact: () => ({ mutate: vi.fn(), isPending: false }),
-  useRevokeOptOut: () => ({ mutate: vi.fn(), isPending: false }),
+  useChangeConversationOptOut: () => ({ mutate: vi.fn(), isPending: false }),
 }));
 vi.mock("@/lib/api/team", () => ({
   useMembers: () => ({ data: { data: [] } }),

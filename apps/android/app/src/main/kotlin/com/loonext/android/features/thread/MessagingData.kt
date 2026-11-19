@@ -982,11 +982,11 @@ class MessagingRepository(private val api: ApiClient) {
 
     // --- Opt-out ---------------------------------------------------------------
 
-    suspend fun optOut(companyId: String, contactId: String): OptOut =
-        api.post("/v1/contacts/$contactId/opt-out", companyId = companyId)
-
-    suspend fun revokeOptOut(companyId: String, contactId: String): OptOut =
-        api.post("/v1/contacts/$contactId/opt-out/revoke", companyId = companyId)
+    suspend fun setThreadOptOut(companyId: String, conversationId: String, enabled: Boolean): OptOut {
+        val path = "/v1/conversations/$conversationId/opt-out"
+        return if (enabled) api.post(path, companyId = companyId)
+        else api.deleteReturning(path, companyId = companyId)
+    }
 
     // --- Attachments -------------------------------------------------------------
 

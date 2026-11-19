@@ -84,6 +84,8 @@ const CLASSIFIED: Record<string, Classification> = {
   "conversations#DELETE /conversations/:id/follow": PREFERENCE,
   "conversations#POST /conversations/:id/tags": "trigger:conversation_events",
   "conversations#POST /conversations/:id/opt-out-hint": "trigger:conversation_events",
+  "conversations#POST /conversations/:id/opt-out": "trigger:conversation_events",
+  "conversations#DELETE /conversations/:id/opt-out": "trigger:conversation_events",
   "conversations#DELETE /conversations/:id/tags/:tag_id": "trigger:conversation_events",
   "compose#POST /conversations": "trigger:messages",
   // ---- messages, scheduled texts, blocks ---------------------------------

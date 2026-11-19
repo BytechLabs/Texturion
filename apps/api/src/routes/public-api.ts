@@ -604,7 +604,9 @@ publicApiRoutes.post(
       return errorResponse(c, "conflict", "This message is already a task.");
     }
     if (result?.outcome === "key_conflict") {
-      return errorResponse(c, "conflict", "Idempotency-Key was already used for a task.");
+      return errorResponse(c, "conflict", "Idempotency-Key was already used for a task.", {
+        key: "apiRefusals.taskCreateKeyUsed",
+      });
     }
     if (result?.outcome === "not_member") {
       return errorResponse(

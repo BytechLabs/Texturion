@@ -359,4 +359,64 @@ begin
   end if;
 end $$;
 
+set local role service_role;
+
+do $$
+declare
+  v_company constant uuid := '9f000000-0000-4000-8000-0000000000c1';
+  v_user constant uuid := '9f000000-0000-4000-8000-00000000000a';
+  v_contact constant uuid := '9f000000-0000-4000-8000-0000000000d1';
+  v_primary constant text := '+12125559601';
+  v_secondary constant text := '+12125559602';
+  v_other constant text := '+12125559699';
+  v_thread uuid;
+  v_result jsonb;
+begin
+  select id into strict v_thread from public.conversations
+   where company_id = v_company and contact_id = v_contact and contact_phone_e164 = v_secondary;
+
+  v_result := public.api_change_manual_opt_out(v_company, v_user, null, v_thread, true);
+  if v_result->>'outcome' is distinct from 'changed'
+     or v_result #>> '{opt_out,phone_e164}' is distinct from v_secondary
+     or exists (select 1 from public.opt_outs
+                 where company_id = v_company and phone_e164 = v_primary and revoked_at is null) then
+    raise exception 'CP-opt-out: a thread should affect only its actual destination: %', v_result;
+  end if;
+  if not exists (select 1 from public.conversation_events
+                  where company_id = v_company and conversation_id = v_thread and type = 'opted_out'
+                    and payload->>'phone_e164' = v_secondary) then
+    raise exception 'CP-opt-out: the thread is missing its activity';
+  end if;
+
+  update public.opt_outs set source = 'carrier'
+   where company_id = v_company and phone_e164 = v_secondary;
+  insert into public.contact_phones (company_id, contact_id, phone_e164)
+  values (v_company, v_contact, v_other);
+  v_result := public.api_change_manual_opt_out(v_company, v_user, v_contact, null, true);
+  if v_result->>'outcome' is distinct from 'changed'
+     or v_result #>> '{opt_out,phone_e164}' is distinct from v_primary
+     or (select count(*) from public.opt_outs
+          where company_id = v_company and phone_e164 in (v_primary, v_secondary, v_other)
+            and revoked_at is null) is distinct from 3 then
+    raise exception 'CP-opt-out: a contact opt-out should cover every saved number: %', v_result;
+  end if;
+  v_result := public.api_change_manual_opt_out(v_company, v_user, null, v_thread, false);
+  if v_result->>'outcome' is distinct from 'carrier' then
+    raise exception 'CP-opt-out: a member cannot revoke a carrier stop: %', v_result;
+  end if;
+  v_result := public.api_change_manual_opt_out(v_company, v_user, v_contact, null, false);
+  if v_result->>'outcome' is distinct from 'changed'
+     or not exists (select 1 from public.opt_outs
+                     where company_id = v_company and revoked_at is null
+                       and phone_e164 = v_secondary and source = 'carrier')
+     or not exists (select 1 from public.opt_outs
+                     where company_id = v_company and revoked_at is null
+                       and phone_e164 = v_other and source = 'manual')
+     or exists (select 1 from public.opt_outs
+                 where company_id = v_company and phone_e164 = v_primary and revoked_at is null) then
+    raise exception 'CP-opt-out: contact revoke should only clear the primary manual record: %', v_result;
+  end if;
+end $$;
+
+reset role;
 rollback;

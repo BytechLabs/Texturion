@@ -780,7 +780,7 @@ private struct ThreadBody: View {
                 confirmLabel: AppStrings.translate(appLocale, "thread.optOut"),
                 tone: .standard
             ) {
-                controller.optOutContact()
+                controller.setThreadOptOut(enabled: true)
             }
             .confirmDialog(
                 AppStrings.translate(appLocale, "thread.blockTitle"),
@@ -797,7 +797,7 @@ private struct ThreadBody: View {
                 confirmLabel: AppStrings.translate(appLocale, "thread.removeOptOut"),
                 tone: .standard
             ) {
-                controller.revokeOptOut()
+                controller.setThreadOptOut(enabled: false)
             }
             // #234: deleting a queued message throws away words the person
             // wrote and that nothing else holds — the draft is long gone by
@@ -1349,11 +1349,11 @@ private struct ThreadBody: View {
         let viewerReadOnly = me.memberships
             .first { $0.company_id == detail.company_id }?.role == MemberRole.readOnly
         let banner = selectComposerBanner(
-            contactOptedOut: controller.contact?.opted_out == true,
-            contactOptOutSource: controller.contact?.opt_out_source,
+            contactOptedOut: controller.threadOptedOut == true,
+            contactOptOutSource: controller.threadOptOutSource,
             subscriptionStatus: controller.company?.subscription_status
                 ?? SubscriptionStatus.active,
-            destinationCountry: Nanp.destinationCountry(detail.contact.phone_e164),
+            destinationCountry: Nanp.destinationCountry(detail.contact_phone_e164 ?? detail.contact.phone_e164),
             usApproved: controller.company.map(usSendApproved) ?? true,
             usTextingOff: controller.company.map(usTextingOff) ?? false,
             usage: controller.usage,
@@ -1691,7 +1691,7 @@ private struct ThreadHeader: View {
             .display_name
         let trailing = (assigneeName?.isBlank == false) ? assigneeName! : phoneLabel
         parts += " · \(trailing)"
-        if controller.contact?.opted_out == true {
+        if controller.threadOptedOut == true {
             parts += " · " + AppStrings.translate(appLocale, "thread.optedOut")
         }
         if controller.blockedSender != nil {
@@ -2002,10 +2002,10 @@ private struct ConversationSheet: View {
                 followed: detail.followed == true,
                 spam: detail.is_spam,
                 blocked: controller.blockedSender != nil,
-                optOut: controller.contact.map {
+                optOut: controller.threadOptedOut.map {
                     OptOutState(
-                        optedOut: $0.opted_out == true,
-                        carrierEnforced: isCarrierEnforcedOptOut($0.opt_out_source)
+                        optedOut: $0,
+                        carrierEnforced: isCarrierEnforcedOptOut(controller.threadOptOutSource)
                     )
                 },
                 viewer: RecordViewer(canWrite: canWrite, canDelete: onDeleteConversation != nil),

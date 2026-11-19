@@ -387,6 +387,24 @@ export function useConversation(conversationId: string) {
   return useQuery(conversationDetailOptions(queryClient, companyId, conversationId));
 }
 
+export function useChangeConversationOptOut() {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: ({ conversationId, enabled }: { conversationId: string; contactId: string; enabled: boolean }) =>
+      apiFetch(`/v1/conversations/${conversationId}/opt-out`, {
+        method: enabled ? "POST" : "DELETE",
+        companyId,
+      }),
+    onSuccess: (_result, { conversationId, contactId }) => {
+      void queryClient.invalidateQueries({ queryKey: keys.conversations.detail(companyId, conversationId) });
+      void queryClient.invalidateQueries({ queryKey: keys.conversations.events(companyId, conversationId) });
+      void queryClient.invalidateQueries({ queryKey: keys.contacts.detail(companyId, contactId) });
+      void queryClient.invalidateQueries({ queryKey: keys.contacts.lists(companyId) });
+    },
+  });
+}
+
 const PREFETCH_STALE_MS = 30_000;
 
 /**

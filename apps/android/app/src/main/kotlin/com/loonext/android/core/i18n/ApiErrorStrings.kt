@@ -31,22 +31,31 @@ object ApiErrorStrings : AppStrings.Section {
             "requested_area_code is not an assigned US/CA geographic area code.",
         "apiRefusals.billingAlreadySubscribed" to
             "This company already has a subscription.",
+        "apiRefusals.carrierOptOutNeedsStart" to
+            "This customer texted STOP, so their carrier is blocking your texts. Only they can undo it, by texting START to your number.",
+        "apiRefusals.contactNotFound" to "No such contact.",
         "apiRefusals.contactNumberNotFound" to
             "No such contact number.",
         "apiRefusals.contactUnmergeMainNumberInUse" to
             "Choose a different main number before undoing this merge.",
+        "apiRefusals.conversationNotFound" to "No such conversation.",
+        "apiRefusals.idempotencyKeyLength" to "Idempotency-Key must contain 1 to 255 characters.",
         "apiRefusals.inviteAlreadyPending" to
             "A pending invite for this email already exists.",
         "apiRefusals.numberCountryMismatch" to
             "chosen_number_e164 must be a {country} number (the company's country).",
         "apiRefusals.numberNotAssigned" to
             "chosen_number_e164 is not an assigned US/CA geographic number.",
+        "apiRefusals.optOutNotActive" to "This number is not opted out.",
         "apiRefusals.outboundSendPaused" to
             "Texting is paused while we deal with an issue. Nothing you sent was lost.",
         "apiRefusals.paymentsNotSetUp" to
             "This workspace has not set up payments yet.",
         "apiRefusals.portAlreadyPending" to
             "A transfer for this number is already in progress.",
+        "apiRefusals.scheduledTextKeyUsed" to
+            "Idempotency-Key was already used for a different scheduled text.",
+        "apiRefusals.taskCreateKeyUsed" to "Idempotency-Key was already used for a task.",
         "apiRefusals.textEnablementAlreadyPending" to
             "This number already has a text-enablement in progress.",
         "apiRefusals.textEnablementNumberInUse" to
@@ -111,22 +120,31 @@ object ApiErrorStrings : AppStrings.Section {
             "Choisissez un indicatif régional géographique attribué au Canada ou aux États-Unis.",
         "apiRefusals.billingAlreadySubscribed" to
             "Cet espace de travail a déjà un abonnement.",
+        "apiRefusals.carrierOptOutNeedsStart" to
+            "Ce client a texté STOP. Son fournisseur bloque vos textos. Seul le client peut lever ce blocage en textant START à votre numéro.",
+        "apiRefusals.contactNotFound" to "Ce contact est introuvable.",
         "apiRefusals.contactNumberNotFound" to
             "Ce numéro ne figure pas dans cette fiche de contact.",
         "apiRefusals.contactUnmergeMainNumberInUse" to
             "Choisissez un autre numéro principal avant d’annuler la fusion.",
+        "apiRefusals.conversationNotFound" to "Cette conversation est introuvable.",
+        "apiRefusals.idempotencyKeyLength" to "L’en-tête Idempotency-Key doit contenir de 1 à 255 caractères.",
         "apiRefusals.inviteAlreadyPending" to
             "Une invitation à cette adresse courriel est déjà en attente.",
         "apiRefusals.numberCountryMismatch" to
             "Choisissez un numéro du pays où votre espace de travail est enregistré ({country}).",
         "apiRefusals.numberNotAssigned" to
             "Choisissez un numéro géographique attribué au Canada ou aux États-Unis.",
+        "apiRefusals.optOutNotActive" to "Ce numéro ne figure pas dans la liste de désabonnement.",
         "apiRefusals.outboundSendPaused" to
             "L’envoi de textos est suspendu pendant que nous réglons un problème. Vos textos ont été conservés.",
         "apiRefusals.paymentsNotSetUp" to
             "Les paiements ne sont pas encore configurés dans cet espace de travail.",
         "apiRefusals.portAlreadyPending" to
             "Un transfert est déjà en cours pour ce numéro.",
+        "apiRefusals.scheduledTextKeyUsed" to
+            "Cet en-tête Idempotency-Key a déjà servi à programmer un autre texto.",
+        "apiRefusals.taskCreateKeyUsed" to "Cet en-tête Idempotency-Key a déjà servi à créer une tâche.",
         "apiRefusals.textEnablementAlreadyPending" to
             "L’activation des textos est déjà en cours pour ce numéro.",
         "apiRefusals.textEnablementNumberInUse" to

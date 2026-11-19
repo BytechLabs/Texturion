@@ -414,6 +414,9 @@ data class ConversationDetail(
      * gate's decision cannot disagree.
      */
     val destination_clock: DestinationClock? = null,
+    val contact_phone_e164: String? = null,
+    val opted_out: Boolean? = null,
+    val opt_out_source: String? = null,
     /** #722: the status moves, spam and trash this member may make now; null from an older API. */
     val allowed_actions: List<String>? = null,
 )
