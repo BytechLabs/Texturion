@@ -3,35 +3,22 @@ package com.loonext.android.features.compose
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.core.content.IntentCompat
 import com.loonext.android.core.i18n.AppStrings
 import com.loonext.android.core.i18n.LocalAppLocale
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.ConversationListItem
 import com.loonext.android.features.thread.MessagingRepository
-import com.loonext.android.ui.common.AppSheet
-import com.loonext.android.ui.common.SearchField
+import com.loonext.android.ui.common.PickerOption
+import com.loonext.android.ui.common.SearchablePickerSheet
 import com.loonext.android.ui.common.userMessage
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
@@ -99,7 +86,6 @@ internal suspend fun stageIncomingShare(
 }
 
 @Composable
-@OptIn(ExperimentalMaterial3Api::class)
 internal fun ShareTargetSheet(
     repository: MessagingRepository,
     companyId: String,
@@ -130,31 +116,26 @@ internal fun ShareTargetSheet(
             loading = false
         }
     }
-    AppSheet(onDismissRequest = onDismiss) {
-        Column(
-            Modifier.fillMaxWidth().padding(horizontal = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
-        ) {
-            Text(t("thread.shareToThread"), style = MaterialTheme.typography.titleLarge)
-            SearchField(
-                value = query,
-                onValueChange = { query = it },
-                placeholder = t("common.pickerSearch"),
-            )
+    val options = if (loading || failure != null) emptyList() else rows.map { thread ->
+        val label = thread.contact.name?.takeIf { it.isNotBlank() } ?: thread.contact.phone_e164
+        PickerOption(thread.id, label)
+    }
+    SearchablePickerSheet(
+        options = options,
+        selected = null,
+        onPick = onSelect,
+        onDismiss = onDismiss,
+        title = t("thread.shareToThread"),
+        onSearch = {
+            loading = true
+            query = it
+        },
+        emptyState = {
             when {
                 loading -> CircularProgressIndicator()
                 failure != null -> Text(failure.orEmpty())
-                rows.isEmpty() -> Text(t("thread.noShareThreads"))
-                else -> LazyColumn(Modifier.heightIn(max = 320.dp)) {
-                    items(rows, key = { it.id }) { thread ->
-                        val label = thread.contact.name?.takeIf { it.isNotBlank() } ?: thread.contact.phone_e164
-                        TextButton(onClick = { onSelect(thread.id) }) { Text(label) }
-                    }
-                }
+                else -> Text(t("thread.noShareThreads"))
             }
-            TextButton(onClick = onDismiss, modifier = Modifier.align(Alignment.End)) {
-                Text(t("common.cancel"))
-            }
-        }
-    }
+        },
+    )
 }

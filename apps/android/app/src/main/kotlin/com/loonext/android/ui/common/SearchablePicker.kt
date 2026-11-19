@@ -1,6 +1,7 @@
 package com.loonext.android.ui.common
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -87,7 +88,10 @@ fun <T> SearchablePicker(
     }
 }
 
-/** The sheet [SearchablePicker] opens, for a caller that owns when it shows. */
+/**
+ * The sheet [SearchablePicker] opens. With [onSearch], the caller supplies
+ * the matching options after each query.
+ */
 @Composable
 fun <T> SearchablePickerSheet(
     options: List<PickerOption<T>>,
@@ -96,10 +100,18 @@ fun <T> SearchablePickerSheet(
     onDismiss: () -> Unit,
     title: String? = null,
     searchPlaceholder: String = t("common.pickerSearch"),
+    onSearch: ((String) -> Unit)? = null,
+    emptyState: @Composable () -> Unit = {
+        Text(
+            t("common.pickerNoMatch"),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    },
 ) {
     var query by remember { mutableStateOf("") }
     val needle = query.trim()
-    val matches = if (needle.isEmpty()) {
+    val matches = if (onSearch != null || needle.isEmpty()) {
         options
     } else {
         options.filter {
@@ -119,7 +131,10 @@ fun <T> SearchablePickerSheet(
             }
             SearchField(
                 value = query,
-                onValueChange = { query = it },
+                onValueChange = {
+                    query = it
+                    onSearch?.invoke(it)
+                },
                 placeholder = searchPlaceholder,
                 modifier = Modifier.padding(horizontal = 18.dp, vertical = 8.dp),
             )
@@ -160,12 +175,7 @@ fun <T> SearchablePickerSheet(
                 }
                 if (matches.isEmpty()) {
                     item(key = "empty") {
-                        Text(
-                            t("common.pickerNoMatch"),
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(16.dp),
-                        )
+                        Box(Modifier.padding(16.dp)) { emptyState() }
                     }
                 }
                 item(key = "bottom-space") { Spacer(Modifier.height(24.dp)) }
