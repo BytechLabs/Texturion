@@ -251,9 +251,7 @@
     "typescript/no-unnecessary-type-parameters": "off", // 11
     "unicorn/prefer-number-coercion": "off", // 11
     "unicorn/prefer-number-properties": "off", // 11
-    "typescript/no-redundant-type-constituents": "off", // 10
     "typescript/no-unnecessary-boolean-literal-compare": "off", // 10
-    "typescript/no-unnecessary-type-conversion": "off", // 10
     "unicorn/prefer-ternary": "off", // 10
     "vitest/prefer-to-have-length": "off", // 10
     "unicorn/filename-case": "off", // 9
@@ -262,7 +260,6 @@
     "nextjs/no-assign-module-variable": "off", // 8
     "react/display-name": "off", // 8
     "typescript/no-implied-eval": "off", // 8
-    "typescript/no-unnecessary-template-expression": "off", // 8
     "typescript/prefer-readonly": "off", // 8
     "unicorn/new-for-builtins": "off", // 8
     "unicorn/prefer-add-event-listener": "off", // 8

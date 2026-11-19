@@ -89,7 +89,7 @@ export interface Stub {
  */
 export function stubRoute(
   match: (url: URL, request: Request) => boolean,
-  respond: (call: StubCall) => Response | unknown = () => [],
+  respond: (call: StubCall) => unknown = () => [],
 ): Stub {
   const calls: StubCall[] = [];
   const route: FetchRoute = async (url, request) => {

@@ -105,7 +105,7 @@ export function frontDoorProblems(workers, read) {
     } catch (cause) {
       problems.push(
         `${worker.file} did not parse after comment stripping: ` +
-          `${cause instanceof Error ? cause.message : String(cause)}`,
+          (cause instanceof Error ? cause.message : String(cause)),
       );
       continue;
     }

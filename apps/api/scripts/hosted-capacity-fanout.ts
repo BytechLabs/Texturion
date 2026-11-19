@@ -163,7 +163,7 @@ async function main(): Promise<void> {
           resolve();
         } else if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
           clearTimeout(timer);
-          reject(new Error(String(status)));
+          reject(new Error(status));
         }
       });
     });
@@ -175,7 +175,11 @@ async function main(): Promise<void> {
       const from = sockets.length;
       const batch = Array.from({ length: Math.min(JOIN_BATCH, target - from) }, (_, k) => from + k);
       const outcomes = await Promise.allSettled(batch.map((index) => join(index)));
-      const reasons = outcomes.flatMap((outcome) => (outcome.status === "rejected" ? [String((outcome.reason as Error)?.message)] : []));
+      const reasons = outcomes.flatMap((outcome) => {
+        if (outcome.status !== "rejected") return [];
+        const message = (outcome.reason as { message?: unknown } | null | undefined)?.message;
+        return [String(message)];
+      });
       const failed = reasons.length;
       joinFailures += failed;
       if (failed > 0) {

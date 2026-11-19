@@ -285,7 +285,7 @@ function runAsAgentDiag(sql, connection, container) {
     // psql's own error names the view, the permission or the hazard, never row data.
     fail(
       `${result.via} exited ${result.status}: ` +
-        `${(result.stderr ?? "").trim().split("\n").slice(-3).join(" | ")}`,
+        (result.stderr ?? "").trim().split("\n").slice(-3).join(" | "),
     );
   }
   return { stdout: result.stdout ?? "", warned };

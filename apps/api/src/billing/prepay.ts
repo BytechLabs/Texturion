@@ -1076,8 +1076,7 @@ export async function ensurePrepaidDiscount(
     );
   } catch (cause) {
     console.error(
-      `[prepay] convergence failed for company ${companyId}: ` +
-        `${(cause as Error).message}`,
+      `[prepay] convergence failed for company ${companyId}: ${(cause as Error).message}`,
     );
   }
 }

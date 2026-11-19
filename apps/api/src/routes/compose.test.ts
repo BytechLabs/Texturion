@@ -130,7 +130,7 @@ function composeStubs(options: {
   /** #48: gate_outbound_send rejects with this §7 error code. */
   gateError?: string;
   /** #48: the conversation DELETE (reap) answers with this response. */
-  deleteResponse?: () => Response | unknown;
+  deleteResponse?: () => unknown;
   /** #97: the (retired) mms module's enablement. The compose no longer reads it;
    *  tests set false to prove picture composes are ungated regardless. */
   mmsEnabled?: boolean;

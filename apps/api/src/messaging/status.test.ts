@@ -104,7 +104,7 @@ describe("message.finalized", () => {
     direction?: string;
     /** The row's status before this webhook. */
     status?: string;
-    usageInsert?: (call: unknown) => Response | unknown;
+    usageInsert?: (call: unknown) => unknown;
   } = {}, moved = true) {
     const lookup = stubRoute(restMatch(env, "GET", "messages"), () => [
       {

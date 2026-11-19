@@ -735,7 +735,7 @@ type ValueSettlement<T> =
   | { state: "deadline" };
 
 async function settlementBefore(
-  operation: () => PromiseLike<unknown> | unknown,
+  operation: () => unknown,
   deadlineMs: number,
 ): Promise<Settlement> {
   let timer: ReturnType<typeof setTimeout> | undefined;
@@ -975,7 +975,7 @@ export async function openSupabaseRealtimeConnection(
       }, remainingJoinMs);
 
       channel?.subscribe((status) => {
-        transition = transitionRealtimeState(transition, String(status));
+        transition = transitionRealtimeState(transition, status);
         if (status === "SUBSCRIBED") {
           if (!settled) {
             settled = true;

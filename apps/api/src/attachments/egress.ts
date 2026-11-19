@@ -256,7 +256,7 @@ export async function assertEgressWithinAllowance(
     objects: objects.map((object) => ({
       key: `${object.bucket}/${object.path}`,
       bucket: object.bucket,
-      bytes: Number(object.sizeBytes ?? 0),
+      bytes: object.sizeBytes ?? 0,
     })),
     limitBytes,
   });
