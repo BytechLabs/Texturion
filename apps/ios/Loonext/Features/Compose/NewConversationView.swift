@@ -468,17 +468,17 @@ private struct NewConversationLoaded: View {
                     in: RoundedRectangle(cornerRadius: 16, style: .continuous)
                 )
                 if let phones = selectedContact.phones, !phones.isEmpty {
-                    Picker(t("contactsTasks.numberField"), selection: $alternateNumber) {
-                        Text(t("contactsTasks.phoneMain") + " · " + formatPhone(selectedContact.phone_e164))
-                            .tag(nil as String?)
-                        ForEach(phones, id: \.id) { phone in
-                            let label = [phone.label, formatPhone(phone.phone_e164),
-                                         phone.opted_out == true ? t("contactsTasks.phoneOptedOut") : nil]
-                                .compactMap { $0 }.joined(separator: " · ")
-                            Text(label).tag(Optional(phone.phone_e164))
-                        }
+                    let main = SelectOption<String?>(nil,
+                        title: t("contactsTasks.phoneMain") + " · " + formatPhone(selectedContact.phone_e164))
+                    let other = phones.map { phone in
+                        let label = [phone.label, formatPhone(phone.phone_e164),
+                                     phone.opted_out == true ? t("contactsTasks.phoneOptedOut") : nil]
+                            .compactMap { $0 }.joined(separator: " · ")
+                        return SelectOption<String?>(phone.phone_e164, title: label)
                     }
-                    .pickerStyle(.menu)
+                    SelectField(options: [main] + other, selected: alternateNumber, label: t("contactsTasks.numberField")) {
+                        alternateNumber = $0
+                    }
                 }
             } else {
                 TextField(
