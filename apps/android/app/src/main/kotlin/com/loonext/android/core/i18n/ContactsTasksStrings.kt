@@ -218,9 +218,9 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.mapCountsWithMissing" to
             "{located} on the map · {missing} without a location",
         "contactsTasks.mapMissingCount" to "{missing} without a location",
-        "contactsTasks.mapNoLocatedTasks" to "No located tasks yet.",
-        "contactsTasks.mapAddAnAddress" to
-            "Add an address to a contact and its tasks appear here.",
+        "contactsTasks.mapNoLocatedTasks" to "No task addresses on the map yet",
+        "contactsTasks.mapAddressLookupPaused" to
+            "Automatic address lookup is paused, so new addresses won't appear on the map.",
         "contactsTasks.mapMyLocation" to "My location",
         "contactsTasks.mapThisLocation" to "This location",
         "contactsTasks.mapTasksHere" to "{count} tasks here",
@@ -1120,9 +1120,9 @@ object ContactsTasksStrings : AppStrings.Section {
         "contactsTasks.mapCountsWithMissing" to
             "{located} sur la carte · {missing} sans emplacement",
         "contactsTasks.mapMissingCount" to "{missing} sans emplacement",
-        "contactsTasks.mapNoLocatedTasks" to "Aucune tâche localisée pour l'instant.",
-        "contactsTasks.mapAddAnAddress" to
-            "Ajoutez une adresse à un client et ses tâches apparaissent ici.",
+        "contactsTasks.mapNoLocatedTasks" to "Aucune adresse de tâche sur la carte pour l'instant",
+        "contactsTasks.mapAddressLookupPaused" to
+            "La recherche automatique d'adresses est suspendue. Les nouvelles adresses ne s'affichent pas sur la carte.",
         "contactsTasks.mapMyLocation" to "Ma position",
         "contactsTasks.mapThisLocation" to "Cet emplacement",
         "contactsTasks.mapTasksHere" to "{count} tâches ici",

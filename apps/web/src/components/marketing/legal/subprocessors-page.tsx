@@ -65,7 +65,7 @@ export function SubprocessorsPageBody({
       title={copy.title}
       summary={summary}
       lastUpdated={copy.lastUpdated}
-      lastUpdatedIso="2026-11-17"
+      lastUpdatedIso="2026-11-19"
       breadcrumbLabel={copy.breadcrumbLabel}
       path={french ? FR_PATH : EN_PATH}
       sections={sections}

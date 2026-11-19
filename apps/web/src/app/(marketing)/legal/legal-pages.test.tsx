@@ -321,15 +321,20 @@ describe("privacy: the AI and sharing sections match the ledgers they summarize"
   );
 
   it.each(disclosureLocales)(
-    "%s: discloses public geocoding regions and links the map privacy policy",
+    "%s: discloses global map tiles and the pause on address lookup",
     (locale) => {
       const where = section(PRIVACY[locale], "where");
       expect(where).toContain("https://osmfoundation.org/wiki/Privacy_Policy");
       expect(visibleText(where)).toContain(
-        locale === "en"
-          ? "United Kingdom and the European Union"
-          : "Royaume-Uni et dans l’Union européenne",
+        locale === "en" ? "global delivery network" : "réseau de diffusion mondial",
       );
+      const sharing = visibleText(section(PRIVACY[locale], "sharing"));
+      expect(sharing).toContain(
+        locale === "en"
+          ? "Automatic lookup of saved street addresses is paused."
+          : "La recherche automatique d’adresses postales enregistrées est suspendue.",
+      );
+      expect(visibleText(PRIVACY[locale])).not.toContain("Nominatim");
     },
   );
 });

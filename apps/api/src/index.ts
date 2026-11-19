@@ -26,8 +26,7 @@ import type { Bindings, Env } from './env';
 import { databasePressure, databaseTrouble } from "./db-pressure";
 import { rigDatabaseRefusal } from "./environments/database";
 import { servesRigRoutes } from "./environments/policy";
-import { geocodeContactsJob } from "./geocode/geocode-contacts";
-import { geocodeTasksJob } from "./geocode/geocode-tasks";
+import { geocodeContactsJob, geocodeTasksJob } from "./geocode/jobs";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
 import { runPendingInboundNotifications } from "./notifications/pending-inbound";
@@ -708,14 +707,7 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
   ],
   // Sole-prop OTP nudge (≥12h outstanding, once per submission).
   "30 * * * *": [job("job:nudge-sole-prop-otp", nudgeSoleProprietorOtp)],
-  // Contact geocoding backfill (D25): geocode addressed contacts via Nominatim,
-  // rate-limited (1 req/s) and cached to contacts.lat/lng; skips already-
-  // geocoded and not-found rows. Off-peak from the other hourly jobs.
   "20 * * * *": [job("job:geocode-contacts", geocodeContactsJob)],
-  // Task geocoding backfill (#214 Map fix): geocode a task's OWN address via
-  // Nominatim, cached to tasks.lat/lng, so the Map pins a task at ITS location
-  // (not only its contact's). Same 1 req/s pace; off-peak from the contact
-  // geocoder (:20) so the two never share a Nominatim second.
   "40 * * * *": [job("job:geocode-tasks", geocodeTasksJob)],
   // Registration poller (webhooks are primary; this is the D2 fallback).
   "0 13 * * *": [

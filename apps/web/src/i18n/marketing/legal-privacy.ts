@@ -8,7 +8,7 @@ export const legalPrivacyEn = {
     "How Loonext handles your data under PIPEDA and Quebec Law 25: US data processing named plainly, and a firm commitment that mobile numbers and SMS consent data are never sold or shared for third-party marketing.",
   title: "Privacy policy",
   breadcrumbLabel: "Privacy policy",
-  lastUpdated: "November 17, 2026",
+  lastUpdated: "November 19, 2026",
   summary:
     "We collect only what the service needs to run your inbox, including account details, the contacts and messages your business handles, and billing through Stripe. We store account and inbox data in the United States. AI and map services can process data outside the United States. Mobile numbers and SMS consent data are never sold or shared with third parties for their own marketing. You can ask to see, correct, or delete your information at any time.",
 
@@ -58,7 +58,7 @@ export const legalPrivacyEn = {
   whereTwo:
     "**AI processing.** {location} This applies to data sent by the features in section 7 while a request is being answered. {retention}",
   whereThree:
-    "Our {subprocessors} page lists provider regions. The OpenStreetMap Foundation's public geocoding service runs on servers in the United Kingdom and the European Union. Its map tiles use a global delivery network. The {osmPrivacy} applies to both services.",
+    "Our {subprocessors} lists provider regions. The OpenStreetMap Foundation's map tiles use a global delivery network. Those requests are covered by the {osmPrivacy}.",
   osmPrivacyLink: "OpenStreetMap Foundation privacy policy",
   phoneIntro:
     "Our app is almost certainly on a phone you own rather than one your company issued. So here is what it keeps on the device itself, and what happens to it.",
@@ -95,7 +95,7 @@ export const legalPrivacyEn = {
   calendarEnding:
     "**Ending it.** Disconnect in Settings and we revoke our access at the provider, erase the stored credential at once, and remove the events we created, or clear their contents where deleting one would affect other people. If a provider will not confirm that, we tell your workspace owner. You can also remove Loonext in your Google or Microsoft account permissions. When a workspace is closed, every record described here goes with it.",
   sharingOne:
-    "Our service providers are {vendors}. Each provider receives the data it needs for its work, as described on our {subprocessors}. Web and Android maps load tiles from the OpenStreetMap Foundation. We send street addresses to its public Nominatim service to place them on the map. We may disclose data if the law requires it. We do not sell personal information.",
+    "Our service providers are {vendors}. Each provider receives the data it needs for its work, as described on our {subprocessors}. Web and Android maps load tiles from the OpenStreetMap Foundation. Automatic lookup of saved street addresses is paused. We may disclose data if the law requires it. We do not sell personal information.",
   sharingTwo:
     "Your workspace can also send its own data somewhere. If an owner or admin sets up a connection, we post what happens here, including message text and a contact’s name and number, to the web address they enter, until they delete it. If they create an API key, whoever holds that key can read whatever its permissions allow. In both cases the recipient is chosen by your business rather than by us, and it is not covered by our agreements with the services above.",
   sharingThree:
@@ -132,7 +132,7 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
     "Comment Loonext traite vos données en vertu de la LPRPDE et de la Loi 25 du Québec : le traitement aux États-Unis annoncé clairement, et l'engagement ferme que les numéros de mobile et les données de consentement aux SMS ne sont jamais vendus ni transmis à des fins de marketing par des tiers.",
   title: "Politique de confidentialité",
   breadcrumbLabel: "Politique de confidentialité",
-  lastUpdated: "17 novembre 2026",
+  lastUpdated: "19 novembre 2026",
   summary:
     "Nous recueillons les données nécessaires au fonctionnement de votre boîte de réception, dont les renseignements du compte, les contacts et les messages que traite votre entreprise, ainsi que les données de facturation par Stripe. Nous stockons les données du compte et de la boîte de réception aux États-Unis. Les services d’IA et de cartographie peuvent traiter des données à l’extérieur des États-Unis. Les numéros de mobile et les données de consentement aux SMS ne sont jamais vendus ni transmis à des tiers pour leur propre marketing. Vous pouvez demander en tout temps à voir, à corriger ou à supprimer vos renseignements.",
 
@@ -182,7 +182,7 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
   whereTwo:
     "**Traitement par l’IA.** {location} Cela concerne les données envoyées par les fonctions de la section 7 pendant le traitement de la requête. {retention}",
   whereThree:
-    "Notre {subprocessors} indique les régions des fournisseurs. Le service de géocodage public de l’OpenStreetMap Foundation utilise des serveurs au Royaume-Uni et dans l’Union européenne. Ses tuiles cartographiques utilisent un réseau de diffusion mondial. La {osmPrivacy} s’applique aux deux services.",
+    "Notre {subprocessors} indique les régions des fournisseurs. Les tuiles cartographiques de l’OpenStreetMap Foundation utilisent un réseau de diffusion mondial. La {osmPrivacy} s’applique à ces requêtes.",
   osmPrivacyLink: "politique de confidentialité de l’OpenStreetMap Foundation",
   phoneIntro:
     "Notre application se trouve presque certainement sur un téléphone qui vous appartient plutôt que sur un appareil fourni par votre entreprise. Voici donc ce qu'elle conserve sur l'appareil lui-même, et ce qui en advient.",
@@ -219,7 +219,7 @@ export const legalPrivacyFr: Translated<typeof legalPrivacyEn> = {
   calendarEnding:
     "**Y mettre fin.** Déconnectez-vous dans les paramètres et nous révoquons notre accès auprès du fournisseur, effaçons immédiatement l'identifiant conservé et supprimons les événements que nous avons créés, ou en vidons le contenu lorsque leur suppression toucherait d'autres personnes. Si un fournisseur ne le confirme pas, nous en avisons le propriétaire de votre espace de travail. Vous pouvez aussi retirer Loonext dans les permissions de votre compte Google ou Microsoft. Lorsqu'un espace de travail est fermé, tous les dossiers décrits ici disparaissent avec lui.",
   sharingOne:
-    "Nos fournisseurs de services sont {vendors}. Chacun reçoit les données dont il a besoin pour son travail, comme le précise notre {subprocessors}. Sur le Web et Android, les cartes chargent des tuiles de l’OpenStreetMap Foundation. Nous transmettons des adresses postales à son service public Nominatim pour les placer sur la carte. Nous pouvons communiquer des données si la loi l’exige. Nous ne vendons pas de renseignements personnels.",
+    "Nos fournisseurs de services sont {vendors}. Chacun reçoit les données dont il a besoin pour son travail, comme le précise notre {subprocessors}. Sur le Web et Android, les cartes chargent des tuiles de l’OpenStreetMap Foundation. La recherche automatique d’adresses postales enregistrées est suspendue. Nous pouvons communiquer des données si la loi l’exige. Nous ne vendons pas de renseignements personnels.",
   sharingTwo:
     "Votre espace de travail peut aussi envoyer ses propres données ailleurs. Si un propriétaire ou un administrateur configure une connexion, nous y transmettons ce qui s'y passe, y compris le texte des messages et le nom et le numéro d'un contact, à l'adresse Web qu'il saisit, jusqu'à ce qu'il la supprime. S'il crée une clé d'API, quiconque détient cette clé peut lire tout ce que ses permissions autorisent. Dans les deux cas, le destinataire est choisi par votre entreprise plutôt que par nous, et il n'est pas couvert par nos ententes avec les services mentionnés ci-dessus.",
   sharingThree:

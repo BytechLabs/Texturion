@@ -196,21 +196,14 @@ export const tasksEn = {
     "We couldn't get your location. Check your browser's permission.",
   mapLoadFailed: "We couldn't load the map. Check your connection and try again.",
   mapOnTheMap: "on the map",
-  mapWithoutLocation: "without a location",
-  /** Reads "Still locating 240 addresses." with the count between the two. */
-  mapStillLocating: "Still locating",
-  mapAddressOne: "address",
-  mapAddressMany: "addresses",
-  mapGeocodeBacklogNote:
-    "Addresses are looked up a few hundred at a time, so a big import can " +
-    "take a few hours to finish plotting.",
+  mapWithoutLocation: "without a map pin",
+  mapAddressLookupPaused:
+    "Automatic address lookup is paused, so new addresses won't appear on the map.",
   mapLocating: "Locating…",
   mapNearMe: "Near me",
-  mapNoMappedAddress: "None of these tasks has an address yet",
-  mapUnlocatedOne: "1 task has no address.",
-  mapUnlocatedMany: "{count} tasks have no address.",
-  mapAddAddressHow:
-    "Open a task and add an address, or add one to its contact. It appears here once located.",
+  mapNoMappedAddress: "No task addresses on the map yet",
+  mapUnlocatedOne: "1 task has no map pin.",
+  mapUnlocatedMany: "{count} tasks have no map pin.",
   mapYouAreHere: "You are here",
   mapTilesFailing:
     "The street background isn't loading right now. Job pins are still exact, " +
@@ -822,21 +815,14 @@ export const tasksFr: Translated<typeof tasksEn> = {
   mapLoadFailed:
     "Impossible de charger la carte. Vérifiez votre connexion et réessayez.",
   mapOnTheMap: "sur la carte",
-  mapWithoutLocation: "sans emplacement",
-  mapStillLocating: "Localisation de",
-  mapAddressOne: "adresse",
-  mapAddressMany: "adresses",
-  mapGeocodeBacklogNote:
-    "Les adresses sont recherchées par quelques centaines à la fois, alors " +
-    "une grande importation peut prendre quelques heures avant d'être " +
-    "entièrement affichée.",
+  mapWithoutLocation: "sans repère sur la carte",
+  mapAddressLookupPaused:
+    "La recherche automatique d'adresses est suspendue. Les nouvelles adresses ne s'affichent pas sur la carte.",
   mapLocating: "Localisation…",
   mapNearMe: "Près de moi",
-  mapNoMappedAddress: "Aucune de ces tâches n'a encore d'adresse",
-  mapUnlocatedOne: "1 tâche n'a pas d'adresse.",
-  mapUnlocatedMany: "{count} tâches n'ont pas d'adresse.",
-  mapAddAddressHow:
-    "Ouvrez une tâche et ajoutez-lui une adresse, ou ajoutez-en une à son client. Elle apparaît ici une fois localisée.",
+  mapNoMappedAddress: "Aucune adresse de tâche sur la carte pour l'instant",
+  mapUnlocatedOne: "1 tâche n'a pas de repère sur la carte.",
+  mapUnlocatedMany: "{count} tâches n'ont pas de repère sur la carte.",
   mapYouAreHere: "Vous êtes ici",
   mapTilesFailing:
     "Le fond de carte ne se charge pas en ce moment. Les repères des tâches " +

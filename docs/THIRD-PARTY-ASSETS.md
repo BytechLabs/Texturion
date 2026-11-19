@@ -54,7 +54,6 @@ assuming is what produced #429. No row is needed until one is added.
 | Asset | Obligation | Where satisfied |
 |---|---|---|
 | Basemap tiles | A provider's terms must permit a **paid product** to serve their tiles | **Nothing is shipped.** The Map has no basemap until a provider is configured, and `apps/web/src/lib/maps/basemap.ts` plus `apps/android/app/src/main/kotlin/com/loonext/android/features/tasks/Basemap.kt` both *refuse* `tile.openstreetmap.org` even if configured, so the violation cannot return through a copied `.env`. See `docs/MAP-TILES.md` (#428) |
-| Nominatim geocoding | Max 1 request/second, and a descriptive `User-Agent` with a real contact | `apps/api/src/geocode/nominatim.ts` — `NOMINATIM_MIN_INTERVAL_MS = 1000` paced by the caller, and `NOMINATIM_USER_AGENT` identifying the app. The policy URL is cited in the file. Both were deliberate (D25) |
 | iOS map | Apple's platform terms | `TaskMapView.swift` uses MapKit, so it never needed a key or a tile licence |
 
 ## AI models (Workers AI)

@@ -8,7 +8,7 @@ import { Button } from "@/components/ui/button";
 import { LoadError } from "@/components/ui/load-error";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useT } from "@/i18n/provider";
-import { useAllTasks, useGeocodeProgress, useTasks } from "@/lib/api/tasks";
+import { useAllTasks, useTasks } from "@/lib/api/tasks";
 import { flattenPages } from "@/lib/api/pagination";
 import type { Task } from "@/lib/api/types";
 import { EmptyState } from "@/components/ui/empty-state";
@@ -37,18 +37,8 @@ const MapIsland = dynamic(() => import("./map-island").then((m) => m.MapIsland),
   ),
 });
 
-/**
- * The Map view (D25) — the field-service differentiator: the day's jobs on a
- * map. Tasks are plotted at their conversation→contact address (geocoded once,
- * cached on the contact — HOME-AND-VIEWS "Map view technology"). Tasks whose
- * contact has no geocodable location simply don't appear; they're surfaced as a
- * quiet "N without a location" count instead of blocking the view.
- */
 export function MapView({ state }: { state: TaskPageState }) {
   const t = useT();
-  // `has_location=true` narrows to tasks whose contact has cached coords (the
-  // frozen route uses the geocode to filter; `taskCoords` plots whatever
-  // coordinates the row actually carries and counts the rest as unlocated).
   const filters = {
     ...toTaskFilters(state),
     status: undefined,
@@ -59,9 +49,7 @@ export function MapView({ state }: { state: TaskPageState }) {
   // Drain every page so all located tasks are plotted, not just the first one.
   const query = useAllTasks(filters);
   const tasks = flattenPages(query.data);
-  // Nothing is located. Ask whether the same filter has any task at all, so
-  // the page can say whether there are none at all or none with an address
-  // (#752): "No tasks yet" must never appear while tasks exist. One row answers.
+  // A task without the location filter distinguishes an empty list from an empty map.
   const noneLocated = query.isSuccess && !query.isPlaceholderData && tasks.length === 0;
   const unlocatedQuery = useTasks(
     { ...filters, has_location: undefined, limit: 1 },
@@ -74,9 +62,6 @@ export function MapView({ state }: { state: TaskPageState }) {
   const [geoError, setGeoError] = useState<string | null>(null);
 
   const { located, missing } = useMemo(() => partitionLocated(tasks), [tasks]);
-  // #440: the backfill's outstanding count, so an in-progress Map says so.
-  const geocodeProgress = useGeocodeProgress();
-  const pendingGeocodes = geocodeProgress.data?.contacts_pending ?? 0;
 
   const requestNearMe = () => {
     if (!("geolocation" in navigator)) {
@@ -127,7 +112,7 @@ export function MapView({ state }: { state: TaskPageState }) {
       );
     }
     if (anyUnlocated) {
-      return <NoAddresses count={null} />;
+      return <UnmappedTasks />;
     }
     return (
       <div className="space-y-3">
@@ -148,23 +133,6 @@ export function MapView({ state }: { state: TaskPageState }) {
             </span>
           )}
         </p>
-        {/* #440: the sentence that turns "broken" into "busy". A switcher who has
-            just imported 2,000 contacts opens this view before the hourly, 1-req/s
-            backfill has finished, and an empty Map with nothing saying why reads as
-            a feature that does not work. Shown only while work is outstanding. */}
-        {pendingGeocodes > 0 && (
-          <p
-            role="status"
-            className="basis-full text-[13px] leading-relaxed text-muted-foreground"
-          >
-            {t("tasks.mapStillLocating")}{" "}
-            <span className="tabular-nums">{pendingGeocodes}</span>{" "}
-            {pendingGeocodes === 1
-              ? t("tasks.mapAddressOne")
-              : t("tasks.mapAddressMany")}
-            . {t("tasks.mapGeocodeBacklogNote")}
-          </p>
-        )}
         <Button variant="outline" size="sm" onClick={requestNearMe} disabled={locating}>
           <Navigation className="size-3.5" strokeWidth={1.75} aria-hidden />
           {locating ? t("tasks.mapLocating") : t("tasks.mapNearMe")}
@@ -176,19 +144,23 @@ export function MapView({ state }: { state: TaskPageState }) {
         </p>
       )}
       {located.length === 0 ? (
-        <NoAddresses count={missing} />
+        <UnmappedTasks count={missing} />
       ) : (
-        <MapIsland tasks={located} nearMe={nearMe} />
+        <>
+          <p className="text-[13px] leading-relaxed text-muted-foreground">
+            {t("tasks.mapAddressLookupPaused")}
+          </p>
+          <MapIsland tasks={located} nearMe={nearMe} />
+        </>
       )}
     </div>
   );
 }
 
-/** The Map's own empty state: tasks exist, none has an address. `count` is null when not counted. */
-function NoAddresses({ count }: { count: number | null }) {
+function UnmappedTasks({ count }: { count?: number }) {
   const t = useT();
   const counted =
-    count === null
+    count === undefined
       ? ""
       : `${t(count === 1 ? "tasks.mapUnlocatedOne" : "tasks.mapUnlocatedMany", { count })} `;
   return (
@@ -197,7 +169,7 @@ function NoAddresses({ count }: { count: number | null }) {
         size="panel"
         icon={<MapPin strokeWidth={1.75} />}
         title={t("tasks.mapNoMappedAddress")}
-        description={`${counted}${t("tasks.mapAddAddressHow")}`}
+        description={`${counted}${t("tasks.mapAddressLookupPaused")}`}
       />
     </div>
   );

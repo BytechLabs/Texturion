@@ -134,9 +134,9 @@ enum ContactsTasksStrings {
             "contactsTasks.mapCountsWithMissing":
                 "{located} on the map · {missing} without a location",
             "contactsTasks.mapMissingCount": "{missing} without a location",
-            "contactsTasks.mapNoLocatedTasks": "No located tasks yet.",
-            "contactsTasks.mapAddAnAddress":
-                "Add an address to a contact and its tasks appear here.",
+            "contactsTasks.mapNoLocatedTasks": "No task addresses on the map yet",
+            "contactsTasks.mapAddressLookupPaused":
+                "Automatic address lookup is paused, so new addresses won't appear on the map.",
             "contactsTasks.mapThisLocation": "This location",
             "contactsTasks.mapTasksHere": "{count} tasks here",
             "contactsTasks.mapOpenTask": "Open task",
@@ -959,9 +959,9 @@ enum ContactsTasksStrings {
             "contactsTasks.mapCountsWithMissing":
                 "{located} sur la carte · {missing} sans emplacement",
             "contactsTasks.mapMissingCount": "{missing} sans emplacement",
-            "contactsTasks.mapNoLocatedTasks": "Aucune tâche localisée pour l'instant.",
-            "contactsTasks.mapAddAnAddress":
-                "Ajoutez une adresse à un client et ses tâches apparaissent ici.",
+            "contactsTasks.mapNoLocatedTasks": "Aucune adresse de tâche sur la carte pour l'instant",
+            "contactsTasks.mapAddressLookupPaused":
+                "La recherche automatique d'adresses est suspendue. Les nouvelles adresses ne s'affichent pas sur la carte.",
             "contactsTasks.mapThisLocation": "Cet emplacement",
             "contactsTasks.mapTasksHere": "{count} tâches ici",
             "contactsTasks.mapOpenTask": "Ouvrir la tâche",

@@ -107,7 +107,7 @@ The most sensitive category, because the person never chose us.
 | `calendar_reminder_replans` | task and requesting-member references plus retry/lease/error metadata for route-driven reminder replanning; no reminder body or calendar snapshot (#245/D137) | Completed attempts remain as operational evidence until workspace teardown; live attempts are cancelled when the task is cancelled or during workspace teardown |
 | `number_port_outs`, `text_enablement_orders` | phone numbers | Life of the workspace |
 
-Map geocoding sends saved contact street addresses to OpenStreetMap Foundation’s public Nominatim endpoint to obtain coordinates. Web and Android request map tiles from OpenStreetMap.
+Web and Android request map tiles from the OpenStreetMap Foundation. The map uses saved coordinates. Automatic lookup of contact and task street addresses is paused.
 
 ## 2. User data — our own customers
 

@@ -305,7 +305,8 @@ Declared in `apps/api/wrangler.jsonc:11-21` (9 expressions), mapped to jobs in
 | `*/15 * * * *` | `reconcileNumbers` + `retryCampaignAssignments` + `sweepDeletedAttachments` + `reconcileTextEnablement` + `reconcileVoiceEnablement` (provisioning retry/reconcile, attachment sweep, hosted-SMS order polling, voice binding) |
 | `0 * * * *` | `reportUnreportedUsage` + `runUsageAlertsJob` (hourly usage re-report + 80%/100% alerts) |
 | `30 * * * *` | `nudgeSoleProprietorOtp` (hourly) |
-| `20 * * * *` | `geocodeContactsJob` (hourly contact-geocoding backfill, rate-limited Nominatim) |
+| `20 * * * *` | `geocodeContactsJob` (hourly, address lookup paused with `GEOCODER_PROVIDER=none`, the default) |
+| `40 * * * *` | `geocodeTasksJob` (hourly, address lookup paused) |
 | `0 13 * * *` | `pollRegistrations` (daily 10DLC registration poller + approved-campaign content migration) |
 | `10 13 * * *` | `pollPortRequests` (daily port reconcile & resume) |
 | `0 14 * * *` | `runGraceJob` (daily grace warnings + day-30 release) |

@@ -109,6 +109,7 @@ const envSchema = z.object({
    * rather than the Worker failing to start.
    */
   GIT_SHA: z.string().min(1).optional(),
+  GEOCODER_PROVIDER: z.literal("none").optional(),
   /**
    * Set to "1" only in `.dev.vars`, which nothing but `wrangler dev` loads, to
    * mark this Worker as somebody's laptop. It silences crash reporting: a local

@@ -19,7 +19,7 @@ import { parseDpaClauses } from "@/lib/marketing/dpa-clauses";
 
 export const DPA_EN_PATH = "/legal/dpa";
 export const DPA_FR_PATH = "/fr/entente-traitement-donnees";
-const LAST_UPDATED_ISO = "2026-11-17";
+const LAST_UPDATED_ISO = "2026-11-19";
 
 export function DpaPageBody({
   locale = "en",

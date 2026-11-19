@@ -343,8 +343,6 @@ private fun TaskMapContent(
                     modifier = Modifier.size(IconSize.Small),
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
-                // The quiet count line, web copy grammar: "N on the map · N
-                // without a location".
                 Text(
                     if (model.missing > 0) {
                         t(
@@ -359,6 +357,12 @@ private fun TaskMapContent(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
+            Text(
+                t("contactsTasks.mapAddressLookupPaused"),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 24.dp, end = 24.dp, bottom = 9.dp),
+            )
         }
 
         Box(
@@ -409,7 +413,7 @@ private fun TaskMapContent(
                                     "missing" to "${model.missing}",
                                 )
                             } else {
-                                t("contactsTasks.mapAddAnAddress")
+                                t("contactsTasks.mapAddressLookupPaused")
                             },
                             fontSize = 11.5.sp,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,

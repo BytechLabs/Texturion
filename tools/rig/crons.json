@@ -131,14 +131,14 @@
       "cron": "20 * * * *",
       "class": "run",
       "jobs": ["job:geocode-contacts"],
-      "note": "Calls the public Nominatim service, which has no seam and is not on the rig's DNS block list. It only ever sees seeded synthetic addresses, once each, at one request a second, and caches the answer."
+      "note": "Address lookup is paused. The job logs not_geocoded without reading addresses or calling an external service."
     },
     {
       "config": "apps/api/wrangler.jsonc",
       "cron": "40 * * * *",
       "class": "run",
       "jobs": ["job:geocode-tasks"],
-      "note": "As the contact geocoder: public Nominatim, seeded synthetic addresses only."
+      "note": "Address lookup is paused. The job logs not_geocoded without reading addresses or calling an external service."
     },
     {
       "config": "apps/api/wrangler.jsonc",

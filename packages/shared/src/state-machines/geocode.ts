@@ -1,15 +1,13 @@
 import { defineMachine } from "./define-machine";
 
 /**
- * Address geocoding status for contacts and tasks (geocode-contacts.ts,
- * geocode-tasks.ts). Setting or editing an address resets to pending; clearing
- * it sets no_address.
+ * Setting or editing an address resets its state to pending. Clearing it sets
+ * no_address.
  *
  * Phase 1 of #722: definition only, no runtime behaviour. See docs/STATE-MACHINES.md.
  */
 export type GeocodeState = "pending" | "ok" | "failed" | "no_address";
 
-/** Address geocoding status for contacts and tasks (geocode-contacts.ts, geocode-tasks.ts). */
 export const geocodeMachine = defineMachine<GeocodeState>({
   id: "geocode",
   authority: "internal",

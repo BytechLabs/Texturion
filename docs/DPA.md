@@ -119,9 +119,8 @@ for this contract to disclose to one.
 
 Current list, kept public and current: **Telnyx, Stripe, Supabase, Cloudflare, Resend, Google, PostHog**
 
-Web and Android maps load tiles from the OpenStreetMap Foundation. Geocoding
-sends saved street addresses to the foundation’s public Nominatim service to
-look up coordinates. Its public service terms apply to those requests.
+Web and Android maps load tiles from the OpenStreetMap Foundation. Automatic
+lookup of saved street addresses is paused.
 
 > Source: `/legal/subprocessors`
 
@@ -188,9 +187,8 @@ promise this whole document is written to avoid.
 
 Our database and file storage are in the **United States**. This states where
 they are and is **not a residency guarantee**. AI inference cannot be confined
-to a country. OpenStreetMap Foundation’s public geocoding service runs on
-servers in the United Kingdom and the European Union. Its map tiles use a
-global delivery network. The privacy page contains the cross-border disclosure
+to a country. The OpenStreetMap Foundation's map tiles use a global delivery
+network. The privacy page contains the cross-border disclosure
 required under PIPEDA and Quebec's Law 25.
 
 > Source: `/legal/privacy`, `docs/ACCEPTED-RISKS.md` R4

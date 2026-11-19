@@ -211,7 +211,7 @@ feature cannot ship undisclosed.
 
 ---
 
-The OpenStreetMap Foundation receives street addresses through Nominatim geocoding. Web and Android also fetch map tiles from OpenStreetMap.
+Web and Android fetch map tiles from the OpenStreetMap Foundation. The map uses saved coordinates. Automatic lookup of contact and task street addresses is paused.
 
 ## Where the workspace itself sends data (#243)
 

@@ -19,7 +19,8 @@ The two lists must stay in lockstep — an unmapped cron throws
 | `*/15 * * * *` | every 15 min | `reconcileNumbers` (resume provisioning, adopt crash-after-buy orphans) + `retryCampaignAssignments` (re-run failed §4.4 R3) + `sweepDeletedAttachments` (reclaim soft-deleted attachment objects) + `reconcileTextEnablement` (poll in-flight keep-your-number hosted-SMS orders) + `reconcileVoiceEnablement` (bind voice on numbers whose company has missed-call text-back on) | `index.ts:167-178` |
 | `0 * * * *` | hourly | `reportUnreportedUsage` then `runUsageAlertsJob` (usage re-report + 80%/100% alerts) | `index.ts:181` |
 | `30 * * * *` | hourly | `nudgeSoleProprietorOtp` (one nudge at +12h per brand submission) | `index.ts:183` |
-| `20 * * * *` | hourly | `geocodeContactsJob` (D25 contact-geocoding backfill via Nominatim, rate-limited 1 req/s) | `index.ts:187` |
+| `20 * * * *` | hourly | `geocodeContactsJob` (contact address lookup paused) | `geocode/jobs.ts` |
+| `40 * * * *` | hourly | `geocodeTasksJob` (task address lookup paused) | `geocode/jobs.ts` |
 | `0 13 * * *` | daily 13:00 | `pollRegistrations` (10DLC brand/campaign poll — D2 fallback to webhooks; also migrates already-approved campaigns' declared content, once per campaign) | `index.ts:189`, `telnyx/registration.ts` `pollRegistrations` |
 | `10 13 * * *` | daily 13:10 | `pollPortRequests` (port reconcile & resume — PORTING.md §5.2 fallback to webhooks) | `index.ts:193` |
 | `0 14 * * *` | daily 14:00 | `runGraceJob` (day 1/15/27 warnings; day-30 release + campaign deactivation) | `index.ts:196` |
