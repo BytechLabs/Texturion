@@ -2612,6 +2612,7 @@ struct MakeTaskSheet: View {
     @State private var dueSuggested = false
     @State private var duePickerOpen = false
     @State private var addr = AddressFieldValues()
+    @State private var customerAddress: String?
     @State private var addrProvenance: String?
     @State private var addrOpen = false
     /// #689: a standalone task asks only for a title; the rest sits under More.
@@ -2680,6 +2681,7 @@ struct MakeTaskSheet: View {
         _moreOpen = State(initialValue: !source.isStandalone || initialDueOn != nil)
         _due = State(initialValue: initialDueOn.flatMap { taskDay($0) })
         _dateOnly = State(initialValue: initialDueOn != nil)
+        _customerAddress = State(initialValue: initialAddress)
         if let initialAddress {
             var address = AddressFieldValues()
             address.street = initialAddress
@@ -2785,9 +2787,10 @@ struct MakeTaskSheet: View {
             if let host = controller as? NewTaskHost {
                 BookingCustomerPicker(load: { try await host.customers(matching: $0) }) { customer in
                     if changedCustomer && customer?.id == pickedCustomer?.id { return }
-                    if addr.street.isEmpty || addr.street == pickedCustomer?.address {
+                    if addr.street.isEmpty || addr.street == customerAddress {
                         addr.street = customer?.address ?? ""
                     }
+                    customerAddress = customer?.address
                     pickedCustomer = customer
                     pickedCustomerThread = nil
                     resolvingCustomer = customer != nil

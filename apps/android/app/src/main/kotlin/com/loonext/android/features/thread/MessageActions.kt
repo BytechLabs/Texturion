@@ -411,8 +411,12 @@ fun MakeTaskSheet(
     // #214 enrichment: the structured address + its provenance, the collapsible
     // state, and the in-flight spinner. Editing any field marks it "manual".
     var addr by remember { mutableStateOf(AddressFields()) }
+    var previousCustomerAddress by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(customerAddress) {
-        if (addr.isEmpty() && !customerAddress.isNullOrBlank()) addr = addr.copy(street = customerAddress)
+        if (addr.street.isBlank() || addr.street == previousCustomerAddress) {
+            addr = addr.copy(street = customerAddress.orEmpty())
+        }
+        previousCustomerAddress = customerAddress
     }
     var addrProvenance by remember { mutableStateOf<String?>(null) }
     var addrOpen by remember { mutableStateOf(false) }
