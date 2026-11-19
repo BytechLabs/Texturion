@@ -31,6 +31,7 @@ class AllowedActionsRosterTest {
         Row("task", "core/model/Tasks.kt", "features/tasks/TaskRecordMenu.kt"),
         Row("call", "core/model/Calls.kt", "features/calls/CallsLogic.kt"),
         Row("scheduled_message", "core/model/Messaging.kt", "features/inbox/ScheduledSheet.kt"),
+        Row("calendar_link", "core/model/ScheduleDecision.kt", "features/foryou/ScheduleDecisionsCard.kt"),
         Row("quote", "features/quotes/QuotesData.kt", "features/thread/ThreadQuotes.kt"),
         Row("payment_request", "features/payments/PaymentsData.kt", "features/thread/PaymentStrip.kt"),
         Row("subscription", "core/model/Core.kt", "features/settings/BillingSection.kt"),
@@ -46,7 +47,6 @@ class AllowedActionsRosterTest {
     /** Machines with actions that the phone does not offer, and why. */
     private val notOffered = mapOf(
         "calendar_connection" to "Calendar connections are connected and removed on the web; the phones do not manage them.",
-        "calendar_link" to "Calendar links are managed on the web; the phones do not manage them.",
     )
 
     private val field = Regex("""allowed_?[aA]ctions""")

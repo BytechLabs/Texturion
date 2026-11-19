@@ -10652,3 +10652,16 @@ does not change the greeting.
 A saved voicemail updates the push for its conversation. If the same call
 already has an open on-call escalation, the update goes to that member subject
 to access and mute. The voicemail does not create an escalation.
+
+## D168 - calendar changes that need a human go to Schedule Decisions (#806, amends D137)
+
+For You shows unresolved calendar items on web, Android, and iOS. Calendar
+Settings on web keeps the same controls and remains the place to connect or
+disconnect an account. An active owner or admin can act when both they and the
+connecting member have access to the job. The audit records the person who
+chose, and calendar writes use the connection already linked to the job.
+
+A transition into removed or refused queues one operational push for the
+connecting member. Repeated observations of the same condition add no push.
+Delivery checks that the item still needs review and the member still has
+access. The notification opens For You and carries no customer details.

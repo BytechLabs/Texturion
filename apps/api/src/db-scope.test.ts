@@ -101,7 +101,7 @@ const TENANT_TABLES = new Set([
   // #245/D137: encrypted connection state, short-lived OAuth proof, provider
   // watch identity, per-task mirror snapshots and durable write intents.
   "calendar_connections", "oauth_states", "webhook_subscriptions",
-  "task_calendar_links", "calendar_outbox", "calendar_reminder_replans",
+  "task_calendar_links", "calendar_outbox", "calendar_reminder_replans", "calendar_attention_notices",
   // #689 E: a task's history and its comments.
   "task_events", "task_comments",
   // #693: a task's labels, and a repeating job's rule and template.

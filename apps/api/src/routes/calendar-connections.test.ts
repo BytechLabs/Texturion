@@ -15,6 +15,7 @@ import { calendarConnectionRoutes } from "./calendar-connections";
 
 const COMPANY_ID = "8a1b3c5d-7e9f-4a2b-8c4d-6e8f0a2b4c6d";
 const MEMBER_ID = "0d9c8b7a-6f5e-4d3c-9b2a-1f0e9d8c7b6a";
+const CONNECTOR_ID = "11111111-1111-4111-8111-111111111111";
 const CONNECTION_ID = "cccccccc-1111-4222-8333-444444444444";
 const LINK_ID = "dddddddd-1111-4222-8333-444444444444";
 const TASK_ID = "eeeeeeee-1111-4222-8333-444444444444";
@@ -772,14 +773,14 @@ describe("calendar connection management", () => {
     },
   );
 
-  it("re-reads the provider before resolving a conflict with use_calendar", async () => {
+  it("re-reads the connector's provider calendar when an admin resolves a conflict", async () => {
     const env = configuredEnv();
     const sb = supabaseStub(env);
     const sealed = await sealCalendarCredential(
       "stored-refresh-token",
       {
         companyId: COMPANY_ID,
-        userId: auth.subject,
+        userId: CONNECTOR_ID,
         provider: "google",
         purpose: "refresh_token",
       },
@@ -788,11 +789,11 @@ describe("calendar connection management", () => {
     sb.on(
       "POST",
       "/rest/v1/rpc/api_authorize_request",
-      membershipResponder(MEMBER_ID, "member"),
+      membershipResponder(MEMBER_ID, "admin"),
     );
     sb.on("POST", "/rest/v1/rpc/api_get_calendar_attention", () => ({
       outcome: "found",
-      attention: attentionRow(),
+      attention: { ...attentionRow(), connection_user_id: CONNECTOR_ID },
     }));
     sb.on("GET", "/rest/v1/calendar_connections", () => [
       {
@@ -871,6 +872,10 @@ describe("calendar connection management", () => {
       outcome: "resolved",
       source: "calendar",
     });
+    const [connectionLookup] = sb.find("GET", "/rest/v1/calendar_connections");
+    expect(connectionLookup.url.searchParams.get("user_id")).toBe(
+      `eq.${CONNECTOR_ID}`,
+    );
     const resolution = sb.find(
       "POST",
       "/rest/v1/rpc/api_resolve_calendar_conflict",
@@ -896,7 +901,7 @@ describe("calendar connection management", () => {
     expect(claim).toMatchObject({
       p_company_id: COMPANY_ID,
       p_connection_id: CONNECTION_ID,
-      p_user_id: auth.subject,
+      p_user_id: CONNECTOR_ID,
       p_expected_generation: 7,
       p_lease_seconds: 120,
     });

@@ -6,6 +6,7 @@ import Link from "next/link";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 
+import { CalendarAttentionPanel } from "@/components/calendar/calendar-attention-panel";
 import { NotificationBell } from "@/components/notifications/notification-bell";
 import { SECTION_LABEL_CLASS } from "@/components/ui/section-label";
 import { Button } from "@/components/ui/button";
@@ -20,6 +21,7 @@ import { undoableToast } from "@/components/ui/optimistic-undo";
 import { Skeleton } from "@/components/ui/skeleton";
 import { formatDue } from "@/components/tasks/task-format";
 import { useT } from "@/i18n/provider";
+import { useCalendarAttention } from "@/lib/api/calendar";
 import { useCalls } from "@/lib/api/calls";
 import { ApiError } from "@/lib/api/error";
 import { useUpdateConversation } from "@/lib/api/conversations";
@@ -676,6 +678,8 @@ function Overflow({
 export function ForYouView() {
   const t = useT();
   const forYou = useForYou();
+  const attention = useCalendarAttention();
+  const hasScheduleDecisions = Boolean(attention.data?.attention.length);
 
   // How many THINGS need you, not how many rows are on screen. The unread
   // section is a cross-cut, so a thread assigned to you that nobody has read
@@ -748,7 +752,7 @@ export function ForYouView() {
           ) : (total > 0 ? (
             t(total === 1 ? "inbox.forYouWorkOne" : "inbox.forYouWorkMany", { count: total })
           ) : (
-            t("inbox.forYouAllCaughtUp")
+            hasScheduleDecisions ? undefined : t("inbox.forYouAllCaughtUp")
           ))
         }
         secondary={
@@ -792,6 +796,8 @@ export function ForYouView() {
         <WhileYouWait />
       </div>
 
+      <CalendarAttentionPanel sectionId="schedule-decisions" className="mb-6" showLoading={false} />
+
       {/* The dashboard's summary strip: where the work is, before you read a
           single card. Hidden while loading and when the queue is empty, where
           the caught-up card already says everything. */}
@@ -824,6 +830,7 @@ export function ForYouView() {
           data={forYou.data}
           order={strip.map((tile) => tile.id)}
           editing={editing}
+          hasScheduleDecisions={hasScheduleDecisions}
         />
       ))}
     </div>
@@ -1048,12 +1055,14 @@ function ForYouSections({
   data,
   order,
   editing,
+  hasScheduleDecisions,
 }: {
   data: ForYou;
   /** #540: the urgency order, which the default layout follows. */
   order: readonly DashboardTileId[];
   /** #736: the member is arranging the page. */
   editing: boolean;
+  hasScheduleDecisions: boolean;
 }) {
   const t = useT();
   // Read off the /v1/me payload the shell already holds, so the page is laid
@@ -1079,6 +1088,7 @@ function ForYouSections({
   const followUpTotal = totals?.follow_ups ?? followUps.length;
 
   const queuesEmpty =
+    !hasScheduleDecisions &&
     textAlerts.length === 0 &&
     followUps.length === 0 &&
     waiting_on_you.length === 0 &&

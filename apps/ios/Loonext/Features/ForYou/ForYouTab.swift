@@ -30,6 +30,7 @@ struct ForYouTab: View {
     var onOpenCalls: (() -> Void)? = nil
 
     @State private var state: LoadState<ForYou> = .loading
+    @State private var hasScheduleDecisions = false
     @State private var recentCalls: LoadState<[Call]> = .loading
     /// #287: money asked for and not yet answered. Empty rather than a
     /// LoadState — the section is absent until it has rows either way, so a
@@ -235,7 +236,15 @@ struct ForYouTab: View {
                     onToggleEditing: { editing.toggle() },
                     onSaveLayout: { next, message in saveLayout(next, message) },
                     onSaveHidden: { next in saveHidden(next) },
-                    onAnnounce: { message in announce(message) }
+                    onAnnounce: { message in announce(message) },
+                    scheduleDecisions: ScheduleDecisionsSection(
+                        api: graph.forYouApi,
+                        companyId: companyId,
+                        refreshKey: refreshKey,
+                        onChanged: { refreshKey += 1 },
+                        onHasDecisions: { hasScheduleDecisions = $0 }
+                    ),
+                    hasScheduleDecisions: hasScheduleDecisions
                 )
             }
         }
@@ -503,6 +512,8 @@ struct ForYouList: View {
     let onSaveHidden: @MainActor ([String]) -> Void
     /// #736: a spoken confirmation with nothing to save.
     let onAnnounce: @MainActor (String) -> Void
+    var scheduleDecisions: ScheduleDecisionsSection? = nil
+    var hasScheduleDecisions = false
 
     @Environment(\.appLocale) private var appLocale
 
@@ -561,6 +572,9 @@ struct ForYouList: View {
                     onOpenContacts: onOpenContacts,
                     onOpenSettings: onOpenSettings
                 )
+                if let scheduleDecisions {
+                    scheduleDecisions.id(scheduleDecisions.companyId)
+                }
                 // #342: above the queue, because "you're all caught up" is not
                 // true if somebody has been texting a thread nobody can see.
                 spamReviewSection
@@ -615,9 +629,11 @@ struct ForYouList: View {
         HStack(alignment: .top, spacing: 12) {
             VStack(alignment: .leading, spacing: 5) {
                 ScreenTitle(text: AppStrings.translate(appLocale, "inbox.forYouTitle"))
-                Text(subtitle)
-                    .font(.golos(13))
-                    .foregroundStyle(BrandColor.muted600)
+                if total > 0 || !hasScheduleDecisions {
+                    Text(subtitle)
+                        .font(.golos(13))
+                        .foregroundStyle(BrandColor.muted600)
+                }
             }
             Spacer(minLength: 0)
             // #540: quiet, and to the side. THE DOT MATTERS MORE THAN IT LOOKS

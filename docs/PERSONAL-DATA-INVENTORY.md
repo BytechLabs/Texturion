@@ -105,6 +105,7 @@ The most sensitive category, because the person never chose us.
 | `task_calendar_links` | the task title and exact agreed/provider scheduling fields for one mapped calendar occurrence; description equality is a **SHA-256 hash**, never another plaintext copy (#245/D137) | Life of the mapping; purged with the workspace. Attention snapshots survive only so a person can resolve a conflict without either edit being destroyed |
 | `calendar_outbox` | the same task scheduling snapshot while a provider write is pending, plus lease/error metadata. No plaintext description (#245/D137) | Completed attempts remain as operational evidence until workspace teardown; live attempts are cancelled on disconnect/replacement |
 | `calendar_reminder_replans` | task and requesting-member references plus retry/lease/error metadata for route-driven reminder replanning; no reminder body or calendar snapshot (#245/D137) | Completed attempts remain as operational evidence until workspace teardown; live attempts are cancelled when the task is cancelled or during workspace teardown |
+| `calendar_attention_notices` | Workspace and calendar link IDs for pending schedule decision pushes (#806) | Deleted when claimed for delivery. Link and workspace deletion cascade to pending notices |
 | `number_port_outs`, `text_enablement_orders` | phone numbers | Life of the workspace |
 
 Map geocoding sends saved contact street addresses to OpenStreetMap Foundation’s public Nominatim endpoint to obtain coordinates. Web and Android request map tiles from OpenStreetMap.
@@ -263,7 +264,7 @@ workspace's egress allowance before issuing a short-lived link.
 | Individual workflow preferences and delivery state | `conversation_snoozes`, `conversation_member_prefs`, `saved_views`, `task_subscribers`, `task_notify_windows`, `notification_prefs`, `notification_reads`, `notification_read_items`, `alert_escalations`, `pending_notifications` |
 | Workspace configuration and routing records | `appointment_reminder_rules`, `blocked_senders`, `invites`, `on_call_shifts`, `companies`, `phone_numbers`, `number_access`, `number_health`, `company_ai_settings`, `voicemail_greetings`, `lead_sources` |
 | Contact fields include the source and time of consent. Compliance evidence is retained separately. | `contact_consent_events` |
-| Task relationship and external calendar synchronization state | `task_tags`, `record_references`, `task_links`, `task_calendar_links`, `calendar_outbox`, `calendar_reminder_replans` |
+| Task relationship and external calendar synchronization state | `task_tags`, `record_references`, `task_links`, `task_calendar_links`, `calendar_outbox`, `calendar_reminder_replans`, `calendar_attention_notices` |
 | Carrier provisioning records can contain identity proofs. | `number_port_outs`, `text_enablement_orders`, `messaging_registrations`, `port_requests` |
 | Sessions, credentials, tokens, recovery and security controls | `user_sessions`, `push_subscriptions`, `device_push_tokens`, `calendar_feed_tokens`, `calendar_connections`, `oauth_states`, `member_telephony_credentials`, `mfa_recovery_codes`, `mfa_recovery_attempts`, `public_links`, `webhook_endpoints`, `webhook_subscriptions`, `api_keys` |
 | Private feedback sent to Loonext | `cancellation_reasons` |

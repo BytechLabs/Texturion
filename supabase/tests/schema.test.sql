@@ -24,7 +24,7 @@ declare
     'push_subscriptions','notification_prefs','usage_alerts','grace_notices',
     'port_requests','call_records','company_modules',
     'calendar_connections','oauth_states','webhook_subscriptions',
-    'task_calendar_links','calendar_outbox','calendar_reminder_replans'];
+    'task_calendar_links','calendar_outbox','calendar_reminder_replans','calendar_attention_notices'];
   missing text;
   no_rls  text;
 begin
