@@ -24,6 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.semantics.SemanticsProperties
 import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isRoot
 import androidx.compose.ui.test.isSelectable
@@ -72,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.test.core.app.ApplicationProvider
 import com.loonext.android.AppGraph
 import com.loonext.android.core.auth.Session
+import com.loonext.android.core.auth.SessionPreferencesRule
 import com.loonext.android.core.data.CacheKeys
 import com.loonext.android.core.i18n.t
 import com.loonext.android.core.model.Call
@@ -121,6 +123,8 @@ import com.loonext.android.features.tasks.TaskMutations
 import com.loonext.android.features.tasks.TasksTab
 import com.loonext.android.ui.theme.LoonextTheme
 import java.io.File
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.job
 import kotlinx.coroutines.runBlocking
 import mockwebserver3.Dispatcher
 import mockwebserver3.MockResponse
@@ -157,6 +161,9 @@ class IssueEvidenceScreenshotTest {
     @get:Rule
     val compose = createAndroidComposeRule<ComponentActivity>()
 
+    @get:Rule
+    val sessionPreferences = SessionPreferencesRule()
+
     private lateinit var server: MockWebServer
     private lateinit var graph: AppGraph
 
@@ -191,6 +198,7 @@ class IssueEvidenceScreenshotTest {
             ApplicationProvider.getApplicationContext(),
             supabaseUrl = server.url("/gotrue").toString(),
             apiUrl = server.url("/").toString().trimEnd('/'),
+            sessionPreferences = sessionPreferences.dataStore,
         )
         runBlocking {
             graph.sessionStore.save(
@@ -207,7 +215,8 @@ class IssueEvidenceScreenshotTest {
 
     @After
     fun tearDown() {
-        server.close()
+        if (::graph.isInitialized) runBlocking { graph.appScope.coroutineContext.job.cancelAndJoin() }
+        if (::server.isInitialized) server.close()
     }
 
     // --- 1. inbox -------------------------------------------------------------------
@@ -895,29 +904,33 @@ class IssueEvidenceScreenshotTest {
 
     @Test @Config(qualifiers = "w390dp-h1100dp-xhdpi")
     fun `calling-choice-note light`() =
-        shoot("calling-choice-note", dark = false, heightDp = 1100, settle = true, afterShow = { scrollToChoiceNote() }) { callingChoiceNote() }
+        shootCallingChoiceNote(dark = false)
 
     @Test @Config(qualifiers = "w390dp-h1100dp-xhdpi")
     fun `calling-choice-note dark`() =
-        shoot("calling-choice-note", dark = true, heightDp = 1100, settle = true, afterShow = { scrollToChoiceNote() }) { callingChoiceNote() }
+        shootCallingChoiceNote(dark = true)
+
+    private fun shootCallingChoiceNote(dark: Boolean) {
+        graph.storeCache.put(CacheKeys.settingChoices("co_1"), CALLING_CHOICE_SETTINGS)
+        shoot(
+            "calling-choice-note",
+            dark = dark,
+            heightDp = 1100,
+            settle = true,
+            afterShow = ::scrollToChoiceNote,
+        ) { callingChoiceNote() }
+    }
 
     private fun scrollToChoiceNote() {
-        compose.onNode(hasText("Sam Rivera chose this on", substring = true)).performScrollTo()
+        val note = hasText("Sam Rivera chose this on", substring = true)
+        compose.waitUntil(timeoutMillis = 10_000) {
+            compose.onAllNodes(note).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNode(note).performScrollTo().assertIsDisplayed()
     }
 
     @Composable
     private fun callingChoiceNote() {
-        graph.storeCache.flowOf<SettingChoices>(CacheKeys.settingChoices("co_1")).value = SettingChoices(
-            listOf(
-                SettingChoice(
-                    key = "after_hours_calls",
-                    value = JsonPrimitive("voicemail"),
-                    default_value = JsonPrimitive("ring_everyone"),
-                    chosen_by = "Sam Rivera",
-                    chosen_at = "2026-08-08T15:31:13Z",
-                ),
-            ),
-        )
         val days = listOf("mon", "tue", "wed", "thu", "fri").associateWith { DayHours("08:00", "17:00") }
         val company = previewCompany().copy(after_hours_calls = "voicemail", business_hours = days)
         Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(top = 12.dp)) {
@@ -1121,6 +1134,18 @@ class IssueEvidenceScreenshotTest {
         ],"next_cursor":null}"""
 
         const val OWNERSHIP_JSON = """{"owner_member_id":"mem_1","backup_member_id":null,"i_am_owner":true,"can_offer":true}"""
+
+        val CALLING_CHOICE_SETTINGS = SettingChoices(
+            listOf(
+                SettingChoice(
+                    key = "after_hours_calls",
+                    value = JsonPrimitive("voicemail"),
+                    default_value = JsonPrimitive("ring_everyone"),
+                    chosen_by = "Sam Rivera",
+                    chosen_at = "2026-08-08T15:31:13Z",
+                ),
+            ),
+        )
 
         val LONG_CALLS_JSON = """{"data":[""" + (1..9).joinToString(",") { i ->
             """{"id":"k$i","call_session_id":"s$i","caller_e164":"+14155550134","contact_id":"p1","contact_name":"Dana Whitcomb","outcome":"${if (i % 3 == 0) "missed" else "answered"}","direction":"${if (i % 2 == 0) "outbound" else "inbound"}","forward_seconds":${60 + i * 17},"started_at":"2026-07-${(20 - i).toString().padStart(2, '0')}T15:20:00Z"}"""

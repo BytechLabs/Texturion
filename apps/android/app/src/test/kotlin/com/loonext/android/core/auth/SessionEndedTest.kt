@@ -5,6 +5,7 @@ import kotlinx.coroutines.test.runTest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
+import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
@@ -29,11 +30,16 @@ import org.robolectric.annotation.Config
 // Robolectric ships an image for, and DataStore is not what changed between them.
 @Config(sdk = [34])
 class SessionEndedTest {
+    @get:Rule
+    val sessionPreferences = SessionPreferencesRule()
 
     @After
     fun tearDown() = SessionEnded.reset()
 
-    private fun store() = SessionStore(ApplicationProvider.getApplicationContext())
+    private fun store() = SessionStore(
+        ApplicationProvider.getApplicationContext(),
+        preferences = sessionPreferences.dataStore,
+    )
 
     @Test
     fun `clearing the session announces it`() = runTest {

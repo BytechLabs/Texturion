@@ -1,6 +1,8 @@
 package com.loonext.android.core.auth
 
 import android.content.Context
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
@@ -90,8 +92,9 @@ object SessionEnded {
  * security-crypto wrappers are deprecated).
  */
 class SessionStore(
-    private val context: Context,
+    context: Context,
     private val discardOfflineReads: suspend () -> Unit = {},
+    preferences: DataStore<Preferences>? = null,
 ) : SessionSource {
     private object Keys {
         val ACCESS = stringPreferencesKey("access_token")
@@ -102,7 +105,9 @@ class SessionStore(
         val CACHED_WORKSPACE = stringPreferencesKey("cached_workspace")
     }
 
-    override val session: Flow<Session?> = context.sessionDataStore.data.map { prefs ->
+    private val dataStore = preferences ?: context.sessionDataStore
+
+    override val session: Flow<Session?> = dataStore.data.map { prefs ->
         val access = prefs[Keys.ACCESS] ?: return@map null
         val refresh = prefs[Keys.REFRESH] ?: return@map null
         Session(
@@ -118,7 +123,7 @@ class SessionStore(
 
     override suspend fun save(session: Session) {
         var accountChanged = false
-        context.sessionDataStore.edit { prefs ->
+        dataStore.edit { prefs ->
             val previous = prefs[Keys.USER_ID]
             accountChanged = previous != null && previous != session.userId
             if (previous != session.userId) prefs.remove(Keys.CACHED_WORKSPACE)
@@ -134,7 +139,7 @@ class SessionStore(
     suspend fun rememberReadyWorkspace(companyId: String, me: Me) {
         withContext(Dispatchers.IO) {
             try {
-                context.sessionDataStore.edit { prefs ->
+                dataStore.edit { prefs ->
                     if (prefs[Keys.USER_ID] != me.user_id || prefs[Keys.ACCESS].isNullOrBlank()) return@edit
                     runCatching { WorkspaceCacheCipher.encrypt(Json.encodeToString(CachedWorkspace(companyId, me))) }
                         .onSuccess { prefs[Keys.CACHED_WORKSPACE] = it }
@@ -146,7 +151,7 @@ class SessionStore(
     }
 
     suspend fun cachedWorkspace(companyId: String): Me? = withContext(Dispatchers.IO) {
-        val prefs = context.sessionDataStore.data.first()
+        val prefs = dataStore.data.first()
         if (prefs[Keys.ACCESS].isNullOrBlank()) return@withContext null
         val encrypted = prefs[Keys.CACHED_WORKSPACE] ?: return@withContext null
         val cached = runCatching {
@@ -156,11 +161,11 @@ class SessionStore(
     }
 
     suspend fun forgetReadyWorkspace() {
-        context.sessionDataStore.edit { it.remove(Keys.CACHED_WORKSPACE) }
+        dataStore.edit { it.remove(Keys.CACHED_WORKSPACE) }
     }
 
     override suspend fun clear() {
-        context.sessionDataStore.edit { it.clear() }
+        dataStore.edit { it.clear() }
         discardOfflineReads()
         // #330: the customer's data goes with the session, however it ended.
         SessionEnded.fire()

@@ -5,6 +5,8 @@ import android.net.ConnectivityManager
 import android.net.Network
 import android.net.Uri
 import androidx.core.app.NotificationManagerCompat
+import androidx.datastore.core.DataStore
+import androidx.datastore.preferences.core.Preferences
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.ProcessLifecycleOwner
@@ -85,6 +87,7 @@ class AppGraph(
      */
     private val supabaseUrl: String = BuildConfig.SUPABASE_URL,
     private val apiUrl: String = BuildConfig.API_URL,
+    sessionPreferences: DataStore<Preferences>? = null,
 ) {
     /**
      * #168A: without a CoroutineExceptionHandler, ONE uncaught exception in
@@ -114,7 +117,11 @@ class AppGraph(
         .build()
 
     private val offlineReads = OfflineReadCache(app.noBackupFilesDir.resolve("offline-reads"))
-    val sessionStore = SessionStore(app, discardOfflineReads = offlineReads::clear)
+    val sessionStore = SessionStore(
+        app,
+        discardOfflineReads = offlineReads::clear,
+        preferences = sessionPreferences,
+    )
     val prefs = AppPrefs(app)
     val supabaseAuth = SupabaseAuth(
         client = http,
