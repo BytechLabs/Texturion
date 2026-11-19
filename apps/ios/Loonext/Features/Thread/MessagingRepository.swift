@@ -68,6 +68,14 @@ struct NoteBody: Codable, Sendable {
 struct MessagingRepository: Sendable {
     let api: ApiClient
 
+    func shareTargets(companyId: String, search: String) async throws -> Page<ConversationListItem> {
+        try await api.get(
+            "/v1/conversations",
+            query: ["q": search.isEmpty ? nil : search, "textable": "true", "snoozed": "all"],
+            companyId: companyId
+        )
+    }
+
     // MARK: - Thread reads
 
     func detail(companyId: String, conversationId: String) async throws -> ConversationDetail {

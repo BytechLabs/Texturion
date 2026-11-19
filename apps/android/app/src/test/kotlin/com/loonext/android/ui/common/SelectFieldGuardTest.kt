@@ -21,7 +21,7 @@ class SelectFieldGuardTest {
         roster = listOf(
             GuardException("ui/common/RecordMenu.kt", menu, 1, "The record menu itself: a list of actions on a record."),
             GuardException("ui/common/ListFilterHeader.kt", menu, 1, "The saved views menu: opens a view, saves one, deletes one."),
-            GuardException("features/compose/Composer.kt", menu, 1, "The composer's add menu: attach a file or a photo."),
+            GuardException("features/compose/AttachmentPicker.kt", menu, 1, "Opens the camera, photo library, or file picker."),
             GuardException("features/contacts/ContactsTab.kt", menu, 1, "The import menu: CSV or vCard, each starts a flow."),
             GuardException("features/inbox/InboxTab.kt", menu, 1, "The bulk bar's assign list: runs an action on the selected conversations."),
             GuardException("features/tasks/TasksTab.kt", menu, 1, "The bulk bar's overflow: actions on the selected tasks."),

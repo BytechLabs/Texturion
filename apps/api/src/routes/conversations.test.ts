@@ -96,6 +96,40 @@ describe("find messages in one conversation", () => {
 });
 
 describe("GET /v1/conversations (cursor + filter composition)", () => {
+  it("excludes both hidden and note-only numbers from share targets", async () => {
+    const otherLine = "eeeeeeee-1111-4222-8333-333333333333";
+    const sb = memberStub([
+      { phone_number_id: INBOX_LINE, level: "note" },
+      { phone_number_id: otherLine, level: "none" },
+      { phone_number_id: TAG_ID, level: "text" },
+    ]);
+    sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => []);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/conversations?textable=true", {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(200);
+    expect(sb.find("POST", "/rest/v1/rpc/api_list_conversations")[0].body).toMatchObject({
+      p_hidden_number_ids: [INBOX_LINE, otherLine],
+    });
+  });
+
+  it("offers no share targets to a member who cannot send", async () => {
+    const sb = supabaseStub(env);
+    sb.on("POST", "/rest/v1/rpc/api_authorize_request", membershipResponder(MEMBER_ID, "read_only"));
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), "/v1/conversations?textable=true", {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toEqual({ data: [], next_cursor: null });
+    expect(sb.find("POST", "/rest/v1/rpc/api_list_conversations")).toHaveLength(0);
+  });
+
   it("passes every filter and the decoded cursor to api_list_conversations", async () => {
     const sb = memberStub();
     sb.on("POST", "/rest/v1/rpc/api_list_conversations", () => []);

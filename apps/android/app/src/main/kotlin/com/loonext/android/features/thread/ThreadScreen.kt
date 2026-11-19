@@ -167,6 +167,8 @@ import com.loonext.android.core.snooze.isSnoozed
 import com.loonext.android.core.snooze.snoozeReturnLabel
 import com.loonext.android.features.compose.ComposerDrafts
 import com.loonext.android.features.compose.ComposerMode
+import com.loonext.android.features.compose.IncomingShare
+import com.loonext.android.features.compose.stageIncomingShare
 import com.loonext.android.features.compose.DraftSuggestionsCache
 import com.loonext.android.features.compose.Nanp
 import com.loonext.android.features.compose.NoteFileUploader
@@ -242,6 +244,8 @@ fun ThreadScreen(
     /** #726: where lead sources are managed; null for a role that cannot add one. */
     onAddLeadSource: (() -> Unit)? = null,
     findQuery: String? = null,
+    incomingShare: IncomingShare? = null,
+    onShareConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val openTrash = LocalOpenTrash.current
@@ -402,6 +406,8 @@ fun ThreadScreen(
                         me = me,
                         highlightMessageId = highlightMessageId,
                         findQuery = findQuery,
+                        incomingShare = incomingShare,
+                        onShareConsumed = onShareConsumed,
                         onOpenAiSettings = onOpenAiSettings,
                         onOpenContact = onOpenContact,
                         onAddLeadSource = onAddLeadSource,
@@ -505,6 +511,8 @@ private fun ThreadLoaded(
     onAddLeadSource: (() -> Unit)? = null,
     highlightMessageId: String? = null,
     findQuery: String? = null,
+    incomingShare: IncomingShare? = null,
+    onShareConsumed: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -532,6 +540,12 @@ private fun ThreadLoaded(
     val contactName = detail.contact.name ?: formatPhone(detail.contact.phone_e164)
     val drafts = remember { ComposerDrafts(context.applicationContext) }
     val composer = rememberComposerState(controller.conversationId, drafts)
+    LaunchedEffect(incomingShare, composer.draftLoaded, canContactPhone) {
+        if (incomingShare != null && composer.draftLoaded) {
+            if (canContactPhone) stageIncomingShare(context, composer, incomingShare, locale, onNotice)
+            onShareConsumed()
+        }
+    }
     val allowFailureActions = canContactPhone && controller.threadOptedOut != true
     val finishDraftCopy = t("thread.finishCurrentDraft")
 

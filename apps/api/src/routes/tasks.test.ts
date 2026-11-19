@@ -1409,6 +1409,7 @@ describe("GET /v1/tasks/:id — detail + activity", () => {
       viewer_level: "text",
       contact: { id: CONTACT_ID, name: "Pat Plumber" },
     });
+    expect(body.allowed_actions).toContain("share_photos");
     // Task events are only written on a task's conversation, so one with none
     // has no history to read.
     expect(events.calls).toHaveLength(0);
@@ -2454,9 +2455,11 @@ describe("#106/#107 number access on tasks", () => {
     const body = await response.json<{
       viewer_level: string;
       source_message: { id: string } | null;
+      allowed_actions: string[];
     }>();
     expect(body.viewer_level).toBe("note");
     expect(body.source_message).toMatchObject({ id: MESSAGE_ID });
+    expect(body.allowed_actions).not.toContain("share_photos");
   });
 
   it("checklist: 404s when the number is hidden from the caller", async () => {

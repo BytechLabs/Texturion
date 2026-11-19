@@ -1,5 +1,5 @@
-import type { MemberRole } from "@loonext/shared";
-import { stateMachines } from "@loonext/shared";
+import type { MemberRole, NumberAccessLevel } from "@loonext/shared";
+import { roleHasCapability, stateMachines } from "@loonext/shared";
 
 /**
  * #722: a live task's state, derived the way the database does it: done when
@@ -11,16 +11,20 @@ export function liveTaskState(done: boolean): stateMachines.TaskState {
   return done ? "done" : "open";
 }
 
-/** What `role` may do to a live task now, from the shared machine. */
+/** A live task's state transitions and any actions on its conversation. */
 export function taskAllowedActions(
   done: boolean,
   role: MemberRole,
+  level?: NumberAccessLevel,
 ): readonly string[] {
-  return stateMachines.allowedActions(
+  const actions = stateMachines.allowedActions(
     stateMachines.taskMachine,
     liveTaskState(done),
     role,
   );
+  return level === "text" && roleHasCapability(role, "conversations.send")
+    ? [...actions, "share_photos"]
+    : actions;
 }
 
 /**

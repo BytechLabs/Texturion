@@ -1,0 +1,5 @@
+"share.instructions" = "Save the selected files to Loonext.";
+"share.save" = "Save Files";
+"share.close" = "Close";
+"share.saved" = "Open Loonext to choose a conversation.";
+"share.failed" = "Couldn’t save the selected files. Choose up to 10 files, each 25 MB or less.";

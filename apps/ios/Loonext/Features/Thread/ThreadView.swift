@@ -15,6 +15,8 @@ struct ThreadView: View {
     /// the timeline (#186 item 2). Nil for an ordinary open.
     var highlightMessageId: String? = nil
     var findQuery: String? = nil
+    var incomingShare: SharedAttachments? = nil
+    var onShareConsumed: @MainActor () -> Void = {}
     let onBack: @MainActor () -> Void
 
     @State private var controller: ThreadController?
@@ -32,6 +34,8 @@ struct ThreadView: View {
                     me: me,
                     highlightMessageId: highlightMessageId,
                     findQuery: findQuery,
+                    incomingShare: incomingShare,
+                    onShareConsumed: onShareConsumed,
                     onBack: onBack
                 )
             } else {
@@ -119,6 +123,8 @@ private struct ThreadBody: View {
     let me: Me
     let highlightMessageId: String?
     let findQuery: String?
+    let incomingShare: SharedAttachments?
+    let onShareConsumed: @MainActor () -> Void
     let onBack: @MainActor () -> Void
 
     /// #520: is there a job on this thread due TODAY?
@@ -215,7 +221,51 @@ private struct ThreadBody: View {
         .task(id: controller.newestMessageId ?? "") {
             controller.markRead()
         }
+        .task(id: controller.conversation == nil ? nil : incomingShare?.id) {
+            if let incomingShare, controller.conversation != nil { await stageShare(incomingShare) }
+        }
         .toolbar(.hidden, for: .navigationBar)
+    }
+
+    private func stageShare(_ share: SharedAttachments) async {
+        guard canContactPhone, !controller.conversationDeleted else {
+            onShareConsumed()
+            return
+        }
+        let forNote = composer.mode == .note
+        let room = forNote ? maxNoteFiles - composer.files.count : maxPhotos - composer.photos.count
+        let locale = appLocale
+        var files: [StagedFile] = []
+        var photos: [StagedPhoto] = []
+        var notice: String?
+        defer { files.forEach(discardStagedFile) }
+        for url in share.files.prefix(max(0, room)) {
+            if Task.isCancelled { return }
+            if forNote {
+                switch await Task.detached(operation: { stageNoteFile(pickedURL: url, locale: locale) }).value {
+                case .ready(let file): files.append(file)
+                case .rejected(let reason): notice = reason
+                }
+            } else {
+                switch await Task.detached(operation: { stageMmsMedia(pickedURL: url, locale: locale) }).value {
+                case .ready(let photo): photos.append(photo)
+                case .rejected(let reason): notice = reason
+                }
+            }
+        }
+        if Task.isCancelled { return }
+        if share.files.count > room {
+            notice = forNote
+                ? AppStrings.translate(locale, "thread.attachLimitNote")
+                : AppStrings.translate(locale, "thread.attachLimitPhotos", ["max": String(maxPhotos)])
+        }
+        let filesToAdd = min(files.count, max(0, maxNoteFiles - composer.files.count))
+        composer.files.append(contentsOf: files.prefix(filesToAdd))
+        files.removeFirst(filesToAdd)
+        composer.photos.append(contentsOf: photos.prefix(max(0, maxPhotos - composer.photos.count)))
+        if let notice { controller.notifyExternally(notice) }
+        share.discard()
+        onShareConsumed()
     }
 
     private func messagePhoneSheet(_ number: String) -> some View {

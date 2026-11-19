@@ -327,6 +327,10 @@ async function findConversation(
 export const conversationsRoutes = new Hono<AppEnv>();
 
 conversationsRoutes.get("/conversations", requireCapability("conversations.read"), async (c) => {
+  const textableOnly = c.req.query("textable") === "true";
+  if (textableOnly && !roleHasCapability(c.get("role"), "conversations.send")) {
+    return c.json({ data: [], next_cursor: null });
+  }
   const query = parseWith(listQuerySchema, {
     status: c.req.query("status"),
     assigned_user_id: c.req.query("assigned_user_id"),
@@ -358,7 +362,8 @@ conversationsRoutes.get("/conversations", requireCapability("conversations.read"
   });
   const lineId = query.phone_number_id;
   if (lineId !== undefined) {
-    const line = access.levelFor(lineId) === "none"
+    const level = access.levelFor(lineId);
+    const line = level === "none" || (textableOnly && level !== "text")
       ? null
       : unwrapOptional<{ id: string }>(
           await db.from("phone_numbers")
@@ -388,7 +393,7 @@ conversationsRoutes.get("/conversations", requireCapability("conversations.read"
       p_cursor_ts: cursor?.ts ?? null,
       p_cursor_id: cursor?.id ?? null,
       p_pinned: query.pinned ?? null,
-      p_hidden_number_ids: access.hiddenNumberIds,
+      p_hidden_number_ids: textableOnly ? access.nonTextNumberIds : access.hiddenNumberIds,
       p_snoozed: query.snoozed ?? "exclude",
       // Unset means no filter, unlike `snoozed`: the ordinary inbox shows
       // answered and unanswered alike, and only a caller who came from the

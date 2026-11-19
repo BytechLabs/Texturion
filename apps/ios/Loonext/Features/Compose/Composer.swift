@@ -286,6 +286,7 @@ struct ThreadComposerView: View {
     @State private var pickedSuggestion: String?
     @State private var suggestionsWereShown = false
     @State private var photosPickerOpen = false
+    @State private var cameraOpen = false
     @State private var fileImporterOpen = false
     @State private var photoSelection: [PhotosPickerItem] = []
     /// #507: what the dictation is doing, and for how long.
@@ -513,13 +514,24 @@ struct ThreadComposerView: View {
         .photosPicker(
             isPresented: $photosPickerOpen,
             selection: $photoSelection,
-            maxSelectionCount: max(1, maxPhotos - state.photos.count),
+            maxSelectionCount: max(1, isNote ? maxNoteFiles - state.files.count : maxPhotos - state.photos.count),
             matching: .images
         )
         .onChange(of: photoSelection) { _, items in
             guard !items.isEmpty else { return }
             photoSelection = []
             ingestPhotos(items)
+        }
+        .fullScreenCover(isPresented: $cameraOpen) {
+            AttachmentCamera(onCapture: { data in
+                cameraOpen = false
+                guard let data else {
+                    onNotice(t("thread.photoReadFailed"))
+                    return
+                }
+                Task { await stageImage(data, forNote: isNote) }
+            }, onCancel: { cameraOpen = false })
+            .ignoresSafeArea()
         }
         // ONE importer for both modes: a note and a text are never composed at
         // the same time, and two .fileImporter modifiers on one view race each
@@ -770,21 +782,7 @@ struct ThreadComposerView: View {
         HStack(alignment: .bottom, spacing: 4) {
             if !isNote {
                 Menu {
-                    Button {
-                        photosPickerOpen = true
-                    } label: {
-                        Label(t("thread.attachPhoto"), systemImage: "photo")
-                    }
-                    .disabled(state.photos.count >= maxPhotos)
-                    // A text carries more than photos, and this app could only
-                    // send those: an audio clip, a PDF, or a contact card had
-                    // to go out from the web app or Android.
-                    Button {
-                        fileImporterOpen = true
-                    } label: {
-                        Label(t("thread.attachFile"), systemImage: "paperclip")
-                    }
-                    .disabled(state.photos.count >= maxPhotos)
+                    attachmentSourceActions.disabled(state.photos.count >= maxPhotos)
                     Button {
                         templatePickerOpen = true
                     } label: {
@@ -822,8 +820,8 @@ struct ThreadComposerView: View {
                     )
                 }
             } else {
-                Button {
-                    fileImporterOpen = true
+                Menu {
+                    attachmentSourceActions
                 } label: {
                     Image(systemName: "paperclip")
                         .font(.body.weight(.medium))
@@ -1351,11 +1349,21 @@ struct ThreadComposerView: View {
         }
     }
 
+    private var attachmentSourceActions: some View {
+        AttachmentSourceActions(
+            locale: appLocale,
+            onCamera: { cameraOpen = true },
+            onPhotos: { photosPickerOpen = true },
+            onFiles: { fileImporterOpen = true }
+        )
+    }
+
     private func ingestPhotos(_ items: [PhotosPickerItem]) {
+        let forNote = isNote
         Task {
             var trimmed = false
             for item in items {
-                if state.photos.count >= maxPhotos {
+                if (forNote ? state.files.count >= maxNoteFiles : state.photos.count >= maxPhotos) {
                     trimmed = true
                     break
                 }
@@ -1363,19 +1371,36 @@ struct ThreadComposerView: View {
                     onNotice(t("thread.photoReadFailed"))
                     continue
                 }
-                let locale = appLocale
-                let result = await Task.detached(
-                    operation: { preparePhoto(data: data, locale: locale) }
-                ).value
-                switch result {
-                case .ready(let photo):
-                    state.photos.append(photo)
-                case .rejected(let reason):
-                    onNotice(reason)
-                }
+                await stageImage(data, forNote: forNote)
             }
             if trimmed {
-                onNotice(t("thread.attachLimitPhotos", ["max": String(maxPhotos)]))
+                onNotice(forNote ? t("thread.attachLimitNote") : t("thread.attachLimitPhotos", ["max": String(maxPhotos)]))
+            }
+        }
+    }
+
+    private func stageImage(_ data: Data, forNote: Bool) async {
+        let locale = appLocale
+        if forNote {
+            switch await Task.detached(operation: { stageNotePhoto(data: data, locale: locale) }).value {
+            case .ready(let file):
+                if state.files.count < maxNoteFiles {
+                    state.files.append(file)
+                } else {
+                    discardStagedFile(file)
+                    onNotice(t("thread.attachLimitNote"))
+                }
+            case .rejected(let reason): onNotice(reason)
+            }
+        } else {
+            switch await Task.detached(operation: { preparePhoto(data: data, locale: locale) }).value {
+            case .ready(let photo):
+                if state.photos.count < maxPhotos {
+                    state.photos.append(photo)
+                } else {
+                    onNotice(t("thread.attachLimitPhotos", ["max": String(maxPhotos)]))
+                }
+            case .rejected(let reason): onNotice(reason)
             }
         }
     }
