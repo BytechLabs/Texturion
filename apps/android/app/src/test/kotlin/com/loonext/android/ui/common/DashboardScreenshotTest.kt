@@ -219,6 +219,7 @@ class DashboardScreenshotTest {
                         .padding(16.dp),
                 ) {
                     PipelineCard(
+                        onOpenConversation = {},
                         report = PipelineReportResponse(
                             days = 30,
                             current = PipelineReport(
@@ -252,6 +253,7 @@ class DashboardScreenshotTest {
         compose.setContent {
             LoonextTheme {
                 PipelineCard(
+                    onOpenConversation = {},
                     report = PipelineReportResponse(
                         current = PipelineReport(quoted = 6, won = 2, lost = 0, open = 4),
                         previous = PipelineReport(quoted = 4, won = 1, lost = 1, open = 2),
@@ -278,6 +280,7 @@ class DashboardScreenshotTest {
         compose.setContent {
             LoonextTheme {
                 PipelineCard(
+                    onOpenConversation = {},
                     report = PipelineReportResponse(
                         current = PipelineReport(quoted = 12, won = 4, lost = 2, open = 6),
                         previous = PipelineReport(quoted = 8, won = 2, lost = 2, open = 4),
@@ -344,7 +347,7 @@ class DashboardScreenshotTest {
                         ),
                         days = 30,
                         onWindow = {},
-                        onOpenPoor = {},
+                        onOpenTask = {},
                     )
                 }
             }
@@ -448,6 +451,7 @@ class DashboardScreenshotTest {
                         onSetUpSources = {},
                     )
                     PipelineCard(
+                        onOpenConversation = {},
                         report = PipelineReportResponse(
                             current = PipelineReport(quoted = 12, won = 4, lost = 2, open = 6),
                             previous = PipelineReport(quoted = 8, won = 2, lost = 2, open = 4),
@@ -527,7 +531,7 @@ class DashboardScreenshotTest {
                         ),
                         days = 30,
                         onWindow = {},
-                        onOpenPoor = {},
+                        onOpenTask = {},
                     )
                 }
             }
