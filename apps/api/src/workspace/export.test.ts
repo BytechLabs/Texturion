@@ -126,6 +126,53 @@ function world(options: WorldOptions = {}): {
 }
 
 describe(buildDataExports, () => {
+  it("omits trashed threads, messages and voicemail content", async () => {
+    const uploads = new Map<string, string>();
+    const { routes, sb } = world({
+      tablePage: (table, filters) => {
+        switch (table) {
+          case "messages": {
+            return [
+              { id: "live-message", body: "See you at noon" },
+              ...(filters.get("deleted_at") === "is.null" ? [] : [{ id: "trashed-message" }]),
+              ...(filters.get("active_parent.deleted_at") === "is.null" ? [] : [{ id: "trashed-thread-message" }]),
+            ];
+          }
+          case "attachments": {
+            return filters.get("or") === "(conversation_id.is.null,active_parent.not.is.null)"
+              ? [{ id: "standalone-attachment", conversation_id: null }]
+              : [{ id: "trashed-thread-attachment" }];
+          }
+          case "message_attachments": {
+            return filters.get("active_parent.deleted_at") === "is.null" &&
+              filters.get("active_parent.conversations.deleted_at") === "is.null"
+              ? [] : [{ id: "trashed-message-attachment" }];
+          }
+          case "calls": {
+            return [{
+              id: "call", voicemail_deleted_at: "2026-11-13T00:00:00Z",
+              voicemail_seconds: 17, voicemail_transcript: "Deleted voicemail",
+            }];
+          }
+          default: {
+            return [];
+          }
+        }
+      },
+      onUpload: (path, body) => uploads.set(path.split("/").at(-1)!, body),
+    });
+    stubFetch(...routes);
+
+    expect((await buildDataExports(env)).completed).toBe(1);
+    expect(uploads.get(`${LEASE}-messages-0001.jsonl`)).toBe('{"id":"live-message","body":"See you at noon"}');
+    expect(uploads.get(`${LEASE}-attachments-0001.jsonl`)).toContain("standalone-attachment");
+    expect(uploads.has(`${LEASE}-message_attachments-0001.jsonl`)).toBe(false);
+    expect(uploads.get(`${LEASE}-calls-0001.jsonl`)).toBe('{"id":"call","voicemail_seconds":null,"voicemail_transcript":null}');
+    const mmsFilters = sb.find("GET", "/rest/v1/message_attachments")[0].url.searchParams;
+    expect(mmsFilters.get("select")).toContain("active_parent:messages!inner(id,conversations!inner(id))");
+    expect(mmsFilters.get("active_parent.conversations.purged_at")).toBe("is.null");
+  });
+
   it("writes a file per table and lands the manifest last", async () => {
     const { sb, routes, uploaded } = world({
       rowsFor: { table: "messages", rows: [{ id: "m-1", body: "hi" }] },

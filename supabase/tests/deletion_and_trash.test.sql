@@ -424,6 +424,68 @@ begin
   raise notice 'DT-3b PASSED: the thread''s jobs follow it into the Trash and back';
 end $$;
 
+savepoint scheduled_restore;
+
+do $$
+declare
+  v_company uuid := 'd1000000-0000-4000-8000-000000000002';
+  v_owner uuid := 'd1000000-0000-4000-8000-000000000001';
+  v_conversation uuid := 'd1000000-0000-4000-8000-000000000030';
+  v_task uuid := 'd1000000-0000-4000-8000-0000000000a0';
+  v_future uuid;
+  v_canceled_at timestamptz;
+  v_result jsonb;
+begin
+  update public.tasks set due_at = now() + interval '2 days', reminders_off = false
+   where id = v_task;
+  insert into public.scheduled_messages (
+    company_id, conversation_id, body, send_at, clock_timezone, clock_source, expires_at, created_by
+  ) values (
+    v_company, v_conversation, 'Future text', now() + interval '1 day',
+    'America/Edmonton', 'contact', now() + interval '2 days', v_owner
+  ) returning id into v_future;
+  insert into public.scheduled_messages (
+    company_id, conversation_id, body, send_at, clock_timezone, clock_source, expires_at, created_by, status
+  ) values
+    (v_company, v_conversation, 'Missed text', now() - interval '1 minute',
+     'America/Edmonton', 'contact', now() + interval '2 days', v_owner, 'held'),
+    (v_company, v_conversation, 'Already canceled', now() + interval '1 day',
+     'America/Edmonton', 'contact', now() + interval '2 days', v_owner, 'canceled');
+
+  perform public.api_trash_conversations(v_company, v_owner, array[v_conversation]);
+  select canceled_at into v_canceled_at from public.scheduled_messages where id = v_future;
+  v_result := public.api_restore_trash(v_company, v_owner, 'conversation', v_conversation);
+  if (v_result->>'scheduled_restored')::int is distinct from 1
+     or (v_result->>'scheduled_missed')::int is distinct from 1
+     or (select status from public.scheduled_messages where id = v_future) is distinct from 'canceled'
+     or not exists (
+       select 1 from public.scheduled_messages copy
+       join public.scheduled_messages original on original.id = v_future
+      where copy.conversation_id = v_conversation and copy.id <> v_future
+        and copy.status = 'pending' and copy.body = original.body
+        and copy.send_at = original.send_at and copy.created_by = original.created_by
+     ) or exists (
+       select 1 from public.scheduled_messages where conversation_id = v_conversation
+         and status = 'pending' and body in ('Missed text', 'Already canceled')
+     ) or not exists (
+       select 1 from public.calendar_reminder_replans where task_id = v_task and state = 'queued'
+     ) then
+    raise exception 'Scheduled texts and reminders did not restore correctly: %', v_result;
+  end if;
+  if public.api_restore_scheduled_message(v_future, v_company, v_owner, v_canceled_at) then
+    raise exception 'Individual undo reopened the original text after conversation restore';
+  end if;
+
+  perform public.api_trash_conversations(v_company, v_owner, array[v_conversation]);
+  v_result := public.api_restore_trash(v_company, v_owner, 'conversation', v_conversation);
+  if (v_result->>'scheduled_restored')::int is distinct from 1
+     or (v_result->>'scheduled_missed')::int is distinct from 0 then
+    raise exception 'A second restore reused an earlier cancellation: %', v_result;
+  end if;
+end $$;
+
+rollback to savepoint scheduled_restore;
+
 -- ===========================================================================
 -- DT-4. Tenant isolation and the #106 deny list.
 -- ===========================================================================
@@ -988,6 +1050,82 @@ begin
      or (select count(*) from public.webhook_deliveries where endpoint_id = endpoint and event_type = 'contact.deleted'
      and payload->'data' = jsonb_build_object('id', customer) and payload->>'id' = id::text) is distinct from 1 then
     raise exception 'Erasure did not record one content-free audit and webhook';
+  end if;
+end $$;
+
+do $$
+declare
+  v_company uuid := 'd1000000-0000-4000-8000-000000000002';
+  v_other_company uuid := 'd1000000-0000-4000-8000-00000000000b';
+  v_actor uuid := 'd1000000-0000-4000-8000-000000000001';
+  v_line uuid := 'd1000000-0000-4000-8000-000000000010';
+  v_contact uuid := 'd1000000-0000-4000-8000-000000000020';
+  v_conversation uuid := gen_random_uuid();
+  v_message uuid := gen_random_uuid();
+  v_call uuid := gen_random_uuid();
+  v_message_task uuid := gen_random_uuid();
+  v_call_task uuid := gen_random_uuid();
+  v_reminder uuid;
+  v_result jsonb;
+begin
+  insert into public.conversations (id, company_id, contact_id, phone_number_id, status, closed_at)
+  values (v_conversation, v_company, v_contact, v_line, 'closed', now());
+  insert into public.messages (id, company_id, conversation_id, direction, body, status, segments)
+  values (v_message, v_company, v_conversation, 'inbound', 'Could you check the boiler?', 'received', 1);
+  insert into public.calls (id, company_id, contact_id, conversation_id, phone_number_id,
+    call_session_id, caller_e164, outcome)
+  values (v_call, v_company, v_contact, v_conversation, v_line, 'dt-linked-call', '+12125550120', 'answered');
+  insert into public.tasks (id, company_id, message_id, source_call_id, conversation_id,
+    title, due_at, created_by_user_id)
+  values (v_message_task, v_company, v_message, null, v_conversation, 'Boiler check', now() + interval '2 days', v_actor),
+         (v_call_task, v_company, null, v_call, v_conversation, 'Replace valve', now() + interval '3 days', v_actor);
+  insert into public.scheduled_messages (company_id, conversation_id, task_id, origin, reminder_offset_minutes,
+    body, send_at, clock_timezone, clock_source, expires_at, created_by)
+  values (v_company, v_conversation, v_message_task, 'reminder', 60, 'See you tomorrow.', now() + interval '1 day',
+    'America/New_York', 'area_code', now() + interval '2 days', v_actor) returning id into v_reminder;
+
+  if (public.api_trash_source_tasks_preview(v_company, 'message', v_message, null)->0->>'id')::uuid
+       is distinct from v_message_task
+     or public.api_trash_source_tasks_preview(v_company, 'message', v_message, array[v_line]) is distinct from '[]'::jsonb
+     or public.api_trash_source_tasks_preview(v_other_company, 'call', v_call, null) is distinct from '[]'::jsonb then
+    raise exception 'The linked-job preview must apply workspace and number access';
+  end if;
+
+  v_result := public.api_trash_message(v_company, v_actor, v_message);
+  if (v_result->'linked_tasks'->0->>'trashed')::boolean is distinct from false
+     or exists (select 1 from public.tasks where id = v_message_task and deleted_at is not null) then
+    raise exception 'A source-only delete must disclose and retain the linked job: %', v_result;
+  end if;
+  perform public.api_restore_trash(v_company, v_actor, 'message', v_message);
+
+  v_result := public.api_trash_message(v_company, v_actor, v_message, null, true);
+  if (v_result->'linked_tasks'->0->>'trashed')::boolean is distinct from true
+     or not exists (select 1 from public.tasks where id = v_message_task and deleted_at = trashed_with_source_at)
+     or not exists (select 1 from public.scheduled_messages where id = v_reminder and status = 'canceled')
+     or not exists (select 1 from public.api_list_trash(v_company, 100, null, null) row
+       where row->>'id' = v_message::text and (row->'linked_tasks'->0->>'id')::uuid = v_message_task) then
+    raise exception 'Deleting the job and message must trash both and disclose the link: %', v_result;
+  end if;
+  perform public.api_restore_trash(v_company, v_actor, 'message', v_message);
+  if exists (select 1 from public.tasks where id = v_message_task and deleted_at is not null)
+     or not exists (select 1 from public.calendar_reminder_replans where task_id = v_message_task and state = 'queued') then
+    raise exception 'Restoring the linked message must restore its job and replan reminders';
+  end if;
+
+  v_result := public.api_trash_call(v_company, v_actor, v_call, false, null, true);
+  if (v_result->'linked_tasks'->0->>'trashed')::boolean is distinct from true then
+    raise exception 'Deleting a call with its job must trash both: %', v_result;
+  end if;
+  perform public.api_restore_trash(v_company, v_actor, 'call', v_call);
+  if exists (select 1 from public.tasks where id = v_call_task and deleted_at is not null) then
+    raise exception 'Restoring the linked call must restore its job';
+  end if;
+
+  update public.tasks set deleted_at = now() where id = v_call_task;
+  perform public.api_trash_call(v_company, v_actor, v_call, false, null, true);
+  perform public.api_restore_trash(v_company, v_actor, 'call', v_call);
+  if not exists (select 1 from public.tasks where id = v_call_task and deleted_at is not null) then
+    raise exception 'Restoring a call reopened a job that was deleted separately';
   end if;
 end $$;
 

@@ -93,6 +93,7 @@ declare
     'api_trash_conversations',
     'api_trash_message',
     'api_trash_object_paths',
+    'api_trash_source_tasks_preview',
     -- The shared definition behind api_notifications + its badge (#359, the
     -- one-notification-definition refactor). It is not called directly by any
     -- route — both notification surfaces read THROUGH it — which is exactly
@@ -612,14 +613,21 @@ begin
   select m.id into msg_v from public.messages m where m.conversation_id = vvis limit 1;
   select m.id into msg_h from public.messages m where m.conversation_id = vhid limit 1;
   insert into public.calls
-    (id, company_id, phone_number_id, call_session_id, caller_e164, outcome,
+    (id, company_id, conversation_id, phone_number_id, call_session_id, caller_e164, outcome,
      voicemail_path, voicemail_transcript)
-  values (call_v, co, '36800000-0000-4000-8000-000000000010', 'na7-vis',
+  values (call_v, co, vvis, '36800000-0000-4000-8000-000000000010', 'na7-vis',
           '+12125559001', 'voicemail', 'na7/vis.mp3', 'visible words'),
-         (call_h, co, '36800000-0000-4000-8000-000000000011', 'na7-hid',
+         (call_h, co, vhid, '36800000-0000-4000-8000-000000000011', 'na7-hid',
           '+12125559002', 'voicemail', 'na7/hid.mp3', 'hidden words');
 
   begin
+    insert into public.tasks (company_id, source_call_id, conversation_id, title, created_by_user_id)
+    values (co, call_v, vvis, 'Visible job', usr), (co, call_h, vhid, 'Hidden job', usr);
+    if jsonb_array_length(public.api_trash_source_tasks_preview(co, 'call', call_v, hidden)) is distinct from 1
+       or public.api_trash_source_tasks_preview(co, 'call', call_h, hidden) is distinct from '[]'::jsonb then
+      raise exception 'NA-7 FAILED: linked job previews must apply number access';
+    end if;
+
     -- Trash a message: the denied one is refused and untouched, the allowed works.
     r := public.api_trash_message(co, usr, msg_h, hidden);
     if r ->> 'outcome' is distinct from 'not_found'

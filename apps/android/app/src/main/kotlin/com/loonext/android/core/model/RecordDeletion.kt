@@ -1,5 +1,6 @@
 package com.loonext.android.core.model
 
+import com.loonext.android.core.i18n.AppStrings
 import kotlinx.serialization.Serializable
 
 /** #691: what POST /v1/trash/restore brings back. Mirrors the server's kinds. */
@@ -16,7 +17,26 @@ object TrashKind {
 data class DeletedRecord(
     val kind: String,
     val id: String,
+    val linked_tasks: List<TrashLinkedTask> = emptyList(),
 )
+
+@Serializable
+data class TrashLinkedTask(val id: String, val number: Long, val trashed: Boolean = false)
+
+@Serializable
+data class TrashSourceTasks(val linked_tasks: List<TrashLinkedTask> = emptyList())
+
+@Serializable
+data class RestoredRecord(val scheduled_missed: Int = 0) {
+    fun notice(locale: String?, fallback: String): String {
+        val key = when (scheduled_missed) {
+            0 -> fallback
+            1 -> "trash.restoredOneMissed"
+            else -> "trash.restoredManyMissed"
+        }
+        return AppStrings.translate(locale, key, mapOf("count" to scheduled_missed.toString()))
+    }
+}
 
 /** #691: deleting is its own permission, held by owners and admins by default. */
 fun canDeleteRecords(role: String?): Boolean = MemberRole.has(role, Capability.RECORDS_DELETE)
@@ -70,6 +90,7 @@ data class TrashMessageDetail(
     /** inbound, outbound or note. */
     val direction: String? = null,
     val snippet: String? = null,
+    val linked_tasks: List<TrashLinkedTask> = emptyList(),
 )
 
 @Serializable
@@ -80,6 +101,7 @@ data class TrashCallDetail(
     val outcome: String? = null,
     val started_at: String? = null,
     val has_voicemail: Boolean = false,
+    val linked_tasks: List<TrashLinkedTask> = emptyList(),
 )
 
 @Serializable

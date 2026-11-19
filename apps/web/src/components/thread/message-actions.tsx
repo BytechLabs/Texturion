@@ -21,6 +21,7 @@ import { toast } from "sonner";
 
 import { failureReasonOf, isRetryableFailure } from "@loonext/shared";
 
+import { TrashSourceDialog } from "@/components/settings/trash-source-dialog";
 import {
   RecordContextMenu,
   RecordOverflowMenu,
@@ -250,6 +251,17 @@ export function MessageMenuScope({
   const deleteMessage = useDeleteMessage();
   const announceDeleted = useDeletedToast();
   const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+
+  const deleteSource = (includeTasks: boolean) => {
+    deleteMessage.mutate({ id: message.id, includeTasks }, {
+      onSuccess: () => {
+        setDeleteOpen(false);
+        announceDeleted(t(deletedMessageKey(message)), [{ kind: "message", id: message.id }]);
+      },
+      onError: (error) => toast.error(error instanceof ApiError ? error.message : t("trash.messageDeleteFailed")),
+    });
+  };
 
   const actions = buildMessageActions({
     t,
@@ -282,21 +294,7 @@ export function MessageMenuScope({
       },
       togglePin: (next) =>
         setPinned.mutate({ messageId: message.id, pinned: next }),
-      // #691: a move to the Trash, so an undo toast and no confirmation. The
-      // toast says when the customer still has the text (see deletedMessageKey).
-      remove: () =>
-        deleteMessage.mutate(message.id, {
-          onSuccess: () =>
-            announceDeleted(t(deletedMessageKey(message)), [
-              { kind: "message", id: message.id },
-            ]),
-          onError: (error) =>
-            toast.error(
-              error instanceof ApiError
-                ? error.message
-                : t("trash.messageDeleteFailed"),
-            ),
-        }),
+      remove: () => setTimeout(() => setDeleteOpen(true), 0),
     },
   });
 
@@ -312,6 +310,15 @@ export function MessageMenuScope({
           />
         </MakeTaskDialogContent>
       </Dialog>
+      {deleteOpen && (
+        <TrashSourceDialog
+          id={message.id}
+          source={message.direction === "note" ? "note" : "message"}
+          pending={deleteMessage.isPending}
+          onClose={() => setDeleteOpen(false)}
+          onConfirm={deleteSource}
+        />
+      )}
     </MessageMenuContext.Provider>
   );
 }

@@ -10167,10 +10167,12 @@ capability and offer an Undo that restores the record. A sent SMS explains that
 the delete removes it from Loonext only. Trash management is available on all
 three clients, with typed confirmation for Delete forever.
 
-**A task outlives its source message's trash.** Trashing a single message leaves the
-task made from it visible, because the job is still real; the task's title,
-description, address and map position are blanked only when that content is
-erased for good (the message's purge, or its conversation's or call's).
+**Jobs linked to a text or call.** The delete confirmation offers to trash the
+source alone or with its job. The Trash row shows the linked job number. A job
+trashed with its source comes back when the source is restored, and its reminders
+are replanned. Trashing the source alone keeps the job visible until the source
+is erased. At erasure, the job loses its title, description, address, and map
+position.
 
 **Customer erasure.** A member with `records.delete` and access to all of the
 customer's lines can confirm erasure in the contact's Manage section. The

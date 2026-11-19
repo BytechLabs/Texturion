@@ -8,16 +8,24 @@
  * cannot be taken back, and it lives on the Trash page behind a typed
  * confirmation, never behind an undo toast.
  */
-import { useInfiniteQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { useInfiniteQuery, useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import type { QueryClient } from '@tanstack/react-query';
 
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
+import { keys } from "./keys";
 import { nextCursorParam } from "./pagination";
 import type { Page } from "./types";
 
 export type TrashKind = "conversation" | "message" | "call" | "voicemail" | "contact";
+export type TrashSourceKind = "message" | "call";
+
+export interface TrashLinkedTask {
+  id: string;
+  number: number;
+  trashed: boolean;
+}
 
 interface TrashRowBase {
   id: string;
@@ -51,6 +59,7 @@ export type TrashRow =
         conversation_id: string;
         direction: "inbound" | "outbound" | "note";
         snippet: string | null;
+        linked_tasks?: TrashLinkedTask[];
       };
     })
   | (TrashRowBase & {
@@ -61,6 +70,7 @@ export type TrashRow =
         outcome: "answered" | "voicemail" | "missed" | null;
         started_at: string;
         has_voicemail: boolean;
+        linked_tasks?: TrashLinkedTask[];
       };
     })
   | (TrashRowBase & {
@@ -88,12 +98,13 @@ export function invalidateAfterDeletion(
   queryClient: QueryClient,
   companyId: string,
 ): void {
-  for (const root of ["contacts", "conversations", "messages", "calls", "trash", "search"]) {
+  for (const root of ["contacts", "conversations", "messages", "calls", "trash", "search", "tasks"]) {
     void queryClient.invalidateQueries({
       queryKey: [companyId, root],
       refetchType: "active",
     });
   }
+  void queryClient.invalidateQueries({ queryKey: keys.forYou(companyId), refetchType: "active" });
 }
 
 function useDeletion<TInput, TResult>(
@@ -108,12 +119,7 @@ function useDeletion<TInput, TResult>(
 }
 
 export function useDeleteMessage() {
-  return useDeletion((messageId: string, companyId) =>
-    apiFetch<{ kind: "message"; id: string }>(
-      `/v1/messages/${encodeURIComponent(messageId)}`,
-      { method: "DELETE", companyId },
-    ),
-  );
+  return useDeleteSource("message");
 }
 
 export function useDeleteConversation() {
@@ -154,12 +160,31 @@ export function useDeleteConversations() {
 
 /** `id` is the call-log row's id, not its `call_session_id`. */
 export function useDeleteCall() {
-  return useDeletion((callId: string, companyId) =>
-    apiFetch<unknown>(`/v1/calls/${encodeURIComponent(callId)}`, {
-      method: "DELETE",
-      companyId,
-    }),
+  return useDeleteSource("call");
+}
+
+function useDeleteSource(kind: TrashSourceKind) {
+  const collection = kind === "message" ? "messages" : "calls";
+  return useDeletion(({ id, includeTasks }: { id: string; includeTasks: boolean }, companyId) =>
+    apiFetch<{ kind: TrashSourceKind; id: string; linked_tasks?: TrashLinkedTask[] }>(
+      `/v1/${collection}/${encodeURIComponent(id)}`,
+      { method: "DELETE", companyId, searchParams: { include_tasks: includeTasks ? "true" : undefined } },
+    ),
   );
+}
+
+export function useTrashSourceTasks(kind: TrashSourceKind, id: string) {
+  const companyId = useCompanyId();
+  return useQuery({
+    queryKey: [companyId, "trash", "source-tasks", kind, id],
+    queryFn: async () => {
+      const data = await apiFetch<{ linked_tasks: TrashLinkedTask[] }>(
+        `/v1/trash/source-tasks/${kind}/${encodeURIComponent(id)}`,
+        { companyId },
+      );
+      return data.linked_tasks;
+    },
+  });
 }
 
 /** The recording and transcript only; the call stays in the log. */
@@ -175,13 +200,16 @@ export function useDeleteVoicemail() {
 /** Undo for every delete, and the Trash page's Restore. */
 export function useRestoreFromTrash() {
   return useDeletion(async (targets: readonly TrashTarget[], companyId) => {
+    let scheduledMissed = 0;
     for (const target of targets) {
-      await apiFetch<unknown>("/v1/trash/restore", {
+      const result = await apiFetch<{ scheduled_missed?: number }>("/v1/trash/restore", {
         method: "POST",
         companyId,
         body: target,
       });
+      scheduledMissed += result.scheduled_missed ?? 0;
     }
+    return { scheduledMissed };
   });
 }
 

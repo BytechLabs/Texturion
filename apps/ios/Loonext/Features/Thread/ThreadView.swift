@@ -139,9 +139,7 @@ private struct ThreadBody: View {
     @State private var confirmRevoke = false
     @State private var confirmBlock = false
     @State private var confirmDiscardQueued: PendingSend?
-    /// #691: a sent text being deleted, held while the confirmation says the
-    /// customer keeps their copy.
-    @State private var confirmDeleteSentText: Message?
+    @State private var deletingMessage: PendingMessageDeletion?
     @State private var confirmDeleteConversation = false
     @State private var showNewPill = false
     /// #302: who else is on this thread, and this viewer's typing window.
@@ -327,17 +325,9 @@ private struct ThreadBody: View {
         return RecordDeletion.canDelete(role: role)
     }
 
-    /// A sent text is confirmed first (the customer keeps their copy); anything
-    /// else goes straight to the Trash and the toast offers the Undo.
     private func deleteMessageAction(for message: Message) -> (@MainActor () -> Void)? {
         guard canDeleteRecords else { return nil }
-        return {
-            if RecordDeletion.isSentText(message) {
-                confirmDeleteSentText = message
-            } else {
-                controller.deleteMessage(message)
-            }
-        }
+        return { deletingMessage = PendingMessageDeletion(message: message) }
     }
 
     /// `conversations.note`: status, assignment, pin, spam and block. Resolved from the
@@ -829,7 +819,7 @@ private struct ThreadBody: View {
                 ThreadDeleteAlertsModifier(
                     controller: controller,
                     contactName: contactName,
-                    sentText: $confirmDeleteSentText,
+                    message: $deletingMessage,
                     conversation: $confirmDeleteConversation
                 )
             )
@@ -1654,30 +1644,33 @@ private struct ThreadBody: View {
 
 // MARK: - Header
 
-/// #691: the two confirmations before a delete. Kept out of `ThreadBody`'s
-/// long modifier chain so the type-checker has less to solve at once.
+private struct PendingMessageDeletion: Identifiable {
+    let message: Message
+    var id: String { message.id }
+}
+
 private struct ThreadDeleteAlertsModifier: ViewModifier {
     let controller: ThreadController
     let contactName: String
-    @Binding var sentText: Message?
+    @Binding var message: PendingMessageDeletion?
     @Binding var conversation: Bool
 
     @Environment(\.appLocale) private var appLocale
 
     func body(content: Content) -> some View {
         content
-            // No undo on the carrier's copy, so the pause says so.
-            // *Applying: Ethical Friction.*
-            .confirmDialog(
-                AppStrings.translate(appLocale, "thread.deleteSentTitle"),
-                item: $sentText,
-                message: { _ in
-                    AppStrings.translate(appLocale, "thread.deleteSentBody")
-                },
-                confirmLabel: AppStrings.translate(appLocale, "common.delete"),
-                cancelLabel: AppStrings.translate(appLocale, "thread.keepIt")
-            ) { pending in
-                controller.deleteMessage(pending)
+            .sheet(item: $message) { pending in
+                TrashSourceSheet(
+                    source: RecordDeletion.isNote(pending.message) ? .note : .message,
+                    sentTextNotice: RecordDeletion.isSentText(pending.message)
+                        ? AppStrings.translate(appLocale, "thread.deleteSentBody") : nil,
+                    loadTasks: { try await controller.linkedJobsForDeleting(pending.id) },
+                    onDismiss: { message = nil },
+                    onConfirm: { includeTasks in
+                        message = nil
+                        controller.deleteMessage(pending.message, includeTasks: includeTasks)
+                    }
+                )
             }
             .confirmDialog(
                 AppStrings.translate(

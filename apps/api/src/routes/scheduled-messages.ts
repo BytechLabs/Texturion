@@ -277,6 +277,8 @@ scheduledMessageRoutes.get(
           "conversations!inner(phone_number_id,contacts(name,phone_e164))",
       )
       .eq("company_id", companyId)
+      .is("conversations.deleted_at", null)
+      .is("conversations.purged_at", null)
       .order("send_at", { ascending: true })
       .limit(200);
 

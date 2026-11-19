@@ -175,7 +175,8 @@ object ThreadStrings : AppStrings.Section {
         "thread.deleteConversation" to "Delete conversation",
         "thread.deleteConversationTitle" to "Delete this conversation?",
         "thread.deleteConversationBody" to
-            "Every message, call and voicemail with {name} moves to the Trash. " +
+            "Messages, calls, voicemails and jobs with {name} move to the Trash. " +
+            "Scheduled texts and reminders stop while the conversation is there. " +
             "Their opt-out status is kept. Texts you already sent stay on their phone.",
         "thread.conversationDeleted" to "Conversation deleted",
         "thread.conversationDeletedHint" to
@@ -963,7 +964,8 @@ object ThreadStrings : AppStrings.Section {
         "thread.deleteConversation" to "Supprimer la conversation",
         "thread.deleteConversationTitle" to "Supprimer cette conversation ?",
         "thread.deleteConversationBody" to
-            "Tous les messages, appels et messages vocaux avec {name} vont à la corbeille. " +
+            "Les messages, les appels, les messages vocaux et les tâches avec {name} vont à la corbeille. " +
+            "Les textos programmés et les rappels sont interrompus tant que la conversation s’y trouve. " +
             "Son statut de désabonnement est conservé. Les textos déjà envoyés restent sur son téléphone.",
         "thread.conversationDeleted" to "Conversation supprimée",
         "thread.conversationDeletedHint" to

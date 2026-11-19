@@ -312,4 +312,29 @@ begin
   end if;
 end $$;
 
+do $$
+declare
+  v_company uuid := 'ea000000-0000-4000-8000-0000000000c1';
+  v_task uuid;
+  v_link uuid;
+begin
+  insert into public.tasks (company_id, title, created_by_user_id)
+  values (v_company, 'Photo job', 'ea000000-0000-4000-8000-00000000000a')
+  returning id into v_task;
+  v_link := public.api_mint_public_link(
+    pg_temp.h('photos-trash'), v_company, 'photo_set', 'task_photos', v_task, now() + interval '1 day'
+  );
+
+  update public.tasks set deleted_at = now(), trashed_with_conversation_at = now() where id = v_task;
+  if exists (select 1 from public.public_links where id = v_link and revoked_at is not null) then
+    raise exception 'Trashing a conversation revoked a link needed after restore';
+  end if;
+
+  update public.tasks set deleted_at = null, trashed_with_conversation_at = null where id = v_task;
+  update public.tasks set deleted_at = now() where id = v_task;
+  if not exists (select 1 from public.public_links where id = v_link and revoked_at is not null) then
+    raise exception 'Deleting a task did not revoke its photo link';
+  end if;
+end $$;
+
 rollback;

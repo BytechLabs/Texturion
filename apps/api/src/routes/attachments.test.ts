@@ -182,6 +182,31 @@ describe("GET /v1/attachments/:id/url", () => {
     });
   }
 
+  it("does not mint an attachment URL for a trashed note", async () => {
+    const sb = stubWithRole("member");
+    sb.on("GET", "/rest/v1/attachments", () => [{
+      id: ATTACHMENT_ID,
+      owner_type: "note",
+      owner_id: NOTE_ID,
+      storage_path: `${COMPANY_ID}/note/${NOTE_ID}/photo.jpg`,
+      size_bytes: 2048,
+    }]);
+    sb.on("GET", "/rest/v1/messages", ({ url }) =>
+      url.searchParams.get("deleted_at") === "is.null" ? [] : [{ id: NOTE_ID }],
+    );
+    sb.on("GET", "/rest/v1/message_attachments", () => []);
+    egressStubs(sb);
+    stubSigning(sb);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const res = await apiRequest(app, env, await auth.token(), `/v1/attachments/${ATTACHMENT_ID}/url`, {
+      companyId: COMPANY_ID,
+    });
+
+    expect(res.status).toBe(404);
+    expect(signedObjects(sb)).toEqual([]);
+  });
+
   it("mints a short-lived signed URL for a generic (task/note) attachment, claiming egress first", async () => {
     const sb = stubWithRole("member");
     sb.on("GET", "/rest/v1/attachments", () => [

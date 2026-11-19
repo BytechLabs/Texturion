@@ -97,9 +97,12 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
   const [row] = unwrap<PublicQuoteRow[]>(
     await db
       .from("quotes")
-      .select(PUBLIC_COLUMNS)
+      .select(`${PUBLIC_COLUMNS},conversations!inner(),companies!inner()`)
       .eq("company_id", resolved.company_id)
       .eq("id", resolved.subject_id)
+      .is("conversations.deleted_at", null)
+      .is("conversations.purged_at", null)
+      .is("companies.deleted_at", null)
       .limit(1),
     "public quote lookup",
   );
@@ -112,6 +115,7 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
       .from("companies")
       .select("name,locale")
       .eq("id", resolved.company_id)
+      .is("deleted_at", null)
       .limit(1),
     "public quote company",
   );
@@ -237,9 +241,12 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
   const [row] = unwrap<PublicQuoteRow[]>(
     await db
       .from("quotes")
-      .select(ACCEPT_COLUMNS)
+      .select(`${ACCEPT_COLUMNS},conversations!inner(),companies!inner()`)
       .eq("company_id", resolved.company_id)
       .eq("id", resolved.subject_id)
+      .is("conversations.deleted_at", null)
+      .is("conversations.purged_at", null)
+      .is("companies.deleted_at", null)
       .limit(1),
     "public quote accept lookup",
   );

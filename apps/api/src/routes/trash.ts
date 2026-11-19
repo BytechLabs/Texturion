@@ -45,6 +45,7 @@ export const trashRoutes = new Hono<AppEnv>();
 const MAX_BULK_DELETE = 100;
 
 const kindSchema = z.enum(TRASH_KINDS);
+const sourceKindSchema = z.enum(["message", "call"]);
 
 const restoreSchema = z.object({ kind: kindSchema, id: z.uuid() });
 
@@ -53,6 +54,12 @@ const bulkDeleteSchema = z.object({
 });
 
 type Ctx = Context<AppEnv>;
+
+interface LinkedTrashTask {
+  id: string;
+  number: number;
+  trashed: boolean;
+}
 
 async function whoIs(c: Ctx) {
   const db = getDb(getEnv(c.env));
@@ -82,12 +89,14 @@ trashRoutes.delete(
       outcome: string;
       conversation_id?: string;
       direction?: string;
+      linked_tasks?: LinkedTrashTask[];
     }>(
       await who.db.rpc("api_trash_message", {
         p_company_id: who.companyId,
         p_user_id: who.userId,
         p_message_id: id,
         p_hidden_number_ids: who.hidden,
+        p_include_tasks: c.req.query("include_tasks") === "true",
       }),
       "message trash",
     );
@@ -107,7 +116,7 @@ trashRoutes.delete(
       type: "message.deleted",
       data: { id, conversation_id: result.conversation_id ?? null },
     });
-    return c.json({ kind: "message", id });
+    return c.json({ kind: "message", id, linked_tasks: result.linked_tasks ?? [] });
   },
 );
 
@@ -173,17 +182,18 @@ trashRoutes.post(
 
 async function trashCall(c: Ctx, id: string, voicemailOnly: boolean) {
   const who = await whoIs(c);
-  const result = unwrap<{ outcome: string }>(
+  const result = unwrap<{ outcome: string; linked_tasks?: LinkedTrashTask[] }>(
     await who.db.rpc("api_trash_call", {
       p_company_id: who.companyId,
       p_user_id: who.userId,
       p_call_id: id,
       p_voicemail_only: voicemailOnly,
       p_hidden_number_ids: who.hidden,
+      p_include_tasks: !voicemailOnly && c.req.query("include_tasks") === "true",
     }),
     "call trash",
   );
-  if (result.outcome !== "trashed") return false;
+  if (result.outcome !== "trashed") return null;
   await recordAuditFromRequest(who.db, c, {
     companyId: who.companyId,
     action: "record.deleted",
@@ -195,7 +205,7 @@ async function trashCall(c: Ctx, id: string, voicemailOnly: boolean) {
     type: "call.deleted",
     data: { id, voicemail_only: voicemailOnly },
   });
-  return true;
+  return result;
 }
 
 /** DELETE /v1/calls/:id/voicemail — the recording and its words, not the call. */
@@ -217,12 +227,29 @@ trashRoutes.delete(
   requireCapability("records.delete"),
   async (c) => {
     const id = pathUuid(c, "id");
-    if (!(await trashCall(c, id, false))) {
+    const result = await trashCall(c, id, false);
+    if (!result) {
       return errorResponse(c, "not_found", "No such call.");
     }
-    return c.json({ kind: "call", id });
+    return c.json({ kind: "call", id, linked_tasks: result.linked_tasks ?? [] });
   },
 );
+
+trashRoutes.get("/trash/source-tasks/:kind/:id", requireCapability("records.delete"), async (c) => {
+  const kind = parseWith(sourceKindSchema, c.req.param("kind"));
+  const id = pathUuid(c, "id");
+  const who = await whoIs(c);
+  const linkedTasks = unwrap<LinkedTrashTask[]>(
+    await who.db.rpc("api_trash_source_tasks_preview", {
+      p_company_id: who.companyId,
+      p_kind: kind,
+      p_id: id,
+      p_hidden_number_ids: who.hidden,
+    }),
+    "linked trash tasks",
+  );
+  return c.json({ linked_tasks: linkedTasks });
+});
 
 /** GET /v1/trash — what is in the Trash, newest deletion first. */
 trashRoutes.get("/trash", requireCapability("records.delete"), async (c) => {
@@ -270,7 +297,7 @@ trashRoutes.post(
     const body = await parseJsonBody(c, restoreSchema);
     const who = await whoIs(c);
 
-    const result = unwrap<{ outcome: string }>(
+    const result = unwrap<{ outcome: string; scheduled_restored?: number; scheduled_missed?: number }>(
       await who.db.rpc("api_restore_trash", {
         p_company_id: who.companyId,
         p_user_id: who.userId,
@@ -295,7 +322,14 @@ trashRoutes.post(
       targetType: body.kind,
       targetId: body.id,
     });
-    return c.json({ kind: body.kind, id: body.id });
+    return c.json({
+      kind: body.kind,
+      id: body.id,
+      ...(body.kind === "conversation" && {
+        scheduled_restored: result.scheduled_restored ?? 0,
+        scheduled_missed: result.scheduled_missed ?? 0,
+      }),
+    });
   },
 );
 

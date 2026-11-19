@@ -6,6 +6,8 @@ import com.loonext.android.ui.common.showUndo
 import android.Manifest
 import com.loonext.android.ui.common.EmptyState
 import com.loonext.android.ui.common.ConfirmDialog
+import com.loonext.android.features.settings.TrashSource
+import com.loonext.android.features.settings.TrashSourceDialog
 import android.content.ClipData
 import android.content.Intent
 import androidx.activity.compose.BackHandler
@@ -746,7 +748,7 @@ private fun ThreadLoaded(
 
     var actionsFor by remember { mutableStateOf<Message?>(null) }
     // #691: a sent text is the one message whose delete needs a sentence first.
-    var confirmDeleteText by remember { mutableStateOf<Message?>(null) }
+    var deletingMessage by remember { mutableStateOf<Message?>(null) }
     val canDelete = canDeleteRecords(
         me.memberships.firstOrNull { it.company_id == companyId }?.role,
     )
@@ -1555,11 +1557,7 @@ private fun ThreadLoaded(
             onDelete = if (canDelete) {
                 {
                     actionsFor = null
-                    if (message.customerStillHasCopy) {
-                        confirmDeleteText = message
-                    } else {
-                        controller.deleteMessage(message)
-                    }
+                    deletingMessage = message
                 }
             } else {
                 null
@@ -1592,20 +1590,19 @@ private fun ThreadLoaded(
             }
         }
     }
-    confirmDeleteText?.let { message ->
-        ConfirmDialog(
-            title = t("thread.deleteTextTitle"),
-            body = t("thread.deleteTextBody", "name" to contactName),
-            confirmLabel = t("thread.deleteConfirm"),
-            onConfirm = {
+    deletingMessage?.let { message ->
+        TrashSourceDialog(
+            repository = repo.deletion,
+            companyId = companyId,
+            id = message.id,
+            source = if (message.direction == MessageDirection.NOTE) TrashSource.NOTE else TrashSource.MESSAGE,
+            sentTextNotice = if (message.customerStillHasCopy) t("thread.deleteTextBody", "name" to contactName) else null,
+            onConfirm = { includeTasks ->
                 haptics.reject()
-                confirmDeleteText = null
-                controller.deleteMessage(message)
+                deletingMessage = null
+                controller.deleteMessage(message, includeTasks)
             },
-            onDismiss = {
-                confirmDeleteText = null
-            },
-            destructive = true,
+            onDismiss = { deletingMessage = null },
         )
     }
     makeTaskFor?.let { message ->

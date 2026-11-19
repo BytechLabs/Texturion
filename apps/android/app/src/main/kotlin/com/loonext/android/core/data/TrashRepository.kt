@@ -1,6 +1,7 @@
 package com.loonext.android.core.data
 
 import com.loonext.android.core.model.Page
+import com.loonext.android.core.model.RestoredRecord
 import com.loonext.android.core.model.TrashItem
 import com.loonext.android.core.net.ApiClient
 
@@ -22,7 +23,7 @@ class TrashRepository(private val api: ApiClient) {
             companyId = companyId,
         )
 
-    suspend fun restore(companyId: String, item: TrashItem) =
+    suspend fun restore(companyId: String, item: TrashItem): RestoredRecord =
         deletion.restore(companyId, item.kind, item.id)
 
     suspend fun purge(companyId: String, item: TrashItem) {

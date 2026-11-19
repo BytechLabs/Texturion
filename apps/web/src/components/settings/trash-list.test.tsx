@@ -2,6 +2,7 @@
  * @vitest-environment happy-dom
  */
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { toast } from "sonner";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { TrashRow } from "@/lib/api/trash";
@@ -74,6 +75,13 @@ describe(TrashList, () => {
     ]);
   });
 
+  it("tells the crew how many scheduled texts missed their send time", () => {
+    restoreMutate.mockImplementation((_targets, options) => options.onSuccess({ scheduledMissed: 2 }));
+    render(<TrashList />);
+    fireEvent.click(screen.getByRole("button", { name: "Restore" }));
+    expect(toast.success).toHaveBeenCalledWith("Restored. 2 scheduled texts missed their send times.");
+  });
+
   it("keeps a call and its voicemail apart even though they share an id", () => {
     state.rows = [
       {
@@ -88,6 +96,7 @@ describe(TrashList, () => {
           outcome: "voicemail",
           started_at: new Date().toISOString(),
           has_voicemail: true,
+          linked_tasks: [{ id: "job-1", number: 123, trashed: true }],
         },
       },
       {
@@ -106,6 +115,7 @@ describe(TrashList, () => {
     ];
     render(<TrashList />);
     expect(screen.getAllByRole("button", { name: "Restore" })).toHaveLength(2);
+    expect(screen.getByText("Includes job #123")).toBeDefined();
   });
 
   it("makes Delete forever wait for the typed word, and purges only then", () => {

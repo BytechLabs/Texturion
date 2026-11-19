@@ -118,7 +118,7 @@ export function CallRow({ call }: { call: Call }) {
   const canMakeTask = call.outcome === "answered" && Boolean(call.conversation_id);
   // #712: one action list for the ⋯ button and the right-click menu. #734:
   // it holds every action that leaves the row, so the row draws only one.
-  const actions = useCallActions({
+  const { actions, deleteDialog } = useCallActions({
     callSessionId: call.call_session_id,
     canMakeTask,
     onMakeTask: () => setTaskOpen(true),
@@ -234,6 +234,7 @@ export function CallRow({ call }: { call: Call }) {
           prefillPhone={call.caller_e164 ?? ""}
         />
       )}
+      {deleteDialog}
     </>
   );
 

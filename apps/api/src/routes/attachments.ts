@@ -1097,7 +1097,7 @@ async function mintAttachmentUrls(
     db
       .from("attachments")
       .select(
-        "id,storage_path,size_bytes,preview_path,preview_bytes,conversation_id,content_type,quarantined_at",
+        "id,storage_path,size_bytes,preview_path,preview_bytes,conversation_id,content_type,quarantined_at,owner_type,owner_id",
       )
       .eq("company_id", companyId)
       .in("id", ids)
@@ -1107,10 +1107,13 @@ async function mintAttachmentUrls(
     db
       .from("message_attachments")
       .select(
-        "id,storage_path,size_bytes,content_type,quarantined_at,messages(conversation_id)",
+        "id,storage_path,size_bytes,content_type,quarantined_at,messages!inner(conversation_id,conversations!inner())",
       )
       .eq("company_id", companyId)
-      .in("id", ids),
+      .in("id", ids)
+      .is("messages.deleted_at", null)
+      .is("messages.conversations.deleted_at", null)
+      .is("messages.conversations.purged_at", null),
     companyPlanRow(db, companyId),
     resolveNumberAccess(db, {
       companyId,
@@ -1120,7 +1123,7 @@ async function mintAttachmentUrls(
   ]);
 
   const candidates = new Map<string, MintCandidate>();
-  for (const row of unwrap<
+  const attachments = unwrap<
     {
       id: string;
       storage_path: string;
@@ -1130,8 +1133,28 @@ async function mintAttachmentUrls(
       conversation_id?: string | null;
       content_type?: string | null;
       quarantined_at?: string | null;
+      owner_type: string;
+      owner_id: string;
     }[]
-  >(genericRows, "generic attachment lookup")) {
+  >(genericRows, "generic attachment lookup");
+  const attachmentIds = new Set(attachments.map((row) => row.id));
+  const noteIds = [...new Set(attachments
+    .filter((row) => row.owner_type === "note")
+    .map((row) => row.owner_id))];
+  const liveNotes = noteIds.length === 0 ? [] : unwrap<{ id: string }[]>(
+    await db.from("messages")
+      .select("id,conversations!inner()")
+      .eq("company_id", companyId)
+      .eq("direction", "note")
+      .in("id", noteIds)
+      .is("deleted_at", null)
+      .is("conversations.deleted_at", null)
+      .is("conversations.purged_at", null),
+    "attachment notes lookup",
+  );
+  const liveNoteIds = new Set(liveNotes.map((note) => note.id));
+  for (const row of attachments) {
+    if (row.owner_type === "note" && !liveNoteIds.has(row.owner_id)) continue;
     // #240: a row with no preview serves its original, which is what every
     // row did before this shipped: nothing uploaded earlier, and nothing
     // uploaded by a client that does not make one, stops working.
@@ -1163,7 +1186,7 @@ async function mintAttachmentUrls(
     messages?: { conversation_id: string | null } | null;
   }[]) {
     // The generic table wins when an id is in both.
-    if (candidates.has(row.id)) continue;
+    if (attachmentIds.has(row.id)) continue;
     candidates.set(row.id, {
       bucket: MMS_BUCKET,
       ttlSeconds: MMS_TTL_SECONDS,
