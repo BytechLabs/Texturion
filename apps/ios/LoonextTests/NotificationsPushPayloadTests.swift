@@ -393,6 +393,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertFalse(cases.isEmpty, "Missing push-routes.json")
         let sections: [String: SettingsSection] = [
             "billing": .billing, "notifications": .notifications, "numbers": .numbers,
+            "profile": .profile, "usage": .usage,
         ]
         for vector in cases {
             let expected: PushRoute

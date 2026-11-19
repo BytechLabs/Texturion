@@ -40,6 +40,8 @@ class DeepLinkTest {
             "billing" to SettingsSection.Billing,
             "notifications" to SettingsSection.Notifications,
             "numbers" to SettingsSection.Numbers,
+            "profile" to SettingsSection.Profile,
+            "usage" to SettingsSection.Usage,
         )
         for (vector in cases) {
             val url = requireNotNull(parsePush(mapOf("url" to vector.url)).url) { vector.url }

@@ -12,5 +12,7 @@
   { "url": "/for-you", "route": "forYou" },
   { "url": "/settings/billing", "route": "settings", "section": "billing" },
   { "url": "/settings/notifications", "route": "settings", "section": "notifications" },
-  { "url": "/settings/numbers", "route": "settings", "section": "numbers" }
+  { "url": "/settings/numbers", "route": "settings", "section": "numbers" },
+  { "url": "/settings/profile", "route": "settings", "section": "profile" },
+  { "url": "/settings/usage#spending-cap", "route": "settings", "section": "usage" }
 ]
