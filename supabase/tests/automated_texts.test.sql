@@ -60,4 +60,22 @@ begin
   raise notice 'AT-2 PASSED: the column and the claim are locked down';
 end $$;
 
+-- AT-3. Historical missed-call texts are identified by the message id recorded
+--       on the event, not by content or timing heuristics.
+do $$
+declare
+  stale integer;
+begin
+  select count(*) into stale
+    from public.conversation_events e
+    join public.messages m on m.id::text = e.payload ->> 'message_id'
+   where e.type = 'missed_call'
+     and (not coalesce(m.automated, false)
+          or m.automation is distinct from 'missed_call_text');
+  if stale is distinct from 0 then
+    raise exception 'AT-3 FAILED: % missed-call texts are still marked as human', stale;
+  end if;
+  raise notice 'AT-3 PASSED: every event-linked missed-call text is marked automated';
+end $$;
+
 rollback;
