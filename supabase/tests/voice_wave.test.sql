@@ -206,6 +206,13 @@ begin
   select count(*) into contact_n from public.contacts
    where company_id='facade00-0000-4000-8000-000000000002' and phone_e164='+14165559000';
   if contact_n is distinct from 1 then raise exception 'VW-7 FAILED: caller contact not created'; end if;
+  if not exists (
+    select 1 from public.contact_consent_events
+     where company_id = 'facade00-0000-4000-8000-000000000002'
+       and phone_e164 = '+14165559000' and source = 'inbound_call' and state = 'implied'
+  ) then
+    raise exception 'VW-7 FAILED: missed caller consent should be implied inbound_call';
+  end if;
 
   -- Queued outbound row, attributed to the owner (outbound actor CHECK).
   perform 1 from public.messages

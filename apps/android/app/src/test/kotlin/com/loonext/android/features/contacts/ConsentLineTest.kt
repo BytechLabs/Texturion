@@ -50,6 +50,14 @@ class ConsentLineTest {
     }
 
     @Test
+    fun `inbound call identifies how the customer got in touch`() {
+        assertEquals(
+            "Called you first",
+            consentLine(ConsentSource.INBOUND_CALL, null, null, ::memberName, clock),
+        )
+    }
+
+    @Test
     fun `attested consent names the member who recorded it`() {
         assertEquals(
             "Consent recorded by Dana Fields · Jul 8",

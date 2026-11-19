@@ -651,6 +651,7 @@ object ContactsTasksStrings : AppStrings.Section {
             "No consent recorded yet. It's recorded when they text you first, " +
             "or when you send them their first text, which attests they asked for it.",
         "contactsTasks.consentTextedFirst" to "Texted you first",
+        "contactsTasks.consentCalledFirst" to "Called you first",
         "contactsTasks.consentRecorded" to "Consent recorded",
         "contactsTasks.consentRecordedBy" to "Consent recorded by {name}",
 
@@ -1539,6 +1540,7 @@ object ContactsTasksStrings : AppStrings.Section {
             "client vous texte en premier, ou quand vous lui envoyez son premier " +
             "texto, ce qui atteste qu'il l'a demandé.",
         "contactsTasks.consentTextedFirst" to "Vous a texté en premier",
+        "contactsTasks.consentCalledFirst" to "Vous a appelé en premier",
         "contactsTasks.consentRecorded" to "Consentement enregistré",
         "contactsTasks.consentRecordedBy" to "Consentement enregistré par {name}",
 

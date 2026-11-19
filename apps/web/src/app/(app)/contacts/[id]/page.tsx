@@ -140,10 +140,17 @@ function ConsentLine({ contact }: { contact: ContactDetail }) {
   const date = contact.consent_at
     ? formatTimestamp(contact.consent_at, { style: "long", t })
     : null;
-  if (contact.consent_source === "inbound_sms") {
+  if (
+    contact.consent_source === "inbound_sms" ||
+    contact.consent_source === "inbound_call"
+  ) {
     return (
       <p className="text-sm">
-        {t("appShell.contactConsentInbound")}
+        {t(
+          contact.consent_source === "inbound_call"
+            ? "appShell.contactConsentInboundCall"
+            : "appShell.contactConsentInbound",
+        )}
         {date ? ` · ${date}` : ""}
       </p>
     );

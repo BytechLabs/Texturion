@@ -420,6 +420,7 @@ struct ContactMutations: Sendable {
 /// consent at all.
 enum ConsentSource {
     static let inboundSms = "inbound_sms"
+    static let inboundCall = "inbound_call"
     static let attested = "attested"
 }
 
@@ -427,13 +428,9 @@ enum ConsentSource {
 /// ConsentLine so the copy never drifts:
 ///  - no consent recorded → the teaching sentence,
 ///  - inbound_sms → "Texted you first · Jul 8",
+///  - inbound_call → "Called you first · Jul 8",
 ///  - anything else → "Consent recorded by {member} · Jul 8" (the attester
 ///    resolved against GET /v1/members; omitted when unknown).
-///
-/// "Anything else" is `attested` today, and stays a fallthrough rather than a
-/// match on it: a source a later migration adds must still say that a basis
-/// exists, not drop back to the teaching line that invites somebody to attest
-/// one that is already there.
 func consentLine(
     consentSource: String?,
     consentAt: String?,
@@ -460,6 +457,9 @@ func consentLine(
     let suffix = date.map { " · \($0)" } ?? ""
     if consentSource == ConsentSource.inboundSms {
         return AppStrings.translate(locale, "contactsTasks.consentTextedFirst") + suffix
+    }
+    if consentSource == ConsentSource.inboundCall {
+        return AppStrings.translate(locale, "contactsTasks.consentCalledFirst") + suffix
     }
     if let attester = memberName(consentAttestedBy) {
         return AppStrings.translate(
