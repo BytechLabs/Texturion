@@ -2623,10 +2623,11 @@ it at all.
 
 ## D54 — the escalation ladder that makes FIRST RESPONSE a mechanism (#388)
 
-**Decision.** A clock starts when a new or reopened conversation takes its
-first inbound. At **2 minutes** unanswered, the same people who got the first
-alert are notified again. At **5 minutes**, an *assigned* thread widens to
-everyone who can see it. Rung one ships **on**; rung two is **opt-in**.
+**Decision.** A clock starts when a new or reopened conversation gets its
+first inbound text, missed call, or voicemail. At **2 minutes** unanswered,
+the people who got the first alert are notified again. At **5 minutes**, an
+*assigned* thread widens to everyone who can see it. Rung one ships **on**.
+Rung two is **opt-in**.
 
 **Why this existed to be built.** The brand is FIRST RESPONSE and nothing in
 the product caused one. A single notification fired on a 15-minute debounce and
@@ -2651,9 +2652,9 @@ rung: a member who turned push off does not get it back through a side door.
 A rung dropped by the hours gate is **not claimed**, so it survives the night
 rather than being silently spent at 08:59.
 
-**What stops the clock.** A human reply, claiming the thread, closing it, or
-marking it spam. Reading it does not — opening a message at a red light is not
-a response, and counting it as one would let the promise fail silently.
+**What stops the clock.** A human reply, a live callback, a later answered
+inbound call, claiming the thread, closing it, or marking it spam.
+The clock keeps running when a member only reads the thread.
 
 **The thing this uncovered: the ledger could not tell a robot from a person.**
 `messages_outbound_actor` requires an actor on every outbound row, so the away

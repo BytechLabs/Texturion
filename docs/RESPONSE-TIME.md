@@ -43,8 +43,8 @@ There is a specific trap here, and it is worth naming because it is invisible:
 attributed to the owner, because the outbound-actor CHECK requires an actor. Any
 implementation that tests the actor instead of the `automated` flag silently
 reads every away reply as the owner answering. The #388 lead clock hit this
-first. The report checks the same flag. The #388 escalation ladder still uses
-its existing trigger and clear rules.
+first. The report checks the same flag. The #388 escalation clock also starts
+on a missed call and clears when a crew member reaches the caller.
 
 The API counts text-first and call-first leads separately. It also counts leads
 that received a missed-call text-back and leads that sent an inbound text after

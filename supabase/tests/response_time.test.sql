@@ -449,6 +449,7 @@ begin
   perform pg_temp.msg(v_replied, 'inbound', 1443);
   perform pg_temp.msg(v_replied, 'outbound', 1445);
 
+  update public.conversations set status = 'new' where id in (v_unanswered, v_callback);
   perform pg_temp.lead_call(v_unanswered, 'rt-voicemail', 'voicemail', 1440);
   perform pg_temp.msg(v_unanswered, 'outbound', 1441, true);
   perform pg_temp.lead_call(v_unanswered, 'rt-short-callback', 'missed', 1442, 'outbound', v_tech, 5);
@@ -456,7 +457,18 @@ begin
    where conversation_id in (v_replied, v_unanswered) and automated;
 
   perform pg_temp.lead_call(v_callback, 'rt-missed-callback', 'missed', 1440);
+  if (select awaiting_reply_since from public.conversations where id = v_callback)
+       is distinct from timestamptz '2026-07-02 12:00:00+00' then
+    raise exception 'RT-10 FAILED: a missed call must start the escalation clock';
+  end if;
   perform pg_temp.lead_call(v_callback, 'rt-callback', 'answered', 1443, 'outbound', v_tech, 30);
+  if (select awaiting_reply_since from public.conversations where id = v_callback) is not null then
+    raise exception 'RT-10 FAILED: an answered callback must clear the escalation clock';
+  end if;
+  if (select awaiting_reply_since from public.conversations where id = v_unanswered)
+       is distinct from timestamptz '2026-07-02 12:00:00+00' then
+    raise exception 'RT-10 FAILED: a text-back or short unanswered callback must leave the clock running';
+  end if;
   perform pg_temp.lead_call(v_live, 'rt-live', 'answered', 1440, 'inbound', v_tech, 30);
   perform pg_temp.lead_call(v_deleted, 'rt-deleted-thread', 'missed', 1440);
   update public.conversations set deleted_at = now() where id = v_deleted;
