@@ -22,7 +22,7 @@ struct TrashSourceSheet: View {
 
     var body: some View {
         let linked = tasks ?? []
-        let explanation = summary(linked)
+        let explanation = failed ? nil : summary(linked)
         ConfirmSheet(
             title: t(source.rawValue),
             message: [sentTextNotice, explanation].compactMap { $0 }.joined(separator: "\n\n"),
@@ -33,9 +33,10 @@ struct TrashSourceSheet: View {
             onDismiss: onDismiss
         ) {
             if failed {
-                Button(t("common.retry")) { attempt += 1 }
-                    .buttonStyle(.bordered)
-                    .padding(.top, 8)
+                LoadError(message: t("trash.linkedJobLoadFailed"), variant: .inline) {
+                    attempt += 1
+                }
+                .padding(.top, 8)
             }
             if !linked.isEmpty {
                 ChoiceCards(
@@ -59,7 +60,6 @@ struct TrashSourceSheet: View {
     }
 
     private func summary(_ linked: [TrashLinkedTask]) -> String {
-        if failed { return t("trash.linkedJobLoadFailed") }
         if tasks == nil { return t("trash.loadingMore") }
         if linked.isEmpty { return t("trash.sourceDeleteBody") }
         let numbers = linked.map { String($0.number) }.joined(separator: ", #")
