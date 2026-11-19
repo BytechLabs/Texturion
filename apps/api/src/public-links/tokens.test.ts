@@ -7,7 +7,11 @@
  * subtly wrong in the ways that matter: a token that is stored, a purpose that
  * is not checked, a failure that tells the holder which failure it was.
  */
+import { relative, resolve } from "node:path";
+import ts from "typescript";
 import { describe, expect, it, vi } from "vitest";
+
+import { productionSources, sourceText } from "../test/source-tree";
 
 import {
   generateToken,
@@ -15,6 +19,49 @@ import {
   mintPublicLink,
   resolvePublicLink,
 } from "./tokens";
+
+const apiSource = resolve(import.meta.dirname, "..");
+
+function publicLinkReaders(file: string): string[] {
+  const content = sourceText(file);
+  if (!content.includes("resolvePublicLink")) return [];
+  const path = relative(apiSource, file).replaceAll("\\", "/");
+  const source = ts.createSourceFile(file, content, ts.ScriptTarget.Latest);
+  const resolverNames = new Set(["resolvePublicLink"]);
+  const readers: string[] = [];
+  for (const statement of source.statements) {
+    if (!ts.isImportDeclaration(statement)) continue;
+    const bindings = statement.importClause?.namedBindings;
+    if (!bindings || !ts.isNamedImports(bindings)) continue;
+    for (const binding of bindings.elements) {
+      if (binding.propertyName?.text === "resolvePublicLink") resolverNames.add(binding.name.text);
+    }
+  }
+  function visit(node: ts.Node): void {
+    if (ts.isCallExpression(node)) {
+      const callee = node.expression;
+      const named = ts.isIdentifier(callee) && resolverNames.has(callee.text);
+      const member = ts.isPropertyAccessExpression(callee) && callee.name.text === "resolvePublicLink";
+      if (named || member) {
+        const purpose = node.arguments.at(2);
+        readers.push(`${path}:${purpose && ts.isStringLiteral(purpose) ? purpose.text : "dynamic"}`);
+      }
+    }
+    ts.forEachChild(node, visit);
+  }
+  visit(source);
+  return readers;
+}
+
+it("keeps a roster of public link readers that need deleted-source tests", () => {
+  const readers = productionSources(apiSource).flatMap(publicLinkReaders);
+  expect(readers.sort()).toEqual([
+    "routes/job-photos.ts:photo_set",
+    "routes/payments.ts:payment",
+    "routes/quotes-public.ts:quote_accept",
+    "routes/quotes-public.ts:quote_view",
+  ]);
+});
 
 /** A db stub that records the RPC calls it received. */
 function stub(data: unknown, fail = false) {

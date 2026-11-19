@@ -12,9 +12,11 @@ import {
   UserPlus,
   Voicemail,
 } from "lucide-react";
+import { useState } from "react";
 import { toast } from "sonner";
 
 import { usePlaceCall } from "@/components/calls/call-button";
+import { TrashSourceDialog } from "@/components/settings/trash-source-dialog";
 import { RecordOverflowMenu } from "@/components/ui/record-menu";
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
@@ -239,7 +241,7 @@ export function useCallActions({
   onMakeTask,
   onAddContact,
   onDeleted,
-}: CallActionsProps): RecordAction[] {
+}: CallActionsProps) {
   const t = useT();
   const navigate = useNavigate();
   const canDelete = useCanDeleteRecords();
@@ -247,6 +249,7 @@ export function useCallActions({
   const deleteVoicemail = useDeleteVoicemail();
   const announceDeleted = useDeletedToast();
   const { place, busy } = usePlaceCall();
+  const [deleteOpen, setDeleteOpen] = useState(false);
   const failure = (error: unknown, fallback: string) =>
     toast.error(error instanceof ApiError ? error.message : fallback);
 
@@ -258,7 +261,7 @@ export function useCallActions({
   const detailsHref = callSessionId ? `/calls/${callSessionId}` : null;
   const contactHref = contactId ? `/contacts/${contactId}` : null;
 
-  return buildCallActions({
+  const actions = buildCallActions({
     t,
     detailsHref,
     messageHref,
@@ -302,18 +305,26 @@ export function useCallActions({
             ]),
           onError: (error) => failure(error, t("trash.voicemailDeleteFailed")),
         }),
-      deleteCall: () =>
-        deleteCall.mutate(callId, {
-          onSuccess: () => {
-            announceDeleted(t("trash.callDeleted"), [
-              { kind: "call", id: callId },
-            ]);
-            onDeleted?.();
-          },
-          onError: (error) => failure(error, t("trash.callDeleteFailed")),
-        }),
+      deleteCall: () => setTimeout(() => setDeleteOpen(true), 0),
     },
   });
+  const deleteDialog = deleteOpen ? (
+    <TrashSourceDialog
+      id={callId}
+      source="call"
+      pending={deleteCall.isPending}
+      onClose={() => setDeleteOpen(false)}
+      onConfirm={(includeTasks) => deleteCall.mutate({ id: callId, includeTasks }, {
+        onSuccess: () => {
+          setDeleteOpen(false);
+          announceDeleted(t("trash.callDeleted"), [{ kind: "call", id: callId }]);
+          onDeleted?.();
+        },
+        onError: (error) => failure(error, t("trash.callDeleteFailed")),
+      })}
+    />
+  ) : null;
+  return { actions, deleteDialog };
 }
 
 /** The ⋯ button for a call's action list; absent when nothing is allowed. */
@@ -349,12 +360,11 @@ export function CallActionsMenu({
 }
 
 export function CallActions(props: CallActionsProps) {
-  const actions = useCallActions(props);
+  const { actions, deleteDialog } = useCallActions(props);
   return (
-    <CallActionsMenu
-      actions={actions}
-      callerName={props.callerName}
-      className={props.className}
-    />
+    <>
+      <CallActionsMenu actions={actions} callerName={props.callerName} className={props.className} />
+      {deleteDialog}
+    </>
   );
 }

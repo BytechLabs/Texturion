@@ -183,6 +183,16 @@ struct CallsView: View {
                 ) { _ in
                     activeSheet = nil
                 }
+            case .trashCall(let call):
+                TrashSourceSheet(
+                    source: .call,
+                    loadTasks: { try await deletion.sourceTasks(companyId: companyId, kind: .call, id: call.id) },
+                    onDismiss: { activeSheet = nil },
+                    onConfirm: { includeTasks in
+                        activeSheet = nil
+                        deleteRecord(call, kind: .call, includeTasks: includeTasks)
+                    }
+                )
             }
         }
     }
@@ -198,11 +208,13 @@ struct CallsView: View {
     private enum CallsSheet: Identifiable {
         case dialer(initialNumber: String)
         case addContact(prefill: String)
+        case trashCall(Call)
 
         var id: String {
             switch self {
             case .dialer(let initialNumber): "dialer:\(initialNumber)"
             case .addContact(let prefill): "add:\(prefill)"
+            case .trashCall(let call): "trash:\(call.id)"
             }
         }
     }
@@ -363,7 +375,7 @@ struct CallsView: View {
             deleteRecord(call, kind: .voicemail)
         case CallActionId.deleteCall:
             Haptics.tap()
-            deleteRecord(call, kind: .call)
+            activeSheet = .trashCall(call)
         default:
             break
         }
@@ -401,15 +413,13 @@ struct CallsView: View {
         }
     }
 
-    /// Both go to the Trash, so the toast carries an Undo that restores it. No
-    /// confirmation: it is reversible and the Trash holds it for 30 days.
-    private func deleteRecord(_ call: Call, kind: TrashKind) {
+    private func deleteRecord(_ call: Call, kind: TrashKind, includeTasks: Bool = false) {
         Task {
             do {
                 if kind == .voicemail {
                     try await deletion.deleteVoicemail(companyId: companyId, callId: call.id)
                 } else {
-                    try await deletion.deleteCall(companyId: companyId, callId: call.id)
+                    try await deletion.deleteCall(companyId: companyId, callId: call.id, includeTasks: includeTasks)
                     if case .ready(let calls) = state {
                         state = .ready(calls.filter { $0.id != call.id })
                     }

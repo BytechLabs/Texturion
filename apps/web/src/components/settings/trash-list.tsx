@@ -19,6 +19,7 @@ import { usePurgeTrashItem, useRestoreFromTrash, useTrash } from '@/lib/api/tras
 import type { TrashRow } from '@/lib/api/trash';
 import { useActiveCompany } from "@/lib/company/provider";
 import { formatTimestamp } from "@/lib/format/time";
+import { restoreNotice } from "@/lib/hooks/use-records-delete";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
   daysLeftLabel,
@@ -116,6 +117,8 @@ function TrashItem({ row, onPurge }: { row: TrashRow; onPurge: () => void }) {
             ?.display_name ?? t("trash.someone")));
   const when = formatTimestamp(row.deleted_at, { style: "long", t });
   const { contact_name, contact_phone } = detailsOf(row);
+  const linked = row.kind === "message" ? row.message.linked_tasks :
+    row.kind === "call" ? row.call.linked_tasks : undefined;
 
   return (
     <li className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 px-4 py-3">
@@ -133,6 +136,11 @@ function TrashItem({ row, onPurge }: { row: TrashRow; onPurge: () => void }) {
             <CopyablePhoneNumber number={contact_phone} />
           ) : detailLabel(row, t)}
         </p>
+        {linked?.map((job) => (
+          <p key={job.id} className="text-sm text-muted-foreground">
+            {t(job.trashed ? "trash.includesJob" : "trash.linkedJob", { number: job.number })}
+          </p>
+        ))}
         <p className="text-xs text-muted-foreground">
           {deletedBy
             ? t("trash.deletedByLine", { when, who: deletedBy })
@@ -148,7 +156,7 @@ function TrashItem({ row, onPurge }: { row: TrashRow; onPurge: () => void }) {
           disabled={restore.isPending}
           onClick={() =>
             restore.mutate([{ kind: row.kind, id: row.id }], {
-              onSuccess: () => toast.success(t("trash.restored")),
+              onSuccess: ({ scheduledMissed }) => toast.success(restoreNotice(t, scheduledMissed)),
               onError: (error) =>
                 // A 409 here is "restore the conversation first": the server
                 // wrote that sentence, so show it.

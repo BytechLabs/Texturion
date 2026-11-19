@@ -234,6 +234,15 @@ struct TrashRowView: View {
             .font(.golos(13))
             .foregroundStyle(BrandColor.muted700)
             .lineLimit(2)
+            ForEach(row.details?.linked_tasks ?? []) { job in
+                Text(AppStrings.translate(
+                    appLocale,
+                    job.trashed ? "trash.includesJob" : "trash.linkedJob",
+                    ["number": String(job.number)]
+                ))
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted700)
+            }
             Text(TrashText.metaLine(
                 row,
                 locale: appLocale,

@@ -724,6 +724,28 @@ describe("#224 calling it off", () => {
 });
 
 describe("#224 the customer's page", () => {
+  it("withholds a payment request when its conversation is trashed", async () => {
+    const id = "55555555-0000-4000-8000-000000000059";
+    const harness = buildHarness({
+      requests: [{
+        id,
+        company_id: COMPANY_ID,
+        conversation_id: CONVERSATION_ID,
+        "conversations.deleted_at": "2026-08-01T00:00:00Z",
+      }],
+    });
+    harness.rest.rpc("api_resolve_public_link", () => ({
+      ok: true,
+      company_id: COMPANY_ID,
+      subject_id: id,
+    }));
+
+    const response = await harness.request(`/pay/${"a".repeat(43)}`);
+
+    expect(response.status).toBe(404);
+    expect(harness.stripeCalls).toHaveLength(0);
+  });
+
   it("says the same thing for every failure", async () => {
     const harness = buildHarness();
     harness.rest.rpc("api_resolve_public_link", () => ({

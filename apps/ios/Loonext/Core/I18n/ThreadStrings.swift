@@ -502,8 +502,8 @@ enum ThreadStrings {
                 + "and it can't be unsent. You can restore it from the Trash for 30 days.",
             "thread.deleteConversationTitle": "Delete the conversation with {name}?",
             "thread.deleteConversationBody":
-                "Its messages, notes and calls leave your inbox. You can restore it from "
-                + "the Trash for 30 days. Opt-outs are kept, and texts the customer "
+                "Its messages, notes, calls and jobs leave your inbox. Scheduled texts and reminders stop. "
+                + "You can restore it from the Trash for 30 days. Opt-outs are kept, and texts the customer "
                 + "already received stay with them.",
             "thread.messageDeleted": "Message deleted",
             "thread.noteDeleted": "Note deleted",
@@ -1289,7 +1289,8 @@ enum ThreadStrings {
                 + "corbeille pendant 30 jours.",
             "thread.deleteConversationTitle": "Supprimer la conversation avec {name}?",
             "thread.deleteConversationBody":
-                "Ses messages, ses notes et ses appels quittent votre boîte de réception. "
+                "Ses messages, ses notes, ses appels et ses tâches quittent votre boîte de réception. "
+                + "Les textos programmés et les rappels sont interrompus. "
                 + "Vous pouvez la restaurer depuis la corbeille pendant 30 jours. Les "
                 + "désabonnements sont conservés, et les textos déjà reçus par le client "
                 + "restent chez lui.",

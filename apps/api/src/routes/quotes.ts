@@ -194,7 +194,9 @@ quotesRoutes.get("/quotes", requireCapability("conversations.read"), async (c) =
   let query = db
     .from("quotes")
     .select(`${QUOTE_COLUMNS},conversations!inner(phone_number_id)`)
-    .eq("company_id", c.get("companyId"));
+    .eq("company_id", c.get("companyId"))
+    .is("conversations.deleted_at", null)
+    .is("conversations.purged_at", null);
   if (conversationId) query = query.eq("conversation_id", conversationId);
   if (access.hiddenNumberIds !== null && access.hiddenNumberIds.length > 0) {
     // A thread with no number is not on a denied one, so it stays visible —

@@ -1,7 +1,10 @@
 package com.loonext.android.core.data
 
 import com.loonext.android.core.model.DeletedRecord
+import com.loonext.android.core.model.RestoredRecord
 import com.loonext.android.core.model.TrashKind
+import com.loonext.android.core.model.TrashLinkedTask
+import com.loonext.android.core.model.TrashSourceTasks
 import com.loonext.android.core.net.ApiClient
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
@@ -15,23 +18,33 @@ import kotlinx.serialization.json.put
  * web-only; this client only deletes and undoes.
  */
 class RecordDeletionRepository(private val api: ApiClient) {
-    suspend fun deleteMessage(companyId: String, messageId: String): DeletedRecord =
-        api.deleteReturning("/v1/messages/$messageId", companyId = companyId)
+    suspend fun deleteMessage(companyId: String, messageId: String, includeTasks: Boolean = false): DeletedRecord =
+        deleteSource(companyId, "/v1/messages/$messageId", includeTasks)
 
     suspend fun deleteConversation(companyId: String, conversationId: String): DeletedRecord =
         api.deleteReturning("/v1/conversations/$conversationId", companyId = companyId)
 
     /** [callId] is the call LIST row's `id`, not its `call_session_id`. */
-    suspend fun deleteCall(companyId: String, callId: String): DeletedRecord =
-        api.deleteReturning("/v1/calls/$callId", companyId = companyId)
+    suspend fun deleteCall(companyId: String, callId: String, includeTasks: Boolean = false): DeletedRecord =
+        deleteSource(companyId, "/v1/calls/$callId", includeTasks)
+
+    suspend fun sourceTasks(companyId: String, kind: String, id: String): List<TrashLinkedTask> =
+        api.get<TrashSourceTasks>("/v1/trash/source-tasks/$kind/$id", companyId = companyId).linked_tasks
+
+    private suspend fun deleteSource(companyId: String, path: String, includeTasks: Boolean): DeletedRecord =
+        api.deleteReturning(
+            path,
+            companyId = companyId,
+            query = if (includeTasks) mapOf("include_tasks" to "true") else emptyMap(),
+        )
 
     /** The recording and transcript only; the call row stays in the log. */
     suspend fun deleteVoicemail(companyId: String, callId: String): DeletedRecord =
         api.deleteReturning("/v1/calls/$callId/voicemail", companyId = companyId)
 
     /** 409 when the record's conversation is itself still in the Trash. */
-    suspend fun restore(companyId: String, kind: String, id: String) {
-        api.post<JsonObject, JsonObject>(
+    suspend fun restore(companyId: String, kind: String, id: String): RestoredRecord =
+        api.post<RestoredRecord, JsonObject>(
             "/v1/trash/restore",
             buildJsonObject {
                 put("kind", kind)
@@ -39,7 +52,6 @@ class RecordDeletionRepository(private val api: ApiClient) {
             },
             companyId = companyId,
         )
-    }
 
     suspend fun restoreMessage(companyId: String, id: String) =
         restore(companyId, TrashKind.MESSAGE, id)

@@ -103,9 +103,9 @@ fun TrashScreen(
         busy = trashKey(item)
         scope.launch {
             val message = try {
-                repo.restore(companyId, item)
+                val result = repo.restore(companyId, item)
                 drop(item)
-                say("trash.restored", emptyMap())
+                result.notice(locale, "trash.restored")
             } catch (cause: CancellationException) {
                 throw cause
             } catch (cause: Exception) {
@@ -260,6 +260,7 @@ private fun TrashRow(
     val phone = trashContactPhone(item)
     val who = trashWhoLabel(item, say)
     val detail = trashDetailLabel(item, say)
+    val linked = item.message?.linked_tasks ?: item.call?.linked_tasks.orEmpty()
     PaperCard(Modifier.fillMaxWidth()) {
         Column(
             Modifier.padding(start = 15.dp, end = 15.dp, top = 13.dp, bottom = 6.dp),
@@ -289,6 +290,13 @@ private fun TrashRow(
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
+            linked.forEach { job ->
+                Text(
+                    say(if (job.trashed) "trash.includesJob" else "trash.linkedJob", mapOf("number" to job.number.toString())),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
             Text(
                 "${trashDeletedLine(item, meUserId, deletedAt, say)} · " +
                     trashDaysLeftLabel(item.purge_after, say),

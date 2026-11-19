@@ -46,6 +46,7 @@ export const EXPORT_TABLES: readonly ExportTable[] = [
       "id,conversation_id,direction,body,status,sent_by_user_id,done_at,created_at,source," +
       "reaction_emoji,reaction_to_message_id,reaction_removed",
     liveOnly: true,
+    parent: "conversations",
   },
   {
     table: "scheduled_messages",
@@ -86,7 +87,7 @@ export const EXPORT_TABLES: readonly ExportTable[] = [
     table: "calls",
     columns:
       "id,contact_id,conversation_id,caller_e164,caller_name,direction,outcome," +
-      "answered_by_user_id,voicemail_seconds,voicemail_transcript,started_at,ended_at",
+      "answered_by_user_id,voicemail_seconds,voicemail_transcript,voicemail_deleted_at,started_at,ended_at",
     liveOnly: true,
   },
   {
@@ -125,6 +126,7 @@ export const EXPORT_TABLES: readonly ExportTable[] = [
     columns:
       "id,conversation_id,owner_type,owner_id,file_name,content_type,size_bytes,storage_path,created_at",
     liveOnly: true,
+    parent: "conversations",
   },
   {
     table: "message_attachments",

@@ -6,6 +6,7 @@ import { toast } from "sonner";
 
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { useT } from "@/i18n/provider";
+import type { Translate } from "@/i18n/translate";
 import { ApiError } from "@/lib/api/error";
 import { useRestoreFromTrash } from '@/lib/api/trash';
 import type { TrashTarget } from '@/lib/api/trash';
@@ -18,6 +19,11 @@ import { useActiveCompany } from "@/lib/company/provider";
  */
 export function useCanDeleteRecords(): boolean {
   return roleHasCapability(useActiveCompany().role, "records.delete");
+}
+
+export function restoreNotice(t: Translate, count: number): string {
+  if (count === 0) return t("trash.restored");
+  return t(count === 1 ? "trash.restoredOneMissed" : "trash.restoredManyMissed", { count });
 }
 
 /**
@@ -42,8 +48,8 @@ export function useDeletedToast() {
       },
       onUndo: async () => {
         try {
-          await restore(targets);
-          toast.success(t("trash.restored"));
+          const { scheduledMissed } = await restore(targets);
+          toast.success(restoreNotice(t, scheduledMissed));
         } catch (error) {
           toast.error(error instanceof ApiError ? error.message : t("trash.restoreFailed"));
         }

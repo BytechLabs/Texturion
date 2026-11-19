@@ -10,13 +10,23 @@ import type { Translated } from "../translated";
 export const trashEn = {
   // Shared
   restored: "Restored",
+  restoredOneMissed: "Restored. One scheduled text missed its send time.",
+  restoredManyMissed: "Restored. {count} scheduled texts missed their send times.",
   restoreFailed: "Couldn't restore that. Try again in a moment.",
   keep: "Keep it",
   moveToTrash: "Move to Trash",
+  linkedJobErase: "Job #{number} is linked to this record. Its details will be erased when the record is permanently deleted.",
+  linkedJobLoadFailed: "Couldn't check the linked job.",
+  linkedJob: "Linked job #{number}",
+  includesJob: "Includes job #{number}",
 
   // Message
   deleteMessage: "Delete message",
   deleteNote: "Delete note",
+  deleteMessageOnly: "Delete text only",
+  deleteMessageAndJob: "Delete text and job",
+  deleteNoteOnly: "Delete note only",
+  deleteNoteAndJob: "Delete note and job",
   messageDeleted: "Message moved to Trash",
   messageDeletedSent:
     "Message moved to Trash. Removed from Loonext only; the customer still has the text.",
@@ -28,7 +38,7 @@ export const trashEn = {
   deleteConversationTitle: "Delete this conversation?",
   deleteConversationsTitle: "Delete {count} conversations?",
   deleteConversationBody:
-    "It moves to the Trash for 30 days, then it's erased for good. Texts you already sent stay on the customer's phone; this removes them from Loonext only. If the customer texted STOP, that stays on record.",
+    "Messages, calls, and jobs go to the Trash for 30 days. Scheduled texts and reminders stop while the conversation is there. Texts you already sent stay on the customer's phone. If the customer texted STOP, that stays on record.",
   conversationDeleted: "Conversation moved to Trash",
   conversationsDeleted: "{count} conversations moved to Trash",
   conversationDeleteFailed:
@@ -40,6 +50,8 @@ export const trashEn = {
   // Calls
   callActionsAria: "Actions for the call from {name}",
   deleteCall: "Delete call",
+  deleteCallOnly: "Delete call only",
+  deleteCallAndJob: "Delete call and job",
   deleteVoicemail: "Delete voicemail",
   callDeleted: "Call moved to Trash",
   voicemailDeleted: "Voicemail moved to Trash. The call stays in your log.",
@@ -116,12 +128,22 @@ export const trashEn = {
 
 export const trashFr: Translated<typeof trashEn> = {
   restored: "Restauré",
+  restoredOneMissed: "Restauré. Un texto programmé a dépassé son heure d’envoi.",
+  restoredManyMissed: "Restauré. {count} textos programmés ont dépassé leur heure d’envoi.",
   restoreFailed: "Impossible de restaurer. Réessayez dans un instant.",
   keep: "Le garder",
   moveToTrash: "Mettre à la corbeille",
+  linkedJobErase: "La tâche nº {number} est liée à cet élément. Ses détails seront effacés lors de la suppression définitive.",
+  linkedJobLoadFailed: "Impossible de vérifier la tâche liée.",
+  linkedJob: "Tâche liée nº {number}",
+  includesJob: "Inclut la tâche nº {number}",
 
   deleteMessage: "Supprimer le message",
   deleteNote: "Supprimer la note",
+  deleteMessageOnly: "Supprimer le texto seulement",
+  deleteMessageAndJob: "Supprimer le texto et la tâche",
+  deleteNoteOnly: "Supprimer la note seulement",
+  deleteNoteAndJob: "Supprimer la note et la tâche",
   messageDeleted: "Message mis à la corbeille",
   messageDeletedSent:
     "Message mis à la corbeille. Retiré de Loonext seulement; le client a toujours le texto.",
@@ -133,7 +155,7 @@ export const trashFr: Translated<typeof trashEn> = {
   deleteConversationTitle: "Supprimer cette conversation?",
   deleteConversationsTitle: "Supprimer {count} conversations?",
   deleteConversationBody:
-    "Elle va à la corbeille pendant 30 jours, puis elle est effacée définitivement. Les textos déjà envoyés restent sur le téléphone du client; cela les retire de Loonext seulement. Si le client a écrit STOP, cela reste au dossier.",
+    "Les messages, les appels et les tâches vont à la corbeille pendant 30 jours. Les textos programmés et les rappels sont interrompus tant que la conversation s’y trouve. Les textos déjà envoyés restent sur le téléphone du client. Si le client a écrit STOP, cela reste au dossier.",
   conversationDeleted: "Conversation mise à la corbeille",
   conversationsDeleted: "{count} conversations mises à la corbeille",
   conversationDeleteFailed:
@@ -144,6 +166,8 @@ export const trashFr: Translated<typeof trashEn> = {
 
   callActionsAria: "Actions pour l'appel de {name}",
   deleteCall: "Supprimer l'appel",
+  deleteCallOnly: "Supprimer l’appel seulement",
+  deleteCallAndJob: "Supprimer l’appel et la tâche",
   deleteVoicemail: "Supprimer le message vocal",
   callDeleted: "Appel mis à la corbeille",
   voicemailDeleted:

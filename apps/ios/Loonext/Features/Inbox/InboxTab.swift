@@ -1020,12 +1020,15 @@ final class InboxController {
                     ) { [weak self] in
                         Task {
                             do {
-                                try await deletion.restore(
+                                let result = try await deletion.restore(
                                     companyId: companyId,
                                     kind: .conversation,
                                     id: row.id
                                 )
                                 await self?.refreshFirstPage()
+                                if let self, (result.scheduled_missed ?? 0) > 0 {
+                                    self.notify(result.notice(locale: self.locale, fallback: "trash.restored"))
+                                }
                             } catch {
                                 self?.notify(error.userMessage)
                             }

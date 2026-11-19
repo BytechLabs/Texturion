@@ -9,10 +9,28 @@ object TrashStrings : AppStrings.Section {
     override val en = mapOf(
         "trash.restored" to
             "Restored",
+        "trash.restoredOneMissed" to "Restored. One scheduled text missed its send time.",
+        "trash.restoredManyMissed" to "Restored. {count} scheduled texts missed their send times.",
         "trash.restoreFailed" to
             "Couldn't restore that. Try again in a moment.",
         "trash.keep" to
             "Keep it",
+        "trash.moveToTrash" to "Move to Trash",
+        "trash.sourceDeleteBody" to "You can restore this item from Trash for 30 days.",
+        "trash.linkedJobErase" to "Job #{number} is linked to this record. Its details will be erased when the record is permanently deleted.",
+        "trash.linkedJobLoadFailed" to "Couldn't check the linked job.",
+        "trash.retryLinkedJob" to "Try again",
+        "trash.linkedJob" to "Linked job #{number}",
+        "trash.includesJob" to "Includes job #{number}",
+        "trash.deleteMessage" to "Delete message",
+        "trash.deleteMessageOnly" to "Delete text only",
+        "trash.deleteMessageAndJob" to "Delete text and job",
+        "trash.deleteNote" to "Delete note",
+        "trash.deleteNoteOnly" to "Delete note only",
+        "trash.deleteNoteAndJob" to "Delete note and job",
+        "trash.deleteCall" to "Delete call",
+        "trash.deleteCallOnly" to "Delete call only",
+        "trash.deleteCallAndJob" to "Delete call and job",
         "trash.description" to
             "Deleted conversations, messages, calls and voicemails wait here for 30 days, then they're erased for good.",
         "trash.loadFailed" to
@@ -88,10 +106,28 @@ object TrashStrings : AppStrings.Section {
     override val frCA = mapOf(
         "trash.restored" to
             "Restauré",
+        "trash.restoredOneMissed" to "Restauré. Un texto programmé a dépassé son heure d’envoi.",
+        "trash.restoredManyMissed" to "Restauré. {count} textos programmés ont dépassé leur heure d’envoi.",
         "trash.restoreFailed" to
             "Impossible de restaurer. Réessayez dans un instant.",
         "trash.keep" to
             "Le garder",
+        "trash.moveToTrash" to "Mettre à la corbeille",
+        "trash.sourceDeleteBody" to "Vous pouvez restaurer cet élément depuis la corbeille pendant 30 jours.",
+        "trash.linkedJobErase" to "La tâche nº {number} est liée à cet élément. Ses détails seront effacés lors de la suppression définitive.",
+        "trash.linkedJobLoadFailed" to "Impossible de vérifier la tâche liée.",
+        "trash.retryLinkedJob" to "Réessayer",
+        "trash.linkedJob" to "Tâche liée nº {number}",
+        "trash.includesJob" to "Inclut la tâche nº {number}",
+        "trash.deleteMessage" to "Supprimer le message",
+        "trash.deleteMessageOnly" to "Supprimer le texto seulement",
+        "trash.deleteMessageAndJob" to "Supprimer le texto et la tâche",
+        "trash.deleteNote" to "Supprimer la note",
+        "trash.deleteNoteOnly" to "Supprimer la note seulement",
+        "trash.deleteNoteAndJob" to "Supprimer la note et la tâche",
+        "trash.deleteCall" to "Supprimer l’appel",
+        "trash.deleteCallOnly" to "Supprimer l’appel seulement",
+        "trash.deleteCallAndJob" to "Supprimer l’appel et la tâche",
         "trash.description" to
             "Les conversations, messages, appels et messages vocaux supprimés attendent ici pendant 30 jours, puis ils sont effacés définitivement.",
         "trash.loadFailed" to

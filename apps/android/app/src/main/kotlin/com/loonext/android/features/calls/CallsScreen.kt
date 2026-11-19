@@ -112,6 +112,8 @@ import com.loonext.android.features.contacts.device.DialerCandidate
 import com.loonext.android.features.contacts.device.MatchSource
 import com.loonext.android.features.contacts.device.rankDialerCandidates
 import com.loonext.android.features.contacts.device.deviceDialerCandidates
+import com.loonext.android.features.settings.TrashSource
+import com.loonext.android.features.settings.TrashSourceDialog
 import com.loonext.android.BuildConfig
 import com.loonext.android.telephony.CallPhase
 import com.loonext.android.telephony.SoftphoneManager
@@ -373,14 +375,12 @@ fun CallsScreen(
     }.collectAsStateWithLifecycle()
     val textBackOn = (settingsCompany ?: me.company)?.mctb_enabled == true
 
-    // #691: delete a call, or just its voicemail, to the Trash. Both are
-    // restorable, so the guard is an Undo rather than a confirmation. The
-    // controls are absent without records.delete.
     val canDelete = canDeleteRecords(
         me.memberships.firstOrNull { it.company_id == companyId }?.role,
     )
     val clipboard = LocalClipboardManager.current
     val snackbar = remember { SnackbarHostState() }
+    var deletingCall by remember(companyId) { mutableStateOf<Call?>(null) }
     fun editLogs(edit: (List<Call>) -> List<Call>) {
         CallsFilter.entries.forEach { f ->
             val key = CacheKeys.calls(companyId, f.filterKey)
@@ -418,14 +418,14 @@ fun CallsScreen(
             }
         }
     }
-    fun delete(call: Call, voicemail: Boolean) {
+    fun delete(call: Call, voicemail: Boolean, includeTasks: Boolean = false) {
         scope.launch {
             try {
                 if (voicemail) {
                     repo.deletion.deleteVoicemail(companyId, call.id)
                     editLogs { logs -> withoutVoicemail(logs, call.id) }
                 } else {
-                    repo.deletion.deleteCall(companyId, call.id)
+                    repo.deletion.deleteCall(companyId, call.id, includeTasks)
                     editLogs { logs -> withoutCall(logs, call.id) }
                 }
                 refreshKey++
@@ -638,7 +638,7 @@ fun CallsScreen(
                                                                 say(AppStrings.translate(logLocale, "recordMenu.numberCopied", emptyMap()))
                                                             }
                                                             CallActionId.DELETE_VOICEMAIL -> delete(call, voicemail = true)
-                                                            CallActionId.DELETE_CALL -> delete(call, voicemail = false)
+                                                            CallActionId.DELETE_CALL -> deletingCall = call
                                                         }
                                                     },
                                                 )
@@ -760,6 +760,19 @@ fun CallsScreen(
         )
     }
 
+    deletingCall?.let { call ->
+        TrashSourceDialog(
+            repository = repo.deletion,
+            companyId = companyId,
+            id = call.id,
+            source = TrashSource.CALL,
+            onDismiss = { deletingCall = null },
+            onConfirm = { includeTasks ->
+                deletingCall = null
+                delete(call, voicemail = false, includeTasks = includeTasks)
+            },
+        )
+    }
     if (dialerOpen) {
         DialerSheet(
             manager = manager,

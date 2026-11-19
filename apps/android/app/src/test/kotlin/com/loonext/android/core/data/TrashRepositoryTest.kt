@@ -133,6 +133,15 @@ class TrashRepositoryTest {
     }
 
     @Test
+    fun `restore returns the count of missed scheduled texts`() = runTest {
+        server.enqueue(MockResponse(body = """{"kind":"conversation","id":"cv1","scheduled_missed":2}"""))
+
+        val restored = repo.restore("co1", item("conversation", "cv1"))
+
+        assertEquals(2, restored.scheduled_missed)
+    }
+
+    @Test
     fun `a refused restore carries the server sentence`() = runTest {
         val sentence = "Its conversation is in the Trash. Restore the conversation first."
         server.enqueue(

@@ -1398,14 +1398,19 @@ final class ThreadController {
         RecordDeletionRepository(api: repo.api)
     }
 
+    func linkedJobsForDeleting(_ messageId: String) async throws -> [TrashLinkedTask] {
+        try await deletion.sourceTasks(companyId: companyId, kind: .message, id: messageId)
+    }
+
     /// Both a note and a message. Goes to the Trash, so the toast carries an
     /// Undo that restores it.
-    func deleteMessage(_ message: Message) {
+    func deleteMessage(_ message: Message, includeTasks: Bool = false) {
         Task {
             do {
                 try await deletion.deleteMessage(
                     companyId: companyId,
-                    messageId: message.id
+                    messageId: message.id,
+                    includeTasks: includeTasks
                 )
                 messages = messages.filter { $0.id != message.id }
                 pinnedMessages = pinnedMessages.filter { $0.id != message.id }
@@ -1457,14 +1462,14 @@ final class ThreadController {
     func restoreConversation() {
         Task {
             do {
-                try await deletion.restore(
+                let result = try await deletion.restore(
                     companyId: companyId,
                     kind: .conversation,
                     id: conversationId
                 )
                 conversationDeleted = false
                 refreshAfterReconnect()
-                notify(t(RecordDeletion.restoredKey(.conversation)))
+                notify(result.notice(locale: locale, fallback: RecordDeletion.restoredKey(.conversation)))
             } catch {
                 notify(restoreFailureText(error))
             }

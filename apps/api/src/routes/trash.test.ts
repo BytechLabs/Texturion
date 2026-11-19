@@ -87,6 +87,7 @@ const ROUTES: [string, "GET" | "POST" | "DELETE", string, unknown?][] = [
   ["bulk delete", "POST", "/conversations/delete", { ids: [CONV_ID] }],
   ["delete a call", "DELETE", `/calls/${CALL_ID}`],
   ["delete a voicemail", "DELETE", `/calls/${CALL_ID}/voicemail`],
+  ["preview a linked job", "GET", `/trash/source-tasks/message/${MESSAGE_ID}`],
   ["list the trash", "GET", "/trash"],
   ["restore", "POST", "/trash/restore", { kind: "message", id: MESSAGE_ID }],
   ["delete forever", "DELETE", `/trash/message/${MESSAGE_ID}`],
@@ -139,6 +140,7 @@ describe("#691 delete", () => {
       p_company_id: COMPANY_ID,
       p_user_id: auth.subject,
       p_message_id: MESSAGE_ID,
+      p_include_tasks: false,
     });
 
     const audit = sb.find("POST", "/rest/v1/audit_log")[0]?.body as Record<string, unknown>;
@@ -200,6 +202,32 @@ describe("#691 delete", () => {
       .find("POST", "/rest/v1/rpc/api_trash_call")
       .map((c) => (c.body as { p_voicemail_only: boolean }).p_voicemail_only);
     expect(bodies).toEqual([false, true]);
+  });
+
+  it.each([
+    ["message", "messages", MESSAGE_ID],
+    ["call", "calls", CALL_ID],
+  ])("previews the linked job and includes it only on request for a %s", async (kind, collection, id) => {
+    const linked = { id: "aaaaaaaa-0000-4000-8000-000000000041", number: 123, trashed: false };
+    const sb = world("admin", {
+      api_trash_source_tasks_preview: () => [linked],
+      [`api_trash_${kind}`]: () => ({
+        outcome: "trashed",
+        linked_tasks: [{ ...linked, trashed: true }],
+      }),
+    });
+
+    const preview = await call(sb, "GET", `/trash/source-tasks/${kind}/${id}`);
+    expect(preview.status).toBe(200);
+    await expect(preview.json()).resolves.toEqual({ linked_tasks: [linked] });
+    expect(sb.find("POST", "/rest/v1/rpc/api_trash_source_tasks_preview")[0].body)
+      .toMatchObject({ p_company_id: COMPANY_ID, p_kind: kind, p_id: id });
+
+    const response = await call(sb, "DELETE", `/${collection}/${id}?include_tasks=true`);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ kind, id, linked_tasks: [{ ...linked, trashed: true }] });
+    expect(sb.find("POST", `/rest/v1/rpc/api_trash_${kind}`)[0].body)
+      .toMatchObject({ p_company_id: COMPANY_ID, p_include_tasks: true });
   });
 });
 
@@ -263,6 +291,16 @@ describe("#691 trash, restore, delete forever", () => {
       (await call(sb, "POST", "/trash/restore", { kind: "task", id: MESSAGE_ID })).status,
     ).toBe(422);
     expect((await call(sb, "DELETE", `/trash/task/${MESSAGE_ID}`)).status).toBe(422);
+  });
+
+  it("returns the scheduled text counts when a conversation is restored", async () => {
+    const sb = world("admin", {
+      api_restore_trash: () => ({ outcome: "restored", scheduled_restored: 2, scheduled_missed: 1 }),
+    });
+    const body = { kind: "conversation", id: CONV_ID };
+    const response = await call(sb, "POST", "/trash/restore", body);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toEqual({ ...body, scheduled_restored: 2, scheduled_missed: 1 });
   });
 
   it("removes the objects first, then the rows, scoped to the caller", async () => {

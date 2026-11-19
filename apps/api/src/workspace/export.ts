@@ -304,11 +304,26 @@ async function readWorkspaceExportPage(
   afterSecondId: string | undefined,
 ): Promise<Record<string, unknown>[]> {
   const [firstKey, secondKey] = spec.key ?? ["id"];
-  const projection = spec.parent ? `${spec.columns},active_parent:${spec.parent}!inner(id)` : spec.columns;
+  const parentJoin = spec.table === "attachments" ? "" : "!inner";
+  const parentColumns = spec.parent === "messages" ? "id,conversations!inner(id)" : "id";
+  const projection = spec.parent
+    ? `${spec.columns},active_parent:${spec.parent}${parentJoin}(${parentColumns})`
+    : spec.columns;
   let query = db.from(spec.table).select(projection).eq("company_id", companyId);
   if (spec.liveOnly) query = query.is("deleted_at", null);
   if (spec.parent) {
     query = query.eq("active_parent.company_id", companyId).is("active_parent.deleted_at", null);
+  }
+  if (spec.parent === "conversations") {
+    query = query.is("active_parent.purged_at", null);
+    if (spec.table === "attachments") {
+      query = query.or("conversation_id.is.null,active_parent.not.is.null");
+    }
+  }
+  if (spec.parent === "messages") {
+    query = query.eq("active_parent.conversations.company_id", companyId)
+      .is("active_parent.conversations.deleted_at", null)
+      .is("active_parent.conversations.purged_at", null);
   }
   if (afterId) {
     query = secondKey && afterSecondId
@@ -323,6 +338,15 @@ async function readWorkspaceExportPage(
   const rows = (data ?? []) as unknown as Record<string, unknown>[];
   if (spec.parent) {
     for (const row of rows) delete row.active_parent;
+  }
+  if (spec.table === "calls") {
+    for (const row of rows) {
+      if (row.voicemail_deleted_at) {
+        row.voicemail_seconds = null;
+        row.voicemail_transcript = null;
+      }
+      delete row.voicemail_deleted_at;
+    }
   }
   if (spec.table === "company_members") {
     for (let start = 0; start < rows.length; start += 100) {

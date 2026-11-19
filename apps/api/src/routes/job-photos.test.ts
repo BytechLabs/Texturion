@@ -79,6 +79,7 @@ function crew(options: { role?: string; line?: NumberAccessLevel } = {}): Supaba
  */
 function visitor(options: {
   resolved?: Record<string, unknown>;
+  taskTrashed?: boolean;
   notes?: Record<string, unknown>[];
   files?: Record<string, unknown>[];
   /** #581/9: bytes already spent this period, to drive the download cap. */
@@ -104,6 +105,13 @@ function visitor(options: {
       current_period_start: "2026-08-01T00:00:00Z",
     },
   ]);
+  sb.on("GET", "/rest/v1/tasks", (call) => {
+    const query = call.url.searchParams;
+    const checksTrash = query.get("deleted_at") === "is.null" &&
+      query.get("conversations.deleted_at") === "is.null" &&
+      query.get("select")?.includes("conversations!inner()");
+    return options.taskTrashed && checksTrash ? [] : [{ id: TASK_ID }];
+  });
   sb.on("GET", "/rest/v1/messages", () =>
     options.notes ?? [
       { id: NOTE_ID, work_phase: "after", created_at: "2026-08-08T15:00:00Z" },
@@ -391,6 +399,17 @@ describe("who may share a job's photos (#294)", () => {
 });
 
 describe("what the customer's page contains (#294)", () => {
+  it("does not read or sign photos for a trashed job", async () => {
+    const sb = visitor({ taskTrashed: true });
+    stubFetch(sb.route);
+
+    const res = await publicApp.request(`/photos/${TOKEN}`, {}, env);
+
+    expect(res.status).toBe(404);
+    expect(sb.find("GET", "/rest/v1/messages")).toHaveLength(0);
+    expect(sb.find("POST", /\/storage\/v1\/object\/sign\//)).toHaveLength(0);
+  });
+
   it("serves the photos under the business's name", async () => {
     // The page appears under the BUSINESS's name, not ours. For many homeowners it
     // is the only thing they will ever see of this product.

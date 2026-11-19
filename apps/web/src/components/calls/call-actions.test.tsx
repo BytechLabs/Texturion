@@ -18,6 +18,7 @@ vi.mock("@/lib/hooks/use-records-delete", () => ({
 vi.mock("@/lib/api/trash", () => ({
   useDeleteCall: () => ({ mutate: deleteCall, isPending: false }),
   useDeleteVoicemail: () => ({ mutate: deleteVoicemail, isPending: false }),
+  useTrashSourceTasks: () => ({ data: [{ id: "job", number: 123, trashed: false }] }),
 }));
 vi.mock("sonner", () => ({ toast: { error: vi.fn(), success: vi.fn() } }));
 
@@ -57,5 +58,17 @@ describe("CallActions (#691)", () => {
     fireEvent.click(screen.getByText("Delete voicemail"));
     expect(deleteVoicemail.mock.calls[0][0]).toBe("k-1");
     expect(deleteCall).not.toHaveBeenCalled();
+  });
+
+  it("lets the caller choose whether to trash the linked job", async () => {
+    render(<CallActions callId="k-1" callerName="Dana" hasVoicemail />);
+    open();
+    fireEvent.click(screen.getByText("Delete call"));
+    const both = await screen.findByRole("radio", { name: "Delete call and job" });
+    expect(screen.getByRole("radio", { name: "Delete call only" }).getAttribute("aria-checked")).toBe("true");
+    expect(screen.getByText(/Job #123 is linked/)).toBeDefined();
+    fireEvent.click(both);
+    fireEvent.click(screen.getByRole("button", { name: "Move to Trash" }));
+    expect(deleteCall.mock.calls[0][0]).toEqual({ id: "k-1", includeTasks: true });
   });
 });

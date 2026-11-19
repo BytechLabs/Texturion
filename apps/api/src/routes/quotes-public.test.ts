@@ -84,6 +84,27 @@ function stubResolving(purpose: string, over: Record<string, unknown> = {}): Sup
   return sb;
 }
 
+it.each([
+  { method: "GET", path: `/q/${TOKEN}`, purpose: "quote_view" },
+  { method: "POST", path: `/q/${TOKEN}/accept`, purpose: "quote_accept" },
+])("refuses to $purpose on a trashed conversation", async ({ method, path, purpose }) => {
+  const sb = stubResolving(purpose);
+  sb.on("GET", "/rest/v1/quotes", ({ url }) => {
+    const filters = url.searchParams;
+    return filters.get("conversations.deleted_at") === "is.null" &&
+      filters.get("companies.deleted_at") === "is.null" &&
+      filters.get("select")?.includes("conversations!inner(),companies!inner()")
+      ? [] : [quote()];
+  });
+  stubFetch(sb.route);
+
+  const response = await call(path, { method });
+
+  expect(response.status).toBe(404);
+  expect(sb.find("PATCH", "/rest/v1/quotes")).toHaveLength(0);
+  expect(sb.find("POST", "/rest/v1/rpc/api_mint_public_link")).toHaveLength(0);
+});
+
 describe("GET /q/:token", () => {
   it("shows the business, the amount and the work, and nothing about the customer", async () => {
     // The disclosure rule the payment and photo pages already follow. This URL

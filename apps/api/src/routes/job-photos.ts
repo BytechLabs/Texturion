@@ -93,15 +93,16 @@ async function refuseShare(
   c: Context<AppEnv>,
   db: ReturnType<typeof getDb>,
   taskId: string,
+  includeDeleted = false,
 ): Promise<Response | null> {
   const companyId = c.get("companyId");
-  const { data, error } = await db
+  let query = db
     .from("tasks")
     .select("id,conversation_id")
     .eq("id", taskId)
-    .eq("company_id", companyId)
-    .is("deleted_at", null)
-    .limit(1);
+    .eq("company_id", companyId);
+  if (!includeDeleted) query = query.is("deleted_at", null);
+  const { data, error } = await query.limit(1);
   if (error) throw new Error(`task lookup failed: ${error.message}`);
   const task = (data ?? [])[0] as { conversation_id: string | null } | undefined;
   if (!task) return errorResponse(c, "not_found", "No such job.");
@@ -205,7 +206,7 @@ jobPhotoShareRoutes.delete(
     // this makes the answer honest. Without it a foreign id returns `{revoked: 0}`
     // — a 200 saying nothing happened, which is indistinguishable from a link that
     // had already expired.
-    const refused = await refuseShare(c, db, taskId);
+    const refused = await refuseShare(c, db, taskId, true);
     if (refused) return refused;
 
     const revoked = await revokeLinksForSubject(
@@ -281,12 +282,24 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
     return publicLinkNotAvailable(c);
   }
 
-  const { data: company, error: companyError } = await db
-    .from("companies")
-    .select("name,locale")
-    .eq("id", resolved.company_id)
-    .maybeSingle();
+  const [{ data: company, error: companyError }, { data: task, error: taskError }] = await Promise.all([
+    db.from("companies")
+      .select("name,locale")
+      .eq("id", resolved.company_id)
+      .is("deleted_at", null)
+      .maybeSingle(),
+    db.from("tasks")
+      .select("id,conversations!inner()")
+      .eq("company_id", resolved.company_id)
+      .eq("id", resolved.subject_id)
+      .is("deleted_at", null)
+      .is("conversations.deleted_at", null)
+      .is("conversations.purged_at", null)
+      .maybeSingle(),
+  ]);
   if (companyError) throw new Error(`company lookup failed: ${companyError.message}`);
+  if (taskError) throw new Error(`photo task lookup failed: ${taskError.message}`);
+  if (!company || !task) return publicLinkNotAvailable(c);
 
   let loaded: { photos: SharedPhoto[]; truncated: boolean };
   try {
@@ -325,7 +338,7 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
   return c.json({
     // The page appears under the BUSINESS's name, not ours. It is the only thing
     // many homeowners will ever see of this product.
-    business_name: (company as { name?: string } | null)?.name ?? "Your contractor",
+    business_name: company.name,
     /**
      * #228: the language the BUSINESS works in — the one this page is drawn in.
      *
@@ -334,7 +347,7 @@ publicJobPhotoRoutes.get("/photos/:token", publicLinkGuard(), async (c) => {
      * own choice that decides. A Quebec crew's customer meeting an English page
      * is the Bill 96 problem in miniature.
      */
-    locale: (company as { locale?: string | null } | null)?.locale ?? companySettingDefault("locale"),
+    locale: company.locale ?? companySettingDefault("locale"),
     photos: loaded.photos,
     // Said out loud rather than quietly dropping the rest. Somebody looking at
     // "everything we did" has to know when it is not everything.
@@ -360,10 +373,13 @@ async function loadSharedPhotos(
 ): Promise<{ photos: SharedPhoto[]; truncated: boolean }> {
   const { data: noteRows, error: noteError } = await db
     .from("messages")
-    .select("id,work_phase,created_at")
+    .select("id,work_phase,created_at,conversations!inner()")
     .eq("company_id", companyId)
     .eq("direction", "note")
     .eq("task_id", taskId)
+    .is("deleted_at", null)
+    .is("conversations.deleted_at", null)
+    .is("conversations.purged_at", null)
     // Oldest first, so the bound below keeps the job in the order it happened
     // rather than an arbitrary slice of it.
     .order("created_at", { ascending: true })

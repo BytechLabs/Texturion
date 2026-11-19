@@ -1190,13 +1190,13 @@ class ThreadController(
      * refusal brings it back by re-reading, never by guessing at its position.
      * Undo is the Trash restore.
      */
-    fun deleteMessage(message: Message) {
+    fun deleteMessage(message: Message, includeTasks: Boolean = false) {
         messages = messages.filterNot { it.id == message.id }
         pinnedMessages = pinnedMessages.filterNot { it.id == message.id }
         persistSnapshot()
         scope.launch {
             try {
-                repo.deletion.deleteMessage(companyId, message.id)
+                repo.deletion.deleteMessage(companyId, message.id, includeTasks)
                 runCatching { refreshEvents() }
                 notify(
                     say(
@@ -1249,9 +1249,10 @@ class ThreadController(
     fun restoreConversation() {
         scope.launch {
             try {
-                repo.deletion.restoreConversation(companyId, conversationId)
+                val result = repo.deletion.restoreConversation(companyId, conversationId)
                 conversationDeleted = false
                 refreshAfterReconnect()
+                if (result.scheduled_missed > 0) notify(result.notice(locale, "trash.restored"))
             } catch (cause: Exception) {
                 notify(say("thread.restoreFailed"))
             }

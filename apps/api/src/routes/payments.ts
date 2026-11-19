@@ -743,9 +743,12 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
   >(
     await db
       .from("payment_requests")
-      .select(`${REQUEST_COLUMNS},stripe_payment_link_id,stripe_account_id`)
+      .select(`${REQUEST_COLUMNS},stripe_payment_link_id,stripe_account_id,conversations!inner(),companies!inner()`)
       .eq("company_id", resolved.company_id)
       .eq("id", resolved.subject_id)
+      .is("conversations.deleted_at", null)
+      .is("conversations.purged_at", null)
+      .is("companies.deleted_at", null)
       .limit(1),
     "public payment lookup",
   );
@@ -756,9 +759,11 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
       .from("companies")
       .select("name,locale")
       .eq("id", resolved.company_id)
+      .is("deleted_at", null)
       .limit(1),
     "company lookup",
   );
+  if (!company) return publicLinkNotAvailable(c);
 
   const state = paymentRequestState(row);
   // The pay URL is withheld unless the request is actually payable. A page that
@@ -768,9 +773,9 @@ publicPaymentRoutes.get("/pay/:token", publicLinkGuard(), async (c) => {
       ? await stripeLinkUrl(env, row.stripe_account_id, row.stripe_payment_link_id)
       : null;
 
-  const locale = resolveLocale(null, company?.locale);
+  const locale = resolveLocale(null, company.locale);
   return c.json({
-    business_name: company?.name ?? "",
+    business_name: company.name,
     /**
      * #228: the language the BUSINESS works in, and the one this page is drawn
      * in.
@@ -822,6 +827,8 @@ async function loadPaymentView(
       )
       .eq("company_id", companyId)
       .eq("id", conversationId)
+      .is("deleted_at", null)
+      .is("purged_at", null)
       .limit(1),
     "conversation lookup",
   ) as PaymentSendView[];

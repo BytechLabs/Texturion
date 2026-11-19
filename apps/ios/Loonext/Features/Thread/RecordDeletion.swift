@@ -10,6 +10,29 @@ enum TrashKind: String, Sendable {
     case contact
 }
 
+struct TrashLinkedTask: Codable, Identifiable, Sendable {
+    let id: String
+    let number: Int
+    let trashed: Bool
+}
+
+private struct TrashSourceTasks: Decodable, Sendable {
+    let linked_tasks: [TrashLinkedTask]
+}
+
+struct RestoredRecord: Decodable, Sendable {
+    var scheduled_missed: Int?
+
+    func notice(locale: String?, fallback: String) -> String {
+        let count = scheduled_missed ?? 0
+        switch count {
+        case 0: return AppStrings.translate(locale, fallback)
+        case 1: return AppStrings.translate(locale, "trash.restoredOneMissed")
+        default: return AppStrings.translate(locale, "trash.restoredManyMissed", ["count": String(count)])
+        }
+    }
+}
+
 /// The delete and restore calls for messages, conversations, calls and
 /// voicemails. A delete moves the record to the workspace Trash for 30 days;
 /// restore is what an Undo calls. The Trash screen (#735) restores and purges
@@ -17,8 +40,8 @@ enum TrashKind: String, Sendable {
 struct RecordDeletionRepository: Sendable {
     let api: ApiClient
 
-    func deleteMessage(companyId: String, messageId: String) async throws {
-        try await api.delete("/v1/messages/\(messageId)", companyId: companyId)
+    func deleteMessage(companyId: String, messageId: String, includeTasks: Bool = false) async throws {
+        try await deleteSource("/v1/messages/\(messageId)", companyId: companyId, includeTasks: includeTasks)
     }
 
     func deleteConversation(companyId: String, conversationId: String) async throws {
@@ -26,8 +49,20 @@ struct RecordDeletionRepository: Sendable {
     }
 
     /// `callId` is the call log row's own `id`, not its `call_session_id`.
-    func deleteCall(companyId: String, callId: String) async throws {
-        try await api.delete("/v1/calls/\(callId)", companyId: companyId)
+    func deleteCall(companyId: String, callId: String, includeTasks: Bool = false) async throws {
+        try await deleteSource("/v1/calls/\(callId)", companyId: companyId, includeTasks: includeTasks)
+    }
+
+    func sourceTasks(companyId: String, kind: TrashKind, id: String) async throws -> [TrashLinkedTask] {
+        let preview: TrashSourceTasks = try await api.get(
+            "/v1/trash/source-tasks/\(kind.rawValue)/\(id)", companyId: companyId
+        )
+        return preview.linked_tasks
+    }
+
+    private func deleteSource(_ path: String, companyId: String, includeTasks: Bool) async throws {
+        _ = try await api.raw("DELETE", path,
+            query: includeTasks ? ["include_tasks": "true"] : [:], companyId: companyId)
     }
 
     /// The voicemail alone; the call row stays in the log.
@@ -36,8 +71,9 @@ struct RecordDeletionRepository: Sendable {
     }
 
     /// 409 when the record's conversation is still in the Trash.
-    func restore(companyId: String, kind: TrashKind, id: String) async throws {
-        let _: JSONValue = try await api.post(
+    @discardableResult
+    func restore(companyId: String, kind: TrashKind, id: String) async throws -> RestoredRecord {
+        try await api.post(
             "/v1/trash/restore",
             body: JSONValue.object([
                 "kind": .string(kind.rawValue),

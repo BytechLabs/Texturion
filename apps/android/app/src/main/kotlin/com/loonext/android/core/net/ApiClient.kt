@@ -226,7 +226,8 @@ class ApiClient(
     suspend inline fun <reified T> deleteReturning(
         path: String,
         companyId: String? = null,
-    ): T = decodeBody(path, raw("DELETE", path, companyId = companyId))
+        query: Map<String, String?> = emptyMap(),
+    ): T = decodeBody(path, raw("DELETE", path, query = query, companyId = companyId))
 
     /**
      * Execute a request and return the response body text. 401 triggers ONE

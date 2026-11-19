@@ -102,6 +102,24 @@ class RecordDeletionRepositoryTest {
     }
 
     @Test
+    fun `previews the linked job and sends the requested delete choice`() = runTest {
+        server.enqueue(MockResponse(body = """{"linked_tasks":[{"id":"task-1","number":123,"trashed":false}]}"""))
+        answer("call", "call1")
+
+        assertEquals(123L, repo.sourceTasks("co1", TrashKind.CALL, "call1").single().number)
+        val preview = server.takeRequest()
+        assertEquals("GET", preview.method)
+        assertEquals("/v1/trash/source-tasks/call/call1", preview.url.encodedPath)
+        assertEquals("co1", preview.headers["X-Company-Id"])
+
+        repo.deleteCall("co1", "call1", includeTasks = true)
+        val deletion = server.takeRequest()
+        assertEquals("DELETE", deletion.method)
+        assertEquals("/v1/calls/call1", deletion.url.encodedPath)
+        assertEquals("true", deletion.url.queryParameter("include_tasks"))
+    }
+
+    @Test
     fun `undo posts the kind and id to the trash restore route`() = runTest {
         server.enqueue(MockResponse(body = """{"kind":"message","id":"m1"}"""))
         repo.restore("co1", TrashKind.MESSAGE, "m1")
