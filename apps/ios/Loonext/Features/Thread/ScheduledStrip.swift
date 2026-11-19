@@ -107,17 +107,24 @@ private struct ScheduledStripRow: View {
             .frame(maxWidth: .infinity, alignment: .leading)
 
             if row.allowed_actions.allows("edit") {
-                Menu {
-                    Button(t("thread.scheduledEditText")) {
+                HStack(spacing: 8) {
+                    Button {
                         draft = row.body
                         editing = true
+                    } label: {
+                        Label(t("thread.scheduledEditText"), systemImage: "square.and.pencil")
                     }
-                    Button(t("thread.scheduledChangeTime")) { pickingTime = true }
-                } label: {
-                    Image(systemName: "ellipsis")
-                        .font(.caption)
+                    if !row.isHeld {
+                        Button {
+                            pickingTime = true
+                        } label: {
+                            Label(t("thread.scheduledChangeTime"), systemImage: "clock")
+                        }
+                    }
                 }
-                .accessibilityLabel(t("thread.scheduledActions"))
+                .labelStyle(.iconOnly)
+                .buttonStyle(.borderless)
+                .font(.caption)
                 .disabled(saving)
             }
 
@@ -179,14 +186,16 @@ private struct ScheduledStripRow: View {
         .sheet(isPresented: $pickingTime) {
             SendLaterPicker(clock: clock) { at in save(at: at) }
         }
-        .alert(t("thread.quietHoursTitle"), isPresented: Binding(
-            get: { quietTime != nil },
-            set: { if !$0 { quietTime = nil } }
-        ), presenting: quietTime) { at in
-            Button(t("thread.pickAnotherTime"), role: .cancel) { pickingTime = true }
-            Button(t("thread.scheduleAnyway")) { save(at: at, confirmed: true) }
-        } message: { _ in
-            Text(quietHoursScheduleMessage(localHour: nil, locale: appLocale))
+        .confirmDialog(
+            t("thread.quietHoursTitle"),
+            item: $quietTime,
+            message: { _ in quietHoursScheduleMessage(localHour: nil, locale: appLocale) },
+            confirmLabel: t("thread.scheduleAnyway"),
+            cancelLabel: t("thread.pickAnotherTime"),
+            tone: .standard,
+            onCancel: { pickingTime = true }
+        ) { at in
+            save(at: at, confirmed: true)
         }
     }
 

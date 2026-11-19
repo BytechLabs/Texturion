@@ -500,12 +500,7 @@ final class ThreadController {
         Task {
             do {
                 let receipt = try await repo.cancelScheduledWithReceipt(companyId: companyId, id: id)
-                notify(
-                    ScheduledSend.copyLine(
-                        "canceled_confirmation", locale: locale
-                    ),
-                    actionLabel: AppStrings.translate(locale, "thread.undo")
-                ) {
+                notifyUndoable(ScheduledSend.copyLine("canceled_confirmation", locale: locale)) {
                     Task { await self.restoreScheduled(id, canceledAt: receipt.canceled_at) }
                 }
                 try? await refreshScheduled()
