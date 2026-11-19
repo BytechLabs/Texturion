@@ -69,7 +69,7 @@ it("loads page two into the Inbox and keeps the first twenty conversations", asy
   expect(await screen.findByRole("link", { name: /Customer 20/ })).toBeTruthy();
   fireEvent.click(screen.getByRole("button", { name: "Load more" }));
   expect((await screen.findByRole("link", { name: /Customer 21/ })).getAttribute("href")).toBe(
-    "/inbox/thread-21?q=Maple&message=message-21",
+    "/inbox/thread-21?q=Maple&message=message-21&find=Maple",
   );
   expect(screen.getAllByRole("link")).toHaveLength(21);
   expect(apiFetch.mock.calls[1][1].searchParams.cursor).toBe("page-two");
