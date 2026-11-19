@@ -104,13 +104,14 @@ fun UsageSection(
     onCompanyUpdated: (CompanyView) -> Unit,
 ) {
     var refreshKey by remember { mutableIntStateOf(0) }
+    val locale = LocalAppLocale.current
     // #176 cache-first: paints instantly from StoreCache after the first
     // in-process fetch; refreshKey bumps revalidate silently.
     val state = rememberCacheFirst(
         cache = scope.graph.storeCache,
-        key = CacheKeys.usage(scope.companyId),
+        key = CacheKeys.usage(scope.companyId) + "/$locale",
         refreshKey = refreshKey,
-    ) { scope.repo.usage(scope.companyId) }
+    ) { scope.repo.usage(scope.companyId, locale) }
 
     when (val current = state) {
         is LoadState.Loading -> SettingsSectionSkeleton(cards = 3)

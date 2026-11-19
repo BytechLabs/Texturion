@@ -61,6 +61,7 @@ import type { PlanId } from './core/plans';
 import {
   billingCurrencyOf,
   OVERAGE_CENTS_PER_SEGMENT as OVERAGE_CENTS_BY_CURRENCY,
+  resolveLocale,
   VOICE_OVERAGE_CENTS_PER_MINUTE as VOICE_OVERAGE_CENTS_BY_CURRENCY,
 } from "@loonext/shared";
 
@@ -84,6 +85,7 @@ interface CompanyUsageRow {
   /** #522: what Stripe charges this workspace. Read through
    *  `billingCurrencyOf`, so absent or unrecognised means USD. */
   billing_currency?: string | null;
+  locale?: string | null;
 }
 
 /** DESIGN G8: the usage screen renders a 6-month history. */
@@ -105,7 +107,7 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
         // be read — so dropping either one puts the plan price back.
         "plan,current_period_start,current_period_end,overage_cap_multiplier,us_texting_enabled,paid_extra_numbers,paused_at,paused_price_cents," +
           // #522: every figure below that the customer reads is priced in this.
-          "billing_currency",
+          "billing_currency,locale",
       )
       .eq("id", companyId)
       .is("deleted_at", null)
@@ -242,7 +244,7 @@ usageRoutes.get("/usage", requireCapability("workspace.access"), async (c) => {
   const aiUsage = await (async () => {
     try {
       const settings = await loadAiSettings(db, companyId);
-      return await readAiUsage(db, companyId, settings);
+      return await readAiUsage(db, companyId, settings, resolveLocale(c.req.query("lang"), company.locale));
     } catch {
       return [];
     }

@@ -27,6 +27,23 @@ function july(day: number, hour: number, minute = 0): Date {
 }
 
 describe("#278 when we are next open", () => {
+  it.each([
+    [july(15, 6), "plus tard aujourd’hui à 8 h"],
+    [july(15, 21), "demain à 8 h"],
+    [july(17, 20), "lundi à 8 h"],
+  ])("describes the next opening in Canadian French at %s", (at, label) => {
+    expect(nextOpening(TZ, WEEKDAYS_9_TO_5, at, null, "fr-CA")?.label).toBe(label);
+  });
+
+  it.each([
+    [0, "minuit"],
+    [510, "8 h 30"],
+    [720, "midi"],
+    [1025, "17 h 05"],
+  ])("speaks minute %i in Canadian French", (minutes, label) => {
+    expect(spokenTime(minutes, "fr-CA")).toBe(label);
+  });
+
   it("NO-1: an evening call is told about tomorrow morning", () => {
     // Wednesday 15 July 2026, 9pm local — the case the feature exists for.
     const next = nextOpening(TZ, WEEKDAYS_9_TO_5, july(15, 21));

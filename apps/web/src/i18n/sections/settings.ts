@@ -884,7 +884,7 @@ export const settingsFr: Translated<typeof settingsEn> = {
   planSwitchToStarter: "Passer à Starter",
 
 
-  helpResponseTime: "within two business days, usually sooner",
+  helpResponseTime: "dans les deux jours ouvrables, généralement plus tôt",
   helpFixPromise: "Si vous nous signalez un problème, nous vous réécrivons quand il est corrigé, pas seulement quand nous l'avons lu.",
   supportBodyLeadIn: "Les renseignements ci-dessous nous aident à retrouver votre dossier. Laissez-les dans le message.",
   supportBodyErrors: "Erreurs récentes sur cet appareil (les plus récentes d'abord) :",

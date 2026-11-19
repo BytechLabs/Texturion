@@ -173,6 +173,15 @@ describe(buildEnrichmentResult, () => {
 });
 
 describe("detectEnrichmentSignals (the 'only when needed' cost pre-filter)", () => {
+  it("detects French street names and dates", () => {
+    expect(detectEnrichmentSignals("Venez rue des Érables demain à 14 h.")).toEqual({
+      address: true,
+      due: true,
+    });
+    expect(detectEnrichmentSignals("Rappelez à 14 h 30.").due).toBe(true);
+    expect(detectEnrichmentSignals("Le robinet fuit.").due).toBe(false);
+  });
+
   it("founder example: an address + an explicit due are both detected", () => {
     const s = detectEnrichmentSignals(
       "Hey can you paint the house at 32 West Avenue with green color by end of month?",

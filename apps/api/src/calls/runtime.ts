@@ -9,7 +9,7 @@
  * testable with no Telnyx and no PostgREST.
  */
 import { recordSpendingCapRefusal } from "../billing/usage-alerts";
-import { callLooksSpam, clampRingSeconds, companySettingDefault, isAfterHours, nextOpening, resolveNumberIdentity, RING_SECONDS_MAX, roleHasCapability } from '@loonext/shared';
+import { callLooksSpam, clampRingSeconds, companySettingDefault, isAfterHours, nextOpening, resolveLocale, resolveNumberIdentity, RING_SECONDS_MAX, roleHasCapability } from '@loonext/shared';
 import type { AfterHoursCalls, BusinessHours, HoursException, RingStrategy } from '@loonext/shared';
 import type { SupabaseClient } from "@supabase/supabase-js";
 
@@ -41,6 +41,8 @@ import { notifyCallEnd } from "../notifications/call-end";
 import { isDefiniteRefusal, TelnyxApiError, telnyxRequest } from "../telnyx/client";
 
 import type { CallStep } from "./call-steps";
+import { speechVoice } from "./speech";
+import type { SpeechLanguage } from "./speech";
 import type {
   AnswerIntent,
   InitiatedContext,
@@ -139,7 +141,7 @@ export interface SessionRuntime {
       ccid: string,
       payload: string,
       clientState: string,
-      language: "en-US" | "fr-CA",
+      language: SpeechLanguage,
     ): Promise<void>;
     /**
      * #309 — play a recorded greeting.
@@ -354,6 +356,7 @@ async function swallow4xx(
 interface InboundCompanyRow {
   id: string;
   name: string;
+  locale?: string | null;
   plan: string | null;
   current_period_start: string | null;
   overage_cap_multiplier: number | string | null;
@@ -512,8 +515,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       speak: (ccid, payload, clientState, language) =>
         swallow4xx(env, `/v2/calls/${ccid}/actions/speak`, {
           payload,
-          voice: "female",
-          language,
+          ...speechVoice(language),
           client_state: clientState,
         }),
       playAudio: async (ccid, audioUrl, clientState) => {
@@ -756,7 +758,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
           companyId: number.company_id,
           phoneNumberId: number.id,
           companyName: company.name,
-          locale: (company as { locale?: string | null }).locale ?? undefined,
+          locale: company.locale ?? undefined,
           greeting: company.voicemail_greeting,
           callerE164,
           businessNumberE164: payload.to,
@@ -856,6 +858,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
             clockHours,
             now,
             identity.businessHoursExceptions.value as HoursException[] | null,
+            resolveLocale(null, company.locale),
           )?.label ?? null)
         : null;
 
@@ -910,7 +913,7 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
         // #228: NOT part of the per-number identity above. A line's label and
         // greeting can be overridden per number; the language the business
         // works in is a fact about the business.
-        locale: (company as { locale?: string | null }).locale ?? undefined,
+        locale: company.locale ?? undefined,
         greeting: identity.voicemailGreeting.value,
         callerE164,
         callerName,

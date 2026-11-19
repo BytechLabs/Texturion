@@ -17,6 +17,12 @@ import { makeTranslate } from "@/i18n/translate";
 const SRC = join(__dirname, "..");
 const en = makeTranslate("en");
 
+it("translates the support response window into Canadian French", () => {
+  const fr = makeTranslate("fr-CA");
+  expect(fr("settings.helpResponseTime")).toBe("dans les deux jours ouvrables, généralement plus tôt");
+  expect(fr("settings.helpResponseTime")).not.toBe(en("settings.helpResponseTime"));
+});
+
 function isCatalogueKey(value: unknown): boolean {
   return (
     typeof value === "string" &&

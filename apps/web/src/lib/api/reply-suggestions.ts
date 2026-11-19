@@ -1,9 +1,7 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { DEFAULT_LOCALE } from "@loonext/shared";
 
-import { makeTranslate } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -14,14 +12,10 @@ import type { ReplySuggestions } from "./types";
  * Plain-language copy for an empty result. "Nothing to suggest here yet" for
  * every case hid real failures behind what looked like a shrug, so each reason
  * says what actually happened and whether trying again will help.
- *
- * #228: the sentences live in `i18n/sections/thread.ts`, and `t` comes from the
- * composer that shows them. The default is English, which is what every reader
- * saw before the catalogue existed.
  */
 export function suggestionFailureMessage(
   reason: ReplySuggestions["reason"],
-  t: Translate = makeTranslate(DEFAULT_LOCALE),
+  t: Translate,
 ): string {
   switch (reason) {
     case "disabled": {

@@ -956,7 +956,7 @@ private func replacingPattern(
 // ---------------------------------------------------------------------------
 
 /// The words the away-message default asks a homeowner to send.
-let emergencyKeywords = ["URGENT", "EMERGENCY", "911", "SOS"]
+let emergencyKeywords = ["URGENT", "EMERGENCY", "911", "SOS", "URGENCE"]
 
 /// The §5/D3 carrier keywords, answered by Telnyx before we see them. "Reply
 /// STOP to unsubscribe" is required compliance copy, so naming it unrecognised

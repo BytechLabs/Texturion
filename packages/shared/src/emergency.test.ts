@@ -53,6 +53,7 @@ describe("what a frightened person actually types", () => {
     "EMERGENCY",
     "911",
     "SOS",
+    "Urgence : plus de chauffage",
   ])("treats %j as an emergency", (body) => {
     expect(isEmergencyKeyword(body)).toBe(true);
   });
@@ -61,6 +62,7 @@ describe("what a frightened person actually types", () => {
     "it's not urgent",
     "no rush, nothing urgent",
     "this is not an emergency but the tap drips",
+    "Ce n’est pas une urgence",
     "can you come Tuesday",
     "",
   ])("does not fire on %j", (body) => {

@@ -1,7 +1,10 @@
+import { makeTranslate } from "@/i18n/translate";
 import { describe, expect, it } from "vitest";
 
-import { WRAP_UP_MAX_SECONDS, wrapUpFailureMessage, wrapUpFileName, wrapUpOutcome } from './wrap-up-transcript';
+import { WRAP_UP_MAX_SECONDS, wrapUpFailureMessage as rawWrapUpFailureMessage, wrapUpFileName, wrapUpOutcome } from './wrap-up-transcript';
 import type { WrapUpFailureReason } from './wrap-up-transcript';
+
+const wrapUpFailureMessage = (value: Parameters<typeof rawWrapUpFailureMessage>[0]) => rawWrapUpFailureMessage(value, makeTranslate("en"));
 
 /**
  * #507 Phase 1 — dictation is BEST EFFORT, and the whole point of the reason

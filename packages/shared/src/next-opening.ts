@@ -26,6 +26,7 @@
  */
 import { companyLocalDate, companyLocalMoment, exceptionFor, parseHhmm, WEEKDAYS } from './business-hours';
 import type { BusinessHours, HoursException, Weekday } from './business-hours';
+import type { Locale } from "./locale";
 
 /** How far ahead we are willing to look. Past this we say nothing. */
 const HORIZON_DAYS = 14;
@@ -41,6 +42,16 @@ const WEEKDAY_NAMES: Record<Weekday, string> = {
   sat: "Saturday",
 };
 
+const FRENCH_WEEKDAY_NAMES: Record<Weekday, string> = {
+  sun: "dimanche",
+  mon: "lundi",
+  tue: "mardi",
+  wed: "mercredi",
+  thu: "jeudi",
+  fri: "vendredi",
+  sat: "samedi",
+};
+
 export interface NextOpening {
   /** Company-local date, "YYYY-MM-DD". */
   date: string;
@@ -53,9 +64,14 @@ export interface NextOpening {
 }
 
 /** "08:00" → "8am"; "12:00" → "noon"; "17:30" → "5:30pm". */
-export function spokenTime(minutes: number): string {
+export function spokenTime(minutes: number, locale: Locale = "en"): string {
   const hour24 = Math.floor(minutes / 60) % 24;
   const minute = minutes % 60;
+  if (locale === "fr-CA") {
+    if (hour24 === 0 && minute === 0) return "minuit";
+    if (hour24 === 12 && minute === 0) return "midi";
+    return `${hour24} h` + (minute === 0 ? "" : " " + String(minute).padStart(2, "0"));
+  }
   if (hour24 === 0 && minute === 0) return "midnight";
   if (hour24 === 12 && minute === 0) return "noon";
   const suffix = hour24 < 12 ? "am" : "pm";
@@ -96,6 +112,7 @@ export function nextOpening(
   businessHours: BusinessHours | null | undefined,
   atUtc: Date,
   exceptions?: readonly HoursException[] | null,
+  locale: Locale = "en",
 ): NextOpening | null {
   if (!businessHours || Object.keys(businessHours).length === 0) return null;
   const today = companyLocalDate(timezone, atUtc);
@@ -129,14 +146,21 @@ export function nextOpening(
       date,
       minutes: open,
       daysAhead: offset,
-      label: openingLabel(offset, weekday, open),
+      label: openingLabel(offset, weekday, open, locale),
     };
   }
   return null;
 }
 
 /** "later today at 5pm" / "tomorrow at 8am" / "Monday at 8am". */
-function openingLabel(daysAhead: number, weekday: Weekday, minutes: number): string {
+function openingLabel(daysAhead: number, weekday: Weekday, minutes: number, locale: Locale): string {
+  if (locale === "fr-CA") {
+    const time = `à ${spokenTime(minutes, locale)}`;
+    if (daysAhead === 0) return `plus tard aujourd’hui ${time}`;
+    if (daysAhead === 1) return `demain ${time}`;
+    if (daysAhead <= 6) return `${FRENCH_WEEKDAY_NAMES[weekday]} ${time}`;
+    return `dans ${daysAhead} jours, ${time}`;
+  }
   const time = `at ${spokenTime(minutes)}`;
   if (daysAhead === 0) return `later today ${time}`;
   if (daysAhead === 1) return `tomorrow ${time}`;

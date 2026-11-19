@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 
+import { useLocale } from "@/i18n/provider";
 import { useCompanyId } from "@/lib/company/provider";
 
 import { apiFetch } from "./client";
@@ -14,9 +15,10 @@ import type { Usage } from "./types";
  */
 export function useUsage({ enabled = true }: { enabled?: boolean } = {}) {
   const companyId = useCompanyId();
+  const { locale } = useLocale();
   return useQuery({
-    queryKey: keys.usage(companyId),
-    queryFn: () => apiFetch<Usage>("/v1/usage", { companyId }),
+    queryKey: [...keys.usage(companyId), locale],
+    queryFn: () => apiFetch<Usage>(`/v1/usage?lang=${locale}`, { companyId }),
     enabled,
     staleTime: 60_000,
     refetchInterval: 5 * 60_000, // usage has no realtime event; drift gently

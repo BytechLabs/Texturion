@@ -238,8 +238,8 @@ struct SettingsRepository: Sendable {
         try await api.post("/v1/me/email/retry")
     }
 
-    func usage(_ companyId: String) async throws -> Usage {
-        try await api.get("/v1/usage", companyId: companyId)
+    func usage(_ companyId: String, locale: String? = nil) async throws -> Usage {
+        try await api.get("/v1/usage", query: ["lang": locale], companyId: companyId)
     }
 
     // MARK: - #595 usage export (routes/exports.ts)

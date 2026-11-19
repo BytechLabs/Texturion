@@ -183,10 +183,10 @@ struct UsageSectionView: View {
                 }
             }
         }
-        .task(id: "\(scope.companyId)|\(refreshKey)") {
+        .task(id: "\(scope.companyId)|\(appLocale)|\(refreshKey)") {
             if case .ready = state {} else { state = .loading }
             do {
-                state = .ready(try await scope.repo.usage(scope.companyId))
+                state = .ready(try await scope.repo.usage(scope.companyId, locale: appLocale))
             } catch {
                 state = .failed(error.userMessage)
             }

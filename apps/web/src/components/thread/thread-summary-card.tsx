@@ -175,7 +175,7 @@ export function ThreadSummaryCard({
    */
   const failure =
     result === null && summary.isError
-      ? threadSummaryRequestFailure(summary.error)
+      ? threadSummaryRequestFailure(summary.error, t)
       : null;
   const showCard =
     summary.isPending || ((result !== null || failure !== null) && !dismissed);
@@ -303,7 +303,7 @@ export function ThreadSummaryCard({
         )
       ) : result.lines.length === 0 ? (
         <p className="px-3 pb-3 pt-0.5 text-[13px] leading-[1.45] text-app-muted">
-          {threadSummaryFailureMessage(result.reason)}
+          {threadSummaryFailureMessage(result.reason, t)}
         </p>
       ) : (
         <>

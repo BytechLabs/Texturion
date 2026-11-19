@@ -122,6 +122,36 @@ const starterCompany = {
 };
 
 describe("GET /v1/usage", () => {
+  it("returns localized Lou labels for the viewer, with a workspace fallback", async () => {
+    const sb = usageStub({ ...starterCompany, locale: "fr-CA" }, 620);
+    stubFetch(jwksRoute(auth), sb.route);
+    const token = await auth.token();
+
+    const french = await apiRequest(app, env, token, "/v1/usage", { companyId: COMPANY_ID });
+    await expect(french.json()).resolves.toMatchObject({
+      ai: expect.arrayContaining([
+        {
+          key: "suggest_reply",
+          label: "Brouillons de réponse",
+          used: 40,
+          cap: 1500,
+          enabled: true,
+          outcomes: [
+            { label: "envoyé tel quel", count: 12 },
+            { label: "envoyé après modification", count: 5 },
+            { label: "non utilisé", count: 3 },
+          ],
+          outcomesRecorded: 20,
+        },
+      ]),
+    });
+
+    const english = await apiRequest(app, env, token, "/v1/usage?lang=en", { companyId: COMPANY_ID });
+    await expect(english.json()).resolves.toMatchObject({
+      ai: expect.arrayContaining([expect.objectContaining({ label: "reply drafting" })]),
+    });
+  });
+
   it("starter with overage: 620 used → 120 over, cap 1500, 360¢ projected", async () => {
     const sb = usageStub(starterCompany, 620);
     stubFetch(jwksRoute(auth), sb.route);

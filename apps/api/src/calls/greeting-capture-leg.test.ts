@@ -109,6 +109,23 @@ async function tagFor(env: Env, name = "After hours"): Promise<string> {
 }
 
 describe("#309 the greeting-capture leg", () => {
+  it("speaks the recording instructions with the Canadian French voice", async () => {
+    const harness = buildHarness();
+    const tag = await buildGreetingCaptureState(harness.env, COMPANY_ID, "Accueil", Date.now(), "fr-CA");
+    await handleGreetingCaptureEvent(harness.env, getDb(harness.env), "call.answered", {
+      call_control_id: CCID,
+      client_state: tag,
+    });
+
+    expect(harness.telnyx[0]?.body).toMatchObject({
+      payload: expect.stringContaining("Après le signal sonore"),
+      voice: "AWS.Polly.Chantal",
+      language: "fr-CA",
+      service_level: "premium",
+      client_state: tag,
+    });
+  });
+
   it("GL-1: answering speaks a prompt that names the business", async () => {
     const harness = buildHarness();
     const tag = await tagFor(harness.env);

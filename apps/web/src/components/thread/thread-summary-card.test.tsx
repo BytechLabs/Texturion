@@ -1,3 +1,4 @@
+import { makeTranslate } from "@/i18n/translate";
 /**
  * @vitest-environment happy-dom
  */
@@ -8,10 +9,12 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "@/lib/api/error";
 import { sayEnglish } from "@/i18n/translate";
-import { threadSummaryRequestFailure } from '@/lib/api/thread-summary';
+import { threadSummaryRequestFailure as rawThreadSummaryRequestFailure } from '@/lib/api/thread-summary';
 import type { ThreadSummaryResult } from '@/lib/api/thread-summary';
 
 import { ThreadSummaryCard } from "./thread-summary-card";
+
+const threadSummaryRequestFailure = (value: Parameters<typeof rawThreadSummaryRequestFailure>[0]) => rawThreadSummaryRequestFailure(value, makeTranslate("en"));
 
 afterEach(cleanup);
 

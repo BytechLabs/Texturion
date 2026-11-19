@@ -42,6 +42,9 @@
  * starts a recording. The owner's confirmation is the greeting appearing in
  * the app they started the call from.
  */
+import { isLocale } from "@loonext/shared";
+import type { Locale } from "@loonext/shared";
+
 import type { Env } from "../env";
 
 /**
@@ -101,6 +104,7 @@ export const GREETING_NAME_MAX_CHARS = 60;
 export interface GreetingCaptureTag {
   companyId: string;
   name: string;
+  locale?: Locale;
 }
 
 const UUID =
@@ -142,22 +146,22 @@ function toHex(buffer: ArrayBuffer): string {
 /** What is signed. Never the whole tag string: the signature sits inside it. */
 function signedPayload(
   companyId: string,
-  expiresAtMs: number,
+  expiry: string,
   name: string,
 ): string {
-  return `${GREETING_CAPTURE_STATE}|${companyId}|${expiresAtMs}|${name}`;
+  return `${GREETING_CAPTURE_STATE}|${companyId}|${expiry}|${name}`;
 }
 
 async function sign(
   env: Env,
   companyId: string,
-  expiresAtMs: number,
+  expiry: string,
   name: string,
 ): Promise<string> {
   const mac = await crypto.subtle.sign(
     "HMAC",
     await tagKey(env),
-    new TextEncoder().encode(signedPayload(companyId, expiresAtMs, name)),
+    new TextEncoder().encode(signedPayload(companyId, expiry, name)),
   );
   return toHex(mac.slice(0, SIG_BYTES));
 }
@@ -180,11 +184,14 @@ export async function buildGreetingCaptureState(
   companyId: string,
   name: string,
   nowMs: number,
+  locale?: Locale,
 ): Promise<string> {
   const expiresAtMs = nowMs + GREETING_CAPTURE_TAG_TTL_MS;
-  const sig = await sign(env, companyId, expiresAtMs, name);
+  const expiry = locale ? `${expiresAtMs}:${locale}` : String(expiresAtMs);
+  const encodedName = locale ? encodeURIComponent(name) : name;
+  const sig = await sign(env, companyId, expiry, encodedName);
   return btoa(
-    `${GREETING_CAPTURE_STATE}|${sig}|${companyId}|${expiresAtMs}|${name}`,
+    `${GREETING_CAPTURE_STATE}|${sig}|${companyId}|${expiry}|${encodedName}`,
   );
 }
 
@@ -210,9 +217,11 @@ export async function parseGreetingCaptureState(
   }
   const [prefix, sig, companyId, expiry, ...rest] = decoded.split("|");
   if (prefix !== GREETING_CAPTURE_STATE) return null;
-  if (!sig || !companyId || !UUID.test(companyId)) return null;
+  if (!sig || !companyId || !UUID.test(companyId) || !expiry) return null;
 
-  const expiresAtMs = Number(expiry);
+  const [timestamp, locale] = expiry.split(":");
+  if (locale !== undefined && !isLocale(locale)) return null;
+  const expiresAtMs = Number(timestamp);
   if (!Number.isSafeInteger(expiresAtMs) || expiresAtMs <= nowMs) return null;
   // A tag valid for longer than one could ever have been ISSUED for is a tag
   // whose expiry somebody else chose. Signed, so this is belt and braces — but
@@ -220,19 +229,13 @@ export async function parseGreetingCaptureState(
   // permanent credential rather than a five-minute one.
   if (expiresAtMs > nowMs + GREETING_CAPTURE_TAG_TTL_MS) return null;
 
-  const rawName = rest.join("|");
-  const name = rawName.trim();
-  // Checked HERE rather than at the insert, where the call has already
-  // happened and the owner has already spoken.
-  if (!name || name.length > GREETING_NAME_MAX_CHARS) return null;
-
-  // Verified against the name as ISSUED, not as trimmed: signing one string
-  // and checking another is how a signature stops covering the value it exists
-  // to protect.
-  const expected = await sign(env, companyId, expiresAtMs, rawName);
+  const encodedName = rest.join("|");
+  const expected = await sign(env, companyId, expiry, encodedName);
   if (!constantTimeEquals(expected, sig)) return null;
 
-  return { companyId, name };
+  const name = (locale ? decodeURIComponent(encodedName) : encodedName).trim();
+  if (!name || name.length > GREETING_NAME_MAX_CHARS) return null;
+  return { companyId, name, ...(locale ? { locale } : {}) };
 }
 
 /**
@@ -246,9 +249,15 @@ export async function parseGreetingCaptureState(
  * The name is owner-authored, so it is stripped and bounded the same way the
  * greeting itself is before it reaches a speak command.
  */
-export function greetingCapturePrompt(companyName: string): string {
-  const cleaned = (companyName ?? "").replaceAll(/[\p{Cc}\p{Cf}]/gu, " ").trim();
-  const business = cleaned ? cleaned.slice(0, 120) : "your business";
+export function greetingCapturePrompt(companyName: string, locale: Locale = "en"): string {
+  const name = companyName.replaceAll(/[\p{Cc}\p{Cf}]/gu, " ").trim().slice(0, 120);
+  if (locale === "fr-CA") {
+    const business = name || "votre entreprise";
+    return `Il s’agit d’un appel pour enregistrer le message d’accueil de ${business}. ` +
+      "Après le signal sonore, dites ce que vos clients doivent entendre quand personne ne peut répondre. " +
+      "Quand vous avez terminé, raccrochez pour sauvegarder le message.";
+  }
+  const business = name || "your business";
   return (
     `This is a greeting recording call for ${business}. ` +
     `After the beep, say what you'd like your callers to hear when nobody can pick up. ` +

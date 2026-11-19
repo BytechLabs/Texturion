@@ -80,12 +80,15 @@ function buildHarness(
     /** Give the workspace no active line to call from. */
     noActiveNumber?: boolean;
     subscriptionStatus?: string;
+    companyLocale?: string;
+    profileLocale?: string;
   } = {},
 ) {
   const env = completeEnv();
   const rest = new FakeRest(env);
   rest.table("companies");
   rest.table("company_members");
+  rest.table("profiles");
   rest.table("voicemail_greetings", {}, [["company_id", "name"]]);
   rest.table("audit_log");
   rest.table("phone_numbers");
@@ -93,7 +96,11 @@ function buildHarness(
     id: COMPANY_ID,
     name: "Acme Plumbing",
     subscription_status: extra.subscriptionStatus ?? "active",
+    locale: extra.companyLocale ?? "en",
   });
+  if (extra.profileLocale) {
+    rest.insert("profiles", { user_id: OWNER_ID, locale: extra.profileLocale });
+  }
   if (!extra.noActiveNumber) {
     rest.insert("phone_numbers", {
       id: "aaaaaaaa-0000-4000-8000-00000000000a",
@@ -290,7 +297,25 @@ describe("#309 recording a greeting by phone", () => {
       dial.client_state as string,
       Date.now(),
     );
-    expect(parsed).toEqual({ companyId: COMPANY_ID, name: "After hours" });
+    expect(parsed).toEqual({ companyId: COMPANY_ID, name: "After hours", locale: "en" });
+  });
+
+  it.each([
+    ["en", "fr-CA", "fr-CA"],
+    ["fr-CA", "en", "en"],
+    ["fr-CA", undefined, "fr-CA"],
+  ])("chooses the capture locale with company %s and member %s", async (companyLocale, profileLocale, locale) => {
+    const harness = buildHarness({ companyLocale, profileLocale });
+    const name = "Message d’accueil";
+    const res = await harness.request(
+      "/v1/voicemail-greetings/capture-call",
+      captureCall(name, "+16135550199"),
+    );
+
+    expect(res.status).toBe(202);
+    const tag = harness.dials[0].client_state as string;
+    await expect(parseGreetingCaptureState(harness.env, tag, Date.now()))
+      .resolves.toEqual({ companyId: COMPANY_ID, name, locale });
   });
 
   it("VG-C5: the tag is not something a caller could have written", async () => {

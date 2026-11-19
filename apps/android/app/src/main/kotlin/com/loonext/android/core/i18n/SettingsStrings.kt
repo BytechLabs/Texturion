@@ -2212,7 +2212,7 @@ private val SUPPORT_FR = mapOf(
     "settings.supportBodyErrors" to
         "Erreurs récentes sur cet appareil (les plus récentes d'abord) :",
 
-    "settings.helpResponseTime" to "within two business days, usually sooner",
+    "settings.helpResponseTime" to "dans les deux jours ouvrables, généralement plus tôt",
     // Copied character for character from web's `appShell.helpReplyPromise`.
     "settings.helpReplyPromise" to
         "Nous répondons {time}. Nous sommes une petite équipe, alors c'est le " +

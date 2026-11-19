@@ -1,10 +1,9 @@
 "use client";
 
 import { useMutation } from "@tanstack/react-query";
-import { DEFAULT_LOCALE, shouldOfferThreadSummary, THREAD_SUMMARY_SECTIONS } from '@loonext/shared';
+import { shouldOfferThreadSummary, THREAD_SUMMARY_SECTIONS } from '@loonext/shared';
 import type { ThreadSummaryKey, ThreadSummarySection } from '@loonext/shared';
 
-import { makeTranslate } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import { useCompanyId } from "@/lib/company/provider";
 
@@ -130,13 +129,6 @@ export interface ThreadSummaryResult {
 }
 
 /**
- * The reader's words, for the callers that have not been handed a lookup yet
- * and for the tests that call these bare. English, which is what every reader
- * saw before #228 — a wrong language is a worse failure than a familiar one.
- */
-const EN = makeTranslate(DEFAULT_LOCALE);
-
-/**
  * The one sentence shown when a catch-up produces nothing.
  *
  * Every branch says what happened AND leaves the reader holding the thing that
@@ -149,7 +141,7 @@ const EN = makeTranslate(DEFAULT_LOCALE);
  */
 export function threadSummaryFailureMessage(
   reason: ThreadSummaryReason | undefined,
-  t: Translate = EN,
+  t: Translate,
 ): string {
   switch (reason) {
     case "disabled": {
@@ -279,7 +271,7 @@ export interface ThreadSummaryRequestFailure {
  */
 export function threadSummaryRequestFailure(
   error: unknown,
-  t: Translate = EN,
+  t: Translate,
 ): ThreadSummaryRequestFailure {
   if (!(error instanceof ApiError)) {
     return { message: t("thread.catchUpOffline"), retry: true };

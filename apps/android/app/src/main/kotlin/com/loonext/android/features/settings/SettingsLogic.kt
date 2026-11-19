@@ -1929,7 +1929,7 @@ fun mayDrawOfferControl(action: CancellationOfferAction?, pause: PauseRead): Boo
 // ---------------------------------------------------------------------------
 
 /** The words the away-message default asks a homeowner to send. */
-val EMERGENCY_KEYWORDS = listOf("URGENT", "EMERGENCY", "911", "SOS")
+val EMERGENCY_KEYWORDS = listOf("URGENT", "EMERGENCY", "911", "SOS", "URGENCE")
 
 /**
  * The §5/D3 carrier keywords, answered by Telnyx before we see them. "Reply

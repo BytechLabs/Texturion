@@ -42,6 +42,7 @@ const NINE_TO_FIVE = {
 };
 
 interface World {
+  locale?: string;
   /** null = the column is unset, i.e. inherit / never configured. */
   afterHoursCalls?: string | null;
   businessHours?: unknown;
@@ -97,6 +98,7 @@ function world(w: World) {
           {
             id: COMPANY_ID,
             name: "Reed Roofing",
+            locale: w.locale,
             voicemail_greeting: null,
             call_screening: "off",
             subscription_status: "active",
@@ -161,6 +163,14 @@ async function contextAt(at: Date, w: World) {
 }
 
 describe("#278 after-hours call routing", () => {
+  it("loads a French reopening time for the French greeting", async () => {
+    const ctx = await contextAt(EVENING, { locale: "fr-CA" });
+    expect(ctx.nextOpenLabel).toBe("demain à 8 h");
+    const spoken = createSessionRuntime(env).greetingText(ctx as never);
+    expect(spoken).toContain("demain à 8 h");
+    expect(spoken).not.toMatch(/tomorrow|closed|message after/i);
+  });
+
   it("AH-R1: a workspace that never asked rings exactly as it always did", async () => {
     // THE DEPLOY-DAY GUARANTEE. Hours are set, it IS after hours, and nothing
     // changes — because `ring_everyone` is what every existing row says.

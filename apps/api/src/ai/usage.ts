@@ -10,7 +10,7 @@
  * Read-only. The ledger is written exclusively by `ai_usage_reserve`, which is
  * what makes the count and the cap the same number the gate uses.
  */
-import { CALL_WRAPUP_FEATURE_SPEC } from "./call-wrapup";
+import type { Locale } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { VOICEMAIL_INTAKE_FEATURE_SPEC } from "../calls/voicemail-intake";
@@ -21,6 +21,8 @@ import { SUGGEST_REPLY_FEATURE_SPEC } from "../messaging/reply-suggestions";
 import { THREAD_SUMMARY_FEATURE_SPEC } from "../messaging/thread-summary";
 import { ENRICHMENT_FEATURE_SPEC } from "../tasks/enrichment";
 
+import { CALL_WRAPUP_FEATURE_SPEC } from "./call-wrapup";
+import type { AiFeatureSpec } from "./run";
 import type { CompanyAiSettings } from "./settings";
 
 /** What a person did with one feature's output, ready to render (#431). */
@@ -81,6 +83,36 @@ export const AI_USAGE_FEATURES = [
   CALL_WRAPUP_FEATURE_SPEC,
 ] as const;
 
+const AI_USAGE_COPY: Record<Locale, Record<string, Pick<AiFeatureSpec, "label" | "outcomes">>> = {
+  en: Object.fromEntries(AI_USAGE_FEATURES.map((spec) => [spec.key, spec])),
+  "fr-CA": {
+    suggest_reply: {
+      label: "Brouillons de réponse",
+      outcomes: { used: "envoyé tel quel", edited: "envoyé après modification", discarded: "non utilisé" },
+    },
+    thread_summary: {
+      label: "Résumés de conversation",
+      outcomes: { used: "message cité ouvert", edited: null, discarded: null },
+    },
+    enrich: {
+      label: "Enrichissement des tâches",
+      outcomes: { used: "conservé tel quel", edited: "corrigé avant de conserver", discarded: "effacé" },
+    },
+    voicemail_transcript: {
+      label: "Transcription des messages vocaux",
+      outcomes: { used: null, edited: null, discarded: "écouté quand même" },
+    },
+    voicemail_intake: {
+      label: "Détails des messages vocaux",
+      outcomes: { used: null, edited: null, discarded: "écouté quand même" },
+    },
+    call_wrapup: {
+      label: "Notes d’appel dictées",
+      outcomes: { used: "publié tel quel", edited: "corrigé avant publication", discarded: "supprimé" },
+    },
+  },
+};
+
 /** The ledger's month bucket: 'YYYY-MM' in UTC, matching ai_usage_reserve. */
 export function aiUsagePeriod(now: Date = new Date()): string {
   return now.toISOString().slice(0, 7);
@@ -90,6 +122,7 @@ export async function readAiUsage(
   db: SupabaseClient,
   companyId: string,
   settings: CompanyAiSettings,
+  locale: Locale,
   now: Date = new Date(),
 ): Promise<AiFeatureUsage[]> {
   // #431: the outcome counters live on the SAME ledger row as the spend, so
@@ -122,6 +155,7 @@ export async function readAiUsage(
   // still needs a line, or the screen looks like it does not exist.
   return AI_USAGE_FEATURES.map((spec) => {
     const row = rows.get(spec.key);
+    const copy = AI_USAGE_COPY[locale][spec.key]!;
     const counts = {
       used: Number(row?.outcome_used_count ?? 0),
       edited: Number(row?.outcome_edited_count ?? 0),
@@ -135,16 +169,16 @@ export async function readAiUsage(
         ? []
         : (
             [
-              [spec.outcomes.used, counts.used],
-              [spec.outcomes.edited, counts.edited],
-              [spec.outcomes.discarded, counts.discarded],
+              [copy.outcomes.used, counts.used],
+              [copy.outcomes.edited, counts.edited],
+              [copy.outcomes.discarded, counts.discarded],
             ] as const
           )
             .filter(([label]) => label !== null)
             .map(([label, count]) => ({ label: label!, count }));
     return {
       key: spec.key,
-      label: spec.label,
+      label: copy.label,
       used: Number(row?.request_count ?? 0),
       cap: spec.cap,
       enabled: spec.enabled(settings),

@@ -16,6 +16,13 @@ import XCTest
 /// The Android twin (`AppStringsTest.kt`) asserts the same four things. Kept in
 /// step by hand, like every other rule these two clients share.
 final class AppStringsTests: XCTestCase {
+    func testSupportResponseWindowHasCanadianFrenchCopy() {
+        XCTAssertEqual(
+            AppStrings.translate(MessageLocale.frCA, "settings.helpResponseTime"),
+            "dans les deux jours ouvrables, généralement plus tôt"
+        )
+    }
+
     func testEverySectionHasTheSameKeysInBothLanguages() {
         for section in AppStrings.sections {
             let enOnly = Set(section.en.keys).subtracting(section.frCA.keys)
