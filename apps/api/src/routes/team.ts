@@ -806,7 +806,7 @@ async function createOrResendInvite(c: Context<AppEnv>) {
     type: "invite",
     email,
   });
-  const alreadyRegistered = error?.code === "email_exists" || error?.status === 422;
+  const alreadyRegistered = error?.code === "email_exists";
   const tokenHash = linkData.properties?.hashed_token;
   let emailSent = false;
   if (alreadyRegistered || tokenHash) {
@@ -917,7 +917,9 @@ async function sendWorkspaceInvite(
       ? `${inviter ? `${inviter} vous invite` : "Vous êtes invité"} à rejoindre ${companyName} sur Loonext`
       : `${inviter ? `${inviter} invited you` : "You've been invited"} to join ${companyName} on Loonext`;
     const action = french ? "Accepter l'invitation" : "Accept the invite";
-    const expiry = french ? "Cette invitation expire après 7 jours." : "This invite expires in 7 days.";
+    const expiry = french
+      ? "Vous avez 7 jours pour rejoindre l’espace de travail. Si le lien expire, demandez à votre équipe de vous en envoyer un nouveau."
+      : "You have 7 days to join the workspace. If this link expires, ask your team to send a new one.";
     const noteHtml = args.note ? `<blockquote>${escapeHtml(args.note)}</blockquote>` : "";
     const sent = await sendEmail(env, {
       to: [args.email],
