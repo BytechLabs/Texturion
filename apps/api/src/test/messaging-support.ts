@@ -212,6 +212,7 @@ export function messageRow(overrides: Partial<MessageRow> = {}): MessageRow {
 export function messageReceivedEvent(overrides: {
   eventId?: string;
   telnyxMessageId?: string;
+  autoresponseType?: string;
   from?: string;
   to?: string;
   text?: string;
@@ -224,6 +225,7 @@ export function messageReceivedEvent(overrides: {
       occurred_at: "2026-07-01T12:00:00.000+00:00",
       payload: {
         id: overrides.telnyxMessageId ?? "40385f64-5717-4562-b3fc-2c963f66aaaa",
+        autoresponse_type: overrides.autoresponseType,
         type: (overrides.media?.length ?? 0) > 0 ? "MMS" : "SMS",
         direction: "inbound",
         from: {

@@ -106,7 +106,7 @@ const NOT_OPT_OUT: readonly RegExp[] = [
  */
 export const OPT_OUT_HINT_CARRIER_KEYWORDS = new Set([
   "stop", "stopall", "unsubscribe", "cancel", "end", "quit",
-  "arret", "arrêt", "start", "unstop", "yes", "help", "info", "aide",
+  "arret", "arrêt", "start", "unstop", "yes", "oui", "help", "info", "aide",
 ]);
 
 /** Lowercase, flatten punctuation and collapse whitespace. */

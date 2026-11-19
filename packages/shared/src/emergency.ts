@@ -215,8 +215,10 @@ export const CARRIER_REPLY_KEYWORDS: readonly string[] = [
   "START",
   "UNSTOP",
   "YES",
+  "OUI",
   "HELP",
   "INFO",
+  "AIDE",
 ] as const;
 
 const CARRIER_SET: ReadonlySet<string> = new Set(CARRIER_REPLY_KEYWORDS);

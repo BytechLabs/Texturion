@@ -199,6 +199,7 @@ describe("#453 — the settings warning and the opt-out path agree on carrier wo
       ...STOP_KEYWORDS,
       ...START_KEYWORDS,
       ...HELP_KEYWORDS,
+      ...FRENCH_HELP_KEYWORDS,
     ].toSorted();
     expect([...CARRIER_REPLY_KEYWORDS].toSorted()).toEqual(canonical);
   });

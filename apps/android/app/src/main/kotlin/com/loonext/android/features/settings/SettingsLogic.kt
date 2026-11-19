@@ -1950,8 +1950,9 @@ val EMERGENCY_KEYWORDS = listOf("URGENT", "EMERGENCY", "911", "SOS", "URGENCE")
  */
 val CARRIER_REPLY_KEYWORDS = listOf(
     "STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT",
-    "START", "UNSTOP", "YES",
-    "HELP", "INFO",
+    "ARRET", "ARRÊT",
+    "START", "UNSTOP", "YES", "OUI",
+    "HELP", "INFO", "AIDE",
 )
 
 /**

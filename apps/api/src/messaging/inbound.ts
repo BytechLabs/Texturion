@@ -30,7 +30,7 @@ import { deadline } from "../http/deadline";
 import { notifyInboundMessage } from "../notifications/inbound";
 import { clearSavedInboundAlert, deliverSavedInboundAlert } from "../notifications/pending-inbound";
 import type { CrewNotifyVerdict } from "../notifications/pending-inbound";
-import { captureEvent } from "../observability/capture";
+import { captureEvent, errorLogText } from "../observability/capture";
 import { phoneCountry } from "./delivery-by-country";
 import { classifyInbound } from "./spam-flag";
 import { stripImageLocation } from "../attachments/location";
@@ -38,6 +38,7 @@ import { qualifyReferralForSender } from "../referrals/referrals";
 import { scanAttachment } from "../attachments/scan";
 import { bytesMatchDeclaredType } from "../routes/core/attachments";
 import type { ConversationEventRow } from "../routes/core/events";
+import { listCarrierOptOuts } from "../telnyx/opt-outs";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
 import { maybeSendAwayReply } from "./away-reply";
 import { maybeSendOffRamp } from "./off-ramp";
@@ -47,8 +48,10 @@ import { budgetAlertCopy, budgetCrossings } from './notification-budget-alert';
 import type { BudgetCrossing } from './notification-budget-alert';
 import {
   effectiveEmergencyKeywords,
+  isCarrierKeyword,
   isEmergencyKeyword,
   isFrenchHelpKeyword,
+  isFrenchStopRequest,
   normaliseKeyword,
   START_KEYWORDS,
   STOP_KEYWORDS,
@@ -62,13 +65,14 @@ import {
   mediaStoragePath,
   MMS_BUCKET,
 } from "./media";
+import { sendFrenchOptOutConfirmation } from "./send";
 import type { TelnyxEvent, ThreadResult } from "./types";
 
 const INBOUND_MEDIA_DOWNLOAD_TIMEOUT_MS = 15_000;
 export const INBOUND_COMPANY_COLUMNS =
   "timezone,plan,notify_email_limit,notify_push_limit," +
   "emergency_keyword_enabled,emergency_keywords,emergency_message," +
-  "first_inbound_reply_at,country,us_texting_enabled,locale,name,subscription_status";
+  "first_inbound_reply_at,country,us_texting_enabled,locale,name,subscription_status,telnyx_messaging_profile_id";
 
 export interface InboundCompany {
   timezone?: string | null;
@@ -84,6 +88,7 @@ export interface InboundCompany {
   locale?: string | null;
   name?: string | null;
   subscription_status?: string | null;
+  telnyx_messaging_profile_id?: string | null;
 }
 
 export function inboundNotificationLimits(company: InboundCompany | null): { email: number; push: number } {
@@ -137,11 +142,14 @@ interface ThreadedInboundInput {
   receivedMediaCount?: number;
   emergency?: boolean;
   source: "carrier" | "widget";
+  carrierResponse?: string;
+  receivingNumberActive?: boolean;
 }
 
 function isInboundEmergency(company: InboundCompany | null, body: string): boolean {
   return (company?.emergency_keyword_enabled ?? companySettingDefault("emergency_keyword_enabled")) &&
-    isEmergencyKeyword(body, effectiveEmergencyKeywords(company?.emergency_keywords));
+    isEmergencyKeyword(body, effectiveEmergencyKeywords(company?.emergency_keywords)) &&
+    !isCarrierKeyword(body) && !isFrenchHelpKeyword(body);
 }
 
 /**
@@ -269,7 +277,7 @@ export async function handleInboundMessage(
     // so the notification budget costs ZERO extra round trips on the hot
     // inbound path — the timezone that decides when the day ends, and the plan
     // whose ceilings apply, plus any ops override.
-    .select(`id,company_id,companies(${INBOUND_COMPANY_COLUMNS})`)
+    .select(`id,company_id,status,companies(${INBOUND_COMPANY_COLUMNS})`)
     .eq("number_e164", toE164)
     .neq("status", "released")
     .limit(1);
@@ -277,7 +285,7 @@ export async function handleInboundMessage(
     throw new Error(`phone_numbers lookup failed: ${numberError.message}`);
   }
   const number = (numbers ?? [])[0] as unknown as
-    | { id: string; company_id: string; companies?: InboundCompany | null }
+    | { id: string; company_id: string; status: string; companies?: InboundCompany | null }
     | undefined;
   if (!number) {
     console.warn(`message.received for unknown number — ignored`);
@@ -295,7 +303,7 @@ export async function handleInboundMessage(
       typeof item.url === "string" && item.url.length > 0,
   );
 
-  const optOutHint = looksLikeOptOut(body);
+  const optOutHint = !isFrenchStopRequest(body) && looksLikeOptOut(body);
   // The §6 threading transaction, atomically in the database.
   const reaction = payload.media?.length ? null : parseTapback(body);
   const { data, error } = await db.rpc("thread_inbound_message", {
@@ -331,6 +339,10 @@ export async function handleInboundMessage(
     receivedMediaCount: payload.media?.length ?? 0,
     emergency,
     source: "carrier",
+    carrierResponse: typeof payload.autoresponse_type === "string"
+      ? payload.autoresponse_type.toUpperCase()
+      : undefined,
+    receivingNumberActive: number.status === "active",
   });
 
   // Notify first so a retryable download failure cannot suppress the alert.
@@ -351,6 +363,7 @@ export async function finishThreadedInbound(
 ): Promise<void> {
   const { threaded, companyId, company, fromE164, toE164, body, segments, mediaCount, source } = input;
   const carrier = source === "carrier";
+  const frenchStop = carrier && isFrenchStopRequest(body);
   const limits = inboundNotificationLimits(company);
   const emergency = input.emergency ?? isInboundEmergency(company, body);
 
@@ -413,26 +426,21 @@ export async function finishThreadedInbound(
   let keywordFailure: { error: unknown } | undefined;
   let carrierOwnedIt = false;
   try {
-    carrierOwnedIt = carrier && await handleOptOutKeywords(db, {
+    carrierOwnedIt = carrier && await handleOptOutKeywords(env, db, {
       companyId,
       conversationId: threaded.conversation_id,
       fromE164,
       body,
       recordEvent: threaded.created,
+      wasOptedOut: threaded.opted_out,
+      carrierProfileId: company?.telnyx_messaging_profile_id,
+      carrierResponse: input.carrierResponse,
     });
   } catch (error) {
     keywordFailure = { error };
   }
 
-  // #237: "Reply C to confirm" invites a short answer, and short answers are
-  // what the carrier layer above already owns. "YES" is a START keyword: from
-  // an opted-out contact it is a request to be texted again, and consuming it
-  // here would leave somebody silenced who had just asked to be un-silenced —
-  // with no way back, because only they can lift their own opt-out.
-  //
-  // So this runs SECOND and only on a message the carrier layer did not claim.
-  // That ordering is a data dependency rather than a comment: `carrierOwnedIt`
-  // has to be read for this line to compile at all.
+  // YES and OUI from an opted-out contact belong to the opt-in handler first.
   //
   // Best-effort: the inbound message is already durable, and a job that could
   // not be marked confirmed must never wedge a delivery in a retry loop.
@@ -489,7 +497,7 @@ export async function finishThreadedInbound(
       })
     : { blocked: false, suspected: false };
 
-  const optOutHint = looksLikeOptOut(body);
+  const optOutHint = !frenchStop && looksLikeOptOut(body);
   // Widget submissions use the original threading overload.
   if (!carrier && optOutHint && threaded.created) {
     try {
@@ -568,6 +576,22 @@ export async function finishThreadedInbound(
   }
 
   const canReply = threaded.created && !spam.blocked && !keywordFailure;
+  if (frenchStop && canReply && input.receivingNumberActive &&
+    !threaded.opted_out && input.carrierResponse !== "STOP") {
+    try {
+      const confirmation = await sendFrenchOptOutConfirmation(env, {
+        companyId,
+        from: toE164,
+        to: fromE164,
+        inboundMessageId: threaded.message_id,
+      });
+      if (!confirmation.ok) {
+        console.warn(`French opt-out confirmation refused for ${threaded.message_id}: ${confirmation.errorCode ?? "unknown"}`);
+      }
+    } catch (error) {
+      console.error(`French opt-out confirmation failed for ${threaded.message_id}:`, errorLogText(error));
+    }
+  }
   // After-hours away auto-reply (FEATURE-GAPS Step 1) — only on the first
   // delivery. Best-effort: a failure here (e.g. a not-ready send gate) must
   // NOT wedge the already-durable inbound message in a retry loop, and the
@@ -650,11 +674,8 @@ export async function finishThreadedInbound(
     }
   }
 
-  // #228: a French request for help, which the carrier does not answer. Beside
-  // the emergency acknowledgment because it is the same shape - a keyword the
-  // product must answer itself - and gated on `threaded.created` for the same
-  // reason: a webhook redelivery must not answer twice.
-  if (carrier && canReply && isFrenchHelpKeyword(body)) {
+  // Telnyx's default keyword list omits AIDE.
+  if (carrier && canReply && input.carrierResponse !== "HELP" && isFrenchHelpKeyword(body)) {
     try {
       await sendHelpReply(env, db, {
         companyId,
@@ -750,12 +771,16 @@ async function sendNotificationBudgetAlert(
  * conversation_events row attached to the message's conversation.
  */
 async function handleOptOutKeywords(
+  env: Env,
   db: SupabaseClient,
   args: {
     companyId: string;
     conversationId: string;
     fromE164: string;
     body: string;
+    wasOptedOut: boolean;
+    carrierProfileId?: string | null;
+    carrierResponse?: string;
     /**
      * Whether to write the conversation_events timeline entry. The idempotent
      * opt_outs mirror always runs (so a sweeper replay recovers a failed
@@ -767,7 +792,7 @@ async function handleOptOutKeywords(
 ): Promise<boolean> {
   const keyword = normaliseKeyword(args.body);
 
-  if (STOP_KEYWORDS.has(keyword)) {
+  if (STOP_KEYWORDS.has(keyword) || isFrenchStopRequest(args.body)) {
     const { error } = await db.from("opt_outs").upsert(
       {
         company_id: args.companyId,
@@ -804,21 +829,28 @@ async function handleOptOutKeywords(
   }
 
   if (START_KEYWORDS.has(keyword)) {
+    const revokedAt = new Date().toISOString();
+    if (keyword === "OUI" && args.carrierResponse !== "START") {
+      if (!args.wasOptedOut) return false;
+      // A French opt-in can clear a local block once Telnyx confirms delivery is allowed.
+      if (!args.carrierProfileId) return true;
+      const { optOuts, truncated } = await listCarrierOptOuts(env, args.carrierProfileId, args.fromE164);
+      if (truncated || optOuts.some(({ phoneE164 }) => phoneE164 === args.fromE164)) return true;
+    }
     // Revoke only an ACTIVE opt-out; a bare "YES" with no opt-out on file is
     // an ordinary message, not an opt-in event.
-    const { data, error } = await db
+    let revoke = db
       .from("opt_outs")
-      .update({ revoked_at: new Date().toISOString() })
+      .update({ revoked_at: revokedAt })
       .eq("company_id", args.companyId)
       .eq("phone_e164", args.fromE164)
-      .is("revoked_at", null)
-      .select("id");
+      .is("revoked_at", null);
+    // Preserve an opt-out recorded while the carrier lookup was in flight.
+    if (keyword === "OUI") revoke = revoke.lte("updated_at", revokedAt);
+    const { data, error } = await revoke.select("id");
     if (error) throw new Error(`opt_outs revoke failed: ${error.message}`);
-    // #237: a bare "YES" with no opt-out on file did NOT act as a START, so it
-    // is still available to mean something else — an appointment confirmation,
-    // for instance. Returning false here is what makes that safe: the carrier
-    // meaning is claimed only when it actually happened.
-    if ((data ?? []).length === 0) return false;
+    // A failed OUI update can mean a newer opt-out won during the carrier lookup.
+    if ((data ?? []).length === 0) return keyword === "OUI" && args.wasOptedOut;
 
     if (!args.recordEvent) return true;
     const { error: eventError } = await db.from("conversation_events").insert({

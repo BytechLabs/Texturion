@@ -125,17 +125,13 @@ export const APPOINTMENT_CONFIRM_KEYWORDS: readonly string[] = [
 /**
  * Confirm words that ALSO mean something to the carrier layer.
  *
- * "YES" is in `START_KEYWORDS`: from an opted-out contact it is a request to be
- * texted again, which is carrier truth and outranks anything this feature
- * wants. `opt-out-carrier-truth` is binding — only the customer can lift an
- * opt-out — so a caller must run the opt-out handler FIRST and must not treat a
- * reply as a confirmation when it is doing that job.
+ * "YES" and "OUI" can lift an opt-out before they confirm an appointment.
  *
  * Named here rather than left implicit so the overlap is a fact somebody can
  * see, and asserted by a test: adding a word to the list above that the carrier
  * layer already owns fails loudly instead of quietly stealing a STOP or a START.
  */
-export const CONFIRM_KEYWORDS_ALSO_CARRIER: readonly string[] = ["YES"];
+export const CONFIRM_KEYWORDS_ALSO_CARRIER: readonly string[] = ["YES", "OUI"];
 
 /**
  * Does this reply confirm an appointment?

@@ -975,8 +975,9 @@ let emergencyKeywords = ["URGENT", "EMERGENCY", "911", "SOS", "URGENCE"]
 /// warning. Mirrors `CARRIER_REPLY_KEYWORDS` in shared.
 let carrierReplyKeywords = [
     "STOP", "STOPALL", "UNSUBSCRIBE", "CANCEL", "END", "QUIT",
-    "START", "UNSTOP", "YES",
-    "HELP", "INFO",
+    "ARRET", "ARRÊT",
+    "START", "UNSTOP", "YES", "OUI",
+    "HELP", "INFO", "AIDE",
 ]
 
 /// True when OWNER-AUTHORED copy still invites the emergency reply.

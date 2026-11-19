@@ -134,6 +134,34 @@ export async function runPreSendGates(
   /** A direct send from the app can use toll-free destinations. */
   mode?: "manual",
 ): Promise<SendClearance> {
+  await checkSendAvailability(env, companyId, destinationE164, offRamp, mode);
+
+  const db = getDb(env);
+  const { data, error } = await db
+    .from("opt_outs")
+    .select("id")
+    .eq("company_id", companyId)
+    .eq("phone_e164", destinationE164)
+    .is("revoked_at", null)
+    .limit(1);
+  if (error) throw new Error(`opt-out lookup failed: ${error.message}`);
+  if ((data?.length ?? 0) > 0) {
+    throw new ApiError(
+      "recipient_opted_out",
+      "This recipient has opted out of receiving texts.",
+    );
+  }
+
+  return { destinationE164 } as SendClearance;
+}
+
+async function checkSendAvailability(
+  env: Env,
+  companyId: string,
+  destinationE164: string,
+  offRamp = false,
+  mode?: "manual",
+): Promise<void> {
   // #283: the outbound kill switch, checked FIRST and at the single dispatch
   // choke point every send passes through. The most serious switch we have —
   // it silences the product's core promise — and it exists for a carrier
@@ -245,31 +273,6 @@ export async function runPreSendGates(
       "Texting Canadian numbers is not enabled for this company yet.",
     );
   }
-
-  // Opted out is the LAST gate and it lives here, in the shared pre-send path,
-  // rather than in any one route. Attempting delivery to someone who sent STOP
-  // is a compliance problem as well as a wasted provider call, and every send
-  // path (compose, thread, retry, away reply, missed-call text-back) funnels
-  // through this function — so gating here is what makes the attempt
-  // impossible rather than merely unlikely.
-  const db = getDb(env);
-  const { data, error } = await db
-    .from("opt_outs")
-    .select("id")
-    .eq("company_id", companyId)
-    .eq("phone_e164", destinationE164)
-    .is("revoked_at", null)
-    .limit(1);
-  if (error) throw new Error(`opt-out lookup failed: ${error.message}`);
-  if ((data?.length ?? 0) > 0) {
-    throw new ApiError(
-      "recipient_opted_out",
-      "This recipient has opted out of receiving texts.",
-    );
-  }
-
-  // Past every gate: this destination is cleared, and only this line says so.
-  return { destinationE164 } as SendClearance;
 }
 
 /**
@@ -524,6 +527,21 @@ export async function sendSystemText(
     text: args.text,
     mediaUrls: [],
     idempotencyKey: args.idempotencyKey,
+  });
+}
+
+/** The inbound handler records the opt-out before sending this fixed confirmation. */
+export async function sendFrenchOptOutConfirmation(
+  env: Env,
+  args: { companyId: string; from: string; to: string; inboundMessageId: string },
+): Promise<TelnyxSendResult> {
+  await checkSendAvailability(env, args.companyId, args.to);
+  return telnyxCreateMessage(env, {
+    from: args.from,
+    to: args.to,
+    text: "Vous ne recevrez plus de textos de ce numéro.",
+    mediaUrls: [],
+    idempotencyKey: `french-opt-out:${args.inboundMessageId}`,
   });
 }
 
