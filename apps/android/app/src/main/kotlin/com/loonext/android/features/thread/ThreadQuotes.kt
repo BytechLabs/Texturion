@@ -7,9 +7,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.Edit
 import androidx.compose.material.icons.outlined.Send
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -134,15 +137,25 @@ fun ThreadQuotes(
     var withdrawId by remember { mutableStateOf<String?>(null) }
     var withdrawing by remember { mutableStateOf(false) }
     var withdrawError by remember { mutableStateOf<String?>(null) }
+    var editId by remember { mutableStateOf<String?>(null) }
+    var deleteId by remember { mutableStateOf<String?>(null) }
+    var deleteError by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
 
     val now = System.currentTimeMillis()
     val shown = rows.filter { isWorthShowing(it, now) }
-    val showForm = canAct && draftOpen
+    val showForm = canAct && (draftOpen || editId != null)
 
     if (shown.isEmpty() && !showForm) return
 
-    fun create() {
+    fun closeForm() {
+        editId = null
+        amount = ""
+        description = ""
+        onCloseDraft()
+    }
+
+    fun save() {
         val dollars = amount.replace(Regex("[^0-9.]"), "").toDoubleOrNull()
         if (dollars == null || dollars <= 0) {
             onNotice(AppStrings.translate(locale, "quotes.needAmount"))
@@ -152,21 +165,21 @@ fun ThreadQuotes(
             onNotice(AppStrings.translate(locale, "quotes.needDescription"))
             return
         }
+        val quoteId = editId
+        val cents = Math.round(dollars * 100).toInt()
+        val work = description.trim()
+        val expiry = java.time.Instant
+            .ofEpochMilli(now + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
+            .toString()
         busy = true
         coroutines.launch {
             try {
-                repo.create(
-                    companyId = companyId,
-                    conversationId = conversationId,
-                    amountCents = Math.round(dollars * 100).toInt(),
-                    description = description.trim(),
-                    expiresAt = java.time.Instant
-                        .ofEpochMilli(now + DEFAULT_EXPIRY_DAYS * 24 * 60 * 60 * 1000)
-                        .toString(),
-                )
-                amount = ""
-                description = ""
-                onCloseDraft()
+                if (quoteId == null) {
+                    repo.create(companyId, conversationId, cents, work, expiry)
+                } else {
+                    repo.edit(companyId, quoteId, cents, work, expiry)
+                }
+                closeForm()
                 refreshKey++
             } catch (cause: Exception) {
                 onNotice(cause.userMessage(locale))
@@ -222,6 +235,34 @@ fun ThreadQuotes(
         )
     }
 
+    deleteId?.let { id ->
+        ConfirmDialog(
+            title = t("quotes.deleteDraft"),
+            body = t("quotes.deleteDraftDetail"),
+            confirmLabel = t("quotes.deleteDraft"),
+            onConfirm = {
+                busy = true
+                deleteError = null
+                coroutines.launch {
+                    try {
+                        repo.deleteDraft(companyId, id)
+                        if (editId == id) closeForm()
+                        deleteId = null
+                        refreshKey++
+                    } catch (cause: Exception) {
+                        deleteError = cause.userMessage(locale)
+                    } finally {
+                        busy = false
+                    }
+                }
+            },
+            onDismiss = { if (!busy) deleteId = null },
+            destructive = true,
+            pending = busy,
+            error = deleteError,
+        )
+    }
+
     Column(modifier.fillMaxWidth().padding(horizontal = 4.dp)) {
         shown.forEach { quote ->
             QuoteRow(
@@ -229,11 +270,22 @@ fun ThreadQuotes(
                 now = now,
                 canSend = canAct && quote.allowed_actions.allows("send"),
                 canWithdraw = canAct && quote.allowed_actions?.contains("withdraw") == true,
+                canEdit = canAct && quote.allowed_actions?.contains("edit") == true,
+                canDelete = canAct && quote.allowed_actions?.contains("delete") == true,
                 sending = sendingId == quote.id,
                 onSend = { send(quote.id) },
                 onWithdraw = {
                     withdrawError = null
                     withdrawId = quote.id
+                },
+                onEdit = {
+                    editId = quote.id
+                    amount = (quote.amount_cents / 100.0).toString()
+                    description = quote.description
+                },
+                onDelete = {
+                    deleteError = null
+                    deleteId = quote.id
                 },
             )
         }
@@ -268,13 +320,13 @@ fun ThreadQuotes(
                 modifier = Modifier.padding(top = 4.dp),
             )
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = ::create, enabled = !busy) {
+                TextButton(onClick = ::save, enabled = !busy) {
                     Text(
                         if (busy) t("quotes.saving") else t("quotes.saveDraft"),
                         fontSize = 13.sp,
                     )
                 }
-                TextButton(onClick = onCloseDraft) {
+                TextButton(onClick = { if (editId != null) closeForm() else onCloseDraft() }) {
                     Text(t("common.cancel"), fontSize = 13.sp)
                 }
             }
@@ -288,9 +340,13 @@ private fun QuoteRow(
     now: Long,
     canSend: Boolean,
     canWithdraw: Boolean,
+    canEdit: Boolean,
+    canDelete: Boolean,
     sending: Boolean,
     onSend: () -> Unit,
     onWithdraw: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
 ) {
     val status = quote.shownStatus(now)
     // The row carries its own currency, the way a payment request does: a quote
@@ -345,6 +401,16 @@ private fun QuoteRow(
         if (canWithdraw) {
             TextButton(onClick = onWithdraw) {
                 Text(t("quotes.withdraw"), fontSize = 13.sp)
+            }
+        }
+        if (canEdit) {
+            IconButton(onClick = onEdit) {
+                Icon(Icons.Outlined.Edit, contentDescription = t("quotes.editDraft"))
+            }
+        }
+        if (canDelete) {
+            IconButton(onClick = onDelete) {
+                Icon(Icons.Outlined.DeleteOutline, contentDescription = t("quotes.deleteDraft"))
             }
         }
     }

@@ -37,6 +37,9 @@ object ThreadStrings : AppStrings.Section {
         "quotes.withdraw" to "Withdraw",
         "quotes.withdrawTitle" to "Withdraw this quote?",
         "quotes.withdrawDetail" to "The customer will no longer be able to accept it.",
+        "quotes.editDraft" to "Edit draft",
+        "quotes.deleteDraft" to "Delete draft",
+        "quotes.deleteDraftDetail" to "This removes the unsent quote from the conversation.",
         "quotes.statusExpired" to
             "Expired",
         "quotes.outstandingTitle" to
@@ -831,6 +834,9 @@ object ThreadStrings : AppStrings.Section {
         "quotes.withdraw" to "Retirer",
         "quotes.withdrawTitle" to "Retirer ce devis ?",
         "quotes.withdrawDetail" to "Le client ne pourra plus l’accepter.",
+        "quotes.editDraft" to "Modifier le brouillon",
+        "quotes.deleteDraft" to "Supprimer le brouillon",
+        "quotes.deleteDraftDetail" to "Le devis non envoyé sera retiré de la conversation.",
         "quotes.statusExpired" to
             "Expiré",
         "quotes.outstandingTitle" to

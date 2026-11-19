@@ -79,7 +79,7 @@ final class ThreadQuotesModel {
         ))?.data ?? []
     }
 
-    func create(amountCents: Int, description: String, locale: String?) async -> Bool {
+    func save(quoteId: String?, amountCents: Int, description: String, locale: String?) async -> Bool {
         notice = nil
         busy = true
         defer { busy = false }
@@ -89,13 +89,17 @@ final class ThreadQuotesModel {
             )
         )
         do {
-            _ = try await quotes.create(
-                companyId: companyId,
-                conversationId: conversationId,
-                amountCents: amountCents,
-                description: description,
-                expiresAt: expires
-            )
+            if let quoteId {
+                _ = try await quotes.edit(
+                    companyId: companyId, quoteId: quoteId,
+                    amountCents: amountCents, description: description, expiresAt: expires
+                )
+            } else {
+                _ = try await quotes.create(
+                    companyId: companyId, conversationId: conversationId,
+                    amountCents: amountCents, description: description, expiresAt: expires
+                )
+            }
             await load()
             return true
         } catch {
@@ -128,6 +132,20 @@ final class ThreadQuotesModel {
             notice = error.userMessage(locale ?? MessageLocale.en)
         }
     }
+
+    func deleteDraft(_ quote: Quote, locale: String?) async -> Bool {
+        notice = nil
+        sendingId = quote.id
+        defer { sendingId = nil }
+        do {
+            try await quotes.deleteDraft(companyId: companyId, quoteId: quote.id)
+            await load()
+            return true
+        } catch {
+            notice = error.userMessage(locale ?? MessageLocale.en)
+            return false
+        }
+    }
 }
 
 struct ThreadQuotesPane: View {
@@ -148,6 +166,8 @@ struct ThreadQuotesPane: View {
     @State private var amount = ""
     @State private var work = ""
     @State private var quoteToWithdraw: Quote?
+    @State private var quoteToDelete: Quote?
+    @State private var editId: String?
 
     private func t(_ key: String, _ vars: [String: String] = [:]) -> String {
         AppStrings.translate(appLocale, key, vars)
@@ -165,23 +185,31 @@ struct ThreadQuotesPane: View {
 
     var body: some View {
         Group {
-            if canSee, let model, !model.visible.isEmpty || (canAct && draftOpen) {
+            if canSee, let model, !model.visible.isEmpty || (canAct && (draftOpen || editId != nil)) {
                 VStack(alignment: .leading, spacing: 4) {
                     ForEach(model.visible) { quote in
                         QuoteStripRow(
                             quote: quote,
                             canSend: canAct && quote.allowed_actions.allows("send"),
                             canWithdraw: canAct && (quote.allowed_actions?.contains("withdraw") == true),
+                            canEdit: canAct && (quote.allowed_actions?.contains("edit") == true),
+                            canDelete: canAct && (quote.allowed_actions?.contains("delete") == true),
                             sending: model.sendingId == quote.id,
                             onSend: {
                                 Task {
                                     if await model.send(quote, locale: appLocale) { onSent() }
                                 }
                             },
-                            onWithdraw: { quoteToWithdraw = quote }
+                            onWithdraw: { quoteToWithdraw = quote },
+                            onEdit: {
+                                editId = quote.id
+                                amount = String(Double(quote.amount_cents) / 100)
+                                work = quote.description
+                            },
+                            onDelete: { quoteToDelete = quote }
                         )
                     }
-                    if canAct && draftOpen { form(model) }
+                    if canAct && (draftOpen || editId != nil) { form(model) }
                     // The API's own words on a refusal, never a paraphrase, and
                     // never swallowed: a create or send that failed silently is
                     // a crew member who thinks a customer has a price.
@@ -198,6 +226,17 @@ struct ThreadQuotesPane: View {
             confirmLabel: t("quotes.withdraw")
         ) { quote in
             Task { await model?.withdraw(quote, locale: appLocale) }
+        }
+        .confirmDialog(
+            t("quotes.deleteDraft"),
+            item: $quoteToDelete,
+            message: { _ in t("quotes.deleteDraftDetail") },
+            confirmLabel: t("quotes.deleteDraft")
+        ) { quote in
+            Task {
+                let deleted = await model?.deleteDraft(quote, locale: appLocale)
+                if deleted == true, editId == quote.id { closeForm() }
+            }
         }
         .task(id: "\(companyId)|\(conversationId)") {
             let created = ThreadQuotesModel(
@@ -237,9 +276,11 @@ struct ThreadQuotesPane: View {
                 .foregroundStyle(BrandColor.olive)
                 .disabled(model.busy)
 
-                Button(t("common.cancel")) { draftOpen = false }
-                    .font(.golos(13))
-                    .foregroundStyle(BrandColor.muted500)
+                Button(t("common.cancel")) {
+                    if editId == nil { draftOpen = false } else { closeForm() }
+                }
+                .font(.golos(13))
+                .foregroundStyle(BrandColor.muted500)
             }
         }
     }
@@ -254,12 +295,17 @@ struct ThreadQuotesPane: View {
             model.notice = t("quotes.needDescription")
             return
         }
-        let created = await model.create(
+        let saved = await model.save(
+            quoteId: editId,
             amountCents: Int((dollars * 100).rounded()),
             description: work.trimmingCharacters(in: .whitespaces),
             locale: appLocale
         )
-        guard created else { return }
+        if saved { closeForm() }
+    }
+
+    private func closeForm() {
+        editId = nil
         amount = ""
         work = ""
         draftOpen = false
@@ -270,9 +316,13 @@ private struct QuoteStripRow: View {
     let quote: Quote
     let canSend: Bool
     let canWithdraw: Bool
+    let canEdit: Bool
+    let canDelete: Bool
     let sending: Bool
     let onSend: () -> Void
     let onWithdraw: () -> Void
+    let onEdit: () -> Void
+    let onDelete: () -> Void
 
     @Environment(\.appLocale) private var appLocale
 
@@ -315,6 +365,20 @@ private struct QuoteStripRow: View {
                     .font(.golos(13, weight: .semibold))
                     .foregroundStyle(BrandColor.olive)
                     .disabled(sending)
+            }
+            if canEdit {
+                Button(action: onEdit) {
+                    Image(systemName: "pencil")
+                }
+                .accessibilityLabel(AppStrings.translate(appLocale, "quotes.editDraft"))
+                .disabled(sending)
+            }
+            if canDelete {
+                Button(action: onDelete) {
+                    Image(systemName: "trash")
+                }
+                .accessibilityLabel(AppStrings.translate(appLocale, "quotes.deleteDraft"))
+                .disabled(sending)
             }
         }
     }

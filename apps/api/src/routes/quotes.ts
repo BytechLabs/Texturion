@@ -1,4 +1,5 @@
 import { Hono } from "hono";
+import type { Context } from "hono";
 import { z } from "zod";
 
 import { billingCurrencyOf, effectiveQuoteStatus, estimateSegments, isQuoteOutstanding, QUOTE_STATUSES, quoteSms, resolveLocale, stateMachines } from '@loonext/shared';
@@ -13,7 +14,7 @@ import {
   requireConversationAccess,
   resolveNumberAccess,
 } from "../auth/number-access";
-import { errorResponse } from "../http/errors";
+import { ApiError, errorResponse } from "../http/errors";
 import { mintPublicLink } from "../public-links/tokens";
 import { dispatchOutbound, gateOutboundSend, runPreSendGates } from "../messaging/send";
 import { insertConversationEvents } from "./core/events";
@@ -45,7 +46,10 @@ import { parseJsonBody, pathUuid, unwrap } from "./core/http";
 
 const QUOTE_COLUMNS =
   "id,conversation_id,contact_id,amount_cents,currency,description," +
-  "status,expires_at,sent_at,viewed_at,decided_at,decided_by_name,created_by,created_at,updated_at";
+  "status,expires_at,sent_at,viewed_at,decided_at,decided_by_name,created_by,created_at,updated_at," +
+  "sending_at,message_id";
+
+const SEND_LEASE_MS = 2 * 60_000;
 
 /** A quote row as the wire carries it, plus the status a reader should see. */
 interface QuoteRow extends QuoteState {
@@ -60,6 +64,9 @@ interface QuoteRow extends QuoteState {
   amount_cents: number;
   currency: string;
   description: string;
+  updated_at: string;
+  sending_at: string | null;
+  message_id: string | null;
   [key: string]: unknown;
 }
 
@@ -82,20 +89,17 @@ interface SendView {
  * expiry itself, which is three implementations of a rule that has one home.
  */
 function withEffectiveStatus(
-  row: QuoteRow,
+  { sending_at, message_id, ...row }: QuoteRow,
   now: Date,
   role: MemberRole,
 ): Record<string, unknown> {
   const status = effectiveQuoteStatus(row, now);
+  const actions = stateMachines.allowedActions(stateMachines.quoteMachine, status, role);
+  const draftLocked = status === "draft" && (sending_at !== null || message_id !== null);
   return {
     ...row,
     effective_status: status,
-    // #722: what this member may do to it now, from the shared machine.
-    allowed_actions: stateMachines.allowedActions(
-      stateMachines.quoteMachine,
-      status,
-      role,
-    ),
+    allowed_actions: draftLocked ? actions.filter((action) => action !== "edit" && action !== "delete") : actions,
   };
 }
 
@@ -127,8 +131,7 @@ const createSchema = z.object({
   expires_at: z.iso.datetime(),
 });
 
-/** #722: how long a send's claim on a draft holds before another may take it. */
-const SEND_LEASE_MS = 2 * 60_000;
+const editDraftSchema = createSchema.omit({ conversation_id: true }).partial().strict();
 
 /**
  * Release a send's claim after a send that did not happen. The quote stays a
@@ -150,31 +153,74 @@ async function releaseSend(db: ReturnType<typeof getDb>, companyId: string, id: 
 
 export const quotesRoutes = new Hono<AppEnv>();
 
-quotesRoutes.post("/quotes/:id/withdraw", requireCapability("conversations.send"), async (c) => {
+async function requireQuoteTextAccess(c: Context<AppEnv>) {
   const id = pathUuid(c, "id");
-  const db = getDb(getEnv(c.env));
   const companyId = c.get("companyId");
-  const actor = c.get("userId");
+  const db = getDb(getEnv(c.env));
   const [quote] = unwrap<{ conversation_id: string }[]>(
     await db.from("quotes").select("conversation_id")
       .eq("company_id", companyId).eq("id", id).limit(1),
-    "quote withdrawal lookup",
+    "quote lookup",
   );
   if (!quote) {
-    return errorResponse(c, "not_found", "No such quote.", { key: "apiRefusals.quoteNotFound" });
+    throw new ApiError("not_found", "No such quote.", { key: "apiRefusals.quoteNotFound" });
   }
   await requireConversationAccess(db, {
     companyId,
-    userId: actor,
+    userId: c.get("userId"),
     role: c.get("role"),
     conversationId: quote.conversation_id,
     need: "text",
   });
+  return { db, companyId, id };
+}
 
+quotesRoutes.patch("/quotes/:id", requireCapability("conversations.send"), async (c) => {
+  const { db, companyId, id } = await requireQuoteTextAccess(c);
+  const changes = await parseJsonBody(c, editDraftSchema);
+  const now = new Date();
+  if (changes.expires_at && Date.parse(changes.expires_at) <= now.getTime()) {
+    return errorResponse(c, "validation_failed", "Choose a future expiry for this quote.", {
+      key: "apiRefusals.quoteExpiryFuture",
+    });
+  }
+
+  const [updated] = unwrap<QuoteRow[]>(
+    await db.from("quotes").update({ ...changes, updated_at: now.toISOString() })
+      .eq("company_id", companyId).eq("id", id).eq("status", "draft")
+      .is("sending_at", null).is("message_id", null).select(QUOTE_COLUMNS),
+    "quote draft update",
+  );
+  if (!updated) {
+    return errorResponse(c, "conflict", "This quote draft can no longer be changed.", {
+      key: "apiRefusals.quoteDraftLocked",
+    });
+  }
+  return c.json(withEffectiveStatus(updated, now, c.get("role")));
+});
+
+quotesRoutes.delete("/quotes/:id", requireCapability("conversations.send"), async (c) => {
+  const { db, companyId, id } = await requireQuoteTextAccess(c);
+  const [deleted] = unwrap<{ id: string }[]>(
+    await db.from("quotes").delete()
+      .eq("company_id", companyId).eq("id", id).eq("status", "draft")
+      .is("sending_at", null).is("message_id", null).select("id"),
+    "quote draft delete",
+  );
+  if (!deleted) {
+    return errorResponse(c, "conflict", "This quote draft can no longer be changed.", {
+      key: "apiRefusals.quoteDraftLocked",
+    });
+  }
+  return c.json({ deleted: true });
+});
+
+quotesRoutes.post("/quotes/:id/withdraw", requireCapability("conversations.send"), async (c) => {
+  const { db, companyId, id } = await requireQuoteTextAccess(c);
   const withdrawn = unwrap<boolean>(await db.rpc("api_withdraw_quote", {
     p_company_id: companyId,
     p_quote_id: id,
-    p_actor: actor,
+    p_actor: c.get("userId"),
   }), "quote withdrawal");
   if (!withdrawn) {
     return errorResponse(c, "conflict", "This quote can no longer be withdrawn.", {
@@ -493,21 +539,16 @@ quotesRoutes.post(
      */
     const clearance = await runPreSendGates(env, companyId, view.contact_phone_e164);
 
-    // The public quote page issues a separate credential for the decision.
-    const expiresAt = new Date(row.expires_at);
-    const viewLink = await mintPublicLink(db, {
-      companyId,
-      purpose: "quote_view",
-      subjectType: "quote",
-      subjectId: id,
-      expiresAt,
-      actorUserId: c.get("userId"),
-    });
     // #722: claim the draft with a lease, guarded in the WHERE clause rather
     // than trusting the read above: two people pressing send is two requests,
     // and only one may send. The quote stays a draft until the text has gone,
     // so a failed send has no status to undo.
     const now = new Date();
+    if (Date.parse(row.expires_at) <= now.getTime()) {
+      return errorResponse(c, "conflict", "Choose a future expiry for this quote.", {
+        key: "apiRefusals.quoteExpiryFuture",
+      });
+    }
     const claimed = unwrap<{ id: string }[]>(
       await db
         .from("quotes")
@@ -515,6 +556,7 @@ quotesRoutes.post(
         .eq("company_id", companyId)
         .eq("id", id)
         .eq("status", "draft")
+        .eq("updated_at", row.updated_at)
         .or(
           `sending_at.is.null,sending_at.lt.${new Date(now.getTime() - SEND_LEASE_MS).toISOString()}`,
         )
@@ -524,6 +566,18 @@ quotesRoutes.post(
     if (claimed.length === 0) {
       return errorResponse(c, "conflict", "quote is no longer a draft");
     }
+
+    const viewLink = await mintPublicLink(db, {
+      companyId,
+      purpose: "quote_view",
+      subjectType: "quote",
+      subjectId: id,
+      expiresAt: new Date(row.expires_at),
+      actorUserId: c.get("userId"),
+    }).catch(async (error: unknown) => {
+      await releaseSend(db, companyId, id);
+      throw error;
+    });
 
     // The carrier receives the live link. The app and integrations see a placeholder.
     const url = `${env.APP_ORIGIN.replace(/\/$/, "")}/q/${viewLink.token}`;

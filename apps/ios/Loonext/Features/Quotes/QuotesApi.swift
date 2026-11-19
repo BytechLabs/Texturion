@@ -210,6 +210,28 @@ struct QuotesApi: Sendable {
         try await api.post("/v1/quotes/\(quoteId)/send", companyId: companyId)
     }
 
+    func edit(
+        companyId: String,
+        quoteId: String,
+        amountCents: Int,
+        description: String,
+        expiresAt: String
+    ) async throws -> Quote {
+        try await api.patch(
+            "/v1/quotes/\(quoteId)",
+            body: JSONValue.object([
+                "amount_cents": .number(Double(amountCents)),
+                "description": .string(description),
+                "expires_at": .string(expiresAt),
+            ]),
+            companyId: companyId
+        )
+    }
+
+    func deleteDraft(companyId: String, quoteId: String) async throws {
+        try await api.delete("/v1/quotes/\(quoteId)", companyId: companyId)
+    }
+
     func withdraw(companyId: String, quoteId: String) async throws {
         let _: [String: Bool] = try await api.post("/v1/quotes/\(quoteId)/withdraw", companyId: companyId)
     }

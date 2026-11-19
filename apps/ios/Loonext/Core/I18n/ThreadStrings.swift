@@ -54,6 +54,9 @@ enum ThreadStrings {
             "quotes.withdraw": "Withdraw",
             "quotes.withdrawTitle": "Withdraw this quote?",
             "quotes.withdrawDetail": "The customer will no longer be able to accept it.",
+            "quotes.editDraft": "Edit draft",
+            "quotes.deleteDraft": "Delete draft",
+            "quotes.deleteDraftDetail": "This removes the unsent quote from the conversation.",
             "quotes.statusExpired":
                 "Expired",
             "quotes.outstandingTitle":
@@ -839,6 +842,9 @@ enum ThreadStrings {
             "quotes.withdraw": "Retirer",
             "quotes.withdrawTitle": "Retirer ce devis ?",
             "quotes.withdrawDetail": "Le client ne pourra plus l’accepter.",
+            "quotes.editDraft": "Modifier le brouillon",
+            "quotes.deleteDraft": "Supprimer le brouillon",
+            "quotes.deleteDraftDetail": "Le devis non envoyé sera retiré de la conversation.",
             "quotes.statusExpired":
                 "Expiré",
             "quotes.outstandingTitle":

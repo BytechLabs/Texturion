@@ -90,6 +90,7 @@ function buildHarness(
     sent_at: null,
     viewed_at: null,
     decided_at: null,
+    updated_at: new Date().toISOString(),
     message_id: null,
     ...options.quote,
   });

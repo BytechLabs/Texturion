@@ -145,6 +145,22 @@ export function useSendQuote(conversationId: string) {
   });
 }
 
+export function useChangeQuoteDraft(conversationId: string) {
+  const companyId = useCompanyId();
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (action: { id: string; draft?: { amount_cents: number; description: string; expires_at: string } }) =>
+      apiFetch<Quote | { deleted: true }>(`/v1/quotes/${action.id}`, {
+        method: action.draft ? "PATCH" : "DELETE",
+        companyId,
+        body: action.draft,
+      }),
+    onSuccess: () => queryClient.invalidateQueries({
+      queryKey: keys.quotes.forConversation(companyId, conversationId),
+    }),
+  });
+}
+
 export function useWithdrawQuote(conversationId: string) {
   const companyId = useCompanyId();
   const queryClient = useQueryClient();

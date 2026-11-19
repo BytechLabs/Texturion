@@ -141,6 +141,13 @@ private data class CreateQuoteBody(
     val expires_at: String,
 )
 
+@Serializable
+private data class EditQuoteBody(
+    val amount_cents: Int,
+    val description: String,
+    val expires_at: String,
+)
+
 /**
  * What `POST /v1/quotes/{id}/send` returns.
  *
@@ -197,6 +204,22 @@ class QuotesRepository(private val api: ApiClient) {
 
     suspend fun send(companyId: String, quoteId: String): SentQuote =
         api.post("/v1/quotes/$quoteId/send", companyId = companyId)
+
+    suspend fun edit(
+        companyId: String,
+        quoteId: String,
+        amountCents: Int,
+        description: String,
+        expiresAt: String,
+    ): Quote = api.patch(
+        "/v1/quotes/$quoteId",
+        body = EditQuoteBody(amountCents, description, expiresAt),
+        companyId = companyId,
+    )
+
+    suspend fun deleteDraft(companyId: String, quoteId: String) {
+        api.delete("/v1/quotes/$quoteId", companyId = companyId)
+    }
 
     suspend fun withdraw(companyId: String, quoteId: String) {
         api.post<Map<String, Boolean>>("/v1/quotes/$quoteId/withdraw", companyId = companyId)

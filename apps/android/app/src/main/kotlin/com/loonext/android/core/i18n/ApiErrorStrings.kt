@@ -277,6 +277,8 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.privateLinkRetryUnavailable" to "Send a new private link to this customer.",
         "apiRefusals.quoteTextRetry" to "The quote text failed. Retry it in the conversation.",
         "apiRefusals.quoteNotFound" to "No such quote.",
+        "apiRefusals.quoteExpiryFuture" to "Choose a future expiry for this quote.",
+        "apiRefusals.quoteDraftLocked" to "This quote draft can no longer be changed.",
         "apiRefusals.quoteWithdrawalUnavailable" to "This quote can no longer be withdrawn.",
         "apiRefusals.numberNotAssigned" to
             "chosen_number_e164 is not an assigned US/CA geographic number.",
@@ -625,6 +627,8 @@ object ApiErrorStrings : AppStrings.Section {
         "apiRefusals.privateLinkRetryUnavailable" to "Envoyez un nouveau lien privé à ce client.",
         "apiRefusals.quoteTextRetry" to "Le texto du devis a échoué. Réessayez dans la conversation.",
         "apiRefusals.quoteNotFound" to "Devis introuvable.",
+        "apiRefusals.quoteExpiryFuture" to "Choisissez une date d’expiration future pour ce devis.",
+        "apiRefusals.quoteDraftLocked" to "Ce brouillon de devis ne peut plus être modifié.",
         "apiRefusals.quoteWithdrawalUnavailable" to "Ce devis ne peut plus être retiré.",
         "apiRefusals.numberNotAssigned" to
             "Choisissez un numéro géographique attribué au Canada ou aux États-Unis.",

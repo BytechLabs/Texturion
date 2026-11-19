@@ -39,7 +39,11 @@ export const quoteMachine = defineMachine<QuoteState>({
     accepted: ["thread_event_quote_accepted", "stamp_decided_at"],
   },
   actions: capabilityActions<QuoteState>({
-    draft: [{ action: "send", capability: "conversations.send" }],
+    draft: [
+      { action: "send", capability: "conversations.send" },
+      { action: "edit", capability: "conversations.send" },
+      { action: "delete", capability: "conversations.send" },
+    ],
     sent: [{ action: "withdraw", capability: "conversations.send" }],
     viewed: [{ action: "withdraw", capability: "conversations.send" }],
   }),
