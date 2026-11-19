@@ -64,6 +64,7 @@ import { sendTextToConversation } from "../messaging/send-text";
 import { prioritySchema, repeatSchema, withLabelsAndRepeat } from "../tasks/repeat";
 import { keysetFilter, parseCursor, parseJsonBody, pathUuid, unwrap } from "./core/http";
 import { normalizeNanpPhone } from "./core/phone";
+import { contactNumberConflict, contactNumberOwner, contactNumberTaken } from "./core/contact-number";
 import { setTaskRepeat, setTaskTags } from "./tasks";
 
 /**
@@ -275,42 +276,37 @@ publicApiRoutes.post(
      * A soft-deleted or brand-new number still takes the upsert, with a fresh
      * `created_by`: resurrecting a deleted contact IS a new addition.
      */
-    const existing = unwrap<{ id: string; deleted_at: string | null }[]>(
-      await db
-        .from("contacts")
-        .select("id,deleted_at")
-        .eq("company_id", companyId)
-        .eq("phone_e164", phone)
-        .limit(1),
-      "public contact lookup",
-    );
-    const live = existing[0]?.deleted_at === null ? existing[0] : null;
+    const existing = await contactNumberOwner(db, companyId, phone);
+    if (existing && existing.phone_e164 !== phone) return contactNumberTaken(c, existing.id);
+    const live = existing?.deleted_at === null ? existing : null;
 
-    const rows = live
-      ? unwrap<Record<string, unknown>[]>(
-          await db
-            .from("contacts")
-            .update({ ...fields, updated_by_user_id: c.get("userId") })
-            .eq("id", live.id)
-            .select(PUBLIC_CONTACT_COLUMNS),
-          "public contact update",
-        )
-      : unwrap<Record<string, unknown>[]>(
-          await db
-            .from("contacts")
-            .upsert(
-              {
-                company_id: companyId,
-                phone_e164: phone,
-                deleted_at: null,
-                created_by_user_id: c.get("userId"),
-                ...fields,
-              },
-              { onConflict: "company_id,phone_e164" },
-            )
-            .select(PUBLIC_CONTACT_COLUMNS),
-          "public contact upsert",
-        );
+    const write = live
+      ? await db
+          .from("contacts")
+          .update({ ...fields, updated_by_user_id: c.get("userId") })
+          .eq("id", live.id)
+          .is("merged_into", null)
+          .select(PUBLIC_CONTACT_COLUMNS)
+      : await db
+          .from("contacts")
+          .upsert(
+            {
+              company_id: companyId,
+              phone_e164: phone,
+              deleted_at: null,
+              created_by_user_id: c.get("userId"),
+              ...fields,
+            },
+            { onConflict: "company_id,phone_e164" },
+          )
+          .select(PUBLIC_CONTACT_COLUMNS);
+    const collision = contactNumberConflict(write.error);
+    if (collision) return contactNumberTaken(c, collision);
+    const rows = unwrap<Record<string, unknown>[]>(write, live ? "public contact update" : "public contact upsert");
+    if (live && rows.length === 0) {
+      const owner = await contactNumberOwner(db, companyId, phone);
+      return owner ? contactNumberTaken(c, owner.id) : errorResponse(c, "not_found", "No such contact.");
+    }
     return c.json(rows[0], 201);
   },
 );

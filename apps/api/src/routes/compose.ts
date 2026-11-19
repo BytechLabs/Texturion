@@ -63,6 +63,7 @@ import type { AttachmentSummary, MessageRow } from "../messaging/types";
 import { insertConversationEvents } from './core/events';
 import type { ConversationEventRow } from './core/events';
 import { normalizeNanpPhone } from "./core/phone";
+import { contactNumberOwner } from "./core/contact-number";
 import {
   assertBodyWithinLimit,
   isUniqueViolation,
@@ -120,7 +121,6 @@ const CONVERSATION_COLUMNS =
 
 interface ContactRow {
   id: string;
-  phone_e164: string;
   name: string | null;
   consent_source: string | null;
   /** #393: non-null means this contact has already been identified to. */
@@ -148,7 +148,7 @@ async function resolveComposeContact(
   args: {
     companyId: string;
     contactId?: string;
-    phoneE164?: string;
+    destination: string;
   },
 ): Promise<ContactRow> {
   // #274: address + timezone ride along on a query already running, so
@@ -156,15 +156,17 @@ async function resolveComposeContact(
   // literal, not a concatenation — PostgREST infers the row shape from the
   // literal type, and joining two pieces widens it to `string` and loses it.
   const columns =
-    "id,phone_e164,name,consent_source,first_identification_sent_at,address,timezone";
+    "id,name,consent_source,first_identification_sent_at,address,timezone";
 
-  if (args.contactId) {
+  const contactId = args.contactId ?? (await contactNumberOwner(db, args.companyId, args.destination))?.id;
+  if (contactId) {
     const rows = unwrap<ContactRow[]>(
       await db
         .from("contacts")
         .select(columns)
         .eq("company_id", args.companyId)
-        .eq("id", args.contactId)
+        .eq("id", contactId)
+        .is("merged_into", null)
         .limit(1),
       "contact lookup",
     );
@@ -176,47 +178,18 @@ async function resolveComposeContact(
         .update({ deleted_at: null })
         .eq("company_id", args.companyId)
         .eq("id", contact.id)
+        .is("merged_into", null)
         .select(columns),
       "contact resurrect",
     )[0];
     return updated ?? contact;
   }
 
-  const phone = normalizeNanpPhone(args.phoneE164 ?? "");
-  if (!phone) {
-    throw new ApiError(
-      "validation_failed",
-      "phone_e164 must be a valid US or Canada number.",
-    );
-  }
-
-  const existing = unwrap<ContactRow[]>(
-    await db
-      .from("contacts")
-      .select(columns)
-      .eq("company_id", args.companyId)
-      .eq("phone_e164", phone)
-      .limit(1),
-    "contact lookup",
-  )[0];
-  if (existing) {
-    const updated = unwrap<ContactRow[]>(
-      await db
-        .from("contacts")
-        .update({ deleted_at: null })
-        .eq("company_id", args.companyId)
-        .eq("id", existing.id)
-        .select(columns),
-      "contact resurrect",
-    )[0];
-    return updated ?? existing;
-  }
-
   const inserted = await db
     .from("contacts")
     .insert({
       company_id: args.companyId,
-      phone_e164: phone,
+      phone_e164: args.destination,
     })
     .select(columns);
   if (inserted.error) {
@@ -224,7 +197,7 @@ async function resolveComposeContact(
       // Concurrent create won: re-select that row.
       return resolveComposeContact(db, {
         companyId: args.companyId,
-        phoneE164: phone,
+        destination: args.destination,
       });
     }
     throw new Error(`contact insert failed: ${inserted.error.message}`);
@@ -323,7 +296,7 @@ async function reapEmptyConversation(
  */
 async function createOrReuseConversation(
   db: Db,
-  args: { companyId: string; contactId: string; phoneNumberId: string },
+  args: { companyId: string; contactId: string; phoneNumberId: string; destination: string },
 ): Promise<{ conversation: Record<string, unknown>; created: boolean }> {
   const inserted = await db
     .from("conversations")
@@ -331,6 +304,7 @@ async function createOrReuseConversation(
       company_id: args.companyId,
       contact_id: args.contactId,
       phone_number_id: args.phoneNumberId,
+      contact_phone_e164: args.destination,
       status: "open",
     })
     .select(CONVERSATION_COLUMNS);
@@ -352,6 +326,7 @@ async function createOrReuseConversation(
       .eq("company_id", args.companyId)
       .eq("contact_id", args.contactId)
       .eq("phone_number_id", args.phoneNumberId)
+      .eq("contact_phone_e164", args.destination)
       .is("closed_at", null)
       .limit(1),
     "open conversation lookup",
@@ -465,6 +440,7 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
         .select("phone_e164")
         .eq("company_id", companyId)
         .eq("id", body.contact_id)
+        .is("merged_into", null)
         .limit(1),
       "contact lookup",
     );
@@ -541,12 +517,13 @@ composeRoutes.post("/conversations", requireCapability("conversations.send"), as
   const contact = await resolveComposeContact(db, {
     companyId,
     contactId: body.contact_id,
-    phoneE164: body.phone_e164,
+    destination,
   });
   const { conversation, created } = await createOrReuseConversation(db, {
     companyId,
     contactId: contact.id,
     phoneNumberId: number.id,
+    destination,
   });
 
   // Step 0a merge-fields: applied server-side at SEND time, reusing the contact

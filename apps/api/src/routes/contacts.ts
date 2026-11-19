@@ -62,9 +62,11 @@ import { csvResponse, csvSafeText, csvUnguardText, CsvUnterminatedQuoteError, pa
 import type { CsvRow } from './core/csv';
 import { insertConversationEvents, latestConversationId } from './core/events';
 import type { ConversationEventRow } from './core/events';
+import { contactNumberConflict, contactNumberOwner, contactNumberOwners, contactNumberTaken } from "./core/contact-number";
 import {
   assertBodyWithinLimit,
   expectOk,
+  isUniqueViolation,
   keysetFilter,
   orIlikeValue,
   parseCursor,
@@ -908,23 +910,38 @@ type ImportedContact = Record<string, unknown> & {
 
 async function upsertImportedContacts(
   db: Db,
+  companyId: string,
   contacts: ImportedContact[],
   operation: string,
-): Promise<Map<string, string>> {
+) {
   const ids = new Map<string, string>();
-  const save = async (rows: ImportedContact[], createOnly: boolean) => {
-    const saved = unwrap<{ id: string; phone_e164: string }[]>(
-      await db.from("contacts")
-        .upsert(rows, { onConflict: "company_id,phone_e164", ignoreDuplicates: createOnly })
-        .select("id,phone_e164"),
-      operation,
-    );
+  const skipped = new Map<string, string>();
+  const excludeAlternateNumbers = async (rows: ImportedContact[]) => {
+    const phones = rows.map((row) => row.phone_e164);
+    for (const owner of await contactNumberOwners(db, companyId, phones)) {
+      if (owner.requested_number === owner.phone_e164) continue;
+      ids.set(owner.requested_number, owner.id);
+      skipped.set(owner.requested_number, `already on file under ${owner.name?.trim() || owner.phone_e164}`);
+    }
+    return rows.filter((row) => !skipped.has(row.phone_e164));
+  };
+  const save = async (rows: ImportedContact[], createOnly: boolean): Promise<void> => {
+    if (rows.length === 0) return;
+    const result = await db.from("contacts")
+      .upsert(rows, { onConflict: "company_id,phone_e164", ignoreDuplicates: createOnly })
+      .select("id,phone_e164");
+    if (contactNumberConflict(result.error)) {
+      const writable = await excludeAlternateNumbers(rows);
+      if (writable.length < rows.length) return save(writable, createOnly);
+    }
+    const saved = unwrap<{ id: string; phone_e164: string }[]>(result, operation);
     for (const row of saved) ids.set(row.phone_e164, row.id);
   };
 
   for (const group of groupByKeySet(contacts)) {
     for (let offset = 0; offset < group.length; offset += IMPORT_CHUNK) {
-      const batch = group.slice(offset, offset + IMPORT_CHUNK);
+      const batch = await excludeAlternateNumbers(group.slice(offset, offset + IMPORT_CHUNK));
+      if (batch.length === 0) continue;
       const createOnly = batch[0].created_by_user_id !== undefined;
       await save(batch, createOnly);
       if (!createOnly) continue;
@@ -942,7 +959,22 @@ async function upsertImportedContacts(
       if (conflicts.length > 0) await save(conflicts, false);
     }
   }
-  return ids;
+  return { ids, skipped };
+}
+
+function reportImportNumberSkips(
+  skipped: Map<string, string>,
+  entries: Map<string, { row: number }>,
+  errors: { row: number; reason: string }[],
+  refusals: { row: number; reason: string }[],
+) {
+  for (const [phone, reason] of skipped) {
+    const entry = entries.get(phone);
+    if (!entry) continue;
+    errors.push({ row: entry.row, reason });
+    const refusal = refusals.findIndex((item) => item.row === entry.row && item.reason === contactImportConsentRefusedReason(phone));
+    if (refusal >= 0) refusals.splice(refusal, 1);
+  }
 }
 
 /**
@@ -1714,42 +1746,37 @@ contactsRoutes.post("/contacts", requireCapability("conversations.note"), async 
   // instead of the upsert overwriting created_by with the current caller and
   // never stamping updated_by (#191 attribution). A soft-deleted or brand-new
   // number still takes the upsert (resurrect / insert) with a fresh created_by.
-  const existing = unwrap<{ id: string; deleted_at: string | null }[]>(
-    await db
-      .from("contacts")
-      .select("id,deleted_at")
-      .eq("company_id", companyId)
-      .eq("phone_e164", phone)
-      .limit(1),
-    "contact lookup",
-  );
-  const live = existing[0]?.deleted_at === null ? existing[0] : null;
+  const existing = await contactNumberOwner(db, companyId, phone);
+  if (existing && existing.phone_e164 !== phone) return contactNumberTaken(c, existing.id);
+  const live = existing?.deleted_at === null ? existing : null;
 
-  const rows = live
-    ? unwrap<Record<string, unknown>[]>(
-        await db
-          .from("contacts")
-          .update({ ...fields, updated_by_user_id: userId })
-          .eq("id", live.id)
-          .select(CONTACT_COLUMNS),
-        "contact update",
-      )
-    : unwrap<Record<string, unknown>[]>(
-        await db
-          .from("contacts")
-          .upsert(
-            {
-              company_id: companyId,
-              phone_e164: phone,
-              deleted_at: null,
-              created_by_user_id: userId,
-              ...fields,
-            },
-            { onConflict: "company_id,phone_e164" },
-          )
-          .select(CONTACT_COLUMNS),
-        "contact upsert",
-      );
+  const write = live
+    ? await db
+        .from("contacts")
+        .update({ ...fields, updated_by_user_id: userId })
+        .eq("id", live.id)
+        .is("merged_into", null)
+        .select(CONTACT_COLUMNS)
+    : await db
+        .from("contacts")
+        .upsert(
+          {
+            company_id: companyId,
+            phone_e164: phone,
+            deleted_at: null,
+            created_by_user_id: userId,
+            ...fields,
+          },
+          { onConflict: "company_id,phone_e164" },
+        )
+        .select(CONTACT_COLUMNS);
+  const collision = contactNumberConflict(write.error);
+  if (collision) return contactNumberTaken(c, collision);
+  const rows = unwrap<Record<string, unknown>[]>(write, live ? "contact update" : "contact upsert");
+  if (live && rows.length === 0) {
+    const owner = await contactNumberOwner(db, companyId, phone);
+    return owner ? contactNumberTaken(c, owner.id) : errorResponse(c, "not_found", "No such contact.");
+  }
   // #243: only on the branch that made a live contact where there was none.
   // The `live` branch above is an EDIT, and an integration told a contact was
   // created every time somebody fixes a typo in a name is one that creates a
@@ -2036,9 +2063,10 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
     tagsByContactIds(db, companyId, [id]),
     db
       .from("contacts")
-      .select("id,name,phone_e164,merged_at")
+      .select("id,name,phone_e164,merged_phone_e164,merged_at")
       .eq("company_id", companyId)
       .eq("merged_into", id)
+      .is("deleted_at", null)
       .order("merged_at", { ascending: false })
       .limit(1),
     resolveActorNames(db, [createdBy, updatedBy]),
@@ -2067,10 +2095,16 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
   const addresses = unwrap<Record<string, unknown>[]>(addressesRes, "contact addresses");
   const phones = unwrap<Record<string, unknown>[]>(phonesRes, "contact phones");
   const optOuts = unwrap<{ id: string; source: string }[]>(optOutsRes, "opt-out lookup");
-  const mergedFrom =
+  const mergedSource =
     unwrap<
-      { id: string; name: string | null; phone_e164: string; merged_at: string }[]
+      { id: string; name: string | null; phone_e164: string | null; merged_phone_e164: string | null; merged_at: string }[]
     >(mergedRows, "contact merged from")[0] ?? null;
+  const mergedFrom = mergedSource && {
+    id: mergedSource.id,
+    name: mergedSource.name,
+    phone_e164: mergedSource.merged_phone_e164 ?? mergedSource.phone_e164,
+    merged_at: mergedSource.merged_at,
+  };
   return c.json({
     ...contact,
     merged_into: id === requestedId ? null : id,
@@ -2642,6 +2676,7 @@ contactsRoutes.post(
       (phone) => !standing.has(phone) || !announced.has(phone),
     );
 
+    let writtenPhones = phones;
     try {
       // ===================================================================
       // RESTRICTIONS FIRST (#248).
@@ -2660,7 +2695,9 @@ contactsRoutes.post(
       // ===================================================================
       await writeImportOptOuts(db, companyId, userId, optedOutPhones);
 
-      const contactIdByPhone = await upsertImportedContacts(db, upsertRows, "import upsert");
+      const { ids, skipped } = await upsertImportedContacts(db, companyId, upsertRows, "import upsert");
+      reportImportNumberSkips(skipped, byPhone, errors, refusals);
+      writtenPhones = phones.filter((phone) => !skipped.has(phone));
 
       // The timeline entries come LAST because they are the only part that
       // needs the contact ids — a record of the block, after the block itself.
@@ -2669,7 +2706,7 @@ contactsRoutes.post(
         companyId,
         userId,
         newlyOptedOut,
-        contactIdByPhone,
+        ids,
       );
     } catch (cause) {
       // A half-finished import that leaves no trace is the part of #248's D4
@@ -2703,7 +2740,8 @@ contactsRoutes.post(
       throw cause;
     }
 
-    const imported = phones.filter((p) => !existingPhones.has(p)).length;
+    const imported = writtenPhones.filter((p) => !existingPhones.has(p)).length;
+    const updated = writtenPhones.length - imported;
     // #281 item 3: the other thing a workspace does between approval and its
     // first send. The COUNT is the property worth having — importing four
     // contacts and importing four hundred are different states of readiness,
@@ -2711,7 +2749,7 @@ contactsRoutes.post(
     // after a token one. A number cannot carry a name or an address.
     await capture(getEnv(c.env), "contacts_imported", companyId, {
       imported,
-      updated: phones.length - imported,
+      updated,
       source: "csv",
     });
     // #345: counts, never contacts. An import is how a workspace's customer
@@ -2723,7 +2761,7 @@ contactsRoutes.post(
       targetType: "contact",
       after: {
         imported,
-        updated: phones.length - imported,
+        updated,
         skipped: errors.length,
         // #248: the rows whose attestation was refused. On the audit row as
         // well as in the response, because this is the number a carrier audit
@@ -2742,7 +2780,7 @@ contactsRoutes.post(
     });
     return c.json({
       imported,
-      updated: phones.length - imported,
+      updated,
       skipped: errors.length,
       errors,
       // #248: what the file's attestation did NOT cover, and which rows. Named
@@ -2977,6 +3015,7 @@ contactsRoutes.post(
     const newlyOptedOut = optedOutPhones.filter(
       (phone) => !standing.has(phone) || !announced.has(phone),
     );
+    let writtenPhones = phones;
     try {
       // RESTRICTIONS FIRST, the same order and for the same reason as the CSV
       // route: there is no transaction around any of this, so whichever prefix
@@ -2984,13 +3023,15 @@ contactsRoutes.post(
       // partial failure landing on contacts created, the file's attestation
       // stamped on them, and not one of the blocks it declared.
       await writeImportOptOuts(db, companyId, userId, optedOutPhones);
-      const contactIdByPhone = await upsertImportedContacts(db, upsertRows, "vcard upsert");
+      const { ids, skipped } = await upsertImportedContacts(db, companyId, upsertRows, "vcard upsert");
+      reportImportNumberSkips(skipped, byPhone, errors, refusals);
+      writtenPhones = phones.filter((phone) => !skipped.has(phone));
       await announceImportOptOuts(
         db,
         companyId,
         userId,
         newlyOptedOut,
-        contactIdByPhone,
+        ids,
       );
     } catch (cause) {
       // Same reason as the CSV route: a partial import that left no audit row
@@ -3012,14 +3053,15 @@ contactsRoutes.post(
       throw cause;
     }
 
-    const imported = phones.filter((p) => !existingPhones.has(p)).length;
+    const imported = writtenPhones.filter((p) => !existingPhones.has(p)).length;
+    const updated = writtenPhones.length - imported;
     // #281 item 3: same funnel step as the CSV importer above. Both paths emit,
     // because a workspace that arrived by vCard is no less imported than one
     // that arrived by spreadsheet, and a step only one path reports is a step
     // that under-counts.
     await capture(getEnv(c.env), "contacts_imported", companyId, {
       imported,
-      updated: phones.length - imported,
+      updated,
       source: "vcard",
     });
     // #345: the vCard path is no less an import than the spreadsheet one, and
@@ -3031,7 +3073,7 @@ contactsRoutes.post(
       targetType: "contact",
       after: {
         imported,
-        updated: phones.length - imported,
+        updated,
         skipped: errors.length,
         consent_refused: refusals.length,
         // #248 round 3: what this workspace said the cards' unread properties
@@ -3043,7 +3085,7 @@ contactsRoutes.post(
     });
     return c.json({
       imported,
-      updated: phones.length - imported,
+      updated,
       skipped: errors.length,
       errors,
       // #248: the same three fields the CSV route answers with. A client that
@@ -3363,7 +3405,7 @@ contactsRoutes.post(
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
 
-    const result = unwrap<{ outcome: string; phone?: string }>(
+    const result = unwrap<{ outcome: string; phone?: string; existing_contact_id?: string }>(
       await db.rpc("api_unmerge_contact", {
         p_company_id: companyId,
         p_contact_id: id,
@@ -3376,6 +3418,9 @@ contactsRoutes.post(
     }
     if (result.outcome === "not_merged") {
       return errorResponse(c, "conflict", "That contact was not merged.");
+    }
+    if (result.outcome === "number_taken" && result.existing_contact_id) {
+      return contactNumberTaken(c, result.existing_contact_id);
     }
 
     await recordAuditFromRequest(db, c, {
@@ -3738,40 +3783,13 @@ contactsRoutes.post(
       );
     }
 
-    // Is it somebody else's? Checked against BOTH the primaries and the other
-    // numbers, because a number can only belong to one customer — and the two
-    // tables each hold half the answer.
-    const owner = unwrap<{ id: string; name: string | null }[]>(
-      await db
-        .from("contacts")
-        .select("id,name")
-        .eq("company_id", companyId)
-        .eq("phone_e164", phone)
-        .limit(1),
-      "number owner lookup",
-    );
-    if (owner.length > 0) {
+    const owner = await contactNumberOwner(db, companyId, phone);
+    if (owner) {
       throw new ApiError(
         "validation_failed",
-        `${owner[0].name?.trim() || "Another customer"} already has that number. ` +
-          "Merge the two records instead.",
-      );
-    }
-    const taken = unwrap<{ contact_id: string }[]>(
-      await db
-        .from("contact_phones")
-        .select("contact_id")
-        .eq("company_id", companyId)
-        .eq("phone_e164", phone)
-        .limit(1),
-      "number claim lookup",
-    );
-    if (taken.length > 0) {
-      throw new ApiError(
-        "validation_failed",
-        taken[0].contact_id === contactId
+        owner.id === contactId
           ? "That number is already on this customer."
-          : "Another customer already has that number.",
+          : `${owner.name?.trim() || "Another customer"} already has that number. Merge the two records instead.`,
       );
     }
 
@@ -3790,18 +3808,20 @@ contactsRoutes.post(
       );
     }
 
-    const rows = unwrap<Record<string, unknown>[]>(
-      await db
-        .from("contact_phones")
-        .insert({
-          company_id: companyId,
-          contact_id: contactId,
-          phone_e164: phone,
-          label: body.label ?? null,
-        })
-        .select("id,phone_e164,label,created_at"),
-      "create contact phone",
-    );
+    const write = await db
+      .from("contact_phones")
+      .insert({
+        company_id: companyId,
+        contact_id: contactId,
+        phone_e164: phone,
+        label: body.label ?? null,
+      })
+      .select("id,phone_e164,label,created_at");
+    if (write.error && isUniqueViolation(write.error)) {
+      const winner = await contactNumberOwner(db, companyId, phone);
+      if (winner) return contactNumberTaken(c, winner.id);
+    }
+    const rows = unwrap<Record<string, unknown>[]>(write, "create contact phone");
     await recordActivity(db, {
       companyId,
       recordType: "contact",
