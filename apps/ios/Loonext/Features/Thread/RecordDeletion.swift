@@ -13,7 +13,7 @@ enum TrashKind: String, Sendable {
 struct RestoredRecord: Decodable, Sendable {
     var scheduled_missed: Int?
 
-    func notice(locale: String, fallback: String) -> String {
+    func notice(locale: String?, fallback: String) -> String {
         let count = scheduled_missed ?? 0
         switch count {
         case 0: return AppStrings.translate(locale, fallback)
