@@ -6,6 +6,7 @@ import {
   supportSubjectFor,
 } from "@loonext/shared";
 import Link from "next/link";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import { CallButton } from "@/components/calls/call-button";
@@ -13,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { sayEnglish, sayWith, useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
 import { ApiError } from "@/lib/api/error";
+import { apiFetch } from "@/lib/api/client";
+import { keys } from "@/lib/api/keys";
 import { useBillingPortal } from "@/lib/api/billing";
 import { useCompany, useUpdateCompany } from "@/lib/api/companies";
 import { useActiveCompany } from "@/lib/company/provider";
@@ -28,13 +31,20 @@ import type { ComposerBanner } from "./composer-banner";
 export function ComposerBannerCard({
   banner,
   thread,
+  optOutHintAt,
 }: {
   banner: NonNullable<ComposerBanner>;
   /**
    * The thread this banner is standing in front of, so a banner can offer the
    * call. Omitted where no thread exists yet.
    */
-  thread?: { conversationId: string; contactName: string; canCall: boolean };
+  thread?: {
+    conversationId: string;
+    contactId?: string;
+    contactName: string;
+    canCall: boolean;
+  };
+  optOutHintAt?: string | null;
 }) {
   const t = useT();
   // #228: the shared support module takes the lookup. `say` is this reader's
@@ -219,6 +229,15 @@ export function ComposerBannerCard({
       // only the customer can, and only they can lift it, so a wrong guess
       // would silence a real lead for good.
       sentence = t("thread.bannerOptOutHint");
+      if (thread && optOutHintAt && role !== "read_only") {
+        action = (
+          <OptOutHintActions
+            contactId={thread.contactId}
+            conversationId={thread.conversationId}
+            hintAt={optOutHintAt}
+          />
+        );
+      }
       break;
     }
   }
@@ -237,6 +256,44 @@ export function ComposerBannerCard({
         {action}
         <ReportThis kind={banner.kind} company={company.data ?? null} t={t} />
       </div>
+    </div>
+  );
+}
+
+function OptOutHintActions({ contactId, conversationId, hintAt }: {
+  contactId?: string;
+  conversationId: string;
+  hintAt: string;
+}) {
+  const t = useT();
+  const { companyId } = useActiveCompany();
+  const client = useQueryClient();
+  const resolve = useMutation({
+    mutationFn: (verdict: "opted_out" | "not_an_opt_out") =>
+      apiFetch(`/v1/conversations/${conversationId}/opt-out-hint`, {
+        method: "POST",
+        companyId,
+        body: { verdict, hint_at: hintAt },
+      }),
+    onSettled: async () => {
+      const detail = client.invalidateQueries({
+        queryKey: keys.conversations.detail(companyId, conversationId),
+      });
+      const contact = contactId ? client.invalidateQueries({
+        queryKey: keys.contacts.detail(companyId, contactId),
+      }) : undefined;
+      await Promise.all([detail, contact]);
+    },
+    onError: () => toast.error(t("thread.optOutHintFailed")),
+  });
+  return (
+    <div className="flex flex-wrap gap-2">
+      <Button size="sm" disabled={resolve.isPending} onClick={() => resolve.mutate("opted_out")}>
+        {t("thread.optOutHintConfirm")}
+      </Button>
+      <Button size="sm" variant="outline" disabled={resolve.isPending} onClick={() => resolve.mutate("not_an_opt_out")}>
+        {t("thread.optOutHintDismiss")}
+      </Button>
     </div>
   );
 }

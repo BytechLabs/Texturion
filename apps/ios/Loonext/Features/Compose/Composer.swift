@@ -4,7 +4,7 @@ import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
-enum ComposerMode: Equatable, Sendable {
+enum ComposerMode: String, Equatable, Sendable {
     case text
     case note
 }
@@ -27,7 +27,11 @@ final class ComposerState {
     private let drafts: ComposerDrafts
 
     private(set) var text = ""
-    var mode: ComposerMode = .text
+    var mode: ComposerMode = .text {
+        didSet {
+            if oldValue != mode, !text.isBlank { queueDraftSave() }
+        }
+    }
     var photos: [StagedPhoto] = []
     var files: [StagedFile] = []
 
@@ -50,9 +54,10 @@ final class ComposerState {
         self.draftKey = draftKey
         self.drafts = drafts
         text = drafts.load(draftKey)
+        mode = text.isEmpty ? .text : drafts.loadMode(draftKey)
         // The picks ride with the words; restoring one without the other makes
         // the draft lie about who it will notify.
-        picked = drafts.loadMentions(draftKey)
+        picked = mode == .note ? drafts.loadMentions(draftKey) : []
     }
 
     func addMention(_ mention: PickedMention) {
@@ -86,8 +91,13 @@ final class ComposerState {
         saveTask = Task {
             try? await Task.sleep(for: .milliseconds(400))
             if Task.isCancelled { return }
-            drafts.save(draftKey, text: text)
-            drafts.saveMentions(draftKey, mentions: picked)
+            if text.isBlank {
+                drafts.clear(draftKey)
+            } else {
+                drafts.saveMode(draftKey, mode: mode)
+                drafts.save(draftKey, text: text)
+                drafts.saveMentions(draftKey, mentions: picked)
+            }
         }
     }
 
@@ -341,6 +351,9 @@ struct ThreadComposerView: View {
             if !readOnly {
                 composerBody
             }
+        }
+        .onChange(of: textBlocked, initial: true) { _, blocked in
+            if blocked { state.mode = .note }
         }
     }
 
@@ -1255,6 +1268,10 @@ struct ThreadComposerView: View {
     /// would be a message nobody can recover.
     private func scheduleFor(_ at: Date, quietHoursConfirmed: Bool = false) {
         guard let schedule = onScheduleSend else { return }
+        guard state.photos.isEmpty else {
+            onNotice(t("thread.scheduledNoPhotos"))
+            return
+        }
         let body = state.text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !body.isEmpty else { return }
         let iso = ISO8601DateFormatter().string(from: at)

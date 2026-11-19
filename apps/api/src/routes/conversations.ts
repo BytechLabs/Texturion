@@ -86,6 +86,7 @@ import {
   companyPlanRow,
 } from "../attachments/egress";
 import { requireCapability } from "../auth/company";
+import { recordAuditFromRequest } from "../audit/log";
 import { listConversationViewers } from "../auth/conversation-audience";
 import { resolveDestinationClock } from "../messaging/destination-clock";
 import {
@@ -2894,6 +2895,43 @@ async function withAnswerers(
       : row;
   });
 }
+
+conversationsRoutes.post(
+  "/conversations/:id/opt-out-hint",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const conversationId = pathUuid(c, "id");
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+    const db = getDb(getEnv(c.env));
+    const input = await parseJsonBody(c, z.object({
+      hint_at: z.iso.datetime({ offset: true }),
+      verdict: z.enum(["opted_out", "not_an_opt_out"]),
+    }));
+    await requireConversationAccess(db, {
+      companyId, userId, role: c.get("role"), conversationId, need: "note",
+    });
+    const outcome = unwrap<string>(await db.rpc("api_resolve_opt_out_hint", {
+      p_company_id: companyId,
+      p_conversation_id: conversationId,
+      p_user_id: userId,
+      p_hint_at: input.hint_at,
+      p_verdict: input.verdict,
+    }), "resolve opt-out hint");
+    if (outcome === "not_found") throw new ApiError("not_found", "No such conversation.");
+    if (outcome !== "resolved") {
+      throw new ApiError("conflict", "The opt-out request changed. Review the latest message.");
+    }
+    await recordAuditFromRequest(db, c, {
+      companyId,
+      action: input.verdict === "opted_out" ? "opt_out.recorded" : "opt_out.hint_dismissed",
+      targetType: "conversation",
+      targetId: conversationId,
+      after: input.verdict === "opted_out" ? { source: "manual" } : undefined,
+    });
+    return c.json({ ok: true });
+  },
+);
 
 conversationsRoutes.post(
   "/conversations/:id/tags",

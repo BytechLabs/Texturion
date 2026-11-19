@@ -37,6 +37,7 @@ export const NOTIFICATION_CATEGORIES = [
   "assignments",
   "tasks",
   "scheduled_texts",
+  "send_failures",
   "missed_calls",
   "voicemails",
 ] as const;
@@ -85,6 +86,7 @@ export const DEFAULT_DELIVERY: Record<NotificationCategory, DeliveryMode> = {
   // A text somebody queued is held or did not go. On by default: silence about
   // a message a person is waiting on is the failure the disclosure rule forbids.
   scheduled_texts: "immediate",
+  send_failures: "immediate",
   missed_calls: "immediate",
   voicemails: "immediate",
 };
@@ -160,6 +162,7 @@ const EN: DigestCopy = {
     assignments: ["assignment", "assignments"],
     tasks: ["task update", "task updates"],
     scheduled_texts: ["scheduled text update", "scheduled text updates"],
+    send_failures: ["failed text", "failed texts"],
     missed_calls: ["missed call", "missed calls"],
     voicemails: ["voicemail", "voicemails"],
     other: ["other update", "other updates"],
@@ -185,6 +188,7 @@ const FR_CA: DigestCopy = {
     assignments: ["attribution", "attributions"],
     tasks: ["mise à jour de tâche", "mises à jour de tâches"],
     scheduled_texts: ["mise à jour de texto planifié", "mises à jour de textos planifiés"],
+    send_failures: ["texto non livré", "textos non livrés"],
     missed_calls: ["appel manqué", "appels manqués"],
     voicemails: ["message vocal", "messages vocaux"],
     other: ["autre mise à jour", "autres mises à jour"],
@@ -259,6 +263,7 @@ export const CATEGORY_LABELS: Record<NotificationCategory, string> = {
   assignments: "domain.categoryAssignments",
   tasks: "domain.categoryTasks",
   scheduled_texts: "domain.categoryScheduledTexts",
+  send_failures: "domain.categorySendFailures",
   missed_calls: "domain.categoryMissedCalls",
   voicemails: "domain.categoryVoicemails",
 };

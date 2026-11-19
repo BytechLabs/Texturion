@@ -227,6 +227,8 @@ describe("POST /webhooks/telnyx — ledger + dispatch", () => {
       p_timezone: null,
       p_email_limit: PLAN_NOTIFY_LIMITS.starter.email,
       p_push_limit: PLAN_NOTIFY_LIMITS.starter.push,
+      p_notify_emergency: false,
+      p_notify_media_count: 0,
     });
 
     // processed_at stamped.

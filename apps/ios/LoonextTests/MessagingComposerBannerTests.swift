@@ -388,3 +388,36 @@ final class MessagingComposerBannerTests: XCTestCase {
     }
 
 }
+
+@MainActor
+final class ComposerDraftModeTests: XCTestCase {
+    func testNoteModeRoundTripsAndAnOldDraftDefaultsToText() {
+        let suite = "ComposerDraftModeTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let drafts = ComposerDrafts(defaults: defaults)
+
+        drafts.save("note", text: "Do not quote below 2400")
+        drafts.saveMode("note", mode: .note)
+        let note = ComposerState(draftKey: "note", drafts: drafts)
+        XCTAssertEqual(note.mode, .note)
+
+        drafts.save("old", text: "ordinary text")
+        let old = ComposerState(draftKey: "old", drafts: drafts)
+        XCTAssertEqual(old.mode, .text)
+    }
+
+    func testClearRemovesTheModeWithTheDraft() {
+        let suite = "ComposerDraftModeTests.clear.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suite)!
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let drafts = ComposerDrafts(defaults: defaults)
+
+        drafts.save("note", text: "private")
+        drafts.saveMode("note", mode: .note)
+        drafts.clear("note")
+
+        XCTAssertEqual(drafts.load("note"), "")
+        XCTAssertEqual(drafts.loadMode("note"), .text)
+    }
+}

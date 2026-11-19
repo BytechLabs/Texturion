@@ -431,6 +431,12 @@ export async function claimMessageRetry(
         "Only failed sends without a carrier message id can be retried.",
       );
     }
+    if (result.error === "opt_out_unresolved") {
+      throw new ApiError(
+        "conflict",
+        "Review the customer's opt-out request before retrying this text.",
+      );
+    }
     const code = result.error as GateErrorCode;
     if (GATE_ERROR_CODES.has(code)) {
       throw new ApiError(code, GATE_ERROR_MESSAGES[code]);
@@ -856,6 +862,7 @@ export async function dispatchOutbound(
       await persistMessagePatch(db, message, {
         status: "failed",
         error_code: "rate_limited",
+        error_reason: "rate_limited",
         error_detail:
           "Outbound rate limit reached (about 1 message per second per company).",
       });
@@ -883,7 +890,17 @@ export async function dispatchOutbound(
         error_reason: classifySendFailure(result.errorCode),
         error_detail: result.errorDetail.slice(0, 2000),
       };
-  const row = await persistMessagePatch(db, message, patch);
+  let row: MessageRow;
+  try {
+    row = await persistMessagePatch(db, message, patch);
+  } catch (error) {
+    if (!result.ok) throw error;
+    try {
+      row = await persistMessagePatch(db, message, patch);
+    } catch {
+      row = await persistMessagePatch(db, message, patch);
+    }
+  }
   reportSubmit(
     env,
     row,

@@ -11,7 +11,10 @@
  */
 import { describe, expect, it } from "vitest";
 
-import { CARRIER_REPLY_KEYWORDS } from "@loonext/shared";
+import {
+  CARRIER_REPLY_KEYWORDS,
+  OPT_OUT_HINT_CARRIER_KEYWORDS,
+} from "@loonext/shared";
 
 import {
   FRENCH_HELP_KEYWORDS,
@@ -198,5 +201,20 @@ describe("#453 — the settings warning and the opt-out path agree on carrier wo
       ...HELP_KEYWORDS,
     ].toSorted();
     expect([...CARRIER_REPLY_KEYWORDS].toSorted()).toEqual(canonical);
+  });
+});
+
+describe("#781 — the hint detector and keyword layer divide the work once", () => {
+  it("skips exactly the words the keyword layer claims", () => {
+    const claimed = [
+      ...STOP_KEYWORDS,
+      ...START_KEYWORDS,
+      ...HELP_KEYWORDS,
+      ...FRENCH_HELP_KEYWORDS,
+    ].map((word) => word.toLocaleLowerCase("und"));
+
+    expect([...OPT_OUT_HINT_CARRIER_KEYWORDS].toSorted()).toEqual(
+      claimed.toSorted(),
+    );
   });
 });

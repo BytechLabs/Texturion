@@ -58,6 +58,8 @@ import { getDb } from "../db";
 import type { Env } from "../env";
 import { ApiError } from "../http/errors";
 import { deliverPush } from "../notifications/deliver";
+import { notifyFailedText } from "../notifications/failed-text";
+import { nextSendableInstant, resolveDestinationClock } from "./destination-clock";
 import { SCHEDULED_DISCLOSURE_COPY } from "./scheduled-send-copy";
 import { dispatchOutbound, runPreSendGates } from "./send";
 import type { MessageRow } from "./types";
@@ -78,6 +80,7 @@ const SCAN_LIMIT = 100;
  * owns the window after this one.
  */
 const LEASE_SECONDS = 300;
+const LATE_SEND_MS = 10 * 60 * 1000;
 
 interface ScheduledRow {
   id: string;
@@ -85,6 +88,7 @@ interface ScheduledRow {
   conversation_id: string;
   body: string;
   send_at: string;
+  claimed_at: string;
   inbound_watermark: string | null;
   /** #237: the job this reminds about, or null for a text a person wrote. */
   task_id: string | null;
@@ -97,6 +101,7 @@ interface ScheduledRow {
 interface Destination {
   from: string;
   to: string;
+  contactTimezone: string | null;
   newestInbound: string | null;
 }
 
@@ -131,6 +136,10 @@ function unwrap<T>(
   return result.data as T;
 }
 
+function isScheduledReason(reason: string): reason is ScheduledHoldReason {
+  return Object.hasOwn(SCHEDULED_HOLD_REASONS, reason);
+}
+
 /**
  * Which gate failure this was, in terms the owner can be told about.
  *
@@ -158,6 +167,9 @@ function reasonFor(cause: unknown): ScheduledHoldReason {
     case "registration_pending": {
       return "registration_pending";
     }
+    case "rate_limited": {
+      return "rate_limited";
+    }
     case "validation_failed": {
       return "invalid_destination";
     }
@@ -177,7 +189,7 @@ async function resolveDestination(
     // #291: the thread's number, resolved at SEND time. A number
     // stamped when the text was scheduled would go stale if the crew
     // corrected it in between.
-    .select("contact_phone_e164,phone_numbers(number_e164,status)")
+    .select("contact_phone_e164,contacts(timezone),phone_numbers(number_e164,status)")
     .eq("id", row.conversation_id)
     .eq("company_id", row.company_id)
     .maybeSingle();
@@ -185,6 +197,7 @@ async function resolveDestination(
 
   const conversation = data as unknown as {
     contact_phone_e164: string | null;
+    contacts: { timezone: string | null } | null;
     phone_numbers: { number_e164: string; status: string } | null;
   } | null;
 
@@ -210,6 +223,7 @@ async function resolveDestination(
   return {
     from: number.number_e164,
     to,
+    contactTimezone: conversation?.contacts?.timezone ?? null,
     newestInbound: (newest)?.created_at ?? null,
   };
 }
@@ -279,14 +293,14 @@ function customerReplied(row: ScheduledRow, destination: Destination): boolean {
  * Completion is the `task_done_at` computed column: the source message's
  * `done_at` (D17), or the task's own when it came from a call (D64).
  *
- * Returns true when the row is not a reminder at all: a text a person wrote is
- * theirs to send, and no job's state has any bearing on it.
+ * Returns a due time only for a booked reminder.
  */
-async function jobStillBooked(
+async function reminderSchedule(
   db: SupabaseClient,
   row: ScheduledRow,
-): Promise<boolean> {
-  if (row.origin !== "reminder" || !row.task_id) return true;
+): Promise<{ stillBooked: boolean; dueAt: string | null }> {
+  const noDueTime = { stillBooked: true, dueAt: null };
+  if (row.origin !== "reminder" || !row.task_id) return noDueTime;
 
   const { data, error } = await db
     .from("tasks")
@@ -297,16 +311,17 @@ async function jobStillBooked(
   // A read that FAILED is not evidence the job is gone. Sending is the
   // recoverable direction here — the job was booked when this was queued, and
   // a transient PostgREST error must not silently cancel somebody's reminder.
-  if (error) return true;
-  if (!data) return false;
-
-  const task = data;
-  return (
-    task.deleted_at === null &&
-    !task.reminders_off &&
-    task.due_at !== null &&
-    (task.done_state ?? null) === null
-  );
+  if (error) return noDueTime;
+  if (
+    !data ||
+    data.deleted_at !== null ||
+    data.reminders_off ||
+    data.due_at === null ||
+    data.done_state != null
+  ) {
+    return { stillBooked: false, dueAt: null };
+  }
+  return { stillBooked: true, dueAt: data.due_at };
 }
 
 /**
@@ -496,6 +511,7 @@ async function hold(
   db: SupabaseClient,
   row: ScheduledRow,
   reason: ScheduledHoldReason,
+  notBefore?: Date,
 ): Promise<void> {
   const held = unwrap<{ outcome: "held" | "gone"; entered?: boolean }>(
     await db.rpc("api_hold_scheduled_message", {
@@ -504,6 +520,8 @@ async function hold(
       // renders; the key is what a client translates. See the shared module.
       p_reason: SCHEDULED_HOLD_REASONS[reason],
       p_reason_key: SCHEDULED_HOLD_REASON_KEYS[reason],
+      p_claimed_at: row.claimed_at,
+      ...(notBefore && { p_not_before: notBefore.toISOString() }),
     }),
     "hold scheduled message",
   );
@@ -525,6 +543,7 @@ async function fail(
       p_id: row.id,
       p_reason: SCHEDULED_HOLD_REASONS[reason],
       p_reason_key: SCHEDULED_HOLD_REASON_KEYS[reason],
+      p_claimed_at: row.claimed_at,
     }),
     "fail scheduled message",
   );
@@ -590,6 +609,9 @@ export async function runScheduledSendJob(
     }),
     "claim due scheduled messages",
   );
+  if (due.length === SCAN_LIMIT) {
+    console.warn(`scheduled send: reached the claim limit of ${SCAN_LIMIT}`);
+  }
 
   // Collected rather than thrown one at a time, so one workspace's broken
   // send does not stop every other workspace's from going out this minute
@@ -624,7 +646,8 @@ export async function runScheduledSendJob(
       // nothing to resume. `scheduledReasonRecovers` says the same, and the two
       // must agree or the row retries forever against a condition that will
       // never change.
-      if (!(await jobStillBooked(db, row))) {
+      const reminder = await reminderSchedule(db, row);
+      if (!reminder.stillBooked) {
         await fail(env, db, row, "job_no_longer_scheduled");
         summary.failed += 1;
         continue;
@@ -642,6 +665,26 @@ export async function runScheduledSendJob(
         await hold(env, db, row, "calendar_unverified");
         summary.held += 1;
         continue;
+      }
+
+      if (row.origin !== "human" || now.getTime() - Date.parse(row.send_at) > LATE_SEND_MS) {
+        const clock = await resolveDestinationClock(db, {
+          companyId: row.company_id,
+          phoneE164: destination.to,
+          atUtc: now,
+          contactTimezone: destination.contactTimezone,
+        });
+        const opensAt = clock.quiet ? nextSendableInstant(clock.timezone, clock.region, now) : null;
+        if (opensAt) {
+          if (reminder.dueAt && opensAt.getTime() > Date.parse(reminder.dueAt)) {
+            await fail(env, db, row, "expired");
+            summary.expired += 1;
+          } else {
+            await hold(env, db, row, "quiet_hours", opensAt);
+            summary.held += 1;
+          }
+          continue;
+        }
       }
 
       let clearance;
@@ -666,16 +709,13 @@ export async function runScheduledSendJob(
         await db.rpc("api_fire_scheduled_message", {
           p_id: row.id,
           p_segments_estimate: Math.max(1, estimateSegments(row.body).segments),
+          p_claimed_at: row.claimed_at,
         }),
         "fire scheduled message",
       );
-      // The SQL statement repeats the two task/calendar checks while it owns
-      // the scheduled row lock. A webhook, provider pull, or local task edit
-      // can land after the read-side checks above; treating an atomic hold as
-      // merely "not fired" would leave the owner unaware, while calling
-      // `hold()` again would race the state transition SQL already made.
+      // The RPC can hold or fail the text after a concurrent change.
       if (fired.outcome === "held") {
-        if (fired.reason_key !== "calendar_unverified") {
+        if (!isScheduledReason(fired.reason_key) || !scheduledReasonRecovers(fired.reason_key)) {
           throw new Error(
             `fire scheduled message returned unsupported hold reason ${fired.reason_key}`,
           );
@@ -685,14 +725,14 @@ export async function runScheduledSendJob(
             env,
             db,
             fired.scheduled_message ?? row,
-            "calendar_unverified",
+            fired.reason_key,
           );
         }
         summary.held += 1;
         continue;
       }
       if (fired.outcome === "failed") {
-        if (fired.reason_key !== "job_no_longer_scheduled") {
+        if (!isScheduledReason(fired.reason_key) || scheduledReasonRecovers(fired.reason_key)) {
           throw new Error(
             `fire scheduled message returned unsupported failure reason ${fired.reason_key}`,
           );
@@ -701,7 +741,7 @@ export async function runScheduledSendJob(
           env,
           db,
           fired.scheduled_message ?? row,
-          "job_no_longer_scheduled",
+          fired.reason_key,
         );
         summary.failed += 1;
         continue;
@@ -714,14 +754,19 @@ export async function runScheduledSendJob(
       // From here the message row exists as 'queued'. If this throws,
       // job:retry-interrupted-sends owns it — that is why the insert is
       // deliberately not rolled back on a dispatch failure.
-      await dispatchOutbound(env, db, fired.message, {
+      const message = await dispatchOutbound(env, db, fired.message, {
         from: destination.from,
         to: destination.to,
-        text: row.body,
+        text: fired.message.body,
         mediaUrls: [],
         clearance,
       });
-      summary.sent += 1;
+      if (message.status === "failed") {
+        await notifyFailedText(env, db, message);
+        summary.failed += 1;
+      } else {
+        summary.sent += 1;
+      }
     } catch (error) {
       failures.push(
         `${row.id}: ${error instanceof Error ? error.message : String(error)}`,

@@ -17,6 +17,10 @@ import { looksLikeOptOut } from "./opt-out-language";
 describe("what a person actually types to be left alone", () => {
   it.each([
     "please stop texting me",
+    "stop texting",
+    "stop messaging",
+    "stop sending",
+    "stop contacting",
     "Stop texting me.",
     "STOP TEXTING ME!!!",
     "stop messaging me please",
@@ -39,6 +43,8 @@ describe("what a person actually types to be left alone", () => {
     "I don't want any more texts",
     "Arrêtez de m’écrire, merci.",
     "arrête de me contacter",
+    "Arrêtez de m’envoyer des textos.",
+    "Ne m’envoyez plus de messages.",
     "Ne me textez plus!",
     "Retirez-moi de votre liste",
     "ENLEVEZ-MOI DE LA LISTE",
@@ -79,6 +85,7 @@ describe("what must NOT fire, because a banner nobody believes is worse than non
     "no more leaks since you left, thanks",
     "Ne m’appelez pas avant 9 h",
     "Ne me textez plus après 17 h",
+    "Ne m’envoyez plus de textos après 17 h",
     "C'est le bon numéro, appelez-moi demain",
     "Merci de vérifier le fauxmauvais numéro",
     "",

@@ -156,8 +156,8 @@ loonext/
      required by the Telnyx brand payload — see §4.4 field mapping)
    • Business vertical (dropdown of TCR vertical values; default 'PROFESSIONAL')
    • Opt-in flow description (pre-filled truthful default, editable):
-     "Customers text our business number first, or ask us in person / by phone
-      to text them. We never send marketing blasts."
+     "Customers text or call our business, ask us to text them in person or by
+      phone, or request a text on our website. We never send marketing blasts."
    • Sample messages (pre-filled from ICP templates)
    Canadian companies with us_texting_enabled=false skip the wizard entirely.
 
@@ -303,7 +303,8 @@ Status transitions are driven by **Telnyx webhooks** to `/webhooks/telnyx` — `
 | — | `brandId` (from R1), `usecase='LOW_VOLUME'` (`'SOLE_PROPRIETOR'` on sole-prop path), `autoRenewal=true` |
 | Opt-in flow description | `messageFlow` |
 | Sample messages | `sample1`, `sample2` |
-| — (fixed, matches §5) | `description` (ICP boilerplate: conversational customer service for a home-service business), `optinKeywords='START'`, `optoutKeywords='STOP'`, `helpKeywords='HELP'`, `helpMessage` = "{Business name}: reply STOP to opt out. Contact us at {brand contact phone}.", `embeddedLink=false`, `numberPool=false`, `ageGated=false` |
+| Generated samples | `sample3` covers review requests, `sample4` covers appointment reminders, and `sample5` covers missed-call follow-ups |
+| — (fixed, matches §5) | `description` declares conversational service texts, appointment reminders, missed-call, away, help and emergency replies, number changes, ratings and reviews, quote and payment links, and website verification codes. `optinKeywords='START'`, `optoutKeywords='STOP'`, `helpKeywords='HELP'`, `helpMessage` = "{Business name}: reply STOP to opt out. Contact us at {brand contact phone}.", `embeddedLink=true`, `numberPool=false`, `ageGated=false` |
 
 **Customer-facing states & copy (dashboard banner, exact strings):**
 
@@ -1091,8 +1092,11 @@ POST /v1/messages/send
 
 - **Channels (both MVP):** email via Resend, and **Web Push** (VAPID key pair as Worker secrets; service worker in `apps/web`; payload: contact display name + 80-char snippet + deep link).
 - **Trigger (debounced — never one email per message):** a conversation is **new or reopened by inbound**, or a **first inbound after ≥15 minutes of thread inactivity** (`conversations.last_notified_at` gate: notify only if `last_notified_at IS NULL OR last_notified_at < now() - interval '15 minutes'`, then stamp it).
+- A human reply after the last alert can re-arm push within that window. The assignee receives it, or the crew members who replied when the thread is unassigned. Followers can also receive it, and mutes still apply. The reply alert does not advance the email ladder.
+- Carrier messages store a pending alert with the channel decision when they are threaded. A replay or the minute job can recover it during the following 30 minutes, provided nobody has read or replied to the text. Each saved alert is attempted once.
 - **Audience:** the assignee; if unassigned, all active members; plus anyone who follows the conversation (#694). Filtered per `notification_prefs` (per-user email/push toggles). A member who muted the conversation (1 hour, 8 hours, 1 week, or until unmuted) is dropped from it for new messages, missed calls and voicemails; mute wins over follow, and an emergency reply still reaches everyone. Mute never applies to a ringing call, an @mention or an assignment.
 - Spam-thread appends (threading step 3) never notify.
+- A failed carrier receipt alerts the member who sent the text. A failed scheduled text alerts the member who scheduled it. Both respect thread mutes and number access. Automated texts do not alert a sender.
 - **Operational emails** — billing (dunning, SCA action-required, grace warnings), usage (80%/100% alerts, cap reached), and registration (approval, rejection, OTP nudge) — go to **the owner plus all active admins**, and **bypass `notification_prefs`**: prefs govern conversation notifications only.
 - **Responsive mobile-first UI is an explicit MVP requirement** (this ICP lives on phones); native apps are out of scope (D11).
 

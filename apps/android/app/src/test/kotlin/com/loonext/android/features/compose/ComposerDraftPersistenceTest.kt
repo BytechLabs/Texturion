@@ -13,6 +13,9 @@ import kotlinx.coroutines.withTimeout
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Test
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
+import org.robolectric.annotation.Config
 
 /**
  * #269 — a typed draft must survive leaving the screen.
@@ -25,11 +28,14 @@ import org.junit.Test
  * for the screen's scope, which is the only way to reproduce that race reliably.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
+@RunWith(RobolectricTestRunner::class)
+@Config(sdk = [34])
 class ComposerDraftPersistenceTest {
 
     private class RecordingDrafts : ComposerDrafts {
         val saved = mutableMapOf<String, String>()
         val savedMentions = mutableMapOf<String, List<PickedMention>>()
+        val savedModes = mutableMapOf<String, ComposerMode>()
         var cleared: String? = null
 
         override suspend fun load(conversationId: String) = saved[conversationId].orEmpty()
@@ -38,9 +44,17 @@ class ComposerDraftPersistenceTest {
             saved[conversationId] = text
         }
 
+        override suspend fun loadMode(conversationId: String) =
+            savedModes[conversationId] ?: ComposerMode.Text
+
+        override suspend fun saveMode(conversationId: String, mode: ComposerMode) {
+            savedModes[conversationId] = mode
+        }
+
         override suspend fun clear(conversationId: String) {
             cleared = conversationId
             saved.remove(conversationId)
+            savedModes.remove(conversationId)
         }
 
         override suspend fun loadMentions(conversationId: String) =
@@ -49,6 +63,24 @@ class ComposerDraftPersistenceTest {
         override suspend fun saveMentions(conversationId: String, mentions: List<PickedMention>) {
             savedMentions[conversationId] = mentions
         }
+    }
+
+    @Test
+    fun `a note draft reopens as a note and an old draft defaults to text`() = runTest {
+        val drafts = RecordingDrafts().apply {
+            saved["note"] = "Do not quote below 2400"
+            savedModes["note"] = ComposerMode.Note
+            saved["old"] = "ordinary text"
+        }
+
+        val note = ComposerState("note", drafts, CoroutineScope(coroutineContext + Job()))
+        note.loadDraftOnce()
+        assertEquals("Do not quote below 2400", note.text)
+        assertEquals(ComposerMode.Note, note.mode)
+
+        val old = ComposerState("old", drafts, CoroutineScope(coroutineContext + Job()))
+        old.loadDraftOnce()
+        assertEquals(ComposerMode.Text, old.mode)
     }
 
     @Test

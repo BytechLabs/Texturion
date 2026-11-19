@@ -187,13 +187,17 @@ describe("the push send paths report what they sent", () => {
       failures: [],
     });
 
-    expect(attempts().map(({ properties }) => [properties.purpose, properties.channel, properties.priority, properties.call_session_id])).toEqual([
+    const reported = attempts().map(({ properties }) => [
+      properties.purpose, properties.channel, properties.priority, properties.call_session_id,
+    ]);
+    expect(reported).toHaveLength(2);
+    expect(reported).toEqual(expect.arrayContaining([
       ["alert", "webpush", "normal", null],
       ["alert", "fcm", "normal", null],
-    ]);
+    ]));
   });
 
-  it("an alert whose device lookup fails after the web sends still reports them", async () => {
+  it("reports a web alert when the device lookup fails", async () => {
     const { env } = await world({
       // A 500, not a 503: the client retries a 503 on a read.
       devices: () => Response.json({ message: "pooler went away" }, { status: 500 }),

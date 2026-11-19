@@ -644,6 +644,48 @@ describe("handleInboundMessage — #189 widened inbound media", () => {
 });
 
 describe("handleInboundMessage — notify runs before media download", () => {
+  it("recovers one alert when a replay follows a preferences outage", async () => {
+    let state = "pending";
+    const thread = stubRoute(rpcMatch(env, "thread_inbound_message"), () => ({
+      message_id: MESSAGE_ID,
+      conversation_id: CONVERSATION_ID,
+      created: false,
+      opted_out: false,
+      crew_notify_state: state,
+      crew_notify_verdict: {
+        allow_email: true, allow_push: false, notify_reason: "new", emergency: false, media_count: 0,
+      },
+    }));
+    const claim = stubRoute(rpcMatch(env, "api_mark_inbound_notify_attempted"), () => {
+      state = "attempted";
+      return true;
+    });
+    const conversation = stubRoute(restMatch(env, "GET", "conversations", notAwaySelect), () => [{
+      id: CONVERSATION_ID,
+      assigned_user_id: null,
+      is_spam: false,
+      contacts: { name: "Dana Smith", phone_e164: "+16135551000" },
+    }]);
+    let prefsAvailable = false;
+    const prefs = stubRoute(restMatch(env, "GET", "notification_prefs"), () =>
+      prefsAvailable ? [] : Response.json({ message: "preferences unavailable" }, { status: 500 }),
+    );
+    const resend = resendStub();
+    serve(numberStub(), thread, claim, conversation, membersStub(), memberPrefsStub(), prefs, adminUserStub(), resend);
+
+    const event = inboundEvent({ text: "Can you repair my sink?" });
+    await expect(handleInboundMessage(env, event)).rejects.toThrow("preferences unavailable");
+    expect(claim.calls).toHaveLength(0);
+    expect(resend.calls).toHaveLength(0);
+
+    prefsAvailable = true;
+    await handleInboundMessage(env, event);
+    await handleInboundMessage(env, event);
+    expect(claim.calls).toHaveLength(1);
+    expect(claim.calls[0].body).toMatchObject({ p_require_unread: true });
+    expect(resend.calls).toHaveLength(1);
+  });
+
   it("still fires the §8 notification when the media download fails (sweeper-replay safety)", async () => {
     // A transient media-CDN failure makes downloadInboundMedia throw (so the
     // §11 sweeper replays it). The notification pipeline now runs FIRST, so the
@@ -1435,6 +1477,28 @@ describe("handleInboundMessage — a keyword with punctuation is still the keywo
 
     expect(optOutUpsert.calls).toHaveLength(0);
     expect(away.claim.calls).toHaveLength(1);
+  });
+
+  it("does not reply or page the crew when a blocked sender texts URGENT", async () => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(AFTER_HOURS);
+    const blocked = stubRoute(restMatch(env, "GET", "blocked_senders"), () => [
+      { phone_e164: "+16135551000" },
+    ]);
+    const emergencyAck = stubRoute(rpcMatch(env, "claim_emergency_ack"), () => ({}));
+    const push = stubRoute(restMatch(env, "GET", "push_subscriptions"), () => []);
+    const away = awayLiveStubs();
+    serve(
+      numberStub(), threadStub({ notify: true }),
+      blocked, emergencyAck, push, ...away.stubs,
+    );
+
+    await handleInboundMessage(env, inboundEvent({ text: "URGENT" }));
+
+    expect(blocked.calls).toHaveLength(1);
+    expect(away.claim.calls).toHaveLength(0);
+    expect(emergencyAck.calls).toHaveLength(0);
+    expect(push.calls).toHaveLength(0);
   });
 
   it("revokes an active opt-out on 'Yes!' and keeps it from the confirmation parser", async () => {

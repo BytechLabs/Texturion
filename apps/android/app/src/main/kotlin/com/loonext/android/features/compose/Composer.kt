@@ -201,7 +201,14 @@ class ComposerState(
 ) {
     var text by mutableStateOf("")
         private set
-    var mode by mutableStateOf(ComposerMode.Text)
+    private val storedMode = mutableStateOf(ComposerMode.Text)
+    var mode: ComposerMode
+        get() = storedMode.value
+        set(value) {
+            if (storedMode.value == value) return
+            storedMode.value = value
+            if (text.isNotBlank()) queueDraftSave()
+        }
     var photos by mutableStateOf(listOf<StagedPhoto>())
     var files by mutableStateOf(listOf<StagedFile>())
 
@@ -259,11 +266,16 @@ class ComposerState(
     suspend fun loadDraftOnce() {
         if (draftLoaded) return
         draftLoaded = true
-        val saved = drafts.load(draftKey)
-        if (text.isEmpty() && saved.isNotEmpty()) text = saved
+        val (saved, savedMode) = drafts.loadWithMode(draftKey)
+        if (text.isEmpty() && saved.isNotEmpty()) {
+            text = saved
+            storedMode.value = savedMode
+        }
         // The picks ride with the words; restoring one without the other makes
         // the draft lie about who it will notify.
-        if (picked.isEmpty()) picked = drafts.loadMentions(draftKey)
+        if (storedMode.value == ComposerMode.Note && picked.isEmpty()) {
+            picked = drafts.loadMentions(draftKey)
+        }
     }
 
     fun addMention(mention: PickedMention) {
@@ -275,12 +287,17 @@ class ComposerState(
         // Capture what is on screen NOW: the write runs after the screen may
         // be gone, and it must record the words the user actually typed.
         val body = text
+        val draftMode = mode
         val mentions = picked
         saveJob?.cancel()
         saveJob = scope.launch {
             delay(DRAFT_DEBOUNCE_MS)
-            drafts.save(draftKey, body)
-            drafts.saveMentions(draftKey, mentions)
+            if (body.isBlank()) {
+                drafts.clear(draftKey)
+            } else {
+                drafts.saveWithMode(draftKey, body, draftMode)
+                drafts.saveMentions(draftKey, mentions)
+            }
         }
     }
 
@@ -479,12 +496,16 @@ fun ThreadComposer(
     val micStartFailedCopy = t("thread.micStartFailed")
     val attachLimitTextCopy = t("thread.attachLimitText", "max" to "$MAX_PHOTOS")
     val attachLimitNoteCopy = t("thread.attachLimitNote")
+    val scheduledNoPhotosCopy = t("thread.scheduledNoPhotos")
     val teammateName = t("thread.teammate")
     /** #294: the staged photo open in the markup editor, if any. */
     var markingUp by remember { mutableStateOf<StagedFile?>(null) }
     var markingUpBytes by remember { mutableStateOf<ByteArray?>(null) }
     val textBlocked = noteOnly || banner != null
     val isNote = textBlocked || state.mode == ComposerMode.Note
+    LaunchedEffect(textBlocked, state.mode) {
+        if (textBlocked) state.mode = ComposerMode.Note
+    }
 
     var templatePickerOpen by remember { mutableStateOf(false) }
     var mentionPickerOpen by remember { mutableStateOf(false) }
@@ -746,6 +767,10 @@ fun ThreadComposer(
      */
     fun scheduleFor(at: Instant, quietHoursConfirmed: Boolean = false) {
         val schedule = onScheduleSend ?: return
+        if (state.photos.isNotEmpty()) {
+            onNotice(scheduledNoPhotosCopy)
+            return
+        }
         val body = state.text.trim()
         if (body.isEmpty()) return
         scope.launch {

@@ -23,6 +23,15 @@ private val Context.composerDraftStore by preferencesDataStore(name = "composer-
 interface ComposerDrafts {
     suspend fun load(conversationId: String): String
     suspend fun save(conversationId: String, text: String)
+    suspend fun loadMode(conversationId: String): ComposerMode = ComposerMode.Text
+    suspend fun saveMode(conversationId: String, mode: ComposerMode) = Unit
+    suspend fun loadWithMode(conversationId: String): Pair<String, ComposerMode> =
+        load(conversationId) to loadMode(conversationId)
+
+    suspend fun saveWithMode(conversationId: String, text: String, mode: ComposerMode) {
+        save(conversationId, text)
+        saveMode(conversationId, mode)
+    }
     suspend fun clear(conversationId: String)
     suspend fun loadMentions(conversationId: String): List<PickedMention>
     suspend fun saveMentions(conversationId: String, mentions: List<PickedMention>)
@@ -30,6 +39,7 @@ interface ComposerDrafts {
     /** The new-conversation screen's draft rides a fixed slot. */
     companion object {
         const val NEW_CONVERSATION = "new"
+        const val MODE_KEY_PREFIX = "loonext:composer-draft-mode:"
     }
 }
 
@@ -40,6 +50,8 @@ fun ComposerDrafts(context: Context): ComposerDrafts = DataStoreComposerDrafts(c
 private class DataStoreComposerDrafts(private val context: Context) : ComposerDrafts {
 
     private fun key(conversationId: String) = stringPreferencesKey("draft:$conversationId")
+    private fun modeKey(conversationId: String) =
+        stringPreferencesKey(ComposerDrafts.MODE_KEY_PREFIX + conversationId)
 
     override suspend fun load(conversationId: String): String =
         context.composerDraftStore.data.first()[key(conversationId)].orEmpty()
@@ -51,9 +63,23 @@ private class DataStoreComposerDrafts(private val context: Context) : ComposerDr
         }
     }
 
+    override suspend fun loadWithMode(conversationId: String): Pair<String, ComposerMode> {
+        val prefs = context.composerDraftStore.data.first()
+        val mode = if (prefs[modeKey(conversationId)] == "note") ComposerMode.Note else ComposerMode.Text
+        return prefs[key(conversationId)].orEmpty() to mode
+    }
+
+    override suspend fun saveWithMode(conversationId: String, text: String, mode: ComposerMode) {
+        context.composerDraftStore.edit { prefs ->
+            prefs[key(conversationId)] = text
+            prefs[modeKey(conversationId)] = if (mode == ComposerMode.Note) "note" else "sms"
+        }
+    }
+
     override suspend fun clear(conversationId: String) {
         context.composerDraftStore.edit {
             it.remove(key(conversationId))
+            it.remove(modeKey(conversationId))
             it.remove(mentionKey(conversationId))
         }
     }

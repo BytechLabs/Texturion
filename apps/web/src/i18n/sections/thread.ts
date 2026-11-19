@@ -301,6 +301,10 @@ export const threadEn = {
   sendFailedConnection: "That didn't send. Check your connection and try again.",
   scheduledFor: "Scheduled for {when}. You can cancel it any time before it goes.",
   scheduleFailed: "That could not be scheduled. Try again.",
+  scheduledNoPhotos: "A scheduled text can't carry photos yet.",
+  optOutHintConfirm: "Mark opted out",
+  optOutHintDismiss: "Dismiss request",
+  optOutHintFailed: "Could not resolve the opt-out request. Try again.",
   sendFailed: "That didn't send.",
 
   // --- Lou's reply drafts (reply-suggestion-chips.tsx) ----------------------
@@ -1097,6 +1101,10 @@ export const threadFr: Translated<typeof threadEn> = {
   scheduledFor:
     "Programmé pour {when}. Vous pouvez l'annuler à tout moment avant l'envoi.",
   scheduleFailed: "Impossible de programmer cet envoi. Réessayez.",
+  scheduledNoPhotos: "Un texto programmé ne peut pas encore contenir de photos.",
+  optOutHintConfirm: "Marquer comme désabonné",
+  optOutHintDismiss: "Écarter la demande",
+  optOutHintFailed: "Impossible de traiter la demande de désabonnement. Réessayez.",
   sendFailed: "L'envoi a échoué.",
 
   // --- Lou's reply drafts ---------------------------------------------------

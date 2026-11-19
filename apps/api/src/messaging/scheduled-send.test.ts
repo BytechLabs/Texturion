@@ -319,6 +319,27 @@ describe("#233 the customer answered in the meantime", () => {
   });
 });
 
+it("holds a late text until quiet hours end at the destination", async () => {
+  const { sb, holds, fires } = harness({
+    due: [scheduledRow({
+      origin: "human",
+      send_at: "2026-08-03T06:00:00Z",
+      claimed_at: "2026-08-03T07:00:00Z",
+    })],
+  });
+  stubFetch(sb.route);
+
+  const summary = await runScheduledSendJob(env, new Date("2026-08-03T07:00:00Z"));
+
+  expect(summary.held).toBe(1);
+  expect(fires).toHaveLength(0);
+  expect(holds).toEqual([expect.objectContaining({
+    p_reason_key: SCHEDULED_HOLD_REASON_KEYS.quiet_hours,
+    p_not_before: "2026-08-03T12:00:00.000Z",
+    p_claimed_at: "2026-08-03T07:00:00Z",
+  })]);
+});
+
 describe("the workspace decides whether a reply holds an automatic text", () => {
   const replied = "2026-08-03T11:00:00Z";
 

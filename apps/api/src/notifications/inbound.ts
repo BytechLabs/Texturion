@@ -75,6 +75,8 @@ export interface InboundNotificationInput {
    * notifications off, which is worse than late because it is permanent.
    */
   lead?: boolean;
+  beforeSend?: () => Promise<boolean>;
+  replyUsers?: string[];
   /**
    * #414: the customer replied with the emergency word the away message asked
    * for. Changes three things — the whole crew is told rather than only the
@@ -184,7 +186,7 @@ export async function notifyInboundMessage(
     conversation.assigned_user_id !== null &&
     members.includes(conversation.assigned_user_id)
       ? [conversation.assigned_user_id]
-      : members;
+      : input.replyUsers?.filter((id) => members.includes(id)) ?? members;
   // #694: followers join an assigned thread's audience, and a mute removes a
   // member from it. An emergency ignores mute for the same reason it ignores
   // the assignee: the cost of one person having silenced the thread is a
@@ -198,7 +200,10 @@ export async function notifyInboundMessage(
   const audience = input.emergency
     ? withFollowing
     : withoutMuted(withFollowing, threadPrefs);
-  if (audience.length === 0) return;
+  if (audience.length === 0) {
+    await input.beforeSend?.();
+    return;
+  }
 
   // Per-user prefs; a missing row carries the §6 defaults (true/true).
   const prefRows = unwrapRows<PrefsRow>(
@@ -226,6 +231,10 @@ export async function notifyInboundMessage(
   const pushUsers = (input.allowPush ?? true)
     ? audience.filter((userId) => prefs.get(userId)?.push_enabled ?? NOTIFICATION_SETTING_DEFAULTS.push_enabled.value)
     : [];
+
+  const beforeSend = input.beforeSend;
+  let attempt: Promise<boolean> | undefined;
+  const startDelivery = beforeSend ? () => (attempt ??= beforeSend()) : undefined;
 
   // The one form every alert names a customer in — shared rather than restated,
   // because the fallback to the bare number is what keeps a brand-new lead's
@@ -259,7 +268,8 @@ export async function notifyInboundMessage(
 
   // EMAIL — addresses live in auth.users (GoTrue admin API, same credential
   // path as everywhere else); one email to all enabled recipients.
-  if (emailUsers.length > 0) {
+  const notifyEmail = async () => {
+    if (emailUsers.length === 0) return;
     try {
       // Resolve every recipient's email in ONE parallel fan-out — a serial loop
       // added a GoTrue round-trip per member to the inbound webhook's latency.
@@ -286,6 +296,7 @@ export async function notifyInboundMessage(
         if (result.data.user?.email) to.push(result.data.user.email);
       }
       if (to.length > 0) {
+        if (startDelivery && !(await startDelivery())) return;
         // Recurring notification email: carry an opt-out path (settings
         // footer + List-Unsubscribe header) so recipients can stop the
         // stream without marking it spam. Billing/operational alerts do NOT
@@ -312,13 +323,14 @@ export async function notifyInboundMessage(
     } catch (error) {
       failures.push(error);
     }
-  }
+  };
 
   // WEB PUSH + NATIVE DEVICE PUSH: the §8 payload (contact display name,
   // 80-char snippet, deep link) to every push-enabled recipient. #162 iOS
   // coalescing: repeat texts in one thread REPLACE the pending alert rather
   // than stacking, on the `conversation:<id>` tag the clients coalesce on.
   const push: Omit<PushDelivery, "category" | "userIds"> = {
+    beforeSend: startDelivery,
     companyId: input.companyId,
     conversationId: input.conversationId,
     // #430: the customer's words. When the workspace has content off, the
@@ -391,7 +403,7 @@ export async function notifyInboundMessage(
     failures,
   };
   const assignee = conversation.assigned_user_id;
-  await Promise.all([
+  const results = await Promise.allSettled([
     deliverPush(env, db, {
       ...push,
       category: "messages_mine",
@@ -402,7 +414,11 @@ export async function notifyInboundMessage(
       category: "messages_all",
       userIds: pushUsers.filter((userId) => userId !== assignee),
     }),
+    notifyEmail(),
   ]);
+  for (const result of results) {
+    if (result.status === "rejected") failures.push(result.reason);
+  }
 
   if (failures.length > 0) {
     throw new AggregateError(
@@ -410,4 +426,5 @@ export async function notifyInboundMessage(
       `notification pipeline: ${failures.length} delivery step(s) failed for conversation ${input.conversationId}`,
     );
   }
+  if (!attempt) await startDelivery?.();
 }

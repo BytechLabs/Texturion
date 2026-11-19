@@ -62,6 +62,10 @@ enum ScheduledSend {
         "workspace_paused": "domain.scheduledHoldWorkspacePaused",
         "registration_pending": "domain.scheduledHoldRegistrationPending",
         "service_unavailable": "domain.scheduledHoldServiceUnavailable",
+        "usage_cap_reached": "domain.scheduledHoldUsageCap",
+        "rate_limited": "domain.scheduledHoldRateLimit",
+        "quiet_hours": "domain.scheduledHoldQuietHours",
+        "opt_out_unresolved": "domain.scheduledHoldOptOutUnresolved",
         "calendar_unverified": "domain.scheduledHoldCalendarUnverified",
         "customer_replied": "domain.scheduledHoldCustomerReplied",
         "recipient_opted_out": "domain.scheduledHoldOptedOut",
@@ -104,7 +108,8 @@ enum ScheduledSend {
         // when the crew comes back. Marked terminal, pausing would quietly
         // destroy a workspace's scheduled work.
         case "subscription_inactive", "workspace_paused", "registration_pending",
-             "service_unavailable", "calendar_unverified", "customer_replied":
+             "service_unavailable", "calendar_unverified", "customer_replied",
+        "usage_cap_reached", "rate_limited", "quiet_hours", "opt_out_unresolved":
             return true
         default:
             return false

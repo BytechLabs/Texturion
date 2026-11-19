@@ -28,6 +28,8 @@ import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
 import { deadline } from "../http/deadline";
 import { notifyInboundMessage } from "../notifications/inbound";
+import { clearSavedInboundAlert, deliverSavedInboundAlert } from "../notifications/pending-inbound";
+import type { CrewNotifyVerdict } from "../notifications/pending-inbound";
 import { captureEvent } from "../observability/capture";
 import { phoneCountry } from "./delivery-by-country";
 import { classifyInbound } from "./spam-flag";
@@ -70,6 +72,8 @@ const INBOUND_MEDIA_DOWNLOAD_TIMEOUT_MS = 15_000;
  * percentage of the daily inbound-notification allowance, else null/absent.
  */
 type InboundThreadResult = ThreadResult & {
+  crew_notify_state?: "none" | "pending" | "attempted";
+  crew_notify_verdict?: CrewNotifyVerdict | null;
   notification_alert?: number | null;
   /**
    * #343: the per-channel verdicts and the crossings, both additive. An older
@@ -278,6 +282,26 @@ export async function handleInboundMessage(
     PLAN_NOTIFY_LIMITS[(company?.plan ?? "starter")] ??
     PLAN_NOTIFY_LIMITS.starter;
 
+  // #414: the reply we asked for. The default away message — on by default,
+  // kept by most owners — invites an emergency reply, and until now that reply
+  // threaded as an ordinary message.
+  //
+  // #460: matched against THIS workspace's words. A null column means the
+  // product list, so nothing changes for a workspace that never opened the
+  // setting — but a locksmith whose customers text LOCKEDOUT is now heard, and
+  // the settings screen warns against the same list this line acts on.
+  const emergency =
+    (company?.emergency_keyword_enabled ?? companySettingDefault("emergency_keyword_enabled")) &&
+    isEmergencyKeyword(
+      payload.text ?? "",
+      effectiveEmergencyKeywords(company?.emergency_keywords),
+    );
+
+  const media = (payload.media ?? []).filter(
+    (item): item is { url: string; content_type?: string; size?: number } =>
+      typeof item.url === "string" && item.url.length > 0,
+  );
+
   // The §6 threading transaction, atomically in the database.
   const reaction = payload.media?.length ? null : parseTapback(payload.text ?? "");
   const { data, error } = await db.rpc("thread_inbound_message", {
@@ -289,6 +313,8 @@ export async function handleInboundMessage(
     p_timezone: company?.timezone ?? null,
     p_email_limit: company?.notify_email_limit ?? planLimits.email,
     p_push_limit: company?.notify_push_limit ?? planLimits.push,
+    p_notify_emergency: emergency,
+    p_notify_media_count: media.length,
     ...(reaction ? { p_reaction: reaction } : {}),
   });
   if (error) throw new Error(`thread_inbound_message failed: ${error.message}`);
@@ -353,13 +379,19 @@ export async function handleInboundMessage(
   // timeline insert is gated on the first delivery so a replay can't double-log.
   // Genuine duplicate webhooks never reach here — they're deduped at the
   // webhook_events ledger — so `created` is false only on a failure replay.
-  const carrierOwnedIt = await handleOptOutKeywords(db, {
-    companyId: number.company_id,
-    conversationId: threaded.conversation_id,
-    fromE164,
-    body: payload.text ?? "",
-    recordEvent: threaded.created,
-  });
+  let keywordFailure: { error: unknown } | undefined;
+  let carrierOwnedIt = false;
+  try {
+    carrierOwnedIt = await handleOptOutKeywords(db, {
+      companyId: number.company_id,
+      conversationId: threaded.conversation_id,
+      fromE164,
+      body: payload.text ?? "",
+      recordEvent: threaded.created,
+    });
+  } catch (error) {
+    keywordFailure = { error };
+  }
 
   // #237: "Reply C to confirm" invites a short answer, and short answers are
   // what the carrier layer above already owns. "YES" is a START keyword: from
@@ -373,7 +405,7 @@ export async function handleInboundMessage(
   //
   // Best-effort: the inbound message is already durable, and a job that could
   // not be marked confirmed must never wedge a delivery in a retry loop.
-  if (!carrierOwnedIt && threaded.created) {
+  if (!keywordFailure && !carrierOwnedIt && threaded.created) {
     try {
       await confirmAppointmentFromReply(db, {
         companyId: number.company_id,
@@ -413,25 +445,11 @@ export async function handleInboundMessage(
     }
   }
 
-  // #414: the reply we asked for. The default away message — on by default,
-  // kept by most owners — invites an emergency reply, and until now that reply
-  // threaded as an ordinary message.
-  //
-  // #460: matched against THIS workspace's words. A null column means the
-  // product list, so nothing changes for a workspace that never opened the
-  // setting — but a locksmith whose customers text LOCKEDOUT is now heard, and
-  // the settings screen warns against the same list this line acts on.
-  const emergency =
-    (company?.emergency_keyword_enabled ?? companySettingDefault("emergency_keyword_enabled")) &&
-    isEmergencyKeyword(
-      payload.text ?? "",
-      effectiveEmergencyKeywords(company?.emergency_keywords),
-    );
-
   // #250: does this look like a robotext, or did somebody block this sender?
   // Runs before the notification decision below and after the message is
   // durable, so a classifier failure can only cost a badge.
-  const spam = threaded.created
+  const pendingAlert = threaded.crew_notify_state === "pending";
+  const spam = threaded.created || pendingAlert
     ? await classifyInbound(db, {
         companyId: number.company_id,
         conversationId: threaded.conversation_id,
@@ -453,7 +471,8 @@ export async function handleInboundMessage(
   //
   // Best-effort: the inbound message is already durable, and a failure to raise
   // a WARNING must never wedge it in a retry loop.
-  if (looksLikeOptOut(payload.text)) {
+  const optOutHint = looksLikeOptOut(payload.text);
+  if (optOutHint && threaded.created) {
     try {
       await db
         .from("conversations")
@@ -478,6 +497,58 @@ export async function handleInboundMessage(
     }
   }
 
+  // Notify the crew before attempting any carrier reply.
+  const allowEmail = threaded.notify_email ?? threaded.notify;
+  const allowPush = threaded.notify_push ?? threaded.notify;
+
+  // Emergencies bypass the budget and spam heuristics. A crew block still applies.
+  if (threaded.created && !emergency && spam.suspected) {
+    console.log(
+      `inbound spam suspected on conversation ${threaded.conversation_id}: ` +
+        `notification suppressed, thread left in the inbox`,
+    );
+  }
+  const spamSilences = spam.blocked || (!emergency && spam.suspected);
+
+  let notificationFailure: { error: unknown } | undefined;
+  try {
+    if (pendingAlert && threaded.crew_notify_verdict) {
+      if (spamSilences) {
+        await clearSavedInboundAlert(db, number.company_id, threaded.message_id);
+      } else {
+        await deliverSavedInboundAlert(env, db, {
+          messageId: threaded.message_id,
+          companyId: number.company_id,
+          conversationId: threaded.conversation_id,
+          body: payload.text ?? "",
+          verdict: threaded.crew_notify_verdict,
+          requireUnread: !threaded.created,
+        });
+      }
+    } else if (
+      threaded.crew_notify_state === undefined &&
+      threaded.created && !spamSilences && (emergency || allowEmail || allowPush)
+    ) {
+      await notifyInboundMessage(
+        env,
+        {
+          companyId: number.company_id,
+          conversationId: threaded.conversation_id,
+          body: payload.text ?? "",
+          mediaCount: media.length,
+          allowEmail: emergency || allowEmail,
+          allowPush: emergency || allowPush,
+          emergency,
+          lead: threaded.notify_reason === "new" || threaded.notify_reason === "reopened",
+        },
+        db,
+      );
+    }
+  } catch (error) {
+    notificationFailure = { error };
+  }
+
+  const canReply = threaded.created && !spam.blocked && !keywordFailure;
   // After-hours away auto-reply (FEATURE-GAPS Step 1) — only on the first
   // delivery. Best-effort: a failure here (e.g. a not-ready send gate) must
   // NOT wedge the already-durable inbound message in a retry loop, and the
@@ -485,7 +556,7 @@ export async function handleInboundMessage(
   // Reply-exempt (D4); opt-out + STOP/HELP honored inside the guard. An
   // emergency is suppressed inside the guard too (#414 ask 4) — it gets the
   // acknowledgment below instead, which promises no human.
-  if (threaded.created) {
+  if (canReply && !optOutHint) {
     try {
       await maybeSendAwayReply(env, db, {
         companyId: number.company_id,
@@ -515,7 +586,7 @@ export async function handleInboundMessage(
   // rather than fetching it means a paying workspace pays no round trip for a
   // feature that can never fire for it, and an absent status reads as "not a
   // departure" rather than as permission.
-  if (threaded.created && company?.subscription_status === "canceled") {
+  if (canReply && company?.subscription_status === "canceled") {
     await maybeSendOffRamp(env, db, {
       companyId: number.company_id,
       conversationId: threaded.conversation_id,
@@ -535,8 +606,7 @@ export async function handleInboundMessage(
   // Best-effort for the same reason as the away reply, and the same throttle
   // discipline makes a replay a no-op. Note it runs regardless of business
   // hours: an emergency at 2pm with the crew on a roof is still an emergency.
-  let emergencyClaimed = false;
-  if (threaded.created && emergency) {
+  if (canReply && emergency) {
     try {
       await sendEmergencyAcknowledgment(env, db, {
         companyId: number.company_id,
@@ -552,9 +622,6 @@ export async function handleInboundMessage(
         // trip when somebody has just said their heat is out. The safety line
         // inside is translated with it, which is the half that matters.
         companyLocale: company?.locale ?? null,
-        onEmergencyClaimed: () => {
-          emergencyClaimed = true;
-        },
       });
     } catch (error_) {
       console.error(
@@ -568,7 +635,7 @@ export async function handleInboundMessage(
   // the emergency acknowledgment because it is the same shape - a keyword the
   // product must answer itself - and gated on `threaded.created` for the same
   // reason: a webhook redelivery must not answer twice.
-  if (threaded.created && isFrenchHelpKeyword(payload.text ?? "")) {
+  if (canReply && isFrenchHelpKeyword(payload.text ?? "")) {
     try {
       await sendHelpReply(env, db, {
         companyId: number.company_id,
@@ -585,19 +652,10 @@ export async function handleInboundMessage(
     }
   }
 
-  // MMS media list (needed for `mediaCount` in the notification below). The
-  // actual download runs LAST — see the note at the end of the handler.
-  const media = (payload.media ?? []).filter(
-    (item): item is { url: string; content_type?: string; size?: number } =>
-      typeof item.url === "string" && item.url.length > 0,
-  );
-
   // #39 notification-budget owner alert: the threading RPC meters won §8
   // claims per (company, local day) in the inbound_notification_days ledger and
   // reports each 80%/100% threshold crossing EXACTLY ONCE (stamped under the
-  // counter row's lock), so this send can never duplicate — the same
-  // ledger-first shape as the usage-alerts emails. Sent BEFORE the member
-  // fan-out so a notify failure can never eat the one-shot alert.
+  // counter row's lock).
   //
   // #401: PER CHANNEL now, and that is a bug fix rather than a refinement.
   // #343 split the budget in two and this read only `notification_alert`, the
@@ -606,10 +664,6 @@ export async function handleInboundMessage(
   // buzzing for new texts with no one told, on exactly the kind of day that
   // makes the year.
   for (const crossing of budgetCrossings(threaded)) {
-    // Swallow a send failure (like the away-reply block above): the alert is
-    // ledger-stamped once and unrecoverable on replay, so a Resend outage here
-    // must NOT abort the handler before the create-gated customer notification
-    // below — otherwise the actual new-message alert is dropped forever.
     try {
       await sendNotificationBudgetAlert(env, db, number.company_id, crossing, {
         email: company?.notify_email_limit ?? planLimits.email,
@@ -623,67 +677,8 @@ export async function handleInboundMessage(
     }
   }
 
-  // Notification pipeline (§8). Runs BEFORE the MMS media download below: the
-  // download deliberately throws on a transient CDN failure to trigger a §11
-  // sweeper replay, and the replay hits the thread-dedup fast-path
-  // (created=false) — so if a media throw aborted the handler here, this
-  // create-gated notify would be skipped FOREVER and the customer's text would
-  // silently produce no alert. The RPC decided the debounced trigger and
-  // stamped last_notified_at atomically; `notify` is true at most once per
-  // claim, so duplicates and sweeper replays never re-send. Past the #39 daily
-  // budget the RPC reports notify=false (cap-and-drop).
-  //
-  // #343: `notify` is the EMAIL verdict now, so the trigger asks about either
-  // channel. A workspace past its email ceiling but under its push one still
-  // gets notified — push is free at both ends, and silencing it because a
-  // Resend bill ran out was never the intent.
-  const allowEmail = threaded.notify_email ??  threaded.notify;
-  const allowPush = threaded.notify_push ??  threaded.notify;
-
-  // #414: an emergency bypasses BOTH gates above, each for its own reason:
-  //
-  //   the 15-minute debounce — a customer who texted two minutes ago and then
-  //   types URGENT is the exact case the debounce would silence, and it is the
-  //   one case that must never be silent.
-  //
-  //   the #343 daily budget — a cost ceiling dropping a no-heat call in
-  //   January is not a trade-off anybody would choose. An emergency is not
-  //   metered.
-  // #250: an emergency keyword still bypasses everything, deliberately. A
-  // customer typing URGENT is the one case that must never be silent, and a
-  // classifier is not confident enough to overrule it — the whole posture here
-  // is that the machine badges and never decides.
-  if (threaded.created && !emergency && spam.suspected) {
-    console.log(
-      `inbound spam suspected on conversation ${threaded.conversation_id}: ` +
-        `notification suppressed, thread left in the inbox`,
-    );
-  }
-  const spamSilences = !emergency && (spam.suspected || spam.blocked);
-
-  if (threaded.created && !spamSilences && (emergency || allowEmail || allowPush)) {
-    await notifyInboundMessage(
-      env,
-      {
-        companyId: number.company_id,
-        conversationId: threaded.conversation_id,
-        messageId: threaded.message_id,
-        optedOut: threaded.opted_out,
-        body: payload.text ?? "",
-        mediaCount: media.length,
-        // An emergency reaches every channel it can, whatever the budget says.
-        allowEmail: emergency || allowEmail,
-        allowPush: emergency || allowPush,
-        emergency,
-        emergencyClaimed,
-        // #391: a first inbound on a new or reopened thread is a lead.
-        lead:
-          threaded.notify_reason === "new" ||
-          threaded.notify_reason === "reopened",
-      },
-      db,
-    );
-  }
+  if (keywordFailure) throw keywordFailure.error;
+  if (notificationFailure) throw notificationFailure.error;
 
   // MMS media download runs LAST — idempotent (existing attachment rows are
   // skipped) and it THROWS on a transient CDN failure so the §11 sweeper
@@ -794,6 +789,14 @@ async function handleOptOutKeywords(
     if (eventError) {
       throw new Error(`opted_out event insert failed: ${eventError.message}`);
     }
+    await recordAudit(db, {
+      companyId: args.companyId,
+      actorUserId: null,
+      action: "opt_out.recorded",
+      targetType: "conversation",
+      targetId: args.conversationId,
+      after: { source: "stop_keyword" },
+    });
     return true;
   }
 
@@ -820,13 +823,21 @@ async function handleOptOutKeywords(
       conversation_id: args.conversationId,
       actor_user_id: null,
       type: "opt_out_revoked",
-      payload: { source: "stop_keyword", keyword },
+      payload: { source: "start_keyword", keyword },
     });
     if (eventError) {
       throw new Error(
         `opt_out_revoked event insert failed: ${eventError.message}`,
       );
     }
+    await recordAudit(db, {
+      companyId: args.companyId,
+      actorUserId: null,
+      action: "opt_out.revoked",
+      targetType: "conversation",
+      targetId: args.conversationId,
+      after: { source: "start_keyword" },
+    });
     return true;
   }
 

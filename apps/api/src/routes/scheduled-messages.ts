@@ -39,13 +39,18 @@ import { Hono } from "hono";
 import { z } from "zod";
 
 import { requireCapability } from "../auth/company";
+import {
+  assertNumberLevel,
+  requireConversationAccess,
+  resolveNumberAccess,
+} from "../auth/number-access";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
 import { ApiError } from "../http/errors";
 import { loadAutomaticTextSettings } from "../messaging/automatic-text-settings";
 import { resolveDestinationClock } from "../messaging/destination-clock";
-import { parseJsonBody, unwrap, unwrapOptional } from "./core/http";
+import { parseJsonBody, pathUuid, unwrap, unwrapOptional } from "./core/http";
 
 export const scheduledMessageRoutes = new Hono<AppEnv>();
 
@@ -106,11 +111,12 @@ scheduledMessageRoutes.post(
       // go when it fires. The contact's timezone still comes from the contact:
       // a second number does not put somebody in a second country.
       contact_phone_e164: string | null;
+      phone_number_id: string | null;
       contacts: { timezone: string | null } | null;
     }>(
       await db
         .from("conversations")
-        .select("contact_phone_e164,contacts(timezone)")
+        .select("contact_phone_e164,phone_number_id,contacts(timezone)")
         .eq("id", conversation_id)
         .eq("company_id", companyId)
         .maybeSingle(),
@@ -120,6 +126,13 @@ scheduledMessageRoutes.post(
     if (!destination) {
       throw new ApiError("not_found", "That conversation is not here.");
     }
+    await assertNumberLevel(db, {
+      companyId,
+      userId,
+      role: c.get("role"),
+      phoneNumberId: conversation.phone_number_id,
+      need: "text",
+    });
 
     // Asked about the FIRE instant, not now. See the header.
     const clock = await resolveDestinationClock(db, {
@@ -217,18 +230,30 @@ scheduledMessageRoutes.get(
   requireCapability("conversations.read"),
   async (c) => {
     const companyId = c.get("companyId");
+    const userId = c.get("userId");
+    const role = c.get("role");
     const db = getDb(getEnv(c.env));
 
     const parsed = listSchema.safeParse(c.req.query());
     if (!parsed.success) {
       throw new ApiError("validation_failed", "Check the filters.");
     }
+    if (parsed.data.conversation_id) {
+      await requireConversationAccess(db, {
+        companyId,
+        userId,
+        role,
+        conversationId: parsed.data.conversation_id,
+        need: "read",
+      });
+    }
+    const access = await resolveNumberAccess(db, { companyId, userId, role });
 
     let query = db
       .from("scheduled_messages")
       .select(
         "id,conversation_id,body,send_at,clock_timezone,clock_source,status," +
-          "held_reason,held_at,expires_at,sent_message_id,created_by,created_at," +
+          "held_reason,held_reason_key,held_at,expires_at,sent_message_id,created_by,created_at," +
           // WHO this is going to. The thread strip does not need it — the
           // customer's name is already in the header above it — but the
           // workspace view is a list of texts to DIFFERENT people, and a list
@@ -236,7 +261,7 @@ scheduledMessageRoutes.get(
           // rather than the answer to it. Embedded rather than fetched per row
           // by each client: three clients each doing an N+1 over conversations
           // is the same query written three times, badly.
-          "conversations(contacts(name,phone_e164))",
+          "conversations!inner(phone_number_id,contacts(name,phone_e164))",
       )
       .eq("company_id", companyId)
       .order("send_at", { ascending: true })
@@ -244,6 +269,12 @@ scheduledMessageRoutes.get(
 
     if (parsed.data.conversation_id) {
       query = query.eq("conversation_id", parsed.data.conversation_id);
+    }
+    if (access.hiddenNumberIds?.length) {
+      query = query.or(
+        `phone_number_id.is.null,phone_number_id.not.in.(${access.hiddenNumberIds.join(",")})`,
+        { referencedTable: "conversations" },
+      );
     }
     if (parsed.data.status !== "all") {
       query = query.in("status", ["pending", "held"]);
@@ -255,16 +286,25 @@ scheduledMessageRoutes.get(
     );
     // #722: what this member may do to each text in its state, from the shared
     // machine, so every client shows Edit and Cancel exactly when they work.
-    const role = c.get("role");
     return c.json({
-      scheduled_messages: rows.map((row) => ({
-        ...row,
-        allowed_actions: stateMachines.allowedActions(
+      scheduled_messages: rows.map((row) => {
+        const conversation = row.conversations as
+          | { phone_number_id?: string | null }
+          | null;
+        const canText =
+          access.levelFor(conversation?.phone_number_id ?? null) === "text";
+        const allowed = stateMachines.allowedActions(
           stateMachines.scheduledMessageMachine,
           row.status as stateMachines.ScheduledMessageState,
           role,
-        ),
-      })),
+        );
+        return {
+          ...row,
+          allowed_actions: canText
+            ? allowed
+            : allowed.filter((action) => action !== "edit" && action !== "cancel"),
+        };
+      }),
     });
   },
 );
@@ -288,24 +328,38 @@ scheduledMessageRoutes.patch(
   async (c) => {
     const companyId = c.get("companyId");
     const db = getDb(getEnv(c.env));
-    const id = c.req.param("id");
+    const id = pathUuid(c, "id");
 
     const patchBody = await parseJsonBody(c, updateSchema);
 
     const existing = unwrapOptional<{
       status: string;
       conversation_id: string;
-      conversations: { contacts: { phone_e164: string; timezone: string | null } | null } | null;
+      conversations: {
+        phone_number_id: string | null;
+        contact_phone_e164: string | null;
+        contacts: { timezone: string | null } | null;
+      } | null;
     }>(
       await db
         .from("scheduled_messages")
-        .select("status,conversation_id,conversations(contacts(phone_e164,timezone))")
+        .select(
+          "status,conversation_id," +
+            "conversations(phone_number_id,contact_phone_e164,contacts(timezone))",
+        )
         .eq("id", id)
         .eq("company_id", companyId)
         .maybeSingle(),
       "scheduled message lookup",
     );
     if (!existing) throw new ApiError("not_found", "That message is not here.");
+    await assertNumberLevel(db, {
+      companyId,
+      userId: c.get("userId"),
+      role: c.get("role"),
+      phoneNumberId: existing.conversations?.phone_number_id ?? null,
+      need: "text",
+    });
     // #722: the shared machine decides whether this text may still be edited.
     if (
       !stateMachines
@@ -333,7 +387,7 @@ scheduledMessageRoutes.patch(
           "That time has already passed. Pick one in the future.",
         );
       }
-      const destination = existing.conversations?.contacts?.phone_e164;
+      const destination = existing.conversations?.contact_phone_e164;
       if (destination) {
         // Re-asked against the NEW instant: moving a send from 8am to 11pm has
         // to meet the same gate the original choice did, or the edit is the
@@ -366,12 +420,13 @@ scheduledMessageRoutes.patch(
       // still read as held for its old reason.
       patch.held_reason_key = null;
       patch.held_at = null;
+      patch.next_attempt_at = null;
     }
 
     const updated = unwrap<Record<string, unknown>[]>(
       await db
         .from("scheduled_messages")
-        .update(patch)
+        .update({ ...patch, claimed_at: null })
         .eq("id", id)
         .eq("company_id", companyId)
         .in("status", ["pending", "held"])
@@ -397,10 +452,31 @@ scheduledMessageRoutes.delete(
     const companyId = c.get("companyId");
     const userId = c.get("userId");
     const db = getDb(getEnv(c.env));
+    const id = pathUuid(c, "id");
+
+    const existing = unwrapOptional<{
+      conversations: { phone_number_id: string | null } | null;
+    }>(
+      await db
+        .from("scheduled_messages")
+        .select("conversations(phone_number_id)")
+        .eq("id", id)
+        .eq("company_id", companyId)
+        .maybeSingle(),
+      "scheduled message lookup",
+    );
+    if (!existing) throw new ApiError("not_found", "That message is not here.");
+    await assertNumberLevel(db, {
+      companyId,
+      userId,
+      role: c.get("role"),
+      phoneNumberId: existing.conversations?.phone_number_id ?? null,
+      need: "text",
+    });
 
     const result = unwrap<{ outcome: string }>(
       await db.rpc("api_cancel_scheduled_message", {
-        p_id: c.req.param("id"),
+        p_id: id,
         p_company_id: companyId,
         p_user_id: userId,
       }),

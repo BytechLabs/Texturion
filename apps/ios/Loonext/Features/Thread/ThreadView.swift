@@ -597,6 +597,7 @@ private struct ThreadBody: View {
                         onNotNow: { controller.answerCatchUp() }
                     )
                 }
+                optOutHintActions(detail: detail, viewerRole: viewerRole)
                 composerPane(detail: detail)
             }
         // #302: presence for as long as this thread is on screen.
@@ -1318,6 +1319,23 @@ private struct ThreadBody: View {
                 numberId: detail.phone_number_id,
                 entry: entry
             )
+        }
+    }
+
+    @ViewBuilder
+    private func optOutHintActions(detail: ConversationDetail, viewerRole: String?) -> some View {
+        if let hintAt = detail.opt_out_hint_at,
+           let viewerRole, viewerRole != MemberRole.readOnly
+        {
+            HStack {
+                Button(AppStrings.translate(appLocale, "thread.optOutHintConfirm")) {
+                    controller.resolveOptOutHint(hintAt, optedOut: true)
+                }
+                Button(AppStrings.translate(appLocale, "thread.optOutHintDismiss")) {
+                    controller.resolveOptOutHint(hintAt, optedOut: false)
+                }
+            }
+            .buttonStyle(.bordered)
         }
     }
 

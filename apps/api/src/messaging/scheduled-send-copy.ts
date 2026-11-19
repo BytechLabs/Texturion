@@ -39,7 +39,7 @@
  * scheduled list. Two renderings of one hold read as two different events, and
  * the one that says less is the one they will believe. A test asserts it.
  */
-import { SCHEDULED_HOLD_REASONS } from '@loonext/shared';
+import { OUTBOUND_HOLD_COPY, SCHEDULED_HOLD_REASONS } from '@loonext/shared';
 import type { Locale, ScheduledHoldReason } from '@loonext/shared';
 
 /**
@@ -98,6 +98,7 @@ const FR_CA: ScheduledDisclosureCopy = {
     service_unavailable:
       "Les textos sont en pause pendant que nous réglons un problème. " +
       "Ceci est toujours en file et rien n'a été perdu.",
+    ...OUTBOUND_HOLD_COPY["fr-CA"],
     calendar_unverified:
       "La synchronisation du calendrier est déconnectée ou n'a pas été " +
       "vérifiée récemment, alors ce rappel est en attente. Il partira après " +

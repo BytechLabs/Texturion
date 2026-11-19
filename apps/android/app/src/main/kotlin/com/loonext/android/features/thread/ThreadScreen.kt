@@ -1354,6 +1354,18 @@ private fun ThreadLoaded(
             )
         }
 
+        val hintAt = detail.opt_out_hint_at
+        if (hintAt != null && !viewerReadOnly) {
+            Row(Modifier.padding(horizontal = 8.dp)) {
+                TextButton(onClick = { controller.resolveOptOutHint(hintAt, true) }) {
+                    Text(t("thread.optOutHintConfirm"))
+                }
+                TextButton(onClick = { controller.resolveOptOutHint(hintAt, false) }) {
+                    Text(t("thread.optOutHintDismiss"))
+                }
+            }
+        }
+
         ThreadComposer(
             state = composer,
             references = references,

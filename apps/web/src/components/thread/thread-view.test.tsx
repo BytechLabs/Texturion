@@ -354,6 +354,19 @@ describe("mark read on open (G4)", () => {
     expect(mocks.markRead).toHaveBeenCalledWith(CONVERSATION_ID);
   });
 
+  it("keeps a new text unread until the thread tab becomes visible", () => {
+    const visibility = vi.spyOn(document, "visibilityState", "get").mockReturnValue("hidden");
+    cacheRow(listRow({ unread: true }));
+    newestIs(message({ direction: "inbound" }));
+    renderThread();
+
+    expect(mocks.markRead).not.toHaveBeenCalled();
+
+    visibility.mockReturnValue("visible");
+    document.dispatchEvent(new Event("visibilitychange"));
+    expect(mocks.markRead).toHaveBeenCalledWith(CONVERSATION_ID);
+  });
+
   it("posts for a teammate's newest message the tab has not read", () => {
     cacheRow(listRow({ unread: false }));
     newestIs(message({ direction: "note", status: null, sent_by_user_id: TEAMMATE_ID }));

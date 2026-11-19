@@ -1427,6 +1427,25 @@ final class ThreadController {
         return error.userMessage
     }
 
+    func resolveOptOutHint(_ hintAt: String, optedOut: Bool) {
+        Task {
+            do {
+                try await repo.resolveOptOutHint(
+                    companyId: companyId,
+                    conversationId: conversationId,
+                    hintAt: hintAt,
+                    optedOut: optedOut
+                )
+                try await refreshConversationDetail()
+                try? await refreshContact()
+                try? await refreshEvents()
+            } catch {
+                notify(t("thread.optOutHintFailed"))
+                try? await refreshConversationDetail()
+            }
+        }
+    }
+
     func setSpam(_ spam: Bool) {
         Task {
             do {

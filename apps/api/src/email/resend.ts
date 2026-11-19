@@ -2,6 +2,7 @@ import { SUPPORT_EMAIL, type Locale } from "@loonext/shared";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { fetchWithDeadline } from "../http/deadline";
 import { captureEvent, SYSTEM_DISTINCT_ID } from "../observability/capture";
 import { emailTextFooter } from "./html";
 
@@ -128,7 +129,7 @@ export async function sendEmail(
    * keeps deciding for itself.
    */
   const replyTo = input.replyTo ?? env.RESEND_REPLY_TO ?? SUPPORT_EMAIL;
-  const response = await fetch(resendEndpoint(env), {
+  const response = await fetchWithDeadline(resendEndpoint(env), {
     method: "POST",
     headers: {
       Authorization: `Bearer ${env.RESEND_API_KEY}`,
@@ -155,7 +156,7 @@ export async function sendEmail(
       reply_to: replyTo,
       ...(input.headers !== undefined ? { headers: input.headers } : {}),
     }),
-  });
+  }, 10_000);
 
   if (!response.ok) {
     // Resend error bodies are JSON `{ name, message }`; keep whatever we got

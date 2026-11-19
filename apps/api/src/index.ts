@@ -30,6 +30,7 @@ import { geocodeContactsJob } from "./geocode/geocode-contacts";
 import { geocodeTasksJob } from "./geocode/geocode-tasks";
 import { runLeadChaseJob } from "./notifications/lead-chase";
 import { runScheduledSendJob } from "./messaging/scheduled-send";
+import { runPendingInboundNotifications } from "./notifications/pending-inbound";
 import { runBatchFlush } from "./notifications/batch-flush";
 import { runDailySummary } from "./notifications/daily-summary";
 import { runEscalationSweep } from "./notifications/escalation-sweep";
@@ -621,6 +622,7 @@ export const CRON_JOBS: Record<CronSchedule, readonly CronEntry[]> = {
     // rule as its neighbours: this only pushes to the crew's own phones, and
     // a Telnyx stall in the carrier-bound job below must not delay it.
     job("job:batch-flush", runBatchFlush),
+    job("job:pending-inbound-notifications", runPendingInboundNotifications),
     job("job:scheduled-send", runScheduledSendJob),
   ],
   // Webhook sweeper: replay unprocessed webhook_events (both providers).

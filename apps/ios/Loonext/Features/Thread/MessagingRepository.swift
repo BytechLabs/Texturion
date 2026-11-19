@@ -362,6 +362,22 @@ struct MessagingRepository: Sendable {
         )
     }
 
+    func resolveOptOutHint(
+        companyId: String,
+        conversationId: String,
+        hintAt: String,
+        optedOut: Bool
+    ) async throws {
+        let _: JSONValue = try await api.post(
+            "/v1/conversations/\(conversationId)/opt-out-hint",
+            body: JSONValue.object([
+                "hint_at": .string(hintAt),
+                "verdict": .string(optedOut ? "opted_out" : "not_an_opt_out"),
+            ]),
+            companyId: companyId
+        )
+    }
+
     // MARK: - #694 mute and follow (Android twin MessagingData.kt)
 
     /// Mute this thread for ME. `duration` is "1h", "8h", "1w" or "forever".

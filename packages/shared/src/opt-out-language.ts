@@ -47,13 +47,14 @@
  * flattened — "STOP TEXTING ME!!!" and "stop texting me" are the same request.
  */
 const OPT_OUT_PHRASES: readonly RegExp[] = [
-  /(?<![\p{L}\p{N}])arretez? de (?:me |m')(?:texter|ecrire|appeler|contacter)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])arretez? de (?:me |m')(?:texter|ecrire|appeler|contacter|envoyer)(?![\p{L}\p{N}])/u,
   /(?<![\p{L}\p{N}])ne (?:me |m')(?:textez|ecrivez|appelez|contactez) plus(?![\p{L}\p{N}]| (?:avant|apres|pendant) )/u,
+  /(?<![\p{L}\p{N}])ne m'envoyez plus (?:de )?(?:textos|messages)(?![\p{L}\p{N}]| (?:avant|apres|pendant) )/u,
   /(?<![\p{L}\p{N}])(?:retirez|enlevez) moi de (?:votre|la) liste(?![\p{L}\p{N}])/u,
   /(?<![\p{L}\p{N}])(?:desabonnez moi|mauvais numero)(?![\p{L}\p{N}])/u,
   /(?<![\p{L}\p{N}])je ne veux plus recevoir(?![\p{L}\p{N}])/u,
   // Direct instructions to stop.
-  /(?<![\p{L}\p{N}])stop (texting|messaging|contacting|calling) (me|us)(?![\p{L}\p{N}])/u,
+  /(?<![\p{L}\p{N}])stop (?:texting|messaging|sending|contacting|calling (?:me|us))(?![\p{L}\p{N}])/u,
   /(?<![\p{L}\p{N}])don'?t (text|message|contact|call) (me|us)( again)?(?![\p{L}\p{N}])/u,
   /(?<![\p{L}\p{N}])do not (text|message|contact|call) (me|us)( again)?(?![\p{L}\p{N}])/u,
   /(?<![\p{L}\p{N}])no more (texts?|messages?|calls?)(?![\p{L}\p{N}])/u,
@@ -103,18 +104,18 @@ const NOT_OPT_OUT: readonly RegExp[] = [
  * Mirrors the §5/D3 lists (`CARRIER_REPLY_KEYWORDS` in shared/emergency.ts);
  * the API's `keywords.test.ts` already fails the build if those two drift.
  */
-const CARRIER_KEYWORDS = new Set([
+export const OPT_OUT_HINT_CARRIER_KEYWORDS = new Set([
   "stop", "stopall", "unsubscribe", "cancel", "end", "quit",
-  "start", "unstop", "yes", "help", "info",
+  "arret", "arrêt", "start", "unstop", "yes", "help", "info", "aide",
 ]);
 
 /** Lowercase, flatten punctuation and collapse whitespace. */
 function normalize(body: string): string {
   return body
+    .normalize("NFKD")
     .toLowerCase()
-    .normalize("NFD")
     .replaceAll(/\p{M}/gu, "")
-    .replaceAll("’", "'")
+    .replace(/[’‘]/g, "'")
     .replace(/[^\p{L}\p{N}'\s]/gu, " ")
     .replace(/\s+/g, " ")
     .trim();
@@ -129,8 +130,8 @@ function normalize(body: string): string {
 export function looksLikeOptOut(body: string | null | undefined): boolean {
   const text = normalize(body ?? "");
   if (text.length === 0) return false;
-  // Already caught by the carrier path — see CARRIER_KEYWORDS.
-  if (CARRIER_KEYWORDS.has(text)) return false;
+  // These keywords are handled by the carrier path.
+  if (OPT_OUT_HINT_CARRIER_KEYWORDS.has(text)) return false;
   if (NOT_OPT_OUT.some((pattern) => pattern.test(text))) return false;
   return OPT_OUT_PHRASES.some((pattern) => pattern.test(text));
 }

@@ -11,6 +11,8 @@ import {
   clearFailedSend,
   flushDraftOnExit,
   loadDraft,
+  loadDraftMode,
+  loadDraftStartedAt,
   loadFailedSend,
   NEW_CONVERSATION_DRAFT,
   saveDraft,
@@ -41,6 +43,14 @@ describe("composer drafts", () => {
     expect(loadDraft("c1")).toBe("on my way");
   });
 
+  it("round-trips the mode and treats an old draft without one as a text", () => {
+    saveDraft("old", "written before modes were stored");
+    expect(loadDraftMode("old")).toBe("sms");
+
+    saveDraft("c1", "private note", "note");
+    expect(loadDraftMode("c1")).toBe("note");
+  });
+
   it("keeps conversations apart", () => {
     // The whole point: the reply you were writing to one customer must never
     // appear in the box for the next one.
@@ -58,13 +68,22 @@ describe("composer drafts", () => {
   });
 
   it("clearDraft removes it", () => {
-    saveDraft(NEW_CONVERSATION_DRAFT, "hello");
+    saveDraft(NEW_CONVERSATION_DRAFT, "hello", "note");
     clearDraft(NEW_CONVERSATION_DRAFT);
     expect(loadDraft(NEW_CONVERSATION_DRAFT)).toBe("");
+    expect(loadDraftMode(NEW_CONVERSATION_DRAFT)).toBe("sms");
   });
 
   it("an unknown conversation reads as empty", () => {
     expect(loadDraft("never-typed")).toBe("");
+  });
+
+  it("keeps the draft start time until the body clears", () => {
+    const startedAt = "2026-11-17T15:00:00.000Z";
+    saveDraft("c1", "hello", "sms", startedAt);
+    expect(loadDraftStartedAt("c1")).toBe(startedAt);
+    clearDraft("c1");
+    expect(loadDraftStartedAt("c1")).toBeNull();
   });
 
   it("survives storage that throws", () => {
@@ -164,7 +183,12 @@ describe("#299/#269 — the draft survives the way out", () => {
   function setup() {
     const store = fakeStorage();
     vi.stubGlobal("localStorage", store);
-    let current = { conversationId: "conv-1", text: "", mentions: [] as never[] };
+    let current = {
+      conversationId: "conv-1",
+      text: "",
+      mode: "sms" as const,
+      mentions: [] as never[],
+    };
     const stop = flushDraftOnExit(() => current);
     return {
       store,

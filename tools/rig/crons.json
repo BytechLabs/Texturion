@@ -20,7 +20,7 @@
       "config": "apps/api/wrangler.jsonc",
       "cron": "* * * * *",
       "class": "run",
-      "jobs": ["job:lead-chase", "job:escalation-sweep", "job:batch-flush", "job:scheduled-send"],
+      "jobs": ["job:lead-chase", "job:escalation-sweep", "job:batch-flush", "job:pending-inbound-notifications", "job:scheduled-send"],
       "note": "Database scans plus pushes and texts through the guard. Scheduled sends pass the outbound destination gate, which refuses a destination outside the partition with rig_destination_refused before any request leaves. S05 and S25 depend on this cron."
     },
     {

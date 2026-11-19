@@ -17,10 +17,14 @@
  * Status webhooks whose telnyx_message_id matches no row are acked no-ops
  * (§8) — e.g. a `sent` racing the send route's telnyx_message_id persist.
  */
+import { classifySendFailure } from "@loonext/shared";
+
 import { reportSegmentUsage } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { notifyFailedText } from "../notifications/failed-text";
 import { captureEvent } from "../observability/capture";
+import { recordCarrierOptOut } from "./opt-out";
 import { phoneCountry } from "./delivery-by-country";
 import type { TelnyxEvent, TelnyxMessagePayload } from "./types";
 import { MMS_SEGMENTS } from "./media";
@@ -81,7 +85,7 @@ async function finalize(
     // into failure from a replay of one. The §11 sweeper re-runs this handler
     // on failure, and an integration told twice that the same text failed is
     // one that notifies the crew twice.
-    .select("id,company_id,direction,status,conversation_id")
+    .select("id,company_id,direction,status,conversation_id,sent_by_user_id,automated")
     .eq("telnyx_message_id", telnyxMessageId)
     .limit(1);
   if (lookupError) {
@@ -94,6 +98,8 @@ async function finalize(
         direction: string;
         status: string;
         conversation_id: string | null;
+        sent_by_user_id: string | null;
+        automated: boolean;
       }
     | undefined;
   if (!message) return; // unknown id → acked no-op (§8)
@@ -118,6 +124,9 @@ async function finalize(
     : (hasFailure
       ? "failed"
       : "sent");
+  const errorReason = finalStatus === "failed"
+    ? classifySendFailure(firstError?.code)
+    : null;
   const parts =
     typeof payload.parts === "number" && payload.parts > 0
       ? payload.parts
@@ -139,6 +148,7 @@ async function finalize(
       // 40300 (and friends) surfaced on the row — blocked sends are never
       // silent (§5).
       error_code: firstError?.code ?? null,
+      error_reason: errorReason,
       error_detail: firstError
         ? (firstError.detail || firstError.title || null)
         : null,
@@ -153,6 +163,17 @@ async function finalize(
 
   if (message.direction !== "outbound") return;
 
+  const destination = payload.to?.[0]?.phone_number;
+  if (entered && errorReason === "opt_out" && destination) {
+    await recordCarrierOptOut(db, {
+      companyId: message.company_id,
+      conversationId: message.conversation_id,
+      phoneE164: destination,
+      signal: "send_rejected",
+      detail: firstError?.detail,
+    });
+  }
+
   // D146: the fleet's delivery rate per destination country, in PostHog. Once
   // per transition, so a replay of the same final status counts nothing.
   if ((finalStatus === "delivered" || finalStatus === "failed") && entered) {
@@ -166,6 +187,7 @@ async function finalize(
   // — it is the one that needs a human. Only on the transition, never on a
   // replay of a row that was already failed.
   if (finalStatus === "failed" && entered) {
+    await notifyFailedText(env, db, message);
     await enqueueWebhookEvent(db, {
       companyId: message.company_id,
       type: "message.failed",
