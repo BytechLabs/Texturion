@@ -2752,7 +2752,8 @@ export type NotificationType =
   | "task_assigned"
   | "missed_call"
   // A teammate named you on an internal note.
-  | "mention";
+  | "mention"
+  | "webhook_disabled";
 
 export interface NotificationItem {
   id: string;

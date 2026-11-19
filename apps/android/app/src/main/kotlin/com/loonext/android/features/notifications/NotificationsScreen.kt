@@ -112,6 +112,7 @@ fun NotificationsScreen(
     modifier: Modifier = Modifier,
     onOpenConversation: (conversationId: String, messageId: String?) -> Unit,
     onOpenTask: (taskId: String) -> Unit,
+    onOpenWebhooks: () -> Unit,
 ) {
     val repo = remember(graph) { NotificationsFeedRepository(graph.api) }
     val scope = rememberCoroutineScope()
@@ -475,6 +476,7 @@ fun NotificationsScreen(
                                                 when (val target = notificationTarget(row)) {
                                                     is NotificationTarget.Task ->
                                                         onOpenTask(target.taskId)
+                                                    NotificationTarget.Webhooks -> onOpenWebhooks()
                                                     is NotificationTarget.Thread ->
                                                         onOpenConversation(
                                                             target.conversationId,
@@ -551,9 +553,7 @@ fun NotificationsScreen(
 
 @Composable
 private fun NotificationRow(row: NotificationItem, onTap: () -> Unit) {
-    // Every derived type today links to its conversation; a future type
-    // without one renders disabled instead of dead-tapping.
-    val enabled = row.conversation_id != null
+    val enabled = notificationTarget(row) != null
     // Read outside the semantics lambda, which is not composition.
     val unreadLabel = t("contactsTasks.notifStateUnread")
     val readLabel = t("contactsTasks.notifStateRead")
@@ -672,6 +672,8 @@ private fun summaryFor(row: NotificationItem, locale: String?): String {
 
         NotificationType.MENTION ->
             say("contactsTasks.notifMention", "contactsTasks.notifMentionFrom")
+
+        NotificationType.WEBHOOK_DISABLED -> AppStrings.translate(locale, "contactsTasks.notifWebhookDisabled")
 
         // A type added server-side after this build shipped — show something
         // honest instead of crashing or hiding it.

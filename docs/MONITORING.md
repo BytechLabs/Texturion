@@ -523,6 +523,46 @@ them (403). A change is made in the dashboard, signed in as the owner. The
 dashboard's own API refuses scripted writes, so it has to be done through the
 forms.
 
+### Outbound webhook notices
+
+An endpoint pauses after the configured failure threshold and six hours without
+a successful delivery. The audit entry appears in the notification feed for
+owners and admins. The five-minute job sends one email to the workspace owner
+through Resend with the audit ID as its idempotency key. The job reports notices
+that could not be delivered within 23 hours.
+
+### Re-arming an abandoned inbound webhook
+
+The ledger emits PostHog exceptions at the fifth failure and at abandonment.
+These events carry the provider, event ID, event type and attempt count. Once
+the underlying failure is fixed, substitute the two identifiers below to queue
+that event for the next five-minute sweep. Recover the row within 30 days of
+its receipt. Daily retention removes abandoned and processed rows after that.
+
+```sql
+update public.webhook_events
+   set attempts = 0,
+       claimed_at = null,
+       next_attempt_at = null,
+       abandoned_at = null,
+       last_error = null
+ where provider = 'telnyx'
+   and event_id = '<event ID>'
+   and processed_at is null
+   and abandoned_at is not null;
+```
+
+Inbound texts still thread and notify the crew after a replay. The worker
+suppresses automated customer replies when the event is older than 15 minutes.
+
+### Outbound webhook outages
+
+Each sweep claims up to ten due deliveries per endpoint. Endpoint lookup
+failures leave the claims in place for the 15-minute recovery window. The
+worker disables an endpoint after twenty consecutive failures and at least
+six hours of failed deliveries. The same transaction records
+`webhook.endpoint_disabled` in the workspace audit log.
+
 ## Vendor notices
 
 Each vendor below notifies the account owner by its own email, configured in

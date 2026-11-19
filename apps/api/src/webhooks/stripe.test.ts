@@ -663,7 +663,13 @@ describe("§9 event → state table", () => {
     });
     expect(submitRegistration).toHaveBeenCalledExactlyOnceWith(env, COMPANY_ID);
     expect(harness.callsTo("PATCH", /webhook_events/).map((call) => call.json())).toEqual([
-      { attempts: 1, last_error: expect.any(String) },
+      {
+        attempts: 1,
+        claimed_at: null,
+        next_attempt_at: expect.any(String),
+        abandoned_at: null,
+        last_error: expect.any(String),
+      },
     ]);
     const released = harness.callsTo("DELETE", /email_ledger/);
     expect(released).toHaveLength(1);
@@ -676,6 +682,8 @@ describe("§9 event → state table", () => {
     expect(harness.callsTo("DELETE", /email_ledger/)).toHaveLength(1);
     expect(harness.callsTo("PATCH", /webhook_events/).at(-1)?.json()).toEqual({
       processed_at: expect.any(String),
+      claimed_at: null,
+      next_attempt_at: null,
     });
   });
 
@@ -1694,6 +1702,8 @@ describe("§9 event → state table", () => {
     await sweepWebhookEvents(env);
     expect(harness.callsTo("PATCH", /webhook_events/).at(-1)?.json()).toEqual({
       processed_at: expect.any(String),
+      claimed_at: null,
+      next_attempt_at: null,
     });
 
     await deliver(
@@ -1910,6 +1920,8 @@ describe("module reconcile from the subscription's paid items (#17)", () => {
     expect(harness.callsTo("PATCH", /companies/)).toHaveLength(0);
     expect(harness.callsTo("PATCH", /webhook_events/)[0].json()).toEqual({
       processed_at: expect.any(String),
+      claimed_at: null,
+      next_attempt_at: null,
     });
   });
 

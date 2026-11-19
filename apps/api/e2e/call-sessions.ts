@@ -83,7 +83,7 @@ export function createCallSessions(
     if (existing) return existing;
     const store = makeStorage();
     const instance = new CallSessionDO(
-      { storage: store.storage } as never,
+      { storage: store.storage, waitUntil: () => {} } as never,
       env as never,
     );
     const runtime = options.runtimeFor?.(name);

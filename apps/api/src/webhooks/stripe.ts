@@ -52,6 +52,7 @@ import {
 } from "../telnyx/provisioning";
 import { submitRegistration } from "../telnyx/registration";
 import { enableVoiceForCompany } from "../telnyx/voice";
+import { recordWebhookFailure } from "./retry";
 import { processConnectEvent } from "./stripe-connect";
 
 /**
@@ -128,6 +129,7 @@ stripeWebhookRoute.post("/", async (c) => {
         event_id: event.id,
         event_type: event.type,
         payload: event as unknown as Record<string, unknown>,
+        claimed_at: new Date().toISOString(),
       },
       { onConflict: "provider,event_id", ignoreDuplicates: true },
     )
@@ -152,9 +154,10 @@ async function processAndStamp(env: Env, event: Stripe.Event): Promise<void> {
     await processStripeEvent(env, event);
     const { error } = await db
       .from("webhook_events")
-      .update({ processed_at: new Date().toISOString() })
+      .update({ processed_at: new Date().toISOString(), claimed_at: null, next_attempt_at: null })
       .eq("provider", "stripe")
-      .eq("event_id", event.id);
+      .eq("event_id", event.id)
+      .eq("attempts", 0);
     if (error) {
       throw new Error(`webhook_events stamp failed: ${error.message}`);
     }
@@ -163,18 +166,11 @@ async function processAndStamp(env: Env, event: Stripe.Event): Promise<void> {
     void reportHandledFailure(env, "stripe-webhook-processing", error, {
       ids: { eventId: event.id, eventType: event.type },
     });
-    const { data } = await db
-      .from("webhook_events")
-      .select("attempts")
-      .eq("provider", "stripe")
-      .eq("event_id", event.id)
-      .limit(1);
-    const attempts = (data?.[0] as { attempts?: number } | undefined)?.attempts ?? 0;
-    await db
-      .from("webhook_events")
-      .update({ attempts: attempts + 1, last_error: message.slice(0, 2000) })
-      .eq("provider", "stripe")
-      .eq("event_id", event.id);
+    await recordWebhookFailure(env, db, {
+      provider: "stripe",
+      eventId: event.id,
+      eventType: event.type,
+    }, 0, 1, message);
   }
 }
 

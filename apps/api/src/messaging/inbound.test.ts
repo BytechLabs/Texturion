@@ -643,6 +643,19 @@ describe("handleInboundMessage — #189 widened inbound media", () => {
 });
 
 describe("handleInboundMessage — notify runs before media download", () => {
+  it("threads a late replay without sending an automated reply", async () => {
+    const thread = threadStub({ allow_automated_reply: false });
+    const away = awayDisabledStub();
+    serve(numberStub(), thread, away);
+
+    const occurredAt = "2026-11-19T14:00:00.000Z";
+    const event = inboundEvent({ text: "Can you repair my sink?" });
+    await handleInboundMessage(env, { ...event, data: { ...event.data, occurred_at: occurredAt } });
+
+    expect(thread.calls[0].body).toMatchObject({ p_occurred_at: occurredAt });
+    expect(away.calls).toHaveLength(0);
+  });
+
   it("asks the threading transaction to record a texted opt-out hint", async () => {
     const thread = threadStub({});
     const away = awayDisabledStub();

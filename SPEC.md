@@ -654,12 +654,15 @@ create unique index usage_events_message_uq on public.usage_events (message_id)
 create index usage_events_period_idx on public.usage_events (company_id, created_at);
 
 create table public.webhook_events (
-  provider    text not null check (provider in ('stripe','telnyx')),
+  provider    text not null check (provider in ('stripe','telnyx','resend')),
   event_id    text not null,
   event_type  text not null,
   payload     jsonb not null,
   received_at timestamptz not null default now(),
   processed_at timestamptz,
+  claimed_at timestamptz,
+  next_attempt_at timestamptz,
+  abandoned_at timestamptz,
   attempts    int not null default 0,
   last_error  text,
   primary key (provider, event_id)              -- D7
@@ -1215,7 +1218,7 @@ All crons are idempotent and safe to re-run; each processes work-item rows selec
 
 | Cron | Schedule | Work | Idempotency |
 |---|---|---|---|
-| Webhook sweeper | `*/5 * * * *` | Reprocess `webhook_events` where `processed_at IS NULL AND received_at < now()-2min AND attempts < 5`; PostHog exception at attempt 5 | `processed_at` stamp; handlers are idempotent by design (unique indexes) |
+| Webhook sweeper | `*/5 * * * *` | Replay due, unclaimed `webhook_events` after two minutes. Messages, 10DLC, ports, Stripe and Resend retry after 2m, 5m, 15m, 1h, 3h, 6h, 12h and 24h. Calls keep five attempts. PostHog records the fifth failure and abandonment. | Attempt and claim stamps prevent overlapping work. Handlers use unique indexes and stamp `processed_at` on success. |
 | Provisioning retry & reconcile | `*/15 * * * *` | Retry `phone_numbers` in `provisioning`/`provision_failed` (backoff, ≤5 attempts); list Telnyx numbers by `customer_reference` to adopt crash-after-buy orphans | `provisioning_key` unique; saga steps skip completed work |
 | Usage re-reporter | `0 * * * *` (hourly, after stale calls) | Re-POST due texting and voice meter events with their original timestamps | Local stamp, retry backoff, and Stripe `identifier` dedupe |
 | Team two-factor notices | `0 * * * *` (hourly) | Send deadlines to active members and remind members who still need to enrol within 48 hours of enforcement | SQL claims each notice once per policy period |

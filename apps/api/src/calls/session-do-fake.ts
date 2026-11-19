@@ -80,6 +80,7 @@ export function makeStorage() {
 export interface FakeConfig {
   /** #309: false = Telnyx refused the audio, so the caller must get TTS. */
   playbackResult?: () => boolean;
+  speakResult?: () => boolean;
   /** #309: null = no recorded greeting, which is every workspace by default. */
   greetingAudioUrl?: () => string | null;
   initiated?: InitiatedContext | "drop" | "replay-ended";
@@ -104,8 +105,10 @@ export interface FakeConfig {
   pushAudience?: string[];
   mirrorThrows?: () => boolean;
   pushFanoutThrows?: () => boolean;
+  terminalMergeEvent?: () => void | Promise<void>;
   /** May return a promise to hold the voicemail open, or throw to fail it. */
   voicemailPipeline?: () => void | Promise<void>;
+  deferVoicemailRecording?: () => void | Promise<void>;
 }
 
 export function makeRuntime(config: FakeConfig = {}) {
@@ -117,6 +120,7 @@ export function makeRuntime(config: FakeConfig = {}) {
     answersVm: [] as string[],
     bridges: [] as { member: string; inbound: string }[],
     speaks: [] as { ccid: string; text: string; language: string }[],
+    recordStarts: [] as string[],
     mirrors: [] as MirrorSet[],
     callEnds: [] as { reason: string; userIds: string[] }[],
     terminalMerges: [] as string[],
@@ -126,6 +130,7 @@ export function makeRuntime(config: FakeConfig = {}) {
       | undefined
     )[],
     voicemailPipelines: 0,
+    deferredVoicemailRecordings: 0,
     warnings: [] as string[],
     errorCount: 0,
     events: [] as { event: string; companyId: string; properties: Record<string, unknown> }[],
@@ -173,6 +178,7 @@ export function makeRuntime(config: FakeConfig = {}) {
       },
       async speak(ccid, text, _clientState, language) {
         calls.speaks.push({ ccid, text, language });
+        return config.speakResult?.() ?? true;
       },
       // #309: recorded greetings. `playbackResult` lets a test say the audio
       // is unfetchable, which is the case that must fall back to speak rather
@@ -181,7 +187,9 @@ export function makeRuntime(config: FakeConfig = {}) {
         calls.playbacks.push({ ccid, audioUrl });
         return config.playbackResult ? config.playbackResult() : true;
       },
-      async recordStart() {},
+      async recordStart(ccid) {
+        calls.recordStarts.push(ccid);
+      },
       async probeLegAlive() {
         return config.probeAlive ? config.probeAlive() : true;
       },
@@ -223,6 +231,7 @@ export function makeRuntime(config: FakeConfig = {}) {
     async terminalMergeEvent(_payload, opts?) {
       calls.terminalMerges.push("event");
       calls.terminalMergeEventOpts.push(opts);
+      await config.terminalMergeEvent?.();
     },
     async terminalMergeSynthetic(_m, outcome) {
       calls.terminalMerges.push(`synthetic:${outcome}`);
@@ -230,6 +239,11 @@ export function makeRuntime(config: FakeConfig = {}) {
     async voicemailPipeline() {
       calls.voicemailPipelines += 1;
       await config.voicemailPipeline?.();
+    },
+
+    async deferVoicemailRecording() {
+      calls.deferredVoicemailRecordings += 1;
+      await config.deferVoicemailRecording?.();
     },
     warn(message) {
       calls.warnings.push(message);

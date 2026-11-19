@@ -129,6 +129,7 @@ export type InboundThreadResult = ThreadResult & {
    * direction, since it is exactly today's behaviour.
    */
   notify_reason?: "new" | "reopened" | "append" | "reaction";
+  allow_automated_reply?: boolean;
 };
 
 interface ThreadedInboundInput {
@@ -308,6 +309,8 @@ export async function handleInboundMessage(
   const optOutHint = !isFrenchStopRequest(body) && looksLikeOptOut(body);
   // The §6 threading transaction, atomically in the database.
   const reaction = payload.media?.length ? null : parseTapback(body);
+  const occurrence = event.data?.occurred_at;
+  const occurredAt = typeof occurrence === "string" ? Date.parse(occurrence) : Number.NaN;
   const { data, error } = await db.rpc("thread_inbound_message", {
     p_company_id: number.company_id,
     p_phone_number_id: number.id,
@@ -319,6 +322,7 @@ export async function handleInboundMessage(
     p_push_limit: limits.push,
     p_notify_emergency: emergency,
     p_notify_media_count: media.length,
+    p_occurred_at: Number.isFinite(occurredAt) ? new Date(occurredAt).toISOString() : null,
     ...(reaction ? { p_reaction: reaction } : {}),
     ...(optOutHint ? { p_notify_opt_out_hint: true } : {}),
   });
@@ -576,7 +580,8 @@ export async function finishThreadedInbound(
     notificationFailure = { error };
   }
 
-  const canReply = threaded.created && !spam.blocked && !keywordFailure;
+  const canReply = threaded.created && threaded.allow_automated_reply !== false &&
+    !spam.blocked && !keywordFailure;
   if (frenchStop && canReply && input.receivingNumberActive &&
     !threaded.opted_out && input.carrierResponse !== "STOP") {
     try {

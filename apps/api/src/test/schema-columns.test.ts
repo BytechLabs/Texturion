@@ -30,7 +30,7 @@ describe("schema column checks (#750)", () => {
 
   it("reads the columns inside or/and groups", () => {
     expect(
-      checkLogicalExpression("(a_b.is.null,and(id.eq.1,nope.lt.2))", "tasks").map(
+      checkLogicalExpression("(a_b.is.null,and(id.eq.1,or(nope.lt.2,title.in.(alpha,beta))))", "tasks").map(
         (p) => p.column,
       ),
     ).toEqual(["a_b", "nope"]);

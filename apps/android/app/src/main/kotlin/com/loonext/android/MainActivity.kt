@@ -1192,6 +1192,7 @@ private fun ReadyShell(
                                 push(Overlay.Thread(conversationId, messageId))
                             },
                             onOpenTask = { push(Overlay.Task(it)) },
+                            onOpenWebhooks = { push(Overlay.Settings(SettingsSection.Webhooks)) },
                         )
                     }
 

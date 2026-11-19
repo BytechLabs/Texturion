@@ -155,7 +155,7 @@ declare
     -- #243: the outbound half. `webhook_deliveries` is `webhook_events` facing
     -- the other way and carries the same content, so it is classified beside it
     -- rather than anywhere gentler.
-    'webhook_deliveries', 'webhook_endpoints',
+    'webhook_deliveries', 'webhook_endpoints', 'webhook_disable_emails',
     -- #245: opaque Google/Graph watch ids and a client-state hash.
     'webhook_subscriptions',
     -- #243: the credentials themselves. No contact data, and said so in §5

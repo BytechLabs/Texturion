@@ -47,6 +47,14 @@ class NotificationTargetTest {
     }
 
     @Test
+    fun `a paused webhook opens webhook settings without a conversation`() {
+        assertEquals(
+            NotificationTarget.Webhooks,
+            notificationTarget(item("webhook_disabled", conversationId = null, messageId = null)),
+        )
+    }
+
+    @Test
     fun `nothing to open when it names nothing`() {
         assertNull(notificationTarget(item("x", conversationId = null, messageId = null)))
     }

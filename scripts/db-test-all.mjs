@@ -236,6 +236,7 @@ const SUITES = [
   "reply_suggestion_window",
   "auth_locale",
   "report_visibility",
+  "outbound_webhook_outages",
 ];
 
 const args = process.argv.slice(2);

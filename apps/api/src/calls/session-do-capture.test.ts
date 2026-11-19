@@ -326,6 +326,8 @@ describe("a call's lifecycle", () => {
     const revived = new CallSessionDO({ storage: store.storage } as never, {} as never);
     revived.installRuntime(second.runtime);
     expect((await revived.snapshot(SESSION))?.state).toBe("ringing");
+    expect(store.map.has("journal")).toBe(true);
+    await revived.alarm();
     expect(store.map.has("journal")).toBe(false);
 
     expect(first.calls.events.map((entry) => entry.event)).toEqual(["call_started"]);

@@ -253,7 +253,9 @@ function threadCallStub(result?: Record<string, unknown>): Stub {
 function callsLinkStub(): Stub {
   return stubRoute(
     restMatch(env, "PATCH", "calls"),
-    () => new Response(null, { status: 204 }),
+    (call) => call.url.searchParams.get("select") === "id"
+      ? [{ id: "recorded-call" }]
+      : new Response(null, { status: 204 }),
   );
 }
 

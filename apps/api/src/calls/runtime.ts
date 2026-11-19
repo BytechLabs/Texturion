@@ -30,6 +30,7 @@ import {
 } from "../messaging/inbound-ring";
 import { buildOutboundPlacerState, companyOverVoiceCap, handleTerminalCallEvent, handleVoicemailSaved, normalizeCaller, OUTBOUND_AUTH_MAX_AGE_SECS, parseOutboundNonce, parseOutboundSessionId, threadCallSession } from '../messaging/voice-webhook';
 import type { CompanyVoiceState } from '../messaging/voice-webhook';
+import { deferVoicemail } from "../messaging/voicemail-recovery";
 import { normalizeNanpPhone } from "../routes/core/phone";
 import { notifyMissedCall } from "../notifications/missed-call";
 import { closeBlockedThread, isBlockedSender } from "../messaging/spam-flag";
@@ -140,16 +141,8 @@ export interface SessionRuntime {
       payload: string,
       clientState: string,
       language: SpeechLanguage,
-    ): Promise<void>;
-    /**
-     * #309 — play a recorded greeting.
-     *
-     * Returns whether Telnyx accepted it, rather than swallowing a 4xx the way
-     * `speak` does. That difference is the whole fail-safe: a swallowed 404 on
-     * a missing audio object would leave the caller listening to nothing, and
-     * "a caller hearing nothing is worse than a caller hearing a robot" is the
-     * line #309 draws. The caller of this decides to speak instead.
-     */
+    ): Promise<boolean>;
+    /** Whether Telnyx accepted the recording. Refusal falls back to speech. */
     playAudio(ccid: string, audioUrl: string, clientState: string): Promise<boolean>;
     recordStart(ccid: string): Promise<void>;
     probeLegAlive(ccid: string): Promise<boolean>;
@@ -247,8 +240,10 @@ export interface SessionRuntime {
     machine: SessionMachine,
     outcome: "answered" | "voicemail" | "missed",
     briAnsweredAtIso: string | null,
+    endedAtMs: number,
   ): Promise<void>;
   voicemailPipeline(payload: Record<string, unknown>): Promise<void>;
+  deferVoicemailRecording(payload: Record<string, unknown>): Promise<void>;
   /** A handled condition worth a look, sent to PostHog as a warning. */
   warn(message: string): void;
   reportError(cause: unknown): void;
@@ -510,12 +505,19 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       hangup: (ccid) => commandWithDiscrimination(env, ccid, "hangup", {}),
       reject: (ccid, cause) =>
         swallow4xx(env, `/v2/calls/${ccid}/actions/reject`, { cause }),
-      speak: (ccid, payload, clientState, language) =>
-        swallow4xx(env, `/v2/calls/${ccid}/actions/speak`, {
-          payload,
-          ...speechVoice(language),
-          client_state: clientState,
-        }),
+      async speak(ccid, payload, clientState, language) {
+        try {
+          await telnyxRequest(env, {
+            method: "POST",
+            path: `/v2/calls/${ccid}/actions/speak`,
+            body: { payload, ...speechVoice(language), client_state: clientState },
+          });
+          return true;
+        } catch (error) {
+          if (isDefiniteRefusal(error)) return false;
+          throw error;
+        }
+      },
       playAudio: async (ccid, audioUrl, clientState) => {
         try {
           await telnyxRequest(env, {
@@ -1294,18 +1296,18 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
       await handleTerminalCallEvent(env, db, "call.hangup", payload, opts);
     },
 
-    async terminalMergeSynthetic(machine, outcome, briAnsweredAtIso) {
+    async terminalMergeSynthetic(machine, outcome, briAnsweredAtIso, endedAtMs) {
       // Outcome + window merge via the convergent RPC (same one the event
       // path uses), then thread + MCTB for the missed path — the delegates
       // are all claim-guarded/idempotent, so a replay never double-texts.
-      const endedAtIso = new Date().toISOString();
+      const endedAtIso = new Date(endedAtMs).toISOString();
       let forwardSeconds = 0;
       if (outcome === "answered" && briAnsweredAtIso) {
         const anchorMs = Date.parse(briAnsweredAtIso);
         if (Number.isFinite(anchorMs)) {
           forwardSeconds = Math.max(
             0,
-            Math.round((Date.now() - anchorMs) / 1000),
+            Math.round((endedAtMs - anchorMs) / 1000),
           );
         }
       }
@@ -1386,6 +1388,10 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
 
     async voicemailPipeline(payload) {
       await handleVoicemailSaved(env, db, payload);
+    },
+
+    async deferVoicemailRecording(payload) {
+      await deferVoicemail(db, payload);
     },
 
     warn(message) {

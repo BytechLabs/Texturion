@@ -90,6 +90,8 @@ export const DIAL_BATCH_SIZE = 6;
 
 /** §4.1: journal-resume alarm delay. */
 export const JOURNAL_RESUME_MS = 2000;
+const VOICEMAIL_GREETING_TIMEOUT_MS = 75_000;
+const VOICEMAIL_RECORDING_TIMEOUT_MS = 150_000;
 
 /** §5.5: fanout-settle alarm delay. */
 export const FANOUT_SETTLE_MS = 10_000;
@@ -276,6 +278,8 @@ export interface SessionMachine {
    *  hours), so a caller who hangs up in the greeting reads as that, not as the
    *  cause. */
   voicemailCause?: VoicemailCause | null;
+  /** Command whose completion ends the greeting on the caller's leg. */
+  greetingMode?: "speech" | "playback";
   /** #725: why the machine began tearing down a live call, read by the hangup
    *  that then ends it (a transfer expired, the placer hung up). */
   endHint?: CallEndReason | null;
@@ -488,6 +492,7 @@ export type SessionEvent =
   | { type: "decline"; userId: string }
   | { type: "alarm-ring" }
   | { type: "alarm-ring-step" }
+  | { type: "alarm-voicemail-watchdog" }
   | { type: "alarm-janitor" }
   | { type: "alarm-intent-expiry" }
   // Internal events (§4.1: effect outcomes re-enter under the same FIFO):
@@ -571,6 +576,7 @@ export const EVENT_TYPES: readonly SessionEvent["type"][] = [
   "decline",
   "alarm-ring",
   "alarm-ring-step",
+  "alarm-voicemail-watchdog",
   "alarm-janitor",
   "alarm-intent-expiry",
   "answer-outcome",
@@ -590,6 +596,7 @@ export type AlarmKind =
   | "ring"
   /** #278 `in_turn`: the next phone joins the ring. */
   | "ring-step"
+  | "voicemail-watchdog"
   | "janitor"
   | "purge"
   | "intent-expiry"
@@ -756,6 +763,7 @@ function cancelAllLiveLegs(
 function vmEntry(
   machine: SessionMachine,
   effects: Effect[],
+  nowMs: number,
   routing?: CallRouting,
   cause: VoicemailCause | null = null,
 ): void {
@@ -766,6 +774,7 @@ function vmEntry(
   if (routing) machine.routing = routing;
   machine.voicemailCause = cause;
   effects.push(
+    { kind: "arm-alarm", alarm: "voicemail-watchdog", atMs: nowMs + VOICEMAIL_GREETING_TIMEOUT_MS },
     {
       kind: "mirror",
       set: routing ? { state: "voicemail_greeting", routing } : { state: "voicemail_greeting" },
@@ -819,7 +828,7 @@ export const UNAVAILABLE_NOTICE =
   "Sorry, this number isn't taking calls right now. Please try again later.";
 
 /** §4 T3's avenue ladder — total, in order; exhaustive by construction. */
-function runAvenueLadder(machine: SessionMachine, effects: Effect[]): void {
+function runAvenueLadder(machine: SessionMachine, effects: Effect[], nowMs: number): void {
   if (machine.state !== "ringing") return;
   if (liveLegs(machine).length > 0) return; // (1) any live leg → stay
   // (1b) #278: a phone waiting its turn IS an avenue, and the reason this rung
@@ -835,6 +844,7 @@ function runAvenueLadder(machine: SessionMachine, effects: Effect[]): void {
   vmEntry(
     machine,
     effects,
+    nowMs,
     undefined,
     machine.declinedUserIds.length > 0 ? "declined_by_everyone" : "nobody_reachable",
   );
@@ -870,6 +880,9 @@ function terminalize(
 ): void {
   const wasRinging = machine.state === "ringing";
   const upgrade = isTerminal(machine.state);
+  if (machine.state === "voicemail_greeting" || machine.state === "voicemail_recording") {
+    effects.push({ kind: "clear-alarm", alarm: "voicemail-watchdog" });
+  }
   machine.state = target;
   machine.endedReason = endedReason;
   machine.ringDeadlineMs = null;
@@ -977,7 +990,7 @@ export function reduce(
       return reduceMemberAnswered(next, event, effects);
     }
     case "member-leg-hangup": {
-      return reduceMemberHangup(next, event, effects);
+      return reduceMemberHangup(next, event, effects, nowMs);
     }
 
     // ---- T5 / T8 / T12 / T17 (+ the §3 upgrade edges) ---------------------
@@ -1031,7 +1044,23 @@ export function reduce(
     }
 
     // ---- T11 --------------------------------------------------------------
+    case "alarm-voicemail-watchdog":
     case "speak-ended": {
+      if (event.type === "alarm-voicemail-watchdog" && next.state === "voicemail_recording") {
+        if (next.customerCcid) {
+          effects.push({ kind: "telnyx-hangup", ccid: next.customerCcid, terminal: true });
+        }
+        terminalize(
+          next,
+          effects,
+          nowMs,
+          "ended_missed",
+          { kind: "terminal-merge", mode: "synthetic", outcome: "missed", payload: null, briAnsweredAtIso: null },
+          null,
+          "voicemail_failed",
+        );
+        return { machine: next, effects };
+      }
       // #490: the suspended-line notice has been read. There is no voicemail on
       // a suspended line — nobody would ever hear it — so the honest end is to
       // hang up, and the terminal state is the same `ended_missed` the ring-out
@@ -1049,7 +1078,10 @@ export function reduce(
       }
       if (next.state !== "voicemail_greeting") return { machine: next, effects };
       next.state = "voicemail_recording";
-      effects.push({ kind: "mirror", set: { state: "voicemail_recording" }, terminal: false });
+      effects.push(
+        { kind: "arm-alarm", alarm: "voicemail-watchdog", atMs: nowMs + VOICEMAIL_RECORDING_TIMEOUT_MS },
+        { kind: "mirror", set: { state: "voicemail_recording" }, terminal: false },
+      );
       if (next.customerCcid) {
         effects.push({ kind: "telnyx-record-start", ccid: next.customerCcid });
       }
@@ -1071,7 +1103,10 @@ export function reduce(
         terminal: true,
       });
       if (fromLive) {
-        effects.push({ kind: "arm-alarm", alarm: "purge", atMs: nowMs + PURGE_DELAY_MS });
+        effects.push(
+          { kind: "clear-alarm", alarm: "voicemail-watchdog" },
+          { kind: "arm-alarm", alarm: "purge", atMs: nowMs + PURGE_DELAY_MS },
+        );
       }
       return { machine: next, effects };
     }
@@ -1189,7 +1224,7 @@ export function reduce(
 
     // ---- #171: DECLINE (first-class avenue removal, re-run the ladder) -----
     case "decline": {
-      return reduceDecline(next, event, effects);
+      return reduceDecline(next, event, effects, nowMs);
     }
 
     // ---- #278: the next phone joins the ring ------------------------------
@@ -1218,7 +1253,7 @@ export function reduce(
         // An already-exhausted queue is the ordinary end of the cascade and stays a
         // no-op — the ring deadline owns what happens next. If this step removed
         // the final waiting member, check whether the ring still has an avenue.
-        if (queue.length > 0) runAvenueLadder(next, effects);
+        if (queue.length > 0) runAvenueLadder(next, effects, nowMs);
         return { machine: next, effects };
       }
       // The same cap ring-start respects. A cascade cannot be the way past it.
@@ -1242,7 +1277,7 @@ export function reduce(
     // ---- T10: the ONLY clock-based voicemail trigger ----------------------
     case "alarm-ring": {
       if (next.state !== "ringing") return { machine: next, effects };
-      vmEntry(next, effects, undefined, "no_answer_in_time");
+      vmEntry(next, effects, nowMs, undefined, "no_answer_in_time");
       return { machine: next, effects };
     }
 
@@ -1373,7 +1408,7 @@ export function reduce(
       next.pushCapableUserIds = next.pushCapableUserIds.filter(
         (userId) => !gone.has(userId),
       );
-      runAvenueLadder(next, effects); // may VM-ENTRY (rule 3's honesty)
+      runAvenueLadder(next, effects, nowMs); // may VM-ENTRY (rule 3's honesty)
       return { machine: next, effects };
     }
 
@@ -1412,7 +1447,7 @@ export function reduce(
         }
         return { machine: next, effects };
       }
-      runAvenueLadder(next, effects);
+      runAvenueLadder(next, effects, nowMs);
       return { machine: next, effects };
     }
 
@@ -1453,7 +1488,7 @@ export function reduce(
         // Treat as a leg death (T3): run the ladder; never answer the caller
         // into a doomed bridge (review R1-B2).
         leg.status = "dead";
-        runAvenueLadder(next, effects);
+        runAvenueLadder(next, effects, nowMs);
         return { machine: next, effects };
       }
       // Alive → our cancel truly lost — proceed with the T2 answer sequence.
@@ -1554,6 +1589,7 @@ function reduceInitiated(
     vmEntry(
       base,
       effects,
+      nowMs,
       context.lineBusy ? "line_busy" : (context.screeningDivert ? "screened" : "after_hours"),
     );
     return { machine: base, effects };
@@ -1600,7 +1636,7 @@ function reduceInitiated(
 
   // T1d: immediate-exhaustion check — BOTH empty → voicemail NOW (§5.3).
   if (context.dialTargets.length === 0 && context.pushAudience.length === 0) {
-    vmEntry(base, effects, "nobody_reachable", "nobody_reachable");
+    vmEntry(base, effects, nowMs, "nobody_reachable", "nobody_reachable");
     return { machine: base, effects };
   }
 
@@ -2157,6 +2193,7 @@ function reduceMemberHangup(
   next: SessionMachine,
   event: Extract<SessionEvent, { type: "member-leg-hangup" }>,
   effects: Effect[],
+  nowMs: number,
 ): ReduceResult {
   let leg = next.legs.find((entry) => entry.ccid === event.ccid);
   if (!leg && next.state === "ringing") {
@@ -2202,7 +2239,7 @@ function reduceMemberHangup(
 
   // T3: leg death during the ring window.
   leg.status = "dead";
-  runAvenueLadder(next, effects);
+  runAvenueLadder(next, effects, nowMs);
   return { machine: next, effects };
 }
 
@@ -2529,6 +2566,7 @@ function reduceDecline(
   next: SessionMachine,
   event: Extract<SessionEvent, { type: "decline" }>,
   effects: Effect[],
+  nowMs: number,
 ): ReduceResult {
   if (next.state !== "ringing") {
     return {
@@ -2599,7 +2637,7 @@ function reduceDecline(
   // Re-run the T3 exhaustion ladder over the avenues that survive the decline:
   // (live legs of non-decliners) ∪ (push-capable non-decliners). No avenue →
   // VM-ENTRY; any remaining → stay `ringing` (keep ringing the others).
-  runAvenueLadder(next, effects);
+  runAvenueLadder(next, effects, nowMs);
 
   return { machine: next, effects, reply: { declined: true, state: next.state } };
 }

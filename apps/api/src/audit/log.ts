@@ -100,6 +100,7 @@ export type AuditAction =
   | "webhook.endpoint_created"
   | "webhook.endpoint_updated"
   | "webhook.endpoint_deleted"
+  | "webhook.endpoint_disabled"
   | "webhook.secret_rotated"
   /**
    * #243: an API key. Its own actions for the same reason the webhook ones

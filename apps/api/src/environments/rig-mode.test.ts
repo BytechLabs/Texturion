@@ -300,7 +300,8 @@ describe("customer webhooks on the rig", () => {
     sb.on("GET", "/rest/v1/webhook_endpoints", () => [
       { id: "ep-1", url, secret: "whsec_x", consecutive_failures: 0, active: true },
     ]);
-    sb.on("PATCH", /^\/rest\/v1\/webhook_(?:deliveries|endpoints)$/, () => []);
+    sb.on("PATCH", "/rest/v1/webhook_deliveries", () => []);
+    sb.on("POST", "/rest/v1/rpc/api_record_webhook_delivery_outcome", () => false);
     const posted: string[] = [];
     stubFetch(sb.route, (target) => {
       if (target.origin === RIG_SUPABASE_URL) return undefined;

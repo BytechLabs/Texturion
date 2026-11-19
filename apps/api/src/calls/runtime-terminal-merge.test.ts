@@ -63,8 +63,9 @@ describe("terminalMergeSynthetic", () => {
     const merge = stubRoute(rpcMatch(ENV, "api_upsert_call"), () => null);
     const thread = stubRoute(rpcMatch(ENV, "api_thread_call"), () => null);
     stubFetch(merge.route, thread.route);
+    vi.setSystemTime(NOW + 30_000);
 
-    await createSessionRuntime(ENV).terminalMergeSynthetic(callMachine("inbound"), "answered", answer);
+    await createSessionRuntime(ENV).terminalMergeSynthetic(callMachine("inbound"), "answered", answer, NOW);
 
     expect(merge.calls.map(({ body }) => body)).toEqual([{
       p_company_id: COMPANY_ID,
@@ -90,7 +91,7 @@ describe("terminalMergeSynthetic", () => {
     const thread = stubRoute(rpcMatch(ENV, "api_thread_call"), () => null);
     stubFetch(merge.route, thread.route);
 
-    await createSessionRuntime(ENV).terminalMergeSynthetic(callMachine("outbound"), "missed", null);
+    await createSessionRuntime(ENV).terminalMergeSynthetic(callMachine("outbound"), "missed", null, NOW);
 
     expect(merge.calls[0]?.body).toMatchObject({ p_outcome: "missed", p_direction: "outbound" });
     expect(thread.calls[0]?.body).toMatchObject({ p_direction: "outbound", p_create_if_missing: false });
@@ -103,7 +104,7 @@ describe("terminalMergeSynthetic", () => {
     const thread = stubRoute(rpcMatch(ENV, "api_thread_call"), () => null);
     stubFetch(merge.route, thread.route);
 
-    await expect(createSessionRuntime(ENV).terminalMergeSynthetic(callMachine("inbound"), "missed", null))
+    await expect(createSessionRuntime(ENV).terminalMergeSynthetic(callMachine("inbound"), "missed", null, NOW))
       .rejects.toThrow("calls-v3 synthetic merge failed: database unavailable");
     expect(thread.calls).toEqual([]);
   });
