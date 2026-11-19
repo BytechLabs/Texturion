@@ -50,10 +50,12 @@ and now carry `environment` too. Earlier ones do not, and the rules read a
 missing `environment` as production.
 
 Team invitations use Supabase Auth to create the verification link and Resend
-to deliver the message. Supabase's Auth email limits apply to messages it sends
-directly, such as signup confirmation and password reset. Local Supabase's
-`auth.rate_limit.email_sent` is set to 2 per hour when SMTP is enabled. Read the
-hosted project's Authentication rate limits to verify its production allowance.
+to deliver the message. As verified on November 19, 2026, production Supabase
+Auth allows 30 emails per hour project-wide through custom SMTP for messages it
+sends directly, such as signup confirmation and password reset. The production
+email token expiry is one hour. The local SMTP allowance is two emails per hour
+when enabled. [Supabase Auth rate limits](https://supabase.com/docs/guides/auth/rate-limits)
+
 The Worker limits bursts to six attempts per minute per workspace and inviter.
 The database limits each workspace to three times its seat count per 24 hours
 and waits 10 minutes before a revoked address can be invited again.

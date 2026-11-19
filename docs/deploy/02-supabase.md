@@ -165,9 +165,10 @@ Turnstile has **two halves** (`SPEC.md:1052`):
 
 ## 8. Resend as Supabase Auth custom SMTP + branded email templates
 
-Supabase Auth sends invite/signup/reset emails (e.g. `inviteUserByEmail`) via a
-**custom SMTP = Resend** (`SPEC.md:100,832,1065`). This is separate from the API
-Worker's own Resend usage.
+Supabase Auth uses Resend as custom SMTP for its own signup, password reset,
+magic link, email change and dashboard invitation emails. The API Worker
+generates verification links through Supabase Auth and sends workspace
+invitations through the Resend REST API.
 
 1. In **Resend**: verify your sending domain (e.g. `loonext.com`) — add the DNS
    records Resend gives you, wait for verification.
@@ -185,27 +186,26 @@ Worker's own Resend usage.
 
 ### 8b. Paste in the branded auth email templates — MANDATORY
 
-Without this step every signup confirmation, invite, magic link, password reset,
-and email-change email goes out as **Supabase's stock boilerplate**. The five
-Loonext templates live in **`supabase/templates/*.html`** and are wired for local
-dev via `[auth.email.template.*]` in `supabase/config.toml` (subjects included).
+Without this step every signup confirmation, dashboard invitation, magic link,
+password reset and email-change email goes out as **Supabase's stock boilerplate**.
+The five Loonext templates live in **`supabase/templates/*.html`** and are wired for
+local development via `[auth.email.template.*]` in `supabase/config.toml`.
 **The hosted dashboard does not read `config.toml`** — the templates must be
 pasted in by hand:
 
 1. Supabase → **Authentication → Emails** (email templates).
-2. For each row below, open the matching dashboard tab, set the **Subject**
-   exactly as listed (it must match `supabase/config.toml` so local and hosted
-   emails stay identical), and replace the message body with the **full file
-   contents** (the files are complete HTML documents; paste them as-is in the
-   source/code view):
+2. Open each dashboard tab below. Copy the localized `subject` from the
+   corresponding section of [`supabase/config.toml`](../../supabase/config.toml)
+   without TOML quoting or escapes. Replace the message body with the full HTML
+   file contents in the source editor.
 
-   | Dashboard template | Subject | File |
-   |--------------------|---------|------|
-   | Confirm sign up | Confirm your email | `supabase/templates/confirmation.html` |
-   | Invite user | You're invited to Loonext | `supabase/templates/invite.html` |
-   | Magic link | Your Loonext sign-in link | `supabase/templates/magic_link.html` |
-   | Change email address | Confirm your new email | `supabase/templates/email_change.html` |
-   | Reset password | Reset your Loonext password | `supabase/templates/recovery.html` |
+   | Dashboard template | Config section | Body file |
+   |--------------------|----------------|-----------|
+   | Confirm sign up | `auth.email.template.confirmation` | `supabase/templates/confirmation.html` |
+   | Invite user | `auth.email.template.invite` | `supabase/templates/invite.html` |
+   | Magic link | `auth.email.template.magic_link` | `supabase/templates/magic_link.html` |
+   | Change email address | `auth.email.template.email_change` | `supabase/templates/email_change.html` |
+   | Reset password | `auth.email.template.recovery` | `supabase/templates/recovery.html` |
 
 3. Save each template, then send yourself a **password-reset** email and check
    it renders as the Loonext template (ink `#10173B` on white, one cobalt
@@ -218,18 +218,14 @@ on a different browser and verify it opens the onboarding plan from the signup
 link. The API Worker sends workspace invites through Resend and uses the same
 route to verify new invitees.
 
-Template facts:
+The signup confirmation template uses `{{ .SiteURL }}`, `{{ .TokenHash }}` and
+`{{ .RedirectTo }}` to link to `/auth/confirm` and preserve the onboarding plan.
+The invite template in Supabase serves dashboard invitations. Workspace emails
+get their company name, inviter and language from the API Worker.
+[Supabase Auth template variables](https://supabase.com/docs/guides/auth/auth-email-templates)
 
-- Each template uses only the variables Supabase provides for that type:
-  `{{ .ConfirmationURL }}` and `{{ .Email }}` everywhere, plus `{{ .NewEmail }}`
-  in the email-change template and `{{ .Data.company_name }}` /
-  `{{ .Data.invited_by_name }}` in the invite template.
-- The invite template names the inviting company and person **only when** the
-  API passes them via `inviteUserByEmail`'s `data` option; when absent it falls
-  back to "You have been invited to join a team on Loonext." — no broken
-  placeholders either way.
-- If you later edit a template, change the **file** first, then re-paste — the
-  repo copy is canonical.
+Change the repository file first when editing a template, then paste the updated
+file into Supabase.
 
 ---
 

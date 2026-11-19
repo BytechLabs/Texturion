@@ -277,10 +277,11 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(resend.calls[0]).toMatchObject({
       to: ["new@crew.example"],
       subject: "Ana vous invite à rejoindre Pine Plumbing sur Loonext",
-      text: expect.stringContaining("Cette invitation expire après 7 jours."),
+      text: expect.stringContaining("Vous avez 7 jours pour rejoindre l’espace de travail."),
       html: expect.stringContaining("Bienvenue &lt;Ana&gt;!"),
     });
     expect(resend.calls[0].html).toContain('<html lang="fr-CA">');
+    expect(resend.calls[0].text).toContain("Si le lien expire");
     expect(resend.calls[0].text).toContain("Ce message de service concerne votre compte Loonext.");
     const href = String(resend.calls[0].text).match(/https?:\/\/[^\s]+/)?.[0];
     expect(href).toBeTruthy();
@@ -417,6 +418,7 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     // The in-app accept link — the same page the Copy-link button shares.
     expect(email.text).toContain(`${env.APP_ORIGIN}/invite/${INVITE_ID}`);
     expect(email.html).toContain(`${env.APP_ORIGIN}/invite/${INVITE_ID}`);
+    expect(email.text).toContain("You have 7 days to join the workspace.");
   });
 
   it("#109: the direct send failing degrades to email_sent:false — invite kept (Copy link covers it)", async () => {
@@ -462,6 +464,33 @@ describe("POST /v1/invites (O/A + seat formula)", () => {
     expect(res.status).toBe(500);
     const rollback = sb.find("DELETE", "/rest/v1/invites")[0];
     expect(rollback.url.searchParams.get("id")).toBe(`eq.${INVITE_ID}`);
+  });
+
+  it("releases the reserved seat when Supabase rejects a new invite with a validation error", async () => {
+    const sb = stubWithRole("owner");
+    seatStub(sb, "starter", 1, 0);
+    stubInviteCreation(sb);
+    sb.on("GET", "/rest/v1/profiles", () => []);
+    sb.on("POST", "/auth/v1/admin/generate_link", () =>
+      Response.json(
+        { code: 422, error_code: "validation_failed", msg: "Email is invalid" },
+        { status: 422 },
+      ),
+    );
+    sb.on("DELETE", "/rest/v1/invites", () => new Response(null, { status: 204 }));
+    const resend = resendCapture();
+    stubFetch(jwksRoute(auth), sb.route, resend.route);
+
+    const response = await apiRequest(app, env, await auth.token(), "/v1/invites", {
+      method: "POST",
+      companyId: COMPANY_ID,
+      body: { email: "new@crew.example", role: "member" },
+    });
+
+    expect(response.status).toBe(500);
+    expect(resend.calls).toHaveLength(0);
+    expect(sb.find("DELETE", "/rest/v1/invites")).toHaveLength(1);
+    expect(sb.find("POST", "/rest/v1/audit_log")).toHaveLength(0);
   });
 
   it("409s a duplicate pending invite; 422s owner role and bad email", async () => {

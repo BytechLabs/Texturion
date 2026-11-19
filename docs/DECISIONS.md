@@ -462,9 +462,10 @@ Notice delivery claims stay in place after the email provider accepts the messag
 - **Role matrix**: billing, numbers, member management, company settings = owner/admin.
   Conversations/messages/notes/tags/contacts = any member. Owner role is not assignable
   via invite.
-- **Invites**: Supabase Auth `inviteUserByEmail` (Resend as custom SMTP) + app `invites`
-  table binding company/email/role, seat limit enforced at invite creation *and* acceptance;
-  member remove/role-change routes included.
+- **Invites** go through the Worker, which generates a Supabase Auth link for new users
+  and sends a workspace invitation through Resend. The `invites` table binds company,
+  email and role. Seat limits apply at creation and acceptance. The API also lets
+  workspace managers remove members and change their roles.
 - **Secrets**: all server credentials are Worker encrypted secrets (wrangler), injected from
   GitHub Actions environment secrets. Frontend gets only `NEXT_PUBLIC_SUPABASE_URL` +
   publishable key. Stripe uses a restricted key. Startup-time env validation (zod) fails
