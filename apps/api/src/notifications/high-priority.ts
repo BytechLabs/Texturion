@@ -21,7 +21,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
-import { captureException, opsNotice, workerEnv } from "../observability/capture";
+import { captureException, errorLogText, opsNotice, workerEnv } from "../observability/capture";
 
 /**
  * Which feature is spending. Recorded per company per day so a spike can be
@@ -114,8 +114,8 @@ export async function claimHighPriority(
     };
   } catch (error) {
     console.error(
-      `high-priority push meter failed for company ${request.companyId} ` +
-        `(${request.reason}): ${error instanceof Error ? error.message : String(error)}`,
+      `high-priority push meter failed for company ${request.companyId} (${request.reason}):`,
+      errorLogText(error),
     );
     void captureException(workerEnv(), error, {
       source: "api",

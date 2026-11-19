@@ -71,7 +71,7 @@ import {
   isProvisionableCheckout,
   syncSubscription,
 } from "../webhooks/stripe";
-import { captureException } from "../observability/capture";
+import { captureException, errorLogText, reportHandledFailure } from "../observability/capture";
 
 const planBodySchema = z.object({
   plan: z.enum(PLAN_IDS),
@@ -814,19 +814,28 @@ billingRoutes.post("/portal", async (c) => {
       });
       return c.json({ url: session.url, scope });
     }
-    console.error("stripe_billing_portal_failed", {
-      scope,
-      operation,
-      reason: "configuration_unavailable",
-    });
+    void reportHandledFailure(
+      env,
+      "stripe-billing-portal",
+      new Error("Stripe billing portal configuration is unavailable"),
+      { ids: { scope, operation, reason: "configuration_unavailable" } },
+    );
   } catch (error) {
     const stripeStatus = error instanceof Stripe.errors.StripeError ? error.statusCode : undefined;
-    console.error("stripe_billing_portal_failed", {
-      scope,
-      operation,
-      reason: stripeStatus === 403 ? "stripe_permission_denied" : "stripe_request_failed",
-      stripe_status: stripeStatus,
-    });
+    const denied = stripeStatus === 403;
+    void reportHandledFailure(
+      env,
+      "stripe-billing-portal",
+      new Error(denied ? "Stripe denied access to the billing portal" : "Stripe billing portal request failed"),
+      {
+        ids: {
+          scope,
+          operation,
+          reason: denied ? "stripe_permission_denied" : "stripe_request_failed",
+          ...(stripeStatus === undefined ? {} : { stripe_status: String(stripeStatus) }),
+        },
+      },
+    );
   }
   return errorResponse(
     c,
@@ -1574,12 +1583,11 @@ async function mirrorAfterSwap(
   try {
     await syncSubscription(env, subscriptionId, db);
   } catch (error_) {
-    console.error(
-      `pause mirror via syncSubscription failed for ${subscriptionId}:`,
-      error_ instanceof Error ? error_.message : String(error_),
-    );
     const { error } = await fallback();
     if (error) throw error_;
+    void reportHandledFailure(env, "subscription-pause-mirror", error_, {
+      ids: { subscriptionId },
+    });
   }
 }
 
@@ -2440,7 +2448,7 @@ async function undoUnpaidReinstate(
     void captureException(env, undoError, { source: "api" });
     console.error(
       `reinstate ${args.row.id}: unpaid capacity could not be undone:`,
-      undoError instanceof Error ? undoError.message : String(undoError),
+      errorLogText(undoError),
     );
   }
   return false;

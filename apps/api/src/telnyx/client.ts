@@ -182,6 +182,10 @@ export function isDefiniteRefusal(cause: unknown): cause is TelnyxApiError {
   return cause.status !== 429 && cause.status !== 408;
 }
 
+export function isEndedCall(cause: unknown): boolean {
+  return cause instanceof TelnyxApiError && (cause.status === 404 || cause.hasCode("90018"));
+}
+
 export class TelnyxApiError extends Error {
   /** HTTP status Telnyx returned. */
   readonly status: number;

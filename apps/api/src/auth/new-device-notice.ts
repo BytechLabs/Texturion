@@ -25,6 +25,7 @@ import type { AppEnv } from "../context";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { requestClient, requestGeo } from "./request-origin";
 import type { ClientKind } from "./request-origin";
 
@@ -78,12 +79,9 @@ export function announceNewDevice(
 ): void {
   const client = requestClient(c);
   const geo = requestGeo(c);
-  const work = deliver(env, db, userId, sessionId, client, geo).catch((error: unknown) => {
-    console.error(
-      `new-device notice failed for session ${sessionId}:`,
-      error instanceof Error ? error.message : String(error),
-    );
-  });
+  const work = deliver(env, db, userId, sessionId, client, geo).catch((error: unknown) =>
+    reportHandledFailure(env, "new-device-notice", error)
+  );
   try {
     c.executionCtx.waitUntil(work);
   } catch {

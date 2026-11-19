@@ -35,6 +35,7 @@ import type { CompanyAiSettings } from './settings';
 import type { getDb } from "../db";
 import type { Env } from "../env";
 import { isKilled } from "../flags/evaluate";
+import { errorLogText, reportHandledFailure } from "../observability/capture";
 import type { AiCostFeature } from "../billing/costs";
 import { hasLiveSubscription, SUBSCRIPTION_STATUSES } from '../billing/plans';
 import type { LocalSubscriptionStatus } from '../billing/plans';
@@ -224,10 +225,9 @@ export async function runAiFeature(
         cap: spec.cap,
         stops: spec.stops,
       }).catch((error: unknown) => {
-        console.error(
-          `ai cap notice failed for ${companyId}/${spec.key}:`,
-          error instanceof Error ? error.message : String(error),
-        );
+        void reportHandledFailure(env, "ai-cap-notice", error, {
+          ids: { companyId, feature: spec.key },
+        });
       });
     }
     if (reservation.over_cap) return { ok: false, reason: "over_cap" };
@@ -255,11 +255,13 @@ export async function runAiFeature(
           }),
         ]);
       } catch (error) {
-        console.error(
-          `ai ${spec.key}: ${attempt.model} threw:`,
-          error instanceof Error ? error.message : String(error),
-        );
-        if (last) return { ok: false, reason: "model_error" };
+        if (last) {
+          void reportHandledFailure(env, "ai-model-response", error, {
+            ids: { companyId, feature: spec.key, model: attempt.model },
+          });
+          return { ok: false, reason: "model_error" };
+        }
+        console.warn(`ai ${spec.key}: retrying after ${attempt.model} failed:`, errorLogText(error));
         continue;
       }
       if (raw === TIMED_OUT) {
@@ -272,16 +274,13 @@ export async function runAiFeature(
       if (last || args.accept === undefined || args.accept(raw)) {
         return { ok: true, raw };
       }
-      console.error(
-        `ai ${spec.key}: ${attempt.model} returned nothing usable`,
-      );
+      console.warn(`ai ${spec.key}: ${attempt.model} returned nothing usable`);
     }
     return { ok: false, reason: "model_error" };
   } catch (error) {
-    console.error(
-      `ai ${spec.key}: ${args.model} threw:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(env, "ai-run", error, {
+      ids: { companyId, feature: spec.key, model: args.model },
+    });
     return { ok: false, reason: "model_error" };
   }
 }

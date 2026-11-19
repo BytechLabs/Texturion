@@ -99,7 +99,7 @@ function client(env: Env): PostHog | null {
   });
   // The SDK reports a failed send here rather than rejecting the capture.
   posthog.on("error", (cause: unknown) => {
-    console.error("posthog send failed:", cause instanceof Error ? cause.message : String(cause));
+    console.error("posthog send failed:", errorLogText(cause));
   });
   return posthog;
 }
@@ -159,10 +159,7 @@ function send(
   waitUntil: WaitUntil,
 ): Promise<void> {
   const done = sending().catch((error: unknown) => {
-    console.error(
-      `posthog ${name} failed:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    console.error(`posthog ${name} failed:`, errorLogText(error));
   });
   waitUntil(done);
   return done;
@@ -196,11 +193,12 @@ export async function reportHandledFailure(
   env: Env,
   operation: string,
   error: unknown,
-  waitUntil?: WaitUntil,
+  { ids, waitUntil }: { ids?: Record<string, string>; waitUntil?: WaitUntil } = {},
 ): Promise<void> {
-  console.error(`${operation}:`, errorLogText(error));
+  const details = ids ? [scrubText(JSON.stringify(ids))] : [];
+  console.error(`${operation}:`, errorLogText(error), ...details);
   try {
-    await captureException(env, error, { source: "api", level: "warning", operation }, waitUntil);
+    await captureException(env, error, { source: "api", level: "warning", operation, extra: ids }, waitUntil);
   } catch (reportError) {
     console.error("PostHog warning capture failed:", errorLogText(reportError));
   }

@@ -39,7 +39,7 @@ import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from '../env';
 import type { Env } from '../env';
-import { captureException } from "../observability/capture";
+import { captureException, errorLogText, reportHandledFailure, workerEnv } from "../observability/capture";
 import { liveStripeEventRefusal } from "../environments/policy";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
@@ -160,7 +160,9 @@ async function processAndStamp(env: Env, event: Stripe.Event): Promise<void> {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(`stripe webhook ${event.id} (${event.type}) failed:`, message);
+    void reportHandledFailure(env, "stripe-webhook-processing", error, {
+      ids: { eventId: event.id, eventType: event.type },
+    });
     const { data } = await db
       .from("webhook_events")
       .select("attempts")
@@ -370,10 +372,9 @@ async function reconcileModulesFromSubscription(
     try {
       await enableVoiceForCompany(env, db, companyId);
     } catch (error) {
-      console.error(
-        `voice enablement on subscription mirror failed for ${companyId}:`,
-        error instanceof Error ? error.message : String(error),
-      );
+      void reportHandledFailure(env, "subscription-voice-enablement", error, {
+        ids: { companyId },
+      });
     }
   }
 }
@@ -464,7 +465,7 @@ export async function ensureVoiceMeteredItem(
     void captureException(env, error, { source: "api", company_id: companyId });
     console.error(
       `voice metered convergence failed for ${companyId}:`,
-      error instanceof Error ? error.message : String(error),
+      errorLogText(error),
     );
   }
 }
@@ -1333,10 +1334,9 @@ async function confirmCancellationReason(
       .is("confirmed_at", null);
     if (error) throw new Error(error.message);
   } catch (error) {
-    // Never-silent (D3), non-fatal.
-    console.error(
-      `cancellation reason confirm failed (${companyId}): ${String(error)}`,
-    );
+    void reportHandledFailure(workerEnv(), "cancellation-reason-confirmation", error, {
+      ids: { companyId },
+    });
   }
 }
 
@@ -1457,11 +1457,11 @@ async function handleInvoicePaymentFailed(
       } catch (error_) {
         const status = (error_ as { statusCode?: number }).statusCode;
         const refused = typeof status === "number" && status >= 400 && status < 500;
-        console.error(
-          `us-registration invoice ${invoice.id} could not be voided:`,
-          error_ instanceof Error ? error_.message : String(error_),
-        );
         if (!refused) throw error_;
+        console.warn(
+          `us-registration invoice ${invoice.id} could not be voided:`,
+          errorLogText(error_),
+        );
       }
     }
   }

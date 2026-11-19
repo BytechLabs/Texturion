@@ -67,6 +67,7 @@ import {
   dispatchOutbound,
   gateOutboundSend,
   persistSendInterruption,
+  recordOutboundTemplateUse,
   runPreSendGates,
   STUCK_SEND_SECONDS,
 } from "../messaging/send";
@@ -331,23 +332,8 @@ messageRoutes.post("/messages/send", requireCapability("conversations.send"), as
     clearance,
   });
 
-  // #475: record that a saved reply produced this message.
-  //
-  // AFTER the dispatch and deliberately unawaited-on-failure: this is
-  // bookkeeping for a picker's sort order, and a send that succeeded must never
-  // be reported as failed because a counter did not increment. The RPC verifies
-  // the template belongs to this workspace, so a client naming somebody else's
-  // id writes nothing rather than corrupting their count.
   if (body.template_id) {
-    try {
-      await db.rpc("api_record_template_use", {
-        p_company_id: companyId,
-        p_template_id: body.template_id,
-        p_edited: body.template_edited ?? false,
-      });
-    } catch (error) {
-      console.warn(`template use not recorded: ${String(error)}`);
-    }
+    await recordOutboundTemplateUse(env, db, companyId, body.template_id, body.template_edited ?? false);
   }
 
   return c.json(messageJson(sent, attachments), 201);
@@ -595,14 +581,14 @@ messageRoutes.patch("/messages/:id", requireCapability("conversations.note"), as
       done: body.done,
       askForRating: updated.direction !== "note",
     });
-    const alert = notifyPromotedMessageDone(getEnv(c.env), {
+    const alert = notifyPromotedMessageDone(env, {
       companyId,
       messageId: updated.id,
       actorUserId: userId,
       done: body.done,
-    }).catch((error_: unknown) => {
-      console.error("task done alert failed:", error_);
-    });
+    }).catch((error_: unknown) =>
+      reportHandledFailure(env, "task-done-alert", error_),
+    );
     executionCtxOf(c)?.waitUntil(alert);
   }
 

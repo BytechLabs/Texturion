@@ -3,6 +3,8 @@ import type Stripe from "stripe";
 import { billingCurrencyOf } from '@loonext/shared';
 import type { BillingCurrency } from '@loonext/shared';
 
+import { reportHandledFailure, workerEnv } from "../observability/capture";
+
 /**
  * #328 — the currency a checkout session may actually be created in.
  *
@@ -89,10 +91,9 @@ async function currenciesFor(
     return found;
   } catch (error) {
     // A price we cannot read is not a price we should guess about.
-    console.error(
-      `checkout currency probe failed for ${priceId}:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(workerEnv(), "checkout-currency-probe", error, {
+      ids: { priceId },
+    });
     return null;
   }
 }

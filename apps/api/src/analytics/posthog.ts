@@ -20,7 +20,7 @@
  */
 import type { Env } from "../env";
 import { fetchWithDeadline } from "../http/deadline";
-import { captureException, environmentOf } from "../observability/capture";
+import { captureException, environmentOf, errorLogText } from "../observability/capture";
 import { scrubProperties } from "../observability/scrub";
 
 /** PostHog Cloud (US) capture endpoint. */
@@ -68,7 +68,7 @@ export async function capture(
       throw new Error(`PostHog answered HTTP ${response.status}`);
     }
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error(`posthog capture '${event}' failed:`, detail);
+    // Capture delivery failures stay in Workers Logs to avoid recursive reports.
+    console.error(`posthog capture '${event}' failed:`, errorLogText(error));
   }
 }

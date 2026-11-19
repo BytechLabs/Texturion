@@ -59,6 +59,7 @@ import {
   dispatchOutbound,
   gateOutboundSend,
   persistSendInterruption,
+  recordOutboundTemplateUse,
   runPreSendGates,
 } from "../messaging/send";
 import type { AttachmentSummary, MessageRow } from "../messaging/types";
@@ -749,20 +750,8 @@ export async function composeConversation(
     await stampIdentificationSent(db, { companyId, contactId: contact.id });
   }
 
-  // #475: a first message to a new customer is one of the likeliest templated
-  // sends there is, so this path counts too. After the dispatch and swallowing
-  // its own failure, for the same reason as the reply path: a delivered message
-  // must never be reported as failed because a counter did not increment.
   if (body.template_id) {
-    try {
-      await db.rpc("api_record_template_use", {
-        p_company_id: companyId,
-        p_template_id: body.template_id,
-        p_edited: body.template_edited ?? false,
-      });
-    } catch (error) {
-      console.warn(`template use not recorded: ${String(error)}`);
-    }
+    await recordOutboundTemplateUse(env, db, companyId, body.template_id, body.template_edited ?? false);
   }
 
   return { conversation, message: messageJson(sent, attachments), existing: false, created };

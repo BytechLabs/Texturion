@@ -1,6 +1,7 @@
 import type { getDb } from "../db";
 import type { getEnv } from "../env";
-import { telnyxRequest } from "../telnyx/client";
+import { reportHandledFailure } from "../observability/capture";
+import { TelnyxApiError, telnyxRequest } from "../telnyx/client";
 
 /**
  * Ending somebody's access — all of it, in one place.
@@ -81,11 +82,10 @@ export async function releaseTelnyxCredentials(
       });
       deleted += 1;
     } catch (error) {
-      console.error(
-        `telephony credential ${credentialId} survived ${context} — that device ` +
-          `can still ring and can answer as the business:`,
-        error instanceof Error ? error.message : String(error),
-      );
+      if (error instanceof TelnyxApiError && error.status === 404) continue;
+      void reportHandledFailure(env, "revoke-telephony-credential", error, {
+        ids: { credentialId, context },
+      });
     }
   }
   return deleted;

@@ -56,6 +56,7 @@ import type { LiveCallRow } from '../messaging/live-call';
 import { hangupLiveLeg } from "../messaging/inbound-ring";
 import { isFcmConfigured } from "../notifications/fcm";
 import { notifyIncomingCall } from "../notifications/incoming-call";
+import { reportHandledFailure } from "../observability/capture";
 import { telnyxRequest } from "../telnyx/client";
 import { executionCtxOf, parseJsonBody, parseOptionalJsonBody, unwrap } from "./core/http";
 
@@ -357,10 +358,9 @@ liveCallsRoutes.post(
       } catch (error) {
         // A DO RPC failure on ONE session must not sink the batch or the 200.
         // The DO journals its own in-flight state; here we log and move on.
-        console.error(
-          `decline-mine: DO.decline failed (session ${row.call_session_id}):`,
-          error instanceof Error ? error.message : String(error),
-        );
+        void reportHandledFailure(env, "call-decline-attempt", error, {
+          ids: { callSessionId: row.call_session_id },
+        });
       }
     }
 

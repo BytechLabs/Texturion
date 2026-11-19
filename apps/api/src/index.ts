@@ -211,7 +211,7 @@ function reportUnexpected(
   try {
     void captureException(reportingEnv(bindings), error, context, waitUntil);
   } catch (error_) {
-    console.error("exception not reported:", error_ instanceof Error ? error_.message : String(error_));
+    console.error("exception not reported:", errorLogText(error_));
   }
 }
 

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { guardedAutoSend } from "./auto-send";
 import { runPreSendGates } from "./send";
 
@@ -136,8 +137,8 @@ export async function maybeSendOffRamp(
   } catch (error) {
     // Swallowed on purpose — see the docblock. The inbound message is already
     // stored and threaded, and this is a courtesy.
-    console.error(
-      `off-ramp reply failed for company ${args.companyId}: ${String(error)}`,
-    );
+    void reportHandledFailure(env, "off-ramp-reply", error, {
+      ids: { companyId: args.companyId },
+    });
   }
 }

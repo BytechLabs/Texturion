@@ -25,7 +25,7 @@ import { ApiError } from "../http/errors";
 import { fetchWithDeadline } from "../http/deadline";
 import { getSendGates } from "../telnyx/registration";
 import { MESSAGING_SPEND_LIMIT_CODE } from "../telnyx/spend-limits";
-import { captureEvent, opsNotice } from "../observability/capture";
+import { captureEvent, opsNotice, reportHandledFailure, workerEnv } from "../observability/capture";
 import { phoneCountry } from "./delivery-by-country";
 import { recordCarrierOptOut } from "./opt-out";
 import type { GateResult, MessageRow } from "./types";
@@ -664,10 +664,9 @@ export async function persistSendInterruption(
       error_detail: detail.slice(0, 2000),
     });
   } catch (error) {
-    console.error(
-      `send interruption persist failed for message ${message.id}:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(workerEnv(), "message-send-interruption", error, {
+      ids: { messageId: message.id },
+    });
   }
 }
 
@@ -752,8 +751,9 @@ async function captureSecondMemberSent(
       us_texting_enabled: company.us_texting_enabled === true,
     });
   } catch (error) {
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error("second_member_sent capture skipped:", detail);
+    void reportHandledFailure(env, "second-member-sent-record", error, {
+      ids: { companyId: message.company_id },
+    });
   }
 }
 
@@ -807,8 +807,9 @@ async function captureFirstOutboundSent(
     });
   } catch (error) {
     // Analytics never breaks a send that already succeeded.
-    const detail = error instanceof Error ? error.message : String(error);
-    console.error("first_outbound_sent capture skipped:", detail);
+    void reportHandledFailure(env, "first-outbound-send-record", error, {
+      ids: { companyId: message.company_id },
+    });
   }
 }
 
@@ -995,4 +996,26 @@ export async function dispatchOutbound(
     });
   }
   return row;
+}
+
+/** A failed usage count must not make a delivered text appear to have failed. */
+export async function recordOutboundTemplateUse(
+  env: Env,
+  db: SupabaseClient,
+  companyId: string,
+  templateId: string,
+  edited: boolean,
+): Promise<void> {
+  try {
+    const { error } = await db.rpc("api_record_template_use", {
+      p_company_id: companyId,
+      p_template_id: templateId,
+      p_edited: edited,
+    });
+    if (error) throw error;
+  } catch (error) {
+    void reportHandledFailure(env, "outbound-template-use-record", error, {
+      ids: { companyId, templateId },
+    });
+  }
 }

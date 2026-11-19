@@ -1,6 +1,7 @@
 import type { Env } from "../env";
 import type { TelnyxEvent } from "../messaging/types";
-import { telnyxRequest } from "../telnyx/client";
+import { reportHandledFailure } from "../observability/capture";
+import { isEndedCall, telnyxRequest } from "../telnyx/client";
 import { inboundCallerRefusal } from "./policy";
 
 interface InboundCaller {
@@ -71,9 +72,7 @@ export async function refuseStrangerInbound(
     } catch (error) {
       // The leg still never reaches a member: refusing the event is what
       // keeps it from ringing, and an unanswered leg times out on its own.
-      console.warn(
-        `inbound gate: reject failed: ${error instanceof Error ? error.message : String(error)}`,
-      );
+      if (!isEndedCall(error)) void reportHandledFailure(env, "inbound-gate-reject", error);
     }
   }
   console.log(`inbound gate: ${event.data?.event_type} refused; ${refusal}`);

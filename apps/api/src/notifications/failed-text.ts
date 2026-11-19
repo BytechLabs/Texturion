@@ -3,6 +3,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { listConversationViewers } from "../auth/conversation-audience";
 import type { Env } from "../env";
 import type { MessageRow } from "../messaging/types";
+import { reportHandledFailure } from "../observability/capture";
 import { loadConversationPrefs, withoutMuted } from "./conversation-prefs";
 import { deliverPush } from "./deliver";
 
@@ -76,6 +77,8 @@ export async function notifyFailedText(
       console.warn(`Failed text ${message.id}: ${failures.length} push delivery failures`);
     }
   } catch (error) {
-    console.warn(`Failed text ${message.id}: notification failed`, error);
+    void reportHandledFailure(env, "failed-text-notification", error, {
+      ids: { companyId, conversationId, messageId: message.id },
+    });
   }
 }

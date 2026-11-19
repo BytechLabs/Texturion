@@ -15,7 +15,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { captureEvent, captureException, workerEnv } from '../observability/capture';
+import { captureEvent, captureException, reportHandledFailure, workerEnv } from '../observability/capture';
 import type { WaitUntil } from '../observability/capture';
 import {
   afterHoursDefaultGreeting,
@@ -1283,10 +1283,10 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
           direction: "inbound",
         });
       } catch (error) {
-        console.error(
-          `calls-v3 answer-time threading failed for ${machine.callSessionId}:`,
-          error instanceof Error ? error.message : String(error),
-        );
+        void reportHandledFailure(env, "call-answer-thread", error, {
+          ids: { callSessionId: machine.callSessionId },
+          waitUntil,
+        });
       }
     },
 
@@ -1376,10 +1376,10 @@ export function createSessionRuntime(env: Env, waitUntil?: WaitUntil): SessionRu
             db,
           );
         } catch (error_) {
-          console.error(
-            `calls-v3 missed-call alert failed for ${machine.callSessionId}:`,
-            error_ instanceof Error ? error_.message : String(error_),
-          );
+          void reportHandledFailure(env, "call-missed-alert", error_, {
+            ids: { callSessionId: machine.callSessionId },
+            waitUntil,
+          });
         }
       }
     },

@@ -9,6 +9,7 @@
  * has no business being able to stop somebody texting a customer.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 
 /** What the owner is told about one number. */
 export interface NumberHealthView {
@@ -58,7 +59,9 @@ export async function loadNumberHealth(
     }
     return map;
   } catch (error) {
-    console.error(`number health read failed for ${companyId}: ${String(error)}`);
+    void reportHandledFailure(workerEnv(), "number-health-read", error, {
+      ids: { companyId },
+    });
     return new Map();
   }
 }

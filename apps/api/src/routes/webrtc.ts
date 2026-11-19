@@ -25,7 +25,8 @@ import { getEnv } from '../env';
 import type { Env } from '../env';
 import { isKilled } from "../flags/evaluate";
 import { errorResponse } from "../http/errors";
-import { telnyxRequest, telnyxUrl } from "../telnyx/client";
+import { reportHandledFailure } from "../observability/capture";
+import { TelnyxApiError, telnyxRequest, telnyxUrl } from "../telnyx/client";
 import { unwrap } from "./core/http";
 
 interface CredentialRow {
@@ -165,10 +166,11 @@ webrtcRoutes.post("/webrtc/token", requireCapability("conversations.send"), asyn
           path: `/v2/telephony_credentials/${telnyxId}`,
         });
       } catch (error) {
-        console.error(
-          `orphan credential cleanup failed for ${telnyxId}:`,
-          error instanceof Error ? error.message : String(error),
-        );
+        if (!(error instanceof TelnyxApiError && error.status === 404)) {
+          void reportHandledFailure(env, "orphan-telephony-credential-cleanup", error, {
+            ids: { companyId, credentialId: telnyxId },
+          });
+        }
       }
       if (!credential) {
         throw new Error("credential race left no row");
@@ -230,10 +232,11 @@ export async function revokeMemberTelephonyCredential(
       path: `/v2/telephony_credentials/${credentialId}`,
     });
   } catch (error_) {
-    console.error(
-      `telephony credential revoke failed for ${credentialId}:`,
-      error_ instanceof Error ? error_.message : String(error_),
-    );
+    if (!(error_ instanceof TelnyxApiError && error_.status === 404)) {
+      void reportHandledFailure(env, "revoke-telephony-credential", error_, {
+        ids: { companyId, credentialId },
+      });
+    }
   }
   const { error } = await db
     .from("member_telephony_credentials")

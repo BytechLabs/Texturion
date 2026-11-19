@@ -37,6 +37,7 @@ import type { Locale } from "@loonext/shared";
 
 import type { Env } from "../env";
 import { deliverPush } from "../notifications/deliver";
+import { reportHandledFailure } from "../observability/capture";
 import { noticeRoles } from "./recipients";
 
 export async function pushConsequentialNotice(
@@ -99,9 +100,8 @@ export async function pushConsequentialNotice(
       throw new AggregateError(failures, "consequential notice push failed");
     }
   } catch (error) {
-    console.error(
-      `consequential push failed for ${args.companyId} (${args.collapseKey}):`,
-      error instanceof Error ? (error.stack ?? error.message) : String(error),
-    );
+    void reportHandledFailure(env, "billing-consequential-push", error, {
+      ids: { companyId: args.companyId },
+    });
   }
 }

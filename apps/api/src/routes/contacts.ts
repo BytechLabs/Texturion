@@ -55,6 +55,7 @@ import { answerersByCall } from "../calls/answerers";
 import { getDb } from "../db";
 import { getEnv } from '../env';
 import type { Env } from '../env';
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 import { ApiError, errorResponse } from "../http/errors";
 import { buildPage, decodeCursor, encodeCursor, fromBase64Url, toBase64Url } from "../http/pagination";
 import { csvResponse, csvSafeText, csvUnguardText, CsvUnterminatedQuoteError, parseCsvRows } from './core/csv';
@@ -2100,10 +2101,9 @@ async function contactRelationship(
     // Number access is resolved OUTSIDE this, on purpose: if that fails the
     // request must fail loudly, because the alternative is a count that
     // silently includes numbers the member is kept off.
-    console.error(
-      `contact relationship for ${args.contactId} failed:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(workerEnv(), "contact-relationship-lookup", error, {
+      ids: { contactId: args.contactId, companyId: args.companyId },
+    });
     return { conversation_count: 0, first_conversation_at: null };
   }
 }

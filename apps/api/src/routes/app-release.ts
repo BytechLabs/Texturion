@@ -23,6 +23,7 @@ import { Hono } from "hono";
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 
 export const appReleaseRoutes = new Hono<AppEnv>();
 
@@ -89,7 +90,9 @@ appReleaseRoutes.get("/app-release", async (c) => {
     // A database outage must not become a fleet-wide update screen. Logged so
     // it is not silent, answered permissively so it is not an incident. Never
     // cached, so the real policy is back on the next request after the outage.
-    console.error(`app-release: policy read failed for ${platform}: ${String(error)}`);
+    void reportHandledFailure(workerEnv(), "app-release-policy-read", error, {
+      ids: { platform },
+    });
     return c.json(noDemands(platform), 200, responseHeaders());
   }
 });

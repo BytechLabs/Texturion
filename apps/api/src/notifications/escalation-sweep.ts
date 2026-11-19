@@ -20,6 +20,7 @@ import type { Locale } from "@loonext/shared";
 import { listConversationViewers } from "../auth/conversation-audience";
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 import { loadConversationPrefs, withoutMuted } from "./conversation-prefs";
 import { deliverPush } from "./deliver";
 import { ESCALATION_COPY } from "./escalation-copy";
@@ -173,7 +174,9 @@ export async function runEscalationSweep(
       }
       summary.widened += 1;
     } catch (error_) {
-      console.error(`escalation sweep: alert ${alert.id} failed`, error_);
+      void reportHandledFailure(env, "notification-escalation-sweep", error_, {
+        ids: { alert_id: alert.id },
+      });
       // A partial fan-out can already have reached phones.
       if (!deliveryStarted) {
         try {
@@ -184,7 +187,9 @@ export async function runEscalationSweep(
           });
           if (rearmError) throw rearmError;
         } catch (rearmError) {
-          console.error(`escalation sweep: re-arm ${alert.id} failed`, rearmError);
+          void reportHandledFailure(env, "notification-escalation-rearm", rearmError, {
+            ids: { alert_id: alert.id },
+          });
         }
       }
     }

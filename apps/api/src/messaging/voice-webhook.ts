@@ -35,8 +35,8 @@ import { getDb } from "../db";
 import { enqueueWebhookEvent } from "../webhooks/outbound";
 import type { Env } from "../env";
 import { notifyMissedCall, notifyVoicemail } from "../notifications/missed-call";
-import { captureException, errorLogText } from "../observability/capture";
-import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
+import { captureException, errorLogText, reportHandledFailure } from "../observability/capture";
+import { isEndedCall, telnyxRequest } from "../telnyx/client";
 import {
   BROWSER_INBOUND_STATE,
   BROWSER_MEMBER_STATE,
@@ -716,7 +716,6 @@ async function outboundAnsweredAtMs(
   return Number.isFinite(ms) ? ms : null;
 }
 
-/** Hang up a leg we are refusing (dead-leg 4xx tolerated). */
 async function telnyxRejectLeg(
   env: Env,
   callControlId: string,
@@ -728,17 +727,9 @@ async function telnyxRejectLeg(
       body: {},
     });
   } catch (error) {
-    // The leg already ended, which is what the hang-up was for.
-    if (isDefiniteRefusal(error)) return;
-    console.error(
-      `outbound leg reject hangup failed for ${callControlId}:`,
-      errorLogText(error),
-    );
-    void captureException(env, error, {
-      source: "api",
-      level: "warning",
-      operation: "outbound-leg-reject-hangup",
-      extra: { call_control_id: callControlId },
+    if (isEndedCall(error)) return;
+    void reportHandledFailure(env, "outbound-leg-reject-hangup", error, {
+      ids: { callControlId },
     });
   }
 }
@@ -988,10 +979,9 @@ export async function handleTerminalCallEvent(
         db,
       );
     } catch (error) {
-      console.error(
-        `missed-call alert for conversation ${thread.conversationId} failed:`,
-        error instanceof Error ? error.message : String(error),
-      );
+      void reportHandledFailure(env, "call-missed-alert", error, {
+        ids: { conversationId: thread.conversationId },
+      });
     }
   }
 }
@@ -1379,10 +1369,9 @@ async function reportForwardLegSeconds(
   } catch (error_) {
     // Report failed — leave stripe_reported_at NULL; the hourly re-reporter
     // (messaging/crons.ts) picks the row up with the same identifier.
-    console.error(
-      `voice meter report failed for ${input.rowId}:`,
-      error_ instanceof Error ? error_.message : String(error_),
-    );
+    void reportHandledFailure(env, "voice-usage-meter-report", error_, {
+      ids: { callId: input.rowId },
+    });
     return;
   }
   const { error: stampError } = await db

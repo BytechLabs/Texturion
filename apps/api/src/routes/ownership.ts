@@ -50,6 +50,7 @@ import { sendEmail } from "../email/resend";
 import { renderEmailHtml } from "../email/html";
 import { getEnv } from '../env';
 import type { Env } from '../env';
+import { reportHandledFailure } from "../observability/capture";
 import { errorResponse } from "../http/errors";
 import { parseJsonBody, unwrap } from "./core/http";
 
@@ -671,10 +672,7 @@ async function notify(
   try {
     await work(env, getDb(env));
   } catch (error) {
-    console.error(
-      "ownership notification failed:",
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(env, "ownership-notification", error);
   }
 }
 

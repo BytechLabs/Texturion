@@ -36,8 +36,8 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { METER_TIMEOUT_MS, reportSegmentUsage, reportVoiceSeconds } from "../billing/meter";
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { captureException, scrubbedError } from "../observability/capture";
-import { isDefiniteRefusal, telnyxRequest } from "../telnyx/client";
+import { captureException, errorLogText, reportHandledFailure, scrubbedError } from "../observability/capture";
+import { isEndedCall, telnyxRequest } from "../telnyx/client";
 import { processResendEvent } from "../webhooks/resend";
 import { processStripeEvent } from "../webhooks/stripe";
 import { dispatchTelnyxEvent } from "./dispatch";
@@ -177,7 +177,7 @@ export async function sweepWebhookEvents(env: Env): Promise<void> {
       // The claim already counted this attempt — record the error only.
       console.error(
         `sweep of ${row.provider} ${row.event_id} (${row.event_type}) failed (attempt ${attempts}):`,
-        message,
+        errorLogText(error_),
       );
       await db
         .from("webhook_events")
@@ -593,13 +593,10 @@ export async function sweepStaleCalls(env: Env): Promise<void> {
       });
       console.warn(`runaway call hung up: session ${sessionId}`);
     } catch (error_) {
-      // Dead leg / already gone (4xx) is the normal case — the stale-outcome
-      // RPC below finalizes its row.
-      if (isDefiniteRefusal(error_)) continue;
-      console.error(
-        `runaway call hangup failed for ${ccid}:`,
-        error_ instanceof Error ? error_.message : String(error_),
-      );
+      if (isEndedCall(error_)) continue;
+      void reportHandledFailure(env, "runaway-call-hangup", error_, {
+        ids: { callControlId: ccid },
+      });
     }
   }
 

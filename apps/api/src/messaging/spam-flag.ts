@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { recordAudit } from "../audit/log";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 
 import { scoreContent } from "./spam-signals";
 
@@ -187,10 +188,9 @@ export async function classifyInbound(
     return { blocked: false, suspected: true };
   } catch (error) {
     // Never wedge a durable inbound message over a badge.
-    console.error(
-      `spam classification for conversation ${args.conversationId} failed:`,
-      error instanceof Error ? error.message : String(error),
-    );
+    void reportHandledFailure(workerEnv(), "inbound-spam-classification", error, {
+      ids: { conversationId: args.conversationId },
+    });
     return NOT_SPAM;
   }
 }

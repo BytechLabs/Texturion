@@ -31,7 +31,7 @@ import { getDb } from "../db";
 import { renderEmailHtml } from "../email/html";
 import { sendEmail } from "../email/resend";
 import type { Env } from "../env";
-import { captureException } from "../observability/capture";
+import { captureException, reportHandledFailure } from "../observability/capture";
 import { billingRecipients } from "./recipients";
 import { sendLedgered, usageAlertLedger } from "./send-ledgered";
 
@@ -110,7 +110,9 @@ export async function runCarrierCeilingJob(
     } catch (error_) {
       // One tenant's bad address must not stop the rest being warned, and the
       // window this alert is useful in is measured in hours.
-      console.error(`carrier ceiling warning failed for ${row.company_id}: ${String(error_)}`);
+      void reportHandledFailure(env, "carrier-ceiling-send", error_, {
+        ids: { companyId: row.company_id },
+      });
     }
   }
 

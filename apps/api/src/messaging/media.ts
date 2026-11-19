@@ -4,6 +4,7 @@
  * URLs handed to Telnyx for outbound media.
  */
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 import {canonicalMmsType, MMS_MAX_MEDIA_BYTES, MMS_MAX_MEDIA_ITEMS, MMS_OUTBOUND_MEDIA_TYPES} from "@loonext/shared";
 import { ApiError } from "../http/errors";
 import { scanAttachment } from "../attachments/scan";
@@ -385,19 +386,16 @@ export async function uploadOutboundMedia(
       .eq("company_id", args.companyId)
       .eq("message_id", args.messageId);
     if (rowError) {
-      console.error(
-        `#263 outbound media row cleanup failed for ${args.messageId}: ${
-           rowError.message}`,
-      );
+      void reportHandledFailure(workerEnv(), "outbound-media-row-cleanup", rowError, {
+        ids: { messageId: args.messageId },
+      });
     }
     if (written.length > 0) {
       const removal = await db.storage.from(MMS_BUCKET).remove(written);
       if (removal.error) {
-        console.error(
-          `#263 outbound media cleanup failed (${written.length} object(s) `
-            + `left under ${args.companyId}/${args.messageId} for the §11 sweep): ${
-             removal.error.message}`,
-        );
+        void reportHandledFailure(workerEnv(), "outbound-media-storage-cleanup", removal.error, {
+          ids: { companyId: args.companyId, messageId: args.messageId },
+        });
       }
     }
     throw error;

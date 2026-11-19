@@ -940,9 +940,11 @@ describe("sweepStaleCalls — runaway cost backstop (D43, #145)", () => {
     await sweepStaleCalls(env);
 
     expect(hangup.calls).toHaveLength(2);
-    expect(logged.mock.calls.map((args) => String(args[0]))).toEqual([
-      "runaway call hangup failed for cust-ccid-fault:",
-    ]);
+    expect(logged).toHaveBeenCalledExactlyOnceWith(
+      "runaway-call-hangup:",
+      expect.stringContaining("TelnyxApiError: Telnyx 500"),
+      '{"callControlId":"cust-ccid-fault"}',
+    );
   });
 
   it("hangs up an INBOUND leg WE answered into voicemail — answering to record never stamps answered_at (#581)", async () => {

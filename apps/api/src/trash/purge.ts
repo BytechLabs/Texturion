@@ -18,6 +18,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { getDb } from "../db";
 import type { Env } from "../env";
+import { errorLogText } from "../observability/capture";
 
 export const TRASH_KINDS = [
   "message",
@@ -136,7 +137,7 @@ export async function purgeTrash(
       failures.push(error_);
       console.error(
         `trash purge failed for ${row.kind} ${row.id}:`,
-        error_ instanceof Error ? (error_.stack ?? error_.message) : String(error_),
+        errorLogText(error_),
       );
     }
   }

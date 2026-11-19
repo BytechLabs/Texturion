@@ -10,6 +10,7 @@ import {
 } from "../billing/prepay";
 import { getStripe } from "../billing/stripe";
 import type { Env } from "../env";
+import { reportHandledFailure } from "../observability/capture";
 
 /**
  * #399 — referrals: minting a workspace's code, attributing a signup to one,
@@ -172,10 +173,7 @@ export async function qualifyReferralForSender(
     const { data, error } = await db.rpc("qualify_referral", {
       p_referee_company: refereeCompanyId,
     });
-    if (error) {
-      console.error(`qualify_referral failed: ${error.message}`);
-      return { qualified: false };
-    }
+    if (error) throw new Error(error.message);
     const row = data as
       | {
           outcome?: string;
@@ -197,7 +195,9 @@ export async function qualifyReferralForSender(
     }
     return { qualified: true, referrerCompanyId: row.referrer_company_id };
   } catch (error) {
-    console.error(`qualify_referral threw: ${String(error)}`);
+    void reportHandledFailure(env, "referral-qualification", error, {
+      ids: { refereeCompanyId },
+    });
     return { qualified: false };
   }
 }
@@ -341,7 +341,9 @@ export async function rewardQualifiedReferral(
     try {
       await rewardSide(env, db, { referralId: args.referralId, companyId, side });
     } catch (error) {
-      console.error(`referral reward (${side}) failed: ${String(error)}`);
+      void reportHandledFailure(env, "referral-reward", error, {
+        ids: { companyId, referralId: args.referralId, side },
+      });
     }
   }
 }
@@ -423,13 +425,15 @@ export async function payPendingReferralRewards(
           break;
         }
       } catch (error_) {
-        console.error(`pending referral reward failed: ${String(error_)}`);
+        void reportHandledFailure(env, "referral-reward-retry", error_, {
+          ids: { companyId, referralId: row.id },
+        });
       }
     }
   } catch (error) {
-    console.error(
-      `pending referral rewards failed for ${companyId}: ${String(error)}`,
-    );
+    void reportHandledFailure(env, "referral-reward-lookup", error, {
+      ids: { companyId },
+    });
   }
   return paid;
 }

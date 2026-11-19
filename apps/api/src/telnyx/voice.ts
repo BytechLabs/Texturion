@@ -26,7 +26,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { telnyxRequest } from "./client";
 import { getDb } from "../db";
 import type { Env } from "../env";
-import { captureException } from "../observability/capture";
+import { captureException, reportHandledFailure } from "../observability/capture";
 
 interface VoiceSettingsResponse {
   data?: { connection_id?: string | null };
@@ -139,10 +139,9 @@ export async function enableVoiceOnNumber(
       row.telnyx_phone_number_id,
     );
   } catch (error_) {
-    console.error(
-      `call settings catch-up failed for number ${row.id}:`,
-      error_ instanceof Error ? error_.message : String(error_),
-    );
+    void reportHandledFailure(env, "voice-settings-catch-up", error_, {
+      ids: { phoneNumberId: row.id },
+    });
   }
 
   return {
@@ -183,10 +182,9 @@ export async function enableVoiceForCompany(
       // #134 review: one un-bindable number must never abort the company's
       // remaining numbers on this pass — the 15-min reconcile is the durable
       // per-number retry.
-      console.error(
-        `voice bind failed for number ${row.id}:`,
-        error_ instanceof Error ? error_.message : String(error_),
-      );
+      void reportHandledFailure(env, "voice-bind-number", error_, {
+        ids: { phoneNumberId: row.id },
+      });
     }
   }
   return results;
@@ -307,10 +305,9 @@ export async function syncCallSettingsForCompany(
       });
       pushed += 1;
     } catch (error_) {
-      console.error(
-        `call settings sync failed for number ${row.id as string}:`,
-        error_ instanceof Error ? error_.message : String(error_),
-      );
+      void reportHandledFailure(env, "voice-settings-sync", error_, {
+        ids: { phoneNumberId: row.id as string },
+      });
     }
   }
   return { pushed };

@@ -6,6 +6,7 @@ import type { QuoteState } from '@loonext/shared';
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { reportHandledFailure, workerEnv } from "../observability/capture";
 import {
   callerCountry,
   publicLinkGuard,
@@ -302,9 +303,11 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
       .eq("subject_id", row.id)
       .eq("purpose", "quote_accept")
       .is("revoked_at", null);
-    if (error) console.error(`quote accept link revoke failed: ${error.message}`);
+    if (error) throw new Error(error.message);
   } catch (error) {
-    console.error(`quote accept link revoke failed: ${String(error)}`);
+    void reportHandledFailure(workerEnv(), "quote-link-revocation", error, {
+      ids: { quoteId: row.id },
+    });
   }
 
   /*
@@ -340,7 +343,9 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
       },
     },
   ]).catch((error: unknown) => {
-    console.error(`quote accepted event failed: ${String(error)}`);
+    void reportHandledFailure(workerEnv(), "quote-accepted-event", error, {
+      ids: { quoteId: row.id },
+    });
   });
 
   /*
@@ -389,7 +394,11 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
       p_addr_country: null,
       p_addr_provenance: null,
     });
-    if (error) console.error(`quote accepted job failed: ${error.message}`);
+    if (error) {
+      void reportHandledFailure(workerEnv(), "quote-accepted-job", error, {
+        ids: { quoteId: row.id },
+      });
+    }
     const result = data as { outcome: string; task?: Record<string, unknown> } | null;
     if (!error && result?.outcome === "created" && result.task) {
       await afterTaskCreated(c, {

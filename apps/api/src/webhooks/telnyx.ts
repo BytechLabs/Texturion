@@ -33,6 +33,7 @@ import type { Env } from '../env';
 import { refuseStrangerInbound } from "../environments/inbound";
 import { dispatchTelnyxEvent } from "../messaging/dispatch";
 import type { TelnyxEvent } from "../messaging/types";
+import { reportHandledFailure } from "../observability/capture";
 import { verifyTelnyxWebhook } from "../telnyx/verify";
 
 export const telnyxWebhookRoute = new Hono<AppEnv>();
@@ -184,10 +185,9 @@ async function processAndStamp(
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    console.error(
-      `telnyx webhook ${eventId} (${event.data?.event_type}) failed:`,
-      message,
-    );
+    void reportHandledFailure(env, "telnyx-webhook-processing", error, {
+      ids: { eventId, eventType: event.data?.event_type ?? "unknown" },
+    });
     const { data } = await db
       .from("webhook_events")
       .select("attempts")
