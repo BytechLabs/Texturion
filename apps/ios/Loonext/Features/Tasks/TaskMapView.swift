@@ -160,6 +160,15 @@ struct TaskMapView: View {
     @State private var pickedDay = Date()
     @Environment(\.appLocale) private var appLocale
 
+    private var dayOptions: [SegmentedOption<String>] {
+        [
+            SegmentedOption("today", title: AppStrings.translate(appLocale, "contactsTasks.mapToday")),
+            SegmentedOption("tomorrow", title: AppStrings.translate(appLocale, "contactsTasks.mapTomorrow")),
+            SegmentedOption("custom", title: AppStrings.translate(appLocale, "contactsTasks.mapPickDay")),
+            SegmentedOption("all", title: AppStrings.translate(appLocale, "contactsTasks.mapAllOpen")),
+        ]
+    }
+
     private var selectedDay: Date? {
         switch window {
         case "all": return nil
@@ -185,14 +194,17 @@ struct TaskMapView: View {
 
     var body: some View {
         VStack {
-            Picker(AppStrings.translate(appLocale, "contactsTasks.mapPickDay"), selection: $window) {
-                Text(AppStrings.translate(appLocale, "contactsTasks.mapToday")).tag("today")
-                Text(AppStrings.translate(appLocale, "contactsTasks.mapTomorrow")).tag("tomorrow")
-                Text(AppStrings.translate(appLocale, "contactsTasks.mapPickDay")).tag("custom")
-                Text(AppStrings.translate(appLocale, "contactsTasks.mapAllOpen")).tag("all")
+            ScrollView(.horizontal) {
+                SegmentedControl(
+                    options: dayOptions,
+                    selection: $window,
+                    size: .compact,
+                    fill: false,
+                    label: AppStrings.translate(appLocale, "contactsTasks.mapPickDay")
+                )
+                .padding(.horizontal, 18)
             }
-            .pickerStyle(.segmented)
-            .padding(.horizontal, 18)
+            .scrollIndicators(.hidden)
             if window == "custom" {
                 DatePicker(AppStrings.translate(appLocale, "contactsTasks.mapPickDay"),
                            selection: $pickedDay, displayedComponents: .date)
@@ -386,16 +398,11 @@ private struct TaskMapContent: View {
         ZStack {
             Map(position: $camera, selection: $selectedGroupId) {
                 ForEach(model.groups) { group in
-                    // #219: the marker is pinned to a theme-INDEPENDENT deep
-                    // olive (BrandColor.mapPin), never the adaptive `olive` —
-                    // that turns pale lime in dark mode and the pin (balloon +
-                    // white glyph) goes illegible on the tiles. Deep olive reads
-                    // in BOTH themes.
                     Annotation(markerTitle(group), coordinate: group.coordinate) {
                         let number = group.tasks.first.flatMap { stopNumbers[$0.id] } ?? 0
                         Text(group.tasks.count == 1 ? "\(number)" : "\(number)+")
                             .font(.golos(13, weight: .semibold))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(BrandColor.paperFixed)
                             .padding(7)
                             .background(BrandColor.mapPin, in: Circle())
                     }

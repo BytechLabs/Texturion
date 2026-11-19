@@ -153,29 +153,31 @@ struct BookingCustomerPicker: View {
     @Environment(\.appLocale) private var appLocale
     @Environment(\.dismiss) private var dismiss
 
+    private var options: [PickerOption<String?>] {
+        let remove = PickerOption<String?>(nil, title: AppStrings.translate(appLocale, "contactsTasks.removeCustomer"))
+        let customers = matches.map { PickerOption<String?>($0.id, title: $0.name ?? $0.phone_e164) }
+        return [remove] + customers
+    }
+
     var body: some View {
-        NavigationStack {
-            List {
-                Button(AppStrings.translate(appLocale, "contactsTasks.removeCustomer")) { choose(nil) }
-                ForEach(matches, id: \.id) { customer in
-                    Button(customer.name ?? customer.phone_e164) { choose(customer) }
-                }
-            }
-            .searchable(text: $search, prompt: AppStrings.translate(appLocale, "contactsTasks.searchCustomers"))
-            .navigationTitle(AppStrings.translate(appLocale, "contactsTasks.pickCustomer"))
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button(AppStrings.translate(appLocale, "common.cancel")) { dismiss() }
-                }
-            }
-            .task(id: search) {
-                let found = try? await load(search)
-                if !Task.isCancelled { matches = found ?? [] }
-            }
+        SearchablePickerSheet(
+            options: options,
+            selected: nil,
+            title: AppStrings.translate(appLocale, "contactsTasks.pickCustomer"),
+            searchPrompt: AppStrings.translate(appLocale, "contactsTasks.searchCustomers"),
+            onPick: choose,
+            onDismiss: { dismiss() },
+            search: $search
+        )
+        .task(id: search) {
+            let found = try? await load(search)
+            if !Task.isCancelled { matches = found ?? [] }
         }
     }
 
-    private func choose(_ customer: Contact?) {
+    private func choose(_ customerId: String?) {
+        let customer = matches.first { $0.id == customerId }
+        guard customerId == nil || customer != nil else { return }
         onPick(customer)
         dismiss()
     }
