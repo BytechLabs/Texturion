@@ -401,4 +401,96 @@ begin
   raise notice 'RT-9 PASSED: service-role only';
 end $$;
 
+create function pg_temp.lead_thread(p_phone text) returns uuid language plpgsql as $$
+declare
+  v_contact uuid := gen_random_uuid();
+  v_thread uuid := gen_random_uuid();
+begin
+  insert into public.contacts (id, company_id, phone_e164)
+  values (v_contact, 'f2000000-0000-4000-8000-0000000000c1', p_phone);
+  perform pg_temp.thread(v_thread, v_contact);
+  return v_thread;
+end $$;
+
+create function pg_temp.lead_call(
+  p_thread uuid, p_key text, p_outcome text, p_minutes int,
+  p_direction text default 'inbound', p_member uuid default null, p_seconds int default 0
+) returns void language sql as $$
+  insert into public.calls (
+    company_id, conversation_id, phone_number_id, contact_id, call_session_id,
+    direction, outcome, started_at, answered_at, answered_by_user_id, forward_seconds
+  )
+  select c.company_id, c.id, c.phone_number_id, c.contact_id, p_key, p_direction, p_outcome,
+         timestamptz '2026-07-01 12:00:00+00' + p_minutes * interval '1 minute',
+         case when p_outcome = 'answered'
+              then timestamptz '2026-07-01 12:00:00+00' + p_minutes * interval '1 minute' end,
+         p_member, p_seconds
+  from public.conversations c where c.id = p_thread;
+$$;
+
+do $$
+declare
+  v_company constant uuid := 'f2000000-0000-4000-8000-0000000000c1';
+  v_number constant uuid := 'f2000000-0000-4000-8000-0000000000f1';
+  v_tech constant uuid := 'f2000000-0000-4000-8000-00000000000b';
+  v_replied uuid := pg_temp.lead_thread('+14155550208');
+  v_unanswered uuid := pg_temp.lead_thread('+14155550209');
+  v_callback uuid := pg_temp.lead_thread('+14155550210');
+  v_live uuid := pg_temp.lead_thread('+14155550211');
+  v_deleted uuid := pg_temp.lead_thread('+14155550212');
+  v_text uuid := pg_temp.lead_thread('+14155550213');
+  v_outreach uuid := pg_temp.lead_thread('+14155550214');
+  v_trashed_call uuid := pg_temp.lead_thread('+14155550215');
+  s jsonb;
+  v_answer jsonb;
+begin
+  perform pg_temp.lead_call(v_replied, 'rt-missed-replied', 'missed', 1440);
+  perform pg_temp.msg(v_replied, 'outbound', 1441, true);
+  perform pg_temp.msg(v_replied, 'inbound', 1443);
+  perform pg_temp.msg(v_replied, 'outbound', 1445);
+
+  perform pg_temp.lead_call(v_unanswered, 'rt-voicemail', 'voicemail', 1440);
+  perform pg_temp.msg(v_unanswered, 'outbound', 1441, true);
+  perform pg_temp.lead_call(v_unanswered, 'rt-short-callback', 'missed', 1442, 'outbound', v_tech, 5);
+  update public.messages set automation = 'missed_call_text'
+   where conversation_id in (v_replied, v_unanswered) and automated;
+
+  perform pg_temp.lead_call(v_callback, 'rt-missed-callback', 'missed', 1440);
+  perform pg_temp.lead_call(v_callback, 'rt-callback', 'answered', 1443, 'outbound', v_tech, 30);
+  perform pg_temp.lead_call(v_live, 'rt-live', 'answered', 1440, 'inbound', v_tech, 30);
+  perform pg_temp.lead_call(v_deleted, 'rt-deleted-thread', 'missed', 1440);
+  update public.conversations set deleted_at = now() where id = v_deleted;
+  perform pg_temp.lead_call(v_trashed_call, 'rt-deleted-call', 'missed', 1440);
+  update public.calls set deleted_at = now() where call_session_id = 'rt-deleted-call';
+
+  perform pg_temp.msg(v_text, 'inbound', 1440);
+  perform pg_temp.lead_call(v_text, 'rt-answer-inbound', 'answered', 1444, 'inbound', v_tech, 30);
+  perform pg_temp.lead_call(v_outreach, 'rt-outreach', 'missed', 1439, 'outbound', v_tech);
+  perform pg_temp.lead_call(v_outreach, 'rt-return-call', 'missed', 1440);
+
+  s := public.api_response_time_stats(v_company, '2026-07-02', '2026-07-03');
+  if (s->>'leads')::int is distinct from 4 or (s->>'answered')::int is distinct from 3
+     or (s->>'text_first')::int is distinct from 1 or (s->>'call_first')::int is distinct from 3
+     or (s->>'auto_text_sent')::int is distinct from 2 or (s->>'replied_to_auto_text')::int is distinct from 1 then
+    raise exception 'RT-10 FAILED: unexpected call response totals: %', s;
+  end if;
+
+  select row into v_answer from jsonb_array_elements(s->'rows') row
+  where (row->>'conversation_id')::uuid = v_callback;
+  if (v_answer->>'response_seconds')::numeric is distinct from 180
+     or (v_answer->>'responder_user_id')::uuid is distinct from v_tech then
+    raise exception 'RT-10 FAILED: the callback must answer the lead and credit the member: %', v_answer;
+  end if;
+  if not exists (select 1 from jsonb_array_elements(s->'rows') row
+                 where (row->>'conversation_id')::uuid = v_unanswered and row->>'responded_at' is null) then
+    raise exception 'RT-10 FAILED: an auto-text or short unsuccessful callback cannot answer a lead';
+  end if;
+
+  s := public.api_response_time_stats(v_company, '2026-07-02', '2026-07-03', 5000, array[v_number]);
+  if (s->>'leads')::int is distinct from 0 then
+    raise exception 'RT-10 FAILED: hidden lines contributed leads: %', s;
+  end if;
+  raise notice 'RT-10 PASSED: missed calls start the clock and live calls can answer';
+end $$;
+
 rollback;

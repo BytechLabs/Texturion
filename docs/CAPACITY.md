@@ -1581,3 +1581,15 @@ real data, which is the storage half. Message, voice and AI unit costs live in
 
 What is missing is the rest of the compute: the Worker and DO cost of serving a
 busy workspace across everything it does, not just reads and calls.
+
+## 5. First-response report
+
+The local PostgreSQL fixture had 2,000 conversations, 24,000 messages and
+1,000 missed calls in one workspace. `EXPLAIN (ANALYZE, BUFFERS, COSTS OFF)`
+measured 44 ms for the lateral lead lookup and 174 ms for the full
+`api_response_time_stats` call, with all buffers served from cache.
+
+The opening lookup used `messages_live_inbound_by_conversation_idx` for one
+inbound message per conversation. It used `calls_conversation_idx` for the
+call candidates and `messages_conv_created_idx` for the earlier outbound check.
+The fixture ran against an isolated database and was rolled back.

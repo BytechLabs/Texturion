@@ -146,6 +146,27 @@ async function get(sb: SupabaseStub, query = ""): Promise<Response> {
 }
 
 describe("GET /v1/reports/response-time", () => {
+  it("returns the lead channel and missed-call text counts", async () => {
+    const sb = stub({
+      current: statsPayload([], {
+        leads: 3,
+        text_first: 1,
+        call_first: 2,
+        auto_text_sent: 2,
+        replied_to_auto_text: 1,
+      }),
+    });
+    const response = await get(sb);
+    expect(response.status).toBe(200);
+    await expect(response.json()).resolves.toMatchObject({
+      leads: 3,
+      text_first: 1,
+      call_first: 2,
+      auto_text_sent: 2,
+      replied_to_auto_text: 1,
+    });
+  });
+
   // #482 — the per-number breakdown was computed and returned and nothing
   // rendered it, because the payload named a UUID rather than a number.
   describe("by_number", () => {
