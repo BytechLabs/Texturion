@@ -125,6 +125,7 @@ export interface SuggestionMessage {
   body: string;
   /** ISO timestamp, used to cut stale history off the context. */
   created_at?: string;
+  source?: "voicemail";
 }
 
 /**
@@ -432,11 +433,15 @@ export function buildSuggestionMessages(
   // it, because a label is something a model can lose track of, while a role is
   // structural — an assistant turn is by construction something IT said, so
   // there is nothing there to answer.
+  const turnBody = (message: SuggestionMessage) => {
+    const prefix = message.source === "voicemail" ? "Voicemail: " : "";
+    return `${prefix}${collapse(message.body)}`.slice(0, SUGGEST_REPLY_MAX_MESSAGE_CHARS);
+  };
   const turns = recent
     .filter((m) => m.body.trim() !== "")
     .map((m) => ({
       role: m.direction === "inbound" ? ("user" as const) : ("assistant" as const),
-      content: collapse(m.body).slice(0, SUGGEST_REPLY_MAX_MESSAGE_CHARS),
+      content: turnBody(m),
     }));
 
   const closing =
@@ -446,9 +451,7 @@ export function buildSuggestionMessages(
             ? // Quoted outright. Naming the exact message stops the model
               // reaching back for older, meatier content — including the
               // business's own messages — and replying to that instead.
-              `Reply to the customer's latest message, which was: "${collapse(
-                lastCustomerMessage.body,
-              ).slice(0, SUGGEST_REPLY_MAX_MESSAGE_CHARS)}"`
+              `Reply to the customer's latest message, which was: "${turnBody(lastCustomerMessage)}"`
             : "The customer has not written yet. Write the natural next message from us: follow up on what we last said, or ask for what we still need.",
         ]
       : [

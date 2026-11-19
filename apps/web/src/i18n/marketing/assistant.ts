@@ -53,7 +53,7 @@ export const assistantEn = {
   doesTitle: "Four jobs, five switches.",
   doesDraftTitle: "Drafts the reply",
   doesDraftBody:
-    "Lou reads the conversation and writes a reply in your voice, grounded in one sentence you wrote about what your business does. You edit it or bin it. It never sends. If you have told Lou nothing about the business, it will not invent a description of it.",
+    "Lou reads recent texts and voicemail transcripts from the conversation and writes a reply in your voice, grounded in one sentence you wrote about what your business does. You edit it or bin it. It never sends. If you have told Lou nothing about the business, it will not invent a description of it.",
   doesVoicemailTitle: "Writes the voicemail down",
   doesVoicemailBody:
     "A voicemail arrives as text you can read between jobs and search months later, instead of a badge you have to find somewhere quiet to listen to. The recording is still there.",
@@ -159,7 +159,7 @@ export const assistantFr: Translated<typeof assistantEn> = {
   doesTitle: "Quatre travaux, cinq interrupteurs.",
   doesDraftTitle: "Il rédige la réponse",
   doesDraftBody:
-    "Lou lit le fil et écrit une réponse dans votre voix, ancrée dans une phrase que vous avez écrite sur ce que fait votre entreprise. Vous la modifiez ou vous la jetez. Il n'envoie jamais. Si vous n'avez rien dit à Lou sur l'entreprise, il n'en inventera pas la description.",
+    "Lou lit les textos récents et les transcriptions de messages vocaux du fil et écrit une réponse dans votre voix, ancrée dans une phrase que vous avez écrite sur ce que fait votre entreprise. Vous la modifiez ou vous la jetez. Il n'envoie jamais. Si vous n'avez rien dit à Lou sur l'entreprise, il n'en inventera pas la description.",
   doesVoicemailTitle: "Il écrit le message vocal",
   doesVoicemailBody:
     "Un message vocal arrive sous forme de texte que vous lisez entre deux travaux et que vous cherchez des mois plus tard, au lieu d'une pastille qu'il faut aller écouter dans un endroit tranquille. L'enregistrement est toujours là.",

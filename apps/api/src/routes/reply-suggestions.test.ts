@@ -58,7 +58,7 @@ interface StubOptions {
     business_description?: string | null;
   } | null;
   /** Thread rows, NEWEST FIRST (the route reverses them). */
-  messages?: { direction: string; body: string | null }[];
+  messages?: { direction: string; body: string | null; source?: "voicemail" }[];
   /** Ledger answer, or a Response to stand in for an unreachable ledger. */
   reserve?:
     | { count: number; over_cap: boolean; reached_cap: boolean }
@@ -104,7 +104,7 @@ function stubs(options: StubOptions = {}): SupabaseStub {
           },
         ],
   );
-  sb.on("GET", "/rest/v1/messages", () =>
+  sb.on("POST", "/rest/v1/rpc/api_reply_suggestion_window", () =>
     options.messages ?? [{ direction: "inbound", body: "How much for a drain?" }],
   );
   sb.on("GET", "/rest/v1/companies", () => [
@@ -150,6 +150,21 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
       business_unknown: true,
     });
     expect(run).toHaveBeenCalledOnce();
+  });
+
+  it("drafts a reply to a voicemail-only conversation", async () => {
+    const { ai, run } = mockAi(TWO_REPLIES);
+    const sb = stubs({
+      messages: [{ direction: "inbound", body: "The drain has backed up again.", source: "voicemail" }],
+    });
+    const res = await suggest(sb, { ...env, AI: ai });
+
+    expect(res.status).toBe(200);
+    await expect(res.json()).resolves.toMatchObject({ suggestions: ["We can come by Thursday.", "What time suits you?"] });
+    expect(run).toHaveBeenCalledOnce();
+    expect(JSON.stringify(run.mock.calls[0][1])).toContain(
+      '"role":"user","content":"Voicemail: The drain has backed up again."',
+    );
   });
 
   it("tells the model who the customer is", async () => {
@@ -316,19 +331,14 @@ describe("POST /v1/conversations/:id/reply-suggestions", () => {
     expect(sb.find("POST", "/rest/v1/rpc/ai_usage_reserve")).toHaveLength(1);
   });
 
-  it("NEVER sends internal notes to the model", async () => {
-    const { ai, run } = mockAi(TWO_REPLIES);
+  it("requests the bounded customer-visible window for the active workspace", async () => {
+    const { ai } = mockAi(TWO_REPLIES);
     const sb = stubs();
     await suggest(sb, { ...env, AI: ai });
 
-    // The query itself must exclude notes — a note is where a crew writes
-    // things the customer must never read, even paraphrased.
-    const query = sb.find("GET", "/rest/v1/messages")[0].url.searchParams.get(
-      "direction",
-    );
-    expect(query).toBe("in.(inbound,outbound)");
-    const prompt = JSON.stringify(run.mock.calls[0][1]);
-    expect(prompt).not.toContain("note");
+    const [window] = sb.find("POST", "/rest/v1/rpc/api_reply_suggestion_window");
+    expect(window.body).toEqual({ p_company_id: COMPANY_ID, p_conversation_id: CONV_ID, p_limit: 12 });
+    expect(sb.find("GET", "/rest/v1/messages")).toHaveLength(0);
   });
 
   it("states business hours only when the company has set them", async () => {

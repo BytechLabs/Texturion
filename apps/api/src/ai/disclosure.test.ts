@@ -27,7 +27,7 @@ import { VOICEMAIL_INTAKE_MODEL } from "../calls/voicemail-intake";
 import { VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL, VOICEMAIL_TRANSCRIPT_MODEL } from "../calls/voicemail-transcript";
 import { DEFAULT_AI_SETTINGS } from "./settings";
 import { AI_USAGE_FEATURES } from "./usage";
-import { SUGGEST_REPLY_MODEL } from "../messaging/reply-suggestions";
+import { SUGGEST_REPLY_CONTEXT_MESSAGES, SUGGEST_REPLY_MODEL } from "../messaging/reply-suggestions";
 import {
   THREAD_SUMMARY_CONTEXT_MESSAGES,
   THREAD_SUMMARY_MODEL,
@@ -35,7 +35,7 @@ import {
 import { ENRICHMENT_MODEL } from "../tasks/enrichment";
 
 /**
- * The English sentence behind a disclosure key.
+ * The English and French sentences behind a disclosure key.
  *
  * #228 moved these words out of `ai-disclosure.ts` and into the web
  * catalogue. This package does not import `apps/web` source and should not
@@ -48,15 +48,15 @@ import { ENRICHMENT_MODEL } from "../tasks/enrichment";
  * file: a substring check over a catalogue would pass on the number appearing
  * in some unrelated sentence, which is the way a guard like this goes quiet.
  */
-function catalogueSentence(key: string): string {
+function catalogueSentences(key: string): string[] {
   const file = readFileSync(
     join(import.meta.dirname, "../../../../apps/web/src/i18n/sections/misc.ts"),
     "utf8",
   );
   const name = key.split(".")[1];
-  const match = new RegExp(`^  ${name}:\\s*("(?:[^"\\\\]|\\\\.)*")`, "m").exec(file);
-  if (!match) throw new Error(`no catalogue entry for ${key}`);
-  return JSON.parse(match[1]) as string;
+  const matches = [...file.matchAll(new RegExp(`^  ${name}:\\s*("(?:[^"\\\\]|\\\\.)*")`, "gm"))];
+  if (matches.length !== 2) throw new Error(`expected both catalogue entries for ${key}`);
+  return matches.map((match) => JSON.parse(match[1]) as string);
 }
 
 
@@ -88,31 +88,24 @@ describe("every AI feature is publicly disclosed", () => {
   });
 
   it("#247 — the catch-up's disclosure states the window it actually sends", () => {
-    // The one disclosure in this list that names a QUANTITY, because the
-    // quantity is the disclosure: every other AI feature sends one message, one
-    // field or one recording, and this one sends a conversation. A customer
-    // reading "the recent messages" under suggested replies would not conclude
-    // that a different feature sends forty of them.
-    //
-    // Asserted against the constant the route actually passes to PostgREST, so
-    // the sentence cannot go on claiming a window somebody has since widened.
-    // That is the same failure #389 was: a fact about the data, kept in step
-    // with the data by memory.
-    //
-    // #228: `sends` is a catalogue key now, so the sentence is resolved
-    // through the ENGLISH catalogue here — this side owns the binding between
-    // the page and THREAD_SUMMARY_CONTEXT_MESSAGES, which is a constant that
-    // lives in this package. That the number and the notes clause survive
-    // into FRENCH is asserted in packages/shared/src/ai-disclosure.test.ts,
-    // which can read the web catalogue; this package does not import it.
     const row = AI_DISCLOSURES.find((entry) => entry.key === "thread_summary");
     expect(row, "the catch-up disclosure is missing").toBeTruthy();
-    const sends = catalogueSentence(row!.sends);
+    const [sends] = catalogueSentences(row!.sends);
     expect(sends).toContain(String(THREAD_SUMMARY_CONTEXT_MESSAGES));
     // And it must say what does NOT leave. Notes are excluded by the route's
     // direction filter; a page that omitted it would leave a crew to assume
     // their private "this guy never pays" went to a model.
     expect(sends).toContain("notes are never included");
+  });
+
+  it("discloses the reply window and voicemail transcripts in both languages", () => {
+    const row = AI_DISCLOSURES.find((entry) => entry.key === "suggest_reply");
+    expect(row).toBeDefined();
+    const [english, french] = catalogueSentences(row!.sends);
+    expect(english).toContain("voicemail transcripts");
+    expect(french).toContain("transcriptions de messages vocaux");
+    expect(english).toContain(String(SUGGEST_REPLY_CONTEXT_MESSAGES));
+    expect(french).toContain(String(SUGGEST_REPLY_CONTEXT_MESSAGES));
   });
 
   it("names a model for every feature, and names it precisely", () => {
