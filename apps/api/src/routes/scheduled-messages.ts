@@ -85,6 +85,13 @@ interface ScheduleOutcome {
   limit_days?: number;
 }
 
+function scheduledHorizonError(days: number) {
+  return new ApiError("validation_failed", `We can hold a message for up to ${days} days.`, {
+    key: "apiRefusals.scheduledTextHorizon",
+    vars: { days: String(days) },
+  });
+}
+
 scheduledMessageRoutes.post(
   "/scheduled-messages",
   requireCapability("conversations.send"),
@@ -195,10 +202,7 @@ scheduledMessageRoutes.post(
         );
       }
       case "too_far_out": {
-        throw new ApiError(
-          "validation_failed",
-          `We can hold a message for up to ${result.limit_days ?? SCHEDULED_HORIZON_DAYS} days.`,
-        );
+        throw scheduledHorizonError(result.limit_days ?? SCHEDULED_HORIZON_DAYS);
       }
       case "thread_cap": {
         throw new ApiError(
@@ -402,10 +406,7 @@ scheduledMessageRoutes.patch(
         );
       }
       if (sendAt.getTime() > now + SCHEDULED_HORIZON_DAYS * 86_400_000) {
-        throw new ApiError(
-          "validation_failed",
-          `We can hold a message for up to ${SCHEDULED_HORIZON_DAYS} days.`,
-        );
+        throw scheduledHorizonError(SCHEDULED_HORIZON_DAYS);
       }
       const destination = existing.conversations?.contact_phone_e164;
       if (destination) {
@@ -544,7 +545,11 @@ scheduledMessageRoutes.post(
       }),
       "restore scheduled message",
     );
-    if (!restored) throw new ApiError("conflict", "That scheduled text can no longer be restored.");
+    if (!restored) {
+      throw new ApiError("conflict", "That scheduled text can no longer be restored.", {
+        key: "thread.scheduledRestoreFailed",
+      });
+    }
     return c.json({ restored: true });
   },
 );

@@ -680,6 +680,30 @@ describe("writes", () => {
     });
   });
 
+  it.each([
+    [{ outcome: "tag_not_found" }, { message_key: "apiRefusals.publicTaskUnknownTag" }],
+    [{ outcome: "needs_due" }, { message_key: "apiRefusals.publicTaskRepeatNeedsDueDate" }],
+    [{ outcome: "invalid" }, { message_key: "apiRefusals.publicTaskInvalidRepeat" }],
+    [
+      { outcome: "invalid", reason: "ends" },
+      { message_key: "apiRefusals.publicTaskInvalidRepeatField", message_vars: { field: "ends" } },
+    ],
+  ])("returns a catalogue key for task refusal %j", async (outcome, reference) => {
+    const sb = stubWithKey(["tasks:write"]);
+    sb.on("POST", "/rest/v1/rpc/api_create_public_task", () => outcome);
+    stubFetch(jwksRoute(auth), sb.route);
+
+    const response = await publicRequest("/public/v1/tasks", {
+      method: "POST",
+      body: JSON.stringify({ title: "Check the furnace" }),
+    });
+
+    expect(response.status).toBe(422);
+    await expect(response.json()).resolves.toMatchObject({
+      error: { code: "validation_failed", ...reference },
+    });
+  });
+
   it("creates a task with a priority, labels and a repeat (#693)", async () => {
     const TAG = "66666666-0000-4000-8000-000000000066";
     const sb = stubWithKey(["tasks:write"], "owner", false);

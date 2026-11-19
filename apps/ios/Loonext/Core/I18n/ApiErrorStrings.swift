@@ -56,8 +56,13 @@ enum ApiErrorStrings {
                 "This workspace has not set up payments yet.",
             "apiRefusals.portAlreadyPending":
                 "A transfer for this number is already in progress.",
+            "apiRefusals.publicTaskInvalidRepeat": "repeat: not a valid rule.",
+            "apiRefusals.publicTaskInvalidRepeatField": "repeat: {field}.",
+            "apiRefusals.publicTaskRepeatNeedsDueDate": "repeat: a schedule needs a due date to start from.",
+            "apiRefusals.publicTaskUnknownTag": "That tag is not in this workspace.",
             "apiRefusals.remindersNeedCustomer": "Link a customer conversation to turn on reminders.",
             "apiRefusals.remindersWorkspaceNotFound": "No such workspace.",
+            "apiRefusals.scheduledTextHorizon": "We can hold a message for up to {days} days.",
             "apiRefusals.scheduledTextKeyUsed":
                 "Idempotency-Key was already used for a different scheduled text.",
             "apiRefusals.taskCreateKeyUsed": "Idempotency-Key was already used for a task.",
@@ -168,8 +173,15 @@ enum ApiErrorStrings {
                 "Les paiements ne sont pas encore configurés dans cet espace de travail.",
             "apiRefusals.portAlreadyPending":
                 "Un transfert est déjà en cours pour ce numéro.",
+            "apiRefusals.publicTaskInvalidRepeat": "La règle de récurrence n’est pas valide.",
+            "apiRefusals.publicTaskInvalidRepeatField":
+                "La règle de récurrence est invalide pour le champ {field}.",
+            "apiRefusals.publicTaskRepeatNeedsDueDate":
+                "Choisissez une date d’échéance pour démarrer la récurrence.",
+            "apiRefusals.publicTaskUnknownTag": "Cette étiquette est introuvable dans cet espace de travail.",
             "apiRefusals.remindersNeedCustomer": "Associez une conversation avec un client pour activer les rappels.",
             "apiRefusals.remindersWorkspaceNotFound": "Cet espace de travail est introuvable.",
+            "apiRefusals.scheduledTextHorizon": "Vous pouvez planifier un texto jusqu’à {days} jours à l’avance.",
             "apiRefusals.scheduledTextKeyUsed":
                 "Cet en-tête Idempotency-Key a déjà servi à programmer un autre texto.",
             "apiRefusals.taskCreateKeyUsed": "Cet en-tête Idempotency-Key a déjà servi à créer une tâche.",

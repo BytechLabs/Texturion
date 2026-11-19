@@ -664,13 +664,25 @@ publicApiRoutes.post(
       return errorResponse(c, "validation_failed", "title: required without a message_id.");
     }
     if (result?.outcome === "tag_not_found") {
-      return errorResponse(c, "validation_failed", "label: no such tag in this company.");
+      return errorResponse(c, "validation_failed", "label: no such tag in this company.", {
+        key: "apiRefusals.publicTaskUnknownTag",
+      });
     }
     if (result?.outcome === "needs_due") {
-      return errorResponse(c, "validation_failed", "repeat: a schedule needs a due date to start from.");
+      return errorResponse(c, "validation_failed", "repeat: a schedule needs a due date to start from.", {
+        key: "apiRefusals.publicTaskRepeatNeedsDueDate",
+      });
     }
     if (result?.outcome === "invalid") {
-      return errorResponse(c, "validation_failed", `repeat: ${result.reason ?? "not a valid rule"}.`);
+      const field = result.reason;
+      return errorResponse(
+        c,
+        "validation_failed",
+        `repeat: ${field ?? "not a valid rule"}.`,
+        field
+          ? { key: "apiRefusals.publicTaskInvalidRepeatField", vars: { field } }
+          : { key: "apiRefusals.publicTaskInvalidRepeat" },
+      );
     }
     if (!result?.task) throw new Error("api_create_public_task returned no row");
     const [decorated] = await withLabelsAndRepeat(db, c.get("companyId"), [result.task]);
