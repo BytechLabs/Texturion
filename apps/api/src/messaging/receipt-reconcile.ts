@@ -24,17 +24,16 @@ export async function reconcileOutboundReceipts(env: Env, now = new Date()): Pro
   const db = getDb(env);
   const checkedAt = now.toISOString();
   const cutoff = new Date(now.getTime() - HOUR_MS).toISOString();
-  const unchecked = `receipt_checked_at.is.null,receipt_checked_at.lte.${cutoff}`;
   const { data, error } = await db.from("messages")
     .select("id,company_id,telnyx_message_id")
     .eq("direction", "outbound")
     .in("status", ["queued", "sent"])
     .not("telnyx_message_id", "is", null)
     .is("receipt_finalized_at", null)
-    .or(unchecked)
+    .lte("receipt_checked_at", cutoff)
     .gte("created_at", new Date(now.getTime() - LOOKBACK_MS).toISOString())
     .lte("created_at", cutoff)
-    .order("receipt_checked_at", { ascending: true, nullsFirst: true })
+    .order("receipt_checked_at", { ascending: true })
     .order("created_at", { ascending: true })
     .order("id", { ascending: true })
     .limit(CHECK_LIMIT);
@@ -52,7 +51,7 @@ export async function reconcileOutboundReceipts(env: Env, now = new Date()): Pro
         .eq("telnyx_message_id", row.telnyx_message_id)
         .in("status", ["queued", "sent"])
         .is("receipt_finalized_at", null)
-        .or(unchecked)
+        .lte("receipt_checked_at", cutoff)
         .select("id");
       if (claimError) throw new Error(`outbound receipt claim: ${claimError.message}`);
       if (!claimed?.length) return;

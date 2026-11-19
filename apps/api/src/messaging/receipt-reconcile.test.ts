@@ -40,8 +40,10 @@ it("records a completed lookup for the existing webhook sweeper without storing 
     "gte.2026-11-08T10:00:00.000Z",
     "lte.2026-11-18T09:00:00.000Z",
   ]);
+  expect(query.get("receipt_checked_at")).toBe("lte.2026-11-18T09:00:00.000Z");
   expect(query.get("receipt_finalized_at")).toBe("is.null");
   expect(claim.calls[0].url.searchParams.get("company_id")).toBe(`eq.${COMPANY_ID}`);
+  expect(claim.calls[0].url.searchParams.get("receipt_checked_at")).toBe(query.get("receipt_checked_at"));
   expect(claim.calls[0].body).toEqual({ receipt_checked_at: NOW.toISOString() });
   expect(carrier.calls[0].method).toBe("GET");
   expect(ledger.calls[0].body).toEqual({
