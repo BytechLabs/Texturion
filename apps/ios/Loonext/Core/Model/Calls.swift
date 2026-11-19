@@ -37,6 +37,7 @@ struct Call: Codable, Sendable {
     /// to show. A plain Optional for the same reason `state` is one — a cached
     /// payload written before this column decodes to nil rather than throwing.
     var voicemail_intake: VoicemailIntake? = nil
+    var voicemail_task: VoicemailTaskDraft? = nil
     let answered_by_user_id: String?
     /// #191: server-resolved display name of the acting member — the PLACER of
     /// an outbound call, the ANSWERER of an inbound one (both land in
@@ -92,6 +93,12 @@ struct VoicemailIntake: Codable, Sendable, Equatable {
     var address: String? = nil
     var callback: String? = nil
     var name: String? = nil
+}
+
+struct VoicemailTaskDraft: Codable, Sendable {
+    let call_id: String
+    let title: String?
+    var description: String?
 }
 
 /// One rendered row: a stable key, the label, and the caller's words.

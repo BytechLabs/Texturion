@@ -1162,9 +1162,9 @@ private struct ThreadBody: View {
                 text: sentence,
                 timeIso: event.created_at,
                 transcript: voicemailTranscript(of: event),
+                voicemailIntake: event.voicemail_intake,
                 onTap: eventTapAction(for: event),
                 tapLabel: eventTapLabel(for: event, sentence: sentence),
-                // D64: an answered call can become a task right where it is narrated.
                 trailing: callTaskTrailing(for: event)
             )
         case .dayDivider(let label, _):
@@ -1205,9 +1205,9 @@ private struct ThreadBody: View {
         composer.onTextChange(body)
     }
 
-    /// D64: "Make a task" beside an answered call's line, or nil for any other.
     private func callTaskTrailing(for event: ConversationEvent) -> AnyView? {
-        guard let session = answeredCallSessionId(of: event),
+        let session = answeredCallSessionId(of: event)
+        guard session != nil || event.voicemail_task != nil,
               let companyId = controller.conversation?.company_id
         else { return nil }
         return AnyView(
@@ -1216,7 +1216,8 @@ private struct ThreadBody: View {
                 companyId: companyId,
                 conversationId: event.conversation_id,
                 callerName: callLineCaller(of: event, locale: appLocale),
-                sessionId: session
+                sessionId: session,
+                voicemailDraft: event.voicemail_task
             )
         )
     }
@@ -2563,6 +2564,7 @@ struct MakeTaskSheet: View {
     let onDismiss: @MainActor () -> Void
 
     @State private var title: String
+    @State private var description: String
     /// Assigned to whoever is making it, matching web and Android. The default
     /// task view is "open, assigned to me", so a task made here and left
     /// unassigned landed in a list nobody was looking at.
@@ -2613,16 +2615,16 @@ struct MakeTaskSheet: View {
         switch source {
         case .message(let message):
             _title = State(initialValue: Self.seededTitle(message.body, locale: locale))
-        case .call(_, let callerName):
-            // D64: a call has no text to quote; the title says who rang.
+        case .call(_, let callerName, let voicemail):
             _title = State(
-                initialValue: AppStrings.translate(
+                initialValue: voicemail?.title ?? AppStrings.translate(
                     locale, "thread.callTaskTitle", ["name": callerName]
                 )
             )
         case .standalone:
             _title = State(initialValue: "")
         }
+        _description = State(initialValue: source.voicemail?.description ?? "")
         // A prefilled due opens More so the day it chose is on screen (#739).
         _moreOpen = State(initialValue: !source.isStandalone || initialDue != nil)
         _due = State(initialValue: initialDue)
@@ -2670,6 +2672,15 @@ struct MakeTaskSheet: View {
                 header
                 if let message, !message.body.isBlank { sourceQuote(message) }
                 titleField
+                if source.voicemail != nil {
+                    let label = AppStrings.translate(locale, "contactsTasks.description")
+                    VStack(alignment: .leading, spacing: 5) {
+                        Text(label).font(.golos(12, weight: .semibold))
+                        TextEditor(text: $description)
+                            .frame(minHeight: 72)
+                            .accessibilityLabel(label)
+                    }
+                }
                 if moreOpen {
                     assigneeRow
                     dueRow
@@ -3134,8 +3145,14 @@ struct MakeTaskSheet: View {
         // nobody, which is not the same as leaving it out).
         var sent = meta
         if source.isStandalone { sent.assigneeIds = crew }
+        var reviewedSource = source
+        if case let .call(id, name, draft?) = source {
+            var reviewedVoicemail = draft
+            reviewedVoicemail.description = String(description.prefix(taskDescriptionMax))
+            reviewedSource = .call(id: id, callerName: name, voicemail: reviewedVoicemail)
+        }
         controller.createTask(
-            from: source,
+            from: reviewedSource,
             title: String(trimmed.prefix(taskTitleMax)),
             assignedUserId: source.isStandalone ? crew.first : assigneeId,
             dueAt: due.map { encodeDueAt($0) },
@@ -3167,14 +3184,16 @@ struct MakeTaskSheet: View {
         enrichStarted = true
         let settings = await controller.aiSettingsForTaskDraft()
         guard settings.anyEnabled else { return }
-        // A call has no text to read, so there is nothing to enrich (D64).
-        guard let message,
-              !message.body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else { return }
-
+        let result: TaskEnrichment
         enriching = true
-        let result = await controller.enrichTaskDraft(for: message)
-        enriching = false
+        defer { enriching = false }
+        if let voicemail = source.voicemail, settings.enrich_task_address {
+            result = await controller.enrichVoicemailTaskDraft(callId: voicemail.call_id)
+        } else if let message, !message.body.isBlank {
+            result = await controller.enrichTaskDraft(for: message)
+        } else {
+            return
+        }
         if result.enrichment_disabled == true { return }
 
         if settings.enrich_task_due, due == nil,

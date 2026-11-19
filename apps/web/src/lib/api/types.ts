@@ -936,6 +936,8 @@ export interface ConversationEvent {
   type: ConversationEventType;
   payload: Record<string, unknown>;
   created_at: string;
+  voicemail_intake?: import("@loonext/shared").VoicemailIntake | null;
+  voicemail_task?: import("@loonext/shared").VoicemailTaskDraft | null;
 }
 
 /** POST /v1/conversations/:id/read response. */
@@ -2105,6 +2107,7 @@ export interface Call {
  */
 export interface CallDetail extends Call {
   ended_at: string | null;
+  voicemail_task?: import("@loonext/shared").VoicemailTaskDraft | null;
   /**
    * Whether there is a recording to play. The storage path itself never leaves
    * the server; the signed URL is minted on demand by the voicemail endpoint.

@@ -549,10 +549,16 @@ describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
     );
     const upsert = upsertCallStub({ conversation_id: null });
     const thread = threadCallStub();
+    let wroteEvent = false;
     const eventInsert = stubRoute(
       restMatch(env, "POST", "rpc/api_insert_voicemail_event"),
-      () => true,
+      () => {
+        if (wroteEvent) return false;
+        wroteEvent = true;
+        return true;
+      },
     );
+    const notificationAudience = voicemailAudience();
     const recordingList = stubRoute(
       (url, request) =>
         request.method === "GET" && url.pathname === "/v2/recordings",
@@ -571,13 +577,12 @@ describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
       upsert,
       thread,
       eventInsert,
-      ...voicemailAudience(),
+      ...notificationAudience,
       recordingList,
       recordingDelete,
     );
 
-    await runRecordingSaved(
-      event("call.recording.saved", {
+    const saved = event("call.recording.saved", {
         call_control_id: CC_ID,
         call_session_id: SESSION,
         client_state: vmiState,
@@ -586,8 +591,8 @@ describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
         recording_urls: { mp3: "https://recordings.telnyx.example/rec-1.mp3" },
         recording_started_at: "2026-07-12T00:00:00Z",
         recording_ended_at: "2026-07-12T00:00:42Z",
-      }),
-    );
+    });
+    await runRecordingSaved(saved);
 
     // Recovery path: NO Telnyx re-fetch, NO re-upload.
     expect(mp3Fetch.calls).toHaveLength(0);
@@ -601,6 +606,9 @@ describe("handleVoicemailSaved — D43 voicemail pipeline", () => {
     expect(eventInsert.calls).toHaveLength(1);
     // And only now is the Telnyx copy deleted (after the writes are durable).
     expect(recordingDelete.calls).toHaveLength(1);
+    await runRecordingSaved(saved);
+    expect(eventInsert.calls).toHaveLength(2);
+    expect(notificationAudience[0].calls).toHaveLength(1);
   });
 
   it("a hangup-on-the-beep recording (under 2s) is discarded — the call stays an honest miss", async () => {

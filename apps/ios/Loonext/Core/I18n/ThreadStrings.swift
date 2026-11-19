@@ -637,6 +637,7 @@ enum ThreadStrings {
             // D64: an answered call can become a task.
             "thread.taskCreatedFromCall": "Made a task from this call.",
             "thread.alreadyHasCallTask": "This call is already a task.",
+            "thread.callTaskSourceUnavailable": "Only an answered call or a saved voicemail can become a task.",
             "thread.makeTaskFromCall": "Make a task from this call",
             "thread.callTaskTitle": "Call from {name}",
             "thread.newTaskFromCall": "From {name}'s call · posts to the conversation",
@@ -1451,6 +1452,7 @@ enum ThreadStrings {
             "thread.alreadyHasTask": "Ce message a déjà une tâche.",
             "thread.taskCreatedFromCall": "Tâche créée à partir de cet appel.",
             "thread.alreadyHasCallTask": "Cet appel est déjà une tâche.",
+            "thread.callTaskSourceUnavailable": "Seuls un appel auquel on a répondu ou un message vocal enregistré peuvent devenir une tâche.",
             "thread.makeTaskFromCall": "Créer une tâche à partir de cet appel",
             "thread.callTaskTitle": "Appel de {name}",
             "thread.newTaskFromCall": "Depuis l'appel de {name} · publié dans la conversation",

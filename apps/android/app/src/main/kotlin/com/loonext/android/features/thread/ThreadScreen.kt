@@ -1040,23 +1040,26 @@ private fun ThreadLoaded(
                                     timeline.any { it.key == "m:${target.messageId}" }
                                 val openable = target is EventTarget.OpenTask &&
                                     onOpenTask != null
+                                val answeredSession = answeredCallSessionOf(item.event)
+                                val voicemail = item.event.voicemail_task
                                 EventLine(
                                     text = eventLine(item.event, names, contactName, locale),
                                     timeIso = item.event.created_at,
                                     eventType = item.event.type,
                                     transcript = voicemailTranscriptOf(item.event),
-                                    // D64: an answered call can become a task here.
-                                    trailing = answeredCallSessionOf(item.event)?.let { session ->
+                                    voicemailIntake = item.event.voicemail_intake,
+                                    trailing = if (answeredSession != null || voicemail != null) {
                                         {
                                             CallTaskButton(
                                                 graph = graph,
                                                 companyId = companyId,
                                                 conversationId = controller.conversationId,
                                                 callerName = callLineCallerOf(item.event, locale),
-                                                sessionId = session,
+                                                sessionId = answeredSession,
+                                                voicemailDraft = voicemail,
                                             )
                                         }
-                                    },
+                                    } else null,
                                     clickLabel = when {
                                         openable -> t("thread.openTheTask")
                                         jumpable -> t("thread.goToMessage")
@@ -1614,7 +1617,7 @@ private fun ThreadLoaded(
             aiRepo = graph.aiRepo,
             companyId = companyId,
             conversationId = controller.conversationId,
-            onCreate = { title, assignedUserId, dueAtIso, address ->
+            onCreate = { title, assignedUserId, dueAtIso, address, _ ->
                 controller.makeTask(message, title, assignedUserId, dueAtIso, address)
                 makeTaskFor = null
             },

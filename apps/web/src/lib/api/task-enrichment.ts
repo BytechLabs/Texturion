@@ -36,7 +36,19 @@ export async function enrichTaskFromMessage(
   companyId: string,
   input: { message_id: string; conversation_id: string; text: string },
 ): Promise<TaskEnrichment> {
-  const ck = cacheKey(companyId, input.message_id);
+  return enrichTask(companyId, input.message_id, input);
+}
+
+export function enrichTaskFromVoicemail(companyId: string, callId: string): Promise<TaskEnrichment> {
+  return enrichTask(companyId, `call:${callId}`, { source_call_id: callId });
+}
+
+async function enrichTask(
+  companyId: string,
+  sourceKey: string,
+  body: Record<string, string>,
+): Promise<TaskEnrichment> {
+  const ck = cacheKey(companyId, sourceKey);
   const cached = enrichmentCache.get(ck);
   if (cached) return cached;
 
@@ -45,11 +57,7 @@ export async function enrichTaskFromMessage(
     result = await apiFetch<TaskEnrichment>("/v1/tasks/enrich", {
       method: "POST",
       companyId,
-      body: {
-        text: input.text,
-        message_id: input.message_id,
-        conversation_id: input.conversation_id,
-      },
+      body,
     });
   } catch {
     result = EMPTY_ENRICHMENT;

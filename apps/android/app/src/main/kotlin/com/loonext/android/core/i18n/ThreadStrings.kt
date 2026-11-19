@@ -671,6 +671,7 @@ object ThreadStrings : AppStrings.Section {
         // D64: an answered call can become a task.
         "thread.taskCreatedFromCall" to "Made a task from this call.",
         "thread.alreadyHasCallTask" to "This call is already a task.",
+        "thread.callTaskSourceUnavailable" to "Only an answered call or a saved voicemail can become a task.",
         "thread.makeTaskFromCall" to "Make a task from this call",
         "thread.callTaskTitle" to "Call from {name}",
         "thread.newTaskFromCall" to "From {name}'s call · posts to the conversation",
@@ -1486,6 +1487,7 @@ object ThreadStrings : AppStrings.Section {
         "thread.alreadyHasTask" to "Ce message a déjà une tâche.",
         "thread.taskCreatedFromCall" to "Tâche créée à partir de cet appel.",
         "thread.alreadyHasCallTask" to "Cet appel est déjà une tâche.",
+        "thread.callTaskSourceUnavailable" to "Seuls un appel auquel on a répondu ou un message vocal enregistré peuvent devenir une tâche.",
         "thread.makeTaskFromCall" to "Créer une tâche à partir de cet appel",
         "thread.callTaskTitle" to "Appel de {name}",
         "thread.newTaskFromCall" to "Depuis l'appel de {name} · publié dans la conversation",

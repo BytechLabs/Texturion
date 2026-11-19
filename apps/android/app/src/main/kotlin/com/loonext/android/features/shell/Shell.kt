@@ -617,6 +617,7 @@ fun ShellContent(
             onOpenContact = onOpenContact,
             onOpenContacts = onOpenContacts,
             onOpenCall = onOpenCall,
+            onOpenAiSettings = { onOpenSettings(SettingsSection.Ai) },
         )
 
         ShellTab.Tasks -> TasksTab(

@@ -174,7 +174,7 @@ begin
 end $$;
 
 -- ---------------------------------------------------------------------------
--- CA-2. create_task: exactly one source, and only an answered call.
+-- CA-2. create_task: one source, with a live recording required for voicemail.
 -- ---------------------------------------------------------------------------
 do $$
 declare r jsonb; v_task jsonb;
@@ -197,7 +197,7 @@ begin
     raise exception 'CA-2 FAILED: two sources gave %', r;
   end if;
 
-  -- Unanswered calls: missed and voicemail.
+  -- A miss or a voicemail without a recording cannot become a task.
   r := public.create_task(
     'ca000000-0000-4000-8000-0000000000c1'::uuid, null, null, null, null, null,
     'ca000000-0000-4000-8000-00000000000a'::uuid,
@@ -212,7 +212,7 @@ begin
     null, null, null, null, null, null, null,
     'ca000000-0000-4000-8000-0000000000f4'::uuid);
   if r->>'outcome' is distinct from 'call_not_answered' then
-    raise exception 'CA-2 FAILED: a voicemail call was promoted: %', r;
+    raise exception 'CA-2 FAILED: a voicemail without a recording was promoted: %', r;
   end if;
 
   -- Answered, but there is no conversation to attach the task to.
@@ -284,7 +284,37 @@ begin
     raise exception 'CA-2 FAILED: message promotion changed: %', r;
   end if;
 
-  raise notice 'CA-2 PASSED: create_task takes one source and only an answered call';
+  raise notice 'CA-2 PASSED: create_task validates its source';
+end $$;
+
+do $$
+declare
+  v_company constant uuid := 'ca000000-0000-4000-8000-0000000000c1';
+  v_actor constant uuid := 'ca000000-0000-4000-8000-00000000000a';
+  v_call constant uuid := 'ca000000-0000-4000-8000-0000000000f4';
+  r jsonb;
+begin
+  update public.calls set voicemail_path = 'fixture.mp3', voicemail_deleted_at = now()
+   where id = v_call;
+  r := public.create_task(v_company, null, null, null, null, null, v_actor, p_call_id => v_call);
+  if r->>'outcome' is distinct from 'call_not_answered' then
+    raise exception 'CA-2 FAILED: a trashed recording was promoted: %', r;
+  end if;
+
+  update public.calls set voicemail_deleted_at = null, deleted_at = now() where id = v_call;
+  r := public.create_task(v_company, null, null, null, null, null, v_actor, p_call_id => v_call);
+  if r->>'outcome' is distinct from 'no_call' then
+    raise exception 'CA-2 FAILED: a trashed call was promoted: %', r;
+  end if;
+
+  update public.calls set deleted_at = null where id = v_call;
+  r := public.create_task(v_company, null, 'No heat', 'The furnace is cold.', null, null,
+    v_actor, p_call_id => v_call);
+  if r->>'outcome' is distinct from 'created' or r #>> '{task,source_call_id}' is distinct from v_call::text
+     or r #>> '{task,description}' is distinct from 'The furnace is cold.' then
+    raise exception 'CA-2 FAILED: saved voicemail did not become a task: %', r;
+  end if;
+  delete from public.tasks where id = (r #>> '{task,id}')::uuid;
 end $$;
 
 -- ---------------------------------------------------------------------------

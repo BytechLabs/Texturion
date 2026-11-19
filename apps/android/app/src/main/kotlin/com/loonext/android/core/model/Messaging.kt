@@ -580,6 +580,8 @@ data class ConversationEvent(
     val type: String,
     val payload: JsonObject,
     val created_at: String,
+    val voicemail_intake: VoicemailIntake? = null,
+    val voicemail_task: VoicemailTaskDraft? = null,
 )
 
 @Serializable

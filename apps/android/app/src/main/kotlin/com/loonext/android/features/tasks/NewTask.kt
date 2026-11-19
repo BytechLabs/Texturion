@@ -75,7 +75,7 @@ fun NewTaskSheetHost(
         zone = zone,
         linked = conversationId != null || contactId != null,
         tagsLoader = { TaskMutations(graph.api).tags(companyId).data },
-        onCreate = { _, _, _, _ -> },
+        onCreate = { _, _, _, _, _ -> },
         onCreateWithExtras = { title, assignedUserId, dueAtIso, address: TaskAddressInput?, extras ->
             onDismiss()
             scope.launch {

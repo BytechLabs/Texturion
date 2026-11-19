@@ -393,6 +393,7 @@ export const threadEn = {
   /** Promoting an answered call (D64). */
   taskCreatedFromCall: "Made a task from this call.",
   alreadyACallTask: "This call is already a task.",
+  callTaskSourceUnavailable: "Only an answered call or a saved voicemail can become a task.",
   makeTaskFromCallAria: "Make a task from this call",
   callTaskTitle: "Call from {name}",
   taskCreateFailed: "Couldn't make a task. Try again.",
@@ -1207,6 +1208,7 @@ export const threadFr: Translated<typeof threadEn> = {
   alreadyATask: "Ce message est déjà une tâche.",
   taskCreatedFromCall: "Tâche créée à partir de cet appel.",
   alreadyACallTask: "Cet appel est déjà une tâche.",
+  callTaskSourceUnavailable: "Seuls un appel auquel on a répondu ou un message vocal enregistré peuvent devenir une tâche.",
   makeTaskFromCallAria: "Créer une tâche à partir de cet appel",
   callTaskTitle: "Appel de {name}",
   taskCreateFailed: "Impossible de créer la tâche. Réessayez.",

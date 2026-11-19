@@ -13,6 +13,7 @@ import { CountryPicker } from "@/components/ui/country-picker";
 import { DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { undoableToast } from "@/components/ui/optimistic-undo";
 import { useT } from '@/i18n/provider';
 import type { Translate } from '@/i18n/provider';
@@ -22,6 +23,7 @@ import { reportAiOutcome } from "@/lib/api/conversations";
 import { ApiError } from "@/lib/api/error";
 import { useMe } from "@/lib/api/me";
 import { useCreateTaskFromMessage } from '@/lib/api/tasks';
+import { enrichTaskFromVoicemail } from "@/lib/api/task-enrichment";
 import type { TaskAddressInput } from '@/lib/api/tasks';
 import { useMembers } from "@/lib/api/team";
 import type { AddressProvenance, Message } from "@/lib/api/types";
@@ -110,9 +112,6 @@ function isoToLocalInput(iso: string): string {
  * date/time inferred from the message text, each with a provenance badge and
  * fully editable (any edit marks the address "manual"). The petrol "Create"
  * calls POST /v1/tasks; a re-promote (409) surfaces "already a task".
- *
- * The source is a message or, since D64, an answered call (`call`: no body to
- * read, so no enrichment; the title is seeded with who rang). Exactly one.
  */
 export function MakeTaskForm({
   message,
@@ -121,7 +120,7 @@ export function MakeTaskForm({
   onDone,
 }: {
   message?: Message;
-  call?: { id: string; title: string };
+  call?: { id: string; title: string; voicemailDescription?: string | null };
   conversationId: string;
   onDone: () => void;
 }) {
@@ -136,6 +135,8 @@ export function MakeTaskForm({
   const [title, setTitle] = useState(() =>
     call ? call.title : messageTaskTitle(message?.body ?? ""),
   );
+  const [description, setDescription] = useState(call?.voicemailDescription ?? "");
+  const voicemailCallId = call?.voicemailDescription !== undefined ? call.id : null;
   const [due, setDue] = useState<string>("");
   const [dueSuggested, setDueSuggested] = useState(false);
   const [assigneeOverride, setAssigneeOverride] = useState<string | null>(null);
@@ -166,17 +167,20 @@ export function MakeTaskForm({
     if (enrichedRef.current) return;
     const settings = aiSettings.data;
     if (!settings) return;
-    if (!settings.enrich_task_address && !settings.enrich_task_due) return;
     const text = message?.body?.trim();
-    if (!message || !text) return;
+    const pending = voicemailCallId && settings.enrich_task_address
+      ? enrichTaskFromVoicemail(companyId, voicemailCallId)
+      : message && text && (settings.enrich_task_address || settings.enrich_task_due)
+        ? enrichTaskFromMessage(companyId, {
+            message_id: message.id,
+            conversation_id: conversationId,
+            text,
+          })
+        : null;
+    if (!pending) return;
 
     enrichedRef.current = true;
     let cancelled = false;
-    const pending = enrichTaskFromMessage(companyId, {
-      message_id: message.id,
-      conversation_id: conversationId,
-      text,
-    });
     const timer = setTimeout(() => {
       if (cancelled) return;
       setEnriching(true);
@@ -211,7 +215,7 @@ export function MakeTaskForm({
       cancelled = true;
       clearTimeout(timer);
     };
-  }, [aiSettings.data, companyId, conversationId, message]);
+  }, [aiSettings.data, companyId, conversationId, message, voicemailCallId]);
 
   /** Editing any address field marks the whole address user-authored ("manual"). */
   function editAddr(field: keyof AddressFields, value: string) {
@@ -264,6 +268,7 @@ export function MakeTaskForm({
       const created = await createTask.mutateAsync({
         ...(call ? { source_call_id: call.id } : { message_id: message?.id }),
         title: trimmed,
+        ...(voicemailCallId ? { description } : {}),
         assigned_user_id: assignee === UNASSIGNED ? null : assignee,
         // <input type="datetime-local"> yields a local wall-clock string; convert
         // to an ISO instant for the API. Empty → no due date.
@@ -273,9 +278,7 @@ export function MakeTaskForm({
       // #431: report only on a successful create. Somebody who abandoned the
       // form has told us nothing about whether the address was any good, and
       // counting that as a rejection would blame Lou for an unrelated decision.
-      const outcome = call
-        ? null
-        : enrichmentOutcome({
+      const outcome = enrichmentOutcome({
         suggestedAddress: suggestedAddress.current,
         suggestedDue: suggestedDue.current !== null,
         addressEdited: hasAddress && addrProvenance === "manual",
@@ -296,7 +299,9 @@ export function MakeTaskForm({
           ? (call
             ? t("thread.alreadyACallTask")
             : t("thread.alreadyATask"))
-          : t("thread.taskCreateFailed"),
+          : call && error instanceof ApiError && error.code === "validation_failed"
+            ? error.message
+            : t("thread.taskCreateFailed"),
       );
     }
   };
@@ -323,6 +328,18 @@ export function MakeTaskForm({
           placeholder={t("thread.taskTitlePlaceholder")}
         />
       </div>
+
+      {voicemailCallId && (
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor="make-task-description">{t("tasks.description")}</Label>
+          <Textarea
+            id="make-task-description"
+            value={description}
+            onChange={(event) => setDescription(event.target.value)}
+            maxLength={5000}
+          />
+        </div>
+      )}
 
       <div className="flex flex-col gap-1.5">
         <Label htmlFor="make-task-assignee">{t("thread.assigneeLabel")}</Label>

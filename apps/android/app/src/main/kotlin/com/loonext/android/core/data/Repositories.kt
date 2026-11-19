@@ -425,17 +425,26 @@ class AiRepository(private val api: ApiClient) {
         text: String,
         messageId: String?,
         conversationId: String?,
+    ): TaskEnrichment = enrichTask(companyId, messageId, buildJsonObject {
+        put("text", text)
+        if (messageId != null) put("message_id", messageId)
+        if (conversationId != null) put("conversation_id", conversationId)
+    })
+
+    suspend fun enrichVoicemailTask(companyId: String, callId: String): TaskEnrichment =
+        enrichTask(companyId, "call:$callId", buildJsonObject { put("source_call_id", callId) })
+
+    private suspend fun enrichTask(
+        companyId: String,
+        sourceKey: String?,
+        body: JsonObject,
     ): TaskEnrichment {
-        val key = messageId?.let { "$companyId:$it" }
+        val key = sourceKey?.let { "$companyId:$it" }
         if (key != null) enrichmentCache[key]?.let { return it }
         val result = try {
             api.post<TaskEnrichment, JsonObject>(
                 "/v1/tasks/enrich",
-                buildJsonObject {
-                    put("text", text)
-                    if (messageId != null) put("message_id", messageId)
-                    if (conversationId != null) put("conversation_id", conversationId)
-                },
+                body,
                 companyId = companyId,
             )
         } catch (e: CancellationException) {

@@ -20,7 +20,7 @@
  * never re-alerts. Failures are collected and thrown; both callers catch and
  * log — best-effort alerts are never retried.
  */
-import type { Locale } from "@loonext/shared";
+import type { Locale, VoicemailIntake } from "@loonext/shared";
 import type { SupabaseClient } from "@supabase/supabase-js";
 
 import { canTextConversation, listConversationViewers } from "../auth/conversation-audience";
@@ -34,7 +34,7 @@ import {
 import { deliverPush } from "./deliver";
 import type { PushDelivery } from "./deliver";
 import { MISSED_CALL_COPY } from "./missed-call-copy";
-import { routeAfterHoursAlert } from "./on-call";
+import { findOpenMissedCallAlert, routeAfterHoursAlert } from "./on-call";
 import { NOTIFICATION_SETTING_DEFAULTS } from "@loonext/shared";
 
 export interface MissedCallNotificationInput {
@@ -55,6 +55,10 @@ export interface MissedCallNotificationInput {
 interface VoicemailNotificationInput {
   companyId: string;
   conversationId: string;
+  callSessionId: string;
+  seconds: number;
+  transcript: string | null;
+  intake: VoicemailIntake | null;
 }
 
 type CallActivityInput =
@@ -146,26 +150,27 @@ async function notifyCallActivity(
   //
   // Never throws: every uncertainty inside returns the audience unchanged, so
   // a broken lookup makes this alert loud rather than absent.
+  const openAlert = voicemail ? await findOpenMissedCallAlert(db, input) : null;
+  const existingAlert = openAlert && members.includes(openAlert.on_call_user_id)
+    ? openAlert
+    : null;
   const routing = voicemail ? null : await routeAfterHoursAlert(db, {
     companyId: input.companyId,
     conversationId: input.conversationId,
     phoneNumberId: conversation.phone_number_id,
     kind: "missed_call",
+    callSessionId: input.callSessionId,
     audience: assigned,
   });
-  // #694: followers are told about a miss on a thread somebody else holds, and
-  // anyone who muted the thread is not. Applied after the on-call narrowing so
-  // a follower is added back to a narrowed audience, and a muted member is
-  // dropped from it.
   const threadPrefs = await loadConversationPrefs(
     db,
     input.companyId,
     input.conversationId,
   );
-  const audience = withoutMuted(
-    withFollowers(routing?.userIds ?? assigned, threadPrefs, members),
-    threadPrefs,
-  );
+  const routedUsers = existingAlert
+    ? [existingAlert.on_call_user_id]
+    : withFollowers(routing?.userIds ?? assigned, threadPrefs, members);
+  const audience = withoutMuted(routedUsers, threadPrefs);
   if (audience.length === 0) return;
 
   const prefRows = unwrapRows<PrefsRow>(
@@ -197,9 +202,16 @@ async function notifyCallActivity(
   // #228: composed per reader rather than built once. Which of the three
   // bodies this miss gets is decided HERE, where the status is; the copy table
   // owns what each one says in each language.
+  const voicemailText = voicemail ? voicemailPreview(input) : null;
   const alert = (locale: Locale) => {
     const copy = MISSED_CALL_COPY[locale];
-    if (voicemail) return { title: copy.voicemailTitle(contactName), body: copy.voicemailBody, url: link };
+    if (voicemail) {
+      return {
+        title: copy.voicemailTitle(contactName),
+        body: voicemailText ?? copy.voicemailDuration(input.seconds),
+        url: link,
+      };
+    }
     const bodyKey = input.textStatus === "sent"
       ? "bodyTexted"
       : input.textStatus === "failed" ? "bodyTextFailed" : "bodyNoText";
@@ -211,18 +223,19 @@ async function notifyCallActivity(
     companyId: input.companyId,
     conversationId: input.conversationId,
     userIds: pushUsers,
-    // #430: every word here is ours. The contact's NAME is in the title, and
-    // that stays under the setting too — a name on a lock screen is what any
-    // phone shows for any caller, and it is what the setting deliberately
-    // preserves. There is no message content in a missed call to withhold.
-    content: { written: "us" },
-    web: (locale) => voicemail ? alert(locale) : ({
+    content: voicemailText ? {
+      written: "people",
+      companyId: input.companyId,
+      withheld: (locale) => ({ body: MISSED_CALL_COPY[locale].voicemailBody }),
+    } : { written: "us" },
+    web: (locale) => ({
       ...alert(locale),
       kind: "missed_call",
       call_session_id: input.callSessionId,
     }),
     native: (locale) => ({
-      kind: input.kind,
+      kind: "missed_call",
+      ...(existingAlert ? { alert_id: existingAlert.id } : {}),
       ...alert(locale),
     }),
     nativeAction: (userId) => !voicemail && writers.has(userId) ? {
@@ -258,5 +271,14 @@ async function notifyCallActivity(
       `missed-call alert: ${failures.length} delivery step(s) failed for conversation ${input.conversationId}`,
     );
   }
+}
+
+function voicemailPreview(input: VoicemailNotificationInput): string | null {
+  const problem = input.intake?.problem?.trim();
+  const address = input.intake?.address?.trim();
+  const transcript = input.transcript?.trim();
+  if (problem && address) return `${problem} · ${address}`;
+  if (!transcript) return null;
+  return Array.from(transcript).slice(0, 140).join("");
 }
 

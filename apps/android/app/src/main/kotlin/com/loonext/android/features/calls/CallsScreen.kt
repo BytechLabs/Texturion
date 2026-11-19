@@ -219,6 +219,7 @@ fun CallsScreen(
     onOpenContacts: () -> Unit = {},
     /** #734: a row's Details action, by the call's carrier session id. */
     onOpenCall: (sessionId: String) -> Unit = {},
+    onOpenAiSettings: () -> Unit = {},
 ) {
     val context = LocalContext.current
     val manager = remember(graph) { SoftphoneManager.get(context, graph.api) }
@@ -246,6 +247,12 @@ fun CallsScreen(
     }
     var loadingMore by remember { mutableStateOf(false) }
     var refreshKey by remember { mutableStateOf(0) }
+    var offerVoicemailIntake by remember(companyId) { mutableStateOf(false) }
+    val isOwner = me.memberships.any { it.company_id == companyId && it.role == "owner" }
+    LaunchedEffect(companyId, isOwner, refreshKey) {
+        offerVoicemailIntake = isOwner &&
+            runCatching { graph.aiRepo.getAiSettings(companyId).voicemail_intake }.getOrNull() == false
+    }
     var refreshing by remember { mutableStateOf(false) }
     var dialerOpen by rememberSaveable { mutableStateOf(false) }
     var dialerPrefill by rememberSaveable { mutableStateOf("") }
@@ -590,6 +597,7 @@ fun CallsScreen(
                                                     call = call,
                                                     repo = repo,
                                                     companyId = companyId,
+                                                    onOpenAiSettings = onOpenAiSettings.takeIf { offerVoicemailIntake },
                                                     // #734: one primary action inline; a tap on the row
                                                     // opens the call's details, never the conversation.
                                                     onOpen = { onOpenCall(call.call_session_id) },
@@ -1044,6 +1052,7 @@ internal fun CallRow(
     /** #712: this call's action list, and what to do with the id that was chosen. */
     actions: List<RecordAction>,
     onAction: (String) -> Unit,
+    onOpenAiSettings: (() -> Unit)? = null,
 ) {
     val primary = callPrimaryAction(call)
     val onMessage = if (callCanMessage(call)) {
@@ -1291,6 +1300,9 @@ internal fun CallRow(
             // the transcript they were read out of. A shortcut printed after the
             // thing it shortens is not one.
             VoicemailIntakeSummary(call.voicemail_intake)
+            if (onOpenAiSettings != null && call.voicemail_intake.lines().isEmpty()) {
+                TextButton(onClick = onOpenAiSettings) { Text(t("settings.aiVoicemailIntake")) }
+            }
             // What it says, for the times playing it is not an option: on a
             // roof, in a truck, next to a running compressor. The player stays
             // above it: the recording is the record, this is the shortcut.
@@ -1374,7 +1386,7 @@ private fun ReasonChip(label: String, onRemove: () -> Unit, modifier: Modifier =
  * voicemail block reads as one thing rather than three stacked ones.
  */
 @Composable
-private fun VoicemailIntakeSummary(intake: VoicemailIntake?) {
+internal fun VoicemailIntakeSummary(intake: VoicemailIntake?) {
     val lines = intake.lines(LocalAppLocale.current)
     if (lines.isEmpty()) return
     Column(

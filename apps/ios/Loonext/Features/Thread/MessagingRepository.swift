@@ -761,17 +761,24 @@ struct MessagingRepository: Sendable {
         companyId: String,
         messageId: String?,
         conversationId: String?,
-        text: String
+        text: String,
+        sourceCallId: String? = nil
     ) async -> TaskEnrichment {
-        if let messageId,
+        let sourceKey = sourceCallId.map { "call:\($0)" } ?? messageId
+        if let sourceKey,
            let cached = await TaskEnrichmentCache.shared.cached(
-               companyId: companyId, messageId: messageId
+               companyId: companyId, messageId: sourceKey
            ) {
             return cached
         }
-        var body: [String: JSONValue] = ["text": .string(text)]
-        if let messageId { body["message_id"] = .string(messageId) }
-        if let conversationId { body["conversation_id"] = .string(conversationId) }
+        var body: [String: JSONValue]
+        if let sourceCallId {
+            body = ["source_call_id": .string(sourceCallId)]
+        } else {
+            body = ["text": .string(text)]
+            if let messageId { body["message_id"] = .string(messageId) }
+            if let conversationId { body["conversation_id"] = .string(conversationId) }
+        }
 
         let result: TaskEnrichment
         do {
@@ -785,9 +792,9 @@ struct MessagingRepository: Sendable {
         }
         // Cache even the empty/failed result so a failed call doesn't re-fire
         // within the session (the web caches unconditionally too).
-        if let messageId {
+        if let sourceKey {
             await TaskEnrichmentCache.shared.store(
-                result, companyId: companyId, messageId: messageId
+                result, companyId: companyId, messageId: sourceKey
             )
         }
         return result

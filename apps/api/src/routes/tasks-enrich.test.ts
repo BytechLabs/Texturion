@@ -118,6 +118,41 @@ async function enrich(
 }
 
 describe("POST /v1/tasks/enrich", () => {
+  it("suggests only the address for a voicemail and refuses a missing live source", async () => {
+    const { ai, run } = mockAi({ response: JSON.stringify({
+      street: "42 Elm St", source: "message", due_date: "2026-12-01", due_time: "14:00",
+    }) });
+    const callId = "c0000000-0000-4000-8000-000000000001";
+    const conversationId = "c0000000-0000-4000-8000-000000000002";
+    let live = true;
+    const calls = stubRoute(restMatch(baseEnv, "GET", "calls"), () => live ? [{
+      conversation_id: conversationId,
+      phone_number_id: null,
+      voicemail_intake: { address: "42 Elm St" },
+      voicemail_transcript: "Tuesday at 2 would work for the furnace repair.",
+    }] : []);
+    stubFetch(
+      jwksRoute(auth), membersRoute("owner"), calls.route, companyRoute().route,
+      settingsRoute({ enrich_task_address: true, enrich_task_due: true }).route,
+      reserveRoute({ count: 1, over_cap: false, reached_cap: false }).route,
+      stubRoute(restMatch(baseEnv, "GET", "conversations"), () => []).route,
+    );
+    const env: Env = { ...baseEnv, AI: ai };
+
+    const response = await enrich({ source_call_id: callId }, env);
+    expect(response.status).toBe(200);
+    expect(await response.json()).toMatchObject({ address: { street: "42 Elm St" }, due_at: null });
+    expect(run).toHaveBeenCalledOnce();
+    expect(calls.calls[0].url.searchParams.get("voicemail_deleted_at")).toBe("is.null");
+    expect(calls.calls[0].url.searchParams.get("voicemail_path")).toBe("not.is.null");
+
+    live = false;
+    expect(await (await enrich({ source_call_id: callId }, env)).json()).toEqual({
+      address: null, address_provenance: null, due_at: null,
+    });
+    expect(run).toHaveBeenCalledOnce();
+  });
+
   it("settings OFF → returns disabled, never touches the AI or the cap", async () => {
     const { ai, run } = mockAi({ response: "{}" });
     const env: Env = { ...baseEnv, AI: ai };

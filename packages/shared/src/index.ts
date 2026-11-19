@@ -331,6 +331,8 @@ export {
 
 export {
   hasVoicemailIntake,
+  voicemailTaskDraft,
+  type VoicemailTaskDraft,
   voicemailIntakeLines,
   VOICEMAIL_INTAKE_SOURCE_LABEL,
   type VoicemailIntake,

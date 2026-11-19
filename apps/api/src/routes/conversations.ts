@@ -41,7 +41,7 @@
  *          (create-on-attach).
  *   DELETE /v1/conversations/:id/tags/:tag_id detach.
  */
-import type { BusinessHours, HoursException } from "@loonext/shared";
+import type { BusinessHours, HoursException, VoicemailIntake } from "@loonext/shared";
 import {
   companySettingDefault,
   resolveLocale,
@@ -50,6 +50,7 @@ import {
   shouldOfferThreadSummary,
   stateMachines,
   TAGS_PER_WORKSPACE,
+  voicemailTaskDraft,
   WORK_PHASES,
 } from "@loonext/shared";
 import {
@@ -2770,7 +2771,7 @@ conversationsRoutes.get(
         await withAnswerers(
           db,
           companyId,
-          await withoutTrashedCalls(db, companyId, rows),
+          await withLiveCallEvents(db, companyId, id, rows),
         ),
         limit,
         "created_at",
@@ -2787,9 +2788,10 @@ conversationsRoutes.get(
  * the same reason `withAnswerers` is: restoring the call brings the line back
  * with nothing to rebuild. One query per page, and only when the page has a call.
  */
-async function withoutTrashedCalls<T extends { id: string; created_at: string }>(
+async function withLiveCallEvents<T extends { id: string; created_at: string }>(
   db: ReturnType<typeof getDb>,
   companyId: string,
+  conversationId: string,
   rows: T[],
 ): Promise<T[]> {
   type EventRow = {
@@ -2803,31 +2805,45 @@ async function withoutTrashedCalls<T extends { id: string; created_at: string }>
     .filter((value): value is string => typeof value === "string");
   if (sessionIds.length === 0) return rows;
 
-  const trashed = unwrap<
+  const calls = unwrap<
     {
+      id: string;
       call_session_id: string;
       deleted_at: string | null;
       voicemail_deleted_at: string | null;
+      purged_at: string | null;
+      voicemail_path: string | null;
+      voicemail_transcript: string | null;
+      voicemail_intake: VoicemailIntake | null;
+      outcome: string | null;
     }[]
   >(
     await db
       .from("calls")
-      .select("call_session_id,deleted_at,voicemail_deleted_at")
+      .select("id,call_session_id,deleted_at,voicemail_deleted_at,purged_at," +
+        "voicemail_path,voicemail_transcript,voicemail_intake,outcome")
       .eq("company_id", companyId)
-      .in("call_session_id", sessionIds)
-      .or("deleted_at.not.is.null,voicemail_deleted_at.not.is.null"),
-    "trashed calls on a timeline",
+      .eq("conversation_id", conversationId)
+      .in("call_session_id", sessionIds),
+    "call sources on a timeline",
   );
-  if (trashed.length === 0) return rows;
-  const bySession = new Map(trashed.map((row) => [row.call_session_id, row]));
+  if (calls.length === 0) return rows;
+  const bySession = new Map(calls.map((row) => [row.call_session_id, row]));
 
-  return events.filter((row) => {
-    if (row.type !== "call_completed") return true;
+  return events.flatMap((row) => {
+    if (row.type !== "call_completed") return [row];
     const sessionId = row.payload?.call_session_id;
     const call = typeof sessionId === "string" ? bySession.get(sessionId) : undefined;
-    if (!call) return true;
-    if (call.deleted_at != null) return false;
-    return !(row.payload?.kind === "voicemail" && call.voicemail_deleted_at != null);
+    if (!call) return [row];
+    if (call.deleted_at != null || call.purged_at != null) return [];
+    if (row.payload?.kind !== "voicemail") return [row];
+    if (call.voicemail_deleted_at != null) return [];
+    if (!call.voicemail_path || call.outcome !== "voicemail") return [row];
+    return [{
+      ...row,
+      voicemail_intake: call.voicemail_intake,
+      voicemail_task: voicemailTaskDraft(call.id, call.voicemail_intake, call.voicemail_transcript),
+    }];
   }) as unknown as T[];
 }
 

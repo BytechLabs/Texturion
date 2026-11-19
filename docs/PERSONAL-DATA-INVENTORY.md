@@ -127,7 +127,7 @@ Map geocoding sends saved contact street addresses to OpenStreetMap Foundationâ€
 | `mfa_recovery_attempts` | attempt counts for the brute-force floor | Rolling window |
 | `audit_log` | actor, **actor IP**, action | **12 months** (#231), then pruned |
 | `on_call_shifts` | **which member was holding the phone, and when** (#244) â€” a record of one person's working hours, which is employment data rather than a preference | Life of the workspace; deleted with the member |
-| `alert_escalations` | **which member was paged and which one claimed it** (#244). No customer content: the conversation is referenced, never copied | Life of the workspace; the user columns null out with the member |
+| `alert_escalations` | **which member was paged and which one claimed it** (#244), the conversation reference and the carrier session ID for a missed call (#794) | Life of the workspace; the user columns null out with the member |
 | `pending_notifications` | **Which member is owed a notification about which thread**, plus its category and delivery time. Stores a conversation reference while waiting for a batch, the end of quiet hours, or the daily summary. | The summary deletes held alerts when it claims them. Batch workers lease alerts for up to three minutes and delete them before dispatch. |
 | `cancellation_reasons` | **which member said the workspace was leaving, and what they wrote** (#277). `detail` is free text somebody typed while annoyed, which is the most candid thing in the database and can name a person, a competitor or a price. Classified here rather than under business data for that reason: the row is attributable to the member who wrote it | Life of the workspace; the user column nulls out with the member |
 

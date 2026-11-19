@@ -126,6 +126,8 @@ struct CallDetailView: View {
                 Text(t("shell.voicemail"))
                     .font(.golos(13, weight: .bold))
                     .foregroundStyle(BrandColor.ink)
+                let intake = call.voicemail_intake?.localisedLines(appLocale) ?? []
+                if !intake.isEmpty { VoicemailIntakeSummary(lines: intake) }
                 if transcript.muted, let key = transcript.key {
                     Text(t(key))
                         .font(.golos(13.5))
@@ -141,6 +143,15 @@ struct CallDetailView: View {
                         sessionId: call.call_session_id,
                         seconds: call.voicemail_seconds ?? 0,
                         transcriptShown: true
+                    )
+                }
+                if let draft = call.voicemail_task, let conversationId = call.conversation_id {
+                    CallTaskButton(
+                        graph: graph,
+                        companyId: companyId,
+                        conversationId: conversationId,
+                        callerName: callerDisplayName(call),
+                        voicemailDraft: draft
                     )
                 }
             }
