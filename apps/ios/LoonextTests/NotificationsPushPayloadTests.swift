@@ -7,6 +7,17 @@ import XCTest
 /// in for Android channel ids — same constants), plus the iOS-only
 /// `parsePushRoute` and `pushData(fromUserInfo:)` seams.
 final class NotificationsPushPayloadTests: XCTestCase {
+    private struct PushRouteVector: Decodable {
+        let url: String
+        let route: String
+        let conversationId: String?
+        let taskId: String?
+        let messageId: String?
+        let sessionId: String?
+        let transferId: String?
+        let section: String?
+    }
+
     private struct RejectUnexpectedRequest: HTTPClient {
         func data(for request: URLRequest) async throws -> (Data, URLResponse) {
             XCTFail("The action made a request under a different account")
@@ -279,7 +290,7 @@ final class NotificationsPushPayloadTests: XCTestCase {
 
         XCTAssertEqual(content.title, "Loonext")
         XCTAssertEqual(content.body, "You have a new notification.")
-        XCTAssertEqual(content.url, PushLink.fallbackDeepLink)
+        XCTAssertNil(content.url)
         XCTAssertEqual(content.category, PushCategory.messages)
     }
 
@@ -328,27 +339,23 @@ final class NotificationsPushPayloadTests: XCTestCase {
         )
     }
 
-    func testForeignOriginsFallBackToTheInbox() {
-        XCTAssertEqual(
-            normalizeDeepLink("https://evil.example.com/inbox/x"),
-            PushLink.fallbackDeepLink
-        )
-        XCTAssertEqual(
-            normalizeDeepLink("http://app.loonext.com/inbox/x"),
-            PushLink.fallbackDeepLink
-        )
+    func testForeignOriginsDoNotNavigate() {
+        XCTAssertNil(normalizeDeepLink("https://evil.example.com/inbox/x"))
+        XCTAssertNil(normalizeDeepLink("http://app.loonext.com/inbox/x"))
+        XCTAssertNil(normalizeDeepLink("//evil.example.com/inbox/x"))
     }
 
-    func testGarbageAndBlanksFallBackToTheInbox() {
-        XCTAssertEqual(normalizeDeepLink(nil), PushLink.fallbackDeepLink)
-        XCTAssertEqual(normalizeDeepLink("   "), PushLink.fallbackDeepLink)
-        XCTAssertEqual(normalizeDeepLink("::not a url::"), PushLink.fallbackDeepLink)
+    func testGarbageAndBlanksDoNotNavigate() {
+        XCTAssertNil(normalizeDeepLink(nil))
+        XCTAssertNil(normalizeDeepLink("   "))
+        XCTAssertNil(normalizeDeepLink("::not a url::"))
+        XCTAssertNil(normalizeDeepLink(PushLink.appOrigin))
     }
 
     // MARK: - coalescingTag
 
-    func testRepeatPushesForOneThreadCoalesceOnOneTag() {
-        let url = normalizeDeepLink("/inbox/conv-1")
+    func testRepeatPushesForOneThreadCoalesceOnOneTag() throws {
+        let url = try XCTUnwrap(normalizeDeepLink("/inbox/conv-1"))
 
         XCTAssertEqual(
             coalescingTag(kind: nil, normalizedUrl: url),
@@ -371,6 +378,42 @@ final class NotificationsPushPayloadTests: XCTestCase {
     }
 
     // MARK: - parsePushRoute (deep-link routing contract)
+
+    func testPushRoutesAgreeWithTheSharedFixture() throws {
+        var directory = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+        var cases: [PushRouteVector] = []
+        while directory.path != "/" {
+            let fixture = directory.appendingPathComponent("packages/shared/vectors/push-routes.json")
+            if FileManager.default.fileExists(atPath: fixture.path) {
+                cases = try JSONDecoder().decode([PushRouteVector].self, from: Data(contentsOf: fixture))
+                break
+            }
+            directory = directory.deletingLastPathComponent()
+        }
+        XCTAssertFalse(cases.isEmpty, "Missing push-routes.json")
+        let sections: [String: SettingsSection] = [
+            "billing": .billing, "notifications": .notifications, "numbers": .numbers,
+        ]
+        for vector in cases {
+            let expected: PushRoute
+            switch vector.route {
+            case "inbox": expected = .inbox
+            case "thread":
+                expected = .thread(conversationId: try XCTUnwrap(vector.conversationId),
+                                   taskId: vector.taskId, messageId: vector.messageId)
+            case "task": expected = .task(taskId: try XCTUnwrap(vector.taskId))
+            case "calls": expected = .calls(sessionId: vector.sessionId, transferId: vector.transferId)
+            case "forYou": expected = .forYou
+            case "settings":
+                expected = .settings(section: try XCTUnwrap(sections[vector.section ?? ""]))
+            default:
+                XCTFail("Unknown fixture route: \(vector.route)")
+                continue
+            }
+            let content = parsePush(["url": vector.url])
+            XCTAssertEqual(parsePushRoute(url: content.url), expected, vector.url)
+        }
+    }
 
     func testInboxUrlsRouteToTheThread() {
         XCTAssertEqual(
@@ -461,11 +504,11 @@ final class NotificationsPushPayloadTests: XCTestCase {
         XCTAssertEqual(parsePushRoute(url: "/for-you"), .forYou)
     }
 
-    func testPlainInboxFallbackHasNoRoute() {
-        // Foreign origins normalize to /inbox, which is "open the app, no
-        // navigation" — same as the Android parseDeepLink null.
+    func testAnExplicitInboxLinkOpensInboxWhileAnInvalidLinkHasNoRoute() {
+        let digest = parsePush(["url": "https://app.loonext.com/inbox"])
+        XCTAssertEqual(parsePushRoute(url: digest.url), .inbox)
         XCTAssertNil(parsePushRoute(url: "https://evil.example.com/inbox/x"))
-        XCTAssertNil(parsePushRoute(url: "/inbox"))
+        XCTAssertNil(parsePushRoute(url: nil))
     }
 
     // MARK: - pushData (APNs userInfo extraction)

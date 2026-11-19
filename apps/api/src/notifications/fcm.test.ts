@@ -6,6 +6,7 @@
  * access-token cache, and the UNREGISTERED prune signal. Only the network
  * edge is stubbed.
  */
+import { readFileSync } from "node:fs";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { getEnv } from "../env";
@@ -40,6 +41,25 @@ const CALL_PAYLOAD = JSON.stringify({
   title: "Incoming call",
   body: "+16135551000",
   url: "/calls?call=sess-1",
+});
+
+it("preserves the shared mobile push routes in Android and iOS payloads", async () => {
+  const fixture = new URL("../../../../packages/shared/vectors/push-routes.json", import.meta.url);
+  const paths = JSON.parse(readFileSync(fixture, "utf8")) as { url: string }[];
+  expect(paths.length).toBeGreaterThan(0);
+  const env = fcmEnv(await makeServiceAccount());
+  const service = fcmService();
+  stubFetch(...service.routes);
+
+  for (const { url } of paths) {
+    const payload = JSON.stringify({ title: "Loonext", body: "Notification", url });
+    await sendFcm(env, { platform: "android", token: "android-tok" }, payload);
+    await sendFcm(env, { platform: "ios", token: "ios-tok" }, payload);
+  }
+
+  expect(service.sends.map(({ message }) => message.data)).toEqual(
+    paths.flatMap(({ url }) => [expect.objectContaining({ url }), expect.objectContaining({ url })]),
+  );
 });
 
 describe(isFcmConfigured, () => {

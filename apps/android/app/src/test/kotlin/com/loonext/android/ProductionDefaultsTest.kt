@@ -7,6 +7,7 @@ import com.loonext.android.push.APP_ORIGIN
 import com.loonext.android.push.FALLBACK_DEEP_LINK
 import com.loonext.android.push.normalizeDeepLink
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNull
 import org.junit.Assume.assumeFalse
 import org.junit.Before
 import org.junit.Test
@@ -48,6 +49,6 @@ class ProductionDefaultsTest {
             "https://app.loonext.com/calls?call=v3%3As",
             normalizeDeepLink("https://app.loonext.com/calls?call=v3%3As"),
         )
-        assertEquals(FALLBACK_DEEP_LINK, normalizeDeepLink("https://app.rig.internal/calls?call=x"))
+        assertNull(normalizeDeepLink("https://app.rig.internal/calls?call=x"))
     }
 }

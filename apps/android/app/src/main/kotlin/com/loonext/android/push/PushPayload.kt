@@ -94,8 +94,8 @@ data class PushContent(
     val kind: String?,
     val title: String,
     val body: String,
-    /** Normalized absolute deep link (always on [APP_ORIGIN]). */
-    val url: String,
+    /** A normalized deep link on [APP_ORIGIN], if present. */
+    val url: String?,
     /** Coalescing tag: repeats for one thread/call replace, not stack (#149). */
     val tag: String,
     /** Channel this push posts on when rendered as a notification. */
@@ -111,8 +111,8 @@ data class PushContent(
     val isCallEnd: Boolean get() = kind == PushKind.CALL_END
 
     /** `call` query param from the wake link (`/calls?call=<call_session_id>`). */
-    val callSessionId: String? get() = queryParam(url, "call")
-    val transferId: String? get() = if (isCall) queryParam(url, "transfer") else null
+    val callSessionId: String? get() = url?.let { queryParam(it, "call") }
+    val transferId: String? get() = if (isCall) url?.let { queryParam(it, "transfer") } else null
 }
 
 fun outboxNoticeTag(conversationId: String): String = "outbox:$conversationId"
@@ -133,7 +133,7 @@ fun isMessageForOpenConversation(content: PushContent, conversationId: String?):
 /**
  * Parse an FCM data map into displayable content. Every field is optional on
  * the wire; missing/garbage input degrades to a generic notice on the
- * Messages channel with the inbox fallback link.
+ * Messages channel without a navigation request.
  */
 fun parsePush(
     data: Map<String, String>,
@@ -143,7 +143,7 @@ fun parsePush(
     val url = normalizeDeepLink(data["url"])
     val title = data["title"]?.trim()?.takeIf { it.isNotEmpty() }
     val body = data["body"]?.trim().orEmpty()
-    val tag = coalescingTag(kind, url, data["tag"])
+    val tag = coalescingTag(kind, url ?: FALLBACK_DEEP_LINK, data["tag"])
 
     if (kind == PushKind.CALL || kind == PushKind.CALL_END) {
         // call_end shares the call's channel and — critically — its
@@ -201,19 +201,19 @@ fun parsePush(
  * - relative paths resolve against [APP_ORIGIN]
  * - legacy `/conversations/{id}` becomes `/inbox/{id}`
  * - query strings are preserved (the `/calls?call=…` wake link needs its param)
- * - foreign-origin or unparseable urls fall back to [FALLBACK_DEEP_LINK]
+ * - missing, foreign-origin or unparseable URLs cannot route
  */
-fun normalizeDeepLink(raw: String?): String {
+fun normalizeDeepLink(raw: String?): String? {
     val trimmed = raw?.trim().orEmpty()
-    if (trimmed.isEmpty()) return FALLBACK_DEEP_LINK
+    if (trimmed.isEmpty() || trimmed.startsWith("//")) return null
     val absolute = if (trimmed.startsWith("/")) APP_ORIGIN + trimmed else trimmed
     val uri = try {
         URI(absolute)
     } catch (_: Exception) {
-        return FALLBACK_DEEP_LINK
+        return null
     }
-    if (uri.scheme != "https" || uri.host != APP_HOST) return FALLBACK_DEEP_LINK
-    val path = uri.rawPath.orEmpty().ifEmpty { "/inbox" }
+    if (uri.scheme != "https" || uri.host != APP_HOST) return null
+    val path = uri.rawPath.orEmpty().ifEmpty { return null }
     val normalizedPath = Regex("^/conversations/([^/?#]+)$").find(path)
         ?.let { "/inbox/${it.groupValues[1]}" }
         ?: path

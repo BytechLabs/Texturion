@@ -1,0 +1,16 @@
+[
+  { "url": "/inbox", "route": "inbox" },
+  { "url": "/inbox/thread-1", "route": "thread", "conversationId": "thread-1" },
+  { "url": "/conversations/thread-1", "route": "thread", "conversationId": "thread-1" },
+  { "url": "/inbox/thread-1?message=note-2", "route": "thread", "conversationId": "thread-1", "messageId": "note-2" },
+  { "url": "/inbox/thread-1?task=task-3", "route": "thread", "conversationId": "thread-1", "taskId": "task-3" },
+  { "url": "/tasks/task-3", "route": "task", "taskId": "task-3" },
+  { "url": "/calls", "route": "calls" },
+  { "url": "/calls?call=session-4", "route": "calls", "sessionId": "session-4" },
+  { "url": "/calls?call=session-4&transfer=transfer-5", "route": "calls", "sessionId": "session-4", "transferId": "transfer-5" },
+  { "url": "/calls/session-4", "route": "calls", "sessionId": "session-4" },
+  { "url": "/for-you", "route": "forYou" },
+  { "url": "/settings/billing", "route": "settings", "section": "billing" },
+  { "url": "/settings/notifications", "route": "settings", "section": "notifications" },
+  { "url": "/settings/numbers", "route": "settings", "section": "numbers" }
+]

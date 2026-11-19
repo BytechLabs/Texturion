@@ -951,6 +951,8 @@ struct ShellView: View {
                 } else {
                     AppRouter.shared.openSettings = true
                 }
+            case .inbox:
+                AppRouter.shared.openInbox = true
             case .forYou:
                 AppRouter.shared.openForYou = true
             }

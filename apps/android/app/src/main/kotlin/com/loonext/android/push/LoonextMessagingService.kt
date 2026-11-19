@@ -170,7 +170,7 @@ fun postPushNotification(context: Context, content: PushContent, onlyAlertOnce: 
 
     val intent = Intent(context, MainActivity::class.java).apply {
         action = Intent.ACTION_VIEW
-        data = content.url.toUri()
+        data = content.url?.toUri()
         addFlags(
             Intent.FLAG_ACTIVITY_NEW_TASK or
                 Intent.FLAG_ACTIVITY_CLEAR_TOP or

@@ -383,7 +383,7 @@ class PushPayloadTest {
 
         assertEquals("Loonext", content.title)
         assertEquals("You have a new notification.", content.body)
-        assertEquals(FALLBACK_DEEP_LINK, content.url)
+        assertNull(content.url)
         assertEquals(ChannelIds.MESSAGES, content.channelId)
     }
 
@@ -448,23 +448,25 @@ class PushPayloadTest {
     }
 
     @Test
-    fun `foreign origins fall back to the inbox`() {
-        assertEquals(FALLBACK_DEEP_LINK, normalizeDeepLink("https://evil.example.com/inbox/x"))
-        assertEquals(FALLBACK_DEEP_LINK, normalizeDeepLink("http://$APP_HOST/inbox/x"))
+    fun `foreign origins do not navigate`() {
+        assertNull(normalizeDeepLink("https://evil.example.com/inbox/x"))
+        assertNull(normalizeDeepLink("http://$APP_HOST/inbox/x"))
+        assertNull(normalizeDeepLink("//evil.example.com/inbox/x"))
     }
 
     @Test
-    fun `garbage and blanks fall back to the inbox`() {
-        assertEquals(FALLBACK_DEEP_LINK, normalizeDeepLink(null))
-        assertEquals(FALLBACK_DEEP_LINK, normalizeDeepLink("   "))
-        assertEquals(FALLBACK_DEEP_LINK, normalizeDeepLink("::not a url::"))
+    fun `garbage and blanks do not navigate`() {
+        assertNull(normalizeDeepLink(null))
+        assertNull(normalizeDeepLink("   "))
+        assertNull(normalizeDeepLink("::not a url::"))
+        assertNull(normalizeDeepLink(APP_ORIGIN))
     }
 
     // --- coalescingTag ---
 
     @Test
     fun `repeat pushes for one thread coalesce on one tag`() {
-        val url = normalizeDeepLink("/inbox/conv-1")
+        val url = requireNotNull(normalizeDeepLink("/inbox/conv-1"))
 
         assertEquals(coalescingTag(null, url), coalescingTag("missed_call", url))
     }
