@@ -546,6 +546,7 @@
     "api_member_firsts": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false}]],
     "api_member_holdings": [[{"name":"p_company_id","hasDefault":false},{"name":"p_user_id","hasDefault":false}]],
     "api_merge_contacts": [[{"name":"p_company_id","hasDefault":false},{"name":"p_from","hasDefault":false},{"name":"p_into","hasDefault":false},{"name":"p_actor","hasDefault":true}]],
+    "api_merge_import_contact_details": [[{"name":"p_company","hasDefault":false},{"name":"p_rows","hasDefault":false},{"name":"p_replace","hasDefault":false},{"name":"p_may_create_tags","hasDefault":false}]],
     "api_merge_tags": [[{"name":"p_company_id","hasDefault":false},{"name":"p_from_tag","hasDefault":false},{"name":"p_into_tag","hasDefault":false}]],
     "api_mfa_consume_recovery_code": [[{"name":"p_user_id","hasDefault":false},{"name":"p_hash","hasDefault":false}]],
     "api_mfa_recovery_remaining": [[{"name":"p_user_id","hasDefault":false}]],
