@@ -116,7 +116,7 @@ begin
   end if;
 end $$;
 
--- AT-4. An interrupted send never had a carrier failure to classify.
+-- AT-5. An interrupted send never had a carrier failure to classify.
 do $$
 declare
   uncovered text;
@@ -135,7 +135,7 @@ begin
        and patch[1] ~* '\merror_code\s*=\s*''send_interrupted'''
      );
   if uncovered is not null then
-    raise exception 'AT-4: message writers without a failure reason: %', uncovered;
+    raise exception 'AT-5: message writers without a failure reason: %', uncovered;
   end if;
 end $$;
 
