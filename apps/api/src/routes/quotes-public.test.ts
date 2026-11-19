@@ -79,6 +79,7 @@ function stubResolving(purpose: string, over: Record<string, unknown> = {}): Sup
     };
   });
   sb.on("GET", "/rest/v1/companies", () => [{ name: "Apex Plumbing" }]);
+  sb.on("GET", "/rest/v1/conversations", () => []);
   // #581: viewing an acceptable quote now mints the accept credential.
   sb.on("POST", "/rest/v1/rpc/api_mint_public_link", () => "minted-accept-token");
   return sb;
@@ -274,7 +275,9 @@ describe("POST /q/:token/accept", () => {
     sb.on("POST", "/rest/v1/conversation_events", () => []);
     stubFetch(sb.route);
 
-    const res = await call(`/q/${TOKEN}/accept`, { method: "POST" });
+    const request = new Request(`https://api.example.test/q/${TOKEN}/accept`, { method: "POST" });
+    Object.defineProperty(request, "cf", { value: { country: "CA" } });
+    const res = await app.fetch(request, env);
     expect(res.status).toBe(200);
 
     const events = sb.find("POST", "/rest/v1/conversation_events");
@@ -283,6 +286,7 @@ describe("POST /q/:token/accept", () => {
       type: string;
       actor_user_id: string | null;
       conversation_id: string;
+      payload: Record<string, unknown>;
     }[];
     expect(rows[0].type).toBe("quote_accepted");
     // NO ACTOR. The customer is not a member, and attributing their decision to
@@ -290,6 +294,7 @@ describe("POST /q/:token/accept", () => {
     // yes — on the exact artefact that exists to settle that later.
     expect(rows[0].actor_user_id).toBeNull();
     expect(rows[0].conversation_id).toBe(CONVERSATION_ID);
+    expect(rows[0].payload.ip_country).toBe("CA");
   });
 
   it("turns the accepted quote into a job", async () => {
@@ -406,6 +411,7 @@ describe("POST /q/:token/accept", () => {
       sb.find("POST", "/rest/v1/conversation_events"),
       "the crew's thread was told twice",
     ).toHaveLength(1);
+    expect(sb.find("GET", "/rest/v1/conversations")).toHaveLength(1);
   });
 
   it("guards the write on the answerable statuses", async () => {

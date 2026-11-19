@@ -121,6 +121,7 @@ struct ThreadQuotesPane: View {
     let api: ApiClient
     let companyId: String
     let conversationId: String
+    let quoteChangedTick: Int
     let role: String?
     /// #106: 'text' or 'note' on this conversation's number.
     let viewerLevel: String
@@ -181,6 +182,9 @@ struct ThreadQuotesPane: View {
             )
             model = created
             await created.load()
+        }
+        .onChange(of: quoteChangedTick) { _, _ in
+            Task { await model?.load() }
         }
     }
 

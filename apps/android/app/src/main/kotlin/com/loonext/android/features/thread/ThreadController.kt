@@ -199,6 +199,9 @@ class ThreadController(
     var scheduled by mutableStateOf<List<ScheduledMessage>>(emptyList())
         private set
 
+    var quoteChangedTick by mutableStateOf(0)
+        private set
+
     private data class ScheduleAttempt(val body: String, val sendAt: String, val key: String)
     private var scheduleAttempt: ScheduleAttempt? = null
 
@@ -868,6 +871,11 @@ class ThreadController(
             // one line of history.
             PAYMENT_UPDATED -> {
                 if (!paymentMovedOnThread(event, conversationId)) return
+                scope.launch { runCatching { refreshEvents() } }
+            }
+            "quote.updated" -> {
+                if (payloadString(event, "conversation_id") != conversationId) return
+                quoteChangedTick++
                 scope.launch { runCatching { refreshEvents() } }
             }
         }

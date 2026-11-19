@@ -121,3 +121,17 @@ export const PAYMENT_PUSH_COPY: Record<Locale, PaymentPushCopy> = {
   en: EN,
   "fr-CA": FR,
 };
+
+export const QUOTE_ACCEPTED_PUSH_COPY: Record<Locale, {
+  title(contact: string): string;
+  line: string;
+}> = {
+  en: {
+    title: (contact) => `${contact} accepted the quote`,
+    line: "The quote was accepted.",
+  },
+  "fr-CA": {
+    title: (contact) => `${contact} a accepté la soumission`,
+    line: "La soumission a été acceptée.",
+  },
+};

@@ -181,6 +181,7 @@ export const REALTIME_EVENTS = [
   "call.updated",
   // #607: a deposit cleared, was refunded, or was disputed.
   "payment.updated",
+  "quote.updated",
   "number.updated",
   "registration.updated",
   // #358: read state, so clearing the bell on a phone clears it on the laptop.

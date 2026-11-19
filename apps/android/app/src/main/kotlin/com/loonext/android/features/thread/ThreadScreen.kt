@@ -1359,6 +1359,7 @@ private fun ThreadLoaded(
                 graph = graph,
                 companyId = companyId,
                 conversationId = controller.conversationId,
+                quoteChangedTick = controller.quoteChangedTick,
                 canAct = !viewerReadOnly,
                 draftOpen = quoteDraftOpen && composer.mode == ComposerMode.Text,
                 onCloseDraft = { quoteDraftOpen = false },

@@ -6,6 +6,7 @@ import type { QuoteState } from '@loonext/shared';
 import type { AppEnv } from "../context";
 import { getDb } from "../db";
 import { getEnv } from "../env";
+import { notifyQuoteAccepted } from "../notifications/payment";
 import { reportHandledFailure, workerEnv } from "../observability/capture";
 import {
   callerCountry,
@@ -223,12 +224,14 @@ publicQuoteRoutes.get("/q/:token", publicLinkGuard(), async (c) => {
  * the second tap fail earlier and more honestly.
  */
 publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
-  const db = getDb(getEnv(c.env));
+  const env = getEnv(c.env);
+  const db = getDb(env);
+  const country = callerCountry(c);
   const resolved = await resolvePublicLink(
     db,
     c.req.param("token"),
     "quote_accept",
-    callerCountry(c),
+    country,
   );
   if (!resolved.ok || !resolved.subject_id || !resolved.company_id) {
     return publicLinkNotAvailable(c);
@@ -334,6 +337,7 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
         amount_cents: row.amount_cents,
         currency: row.currency,
         description: row.description,
+        ip_country: country,
       },
     },
   ]).catch((error: unknown) => {
@@ -341,6 +345,18 @@ publicQuoteRoutes.post("/q/:token/accept", publicLinkGuard(), async (c) => {
       ids: { quoteId: row.id },
     });
   });
+
+  if (row.conversation_id) {
+    await notifyQuoteAccepted(env, {
+      companyId: resolved.company_id,
+      conversationId: row.conversation_id,
+      quoteId: row.id,
+    }, db).catch((error: unknown) => {
+      void reportHandledFailure(env, "quote-accepted-notification", error, {
+        ids: { quoteId: row.id },
+      });
+    });
+  }
 
   /*
    * #287 — AND THE WORK STARTS.

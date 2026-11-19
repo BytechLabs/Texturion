@@ -99,6 +99,7 @@ fun ThreadQuotes(
     graph: AppGraph,
     companyId: String,
     conversationId: String,
+    quoteChangedTick: Int,
     /**
      * May this reader act? A view-only observer (#315) still SEES what the
      * thread was quoted — that is a fact about the conversation they are here
@@ -117,7 +118,7 @@ fun ThreadQuotes(
     val state = rememberCacheFirst(
         cache = graph.storeCache,
         key = CacheKeys.quotes(companyId, conversationId),
-        refreshKey = refreshKey,
+        refreshKey = refreshKey + quoteChangedTick,
     ) { repo.forConversation(companyId, conversationId).data }
 
     val rows = (state as? LoadState.Ready)?.value ?: emptyList()

@@ -124,6 +124,7 @@ final class ThreadController {
     /// changed" bus, and a bus is what stops anybody being able to say which
     /// screen a broadcast reaches.
     private(set) var paymentChangedTick = 0
+    private(set) var quoteChangedTick = 0
 
     /// Per-note generic file attachments, fetched lazily per bubble.
     private(set) var noteFiles: [String: LoadState<[Attachment]>] = [:]
@@ -830,6 +831,11 @@ final class ThreadController {
             // reload and this refetch are independent reads of two different
             // routes, and neither waits on the other.
             paymentChangedTick += 1
+            Task { try? await self.refreshEvents() }
+
+        case "quote.updated":
+            guard payloadString(event, "conversation_id") == conversationId else { return }
+            quoteChangedTick += 1
             Task { try? await self.refreshEvents() }
 
         default:
