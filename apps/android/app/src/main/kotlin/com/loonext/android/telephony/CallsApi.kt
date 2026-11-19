@@ -61,6 +61,7 @@ data class OutboundCallBody(
     val contact_id: String? = null,
     val to: String? = null,
     val phone_number_id: String? = null,
+    val contact_phone_e164: String? = null,
 )
 
 /** GET /v1/calls/live/by-leg/:ccid — ring leg -> customer session. */
@@ -187,6 +188,7 @@ interface CallsApi {
         contactId: String? = null,
         to: String? = null,
         phoneNumberId: String? = null,
+        contactPhoneE164: String? = null,
     ): BrowserCallAuth
 
     /**
@@ -261,6 +263,7 @@ class HttpCallsApi(private val api: ApiClient) : CallsApi {
         contactId: String?,
         to: String?,
         phoneNumberId: String?,
+        contactPhoneE164: String?,
     ): BrowserCallAuth = api.post(
         "/v1/calls/browser",
         OutboundCallBody(
@@ -268,6 +271,7 @@ class HttpCallsApi(private val api: ApiClient) : CallsApi {
             contact_id = contactId,
             to = to,
             phone_number_id = phoneNumberId,
+            contact_phone_e164 = contactPhoneE164,
         ),
         companyId = companyId,
     )

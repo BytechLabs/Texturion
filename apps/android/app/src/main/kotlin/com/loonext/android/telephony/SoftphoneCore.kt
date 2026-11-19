@@ -1127,6 +1127,7 @@ class SoftphoneCore(
         contactId: String? = null,
         to: String? = null,
         phoneNumberId: String? = null,
+        contactPhoneE164: String? = null,
     ) {
         val company = companyId ?: throw ApiException(
             code = ApiErrorCode.NETWORK,
@@ -1148,6 +1149,7 @@ class SoftphoneCore(
             contactId = contactId,
             to = to,
             phoneNumberId = phoneNumberId,
+            contactPhoneE164 = contactPhoneE164,
         )
         val session = auth.call_session_id
         if (session.isNullOrBlank()) {

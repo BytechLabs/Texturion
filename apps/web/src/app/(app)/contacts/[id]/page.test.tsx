@@ -95,6 +95,7 @@ vi.mock("@/lib/api/contacts", () => ({
     mutateAsync: vi.fn(),
   }),
   useRemoveContactPhone: () => ({ isPending: false, mutate: vi.fn() }),
+  useMakePrimaryContactPhone: () => ({ isPending: false, mutate: vi.fn() }),
   useOptOutContact: () => ({ isPending: false, mutate: vi.fn() }),
   useRevokeOptOut: () => ({ isPending: false, mutate: vi.fn() }),
   useDeleteContact: () => ({ isPending: false, mutate: vi.fn() }),

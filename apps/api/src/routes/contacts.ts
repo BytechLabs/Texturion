@@ -2153,8 +2153,14 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
     ),
   ]);
   const addresses = unwrap<Record<string, unknown>[]>(addressesRes, "contact addresses");
-  const phones = unwrap<Record<string, unknown>[]>(phonesRes, "contact phones");
+  const phones = unwrap<{ id: string; phone_e164: string; label: string | null; created_at: string }[]>(phonesRes, "contact phones");
   const optOuts = unwrap<{ id: string; source: string }[]>(optOutsRes, "opt-out lookup");
+  const alternateOptOuts = phones.length === 0 ? [] : unwrap<{ phone_e164: string; source: string }[]>(
+    await db.from("opt_outs").select("phone_e164,source")
+      .eq("company_id", companyId).in("phone_e164", phones.map((entry) => entry.phone_e164)).is("revoked_at", null),
+    "alternate number opt-outs",
+  );
+  const optOutByPhone = new Map(alternateOptOuts.map((entry) => [entry.phone_e164, entry.source]));
   const mergedSource =
     unwrap<
       { id: string; name: string | null; phone_e164: string | null; merged_phone_e164: string | null; merged_at: string }[]
@@ -2191,7 +2197,11 @@ contactsRoutes.get("/contacts/:id", requireCapability("conversations.read"), asy
     addresses,
     // #291: the OTHER numbers. Empty for nearly every contact, and that is the
     // honest answer rather than a gap: most customers have one line.
-    phones,
+    phones: phones.map((entry) => ({
+      ...entry,
+      opted_out: optOutByPhone.has(entry.phone_e164),
+      opt_out_source: optOutByPhone.get(entry.phone_e164) ?? null,
+    })),
     tags: tagMap.get(id) ?? [],
     merged_from: mergedFrom,
   });
@@ -3483,6 +3493,9 @@ contactsRoutes.post(
     if (result.outcome === "number_taken" && result.existing_contact_id) {
       return contactNumberTaken(c, result.existing_contact_id);
     }
+    if (result.outcome === "replacement_number_required") {
+      return errorResponse(c, "conflict", "Choose a different main number before undoing this merge.");
+    }
 
     await recordAuditFromRequest(db, c, {
       companyId,
@@ -3893,6 +3906,30 @@ contactsRoutes.post(
     });
 
     return c.json({ data: rows[0] }, 201);
+  },
+);
+
+contactsRoutes.post(
+  "/contacts/:id/phones/:phoneId/make-primary",
+  requireCapability("conversations.note"),
+  async (c) => {
+    const id = pathUuid(c, "id");
+    const phoneId = pathUuid(c, "phoneId");
+    const companyId = c.get("companyId");
+    const userId = c.get("userId");
+    const db = getDb(getEnv(c.env));
+    const result = unwrap<{ outcome: string; phone_e164: string; previous_number: string }>(
+      await db.rpc("api_make_primary_contact_number", {
+        p_company_id: companyId, p_contact_id: id, p_phone_id: phoneId, p_actor: userId,
+      }),
+      "change primary contact number",
+    );
+    if (result.outcome !== "updated") return errorResponse(c, "not_found", "No such contact number.");
+    await recordActivity(db, {
+      companyId, recordType: "contact", recordId: id, kind: "edited", actorUserId: userId,
+      payload: { field: "phone_e164", from: result.previous_number, to: result.phone_e164 },
+    });
+    return c.json({ phone_e164: result.phone_e164 });
   },
 );
 

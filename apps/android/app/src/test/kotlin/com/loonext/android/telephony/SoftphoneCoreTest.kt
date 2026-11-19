@@ -134,6 +134,7 @@ class SoftphoneCoreTest {
             contactId: String?,
             to: String?,
             phoneNumberId: String?,
+            contactPhoneE164: String?,
         ): BrowserCallAuth = BrowserCallAuth(
             from = "+15550001111",
             to = "+15552223333",

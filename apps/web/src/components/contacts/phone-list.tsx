@@ -1,10 +1,12 @@
 "use client";
 
 import { Phone, Plus, X } from "lucide-react";
+import Link from "next/link";
 import { useState } from "react";
 import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { CallButton } from "@/components/calls/call-button";
 import { CopyablePhoneNumber } from "@/components/ui/copyable-phone-number";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,9 +14,11 @@ import { useT } from "@/i18n/provider";
 import { ApiError } from "@/lib/api/error";
 import {
   useAddContactPhone,
+  useMakePrimaryContactPhone,
   useRemoveContactPhone,
 } from "@/lib/api/contacts";
 import type { ContactDetail } from "@/lib/api/types";
+import { formatPhone } from "@/lib/format/phone";
 
 /**
  * #291 — the other numbers this customer answers.
@@ -51,6 +55,7 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
   const phones = contact.phones ?? [];
   const add = useAddContactPhone(contact.id);
   const remove = useRemoveContactPhone(contact.id);
+  const makePrimary = useMakePrimaryContactPhone(contact.id);
 
   const [adding, setAdding] = useState(false);
   const [draftLabel, setDraftLabel] = useState("");
@@ -92,8 +97,23 @@ export function PhoneList({ contact }: { contact: ContactDetail }) {
                 {entry.label ? (
                   <span className="text-app-muted-2">{entry.label} · </span>
                 ) : null}
-                <CopyablePhoneNumber number={entry.phone_e164} />
+                <CopyablePhoneNumber number={entry.phone_e164} label={formatPhone(entry.phone_e164)} />
+                {entry.opted_out && <span className="ml-2 text-app-muted-2">{t("contacts.phoneOptedOut")}</span>}
               </span>
+              {entry.opted_out ? (
+                <Button variant="ghost" size="sm" disabled>{t("recordMenu.text")}</Button>
+              ) : (
+                <Button variant="ghost" size="sm" asChild>
+                  <Link href={`/inbox/new?contact=${contact.id}&number=${encodeURIComponent(entry.phone_e164)}`}>
+                    {t("recordMenu.text")}
+                  </Link>
+                </Button>
+              )}
+              <CallButton contactId={contact.id} contactPhoneE164={entry.phone_e164} contactName={formatPhone(entry.phone_e164)} />
+              <Button variant="ghost" size="sm" disabled={makePrimary.isPending} onClick={() =>
+                makePrimary.mutate(entry.id, { onError: (error) => toast.error(error.message) })}>
+                {t("contacts.phoneMakeMain")}
+              </Button>
               <button
                 type="button"
                 aria-label={t("contacts.phoneRemove", {

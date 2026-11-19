@@ -64,6 +64,7 @@ import {
   unwrap,
 } from "./core/http";
 import { normalizeNanpPhone } from "./core/phone";
+import { selectedContactNumber } from "./core/contact-number";
 
 const UNSUPPORTED_DESTINATION_MESSAGE =
   "Enter a US, Canadian or toll-free number. Premium and non-geographic 5XX numbers are unavailable.";
@@ -647,10 +648,14 @@ const outboundBodySchema = z
     conversation_id: z.uuid().optional(),
     contact_id: z.uuid().optional(),
     to: z.string().trim().min(1).max(32).optional(),
+    contact_phone_e164: z.string().trim().min(1).max(32).optional(),
     phone_number_id: z.uuid().optional(),
   })
   .refine((b) => Boolean(b.conversation_id ?? b.contact_id ?? b.to), {
     message: "Provide a conversation, a contact, or a number to call.",
+  })
+  .refine((b) => b.contact_phone_e164 === undefined || (b.contact_id !== undefined && !b.conversation_id && !b.to), {
+    message: "Selecting a number requires a contact without a conversation or dialed number.",
   });
 type OutboundBody = z.infer<typeof outboundBodySchema>;
 
@@ -806,13 +811,16 @@ async function authorizeOutboundCall(
           .select("phone_e164")
           .eq("company_id", companyId)
           .eq("id", body.contact_id)
+          .is("merged_into", null)
           .limit(1),
         "contact lookup",
       );
       if (!rows[0]) {
         return errorResponse(c, "not_found", "No such contact.");
       }
-      customer = rows[0].phone_e164;
+      customer = body.contact_phone_e164
+        ? await selectedContactNumber(db, companyId, body.contact_id, body.contact_phone_e164)
+        : rows[0].phone_e164;
       contactId = body.contact_id;
     } else {
       const to = body.to ?? "";

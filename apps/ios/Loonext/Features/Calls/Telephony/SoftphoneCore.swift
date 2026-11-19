@@ -731,7 +731,8 @@ final class SoftphoneCore {
         conversationId: String? = nil,
         contactId: String? = nil,
         to: String? = nil,
-        phoneNumberId: String? = nil
+        phoneNumberId: String? = nil,
+        contactPhoneE164: String? = nil
     ) async throws {
         guard let company = companyId else {
             throw ApiError(
@@ -752,7 +753,8 @@ final class SoftphoneCore {
             conversationId: conversationId,
             contactId: contactId,
             to: to,
-            phoneNumberId: phoneNumberId
+            phoneNumberId: phoneNumberId,
+            contactPhoneE164: contactPhoneE164
         )
         // Make sure the phone is registered so the op INVITE can reach us (the
         // same registration that makes inbound ring work). No newCall.

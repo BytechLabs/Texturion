@@ -126,6 +126,7 @@ interface ComposeStubs {
 function composeStubs(options: {
   replay?: MessageRow[];
   existingContact?: ReturnType<typeof contactRow> | null;
+  numberOwnerId?: string;
   conversationConflict?: boolean;
   /** #48: gate_outbound_send rejects with this §7 error code. */
   gateError?: string;
@@ -181,7 +182,11 @@ function composeStubs(options: {
   );
   const contactNumberOwners = stubRoute(rpcMatch(env, "api_contact_number_owners"), (call) => {
     const { p_numbers } = call.body as { p_numbers: string[] };
-    return options.existingContact ? [{ ...options.existingContact, requested_number: p_numbers[0] }] : [];
+    return options.existingContact ? [{
+      ...options.existingContact,
+      id: options.numberOwnerId ?? options.existingContact.id,
+      requested_number: p_numbers[0],
+    }] : [];
   });
   // #48: new contacts are created BARE (no consent columns) — attestation is
   // stamped post-gate by the PATCH below.
@@ -374,6 +379,37 @@ describe("POST /v1/conversations — consent attestation (§5, D4)", () => {
       contact_phone_e164: "+16135551000",
     });
     expect(stubs.telnyx.calls[0].body).toMatchObject({ to: "+16135551000" });
+  });
+
+  it("uses a selected alternate belonging to the chosen contact", async () => {
+    const stubs = composeStubs({ existingContact: { ...contactRow(), phone_e164: "+16135551001" } });
+    stubFetch(...stubs.all);
+    const response = await postCompose({
+      ...VALID_BODY,
+      phone_e164: undefined,
+      contact_id: CONTACT_ID,
+      contact_phone_e164: "+16135551000",
+    });
+    expect(response.status).toBe(201);
+    expect(stubs.conversationInsert.calls[0].body).toMatchObject({
+      contact_id: CONTACT_ID,
+      contact_phone_e164: "+16135551000",
+    });
+    expect(stubs.telnyx.calls[0].body).toMatchObject({ to: "+16135551000" });
+  });
+
+  it("refuses a selected number owned by another contact before sending", async () => {
+    const stubs = composeStubs({ existingContact: contactRow(), numberOwnerId: NUMBER_ID });
+    stubFetch(...stubs.all);
+    const response = await postCompose({
+      ...VALID_BODY,
+      phone_e164: undefined,
+      contact_id: CONTACT_ID,
+      contact_phone_e164: "+16135551000",
+    });
+    expect(response.status).toBe(422);
+    expect(stubs.conversationInsert.calls).toHaveLength(0);
+    expect(stubs.telnyx.calls).toHaveLength(0);
   });
 
   // The visible consent checkbox was removed; compose no longer requires a

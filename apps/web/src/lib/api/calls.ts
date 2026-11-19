@@ -164,6 +164,7 @@ export interface BrowserCallAuth {
  *  number (the dialer). Exactly one origin is set; phone_number_id optionally
  *  picks the caller-ID number when the company owns several. */
 export interface BrowserCallRequest {
+  contact_phone_e164?: string;
   conversation_id?: string;
   contact_id?: string;
   to?: string;

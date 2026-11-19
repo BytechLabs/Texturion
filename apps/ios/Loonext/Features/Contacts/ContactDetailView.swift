@@ -33,6 +33,7 @@ struct ContactDetailView: View {
     /// #712: blocking a number needs `conversations.note`, like the thread's Block.
     var canBlock: Bool = true
     var onContactDeleted: ((String) -> Void)? = nil
+    var onComposeNumber: ((String, String) -> Void)? = nil
 
     private enum DetailState {
         case loading
@@ -346,15 +347,15 @@ struct ContactDetailView: View {
     /// Mic first, then authorize — a denial never reserves the line or bills
     /// a minute. Mirrors the Android ContactDetailScreen exactly: enabled for
     /// opted-out contacts (voice consent is separate from SMS consent).
-    private func callWithMicPreflight(_ contact: Contact) {
+    private func callWithMicPreflight(_ contact: Contact, number: String? = nil) {
         let manager = CallsManager.get(graph: graph)
         if manager.hasMicPermission {
-            placeCall(contact, manager: manager)
+            placeCall(contact, manager: manager, number: number)
             return
         }
         Task {
             if await manager.requestMicPermission() {
-                placeCall(contact, manager: manager)
+                placeCall(contact, manager: manager, number: number)
             } else {
                 actionError = t("contactsTasks.micNeededToPlace")
             }
@@ -364,7 +365,7 @@ struct ContactDetailView: View {
     /// Authorize + place via the softphone (contact_id — no thread required).
     /// Coded gate refusals (usage_cap_reached, subscription_inactive,
     /// conflict) surface their honest server copy in the existing error line.
-    private func placeCall(_ contact: Contact, manager: CallsManager) {
+    private func placeCall(_ contact: Contact, manager: CallsManager, number: String?) {
         guard !placingCall else { return }
         placingCall = true
         actionError = nil
@@ -374,9 +375,10 @@ struct ContactDetailView: View {
             do {
                 try await manager.placeCall(
                     displayName: (contact.name?.isBlank ?? true)
-                        ? formatPhone(contact.phone_e164)
+                        ? formatPhone(number ?? contact.phone_e164)
                         : (contact.name ?? ""),
-                    contactId: contact.id
+                    contactId: contact.id,
+                    contactPhoneE164: number
                 )
             } catch {
                 actionError = error.userMessage
@@ -828,6 +830,14 @@ struct ContactDetailView: View {
                         } catch {
                             actionError = error.userMessage
                         }
+                    }
+                },
+                onText: onComposeNumber.map { compose in { compose(contact.id, $0) } },
+                onCall: { callWithMicPreflight(contact, number: $0) },
+                onMakePrimary: { phoneId in
+                    runAction {
+                        try await mutations.makePrimaryPhone(companyId: companyId, contactId: contact.id, phoneId: phoneId)
+                        refreshKey += 1
                     }
                 }
             )

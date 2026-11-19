@@ -146,14 +146,16 @@ final class CallsManager {
         conversationId: String? = nil,
         contactId: String? = nil,
         to: String? = nil,
-        phoneNumberId: String? = nil
+        phoneNumberId: String? = nil,
+        contactPhoneE164: String? = nil
     ) async throws {
         try await core.placeCall(
             displayName: displayName,
             conversationId: conversationId,
             contactId: contactId,
             to: to,
-            phoneNumberId: phoneNumberId
+            phoneNumberId: phoneNumberId,
+            contactPhoneE164: contactPhoneE164
         )
     }
 

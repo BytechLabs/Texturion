@@ -59,6 +59,7 @@ const CLASSIFIED: Record<string, Classification> = {
   "contacts#DELETE /contacts/:id/tags/:tag_id": "records",
   "contacts#POST /contacts/bulk": "records",
   "contacts#POST /contacts/:id/phones": "records",
+  "contacts#POST /contacts/:id/phones/:phoneId/make-primary": "records",
   "contacts#DELETE /contacts/:id/phones/:phoneId": "records",
   "contacts#POST /contacts/:id/addresses": "records",
   "contacts#PATCH /contacts/:id/addresses/:addressId": "records",
