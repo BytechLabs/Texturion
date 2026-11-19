@@ -240,7 +240,7 @@ sealed interface CatchUpState {
  * catch-up again" at somebody who will be refused identically every time.
  */
 private val UNFIXABLE_BY_ASKING =
-    setOf("disabled", "spam", "over_cap", "too_short", THREAD_SUMMARY_NOT_ALLOWED)
+    setOf("disabled", "spam", "over_cap", "too_short", "nothing_to_show", THREAD_SUMMARY_NOT_ALLOWED)
 
 /**
  * What the strip should show, given the thread and what has happened so far.
@@ -274,7 +274,7 @@ fun catchUpState(
     // here is precisely how that warning went missing.
     summary != null -> CatchUpState.Refused(
         summary,
-        askAgain = summary.reason !in UNFIXABLE_BY_ASKING,
+        askAgain = !summary.cached && summary.reason !in UNFIXABLE_BY_ASKING,
     )
     offered -> CatchUpState.Offered
     else -> CatchUpState.Hidden

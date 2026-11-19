@@ -542,6 +542,14 @@ describe("the catch-up card — the standing survives a re-ask", () => {
 });
 
 describe("the catch-up card — a refusal is silence, not an error", () => {
+  it.each([
+    { reason: "nothing_to_show" },
+    { reason: "unusable_output", cached: true },
+  ] as const)("omits retry for %j", (response) => {
+    ask(result(response));
+    expect(screen.queryByText("Try again")).toBeNull();
+  });
+
   it("answers a refusal with one sentence and no lines", () => {
     ask(result({ reason: "disabled" }));
     expect(screen.queryByRole("listitem")).toBeNull();

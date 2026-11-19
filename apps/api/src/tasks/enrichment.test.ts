@@ -88,16 +88,19 @@ describe(parseEnrichmentOutput, () => {
     expect((out as Record<string, unknown>).confidence).toBeUndefined();
   });
 
-  it("rejects (null) a due_date that is not YYYY-MM-DD", () => {
-    expect(
-      parseEnrichmentOutput({ response: '{"due_date":"next tuesday"}' }),
-    ).toBeNull();
+  it.each([
+    ["object response", { response: { street: "12 Hill St", postalcode: 90210, source: "guess", due_date: "tomorrow" } }],
+    ["choices", { choices: [{ message: { content: '{"street":"12 Hill St","postalcode":90210,"source":"guess","due_date":"tomorrow"}' } }] }],
+    ["result", { result: { response: '{"street":"12 Hill St","postalcode":90210,"source":"guess","due_date":"tomorrow"}' } }],
+  ])("keeps usable fields from %s", (_name, raw) => {
+    expect(parseEnrichmentOutput(raw)).toEqual({
+      street: "12 Hill St", postalcode: "90210", source: null, due_date: null, due_time: null,
+    });
   });
 
-  it("rejects (null) a source outside the enum", () => {
-    expect(
-      parseEnrichmentOutput({ response: '{"city":"X","source":"guess"}' }),
-    ).toBeNull();
+  it("resolves a single-digit hour", () => {
+    const out = parseEnrichmentOutput({ response: { due_date: "2026-07-31", due_time: "9:30" } });
+    expect(resolveDueAt(out?.due_date, out?.due_time, "America/Toronto")).toBe("2026-07-31T13:30:00.000Z");
   });
 
   it("returns null on non-JSON garbage", () => {

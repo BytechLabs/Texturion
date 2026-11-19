@@ -596,8 +596,8 @@ async function backfillVoicemailTranscript(
  * on the open that first needs it.
  *
  * Same once-per-recording discipline as the transcript backfill, and for the
- * same reason: the stamp records that a model ANSWERED, not that it found
- * something. A voicemail with no address in it must not be re-read on every tap
+ * same reason: the stamp records a valid answer, even if it found no fields.
+ * A voicemail with no address in it must not be re-read on every tap
  * forever — and the clients mint a fresh URL per play, so "every tap" is
  * literal. A refusal that never reached a model (opted out, over cap, no
  * binding) leaves the stamp unspent, so switching the feature on later still
@@ -619,7 +619,7 @@ async function backfillVoicemailIntake(
       transcript: args.transcript,
       settings: args.settings,
     });
-    if (!outcome.reached) return null;
+    if (!outcome.parsed) return null;
     await db
       .from("calls")
       .update({

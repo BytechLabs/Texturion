@@ -190,17 +190,16 @@ export const AI_UNIT_COST_CENTS = {
    * smaller input.
    *
    * Input is the stored transcript, bounded by
-   * VOICEMAIL_INTAKE_MAX_TRANSCRIPT_CHARS (4,000) plus a ~400-char system
-   * prompt ⇒ ~1,100 tokens at the ceiling. Output is capped at 256
-   * (VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS) and is in practice four short strings.
-   * 1100x0.045/1e6 + 256x0.384/1e6 = $0.000148 ⇒ 0.015c, carried at 0.02c.
+   * VOICEMAIL_INTAKE_MAX_TRANSCRIPT_CHARS (4,000) and the system prompt.
+   * Budget 1,500 input tokens and 256 output tokens per attempt at the
+   * recorded rates. Two attempts cost about 0.033c, rounded up to 0.04c.
    *
    * Worth stating next to D78, which priced the OTHER version of this feature:
    * a realtime receptionist costs 6.8c per MINUTE, so a two-minute call is
-   * 13.6c — roughly 700x this. That gap is the whole reason depth (1) needs no
+   * 13.6c, or 340 times this cost. That gap is the whole reason depth (1) needs no
    * paid module and the realtime version necessarily does.
    */
-  voicemail_intake: 0.02,
+  voicemail_intake: 0.04,
   /**
    * #507 Phase 1: crew wrap-up dictation on
    * `@cf/openai/whisper-large-v3-turbo` ($0.0005 per audio minute).
@@ -219,67 +218,8 @@ export const AI_UNIT_COST_CENTS = {
    * unlike voicemail there is no second cost centre for structuring.
    */
   call_wrapup: 0.1,
-  /**
-   * #247 thread catch-up on `@cf/meta/llama-3.1-8b-instruct-fast`
-   * ($0.045/M in, $0.384/M out) — the same model reply drafting uses, on the
-   * largest input any feature in this product sends.
-   *
-   * This is the one cost centre whose input would grow WITHOUT LIMIT if the
-   * feature did not bound it, because it reads a conversation rather than a
-   * message: `messages.body` has no length constraint in the schema, inbound
-   * bodies are whatever the carrier hands us, and `conversations_open_uq` keeps
-   * one open thread per customer forever with no archival.
-   *
-   * So the bound is structural, it lives in the prompt builder rather than in
-   * any validator, and it is carried as one constant —
-   * THREAD_SUMMARY_MAX_PROMPT_CHARS (21,000) — which a guard asserts the
-   * worst-case prompt against. Its arithmetic:
-   *
-   *   THREAD_SUMMARY_CONTEXT_MESSAGES (40) x [
-   *     THREAD_SUMMARY_MAX_MESSAGE_CHARS (400) body
-   *     + THREAD_SUMMARY_MAX_NAME_CHARS (40) speaker name
-   *     + the "[40] " and ": " around them, and one newline ]  = 17,920 chars
-   *   + the two header lines, the count line and the closing   =   ~200 chars
-   *   + the system prompt, itself bounded at 2,600
-   *     (THREAD_SUMMARY_MAX_SYSTEM_PROMPT_CHARS)               =  2,500 chars
-   *   ⇒ 20,613 measured, under 21,000 ⇒ 5,250 tokens at this file's
-   *     4-chars-per-token ratio.
-   *
-   * THE NAME BOUND IS WHY THIS PARAGRAPH WAS REWRITTEN. The prefix used to be
-   * costed at "~400 chars" for all forty messages, which assumed a ten-character
-   * name; the prefix carries the workspace's own display name, which was bounded
-   * only by `z.string().max(200)` on two unrelated routes. A verifier moved that
-   * validator to 2000, the whole API suite stayed green, and this figure went
-   * from 0.04c to 0.13c. A cost bound that a change in another file can move is
-   * not a bound, so the truncation now happens where the multiplication does.
-   *
-   * Output is capped at 400 (THREAD_SUMMARY_MAX_OUTPUT_TOKENS).
-   * 5250x0.045/1e6 + 400x0.384/1e6 = $0.00039 ⇒ 0.039c, carried at 0.04c.
-   *
-   * EVERY TERM IS NOW EXECUTED, not written down: `THREAD_SUMMARY_WORST_CASE_CENTS`
-   * is this arithmetic as code, and a guard asserts the 0.04c below is that
-   * derivation ROUNDED UP to the next hundredth of a cent. Both halves of the
-   * sum reached that state the hard way. The output cap was the one BOUND with
-   * nothing pinning it — the expensive half at 8.5x the input rate, so raising
-   * it 400 → 2,000 took this line to 0.10c with every test green. The RATES
-   * were then the one input the re-derivation could not check, because a
-   * one-sided "at or above" guard is satisfied by any rate low enough: dropping
-   * the output rate to $0.045 left 104 of 104 tests green. They live in
-   * `workers-ai-prices.ts` now, looked up by model id, mirrored against §4.2 of
-   * the audit above and dated.
-   *
-   * The same figure as reply drafting, which is not a coincidence and is worth
-   * reading twice: a summary sends roughly twice the input, and input on this
-   * model is nine times cheaper than output, so a bigger read costs about what a
-   * smaller write does. What makes the two features differ is the CAP, not the
-   * unit — see THREAD_SUMMARY_MONTHLY_CAP.
-   *
-   * WHAT IT WOULD COST UNBOUNDED, since that is the number the window exists to
-   * prevent: an ordinary 800-message two-year thread at 160 chars a message is
-   * ~32,000 input tokens ⇒ 0.14c, about 4.7x this. That is the AVERAGE case of
-   * unbounded, not the worst; the worst is set by whoever is texting us.
-   */
-  thread_summary: 0.04,
+  /** 19,500 input characters and 128 output tokens at the recorded 8B rates. */
+  thread_summary: 0.03,
 } as const;
 
 /** The `company_ai_usage.feature` keys the cost model knows how to price. */

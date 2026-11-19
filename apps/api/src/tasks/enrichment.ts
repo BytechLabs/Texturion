@@ -10,9 +10,8 @@
  *
  * Security posture (BINDING, #214 + cost-protection mandate):
  *   - The task text is attacker-controllable. The model output is DATA, never an
- *     instruction: we parse it as strict JSON, schema-validate it, and reject on
- *     ANY deviation. There is no tool use and no side effect driven by the
- *     output — it only pre-fills a form the user reviews and saves. So even a
+ *     instruction. Each JSON field is validated independently. The output
+ *     only pre-fills a form the user reviews and saves. So even a
  *     fully hijacked model can at worst suggest a wrong address the user edits.
  *   - The text is passed inside explicit delimiters with an instruction that
  *     content between them is data to extract from, never commands to follow.
@@ -21,7 +20,7 @@
 import { AI_UNIT_COST_CENTS } from "../billing/costs";
 import type { AiFeatureSpec } from "../ai/run";
 import { formatZonedStamp } from "@loonext/shared";
-import { z } from "zod";
+import { modelField, modelJson } from "../ai/output";
 
 /** The cheapest Workers AI text model (SPEC #214). */
 export const ENRICHMENT_MODEL = "@cf/meta/llama-3.2-1b-instruct";
@@ -97,32 +96,20 @@ export interface EnrichmentContext {
   now: Date;
 }
 
-/**
- * The exact JSON schema we force the model into. All fields nullable/optional —
- * a 1B model omits freely. `.strip()` (zod default) drops any extra keys a
- * chatty model adds; the fields we consume are strictly typed, so a wrong type
- * (a due_date that isn't YYYY-MM-DD, a source outside the enum) fails validation
- * and the whole enrichment is rejected.
- */
-const modelOutputSchema = z.object({
-  street: z.string().max(200).nullish(),
-  unit: z.string().max(60).nullish(),
-  city: z.string().max(120).nullish(),
-  state: z.string().max(120).nullish(),
-  postalcode: z.string().max(20).nullish(),
-  country: z.string().max(80).nullish(),
-  source: z.enum(["message", "contact"]).nullish(),
-  due_date: z
-    .string()
-    .regex(/^\d{4}-\d{2}-\d{2}$/)
-    .nullish(),
-  due_time: z
-    .string()
-    .regex(/^\d{2}:\d{2}$/)
-    .nullish(),
-});
+const ADDRESS_FIELD_LIMITS = [
+  ["street", 200],
+  ["unit", 60],
+  ["city", 120],
+  ["state", 120],
+  ["postalcode", 20],
+  ["country", 80],
+] as const;
 
-export type EnrichmentModelOutput = z.infer<typeof modelOutputSchema>;
+export type EnrichmentModelOutput = Partial<Record<(typeof ADDRESS_FIELD_LIMITS)[number][0], string | null>> & {
+  source?: "message" | "contact" | null;
+  due_date?: string | null;
+  due_time?: string | null;
+};
 
 /**
  * Cheap, deterministic pre-filter: does the text PLAUSIBLY contain an address
@@ -200,40 +187,26 @@ export function buildEnrichmentMessages(
   ];
 }
 
-/**
- * Extract + validate the model's JSON. Workers AI text models return
- * `{ response: string }`; we also tolerate a bare string. The model is told to
- * emit only JSON but may wrap it, so we pull the outermost {...} block. Any
- * parse or schema failure returns null (→ the endpoint yields no enrichment).
- */
-export function parseEnrichmentOutput(
-  raw: unknown,
-): EnrichmentModelOutput | null {
-  const text =
-    typeof raw === "string"
-      ? raw
-      : (typeof (raw as { response?: unknown } | null)?.response === "string"
-        ? (raw as { response: string }).response
-        : null);
-  if (!text) return null;
-
-  let json: unknown;
-  try {
-    json = JSON.parse(text);
-  } catch {
-    // Prose around the object: take the outermost brace span and retry once.
-    const start = text.indexOf("{");
-    const end = text.lastIndexOf("}");
-    if (start === -1 || end <= start) return null;
-    try {
-      json = JSON.parse(text.slice(start, end + 1));
-    } catch {
-      return null;
+export function parseEnrichmentOutput(raw: unknown): EnrichmentModelOutput | null {
+  const json = modelJson(raw);
+  if (!json || typeof json !== "object" || Array.isArray(json)) return null;
+  const fields = json as Record<string, unknown>;
+  const result: EnrichmentModelOutput = {};
+  for (const [key, max] of ADDRESS_FIELD_LIMITS) {
+    if (Object.hasOwn(fields, key)) {
+      result[key] = modelField(fields[key], max);
     }
   }
-
-  const parsed = modelOutputSchema.safeParse(json);
-  return parsed.success ? parsed.data : null;
+  const { source, due_date, due_time } = fields;
+  if (source !== undefined) result.source = source === "message" || source === "contact" ? source : null;
+  if (due_date !== undefined || due_time !== undefined) {
+    const date = modelField(due_date, 10);
+    const time = modelField(due_time, 5);
+    result.due_date = date && /^\d{4}-\d{2}-\d{2}$/.test(date)
+      && (due_time == null || (time && /^\d{1,2}:\d{2}$/.test(time))) ? date : null;
+    result.due_time = result.due_date ? time : null;
+  }
+  return Object.keys(result).length > 0 ? result : null;
 }
 
 /** Trim to a non-empty string, or null. */
@@ -277,7 +250,7 @@ export function buildEnrichmentResult(
       candidate.country;
     if (hasAny) {
       address = candidate;
-      provenance = mapSource(output.source);
+      provenance = output.source === undefined ? "message" : output.source;
     } else if (clean(opts.contactAddress)) {
       // The model surfaced nothing structured, but the contact has an address
       // on file — offer it (freeform in `street`) for the user to confirm.
@@ -300,16 +273,6 @@ export function buildEnrichmentResult(
   return { address, address_provenance: provenance, due_at };
 }
 
-/** Model `source` → the persisted provenance vocabulary. */
-function mapSource(
-  source: EnrichmentModelOutput["source"],
-): AddressProvenance {
-  if (source === "contact") return "contact";
-  // "message" or absent: it came out of the task text. Geographic inference was
-  // removed — the model no longer invents a location, so 'company' is unused.
-  return "message";
-}
-
 /**
  * Resolve a local due date (+ optional time) in an IANA zone to a UTC ISO
  * instant. A date with no time defaults to 09:00 local — a sensible, obviously
@@ -329,7 +292,7 @@ export function resolveDueAt(
   let h = 9;
   let mi = 0;
   if (dueTime) {
-    const tm = /^(\d{2}):(\d{2})$/.exec(dueTime);
+    const tm = /^(\d{1,2}):(\d{2})$/.exec(dueTime);
     if (!tm) return null;
     h = Number(tm[1]);
     mi = Number(tm[2]);

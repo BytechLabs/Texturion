@@ -46,8 +46,12 @@ describe(transcriptText, () => {
     expect(transcriptText(null)).toBeNull();
     expect(transcriptText(undefined)).toBeNull();
     expect(transcriptText({})).toBeNull();
-    expect(transcriptText({ text: "" })).toBeNull();
     expect(transcriptText({ words: ["a"] })).toBeNull();
+  });
+
+  it("recognizes an empty transcript as a complete response", () => {
+    expect(transcriptText({ result: { text: "" } })).toBe("");
+    expect(sanitizeTranscript({ result: { text: "" } })).toBeNull();
   });
 });
 

@@ -33,17 +33,19 @@ import type { Env } from "../env";
 import { fetchWithDeadline } from "../http/deadline";
 import { isDefiniteRefusal, TelnyxApiError, telnyxRequest } from "../telnyx/client";
 import { runAiFeature } from "../ai/run";
+import { captureUnusableModelOutput } from "../ai/output";
 import type { CompanyAiSettings } from "../ai/settings";
 import {
   fallbackTranscriptInput,
   sanitizeTranscript,
   shouldTranscribe,
   transcriptInput,
+  transcriptText,
   VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
   VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
   VOICEMAIL_TRANSCRIPT_MODEL,
 } from "../calls/voicemail-transcript";
-import { buildIntakeMessages, intakeFromRaw, shouldExtractIntake, VOICEMAIL_INTAKE_FEATURE_SPEC, VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS, VOICEMAIL_INTAKE_MODEL } from '../calls/voicemail-intake';
+import { buildIntake, buildIntakeMessages, parseIntakeOutput, shouldExtractIntake, VOICEMAIL_INTAKE_FEATURE_SPEC, VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS, VOICEMAIL_INTAKE_MODEL } from '../calls/voicemail-intake';
 import type { VoicemailIntake } from '../calls/voicemail-intake';
 
 /** client_state tag on each member ring leg:
@@ -387,10 +389,7 @@ export async function storeVoicemailRecording(
     .update({
       voicemail_path: path,
       voicemail_seconds: seconds,
-      // Stamped whenever a model was reached, even when it found nothing, for
-      // the same reason the transcript attempt is: otherwise the same reading
-      // is bought again the next time anyone opens the call.
-      ...(intake.reached
+      ...(intake.parsed
         ? { voicemail_intake_at: new Date().toISOString() }
         : {}),
       ...(intake.intake === null ? {} : { voicemail_intake: intake.intake }),
@@ -457,13 +456,13 @@ export async function runTranscription(
     companyId,
     spec: VOICEMAIL_TRANSCRIPT_FEATURE_SPEC,
     model: VOICEMAIL_TRANSCRIPT_MODEL,
-    input: transcriptInput(Buffer.from(audio).toString("base64")),
+    input: () => transcriptInput(Buffer.from(audio).toString("base64")),
     settings,
     fallback: {
       model: VOICEMAIL_TRANSCRIPT_FALLBACK_MODEL,
-      input: fallbackTranscriptInput(audio),
+      input: () => fallbackTranscriptInput(audio),
     },
-    accept: (raw) => sanitizeTranscript(raw) !== null,
+    accept: (raw) => transcriptText(raw) !== null,
   });
   if (!result.ok) return { reached: result.reason === "model_error", text: null };
   return { reached: true, text: sanitizeTranscript(result.raw) };
@@ -492,12 +491,8 @@ async function transcribeVoicemail(
 }
 
 export interface IntakeOutcome {
-  /**
-   * Whether a model was actually reached. A refusal about the COMPANY (opted
-   * out, over cap, no binding) says nothing about THIS voicemail, so a caller
-   * must not record it as an attempt — the same distinction transcription draws.
-   */
-  reached: boolean;
+  /** True for a valid answer, including one that found no fields. */
+  parsed: boolean;
   /** The fields, or null when there were none worth keeping. */
   intake: VoicemailIntake | null;
 }
@@ -525,21 +520,30 @@ export async function extractVoicemailIntake(
     settings?: CompanyAiSettings;
   },
 ): Promise<IntakeOutcome> {
-  if (!shouldExtractIntake(args.transcript)) return { reached: false, intake: null };
+  const { transcript } = args;
+  if (transcript === null || !shouldExtractIntake(transcript)) return { parsed: false, intake: null };
+  const input = {
+    messages: buildIntakeMessages(transcript),
+    max_tokens: VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS,
+  };
   const result = await runAiFeature(env, db, {
     companyId: args.companyId,
     spec: VOICEMAIL_INTAKE_FEATURE_SPEC,
     model: VOICEMAIL_INTAKE_MODEL,
-    input: {
-      messages: buildIntakeMessages(args.transcript!),
-      max_tokens: VOICEMAIL_INTAKE_MAX_OUTPUT_TOKENS,
-    },
+    input,
     settings: args.settings,
+    fallback: { model: VOICEMAIL_INTAKE_MODEL, input },
+    accept: (raw) => parseIntakeOutput(raw) !== null,
   });
-  if (!result.ok) {
-    return { reached: result.reason === "model_error", intake: null };
+  if (!result.ok) return { parsed: false, intake: null };
+  const output = parseIntakeOutput(result.raw);
+  if (!output) {
+    await captureUnusableModelOutput(env, args.companyId, VOICEMAIL_INTAKE_FEATURE_SPEC.key, result.raw, {
+      candidates: 0,
+    });
+    return { parsed: false, intake: null };
   }
-  return { reached: true, intake: intakeFromRaw(result.raw) };
+  return { parsed: true, intake: buildIntake(output, transcript) };
 }
 
 /** Replay recovery: a voicemail already stored in OUR bucket (voicemail_path

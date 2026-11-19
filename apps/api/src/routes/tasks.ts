@@ -90,6 +90,7 @@ import { companySettingDefault, roleHasCapability } from "@loonext/shared";
 import { doneToggleAction, taskAllowedActions } from "./task-actions";
 import { ApiError, errorResponse } from "../http/errors";
 import { reportHandledFailure, workerEnv } from "../observability/capture";
+import { captureUnusableModelOutput } from "../ai/output";
 import { syncTaskReminders } from "../messaging/appointment-reminders";
 import { notifyAssigned } from "../notifications/assignment";
 import { mayHoldReference, syncReferences } from "../tasks/references";
@@ -1360,21 +1361,13 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
 
   // The contact's address on file — offered as a FREE (no-model) fallback for a
   // task whose text names no address of its own.
-  const contactFallback = () =>
-    settings.enrich_task_address && contactAddress
-      ? c.json({
-          address: {
-            street: contactAddress,
-            unit: null,
-            city: null,
-            state: null,
-            postal_code: null,
-            country: null,
-          },
-          address_provenance: "contact" as const,
-          due_at: null,
-        })
-      : c.json(EMPTY_ENRICHMENT);
+  const resultOptions = {
+    enableAddress: settings.enrich_task_address,
+    enableDue: wantDue,
+    timezone: ctx.timezone,
+    contactAddress,
+  };
+  const contactFallback = () => c.json(buildEnrichmentResult({}, resultOptions));
 
   // Nothing worth a model call — the single biggest cost saver.
   if (!wantAddress && !wantDue) return contactFallback();
@@ -1386,14 +1379,14 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
     const { success } = await env.AI_ENRICH_RATE_LIMITER.limit({
       key: companyId,
     });
-    if (!success) return c.json(EMPTY_ENRICHMENT);
+    if (!success) return contactFallback();
   }
   // And per MEMBER, so one member cannot spend the whole crew's month alone.
   if (env.AI_MEMBER_RATE_LIMITER) {
     const { success } = await env.AI_MEMBER_RATE_LIMITER.limit({
       key: `${companyId}:${c.get("userId")}`,
     });
-    if (!success) return c.json(EMPTY_ENRICHMENT);
+    if (!success) return contactFallback();
   }
 
   const messages = buildEnrichmentMessages({
@@ -1404,8 +1397,7 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
   });
 
   // One door onto the model (ai/run.ts): it owns the opt-in, the monthly cap
-  // and the timeout. Any refusal degrades to "no
-  // enrichment" — make-a-task never waits on it and never fails because of it.
+  // and the timeout.
   const enriched = await runAiFeature(env, db, {
     companyId,
     spec: ENRICHMENT_FEATURE_SPEC,
@@ -1413,20 +1405,18 @@ tasksRoutes.post("/tasks/enrich", requireCapability("conversations.note"), async
     input: { messages, max_tokens: ENRICHMENT_MAX_OUTPUT_TOKENS },
     settings,
   });
-  if (!enriched.ok) return c.json(EMPTY_ENRICHMENT);
+  if (!enriched.ok) return contactFallback();
 
   const output = parseEnrichmentOutput(enriched.raw);
-  if (!output) return c.json(EMPTY_ENRICHMENT);
+  if (!output) {
+    const diagnostics = captureUnusableModelOutput(env, companyId, ENRICHMENT_FEATURE_SPEC.key, enriched.raw, {
+      candidates: 0,
+    });
+    executionCtxOf(c)?.waitUntil(diagnostics);
+    return contactFallback();
+  }
 
-  const result = buildEnrichmentResult(output, {
-    enableAddress: settings.enrich_task_address,
-    // Gate on the date SIGNAL, not just the toggle: never surface an inferred
-    // due when the text stated no date (belt-and-suspenders with the prompt).
-    enableDue: wantDue,
-    timezone: ctx.timezone,
-    contactAddress: ctx.contactAddress,
-  });
-  return c.json(result);
+  return c.json(buildEnrichmentResult(output, resultOptions));
 });
 
 /**

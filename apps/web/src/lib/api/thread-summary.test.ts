@@ -210,7 +210,7 @@ describe("canRetryThreadSummary — is a second press worth anything", () => {
    * ones no second press can change from the thread.
    */
   it("offers no retry where nothing about a second press would differ", () => {
-    for (const reason of ["disabled", "spam", "too_short", "over_cap"] as const) {
+    for (const reason of ["disabled", "spam", "too_short", "over_cap", "nothing_to_show"] as const) {
       expect(canRetryThreadSummary(reason), reason).toBe(false);
     }
   });

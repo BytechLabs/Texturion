@@ -24,7 +24,7 @@ import type { SupabaseStub } from '../test/routes-harness';
 import { completeEnv, createTestAuth, jwksRoute, stubFetch } from '../test/support';
 import type { TestAuth } from '../test/support';
 import {
-  THREAD_SUMMARY_CONTEXT_MESSAGES,
+  THREAD_SUMMARY_CACHE_VERSION, THREAD_SUMMARY_CONTEXT_MESSAGES,
   THREAD_SUMMARY_MAX_OUTPUT_TOKENS,
   THREAD_SUMMARY_MODEL,
 } from "../messaging/thread-summary";
@@ -59,46 +59,9 @@ function fakeLimiter(
   return { limit: vi.fn(async () => ({ success })) };
 }
 
-/**
- * A model answer that QUOTES two real messages in the fixture window.
- *
- * Quotes, not summaries of them: a line survives only if the message it cites
- * contains it (`quotedFromSource`), so a fixture written the way a person
- * would summarise is a fixture that tests nothing past the sanitiser's first
- * few rules. See messaging/thread-summary.test.ts for why the model is allowed
- * to select and not to phrase.
- */
-const CITED = {
-  response: JSON.stringify({
-    asked: [{ t: "no hot water since Friday", m: 1 }],
-    open: [{ t: "we will take a look", m: 2 }],
-  }),
-};
-
-/** A model answer whose every line points outside the window. */
-const UNCITED = {
-  response: JSON.stringify({
-    asked: [{ t: "they agreed to Tuesday", m: 99 }],
-  }),
-};
-
-/** A model answer that SUMMARISES message 1 instead of quoting it. */
-const PARAPHRASED = {
-  response: JSON.stringify({
-    asked: [{ t: "customer has had no hot water since the weekend", m: 1 }],
-  }),
-};
-
-/**
- * A model answer filing the CUSTOMER's opening message under "What we said" —
- * and quoting it perfectly, which is what makes the attribution rule still
- * necessary: honest selection under the wrong heading changes who said it.
- */
-const MISATTRIBUTED = {
-  response: JSON.stringify({
-    we_said: [{ t: "no hot water since Friday", m: 1 }],
-  }),
-};
+const CITED = { response: { asked: [1], we_said: [], open: [2] } };
+const UNCITED = { response: { asked: [99], we_said: [], open: [] } };
+const MISATTRIBUTED = { response: { asked: [], we_said: [1], open: [] } };
 
 interface Row {
   id: string;
@@ -465,6 +428,7 @@ describe("the burst limiters, which the monthly cap cannot stand in for", () => 
       cache: {
         last_message_id: rows[0].id,
         lines: {
+          version: THREAD_SUMMARY_CACHE_VERSION,
           lines: [
             {
               section: "asked",
@@ -579,21 +543,12 @@ describe("output that cannot be trusted is not shown", () => {
     expect(body.dropped.misattributed).toBe(1);
   });
 
-  it("shows nothing rather than a sentence no message contains", async () => {
-    // End to end, because the message BODY has to survive the route's own row
-    // mapping to reach the quotation rule — the citation and the direction were
-    // enough for every other rule, and this one needs the words. The line is
-    // true, fluent and cites the right message; it is not in it, so it goes.
+  it("serves an explicit empty selection without unusable output diagnostics", async () => {
     const sb = stubs();
-    const { ai } = mockAi(PARAPHRASED);
-    const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {
-      lines: unknown[];
-      reason: string;
-      dropped: { notQuoted: number };
-    };
-    expect(body.lines).toEqual([]);
-    expect(body.reason).toBe("unusable_output");
-    expect(body.dropped.notQuoted).toBe(1);
+    const { ai } = mockAi({ response: { asked: [], we_said: [], open: [] } });
+    const body = await (await summarize(sb, { ...env, AI: ai })).json();
+    expect(body).toMatchObject({ lines: [], reason: "nothing_to_show" });
+    expect(body).not.toHaveProperty("dropped");
   });
 
   it("hands back a tally with no line text in it", async () => {
@@ -637,6 +592,7 @@ describe("the cache", () => {
       cache: {
         last_message_id: newest,
         lines: {
+          version: THREAD_SUMMARY_CACHE_VERSION,
           lines: [
             {
               section: "asked",
@@ -675,6 +631,18 @@ describe("the cache", () => {
     expect(body.cached).toBeUndefined();
   });
 
+  it("invalidates an unversioned cache entry for the same message", async () => {
+    const rows = thread(14);
+    const sb = stubs({
+      messages: rows,
+      cache: { last_message_id: rows[0].id, lines: { lines: [], truncated: false } },
+    });
+    const { ai, run } = mockAi(CITED);
+    const body = await (await summarize(sb, { ...env, AI: ai })).json();
+    expect(run).toHaveBeenCalledOnce();
+    expect(body).toMatchObject({ lines: expect.arrayContaining([expect.objectContaining({ message_id: "msg-1" })]) });
+  });
+
   it("ignores a cached summary written by a model we no longer call", async () => {
     const rows = thread(14);
     const sb = stubs({
@@ -683,6 +651,7 @@ describe("the cache", () => {
         last_message_id: rows[0].id,
         model: "@cf/meta/llama-2-retired",
         lines: {
+          version: THREAD_SUMMARY_CACHE_VERSION,
           lines: [
             {
               section: "asked",
@@ -710,6 +679,7 @@ describe("the cache", () => {
       cache: {
         last_message_id: rows[0].id,
         lines: {
+          version: THREAD_SUMMARY_CACHE_VERSION,
           lines: [
             {
               section: "asked",
@@ -793,7 +763,7 @@ describe("the cache", () => {
     const rows = thread(14);
     const sb = stubs({
       messages: rows,
-      cache: { last_message_id: rows[0].id, lines: { lines: [], truncated: false } },
+      cache: { last_message_id: rows[0].id, lines: { version: THREAD_SUMMARY_CACHE_VERSION, lines: [], truncated: false, emptyReason: "unusable_output" } },
     });
     const { ai, run } = mockAi(CITED);
     const body = (await (await summarize(sb, { ...env, AI: ai })).json()) as {

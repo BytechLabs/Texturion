@@ -209,7 +209,7 @@ export function ThreadSummaryCard({
     if (summary.isPending) return null;
     if (result === null) return failure?.retry ? t("common.retry") : null;
     if (!canRetryThreadSummary(result.reason)) return null;
-    if (result.lines.length === 0) return t("common.retry");
+    if (result.lines.length === 0) return result.cached ? null : t("common.retry");
     return askedAt.current === newestMessageId
       ? null
       : t("thread.catchMeUpAgain");
@@ -350,7 +350,7 @@ export function ThreadSummaryCard({
                         })}
                         className="flex w-full items-start gap-2 px-3 py-1 text-left transition-colors duration-150 ease-out hover:bg-app-hover focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                       >
-                        <span className="min-w-0 flex-1 text-[13px] leading-[1.45] text-app-ink">
+                        <span className="min-w-0 flex-1 whitespace-pre-wrap [overflow-wrap:anywhere] text-[13px] leading-[1.45] text-app-ink">
                           {line.text}
                         </span>
                         {/* The cited message's age, not the catch-up's. The

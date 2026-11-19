@@ -606,6 +606,8 @@ func threadCatchUpMessage(_ reason: String?, locale: String? = nil) -> String {
     // that message but a sentence about it.
     case "unusable_output":
         return AppStrings.translate(locale, "thread.summaryUnusable")
+    case "nothing_to_show":
+        return AppStrings.translate(locale, "thread.summaryNone")
 
     // #581: billing, not breakage. Deliberately does NOT say "try again" —
     // trying again is not what fixes it — and names the one place that does,

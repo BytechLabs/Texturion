@@ -9,7 +9,8 @@ import { describe, expect, it } from "vitest";
 
 import type { BusinessHours } from "@loonext/shared";
 
-import { buildSuggestionMessages, envelopeShape, formatBusinessHours, hasReplyableInbound, parseSuggestionOutput, sanitizeSuggestions, selectRecentContext, shouldSuggest, SUGGEST_REPLY_CONTEXT_MESSAGES, SUGGEST_REPLY_MAX_CHARS, SUGGEST_REPLY_MAX_SUGGESTIONS, threadTextOf } from './reply-suggestions';
+import { envelopeShape } from "../ai/output";
+import { buildSuggestionMessages, formatBusinessHours, hasReplyableInbound, parseSuggestionOutput, sanitizeSuggestions, selectRecentContext, shouldSuggest, SUGGEST_REPLY_CONTEXT_MESSAGES, SUGGEST_REPLY_MAX_CHARS, SUGGEST_REPLY_MAX_SUGGESTIONS, threadTextOf } from './reply-suggestions';
 import type { SuggestionMessage } from './reply-suggestions';
 
 const inbound = (body: string): SuggestionMessage => ({

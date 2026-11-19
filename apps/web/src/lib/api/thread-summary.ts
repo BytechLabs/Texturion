@@ -70,6 +70,7 @@ export type ThreadSummaryReason =
    * the service, and the honest sentence for it is different.
    */
   | "unusable_output"
+  | "nothing_to_show"
   /** #581: Lou stopped spending because the workspace stopped paying. */
   | "subscription_inactive"
   | "unavailable";
@@ -199,6 +200,7 @@ export function canRetryThreadSummary(
     case "disabled":
     case "spam":
     case "too_short":
+    case "nothing_to_show":
     case "over_cap": {
       return false;
     }
